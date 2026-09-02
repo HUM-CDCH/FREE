@@ -76,13 +76,14 @@
   "note": "The p12 2,9 is the 2023 farm-income share of household income."
  },
  {
-  "value": "1 509,2",
+  "value": "1 512,2",
   "resultPath": [
    "exportsBillionPln2024"
   ],
   "goldAnchorIds": [
-   "anchor_4107c3754722098d8f4e6e4ccc4436ff2f554350722113d64f98cab20719517e"
-  ]
+   "anchor_c23c5f9c8822d71c44c762e59169819ed8fd9162d4d4803823c7a4837c747c9a"
+  ],
+  "note": "p30 trade table: 1 512,2 is the Eksport 2024 cell; the 1 509,2 in the same row is Import - cif."
  },
  {
   "value": "3 167,17",
@@ -161,11 +162,12 @@
   "goldAnchorIds": []
  },
  {
-  "value": "1 509,3",
+  "value": "1 512,3",
   "resultPath": [
    "adversarialExports"
   ],
-  "goldAnchorIds": []
+  "goldAnchorIds": [],
+  "note": "ADVERSARIAL: off-by-one of the 1 512,2 export figure."
  },
  {
   "value": "3 167,18",

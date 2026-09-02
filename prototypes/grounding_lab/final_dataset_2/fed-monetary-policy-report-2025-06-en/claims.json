@@ -100,8 +100,10 @@
    "treasuryGeneralAccountChangeSinceJanuary"
   ],
   "goldAnchorIds": [
-   "anchor_efea88b1631f7056ca02f507940cbfe83e7d9990c58378fbd03535e795d0dbd3"
-  ]
+   "anchor_efea88b1631f7056ca02f507940cbfe83e7d9990c58378fbd03535e795d0dbd3",
+   "anchor_c1194fdbc238a21a21f0fa84a494dc3e420fb0a46d51694b6e426032f9f2792e"
+  ],
+  "note": "The p50 box states the same change in prose: a $344 billion decline in the Treasury General Account (TGA)."
  },
  {
   "value": "4.4",

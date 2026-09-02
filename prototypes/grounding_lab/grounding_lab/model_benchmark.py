@@ -1,11 +1,12 @@
-"""Benchmark pinned retriever/reranker pairs without touching production code.
+"""Benchmark pinned retriever/scorer pairs without touching production code.
 
-One invocation loads one retriever and, for reranking, one scorer. This keeps
+One invocation loads one retriever and one optional scorer. This keeps
 the 24 GB evaluation GPU predictable and makes every report reproducible.
 
 Usage:
   python -m grounding_lab.model_benchmark dataset --stage retrieval --retriever qwen-0.6b
   python -m grounding_lab.model_benchmark dataset --stage rerank --retriever qwen-0.6b --reranker qwen-0.6b
+  python -m grounding_lab.model_benchmark dataset --stage verify --retriever lfm-colbert-350m --verifier minicheck-deberta-large
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ from .pipeline import (
     RERANK_INSTRUCTION,
     Claim,
     bounded_contains,
+    claim_field,
     lexical_match,
     lexical_tier,
     render_claim,
@@ -39,6 +41,7 @@ from .pipeline import (
 K_VALUES = (10, 20, 30, 50)
 RERANK_K = 30
 CONTAINMENT_CAP = 0.25
+VERIFIER_SUPPORT_FLOOR = 0.5
 INCUMBENT_VALIDATION_WRONG = 7
 TASK_INSTRUCTION = RERANK_INSTRUCTION
 
@@ -48,10 +51,11 @@ class ModelSpec:
     repo: str
     revision: str
     batch_size: int
-    research_only: bool = False
+    eligibility: str | None = None
     instruction_aware: bool = False
     listwise: bool = False
     trust_remote_code: bool = False
+    multi_vector: bool = False
     code_revision: str | None = None
     required_modules: tuple[str, ...] = ()
 
@@ -84,17 +88,26 @@ RETRIEVERS = {
         "jinaai/jina-embeddings-v5-text-small-retrieval",
         "6856e76bb72982e58de0620458a4e8b3614da340",
         16,
-        research_only=True,
+        eligibility="research-only (non-commercial model license)",
         instruction_aware=True,
     ),
     "jina-colbert": ModelSpec(
         "jinaai/jina-colbert-v2",
         "a9dc5cd7293d4c71dbbba04829923ba4d0e4f6ea",
         8,
-        research_only=True,
+        eligibility="research-only (non-commercial model license)",
         trust_remote_code=True,
+        multi_vector=True,
         code_revision="bd55a5ec8e6c0fb1d6c26efb4b6a4a74ce8a88d3",
         required_modules=("einops",),
+    ),
+    "lfm-colbert-350m": ModelSpec(
+        "LiquidAI/LFM2.5-ColBERT-350M",
+        "9772bdf797255d8693b83e84aa98e9b2d36dd0be",
+        8,
+        eligibility="license-restricted (LFM Open License v1.0 commercial-use threshold)",
+        trust_remote_code=True,
+        multi_vector=True,
     ),
 }
 
@@ -122,30 +135,48 @@ RERANKERS = {
         1,
         instruction_aware=True,
     ),
+    "nemotron-1b": ModelSpec(
+        "nvidia/llama-nemotron-rerank-1b-v2",
+        "828765652b05bd439c9789d2a6d093db1caa1443",
+        8,
+        trust_remote_code=True,
+    ),
     "jina-v3.5": ModelSpec(
         "jinaai/jina-reranker-v3.5",
         "e8a93f33f0b22108f8c2364f8484ce3422552fbc",
         1,
-        research_only=True,
+        eligibility="research-only (non-commercial model license)",
         instruction_aware=True,
         listwise=True,
         trust_remote_code=True,
     ),
 }
 
+VERIFIERS = {
+    "minicheck-deberta-large": ModelSpec(
+        "lytang/MiniCheck-DeBERTa-v3-Large",
+        "2f2d01a54fa022a7ffadb76260e1ea8bc88c82bb",
+        8,
+    ),
+}
+
 
 def claim_text(claim: Claim, rendering: str, in_hitset: bool = False) -> str:
-    """bare: value only. rich: field + siblings always. rich-hitset: field name
-    only when disambiguating inside a verbatim hit set (abstention is not at
-    stake there; row context is on the anchor side), bare for the dense path
-    where rich context eroded abstention."""
+    """bare: value only. rich: field + siblings always. rich-hitset: field +
+    siblings only when disambiguating inside a verbatim hit set (abstention is
+    not at stake there, and siblings pick the table row over prose mentions),
+    bare for the dense path where rich context eroded abstention."""
     if rendering == "bare" or (rendering == "rich-hitset" and not in_hitset):
         return str(claim.value)
-    if rendering == "rich":
+    if rendering in ("rich", "rich-hitset"):
         return render_claim(claim)
-    if rendering == "rich-hitset":
-        return render_claim(claim, siblings=False)
     raise ValueError(f"unknown claim rendering: {rendering!r}")
+
+
+def verifier_claim_text(claim: Claim) -> str:
+    field, value = render_claim(claim, siblings=False).split(": ", 1)
+    context = f" ({claim.context})" if claim.context else ""
+    return f"The {field} is {value}{context}."
 
 
 def scores_from_ranking(ranking: list[dict], count: int) -> np.ndarray:
@@ -243,7 +274,13 @@ def _model_path(spec: ModelSpec) -> str:
 
     # Remote model code may load sibling artifacts by name. Passing the local,
     # exact-revision snapshot keeps those secondary loads pinned as well.
-    return snapshot_download(spec.repo, revision=spec.revision)
+    return snapshot_download(
+        spec.repo,
+        revision=spec.revision,
+        ignore_patterns=["pytorch_model.bin"]
+        if spec.repo == RERANKERS["nemotron-1b"].repo
+        else None,
+    )
 
 
 def _load_retriever(spec: ModelSpec):
@@ -258,19 +295,20 @@ def _load_retriever(spec: ModelSpec):
     )
     if spec.code_revision:
         model_kwargs = {**(model_kwargs or {}), "code_revision": spec.code_revision}
-    is_colbert = spec.repo == RETRIEVERS["jina-colbert"].repo
-    encoder = MultiVectorEncoder if is_colbert else SentenceTransformer
+    encoder = MultiVectorEncoder if spec.multi_vector else SentenceTransformer
     return encoder(
         model_path,
         revision=None if model_path != spec.repo else spec.revision,
         trust_remote_code=spec.trust_remote_code,
         model_kwargs=model_kwargs,
-        processor_kwargs={"fix_mistral_regex": True} if is_colbert else None,
+        processor_kwargs={"fix_mistral_regex": True}
+        if spec.repo == RETRIEVERS["jina-colbert"].repo
+        else None,
     )
 
 
 def _encode(model, spec: ModelSpec, texts: list[str], *, query: bool):
-    if spec.repo == RETRIEVERS["jina-colbert"].repo:
+    if spec.multi_vector:
         encode = model.encode_query if query else model.encode_document
         return encode(
             texts,
@@ -305,6 +343,22 @@ def _similarities(model, query_embeddings, document_embeddings) -> np.ndarray:
 
 def _load_reranker(spec: ModelSpec):
     torch = _torch()
+    if spec.repo == RERANKERS["nemotron-1b"].repo:
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+        model_path = _model_path(spec)
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_path, trust_remote_code=True, padding_side="left"
+        )
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        model = AutoModelForSequenceClassification.from_pretrained(
+            model_path, trust_remote_code=True, dtype=torch.bfloat16
+        ).to("cuda" if torch.cuda.is_available() else "cpu")
+        if model.config.pad_token_id is None:
+            model.config.pad_token_id = tokenizer.eos_token_id
+        model.eval()
+        return tokenizer, model
     if spec.listwise:
         from transformers import AutoModel, AutoTokenizer
 
@@ -335,6 +389,22 @@ def _load_reranker(spec: ModelSpec):
 
 
 def _rerank_scores(model, spec: ModelSpec, query: str, documents: list[str]) -> np.ndarray:
+    if spec.repo == RERANKERS["nemotron-1b"].repo:
+        torch = _torch()
+        tokenizer, classifier = model
+        scores = []
+        for start in range(0, len(documents), spec.batch_size):
+            texts = [
+                f"question:{query} \n \n passage:{document}"
+                for document in documents[start:start + spec.batch_size]
+            ]
+            inputs = tokenizer(
+                texts, padding=True, truncation=True, max_length=512,
+                return_tensors="pt",
+            ).to(classifier.device)
+            with torch.inference_mode():
+                scores.extend(classifier(**inputs).logits.view(-1).float().cpu().tolist())
+        return np.asarray(scores)
     if spec.listwise:
         prompted = f"{TASK_INSTRUCTION}\nExtracted scalar: {query}"
         return scores_from_ranking(model.rerank(prompted, documents), len(documents))
@@ -344,6 +414,38 @@ def _rerank_scores(model, spec: ModelSpec, query: str, documents: list[str]) -> 
         show_progress_bar=False,
     )
     return np.asarray(scores).reshape(-1)
+
+
+def _load_verifier(spec: ModelSpec):
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+    torch = _torch()
+    tokenizer = AutoTokenizer.from_pretrained(spec.repo, revision=spec.revision)
+    model = AutoModelForSequenceClassification.from_pretrained(
+        spec.repo, revision=spec.revision, dtype=torch.bfloat16
+    ).to("cuda" if torch.cuda.is_available() else "cpu")
+    model.eval()
+    return tokenizer, model
+
+
+def _verify_scores(model, spec: ModelSpec, claim: str, documents: list[str]) -> np.ndarray:
+    """MiniCheck support probabilities, using its documented document-claim order."""
+    torch = _torch()
+    tokenizer, classifier = model
+    scores = []
+    for start in range(0, len(documents), spec.batch_size):
+        texts = [
+            f"{document}{tokenizer.eos_token}{claim}"
+            for document in documents[start:start + spec.batch_size]
+        ]
+        inputs = tokenizer(
+            texts, padding=True, truncation=True, max_length=2048,
+            return_tensors="pt",
+        ).to(classifier.device)
+        with torch.inference_mode():
+            probabilities = classifier(**inputs).logits.float().softmax(dim=-1)
+        scores.extend(probabilities[:, 1].cpu().tolist())
+    return np.asarray(scores)
 
 
 def _verbatim_flags(claim: Claim, anchors) -> list[bool]:
@@ -358,6 +460,10 @@ def _warm_retriever(model, spec: ModelSpec) -> None:
 
 def _warm_reranker(model, spec: ModelSpec) -> None:
     _rerank_scores(model, spec, "evidence", ["Evidence passage.", "Unrelated text."])
+
+
+def _warm_verifier(model, spec: ModelSpec) -> None:
+    _verify_scores(model, spec, "claim: evidence", ["Evidence passage."])
 
 
 def _retrieval_rows(documents, model, spec: ModelSpec, mode: str):
@@ -410,7 +516,7 @@ def _retrieval_metrics(rows, names: set[str]) -> dict:
 def _candidates(hits, index, retriever, retriever_spec, document_embeddings, text, k, source):
     """Rerank candidates: the lexical hit set when the value is verbatim in
     several anchors (gold is one of them), else the dense shortlist."""
-    if source == "hitset" and len(hits) > 1:
+    if source == "hitset" and hits:
         return hits
     query_embeddings = _encode(retriever, retriever_spec, [text], query=True)
     retrieval_scores = _similarities(retriever, query_embeddings, document_embeddings)
@@ -418,9 +524,20 @@ def _candidates(hits, index, retriever, retriever_spec, document_embeddings, tex
     return [index.anchors[int(i)] for i in order]
 
 
+def _colliding_values(claims) -> set:
+    """Values an extraction claims under more than one field. A unique
+    lexical hit proves the value is in the document, not that it belongs to
+    this field ("Poul Kragh" as machine_operator and excavation_leader, one
+    occurrence): such hits are scored field-aware and capped for review."""
+    fields: dict = {}
+    for claim in claims:
+        fields.setdefault(claim.value, set()).add(claim_field(claim))
+    return {value for value, seen in fields.items() if len(seen) > 1}
+
+
 def _score_entries(
     documents, retriever, retriever_spec, reranker, reranker_spec, rendering, k=RERANK_K,
-    candidates="hitset", zero_hit="abstain",
+    candidates="hitset", zero_hit="abstain", rerank_one_hit=False,
 ):
     entries = []
     latencies: list[tuple[str, str, float]] = []
@@ -433,18 +550,22 @@ def _score_entries(
             [anchor.scoring_text for anchor in index.anchors],
             query=False,
         ) if dense else None
+        colliding = set() if rerank_one_hit else _colliding_values(claims)
         for claim in claims:
             started = time.perf_counter()
             decided, hits = lexical_tier(claim, index.anchors)
-            if decided is not None and (decided.anchor_id or zero_hit == "abstain"):
+            collision = bool(decided and decided.anchor_id and claim.value in colliding)
+            rerank_single = bool(rerank_one_hit and decided and decided.anchor_id)
+            if decided is not None and not collision and not rerank_single and (decided.anchor_id or zero_hit == "abstain"):
                 # one hit links; zero hits abstain without a neural pass (only
-                # 2/177 lab claims are linkable paraphrases; 0/100 on final set 2)
+                # 6/182 lab claims are linkable paraphrase/OCR/spacing cases;
+                # 0/100 on final set 2)
                 tier = "lexical" if decided.anchor_id else "abstain"
                 entries.append((doc_name, claim, tier, decided.anchor_id))
                 latencies.append((doc_name, "lexical", time.perf_counter() - started))
                 continue
-            in_hitset = candidates == "hitset" and len(hits) > 1
-            text = claim_text(claim, rendering, in_hitset)
+            in_hitset = candidates == "hitset" and (len(hits) > 1 or collision or rerank_single)
+            text = render_claim(claim) if rerank_single else claim_text(claim, rendering, in_hitset)
             shortlist = _candidates(
                 hits, index, retriever, retriever_spec, document_embeddings, text, k, candidates
             )
@@ -454,33 +575,76 @@ def _score_entries(
                 text,
                 [anchor.scoring_text for anchor in shortlist],
             )
+            # The legacy collision policy caps its special case. The generic
+            # path disables that heuristic and keeps real containment.
+            verbatim = (
+                [False] * len(shortlist)
+                if collision
+                else _verbatim_flags(claim, shortlist)
+            )
+            entries.append((doc_name, claim, "neural", (shortlist, scores, verbatim)))
+            latencies.append((doc_name, "neural", time.perf_counter() - started))
+    return entries, latencies
+
+
+def _verification_entries(documents, retriever, retriever_spec, verifier, verifier_spec, k):
+    """Policy G: retrieve zero hits, then verify every candidate independently."""
+    entries = []
+    latencies: list[tuple[str, str, float]] = []
+    for doc_name, index, claims in documents:
+        document_embeddings = _encode(
+            retriever,
+            retriever_spec,
+            [anchor.scoring_text for anchor in index.anchors],
+            query=False,
+        )
+        for claim in claims:
+            started = time.perf_counter()
+            _, hits = lexical_tier(claim, index.anchors)
+            text = verifier_claim_text(claim)
+            shortlist = hits or _candidates(
+                hits, index, retriever, retriever_spec, document_embeddings,
+                text, k, "retrieval",
+            )
+            scores = _verify_scores(
+                verifier,
+                verifier_spec,
+                text,
+                [anchor.scoring_text for anchor in shortlist],
+            )
             entries.append(
                 (
                     doc_name,
                     claim,
-                    "neural",
+                    "verifier",
                     (shortlist, scores, _verbatim_flags(claim, shortlist)),
                 )
             )
-            latencies.append((doc_name, "neural", time.perf_counter() - started))
+            latencies.append((doc_name, "verifier", time.perf_counter() - started))
     return entries, latencies
 
 
 def choose_thresholds(entries) -> tuple[float, float, dict]:
     """Tune score and auto-accept gates on dev without assuming a score scale."""
+    verifier_first = any(entry[2] == "verifier" for entry in entries)
     best_scores = [
         float(np.max(payload[1]))
         for _, _, tier, payload in entries
-        if tier == "neural"
+        if tier in {"neural", "verifier"}
     ]
-    abstain_candidates = [-math.inf] + sorted(
-        {math.nextafter(score, math.inf) for score in best_scores}
+    abstain_candidates = (
+        [VERIFIER_SUPPORT_FLOOR]
+        + sorted({math.nextafter(score, math.inf) for score in best_scores if score >= VERIFIER_SUPPORT_FLOOR})
+        if verifier_first
+        else [-math.inf] + sorted(
+            {math.nextafter(score, math.inf) for score in best_scores}
+        )
     )
     candidates = []
     for abstain in abstain_candidates:
         confidences = {1.0}
         for entry in entries:
-            if entry[2] != "neural":
+            if entry[2] not in {"neural", "verifier"}:
                 continue
             picked, confidence, _ = decide(entry, abstain, CONTAINMENT_CAP)
             if picked is not None:
@@ -495,11 +659,10 @@ def choose_thresholds(entries) -> tuple[float, float, dict]:
                 accept, metrics = threshold, current
                 break
         rank = (
-            metrics["total_correct"],
-            -metrics["wrong"],
-            metrics["correct_links"],
-            metrics["auto"],
-        )
+            (-metrics["wrong"], metrics["total_correct"])
+            if verifier_first
+            else (metrics["total_correct"], -metrics["wrong"])
+        ) + (metrics["correct_links"], metrics["auto"])
         candidates.append((rank, abstain, accept, metrics))
     _, abstain, accept, metrics = max(candidates, key=lambda candidate: candidate[0])
     return abstain, accept, metrics
@@ -510,7 +673,7 @@ def _evaluation_metrics(entries, names, abstain, accept, latencies):
     metrics = evaluate(selected, abstain, CONTAINMENT_CAP, accept)
     fallback_linkable = [
         entry for entry in selected
-        if entry[2] == "neural" and entry[1].gold_anchor_ids
+        if entry[2] in {"neural", "verifier"} and entry[1].gold_anchor_ids
     ]
     metrics["recall_at_k"] = sum(
         any(
@@ -523,7 +686,7 @@ def _evaluation_metrics(entries, names, abstain, accept, latencies):
     timings = [
         seconds
         for name, tier, seconds in latencies
-        if name in names and tier == "neural"
+        if name in names and tier in {"neural", "verifier"}
     ]
     metrics["median_ms"] = 1000 * (statistics.median(timings) if timings else 0)
     return metrics
@@ -549,7 +712,10 @@ def cv_evaluate(entries, latencies, folds):
         for key, value in metrics.items():
             if key != "median_ms":
                 pooled[key] = pooled.get(key, 0) + value
-    timings = [seconds for _, tier, seconds in latencies if tier == "neural"]
+    timings = [
+        seconds for _, tier, seconds in latencies
+        if tier in {"neural", "verifier"}
+    ]
     pooled["median_ms"] = 1000 * (statistics.median(timings) if timings else 0)
     return rows, pooled
 
@@ -561,7 +727,8 @@ def _metrics_cells(metrics) -> str:
         f"{metrics['total_correct']}/{total} | "
         f"{metrics['correct_links']}/{metrics['linkable']} | "
         f"{metrics['correct_abstains']}/{metrics['abstains_due']} | "
-        f"{metrics['wrong']} | {metrics['auto_correct']}/{metrics['auto']} | "
+        f"{metrics['review']} | {metrics['wrong']} | "
+        f"{metrics['auto_correct']}/{metrics['auto']} | "
         f"{ci(metrics['total_correct'], total)} | "
         f"{ci(metrics['auto_correct'], metrics['auto'])} | "
         f"{metrics['median_ms']:.0f}"
@@ -569,6 +736,8 @@ def _metrics_cells(metrics) -> str:
 
 
 def _candidate_labels(args) -> tuple[str, str]:
+    if getattr(args, "stage", None) == "verify":
+        return f"lexical hits; zero-hit top-{args.k} retrieval", "candidate recall"
     if args.candidates == "retrieval":
         return f"top-{args.k} retrieval", f"recall@{args.k}"
     if args.zero_hit == "abstain":
@@ -585,16 +754,28 @@ def cv_report(args, documents, entries, latencies, retriever_loaded) -> str:
         "",
         f"Generated {date.today().isoformat()} by `grounding_lab.model_benchmark`.",
         "",
-        *_model_lines(args.retriever, args.reranker, retriever_loaded),
+        *_model_lines(
+            args.retriever, args.reranker, retriever_loaded, args.verifier
+        ),
         f"- claim mode: `{args.claim_mode}`",
         f"- candidates: `{args.candidates}`",
         f"- zero-hit claims: `{args.zero_hit}`",
+        f"- strict single hits: {'reranked with rich claims' if getattr(args, 'rerank_one_hit', False) else 'linked directly'}",
         f"- candidate scope: {candidate_scope}",
+        *(
+            ["- threshold objective: minimize wrong links, then maximize correct decisions"]
+            if args.stage == "verify" else []
+        ),
+        *(
+            [f"- support threshold floor: {VERIFIER_SUPPORT_FLOOR}"]
+            if args.stage == "verify" else []
+        ),
         f"- containment cap: {CONTAINMENT_CAP}",
+        "- links below the auto-accept threshold count as review, not supported or wrong",
         f"- documents: {len(documents)} from {', '.join(f'`{root}`' for root in args.root)}",
         "",
-        f"| fold | documents | abstain | accept | {recall_label} | correct decisions | correct links | correct abstains | wrong links | auto precision | total 95% CI | auto 95% CI | median neural ms |",
-        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        f"| fold | documents | abstain | accept | {recall_label} | correct decisions | supported links | correct abstains | review | wrong links | auto precision | total 95% CI | auto 95% CI | median neural ms |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for i, (fold, abstain, accept, metrics) in enumerate(rows, 1):
         lines.append(
@@ -603,12 +784,15 @@ def cv_report(args, documents, entries, latencies, retriever_loaded) -> str:
         )
     lines.append(f"| **pooled** | all | — | — | " + _metrics_cells(pooled) + " |")
     lines += ["", "## Document results (thresholds from the document's own fold)", "",
-              "| document | fold | correct decisions | wrong links |", "|---|---:|---:|---:|"]
+              "| document | fold | correct decisions | review | wrong links |", "|---|---:|---:|---:|---:|"]
     for i, (fold, abstain, accept, _) in enumerate(rows, 1):
         for name in fold:
             metrics = _evaluation_metrics(entries, {name}, abstain, accept, latencies)
             total = metrics["linkable"] + metrics["abstains_due"]
-            lines.append(f"| {name} | {i} | {metrics['total_correct']}/{total} | {metrics['wrong']} |")
+            lines.append(
+                f"| {name} | {i} | {metrics['total_correct']}/{total} | "
+                f"{metrics['review']} | {metrics['wrong']} |"
+            )
     lines += ["", *_vram_lines(),
               "Each fold's thresholds were selected on the other folds only; pooled counts sum the held-out folds."]
     return "\n".join(lines) + "\n"
@@ -618,7 +802,12 @@ def _fmt_threshold(value: float) -> str:
     return "-∞" if value == -math.inf else f"{value:.6f}"
 
 
-def _model_lines(retriever_key: str, reranker_key: str | None = None, retriever_loaded: bool = True) -> list[str]:
+def _model_lines(
+    retriever_key: str,
+    reranker_key: str | None = None,
+    retriever_loaded: bool = True,
+    verifier_key: str | None = None,
+) -> list[str]:
     retriever = RETRIEVERS[retriever_key]
     lines = [
         f"- retriever: `{retriever_key}` — `{retriever.repo}@{retriever.revision}`"
@@ -629,10 +818,19 @@ def _model_lines(retriever_key: str, reranker_key: str | None = None, retriever_
         lines.append(
             f"- reranker: `{reranker_key}` — `{reranker.repo}@{reranker.revision}`"
         )
-    if retriever.research_only or (
-        reranker_key and RERANKERS[reranker_key].research_only
-    ):
-        lines.append("- eligibility: research-only (non-commercial model license)")
+    if verifier_key:
+        verifier = VERIFIERS[verifier_key]
+        lines.append(
+            f"- verifier: `{verifier_key}` — `{verifier.repo}@{verifier.revision}`"
+        )
+    restrictions = [retriever.eligibility]
+    if reranker_key:
+        restrictions.append(RERANKERS[reranker_key].eligibility)
+    if verifier_key:
+        restrictions.append(VERIFIERS[verifier_key].eligibility)
+    restrictions = [restriction for restriction in restrictions if restriction]
+    if restrictions:
+        lines.append("- eligibility: " + "; ".join(restrictions))
     return lines
 
 
@@ -673,18 +871,24 @@ def retrieval_report(args, documents, model, spec) -> str:
     return "\n".join(lines) + "\n"
 
 
-def rerank_report(args, documents, retriever, retriever_spec, reranker, reranker_spec):
-    entries, latencies = _score_entries(
-        documents,
-        retriever,
-        retriever_spec,
-        reranker,
-        reranker_spec,
-        args.claim_mode,
-        args.k,
-        args.candidates,
-        args.zero_hit,
-    )
+def rerank_report(args, documents, retriever, retriever_spec, scorer, scorer_spec):
+    if args.stage == "verify":
+        entries, latencies = _verification_entries(
+            documents, retriever, retriever_spec, scorer, scorer_spec, args.k
+        )
+    else:
+        entries, latencies = _score_entries(
+            documents,
+            retriever,
+            retriever_spec,
+            scorer,
+            scorer_spec,
+            args.claim_mode,
+            args.k,
+            args.candidates,
+            args.zero_hit,
+            args.rerank_one_hit,
+        )
     if args.cv is not None:
         return cv_report(args, documents, entries, latencies, retriever is not None)
     if args.abstain_threshold is not None:
@@ -705,21 +909,33 @@ def rerank_report(args, documents, retriever, retriever_spec, reranker, reranker
 
     candidate_scope, recall_label = _candidate_labels(args)
     lines = [
-        "# Neural model benchmark — reranking",
+        f"# Neural model benchmark — {'verification' if args.stage == 'verify' else 'reranking'}",
         "",
         f"Generated {date.today().isoformat()} by `grounding_lab.model_benchmark`.",
         "",
-        *_model_lines(args.retriever, args.reranker, retriever is not None),
+        *_model_lines(
+            args.retriever, args.reranker, retriever is not None, args.verifier
+        ),
         f"- claim mode: `{args.claim_mode}`",
         f"- candidates: `{args.candidates}`",
         f"- zero-hit claims: `{args.zero_hit}`",
+        f"- strict single hits: {'reranked with rich claims' if args.rerank_one_hit else 'linked directly'}",
         f"- candidate scope: {candidate_scope}",
+        *(
+            ["- threshold objective: minimize wrong links, then maximize correct decisions"]
+            if args.stage == "verify" else []
+        ),
+        *(
+            [f"- support threshold floor: {VERIFIER_SUPPORT_FLOOR}"]
+            if args.stage == "verify" else []
+        ),
         f"- abstain threshold: {_fmt_threshold(abstain)}",
         f"- containment cap: {CONTAINMENT_CAP}",
         f"- auto-accept threshold: {accept:.6f}",
+        "- links below the auto-accept threshold count as review, not supported or wrong",
         "",
-        f"| split | {recall_label} | correct decisions | correct links | correct abstains | wrong links | auto precision | total 95% CI | auto 95% CI | median neural ms |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        f"| split | {recall_label} | correct decisions | supported links | correct abstains | review | wrong links | auto precision | total 95% CI | auto 95% CI | median neural ms |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     metrics_by_split = {}
     for split in requested:
@@ -732,7 +948,8 @@ def rerank_report(args, documents, retriever, retriever_spec, reranker, reranker
             f"{metrics['total_correct']}/{total} | "
             f"{metrics['correct_links']}/{metrics['linkable']} | "
             f"{metrics['correct_abstains']}/{metrics['abstains_due']} | "
-            f"{metrics['wrong']} | {metrics['auto_correct']}/{metrics['auto']} | "
+            f"{metrics['review']} | {metrics['wrong']} | "
+            f"{metrics['auto_correct']}/{metrics['auto']} | "
             f"{ci(metrics['total_correct'], total)} | "
             f"{ci(metrics['auto_correct'], metrics['auto'])} | "
             f"{metrics['median_ms']:.0f} |"
@@ -750,14 +967,15 @@ def rerank_report(args, documents, retriever, retriever_spec, reranker, reranker
         ]
     lines += ["", "## Requested-split document results", ""]
     lines += [
-        "| document | correct decisions | wrong links |",
-        "|---|---:|---:|",
+        "| document | correct decisions | review | wrong links |",
+        "|---|---:|---:|---:|",
     ]
     for name in sorted(split_names(documents, args.split)):
         metrics = _evaluation_metrics(entries, {name}, abstain, accept, latencies)
         total = metrics["linkable"] + metrics["abstains_due"]
         lines.append(
-            f"| {name} | {metrics['total_correct']}/{total} | {metrics['wrong']} |"
+            f"| {name} | {metrics['total_correct']}/{total} | "
+            f"{metrics['review']} | {metrics['wrong']} |"
         )
     lines += ["", *_vram_lines()]
     if dev_metrics is not None:
@@ -774,12 +992,15 @@ def rerank_report(args, documents, retriever, retriever_spec, reranker, reranker
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("root", nargs="*", default=[Path("dataset")], type=Path)
-    parser.add_argument("--stage", choices=("retrieval", "rerank"), required=True)
+    parser.add_argument(
+        "--stage", choices=("retrieval", "rerank", "verify"), required=True
+    )
     parser.add_argument("--retriever", choices=tuple(RETRIEVERS), required=True)
     parser.add_argument("--reranker", choices=tuple(RERANKERS))
+    parser.add_argument("--verifier", choices=tuple(VERIFIERS))
     parser.add_argument(
         "--claim-mode", choices=("bare", "rich", "rich-hitset"), default="rich-hitset",
-        help="rich-hitset: field-name rendering only inside the lexical hit set (needs --candidates hitset)",
+        help="rich-hitset: field + sibling rendering only inside the lexical hit set (needs --candidates hitset)",
     )
     parser.add_argument(
         "--candidates", choices=("retrieval", "hitset"), default="hitset",
@@ -788,6 +1009,10 @@ def main() -> int:
     parser.add_argument(
         "--zero-hit", choices=("neural", "abstain"), default="abstain",
         help="abstain: a value verbatim in no anchor abstains without a neural pass",
+    )
+    parser.add_argument(
+        "--rerank-one-hit", action="store_true",
+        help="rerank strict single lexical hits with rich claim rendering",
     )
     parser.add_argument(
         "--split", choices=("dev", "validation", "all", "final"), default="all"
@@ -804,8 +1029,20 @@ def main() -> int:
 
     if args.stage == "rerank" and not args.reranker:
         parser.error("--reranker is required for --stage rerank")
-    if args.stage == "retrieval" and args.reranker:
+    if args.stage == "verify" and not args.verifier:
+        parser.error("--verifier is required for --stage verify")
+    if args.stage != "rerank" and args.reranker:
         parser.error("--reranker is only valid for --stage rerank")
+    if args.stage != "verify" and args.verifier:
+        parser.error("--verifier is only valid for --stage verify")
+    if args.rerank_one_hit and args.stage != "rerank":
+        parser.error("--rerank-one-hit is only valid for --stage rerank")
+    if args.rerank_one_hit and args.candidates != "hitset":
+        parser.error("--rerank-one-hit requires --candidates hitset")
+    if args.stage == "verify":
+        args.claim_mode = "rich"
+        args.candidates = "hitset"
+        args.zero_hit = "neural"
     if args.k < 1:
         parser.error("--k must be positive")
     if args.claim_mode == "rich-hitset" and args.candidates != "hitset":
@@ -835,7 +1072,7 @@ def main() -> int:
     stop, monitor = _vram_monitor()
     try:
         retriever_spec = RETRIEVERS[args.retriever]
-        needs_retriever = args.stage == "retrieval" or not (
+        needs_retriever = args.stage in {"retrieval", "verify"} or not (
             args.candidates == "hitset" and args.zero_hit == "abstain"
         )
         retriever = None
@@ -844,6 +1081,13 @@ def main() -> int:
             _warm_retriever(retriever, retriever_spec)
         if args.stage == "retrieval":
             report = retrieval_report(args, documents, retriever, retriever_spec)
+        elif args.stage == "verify":
+            verifier_spec = VERIFIERS[args.verifier]
+            verifier = _load_verifier(verifier_spec)
+            _warm_verifier(verifier, verifier_spec)
+            report = rerank_report(
+                args, documents, retriever, retriever_spec, verifier, verifier_spec
+            )
         else:
             reranker_spec = RERANKERS[args.reranker]
             reranker = _load_reranker(reranker_spec)

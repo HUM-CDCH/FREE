@@ -43,18 +43,18 @@
   {
     "value": "900 e. Kr.",
     "resultPath": [
-      "site_use_end"
+      "approximate_site_use_end"
     ],
     "goldAnchorId": "anchor_e32d087632ce1ccbfbe39f07eb77630899e5650455062013fe8b56044c3cf0aa",
-    "note": "unique, 'Frem til omkring år 900 e. Kr.'"
+    "note": "unique; source says 'Frem til omkring aar 900 e. Kr.' - the year is approximate."
   },
   {
     "value": "18",
     "resultPath": [
-      "longhouse_count"
+      "minimum_longhouse_count"
     ],
     "goldAnchorId": "anchor_735960dfc735464ebd64d7af52fd5a80579d80ff1b716608ff309481dab1c4c2",
-    "note": "hard: bare number; source says 'mindst 18 treskibede langhuse'",
+    "note": "hard: bare number; source says 'mindst 18 treskibede langhuse', so 18 is a lower bound.",
     "context": "site_name: Brøndbylund 3"
   },
   {
@@ -88,6 +88,17 @@
     ],
     "goldAnchorId": "anchor_1449a8a3f1c39ce68459b3235063db2b99f88405e3150a20027e029244c8914f",
     "note": "unique, facts box"
+  },
+  {
+    "value": "cirka 1100-900 f.Kr.",
+    "resultPath": [
+      "graveyard_use_period"
+    ],
+    "goldAnchorIds": [
+      "anchor_dbbc4c7a5fd14b241c294a2f8e52b192c47cca4bba0f897b4b1cfca5b156bd37",
+      "anchor_775caf8b0181b3365c0e85a004b88a4035c339d1a52bf60c25ca4d8e55553ef8"
+    ],
+    "note": "source says 'ca.' and 'omkring' with formatted spacing; genuinely supported paraphrase with no lexical hit"
   },
   {
     "value": "5000 m2",
@@ -146,7 +157,7 @@
   {
     "value": "19",
     "resultPath": [
-      "longhouse_count"
+      "minimum_longhouse_count"
     ],
     "goldAnchorIds": [],
     "note": "ADVERSARIAL: substring trap: appears only inside longer tokens — must abstain"

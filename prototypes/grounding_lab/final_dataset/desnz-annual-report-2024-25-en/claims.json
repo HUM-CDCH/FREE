@@ -10,7 +10,7 @@
   {"value":"$300bn","resultPath":["publicClimateFinanceGoal"],"goldAnchorId":"anchor_e2b7bb7de73ed4f1dc971959356937421203e65c80b2906580cdd29f79fd7ed6"},
   {"value":"50 years of service","resultPath":["ratcliffeService"],"goldAnchorId":"anchor_c0f1783e6f348c35de9a1d2255bb19ea5e8cf53377e2656ebc7da87a7b908a60"},
   {"value":"66,919 customers","resultPath":["northHydeCustomersAffected"],"goldAnchorId":"anchor_d27c6f18cedadd6ecc5b9d8d79f790c2277ddf451a8433b2444c00a4ceee45f8"},
-  {"value":"below 0.1 hours","resultPath":["lossOfLoadExpectation2024_25"],"goldAnchorId":"anchor_16dd1ce14cf56294a057a56188430319b3a0a2cf9e552d97a645742e67285868"},
+  {"value":"below 0.1 hours","resultPath":["lossOfLoadExpectation2024_25"],"goldAnchorIds":["anchor_16dd1ce14cf56294a057a56188430319b3a0a2cf9e552d97a645742e67285868","anchor_f0ade870d3904d11a0acbb24a209e29f9110b9943708af3700e7b03e4c6174cc"],"note":"The p21 table carries the same value as the <0.1 cell in the 2024-25 row."},
   {"value":"112%","resultPath":["nMinusOneStandard2024_25"],"goldAnchorIds":["anchor_356e39aab2b21a440f1ab615378867af0e87362aa40e75631706bee9b6e2473a","anchor_0b917c5442d91aa7d4547f1de7501e67b20d70beddc1e2d5fe085e12cc0b486c"],"note":"Reviewed: other normalized 112 hits are unrelated finance and remuneration table cells."},
   {"value":"76.8%","resultPath":["fossilFuelDependency2023"],"goldAnchorIds":["anchor_1b319df1c70c6c6d4c3cdf3b1d57f09fb60b65bea480d7da0b09b9c7b161d60f","anchor_05118c9de8a1b729351498dad1de2cf40aa8fccde81917e752494a014491eb2c"]},
   {"value":"£1,728","resultPath":["averageDualFuelBill2024"],"goldAnchorId":"anchor_21a8900d57b7f9491e4696c4ce8e335224d15daf2aeeeda620d88625e029ef24","note":"Reviewed: the other 1,728 hit is an unrelated Sizewell C table amount."},

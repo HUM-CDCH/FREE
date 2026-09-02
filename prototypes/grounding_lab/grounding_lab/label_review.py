@@ -2,12 +2,13 @@
 
 For every claim in the given documents, shows the value, resultPath, note,
 and the full text of each gold anchor (or the containment hits for
-must-abstain claims, which should be empty). Meant for verifying the
+must-abstain claims, which must match ``expectedLexicalHitIds`` when present).
+Meant for verifying the
 REVIEW-marked multi-gold judgment calls and ADVERSARIAL absent-value labels.
 
 Exits non-zero on hard label errors:
 - a gold anchor id that does not exist in anchors.json;
-- a must-abstain claim whose value has any bounded containment hit.
+- a must-abstain claim whose bounded containment hits differ from the expected set.
 
 Containment/gold mismatches are listed with their complete hit sets for human
 review, not failed: deliberate paraphrases and contextual ambiguities are
@@ -85,10 +86,12 @@ def main() -> int:
                     )
             else:
                 short_hits = [hit[:18] for hit in hits]
-                print(f"- containment hits (must be empty): {short_hits or 'none'}")
-                if hits:
+                expected_hits = set(c.get("expectedLexicalHitIds", ()))
+                print(f"- containment hits: {short_hits or 'none'}")
+                if set(hits) != expected_hits:
                     errors.append(
-                        f"{doc}: must-abstain `{c['value']}` found in {short_hits}"
+                        f"{doc}: must-abstain `{c['value']}` expected lexical hits "
+                        f"{sorted(expected_hits)}, got {hits}"
                     )
             print()
     if warnings:

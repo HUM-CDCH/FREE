@@ -55,7 +55,8 @@
       "dating"
     ],
     "goldAnchorId": "anchor_64a5a183460fb3a1f1c9db158a9eccd7b97fa4c5349211fa972e7f3dbf00753c",
-    "note": "REVIEW: substring also in grave 26's dating anchor_504ddb2; gold = grave 24's dating line"
+    "note": "REVIEW: substring also in grave 26's dating anchor_504ddb2; gold = grave 24's dating line",
+    "context": "grave_label: Grav 24"
   },
   {
     "value": "Perle af mat rødligt glas",
@@ -66,8 +67,11 @@
       6,
       "description"
     ],
-    "goldAnchorId": "anchor_0dacceee60e3bfc004f0ef8c68f68b9259667c1034a545c0d0a75deb0ecfc477",
-    "note": "unique table cell, find 24-7"
+    "goldAnchorIds": [
+      "anchor_0dacceee60e3bfc004f0ef8c68f68b9259667c1034a545c0d0a75deb0ecfc477",
+      "anchor_75304c9b7fe60820ef3e6391acb273858469f13822f46a4e3f3d6d13c82d7f6a"
+    ],
+    "note": "REVIEW multi-gold: find-list cell 24-7 + the grave 24 gravudstyr prose ('en enkel roed perle af mat glas')."
   },
   {
     "value": "Lå mellem de to underarmsknogler (24-18)",
@@ -75,11 +79,14 @@
       "records",
       2,
       "finds",
-      10,
+      9,
       "remarks"
     ],
-    "goldAnchorId": "anchor_d6a0d525a812c423e8775a14050f2ffb11c3801a2a522eff0c4ee44638ba10bb",
-    "note": "unique table cell, find 24-16"
+    "goldAnchorIds": [
+      "anchor_d6a0d525a812c423e8775a14050f2ffb11c3801a2a522eff0c4ee44638ba10bb",
+      "anchor_75304c9b7fe60820ef3e6391acb273858469f13822f46a4e3f3d6d13c82d7f6a"
+    ],
+    "note": "REVIEW multi-gold: find-list cell 24-16 (tenth entry of the grave 24 fundliste) + the gravudstyr prose ('fibel x24-16 fandtes mellem de to underarmsknogler')."
   },
   {
     "value": "16-18 år",
@@ -99,7 +106,7 @@
       "tooth_count"
     ],
     "goldAnchorId": "anchor_61cb7f12f88945cba763763f5cd1a16675753f07b7b176ddddc2704e9eb4f46d",
-    "note": "hard: bare number, lexically ambiguous everywhere; source says 'i alt 15 tænder'",
+    "note": "hard: bare number; source says 'i alt 15 taender'. Bounded containment resolves to this one anchor.",
     "context": "grave_label: Grav 26, estimated_age: 16-18 år"
   },
   {

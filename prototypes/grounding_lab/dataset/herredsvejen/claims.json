@@ -12,10 +12,9 @@
     "resultPath": [
       "excavation_leader"
     ],
-    "note": "REVIEW multi-gold: front page + signature p24 + staff list p7",
+    "note": "REVIEW multi-gold: front page 'Daglig leder' + p7 staff list '(daglig leder)'. The p24 signature names her without stating the role.",
     "goldAnchorIds": [
       "anchor_30e2ff5d0f82d466b7d0c2f8d10b323b6bb9610a2e9e5218f32fe43f3129812c",
-      "anchor_941fb6c38aa481c0b1c06cffb2e0184f53ae0d7479c4bbad7a7329447997f99d",
       "anchor_d33917c2342bac762cb66f8f2cebb30fdf2acd055fafd324871fe763d3cf0c74"
     ]
   },
@@ -143,6 +142,16 @@
     "goldAnchorId": "anchor_63fdd9a6f472254cdb6861d718a4f5e986bc62a835cb3a4eef3cfb36eda9f67c"
   },
   {
+    "value": "AAR33284",
+    "resultPath": [
+      "records",
+      3,
+      "ams_lab_number"
+    ],
+    "note": "PDF extraction inserts an unrecoverable space in the identifier; genuinely supported with no lexical hit",
+    "goldAnchorId": "anchor_63fdd9a6f472254cdb6861d718a4f5e986bc62a835cb3a4eef3cfb36eda9f67c"
+  },
+  {
     "value": "41 fragmenter",
     "resultPath": [
       "urn_fragment_count"
@@ -163,7 +172,7 @@
     "resultPath": [
       "zone_permit_area"
     ],
-    "note": "written '1300m2' without space in the document — lexical should miss",
+    "note": "written '1300m2' without space in the document; normalization still resolves it to this anchor.",
     "goldAnchorId": "anchor_9f47ea13623ac8fec7e84aa8f9213765499e87b809765b26f48964f2e13d20ef"
   },
   {
@@ -173,6 +182,17 @@
     ],
     "goldAnchorId": null,
     "note": "ADVERSARIAL near-variant of SBM1694/SBM1194; verified absent"
+  },
+  {
+    "value": "Poul Kragh",
+    "resultPath": [
+      "excavation_leader"
+    ],
+    "goldAnchorId": null,
+    "expectedLexicalHitIds": [
+      "anchor_c0395884a7d20f69d50818a3b15aa42d0af9ddadf25a8949dd27082c7e6e512c"
+    ],
+    "note": "ADVERSARIAL unique-match counterexample: the sole occurrence names a machine operator, not the excavation leader"
   },
   {
     "value": "AAR 33274",

@@ -8,7 +8,8 @@ Usage: uv run python -m grounding_lab.calibrate dataset/
        (--heldout doc1,doc2 to override the default held-out doc list)
 
 Mirrors ground(): one lexical hit links, zero hits abstain, several hits are
-scored once by the cross-encoder inside that hit set (field-name query); every
+scored once by the cross-encoder inside that hit set (field name + siblings
+query); every
 constant combination is then evaluated from those cached scores. The hit set
 is the complete candidate list and always contains the gold.
 """
@@ -60,7 +61,7 @@ def score_claims(documents):
                 continue
             scores = ce.predict(
                 [
-                    (render_claim(claim, siblings=False), a.scoring_text)
+                    (render_claim(claim), a.scoring_text)
                     for a in shortlist
                 ],
                 batch_size=CROSS_ENCODER_BATCH_SIZE,
@@ -82,12 +83,14 @@ def decide(entry, abstain, cap):
     """Return (picked_anchor_id | None, confidence, correct: bool)."""
     _, claim, tier, neural = entry
     golds = claim.gold_anchor_ids
-    assert tier == "neural", "lexical entries are handled by the caller"
+    assert tier in {"neural", "verifier"}, "lexical entries are handled by the caller"
     shortlist, scores, contained = neural
     order = scores.argsort()[::-1]
     best = float(scores[order[0]])
     runner_up = float(scores[order[1]]) if len(order) > 1 else 0.0
-    confidence = min(1.0, max(0.0, best - runner_up))
+    confidence = min(1.0, max(0.0, best if tier == "verifier" else best - runner_up))
+    if tier == "verifier" and sum(float(score) >= abstain for score in scores) != 1:
+        return None, confidence, not golds
     if best < abstain:
         return None, confidence, not golds
     i = int(order[0])
@@ -98,7 +101,7 @@ def decide(entry, abstain, cap):
 
 
 def evaluate(entries, abstain, cap, accept):
-    linkable = correct_links = abstains_due = correct_abstains = wrong = 0
+    linkable = correct_links = abstains_due = correct_abstains = review = wrong = 0
     auto_total = auto_correct = 0
     for entry in entries:
         _, claim, tier, payload = entry
@@ -112,27 +115,26 @@ def evaluate(entries, abstain, cap, accept):
             continue
         if tier == "lexical":
             confidence, correct = 1.0, payload in golds
-            if correct:
-                correct_links += 1
-            else:
-                wrong += 1
         else:
             picked, confidence, correct = decide(entry, abstain, cap)
             if picked is None:
                 correct_abstains += correct
                 continue
-            if correct:
-                correct_links += 1
-            else:
-                wrong += 1
-        if confidence >= accept:
-            auto_total += 1
-            auto_correct += correct
+        if confidence < accept:
+            review += 1
+            continue
+        auto_total += 1
+        auto_correct += correct
+        if correct:
+            correct_links += 1
+        else:
+            wrong += 1
     return {
         "correct_links": correct_links,
         "linkable": linkable,
         "correct_abstains": correct_abstains,
         "abstains_due": abstains_due,
+        "review": review,
         "wrong": wrong,
         "auto": auto_total,
         "auto_correct": auto_correct,
@@ -220,13 +222,14 @@ def main() -> int:
     combos.sort(key=lambda c: c[0], reverse=True)
 
     print("\n## Dev sweep (top 5 by correct decisions, then fewest wrong links)\n")
-    print("| abstain | cap | accept | links | abstains | wrong | auto |")
-    print("|---|---|---|---|---|---|---|")
+    print("| abstain | cap | accept | links | abstains | review | wrong | auto |")
+    print("|---|---|---|---|---|---|---|---|")
     for _, (abstain, cap, accept), m in combos[:5]:
         print(
             f"| {abstain} | {cap} | {accept} | "
             f"{m['correct_links']}/{m['linkable']} | "
-            f"{m['correct_abstains']}/{m['abstains_due']} | {m['wrong']} | "
+            f"{m['correct_abstains']}/{m['abstains_due']} | {m['review']} | "
+            f"{m['wrong']} | "
             f"{m['auto_correct']}/{m['auto']} |"
         )
 
@@ -235,8 +238,8 @@ def main() -> int:
     print(f"Incumbent:     abstain={INCUMBENT[0]}, cap={INCUMBENT[1]}, auto-accept={INCUMBENT[2]}\n")
 
     print("## Held-out results\n")
-    print("| constants | links | abstains | wrong | auto precision | links 95% CI | auto 95% CI |")
-    print("|---|---|---|---|---|---|---|")
+    print("| constants | links | abstains | review | wrong | auto precision | links 95% CI | auto 95% CI |")
+    print("|---|---|---|---|---|---|---|---|")
     for label, (abstain, cap, accept) in (
         ("chosen", chosen),
         ("incumbent", INCUMBENT),
@@ -244,14 +247,15 @@ def main() -> int:
         m = evaluate(held, abstain, cap, accept)
         print(
             f"| {label} | {m['correct_links']}/{m['linkable']} | "
-            f"{m['correct_abstains']}/{m['abstains_due']} | {m['wrong']} | "
+            f"{m['correct_abstains']}/{m['abstains_due']} | {m['review']} | "
+            f"{m['wrong']} | "
             f"{m['auto_correct']}/{m['auto']} | "
             f"{ci(m['correct_links'], m['linkable'])} | "
             f"{ci(m['auto_correct'], m['auto'])} |"
         )
     print("\nDev numbers for the same constants:\n")
-    print("| constants | links | abstains | wrong | auto precision |")
-    print("|---|---|---|---|---|")
+    print("| constants | links | abstains | review | wrong | auto precision |")
+    print("|---|---|---|---|---|---|")
     for label, (abstain, cap, accept) in (
         ("chosen", chosen),
         ("incumbent", INCUMBENT),
@@ -259,7 +263,8 @@ def main() -> int:
         m = evaluate(dev, abstain, cap, accept)
         print(
             f"| {label} | {m['correct_links']}/{m['linkable']} | "
-            f"{m['correct_abstains']}/{m['abstains_due']} | {m['wrong']} | "
+            f"{m['correct_abstains']}/{m['abstains_due']} | {m['review']} | "
+            f"{m['wrong']} | "
             f"{m['auto_correct']}/{m['auto']} |"
         )
     return 0

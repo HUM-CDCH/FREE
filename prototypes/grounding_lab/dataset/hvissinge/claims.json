@@ -15,11 +15,10 @@
     "resultPath": [
       "report_author"
     ],
-    "note": "REVIEW multi-gold: byline + text + figure caption",
+    "note": "REVIEW multi-gold: byline + p2 text naming him daily excavation leader. The p4 figure caption only places him in a grave.",
     "goldAnchorIds": [
       "anchor_e6a27f42262280822eb5a9d5298f717c06dc171da21e8eab17c311cc01da8b5b",
-      "anchor_b658d978bc50d9efe2235f78ec59e1401254f854790c077cc49d120ea82076a4",
-      "anchor_ed35116b6dbb2a14010fd3ce9dc846ba15785920695c0861f2133fc4c7ab2d28"
+      "anchor_b658d978bc50d9efe2235f78ec59e1401254f854790c077cc49d120ea82076a4"
     ]
   },
   {
@@ -27,11 +26,9 @@
     "resultPath": [
       "responsible_archaeologist"
     ],
-    "note": "REVIEW multi-gold",
+    "note": "gold = the p2 sentence 'museets ansvarlige arkaeolog var Linda Boye'. The p6 figure caption and the p18 cataloguing sentence name her without the role.",
     "goldAnchorIds": [
-      "anchor_b658d978bc50d9efe2235f78ec59e1401254f854790c077cc49d120ea82076a4",
-      "anchor_340c98e9af1b02dd7bbfe629bf0eb809bf74747593520fcb8601c5e2c1860386",
-      "anchor_1e2a97a0d55333ff39ae57682b400f6de3541bf8ba755aeb874635daa01fa9b4"
+      "anchor_b658d978bc50d9efe2235f78ec59e1401254f854790c077cc49d120ea82076a4"
     ]
   },
   {
@@ -96,8 +93,12 @@
     "resultPath": [
       "boat_width"
     ],
-    "note": "unique p10; '58 cm' also appears in the Slusegard/Egholm comparison (anchor_63679bcf2d6) which is NOT evidence for the Hvissinge boat",
-    "goldAnchorId": "anchor_942ba80df00d9b93e0dfe364b8ec877ed8dd73f67ad01cd113e2345e1599e214"
+    "note": "REVIEW multi-gold: the p10 boat description + the p15 comparison, which restates 'Baaden i grav 3 var ... indtil 58 cm bred'.",
+    "goldAnchorIds": [
+      "anchor_942ba80df00d9b93e0dfe364b8ec877ed8dd73f67ad01cd113e2345e1599e214",
+      "anchor_63679bcf2d628e3288a24fc262bec2d6d668a97dd8adda91419bad4ad6e6010e"
+    ],
+    "context": "grave_label: grav 3"
   },
   {
     "value": "Kurt Herskind",
@@ -159,6 +160,17 @@
     "goldAnchorIds": [
       "anchor_d30fc0e8717760b6507f2218a0cb2030e3f310e9e9400b02feadcbace93eadc0",
       "anchor_68434d38cc2fe26b195c69688caf4126250c5baae2536a294065a40b6858da10"
+    ]
+  },
+  {
+    "value": "at least two individuals",
+    "resultPath": [
+      "loose_bone_minimum_individual_count"
+    ],
+    "note": "English extraction paraphrases Danish 'mindst to individer'; genuinely supported with no lexical hit",
+    "goldAnchorIds": [
+      "anchor_68434d38cc2fe26b195c69688caf4126250c5baae2536a294065a40b6858da10",
+      "anchor_dcac3aaa6858eb104a5ae2a209f62aeb7af8f00ac940244c241b72374dddef0f"
     ]
   },
   {

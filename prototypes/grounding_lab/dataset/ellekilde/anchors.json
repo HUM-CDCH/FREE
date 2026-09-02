@@ -73,56 +73,56 @@
     "text": "8-1",
     "page": 1,
     "kind": "table_cell",
-    "context": "8-1 | Kæbe og tænder — 8-1"
+    "context": "N ummer | 8-1 | Kæbe og tænder — 8-1"
   },
   {
     "anchorId": "anchor_bd0949e3535789ef2ad39bf2335e7477ebaaea36abfd1866b989a0ef3b17d28e",
     "text": "Kæbe og tænder",
     "page": 1,
     "kind": "table_cell",
-    "context": "8-1 | Kæbe og tænder — Kæbe og tænder"
+    "context": "Beskrivelse | 8-1 | Kæbe og tænder — Kæbe og tænder"
   },
   {
     "anchorId": "anchor_34c332a3e5edd305f8ea99153b0fa368162b4a210774163e4c6679f22e074020",
     "text": "8-3",
     "page": 1,
     "kind": "table_cell",
-    "context": "8-3 | Dele af lårben | Meget fragmenteret — 8-3"
+    "context": "N ummer | 8-3 | Dele af lårben | Meget fragmenteret — 8-3"
   },
   {
     "anchorId": "anchor_7118ecd468d1cc745f1f0bc9238fee22930a39450a0174e807b9faccb50af542",
     "text": "Dele af lårben",
     "page": 1,
     "kind": "table_cell",
-    "context": "8-3 | Dele af lårben | Meget fragmenteret — Dele af lårben"
+    "context": "Beskrivelse | 8-3 | Dele af lårben | Meget fragmenteret — Dele af lårben"
   },
   {
     "anchorId": "anchor_389f451bd15aee2bf58560d6ef23091bd10bca202c007c1e0da32a24528e62a0",
     "text": "Meget fragmenteret",
     "page": 1,
     "kind": "table_cell",
-    "context": "8-3 | Dele af lårben | Meget fragmenteret — Meget fragmenteret"
+    "context": "Bemærkninger | 8-3 | Dele af lårben | Meget fragmenteret — Meget fragmenteret"
   },
   {
     "anchorId": "anchor_f12028a9a962db7df357b8d4c855956a866d4459ee92fbb9458213f7d42870fc",
     "text": "8-4",
     "page": 1,
     "kind": "table_cell",
-    "context": "8-4 | Dele af lårben | Meget fragmenteret — 8-4"
+    "context": "N ummer | 8-4 | Dele af lårben | Meget fragmenteret — 8-4"
   },
   {
     "anchorId": "anchor_10b2c85bbb904b944a1640460ccd5fc92cff0072a7afe1027952b5f46822b0db",
     "text": "Dele af lårben",
     "page": 1,
     "kind": "table_cell",
-    "context": "8-4 | Dele af lårben | Meget fragmenteret — Dele af lårben"
+    "context": "Beskrivelse | 8-4 | Dele af lårben | Meget fragmenteret — Dele af lårben"
   },
   {
     "anchorId": "anchor_23545dbf48f919be3a7d604a8cd071f40fadd0dc969adf2c0540f63dd09fbb7e",
     "text": "Meget fragmenteret",
     "page": 1,
     "kind": "table_cell",
-    "context": "8-4 | Dele af lårben | Meget fragmenteret — Meget fragmenteret"
+    "context": "Bemærkninger | 8-4 | Dele af lårben | Meget fragmenteret — Meget fragmenteret"
   },
   {
     "anchorId": "anchor_3b23e3358bf38d326b4ac99cc162b0fe67d423e6a8f2ca1225e52cdebc53a7c3",
@@ -162,21 +162,21 @@
     "text": "8-2",
     "page": 1,
     "kind": "table_cell",
-    "context": "8-2 | Jern | jernspænde — 8-2"
+    "context": "Fundnummer | 8-2 | Jern | jernspænde — 8-2"
   },
   {
     "anchorId": "anchor_d7a8441795a8acc9d3d4a799ce72f2e83f6db19e5fed6300ffa44fba68b5100c",
     "text": "Jern",
     "page": 1,
     "kind": "table_cell",
-    "context": "8-2 | Jern | jernspænde — Jern"
+    "context": "Beskrivelse | 8-2 | Jern | jernspænde — Jern"
   },
   {
     "anchorId": "anchor_13264f1691a0383315806606d040488a4d45756ef2c5c9e661deead13299793e",
     "text": "jernspænde",
     "page": 1,
     "kind": "table_cell",
-    "context": "8-2 | Jern | jernspænde — jernspænde"
+    "context": "Bemærkninger | 8-2 | Jern | jernspænde — jernspænde"
   },
   {
     "anchorId": "anchor_1a9ec84b89c733381fe635a3c3ebe5811a0182a3b22e97e10b51a2ddaea3373c",
@@ -270,154 +270,154 @@
     "text": "13-1",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-1 | Del af lårben | Meget fragmenteret — 13-1"
+    "context": "N ummer | 13-1 | Del af lårben | Meget fragmenteret — 13-1"
   },
   {
     "anchorId": "anchor_d17c88ee2ac005367a3be8e9126ba0bba7862efb59092d3a7e4c751aaf909e57",
     "text": "Del af lårben",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-1 | Del af lårben | Meget fragmenteret — Del af lårben"
+    "context": "Beskrivelse | 13-1 | Del af lårben | Meget fragmenteret — Del af lårben"
   },
   {
     "anchorId": "anchor_e84c9bf2f46e8189d8b88f1a97b0ebecc4dd6f98f111b81e0e54b7573c5f09ae",
     "text": "Meget fragmenteret",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-1 | Del af lårben | Meget fragmenteret — Meget fragmenteret"
+    "context": "Bemærkninger | 13-1 | Del af lårben | Meget fragmenteret — Meget fragmenteret"
   },
   {
     "anchorId": "anchor_a54349c6c6154f1ab344e0757af36fac456bc2950ca7b20a9f814a34dec71596",
     "text": "13-2",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-2 | Del af lårben — 13-2"
+    "context": "N ummer | 13-2 | Del af lårben — 13-2"
   },
   {
     "anchorId": "anchor_f4af946bf6267474526f588f7d9f173e43ac3bb8662cf73af12acfe947a310bf",
     "text": "Del af lårben",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-2 | Del af lårben — Del af lårben"
+    "context": "Beskrivelse | 13-2 | Del af lårben — Del af lårben"
   },
   {
     "anchorId": "anchor_5c33a9e76475238a740edcafe394dcb2ac14ffdedf82d20b3e97dfd343a0db44",
     "text": "13-3",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-3 | Knoglefragment | Måske del af bækkenet, udgår som følge af dårlig bevaring. — 13-3"
+    "context": "N ummer | 13-3 | Knoglefragment | Måske del af bækkenet, udgår som følge af dårlig bevaring. — 13-3"
   },
   {
     "anchorId": "anchor_42a6eeea2c63285ce25a3248f6438ddcad02723f0756c882274772befb33cf9b",
     "text": "Knoglefragment",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-3 | Knoglefragment | Måske del af bækkenet, udgår som følge af dårlig bevaring. — Knoglefragment"
+    "context": "Beskrivelse | 13-3 | Knoglefragment | Måske del af bækkenet, udgår som følge af dårlig bevaring. — Knoglefragment"
   },
   {
     "anchorId": "anchor_147082c2fa48f8411dbb15e66c9f7f2e5aafa9855009c61fef295940db6e1193",
     "text": "Måske del af bækkenet, udgår som følge af dårlig bevaring.",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-3 | Knoglefragment | Måske del af bækkenet, udgår som følge af dårlig bevaring. — Måske del af bækkenet, udgår som følge af dårlig bevaring."
+    "context": "Bemærkninger | 13-3 | Knoglefragment | Måske del af bækkenet, udgår som følge af dårlig bevaring. — Måske del af bækkenet, udgår som følge af dårlig bevaring."
   },
   {
     "anchorId": "anchor_f0dae623b8be3270c834098c927b5d7694f7f9817f42f3716fc7af73bfb20254",
     "text": "13-4",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-4 | Dele af fingerknogler | 4 forskellige, udgår som følge af dårlig bevaring. — 13-4"
+    "context": "N ummer | 13-4 | Dele af fingerknogler | 4 forskellige, udgår som følge af dårlig bevaring. — 13-4"
   },
   {
     "anchorId": "anchor_7f13a492de7108e07a9f3d288be3da4199ce53984bb3ed44f338dbd1f9b63cd6",
     "text": "Dele af fingerknogler",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-4 | Dele af fingerknogler | 4 forskellige, udgår som følge af dårlig bevaring. — Dele af fingerknogler"
+    "context": "Beskrivelse | 13-4 | Dele af fingerknogler | 4 forskellige, udgår som følge af dårlig bevaring. — Dele af fingerknogler"
   },
   {
     "anchorId": "anchor_995cf7bbb56efd87b28cb2070e3beb1761ea0c4a2543a5e73fa7aeb99bfa21d8",
     "text": "4 forskellige, udgår som følge af dårlig bevaring.",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-4 | Dele af fingerknogler | 4 forskellige, udgår som følge af dårlig bevaring. — 4 forskellige, udgår som følge af dårlig bevaring."
+    "context": "Bemærkninger | 13-4 | Dele af fingerknogler | 4 forskellige, udgår som følge af dårlig bevaring. — 4 forskellige, udgår som følge af dårlig bevaring."
   },
   {
     "anchorId": "anchor_fa4feced12fd000fe888edfce403b0a3e7fce012f73b9c752299e5a379f1c6f3",
     "text": "13-5",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-5 | Overarm | Meget fragmenteret — 13-5"
+    "context": "N ummer | 13-5 | Overarm | Meget fragmenteret — 13-5"
   },
   {
     "anchorId": "anchor_e23f320b18e22f4c3383faa7d4a045dd8ce0bdd67fcb5e5c586262c84ba3afed",
     "text": "Overarm",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-5 | Overarm | Meget fragmenteret — Overarm"
+    "context": "Beskrivelse | 13-5 | Overarm | Meget fragmenteret — Overarm"
   },
   {
     "anchorId": "anchor_abb51c91a80534dad3303563236f7955dd9a2d1cb10224098a16424900ef68f6",
     "text": "Meget fragmenteret",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-5 | Overarm | Meget fragmenteret — Meget fragmenteret"
+    "context": "Bemærkninger | 13-5 | Overarm | Meget fragmenteret — Meget fragmenteret"
   },
   {
     "anchorId": "anchor_e0969ac9f0e6a2b4ff6deeedbfed227f868192301f2928c767a4f0316056a223",
     "text": "13-6",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-6 | Rester af ribben og nøgleben | Meget fragmenteret, udgår som følge af dårlig bevaring. — 13-6"
+    "context": "N ummer | 13-6 | Rester af ribben og nøgleben | Meget fragmenteret, udgår som følge af dårlig bevaring. — 13-6"
   },
   {
     "anchorId": "anchor_fa656836b750879a86cf2c59f05956a5c9579821817ebe0e01079ccf52467847",
     "text": "Rester af ribben og nøgleben",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-6 | Rester af ribben og nøgleben | Meget fragmenteret, udgår som følge af dårlig bevaring. — Rester af ribben og nøgleben"
+    "context": "Beskrivelse | 13-6 | Rester af ribben og nøgleben | Meget fragmenteret, udgår som følge af dårlig bevaring. — Rester af ribben og nøgleben"
   },
   {
     "anchorId": "anchor_ebbf65d72247f4f9ef5a915265981d337489db7a315d42058e87c89eb3288079",
     "text": "Meget fragmenteret, udgår som følge af dårlig bevaring.",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-6 | Rester af ribben og nøgleben | Meget fragmenteret, udgår som følge af dårlig bevaring. — Meget fragmenteret, udgår som følge af dårlig bevaring."
+    "context": "Bemærkninger | 13-6 | Rester af ribben og nøgleben | Meget fragmenteret, udgår som følge af dårlig bevaring. — Meget fragmenteret, udgår som følge af dårlig bevaring."
   },
   {
     "anchorId": "anchor_4722f293ecf8640bb813c2d3e012ca0f11ecd2050cb7d11de8662dc57ed675bd",
     "text": "13-7",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-7 | Tænder, del af kæbe og kranie | Meget fragmenteret, taget op i præparat — 13-7"
+    "context": "N ummer | 13-7 | Tænder, del af kæbe og kranie | Meget fragmenteret, taget op i præparat — 13-7"
   },
   {
     "anchorId": "anchor_fa266ad8b7f019f166aeb14dd0cfd5646bc64794d2b4687ffe979c36d4268efe",
     "text": "Tænder, del af kæbe og kranie",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-7 | Tænder, del af kæbe og kranie | Meget fragmenteret, taget op i præparat — Tænder, del af kæbe og kranie"
+    "context": "Beskrivelse | 13-7 | Tænder, del af kæbe og kranie | Meget fragmenteret, taget op i præparat — Tænder, del af kæbe og kranie"
   },
   {
     "anchorId": "anchor_8cc798e558c62b987adcb6a0d9add1b32b86e567b2497a39b3638e3a253bf145",
     "text": "Meget fragmenteret, taget op i præparat",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-7 | Tænder, del af kæbe og kranie | Meget fragmenteret, taget op i præparat — Meget fragmenteret, taget op i præparat"
+    "context": "Bemærkninger | 13-7 | Tænder, del af kæbe og kranie | Meget fragmenteret, taget op i præparat — Meget fragmenteret, taget op i præparat"
   },
   {
     "anchorId": "anchor_947a1f368efc1635cad3294b7cf8dd0ac697c37e0d9173c5cd8cdfd8be4f38f6",
     "text": "13-8",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-8 | Knoglefragment — 13-8"
+    "context": "N ummer | 13-8 | Knoglefragment — 13-8"
   },
   {
     "anchorId": "anchor_967db12edbdb3904ddd62be1e32962a8a331cb7a1886bad2c56a8b9552e08224",
     "text": "Knoglefragment",
     "page": 2,
     "kind": "table_cell",
-    "context": "13-8 | Knoglefragment — Knoglefragment"
+    "context": "Beskrivelse | 13-8 | Knoglefragment — Knoglefragment"
   },
   {
     "anchorId": "anchor_faa3abc3e1c5350196e62c5bbbe3fb0b07e9a0f21687548ab82f99383dff91a6",
@@ -535,140 +535,140 @@
     "text": "24-8",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-8 | Overarmsknogle — 24-8"
+    "context": "N ummer | 24-8 | Overarmsknogle — 24-8"
   },
   {
     "anchorId": "anchor_d0095ae9cc5e7fc5169da50185d154b59e5b8af05f4dc0d830ee03bdf56bdc3c",
     "text": "Overarmsknogle",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-8 | Overarmsknogle — Overarmsknogle"
+    "context": "Beskrivelse | 24-8 | Overarmsknogle — Overarmsknogle"
   },
   {
     "anchorId": "anchor_5e8c8db13cf2aa9aab24c71e9572f1cc5112f19fa0ac2a90706378142c9cd6ae",
     "text": "24-9",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-9 | Underarmsknogler | 2 stk. — 24-9"
+    "context": "N ummer | 24-9 | Underarmsknogler | 2 stk. — 24-9"
   },
   {
     "anchorId": "anchor_7b19ab727614e35fe7b4371771622acf6c497929652ea6f52ee575c7cfdc77c8",
     "text": "Underarmsknogler",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-9 | Underarmsknogler | 2 stk. — Underarmsknogler"
+    "context": "Beskrivelse | 24-9 | Underarmsknogler | 2 stk. — Underarmsknogler"
   },
   {
     "anchorId": "anchor_245c0c5bdb6b75ae22ac8f45df6d5233979a092696778f5f8540d51c5bfd439b",
     "text": "2 stk.",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-9 | Underarmsknogler | 2 stk. — 2 stk."
+    "context": "Bemærkninger | 24-9 | Underarmsknogler | 2 stk. — 2 stk."
   },
   {
     "anchorId": "anchor_4203c2548d7bf3b5b1901a917d476350e3f6658e7b1dd18303608ad6c06ebef3",
     "text": "24-10",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-10 | Lårbensknogle — 24-10"
+    "context": "N ummer | 24-10 | Lårbensknogle — 24-10"
   },
   {
     "anchorId": "anchor_404ef5fd54f0365b45a701b6022f58c54c6869146971fa94b9e4504c834a1e3d",
     "text": "Lårbensknogle",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-10 | Lårbensknogle — Lårbensknogle"
+    "context": "Beskrivelse | 24-10 | Lårbensknogle — Lårbensknogle"
   },
   {
     "anchorId": "anchor_0c08b39080a031d4246057f67db7d69084ba44ee71f752dd5e731c2cc5518677",
     "text": "24-11",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-11 | Lårbensknogle — 24-11"
+    "context": "N ummer | 24-11 | Lårbensknogle — 24-11"
   },
   {
     "anchorId": "anchor_d55ac6b0a0856f27bafbe017c9146bd60c0b87a4e9190e99e81c84b1cbb8bc69",
     "text": "Lårbensknogle",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-11 | Lårbensknogle — Lårbensknogle"
+    "context": "Beskrivelse | 24-11 | Lårbensknogle — Lårbensknogle"
   },
   {
     "anchorId": "anchor_9de19ea2617abc1a5097d2cb4af566692524658d614f676cfde0f4ad856069e1",
     "text": "24-12",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-12 | Skinnebensknogler | 2 stk. — 24-12"
+    "context": "N ummer | 24-12 | Skinnebensknogler | 2 stk. — 24-12"
   },
   {
     "anchorId": "anchor_28c6d5ba579e47f4e8cd1284d8512f37ad5545e111962012f3b2ebce6c94ef46",
     "text": "Skinnebensknogler",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-12 | Skinnebensknogler | 2 stk. — Skinnebensknogler"
+    "context": "Beskrivelse | 24-12 | Skinnebensknogler | 2 stk. — Skinnebensknogler"
   },
   {
     "anchorId": "anchor_49251883cbba32a9389736b1730ca5614b249c67fa413d824ed7df837c5d302a",
     "text": "2 stk.",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-12 | Skinnebensknogler | 2 stk. — 2 stk."
+    "context": "Bemærkninger | 24-12 | Skinnebensknogler | 2 stk. — 2 stk."
   },
   {
     "anchorId": "anchor_65d82586dd731594d1e14a9f3a6c927b2aad58aeaef51e3cb0087871bc5e7a45",
     "text": "24-13",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-13 | Skinnebensknogle — 24-13"
+    "context": "N ummer | 24-13 | Skinnebensknogle — 24-13"
   },
   {
     "anchorId": "anchor_7a360115f08089a53a2ad173769a9cdc36247163e1fccee069a0dd151a4e40b2",
     "text": "Skinnebensknogle",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-13 | Skinnebensknogle — Skinnebensknogle"
+    "context": "Beskrivelse | 24-13 | Skinnebensknogle — Skinnebensknogle"
   },
   {
     "anchorId": "anchor_8f140c80066abbac521992f70e9c7470c0bbafb651fdd3eb43654ed0d53adb20",
     "text": "24-17",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-17 | Overarmsknogle | - — 24-17"
+    "context": "N ummer | 24-17 | Overarmsknogle | - — 24-17"
   },
   {
     "anchorId": "anchor_546e32cb18f561ea1905f453f2ae13d30c7767b0298b4928cbf448d582f54908",
     "text": "Overarmsknogle",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-17 | Overarmsknogle | - — Overarmsknogle"
+    "context": "Beskrivelse | 24-17 | Overarmsknogle | - — Overarmsknogle"
   },
   {
     "anchorId": "anchor_eb98500b0f72a44f0ec77eef0cc9219a7e89f5d7ff6b74103cfef81495d949e4",
     "text": "-",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-17 | Overarmsknogle | - — -"
+    "context": "Bemærkninger | 24-17 | Overarmsknogle | - — -"
   },
   {
     "anchorId": "anchor_aae8606ee4fed931aea5003319f6097cd44e86b8584008fe2380a154995fa7dc",
     "text": "24-18",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-18 | Underarmsknogler | 2 stk. — 24-18"
+    "context": "N ummer | 24-18 | Underarmsknogler | 2 stk. — 24-18"
   },
   {
     "anchorId": "anchor_7bc7de5f347ead294b20c8e10376b9a812ec60f857916e6c009f7e3f813bf684",
     "text": "Underarmsknogler",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-18 | Underarmsknogler | 2 stk. — Underarmsknogler"
+    "context": "Beskrivelse | 24-18 | Underarmsknogler | 2 stk. — Underarmsknogler"
   },
   {
     "anchorId": "anchor_21a69441834b43742e17d309fa7f360f77efd8793dcd60be627809f801d55e7f",
     "text": "2 stk.",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-18 | Underarmsknogler | 2 stk. — 2 stk."
+    "context": "Bemærkninger | 24-18 | Underarmsknogler | 2 stk. — 2 stk."
   },
   {
     "anchorId": "anchor_75304c9b7fe60820ef3e6391acb273858469f13822f46a4e3f3d6d13c82d7f6a",
@@ -708,210 +708,210 @@
     "text": "24-1",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-1 | Lerkar, ornamenteret sortbrunt | Fundet stående på gravens bundlag, 30 cm dybde. — 24-1"
+    "context": "Fundnummer | 24-1 | Lerkar, ornamenteret sortbrunt | Fundet stående på gravens bundlag, 30 cm dybde. — 24-1"
   },
   {
     "anchorId": "anchor_42dfa6220aa27390f1005ef3e96ba828fb35a65a38ebdb94810667cf13cc61e1",
     "text": "Lerkar, ornamenteret sortbrunt",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-1 | Lerkar, ornamenteret sortbrunt | Fundet stående på gravens bundlag, 30 cm dybde. — Lerkar, ornamenteret sortbrunt"
+    "context": "Beskrivelse | 24-1 | Lerkar, ornamenteret sortbrunt | Fundet stående på gravens bundlag, 30 cm dybde. — Lerkar, ornamenteret sortbrunt"
   },
   {
     "anchorId": "anchor_c891f4223f1cbe74ac56dce52fa6d6db69911d7d709663778132ef78ef0c8fa9",
     "text": "Fundet stående på gravens bundlag, 30 cm dybde.",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-1 | Lerkar, ornamenteret sortbrunt | Fundet stående på gravens bundlag, 30 cm dybde. — Fundet stående på gravens bundlag, 30 cm dybde."
+    "context": "Bemærkninger | 24-1 | Lerkar, ornamenteret sortbrunt | Fundet stående på gravens bundlag, 30 cm dybde. — Fundet stående på gravens bundlag, 30 cm dybde."
   },
   {
     "anchorId": "anchor_4ba0d1075f8766949ccbef7ad7fb448705ac825592c4d1e97ee325a2359abc22",
     "text": "24-2",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-2 | Lerkarskår | Skårene hører til x24-1, men har ikke kunnet indplaceres i karret. — 24-2"
+    "context": "Fundnummer | 24-2 | Lerkarskår | Skårene hører til x24-1, men har ikke kunnet indplaceres i karret. — 24-2"
   },
   {
     "anchorId": "anchor_bbb190b4e6115d21c6704de055cd3af3e1204f92cd46d37759ed40a9b93a0fb0",
     "text": "Lerkarskår",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-2 | Lerkarskår | Skårene hører til x24-1, men har ikke kunnet indplaceres i karret. — Lerkarskår"
+    "context": "Beskrivelse | 24-2 | Lerkarskår | Skårene hører til x24-1, men har ikke kunnet indplaceres i karret. — Lerkarskår"
   },
   {
     "anchorId": "anchor_ef6fb8505bd7d103b5c102f98969b1ec9f45a138516050a47c8370fd1deb1fc5",
     "text": "Skårene hører til x24-1, men har ikke kunnet indplaceres i karret.",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-2 | Lerkarskår | Skårene hører til x24-1, men har ikke kunnet indplaceres i karret. — Skårene hører til x24-1, men har ikke kunnet indplaceres i karret."
+    "context": "Bemærkninger | 24-2 | Lerkarskår | Skårene hører til x24-1, men har ikke kunnet indplaceres i karret. — Skårene hører til x24-1, men har ikke kunnet indplaceres i karret."
   },
   {
     "anchorId": "anchor_05a3ff4e5647cdf76af65f3ee17d4040617d878bd46a4b8babbc382eced0bd29",
     "text": "24-3",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-3 | Lerkarskår | Fundet i niveau 2. — 24-3"
+    "context": "Fundnummer | 24-3 | Lerkarskår | Fundet i niveau 2. — 24-3"
   },
   {
     "anchorId": "anchor_74112d7e31e80450f16cc9c75b6ad0f578c816e06515b100740548d920d68554",
     "text": "Lerkarskår",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-3 | Lerkarskår | Fundet i niveau 2. — Lerkarskår"
+    "context": "Beskrivelse | 24-3 | Lerkarskår | Fundet i niveau 2. — Lerkarskår"
   },
   {
     "anchorId": "anchor_e04d1f27eca6fb16044d6a4e5f6f0b022a178960644026b75f45fad2d26e7754",
     "text": "Fundet i niveau 2.",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-3 | Lerkarskår | Fundet i niveau 2. — Fundet i niveau 2."
+    "context": "Bemærkninger | 24-3 | Lerkarskår | Fundet i niveau 2. — Fundet i niveau 2."
   },
   {
     "anchorId": "anchor_4935fcb46fa7b51f3bcdefa48256b4d2f41d586fd4262e8407d675d99cbd39f6",
     "text": "24-4",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-4 | Lerkarskår | Fundet i niveau 3. — 24-4"
+    "context": "Fundnummer | 24-4 | Lerkarskår | Fundet i niveau 3. — 24-4"
   },
   {
     "anchorId": "anchor_63e13fbdbdae41ca15f30a8ca3c099cd41a348d60653317b8196525807782fce",
     "text": "Lerkarskår",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-4 | Lerkarskår | Fundet i niveau 3. — Lerkarskår"
+    "context": "Beskrivelse | 24-4 | Lerkarskår | Fundet i niveau 3. — Lerkarskår"
   },
   {
     "anchorId": "anchor_4dbfd0d3f81e78b8bf0e74977149a6bdce1d7f29da743fff7827a9ec745eaf79",
     "text": "Fundet i niveau 3.",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-4 | Lerkarskår | Fundet i niveau 3. — Fundet i niveau 3."
+    "context": "Bemærkninger | 24-4 | Lerkarskår | Fundet i niveau 3. — Fundet i niveau 3."
   },
   {
     "anchorId": "anchor_bdc8a88dc9d9910dd92d19448977d2333e729ea3dc5ad78a2254d087d7681f19",
     "text": "24-5",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-5 | 2 lerkarskår | Fundet i niveau 3. — 24-5"
+    "context": "Fundnummer | 24-5 | 2 lerkarskår | Fundet i niveau 3. — 24-5"
   },
   {
     "anchorId": "anchor_29a4c122750ea62977b4bb7219360760ab17a96c9dae1e142a0834afa0f12e61",
     "text": "2 lerkarskår",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-5 | 2 lerkarskår | Fundet i niveau 3. — 2 lerkarskår"
+    "context": "Beskrivelse | 24-5 | 2 lerkarskår | Fundet i niveau 3. — 2 lerkarskår"
   },
   {
     "anchorId": "anchor_e6bb842af46ecdca3c1c6f31f8aee1145ac706c578274ee2bf4d02e8d4769a97",
     "text": "Fundet i niveau 3.",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-5 | 2 lerkarskår | Fundet i niveau 3. — Fundet i niveau 3."
+    "context": "Bemærkninger | 24-5 | 2 lerkarskår | Fundet i niveau 3. — Fundet i niveau 3."
   },
   {
     "anchorId": "anchor_ff5cbfff497a4d4994053a2b4807b3fba244cf068855c5ec470b6e6f6e6eaf00",
     "text": "24-6",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-6 | Fragment af ravperle | Fundet i niveau 3. — 24-6"
+    "context": "Fundnummer | 24-6 | Fragment af ravperle | Fundet i niveau 3. — 24-6"
   },
   {
     "anchorId": "anchor_bef6c0fb85274c713dcd8c43be8fe6d24ca92367de359cde69d19fc5b2b2ad81",
     "text": "Fragment af ravperle",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-6 | Fragment af ravperle | Fundet i niveau 3. — Fragment af ravperle"
+    "context": "Beskrivelse | 24-6 | Fragment af ravperle | Fundet i niveau 3. — Fragment af ravperle"
   },
   {
     "anchorId": "anchor_49fe9540a7f95c3a23f2009615bc19734d17001f2fecdf3d383d78490064d303",
     "text": "Fundet i niveau 3.",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-6 | Fragment af ravperle | Fundet i niveau 3. — Fundet i niveau 3."
+    "context": "Bemærkninger | 24-6 | Fragment af ravperle | Fundet i niveau 3. — Fundet i niveau 3."
   },
   {
     "anchorId": "anchor_3f25b580fb39072d47123bb1835d55858467ba138bc2a244c29200300a15d996",
     "text": "24-7",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-7 | Perle af mat rødligt glas | Fundet i niveau 4, ved siden af venstre underarm. — 24-7"
+    "context": "Fundnummer | 24-7 | Perle af mat rødligt glas | Fundet i niveau 4, ved siden af venstre underarm. — 24-7"
   },
   {
     "anchorId": "anchor_0dacceee60e3bfc004f0ef8c68f68b9259667c1034a545c0d0a75deb0ecfc477",
     "text": "Perle af mat rødligt glas",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-7 | Perle af mat rødligt glas | Fundet i niveau 4, ved siden af venstre underarm. — Perle af mat rødligt glas"
+    "context": "Beskrivelse | 24-7 | Perle af mat rødligt glas | Fundet i niveau 4, ved siden af venstre underarm. — Perle af mat rødligt glas"
   },
   {
     "anchorId": "anchor_93ea748833a87caea9b591980b91d8bfe0f035be7b21c21d3e15e9de805dab97",
     "text": "Fundet i niveau 4, ved siden af venstre underarm.",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-7 | Perle af mat rødligt glas | Fundet i niveau 4, ved siden af venstre underarm. — Fundet i niveau 4, ved siden af venstre underarm."
+    "context": "Bemærkninger | 24-7 | Perle af mat rødligt glas | Fundet i niveau 4, ved siden af venstre underarm. — Fundet i niveau 4, ved siden af venstre underarm."
   },
   {
     "anchorId": "anchor_3c4a323cf5565b2b8cb765d27caf877e80ab4ba81f4de0564ac8116d2f418773",
     "text": "24-14",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-14 | Miniaturelerkar | Lå med bunden i vejret. Sortglittet gods med stregeornamentik — 24-14"
+    "context": "Fundnummer | 24-14 | Miniaturelerkar | Lå med bunden i vejret. Sortglittet gods med stregeornamentik — 24-14"
   },
   {
     "anchorId": "anchor_8db2374142e6a5021cb1bf8b58307658cf541cba827269b847747591ed8c393c",
     "text": "Miniaturelerkar",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-14 | Miniaturelerkar | Lå med bunden i vejret. Sortglittet gods med stregeornamentik — Miniaturelerkar"
+    "context": "Beskrivelse | 24-14 | Miniaturelerkar | Lå med bunden i vejret. Sortglittet gods med stregeornamentik — Miniaturelerkar"
   },
   {
     "anchorId": "anchor_cf62e2a8dfa5e118dbf16f7320da3d926690f9c26eb82b446beb30713f29a2b5",
     "text": "Lå med bunden i vejret. Sortglittet gods med stregeornamentik",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-14 | Miniaturelerkar | Lå med bunden i vejret. Sortglittet gods med stregeornamentik — Lå med bunden i vejret. Sortglittet gods med stregeornamentik"
+    "context": "Bemærkninger | 24-14 | Miniaturelerkar | Lå med bunden i vejret. Sortglittet gods med stregeornamentik — Lå med bunden i vejret. Sortglittet gods med stregeornamentik"
   },
   {
     "anchorId": "anchor_f6c4c4a53f18e625cbb1820719dea1865a19bcd8602b4e21177e428096f55458",
     "text": "24-15",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-15 | Fragmenteret Haraldstedfibel | Dårligt bevaret. Men nåleholderen tydelig. — 24-15"
+    "context": "Fundnummer | 24-15 | Fragmenteret Haraldstedfibel | Dårligt bevaret. Men nåleholderen tydelig. — 24-15"
   },
   {
     "anchorId": "anchor_4b7dd5575af6728d2c51f90b9f402b3c0d66e35b928a90109804f4ee26349131",
     "text": "Fragmenteret Haraldstedfibel",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-15 | Fragmenteret Haraldstedfibel | Dårligt bevaret. Men nåleholderen tydelig. — Fragmenteret Haraldstedfibel"
+    "context": "Beskrivelse | 24-15 | Fragmenteret Haraldstedfibel | Dårligt bevaret. Men nåleholderen tydelig. — Fragmenteret Haraldstedfibel"
   },
   {
     "anchorId": "anchor_5678ee594ec49dc52798b6e79c91be45376c608503cb1dd726e8e0831258891a",
     "text": "Dårligt bevaret. Men nåleholderen tydelig.",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-15 | Fragmenteret Haraldstedfibel | Dårligt bevaret. Men nåleholderen tydelig. — Dårligt bevaret. Men nåleholderen tydelig."
+    "context": "Bemærkninger | 24-15 | Fragmenteret Haraldstedfibel | Dårligt bevaret. Men nåleholderen tydelig. — Dårligt bevaret. Men nåleholderen tydelig."
   },
   {
     "anchorId": "anchor_a50f61fd724042cfdbfc350dbcca89e8092723fee502c5a7f60d5e3fff2f0d87",
     "text": "24-16",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-16 | Haraldstedfibel | Lå mellem de to underarmsknogler (24-18) — 24-16"
+    "context": "Fundnummer | 24-16 | Haraldstedfibel | Lå mellem de to underarmsknogler (24-18) — 24-16"
   },
   {
     "anchorId": "anchor_8042c0a5bbd77567bf2cc6615c97fae41a6a55b4132e416cec3547729cdfd588",
     "text": "Haraldstedfibel",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-16 | Haraldstedfibel | Lå mellem de to underarmsknogler (24-18) — Haraldstedfibel"
+    "context": "Beskrivelse | 24-16 | Haraldstedfibel | Lå mellem de to underarmsknogler (24-18) — Haraldstedfibel"
   },
   {
     "anchorId": "anchor_d6a0d525a812c423e8775a14050f2ffb11c3801a2a522eff0c4ee44638ba10bb",
     "text": "Lå mellem de to underarmsknogler (24-18)",
     "page": 3,
     "kind": "table_cell",
-    "context": "24-16 | Haraldstedfibel | Lå mellem de to underarmsknogler (24-18) — Lå mellem de to underarmsknogler (24-18)"
+    "context": "Bemærkninger | 24-16 | Haraldstedfibel | Lå mellem de to underarmsknogler (24-18) — Lå mellem de to underarmsknogler (24-18)"
   },
   {
     "anchorId": "anchor_7426687c24435d9e94c29de222392ccb8092e4c3afbc8b5b3be12df1f0b123c5",
@@ -999,336 +999,336 @@
     "text": "26-3",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-3 | Knogle | Små fragmenter, dårligt bevaret. Niv. 1 — 26-3"
+    "context": "N ummer | 26-3 | Knogle | Små fragmenter, dårligt bevaret. Niv. 1 — 26-3"
   },
   {
     "anchorId": "anchor_87c42c595ac39cfe7a1d07df3af46977fc7ad1a1f69efd8fda0d03cfab63f153",
     "text": "Knogle",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-3 | Knogle | Små fragmenter, dårligt bevaret. Niv. 1 — Knogle"
+    "context": "Beskrivelse | 26-3 | Knogle | Små fragmenter, dårligt bevaret. Niv. 1 — Knogle"
   },
   {
     "anchorId": "anchor_ef2ebc1479eaa518710baab39eb505f3595645092eb872afbbe8effdf9188c5c",
     "text": "Små fragmenter, dårligt bevaret. Niv. 1",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-3 | Knogle | Små fragmenter, dårligt bevaret. Niv. 1 — Små fragmenter, dårligt bevaret. Niv. 1"
+    "context": "Bemærkninger | 26-3 | Knogle | Små fragmenter, dårligt bevaret. Niv. 1 — Små fragmenter, dårligt bevaret. Niv. 1"
   },
   {
     "anchorId": "anchor_92107d8106ee8d69bf4cb56309d780e0eeeb1287b89af100316d7c5ef67603de",
     "text": "26-12",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-12 | Tand, human | Fragmenteret. Niv 6 — 26-12"
+    "context": "N ummer | 26-12 | Tand, human | Fragmenteret. Niv 6 — 26-12"
   },
   {
     "anchorId": "anchor_2a95637fc1555e1d7122449312efc49afde2348e4f5e0ab985dac05b835ed27a",
     "text": "Tand, human",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-12 | Tand, human | Fragmenteret. Niv 6 — Tand, human"
+    "context": "Beskrivelse | 26-12 | Tand, human | Fragmenteret. Niv 6 — Tand, human"
   },
   {
     "anchorId": "anchor_56205e8a31803b0ae86b39cd057c8a453052cfdc2ef59cd7ec54cd36303bb850",
     "text": "Fragmenteret. Niv 6",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-12 | Tand, human | Fragmenteret. Niv 6 — Fragmenteret. Niv 6"
+    "context": "Bemærkninger | 26-12 | Tand, human | Fragmenteret. Niv 6 — Fragmenteret. Niv 6"
   },
   {
     "anchorId": "anchor_d77a3ab0ce2bdfda045c3403dfb71429b64efac00becd8a8e3ddc905e550b57f",
     "text": "26-13",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-13 | Tand, human | Kindtand, velbevaret. Niv.6 — 26-13"
+    "context": "N ummer | 26-13 | Tand, human | Kindtand, velbevaret. Niv.6 — 26-13"
   },
   {
     "anchorId": "anchor_2004f6ef476ca0bb7ba3586428720f59e5261bfe56e21dc74b9d0e16e31ed5fd",
     "text": "Tand, human",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-13 | Tand, human | Kindtand, velbevaret. Niv.6 — Tand, human"
+    "context": "Beskrivelse | 26-13 | Tand, human | Kindtand, velbevaret. Niv.6 — Tand, human"
   },
   {
     "anchorId": "anchor_5635ca6c75811df1d3fcf1ba2046273f08b03f1796ee2237e83682d142047f45",
     "text": "Kindtand, velbevaret. Niv.6",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-13 | Tand, human | Kindtand, velbevaret. Niv.6 — Kindtand, velbevaret. Niv.6"
+    "context": "Bemærkninger | 26-13 | Tand, human | Kindtand, velbevaret. Niv.6 — Kindtand, velbevaret. Niv.6"
   },
   {
     "anchorId": "anchor_d49ad3dc9907eaa97a8c5bfe0363899cd90e35b541fc32d9c8b76e8bb22a2e52",
     "text": "26-14",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-14 | Tand, human | Niv. 6 — 26-14"
+    "context": "N ummer | 26-14 | Tand, human | Niv. 6 — 26-14"
   },
   {
     "anchorId": "anchor_e9ec57fdec4744918f22bb0e6fa05fc533b8ae8da1b932f5fead9b0587fcfbfe",
     "text": "Tand, human",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-14 | Tand, human | Niv. 6 — Tand, human"
+    "context": "Beskrivelse | 26-14 | Tand, human | Niv. 6 — Tand, human"
   },
   {
     "anchorId": "anchor_6024430d939118062fa033e09398ea7aa01c0133f9bd8fd5b1b951b0c60b7a76",
     "text": "Niv. 6",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-14 | Tand, human | Niv. 6 — Niv. 6"
+    "context": "Bemærkninger | 26-14 | Tand, human | Niv. 6 — Niv. 6"
   },
   {
     "anchorId": "anchor_c3e1dfba9becab60f387f82f9e7f232d89f2e7034b4e7a164922a5339c097f35",
     "text": "26-18",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-18 | Tand, human | Niv. 6 — 26-18"
+    "context": "N ummer | 26-18 | Tand, human | Niv. 6 — 26-18"
   },
   {
     "anchorId": "anchor_ee2435e7537951b13e324841fe9f1ef04c2e244d083ac19741e17fefb943dd67",
     "text": "Tand, human",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-18 | Tand, human | Niv. 6 — Tand, human"
+    "context": "Beskrivelse | 26-18 | Tand, human | Niv. 6 — Tand, human"
   },
   {
     "anchorId": "anchor_9662cd88e4c5749a9a0d3329b1bb0a3b1f4576554cfee6272bfb3ca8ed815f1d",
     "text": "Niv. 6",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-18 | Tand, human | Niv. 6 — Niv. 6"
+    "context": "Bemærkninger | 26-18 | Tand, human | Niv. 6 — Niv. 6"
   },
   {
     "anchorId": "anchor_187c25f1e64a3390b6b1e9cd65e2f68e87fcf66287908a2a3a3f050e3ba4f0bf",
     "text": "26-19",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-19 | Tand, human | Niv. 6 — 26-19"
+    "context": "N ummer | 26-19 | Tand, human | Niv. 6 — 26-19"
   },
   {
     "anchorId": "anchor_6c3c6bfa5597f5abd791ec8097729fd8b00197b5f120709c9795423915c6f834",
     "text": "Tand, human",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-19 | Tand, human | Niv. 6 — Tand, human"
+    "context": "Beskrivelse | 26-19 | Tand, human | Niv. 6 — Tand, human"
   },
   {
     "anchorId": "anchor_951c42da18ca808eb5f6b9272154d3249d239af1ee8a9ffbb9f0b32056a05f4f",
     "text": "Niv. 6",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-19 | Tand, human | Niv. 6 — Niv. 6"
+    "context": "Bemærkninger | 26-19 | Tand, human | Niv. 6 — Niv. 6"
   },
   {
     "anchorId": "anchor_651d2cccc4a028677d4164e8d3851d65e5d3e219294112d10d6ff733f2a153cb",
     "text": "26-20",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-20 | Tand, human | Niv. 6 — 26-20"
+    "context": "N ummer | 26-20 | Tand, human | Niv. 6 — 26-20"
   },
   {
     "anchorId": "anchor_0027076589fd45e5b665167fdf347b57de4e2b290fc385d00038fb52249334cc",
     "text": "Tand, human",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-20 | Tand, human | Niv. 6 — Tand, human"
+    "context": "Beskrivelse | 26-20 | Tand, human | Niv. 6 — Tand, human"
   },
   {
     "anchorId": "anchor_6dae8d8be1b0faa89ff2f8e4729c029c72ec12743184a93497fed197ecb4653c",
     "text": "Niv. 6",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-20 | Tand, human | Niv. 6 — Niv. 6"
+    "context": "Bemærkninger | 26-20 | Tand, human | Niv. 6 — Niv. 6"
   },
   {
     "anchorId": "anchor_d9522e7eddcf7337ec46cee68f58c01c31db8940d0380b74ba4d263e724f8755",
     "text": "26-21",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-21 | Tand, human | Niv. 6 — 26-21"
+    "context": "N ummer | 26-21 | Tand, human | Niv. 6 — 26-21"
   },
   {
     "anchorId": "anchor_dfa947310e1164677bc540b79939c38614b16258f118cd33c06a4c51d7c5737c",
     "text": "Tand, human",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-21 | Tand, human | Niv. 6 — Tand, human"
+    "context": "Beskrivelse | 26-21 | Tand, human | Niv. 6 — Tand, human"
   },
   {
     "anchorId": "anchor_d39991d8982b3f56f87b45cce9b32ee7b7673c254e8a199ba8fcae5fe6d8c895",
     "text": "Niv. 6",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-21 | Tand, human | Niv. 6 — Niv. 6"
+    "context": "Bemærkninger | 26-21 | Tand, human | Niv. 6 — Niv. 6"
   },
   {
     "anchorId": "anchor_c8c2e3cfcea703aeadb499daba7e2fa890291bf894370eed98eec7ad2ec7ff93",
     "text": "26-22",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-22 | Tand, human | Niv. 6 — 26-22"
+    "context": "N ummer | 26-22 | Tand, human | Niv. 6 — 26-22"
   },
   {
     "anchorId": "anchor_fd64d7bfee97a78d3faa97b38e727145c9e4ac0b701f731507f57e4249945a03",
     "text": "Tand, human",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-22 | Tand, human | Niv. 6 — Tand, human"
+    "context": "Beskrivelse | 26-22 | Tand, human | Niv. 6 — Tand, human"
   },
   {
     "anchorId": "anchor_ad4b8371c63c2d7efb2c92d6c511951b3f26e7ac606a3258544dc1108d9085a4",
     "text": "Niv. 6",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-22 | Tand, human | Niv. 6 — Niv. 6"
+    "context": "Bemærkninger | 26-22 | Tand, human | Niv. 6 — Niv. 6"
   },
   {
     "anchorId": "anchor_50742385f79f3f13e96d6e0452e8b9bc5ad7ff78604dc5cd5957ac79a282babd",
     "text": "26-24",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-24 | Tand, human | Niv. 6 — 26-24"
+    "context": "N ummer | 26-24 | Tand, human | Niv. 6 — 26-24"
   },
   {
     "anchorId": "anchor_d5e20f981e6d0bde928aaded6d12d08f1ad57352d7db9d15a9e4f0d9353a4679",
     "text": "Tand, human",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-24 | Tand, human | Niv. 6 — Tand, human"
+    "context": "Beskrivelse | 26-24 | Tand, human | Niv. 6 — Tand, human"
   },
   {
     "anchorId": "anchor_cca812c692cc2f10a276e4379ae7b15a7630999d206e5b632d83d65628524709",
     "text": "Niv. 6",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-24 | Tand, human | Niv. 6 — Niv. 6"
+    "context": "Bemærkninger | 26-24 | Tand, human | Niv. 6 — Niv. 6"
   },
   {
     "anchorId": "anchor_c331a2eee575267de7c7dcffad0e1a5323fea59ee2bd4742f9d70b7dbc968a4a",
     "text": "26-28",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-28 | Tand, human | Niv. 6 — 26-28"
+    "context": "N ummer | 26-28 | Tand, human | Niv. 6 — 26-28"
   },
   {
     "anchorId": "anchor_5559ce8e293222f2deb8fe647ac2e357c080f893b486bb59c6f712fee76c8dcb",
     "text": "Tand, human",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-28 | Tand, human | Niv. 6 — Tand, human"
+    "context": "Beskrivelse | 26-28 | Tand, human | Niv. 6 — Tand, human"
   },
   {
     "anchorId": "anchor_a8a69618d8965576d20198e0b92d349b62d79533cfaaa3be0112fe0bd44c6184",
     "text": "Niv. 6",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-28 | Tand, human | Niv. 6 — Niv. 6"
+    "context": "Bemærkninger | 26-28 | Tand, human | Niv. 6 — Niv. 6"
   },
   {
     "anchorId": "anchor_8602c7da2940455bc3067d1be422ca305c891413fb5ba970a2e85cf2937e1d47",
     "text": "26-29",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-29 | Tand, human | Niv. 6 — 26-29"
+    "context": "N ummer | 26-29 | Tand, human | Niv. 6 — 26-29"
   },
   {
     "anchorId": "anchor_41f0e89d3fddd6233c29d53757d90b10495865aa56198b51cde2448a919d6e31",
     "text": "Tand, human",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-29 | Tand, human | Niv. 6 — Tand, human"
+    "context": "Beskrivelse | 26-29 | Tand, human | Niv. 6 — Tand, human"
   },
   {
     "anchorId": "anchor_bbaa3a9f41591c43b02214a22bcc79bdedf4346fe8a1757f01ebe5ec5111a578",
     "text": "Niv. 6",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-29 | Tand, human | Niv. 6 — Niv. 6"
+    "context": "Bemærkninger | 26-29 | Tand, human | Niv. 6 — Niv. 6"
   },
   {
     "anchorId": "anchor_4ea474344b1177cd21a4d2a68e85bdc5e63a03d01b1fae120e5a25a9012cb2c5",
     "text": "26-30",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-30 | Tand, human | Niv. 6 — 26-30"
+    "context": "N ummer | 26-30 | Tand, human | Niv. 6 — 26-30"
   },
   {
     "anchorId": "anchor_44a8eb6107ded8e0d596c3b69840f70f4240f2ffad3fdcdca266b822695132c8",
     "text": "Tand, human",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-30 | Tand, human | Niv. 6 — Tand, human"
+    "context": "Beskrivelse | 26-30 | Tand, human | Niv. 6 — Tand, human"
   },
   {
     "anchorId": "anchor_2ae47d730135215c7349ce0f8c3a0b046ae72dbcf37104a0b3c98dd557bec446",
     "text": "Niv. 6",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-30 | Tand, human | Niv. 6 — Niv. 6"
+    "context": "Bemærkninger | 26-30 | Tand, human | Niv. 6 — Niv. 6"
   },
   {
     "anchorId": "anchor_b1c256178dda9bd702f43d0068d5150f3c1d6efb36643cd349cb028bba002aec",
     "text": "26-31",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-31 | Tand, human | Niv. 6 — 26-31"
+    "context": "N ummer | 26-31 | Tand, human | Niv. 6 — 26-31"
   },
   {
     "anchorId": "anchor_2ecedcaa3c7e6874b48648219c9a1e183b2f01c7a0a5c7b5a9e45fb80e3fc7fe",
     "text": "Tand, human",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-31 | Tand, human | Niv. 6 — Tand, human"
+    "context": "Beskrivelse | 26-31 | Tand, human | Niv. 6 — Tand, human"
   },
   {
     "anchorId": "anchor_794d8a8504d02aa39d0bbd0a6b79e6f605c3658b07f08bc9e069809ee5fb8206",
     "text": "Niv. 6",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-31 | Tand, human | Niv. 6 — Niv. 6"
+    "context": "Bemærkninger | 26-31 | Tand, human | Niv. 6 — Niv. 6"
   },
   {
     "anchorId": "anchor_d925edb7009f69ce1cbec912111349639e76988e48da8d8f55bd9ee04aac8bcd",
     "text": "26-32",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-32 | Tand, human | Niv. 6 — 26-32"
+    "context": "N ummer | 26-32 | Tand, human | Niv. 6 — 26-32"
   },
   {
     "anchorId": "anchor_bfa9264b95559321a0df7e5677ae48fee83883ec1ba9e20203086eaa49973a89",
     "text": "Tand, human",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-32 | Tand, human | Niv. 6 — Tand, human"
+    "context": "Beskrivelse | 26-32 | Tand, human | Niv. 6 — Tand, human"
   },
   {
     "anchorId": "anchor_02a457563e5ea5d682b644d59ddabd6f46990fde9e92432ad2e8f2ee4f32bbdf",
     "text": "Niv. 6",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-32 | Tand, human | Niv. 6 — Niv. 6"
+    "context": "Bemærkninger | 26-32 | Tand, human | Niv. 6 — Niv. 6"
   },
   {
     "anchorId": "anchor_726edc89e59b7189854fd82128b6c27c14fa1f906736deb46779ce53aee432c0",
     "text": "26-33",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-33 | Tand, human | Niv. 6 — 26-33"
+    "context": "N ummer | 26-33 | Tand, human | Niv. 6 — 26-33"
   },
   {
     "anchorId": "anchor_c82d993328c01c2c7fada43f695346a7ffff80c44d4389ad0c22308351721eb6",
     "text": "Tand, human",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-33 | Tand, human | Niv. 6 — Tand, human"
+    "context": "Beskrivelse | 26-33 | Tand, human | Niv. 6 — Tand, human"
   },
   {
     "anchorId": "anchor_becc0974411dbb191572c62ea5f1f6f805610929eac5931835807a68217d431c",
     "text": "Niv. 6",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-33 | Tand, human | Niv. 6 — Niv. 6"
+    "context": "Bemærkninger | 26-33 | Tand, human | Niv. 6 — Niv. 6"
   },
   {
     "anchorId": "anchor_0f6b71abf276e670eefcf6ecbe7d1e5c2a766ba615444bf058e4b3bf1fc18f4d",
@@ -1368,189 +1368,189 @@
     "text": "26-1",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-1 | Keramik | Lille skår, 2x4 cm. Niv. 1 — 26-1"
+    "context": "Fundnummer | 26-1 | Keramik | Lille skår, 2x4 cm. Niv. 1 — 26-1"
   },
   {
     "anchorId": "anchor_04360fb001b3e55e73c7c8f021feaeb00e29cc2eb2b9cb3da930fcdeb6a84f24",
     "text": "Keramik",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-1 | Keramik | Lille skår, 2x4 cm. Niv. 1 — Keramik"
+    "context": "Beskrivelse | 26-1 | Keramik | Lille skår, 2x4 cm. Niv. 1 — Keramik"
   },
   {
     "anchorId": "anchor_d94bf103096b74c6ea71423505315630326fcf154a12a82b570d475dc4acfdae",
     "text": "Lille skår, 2x4 cm. Niv. 1",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-1 | Keramik | Lille skår, 2x4 cm. Niv. 1 — Lille skår, 2x4 cm. Niv. 1"
+    "context": "Bemærkninger | 26-1 | Keramik | Lille skår, 2x4 cm. Niv. 1 — Lille skår, 2x4 cm. Niv. 1"
   },
   {
     "anchorId": "anchor_c064edab424e65397fbd3136fd0afb6818b35dbbe76ef12ec95682d53ab9cd8a",
     "text": "26-2",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-2 | Keramik | Små fragmenter. Niv. 1 — 26-2"
+    "context": "Fundnummer | 26-2 | Keramik | Små fragmenter. Niv. 1 — 26-2"
   },
   {
     "anchorId": "anchor_e8363049825518463467eddda0ba83bf6d572837667f26de70c94f698389982c",
     "text": "Keramik",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-2 | Keramik | Små fragmenter. Niv. 1 — Keramik"
+    "context": "Beskrivelse | 26-2 | Keramik | Små fragmenter. Niv. 1 — Keramik"
   },
   {
     "anchorId": "anchor_d41c0f716edebb509f3ba8b351c0512f3482384658406011b18ff8769e9593f0",
     "text": "Små fragmenter. Niv. 1",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-2 | Keramik | Små fragmenter. Niv. 1 — Små fragmenter. Niv. 1"
+    "context": "Bemærkninger | 26-2 | Keramik | Små fragmenter. Niv. 1 — Små fragmenter. Niv. 1"
   },
   {
     "anchorId": "anchor_10f92e4da4dd307c8a78b8dc7a935284d3593e34c017b1e95097c2ff6cbf6f3f",
     "text": "26-4",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-4 | Keramik | Små skår. Niv 3 — 26-4"
+    "context": "Fundnummer | 26-4 | Keramik | Små skår. Niv 3 — 26-4"
   },
   {
     "anchorId": "anchor_6a6a4e8b2e8f3ed7d83ca102221385c14c348cebd0eb0e3b99ba39126a3c3772",
     "text": "Keramik",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-4 | Keramik | Små skår. Niv 3 — Keramik"
+    "context": "Beskrivelse | 26-4 | Keramik | Små skår. Niv 3 — Keramik"
   },
   {
     "anchorId": "anchor_4a0d3358b2533fb20673c70201f0ecf4cdba62e7150d5b667910f8484cf10de4",
     "text": "Små skår. Niv 3",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-4 | Keramik | Små skår. Niv 3 — Små skår. Niv 3"
+    "context": "Bemærkninger | 26-4 | Keramik | Små skår. Niv 3 — Små skår. Niv 3"
   },
   {
     "anchorId": "anchor_4886da5e1b0e094b5ac666656cfd51a8317ab82596a9e3fa4ec210e583149b99",
     "text": "26-5",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-5 | - | Udgår — 26-5"
+    "context": "Fundnummer | 26-5 | - | Udgår — 26-5"
   },
   {
     "anchorId": "anchor_e434957318d189adb93984cf2646b0a459eec39127364c2e8a2d7058fb334f98",
     "text": "-",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-5 | - | Udgår — -"
+    "context": "Beskrivelse | 26-5 | - | Udgår — -"
   },
   {
     "anchorId": "anchor_39a389dec11dbb806f52d9d6bbe9e47e50f04526884048264b229a8346dbb9f4",
     "text": "Udgår",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-5 | - | Udgår — Udgår"
+    "context": "Bemærkninger | 26-5 | - | Udgår — Udgår"
   },
   {
     "anchorId": "anchor_c331b777fd6053ef4192c8e6e8f10545b07b6646d5daf7c96cb13646c10b7b34",
     "text": "26-6",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-6 | Jern | Fragmenter af beslag e.l. Niv. 3 — 26-6"
+    "context": "Fundnummer | 26-6 | Jern | Fragmenter af beslag e.l. Niv. 3 — 26-6"
   },
   {
     "anchorId": "anchor_4ead2cad56cdd448e907c8e6dc6c4e1ba1438651a982a0de92baec56e9c801e8",
     "text": "Jern",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-6 | Jern | Fragmenter af beslag e.l. Niv. 3 — Jern"
+    "context": "Beskrivelse | 26-6 | Jern | Fragmenter af beslag e.l. Niv. 3 — Jern"
   },
   {
     "anchorId": "anchor_34d19dad5ab171608affbeac658b37dd0eec08f525000dfb871553b642b79969",
     "text": "Fragmenter af beslag e.l. Niv. 3",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-6 | Jern | Fragmenter af beslag e.l. Niv. 3 — Fragmenter af beslag e.l. Niv. 3"
+    "context": "Bemærkninger | 26-6 | Jern | Fragmenter af beslag e.l. Niv. 3 — Fragmenter af beslag e.l. Niv. 3"
   },
   {
     "anchorId": "anchor_3e380aec689eee29c2c461f85ea514814d57642b92381d3ad6529c6d75b363ff",
     "text": "26-7",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-7 | Keramik | Lille skår. Niv. 4 — 26-7"
+    "context": "Fundnummer | 26-7 | Keramik | Lille skår. Niv. 4 — 26-7"
   },
   {
     "anchorId": "anchor_bd8398eb5fcd353ae2c4c20f4f22796897a82cb16b6e24cbd394d84d75c8fe43",
     "text": "Keramik",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-7 | Keramik | Lille skår. Niv. 4 — Keramik"
+    "context": "Beskrivelse | 26-7 | Keramik | Lille skår. Niv. 4 — Keramik"
   },
   {
     "anchorId": "anchor_d216e0d7983c146414c85a3618cb7179e8617785846df9f9cd32645ed4f2f569",
     "text": "Lille skår. Niv. 4",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-7 | Keramik | Lille skår. Niv. 4 — Lille skår. Niv. 4"
+    "context": "Bemærkninger | 26-7 | Keramik | Lille skår. Niv. 4 — Lille skår. Niv. 4"
   },
   {
     "anchorId": "anchor_b395b200b90518a769d76583824621f377e596391f1508ab7e4ca45419387e90",
     "text": "26-8",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-8 | Keramik | Lille skår, ornamenteret. Niv. 4 — 26-8"
+    "context": "Fundnummer | 26-8 | Keramik | Lille skår, ornamenteret. Niv. 4 — 26-8"
   },
   {
     "anchorId": "anchor_7bbd15a3afe6880ed5244fc9928dea2936d2341a245b9cc65cd4f84ceedc8341",
     "text": "Keramik",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-8 | Keramik | Lille skår, ornamenteret. Niv. 4 — Keramik"
+    "context": "Beskrivelse | 26-8 | Keramik | Lille skår, ornamenteret. Niv. 4 — Keramik"
   },
   {
     "anchorId": "anchor_7d8185c8688317555d96f0d1725b971ad23a151cf8362aecc759950a14578c9e",
     "text": "Lille skår, ornamenteret. Niv. 4",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-8 | Keramik | Lille skår, ornamenteret. Niv. 4 — Lille skår, ornamenteret. Niv. 4"
+    "context": "Bemærkninger | 26-8 | Keramik | Lille skår, ornamenteret. Niv. 4 — Lille skår, ornamenteret. Niv. 4"
   },
   {
     "anchorId": "anchor_10d271be08837dcdf36030ea8597773aed7c1bc5e324d1792f0cd1baaec29578",
     "text": "26-9",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-9 | Keramik | Lille skår. Niv. 4 — 26-9"
+    "context": "Fundnummer | 26-9 | Keramik | Lille skår. Niv. 4 — 26-9"
   },
   {
     "anchorId": "anchor_0698e6a79c1878d23c581e1a54ef022a0b8cc487f65933f1baf98889b6ac9dbe",
     "text": "Keramik",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-9 | Keramik | Lille skår. Niv. 4 — Keramik"
+    "context": "Beskrivelse | 26-9 | Keramik | Lille skår. Niv. 4 — Keramik"
   },
   {
     "anchorId": "anchor_85ebb81c84dc17855b97ae6fe4169be4d95d70e45903ecb8c18d1af163cb6626",
     "text": "Lille skår. Niv. 4",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-9 | Keramik | Lille skår. Niv. 4 — Lille skår. Niv. 4"
+    "context": "Bemærkninger | 26-9 | Keramik | Lille skår. Niv. 4 — Lille skår. Niv. 4"
   },
   {
     "anchorId": "anchor_e7d539eca40a641b036edf98c4dd7ed3029263812374e7c4b7b7f936ee325a8a",
     "text": "26-10",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-10 | Keramik | Hank, fragmenteret. Niv. 4. — 26-10"
+    "context": "Fundnummer | 26-10 | Keramik | Hank, fragmenteret. Niv. 4. — 26-10"
   },
   {
     "anchorId": "anchor_19203b86f322d80ce8f92e10f589c6e465edc711867ee1b477b0e15a3c1fce81",
     "text": "Keramik",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-10 | Keramik | Hank, fragmenteret. Niv. 4. — Keramik"
+    "context": "Beskrivelse | 26-10 | Keramik | Hank, fragmenteret. Niv. 4. — Keramik"
   },
   {
     "anchorId": "anchor_99f97d3a3661f8eae5c35f69f2ccf6c9583fe8024619efab040173feb700b229",
     "text": "Hank, fragmenteret. Niv. 4.",
     "page": 4,
     "kind": "table_cell",
-    "context": "26-10 | Keramik | Hank, fragmenteret. Niv. 4. — Hank, fragmenteret. Niv. 4."
+    "context": "Bemærkninger | 26-10 | Keramik | Hank, fragmenteret. Niv. 4. — Hank, fragmenteret. Niv. 4."
   },
   {
     "anchorId": "anchor_af751d5806ebf6546ca41cb02f4761c6f5f285827fd0f75002119e58332949ac",
@@ -1788,21 +1788,21 @@
     "text": "28-1",
     "page": 5,
     "kind": "table_cell",
-    "context": "28-1 | Knogle - lårben | Lå ikke på gravens bund — 28-1"
+    "context": "N ummer | 28-1 | Knogle - lårben | Lå ikke på gravens bund — 28-1"
   },
   {
     "anchorId": "anchor_2b7302b69d6cf9a58e8a9260a5f4ecb9d1f13272a544450fff3a5b1325969667",
     "text": "Knogle - lårben",
     "page": 5,
     "kind": "table_cell",
-    "context": "28-1 | Knogle - lårben | Lå ikke på gravens bund — Knogle - lårben"
+    "context": "Beskrivelse | 28-1 | Knogle - lårben | Lå ikke på gravens bund — Knogle - lårben"
   },
   {
     "anchorId": "anchor_9bdbdce3f9c01b3a3b923199618f21040b448715ee9a189588391c6ac35dc709",
     "text": "Lå ikke på gravens bund",
     "page": 5,
     "kind": "table_cell",
-    "context": "28-1 | Knogle - lårben | Lå ikke på gravens bund — Lå ikke på gravens bund"
+    "context": "Bemærkninger | 28-1 | Knogle - lårben | Lå ikke på gravens bund — Lå ikke på gravens bund"
   },
   {
     "anchorId": "anchor_680cadfc71e35cfa456300406ed80b2a1ad540c3d730066f9e9575bca577fc7c",
@@ -1842,21 +1842,21 @@
     "text": "28-2",
     "page": 5,
     "kind": "table_cell",
-    "context": "28-2 | Lille keramikskår | Bundniveau — 28-2"
+    "context": "Fundnummer | 28-2 | Lille keramikskår | Bundniveau — 28-2"
   },
   {
     "anchorId": "anchor_53ae908c70b2703b27ae45f4433aca7e04ac0894d6ef4eee7225dc6263291cdd",
     "text": "Lille keramikskår",
     "page": 5,
     "kind": "table_cell",
-    "context": "28-2 | Lille keramikskår | Bundniveau — Lille keramikskår"
+    "context": "Beskrivelse | 28-2 | Lille keramikskår | Bundniveau — Lille keramikskår"
   },
   {
     "anchorId": "anchor_26566315edd426d0ef3c3e6054546e33700100f936c4913b05925fa4d452a2e0",
     "text": "Bundniveau",
     "page": 5,
     "kind": "table_cell",
-    "context": "28-2 | Lille keramikskår | Bundniveau — Bundniveau"
+    "context": "Bemærkninger | 28-2 | Lille keramikskår | Bundniveau — Bundniveau"
   },
   {
     "anchorId": "anchor_1922c0fa59d9dcbca5f93ba83fc68d9c1c5151bdbf4dd2910cb1e6c48686f58d",
@@ -1944,28 +1944,28 @@
     "text": "30-1",
     "page": 5,
     "kind": "table_cell",
-    "context": "30-1 | Skeletdele, tand — 30-1"
+    "context": "N ummer | 30-1 | Skeletdele, tand — 30-1"
   },
   {
     "anchorId": "anchor_95eee47b0759b1f08a2c6b4f6588089357393be94df79e4236e7f5498b3aad7a",
     "text": "Skeletdele, tand",
     "page": 5,
     "kind": "table_cell",
-    "context": "30-1 | Skeletdele, tand — Skeletdele, tand"
+    "context": "Beskrivelse | 30-1 | Skeletdele, tand — Skeletdele, tand"
   },
   {
     "anchorId": "anchor_66d8ba0a647d1e6ed3ca47fbc0346fc28827e27d61d3ba2656dc89866954bd5a",
     "text": "30-3",
     "page": 5,
     "kind": "table_cell",
-    "context": "30-3 | Knoglefragmenter, — 30-3"
+    "context": "N ummer | 30-3 | Knoglefragmenter, — 30-3"
   },
   {
     "anchorId": "anchor_2594817abd8d2848bc387511c3e3a295a1c57d7f7d0cc6d34a5a1ab546df265f",
     "text": "Knoglefragmenter,",
     "page": 5,
     "kind": "table_cell",
-    "context": "30-3 | Knoglefragmenter, — Knoglefragmenter,"
+    "context": "Beskrivelse | 30-3 | Knoglefragmenter, — Knoglefragmenter,"
   },
   {
     "anchorId": "anchor_28363ae5aa5e87533ed6e9135ebfc42b587d9975a52e85cf8a4b9465b16d94e4",
@@ -1986,7 +1986,7 @@
     "text": "Knoglefragmenter, formodentlig skinneben",
     "page": 6,
     "kind": "table_cell",
-    "context": "30-4 | Knoglefragmenter, formodentlig skinneben — Knoglefragmenter, formodentlig skinneben"
+    "context": "formodentlig skinneben | 30-4 | Knoglefragmenter, formodentlig skinneben — Knoglefragmenter, formodentlig skinneben"
   },
   {
     "anchorId": "anchor_6768c798dcdca21d3ed0e957389219a1cd138c8ee1c0da14d7df75d841fde151",
@@ -2000,7 +2000,7 @@
     "text": "Knoglefragmenter",
     "page": 6,
     "kind": "table_cell",
-    "context": "30-6 | Knoglefragmenter | Fundet ved afrensning — Knoglefragmenter"
+    "context": "formodentlig skinneben | 30-6 | Knoglefragmenter | Fundet ved afrensning — Knoglefragmenter"
   },
   {
     "anchorId": "anchor_e9d177a176cef555c76e4fafeaee55f30ad498abace1a4bd79bdffe80623f68d",
@@ -2041,84 +2041,84 @@
     "text": "30-2",
     "page": 6,
     "kind": "table_cell",
-    "context": "30-2 | Lerkarskår | 6 stk. — 30-2"
+    "context": "Fundnummer | 30-2 | Lerkarskår | 6 stk. — 30-2"
   },
   {
     "anchorId": "anchor_398280712c77f98c05069f3e45699afade9d000191691d5f69a586a6b862681d",
     "text": "Lerkarskår",
     "page": 6,
     "kind": "table_cell",
-    "context": "30-2 | Lerkarskår | 6 stk. — Lerkarskår"
+    "context": "Beskrivelse | 30-2 | Lerkarskår | 6 stk. — Lerkarskår"
   },
   {
     "anchorId": "anchor_7759949555102391967937f37c8934d971fb4b7c4e67016745ca536900c71f75",
     "text": "6 stk.",
     "page": 6,
     "kind": "table_cell",
-    "context": "30-2 | Lerkarskår | 6 stk. — 6 stk."
+    "context": "Bemærkninger | 30-2 | Lerkarskår | 6 stk. — 6 stk."
   },
   {
     "anchorId": "anchor_ddb289f0cd888a5749592393894aeb10f1b5388c1d65f435ef1878708aab1e7f",
     "text": "30-5",
     "page": 6,
     "kind": "table_cell",
-    "context": "30-5 | Dyretand | Fra hund — 30-5"
+    "context": "Fundnummer | 30-5 | Dyretand | Fra hund — 30-5"
   },
   {
     "anchorId": "anchor_b6f68b9ffa42573c5b24a0e8a2ba2a60be58d4483775ec003ac33b3f3030805d",
     "text": "Dyretand",
     "page": 6,
     "kind": "table_cell",
-    "context": "30-5 | Dyretand | Fra hund — Dyretand"
+    "context": "Beskrivelse | 30-5 | Dyretand | Fra hund — Dyretand"
   },
   {
     "anchorId": "anchor_cbaf5a25d991123be06d80f41b38dc6eb3550eb36b7a02b25327a1470df9db58",
     "text": "Fra hund",
     "page": 6,
     "kind": "table_cell",
-    "context": "30-5 | Dyretand | Fra hund — Fra hund"
+    "context": "Bemærkninger | 30-5 | Dyretand | Fra hund — Fra hund"
   },
   {
     "anchorId": "anchor_8f9ad8acf4549488c5079da8686256cddc9c84bf75b7c07a7f31a3cf44ed619c",
     "text": "30-7",
     "page": 6,
     "kind": "table_cell",
-    "context": "30-7 | Keramikskår | Fundet ved afrensning — 30-7"
+    "context": "Fundnummer | 30-7 | Keramikskår | Fundet ved afrensning — 30-7"
   },
   {
     "anchorId": "anchor_290c3ad079155bbffa507dc9683844c4dbdf562ac051dfb7360269c5692ab622",
     "text": "Keramikskår",
     "page": 6,
     "kind": "table_cell",
-    "context": "30-7 | Keramikskår | Fundet ved afrensning — Keramikskår"
+    "context": "Beskrivelse | 30-7 | Keramikskår | Fundet ved afrensning — Keramikskår"
   },
   {
     "anchorId": "anchor_81fcf80db5cc11fe959ca753e29d123dc6752853c21c258bb1fea6586bb0bc2d",
     "text": "Fundet ved afrensning",
     "page": 6,
     "kind": "table_cell",
-    "context": "30-7 | Keramikskår | Fundet ved afrensning — Fundet ved afrensning"
+    "context": "Bemærkninger | 30-7 | Keramikskår | Fundet ved afrensning — Fundet ved afrensning"
   },
   {
     "anchorId": "anchor_9e99e41b746641e6b4f4bce033e55a4554ddc24515180264af6c9c2b81741a0f",
     "text": "30-8",
     "page": 6,
     "kind": "table_cell",
-    "context": "30-8 | Flintafslag | Fundet ved afrensning — 30-8"
+    "context": "Fundnummer | 30-8 | Flintafslag | Fundet ved afrensning — 30-8"
   },
   {
     "anchorId": "anchor_8f5451d6791554fcbc92f9515560df3e317161049c46607a44e57c4f7cc0f528",
     "text": "Flintafslag",
     "page": 6,
     "kind": "table_cell",
-    "context": "30-8 | Flintafslag | Fundet ved afrensning — Flintafslag"
+    "context": "Beskrivelse | 30-8 | Flintafslag | Fundet ved afrensning — Flintafslag"
   },
   {
     "anchorId": "anchor_c76a03e3ce4c26084e0ac57f01f3ffa75ec1605fc44475045b52f755ce95e3b3",
     "text": "Fundet ved afrensning",
     "page": 6,
     "kind": "table_cell",
-    "context": "30-8 | Flintafslag | Fundet ved afrensning — Fundet ved afrensning"
+    "context": "Bemærkninger | 30-8 | Flintafslag | Fundet ved afrensning — Fundet ved afrensning"
   },
   {
     "anchorId": "anchor_73466a15b3ced7c9e1dffd7dee9cce8b8712d03b51a83e558f6e6365ae4208c1",
@@ -2200,21 +2200,21 @@
     "text": "31-7",
     "page": 6,
     "kind": "table_cell",
-    "context": "31-7 | Tandemalje | Dårligt bevaret — 31-7"
+    "context": "N ummer | 31-7 | Tandemalje | Dårligt bevaret — 31-7"
   },
   {
     "anchorId": "anchor_697177d66f457c89a10ace01cbc6b819d72407163ab2d25e9da85f435a11e873",
     "text": "Tandemalje",
     "page": 6,
     "kind": "table_cell",
-    "context": "31-7 | Tandemalje | Dårligt bevaret — Tandemalje"
+    "context": "Beskrivelse | 31-7 | Tandemalje | Dårligt bevaret — Tandemalje"
   },
   {
     "anchorId": "anchor_c98f3586d2b47afdc989f855aac9b9c2a68afdb8f02f742bbbbbf523af05b2d9",
     "text": "Dårligt bevaret",
     "page": 6,
     "kind": "table_cell",
-    "context": "31-7 | Tandemalje | Dårligt bevaret — Dårligt bevaret"
+    "context": "Bemærkninger | 31-7 | Tandemalje | Dårligt bevaret — Dårligt bevaret"
   },
   {
     "anchorId": "anchor_81420e330fd722581a5a127ec54869bd05e126f1637ec89e689b54f6ed12f006",

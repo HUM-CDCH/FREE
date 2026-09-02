@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "install:python": "uv sync",
-    "test": "uv run --no-sync python -X utf8 -m unittest discover -s tests",
+    "test": "uv run --no-sync python -X utf8 -m unittest discover -s tests && node --experimental-strip-types --test scripts/*.test.mts",
     "harness": "uv run --no-sync python -X utf8 -m grounding_lab.harness dataset",
     "calibrate": "uv run --no-sync python -X utf8 -m grounding_lab.calibrate dataset",
     "dump-anchors": "tsx scripts/dump-anchors.mts",

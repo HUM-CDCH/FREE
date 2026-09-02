@@ -2009,28 +2009,28 @@
     "text": "4,212",
     "page": 51,
     "kind": "table_cell",
-    "context": "Treasury securities | 4,212 | 4,291 | -79 | -1,558 — 4,212"
+    "context": "Total securities | Treasury securities | June 11, 2025 | 4,212 | 4,291 | -79 | -1,558 — 4,212"
   },
   {
     "anchorId": "anchor_e6eb2d2b3bdeb50e49c00ee4ea85f2a2aaa39c2e0655b473479a01171fa7fb73",
     "text": "4,291",
     "page": 51,
     "kind": "table_cell",
-    "context": "Treasury securities | 4,212 | 4,291 | -79 | -1,558 — 4,291"
+    "context": "Total securities | Treasury securities | January 8, 2025 | 4,212 | 4,291 | -79 | -1,558 — 4,291"
   },
   {
     "anchorId": "anchor_6eeccda518b0a332565ad69bee339490951524f5010486c7066bc112cef57b9f",
     "text": "-79",
     "page": 51,
     "kind": "table_cell",
-    "context": "Treasury securities | 4,212 | 4,291 | -79 | -1,558 — -79"
+    "context": "Total securities | Treasury securities | Change (since January 2025) | 4,212 | 4,291 | -79 | -1,558 — -79"
   },
   {
     "anchorId": "anchor_1f2931df4462c837d750cc3263515d09d2234703698bca108b525c4363bbdbeb",
     "text": "-1,558",
     "page": 51,
     "kind": "table_cell",
-    "context": "Treasury securities | 4,212 | 4,291 | -79 | -1,558 — -1,558"
+    "context": "Total securities | Treasury securities | Change (since Fed's balance sheet reduction began on June 1, 2022) | 4,212 | 4,291 | -79 | -1,558 — -1,558"
   },
   {
     "anchorId": "anchor_fbdaae4c4961e701decb38a33686133dbcd622bba17898a82d94a2ad8b970fed",
@@ -2044,28 +2044,28 @@
     "text": "2,159",
     "page": 51,
     "kind": "table_cell",
-    "context": "Agency debt and MBS | 2,159 | 2,236 | -77 | -551 — 2,159"
+    "context": "Total securities | Agency debt and MBS | June 11, 2025 | 2,159 | 2,236 | -77 | -551 — 2,159"
   },
   {
     "anchorId": "anchor_a0e1676e997852d769af4f2adeb312e3501753ae712891d087a38221ac95de80",
     "text": "2,236",
     "page": 51,
     "kind": "table_cell",
-    "context": "Agency debt and MBS | 2,159 | 2,236 | -77 | -551 — 2,236"
+    "context": "Total securities | Agency debt and MBS | January 8, 2025 | 2,159 | 2,236 | -77 | -551 — 2,236"
   },
   {
     "anchorId": "anchor_29cc4312b5472274743bcb2a167423b9a6814288bfa82cc006b0cadf847f6ccb",
     "text": "-77",
     "page": 51,
     "kind": "table_cell",
-    "context": "Agency debt and MBS | 2,159 | 2,236 | -77 | -551 — -77"
+    "context": "Total securities | Agency debt and MBS | Change (since January 2025) | 2,159 | 2,236 | -77 | -551 — -77"
   },
   {
     "anchorId": "anchor_455655930a563baafe01e03a8c2466d386bc61c21d750b3880398de233d35ab9",
     "text": "-551",
     "page": 51,
     "kind": "table_cell",
-    "context": "Agency debt and MBS | 2,159 | 2,236 | -77 | -551 — -551"
+    "context": "Total securities | Agency debt and MBS | Change (since Fed's balance sheet reduction began on June 1, 2022) | 2,159 | 2,236 | -77 | -551 — -551"
   },
   {
     "anchorId": "anchor_fb934133b1ec76c6edd012a7534311d2fadf534dbd7f5855a74cf017ea67717d",
@@ -2079,28 +2079,28 @@
     "text": "238",
     "page": 51,
     "kind": "table_cell",
-    "context": "Unamortized premiums | 238 | 249 | -11 | -99 — 238"
+    "context": "Total securities | Unamortized premiums | June 11, 2025 | 238 | 249 | -11 | -99 — 238"
   },
   {
     "anchorId": "anchor_3337f4c06823282af621058b40d1712dfc3ee60a21c73fdaea9b8d10e16a5b6b",
     "text": "249",
     "page": 51,
     "kind": "table_cell",
-    "context": "Unamortized premiums | 238 | 249 | -11 | -99 — 249"
+    "context": "Total securities | Unamortized premiums | January 8, 2025 | 238 | 249 | -11 | -99 — 249"
   },
   {
     "anchorId": "anchor_7abd0a20df5974f1e1222e4c8852899e4abe8cb8395e46a01dee1aef2f10968a",
     "text": "-11",
     "page": 51,
     "kind": "table_cell",
-    "context": "Unamortized premiums | 238 | 249 | -11 | -99 — -11"
+    "context": "Total securities | Unamortized premiums | Change (since January 2025) | 238 | 249 | -11 | -99 — -11"
   },
   {
     "anchorId": "anchor_ceef08fb68946fb74a5bda26f35fd56980968a6b5a7222aca6aa58914dcb9752",
     "text": "-99",
     "page": 51,
     "kind": "table_cell",
-    "context": "Unamortized premiums | 238 | 249 | -11 | -99 — -99"
+    "context": "Total securities | Unamortized premiums | Change (since Fed's balance sheet reduction began on June 1, 2022) | 238 | 249 | -11 | -99 — -99"
   },
   {
     "anchorId": "anchor_7c94cf710914583c6a2755d9b6287d4a70979e3dbe05846f55abf20321e8cd5f",
@@ -2114,28 +2114,28 @@
     "text": "0",
     "page": 51,
     "kind": "table_cell",
-    "context": "Repurchase agreements | 0 | 0 | 0 | 0 — 0"
+    "context": "Total securities | Repurchase agreements | June 11, 2025 | 0 | 0 | 0 | 0 — 0"
   },
   {
     "anchorId": "anchor_a7bfd4e4b5fb6d1aa73c6e083e54e655847d992f6c713810155134020e45dc88",
     "text": "0",
     "page": 51,
     "kind": "table_cell",
-    "context": "Repurchase agreements | 0 | 0 | 0 | 0 — 0"
+    "context": "Total securities | Repurchase agreements | January 8, 2025 | 0 | 0 | 0 | 0 — 0"
   },
   {
     "anchorId": "anchor_3948ac0767b81c4ae2a0725ec260ff0bdeec1aa59a175e67cbe778112871f783",
     "text": "0",
     "page": 51,
     "kind": "table_cell",
-    "context": "Repurchase agreements | 0 | 0 | 0 | 0 — 0"
+    "context": "Total securities | Repurchase agreements | Change (since January 2025) | 0 | 0 | 0 | 0 — 0"
   },
   {
     "anchorId": "anchor_a0ab8fac09ca6c3d20023d68f6bce8c92ab4534ad9745bdfa5b957f71307e112",
     "text": "0",
     "page": 51,
     "kind": "table_cell",
-    "context": "Repurchase agreements | 0 | 0 | 0 | 0 — 0"
+    "context": "Total securities | Repurchase agreements | Change (since Fed's balance sheet reduction began on June 1, 2022) | 0 | 0 | 0 | 0 — 0"
   },
   {
     "anchorId": "anchor_4d624dc222e204b52d81803cb24072b9da5510309eaeb02a31667b866b290c32",
@@ -2156,28 +2156,28 @@
     "text": "2",
     "page": 51,
     "kind": "table_cell",
-    "context": "PPPLF | 2 | 2 | 0 | -18 — 2"
+    "context": "Loans and lending facilities | PPPLF | June 11, 2025 | 2 | 2 | 0 | -18 — 2"
   },
   {
     "anchorId": "anchor_4c9b7f2fb04fb2d284348ffe547978f009dba403a0015f72384dd51e0e06d9e3",
     "text": "2",
     "page": 51,
     "kind": "table_cell",
-    "context": "PPPLF | 2 | 2 | 0 | -18 — 2"
+    "context": "Loans and lending facilities | PPPLF | January 8, 2025 | 2 | 2 | 0 | -18 — 2"
   },
   {
     "anchorId": "anchor_b82f94043d0daca24f7ead5a1be4c26c04e7c53f46aef06527b73dc30a596d08",
     "text": "0",
     "page": 51,
     "kind": "table_cell",
-    "context": "PPPLF | 2 | 2 | 0 | -18 — 0"
+    "context": "Loans and lending facilities | PPPLF | Change (since January 2025) | 2 | 2 | 0 | -18 — 0"
   },
   {
     "anchorId": "anchor_e35153c44aebc91707352658912d7e7a467cea2a402a51b9e73f52193e8c8490",
     "text": "-18",
     "page": 51,
     "kind": "table_cell",
-    "context": "PPPLF | 2 | 2 | 0 | -18 — -18"
+    "context": "Loans and lending facilities | PPPLF | Change (since Fed's balance sheet reduction began on June 1, 2022) | 2 | 2 | 0 | -18 — -18"
   },
   {
     "anchorId": "anchor_9e547d860a1082304e84b93f01c6e52f80b835c27e8a673634f374639a7009e3",
@@ -2191,28 +2191,28 @@
     "text": "4",
     "page": 51,
     "kind": "table_cell",
-    "context": "Discount window | 4 | 2 | 2 | 3 — 4"
+    "context": "Loans and lending facilities | Discount window | June 11, 2025 | 4 | 2 | 2 | 3 — 4"
   },
   {
     "anchorId": "anchor_2b9265ef815fecfaec9aa5d2441aec8105fc410f7db92f40919f5b40acacb470",
     "text": "2",
     "page": 51,
     "kind": "table_cell",
-    "context": "Discount window | 4 | 2 | 2 | 3 — 2"
+    "context": "Loans and lending facilities | Discount window | January 8, 2025 | 4 | 2 | 2 | 3 — 2"
   },
   {
     "anchorId": "anchor_373ee1412a4d4b3030f6cf3f3c675472e8deca3e5dd58772402a8f217edbc005",
     "text": "2",
     "page": 51,
     "kind": "table_cell",
-    "context": "Discount window | 4 | 2 | 2 | 3 — 2"
+    "context": "Loans and lending facilities | Discount window | Change (since January 2025) | 4 | 2 | 2 | 3 — 2"
   },
   {
     "anchorId": "anchor_996608d81e498c4a5311b65f1da016dcff93ca1401b3be033d5664600493f52c",
     "text": "3",
     "page": 51,
     "kind": "table_cell",
-    "context": "Discount window | 4 | 2 | 2 | 3 — 3"
+    "context": "Loans and lending facilities | Discount window | Change (since Fed's balance sheet reduction began on June 1, 2022) | 4 | 2 | 2 | 3 — 3"
   },
   {
     "anchorId": "anchor_84c9f14a1c86c9576bbe77d4eb6902782defeda77cc52b4f0bb724ebeeae490b",
@@ -2226,28 +2226,28 @@
     "text": "0",
     "page": 51,
     "kind": "table_cell",
-    "context": "BTFP | 0 | 3 | -3 | 0 — 0"
+    "context": "Loans and lending facilities | BTFP | June 11, 2025 | 0 | 3 | -3 | 0 — 0"
   },
   {
     "anchorId": "anchor_0ccf8c72df0820d9116e0893a882d1f04b635b18bfc2d142fe7a7b5b5c6f73b8",
     "text": "3",
     "page": 51,
     "kind": "table_cell",
-    "context": "BTFP | 0 | 3 | -3 | 0 — 3"
+    "context": "Loans and lending facilities | BTFP | January 8, 2025 | 0 | 3 | -3 | 0 — 3"
   },
   {
     "anchorId": "anchor_5bf212be6824ac73a61fdfe1f05e98f973a9b846c415af16a8fa18bf0501d3ee",
     "text": "-3",
     "page": 51,
     "kind": "table_cell",
-    "context": "BTFP | 0 | 3 | -3 | 0 — -3"
+    "context": "Loans and lending facilities | BTFP | Change (since January 2025) | 0 | 3 | -3 | 0 — -3"
   },
   {
     "anchorId": "anchor_66c33fa7c501fcebbf2c779aea12eb48faef13ec1e7c1fefc0b5d0faf5fbe18b",
     "text": "0",
     "page": 51,
     "kind": "table_cell",
-    "context": "BTFP | 0 | 3 | -3 | 0 — 0"
+    "context": "Loans and lending facilities | BTFP | Change (since Fed's balance sheet reduction began on June 1, 2022) | 0 | 3 | -3 | 0 — 0"
   },
   {
     "anchorId": "anchor_9aa2bff2218dfd2d9da5d3f18c24e0917480c87779c991e7496ec4271dd4eda0",
@@ -2261,28 +2261,28 @@
     "text": "5",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other loans and lending facilities | 5 | 8 | -3 | -29 — 5"
+    "context": "Loans and lending facilities | Other loans and lending facilities | June 11, 2025 | 5 | 8 | -3 | -29 — 5"
   },
   {
     "anchorId": "anchor_cdacb5d07b2ab1cb9d299140a46f0029d61e383b3def5ec1868d00ce0cd300c6",
     "text": "8",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other loans and lending facilities | 5 | 8 | -3 | -29 — 8"
+    "context": "Loans and lending facilities | Other loans and lending facilities | January 8, 2025 | 5 | 8 | -3 | -29 — 8"
   },
   {
     "anchorId": "anchor_a7c77111b2bd00729fa8a668d8dd85c88cd41ed0b9428110daec9dffb9c05f7e",
     "text": "-3",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other loans and lending facilities | 5 | 8 | -3 | -29 — -3"
+    "context": "Loans and lending facilities | Other loans and lending facilities | Change (since January 2025) | 5 | 8 | -3 | -29 — -3"
   },
   {
     "anchorId": "anchor_01088d4faec95374dfcc97b90569338d8d68290dc4c57886f66282a074727182",
     "text": "-29",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other loans and lending facilities | 5 | 8 | -3 | -29 — -29"
+    "context": "Loans and lending facilities | Other loans and lending facilities | Change (since Fed's balance sheet reduction began on June 1, 2022) | 5 | 8 | -3 | -29 — -29"
   },
   {
     "anchorId": "anchor_2a5bfc166fa9b1207a07ad826582ac712220a7b3ef695442f9fec5fb241bf440",
@@ -2296,28 +2296,28 @@
     "text": "0",
     "page": 51,
     "kind": "table_cell",
-    "context": "Central bank liquidity swaps | 0 | 1 | -1 | 0 — 0"
+    "context": "Loans and lending facilities | Central bank liquidity swaps | June 11, 2025 | 0 | 1 | -1 | 0 — 0"
   },
   {
     "anchorId": "anchor_4945379cb2b3bc6447e6df6680cc68626c699e2c15087d0a1c9cd62e7aa7e314",
     "text": "1",
     "page": 51,
     "kind": "table_cell",
-    "context": "Central bank liquidity swaps | 0 | 1 | -1 | 0 — 1"
+    "context": "Loans and lending facilities | Central bank liquidity swaps | January 8, 2025 | 0 | 1 | -1 | 0 — 1"
   },
   {
     "anchorId": "anchor_55077305aaf2d9b71baec91103a3db0877676277c54081baa986ba22d749221e",
     "text": "-1",
     "page": 51,
     "kind": "table_cell",
-    "context": "Central bank liquidity swaps | 0 | 1 | -1 | 0 — -1"
+    "context": "Loans and lending facilities | Central bank liquidity swaps | Change (since January 2025) | 0 | 1 | -1 | 0 — -1"
   },
   {
     "anchorId": "anchor_03a065b58dc2ea6f785f466f501398cbc9c73b45279575e50385f0dffaeb2dec",
     "text": "0",
     "page": 51,
     "kind": "table_cell",
-    "context": "Central bank liquidity swaps | 0 | 1 | -1 | 0 — 0"
+    "context": "Loans and lending facilities | Central bank liquidity swaps | Change (since Fed's balance sheet reduction began on June 1, 2022) | 0 | 1 | -1 | 0 — 0"
   },
   {
     "anchorId": "anchor_e33a64a96918a07f9b9a7e25a42aa64eeb4de6a0ef6c126feb6aac626e531d56",
@@ -2331,28 +2331,28 @@
     "text": "57",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other assets | 57 | 61 | -4 | 15 — 57"
+    "context": "Loans and lending facilities | Other assets | June 11, 2025 | 57 | 61 | -4 | 15 — 57"
   },
   {
     "anchorId": "anchor_0c38118cc4485b2652a84b9c7e7d292fd7f32df58f3f8cd1ec613e01a516d1b6",
     "text": "61",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other assets | 57 | 61 | -4 | 15 — 61"
+    "context": "Loans and lending facilities | Other assets | January 8, 2025 | 57 | 61 | -4 | 15 — 61"
   },
   {
     "anchorId": "anchor_1cb6d0d9872c28da5481a4638302650fdaec60a2720c70b4ff4038ae7a8393f4",
     "text": "-4",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other assets | 57 | 61 | -4 | 15 — -4"
+    "context": "Loans and lending facilities | Other assets | Change (since January 2025) | 57 | 61 | -4 | 15 — -4"
   },
   {
     "anchorId": "anchor_574c181e1553d5d894ac58e2d59d26c0aa07746b789793f3f711d3ad0492a6f4",
     "text": "15",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other assets | 57 | 61 | -4 | 15 — 15"
+    "context": "Loans and lending facilities | Other assets | Change (since Fed's balance sheet reduction began on June 1, 2022) | 57 | 61 | -4 | 15 — 15"
   },
   {
     "anchorId": "anchor_ef508827b94551c316ecfd5ff90c6a19bc21db0a3c8d71b950956fe75ea221a7",
@@ -2366,28 +2366,28 @@
     "text": "6,677",
     "page": 51,
     "kind": "table_cell",
-    "context": "Total assets | 6,677 | 6,854 | -176 | -2,238 — 6,677"
+    "context": "Loans and lending facilities | Total assets | June 11, 2025 | 6,677 | 6,854 | -176 | -2,238 — 6,677"
   },
   {
     "anchorId": "anchor_12ca9cc61cea5e6181b91eb96c2adc172e176ea2208c795cbf9c55e0ac662318",
     "text": "6,854",
     "page": 51,
     "kind": "table_cell",
-    "context": "Total assets | 6,677 | 6,854 | -176 | -2,238 — 6,854"
+    "context": "Loans and lending facilities | Total assets | January 8, 2025 | 6,677 | 6,854 | -176 | -2,238 — 6,854"
   },
   {
     "anchorId": "anchor_f40f59e34c162fe1a1238bd3ca1eb6b39501d399d2a2a0b2f947eea4c05f9c32",
     "text": "-176",
     "page": 51,
     "kind": "table_cell",
-    "context": "Total assets | 6,677 | 6,854 | -176 | -2,238 — -176"
+    "context": "Loans and lending facilities | Total assets | Change (since January 2025) | 6,677 | 6,854 | -176 | -2,238 — -176"
   },
   {
     "anchorId": "anchor_6e8872465c149b362d6357fe3ff42ebadcd1bc62ec945e000d3b7bced8fbd8dd",
     "text": "-2,238",
     "page": 51,
     "kind": "table_cell",
-    "context": "Total assets | 6,677 | 6,854 | -176 | -2,238 — -2,238"
+    "context": "Loans and lending facilities | Total assets | Change (since Fed's balance sheet reduction began on June 1, 2022) | 6,677 | 6,854 | -176 | -2,238 — -2,238"
   },
   {
     "anchorId": "anchor_0efc8943a4ecf6d1e4b3aaab199995a2cab156a4451e0b1121fb79dbdd7290ff",
@@ -2408,28 +2408,28 @@
     "text": "2,339",
     "page": 51,
     "kind": "table_cell",
-    "context": "Federal Reserve notes | 2,339 | 2,315 | 24 | 108 — 2,339"
+    "context": "Liabilities | Federal Reserve notes | June 11, 2025 | 2,339 | 2,315 | 24 | 108 — 2,339"
   },
   {
     "anchorId": "anchor_ac791216a364547c881a6b9c32833624223455452d9d468a431903927f3716f0",
     "text": "2,315",
     "page": 51,
     "kind": "table_cell",
-    "context": "Federal Reserve notes | 2,339 | 2,315 | 24 | 108 — 2,315"
+    "context": "Liabilities | Federal Reserve notes | January 8, 2025 | 2,339 | 2,315 | 24 | 108 — 2,315"
   },
   {
     "anchorId": "anchor_e5ee9066f44129af5c251f24040a39c3694c7c57c45e001dd54324a7ab54d37b",
     "text": "24",
     "page": 51,
     "kind": "table_cell",
-    "context": "Federal Reserve notes | 2,339 | 2,315 | 24 | 108 — 24"
+    "context": "Liabilities | Federal Reserve notes | Change (since January 2025) | 2,339 | 2,315 | 24 | 108 — 24"
   },
   {
     "anchorId": "anchor_e422168579a04f11705b07e5a8bad474ea133bbc13a434b976aa2cddbe93f446",
     "text": "108",
     "page": 51,
     "kind": "table_cell",
-    "context": "Federal Reserve notes | 2,339 | 2,315 | 24 | 108 — 108"
+    "context": "Liabilities | Federal Reserve notes | Change (since Fed's balance sheet reduction began on June 1, 2022) | 2,339 | 2,315 | 24 | 108 — 108"
   },
   {
     "anchorId": "anchor_4f3ae645b3f5263e22c34c92c3bf158f8c04c402e80329dc1c58e3b12464d65c",
@@ -2443,28 +2443,28 @@
     "text": "3,430",
     "page": 51,
     "kind": "table_cell",
-    "context": "Reserves held by depository institutions | 3,430 | 3,332 | 97 | 72 — 3,430"
+    "context": "Liabilities | Reserves held by depository institutions | June 11, 2025 | 3,430 | 3,332 | 97 | 72 — 3,430"
   },
   {
     "anchorId": "anchor_18c5f716f26df8cbb14d8e2fec71559bada990509b34a2f0089e69471ef538cc",
     "text": "3,332",
     "page": 51,
     "kind": "table_cell",
-    "context": "Reserves held by depository institutions | 3,430 | 3,332 | 97 | 72 — 3,332"
+    "context": "Liabilities | Reserves held by depository institutions | January 8, 2025 | 3,430 | 3,332 | 97 | 72 — 3,332"
   },
   {
     "anchorId": "anchor_625a5f581b81857103333420d35b6b10e6c423fb5cc1aadbe445e0de49f24766",
     "text": "97",
     "page": 51,
     "kind": "table_cell",
-    "context": "Reserves held by depository institutions | 3,430 | 3,332 | 97 | 72 — 97"
+    "context": "Liabilities | Reserves held by depository institutions | Change (since January 2025) | 3,430 | 3,332 | 97 | 72 — 97"
   },
   {
     "anchorId": "anchor_dbf3ed1a56e7656a952459dcf5d09fa20f36e48d6ccc6ffece4698491544a21b",
     "text": "72",
     "page": 51,
     "kind": "table_cell",
-    "context": "Reserves held by depository institutions | 3,430 | 3,332 | 97 | 72 — 72"
+    "context": "Liabilities | Reserves held by depository institutions | Change (since Fed's balance sheet reduction began on June 1, 2022) | 3,430 | 3,332 | 97 | 72 — 72"
   },
   {
     "anchorId": "anchor_fd830f047bde47920024722494c443398d6789f8f8ca1b56ca9572365d8451de",
@@ -2485,28 +2485,28 @@
     "text": "371",
     "page": 51,
     "kind": "table_cell",
-    "context": "Foreign official and international accounts | 371 | 386 | -15 | 106 — 371"
+    "context": "Reverse repurchase agreements | Foreign official and international accounts | June 11, 2025 | 371 | 386 | -15 | 106 — 371"
   },
   {
     "anchorId": "anchor_3557d09974926d1f8f238131c2465132dec29cf9cc959e6f29d73111e56cfe68",
     "text": "386",
     "page": 51,
     "kind": "table_cell",
-    "context": "Foreign official and international accounts | 371 | 386 | -15 | 106 — 386"
+    "context": "Reverse repurchase agreements | Foreign official and international accounts | January 8, 2025 | 371 | 386 | -15 | 106 — 386"
   },
   {
     "anchorId": "anchor_29a01395dd6297acbb0e190b6ce1dddf1eb457c9e1a9f93429528b82874b2039",
     "text": "-15",
     "page": 51,
     "kind": "table_cell",
-    "context": "Foreign official and international accounts | 371 | 386 | -15 | 106 — -15"
+    "context": "Reverse repurchase agreements | Foreign official and international accounts | Change (since January 2025) | 371 | 386 | -15 | 106 — -15"
   },
   {
     "anchorId": "anchor_5769c27c925e0489dadce8ca08276832984ded14884b182c60dd06c1d43a8b13",
     "text": "106",
     "page": 51,
     "kind": "table_cell",
-    "context": "Foreign official and international accounts | 371 | 386 | -15 | 106 — 106"
+    "context": "Reverse repurchase agreements | Foreign official and international accounts | Change (since Fed's balance sheet reduction began on June 1, 2022) | 371 | 386 | -15 | 106 — 106"
   },
   {
     "anchorId": "anchor_a314af15c82118c6eee3f660851a2ea3ff9e7b5b9a41c74c6c6165256e29c531",
@@ -2520,28 +2520,28 @@
     "text": "205",
     "page": 51,
     "kind": "table_cell",
-    "context": "Others | 205 | 185 | 19 | -1,760 — 205"
+    "context": "Reverse repurchase agreements | Others | June 11, 2025 | 205 | 185 | 19 | -1,760 — 205"
   },
   {
     "anchorId": "anchor_bd89ae97ae96b3212be39ff01c95a46cd3ff6ccb3e403ec26a1ee905a7dd7e16",
     "text": "185",
     "page": 51,
     "kind": "table_cell",
-    "context": "Others | 205 | 185 | 19 | -1,760 — 185"
+    "context": "Reverse repurchase agreements | Others | January 8, 2025 | 205 | 185 | 19 | -1,760 — 185"
   },
   {
     "anchorId": "anchor_491293ee0dc9bf32e004287758aeec5fa71db63f9fed0b04efb9c3145f7ff57c",
     "text": "19",
     "page": 51,
     "kind": "table_cell",
-    "context": "Others | 205 | 185 | 19 | -1,760 — 19"
+    "context": "Reverse repurchase agreements | Others | Change (since January 2025) | 205 | 185 | 19 | -1,760 — 19"
   },
   {
     "anchorId": "anchor_d116bf4819de4b4e94f7b853308af351b3e9a4f6f33cb9205e22740f221fe8f5",
     "text": "-1,760",
     "page": 51,
     "kind": "table_cell",
-    "context": "Others | 205 | 185 | 19 | -1,760 — -1,760"
+    "context": "Reverse repurchase agreements | Others | Change (since Fed's balance sheet reduction began on June 1, 2022) | 205 | 185 | 19 | -1,760 — -1,760"
   },
   {
     "anchorId": "anchor_5bb11daa50172178a1485e0022ab95acb3367003e04cb90414431d295aa40441",
@@ -2555,28 +2555,28 @@
     "text": "277",
     "page": 51,
     "kind": "table_cell",
-    "context": "U.S. Treasury General Account | 277 | 621 | -344 | -504 — 277"
+    "context": "Reverse repurchase agreements | U.S. Treasury General Account | June 11, 2025 | 277 | 621 | -344 | -504 — 277"
   },
   {
     "anchorId": "anchor_344f977257b541cdbfbc4fd7fbf3441b3703006e71e150fb84ed2b22ff39e559",
     "text": "621",
     "page": 51,
     "kind": "table_cell",
-    "context": "U.S. Treasury General Account | 277 | 621 | -344 | -504 — 621"
+    "context": "Reverse repurchase agreements | U.S. Treasury General Account | January 8, 2025 | 277 | 621 | -344 | -504 — 621"
   },
   {
     "anchorId": "anchor_efea88b1631f7056ca02f507940cbfe83e7d9990c58378fbd03535e795d0dbd3",
     "text": "-344",
     "page": 51,
     "kind": "table_cell",
-    "context": "U.S. Treasury General Account | 277 | 621 | -344 | -504 — -344"
+    "context": "Reverse repurchase agreements | U.S. Treasury General Account | Change (since January 2025) | 277 | 621 | -344 | -504 — -344"
   },
   {
     "anchorId": "anchor_f100f8018fadd56a49f447ec9373280ee9b3a06f022275b5b4ed19f77fce0ec5",
     "text": "-504",
     "page": 51,
     "kind": "table_cell",
-    "context": "U.S. Treasury General Account | 277 | 621 | -344 | -504 — -504"
+    "context": "Reverse repurchase agreements | U.S. Treasury General Account | Change (since Fed's balance sheet reduction began on June 1, 2022) | 277 | 621 | -344 | -504 — -504"
   },
   {
     "anchorId": "anchor_84f6aadd91418fd23e98662c97aee99a1ff1a59bc0492405ffe1e32266c9d7e0",
@@ -2590,28 +2590,28 @@
     "text": "229",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other deposits | 229 | 174 | 55 | -19 — 229"
+    "context": "Reverse repurchase agreements | Other deposits | June 11, 2025 | 229 | 174 | 55 | -19 — 229"
   },
   {
     "anchorId": "anchor_c7599e9d0c6b1b46f3bd6b554933309a1fb9325bdc992efeecd659a92bca33a6",
     "text": "174",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other deposits | 229 | 174 | 55 | -19 — 174"
+    "context": "Reverse repurchase agreements | Other deposits | January 8, 2025 | 229 | 174 | 55 | -19 — 174"
   },
   {
     "anchorId": "anchor_a83174ca670769c91d6503a9cc961f4f197c43575cdcbc21785f34e86c4bf707",
     "text": "55",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other deposits | 229 | 174 | 55 | -19 — 55"
+    "context": "Reverse repurchase agreements | Other deposits | Change (since January 2025) | 229 | 174 | 55 | -19 — 55"
   },
   {
     "anchorId": "anchor_5165e3474a994edcfdfd04447c111b44206c512d597030c16bd6241033eda34f",
     "text": "-19",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other deposits | 229 | 174 | 55 | -19 — -19"
+    "context": "Reverse repurchase agreements | Other deposits | Change (since Fed's balance sheet reduction began on June 1, 2022) | 229 | 174 | 55 | -19 — -19"
   },
   {
     "anchorId": "anchor_23bb8da276b65e70e8eabc16974fe11e0c901e02fbd5380d5fdabf42d0ac3188",
@@ -2625,28 +2625,28 @@
     "text": "-173",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other liabilities and capital | -173 | -160 | -14 | -241 — -173"
+    "context": "Reverse repurchase agreements | Other liabilities and capital | June 11, 2025 | -173 | -160 | -14 | -241 — -173"
   },
   {
     "anchorId": "anchor_a102d4a8b05635ff0af30ce7e5f6a593193b30cd309bddee711fb59e943eab88",
     "text": "-160",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other liabilities and capital | -173 | -160 | -14 | -241 — -160"
+    "context": "Reverse repurchase agreements | Other liabilities and capital | January 8, 2025 | -173 | -160 | -14 | -241 — -160"
   },
   {
     "anchorId": "anchor_efadda7323277cca1912a2c3d3c6bc3fc3cc49bc90f1c97a80ffce8e84054596",
     "text": "-14",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other liabilities and capital | -173 | -160 | -14 | -241 — -14"
+    "context": "Reverse repurchase agreements | Other liabilities and capital | Change (since January 2025) | -173 | -160 | -14 | -241 — -14"
   },
   {
     "anchorId": "anchor_16e8c11f4c25db8592b2ab0a51d0c99560a54939b6533eddf2b21ebc8bfc5bb6",
     "text": "-241",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other liabilities and capital | -173 | -160 | -14 | -241 — -241"
+    "context": "Reverse repurchase agreements | Other liabilities and capital | Change (since Fed's balance sheet reduction began on June 1, 2022) | -173 | -160 | -14 | -241 — -241"
   },
   {
     "anchorId": "anchor_7cf1294377c10e5476710bc4a8a285c7dec58a178b786690d3cdfbb977d7d75c",
@@ -2660,28 +2660,28 @@
     "text": "6,677",
     "page": 51,
     "kind": "table_cell",
-    "context": "Total liabilities and capital | 6,677 | 6,854 | -176 | -2,238 — 6,677"
+    "context": "Reverse repurchase agreements | Total liabilities and capital | June 11, 2025 | 6,677 | 6,854 | -176 | -2,238 — 6,677"
   },
   {
     "anchorId": "anchor_eecae497302f88604f671651e14937009ad795e7f0bad68f6a7068791a4211bb",
     "text": "6,854",
     "page": 51,
     "kind": "table_cell",
-    "context": "Total liabilities and capital | 6,677 | 6,854 | -176 | -2,238 — 6,854"
+    "context": "Reverse repurchase agreements | Total liabilities and capital | January 8, 2025 | 6,677 | 6,854 | -176 | -2,238 — 6,854"
   },
   {
     "anchorId": "anchor_a874cee5e7827199bad096543b6ea223ed4d1949af341e5726b049ccee1325a8",
     "text": "-176",
     "page": 51,
     "kind": "table_cell",
-    "context": "Total liabilities and capital | 6,677 | 6,854 | -176 | -2,238 — -176"
+    "context": "Reverse repurchase agreements | Total liabilities and capital | Change (since January 2025) | 6,677 | 6,854 | -176 | -2,238 — -176"
   },
   {
     "anchorId": "anchor_0cf986cd1dbe56d4db8195c9b2c904d8db1779ee5b5ac219da6ed91d7e365abf",
     "text": "-2,238",
     "page": 51,
     "kind": "table_cell",
-    "context": "Total liabilities and capital | 6,677 | 6,854 | -176 | -2,238 — -2,238"
+    "context": "Reverse repurchase agreements | Total liabilities and capital | Change (since Fed's balance sheet reduction began on June 1, 2022) | 6,677 | 6,854 | -176 | -2,238 — -2,238"
   },
   {
     "anchorId": "anchor_085e61257e60c3b544b8326f57cb84b16eed0b6a99a14984327612ac4e575f15",
@@ -3076,84 +3076,84 @@
     "text": "1.4",
     "page": 57,
     "kind": "table_cell",
-    "context": "Change in real GDP | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.4"
+    "context": "Change in real GDP | Median 1 | 2025 | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.4"
   },
   {
     "anchorId": "anchor_a49e8fa3c530fb8da06c13bcebef5a57cdb0124ef6a5ccd0c3eb6bd770e49661",
     "text": "1.6",
     "page": 57,
     "kind": "table_cell",
-    "context": "Change in real GDP | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.6"
+    "context": "Change in real GDP | Median 1 | 2026 | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.6"
   },
   {
     "anchorId": "anchor_b244b8362eda1b7f0c1748f89bea8860b247cadcb6fe994a6412985f088f433f",
     "text": "1.8",
     "page": 57,
     "kind": "table_cell",
-    "context": "Change in real GDP | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.8"
+    "context": "Change in real GDP | Median 1 | 2027 | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.8"
   },
   {
     "anchorId": "anchor_364de53ec7e30a4ee70728882c818ab7836300aff7debd5af9bd609b0c2f871f",
     "text": "1.8",
     "page": 57,
     "kind": "table_cell",
-    "context": "Change in real GDP | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.8"
+    "context": "Change in real GDP | Median 1 | Longer run | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.8"
   },
   {
     "anchorId": "anchor_1466377e66f77e1ba141b0288f35521e49ada2738127d1dd002fa49558930281",
     "text": "1.2-1.5",
     "page": 57,
     "kind": "table_cell",
-    "context": "Change in real GDP | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.2-1.5"
+    "context": "Change in real GDP | Central Tendency 2 | 2025 | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.2-1.5"
   },
   {
     "anchorId": "anchor_bb835017b668a1e08b6563e77e784092724741860f441f34404ca5d8e4b5b500",
     "text": "1.5-1.8",
     "page": 57,
     "kind": "table_cell",
-    "context": "Change in real GDP | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.5-1.8"
+    "context": "Change in real GDP | Central Tendency 2 | 2026 | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.5-1.8"
   },
   {
     "anchorId": "anchor_59a3044b2e7fa0d95174a19b4973cb4dac669368375425af70473563dee59722",
     "text": "1.7-2.0",
     "page": 57,
     "kind": "table_cell",
-    "context": "Change in real GDP | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.7-2.0"
+    "context": "Change in real GDP | Central Tendency 2 | 2027 | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.7-2.0"
   },
   {
     "anchorId": "anchor_0494f9a7bb5cd633c2700bad304ab96f87755c760edc0ab47b59b8b980c42123",
     "text": "1.7-2.0",
     "page": 57,
     "kind": "table_cell",
-    "context": "Change in real GDP | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.7-2.0"
+    "context": "Change in real GDP | Central Tendency 2 | Longer run | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.7-2.0"
   },
   {
     "anchorId": "anchor_1ce363ba231bf9afb283a4df2a8a613eadc3620336137459bb35a0214ecf5b32",
     "text": "1.1-2.1",
     "page": 57,
     "kind": "table_cell",
-    "context": "Change in real GDP | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.1-2.1"
+    "context": "Change in real GDP | Range 3 | 2025 | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.1-2.1"
   },
   {
     "anchorId": "anchor_e64236082138c69c4c207b365842fca67b96bc6030ab230c768d52d9638281d2",
     "text": "0.6-2.5",
     "page": 57,
     "kind": "table_cell",
-    "context": "Change in real GDP | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 0.6-2.5"
+    "context": "Change in real GDP | Range 3 | 2026 | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 0.6-2.5"
   },
   {
     "anchorId": "anchor_ad6ec732d361a2c8782d099b4c99df7944364b43990790005b7091e24a88076b",
     "text": "0.6-2.5",
     "page": 57,
     "kind": "table_cell",
-    "context": "Change in real GDP | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 0.6-2.5"
+    "context": "Change in real GDP | Range 3 | 2027 | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 0.6-2.5"
   },
   {
     "anchorId": "anchor_3cf77d1b368a86aad219c29faa1ce7510e6c5ddec37b50c75ec1bce1ce4cfec4",
     "text": "1.5-2.5",
     "page": 57,
     "kind": "table_cell",
-    "context": "Change in real GDP | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.5-2.5"
+    "context": "Change in real GDP | Range 3 | Longer run | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.5-2.5"
   },
   {
     "anchorId": "anchor_8b96c624b851d87eee11c68665474e785134dc17bc9ce3a75edfb7706120baea",
@@ -3167,84 +3167,84 @@
     "text": "1.7",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.7"
+    "context": "March projection | Median 1 | 2025 | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.7"
   },
   {
     "anchorId": "anchor_0c97dfd479ede70acdb676f1a06c685f473b0514b53bd7ce12e5170a9767e415",
     "text": "1.8",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.8"
+    "context": "March projection | Median 1 | 2026 | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.8"
   },
   {
     "anchorId": "anchor_5af2d3fd0a9f685466fb7ab6b8195d688ee757f74e38e659038c6ec36e8af0d5",
     "text": "1.8",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.8"
+    "context": "March projection | Median 1 | 2027 | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.8"
   },
   {
     "anchorId": "anchor_c6f5f8ab7ca0659074a7b64b4320ef6527fbb35dfe6d6d1b4bfe44f9778ecf65",
     "text": "1.8",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.8"
+    "context": "March projection | Median 1 | Longer run | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.8"
   },
   {
     "anchorId": "anchor_ab54746651c121413bcb1d54efd8e1a5e5a338a85bfd1de7ef8c1506051b22f7",
     "text": "1.5-1.9",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.5-1.9"
+    "context": "March projection | Central Tendency 2 | 2025 | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.5-1.9"
   },
   {
     "anchorId": "anchor_f41376b8fcbeb7995a70cbdbb83fdfa457dec9bbc97ea9f3d44be902c5cc82ab",
     "text": "1.6-1.9",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.6-1.9"
+    "context": "March projection | Central Tendency 2 | 2026 | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.6-1.9"
   },
   {
     "anchorId": "anchor_b091de2c2e0f34ea41f3da2202ec6028e0d0845747ad0b816f7365511b7f7a8f",
     "text": "1.6-2.0",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.6-2.0"
+    "context": "March projection | Central Tendency 2 | 2027 | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.6-2.0"
   },
   {
     "anchorId": "anchor_b1c8877799488c3b831064772d6b5f84dcf81b2e3d8136c30dc830a4308c161f",
     "text": "1.7-2.0",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.7-2.0"
+    "context": "March projection | Central Tendency 2 | Longer run | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.7-2.0"
   },
   {
     "anchorId": "anchor_c810c847a20fc057bd0136c7d53bd119cd6d6a15324babb78752e9a9b29e8c93",
     "text": "1.0-2.4",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.0-2.4"
+    "context": "March projection | Range 3 | 2025 | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.0-2.4"
   },
   {
     "anchorId": "anchor_ca479fbeced5a87d0b630717e8c73db3ad489ac7acfd4766ca8f7ace20bd9c5c",
     "text": "0.6-2.5",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 0.6-2.5"
+    "context": "March projection | Range 3 | 2026 | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 0.6-2.5"
   },
   {
     "anchorId": "anchor_ff430e9931b17d0e08e3b689ead3a8039657540a225fcf4ed540bd38f2f43a48",
     "text": "0.6-2.5",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 0.6-2.5"
+    "context": "March projection | Range 3 | 2027 | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 0.6-2.5"
   },
   {
     "anchorId": "anchor_b717cfecaa001597701359df21223e275ff74cbd2c25110bf2f2ed7de16b50ec",
     "text": "1.5-2.5",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.5-2.5"
+    "context": "March projection | Range 3 | Longer run | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — 1.5-2.5"
   },
   {
     "anchorId": "anchor_e1590f2dd7ec48427b85a97b292cbda9a21152f9600159ac442790fd17d8f961",
@@ -3258,84 +3258,84 @@
     "text": "4.5",
     "page": 57,
     "kind": "table_cell",
-    "context": "Unemployment rate | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.5"
+    "context": "Unemployment rate | Median 1 | 2025 | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.5"
   },
   {
     "anchorId": "anchor_23aeef49d988530cf7c12c9bc7c6814c83a774d46e3c192de6982689a70559d6",
     "text": "4.5",
     "page": 57,
     "kind": "table_cell",
-    "context": "Unemployment rate | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.5"
+    "context": "Unemployment rate | Median 1 | 2026 | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.5"
   },
   {
     "anchorId": "anchor_d35f71741c9fd2e5d000778679bc60d975d331307e2a6e21539a7e30285e3102",
     "text": "4.4",
     "page": 57,
     "kind": "table_cell",
-    "context": "Unemployment rate | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.4"
+    "context": "Unemployment rate | Median 1 | 2027 | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.4"
   },
   {
     "anchorId": "anchor_50e123304c28fd43d43f1509cd8f49afd93ed8718d31076b84da783e3ee54ce5",
     "text": "4.2",
     "page": 57,
     "kind": "table_cell",
-    "context": "Unemployment rate | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.2"
+    "context": "Unemployment rate | Median 1 | Longer run | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.2"
   },
   {
     "anchorId": "anchor_cb5ae290f9e88ea695c62933893e107b54603a728b9d45ec6f3fdeffc0ddb6f0",
     "text": "4.4-4.5",
     "page": 57,
     "kind": "table_cell",
-    "context": "Unemployment rate | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.4-4.5"
+    "context": "Unemployment rate | Central Tendency 2 | 2025 | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.4-4.5"
   },
   {
     "anchorId": "anchor_3641156dddbcc64710d365d3f17f5182e0597c2d71de9c5e74fd73c0b0b09fcd",
     "text": "4.3-4.6",
     "page": 57,
     "kind": "table_cell",
-    "context": "Unemployment rate | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.3-4.6"
+    "context": "Unemployment rate | Central Tendency 2 | 2026 | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.3-4.6"
   },
   {
     "anchorId": "anchor_b6f18a0f548a5a9f8f6d0b4b1852a95db61e181be780eea82f4514fbe93b914c",
     "text": "4.2-4.6",
     "page": 57,
     "kind": "table_cell",
-    "context": "Unemployment rate | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.2-4.6"
+    "context": "Unemployment rate | Central Tendency 2 | 2027 | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.2-4.6"
   },
   {
     "anchorId": "anchor_1c2e835ec6c8232fb8ad7a1ac8df85e2d6f03a97e65899b6da067acc24904ed7",
     "text": "4.0-4.3",
     "page": 57,
     "kind": "table_cell",
-    "context": "Unemployment rate | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.0-4.3"
+    "context": "Unemployment rate | Central Tendency 2 | Longer run | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.0-4.3"
   },
   {
     "anchorId": "anchor_0610fc61bcf0313a2bc9303c8a3f1801ad750b4ade5268eff077f1d379eb5078",
     "text": "4.3-4.6",
     "page": 57,
     "kind": "table_cell",
-    "context": "Unemployment rate | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.3-4.6"
+    "context": "Unemployment rate | Range 3 | 2025 | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.3-4.6"
   },
   {
     "anchorId": "anchor_844554f588e826a7a2f48dffb1929f582bd5bcbf076fc238fb2a11e3ca7b853e",
     "text": "4.3-4.7",
     "page": 57,
     "kind": "table_cell",
-    "context": "Unemployment rate | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.3-4.7"
+    "context": "Unemployment rate | Range 3 | 2026 | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.3-4.7"
   },
   {
     "anchorId": "anchor_9738806b863ed443e5230602120f3cf3b8abdae55dfe2af297a80e21d2c5514c",
     "text": "4.0-4.7",
     "page": 57,
     "kind": "table_cell",
-    "context": "Unemployment rate | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.0-4.7"
+    "context": "Unemployment rate | Range 3 | 2027 | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 4.0-4.7"
   },
   {
     "anchorId": "anchor_16fa38dcb1f367c9cef2d0811b04447da1388653afd956ffe30ab12473cf5bee",
     "text": "3.5-4.5",
     "page": 57,
     "kind": "table_cell",
-    "context": "Unemployment rate | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 3.5-4.5"
+    "context": "Unemployment rate | Range 3 | Longer run | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — 3.5-4.5"
   },
   {
     "anchorId": "anchor_f7cc88b992911e5bf86ac2f3d6ea075940d399d57c33df63346aee7bc1fb9634",
@@ -3349,84 +3349,84 @@
     "text": "4.4",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 4.4"
+    "context": "March projection | Median 1 | 2025 | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 4.4"
   },
   {
     "anchorId": "anchor_272832ee9e0e3195ec2050be0c62786a6fa4203aa84e1a13e4ff30f417535fc3",
     "text": "4.3",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 4.3"
+    "context": "March projection | Median 1 | 2026 | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 4.3"
   },
   {
     "anchorId": "anchor_16a67fc030bc7c6ad3d37ea7122ec78525e49afeb61a7ef791b490fa5771df30",
     "text": "4.3",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 4.3"
+    "context": "March projection | Median 1 | 2027 | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 4.3"
   },
   {
     "anchorId": "anchor_f295c5125fc0d7dd5b3590ed2167bff15810962e812f6620b2d28871a6789856",
     "text": "4.2",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 4.2"
+    "context": "March projection | Median 1 | Longer run | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 4.2"
   },
   {
     "anchorId": "anchor_9d6329d41a59e5c81cb5f0574f7043f299dd454ec5aaee3a450919fd8f753dab",
     "text": "4.3-4.4",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 4.3-4.4"
+    "context": "March projection | Central Tendency 2 | 2025 | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 4.3-4.4"
   },
   {
     "anchorId": "anchor_95724aaf270d930bdf821220d11b454e01006327c3dc933e92e102eba7707736",
     "text": "4.2-4.5",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 4.2-4.5"
+    "context": "March projection | Central Tendency 2 | 2026 | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 4.2-4.5"
   },
   {
     "anchorId": "anchor_87c3fa5085a5af84c743fb2d25302e31b3db7a90387a861b56c878814773a3e7",
     "text": "4.1-4.4",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 4.1-4.4"
+    "context": "March projection | Central Tendency 2 | 2027 | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 4.1-4.4"
   },
   {
     "anchorId": "anchor_6a7fe44f3890a071080386259c5989ceee5ebb71ab9ef03f970a58f71a357e08",
     "text": "3.9-4.3",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 3.9-4.3"
+    "context": "March projection | Central Tendency 2 | Longer run | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 3.9-4.3"
   },
   {
     "anchorId": "anchor_0fb831cbc699d5d045342efe4c885606854bdcb2632836821038a5de83df4d97",
     "text": "4.1-4.6",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 4.1-4.6"
+    "context": "March projection | Range 3 | 2025 | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 4.1-4.6"
   },
   {
     "anchorId": "anchor_ebef3cedf97189df396e9f3472ef635e3f67f49d0373f4d1e2c863e25571180f",
     "text": "4.1-4.7",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 4.1-4.7"
+    "context": "March projection | Range 3 | 2026 | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 4.1-4.7"
   },
   {
     "anchorId": "anchor_8f97030f51b94d149625214016c47e844934429defd32303658ae382cfe45bb7",
     "text": "3.9-4.7",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 3.9-4.7"
+    "context": "March projection | Range 3 | 2027 | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 3.9-4.7"
   },
   {
     "anchorId": "anchor_e837c07534275eb7c185cee7a3122a4691337482e73f381a54c4b3a58dc15939",
     "text": "3.5-4.5",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 3.5-4.5"
+    "context": "March projection | Range 3 | Longer run | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — 3.5-4.5"
   },
   {
     "anchorId": "anchor_f241a5718250905a001fb3a76f3be434d17032c90851b2baec96f0f452dd8a41",
@@ -3440,84 +3440,84 @@
     "text": "3.0",
     "page": 57,
     "kind": "table_cell",
-    "context": "PCE inflation | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 3.0"
+    "context": "PCE inflation | Median 1 | 2025 | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 3.0"
   },
   {
     "anchorId": "anchor_336c6bd420c6726f4023f997d214ed28a57d189f001eff676266adabfa93bc27",
     "text": "2.4",
     "page": 57,
     "kind": "table_cell",
-    "context": "PCE inflation | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.4"
+    "context": "PCE inflation | Median 1 | 2026 | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.4"
   },
   {
     "anchorId": "anchor_558d0103fd51d75502fb7dd48cbcf1229bd0a3b5bd115ecdb9cf3dade4ba92f2",
     "text": "2.1",
     "page": 57,
     "kind": "table_cell",
-    "context": "PCE inflation | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.1"
+    "context": "PCE inflation | Median 1 | 2027 | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.1"
   },
   {
     "anchorId": "anchor_74fbb39dde808054700fba72076294f7d568e6aa2747848c2be9e01eb9f9baff",
     "text": "2.0",
     "page": 57,
     "kind": "table_cell",
-    "context": "PCE inflation | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.0"
+    "context": "PCE inflation | Median 1 | Longer run | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.0"
   },
   {
     "anchorId": "anchor_847411f9fca479c58e57739986d71eaec3c10824ea6542157a6ba3830f88ea00",
     "text": "2.8-3.2",
     "page": 57,
     "kind": "table_cell",
-    "context": "PCE inflation | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.8-3.2"
+    "context": "PCE inflation | Central Tendency 2 | 2025 | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.8-3.2"
   },
   {
     "anchorId": "anchor_c0922d7be38ae91dfe920bec9c57a784cf967c374326d8d9f5201ce5a60ff4b7",
     "text": "2.3-2.6",
     "page": 57,
     "kind": "table_cell",
-    "context": "PCE inflation | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.3-2.6"
+    "context": "PCE inflation | Central Tendency 2 | 2026 | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.3-2.6"
   },
   {
     "anchorId": "anchor_224937fb1894421e89cd2ca9f84eb701337bf9af104087d76b0f85cfb95bc665",
     "text": "2.0-2.2",
     "page": 57,
     "kind": "table_cell",
-    "context": "PCE inflation | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.0-2.2"
+    "context": "PCE inflation | Central Tendency 2 | 2027 | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.0-2.2"
   },
   {
     "anchorId": "anchor_21c99ab4d60df797d00c1f0fb6fb1f6b8be932c20eb6e7c024834cd67831bd68",
     "text": "2.0",
     "page": 57,
     "kind": "table_cell",
-    "context": "PCE inflation | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.0"
+    "context": "PCE inflation | Central Tendency 2 | Longer run | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.0"
   },
   {
     "anchorId": "anchor_a09fdb3012726b8b3c08adfd76db1a78dfe8baed2fabc83e73b0d13000b18130",
     "text": "2.5-3.3",
     "page": 57,
     "kind": "table_cell",
-    "context": "PCE inflation | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.5-3.3"
+    "context": "PCE inflation | Range 3 | 2025 | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.5-3.3"
   },
   {
     "anchorId": "anchor_ecd42ebf7f20976da57b5b8f8c5cf4b4e002cafa3c7add603df211da210625f2",
     "text": "2.1-3.1",
     "page": 57,
     "kind": "table_cell",
-    "context": "PCE inflation | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.1-3.1"
+    "context": "PCE inflation | Range 3 | 2026 | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.1-3.1"
   },
   {
     "anchorId": "anchor_2681c3d416c2b50d2f2376ccb40219cb95128ac7fc4ca24c962f480be0b8c45f",
     "text": "2.0-2.8",
     "page": 57,
     "kind": "table_cell",
-    "context": "PCE inflation | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.0-2.8"
+    "context": "PCE inflation | Range 3 | 2027 | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.0-2.8"
   },
   {
     "anchorId": "anchor_c0ac91eb3b1498f386764bd663a9752db1883b3391c7258f8b131f59186e6ccd",
     "text": "2.0",
     "page": 57,
     "kind": "table_cell",
-    "context": "PCE inflation | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.0"
+    "context": "PCE inflation | Range 3 | Longer run | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — 2.0"
   },
   {
     "anchorId": "anchor_16009b44b562e6b48461b77728909613fa9f91bc67469924cfa079578b7384b8",
@@ -3531,84 +3531,84 @@
     "text": "2.7",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.7"
+    "context": "March projection | Median 1 | 2025 | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.7"
   },
   {
     "anchorId": "anchor_c976126b652949af9247761c454926b58928d4b40a278d74d731182d5a86720a",
     "text": "2.2",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.2"
+    "context": "March projection | Median 1 | 2026 | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.2"
   },
   {
     "anchorId": "anchor_f374aac11b108503f3f870dd7b76bca3d37c357d76f423565dc385c212b91687",
     "text": "2.0",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.0"
+    "context": "March projection | Median 1 | 2027 | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.0"
   },
   {
     "anchorId": "anchor_38a38b9d4ef861f5310b1e0bf909acb4518256c2763ac589ad850f3a4d0310e7",
     "text": "2.0",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.0"
+    "context": "March projection | Median 1 | Longer run | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.0"
   },
   {
     "anchorId": "anchor_9f2baf5ed428ba9bcabbbc83b004e5c4d3f1773fe70f6a2e7f4515efa3372980",
     "text": "2.6-2.9",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.6-2.9"
+    "context": "March projection | Central Tendency 2 | 2025 | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.6-2.9"
   },
   {
     "anchorId": "anchor_0f6323c2aa0e2e5da84b4874d0b9c70520f0dc1c4c44fba5df8e9509a04bcdc8",
     "text": "2.1-2.3",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.1-2.3"
+    "context": "March projection | Central Tendency 2 | 2026 | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.1-2.3"
   },
   {
     "anchorId": "anchor_570dff9571e27052a70192e754d6e7076859ea14e830710f5da5dc4b77129ad5",
     "text": "2.0-2.1",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.0-2.1"
+    "context": "March projection | Central Tendency 2 | 2027 | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.0-2.1"
   },
   {
     "anchorId": "anchor_caefc1f6ee28445274f8e9116f091453f81c452de91c1690686cff3c7e526a1c",
     "text": "2.0",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.0"
+    "context": "March projection | Central Tendency 2 | Longer run | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.0"
   },
   {
     "anchorId": "anchor_2d46cd0c5491908ca5e776faeb9edd5e585470aa0e1bbd595243589d99d9bdd4",
     "text": "2.5-3.4",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.5-3.4"
+    "context": "March projection | Range 3 | 2025 | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.5-3.4"
   },
   {
     "anchorId": "anchor_c821e3752e9221051529b4432dc2a3be34409081601af67770185f57077f1af9",
     "text": "2.0-3.1",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.0-3.1"
+    "context": "March projection | Range 3 | 2026 | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.0-3.1"
   },
   {
     "anchorId": "anchor_5c62b593d13f7c3f834222111baa584770746109e1f5e2c8a3162608bc458141",
     "text": "1.9-2.8",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 1.9-2.8"
+    "context": "March projection | Range 3 | 2027 | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 1.9-2.8"
   },
   {
     "anchorId": "anchor_b127efcf487cb11a617d65d9a2955394e247303566a25af18a8f499ccb7daba5",
     "text": "2.0",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.0"
+    "context": "March projection | Range 3 | Longer run | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — 2.0"
   },
   {
     "anchorId": "anchor_e3df0caeba7815e0928cd369abe4f9ad6060dac0ba0fe52f32c8a7f9fc9cca35",
@@ -3622,63 +3622,63 @@
     "text": "3.1",
     "page": 57,
     "kind": "table_cell",
-    "context": "Core PCE inflation 4 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 3.1"
+    "context": "Core PCE inflation 4 | Median 1 | 2025 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 3.1"
   },
   {
     "anchorId": "anchor_2c1eef3b96e876bc0cd5773919ce3ef8021592fc959f6079bfa2d9ad622aafb8",
     "text": "2.4",
     "page": 57,
     "kind": "table_cell",
-    "context": "Core PCE inflation 4 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.4"
+    "context": "Core PCE inflation 4 | Median 1 | 2026 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.4"
   },
   {
     "anchorId": "anchor_0003a9de8d71e1b2b913d2fbe71fe88b735971c0f0dd0458513c83a63e9be029",
     "text": "2.1",
     "page": 57,
     "kind": "table_cell",
-    "context": "Core PCE inflation 4 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.1"
+    "context": "Core PCE inflation 4 | Median 1 | 2027 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.1"
   },
   {
     "anchorId": "anchor_a24bda9bd021814897854f4b3276002436d8a022af27d9f08e4b90488bb10fd7",
     "text": "2.9-3.4",
     "page": 57,
     "kind": "table_cell",
-    "context": "Core PCE inflation 4 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.9-3.4"
+    "context": "Core PCE inflation 4 | Central Tendency 2 | 2025 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.9-3.4"
   },
   {
     "anchorId": "anchor_5cd03283ea939e285e162d57bafc04121b4897d44f0c07308d6042629ff6f64e",
     "text": "2.3-2.7",
     "page": 57,
     "kind": "table_cell",
-    "context": "Core PCE inflation 4 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.3-2.7"
+    "context": "Core PCE inflation 4 | Central Tendency 2 | 2026 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.3-2.7"
   },
   {
     "anchorId": "anchor_d7b7c1e795f13f43874098d264399215a562f8ab5f16ede679b09763202d4b32",
     "text": "2.0-2.2",
     "page": 57,
     "kind": "table_cell",
-    "context": "Core PCE inflation 4 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.0-2.2"
+    "context": "Core PCE inflation 4 | Central Tendency 2 | 2027 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.0-2.2"
   },
   {
     "anchorId": "anchor_1f49ba86742ecf9babfb4f35d533eb712b72853380cd6efda949dd105aefd1c6",
     "text": "2.5-3.5",
     "page": 57,
     "kind": "table_cell",
-    "context": "Core PCE inflation 4 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.5-3.5"
+    "context": "Core PCE inflation 4 | Range 3 | 2025 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.5-3.5"
   },
   {
     "anchorId": "anchor_b3326c10c8fa5e965bfb00b8f1a3c8a8cabf34967ee0cfce96442308164c29fc",
     "text": "2.1-3.2",
     "page": 57,
     "kind": "table_cell",
-    "context": "Core PCE inflation 4 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.1-3.2"
+    "context": "Core PCE inflation 4 | Range 3 | 2026 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.1-3.2"
   },
   {
     "anchorId": "anchor_77fb25a439cdd1073b2fccc91fa1346fb2862913a2dca136a2753cf7147ea9dd",
     "text": "2.0-2.9",
     "page": 57,
     "kind": "table_cell",
-    "context": "Core PCE inflation 4 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.0-2.9"
+    "context": "Core PCE inflation 4 | Range 3 | 2027 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.0-2.9"
   },
   {
     "anchorId": "anchor_96670df8d415d34a24a5f2f1e5a6eb9fa524f53cd05feb0e811eb563981e19fd",
@@ -3692,63 +3692,63 @@
     "text": "2.8",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.8"
+    "context": "March projection | Median 1 | 2025 | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.8"
   },
   {
     "anchorId": "anchor_61db46d2bdbbfd08b063bc5c4a7368ca4ed797810cc1a28f3e48bb27eb43d349",
     "text": "2.2",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.2"
+    "context": "March projection | Median 1 | 2026 | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.2"
   },
   {
     "anchorId": "anchor_95f0aefaeb875f16aad33b3c910ff3b5f94b17801734cb78f1f2831f9e1212ab",
     "text": "2.0",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.0"
+    "context": "March projection | Median 1 | 2027 | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.0"
   },
   {
     "anchorId": "anchor_030387d2a834678252e1318696445428f3a97baccd25dd77e92ac10e3c858c0e",
     "text": "2.7-3.0",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.7-3.0"
+    "context": "March projection | Central Tendency 2 | 2025 | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.7-3.0"
   },
   {
     "anchorId": "anchor_22d4ce6fcd1c66d838e93ad62ba97d95a24b52fc8cab31f0813a920da53501c7",
     "text": "2.1-2.4",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.1-2.4"
+    "context": "March projection | Central Tendency 2 | 2026 | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.1-2.4"
   },
   {
     "anchorId": "anchor_12edb70b54d96d334450dc48bf70c578d08fed4f1ae3b10cfd886c61d510346c",
     "text": "2.0-2.1",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.0-2.1"
+    "context": "March projection | Central Tendency 2 | 2027 | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.0-2.1"
   },
   {
     "anchorId": "anchor_c670d19ce92807c291220623769677228b244a521268310099bed856ad51f252",
     "text": "2.5-3.5",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.5-3.5"
+    "context": "March projection | Range 3 | 2025 | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.5-3.5"
   },
   {
     "anchorId": "anchor_9b7c3ec3553f8a70c74b549392f092980fe9a385966946b51d26e87026f8bc08",
     "text": "2.1-3.2",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.1-3.2"
+    "context": "March projection | Range 3 | 2026 | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.1-3.2"
   },
   {
     "anchorId": "anchor_23f040b4b75cd24522084815cfc61ddea5cfe2c17674ed1ca515387ad6cfcbac",
     "text": "2.0-2.9",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.0-2.9"
+    "context": "March projection | Range 3 | 2027 | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — 2.0-2.9"
   },
   {
     "anchorId": "anchor_1ae0f689880d959d0cb3d3c6481836389a4454a25d8cae896bf6a5504e8cc18d",
@@ -3769,84 +3769,84 @@
     "text": "3.9",
     "page": 57,
     "kind": "table_cell",
-    "context": "Federal funds rate | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 3.9"
+    "context": "Memo: Projected appropriate policy path | Federal funds rate | Median 1 | 2025 | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 3.9"
   },
   {
     "anchorId": "anchor_6d83894726dc61dd06bd9bdca047224f29105f7c89a44718938ed86ac96ef900",
     "text": "3.6",
     "page": 57,
     "kind": "table_cell",
-    "context": "Federal funds rate | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 3.6"
+    "context": "Memo: Projected appropriate policy path | Federal funds rate | Median 1 | 2026 | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 3.6"
   },
   {
     "anchorId": "anchor_aa9c8c55f269db4e2b50dc2e565135e7e742650a406187fd1932d0cd2b376013",
     "text": "3.4",
     "page": 57,
     "kind": "table_cell",
-    "context": "Federal funds rate | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 3.4"
+    "context": "Memo: Projected appropriate policy path | Federal funds rate | Median 1 | 2027 | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 3.4"
   },
   {
     "anchorId": "anchor_fdf0f2529e9a71c5eac306cb4d307987893c3133ccef3ba967fe2d81fbc046f1",
     "text": "3.0",
     "page": 57,
     "kind": "table_cell",
-    "context": "Federal funds rate | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 3.0"
+    "context": "Memo: Projected appropriate policy path | Federal funds rate | Median 1 | Longer run | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 3.0"
   },
   {
     "anchorId": "anchor_84dffbcbfefa6e2f68676957f76b596f9b3f14c5f55054fcd30edcb53577b5c1",
     "text": "3.9-4.4",
     "page": 57,
     "kind": "table_cell",
-    "context": "Federal funds rate | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 3.9-4.4"
+    "context": "Memo: Projected appropriate policy path | Federal funds rate | Central Tendency 2 | 2025 | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 3.9-4.4"
   },
   {
     "anchorId": "anchor_ad5f5ae6e51faca8b5ad9ddad7178091db1c32f0bb36ecddf2a88c690dc367fc",
     "text": "3.1-3.9",
     "page": 57,
     "kind": "table_cell",
-    "context": "Federal funds rate | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 3.1-3.9"
+    "context": "Memo: Projected appropriate policy path | Federal funds rate | Central Tendency 2 | 2026 | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 3.1-3.9"
   },
   {
     "anchorId": "anchor_1ea04fc398f811ea25d224799de79c45593fa63815637e7331e2dd076ba60fc9",
     "text": "2.9-3.6",
     "page": 57,
     "kind": "table_cell",
-    "context": "Federal funds rate | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 2.9-3.6"
+    "context": "Memo: Projected appropriate policy path | Federal funds rate | Central Tendency 2 | 2027 | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 2.9-3.6"
   },
   {
     "anchorId": "anchor_e939f9319bc84cb2a96e16e6b5f332f1a2ddf8b398d9fde619c8363b352359a3",
     "text": "2.6-3.6",
     "page": 57,
     "kind": "table_cell",
-    "context": "Federal funds rate | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 2.6-3.6"
+    "context": "Memo: Projected appropriate policy path | Federal funds rate | Central Tendency 2 | Longer run | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 2.6-3.6"
   },
   {
     "anchorId": "anchor_ea5c048feb4f8674e09b74fdd7eb84230726aff27a53cd8da08c075344ad3807",
     "text": "3.6-4.4",
     "page": 57,
     "kind": "table_cell",
-    "context": "Federal funds rate | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 3.6-4.4"
+    "context": "Memo: Projected appropriate policy path | Federal funds rate | Range 3 | 2025 | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 3.6-4.4"
   },
   {
     "anchorId": "anchor_a1c8bce936b5e175e204898d0565eb4409742808e3175b46f7c3d791a9ceee1e",
     "text": "2.6-4.1",
     "page": 57,
     "kind": "table_cell",
-    "context": "Federal funds rate | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 2.6-4.1"
+    "context": "Memo: Projected appropriate policy path | Federal funds rate | Range 3 | 2026 | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 2.6-4.1"
   },
   {
     "anchorId": "anchor_59efacdc632ab92889702f255cc4ef2e7520820eb39a0514bb57178226272b9d",
     "text": "2.6-3.9",
     "page": 57,
     "kind": "table_cell",
-    "context": "Federal funds rate | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 2.6-3.9"
+    "context": "Memo: Projected appropriate policy path | Federal funds rate | Range 3 | 2027 | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 2.6-3.9"
   },
   {
     "anchorId": "anchor_319fac4941c1c4e32791e8ca763888ffb1b3af4dcfd0029e6e033072de2c3e64",
     "text": "2.5-3.9",
     "page": 57,
     "kind": "table_cell",
-    "context": "Federal funds rate | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 2.5-3.9"
+    "context": "Memo: Projected appropriate policy path | Federal funds rate | Range 3 | Longer run | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — 2.5-3.9"
   },
   {
     "anchorId": "anchor_5246a60ba68d2189eadee67d1daab59c1fc39299bea66bf4a5cda6e427530923",
@@ -3860,84 +3860,84 @@
     "text": "3.9",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 3.9"
+    "context": "Memo: Projected appropriate policy path | March projection | Median 1 | 2025 | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 3.9"
   },
   {
     "anchorId": "anchor_378aef9b9c5d1f09192e0ec344f9bf608da11bb275b23b245ebb73b574778362",
     "text": "3.4",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 3.4"
+    "context": "Memo: Projected appropriate policy path | March projection | Median 1 | 2026 | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 3.4"
   },
   {
     "anchorId": "anchor_a011f3c3e6c5773539a6fcbce78e864233e3728426ea14d8b6f01d18f93ba93f",
     "text": "3.1",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 3.1"
+    "context": "Memo: Projected appropriate policy path | March projection | Median 1 | 2027 | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 3.1"
   },
   {
     "anchorId": "anchor_2066ab036ab3ca6040af74ee586ac28139caf89dd93e1cbb594aa00a8e1390b3",
     "text": "3.0",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 3.0"
+    "context": "Memo: Projected appropriate policy path | March projection | Median 1 | Longer run | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 3.0"
   },
   {
     "anchorId": "anchor_254b80b99fa8073225d00100d46e77c814a0c41cb1923223aebf07615f03ab24",
     "text": "3.9-4.4",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 3.9-4.4"
+    "context": "Memo: Projected appropriate policy path | March projection | Central Tendency 2 | 2025 | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 3.9-4.4"
   },
   {
     "anchorId": "anchor_ff4baf34c1273111509953536c21df0253c160460a0261e9e55c923411c8ae8f",
     "text": "3.1-3.9",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 3.1-3.9"
+    "context": "Memo: Projected appropriate policy path | March projection | Central Tendency 2 | 2026 | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 3.1-3.9"
   },
   {
     "anchorId": "anchor_71fdb0d8d6b40df60cf2f90f7500c3ea96fedfda5193c256b8622c2a6335e326",
     "text": "2.9-3.6",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 2.9-3.6"
+    "context": "Memo: Projected appropriate policy path | March projection | Central Tendency 2 | 2027 | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 2.9-3.6"
   },
   {
     "anchorId": "anchor_268671a652e5fe51b47a832238ea4503aa88168e6d16a42a1d51dd100a24fe56",
     "text": "2.6-3.6",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 2.6-3.6"
+    "context": "Memo: Projected appropriate policy path | March projection | Central Tendency 2 | Longer run | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 2.6-3.6"
   },
   {
     "anchorId": "anchor_565400179674d015537742c9c1b340cc41d017bc2c03758ecd4c7becd165ff44",
     "text": "3.6-4.4",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 3.6-4.4"
+    "context": "Memo: Projected appropriate policy path | March projection | Range 3 | 2025 | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 3.6-4.4"
   },
   {
     "anchorId": "anchor_2d7862b3beea7ca7c7338b01d65133528badbb27c8098a367d60859dc3521b84",
     "text": "2.9-4.1",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 2.9-4.1"
+    "context": "Memo: Projected appropriate policy path | March projection | Range 3 | 2026 | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 2.9-4.1"
   },
   {
     "anchorId": "anchor_e628392f851bd90f4f9a0628f6b9a5d98051d05b93a55d5f3cdd21db7a519a87",
     "text": "2.6-3.9",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 2.6-3.9"
+    "context": "Memo: Projected appropriate policy path | March projection | Range 3 | 2027 | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 2.6-3.9"
   },
   {
     "anchorId": "anchor_4544bb5de45a3eb00a1c03e9abfbe9be6a6b953af9065fc16f581f54619d072d",
     "text": "2.5-3.9",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 2.5-3.9"
+    "context": "Memo: Projected appropriate policy path | March projection | Range 3 | Longer run | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — 2.5-3.9"
   },
   {
     "anchorId": "anchor_c962d22c2551e4513c5576e24c12375e6a8b2bbeeba9b3d33135f71b69e42a9a",
@@ -4106,21 +4106,21 @@
     "text": "± 1.7",
     "page": 72,
     "kind": "table_cell",
-    "context": "Change in real GDP 1 | ± 1.7 | ± 1.8 | ± 2.2 — ± 1.7"
+    "context": "Change in real GDP 1 | Table 2. Average Historical Projection Error Ranges | 2025 | ± 1.7 | ± 1.8 | ± 2.2 — ± 1.7"
   },
   {
     "anchorId": "anchor_ed14fbaba866b2f82290ff35a9d548cb128c32848bc5bdc5a649789b9ebe04b6",
     "text": "± 1.8",
     "page": 72,
     "kind": "table_cell",
-    "context": "Change in real GDP 1 | ± 1.7 | ± 1.8 | ± 2.2 — ± 1.8"
+    "context": "Change in real GDP 1 | Table 2. Average Historical Projection Error Ranges | 2026 | ± 1.7 | ± 1.8 | ± 2.2 — ± 1.8"
   },
   {
     "anchorId": "anchor_4b502c1cacace6d801663d28685ca40be6d97528a4a9711c84a8d4da2ade3ee4",
     "text": "± 2.2",
     "page": 72,
     "kind": "table_cell",
-    "context": "Change in real GDP 1 | ± 1.7 | ± 1.8 | ± 2.2 — ± 2.2"
+    "context": "Change in real GDP 1 | Table 2. Average Historical Projection Error Ranges | 2027 | ± 1.7 | ± 1.8 | ± 2.2 — ± 2.2"
   },
   {
     "anchorId": "anchor_ab354121a585afded9d56ebd391367015d42c4bb1ed69e7f7414aed6c0308fd3",
@@ -4134,21 +4134,21 @@
     "text": "± 0.9",
     "page": 72,
     "kind": "table_cell",
-    "context": "Unemployment rate 1 | ± 0.9 | ± 1.4 | ± 1.9 — ± 0.9"
+    "context": "Unemployment rate 1 | Table 2. Average Historical Projection Error Ranges | 2025 | ± 0.9 | ± 1.4 | ± 1.9 — ± 0.9"
   },
   {
     "anchorId": "anchor_bcdebe6ffa1ea11ce751dc27b1d11f2dd5018be8be0d3de04635765a2ae15e52",
     "text": "± 1.4",
     "page": 72,
     "kind": "table_cell",
-    "context": "Unemployment rate 1 | ± 0.9 | ± 1.4 | ± 1.9 — ± 1.4"
+    "context": "Unemployment rate 1 | Table 2. Average Historical Projection Error Ranges | 2026 | ± 0.9 | ± 1.4 | ± 1.9 — ± 1.4"
   },
   {
     "anchorId": "anchor_3219fafcfa95204adac789b51fbf02ce5a9f264c1d9eaf12507fdf6f9a6d68ef",
     "text": "± 1.9",
     "page": 72,
     "kind": "table_cell",
-    "context": "Unemployment rate 1 | ± 0.9 | ± 1.4 | ± 1.9 — ± 1.9"
+    "context": "Unemployment rate 1 | Table 2. Average Historical Projection Error Ranges | 2027 | ± 0.9 | ± 1.4 | ± 1.9 — ± 1.9"
   },
   {
     "anchorId": "anchor_7e7632007b51020bb59c19f06396646b768e195df27af0be9bd709ee9968db31",
@@ -4162,21 +4162,21 @@
     "text": "± 1.0",
     "page": 72,
     "kind": "table_cell",
-    "context": "Total consumer prices 2 | ± 1.0 | ± 1.7 | ± 1.4 — ± 1.0"
+    "context": "Total consumer prices 2 | Table 2. Average Historical Projection Error Ranges | 2025 | ± 1.0 | ± 1.7 | ± 1.4 — ± 1.0"
   },
   {
     "anchorId": "anchor_f38bc84a03be89c961416bdf5a3ea2ac3afe838c9cf990684b46aaffd0c2eab8",
     "text": "± 1.7",
     "page": 72,
     "kind": "table_cell",
-    "context": "Total consumer prices 2 | ± 1.0 | ± 1.7 | ± 1.4 — ± 1.7"
+    "context": "Total consumer prices 2 | Table 2. Average Historical Projection Error Ranges | 2026 | ± 1.0 | ± 1.7 | ± 1.4 — ± 1.7"
   },
   {
     "anchorId": "anchor_8cac7ef7f31f9a2ba2008476167845890b85e0bde361669dc98f8d84a519107d",
     "text": "± 1.4",
     "page": 72,
     "kind": "table_cell",
-    "context": "Total consumer prices 2 | ± 1.0 | ± 1.7 | ± 1.4 — ± 1.4"
+    "context": "Total consumer prices 2 | Table 2. Average Historical Projection Error Ranges | 2027 | ± 1.0 | ± 1.7 | ± 1.4 — ± 1.4"
   },
   {
     "anchorId": "anchor_9c72403b73e647ac2e9bca158c0d7b5e646c2603a6d69ad35873a1b5d524ea6a",
@@ -4190,21 +4190,21 @@
     "text": "± 0.7",
     "page": 72,
     "kind": "table_cell",
-    "context": "Short-term interest rates 3 | ± 0.7 | ± 1.8 | ± 2.3 — ± 0.7"
+    "context": "Short-term interest rates 3 | Table 2. Average Historical Projection Error Ranges | 2025 | ± 0.7 | ± 1.8 | ± 2.3 — ± 0.7"
   },
   {
     "anchorId": "anchor_48bc1f3cf1b8f3cff2b21b278b8f3be37051f09157e47185e265362bc5f62827",
     "text": "± 1.8",
     "page": 72,
     "kind": "table_cell",
-    "context": "Short-term interest rates 3 | ± 0.7 | ± 1.8 | ± 2.3 — ± 1.8"
+    "context": "Short-term interest rates 3 | Table 2. Average Historical Projection Error Ranges | 2026 | ± 0.7 | ± 1.8 | ± 2.3 — ± 1.8"
   },
   {
     "anchorId": "anchor_af29558c2bea1b0f894d67bf1ee5716567fa240bf96c54e587e625235d9352de",
     "text": "± 2.3",
     "page": 72,
     "kind": "table_cell",
-    "context": "Short-term interest rates 3 | ± 0.7 | ± 1.8 | ± 2.3 — ± 2.3"
+    "context": "Short-term interest rates 3 | Table 2. Average Historical Projection Error Ranges | 2027 | ± 0.7 | ± 1.8 | ± 2.3 — ± 2.3"
   },
   {
     "anchorId": "anchor_2b93b297f36a96744c7057c5bd17093a63b237f3a998652f3e82668ea1da6fe3",

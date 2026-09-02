@@ -121,7 +121,8 @@ def _dmy_to_iso(m: re.Match) -> str:
 
 def normalize(text: str) -> str:
     out = _NBSP_GROUPING.sub("", text)
-    out = unicodedata.normalize("NFKC", out).casefold().replace("−", "-")
+    # U+2212 minus and U+2013 en-dash both read as "-" so a range stays one token.
+    out = unicodedata.normalize("NFKC", out).casefold().replace("−", "-").replace("–", "-")
     out = _DAY_MONTHNAME_YEAR.sub(lambda m: _named_date(m[1], m[2], m[3], m[0]), out)
     out = _MONTHNAME_DAY_YEAR.sub(lambda m: _named_date(m[2], m[1], m[3], m[0]), out)
     out = _DMY_DATE.sub(_dmy_to_iso, out)
@@ -148,8 +149,10 @@ def normalize(text: str) -> str:
         lambda m: m[1] if unicodedata.category(m[1]) == "Sc" else m[0],
         out,
     )
+    # A currency symbol after a number glues to it ("50 €") unless it starts
+    # the next number: "in 2024 ($116,800)" must not become "2024$116800".
     out = re.sub(
-        r"(?<=\d)\s+(\S)",
+        r"(?<=\d)\s+(\S)(?!\d)",
         lambda m: m[1] if unicodedata.category(m[1]) == "Sc" else m[0],
         out,
     )
@@ -183,19 +186,41 @@ def bounded_contains(value: str | int | float | bool, text: str) -> bool:
         return False
     if len(needle) == 1 and not needle.isdigit():
         return haystack == needle  # safe for one-character table cells
+    # A hyphen glues digits into one token: "4.4" is not verbatim in "4.3-4.4".
     return any(
-        re.search(rf"(?<!\w){re.escape(n)}(?!\w)", candidate)
+        re.search(rf"(?<!\w)(?<!\d-){re.escape(n)}(?!\w)(?!-\d)", candidate)
         for n in {needle, _join_space_groups(needle)}
         for candidate in {haystack, _join_document_space_groups(haystack)}
     )
 
 
-def render_claim(claim: Claim, siblings: bool = True) -> str:
-    """field name + value, plus sibling context unless siblings=False."""
-    field = next(
+def loose_contains(value: str | int | float | bool, text: str) -> bool:
+    """Whitespace-tolerant containment for OCR/PDF spacing: "Im Dol 2 -6",
+    "Jos é", "AAR 33284" for the claim "AAR33284". Never a lexical link —
+    hits reach the scorer as non-verbatim candidates, so they are capped and
+    reviewed. Optional whitespace is allowed between characters but never
+    inside a digit run, so "grav 12" cannot match "grav 1 2"."""
+    needle = normalize(str(value)).replace(" ", "")
+    if len(needle) < 4 or not any(ch.isalpha() for ch in needle):
+        return False
+    pattern = "".join(
+        re.escape(ch) + ("" if ch.isdigit() and needle[i + 1].isdigit() else r"\s?")
+        for i, ch in enumerate(needle[:-1])
+    ) + re.escape(needle[-1])
+    return re.search(rf"(?<!\w){pattern}(?!\w)", normalize(text)) is not None
+
+
+def claim_field(claim: Claim) -> str:
+    """Last named segment of the result path ("records", 2, "lab") -> "lab"."""
+    return next(
         (seg for seg in reversed(claim.result_path) if isinstance(seg, str)),
         "value",
     )
+
+
+def render_claim(claim: Claim, siblings: bool = True) -> str:
+    """field name + value, plus sibling context unless siblings=False."""
+    field = claim_field(claim)
     # snake_case and camelCase both become words: "medianIncome2024" ->
     # "median Income 2024" so a reranker sees the year, not one opaque token.
     words = re.sub(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Za-z])(?=\d)", " ", field.replace("_", " "))
@@ -219,15 +244,20 @@ def lexical_candidates(claim: Claim, anchors: list[Anchor]) -> list[Anchor]:
 
 
 def lexical_tier(claim: Claim, anchors: list[Anchor]) -> tuple[Link | None, list[Anchor]]:
-    """One anchor scan -> (decision, hits). One hit links; zero hits abstain
-    (absent or paraphrased); several hits return decision None and the hit
-    set for a scorer to disambiguate. Shared by ground(), calibrate and the
-    model benchmark so the policy lives in one place."""
+    """One anchor scan -> (decision, hits). One hit links; several hits return
+    decision None and the hit set for a scorer to disambiguate. Zero strict
+    hits fall back to whitespace-tolerant hits (OCR/PDF spacing), which are
+    also undecided but never verbatim, so the scorer's containment cap keeps
+    them out of auto-accept; no hits at all abstain (absent or paraphrased).
+    Shared by ground(), calibrate and the model benchmark so the policy lives
+    in one place."""
     hits = lexical_candidates(claim, anchors)
     if len(hits) == 1:
         return Link(hits[0].anchor_id, 1.0, 1.0, "lexical"), hits
     if not hits:
-        return Link(None, 0.0, 0.0, "lexical"), hits
+        hits = [a for a in anchors if loose_contains(claim.value, a.text)]
+        if not hits:
+            return Link(None, 0.0, 0.0, "lexical"), hits
     return None, hits
 
 
@@ -382,8 +412,10 @@ def ground(claim: Claim, index: AnchorIndex, config: str) -> Link:
     lexical* configs scan the anchors once: one hit links, zero hits abstain
     (absent or paraphrased — no neural pass), several hits are disambiguated
     by the scorer inside that hit set. There the claim is rendered as
-    "field name: value" (no siblings), or as the bare value for "-bare"
-    configs, matching what the production GroundingModelRequest carries today.
+    "field name: value (siblings)" — abstention is not at stake inside a
+    verbatim hit set, and siblings are what pick a table row over prose
+    mentions of the same value — or as the bare value for "-bare" configs,
+    matching what the production GroundingModelRequest carries today.
     ce-only / nli-only skip tier 1 entirely: dense shortlist, rich claim.
     """
     if config not in CONFIGS:
@@ -397,7 +429,7 @@ def ground(claim: Claim, index: AnchorIndex, config: str) -> Link:
         shortlist = hits
         claim_text = (
             str(claim.value) if config.endswith("-bare")
-            else render_claim(claim, siblings=False)
+            else render_claim(claim)
         )
     else:
         claim_text = render_claim(claim)

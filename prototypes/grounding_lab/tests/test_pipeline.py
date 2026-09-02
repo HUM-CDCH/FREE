@@ -79,6 +79,7 @@ class NormalizeTest(unittest.TestCase):
         self.assertFalse(bounded_contains("50%", "budget: $50"))
         self.assertFalse(bounded_contains("$50", "rate: 50%"))
         self.assertFalse(bounded_contains("$50", "budget: €50"))
+        self.assertTrue(bounded_contains("$116,800", "income in 2024 ($116,800), followed by"))
 
 
 class BoundedContainmentTest(unittest.TestCase):
@@ -87,6 +88,10 @@ class BoundedContainmentTest(unittest.TestCase):
             ("1.234,56", "Total 1,234.56 kg", True),
             ("18", "dated 1834", False),
             ("8-1", "find 8-1", True),
+            ("1", "find 8-1", False),
+            ("4.4", "4.3-4.4", False),
+            ("4.4", "4.3–4.4", False),
+            ("4.4", "4.4 | 4.2", True),
             ("x", "x", True),
             ("x", "grade x", False),
             (5, "there were 5 cases", True),
@@ -104,6 +109,18 @@ class LexicalMatchTest(unittest.TestCase):
         self.assertIsNotNone(link)
         self.assertEqual(link.anchor_id, "a1")
         self.assertEqual(link.score, 1.0)
+
+    def test_spaced_ocr_hits_are_undecided_and_never_verbatim(self):
+        from grounding_lab.pipeline import lexical_tier, loose_contains
+
+        anchors = [anchor("a1", "Institute, Im Dol 2 -6, Berlin"), anchor("a2", "Editor: Carlos Jos é Dias")]
+        decided, hits = lexical_tier(claim("Im Dol 2-6"), anchors)
+        self.assertIsNone(decided)  # scorer disambiguates; containment cap applies
+        self.assertEqual([a.anchor_id for a in hits], ["a1"])
+        self.assertTrue(loose_contains("Carlos José Dias", anchors[1].text))
+        self.assertTrue(loose_contains("AAR33284", "AAR 33273 og AAR 33284."))
+        self.assertFalse(loose_contains("grav 12", "grav 1 2"))  # digit runs stay whole
+        self.assertFalse(loose_contains("1234", "1 234"))  # numbers never loosen
 
     def test_ambiguous_containment_abstains(self):
         anchors = [anchor("a1", "born 1790"), anchor("a2", "died 1790")]
@@ -207,7 +224,7 @@ class ConfigRoutingTest(unittest.TestCase):
         self.assertEqual(link.anchor_id, "a2")
         self.assertEqual(seen["text"], "field: 1591 (port: Livorno)")
 
-    def test_hit_set_rendering_is_field_only_or_bare(self):
+    def test_hit_set_rendering_is_field_with_siblings_or_bare(self):
         from unittest.mock import patch
 
         import grounding_lab.pipeline as pipeline
@@ -218,7 +235,7 @@ class ConfigRoutingTest(unittest.TestCase):
             def shortlist(self, _text):
                 raise AssertionError("multi-hit must rerank inside the hit set")
 
-        for config, expected in (("lexical+ce", "field: 1591"), ("lexical+ce-bare", "1591")):
+        for config, expected in (("lexical+ce", "field: 1591 (port: Livorno)"), ("lexical+ce-bare", "1591")):
             seen = {}
             fake = lambda text, sl: (seen.setdefault("text", text), pipeline.Link("a1", 0.9, 0.5, "fake"))[1]
             with patch.object(pipeline, "cross_encoder_match", fake):
@@ -408,7 +425,7 @@ class LabelReviewTest(unittest.TestCase):
             redirect_stdout(output),
         ):
             self.assertEqual(main(), 0)
-        self.assertIn("OK: 10 doc(s) validated, 17 warning(s)", output.getvalue())
+        self.assertIn("OK: 10 doc(s) validated, 26 warning(s)", output.getvalue())
 
 
 class DateGuardTest(unittest.TestCase):

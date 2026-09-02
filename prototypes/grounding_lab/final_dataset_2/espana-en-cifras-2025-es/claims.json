@@ -86,11 +86,12 @@
  {
   "value": "128 litros",
   "resultPath": [
-   "consumoAguaPorHabitanteDia2022"
+   "consumoAguaHogaresPorHabitanteDia2022"
   ],
   "goldAnchorIds": [
    "anchor_34104d1efa6c0995ab123205367e534ab41b70def3cc4da092c46b744af87f16"
-  ]
+  ],
+  "note": "p8 reports 128 litros as the household average (heading: Consumo medio de agua de los hogares); the 4.252 hm3 on the same page is the volume supplied to public networks."
  },
  {
   "value": "25.107 millones de euros",
@@ -116,11 +117,12 @@
  {
   "value": "505.983",
   "resultPath": [
-   "superficieEspanaKm2"
+   "superficieEspanaKm2En2024"
   ],
   "goldAnchorIds": [
    "anchor_980945c84254cb8c482953b57b9e307656c998e5fc2c17f949ecda4f50975da6"
-  ]
+  ],
+  "note": "p4 EU-27 comparison table, column 'Superficie 2024'; the p54 annex gives 506.018 summed from the autonomous communities (IGN)."
  },
  {
   "value": "83.445,0",
@@ -134,11 +136,12 @@
  {
   "value": "5,07",
   "resultPath": [
-   "tasaMedicosColegiadosPorMil"
+   "tasaMedicosColegiadosNoJubiladosPorMil2023"
   ],
   "goldAnchorIds": [
    "anchor_ecb5227d3bf38dfdfc0a26307dc3edf010b9c1a2bc7beca0df818ab4c3ab1292"
-  ]
+  ],
+  "note": "p19 states the rate for non-retired registered doctors (medicos colegiados no jubilados) in 2023."
  },
  {
   "value": "52,0%",

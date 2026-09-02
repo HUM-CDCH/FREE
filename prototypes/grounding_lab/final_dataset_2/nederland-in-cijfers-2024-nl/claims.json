@@ -26,8 +26,10 @@
    "infographicCount"
   ],
   "goldAnchorIds": [
-   "anchor_220eea93b8430b058c7f63e3e169427e871d47e653a87b5b5aaf642183c3fe54"
-  ]
+   "anchor_220eea93b8430b058c7f63e3e169427e871d47e653a87b5b5aaf642183c3fe54",
+   "anchor_4182bc2cc47a47c4c918478a6dbc4a243addaab4d52b956cda4c7eb1767da139"
+  ],
+  "note": "Bilingual page: the Dutch intro states 34 beeldgrafieken for the same count."
  },
  {
   "value": "4,4 maaltijden met vlees",
@@ -71,8 +73,10 @@
    "syntheticDrugsRevenue"
   ],
   "goldAnchorIds": [
-   "anchor_b5410e69c0a2640f52db94fe819bed3d135f1e3cd0c74f3be527b778948c9420"
-  ]
+   "anchor_b5410e69c0a2640f52db94fe819bed3d135f1e3cd0c74f3be527b778948c9420",
+   "anchor_fe534424939c553c4bd3509f71b3bf0af343707f411dd06604911d5fee9a3221"
+  ],
+  "note": "Bilingual infographic: the English caption states the same figure as EUR 3.2 billion."
  },
  {
   "value": "€ 10,7 miljard",
@@ -80,8 +84,10 @@
    "cocaineRevenue"
   ],
   "goldAnchorIds": [
-   "anchor_292438384c9d4f37c5e7512d0b99b9ffe093a1c00f695265f2e0ec102cc0fdb6"
-  ]
+   "anchor_292438384c9d4f37c5e7512d0b99b9ffe093a1c00f695265f2e0ec102cc0fdb6",
+   "anchor_4f3d9255908ee1f7d9cc6557143b01980d9a2039e43e1aaad90dbc9aff757cc8"
+  ],
+  "note": "Bilingual infographic: the English caption states the same figure as EUR 10.7 billion."
  },
  {
   "value": "€ 0,1 miljard",
@@ -89,8 +95,10 @@
    "illegalTobaccoRevenue"
   ],
   "goldAnchorIds": [
-   "anchor_a68bb1d9c7d6fde71c59303df3d4d4e58e3c84dd49c761bb3144a26c423c8629"
-  ]
+   "anchor_a68bb1d9c7d6fde71c59303df3d4d4e58e3c84dd49c761bb3144a26c423c8629",
+   "anchor_f4b76647c72f5ddaabc760141526a77f2c2aae7a03f453adcc5616dd5b343af9"
+  ],
+  "note": "Bilingual infographic: the English caption states the same figure as EUR 0.1 billion."
  },
  {
   "value": "228,1",
@@ -131,12 +139,12 @@
  {
   "value": "12%",
   "resultPath": [
-   "workingOlderPeopleShare"
+   "workingOlderMenShare"
   ],
   "goldAnchorIds": [
    "anchor_b2d649fa5f7606144877c5bf186773d85f039303ee3ef962ad86bc22c16e0ec9"
   ],
-  "note": "Other 12 hits are table-of-contents page numbers and the 12 560 restaurant count."
+  "note": "The p39 infographic splits by sex: 12% is the men column, 4% the women column. Other 12 hits are table-of-contents page numbers and the 12 560 restaurant count."
  },
  {
   "value": "1898",

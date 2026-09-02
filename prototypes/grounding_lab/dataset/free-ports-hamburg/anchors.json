@@ -356,14 +356,14 @@
     "text": "Med",
     "page": 7,
     "kind": "table_cell",
-    "context": "Livorno | Med | 1591 — Med"
+    "context": "Livorno | Region | Med | 1591 — Med"
   },
   {
     "anchorId": "anchor_4d4f009f7ea2f9e4de73eb1ca64b806efb6a80ceabdd258e3db76d0f3f67e7a0",
     "text": "1591",
     "page": 7,
     "kind": "table_cell",
-    "context": "Livorno | Med | 1591 — 1591"
+    "context": "Livorno | Year | Med | 1591 — 1591"
   },
   {
     "anchorId": "anchor_34403ee97caf58450dc2caac4ef811fd26d0af3e3c9d58f45577f9f7bdaa76bb",
@@ -377,14 +377,14 @@
     "text": "Med",
     "page": 7,
     "kind": "table_cell",
-    "context": "Genoa | Med | 1595 — Med"
+    "context": "Genoa | Region | Med | 1595 — Med"
   },
   {
     "anchorId": "anchor_327a74a399e4684c9a7dd06d58a308ec9c44034b2be8c89a92fc02274ddf873c",
     "text": "1595",
     "page": 7,
     "kind": "table_cell",
-    "context": "Genoa | Med | 1595 — 1595"
+    "context": "Genoa | Year | Med | 1595 — 1595"
   },
   {
     "anchorId": "anchor_d780b13653ae06c4f0c38d94f8e6f89ab7809e7df8e3ced9c8491ed9875d027d",
@@ -398,14 +398,14 @@
     "text": "Med",
     "page": 7,
     "kind": "table_cell",
-    "context": "Nice | Med | 1613 — Med"
+    "context": "Nice | Region | Med | 1613 — Med"
   },
   {
     "anchorId": "anchor_7ff3edd4c55a196fa69cb8551e1e57bc71211dd33ed1331457cc90b00a38d7e0",
     "text": "1613",
     "page": 7,
     "kind": "table_cell",
-    "context": "Nice | Med | 1613 — 1613"
+    "context": "Nice | Year | Med | 1613 — 1613"
   },
   {
     "anchorId": "anchor_8f4983f21a592a8f889bd774620f1df24c12351ba1c4dcbfb5d86c0395f6a6a1",
@@ -419,14 +419,14 @@
     "text": "Med",
     "page": 7,
     "kind": "table_cell",
-    "context": "Villefranche | Med | 1613 — Med"
+    "context": "Villefranche | Region | Med | 1613 — Med"
   },
   {
     "anchorId": "anchor_f7839146cb5856ea1fb8a92c39b1be09810dbf8e6a6a4d92ffc5bc19b7109271",
     "text": "1613",
     "page": 7,
     "kind": "table_cell",
-    "context": "Villefranche | Med | 1613 — 1613"
+    "context": "Villefranche | Year | Med | 1613 — 1613"
   },
   {
     "anchorId": "anchor_b402cb804a9157aea91e9dd6d814e718dbf1a58981d34360a5d88aa6770d8cac",
@@ -440,14 +440,14 @@
     "text": "Med",
     "page": 7,
     "kind": "table_cell",
-    "context": "Civitavecchia | Med | 1630 — Med"
+    "context": "Civitavecchia | Region | Med | 1630 — Med"
   },
   {
     "anchorId": "anchor_b95626111ddc463271f5e44df0a6e0937361fce109e29a83ca4dad55230b3a37",
     "text": "1630",
     "page": 7,
     "kind": "table_cell",
-    "context": "Civitavecchia | Med | 1630 — 1630"
+    "context": "Civitavecchia | Year | Med | 1630 — 1630"
   },
   {
     "anchorId": "anchor_ba3a007df7cd63fb2d1c9f64cb837124fe0dc594646af6f349ad4347c7476815",
@@ -461,14 +461,14 @@
     "text": "Med",
     "page": 7,
     "kind": "table_cell",
-    "context": "La Spezia | Med | 1643 — Med"
+    "context": "La Spezia | Region | Med | 1643 — Med"
   },
   {
     "anchorId": "anchor_24272c836c8d4f4ec1db7157d51d60a92709bee1f43124a9f4420438450514a5",
     "text": "1643",
     "page": 7,
     "kind": "table_cell",
-    "context": "La Spezia | Med | 1643 — 1643"
+    "context": "La Spezia | Year | Med | 1643 — 1643"
   },
   {
     "anchorId": "anchor_11b0ab5cc72e1a821355ce6fc42d9243fe2ca04819d78be84c0b80792785fec8",
@@ -482,14 +482,14 @@
     "text": "Med",
     "page": 7,
     "kind": "table_cell",
-    "context": "Tangier | Med | 1662 — Med"
+    "context": "Tangier | Region | Med | 1662 — Med"
   },
   {
     "anchorId": "anchor_3e14ef6cd048b11533eeb99e95e95cd2cb66f957e159acf48672012f2bdc5e4d",
     "text": "1662",
     "page": 7,
     "kind": "table_cell",
-    "context": "Tangier | Med | 1662 — 1662"
+    "context": "Tangier | Year | Med | 1662 — 1662"
   },
   {
     "anchorId": "anchor_a4f9852e4b6ff6f64e74eec7fa971e36786636cebf28026ad5df33bf572565e0",
@@ -503,14 +503,14 @@
     "text": "Med",
     "page": 7,
     "kind": "table_cell",
-    "context": "Venice | Med | 1662 — Med"
+    "context": "Venice | Region | Med | 1662 — Med"
   },
   {
     "anchorId": "anchor_c92f9e555cd8bcbc3ec4e26ef9d96b96510ed7483e8c18830cfb1b05e95b59a6",
     "text": "1662",
     "page": 7,
     "kind": "table_cell",
-    "context": "Venice | Med | 1662 — 1662"
+    "context": "Venice | Year | Med | 1662 — 1662"
   },
   {
     "anchorId": "anchor_ad698f0b6a43e2e672202773c16d93bb72acc5e78279f99260fcd3baed0f5025",
@@ -524,14 +524,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Altona | Atlantic | 1664 — Atlantic"
+    "context": "Altona | Region | Atlantic | 1664 — Atlantic"
   },
   {
     "anchorId": "anchor_e6b6e28c6209c2613b2f303cbedc01bc7c15418e740c27fd01953a3ecc833d5e",
     "text": "1664",
     "page": 7,
     "kind": "table_cell",
-    "context": "Altona | Atlantic | 1664 — 1664"
+    "context": "Altona | Year | Atlantic | 1664 — 1664"
   },
   {
     "anchorId": "anchor_918f832507d20cdf98f7c10f72a0668a890d777d9d6259e2fadf2b3b86c21059",
@@ -545,14 +545,14 @@
     "text": "Med",
     "page": 7,
     "kind": "table_cell",
-    "context": "Marseilles | Med | 1669 — Med"
+    "context": "Marseilles | Region | Med | 1669 — Med"
   },
   {
     "anchorId": "anchor_aa417cc1f2e3df5574a6739d824935546a93d6d2b613c1cbee0e35578b7050de",
     "text": "1669",
     "page": 7,
     "kind": "table_cell",
-    "context": "Marseilles | Med | 1669 — 1669"
+    "context": "Marseilles | Year | Med | 1669 — 1669"
   },
   {
     "anchorId": "anchor_74c9d5425a50b9dfdb80ccf1110a275be06dcb32364a5c5931f2e497d6fb0060",
@@ -566,14 +566,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "St Eustacius | Atlantic | 1683 — Atlantic"
+    "context": "St Eustacius | Region | Atlantic | 1683 — Atlantic"
   },
   {
     "anchorId": "anchor_bb9bad672f484e52cd9510a8a11027be8f45baaed20d3e98287affe04a40bafb",
     "text": "1683",
     "page": 7,
     "kind": "table_cell",
-    "context": "St Eustacius | Atlantic | 1683 — 1683"
+    "context": "St Eustacius | Year | Atlantic | 1683 — 1683"
   },
   {
     "anchorId": "anchor_846be72584d44f29631a93d3fb9036022ff397ef2cceafb06f9cf4c91d49ef24",
@@ -587,14 +587,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Curaçao | Atlantic | 1675 — Atlantic"
+    "context": "Curaçao | Region | Atlantic | 1675 — Atlantic"
   },
   {
     "anchorId": "anchor_3d23e4c959e97a04ecb0658afc0ffb70ec55bd312b476dacac7cc5096c90052b",
     "text": "1675",
     "page": 7,
     "kind": "table_cell",
-    "context": "Curaçao | Atlantic | 1675 — 1675"
+    "context": "Curaçao | Year | Atlantic | 1675 — 1675"
   },
   {
     "anchorId": "anchor_e1eee3992793c155660586c95362d2fedfe90591d954a441f612c171d816a182",
@@ -608,14 +608,14 @@
     "text": "Med/Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Gibraltar | Med/Atlantic | 1706 — Med/Atlantic"
+    "context": "Gibraltar | Region | Med/Atlantic | 1706 — Med/Atlantic"
   },
   {
     "anchorId": "anchor_1215213c04a718d3aeacc6db21fe1c7d1b75b8256e476b20a114775b2c6f42a8",
     "text": "1706",
     "page": 7,
     "kind": "table_cell",
-    "context": "Gibraltar | Med/Atlantic | 1706 — 1706"
+    "context": "Gibraltar | Year | Med/Atlantic | 1706 — 1706"
   },
   {
     "anchorId": "anchor_08ad95b690886486a14552959c14cfad33c79d605df3ae2732b128b20ee22aa0",
@@ -629,14 +629,14 @@
     "text": "Med",
     "page": 7,
     "kind": "table_cell",
-    "context": "Trieste | Med | 1740 — Med"
+    "context": "Trieste | Region | Med | 1740 — Med"
   },
   {
     "anchorId": "anchor_a2c36faa1df4f2e0164b0f4dd65224de31f478dd68a879cb47342e9492d7e5b6",
     "text": "1740",
     "page": 7,
     "kind": "table_cell",
-    "context": "Trieste | Med | 1740 — 1740"
+    "context": "Trieste | Year | Med | 1740 — 1740"
   },
   {
     "anchorId": "anchor_c678b18dfa3a69b693970cf453cf79665ddf5b612c5014f1b6b72813752bf2ee",
@@ -650,14 +650,14 @@
     "text": "Med",
     "page": 7,
     "kind": "table_cell",
-    "context": "Fiume | Med | 1719 — Med"
+    "context": "Fiume | Region | Med | 1719 — Med"
   },
   {
     "anchorId": "anchor_e9e75ff3c67f883c45f59706972217da2d8e21ad624d66273e780d9016d47a76",
     "text": "1719",
     "page": 7,
     "kind": "table_cell",
-    "context": "Fiume | Med | 1719 — 1719"
+    "context": "Fiume | Year | Med | 1719 — 1719"
   },
   {
     "anchorId": "anchor_15c3f0612ebe954785bd0264a68830656fe315456a8d495f76e5e8c52c5b228c",
@@ -671,14 +671,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Dunkirk | Atlantic | 1731 — Atlantic"
+    "context": "Dunkirk | Region | Atlantic | 1731 — Atlantic"
   },
   {
     "anchorId": "anchor_e2978750fadb5dffe98e5e29d497f5ee6c9c6f710a1db8d8d2563cbc8d426f62",
     "text": "1731",
     "page": 7,
     "kind": "table_cell",
-    "context": "Dunkirk | Atlantic | 1731 — 1731"
+    "context": "Dunkirk | Year | Atlantic | 1731 — 1731"
   },
   {
     "anchorId": "anchor_4960f106979c4ff66466e5e91ded0b5fd63a723c7074ad6b60b8981e633f80f6",
@@ -692,14 +692,14 @@
     "text": "Med",
     "page": 7,
     "kind": "table_cell",
-    "context": "Ancona | Med | 1731 — Med"
+    "context": "Ancona | Region | Med | 1731 — Med"
   },
   {
     "anchorId": "anchor_789d90793e9ef94fc770a0bb92dc39400f273ef9373ba06535705be01145b95b",
     "text": "1731",
     "page": 7,
     "kind": "table_cell",
-    "context": "Ancona | Med | 1731 — 1731"
+    "context": "Ancona | Year | Med | 1731 — 1731"
   },
   {
     "anchorId": "anchor_ad4a946a18adeb2f253ad48efdda8b5547c226c60f7c798602e65912c74a8439",
@@ -713,14 +713,14 @@
     "text": "Med",
     "page": 7,
     "kind": "table_cell",
-    "context": "Naples | Med | 1739 — Med"
+    "context": "Naples | Region | Med | 1739 — Med"
   },
   {
     "anchorId": "anchor_95752f324360ebfbbcf9e83314587c5ad4b899a7ca1e69f64da1ab2ef7ed38f0",
     "text": "1739",
     "page": 7,
     "kind": "table_cell",
-    "context": "Naples | Med | 1739 — 1739"
+    "context": "Naples | Year | Med | 1739 — 1739"
   },
   {
     "anchorId": "anchor_b8e320f4b4c4282fcac7ec7c308ef1ecd4ea565ce2999da9e74241b740bf5517",
@@ -734,14 +734,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Amsterdam* | Atlantic | 1750s — Atlantic"
+    "context": "Amsterdam* | Region | Atlantic | 1750s — Atlantic"
   },
   {
     "anchorId": "anchor_6f69b0dc23ceb7c627d34f7fd0e91dd377e3a0378bc6692e8273919ac2b6d7cd",
     "text": "1750s",
     "page": 7,
     "kind": "table_cell",
-    "context": "Amsterdam* | Atlantic | 1750s — 1750s"
+    "context": "Amsterdam* | Year | Atlantic | 1750s — 1750s"
   },
   {
     "anchorId": "anchor_62fb02a86a3c42fe79b749ebfe85c88279b0a47e3d22df8069270bbfad8f1895",
@@ -755,14 +755,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Hamburg* | Atlantic | 1750s — Atlantic"
+    "context": "Hamburg* | Region | Atlantic | 1750s — Atlantic"
   },
   {
     "anchorId": "anchor_980fce13e9636fe631ef4c2f26da5f32edf4e7fcab4b2612649df977266c51f4",
     "text": "1750s",
     "page": 7,
     "kind": "table_cell",
-    "context": "Hamburg* | Atlantic | 1750s — 1750s"
+    "context": "Hamburg* | Year | Atlantic | 1750s — 1750s"
   },
   {
     "anchorId": "anchor_1c9e8688a58eea1fc2612a0a337434421bf824f7e9e948926701f7baf61002a3",
@@ -776,14 +776,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Bremen* | Atlantic | 1750s — Atlantic"
+    "context": "Bremen* | Region | Atlantic | 1750s — Atlantic"
   },
   {
     "anchorId": "anchor_3b6df31809d62c1ed9ae421d809c0fcb9fd3a46b4978782505396b9d7da2884d",
     "text": "1750s",
     "page": 7,
     "kind": "table_cell",
-    "context": "Bremen* | Atlantic | 1750s — 1750s"
+    "context": "Bremen* | Year | Atlantic | 1750s — 1750s"
   },
   {
     "anchorId": "anchor_ee8e3bccf39f707383b2de9578b962f7070e591be78d8f54dc994c9342894a75",
@@ -797,14 +797,14 @@
     "text": "Atlantic Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Saint Thomas (Town), Saint Thomas (Danish West Indies) St John (Danish West Indies) | Atlantic Atlantic | 1764 — Atlantic Atlantic"
+    "context": "Saint Thomas (Town), Saint Thomas (Danish West Indies) St John (Danish West Indies) | Region | Atlantic Atlantic | 1764 — Atlantic Atlantic"
   },
   {
     "anchorId": "anchor_a8bd292000b88e5c24a4bc5e0e43ef05c3657984e820ce8ed1edf37c5a4129b7",
     "text": "1764",
     "page": 7,
     "kind": "table_cell",
-    "context": "Saint Thomas (Town), Saint Thomas (Danish West Indies) St John (Danish West Indies) | Atlantic Atlantic | 1764 — 1764"
+    "context": "Saint Thomas (Town), Saint Thomas (Danish West Indies) St John (Danish West Indies) | Year | Atlantic Atlantic | 1764 — 1764"
   },
   {
     "anchorId": "anchor_f5591df0ed364b6a3355b067dada8088caf87a75343e531575e68519b2d289fd",
@@ -818,14 +818,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Monte Christi (Saint Domingue) | Atlantic | 1764 1756 — Atlantic"
+    "context": "Monte Christi (Saint Domingue) | Region | Atlantic | 1764 1756 — Atlantic"
   },
   {
     "anchorId": "anchor_73ca8180d2d6188cfde2f8657ae75ff612ad00da86c55c0ce571997707e9ad49",
     "text": "1764 1756",
     "page": 7,
     "kind": "table_cell",
-    "context": "Monte Christi (Saint Domingue) | Atlantic | 1764 1756 — 1764 1756"
+    "context": "Monte Christi (Saint Domingue) | Year | Atlantic | 1764 1756 — 1764 1756"
   },
   {
     "anchorId": "anchor_9c6bd3b1702a9d96e13e3e0ae20cc80497f4397bcfd73efff6913e8cd361a4ee",
@@ -839,14 +839,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Saint-Luce (Martinique) | Atlantic | 1765 — Atlantic"
+    "context": "Saint-Luce (Martinique) | Region | Atlantic | 1765 — Atlantic"
   },
   {
     "anchorId": "anchor_1589a3021fcb0da9b39aa88c0b04cbf085dcba87141cac76226758630cc5aced",
     "text": "1765",
     "page": 7,
     "kind": "table_cell",
-    "context": "Saint-Luce (Martinique) | Atlantic | 1765 — 1765"
+    "context": "Saint-Luce (Martinique) | Year | Atlantic | 1765 — 1765"
   },
   {
     "anchorId": "anchor_0bbd16ebafa268755e6a8ea0bc27baf04a8651e526750ee99f2396f7933bdd4b",
@@ -860,14 +860,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Kingston (Jamaica) | Atlantic | 1766 — Atlantic"
+    "context": "Kingston (Jamaica) | Region | Atlantic | 1766 — Atlantic"
   },
   {
     "anchorId": "anchor_1ec2abd17b732c437c7c21694db405940ce801f3a5fae083334bb388818922ae",
     "text": "1766",
     "page": 7,
     "kind": "table_cell",
-    "context": "Kingston (Jamaica) | Atlantic | 1766 — 1766"
+    "context": "Kingston (Jamaica) | Year | Atlantic | 1766 — 1766"
   },
   {
     "anchorId": "anchor_793a2e03941b9daf263d282b33072e9edae327cdbfc4c0fc14487d599e2eef99",
@@ -881,14 +881,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Kingston (Saint-Vincent) | Atlantic | 1766 — Atlantic"
+    "context": "Kingston (Saint-Vincent) | Region | Atlantic | 1766 — Atlantic"
   },
   {
     "anchorId": "anchor_73bd442e84f9b6bfa81c8e26c63579441994ab01d8965af9652eb2248b1de77e",
     "text": "1766",
     "page": 7,
     "kind": "table_cell",
-    "context": "Kingston (Saint-Vincent) | Atlantic | 1766 — 1766"
+    "context": "Kingston (Saint-Vincent) | Year | Atlantic | 1766 — 1766"
   },
   {
     "anchorId": "anchor_466210236d7c8a95b81ca77f663de2c1e43575394761488b2d9adf58c84ddfb3",
@@ -902,14 +902,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Montego Bay (Jamaica) | Atlantic | 1766 — Atlantic"
+    "context": "Montego Bay (Jamaica) | Region | Atlantic | 1766 — Atlantic"
   },
   {
     "anchorId": "anchor_a509e89f5668c5f3c4c97c042e99c757fcdef4dc2476022a06988ac735346315",
     "text": "1766",
     "page": 7,
     "kind": "table_cell",
-    "context": "Montego Bay (Jamaica) | Atlantic | 1766 — 1766"
+    "context": "Montego Bay (Jamaica) | Year | Atlantic | 1766 — 1766"
   },
   {
     "anchorId": "anchor_f46556c743abf40ad3b066a1f1d1e51f344dd5beed493e9e4e95726d29532338",
@@ -923,14 +923,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Nassau (Bahamas) | Atlantic | 1766 — Atlantic"
+    "context": "Nassau (Bahamas) | Region | Atlantic | 1766 — Atlantic"
   },
   {
     "anchorId": "anchor_ff608eaf4a39aa49f488e2718e39f8a63a4d3dba38f37130652bb9dfe0e48720",
     "text": "1766",
     "page": 7,
     "kind": "table_cell",
-    "context": "Nassau (Bahamas) | Atlantic | 1766 — 1766"
+    "context": "Nassau (Bahamas) | Year | Atlantic | 1766 — 1766"
   },
   {
     "anchorId": "anchor_381ebb19d7e52eecb7ada44ffd54f9ba7b38cb66c38e397c436152a31608b603",
@@ -944,14 +944,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Prince Rupert Bay (Dominica) | Atlantic | 1766 — Atlantic"
+    "context": "Prince Rupert Bay (Dominica) | Region | Atlantic | 1766 — Atlantic"
   },
   {
     "anchorId": "anchor_0bfed4de2c08f4b9b0f6f066920974ac3a3ed9a366ac0e930e28448898d33f3c",
     "text": "1766",
     "page": 7,
     "kind": "table_cell",
-    "context": "Prince Rupert Bay (Dominica) | Atlantic | 1766 — 1766"
+    "context": "Prince Rupert Bay (Dominica) | Year | Atlantic | 1766 — 1766"
   },
   {
     "anchorId": "anchor_0acc2a53234367cfbe44fcf6921bfc4f1060904d5bcc81136148a522b0452662",
@@ -965,14 +965,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Roseau (Dominica) | Atlantic | 1766 — Atlantic"
+    "context": "Roseau (Dominica) | Region | Atlantic | 1766 — Atlantic"
   },
   {
     "anchorId": "anchor_3f2484f4ec076e7e6d6f1bd5094e8d4384517c9ef9e37cd36805ca452002cb04",
     "text": "1766",
     "page": 7,
     "kind": "table_cell",
-    "context": "Roseau (Dominica) | Atlantic | 1766 — 1766"
+    "context": "Roseau (Dominica) | Year | Atlantic | 1766 — 1766"
   },
   {
     "anchorId": "anchor_6cbd14fab1072f20b70d40119b06b6e906d8c1e6450ef578a2cf0c57afacc049",
@@ -986,14 +986,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Saint George (Granada) | Atlantic | 1766 — Atlantic"
+    "context": "Saint George (Granada) | Region | Atlantic | 1766 — Atlantic"
   },
   {
     "anchorId": "anchor_e415399105d534970f03abc66b998b08b6113829e802037c6e02b4d2c555f9fb",
     "text": "1766",
     "page": 7,
     "kind": "table_cell",
-    "context": "Saint George (Granada) | Atlantic | 1766 — 1766"
+    "context": "Saint George (Granada) | Year | Atlantic | 1766 — 1766"
   },
   {
     "anchorId": "anchor_645b4df433c9030c2d00264abcd3b9b453cf1a565495f88be35f9eaba0533942",
@@ -1007,14 +1007,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Lucea (Jamaica) | Atlantic | 1766 — Atlantic"
+    "context": "Lucea (Jamaica) | Region | Atlantic | 1766 — Atlantic"
   },
   {
     "anchorId": "anchor_e074254080c3af9f8934939a965e85b5641b1655577286fd34a8d212f6d3b371",
     "text": "1766",
     "page": 7,
     "kind": "table_cell",
-    "context": "Lucea (Jamaica) | Atlantic | 1766 — 1766"
+    "context": "Lucea (Jamaica) | Year | Atlantic | 1766 — 1766"
   },
   {
     "anchorId": "anchor_7f42a08c7bfe814281d04b9b075f5931c116cea3f6b2ae92037f15c6b786d17a",
@@ -1028,14 +1028,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Savanna la Mar (Jamaica) | Atlantic | 1766 — Atlantic"
+    "context": "Savanna la Mar (Jamaica) | Region | Atlantic | 1766 — Atlantic"
   },
   {
     "anchorId": "anchor_133614422964d0a3af7339d225ff472ca819bdb95c33314c4800dc97c8d36a0c",
     "text": "1766",
     "page": 7,
     "kind": "table_cell",
-    "context": "Savanna la Mar (Jamaica) | Atlantic | 1766 — 1766"
+    "context": "Savanna la Mar (Jamaica) | Year | Atlantic | 1766 — 1766"
   },
   {
     "anchorId": "anchor_96d09b003149fc8a2d26ef67f76478a6457ef94de7f20489a24e97ee9dc069f1",
@@ -1049,14 +1049,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Mole Saint-Nicolas (Saint Domingue) | Atlantic | 1767 — Atlantic"
+    "context": "Mole Saint-Nicolas (Saint Domingue) | Region | Atlantic | 1767 — Atlantic"
   },
   {
     "anchorId": "anchor_cd5ed3fbb098b254f3f5215ccba2aacfa5b4b50ed753442b4083906ebcdf7b72",
     "text": "1767",
     "page": 7,
     "kind": "table_cell",
-    "context": "Mole Saint-Nicolas (Saint Domingue) | Atlantic | 1767 — 1767"
+    "context": "Mole Saint-Nicolas (Saint Domingue) | Year | Atlantic | 1767 — 1767"
   },
   {
     "anchorId": "anchor_751042367da7834dc6ea6dab8a5150f90a33611df0e46a27d3731f431c4b621c",
@@ -1070,14 +1070,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Marstrand | Atlantic | 1775 — Atlantic"
+    "context": "Marstrand | Region | Atlantic | 1775 — Atlantic"
   },
   {
     "anchorId": "anchor_af561216886c38fe91238e9be0d59729eb1054e93f7365a0b9ab72ebce7c2fb0",
     "text": "1775",
     "page": 7,
     "kind": "table_cell",
-    "context": "Marstrand | Atlantic | 1775 — 1775"
+    "context": "Marstrand | Year | Atlantic | 1775 — 1775"
   },
   {
     "anchorId": "anchor_ea2f4ddaad45623f73184a3e3efc1269dae8d9062b333dbacccb39d79f4a5e9a",
@@ -1091,14 +1091,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Ostend | Atlantic | 1781 — Atlantic"
+    "context": "Ostend | Region | Atlantic | 1781 — Atlantic"
   },
   {
     "anchorId": "anchor_ee39e3bb9e805d554d47c95ce9b8886f74b6da1387ae11ecc448d3f44e28f450",
     "text": "1781",
     "page": 7,
     "kind": "table_cell",
-    "context": "Ostend | Atlantic | 1781 — 1781"
+    "context": "Ostend | Year | Atlantic | 1781 — 1781"
   },
   {
     "anchorId": "anchor_3162601cd98dc74ffec9de3893f246bed17af41ce4551dc989cd2ce06243a918",
@@ -1112,14 +1112,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Saint John (New France) | Atlantic | 1781 — Atlantic"
+    "context": "Saint John (New France) | Region | Atlantic | 1781 — Atlantic"
   },
   {
     "anchorId": "anchor_079098634b1e91b44af95031c84b78c6f6a7461e7c5fb15b4cf6bf17937bb68c",
     "text": "1781",
     "page": 7,
     "kind": "table_cell",
-    "context": "Saint John (New France) | Atlantic | 1781 — 1781"
+    "context": "Saint John (New France) | Year | Atlantic | 1781 — 1781"
   },
   {
     "anchorId": "anchor_b74cfedcfaf417d3354813c5918e21f78d65e2d29306672cfac43c2a1c6ba563",
@@ -1133,14 +1133,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Charlotte Amalia, Saint Thomas (Danish West Indies) | Atlantic | 1781 — Atlantic"
+    "context": "Charlotte Amalia, Saint Thomas (Danish West Indies) | Region | Atlantic | 1781 — Atlantic"
   },
   {
     "anchorId": "anchor_dfa27b51edf11f16dac27a75f17d94be8c85b853ded4a6a9b10006268cb0e8cf",
     "text": "1781",
     "page": 7,
     "kind": "table_cell",
-    "context": "Charlotte Amalia, Saint Thomas (Danish West Indies) | Atlantic | 1781 — 1781"
+    "context": "Charlotte Amalia, Saint Thomas (Danish West Indies) | Year | Atlantic | 1781 — 1781"
   },
   {
     "anchorId": "anchor_cd8e655c2bdbff98ae29335ec91cb5eb46a54b902460a50b6088ad83d76f774b",
@@ -1154,14 +1154,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Cap Français (Saint Domingue) | Atlantic | 1784 — Atlantic"
+    "context": "Cap Français (Saint Domingue) | Region | Atlantic | 1784 — Atlantic"
   },
   {
     "anchorId": "anchor_132fe7b04530627dda0a98ff9afd6cbf1adda08ccd4c5ca4ab7b112d03acfa79",
     "text": "1784",
     "page": 7,
     "kind": "table_cell",
-    "context": "Cap Français (Saint Domingue) | Atlantic | 1784 — 1784"
+    "context": "Cap Français (Saint Domingue) | Year | Atlantic | 1784 — 1784"
   },
   {
     "anchorId": "anchor_0409d570a032be585ce1db7a092a3167ed9e538cee94a6ccac809067fafa730b",
@@ -1175,14 +1175,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Cayes (Saint Domingue) | Atlantic | 1784 — Atlantic"
+    "context": "Cayes (Saint Domingue) | Region | Atlantic | 1784 — Atlantic"
   },
   {
     "anchorId": "anchor_0f3f7fdc95eaf60ff9c42a3eae7a26e35f0f26aad40456c198f74fd9358090f1",
     "text": "1784",
     "page": 7,
     "kind": "table_cell",
-    "context": "Cayes (Saint Domingue) | Atlantic | 1784 — 1784"
+    "context": "Cayes (Saint Domingue) | Year | Atlantic | 1784 — 1784"
   },
   {
     "anchorId": "anchor_1250fef50a5e1d236be3b02fb0452a8e355e7a887bc5ef1fb049dbe297b440a9",
@@ -1196,14 +1196,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Lorient | Atlantic | 1784 — Atlantic"
+    "context": "Lorient | Region | Atlantic | 1784 — Atlantic"
   },
   {
     "anchorId": "anchor_2ff4f1bb444410cef042e7e9668551a3d32d4f813d8748c7c34c9d702a54fb1f",
     "text": "1784",
     "page": 7,
     "kind": "table_cell",
-    "context": "Lorient | Atlantic | 1784 — 1784"
+    "context": "Lorient | Year | Atlantic | 1784 — 1784"
   },
   {
     "anchorId": "anchor_a5bdd8e8849da0bb491bf672b7b9f0a7cc96988a2d18adaceee85a35e8874730",
@@ -1217,14 +1217,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Pointe-à-Pitre (Guadeloupe) | Atlantic | 1784 — Atlantic"
+    "context": "Pointe-à-Pitre (Guadeloupe) | Region | Atlantic | 1784 — Atlantic"
   },
   {
     "anchorId": "anchor_7da6def7bb8eecafc0faf620ed64560c08a6376f1901c1d946c0fb6cdc09e1b9",
     "text": "1784",
     "page": 7,
     "kind": "table_cell",
-    "context": "Pointe-à-Pitre (Guadeloupe) | Atlantic | 1784 — 1784"
+    "context": "Pointe-à-Pitre (Guadeloupe) | Year | Atlantic | 1784 — 1784"
   },
   {
     "anchorId": "anchor_46429381adc18f5df75dd49fec0d829e9af48575f5d0004b8ba858fb6ab67152",
@@ -1238,14 +1238,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Port au Prince (Haiti) | Atlantic | 1784 — Atlantic"
+    "context": "Port au Prince (Haiti) | Region | Atlantic | 1784 — Atlantic"
   },
   {
     "anchorId": "anchor_8b1157a2cbdf1e8445cb0bb0b448af0857c5f9706186836f32b09254a699ec06",
     "text": "1784",
     "page": 7,
     "kind": "table_cell",
-    "context": "Port au Prince (Haiti) | Atlantic | 1784 — 1784"
+    "context": "Port au Prince (Haiti) | Year | Atlantic | 1784 — 1784"
   },
   {
     "anchorId": "anchor_b217032c593bba87f0f0b7f9cb2566d31722411d09c5566cc39e6a184120403e",
@@ -1259,14 +1259,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Saint-Pierre (Martinique) | Atlantic | 1784 — Atlantic"
+    "context": "Saint-Pierre (Martinique) | Region | Atlantic | 1784 — Atlantic"
   },
   {
     "anchorId": "anchor_954e431796d2dae470d681c904def667ad3c3282d71158116d501f2b69c84218",
     "text": "1784",
     "page": 7,
     "kind": "table_cell",
-    "context": "Saint-Pierre (Martinique) | Atlantic | 1784 — 1784"
+    "context": "Saint-Pierre (Martinique) | Year | Atlantic | 1784 — 1784"
   },
   {
     "anchorId": "anchor_722897069e84357861932574da5d727455cbfb9665396b2b510e042da9757986",
@@ -1280,14 +1280,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "St Barthélemy | Atlantic | 1785 — Atlantic"
+    "context": "St Barthélemy | Region | Atlantic | 1785 — Atlantic"
   },
   {
     "anchorId": "anchor_98ca0f2835e6d80380f38152f863ffdafa44456c2cfe07dc23f6ec195160a57d",
     "text": "1785",
     "page": 7,
     "kind": "table_cell",
-    "context": "St Barthélemy | Atlantic | 1785 — 1785"
+    "context": "St Barthélemy | Year | Atlantic | 1785 — 1785"
   },
   {
     "anchorId": "anchor_fab11d6465eb0ae9d32e774d5a640560016a6edf6a74eaf11a33c30a6205e807",
@@ -1301,14 +1301,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Scarborough (Tobago) | Atlantic | 1784 — Atlantic"
+    "context": "Scarborough (Tobago) | Region | Atlantic | 1784 — Atlantic"
   },
   {
     "anchorId": "anchor_e4a61f56a4e0889f55b5057826737986260672f8f62602bfdcc4597bb4f93206",
     "text": "1784",
     "page": 7,
     "kind": "table_cell",
-    "context": "Scarborough (Tobago) | Atlantic | 1784 — 1784"
+    "context": "Scarborough (Tobago) | Year | Atlantic | 1784 — 1784"
   },
   {
     "anchorId": "anchor_01b82b966814f036494a4fc54a440601afc1b429557f204de5918a52de496349",
@@ -1322,14 +1322,14 @@
     "text": "other",
     "page": 7,
     "kind": "table_cell",
-    "context": "Sebastopol | other | 1786 — other"
+    "context": "Sebastopol | Region | other | 1786 — other"
   },
   {
     "anchorId": "anchor_c2e057e48007ac096b1bffa14552015d0f2d18c5e5d630b48aeb1732b3d7df33",
     "text": "1786",
     "page": 7,
     "kind": "table_cell",
-    "context": "Sebastopol | other | 1786 — 1786"
+    "context": "Sebastopol | Year | other | 1786 — 1786"
   },
   {
     "anchorId": "anchor_c591c049d4487ed6e9b5ed3cda2a603e04578d3332de4f33be6fc524b02f7dfb",
@@ -1343,14 +1343,14 @@
     "text": "Atlantic",
     "page": 7,
     "kind": "table_cell",
-    "context": "Tortola* | Atlantic | 1790s* — Atlantic"
+    "context": "Tortola* | Region | Atlantic | 1790s* — Atlantic"
   },
   {
     "anchorId": "anchor_b69e75988e58bbb3f40601ede15e16b24110ebc2ad61b2916633559d7731d4c8",
     "text": "1790s*",
     "page": 7,
     "kind": "table_cell",
-    "context": "Tortola* | Atlantic | 1790s* — 1790s*"
+    "context": "Tortola* | Year | Atlantic | 1790s* — 1790s*"
   },
   {
     "anchorId": "anchor_410143f52f628addc7bb012194d947b9d3bd7f40e84edb6ad83ab158e78fcd00",
@@ -1364,14 +1364,14 @@
     "text": "other",
     "page": 7,
     "kind": "table_cell",
-    "context": "Port Louis (Mauritius) | other | 1787 — other"
+    "context": "Port Louis (Mauritius) | Region | other | 1787 — other"
   },
   {
     "anchorId": "anchor_26c545cff70cd2ed567e093389c68098060df9e5e36beece1af1db8cb5a03560",
     "text": "1787",
     "page": 7,
     "kind": "table_cell",
-    "context": "Port Louis (Mauritius) | other | 1787 — 1787"
+    "context": "Port Louis (Mauritius) | Year | other | 1787 — 1787"
   },
   {
     "anchorId": "anchor_bd257a4cdd62d826bdcd827911fca8a2d7a414937e3f1440892209bc61bbab76",

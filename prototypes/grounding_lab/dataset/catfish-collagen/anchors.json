@@ -306,70 +306,70 @@
     "text": "β -actin-F β",
     "page": 5,
     "kind": "table_cell",
-    "context": "β -actin-F β | GATCCGGTATGTGCAAGGCT TGCCAGATCTTCTCCATATCA AGCTTACCTTCTTGCGCCTT — β -actin-F β"
+    "context": "Gene | β -actin-F β | GATCCGGTATGTGCAAGGCT TGCCAGATCTTCTCCATATCA AGCTTACCTTCTTGCGCCTT — β -actin-F β"
   },
   {
     "anchorId": "anchor_e4786b81b3af091188d96e4d594b95df5c0cd4de2d9a767cb9f47c0f66f30a38",
     "text": "GATCCGGTATGTGCAAGGCT TGCCAGATCTTCTCCATATCA AGCTTACCTTCTTGCGCCTT",
     "page": 5,
     "kind": "table_cell",
-    "context": "β -actin-F β | GATCCGGTATGTGCAAGGCT TGCCAGATCTTCTCCATATCA AGCTTACCTTCTTGCGCCTT — GATCCGGTATGTGCAAGGCT TGCCAGATCTTCTCCATATCA AGCTTACCTTCTTGCGCCTT"
+    "context": "Primer Sequence (5 ′ -3 ′ ) | β -actin-F β | GATCCGGTATGTGCAAGGCT TGCCAGATCTTCTCCATATCA AGCTTACCTTCTTGCGCCTT — GATCCGGTATGTGCAAGGCT TGCCAGATCTTCTCCATATCA AGCTTACCTTCTTGCGCCTT"
   },
   {
     "anchorId": "anchor_34fa4e0714a3666e59e3016c61e5ad3b82a24a17ace73268107f21991ad160a7",
     "text": "-actin-R",
     "page": 5,
     "kind": "table_cell",
-    "context": "-actin-R — -actin-R"
+    "context": "Gene | -actin-R — -actin-R"
   },
   {
     "anchorId": "anchor_f8bd933dd5b63ea4c4a7d20fc163fb27d1e0fc7dd7f6ad3ac756c73d112b4323",
     "text": "col1a1-F",
     "page": 5,
     "kind": "table_cell",
-    "context": "col1a1-F — col1a1-F"
+    "context": "Gene | col1a1-F — col1a1-F"
   },
   {
     "anchorId": "anchor_8d86be60f2f94ba44e9b28a7c3957318b026f2d30a32438c7954bdddcaf750d0",
     "text": "col1a1-R",
     "page": 5,
     "kind": "table_cell",
-    "context": "col1a1-R | GACGCTGTATGTGAAACGGC — col1a1-R"
+    "context": "Gene | col1a1-R | GACGCTGTATGTGAAACGGC — col1a1-R"
   },
   {
     "anchorId": "anchor_c850e50e68a66bcc4c607b45dd8a66d54533dd2206f80a1501f9cc7b2bf785db",
     "text": "GACGCTGTATGTGAAACGGC",
     "page": 5,
     "kind": "table_cell",
-    "context": "col1a1-R | GACGCTGTATGTGAAACGGC — GACGCTGTATGTGAAACGGC"
+    "context": "Primer Sequence (5 ′ -3 ′ ) | col1a1-R | GACGCTGTATGTGAAACGGC — GACGCTGTATGTGAAACGGC"
   },
   {
     "anchorId": "anchor_039628b6dc2812c0f1d832041fa436ca06f86bea90ce7abf3da91a17341e0b7f",
     "text": "col1a2-F",
     "page": 5,
     "kind": "table_cell",
-    "context": "col1a2-F | ACAAGGAGTCTGCATGTCGG — col1a2-F"
+    "context": "Gene | col1a2-F | ACAAGGAGTCTGCATGTCGG — col1a2-F"
   },
   {
     "anchorId": "anchor_38034e6301d00b09f21ed9791eb3c3d0fa5c2d16a2d99b5b2b962c14dea5c8e5",
     "text": "ACAAGGAGTCTGCATGTCGG",
     "page": 5,
     "kind": "table_cell",
-    "context": "col1a2-F | ACAAGGAGTCTGCATGTCGG — ACAAGGAGTCTGCATGTCGG"
+    "context": "Primer Sequence (5 ′ -3 ′ ) | col1a2-F | ACAAGGAGTCTGCATGTCGG — ACAAGGAGTCTGCATGTCGG"
   },
   {
     "anchorId": "anchor_4faa09e9a4856ecb9da07e5d49ff04ef0fb46bafe6da9306542f51770245ec40",
     "text": "col1a2-R",
     "page": 5,
     "kind": "table_cell",
-    "context": "col1a2-R | TATCTCCCCTTGGTCCCGAT — col1a2-R"
+    "context": "Gene | col1a2-R | TATCTCCCCTTGGTCCCGAT — col1a2-R"
   },
   {
     "anchorId": "anchor_223d719df9928a3ffacf507b5c9a2eb5e372c75bb76ce9e584cbb6299b3185d3",
     "text": "TATCTCCCCTTGGTCCCGAT",
     "page": 5,
     "kind": "table_cell",
-    "context": "col1a2-R | TATCTCCCCTTGGTCCCGAT — TATCTCCCCTTGGTCCCGAT"
+    "context": "Primer Sequence (5 ′ -3 ′ ) | col1a2-R | TATCTCCCCTTGGTCCCGAT — TATCTCCCCTTGGTCCCGAT"
   },
   {
     "anchorId": "anchor_77962c8fb08194fcea04df617ac15e6da6e81f52aeb5c11d7469116da32de018",

@@ -56,8 +56,12 @@
       1,
       "dating"
     ],
-    "goldAnchorId": "anchor_4cb663f7eacc91c6f7ef8ea0e34514f3e6beb8515023f18f176d278831e27c53",
-    "note": "REVIEW: 2 hits (grave 6 prose anchor_8026bbc, grave 9 dating line); claim is for grave 9 -> gold anchor_4cb663f"
+    "goldAnchorIds": [
+      "anchor_4cb663f7eacc91c6f7ef8ea0e34514f3e6beb8515023f18f176d278831e27c53",
+      "anchor_6c7999717dad30e5b6cf462b3e405a946cc485b20e4dd067282b04827240adfd"
+    ],
+    "note": "REVIEW multi-gold: grave 9 dating line p11 + the p3 summary that dates grav 9 to ca. 400 e.Kr. The other containment hit (anchor_8026bbc) is grave 6.",
+    "context": "grave_label: Grav 9"
   },
   {
     "value": "32",

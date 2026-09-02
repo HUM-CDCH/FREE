@@ -101,11 +101,10 @@
     "resultPath": [
       "age_estimation_technique"
     ],
-    "note": "REVIEW multi-gold: recommendation section + entheses paragraph + TA3 trait-manual reference",
+    "note": "REVIEW multi-gold: recommendation section + entheses paragraph. The p10 bibliography entry for the TA3 trait manual is a citation, not a statement of the technique.",
     "goldAnchorIds": [
       "anchor_efadde47e8997234c8eae85a3435bc9971bdc8c40d3a56902ec2e3670696b21f",
-      "anchor_4ab699d3e12b296d83f287c4e69ffbe99f713d0ff8ffb1f80a414241ec281efa",
-      "anchor_e55003c01d7b6e4b5ce2372be42b39ee1aba98234fc29cf1be742f649d1df36c"
+      "anchor_4ab699d3e12b296d83f287c4e69ffbe99f713d0ff8ffb1f80a414241ec281efa"
     ]
   },
   {
@@ -114,10 +113,9 @@
       "credit_authors",
       0
     ],
-    "note": "REVIEW multi-gold: CRediT statement + author list",
+    "note": "gold = the CRediT statement, which opens with this name. The p1 author list names her last and says nothing about CRediT roles.",
     "goldAnchorIds": [
-      "anchor_d8215394f36fbbea1e4e1e5358f52df4a20d9f049dabe80300e7ee222323bc40",
-      "anchor_233d1ab87aa9e30091e765d72789fb3d7690ec783702d2410a70a694f711c40c"
+      "anchor_d8215394f36fbbea1e4e1e5358f52df4a20d9f049dabe80300e7ee222323bc40"
     ]
   },
   {
@@ -145,6 +143,16 @@
     ],
     "note": "gold text reads 'Im Dol 2 -6' (spaced dash) — deliberate paraphrase case, lexical must miss",
     "goldAnchorId": "anchor_773ccee8569872b478d5031751fc6baca0c6e2a97e47dd89c90f4f8c223dc8c9"
+  },
+  {
+    "value": "Øster Voldgade 5-7",
+    "resultPath": [
+      "affiliations",
+      5,
+      "street"
+    ],
+    "note": "OCR renders 'Ø ster Voldgade 5 -7'; genuinely supported despite no lexical hit",
+    "goldAnchorId": "anchor_c900f0797a4305cc1c33c0d5519c65189c07a4b073985f9ab3844d9839cbf238"
   },
   {
     "value": "10.1016/j.ijpp.2026.02.004",
