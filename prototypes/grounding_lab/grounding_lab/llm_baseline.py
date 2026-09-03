@@ -72,19 +72,18 @@ def ground_batch(model: str, batch: list, anchors: list, think: bool = False) ->
     anchor_lines = "\n".join(
         f"[E{i + 1}] {a.scoring_text}" for i, a in enumerate(anchors)
     )
+    content = PROMPT.format(claims=claim_lines, anchors=anchor_lines)
     body = json.dumps({
         "model": model,
-        "messages": [{
-            "role": "user",
-            "content": PROMPT.format(claims=claim_lines, anchors=anchor_lines),
-        }],
+        "messages": [{"role": "user", "content": content}],
         "stream": False,
         "think": think,
         "format": "json",
-        # 45k: the largest document (age-related-disease, 302 anchors) needs
-        # 33.5k prompt tokens; at 32768 Ollama silently truncated the prompt
-        # and the model answered garbage with valid-looking labels.
-        "options": {"temperature": 0, "num_ctx": 45056},
+        # Ollama truncates a prompt longer than num_ctx (garbage with
+        # valid-looking labels, or "no user query found"), so size the window
+        # from the prompt. Statistical tables tokenize at ~1.9 chars/token
+        # (España en cifras: 355k chars -> 190k tokens); 1.5 leaves margin.
+        "options": {"temperature": 0, "num_ctx": max(45056, int(len(content) / 1.5) + 8192)},
     }).encode()
     started = time.perf_counter()
     request = urllib.request.Request(
@@ -92,8 +91,12 @@ def ground_batch(model: str, batch: list, anchors: list, think: bool = False) ->
     )
     # Thinking mode emits long chain-of-thought per batch; a big-document
     # batch can exceed 10 minutes of generation.
-    with urllib.request.urlopen(request, timeout=3600 if think else 600) as response:
-        content = json.load(response)["message"]["content"]
+    try:
+        with urllib.request.urlopen(request, timeout=3600 if think else 600) as response:
+            content = json.load(response)["message"]["content"]
+    except urllib.error.HTTPError as error:
+        print(f"ollama {error.code}: {error.read().decode(errors='replace')[:500]}", file=sys.stderr)
+        raise
     return parse_links(content), time.perf_counter() - started
 
 

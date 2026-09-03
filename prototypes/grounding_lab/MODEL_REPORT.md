@@ -24,21 +24,26 @@ wrong.
 | G Liquid LFM2.5-ColBERT top 10 + MiniCheck | **283/283** | 147/382 | 49/283 | **98/99** | 2 | **0** | 49/49 | 34%-43% | 60 |
 | H all strict single hits reranked with Nemotron | 281/281 | 311/382 | 213/283 | 98/99 | 59 | **0** | 213/213 | 77%-85% | **37** |
 
-E-Nemotron is the current policy. Its reviews include the four OCR/PDF-spacing
+E is the current policy; Qwen3 0.6B is the pinned scorer and Nemotron 1B is
+the measured candidate. E-Nemotron's eight reviews are the four OCR/PDF-spacing
 claims (`Im Dol 2-6`, `Øster Voldgade 5-7`, `Carlos José Dias Pereira`,
-`AAR33284`), linked through the whitespace-tolerant fallback at the 0.25 cap,
-and the `Poul Kragh` excavation-leader trap, capped because the extraction
-claims the value under two fields. The two true paraphrases,
-`cirka 1100-900 f.Kr.` and `at least two individuals`, abstain and belong to
-the extractor, not the grounder. H routes `Poul Kragh` to review without the
-collision signal but sends 58 other links there too, so it is rejected.
+`AAR33284`) linked through the whitespace-tolerant fallback at the 0.25 cap,
+the `Poul Kragh` field-collision trap, and three sub-threshold multiple-hit
+links. Its two misses, `cirka 1100-900 f.Kr.` and `at least two individuals`,
+are paraphrases the document never states: an extractor defect, not a
+grounder miss. A-D and F-H are rejected; A-D, F and G were reclassified from
+saved aggregates after the review bucket was added. Per-fold detail for E:
+[`CV5_E_ZEROHIT_RICH_REPORT.md`](CV5_E_ZEROHIT_RICH_REPORT.md) (Qwen3),
+[`CV5_NEMOTRON_ZEROHIT_RICH_REPORT.md`](CV5_NEMOTRON_ZEROHIT_RICH_REPORT.md).
 
-A-D, F and G predate the whitespace-tolerant fallback and the review bucket;
-their rows are reclassified from the saved aggregates and their per-fold
-reports were not kept. Per-fold and per-document detail for E and H:
-[`CV5_E_ZEROHIT_RICH_REPORT.md`](CV5_E_ZEROHIT_RICH_REPORT.md),
-[`CV5_NEMOTRON_ZEROHIT_RICH_REPORT.md`](CV5_NEMOTRON_ZEROHIT_RICH_REPORT.md),
-[`CV5_H_ONEHIT_NEMOTRON_REPORT.md`](CV5_H_ONEHIT_NEMOTRON_REPORT.md).
+## LLM baseline on the same claims
 
-Model revisions are pinned in `grounding_lab/model_benchmark.py`. Jina is
-non-commercial; Liquid uses the LFM Open License v1.0 commercial-use threshold.
+[`LLM_BASELINE.md`](LLM_BASELINE.md): the incumbent-shaped LLM grounding
+(qwen3.8:27b, thinking, DGX Spark) on 18 of the 20 documents scores 223/253
+links, 86/89 abstains, 33 wrong links at ≈9.8 s per claim; E-Nemotron on the
+same 342 claims scores 332 correct, 0 wrong, 8 review at 62 ms. 28 of the
+LLM's wrong links choose a table row label instead of the value cell. The two
+remaining documents exceed its 262k context under the single-prompt protocol
+production also uses.
+
+Model revisions are pinned in `grounding_lab/model_benchmark.py`.

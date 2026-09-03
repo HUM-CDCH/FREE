@@ -64,11 +64,16 @@ pnpm --filter grounding-lab model-benchmark -- dataset final_dataset final_datas
 ```
 
 The defaults are policy E (`--candidates hitset --claim-mode rich-hitset
---zero-hit abstain`); `--rerank-one-hit` gives H. Without `--cv`, thresholds
-are tuned on the five dev documents and reported on the five held-out
-validation documents. All results are diagnostic; adoption needs a new frozen
-set evaluated once from committed code.
+--zero-hit abstain`). Without `--cv`, thresholds are tuned on the five dev
+documents and reported on the five held-out validation documents. All results
+are diagnostic; adoption needs a new frozen set evaluated once from committed
+code.
 
-Jina models are non-commercial research tools. Liquid models use the LFM Open
-License v1.0 commercial-use threshold. Neither may be promoted without a
-license review.
+The LLM comparison needs Ollama (`OLLAMA_HOST` for a remote server):
+
+```bash
+uv run --no-sync python -X utf8 -m grounding_lab.llm_baseline final_dataset_2 qwen3.8:27b --think
+```
+
+Jina models are non-commercial; Liquid models carry the LFM Open License v1.0
+commercial-use threshold. Neither may be promoted without a license review.

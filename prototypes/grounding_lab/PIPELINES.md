@@ -6,7 +6,7 @@ It describes the experiment, not FREE's production architecture. From the
 repository root:
 
 ```bash
-pnpm exec likec4 dev prototypes/grounding_lab        # policy_comparison, current_policy_e, ...
+pnpm exec likec4 dev prototypes/grounding_lab        # views: policy_comparison, current_policy_e
 pnpm exec likec4 validate prototypes/grounding_lab
 ```
 
@@ -25,9 +25,5 @@ pnpm exec likec4 validate prototypes/grounding_lab
 | H — generic single-hit rerank | as E | rerank the hit | all lexical hits | rich | Nemotron 1B reranker |
 
 "Capped" means reranked with the 0.25 non-verbatim cap: the link goes to
-review and never auto-accepts. G links only when exactly one candidate clears
-its calibrated support threshold (floor 0.5). H keeps the verbatim flag on
-single hits, so its calibrated absolute-score gate can abstain while a strong
-hit still auto-accepts. E and H never load the dense retriever. F-Jina is
-research-only; the Liquid variants use the LFM Open License v1.0 commercial-use
-threshold.
+review and never auto-accepts. Only E is current; the others are kept as the
+rows they produce in the report. E never loads the dense retriever.
