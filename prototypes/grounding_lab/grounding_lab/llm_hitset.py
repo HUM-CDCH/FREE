@@ -17,7 +17,7 @@ The request, prompt and reply validation are `llm_baseline.ground_batch` /
 value. Scoring matches `llm_baseline.main` line for line, so the two runs are
 comparable: correct links, correct abstains, wrong links, protocol failures.
 
-Usage: uv run python -m grounding_lab.llm_hitset dataset final_dataset ...
+Usage: uv run python -m grounding_lab.llm_hitset dataset final_dataset ... [--claims claims_extracted.json]
 """
 
 from __future__ import annotations
@@ -33,7 +33,8 @@ from .pipeline import bounded_contains, lexical_tier, render_claim
 
 
 def run(
-    root: Path, model: str, think: bool = False, ground=ground_batch
+    root: Path, model: str, think: bool = False, ground=ground_batch,
+    claims_files: tuple[str, ...] = ("claims.json",),
 ) -> tuple[dict, list[str]]:
     """Ground every claim under `root`; returns (counters, audit rows)."""
     stats = dict(
@@ -41,7 +42,7 @@ def run(
         wrong=0, failures=0, calls=0, seconds=0.0,
     )
     audit: list[str] = []
-    for doc_name, index, claims in load_dataset(root):
+    for doc_name, index, claims in load_dataset(root, claims_files):
         for claim in claims:
             started = time.perf_counter()
             decided, hits = lexical_tier(claim, index.anchors)
@@ -112,14 +113,17 @@ def _row(name: str, s: dict) -> str:
     )
 
 
-def main(roots: list[Path], model: str, think: bool = False, ground=ground_batch) -> int:
+def main(
+    roots: list[Path], model: str, think: bool = False, ground=ground_batch,
+    claims_files: tuple[str, ...] = ("claims.json",),
+) -> int:
     pooled = dict(
         claims=0, correct=0, linkable=0, abstained=0, unlinkable=0,
         wrong=0, failures=0, calls=0, seconds=0.0,
     )
     rows, audit = [], []
     for root in roots:
-        stats, doc_audit = run(root, model, think, ground)
+        stats, doc_audit = run(root, model, think, ground, claims_files)
         rows.append(_row(root.name, stats))
         audit += doc_audit
         for key in pooled:
@@ -183,10 +187,18 @@ if __name__ == "__main__":
         raise SystemExit(_selfcheck())
     # Positional args are dataset roots; the one carrying a tag ("model:tag")
     # is the Ollama model.
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    argv = sys.argv[1:]
+    claims_files = tuple(
+        argv[argv.index("--claims") + 1].split(",") if "--claims" in argv else ["claims.json"]
+    )
+    args = [
+        a for i, a in enumerate(argv)
+        if not a.startswith("--") and (i == 0 or argv[i - 1] != "--claims")
+    ]
     models = [a for a in args if ":" in a]
     raise SystemExit(main(
         [Path(a) for a in args if ":" not in a] or [Path("dataset")],
         models[0] if models else "qwen3.8:latest",
         think="--think" in sys.argv,
+        claims_files=claims_files,
     ))

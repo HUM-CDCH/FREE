@@ -119,6 +119,7 @@ def _dmy_to_iso(m: re.Match) -> str:
     return f"{m[3]}-{month:02d}-{day:02d}"
 
 
+@cache
 def normalize(text: str) -> str:
     out = _NBSP_GROUPING.sub("", text)
     # U+2212 minus and U+2013 en-dash both read as "-" so a range stays one token.
@@ -164,6 +165,7 @@ def _join_space_groups(scalar: str) -> str:
     return _SPACE_GROUPING.sub(lambda m: m[1] + m[2].replace(" ", ""), scalar)
 
 
+@cache
 def _join_document_space_groups(text: str) -> str:
     def join(m: re.Match) -> str:
         digits = m[1] + m[2].replace(" ", "")
@@ -264,6 +266,83 @@ def lexical_tier(claim: Claim, anchors: list[Anchor]) -> tuple[Link | None, list
 def lexical_match(claim: Claim, anchors: list[Anchor]) -> Link | None:
     link, _ = lexical_tier(claim, anchors)
     return link if link is not None and link.anchor_id else None
+
+
+def index_anchors(anchors: list[Anchor]) -> None:
+    """Normalize every anchor once per document. `normalize` and the document
+    space-group join are cached, so this is the one-off cost a grounder pays
+    when a document is parsed; the per-claim scan then only runs the searches."""
+    for anchor in anchors:
+        _join_document_space_groups(normalize(anchor.text))
+
+
+# --- tier 1b: sibling gate ---------------------------------------------------
+
+SIBLING_WINDOW = 3
+SIBLING_MIN_CHARS = 3
+_BARE_NUMBER = re.compile(r"[-+]?\d+(?:[.,]\d+)?")
+
+
+def bare_number(value: str | int | float | bool) -> bool:
+    """Short unit-less numbers ("6", "0.95", "1970") occur dozens of times in
+    a catalogue; their hit sets need a sibling match before any link."""
+    text = str(value)
+    return len(text) <= 4 and _BARE_NUMBER.fullmatch(text) is not None
+
+
+def sibling_values(claim: Claim) -> list[str]:
+    """Sibling values from "field: value, field: value" (a value may itself
+    hold ", "). Values under SIBLING_MIN_CHARS normalized characters ("2")
+    match everywhere and are dropped."""
+    values: list[str] = []
+    for fragment in (claim.context or "").split(", "):
+        if ": " in fragment:
+            values.append(fragment.split(": ", 1)[1])
+        elif values:
+            values[-1] += ", " + fragment
+    return [v for v in values if len(normalize(v)) >= SIBLING_MIN_CHARS]
+
+
+def sibling_support(
+    claim: Claim, position: int, anchors: list[Anchor], window: int = SIBLING_WINDOW
+) -> bool:
+    """Whether a sibling value of the claim appears in the anchor at
+    `position`, its table row (`context`) or a same-page anchor within
+    `window` places in reading order."""
+    anchor = anchors[position]
+    texts = [anchor.text, anchor.context or ""] + [
+        a.text
+        for a in anchors[max(0, position - window): position + window + 1]
+        if a.page == anchor.page
+    ]
+    return any(bounded_contains(s, t) for s in sibling_values(claim) for t in texts)
+
+
+def gated_lexical_tier(
+    claim: Claim, anchors: list[Anchor], window: int = SIBLING_WINDOW
+) -> tuple[Link | None, list[Anchor]]:
+    """lexical_tier, then the sibling gate. One strict hit whose neighbourhood
+    holds no sibling value keeps its anchor at confidence 0.0 (review, never
+    auto-accepted). A bare number with several hits is narrowed to the
+    sibling-supported anchors: none abstains, one links, several go to the
+    scorer. Claims without a usable sibling pass through unchanged: the field
+    cannot be verified, and that is reported, not hidden."""
+    decided, hits = lexical_tier(claim, anchors)
+    if not sibling_values(claim):
+        return decided, hits
+    position = {a.anchor_id: i for i, a in enumerate(anchors)}
+    if decided is not None and decided.anchor_id:
+        if sibling_support(claim, position[hits[0].anchor_id], anchors, window):
+            return decided, hits
+        return Link(decided.anchor_id, 1.0, 0.0, "lexical-gated"), hits
+    if decided is None and bare_number(claim.value):
+        kept = [a for a in hits if sibling_support(claim, position[a.anchor_id], anchors, window)]
+        if not kept:
+            return Link(None, 0.0, 0.0, "lexical-gated"), []
+        if len(kept) == 1:
+            return Link(kept[0].anchor_id, 1.0, 1.0, "lexical-gated"), kept
+        return None, kept
+    return decided, hits
 
 
 # --- tier 2: bi-encoder shortlist -------------------------------------------

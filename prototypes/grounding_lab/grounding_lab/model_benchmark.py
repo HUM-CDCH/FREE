@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import math
 import statistics
 import threading
@@ -27,12 +28,16 @@ from .calibrate import DEFAULT_HELDOUT, ci, decide, evaluate
 from .harness import load_dataset
 from .pipeline import (
     CROSS_ENCODER_BATCH_SIZE,
+    SIBLING_MIN_CHARS,
+    SIBLING_WINDOW,
     CROSS_ENCODER_MODEL,
     CROSS_ENCODER_REVISION,
     RERANK_INSTRUCTION,
     Claim,
     bounded_contains,
     claim_field,
+    gated_lexical_tier,
+    index_anchors,
     lexical_match,
     lexical_tier,
     render_claim,
@@ -537,12 +542,17 @@ def _colliding_values(claims) -> set:
 
 def _score_entries(
     documents, retriever, retriever_spec, reranker, reranker_spec, rendering, k=RERANK_K,
-    candidates="hitset", zero_hit="abstain", rerank_one_hit=False,
+    candidates="hitset", zero_hit="abstain", rerank_one_hit=False, sibling_gate=False,
 ):
     entries = []
     latencies: list[tuple[str, str, float]] = []
     dense = not (candidates == "hitset" and zero_hit == "abstain")
+    lexical = gated_lexical_tier if sibling_gate else lexical_tier
     for doc_name, index, claims in documents:
+        # One-off per-document cost, reported apart from the per-claim path.
+        started = time.perf_counter()
+        index_anchors(index.anchors)
+        latencies.append((doc_name, "index", time.perf_counter() - started))
         # Document embeddings only serve the dense path; hitset + abstain never reaches it.
         document_embeddings = _encode(
             retriever,
@@ -553,7 +563,7 @@ def _score_entries(
         colliding = set() if rerank_one_hit else _colliding_values(claims)
         for claim in claims:
             started = time.perf_counter()
-            decided, hits = lexical_tier(claim, index.anchors)
+            decided, hits = lexical(claim, index.anchors)
             collision = bool(decided and decided.anchor_id and claim.value in colliding)
             rerank_single = bool(rerank_one_hit and decided and decided.anchor_id)
             if decided is not None and not collision and not rerank_single and (decided.anchor_id or zero_hit == "abstain"):
@@ -561,6 +571,8 @@ def _score_entries(
                 # 6/182 lab claims are linkable paraphrase/OCR/spacing cases;
                 # 0/100 on final set 2)
                 tier = "lexical" if decided.anchor_id else "abstain"
+                if decided.anchor_id and decided.confidence < 1.0:
+                    tier = "review"  # gated: hit shares no sibling value with the claim
                 entries.append((doc_name, claim, tier, decided.anchor_id))
                 latencies.append((doc_name, "lexical", time.perf_counter() - started))
                 continue
@@ -668,6 +680,39 @@ def choose_thresholds(entries) -> tuple[float, float, dict]:
     return abstain, accept, metrics
 
 
+def outcome(entry, abstain, accept) -> str:
+    """One label per claim, the reviewer's view: link-correct, link-wrong
+    (an anchor outside the gold set, or any anchor for an unsupported value),
+    review, abstain."""
+    _, claim, tier, payload = entry
+    if tier in {"abstain", "review"}:
+        return tier
+    if tier == "lexical":
+        picked, confidence = payload, 1.0
+    else:
+        picked, confidence, _ = decide(entry, abstain, CONTAINMENT_CAP)
+        if picked is None:
+            return "abstain"
+    if confidence < accept:
+        return "review"
+    return "link-correct" if picked in claim.gold_anchor_ids else "link-wrong"
+
+
+def dump_outcomes(path: Path, entries, thresholds) -> None:
+    """thresholds: {doc name: (abstain, accept)}; one JSON line per claim."""
+    with path.open("w", encoding="utf-8") as out:
+        for entry in entries:
+            doc_name, claim = entry[0], entry[1]
+            abstain, accept = thresholds[doc_name]
+            out.write(json.dumps({
+                "doc": doc_name,
+                "path": list(claim.result_path),
+                "value": claim.value,
+                "supported": bool(claim.gold_anchor_ids),
+                "outcome": outcome(entry, abstain, accept),
+            }, ensure_ascii=False) + "\n")
+
+
 def _evaluation_metrics(entries, names, abstain, accept, latencies):
     selected = [entry for entry in entries if entry[0] in names]
     metrics = evaluate(selected, abstain, CONTAINMENT_CAP, accept)
@@ -683,12 +728,16 @@ def _evaluation_metrics(entries, names, abstain, accept, latencies):
         for entry in fallback_linkable
     )
     metrics["recall_total"] = len(fallback_linkable)
-    timings = [
+    timings = sorted(
         seconds
         for name, tier, seconds in latencies
-        if name in names and tier in {"neural", "verifier"}
-    ]
+        if name in names and tier != "index"
+    )
     metrics["median_ms"] = 1000 * (statistics.median(timings) if timings else 0)
+    metrics["p95_ms"] = 1000 * (timings[int(0.95 * (len(timings) - 1))] if timings else 0)
+    metrics["index_ms"] = 1000 * sum(
+        seconds for name, tier, seconds in latencies if name in names and tier == "index"
+    )
     return metrics
 
 
@@ -710,13 +759,11 @@ def cv_evaluate(entries, latencies, folds):
         metrics = _evaluation_metrics(entries, held, abstain, accept, latencies)
         rows.append((fold, abstain, accept, metrics))
         for key, value in metrics.items():
-            if key != "median_ms":
+            if key not in {"median_ms", "p95_ms"}:
                 pooled[key] = pooled.get(key, 0) + value
-    timings = [
-        seconds for _, tier, seconds in latencies
-        if tier in {"neural", "verifier"}
-    ]
+    timings = sorted(seconds for _, tier, seconds in latencies if tier != "index")
     pooled["median_ms"] = 1000 * (statistics.median(timings) if timings else 0)
+    pooled["p95_ms"] = 1000 * (timings[int(0.95 * (len(timings) - 1))] if timings else 0)
     return rows, pooled
 
 
@@ -731,8 +778,20 @@ def _metrics_cells(metrics) -> str:
         f"{metrics['auto_correct']}/{metrics['auto']} | "
         f"{ci(metrics['total_correct'], total)} | "
         f"{ci(metrics['auto_correct'], metrics['auto'])} | "
-        f"{metrics['median_ms']:.0f}"
+        f"{metrics['median_ms']:.0f} | {metrics['p95_ms']:.0f}"
     )
+
+
+def _gate_and_latency_lines(args) -> list[str]:
+    gate = getattr(args, "sibling_gate", False)
+    return [
+        "- sibling gate: " + (
+            f"on (window {SIBLING_WINDOW} anchors on the page, siblings of {SIBLING_MIN_CHARS}+ characters; "
+            "a single hit sharing no sibling value goes to review, a bare number links only through a sibling-supported hit)"
+            if gate else "off"
+        ),
+        "- latency: whole path per claim (lexical scan and scorer) after a one-off anchor normalization per document (index ms)",
+    ]
 
 
 def _candidate_labels(args) -> tuple[str, str]:
@@ -748,6 +807,10 @@ def _candidate_labels(args) -> tuple[str, str]:
 def cv_report(args, documents, entries, latencies, retriever_loaded) -> str:
     folds = cv_folds([name for name, _, _ in documents], args.cv)
     rows, pooled = cv_evaluate(entries, latencies, folds)
+    if getattr(args, "dump", None):
+        dump_outcomes(args.dump, entries, {
+            name: (abstain, accept) for fold, abstain, accept, _ in rows for name in fold
+        })
     candidate_scope, recall_label = _candidate_labels(args)
     lines = [
         f"# Neural model benchmark — {args.cv}-fold cross-validation",
@@ -761,6 +824,7 @@ def cv_report(args, documents, entries, latencies, retriever_loaded) -> str:
         f"- candidates: `{args.candidates}`",
         f"- zero-hit claims: `{args.zero_hit}`",
         f"- strict single hits: {'reranked with rich claims' if getattr(args, 'rerank_one_hit', False) else 'linked directly'}",
+        *_gate_and_latency_lines(args),
         f"- candidate scope: {candidate_scope}",
         *(
             ["- threshold objective: minimize wrong links, then maximize correct decisions"]
@@ -774,8 +838,8 @@ def cv_report(args, documents, entries, latencies, retriever_loaded) -> str:
         "- links below the auto-accept threshold count as review, not supported or wrong",
         f"- documents: {len(documents)} from {', '.join(f'`{root}`' for root in args.root)}",
         "",
-        f"| fold | documents | abstain | accept | {recall_label} | correct decisions | supported links | correct abstains | review | wrong links | auto precision | total 95% CI | auto 95% CI | median neural ms |",
-        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        f"| fold | documents | abstain | accept | {recall_label} | correct decisions | supported links | correct abstains | review | wrong links | auto precision | total 95% CI | auto 95% CI | median ms | p95 ms |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for i, (fold, abstain, accept, metrics) in enumerate(rows, 1):
         lines.append(
@@ -784,14 +848,16 @@ def cv_report(args, documents, entries, latencies, retriever_loaded) -> str:
         )
     lines.append(f"| **pooled** | all | — | — | " + _metrics_cells(pooled) + " |")
     lines += ["", "## Document results (thresholds from the document's own fold)", "",
-              "| document | fold | correct decisions | review | wrong links |", "|---|---:|---:|---:|---:|"]
+              "| document | fold | correct decisions | review | wrong links | median ms | p95 ms | index ms |",
+              "|---|---:|---:|---:|---:|---:|---:|---:|"]
     for i, (fold, abstain, accept, _) in enumerate(rows, 1):
         for name in fold:
             metrics = _evaluation_metrics(entries, {name}, abstain, accept, latencies)
             total = metrics["linkable"] + metrics["abstains_due"]
             lines.append(
                 f"| {name} | {i} | {metrics['total_correct']}/{total} | "
-                f"{metrics['review']} | {metrics['wrong']} |"
+                f"{metrics['review']} | {metrics['wrong']} | "
+                f"{metrics['median_ms']:.0f} | {metrics['p95_ms']:.0f} | {metrics['index_ms']:.0f} |"
             )
     lines += ["", *_vram_lines(),
               "Each fold's thresholds were selected on the other folds only; pooled counts sum the held-out folds."]
@@ -888,6 +954,7 @@ def rerank_report(args, documents, retriever, retriever_spec, scorer, scorer_spe
             args.candidates,
             args.zero_hit,
             args.rerank_one_hit,
+            getattr(args, "sibling_gate", False),
         )
     if args.cv is not None:
         return cv_report(args, documents, entries, latencies, retriever is not None)
@@ -907,6 +974,8 @@ def rerank_report(args, documents, retriever, retriever_spec, scorer, scorer_spe
         abstain, accept, dev_metrics = choose_thresholds(dev_entries)
         requested = [args.split] if args.split != "all" else ["dev", "validation", "all"]
 
+    if getattr(args, "dump", None):
+        dump_outcomes(args.dump, entries, {name: (abstain, accept) for name, _, _ in documents})
     candidate_scope, recall_label = _candidate_labels(args)
     lines = [
         f"# Neural model benchmark — {'verification' if args.stage == 'verify' else 'reranking'}",
@@ -920,6 +989,7 @@ def rerank_report(args, documents, retriever, retriever_spec, scorer, scorer_spe
         f"- candidates: `{args.candidates}`",
         f"- zero-hit claims: `{args.zero_hit}`",
         f"- strict single hits: {'reranked with rich claims' if args.rerank_one_hit else 'linked directly'}",
+        *_gate_and_latency_lines(args),
         f"- candidate scope: {candidate_scope}",
         *(
             ["- threshold objective: minimize wrong links, then maximize correct decisions"]
@@ -934,8 +1004,8 @@ def rerank_report(args, documents, retriever, retriever_spec, scorer, scorer_spe
         f"- auto-accept threshold: {accept:.6f}",
         "- links below the auto-accept threshold count as review, not supported or wrong",
         "",
-        f"| split | {recall_label} | correct decisions | supported links | correct abstains | review | wrong links | auto precision | total 95% CI | auto 95% CI | median neural ms |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        f"| split | {recall_label} | correct decisions | supported links | correct abstains | review | wrong links | auto precision | total 95% CI | auto 95% CI | median ms | p95 ms |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     metrics_by_split = {}
     for split in requested:
@@ -952,7 +1022,7 @@ def rerank_report(args, documents, retriever, retriever_spec, scorer, scorer_spe
             f"{metrics['auto_correct']}/{metrics['auto']} | "
             f"{ci(metrics['total_correct'], total)} | "
             f"{ci(metrics['auto_correct'], metrics['auto'])} | "
-            f"{metrics['median_ms']:.0f} |"
+            f"{metrics['median_ms']:.0f} | {metrics['p95_ms']:.0f} |"
         )
     if "validation" in metrics_by_split:
         validation = metrics_by_split["validation"]
@@ -967,15 +1037,16 @@ def rerank_report(args, documents, retriever, retriever_spec, scorer, scorer_spe
         ]
     lines += ["", "## Requested-split document results", ""]
     lines += [
-        "| document | correct decisions | review | wrong links |",
-        "|---|---:|---:|---:|",
+        "| document | correct decisions | review | wrong links | median ms | p95 ms | index ms |",
+        "|---|---:|---:|---:|---:|---:|---:|",
     ]
     for name in sorted(split_names(documents, args.split)):
         metrics = _evaluation_metrics(entries, {name}, abstain, accept, latencies)
         total = metrics["linkable"] + metrics["abstains_due"]
         lines.append(
             f"| {name} | {metrics['total_correct']}/{total} | "
-            f"{metrics['review']} | {metrics['wrong']} |"
+            f"{metrics['review']} | {metrics['wrong']} | "
+            f"{metrics['median_ms']:.0f} | {metrics['p95_ms']:.0f} | {metrics['index_ms']:.0f} |"
         )
     lines += ["", *_vram_lines()]
     if dev_metrics is not None:
@@ -1015,6 +1086,11 @@ def main() -> int:
         help="rerank strict single lexical hits with rich claim rendering",
     )
     parser.add_argument(
+        "--sibling-gate", action="store_true",
+        help="a single hit sharing no sibling value with the claim goes to review; "
+             "a bare number links only through a sibling-supported hit",
+    )
+    parser.add_argument(
         "--split", choices=("dev", "validation", "all", "final"), default="all"
     )
     parser.add_argument("--abstain-threshold", type=float)
@@ -1029,6 +1105,10 @@ def main() -> int:
         help="comma-separated claim files merged per document (e.g. claims.json,traps.json)",
     )
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--dump", type=Path,
+        help="write one JSON line per claim with its outcome (link-correct, link-wrong, review, abstain) at the thresholds used",
+    )
     args = parser.parse_args()
 
     if args.stage == "rerank" and not args.reranker:
@@ -1043,6 +1123,8 @@ def main() -> int:
         parser.error("--rerank-one-hit is only valid for --stage rerank")
     if args.rerank_one_hit and args.candidates != "hitset":
         parser.error("--rerank-one-hit requires --candidates hitset")
+    if args.sibling_gate and args.stage != "rerank":
+        parser.error("--sibling-gate is only valid for --stage rerank")
     if args.stage == "verify":
         args.claim_mode = "rich"
         args.candidates = "hitset"

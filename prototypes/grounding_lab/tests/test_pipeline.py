@@ -322,6 +322,35 @@ class VerbatimDowngradeTest(unittest.TestCase):
         self.assertEqual(downgraded.tier, "cross-encoder*")
 
 
+class SiblingGateTest(unittest.TestCase):
+    def test_gate_routes_single_hits_and_narrows_bare_numbers(self):
+        from grounding_lab.pipeline import gated_lexical_tier
+
+        anchors = [
+            Anchor("h7", "Grab 7", 1),
+            Anchor("d7", "L 2,34, B 1,42 m", 1),
+            Anchor("f1", "Adult, männlich", 1),
+            Anchor("f2", "Literatur: Größler 1909", 1),
+            Anchor("f3", "Unverz. Glockenbecher", 1),
+            Anchor("h8", "Grab 8", 1),
+            Anchor("d8", "L 1, B 0,8 m", 1),
+            Anchor("far", "Tiefe 0,8 m", 3),
+        ]
+        # one hit, in another grave's entry: the anchor is kept but goes to review
+        link, _ = gated_lexical_tier(
+            Claim(2.34, ("records", 1, "length"), ("d8",), context="grave_id: Grab 8"), anchors
+        )
+        self.assertEqual((link.anchor_id, link.confidence, link.tier), ("d7", 0.0, "lexical-gated"))
+        # a bare number in two anchors: only the one near its sibling links
+        link, hits = gated_lexical_tier(
+            Claim(0.8, ("records", 1, "width"), ("d8",), context="grave_id: Grab 8"), anchors
+        )
+        self.assertEqual((link.anchor_id, link.confidence, [a.anchor_id for a in hits]), ("d8", 1.0, ["d8"]))
+        # no usable sibling: the plain lexical decision, undecided with both hits
+        link, hits = gated_lexical_tier(Claim(0.8, ("records", 1, "width"), ("d8",)), anchors)
+        self.assertEqual((link, len(hits)), (None, 2))
+
+
 class UnknownConfigTest(unittest.TestCase):
     def test_unknown_config_raises(self):
         from grounding_lab.pipeline import ground

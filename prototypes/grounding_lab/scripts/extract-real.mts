@@ -16,7 +16,11 @@ const OLLAMA_MODEL = process.env.FREE_LIVE_OLLAMA_MODEL ?? 'qwen3.8:latest'
 // Documents whose full markdown exceeds the context the local Ollama server
 // actually grants (~32k tokens, not the model's advertised 262k): extract from
 // a page window around the gold anchors instead (labelled in the metadata).
-const WINDOWED = new Set(['desnz-annual-report-2024-25-en', 'us-census-income-2024-en', 'espana-en-cifras-2025-es'])
+const WINDOWED = new Set([
+  'desnz-annual-report-2024-25-en', 'us-census-income-2024-en', 'espana-en-cifras-2025-es',
+  // blind-set scans over 300k characters
+  'buchvaldek-1970-vikletice-tables-de', 'durankulak-catalogue-de',
+])
 
 function target(): GeneralExecutionTarget {
   const ollama = providerTable.ollama
@@ -88,6 +92,19 @@ export function deriveTemplate(claims: readonly Claim[]): Record<string, unknown
   return Object.fromEntries([...root.children].map(([name, child]) => [name, render(child)]))
 }
 
+/** A hand-written schema.json is example-shaped ("string", 0, 0.0, true,
+ * "1900-01-01", ["string"]). JSON.parse folds 0.0 into 0, so the scalar types
+ * are rewritten on the text before parsing. */
+export function templateFromSchema(text: string): Record<string, unknown> {
+  return JSON.parse(
+    text
+      .replace(/:\s*0\.0(?=\s*[,}\]])/g, ': "number"')
+      .replace(/:\s*0(?=\s*[,}\]])/g, ': "integer"')
+      .replace(/:\s*(?:true|false)(?=\s*[,}\]])/g, ': "boolean"')
+      .replace(/"\d{4}-\d{2}-\d{2}"/g, '"date"'),
+  )
+}
+
 // --- document text -----------------------------------------------------------
 
 function documentText(dir: string): { markdown: string; source: 'document.md' | 'canonicalSource' } {
@@ -131,7 +148,8 @@ async function main(): Promise<void> {
       const dir = join(root, name)
       if (!existsSync(join(dir, 'claims.json'))) continue
       const claims: Claim[] = JSON.parse(readFileSync(join(dir, 'claims.json'), 'utf8'))
-      const template = deriveTemplate(claims)
+      const schema = join(dir, 'schema.json')
+      const template = existsSync(schema) ? templateFromSchema(readFileSync(schema, 'utf8')) : deriveTemplate(claims)
       writeFileSync(join(dir, 'template.json'), JSON.stringify(template, null, 2) + '\n')
       if (args.includes('--templates-only')) continue
       if (args.includes('--resume') && existsSync(join(dir, 'extracted_raw.json'))) {

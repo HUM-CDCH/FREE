@@ -1,158 +1,166 @@
-# Grounding lab audit — 2026-09-04
+# Grounding lab: results and next steps (2026-09-04)
 
-Four experiments were run to test the headline claim in
-[`MODEL_REPORT.md`](MODEL_REPORT.md) that policy E (lexical containment, single
-hit links directly, multi-hit reranked, zero hit abstains) reaches 372/382
-correct decisions with 0 wrong links. Each has its own report; this page is the
-summary and the verdict.
-
-| experiment | report | what it answers |
-|---|---|---|
-| 1. Real extractor output | [`RAW_EXTRACTION.md`](RAW_EXTRACTION.md) | Does containment survive typed extractor output? |
-| 2. Single-hit traps | [`TRAPS.md`](TRAPS.md) | What happens when a value is present once but under the wrong meaning? |
-| 3. Rendering fix + LLM as E's scorer | [`LLM_HITSET.md`](LLM_HITSET.md) | Were the LLM baseline's 33 wrong links real? Is the reranker the reason E wins? |
-| 4. Blind set | [`final_dataset_3/LABELS.md`](final_dataset_3/LABELS.md), [`BLIND_E_NEMOTRON.md`](BLIND_E_NEMOTRON.md), [`BLIND_H_NEMOTRON.md`](BLIND_H_NEMOTRON.md), [`BLIND_LLM_HITSET.md`](BLIND_LLM_HITSET.md) | What does E score on labels nobody tuned it against? |
-
-`grounding_lab/pipeline.py` was not modified by any experiment. The code is
-frozen at the commit that carries this file.
+One question: can a tiered non-LLM grounder (normalized lexical containment,
+then a small cross-encoder inside the lexical hit set) replace LLM evidence
+linking, given that the product's aim is to catch extractor errors and put
+them in front of a reviewer? Code in `grounding_lab/`, the blind sets in
+`final_dataset_3/`, session state in [`HANDOFF.md`](HANDOFF.md).
 
 ## Verdict
 
-The 372/382 figure is a property of the labels, not of the pipeline.
+- The earlier 372/382 for policy E was a property of the labels, not the
+  pipeline: every claim was a string copied verbatim out of an anchor, 187 of
+  283 linkable claims were single lexical hits linked unverified, only 35
+  could be scored wrong at all, and 98 of the 99 must-abstain values were
+  simply absent from the text. Those three sets (`dataset`, `final_dataset`,
+  `final_dataset_2`) are regression fixtures now and produce no headline
+  number.
+- On real extractor output labeled blind (360 claims, six scanned grave
+  catalogues), the best non-LLM configuration catches 84% of extractor errors
+  and passes 57% of correct values without reviewer attention, at 16 ms median
+  per claim. A 27B LLM under the same contract catches 80% at 5.2 s. The
+  scorer is not the bottleneck; routing, extractor quality and the anchor
+  contract are.
+- Nothing here auto-accepts safely: the best auto precision is 79%. Links are
+  reviewer suggestions; their absence or doubt is the error flag.
 
-- Every hand-authored claim was a verbatim string copied from an anchor. 187 of
-  283 linkable claims were single lexical hits, linked at confidence 1.0 and
-  never scored; 55 of the 90 multi-hit claims had every hit in the gold set. Only
-  35 claims in the corpus could be scored wrong at all.
-- On 40 traps where the value occurs exactly once but under the wrong field,
-  policy E auto-links 34 wrong at confidence 1.0. Nothing in the pipeline looks
-  at the field once a single hit exists.
-- On a blind set of six grave catalogues labeled by someone who never saw the
-  pipeline, with typed values, policy E scores 91/164 correct decisions, 37
-  wrong links, auto-precision 72/109.
-- 28 of the LLM baseline's 33 wrong links were a bug in `dump-anchors`, not the
-  model. After the fix the LLM makes 1 wrong link on the four documents that fit
-  the local GPU.
+## Headline set: extractor output, blind labels
 
-## 1. Real extractor output
+`final_dataset_3/<doc>/claims_extracted.json`. The real extractor
+(`qwen3.8:latest`, local Ollama, every prompt cut to 16k tokens by the
+server, [`RAW_EXTRACTION_BLIND.md`](RAW_EXTRACTION_BLIND.md)) was run with
+each document's `schema.json`; 60 emitted leaves per document were sampled
+(seeded) and labeled by six labelers who saw only their document directory
+([`final_dataset_3/LABELS.md`](final_dataset_3/LABELS.md), last section).
+256 supported, 104 unsupported; the unsupported values are what the extractor
+really produces: a runaway enumeration of type codes, place names harvested
+from the bibliography, composed labels.
 
-The production entry point (`extractWithModel`, Ollama, qwen3.8 27B) was run on
-all 20 documents with schemas derived from the hand-authored field names, and
-its raw typed output was grounded with the frozen lexical tier.
+Policy E: one strict hit links at confidence 1.0, zero hits abstain, several
+hits go to the reranker (Nemotron 1B) with field name and sibling values.
+`--sibling-gate`: a single hit whose page neighbourhood (3 anchors either
+side) and table row hold none of the claim's sibling values goes to review; a
+bare number (4 characters or fewer, no unit) links only through a
+sibling-supported hit, and its hit set is narrowed to those. Frozen thresholds
+are the fixture-tuned `-9.375 / 0.5625`; "blind-tuned" is leave-one-document-out
+on this set (the abstain threshold lands at about 0.52, so the scorer can say
+"none" inside a hit set). Latency is the whole per-claim path after a one-off
+anchor normalization per document.
 
-| raw claims | zero hits (abstain) | loose only (review) | single hit | 2+ hits |
-|---:|---:|---:|---:|---:|
-| 597 | 16 (3%) | 3 | 325 (54%) | 253 (42%) |
+| policy | correct | supported links | correct abstains | review | wrong | auto precision | median ms | p95 ms |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| E, frozen | 230/360 | 160/256 | 70/104 | 35 | 61 | 160/221 | 28 | 1 053 |
+| E + sibling gate, frozen | 233/360 | 155/256 | 78/104 | 39 | 52 | 155/207 | 15 | 366 |
+| E, blind-tuned | 234/360 | 154/256 | 80/104 | 33 | 41 | 154/195 | 27 | 1 116 |
+| E + sibling gate, blind-tuned | 224/360 | 145/256 | 79/104 | 41 | 39 | 145/184 | 16 | 381 |
+| E with the LLM as scorer, same contract | 251/360 | 168/256 | 83/104 | – | 36 | – | 5 238 | – |
 
-The hypothesis that typed numbers would defeat containment was wrong:
-`normalize` folds `48619695` onto `48.619.695` and `-2.1` onto `-2,1`. The 19
-misses are magnitude words (`3200000000` vs "€ 3,2 miljard"), signs derived
-from "de moins", unit conversions and OCR spacing. What did change is the
-mix: 42% of real claims are multi-hit (32% in the hand set) and the extractor
-emits 1.6× more claims than were labeled. Of 143 single-hit raw claims with a
-gold counterpart, 128 hit the gold; the 15 others are record-order mismatches
-or the extractor reading a different value, which the tier links faithfully.
+The reviewer's view of the same runs (`outcomes/*.jsonl` from
+`model_benchmark --dump`; the two lexical-only rows need no model):
 
-Caveat: the shared Ollama server granted 16k–45k tokens of context, so three
-large documents were windowed and two extractions were truncated.
+| policy | extractor errors caught | missed (auto-linked) | correct values passed | correct values sent to review or abstained | correct value, wrong anchor |
+|---|---:|---:|---:|---:|---:|
+| E, frozen | 77/104 (74%) | 27 | 160/256 | 62 | 34 |
+| E + sibling gate, frozen | 84/104 (81%) | 20 | 155/256 | 69 | 32 |
+| E, blind-tuned | 86/104 (83%) | 18 | 154/256 | 79 | 23 |
+| E + sibling gate, blind-tuned | 87/104 (84%) | 17 | 145/256 | 89 | 22 |
+| single hits pass, every hit set to review | 94/104 (90%) | 10 | 79/256 | 177 | 0 |
+| gated single hits pass, hit sets to review | 93/104 (89%) | 11 | 84/256 | 170 | 2 |
+| LLM as scorer, same contract | 83/104 (80%) | 21 | 168/256 | 73 | 15 |
 
-## 2. Single-hit traps
+What is left, and why no scorer fixes it:
 
-40 traps across 16 documents, each a value with exactly one lexical hit that is
-wrong for its field (a colleague claimed as author, a 2014 count claimed for
-2024, another row's cell). Merged with the original claims and run at the
-frozen thresholds:
+- **27 supported values have no lexical hit** (soft hyphens in the OCR,
+  strings the extractor composed from two cells, legend abbreviations it
+  expanded to the typed form, a year inside a date). Missed by construction.
+- **12 of the 17 errors the gated variant still links are citation place
+  names**: the only occurrence is a bibliography entry that also holds the
+  sibling district, so the gate confirms the wrong passage.
+- **2 are grave numbers that lost their letter** (1117 for 1117A while a grave
+  1117 exists).
+- Bare numbers produce hit sets up to 174 anchors; the gate's narrowing is
+  what halves the p95.
 
-| policy | wrong | review | abstain | cost on the 382 real claims |
-|---|---:|---:|---:|---|
-| E, Nemotron 1B | 34/40 | 4 | 2 | 6 correct links pushed to review by the collision cap |
-| H (rerank single hits) | 14/40 | 17 | 9 | supported 275 → 210, review 6 → 61 |
-| LLM baseline, bare values | 40/40 | – | 0 | – |
+Reports: [`EXTRACTED_E_NEMOTRON.md`](EXTRACTED_E_NEMOTRON.md),
+[`EXTRACTED_GATED_NEMOTRON.md`](EXTRACTED_GATED_NEMOTRON.md),
+[`EXTRACTED_CV6_E_NEMOTRON.md`](EXTRACTED_CV6_E_NEMOTRON.md),
+[`EXTRACTED_CV6_GATED_NEMOTRON.md`](EXTRACTED_CV6_GATED_NEMOTRON.md),
+[`EXTRACTED_LLM_HITSET.md`](EXTRACTED_LLM_HITSET.md).
 
-Six traps survived under E only because the same string was claimed under two
-fields, which triggers the collision cap. The LLM baseline is worse because it
-sees no field name at all, which is the production contract.
+## Secondary set: hand-labeled blind claims
 
-## 3. Rendering fix and the LLM as E's scorer
+The same six documents, 164 typed claims (116 supported) written by a labeler
+who never saw the pipeline (`claims.json`, [`LABELS.md`](final_dataset_3/LABELS.md)).
 
-`tableCellContexts` gave header-role cells a context containing the whole row.
-The LLM was asked for "the passage that states the value", found the value
-inside the row-label passage, and was scored wrong. Fixed in
-`scripts/dump-anchors.mts`; 6 100 of 40 066 contexts changed, ids and texts
-byte-identical.
-
-| document | LLM wrong links before | after |
-|---|---:|---:|
-| fed-monetary-policy | 4 | 1 |
-| polska-w-liczbach | 14 | 0 |
-| nederland, suomi | 0 | 0 |
-
-The same rerun on the DGX Spark with the original `qwen3.8:27b` over all five
-`final_dataset_2` documents, España included
-([`SPARK_LLM_BASELINE_final2.md`](SPARK_LLM_BASELINE_final2.md)): 73/75 links,
-24/25 abstains, 3 wrong, against 48/75 and 28 wrong in
-[`LLM_BASELINE.md`](LLM_BASELINE.md). The three survivors are the fed
-`2.4 percent` trap and two España values (`83,77 años`, `128 litros`). The
-other Spark reruns (`dataset`, `final_dataset`, the blind set, LLM as scorer)
-were stopped before completing and are not reported.
-
-Replacing E's cross-encoder with the same LLM, on the same inputs (rich claim,
-hit-set candidates only), gives 372/382 correct, identical to E-Nemotron, at
-349 ms per claim; 4 wrong instead of 0 because a link/NONE protocol has no
-review bucket. The reranker is not what makes E work; the lexical routing is,
-and section 2 shows what that routing cannot see.
-
-## 4. Blind set
-
-Six German and English grave catalogues from the user's collection, parsed
-through the Parsing Service, labeled by a subagent that was barred from reading
-any grounding code or report. Schemas are realistic (records of graves, typed
-measurements in cm, ISO dates); 164 claims, 116 supported, 48 unsupported in
-three kinds (never stated, present under another meaning, computed). Frozen
-thresholds from the 5-fold run.
-
-| policy | correct decisions | supported links | correct abstains | review | wrong | auto precision |
+| policy | correct | supported links | correct abstains | review | wrong | auto precision |
 |---|---:|---:|---:|---:|---:|---:|
-| E, Nemotron 1B | 91/164 | 72/116 | 19/48 | 13 | 37 | 72/109 |
-| H, Nemotron 1B | 85/164 | 65/116 | 20/48 | 27 | 28 | 65/93 |
-| E with the LLM as scorer (qwen3.8 27B, local) | 114/164 | 86/116 | 28/48 | – | 25 | – |
+| E, frozen | 91/164 | 72/116 | 19/48 | 13 | 37 | 72/109 |
+| E + sibling gate, frozen | 92/164 | 70/116 | 22/48 | 17 | 30 | 70/100 |
+| E, blind-tuned | 99/164 | 65/116 | 34/48 | 4 | 19 | 65/84 |
+| E + sibling gate, blind-tuned | 99/164 | 66/116 | 33/48 | 12 | 15 | 66/81 |
+| E with the LLM as scorer | 114/164 | 86/116 | 28/48 | – | 25 | – |
 
-The LLM scorer beats Nemotron here only because it may answer NONE inside a
-hit set, which catches 9 more unsupported values; it still auto-links the same
-single hits. Detail in [`BLIND_LLM_HITSET.md`](BLIND_LLM_HITSET.md).
+Two diagnostics on the fixtures, kept as `<doc>/traps.json`: 40 single-hit
+traps (a value present exactly once, under the wrong field) are linked wrong
+34 times by E at confidence 1.0; the gate removes 4, because 32 traps are
+top-level fields with no sibling to check. Reranking every single hit (policy
+H) caught 20 more traps but sent 65 correct links to review, so it was
+dropped. Also fixed on the way: `dump-anchors` gave header cells the whole row
+as context, which caused 28 of the LLM baseline's 33 wrong links on the
+fixtures; production `anchorText()` in
+`packages/extraction/src/grounding.ts` has no such leak, but it hands the
+scorer bare cell text (no row, no header), less than the lab does, and cuts a
+cell containing ` | `.
 
-Outcomes that no reranker could change: 9 unsupported values had one hit and
-were auto-linked; 20 unsupported values had several hits, so every pick is
-wrong; 7 supported values had gold outside the hit set; 7 supported values had
-no hit. Bare numbers (ages, depths, counts, years) occur dozens of times in a
-catalogue, and 61 of the first 100 claims were multi-hit against 24% in the
-hand set.
+## Next steps toward production
 
-Labeler doubts are listed in `LABELS.md`; the largest is that OCR table cells
-carry no header, so several supported cells are only identifiable through the
-claim's sibling context.
+In order; each is independent of the models.
 
-## What would change the verdict
-
-1. A grounding tier that verifies the field, not only the value, before any
-   auto-accept. Policy H shows the current reranker cannot do that without
-   sending a third of correct links to review.
-2. Evaluation only on typed extractor output and blind labels. The three
-   original sets should be retired from headline numbers.
-3. The LLM comparison rerun with the fixed anchors and, for a fair contract
-   comparison, with field names in the request.
+1. **Contract: a link the reviewer can doubt.** `ground()` returns
+   `evidence` and `ungroundedPaths`; add a review state (a confidence or a
+   `reviewPaths` list) so a gated or sub-threshold candidate reaches the
+   reviewer as "check this passage" rather than as a verified link or as
+   nothing. `EvidenceTab` renders it; nothing else changes.
+2. **Port the lexical tier and the gate to `packages/extraction`.**
+   `normalize`, `bounded_contains`, `lexical_tier`, `sibling_support` are
+   pure functions; the sibling values are already in the result
+   (`populatedContentPaths` siblings). Route: one verified hit links, zero
+   hits go to `ungroundedPaths`, hit sets go to the model with the field name,
+   siblings and only the hit set, and `NONE` allowed. That is the LLM row
+   above (80% of errors caught) using the existing `GroundingModel`, and it
+   cuts the model's input from every anchor to the hit set. Index the
+   normalized anchors once at parse time.
+3. **Two rules for the classes the gate misses.** Anchors after the last
+   bibliography heading are not evidence for site and place fields; a number
+   that also occurs with a letter suffix goes to review.
+4. **Extractor: emit the verbatim span with each typed value** (the schema
+   already has `verbatim-string`). This removes the 27 zero-hit supported
+   values and turns most hit-set scoring into exact matching. Also raise the
+   Ollama context grant: every extraction here was cut at 16k tokens, and the
+   invented records that dominate the unsupported set come from that.
+5. **Replace the LLM scorer with Nemotron 1B only after 1 to 4 are in**, with
+   the abstain threshold tuned on a blind set from a different document family
+   than the six catalogues, then frozen. Acceptance test: the reviewer's-view
+   table above, on a set built by the README protocol, run once from
+   committed code.
+6. **Do not** auto-accept links, compare more rerankers, or tune on the
+   fixtures.
 
 ## Reproduction
 
 ```bash
 cd prototypes/grounding_lab
-pnpm --filter grounding-lab extract-real -- dataset final_dataset final_dataset_2
-.venv/Scripts/python.exe -X utf8 -m grounding_lab.raw_claims dataset final_dataset final_dataset_2
-.venv/Scripts/python.exe -X utf8 -m grounding_lab.model_benchmark dataset final_dataset final_dataset_2 --stage rerank --retriever mini --reranker nemotron-1b --split all --abstain-threshold -9.375 --accept-threshold 0.5625 --claims claims.json,traps.json
-.venv/Scripts/python.exe -X utf8 -m grounding_lab.model_benchmark final_dataset_3 --stage rerank --retriever mini --reranker nemotron-1b --split all --abstain-threshold -9.375 --accept-threshold 0.5625
-.venv/Scripts/python.exe -X utf8 -m grounding_lab.llm_hitset final_dataset_3 qwen3.8:latest --think
+pnpm --filter grounding-lab test
+pnpm --filter grounding-lab extract-real -- final_dataset_3
+.venv/Scripts/python.exe -X utf8 -m grounding_lab.raw_claims final_dataset_3
+.venv/Scripts/python.exe -X utf8 -m grounding_lab.raw_claims final_dataset_3 --sheet --sample 60
+.venv/Scripts/python.exe -X utf8 -m grounding_lab.label_review final_dataset_3 --claims claims_extracted.json
+.venv/Scripts/python.exe -X utf8 -m grounding_lab.model_benchmark final_dataset_3 --stage rerank --retriever mini --reranker nemotron-1b --split all --abstain-threshold -9.375 --accept-threshold 0.5625 --sibling-gate --claims claims_extracted.json --dump outcomes/extracted_gated.jsonl
+.venv/Scripts/python.exe -X utf8 -m grounding_lab.model_benchmark final_dataset_3 --stage rerank --retriever mini --reranker nemotron-1b --cv 6 --sibling-gate --claims claims_extracted.json
+.venv/Scripts/python.exe -X utf8 -m grounding_lab.llm_hitset final_dataset_3 qwen3.8:latest --think --claims claims_extracted.json
 ```
 
-`final_sources_3/` holds the blind-set PDFs; they are copyrighted scans and are
-git-ignored. `final_dataset_3/<doc>/` carries the parsed document, anchors,
-schema and labels.
+`final_sources_3/` holds the six PDFs; they are copyrighted scans and
+git-ignored. `document.md`, `parsed_document.json` and `anchors.json` under
+`final_dataset_3/` are full-text derivatives of them and are committed; drop
+them if that is too much, the labels and schemas stand alone.

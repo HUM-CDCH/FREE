@@ -1,10 +1,10 @@
-# Final dataset source provenance
+# Fixture source provenance
 
-Both sets were replayed and relabeled, so they are burned diagnostic
-cross-validation data and cannot support adoption. Local copies are in
-`final_sources/` and `final_sources_2/`, parsed with `scripts/parse-source.py`
-under the Parsing Service's environment and anchored with `dump-anchors`.
-Results are in `MODEL_REPORT.md`.
+`final_dataset` and `final_dataset_2` were replayed and relabeled during
+development, so they are regression fixtures, not evaluation sets (see
+[AUDIT.md](AUDIT.md)). Local copies are in `final_sources/` and
+`final_sources_2/`, parsed with `scripts/parse-source.py` under the Parsing
+Service's environment and anchored with `dump-anchors`.
 
 ## `final_dataset` (selected 2026-09-01)
 

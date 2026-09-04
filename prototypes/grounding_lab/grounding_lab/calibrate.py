@@ -113,6 +113,9 @@ def evaluate(entries, abstain, cap, accept):
         if tier == "abstain":
             correct_abstains += not golds  # zero lexical hits: no neural stage ran
             continue
+        if tier == "review":
+            review += 1  # sibling gate: one hit sharing no sibling value with the claim
+            continue
         if tier == "lexical":
             confidence, correct = 1.0, payload in golds
         else:

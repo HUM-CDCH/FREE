@@ -9,11 +9,16 @@ policy E's first tier over `extracted_raw.json` (written by
 Usage:
     .venv/Scripts/python.exe -X utf8 -m grounding_lab.raw_claims \
         dataset final_dataset final_dataset_2
+    .venv/Scripts/python.exe -X utf8 -m grounding_lab.raw_claims final_dataset_3 --sheet [--sample N]
+        writes <doc>/claims_extracted.json, one unlabeled claim per emitted
+        leaf (or a seeded sample of N) with the record's other scalars as
+        `context`, for a labeler
 """
 
 from __future__ import annotations
 
 import json
+import random
 import sys
 from collections import Counter
 from pathlib import Path
@@ -44,6 +49,56 @@ def value_at(result: object, path: Path_) -> object:
 def render_value(value: object) -> str:
     """How a claim value reaches the grounder as text (pipeline uses str())."""
     return "true" if value is True else "false" if value is False else str(value)
+
+
+def record_siblings(raw: object, path: Path_) -> str | None:
+    """The other scalar leaves of the record holding `path`, rendered
+    "field: value, …" — the sibling shape production carries in the result."""
+    record = path[:-1]
+    while record and not isinstance(value_at(raw, record), dict):
+        record = record[:-1]  # element of a scalar list: its record is the enclosing dict
+    own = path[len(record)]
+    holder = value_at(raw, record)
+    assert isinstance(holder, dict)
+    rendered = ", ".join(
+        f"{key}: {render_value(value)}"
+        for key, value in holder.items()
+        if key != own and isinstance(value, (str, int, float, bool)) and value != ""
+    )
+    return rendered or None
+
+
+def labeling_sheet(raw: object) -> list[dict]:
+    return [
+        {
+            "value": value_at(raw, path),
+            "resultPath": list(path),
+            "context": record_siblings(raw, path),
+            "goldAnchorIds": None,
+            "note": "",
+        }
+        for path in populated_content_paths(raw)
+    ]
+
+
+def write_sheets(roots: list[Path], sample: int | None = None) -> int:
+    """sample: a seeded random subset per document, kept in emission order, so
+    a labeler's budget bounds the sheet while the lexical report above still
+    covers every emitted leaf."""
+    for doc, _, _, raw, _ in load_documents(roots):
+        root_name, name = doc.split("/", 1)
+        target = next(r for r in roots if r.name == root_name) / name / "claims_extracted.json"
+        if target.exists():
+            print(f"{doc}: claims_extracted.json exists, not overwritten")
+            continue
+        sheet = labeling_sheet(raw)
+        emitted = len(sheet)
+        if sample is not None and sample < emitted:
+            keep = set(random.Random(0).sample(range(emitted), sample))
+            sheet = [entry for i, entry in enumerate(sheet) if i in keep]
+        target.write_text(json.dumps(sheet, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print(f"{doc}: {len(sheet)} of {emitted} emitted leaves to label")
+    return 0
 
 
 def load_documents(roots: list[Path]):
@@ -195,4 +250,10 @@ def fmt_path(path: Path_) -> str:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main([Path(a) for a in sys.argv[1:]] or [Path("dataset")]))
+    _args = sys.argv[1:]
+    _sample = int(_args[_args.index("--sample") + 1]) if "--sample" in _args else None
+    _roots = [
+        Path(a) for i, a in enumerate(_args)
+        if not a.startswith("--") and (i == 0 or _args[i - 1] != "--sample")
+    ] or [Path("dataset")]
+    raise SystemExit(write_sheets(_roots, _sample) if "--sheet" in _args else main(_roots))

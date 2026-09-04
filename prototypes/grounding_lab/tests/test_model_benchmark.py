@@ -455,7 +455,7 @@ class ZeroHitAbstainTest(unittest.TestCase):
         finally:
             mb._encode = original
         self.assertEqual([e[2] for e in entries], ["abstain", "abstain"])
-        self.assertEqual([t[1] for t in latencies], ["lexical", "lexical"])
+        self.assertEqual([t[1] for t in latencies], ["index", "lexical", "lexical"])
         metrics = _evaluation_metrics(entries, {"doc"}, 0.0, 1.0, latencies)
         self.assertEqual(
             (metrics["correct_abstains"], metrics["wrong"], metrics["correct_links"], metrics["auto"]),

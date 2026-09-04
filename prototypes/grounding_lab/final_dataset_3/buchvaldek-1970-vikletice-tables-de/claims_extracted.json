@@ -1,0 +1,790 @@
+[
+  {
+    "value": "Vikletice",
+    "resultPath": [
+      "site"
+    ],
+    "context": "child_grave_count: 1, child_grave_length_min_cm: 100",
+    "goldAnchorIds": [
+      "anchor_b957add53d4b4b4bc965d3c8a090fb0c17f1c004288882f74108a5dae0bc1fca",
+      "anchor_0274665b8583788fae46c278135583ae01e1c72ca4e29344f3d4fc7ac687aa43",
+      "anchor_09bd0c4af997698c7e3e36cdc6557623156b9654b23038fd9ae3c33997fba1a1"
+    ],
+    "note": "supported: 'Das Gräberfeld der Schnurkeramik von Vikletice stellt durch Ausmaß und Anzahl seiner Gräber ...' -> Vikletice; p68 (also p31 'dem äneolithischen Gräberfeld in Vikletice entstammen', p68 heading 'Gräberfelde von Vikletice')"
+  },
+  {
+    "value": "Hammeräxte",
+    "resultPath": [
+      "finds",
+      1,
+      "type"
+    ],
+    "context": "material: F, weight_g: 340, note: Nacken bestossen?",
+    "goldAnchorIds": [
+      "anchor_b42aa39f5e23c0b926c0e245dc5dbce736b2391f0d5791c6af5790ab3362e860"
+    ],
+    "note": "supported: 'Tabelle 2: Hammeräxte' (caption; row '110/1963 | 21 | BHA2 | ... | F | rund | ? | 340 | Nacken bestossen?') -> Hammeräxte; p35"
+  },
+  {
+    "value": "Hammeräxte",
+    "resultPath": [
+      "finds",
+      5,
+      "type"
+    ],
+    "context": "material: D, weight_g: 480",
+    "goldAnchorIds": [
+      "anchor_b42aa39f5e23c0b926c0e245dc5dbce736b2391f0d5791c6af5790ab3362e860"
+    ],
+    "note": "supported: 'Tabelle 2: Hammeräxte' (caption; row '121/1963 | 3 | FHA 3 | ... | D | weniger stumpf | - | 480') -> Hammeräxte; p35"
+  },
+  {
+    "value": "E",
+    "resultPath": [
+      "finds",
+      8,
+      "material"
+    ],
+    "context": "type: Hammeräxte, weight_g: 300, note: 'Hammer'?",
+    "goldAnchorIds": [
+      "anchor_4ba5b52a1158059915b4431a35d2fb01026ba572c03052890d6ef847f3878129"
+    ],
+    "note": "supported: 'E' (Werkstoff, row '47/1964 | 6 | XHA | ... | E | fehlt | - | 300 | 'Hammer'?') -> E; p35"
+  },
+  {
+    "value": 300,
+    "resultPath": [
+      "finds",
+      8,
+      "weight_g"
+    ],
+    "context": "type: Hammeräxte, material: E, note: 'Hammer'?",
+    "goldAnchorIds": [
+      "anchor_d65361c51bde0242d9a0091b778ce89d271205bef51f6c9afa6cde73e3078ea6"
+    ],
+    "note": "supported: '300' (Gewicht in gr, row 47/1964 B.6) -> 300; p35"
+  },
+  {
+    "value": "Hammeräxte",
+    "resultPath": [
+      "finds",
+      10,
+      "type"
+    ],
+    "context": "material: M, weight_g: 40, note: stark korrodiert",
+    "goldAnchorIds": [
+      "anchor_b42aa39f5e23c0b926c0e245dc5dbce736b2391f0d5791c6af5790ab3362e860"
+    ],
+    "note": "supported: 'Tabelle 2: Hammeräxte' (caption; row '58/1964 | 3 | XHA | ... | M | fehlt , | - | (40) | stark korrodiert') -> Hammeräxte; p35"
+  },
+  {
+    "value": "Hammeräxte",
+    "resultPath": [
+      "finds",
+      11,
+      "type"
+    ],
+    "context": "material: O, weight_g: 220, note: 'Hammer'?",
+    "goldAnchorIds": [
+      "anchor_b42aa39f5e23c0b926c0e245dc5dbce736b2391f0d5791c6af5790ab3362e860"
+    ],
+    "note": "supported: 'Tabelle 2: Hammeräxte' (caption; row '61/1964 | 10 | XHA | ... | O | fehlt | - | 220 | 'Hammer' ?') -> Hammeräxte; p35"
+  },
+  {
+    "value": "L",
+    "resultPath": [
+      "finds",
+      12,
+      "material"
+    ],
+    "context": "type: Keulenköpfe, weight_g: 240",
+    "goldAnchorIds": [
+      "anchor_cdcdb3d8e33ff06199410ff76eca521c26576aa6e6904c024024e175c05f9988"
+    ],
+    "note": "supported: 'L' (Werkstoff, row '5/1963 | 3 | 60x57 | 49 | ... | L | 240') -> L; p36"
+  },
+  {
+    "value": 240,
+    "resultPath": [
+      "finds",
+      12,
+      "weight_g"
+    ],
+    "context": "type: Keulenköpfe, material: L",
+    "goldAnchorIds": [
+      "anchor_a7831f8c84f374bf595f2a311cade8576fe19b1c8ed6ae63d19be7f536dbe486"
+    ],
+    "note": "supported: '240' (Gewicht in gr, row 5/1963 B.3) -> 240; p36"
+  },
+  {
+    "value": "Keulenköpfe",
+    "resultPath": [
+      "finds",
+      13,
+      "type"
+    ],
+    "context": "material: M, weight_g: 30, note: stark korrodiert",
+    "goldAnchorIds": [
+      "anchor_0dcf390a10f16c87523257889cba509b54dd8f2884533cecfe89a7f112d787a6"
+    ],
+    "note": "supported: 'Tabelle 3: Keulenköpfe' (caption; row '104/1963 | 2 | 40x35 | 23 | ... | M | (30) | stark korrodiert') -> Keulenköpfe; p36"
+  },
+  {
+    "value": 30,
+    "resultPath": [
+      "finds",
+      13,
+      "weight_g"
+    ],
+    "context": "type: Keulenköpfe, material: M, note: stark korrodiert",
+    "goldAnchorIds": [
+      "anchor_aa16331d2a6b22b2a57bef31a1e5d21b18bfde0244d6d484af0525e38315e107"
+    ],
+    "note": "supported: '(30)' (Gewicht in gr, row 104/1963 B.2; brackets per note 10 'Bei stärker beschädigten Stücken Angabe eingeklammert') -> 30; p36"
+  },
+  {
+    "value": "stark korrodiert",
+    "resultPath": [
+      "finds",
+      13,
+      "note"
+    ],
+    "context": "type: Keulenköpfe, material: M, weight_g: 30",
+    "goldAnchorIds": [
+      "anchor_0e555ee8b2c8f7a396bbf1e12875dee62abba429d99db15f693a5c3e8777a00c"
+    ],
+    "note": "supported: 'stark korrodiert' (Anmerkung, row 104/1963 B.2) -> stark korrodiert; p36"
+  },
+  {
+    "value": 140,
+    "resultPath": [
+      "finds",
+      19,
+      "weight_g"
+    ],
+    "context": "type: Keulenköpfe, material: F",
+    "goldAnchorIds": [
+      "anchor_616fa48370efdeb3006e7f48568ff5b3f0f6d3e238748d8a2e835379691525bc"
+    ],
+    "note": "supported: '140' (Gewicht in gr, row '120/1963 | 5 | 49 | 37 | ... | F | 140') -> 140; p36"
+  },
+  {
+    "value": "Keulenköpfe",
+    "resultPath": [
+      "finds",
+      20,
+      "type"
+    ],
+    "context": "material: P, weight_g: 160",
+    "goldAnchorIds": [
+      "anchor_0dcf390a10f16c87523257889cba509b54dd8f2884533cecfe89a7f112d787a6"
+    ],
+    "note": "supported: 'Tabelle 3: Keulenköpfe' (caption; row '130/1963 | 3 | 54 | 39 | ... | P | 160') -> Keulenköpfe; p36"
+  },
+  {
+    "value": "Keulenköpfe",
+    "resultPath": [
+      "finds",
+      21,
+      "type"
+    ],
+    "context": "material: O, weight_g: 130, note: in Bruchstücken",
+    "goldAnchorIds": [
+      "anchor_0dcf390a10f16c87523257889cba509b54dd8f2884533cecfe89a7f112d787a6"
+    ],
+    "note": "supported: 'Tabelle 3: Keulenköpfe' (caption; row '164/1963 | 3 | 67X59 | 34 | ... | O | (130) | in Bruchstücken') -> Keulenköpfe; p36"
+  },
+  {
+    "value": "Beile (BL 1)",
+    "resultPath": [
+      "finds",
+      27,
+      "type"
+    ],
+    "context": "material: A, weight_g: 140, note: Teil der Schneide weggebrochen.",
+    "goldAnchorIds": [
+      "anchor_0db6c8b3df4a71924226fc7159584a63dafb381e1cc54b7d1546b60e215546e4"
+    ],
+    "note": "supported: 'Tabelle 4: Beile (BL 1)' (caption; row '22/1963 | 4 | 105 | 44 | 16 | ... | A | 140 | Teil der Schneide weggebrochen.') -> Beile (BL 1); p38"
+  },
+  {
+    "value": "Schmalseiten grob bearbeitet, Oberfläche z. T. geschliffen. Meißel?",
+    "resultPath": [
+      "finds",
+      28,
+      "note"
+    ],
+    "context": "type: Beile (BL 1), material: A, weight_g: 90",
+    "goldAnchorIds": [
+      "anchor_96416b25f5d1991443efaa24641e837f733d93b43d4b1062a30a798ae9c6419d"
+    ],
+    "note": "supported: 'Schmalseiten grob bearbeitet, Oberfläche z. T. geschliffen. Meißel?' (Anmerkung, row 55/1963 B.3) -> value; p38"
+  },
+  {
+    "value": 80,
+    "resultPath": [
+      "finds",
+      30,
+      "weight_g"
+    ],
+    "context": "type: Beile (BL 1), material: A",
+    "goldAnchorIds": [
+      "anchor_f9eba18218c8084adde0d7e090a30c05a2beca8fec68c37a7d5c99355afc109b"
+    ],
+    "note": "supported: '80' (Gewicht m gr, row '72/1963 | 1 | 93 | 32 | 15 | ... | A | 80') -> 80; p38"
+  },
+  {
+    "value": "A",
+    "resultPath": [
+      "finds",
+      31,
+      "material"
+    ],
+    "context": "type: Beile (BL 1), weight_g: 70, note: Ursprünglich facettierte Nackenplatte? Meißel?",
+    "goldAnchorIds": [
+      "anchor_cb85e46d72a7c262bc4313c3bd0777055610308c19b8258763b50b4e82857840"
+    ],
+    "note": "supported: 'A' (Werkstoff, row '106/1963 | 5 | 74 | ... | A | 70 | Ursprünglich facettierte Nackenplatte? Meißel?') -> A; p38"
+  },
+  {
+    "value": "Oberfläche z. T. facettiert? Schneide leicht abgestumpft, Benutzung?",
+    "resultPath": [
+      "finds",
+      33,
+      "note"
+    ],
+    "context": "type: Beile (BL 1), material: A, weight_g: 220",
+    "goldAnchorIds": [
+      "anchor_d7da472fa487958b8fa8c031386f8fc6781bccfcf1096a863bc74e55c14ce1c0"
+    ],
+    "note": "supported: 'Oberfläche z. T. facettiert? Schneide leicht abgestumpft, Benutzung?' (Anmerkung, row 117/1963 B.5) -> value; p38"
+  },
+  {
+    "value": "A",
+    "resultPath": [
+      "finds",
+      34,
+      "material"
+    ],
+    "context": "type: Beile (BL 1), weight_g: 70, note: An einer Schneidenseite deutliche Arbeits­spuren.",
+    "goldAnchorIds": [
+      "anchor_9775604ea8ea8c1f38a6a295a960f64451c15d2df4d723feee90cdcd62fd9afb"
+    ],
+    "note": "supported: 'A' (Werkstoff, row '120/1963 | 6 | 78 | ... | A | 70 | An einer Schneidenseite deutliche Arbeits­ spuren.') -> A; p38"
+  },
+  {
+    "value": "A",
+    "resultPath": [
+      "finds",
+      35,
+      "material"
+    ],
+    "context": "type: Beile (BL 1), weight_g: 90, note: Nacken u. Schmalseiten z. T. unregelmäßig facettiert.",
+    "goldAnchorIds": [
+      "anchor_1cea144b0c7ee42ae7e5f86baa9152573d44d987414766a0e0865f0fe1b80a98"
+    ],
+    "note": "supported: 'A' (Werkstoff, row '121/1963 | 4 | 86 | ... | A | 90 | Nacken u. Schmalseiten z. T. unregelmäßig facettiert.') -> A; p38"
+  },
+  {
+    "value": "A",
+    "resultPath": [
+      "finds",
+      36,
+      "material"
+    ],
+    "context": "type: Beile (BL 1), weight_g: 200, note: Nacken u. Schmalseiten z. T. geschliffen.",
+    "goldAnchorIds": [
+      "anchor_446cd73da226a0cd365ef1b96f37aa7e28a4429b62c29f6609946ca7e4b6e0d7"
+    ],
+    "note": "supported: 'A' (Werkstoff, row '126/1963 | 3 | 127 | ... | A | 200 | Nacken u. Schmalseiten z. T. geschliffen.') -> A; p38"
+  },
+  {
+    "value": 200,
+    "resultPath": [
+      "finds",
+      36,
+      "weight_g"
+    ],
+    "context": "type: Beile (BL 1), material: A, note: Nacken u. Schmalseiten z. T. geschliffen.",
+    "goldAnchorIds": [
+      "anchor_63b7ef828a637b1afdc8cfebe123baa41d8931ee50dac73bb5ad1cbd1422a843"
+    ],
+    "note": "supported: '200' (Gewicht m gr, row 126/1963 B.3) -> 200; p38"
+  },
+  {
+    "value": 190,
+    "resultPath": [
+      "finds",
+      39,
+      "weight_g"
+    ],
+    "context": "type: Beile (BL 1), material: B",
+    "goldAnchorIds": [
+      "anchor_cb9426d0628210d8b592137be564a134715bab80003bfd482c8ce8dfc09939fc"
+    ],
+    "note": "supported: '190' (Gewicht m gr, row '178/1963 | 1 | 106 | ... | B | 190') -> 190; p38"
+  },
+  {
+    "value": "Breitseiten z. T. konkav geschliffen; ein Teil der Schneide weggebrochen.",
+    "resultPath": [
+      "finds",
+      42,
+      "note"
+    ],
+    "context": "type: Beile (BL 1), material: A, weight_g: 380",
+    "goldAnchorIds": [
+      "anchor_f8c738a11cea176eb62bbafdcbbd42341dd1605499ccd9b973cd8f5543c728f7"
+    ],
+    "note": "supported: 'Breitseiten z. T. konkav geschliffen; ein Teil der Schneide weggebrochen.' (Anmerkung, row 59/1964 B.3) -> value; p38"
+  },
+  {
+    "value": 140,
+    "resultPath": [
+      "finds",
+      43,
+      "weight_g"
+    ],
+    "context": "type: Beile (BL 1), material: A3, note: Schneide leicht abgestumpft durch Benutzung.",
+    "goldAnchorIds": [
+      "anchor_6e3510c99ce42d525192fdd40e296f72bb04b0ffe4439589f52e3f2581f4be76"
+    ],
+    "note": "supported: '140' (Gewicht m gr, row '68/1964 | 4 | 92 | ... | A3 | 140 | Schneide leicht abgestumpft durch Benutzung.') -> 140; p38"
+  },
+  {
+    "value": "A",
+    "resultPath": [
+      "finds",
+      44,
+      "material"
+    ],
+    "context": "type: Beile (BL 1), weight_g: 70, note: Schneide nicht beendet, Facette.",
+    "goldAnchorIds": [
+      "anchor_a9df0328c4fb4e83cde368ad8a494a549dea1e43f8c0baadba2090a83df22c8b"
+    ],
+    "note": "supported: 'A' (Werkstoff, row '18/1965 | 3 | 78 | ... | A | 70 | Schneide nicht beendet, Facette.') -> A; p38"
+  },
+  {
+    "value": 120,
+    "resultPath": [
+      "finds",
+      45,
+      "weight_g"
+    ],
+    "context": "type: Beile (BL 1), material: B3, note: Schneide stark hinterschliffen.",
+    "goldAnchorIds": [
+      "anchor_6f19b9cc366575822161c37d83c3a6d24098a1ba67bf9f1c9249aa7595acd7b8"
+    ],
+    "note": "supported: '120' (Gewicht m gr, row 'Zw. Nr. 181/62 | 2 | 116 | ... | B3 | 120 | Schneide stark hinterschliffen.') -> 120; p38"
+  },
+  {
+    "value": "A",
+    "resultPath": [
+      "finds",
+      46,
+      "material"
+    ],
+    "context": "type: Beile (BL 1), weight_g: 200, note: Nacken u. Schmalseiten z. T. facettiert.",
+    "goldAnchorIds": [
+      "anchor_c267bd31d0272641d0d00b4e87a0fbb2ad3976de0a786eb4bd78bb9ada6c912c"
+    ],
+    "note": "supported: 'A' (Werkstoff, row 'Zw. Nr. 186/62 | 1 | 111 | ... | A | 200 | Nacken u. Schmalseiten z. T. facettiert.') -> A; p38"
+  },
+  {
+    "value": 200,
+    "resultPath": [
+      "finds",
+      46,
+      "weight_g"
+    ],
+    "context": "type: Beile (BL 1), material: A, note: Nacken u. Schmalseiten z. T. facettiert.",
+    "goldAnchorIds": [
+      "anchor_1cea25ab3896bf1f6128b275b12304975143bd44e1b997ebff7156216f31b08a"
+    ],
+    "note": "supported: '200' (Gewicht m gr, row Zw. Nr. 186/62 B.1) -> 200; p38"
+  },
+  {
+    "value": 1110,
+    "resultPath": [
+      "finds",
+      49,
+      "weight_g"
+    ],
+    "context": "type: Beile (BL 2), material: A, note: Deutlich flachkonvexer Querschnitt.",
+    "goldAnchorIds": [
+      "anchor_ffc7f97ec678f0ff64d6f1d30076c9e2d8c4f1f81c3e53c0b99c20e507c12da2"
+    ],
+    "note": "supported: '1110' (Gewicht in gr, row '121/1963 | 5 | 198 | 62 | 48 | ... | A | 1110 | Deutlich flachkonvexer Querschnitt.') -> 1110; p39"
+  },
+  {
+    "value": "Beile (BL 2)",
+    "resultPath": [
+      "finds",
+      50,
+      "type"
+    ],
+    "context": "material: A, weight_g: 290, note: Nahezu flachkonvexer Querschnitt.",
+    "goldAnchorIds": [
+      "anchor_09b406962c7cc65d1464abb274f3021ac950d98db9eee3b7b3cf99fd17ba0965"
+    ],
+    "note": "supported: 'Tabelle 5: Beile (BL 2)' (caption; row '125/1963 | 2 | 123 | ... | A | 290 | Nahezu flachkonvexer Querschnitt.') -> Beile (BL 2); p39"
+  },
+  {
+    "value": "Beile (BL 2)",
+    "resultPath": [
+      "finds",
+      54,
+      "type"
+    ],
+    "context": "material: A, weight_g: 480, note: Teil der ursprünglichen Gerölleoberfläche.",
+    "goldAnchorIds": [
+      "anchor_09b406962c7cc65d1464abb274f3021ac950d98db9eee3b7b3cf99fd17ba0965"
+    ],
+    "note": "supported: 'Tabelle 5: Beile (BL 2)' (caption; row '82/1964 | 4 | 134 | ... | A | 480 | Teil der ursprünglichen Gerölleoberfläche.') -> Beile (BL 2); p39"
+  },
+  {
+    "value": "Ganz geschliffene Oberfläche.",
+    "resultPath": [
+      "finds",
+      55,
+      "note"
+    ],
+    "context": "type: Beile (BL 4), material: D, weight_g: 65",
+    "goldAnchorIds": [
+      "anchor_13b3e832a4994bbf3c238781018d5c88d31d9c23f9fd4f18e5d56997284adf72"
+    ],
+    "note": "supported: 'Ganz geschliffene Oberfläche.' (Tabelle 6 row '71/1964 | 3 | 66 | 40 | 14 | ... | D | 65 | Ganz geschliffene Oberfläche.') -> value; p39"
+  },
+  {
+    "value": 40,
+    "resultPath": [
+      "finds",
+      56,
+      "weight_g"
+    ],
+    "context": "type: Beile (BL 4), material: G, note: Ganz geschliffene Oberfläche.",
+    "goldAnchorIds": [
+      "anchor_b978830647df381f1945e7bfbaf4caab9d41976b6e1416a22665e733651ba0b9"
+    ],
+    "note": "supported: '40' (Tabelle 6 row '82/1964 | 5 | 53 | 33 | 11 | X | - | X | 1 | G | 40 | Ganz geschliffene Oberfläche.', column 11 = Gewicht by the Tabelle 4/5 layout; Tabelle 6 header is OCR-damaged '101 | H | 12') -> 40; p39"
+  },
+  {
+    "value": "Schleifsteine",
+    "resultPath": [
+      "finds",
+      59,
+      "type"
+    ],
+    "context": "material: H - feinkörniger verkieselter Sandstein, weight_g: 170",
+    "goldAnchorIds": [
+      "anchor_d7aef9a3405cfd7714ab4807b178405381ced8efc0bbbf31cfe3d6f50af5478a"
+    ],
+    "note": "supported: 'Tabelle 8: Schleifsteine' (caption; row '108/1963 | 7 | 110 mm | 170 gr | H - feinkörniger verkieselter Sandstein i') -> Schleifsteine; p63"
+  },
+  {
+    "value": "J - mittel bis grobkörniger verkieselter Sandstein",
+    "resultPath": [
+      "finds",
+      61,
+      "material"
+    ],
+    "context": "type: Schleifsteine, weight_g: 270",
+    "goldAnchorIds": [
+      "anchor_b7ae4676dc4e259b716b9060a69efd8ec102d57bdfc6e4735f2d9709ac172b5c"
+    ],
+    "note": "supported: 'J - mittel bis grobkörniger verkieselter Sandstein' (Gesteinsart, row '121/1963 | 6 | 109 mm | 270 gr') -> value; p63"
+  },
+  {
+    "value": 470,
+    "resultPath": [
+      "finds",
+      62,
+      "weight_g"
+    ],
+    "context": "type: Schleifsteine, material: H - feinkörniger verkieselter Sandstein",
+    "goldAnchorIds": [
+      "anchor_7500fb35aa20a1d39314b988f9a85de9a4f725c82d8cc452332eaa57bd0cceeb"
+    ],
+    "note": "supported: '470 gr' (Gewicht, row '126/1963 | 5 | 127 mm | 470 gr | H - ...') -> 470; p63"
+  },
+  {
+    "value": 130,
+    "resultPath": [
+      "finds",
+      63,
+      "weight_g"
+    ],
+    "context": "type: Schleifsteine, material: R - Spongilit (Pläner) im Stadium der Ver­witterung",
+    "goldAnchorIds": [
+      "anchor_f2494f82bd424bb2fb2f43f24a3ecf99c2453d2fa6235c1b8a480a0a397230f2"
+    ],
+    "note": "supported: '130 gr' (Gewicht, row '161/1963 | 5 | 83 mm | 130 gr | • R - Spongilit ...') -> 130; p63"
+  },
+  {
+    "value": "Pfriem? (derzeit nicht nachprüfbar)",
+    "resultPath": [
+      "finds",
+      67,
+      "note"
+    ],
+    "context": "type: Knochengeräte, material: ?",
+    "goldAnchorIds": [
+      "anchor_9b71f043f5016c3f01bc1b2fa2fd5daa3d4ed5b87b3513233027426975c0910c"
+    ],
+    "note": "supported: 'Pfriem? (derzeit nicht nachprüfbar)' (Gerät column, row '120/1963 | 7 | ? | Pfriem? (derzeit nicht nachprüfbar) | ?') -> value; p64"
+  },
+  {
+    "value": "Pfriem?",
+    "resultPath": [
+      "finds",
+      68,
+      "note"
+    ],
+    "context": "type: Knochengeräte, material: Schaf oder Ziege",
+    "goldAnchorIds": [
+      "anchor_33fc476bb87ad268cf5ed33f47720c4547f4c1c5592d68fe6405182dfdfb1cdb"
+    ],
+    "note": "supported: 'Pfriem?' (Gerät column, row '166/1963 | ? 6 | 76,6 mm | Pfriem? | Schaf oder Ziege') -> Pfriem?; p64"
+  },
+  {
+    "value": "Knochengeräte",
+    "resultPath": [
+      "finds",
+      70,
+      "type"
+    ],
+    "context": "material: Schaf oder Ziege, note: Pfriem?",
+    "goldAnchorIds": [
+      "anchor_7cee465c481a1184f87ab12368c99e4376896be41b5cf47888e4e49b9ac086eb"
+    ],
+    "note": "supported: 'Tabelle 9: Knochengeräte (vgl. dazu A. T. Clason, S. 284)' (caption; row '2/1964 | 14 | 74,5 mm | Pfriem? | Schaf oder Ziege') -> Knochengeräte; p64"
+  },
+  {
+    "value": "Hausrind",
+    "resultPath": [
+      "finds",
+      71,
+      "material"
+    ],
+    "context": "type: Knochengeräte, note: Meißel?",
+    "goldAnchorIds": [
+      "anchor_9d2e3fc1fece74b9be38efd15b72c1bd4eda48685893785843aea6d10450d0ba"
+    ],
+    "note": "supported: 'Hausrind' (Tier column, row '4/1964 | 4 | 134 mm | Meißel? | Hausrind') -> Hausrind; p64"
+  },
+  {
+    "value": "Schaf oder Ziege",
+    "resultPath": [
+      "finds",
+      73,
+      "material"
+    ],
+    "context": "type: Knochengeräte, note: Pfriem?",
+    "goldAnchorIds": [
+      "anchor_c92c911d0087dbf6d42d5f8ea3388d0d160c0018f55502d718cecdde85042ed6"
+    ],
+    "note": "supported: 'Schaf oder Ziege' (Tier column, row '14/1964 | 10 | 92,8 mm | Pfriem? | Schaf oder Ziege') -> value; p64"
+  },
+  {
+    "value": "Muschel",
+    "resultPath": [
+      "finds",
+      74,
+      "material"
+    ],
+    "context": "type: Muschelschmuck, note: Broschen aus Grab 6/1964 und 14/1964",
+    "goldAnchorIds": [
+      "anchor_052ba1423c2bc4c8c527ea9c735140449db77850011abef0e58cacafa82f8edc"
+    ],
+    "note": "supported: 'Nach den Resten der verzierten Muscheln, der sog. Broschen aus Grab 6/1964 und 14/1964' -> Muschel; p64"
+  },
+  {
+    "value": "Marmoranhänger",
+    "resultPath": [
+      "finds",
+      76,
+      "type"
+    ],
+    "context": "material: Marmor, note: Aus Grab 166/1963",
+    "goldAnchorIds": [
+      "anchor_052ba1423c2bc4c8c527ea9c735140449db77850011abef0e58cacafa82f8edc"
+    ],
+    "note": "supported: 'Da der kleine Marmoranhänger (?) aus Grab 166/1963 gewisse Ähn­ lichkeit mit den durchbohrten Muschelscheibchen zeigt' -> Marmoranhänger; p64"
+  },
+  {
+    "value": "Tierzahnschmuck",
+    "resultPath": [
+      "finds",
+      78,
+      "type"
+    ],
+    "context": "material: Tierzähne, note: etwa 36 Stück, verstreut",
+    "goldAnchorIds": [
+      "anchor_212c12eb4e72fc9206f53943c5a0ee692bd6f6c75aa5327bc506abe046b6dff6"
+    ],
+    "note": "supported: 'Tabelle 10a: Tierzahnschmuck und Nachahmungen aus Knochen' (caption; row '51/1963 | 4 | linker Hocker | etwa 36 Stück | verstreut') -> Tierzahnschmuck; p65"
+  },
+  {
+    "value": "Tierzahnschmuck",
+    "resultPath": [
+      "finds",
+      80,
+      "type"
+    ],
+    "context": "material: Tierzähne, note: etwa 11 Stück, in einer Reihe?",
+    "goldAnchorIds": [
+      "anchor_212c12eb4e72fc9206f53943c5a0ee692bd6f6c75aa5327bc506abe046b6dff6"
+    ],
+    "note": "supported: 'Tabelle 10a: Tierzahnschmuck und Nachahmungen aus Knochen' (caption; row '118/1963 | 3 | linker Hocker? | etwa 11 Stück | in einer Reihe?') -> Tierzahnschmuck; p65"
+  },
+  {
+    "value": "etwa 11 Stück, in einer Reihe?",
+    "resultPath": [
+      "finds",
+      80,
+      "note"
+    ],
+    "context": "type: Tierzahnschmuck, material: Tierzähne",
+    "goldAnchorIds": [
+      "anchor_2ceee7a3f1fcfc516d2a201009e23ef8f1bc867daebf192efbca84772c19b536",
+      "anchor_cc595e13e7b6493a4a438c0692cc80ea28e745702b4eb5a1979ba3d812d3fa99"
+    ],
+    "note": "supported (concat of 2 cells): 'etwa 11 Stück' + 'in einer Reihe?' (row 118/1963 B.3) -> value; p65"
+  },
+  {
+    "value": "Tierzähne",
+    "resultPath": [
+      "finds",
+      81,
+      "material"
+    ],
+    "context": "type: Tierzahnschmuck, note: etwa 11(7) Stück, zu Reihen geordnet",
+    "goldAnchorIds": [],
+    "note": "(b) 'Tierzähne (Nachahmungen)' is the column header of Tabelle 10a, not a value of row 140/1963, which reads 'etwa 11(7) Stück', i.e. 7 pieces are Nachahmungen ('ihre Imitationen in Knochen', p64); p65. DOUBT: a lenient reading takes the caption 'Tierzahnschmuck' as the material of every row, but this row's material is mixed teeth/bone.",
+    "expectedLexicalHitIds": [
+      "anchor_9c4965aa556af045d021f6ef5c9fa5e0a6a931c70e0227a4131dd7da132d0160",
+      "anchor_1f25d371e5a900417811b47bcbe0a1f6d116f774ae3628f62bfce8896f7b8fb4",
+      "anchor_af295c5f2cfc9b0eb692c039e3251191df897fba2928c1ffddd48d5a4e1dd4a2"
+    ]
+  },
+  {
+    "value": "etwa 64(27) Stück, verstreut",
+    "resultPath": [
+      "finds",
+      82,
+      "note"
+    ],
+    "context": "type: Tierzahnschmuck, material: Tierzähne",
+    "goldAnchorIds": [
+      "anchor_76a201180ec0fb3a82bd0d61292cede41d45367526e3d26f0bf919f968a3fad2",
+      "anchor_2884c1a3210cf529147c8ef4ec299f2b655805d44788070d8b2ec67908c98eb4"
+    ],
+    "note": "supported (concat of 2 cells): 'etwa 64(27) Stück' + 'verstreut' (row 166/1963 B.4) -> value; p65"
+  },
+  {
+    "value": "Tierzahnschmuck",
+    "resultPath": [
+      "finds",
+      84,
+      "type"
+    ],
+    "context": "material: Tierzähne, note: etwa 6 Stück, verstreut",
+    "goldAnchorIds": [
+      "anchor_212c12eb4e72fc9206f53943c5a0ee692bd6f6c75aa5327bc506abe046b6dff6"
+    ],
+    "note": "supported: 'Tabelle 10a: Tierzahnschmuck und Nachahmungen aus Knochen' (caption; row '14/1965 | 2 | linker Hocker?? | etwa 6 Stück | verstreut') -> Tierzahnschmuck; p65"
+  },
+  {
+    "value": "Spiralröllchen I, 0 17 mm, rechtsgewunden, 3 1/2 Windungen",
+    "resultPath": [
+      "finds",
+      86,
+      "note"
+    ],
+    "context": "type: Kupferschmuck, material: Kupfer",
+    "goldAnchorIds": [
+      "anchor_71dc9c5d1b4fd31139deef53ef60a76d0e60a475076deeee0e054c437eda8136",
+      "anchor_e07f0823a25584ed9f307b0a7fddab60e5d53f707a9c79b95787c3a910e7a45c"
+    ],
+    "note": "supported (concat of 2 cells, abridged): 'Spiral/ röllchen I' + 'L.?, 0 17 mm, rechtsgewunden, 3 1/2 Windungen, zerbro­ chen, beschädigt, Draht 0 etwa 1,5 mm.' (row 115/1963 B.4) -> value; p66"
+  },
+  {
+    "value": "Kupferschmuck",
+    "resultPath": [
+      "finds",
+      90,
+      "type"
+    ],
+    "context": "material: Kupfer, note: Spiralröllchen, 0 12 mm, linksgewunden, 11/4 Windungen",
+    "goldAnchorIds": [
+      "anchor_e66b46fb75a1bdbb54828d12a4afe3d1a5fda95eccf44efa29ddbd79d32c8787"
+    ],
+    "note": "supported: 'Tabelle 10b: Kupferschmuck' (caption; row '127/1963 | 4 | rechter Hocker (inf III!) | Spiral­ röllchen | 0 12 mm, linksgewunden, 11/4 Windungen, ...') -> Kupferschmuck; p66"
+  },
+  {
+    "value": "Kupfer",
+    "resultPath": [
+      "finds",
+      91,
+      "material"
+    ],
+    "context": "type: Kupferschmuck, note: 3 - 4 Perlen, 2 ganze Perlen, eine 0 8 mm",
+    "goldAnchorIds": [
+      "anchor_e66b46fb75a1bdbb54828d12a4afe3d1a5fda95eccf44efa29ddbd79d32c8787"
+    ],
+    "note": "supported: 'Tabelle 10b: Kupferschmuck' (caption; row '136/1963 | 3 | linker Hocker? | 3 - 4 Perlen | 2 ganze Perlen, eine 0 8 mm, zwei Bruchstücke') -> Kupfer; p66"
+  },
+  {
+    "value": "3 - 4 Perlen, 2 ganze Perlen, eine 0 8 mm",
+    "resultPath": [
+      "finds",
+      91,
+      "note"
+    ],
+    "context": "type: Kupferschmuck, material: Kupfer",
+    "goldAnchorIds": [
+      "anchor_158ecfc85e23805903115b7051f0326a073bd42a250c5ec6551cbc416bbefd6b",
+      "anchor_6b6011224978a98be22f8681e60348fa0cef91838c3f5b56e3b74dc7da99a780"
+    ],
+    "note": "supported (concat of 2 cells, abridged): '3 - 4 Perlen' + '2 ganze Perlen, eine 0 8 mm, zwei Bruchstücke' (row 136/1963 B.3) -> value; p66"
+  },
+  {
+    "value": "Spiralröllchen, 5 Bruchstücke eines (?) linksgewundenen Spiralröllchens, 0 16,5 mm",
+    "resultPath": [
+      "finds",
+      92,
+      "note"
+    ],
+    "context": "type: Kupferschmuck, material: Kupfer",
+    "goldAnchorIds": [
+      "anchor_1ec8c6ee98a63c00ef2a4e4933720c251071209b9eaa67181003ba69b894c529",
+      "anchor_acafe785668c1aee4a0d05128d4fa06b0c89288abdecac9731ea61dda2e21e2e"
+    ],
+    "note": "supported (concat of 2 cells, abridged): 'Spiral­ röllchen' + '5 Bruchstücke eines (?) linksgewundenen Spiralröllchens, 0 16,5 mm, Draht 0 etwa 2 mm.' (row 2/1964 B.12) -> value; p66"
+  },
+  {
+    "value": "Kupferschmuck",
+    "resultPath": [
+      "finds",
+      94,
+      "type"
+    ],
+    "context": "material: Kupfer, note: Spiralröllchen II, L. 13 mm, 0 15 mm, linksgewunden, 2 1/2 Windungen",
+    "goldAnchorIds": [
+      "anchor_e66b46fb75a1bdbb54828d12a4afe3d1a5fda95eccf44efa29ddbd79d32c8787"
+    ],
+    "note": "supported: 'Tabelle 10b: Kupferschmuck' (caption; row '14/1964 | 9 | linker Hocker | Spiral­ röllchen II | L. 13 mm, 0 15 mm, linksgewunden, 2 1/2 Windungen, ...') -> Kupferschmuck; p66"
+  },
+  {
+    "value": "Kupfer",
+    "resultPath": [
+      "finds",
+      96,
+      "material"
+    ],
+    "context": "type: Kupferschmuck, note: Spiralröllchen, 0 10 mm, rechtsgewunden, 3/4 Windung",
+    "goldAnchorIds": [
+      "anchor_e66b46fb75a1bdbb54828d12a4afe3d1a5fda95eccf44efa29ddbd79d32c8787"
+    ],
+    "note": "supported: 'Tabelle 10b: Kupferschmuck' (caption; row '47/1964 | 7 | rechter Hocker (inf II !) | Spiral­ röllchen | 0 10 mm, rechtsgewunden, 3/4 Windung, ...') -> Kupfer; p66"
+  }
+]

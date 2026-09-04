@@ -8,7 +8,11 @@ REVIEW-marked multi-gold judgment calls and ADVERSARIAL absent-value labels.
 
 Exits non-zero on hard label errors:
 - a gold anchor id that does not exist in anchors.json;
-- a must-abstain claim whose bounded containment hits differ from the expected set.
+- a must-abstain claim whose bounded containment hits differ from the expected set;
+- a typed-schema document (schema.json present) with fewer than half of its
+  unsupported claims occurring in the text: abstention is only measured when
+  the value is there under the wrong meaning (wrong row, wrong field,
+  computed), so a set of never-stated values measures string inequality only.
 
 Containment/gold mismatches are listed with their complete hit sets for human
 review, not failed: deliberate paraphrases and contextual ambiguities are
@@ -58,6 +62,7 @@ def main() -> int:
             for c in json.loads((root / doc / name).read_text("utf-8"))
         ]
         print(f"\n## {doc} — {len(claims)} claims\n")
+        unsupported = present = 0
         for c in claims:
             golds = c.get("goldAnchorIds")
             if golds is None:
@@ -100,6 +105,8 @@ def main() -> int:
                         f"non-gold hits: {extra}; note: {c.get('note', '—')}"
                     )
             else:
+                unsupported += 1
+                present += bool(hits)
                 short_hits = [hit[:18] for hit in hits]
                 expected_hits = set(c.get("expectedLexicalHitIds", ()))
                 print(f"- containment hits: {short_hits or 'none'}")
@@ -109,6 +116,12 @@ def main() -> int:
                         f"{sorted(expected_hits)}, got {hits}"
                     )
             print()
+        print(f"Unsupported claims occurring in the text: {present}/{unsupported}\n")
+        if (root / doc / "schema.json").exists() and 2 * present < unsupported:
+            errors.append(
+                f"{doc}: abstention too soft — {present}/{unsupported} unsupported "
+                "claims occur in the text; at least half must"
+            )
     if warnings:
         print("## Warnings (containment/gold mismatches — human review required)\n")
         print("\n".join(f"- {w}" for w in warnings) + "\n")

@@ -216,3 +216,53 @@ Doubts:
 
 `buchvaldek-1970-vikletice-tables-de` arrived last and is included above. All six
 documents in `final_dataset_3` are now labelled.
+
+
+## Extractor-output labels (`claims_extracted.json`, 2026-09-04)
+
+A second label set per document, made the way the README's steps 3-5 now
+require: the real extractor (`qwen3.8:latest`, local Ollama, every prompt cut
+to 16k tokens by the server, see [`../RAW_EXTRACTION_BLIND.md`](../RAW_EXTRACTION_BLIND.md))
+was run with each document's `schema.json`; `raw_claims --sheet --sample 60`
+drew a seeded sample of 60 emitted leaves per document, typed as emitted, with
+the record's other scalars as `context`; six labelers, one per document, each
+allowed to read only that document's `document.md`, `anchors.json`,
+`schema.json` and the sheet, filled `goldAnchorIds` and a kind-tagged note.
+Their notes are in each `<doc>/labeling_notes.md`. `expectedLexicalHitIds`
+were filled mechanically afterwards.
+
+| document | supported | unsupported | (a) never stated | (b) other meaning | (c) computed | multi-gold | unsupported present in text |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| buchvaldek-1970-vikletice-tables-de | 59 | 1 | 0 | 1 | 0 | 6 | 1/1 |
+| buchvaldek-koutecky-1972-vikletice-de | 1 | 59 | 28 | 31 | 0 | 1 | 31/59 |
+| conrad-2011-bbc-graves-de | 47 | 13 | 1 | 5 | 7 | 7 | 5/13 |
+| dobes-1998-kugelamphoren-de | 34 | 26 | 1 | 23 | 2 | 11 | 15/26 |
+| durankulak-catalogue-de | 58 | 2 | 0 | 2 | 0 | 2 | 2/2 |
+| shbat-2009-skeletal-health-en | 57 | 3 | 0 | 1 | 2 | 18 | 2/3 |
+| **total** | **256** | **104** | **30** | **63** | **11** | **45** | **56/104** |
+
+What the extractor did to the distribution: `buchvaldek-koutecky` ran past
+its output limit into a runaway enumeration of amphora type codes (A26a …
+A49z, none in the document), so 59 of its 60 sampled values are invented
+records; `dobes` harvested place names from the analysis chapters and the
+bibliography as `records[i].site`, so 23 of its values are (b); the other four
+documents are 78-98% supported. `label_review --claims claims_extracted.json`
+fails `conrad-2011` on the abstention rule (5 of 13 unsupported values occur
+in the text; 7 are composed `grave_goods` labels, kind (c)).
+
+Labeler conventions that a stricter reading would flip (each named in the
+notes with the sheet indices): table captions accepted as evidence for a
+row's class word (`buchvaldek-1970`, 19 claims; `shbat`, 10 claims: table
+membership and site group headers); a value the extractor joined from two
+cells of one row labeled supported with both anchors (`buchvaldek-1970`, 5);
+range endpoints for `age_min`/`age_max`/`page_start` labeled supported
+(`durankulak` 4, `shbat` 1); legend abbreviations expanded to the typed form
+(`durankulak`: Mann → Male, Mat. → Mature). Values whose only occurrence is
+inside a cited title in the bibliography are (b) (`dobes`, 9, five with
+DOUBT). `conrad`: objects the catalogue files under "Funde" rather than
+"Beigaben" are (b) for `grave_goods` (4, DOUBT).
+
+Two document-level defects the labelers found: `durankulak` lettered graves
+(1117A, 1194 A) lose their letter in the extractor's `grave_number`, colliding
+with the unlettered grave; `shbat` copies the document's own cross-table
+inconsistencies in grave numbers (Ao 769: 5/63 vs 5/53).
