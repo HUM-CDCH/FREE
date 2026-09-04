@@ -119,11 +119,26 @@ export async function persistSuggestedBatch(
         schemaRevisionId,
         strategy: input.strategy,
       })
-      for (const member of members)
+      for (const member of members) {
+        const initialExtractionJobId = stableUuid(
+          'batch-member-extraction-job',
+          stableJson([batchExtractionId, member.sourceRepresentationRevisionId]),
+        )
+        await orm.public.ExtractionJob.create({
+          id: initialExtractionJobId,
+          kind: 'BATCH_MEMBER',
+          projectContextId: input.projectContextId,
+          ...member,
+          schemaRevisionId,
+          strategy: input.strategy,
+          batchExtractionId,
+        })
         await orm.public.BatchExtractionMember.create({
           batchExtractionId,
           ...member,
+          initialExtractionJobId,
         })
+      }
       await orm.public.BatchSchemaSuggestion.where({
         id: input.batchSchemaSuggestionId,
       }).update({ confirmedSchemaRevisionId: schemaRevisionId, batchExtractionId })

@@ -73,6 +73,7 @@ const suggestion: BatchSchemaSuggestionRecord = {
 function moduleForSuggestedBatch() {
   const module: ExtractionModule = {
     runSingle: vi.fn<ExtractionModule['runSingle']>(),
+    readExtractionAttempt: vi.fn<ExtractionModule['readExtractionAttempt']>(),
     cancelSingle: vi.fn<ExtractionModule['cancelSingle']>(),
     prepareReview: vi.fn<ExtractionModule['prepareReview']>(),
     finalizeReview: vi.fn<ExtractionModule['finalizeReview']>(),

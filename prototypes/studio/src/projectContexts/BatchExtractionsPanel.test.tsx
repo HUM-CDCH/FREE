@@ -1387,7 +1387,12 @@ describe('BatchExtractionsPanel', () => {
             },
           } as Response)
         if (url.startsWith('/api/extraction-schemas?'))
-          return Promise.resolve(response({ extractionSchemas: [] }))
+          return new Promise<Response>((resolve) => {
+            setTimeout(
+              () => resolve(response({ extractionSchemas: [] })),
+              25,
+            )
+          })
         if (
           url === '/api/batch-schema-suggestions' &&
           init?.method === 'POST'
@@ -1408,14 +1413,18 @@ describe('BatchExtractionsPanel', () => {
       await waitFor(() =>
         expect(screen.getAllByRole('checkbox')).toHaveLength(2),
       )
+      await waitFor(() =>
+        expect(screen.getByLabelText('Extraction Schema')).toBeEnabled(),
+      )
       fireEvent.change(screen.getByLabelText('Extraction Schema'), {
         target: { value: '__suggest_common_fields__' },
       })
+      await screen.findByLabelText('Suggested common fields')
     }
 
     await openSuggestion()
     fireEvent.click(
-      screen.getByRole('button', { name: 'Suggest common fields' }),
+      await screen.findByRole('button', { name: 'Suggest common fields' }),
     )
     expect(await screen.findByText('place')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: /Back to history/ }))
@@ -2074,6 +2083,7 @@ describe('BatchExtractionsPanel', () => {
       sourceRepresentationRevisionId: succeededMember.sourceRepresentationRevisionId,
       schemaRevisionId,
       strategy: 'ARTICLE' as const,
+      executionStatus: 'COMPLETED' as const,
       outcome: 'SUCCEEDED' as const,
       complete: true,
       modelAttribution: { provider: 'ollama', modelId: 'fixture' },

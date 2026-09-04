@@ -95,11 +95,16 @@ export function createResearcherApiHandlers(
   }
 
   async function read(extractionId: string): Promise<Response> {
-    const prepared = await module.prepareReview(extractionId)
+    const extraction = await module.readExtractionAttempt(extractionId)
+    if (!extraction)
+      throw new ApiError(404, 'not_found', 'That Extraction was not found.')
+    const pendingReviewDecisions = extraction.executionStatus === 'COMPLETED'
+      ? (await module.prepareReview(extractionId)).reviewDecisions
+      : null
     return json(
       extractionReadResponseSchema.parse({
-        extraction: extractionAttemptDto(prepared.extraction),
-        pendingReviewDecisions: prepared.reviewDecisions,
+        extraction: extractionAttemptDto(extraction),
+        pendingReviewDecisions,
       }),
       { headers: noStore },
     )
@@ -122,7 +127,10 @@ export function createResearcherApiHandlers(
       extractionId,
       parsed.data.reviewDecisions,
     )
-    return json(extractionAttemptDto(finalized.extraction), {
+    return json(extractionAttemptDto({
+      ...finalized.extraction,
+      executionStatus: 'COMPLETED',
+    }), {
       headers: noStore,
     })
   }

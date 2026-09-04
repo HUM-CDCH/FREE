@@ -4,7 +4,7 @@ import type { BatchExtraction } from '../../shared/batchExtraction.contract'
 import { batchExtractionProgress } from '../../shared/batchExtraction.contract'
 import type { ReviewDecisionInput } from '../../shared/extraction.contract'
 import { parseReviewedValue, resultPathKey } from '../reviewDecisions'
-import { Button, CheckIcon, EmptyState, Pill, PencilIcon, SegmentedControl, Spinner, StatusDot, XIcon } from '../ui'
+import { Button, CheckIcon, EmptyState, Pill, PencilIcon, SegmentedControl, Spinner, StatusDot, UndoIcon, XIcon } from '../ui'
 import { memberStatus } from './batchExtractionStatus'
 import { StatusPill } from './BatchExtractionScreens'
 import {
@@ -185,6 +185,32 @@ function ApproveAllBadge({
   )
 }
 
+/** The inverse of ApproveAllBadge: bulk-reverts decisions already touched in
+ *  this row (but not yet saved) back to their unreviewed default, restoring
+ *  "Needs review" for it. Disabled once nothing in the row has been touched. */
+function RevertRowBadge({
+  label,
+  touchedCount,
+  onClick,
+}: {
+  label: string
+  touchedCount: number
+  onClick(): void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={touchedCount > 0 ? label : 'Nothing to revert here'}
+      disabled={touchedCount === 0}
+      onClick={onClick}
+      className="flex size-3.5 shrink-0 items-center justify-center rounded-sm border border-line-strong text-ink-muted opacity-0 outline-none transition-colors hover:bg-surface-muted focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent/40 group-hover:opacity-100 disabled:opacity-0"
+    >
+      <UndoIcon size={8} />
+    </button>
+  )
+}
+
 /** Share of one member's Review Decisions still at their grounded APPROVED
  *  default — i.e. the researcher didn't need to touch them. A per-document
  *  extraction-quality signal, not a correctness guarantee: an untouched
@@ -239,6 +265,7 @@ function GridCell({
   onReject,
   onStartEdit,
   onCommitEdit,
+  onRevert,
 }: {
   value: unknown
   column: GridColumn
@@ -255,6 +282,7 @@ function GridCell({
   onReject(): void
   onStartEdit(): void
   onCommitEdit(raw: string): string | null
+  onRevert(): void
 }) {
   const [draftError, setDraftError] = useState<string | null>(null)
 
@@ -328,6 +356,11 @@ function GridCell({
           <Button size="sm" variant="pill" onClick={onStartEdit}>
             Edit
           </Button>
+          {touched && (
+            <Button size="sm" variant="pill" onClick={onRevert}>
+              Revert
+            </Button>
+          )}
         </div>
       )}
     </td>
@@ -397,6 +430,19 @@ export default function BatchExtractionReviewGrid({
         decision.resultPath[0] === 'records' &&
         decision.resultPath[1] === recordIndex &&
         !state.touched.has(resultPathKey(decision.resultPath)),
+    ).length
+  }
+
+  /** Touched decisions in one displayed row that aren't saved yet — the
+   *  inverse of rowPendingCount, and what that row's bulk-revert badge would
+   *  restore back to "Needs review". */
+  function rowTouchedCount(state: MemberReviewState, recordIndex: number): number {
+    if (state.status !== 'ready') return 0
+    return state.decisions.filter(
+      (decision) =>
+        decision.resultPath[0] === 'records' &&
+        decision.resultPath[1] === recordIndex &&
+        state.touched.has(resultPathKey(decision.resultPath)),
     ).length
   }
 
@@ -512,6 +558,14 @@ export default function BatchExtractionReviewGrid({
           </Button>
           <Button
             size="sm"
+            variant="secondary"
+            disabled={grid.dirtyCount === 0}
+            onClick={grid.revertAll}
+          >
+            Revert all
+          </Button>
+          <Button
+            size="sm"
             variant="primary"
             disabled={grid.dirtyCount === 0 || savingAny}
             onClick={() => void grid.saveAll()}
@@ -607,6 +661,10 @@ export default function BatchExtractionReviewGrid({
                   state?.status === 'ready' && state.editable
                     ? rowPendingCount(state, row.recordIndex)
                     : 0
+                const touchedInRow =
+                  state?.status === 'ready' && state.editable
+                    ? rowTouchedCount(state, row.recordIndex)
+                    : 0
                 const nameCell = (
                   <td className="sticky left-0 z-10 min-w-[14rem] border-r border-line bg-surface px-3 py-2 align-top">
                     <div className="flex min-w-0 items-center gap-1">
@@ -627,11 +685,18 @@ export default function BatchExtractionReviewGrid({
                         </p>
                       )}
                       {state?.status === 'ready' && state.editable && (
-                        <ApproveAllBadge
-                          label={`Approve ${pendingInRow} pending in this row`}
-                          pendingCount={pendingInRow}
-                          onClick={() => grid.approveRow(row.sourceDocumentId, row.recordIndex)}
-                        />
+                        <>
+                          <ApproveAllBadge
+                            label={`Approve ${pendingInRow} pending in this row`}
+                            pendingCount={pendingInRow}
+                            onClick={() => grid.approveRow(row.sourceDocumentId, row.recordIndex)}
+                          />
+                          <RevertRowBadge
+                            label={`Revert ${touchedInRow} in this row`}
+                            touchedCount={touchedInRow}
+                            onClick={() => grid.revertRow(row.sourceDocumentId, row.recordIndex)}
+                          />
+                        </>
                       )}
                     </div>
                     {isFirstRecordRow && (
@@ -731,6 +796,10 @@ export default function BatchExtractionReviewGrid({
                             if (parsed.error) return parsed.error
                             grid.setDecision(row.sourceDocumentId, resultPath, 'EDITED', parsed.value)
                             return null
+                          }}
+                          onRevert={() => {
+                            grid.revertDecision(row.sourceDocumentId, resultPath)
+                            setActiveCell(null)
                           }}
                         />
                       )

@@ -12,9 +12,11 @@ export type ExtractionStrategy = z.infer<typeof extractionStrategySchema>
 /** Durable failure code for Catalog records skipped by the record limit. */
 export const CATALOG_NOT_ATTEMPTED_LIMIT = 'not_attempted_limit'
 
+const requestUuid = z.uuid().transform((value) => value.toLowerCase())
+
 export const extractionRetrySelectionSchema = z
   .object({
-    retryOfId: z.uuid(),
+    retryOfId: requestUuid,
     retryDocument: z.boolean(),
     rediscover: z.boolean(),
     retryRecordStartBlockIds: z.array(z.string().min(1)),
@@ -27,9 +29,9 @@ export type ExtractionRetrySelection = z.infer<
 
 const extractionFreshRequestSchema = z
   .object({
-    id: z.uuid(),
-    sourceRepresentationRevisionId: z.uuid(),
-    schemaRevisionId: z.uuid(),
+    id: requestUuid,
+    sourceRepresentationRevisionId: requestUuid,
+    schemaRevisionId: requestUuid,
     strategy: extractionStrategySchema,
     retryOfId: z.never().optional(),
     retryDocument: z.never().optional(),
@@ -40,8 +42,8 @@ const extractionFreshRequestSchema = z
 
 const extractionRetryRequestSchema = z
   .object({
-    id: z.uuid(),
-    retryOfId: z.uuid(),
+    id: requestUuid,
+    retryOfId: requestUuid,
     retryDocument: z.boolean().default(false),
     rediscover: z.boolean().default(false),
     // Bounded by the server-side CATALOG_RECORD_LIMIT.
@@ -230,7 +232,7 @@ export const extractionDiagnosticsSchema = z
   })
   .strict()
 
-export type ExtractionDiagnostics = z.input<typeof extractionDiagnosticsSchema>
+export type ExtractionDiagnostics = z.infer<typeof extractionDiagnosticsSchema>
 
 const modelTargetAttributionSchema = z
   .object({ provider: providerKindSchema, modelId: z.string().min(1) })
@@ -249,10 +251,11 @@ export const extractionAttemptSchema = z
     sourceRepresentationRevisionId: z.uuid(),
     schemaRevisionId: z.uuid(),
     strategy: extractionStrategySchema,
-    outcome: z.enum(['SUCCEEDED', 'FAILED', 'CANCELLED']),
+    executionStatus: z.enum(['QUEUED', 'RUNNING', 'COMPLETED', 'FAILED']),
+    outcome: z.enum(['SUCCEEDED', 'FAILED', 'CANCELLED']).nullable(),
     complete: z.boolean().nullable(),
     modelAttribution: extractionModelAttributionSchema.nullable(),
-    diagnostics: extractionDiagnosticsSchema,
+    diagnostics: extractionDiagnosticsSchema.nullable(),
     failure: extractionFailureSchema.nullable(),
     resultPayload: z.record(z.string(), z.json()).nullable(),
     evidenceLinks: z.array(evidenceLinkSchema).nullable(),
@@ -265,31 +268,43 @@ export const extractionAttemptSchema = z
   })
   .strict()
   .superRefine((attempt, context) => {
-    const terminalShape =
+    const completed = attempt.executionStatus === 'COMPLETED'
+    const terminalShape = completed && attempt.diagnostics !== null && (
       attempt.outcome === 'SUCCEEDED'
-        ? attempt.complete !== null &&
-          attempt.modelAttribution !== null &&
-          attempt.failure === null &&
-          attempt.resultPayload !== null &&
+        ? attempt.complete !== null && attempt.modelAttribution !== null &&
+          attempt.failure === null && attempt.resultPayload !== null &&
           attempt.evidenceLinks !== null
-        : attempt.complete === null &&
-          attempt.resultPayload === null &&
-          attempt.evidenceLinks === null &&
-          !attempt.reviewable &&
-          attempt.reviewedAt === null &&
-          attempt.reviewDecisions.length === 0 &&
-          (attempt.outcome === 'FAILED'
-            ? attempt.failure !== null
-            : attempt.failure === null)
-    if (!terminalShape)
+        : (attempt.outcome === 'FAILED' || attempt.outcome === 'CANCELLED') &&
+          attempt.complete === null && attempt.resultPayload === null &&
+          attempt.evidenceLinks === null && !attempt.reviewable &&
+          attempt.reviewedAt === null && attempt.reviewDecisions.length === 0 &&
+          (attempt.outcome === 'FAILED' ? attempt.failure !== null : attempt.failure === null)
+    )
+    const checkpointFields = [
+      attempt.complete,
+      attempt.modelAttribution,
+      attempt.diagnostics,
+      attempt.resultPayload,
+    ]
+    const checkpointed = checkpointFields.every((value) => value !== null)
+    const emptyCheckpoint = checkpointFields.every((value) => value === null)
+    const jobShape = !completed && attempt.outcome === null &&
+      attempt.evidenceLinks === null && !attempt.reviewable &&
+      attempt.reviewedAt === null && attempt.reviewDecisions.length === 0 &&
+      (checkpointed || emptyCheckpoint) &&
+      (attempt.executionStatus === 'FAILED'
+        ? attempt.failure !== null
+        : attempt.failure === null)
+    if (!terminalShape && !jobShape)
       context.addIssue({
         code: 'custom',
-        message: 'Extraction terminal fields do not match the outcome.',
+        message: 'Extraction fields do not match the execution state.',
       })
 
     if (
-      (attempt.strategy === 'ARTICLE' && attempt.diagnostics.catalog != null) ||
-      (attempt.strategy === 'CATALOG' && attempt.diagnostics.catalog == null)
+      attempt.diagnostics &&
+      ((attempt.strategy === 'ARTICLE' && attempt.diagnostics.catalog != null) ||
+      (attempt.strategy === 'CATALOG' && attempt.diagnostics.catalog == null))
     )
       context.addIssue({
         code: 'custom',
@@ -335,7 +350,7 @@ export const extractionAttemptSchema = z
       })
   })
 
-export type ExtractionAttempt = z.input<typeof extractionAttemptSchema>
+export type ExtractionAttempt = z.infer<typeof extractionAttemptSchema>
 
 /**
  * One stored Extraction, read back with the Review Decisions its stored
@@ -345,6 +360,6 @@ export type ExtractionAttempt = z.input<typeof extractionAttemptSchema>
 export const extractionReadResponseSchema = z
   .object({
     extraction: extractionAttemptSchema,
-    pendingReviewDecisions: z.array(reviewDecisionInputSchema),
+    pendingReviewDecisions: z.array(reviewDecisionInputSchema).nullable(),
   })
   .strict()

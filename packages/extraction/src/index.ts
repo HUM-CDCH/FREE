@@ -43,6 +43,7 @@ export type {
   EvidenceLink,
   DocumentExtractionsSnapshot,
   ExtractionDiagnostics,
+  ExtractionAttemptSnapshot,
   ExtractionDisposition,
   ExtractionFailure,
   ExtractionModelAttribution,

@@ -2,6 +2,7 @@
 
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import DocumentWorkspace, { type DocumentWorkspaceProps } from './App'
 import { subscribeToAuthenticationRequired } from './auth/authenticatedFetch.ts'
@@ -139,21 +140,6 @@ const reopened: DocumentWorkspaceProps = {
     '/api/project-contexts/51000000-0000-4000-8000-000000000001/source-representations/51000000-0000-4000-8002-000000000001/markdown',
   parsedDocumentUrl:
     '/api/project-contexts/51000000-0000-4000-8000-000000000001/source-representations/51000000-0000-4000-8002-000000000001/source',
-  // DocumentWorkspace no longer reads annotationSet — the Annotation tab was
-  // retired in favor of SchemaPanel's own doc chat. Left in place, commented
-  // out, rather than deleted.
-  // annotationSet: {
-  //   annotationSetId: '51000000-0000-4000-8003-000000000001',
-  //   revisionNumber: 1,
-  //   annotations: [
-  //     {
-  //       annotationId: '51000000-0000-4000-8004-000000000001',
-  //       evidenceAnchorId: 'anchor-1',
-  //       text: 'The restored annotation',
-  //       pageNumber: 2,
-  //     },
-  //   ],
-  // },
   extractionSchema: {
     extractionSchemaId: '51000000-0000-4000-8005-000000000001',
     name: 'Places',
@@ -170,6 +156,7 @@ const reopened: DocumentWorkspaceProps = {
     createdAt: '2026-07-31T12:03:00.000Z',
     reviewedAt: null,
     strategy: 'ARTICLE',
+    executionStatus: 'COMPLETED',
     outcome: 'SUCCEEDED',
     complete: true,
     diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null, retry: null },
@@ -925,14 +912,6 @@ describe('reopened Source Document workspace', () => {
   it('hydrates the Extraction Schema and Extraction Result', async () => {
     await renderReopened()
 
-    // Annotation-set hydration was covered here too before the Annotation tab
-    // was retired (see the commented-out test below). Left in place, rather
-    // than deleted.
-    // expect(
-    //   screen.getByRole('button', {
-    //     name: 'Remove highlight: The restored annotation',
-    //   }),
-    // ).toBeInTheDocument()
     // The Schema tab's badge is the field count derived from the reopened template.
     expect(screen.getByRole('tab', { name: /^Schema\s*1$/ })).toBeInTheDocument()
     expect(
@@ -1073,7 +1052,7 @@ describe('reopened Source Document workspace', () => {
       sourceDocumentId: '51000000-0000-4000-8001-000000000001',
       sourceRepresentationRevisionId: reopened.sourceRepresentationId,
       schemaRevisionId: savedSchemaRevisionId,
-      strategy: 'ARTICLE', outcome: 'SUCCEEDED', complete: true,
+      strategy: 'ARTICLE', executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
       modelAttribution: { provider: 'ollama', modelId: 'test-model' },
       diagnostics: {
         phase: 'grounding', durationMs: 1, modelCalls: 1,
@@ -1235,6 +1214,112 @@ describe('reopened Source Document workspace', () => {
     expect(extractionRequests).toEqual([])
   })
 
+  it('does not restore an old running Extraction after switching Source Documents', async () => {
+    const nextSourceDocumentId =
+      '51000000-0000-4000-8001-000000000099'
+    const nextSourceRepresentationId =
+      '51000000-0000-4000-8002-000000000099'
+    const runningAttempt = {
+      extractionId: '51000000-0000-4000-8006-000000000099',
+      sourceDocumentId: nextSourceDocumentId,
+      sourceRepresentationRevisionId: nextSourceRepresentationId,
+      schemaRevisionId: reopened.persistedExtraction!.schemaRevisionId,
+      strategy: 'ARTICLE' as const,
+      executionStatus: 'RUNNING' as const,
+      outcome: null,
+      complete: null,
+      modelAttribution: null,
+      diagnostics: null,
+      failure: null,
+      resultPayload: null,
+      evidenceLinks: null,
+      reviewable: false,
+      retryOfId: null,
+      batchExtractionId: null,
+      createdAt: reopened.persistedExtraction!.createdAt,
+      reviewedAt: null,
+      reviewDecisions: [],
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request) => {
+        const url = String(input)
+        if (url.endsWith('/source'))
+          return Promise.resolve(Response.json(parsedDocument))
+        if (url.endsWith('/markdown'))
+          return Promise.resolve(new Response('# Beretning'))
+        if (url.startsWith('/api/schema-revisions?'))
+          return Promise.resolve(Response.json({ revisions: [] }))
+        if (url.endsWith('/api/extractions'))
+          return Promise.resolve(Response.json(runningAttempt, { status: 201 }))
+        if (url.includes(`/api/extractions/${runningAttempt.extractionId}`))
+          return Promise.resolve(Response.json({
+            extraction: runningAttempt,
+            pendingReviewDecisions: null,
+          }))
+        return Promise.resolve(new Response('pdf'))
+      }),
+    )
+    const mounted = render(
+      <StrictMode>
+        <DocumentWorkspace
+          {...reopened}
+          latestReviewedExtraction={reopened.persistedExtraction}
+        />
+      </StrictMode>,
+    )
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+    mounted.rerender(
+      <StrictMode>
+        <DocumentWorkspace
+          {...reopened}
+          filename="Next.pdf"
+          sourceRepresentationId={nextSourceRepresentationId}
+          pdfUrl={`/sources/${nextSourceRepresentationId}/pdf`}
+          markdownUrl={`/sources/${nextSourceRepresentationId}/markdown`}
+          parsedDocumentUrl={`/sources/${nextSourceRepresentationId}/source`}
+          persistedExtraction={null}
+          latestReviewedExtraction={null}
+        />
+      </StrictMode>,
+    )
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: '▶ Run extraction' }),
+    )
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Cancel extraction' }),
+      ).toBeInTheDocument(),
+    )
+    expect(
+      screen.getByRole('button', { name: 'Cancel extraction' }),
+    ).toBeInTheDocument()
+
+    mounted.rerender(
+      <StrictMode>
+        <DocumentWorkspace
+          {...reopened}
+          latestReviewedExtraction={reopened.persistedExtraction}
+        />
+      </StrictMode>,
+    )
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: '↻ Re-run extraction' }),
+      ).toBeInTheDocument(),
+    )
+    await new Promise((resolve) => window.setTimeout(resolve, 2_100))
+    expect(
+      screen.queryByRole('button', { name: 'Cancel extraction' }),
+    ).not.toBeInTheDocument()
+  })
+
   it('posts the accepted result with its pinned Schema Revision and canonical Review Decisions', async () => {
     const calls: Array<{ url: string; body: unknown }> = []
     vi.stubGlobal(
@@ -1256,6 +1341,7 @@ describe('reopened Source Document workspace', () => {
             sourceRepresentationRevisionId: reopened.sourceRepresentationId,
             schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
             strategy: 'ARTICLE',
+            executionStatus: 'COMPLETED',
             outcome: 'SUCCEEDED',
             complete: true,
             modelAttribution: { provider: 'ollama', modelId: 'test-model' },
@@ -1278,7 +1364,7 @@ describe('reopened Source Document workspace', () => {
               sourceDocumentId: '51000000-0000-4000-8001-000000000001',
               sourceRepresentationRevisionId: reopened.sourceRepresentationId,
               schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-              strategy: 'ARTICLE', outcome: 'SUCCEEDED', complete: true,
+              strategy: 'ARTICLE', executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
               modelAttribution: { provider: 'ollama', modelId: 'test-model' },
               diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null, catalog: null, retry: null },
               failure: null, resultPayload: { records: [{ number: '24-1' }] },
@@ -1303,7 +1389,7 @@ describe('reopened Source Document workspace', () => {
             sourceDocumentId: '51000000-0000-4000-8001-000000000001',
             sourceRepresentationRevisionId: reopened.sourceRepresentationId,
             schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-            strategy: 'ARTICLE', outcome: 'SUCCEEDED', complete: true,
+            strategy: 'ARTICLE', executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
             modelAttribution: { provider: 'ollama', modelId: 'test-model' },
             diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null, catalog: null, retry: null },
             failure: null, resultPayload: { records: [{ number: '24-1' }] },
@@ -1349,9 +1435,10 @@ describe('reopened Source Document workspace', () => {
   })
 
   it.each([
-    ['FAILED', 'Extraction failed — see details in Results'],
-    ['CANCELLED', 'Extraction cancelled — no result was saved'],
-  ] as const)('reports a persisted %s attempt without a success toast', async (outcome, message) => {
+    ['failed job', 'FAILED', null, 'Extraction failed — see details in Results'],
+    ['cancellation', 'COMPLETED', 'CANCELLED', 'Extraction cancelled — no result was saved'],
+  ] as const)('reports a persisted %s without a success toast', async (_label, executionStatus, outcome, message) => {
+    const failedJob = executionStatus === 'FAILED'
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -1365,12 +1452,13 @@ describe('reopened Source Document workspace', () => {
             sourceRepresentationRevisionId: reopened.sourceRepresentationId,
             schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
             strategy: 'ARTICLE',
+            executionStatus,
             outcome,
-            complete: null,
-            modelAttribution: null,
+            complete: failedJob ? true : null,
+            modelAttribution: failedJob ? { provider: 'ollama', modelId: 'test-model' } : null,
             diagnostics: { phase: 'extracting', durationMs: 1, modelCalls: 1, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null, retry: null },
-            failure: outcome === 'FAILED' ? { code: 'extraction_failed', message: 'Extraction failed.' } : null,
-            resultPayload: null,
+            failure: failedJob ? { code: 'extraction_failed', message: 'Extraction failed.' } : null,
+            resultPayload: failedJob ? { records: [{ place: 'Checkpointed' }] } : null,
             evidenceLinks: null,
             reviewable: false,
             retryOfId: null, batchExtractionId: null,
@@ -1393,28 +1481,6 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByText(/Extraction complete/)).not.toBeInTheDocument()
   })
 
-  // Retired along with the Annotation tab (no more highlight-set list to
-  // select/remove from). Left in place, commented out, rather than deleted.
-  //
-  // it('keeps a restored annotation usable without a pdf.js editor', async () => {
-  //   await renderReopened()
-  //
-  //   fireEvent.click(
-  //     screen.getByTitle('Go to highlight on page 2: The restored annotation'),
-  //   )
-  //   expect(scrollPageIntoView).toHaveBeenCalledWith({ pageNumber: 2 })
-  //
-  //   fireEvent.click(
-  //     screen.getByRole('button', {
-  //       name: 'Remove highlight: The restored annotation',
-  //     }),
-  //   )
-  //   expect(
-  //     screen.queryByRole('button', {
-  //       name: 'Remove highlight: The restored annotation',
-  //     }),
-  //   ).not.toBeInTheDocument()
-  // })
 })
 
 

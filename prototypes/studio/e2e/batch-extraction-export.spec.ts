@@ -332,6 +332,7 @@ function batchFixture(): {
   }
   const extractions = {
     runSingle: unsupported,
+    readExtractionAttempt: unsupported,
     cancelSingle: unsupported,
     prepareReview: unsupported,
     finalizeReview: unsupported,
@@ -759,7 +760,183 @@ test('the export stays unavailable until the batch has produced a result @determ
 
   // No member has an Extraction yet, so there is nothing to project.
   await expect(panel(page).getByRole('button', { name: 'Export' })).toBeDisabled()
+  await expect(panel(page)).not.toContainText('Hørsholm')
   await expect(panel(page).getByRole('button', { name: 'Export' })).toBeEnabled({
     timeout: 15_000,
   })
+})
+
+test('the Batch review grid handles member failure, targeted reload, bulk decisions, edit, reject, and save @deterministic', async ({
+  page,
+}) => {
+  await stubStudio(page)
+  const batchExtractionId = '74000000-0000-4000-8005-000000000001'
+  const completedBatch: BatchExtractionSnapshot = {
+    batchExtractionId,
+    projectContextId: id.project,
+    schemaRevisionId: id.revision,
+    extractionSchemaId: id.schema,
+    extractionSchemaName: 'Places',
+    schemaRevisionNumber: 4,
+    strategy: 'ARTICLE',
+    executionStatus: 'COMPLETED',
+    failureMessage: null,
+    startedAt: at(43),
+    finishedAt: at(45),
+    createdAt: at(42),
+    members: [
+      {
+        sourceDocumentId: id.beretning,
+        sourceRepresentationRevisionId: id.beretningRevision,
+        executionStatus: 'COMPLETED',
+        failureMessage: null,
+        startedAt: at(43),
+        finishedAt: at(44),
+        latestExtraction: {
+          extractionId: id.beretningExtraction,
+          outcome: 'SUCCEEDED',
+          complete: true,
+          reviewable: true,
+          createdAt: at(44),
+          reviewedAt: null,
+          failureMessage: null,
+        },
+      },
+      {
+        sourceDocumentId: id.fundliste,
+        sourceRepresentationRevisionId: id.fundlisteRevision,
+        executionStatus: 'FAILED',
+        failureMessage: 'Grounding failed for this member.',
+        startedAt: at(43),
+        finishedAt: at(44),
+        latestExtraction: null,
+      },
+    ],
+  }
+  const attempt = {
+    extractionId: id.beretningExtraction,
+    sourceDocumentId: id.beretning,
+    sourceRepresentationRevisionId: id.beretningRevision,
+    schemaRevisionId: id.revision,
+    strategy: 'ARTICLE' as const,
+    executionStatus: 'COMPLETED' as const,
+    outcome: 'SUCCEEDED' as const,
+    complete: true,
+    modelAttribution: { provider: 'ollama', modelId: 'fixture' },
+    diagnostics: {
+      phase: 'grounding' as const,
+      durationMs: 1,
+      modelCalls: 1,
+      finishReason: 'stop',
+      inputTokens: 1,
+      outputTokens: 1,
+      grounding: null,
+      catalog: null,
+      retry: null,
+    },
+    failure: null,
+    resultPayload: { records: [{ place: 'Ellekilde', year: 1801 }] },
+    evidenceLinks: [
+      { resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-place' },
+      { resultPath: ['records', 0, 'year'], evidenceAnchorId: 'anchor-year' },
+    ],
+    reviewable: true,
+    retryOfId: null,
+    batchExtractionId,
+    createdAt: at(44).toISOString(),
+    reviewedAt: null as string | null,
+    reviewDecisions: [] as Array<Record<string, unknown>>,
+  }
+  const pendingReviewDecisions = [
+    {
+      resultPath: ['records', 0, 'place'],
+      evidenceAnchorId: 'anchor-place',
+      reviewedOccurrenceIds: ['occurrence-place'],
+      action: 'APPROVED' as const,
+      reviewedValue: null,
+    },
+    {
+      resultPath: ['records', 0, 'year'],
+      evidenceAnchorId: 'anchor-year',
+      reviewedOccurrenceIds: ['occurrence-year'],
+      action: 'APPROVED' as const,
+      reviewedValue: null,
+    },
+  ]
+  let extractionReads = 0
+  let savedReview: unknown = null
+
+  await page.route('**/api/batch-extractions**', async (route) => {
+    const url = new URL(route.request().url())
+    if (url.pathname.endsWith('/results'))
+      return route.fulfill({
+        json: {
+          batchExtractionId,
+          executionStatus: 'COMPLETED',
+          totalMembers: 2,
+          successfulResults: 1,
+          pending: 0,
+          failed: 1,
+          cancelled: 0,
+          results: [results[0]],
+        },
+      })
+    return route.fulfill({
+      json: url.pathname === '/api/batch-extractions'
+        ? { batchExtractions: [batchDto(completedBatch)] }
+        : { batchExtraction: batchDto(completedBatch) },
+    })
+  })
+  await page.route('**/api/extractions/**', async (route) => {
+    const request = route.request()
+    if (request.method() === 'POST') {
+      savedReview = request.postDataJSON()
+      attempt.reviewedAt = at(46).toISOString()
+      attempt.reviewDecisions = (savedReview as { reviewDecisions: Array<Record<string, unknown>> }).reviewDecisions
+        .map((decision) => ({ ...decision, createdAt: at(46).toISOString() }))
+      return route.fulfill({ json: attempt })
+    }
+    extractionReads += 1
+    if (extractionReads <= 2)
+      return route.fulfill({
+        status: 503,
+        json: { error: { code: 'persistence_unavailable', message: 'Review data is temporarily unavailable.' } },
+      })
+    return route.fulfill({
+      json: { extraction: attempt, pendingReviewDecisions },
+    })
+  })
+
+  await openExtractions(page)
+  await panel(page).getByRole('button', { name: /Places · Schema Revision 4/ }).click()
+  const members = panel(page).getByRole('list', { name: 'Batch Extraction members' })
+  await expect(members).toContainText('Grounding failed for this member.')
+  const reviewGrid = panel(page).getByRole('button', { name: 'Review grid' })
+  await expect(reviewGrid).toBeEnabled()
+  await reviewGrid.click()
+
+  await expect(page.getByText('Review data is temporarily unavailable.')).toBeVisible()
+  await page.getByRole('button', { name: 'Retry' }).click()
+  await expect(page.getByText('Ellekilde', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: /Approve 2 pending in this row/ }).click()
+  await page.getByText('Ellekilde', { exact: true }).click()
+  await page.getByRole('button', { name: 'Edit', exact: true }).click()
+  const placeInput = page.locator('input[value="Ellekilde"]')
+  await placeInput.fill('Milan')
+  await placeInput.press('Enter')
+  await page.getByText('1801', { exact: true }).click()
+  await page.getByRole('button', { name: 'Reject', exact: true }).click()
+  await page.getByRole('button', { name: 'Approve all', exact: true }).click()
+  await page.getByRole('button', { name: 'Save all reviews (1)' }).click()
+
+  await expect(page.getByRole('button', { name: 'Save all reviews' })).toBeDisabled()
+  expect(savedReview).toMatchObject({
+    reviewDecisions: expect.arrayContaining([
+      expect.objectContaining({ reviewedValue: 'Milan' }),
+      expect.objectContaining({ action: 'REJECTED' }),
+    ]),
+  })
+  await page.getByRole('button', { name: /Back to results/ }).click()
+  await expect(panel(page).getByRole('list', { name: 'Batch Extraction members' })).toBeVisible()
 })

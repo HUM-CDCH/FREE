@@ -28,4 +28,4 @@ export type {
 export { default as Panel } from './Panel'
 export type { PanelProps } from './Panel'
 export { default as ResultValue } from './ResultValue'
-export { CheckIcon, PencilIcon, XIcon, StatusDot } from './ResultValue'
+export { CheckIcon, PencilIcon, XIcon, StatusDot, UndoIcon } from './ResultValue'

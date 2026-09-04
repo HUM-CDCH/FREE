@@ -68,6 +68,7 @@ const articleAttempt: ExtractionAttempt = {
   sourceRepresentationRevisionId: '22222222-2222-4222-8222-222222222222',
   schemaRevisionId: '33333333-3333-4333-8333-333333333333',
   strategy: 'ARTICLE',
+  executionStatus: 'COMPLETED',
   outcome: 'SUCCEEDED',
   complete: false,
   modelAttribution: { provider: 'ollama', modelId: 'fixture' },
@@ -138,6 +139,38 @@ const historicalExportSchema: SchemaDefinition = {
 }
 
 describe('ResultsTab grounded values', () => {
+  it('shows checkpointed values while Evidence linking keeps export and review disabled', () => {
+    const provisional: ExtractionAttempt = {
+      ...articleAttempt,
+      executionStatus: 'RUNNING',
+      outcome: null,
+      evidenceLinks: null,
+      reviewable: false,
+      reviewedAt: null,
+      reviewDecisions: [],
+    }
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller({
+          status: 'ready',
+          result: provisional.resultPayload!,
+          evidenceLinks: [],
+          ungroundedCount: 0,
+        }, provisional)}
+        schemaReady
+        exportSchema={currentExportSchema}
+        documentMarkdown="# Source"
+        sourceDocumentName="source.pdf"
+      />,
+    )
+
+    expect(screen.getByText('Values extracted · linking Evidence…')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Rerun' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Save Review' })).not.toBeInTheDocument()
+  })
+
   it('renders markup-like schema names and extracted values as inert text', () => {
     const fieldName = '<script>field-secret</script>'
     const value = '<img src=x onerror="value-secret">'
@@ -202,6 +235,31 @@ describe('ResultsTab grounded values', () => {
 
     expect(screen.getByText('Running extraction…')).toBeInTheDocument()
     expect(screen.queryByText('Report')).not.toBeInTheDocument()
+  })
+
+  it('labels queued work before the worker starts it', () => {
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller(
+          { status: 'running', step: 'extraction' },
+          {
+            ...articleAttempt,
+            executionStatus: 'QUEUED',
+            outcome: null,
+            resultPayload: null,
+            evidenceLinks: null,
+            reviewable: false,
+          },
+        )}
+        schemaReady
+        documentMarkdown="# Source"
+        sourceDocumentName="Ravenna letters.pdf"
+      />,
+    )
+
+    expect(screen.getByText('Queued extraction…')).toBeInTheDocument()
+    expect(screen.queryByText('Running extraction…')).not.toBeInTheDocument()
   })
 
   it('offers canonical Evidence navigation only for linked scalar paths', () => {
@@ -335,7 +393,7 @@ describe('ResultsTab grounded values', () => {
       ...articleAttempt,
       strategy: 'CATALOG',
       diagnostics: {
-        ...articleAttempt.diagnostics,
+        ...articleAttempt.diagnostics!,
         catalog: {
           stages: [
             { ...catalogCall, stage: 'document-values', outcome: 'not_attempted', calls: 0, finishReason: null },
@@ -408,10 +466,11 @@ describe('ResultsTab grounded values', () => {
       ...articleAttempt,
       extractionId: '55555555-5555-4555-8555-555555555555',
       strategy: 'CATALOG',
-      outcome: 'FAILED',
-      complete: null,
+      executionStatus: 'FAILED',
+      outcome: null,
+      complete: true,
       diagnostics: {
-        ...articleAttempt.diagnostics,
+        ...articleAttempt.diagnostics!,
         catalog: {
           stages: [
             { ...catalogCall, stage: 'document-values', provenance: 'reused', calls: 0, inputTokens: null, outputTokens: null, durationMs: 0 },
@@ -426,7 +485,7 @@ describe('ResultsTab grounded values', () => {
         code: 'catalog_no_records',
         message: 'Catalog discovery returned no records.',
       },
-      resultPayload: null,
+      resultPayload: { records: [] },
       evidenceLinks: null,
       reviewable: false,
     }
@@ -434,7 +493,12 @@ describe('ResultsTab grounded values', () => {
       <ResultsTab
         {...defaultRunProps}
         controller={controller(
-          { status: 'error', message: attempt.failure!.message },
+          {
+            status: 'ready',
+            result: attempt.resultPayload!,
+            evidenceLinks: [],
+            ungroundedCount: 0,
+          },
           attempt,
         )}
         schemaReady
@@ -456,7 +520,7 @@ describe('ResultsTab grounded values', () => {
       strategy: 'CATALOG',
       complete: true,
       diagnostics: {
-        ...articleAttempt.diagnostics,
+        ...articleAttempt.diagnostics!,
         catalog: {
           stages: [
             { ...catalogCall, stage: 'document-values', provenance: 'reused', calls: 0, inputTokens: null, outputTokens: null, durationMs: 0 },

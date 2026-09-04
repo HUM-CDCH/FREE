@@ -118,7 +118,9 @@ export function useBatchExtractionReviewGrid(
     readExtraction(extractionId, signal).then(
       ({ extraction, pendingReviewDecisions }) => {
         if (signal.aborted) return
-        const decisions = extraction.reviewedAt ? extraction.reviewDecisions : pendingReviewDecisions
+        const decisions = extraction.reviewedAt
+          ? extraction.reviewDecisions
+          : pendingReviewDecisions ?? []
         setMembers((current) =>
           new Map(current).set(sourceDocumentId, {
             status: 'ready',
@@ -267,6 +269,84 @@ export function useBatchExtractionReviewGrid(
     })
   }
 
+  /** Reverses one field back to its unreviewed default — the inverse of
+   *  `setDecision`. Restores the "Needs review" state for this field alone. */
+  function revertDecision(sourceDocumentId: string, resultPath: ReviewDecisionInput['resultPath']) {
+    const key = resultPathKey(resultPath)
+    setMembers((current) => {
+      const state = current.get(sourceDocumentId)
+      if (!state || state.status !== 'ready' || !state.editable || !state.touched.has(key))
+        return current
+      const touched = new Set(state.touched)
+      touched.delete(key)
+      const next = new Map(current)
+      next.set(sourceDocumentId, {
+        ...state,
+        decisions: state.decisions.map((decision) =>
+          resultPathKey(decision.resultPath) === key
+            ? { ...decision, action: 'APPROVED', reviewedValue: null }
+            : decision,
+        ),
+        touched,
+      })
+      return next
+    })
+  }
+
+  /** Reverses every field of one member back to its unreviewed default — the
+   *  inverse of `approveAllForMember`. */
+  function revertMember(sourceDocumentId: string) {
+    setMembers((current) => {
+      const state = current.get(sourceDocumentId)
+      if (!state || state.status !== 'ready' || !state.editable) return current
+      const next = new Map(current)
+      next.set(sourceDocumentId, {
+        ...state,
+        decisions: state.decisions.map((decision) => ({
+          ...decision,
+          action: 'APPROVED',
+          reviewedValue: null,
+        })),
+        touched: new Set(),
+      })
+      return next
+    })
+  }
+
+  function revertAll() {
+    for (const sourceDocumentId of membersRef.current.keys()) revertMember(sourceDocumentId)
+  }
+
+  /** Reverses every field of one displayed grid row back to its unreviewed
+   *  default — the inverse of `approveRow`. */
+  function revertRow(sourceDocumentId: string, recordIndex: number) {
+    setMembers((current) => {
+      const state = current.get(sourceDocumentId)
+      if (!state || state.status !== 'ready' || !state.editable) return current
+      const matchingKeys = new Set(
+        state.decisions
+          .filter(
+            (decision) => decision.resultPath[0] === 'records' && decision.resultPath[1] === recordIndex,
+          )
+          .map((decision) => resultPathKey(decision.resultPath)),
+      )
+      if (matchingKeys.size === 0) return current
+      const touched = new Set(state.touched)
+      for (const key of matchingKeys) touched.delete(key)
+      const next = new Map(current)
+      next.set(sourceDocumentId, {
+        ...state,
+        decisions: state.decisions.map((decision) =>
+          matchingKeys.has(resultPathKey(decision.resultPath))
+            ? { ...decision, action: 'APPROVED', reviewedValue: null }
+            : decision,
+        ),
+        touched,
+      })
+      return next
+    })
+  }
+
   async function saveMember(sourceDocumentId: string) {
     const state = membersRef.current.get(sourceDocumentId)
     if (!state || state.status !== 'ready' || !state.editable) return
@@ -325,6 +405,10 @@ export function useBatchExtractionReviewGrid(
     approveAll,
     approveRow,
     approveColumn,
+    revertDecision,
+    revertMember,
+    revertAll,
+    revertRow,
     saveMember,
     saveAll,
     retryMember,

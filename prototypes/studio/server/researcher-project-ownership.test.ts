@@ -574,6 +574,14 @@ function twoAccountStoreFixture(): TwoAccountStores {
         extractionEffects.singleExecutions.push(input.extractionId)
         throw new Error('Authorized Extraction execution is outside this test.')
       }),
+      readExtractionAttempt: vi.fn<ExtractionModule['readExtractionAttempt']>(
+        async (extractionId) => {
+          const ownedExtractionId =
+            accountId === ids.accountA ? ids.extractionA : ids.extractionB
+          if (extractionId !== ownedExtractionId) return null
+          throw new Error('Authorized Extraction read is outside this test.')
+        },
+      ),
       cancelSingle: vi.fn<ExtractionModule['cancelSingle']>(async (extractionId) => {
         const ownedExtractionId =
           accountId === ids.accountA ? ids.extractionA : ids.extractionB

@@ -951,20 +951,23 @@ export function createResearcherProjectStore(
       const batches = await database.orm.public.BatchExtraction.where((batch) =>
         batch.projectContextId.in(projectIds),
       )
-        .select('id', 'projectContextId', 'executionStatus', 'createdAt')
+        .select('id', 'projectContextId', 'createdAt')
         .all()
-      const openBatches = batches.filter(
-        (batch) =>
-          batch.executionStatus === 'QUEUED' ||
-          batch.executionStatus === 'RUNNING',
-      )
       const members =
-        openBatches.length === 0
+        batches.length === 0
           ? []
           : await database.orm.public.BatchExtractionMember.where((member) =>
-              member.batchExtractionId.in(openBatches.map((batch) => batch.id)),
+              member.batchExtractionId.in(batches.map((batch) => batch.id)),
             )
-              .select('batchExtractionId', 'executionStatus')
+              .select('batchExtractionId', 'initialExtractionJobId')
+              .all()
+      const jobs =
+        members.length === 0
+          ? []
+          : await database.orm.public.ExtractionJob.where((job) =>
+              job.id.in(members.map((member) => member.initialExtractionJobId)),
+            )
+              .select('id', 'executionStatus')
               .all()
 
       // The current representation of each Source Document is its highest
@@ -1056,12 +1059,18 @@ export function createResearcherProjectStore(
       }
       const completedMembers = new Map<string, number>()
       const totalMembers = new Map<string, number>()
+      const jobById = new Map(jobs.map((job) => [job.id, job]))
       for (const member of members) {
+        const job = jobById.get(member.initialExtractionJobId)
+        if (!job) continue
         totalMembers.set(
           member.batchExtractionId,
           (totalMembers.get(member.batchExtractionId) ?? 0) + 1,
         )
-        if (member.executionStatus === 'COMPLETED')
+        if (
+          job.executionStatus === 'COMPLETED' ||
+          job.executionStatus === 'FAILED'
+        )
           completedMembers.set(
             member.batchExtractionId,
             (completedMembers.get(member.batchExtractionId) ?? 0) + 1,
@@ -1071,17 +1080,15 @@ export function createResearcherProjectStore(
         const state = project.get(batch.projectContextId)
         if (!state) continue
         bump(batch.projectContextId, batch.createdAt)
-        if (
-          batch.executionStatus !== 'QUEUED' &&
-          batch.executionStatus !== 'RUNNING'
-        )
+        const memberCount = totalMembers.get(batch.id) ?? 0
+        if (memberCount === 0 || completedMembers.get(batch.id) === memberCount)
           continue
         if (!state.runningBatch || batch.createdAt > state.runningBatch.createdAt)
           state.runningBatch = {
             id: batch.id,
             createdAt: batch.createdAt,
             completedMemberCount: completedMembers.get(batch.id) ?? 0,
-            memberCount: totalMembers.get(batch.id) ?? 0,
+            memberCount,
           }
       }
 

@@ -9,29 +9,37 @@ import {
 import { ExtractionError } from './errors.js'
 import { persistSuggestedBatch } from './postgres-suggested-batch.js'
 import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
-import { sameRetrySelection } from './catalog.js'
+import { sameRetrySelection, validateCatalogRetry } from './catalog.js'
 import type {
+  ClaimedExtractionJob,
   ExtractionPersistence,
+  ExtractionJobFailure,
+  ExtractionValueCheckpoint,
+  InternalExtractionJobStore,
   PersistedReviewResult,
   LoadedExtractionInputs,
-  PersistExtractionResult,
   ReviewAuthority,
   TerminalExtraction,
 } from './dependencies.js'
 import type {
   BatchExtractionResults,
   BatchExtractionSnapshot,
+  CancellationResult,
   DocumentExtractionsSnapshot,
+  ExtractionAttemptSnapshot,
   ExtractionSnapshot,
   ExtractionStrategy,
   ReadBatchInput,
   ReadDocumentExtractionsInput,
+  ResultPath,
+  ReviewDecisionAction,
+  RunSingleInput,
+  RunSingleResult,
   ScheduleBatchInput,
   ScheduleBatchResult,
   ScheduleSuggestedBatchInput,
 } from './types.js'
 
-export type OperationLease = Readonly<{ owner: string; version: number; expiresAt: Date }>
 type Status = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED'
 const encodeReviewedValue = (value: unknown) =>
   value === null ? null : { value }
@@ -71,41 +79,13 @@ export type DurableBatchExtraction = Readonly<{
   executionFailure: unknown | null
   startedAt: Date | null
   finishedAt: Date | null
-  leaseOwner: string | null
-  leaseVersion: number
-  leaseExpiresAt: Date | null
   createdAt: Date
   members: readonly BatchMember[]
 }>
-export type ClaimedBatchExtraction = DurableBatchExtraction & Readonly<{ lease: OperationLease }>
 
 export function uniqueConstraint(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'sqlState' in error && error.sqlState === '23505'
 }
-function extractionIdentityMatches(
-  stored: ExtractionSnapshot,
-  input: TerminalExtraction,
-): boolean {
-  const storedRetry = stored.diagnostics.retry
-  const inputRetry = input.diagnostics.retry
-  const retryMatches =
-    storedRetry === null && inputRetry === null
-      ? true
-      : storedRetry !== null &&
-        inputRetry !== null &&
-        sameRetrySelection(storedRetry, inputRetry)
-  return (
-    stored.sourceDocumentId === input.sourceDocumentId &&
-    stored.sourceRepresentationRevisionId ===
-      input.sourceRepresentationRevisionId &&
-    stored.schemaRevisionId === input.schemaRevisionId &&
-    stored.strategy === input.strategy &&
-    stored.batchExtractionId === input.batchExtractionId &&
-    stored.retryOfId === input.retryOfId &&
-    retryMatches
-  )
-}
-
 function canonicalIds(ids: readonly string[]): string[] {
   return [...new Set(ids)].sort((left, right) => left.localeCompare(right))
 }
@@ -162,6 +142,10 @@ function failureMessage(failure: unknown): string | null {
   const stored = failure as { code?: unknown; message?: unknown }
   if (stored.code === 'unexpected_failure') return 'The operation failed unexpectedly.'
   return typeof stored.message === 'string' ? stored.message : null
+}
+
+function completedAttempt(extraction: ExtractionSnapshot): ExtractionAttemptSnapshot {
+  return { ...extraction, executionStatus: 'COMPLETED' }
 }
 export function snapshot(batch: DurableBatchExtraction): BatchExtractionSnapshot {
   return {
@@ -254,14 +238,321 @@ async function loadExtraction(orm: DatabaseOrm, extractionId: string): Promise<E
   }
 }
 
+async function loadCompletedJobExtraction(
+  orm: DatabaseOrm,
+  extractionId: string,
+): Promise<ExtractionSnapshot | null> {
+  const job = await orm.public.ExtractionJob.select('executionStatus').first({
+    id: extractionId,
+  })
+  if (!job || job.executionStatus !== 'COMPLETED') return null
+  const extraction = await loadExtraction(orm, extractionId)
+  if (!extraction)
+    throw new Error('Completed Extraction Job has no terminal Extraction.')
+  return extraction
+}
+
+async function loadExtractionAttempt(
+  orm: DatabaseOrm,
+  extractionId: string,
+): Promise<ExtractionAttemptSnapshot | null> {
+  const row = await orm.public.ExtractionJob.select(
+    'id',
+    'kind',
+    'sourceDocumentId',
+    'sourceRepresentationRevisionId',
+    'schemaRevisionId',
+    'strategy',
+    'executionStatus',
+    'complete',
+    'modelAttribution',
+    'diagnostics',
+    'resultPayload',
+    'failure',
+    'retryOfId',
+    'batchExtractionId',
+    'createdAt',
+  ).first({ id: extractionId })
+  if (!row) return null
+  if (row.executionStatus === 'COMPLETED') {
+    const extraction = await loadExtraction(orm, extractionId)
+    if (!extraction)
+      throw new Error('Completed Extraction Job has no terminal Extraction.')
+    return completedAttempt(extraction)
+  }
+  if (row.kind !== 'INTERACTIVE') return null
+  const representation = await orm.public.SourceRepresentationRevision.select(
+    'revisionNumber',
+  ).first({
+    id: row.sourceRepresentationRevisionId,
+    sourceDocumentId: row.sourceDocumentId,
+  })
+  const schema = await orm.public.SchemaRevision.select(
+    'extractionSchemaId',
+    'revisionNumber',
+  ).first({ id: row.schemaRevisionId })
+  if (!representation || !schema)
+    throw new Error('Stored Extraction Job pins are unavailable.')
+  return {
+    extractionId: row.id,
+    sourceDocumentId: row.sourceDocumentId,
+    sourceRepresentationRevisionId: row.sourceRepresentationRevisionId,
+    sourceRepresentationRevisionNumber: representation.revisionNumber,
+    schemaRevisionId: row.schemaRevisionId,
+    extractionSchemaId: schema.extractionSchemaId,
+    schemaRevisionNumber: schema.revisionNumber,
+    strategy: row.strategy,
+    executionStatus: row.executionStatus,
+    outcome: null,
+    complete: row.complete,
+    modelAttribution: row.modelAttribution as ExtractionAttemptSnapshot['modelAttribution'],
+    diagnostics: row.diagnostics as ExtractionAttemptSnapshot['diagnostics'],
+    result: row.resultPayload as ExtractionAttemptSnapshot['result'],
+    evidence: null,
+    failure: row.failure as ExtractionAttemptSnapshot['failure'],
+    reviewable: false,
+    retryOfId: row.retryOfId,
+    batchExtractionId: row.batchExtractionId,
+    createdAt: row.createdAt,
+    reviewedAt: null,
+    reviewDecisions: [],
+  }
+}
+
+type ScheduledJob = Readonly<{
+  id: string
+  projectContextId: string
+  sourceDocumentId: string
+  sourceRepresentationRevisionId: string
+  schemaRevisionId: string
+  strategy: ExtractionStrategy
+  retryOfId: string | null
+  retryDocument: boolean | null
+  rediscover: boolean | null
+  retryRecordStartBlockIds: readonly string[] | null
+  batchExtractionId: string | null
+}>
+
+function jobIdentityMatches(
+  row: Readonly<{
+    kind: 'INTERACTIVE' | 'BATCH_MEMBER'
+    sourceRepresentationRevisionId: string
+    schemaRevisionId: string
+    strategy: ExtractionStrategy
+    retryOfId: string | null
+    retryDocument: boolean | null
+    rediscover: boolean | null
+    retryRecordStartBlockIds: unknown
+  }>,
+  job: ScheduledJob,
+): boolean {
+  const retryRecordStartBlockIds = Array.isArray(row.retryRecordStartBlockIds) &&
+      row.retryRecordStartBlockIds.every((id): id is string => typeof id === 'string')
+    ? row.retryRecordStartBlockIds
+    : null
+  const retryMatches = job.retryOfId === null
+    ? row.retryOfId === null && row.retryDocument === null &&
+      row.rediscover === null && retryRecordStartBlockIds === null
+    : row.retryOfId === job.retryOfId &&
+      row.retryDocument !== null && row.rediscover !== null &&
+      retryRecordStartBlockIds !== null &&
+      sameRetrySelection({
+        retryDocument: row.retryDocument,
+        rediscover: row.rediscover,
+        retryRecordStartBlockIds,
+      }, {
+        retryDocument: job.retryDocument!,
+        rediscover: job.rediscover!,
+        retryRecordStartBlockIds: job.retryRecordStartBlockIds!,
+      })
+  return row.kind === 'INTERACTIVE' &&
+    row.sourceRepresentationRevisionId === job.sourceRepresentationRevisionId &&
+    row.schemaRevisionId === job.schemaRevisionId &&
+    row.strategy === job.strategy &&
+    retryMatches
+}
+
+async function resolveScheduledJob(
+  transaction: DatabaseTransaction,
+  input: RunSingleInput,
+  researcherAccountId: string | null,
+): Promise<ScheduledJob | null> {
+  const { orm } = transaction
+  if (input.kind === 'retry') {
+    const parent = await loadExtractionAttempt(orm, input.retryOfId)
+    if (!parent) return null
+    if (researcherAccountId && !(await ownsResearcherJob(
+      transaction,
+      researcherAccountId,
+      parent.extractionId,
+    ))) return null
+    const retry = validateCatalogRetry(parent, input)
+    const document = await orm.public.SourceDocument.select('projectContextId').first({
+      id: parent.sourceDocumentId,
+    })
+    if (!document) return null
+    return {
+      id: input.extractionId,
+      projectContextId: document.projectContextId,
+      sourceDocumentId: parent.sourceDocumentId,
+      sourceRepresentationRevisionId: parent.sourceRepresentationRevisionId,
+      schemaRevisionId: parent.schemaRevisionId,
+      strategy: 'CATALOG',
+      retryOfId: parent.extractionId,
+      retryDocument: retry.selection.retryDocument,
+      rediscover: retry.selection.rediscover,
+      retryRecordStartBlockIds: canonicalIds(retry.selection.retryRecordStartBlockIds),
+      batchExtractionId: parent.batchExtractionId,
+    }
+  }
+  const representation = await orm.public.SourceRepresentationRevision.select(
+    'sourceDocumentId',
+  ).first({ id: input.sourceRepresentationRevisionId })
+  const document = representation
+    ? await orm.public.SourceDocument.select('projectContextId').first({
+        id: representation.sourceDocumentId,
+      })
+    : null
+  const schema = await orm.public.SchemaRevision.select('extractionSchemaId').first({
+    id: input.schemaRevisionId,
+  })
+  const schemaOwner = schema
+    ? await orm.public.ExtractionSchema.select('projectContextId').first({
+        id: schema.extractionSchemaId,
+      })
+    : null
+  const project = document
+    ? await orm.public.ProjectContext.select('researcherAccountId').first({
+        id: document.projectContextId,
+      })
+    : null
+  if (!representation || !document || !schemaOwner ||
+      schemaOwner.projectContextId !== document.projectContextId ||
+      !project ||
+      (researcherAccountId !== null && project.researcherAccountId !== researcherAccountId))
+    return null
+  return {
+    id: input.extractionId,
+    projectContextId: document.projectContextId,
+    sourceDocumentId: representation.sourceDocumentId,
+    sourceRepresentationRevisionId: input.sourceRepresentationRevisionId,
+    schemaRevisionId: input.schemaRevisionId,
+    strategy: input.strategy,
+    retryOfId: null,
+    retryDocument: null,
+    rediscover: null,
+    retryRecordStartBlockIds: null,
+    batchExtractionId: null,
+  }
+}
+
+async function scheduleInteractiveExtraction(
+  database: Database,
+  input: RunSingleInput,
+  researcherAccountId: string | null,
+): Promise<RunSingleResult | null> {
+  let disposition: 'created' | 'replayed' = 'created'
+  try {
+    const status = await database.transaction(async (transaction) => {
+      const { orm } = transaction
+      const existingJob = await orm.public.ExtractionJob.select(
+        'kind', 'projectContextId', 'sourceRepresentationRevisionId',
+        'schemaRevisionId', 'strategy', 'retryOfId', 'retryDocument',
+        'rediscover', 'retryRecordStartBlockIds',
+      ).first({ id: input.extractionId })
+      const job = await resolveScheduledJob(transaction, input, researcherAccountId)
+      if (!job) return 'missing' as const
+      if (existingJob) {
+        if (researcherAccountId) {
+          const project = await orm.public.ProjectContext.select('researcherAccountId').first({
+            id: existingJob.projectContextId,
+          })
+          if (project?.researcherAccountId !== researcherAccountId)
+            return 'missing' as const
+        }
+        return jobIdentityMatches(existingJob, job) ? 'replayed' as const : 'conflict' as const
+      }
+      await orm.public.ExtractionJob.create({
+        ...job,
+        kind: 'INTERACTIVE',
+        retryRecordStartBlockIds: job.retryRecordStartBlockIds,
+      })
+      return 'created' as const
+    })
+    if (status === 'missing') return null
+    if (status === 'conflict')
+      throw new ExtractionError(
+        'extraction_id_conflict',
+        'That Extraction ID is already bound to different inputs.',
+      )
+    disposition = status
+  } catch (error) {
+    if (!uniqueConstraint(error)) throw error
+    return scheduleInteractiveExtraction(database, input, researcherAccountId)
+  }
+  const extraction = await loadExtractionAttempt(database.orm, input.extractionId)
+  if (!extraction) return null
+  return { disposition, extraction }
+}
+
+async function loadDocumentExtractions(
+  orm: DatabaseOrm,
+  input: ReadDocumentExtractionsInput,
+): Promise<DocumentExtractionsSnapshot | null> {
+  const jobs = await orm.public.ExtractionJob.where({
+    sourceDocumentId: input.sourceDocumentId,
+  }).select(
+    'id', 'kind', 'executionStatus', 'sourceRepresentationRevisionId', 'createdAt',
+  ).all()
+  const jobsById = new Map(jobs.map((job) => [job.id, job]))
+  const candidates = jobs
+    .filter((job) => job.kind === 'INTERACTIVE' || job.executionStatus === 'COMPLETED')
+    .map((job) => ({
+      id: job.id,
+      sourceRepresentationRevisionId: job.sourceRepresentationRevisionId,
+      scheduledAt: job.createdAt,
+    })).sort((left, right) =>
+    right.scheduledAt.getTime() - left.scheduledAt.getTime() ||
+    right.id.localeCompare(left.id))
+  const selected = input.extractionId
+    ? candidates.find((candidate) => candidate.id === input.extractionId) ?? null
+    : candidates[0] ?? null
+  if (input.extractionId && !selected) return null
+  const representationId = selected?.sourceRepresentationRevisionId ??
+    (await orm.public.SourceRepresentationRevision.where({
+      sourceDocumentId: input.sourceDocumentId,
+    }).select('id').orderBy([
+      (revision) => revision.revisionNumber.desc(),
+      (revision) => revision.id.desc(),
+    ]).first())?.id
+  if (!representationId) return null
+  const reviewedRows = await orm.public.Extraction.where({
+    sourceDocumentId: input.sourceDocumentId,
+  }).where((attempt) => attempt.reviewedAt.isNotNull())
+    .select('id')
+    .orderBy([
+      (attempt) => attempt.reviewedAt.desc(),
+      (attempt) => attempt.createdAt.desc(),
+      (attempt) => attempt.id.desc(),
+    ]).all()
+  const latestReviewedId = reviewedRows.find((row) =>
+    jobsById.get(row.id)?.executionStatus === 'COMPLETED')?.id ?? null
+  return {
+    sourceRepresentationRevisionId: representationId,
+    latestAttempt: selected ? await loadExtractionAttempt(orm, selected.id) : null,
+    latestReviewed: latestReviewedId
+      ? await loadExtractionAttempt(orm, latestReviewedId)
+      : null,
+  }
+}
+
 export async function loadBatch(
   orm: DatabaseOrm,
   projectContextId: string,
   batchExtractionId: string,
 ): Promise<DurableBatchExtraction | null> {
   const row = await orm.public.BatchExtraction.select(
-    'id', 'schemaRevisionId', 'strategy', 'executionStatus', 'failure', 'startedAt',
-    'finishedAt', 'leaseOwner', 'leaseVersion', 'leaseExpiresAt', 'createdAt',
+    'id', 'schemaRevisionId', 'strategy', 'createdAt',
   ).first({ id: batchExtractionId, projectContextId })
   if (!row) return null
   const schema = await orm.public.SchemaRevision.select('extractionSchemaId', 'revisionNumber').first({
@@ -272,24 +563,34 @@ export async function loadBatch(
     : null
   if (!schema || !owner) throw new Error('Stored Batch Extraction pins are unavailable.')
   const memberRows = await orm.public.BatchExtractionMember.where({ batchExtractionId })
-    .select('sourceDocumentId', 'sourceRepresentationRevisionId', 'executionStatus',
-      'failure', 'startedAt', 'finishedAt')
+    .select('sourceDocumentId', 'sourceRepresentationRevisionId', 'initialExtractionJobId')
     .orderBy((member) => member.sourceDocumentId.asc()).all()
   const members: BatchMember[] = []
   for (const member of memberRows) {
+    const job = await orm.public.ExtractionJob.select(
+      'executionStatus', 'failure', 'startedAt', 'finishedAt',
+    ).first({
+      id: member.initialExtractionJobId,
+      batchExtractionId,
+      sourceDocumentId: member.sourceDocumentId,
+      sourceRepresentationRevisionId: member.sourceRepresentationRevisionId,
+    })
+    if (!job) throw new Error('Stored Batch Extraction member job is unavailable.')
     const extraction = await orm.public.Extraction.where({
       batchExtractionId,
       sourceDocumentId: member.sourceDocumentId,
       sourceRepresentationRevisionId: member.sourceRepresentationRevisionId,
     }).select('id', 'outcome', 'complete', 'reviewable', 'createdAt', 'reviewedAt', 'failure')
       .orderBy([(attempt) => attempt.createdAt.desc(), (attempt) => attempt.id.desc()]).first()
+    if (job.executionStatus === 'COMPLETED' && !extraction)
+      throw new Error('Completed Batch Extraction member is missing its Extraction.')
     members.push({
       sourceDocumentId: member.sourceDocumentId,
       sourceRepresentationRevisionId: member.sourceRepresentationRevisionId,
-      executionStatus: member.executionStatus as Status,
-      executionFailure: member.failure,
-      startedAt: member.startedAt,
-      finishedAt: member.finishedAt,
+      executionStatus: job.executionStatus,
+      executionFailure: job.failure,
+      startedAt: job.startedAt,
+      finishedAt: job.finishedAt,
       latestExtraction: extraction ? {
         extractionId: extraction.id,
         outcome: extraction.outcome,
@@ -301,6 +602,22 @@ export async function loadBatch(
       } : null,
     })
   }
+  const executionStatus: Status = members.every((member) =>
+    member.executionStatus === 'QUEUED')
+    ? 'QUEUED'
+    : members.every((member) =>
+        member.executionStatus === 'COMPLETED' ||
+        member.executionStatus === 'FAILED')
+      ? 'COMPLETED'
+      : 'RUNNING'
+  const started = members
+    .map((member) => member.startedAt)
+    .filter((value): value is Date => value !== null)
+    .sort((left, right) => left.getTime() - right.getTime())
+  const finished = members
+    .map((member) => member.finishedAt)
+    .filter((value): value is Date => value !== null)
+    .sort((left, right) => right.getTime() - left.getTime())
   return {
     batchExtractionId: row.id,
     projectContextId,
@@ -309,48 +626,109 @@ export async function loadBatch(
     extractionSchemaName: owner.name,
     schemaRevisionNumber: schema.revisionNumber,
     strategy: row.strategy as ExtractionStrategy,
-    executionStatus: row.executionStatus as Status,
-    executionFailure: row.failure,
-    startedAt: row.startedAt,
-    finishedAt: row.finishedAt,
-    leaseOwner: row.leaseOwner,
-    leaseVersion: row.leaseVersion,
-    leaseExpiresAt: row.leaseExpiresAt,
+    executionStatus,
+    executionFailure: null,
+    startedAt: started[0] ?? null,
+    finishedAt: executionStatus === 'COMPLETED' ? finished[0] ?? null : null,
     createdAt: row.createdAt,
     members,
   }
+}
+
+type ResultDecision = Readonly<{
+  resultPath: ResultPath
+  action: ReviewDecisionAction
+  reviewedValue: unknown
+}>
+
+/** Mirrors the client-side projection in `reviewDecisions.ts` (`applyReviewDecisions`),
+ *  so an exported Batch result reflects a saved review the same way the Studio UI does:
+ *  REJECTED clears the value, EDITED overwrites it, APPROVED leaves the raw value alone. */
+function applyReviewDecisionsToResult(result: unknown, decisions: readonly ResultDecision[]): unknown {
+  const copy = structuredClone(result)
+  for (const decision of decisions) {
+    if (decision.action === 'APPROVED') continue
+    setAtPath(copy, decision.resultPath, decision.action === 'EDITED' ? decision.reviewedValue : null)
+  }
+  return copy
+}
+
+function setAtPath(root: unknown, path: readonly (string | number)[], value: unknown) {
+  if (path.length === 0) return
+  let parent = root
+  for (const segment of path.slice(0, -1)) {
+    if (parent === null || typeof parent !== 'object') return
+    parent = (parent as Record<string | number, unknown>)[segment]
+  }
+  if (parent !== null && typeof parent === 'object')
+    (parent as Record<string | number, unknown>)[path[path.length - 1]] = value
+}
+
+/** Batch-loads the finalized Review Decisions for several Extractions at once, keyed
+ *  by extractionId. `finalizeReview` only ever writes one `ExtractionReview` revision
+ *  per Extraction — a second submission is rejected as 'conflict'/'replayed' before a
+ *  second revision is created — so there is at most one review per id here. */
+async function loadFinalizedDecisions(
+  orm: DatabaseOrm,
+  extractionIds: readonly string[],
+): Promise<Map<string, readonly ResultDecision[]>> {
+  const reviews = await orm.public.ExtractionReview
+    .where((review) => review.extractionId.in([...extractionIds]))
+    .select('id', 'extractionId')
+    .all()
+  const byExtractionId = new Map<string, ResultDecision[]>()
+  if (reviews.length === 0) return byExtractionId
+  const extractionIdByReviewId = new Map(reviews.map((review) => [review.id, review.extractionId]))
+  const decisionRows = await orm.public.ReviewDecision
+    .where((decision) => decision.extractionReviewId.in(reviews.map((review) => review.id)))
+    .select('extractionReviewId', 'resultPath', 'action', 'reviewedValue')
+    .all()
+  for (const row of decisionRows) {
+    const extractionId = extractionIdByReviewId.get(row.extractionReviewId)
+    if (!extractionId) continue
+    const bucket = byExtractionId.get(extractionId) ?? []
+    bucket.push({
+      resultPath: row.resultPath as ResultPath,
+      action: row.action as ReviewDecisionAction,
+      reviewedValue: decodeReviewedValue(row.reviewedValue),
+    })
+    byExtractionId.set(extractionId, bucket)
+  }
+  return byExtractionId
 }
 
 async function loadResults(
   orm: DatabaseOrm,
   input: ReadBatchInput,
 ): Promise<BatchExtractionResults | null> {
-  const batch = (await orm.public.BatchExtraction.select('id', 'executionStatus')
-    .include('members' as never, (members) => members
-      .select('sourceDocumentId', 'sourceRepresentationRevisionId', 'executionStatus')
-      .orderBy((member) => member.sourceDocumentId.asc()))
-    .include('extractions' as never, (attempts) => attempts
-      .select('id', 'sourceDocumentId', 'sourceRepresentationRevisionId', 'outcome', 'resultPayload', 'createdAt')
-      .orderBy([(attempt) => attempt.createdAt.desc(), (attempt) => attempt.id.desc()]))
-    .first({ id: input.batchExtractionId, projectContextId: input.projectContextId })) as unknown as {
-      id: string
-      executionStatus: Status
-      members: Array<{ sourceDocumentId: string; sourceRepresentationRevisionId: string; executionStatus: Status }>
-      extractions: Array<{
-        id: string
-        sourceDocumentId: string
-        sourceRepresentationRevisionId: string
-        outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
-        resultPayload: unknown | null
-        createdAt: Date
-      }>
-    } | null
+  const batch = await loadBatch(
+    orm,
+    input.projectContextId,
+    input.batchExtractionId,
+  )
   if (!batch) return null
-  const latest = new Map<string, (typeof batch.extractions)[number]>()
-  for (const extraction of batch.extractions) {
+  const extractions = await orm.public.Extraction.where({
+    batchExtractionId: input.batchExtractionId,
+  }).select(
+    'id', 'sourceDocumentId', 'sourceRepresentationRevisionId',
+    'outcome', 'resultPayload', 'reviewedAt', 'createdAt',
+  ).orderBy([
+    (attempt) => attempt.createdAt.desc(),
+    (attempt) => attempt.id.desc(),
+  ]).all()
+  const latest = new Map<string, (typeof extractions)[number]>()
+  for (const extraction of extractions) {
     const key = `${extraction.sourceDocumentId}:${extraction.sourceRepresentationRevisionId}`
     if (!latest.has(key)) latest.set(key, extraction)
   }
+  const reviewedExtractionIds = [...latest.values()]
+    .filter((extraction) =>
+      extraction.outcome === 'SUCCEEDED' && extraction.resultPayload !== null && extraction.reviewedAt !== null,
+    )
+    .map((extraction) => extraction.id)
+  const decisionsByExtractionId = reviewedExtractionIds.length > 0
+    ? await loadFinalizedDecisions(orm, reviewedExtractionIds)
+    : new Map<string, readonly ResultDecision[]>()
   const results: Array<BatchExtractionResults['results'][number]> = []
   let pending = 0
   let failed = 0
@@ -359,20 +737,29 @@ async function loadResults(
     const extraction = latest.get(`${member.sourceDocumentId}:${member.sourceRepresentationRevisionId}`)
     if (!extraction) {
       if (member.executionStatus === 'QUEUED' || member.executionStatus === 'RUNNING') pending += 1
-      else if (member.executionStatus === 'FAILED') failed += 1
+      else if (member.executionStatus === 'FAILED') {
+        const code = member.executionFailure && typeof member.executionFailure === 'object'
+          ? (member.executionFailure as { code?: unknown }).code
+          : null
+        if (code === 'cancelled') cancelled += 1
+        else failed += 1
+      }
       continue
     }
     if (extraction.outcome === 'FAILED') { failed += 1; continue }
     if (extraction.outcome === 'CANCELLED') { cancelled += 1; continue }
     if (extraction.outcome !== 'SUCCEEDED' || extraction.resultPayload === null) continue
+    const decisions = decisionsByExtractionId.get(extraction.id)
     results.push({
       sourceDocumentId: member.sourceDocumentId,
       extractionId: extraction.id,
-      result: extraction.resultPayload as Record<string, unknown>,
+      result: (decisions
+        ? applyReviewDecisionsToResult(extraction.resultPayload, decisions)
+        : extraction.resultPayload) as Record<string, unknown>,
     })
   }
   return {
-    batchExtractionId: batch.id,
+    batchExtractionId: batch.batchExtractionId,
     executionStatus: batch.executionStatus,
     totalMembers: batch.members.length,
     successfulResults: results.length,
@@ -455,37 +842,69 @@ type DatabaseTransaction = Parameters<
   Parameters<Database['transaction']>[0]
 >[0]
 
-async function ownsResearcherExtraction(
+async function ownsResearcherJob(
   transaction: DatabaseTransaction,
   researcherAccountId: string,
   extractionId: string,
 ): Promise<boolean> {
   const { sql } = transaction
-  const query = sql.public.extraction
-    .innerJoin(sql.public.sourceDocument, (fields, functions) =>
-      functions.eq(
-        fields.extraction.sourceDocumentId,
-        fields.sourceDocument.id,
-      ),
-    )
+  const query = sql.public.extractionJob
     .innerJoin(sql.public.projectContext, (fields, functions) =>
       functions.eq(
-        fields.sourceDocument.projectContextId,
+        fields.extractionJob.projectContextId,
         fields.projectContext.id,
       ),
     )
-    .select('extractionId', (fields) => fields.extraction.id)
+    .select('extractionId', (fields) => fields.extractionJob.id)
     .where((fields, functions) =>
       functions.and(
-        functions.eq(fields.extraction.id, extractionId),
+        functions.eq(fields.extractionJob.id, extractionId),
         functions.eq(
           fields.projectContext.researcherAccountId,
           researcherAccountId,
         ),
       ),
     )
-  const row = await transaction.execute(query.build()).first()
-  return row !== null
+  return (await transaction.execute(query.build()).first()) !== null
+}
+
+async function cancelInteractiveExtraction(
+  database: Database,
+  extractionId: string,
+  researcherAccountId: string | null,
+): Promise<CancellationResult> {
+  return database.transaction(async (transaction) => {
+    if (researcherAccountId && !(await ownsResearcherJob(
+      transaction,
+      researcherAccountId,
+      extractionId,
+    ))) return 'not-found'
+    const row = await transaction.orm.public.ExtractionJob.select(
+      'kind', 'executionStatus',
+    ).first({ id: extractionId })
+    if (!row || row.kind !== 'INTERACTIVE' ||
+        (row.executionStatus !== 'QUEUED' && row.executionStatus !== 'RUNNING'))
+      return 'not-found'
+    const now = new Date()
+    if (row.executionStatus === 'QUEUED') {
+      const cancelled = await transaction.orm.public.ExtractionJob.where({
+        id: extractionId,
+        kind: 'INTERACTIVE',
+        executionStatus: 'QUEUED',
+      }).update({
+        executionStatus: 'FAILED',
+        failure: { code: 'cancelled', message: 'Extraction cancelled.', phase: 'loading' },
+        finishedAt: now,
+      })
+      if (cancelled) return 'cancellation-requested'
+    }
+    const requested = await transaction.orm.public.ExtractionJob.where({
+      id: extractionId,
+      kind: 'INTERACTIVE',
+      executionStatus: 'RUNNING',
+    }).update({ cancelRequestedAt: now })
+    return requested ? 'cancellation-requested' : 'not-found'
+  })
 }
 
 async function ownsResearcherDocument(
@@ -553,46 +972,14 @@ async function loadResearcherExtraction(
   extractionId: string,
 ): Promise<ExtractionSnapshot | null> {
   if (
-    !(await ownsResearcherExtraction(
+    !(await ownsResearcherJob(
       transaction,
       researcherAccountId,
       extractionId,
     ))
   )
     return null
-  return loadExtraction(transaction.orm, extractionId)
-}
-
-export type InternalBatchExtractionWorkerStore = {
-  claimBatch(
-    owner: string,
-    now: Date,
-    leaseExpiresAt: Date,
-  ): Promise<ClaimedBatchExtraction | null>
-  renewBatchLease(
-    batchExtractionId: string,
-    lease: OperationLease,
-    leaseExpiresAt: Date,
-  ): Promise<boolean>
-  startBatchMember(
-    batchExtractionId: string,
-    sourceDocumentId: string,
-    lease: OperationLease,
-    startedAt: Date,
-  ): Promise<boolean>
-  completeBatchMember(
-    batchExtractionId: string,
-    sourceDocumentId: string,
-    lease: OperationLease,
-    result: Readonly<{ completed: true }> | Readonly<{ failure: unknown }>,
-    finishedAt: Date,
-  ): Promise<boolean>
-  failBatch(
-    batchExtractionId: string,
-    lease: OperationLease,
-    failure: unknown,
-    finishedAt: Date,
-  ): Promise<boolean>
+  return loadCompletedJobExtraction(transaction.orm, extractionId)
 }
 
 class PostgresExtractionPersistence implements ExtractionPersistence {
@@ -649,130 +1036,27 @@ class PostgresExtractionPersistence implements ExtractionPersistence {
     return JSON.parse(new TextDecoder().decode(artifact.bytes))
   }
 
-  readExtraction(extractionId: string) { return loadExtraction(this.database.orm, extractionId) }
+  readExtraction(extractionId: string) {
+    return loadCompletedJobExtraction(this.database.orm, extractionId)
+  }
 
-  async isExtractionIdAvailable(extractionId: string): Promise<boolean> {
-    return (
-      (await this.database.orm.public.Extraction.select('id').first({
-        id: extractionId,
-      })) === null
-    )
+  scheduleExtraction(input: RunSingleInput): Promise<RunSingleResult | null> {
+    return scheduleInteractiveExtraction(this.database, input, null)
+  }
+
+  readExtractionAttempt(extractionId: string): Promise<ExtractionAttemptSnapshot | null> {
+    return loadExtractionAttempt(this.database.orm, extractionId)
+  }
+
+  cancelExtraction(extractionId: string): Promise<CancellationResult> {
+    return cancelInteractiveExtraction(this.database, extractionId, null)
   }
 
   async readDocumentExtractions(
     input: ReadDocumentExtractionsInput,
   ): Promise<DocumentExtractionsSnapshot | null> {
-    return this.database.transaction(async ({ orm }) => {
-      const selected = input.extractionId
-        ? await orm.public.Extraction.select(
-            'id',
-            'sourceRepresentationRevisionId',
-          ).first({
-            id: input.extractionId,
-            sourceDocumentId: input.sourceDocumentId,
-          })
-        : null
-      if (input.extractionId && !selected) return null
-
-      const representationId = selected?.sourceRepresentationRevisionId ??
-        (await orm.public.SourceRepresentationRevision.where({
-          sourceDocumentId: input.sourceDocumentId,
-        })
-          .select('id')
-          .orderBy([
-            (revision) => revision.revisionNumber.desc(),
-            (revision) => revision.id.desc(),
-          ])
-          .first())?.id
-      if (!representationId) return null
-
-      const latestAttemptRow = selected ??
-        await orm.public.Extraction.where({
-          sourceDocumentId: input.sourceDocumentId,
-        })
-          .select('id')
-          .orderBy([
-            (attempt) => attempt.createdAt.desc(),
-            (attempt) => attempt.id.desc(),
-          ])
-          .first()
-      const latestAttempt = latestAttemptRow
-        ? await loadExtraction(orm, latestAttemptRow.id)
-        : null
-
-      const latestReviewedRow = await orm.public.Extraction.where({
-        sourceDocumentId: input.sourceDocumentId,
-      })
-        .where((attempt) => attempt.reviewedAt.isNotNull())
-        .select('id')
-        .orderBy([
-          (attempt) => attempt.reviewedAt.desc(),
-          (attempt) => attempt.createdAt.desc(),
-          (attempt) => attempt.id.desc(),
-        ])
-        .first()
-      return {
-        sourceRepresentationRevisionId: representationId,
-        latestAttempt,
-        latestReviewed: latestReviewedRow
-          ? await loadExtraction(orm, latestReviewedRow.id)
-          : null,
-      }
-    })
-  }
-
-  async persistExtraction(input: TerminalExtraction): Promise<PersistExtractionResult> {
-    try {
-      const created = await this.database.transaction(async ({ orm }) => {
-        const representation = await orm.public.SourceRepresentationRevision.select('id', 'sourceDocumentId').first({
-          id: input.sourceRepresentationRevisionId,
-          sourceDocumentId: input.sourceDocumentId,
-        })
-        const document = representation
-          ? await orm.public.SourceDocument.select('projectContextId').first({ id: representation.sourceDocumentId }) : null
-        const schema = await orm.public.SchemaRevision.select('id', 'extractionSchemaId').first({ id: input.schemaRevisionId })
-        const owner = schema
-          ? await orm.public.ExtractionSchema.select('projectContextId').first({ id: schema.extractionSchemaId }) : null
-        if (!representation || !document || !schema || !owner || owner.projectContextId !== document.projectContextId) return false
-        if (input.batchExtractionId) {
-          const member = await orm.public.BatchExtractionMember.select('batchExtractionId').first({
-            batchExtractionId: input.batchExtractionId,
-            sourceDocumentId: input.sourceDocumentId,
-            sourceRepresentationRevisionId: input.sourceRepresentationRevisionId,
-          })
-          if (!member) return false
-        }
-        await orm.public.Extraction.create({
-          id: input.extractionId,
-          sourceDocumentId: input.sourceDocumentId,
-          sourceRepresentationRevisionId: input.sourceRepresentationRevisionId,
-          schemaRevisionId: input.schemaRevisionId,
-          strategy: input.strategy,
-          outcome: input.outcome,
-          complete: input.complete,
-          modelAttribution: input.modelAttribution,
-          diagnostics: input.diagnostics,
-          failure: input.failure,
-          resultPayload: input.result,
-          evidenceLinks: input.evidence,
-          reviewable: input.reviewable,
-          retryOfId: input.retryOfId,
-          batchExtractionId: input.batchExtractionId,
-        })
-        return true
-      })
-      if (!created) return { status: 'invalid' }
-      const extraction = await loadExtraction(this.database.orm, input.extractionId)
-      if (!extraction) throw new Error('Persisted Extraction could not be read.')
-      return { status: 'created', extraction }
-    } catch (error) {
-      if (!uniqueConstraint(error)) throw error
-      const extraction = await loadExtraction(this.database.orm, input.extractionId)
-      if (!extraction) throw error
-      return extractionIdentityMatches(extraction, input)
-        ? { status: 'replayed', extraction }
-        : { status: 'conflict', extraction }
-    }
+    return this.database.transaction(({ orm }) =>
+      loadDocumentExtractions(orm, input))
   }
 
   async finalizeReview(extractionId: string, authority: ReviewAuthority): Promise<PersistedReviewResult> {
@@ -783,7 +1067,7 @@ class PostgresExtractionPersistence implements ExtractionPersistence {
     let status: 'not-found' | 'invalid' | 'conflict' | 'replayed' | 'reviewed'
     try {
       status = await this.database.transaction(async ({ orm }) => {
-        const extraction = await loadExtraction(orm, extractionId)
+        const extraction = await loadCompletedJobExtraction(orm, extractionId)
         if (!extraction) return 'not-found' as const
         if (extraction.outcome !== 'SUCCEEDED' || !extraction.reviewable || !Array.isArray(extraction.evidence)) return 'invalid' as const
         if (!reviewAuthorityMatchesExtraction(extraction, submitted, authority))
@@ -810,7 +1094,7 @@ class PostgresExtractionPersistence implements ExtractionPersistence {
       status = (await reviewDigest(this.database.orm, extractionId)) === digest ? 'replayed' : 'conflict'
     }
     if (status === 'not-found' || status === 'invalid' || status === 'conflict') return { status }
-    const extraction = await loadExtraction(this.database.orm, extractionId)
+    const extraction = await loadCompletedJobExtraction(this.database.orm, extractionId)
     if (!extraction) throw new Error('Reviewed Extraction could not be read.')
     return { status, extraction }
   }
@@ -847,7 +1131,26 @@ class PostgresExtractionPersistence implements ExtractionPersistence {
           schemaRevisionId: input.schemaRevisionId,
           strategy: input.strategy,
         })
-        for (const member of members) await orm.public.BatchExtractionMember.create({ batchExtractionId, ...member })
+        for (const member of members) {
+          const initialExtractionJobId = stableUuid(
+            'batch-member-extraction-job',
+            stableJson([batchExtractionId, member.sourceRepresentationRevisionId]),
+          )
+          await orm.public.ExtractionJob.create({
+            id: initialExtractionJobId,
+            kind: 'BATCH_MEMBER',
+            projectContextId: input.projectContextId,
+            ...member,
+            schemaRevisionId: input.schemaRevisionId,
+            strategy: input.strategy,
+            batchExtractionId,
+          })
+          await orm.public.BatchExtractionMember.create({
+            batchExtractionId,
+            ...member,
+            initialExtractionJobId,
+          })
+        }
         return 'created' as const
       })
       if (opened === 'missing') return null
@@ -894,61 +1197,277 @@ class PostgresExtractionPersistence implements ExtractionPersistence {
     return batch ? snapshot(batch) : null
   }
   readBatchResults(input: ReadBatchInput) { return loadResults(this.database.orm, input) }
-  async claimBatch(owner: string, now: Date, leaseExpiresAt: Date): Promise<ClaimedBatchExtraction | null> {
-    const queued = await this.database.orm.public.BatchExtraction.where({ executionStatus: 'QUEUED' })
-      .select('id', 'leaseVersion', 'startedAt').orderBy((batch) => batch.createdAt.asc()).first()
-    const running = queued ? null : (await this.database.orm.public.BatchExtraction.where({ executionStatus: 'RUNNING' })
-      .select('id', 'leaseVersion', 'startedAt', 'leaseExpiresAt').orderBy((batch) => batch.createdAt.asc()).all())
-      .find((batch) => batch.leaseExpiresAt === null || batch.leaseExpiresAt.getTime() <= now.getTime())
-    const candidate = queued ?? running
-    if (!candidate) return null
-    const version = candidate.leaseVersion + 1
-    const claimed = await this.database.orm.public.BatchExtraction.where({ id: candidate.id, leaseVersion: candidate.leaseVersion }).update({
-      executionStatus: 'RUNNING', failure: null, startedAt: candidate.startedAt ?? now,
-      finishedAt: null, leaseOwner: owner, leaseVersion: version, leaseExpiresAt,
-    })
-    if (!claimed) return null
-    const batch = await loadBatch(this.database.orm, claimed.projectContextId, candidate.id)
-    return batch ? { ...batch, lease: { owner, version, expiresAt: leaseExpiresAt } } : null
+  async claim(
+    owner: string,
+    now: Date,
+    leaseExpiresAt: Date,
+  ): Promise<ClaimedExtractionJob | null> {
+    for (const kind of ['INTERACTIVE', 'BATCH_MEMBER'] as const) {
+      const queued = await this.database.orm.public.ExtractionJob.where({
+        kind,
+        executionStatus: 'QUEUED',
+      }).select(
+        'id', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy',
+        'retryOfId', 'retryDocument', 'rediscover', 'retryRecordStartBlockIds',
+        'batchExtractionId', 'leaseVersion', 'startedAt', 'createdAt',
+        'complete', 'modelAttribution', 'diagnostics', 'resultPayload',
+      ).orderBy([
+        (job) => job.createdAt.asc(),
+        (job) => job.id.asc(),
+      ]).first()
+      const expired = await this.database.orm.public.ExtractionJob.where({
+        kind,
+        executionStatus: 'RUNNING',
+      }).select(
+        'id', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy',
+        'retryOfId', 'retryDocument', 'rediscover', 'retryRecordStartBlockIds',
+        'batchExtractionId', 'leaseVersion', 'leaseExpiresAt', 'startedAt', 'createdAt',
+        'cancelRequestedAt', 'complete', 'modelAttribution', 'diagnostics', 'resultPayload',
+      ).orderBy([
+        (job) => job.createdAt.asc(),
+        (job) => job.id.asc(),
+      ]).all()
+      const reclaimable = expired.find((job) =>
+        job.leaseExpiresAt === null || job.leaseExpiresAt.getTime() <= now.getTime())
+      const candidate = [queued, reclaimable]
+        .filter((job): job is NonNullable<typeof queued | typeof reclaimable> => job !== null && job !== undefined)
+        .sort((left, right) =>
+          left.createdAt.getTime() - right.createdAt.getTime() ||
+          left.id.localeCompare(right.id))[0]
+      if (!candidate) continue
+      if ('cancelRequestedAt' in candidate && candidate.cancelRequestedAt !== null) {
+        await this.database.orm.public.ExtractionJob.where({
+          id: candidate.id,
+          leaseVersion: candidate.leaseVersion,
+          executionStatus: 'RUNNING',
+        }).update({
+          executionStatus: 'FAILED',
+          failure: {
+            code: 'cancelled',
+            message: 'Extraction cancelled.',
+            phase: candidate.resultPayload === null ? 'extracting' : 'grounding',
+          },
+          finishedAt: now,
+          leaseOwner: null,
+          leaseExpiresAt: null,
+        })
+        return this.claim(owner, now, leaseExpiresAt)
+      }
+      const version = candidate.leaseVersion + 1
+      const claimIdentity = {
+        id: candidate.id,
+        leaseVersion: candidate.leaseVersion,
+        executionStatus: queued?.id === candidate.id ? 'QUEUED' : 'RUNNING',
+      } as const
+      const claimUpdate = {
+        executionStatus: 'RUNNING',
+        failure: null,
+        startedAt: candidate.startedAt ?? now,
+        finishedAt: null,
+        leaseOwner: owner,
+        leaseVersion: version,
+        leaseExpiresAt,
+      } as const
+      let claimed = queued?.id === candidate.id
+        ? await this.database.orm.public.ExtractionJob.where(claimIdentity)
+          .update(claimUpdate)
+        : await this.database.orm.public.ExtractionJob.where({
+            ...claimIdentity,
+            executionStatus: 'RUNNING',
+          }).where((job) => job.leaseExpiresAt.lte(now)).update(claimUpdate)
+      if (!claimed && queued?.id !== candidate.id)
+        claimed = await this.database.orm.public.ExtractionJob.where({
+          ...claimIdentity,
+          executionStatus: 'RUNNING',
+          leaseExpiresAt: null,
+        }).update(claimUpdate)
+      if (!claimed) return this.claim(owner, now, leaseExpiresAt)
+      const retryRecordStartBlockIds = candidate.retryRecordStartBlockIds
+      const input = candidate.retryOfId
+        ? {
+            kind: 'retry' as const,
+            extractionId: candidate.id,
+            retryOfId: candidate.retryOfId,
+            retryDocument: candidate.retryDocument ?? true,
+            rediscover: candidate.rediscover ?? true,
+            retryRecordStartBlockIds: Array.isArray(retryRecordStartBlockIds)
+              ? retryRecordStartBlockIds.filter((id): id is string => typeof id === 'string')
+              : [],
+          }
+        : candidate.batchExtractionId
+          ? {
+              kind: 'batch-member' as const,
+              extractionId: candidate.id,
+              sourceRepresentationRevisionId: candidate.sourceRepresentationRevisionId,
+              schemaRevisionId: candidate.schemaRevisionId,
+              strategy: candidate.strategy,
+              batchExtractionId: candidate.batchExtractionId,
+            }
+          : {
+              kind: 'fresh' as const,
+              extractionId: candidate.id,
+              sourceRepresentationRevisionId: candidate.sourceRepresentationRevisionId,
+              schemaRevisionId: candidate.schemaRevisionId,
+              strategy: candidate.strategy,
+            }
+      const checkpoint = candidate.resultPayload !== null &&
+          candidate.complete !== null &&
+          candidate.modelAttribution !== null &&
+          candidate.diagnostics !== null
+        ? {
+            result: candidate.resultPayload as Readonly<Record<string, unknown>>,
+            complete: candidate.complete,
+            modelAttribution: candidate.modelAttribution as ExtractionValueCheckpoint['modelAttribution'],
+            diagnostics: candidate.diagnostics as ExtractionValueCheckpoint['diagnostics'],
+          }
+        : null
+      return {
+        input,
+        checkpoint,
+        lease: { owner, version, expiresAt: leaseExpiresAt },
+      }
+    }
+    return null
   }
-  async renewBatchLease(id: string, lease: OperationLease, expiresAt: Date): Promise<boolean> {
-    return Boolean(await this.database.orm.public.BatchExtraction.where({ id, leaseOwner: lease.owner, leaseVersion: lease.version }).update({ leaseExpiresAt: expiresAt }))
-  }
-  async startBatchMember(id: string, sourceDocumentId: string, lease: OperationLease, startedAt: Date): Promise<boolean> {
-    return this.database.transaction(async ({ orm }) => {
-      if (!await orm.public.BatchExtraction.select('id').first({ id, leaseOwner: lease.owner, leaseVersion: lease.version, executionStatus: 'RUNNING' })) return false
-      return Boolean(await orm.public.BatchExtractionMember.where({ batchExtractionId: id, sourceDocumentId }).update({
-        executionStatus: 'RUNNING', failure: null, startedAt, finishedAt: null,
-      }))
-    })
-  }
-  async completeBatchMember(
+
+  async renew(
     id: string,
-    sourceDocumentId: string,
-    lease: OperationLease,
-    result: Readonly<{ completed: true }> | Readonly<{ failure: unknown }>,
+    lease: ClaimedExtractionJob['lease'],
+    expiresAt: Date,
+  ): Promise<'owned' | 'cancelled' | 'lost'> {
+    const row = await this.database.orm.public.ExtractionJob.select(
+      'cancelRequestedAt',
+    ).first({
+      id,
+      executionStatus: 'RUNNING',
+      leaseOwner: lease.owner,
+      leaseVersion: lease.version,
+    })
+    if (!row) return 'lost'
+    if (row.cancelRequestedAt !== null) return 'cancelled'
+    return await this.database.orm.public.ExtractionJob.where({
+      id,
+      executionStatus: 'RUNNING',
+      leaseOwner: lease.owner,
+      leaseVersion: lease.version,
+    }).update({ leaseExpiresAt: expiresAt }) ? 'owned' : 'lost'
+  }
+
+  async checkpoint(
+    id: string,
+    lease: ClaimedExtractionJob['lease'],
+    checkpoint: ExtractionValueCheckpoint,
+  ): Promise<boolean> {
+    return Boolean(await this.database.orm.public.ExtractionJob.where({
+      id,
+      executionStatus: 'RUNNING',
+      leaseOwner: lease.owner,
+      leaseVersion: lease.version,
+      cancelRequestedAt: null,
+    }).update({
+      complete: checkpoint.complete,
+      modelAttribution: checkpoint.modelAttribution,
+      diagnostics: checkpoint.diagnostics,
+      resultPayload: checkpoint.result,
+    }))
+  }
+
+  async complete(
+    id: string,
+    lease: ClaimedExtractionJob['lease'],
+    input: TerminalExtraction,
     finishedAt: Date,
   ): Promise<boolean> {
     return this.database.transaction(async ({ orm }) => {
-      if (!await orm.public.BatchExtraction.select('id').first({ id, leaseOwner: lease.owner, leaseVersion: lease.version, executionStatus: 'RUNNING' })) return false
-      const updated = await orm.public.BatchExtractionMember.where({ batchExtractionId: id, sourceDocumentId }).update(
-        'completed' in result
-          ? { executionStatus: 'COMPLETED', failure: null, finishedAt }
-          : { executionStatus: 'FAILED', failure: result.failure, finishedAt })
-      if (!updated) return false
-      const members = await orm.public.BatchExtractionMember.where({ batchExtractionId: id }).select('executionStatus').all()
-      if (members.length && members.every((member) => member.executionStatus === 'COMPLETED' || member.executionStatus === 'FAILED')) {
-        await orm.public.BatchExtraction.where({ id, leaseOwner: lease.owner, leaseVersion: lease.version }).update({
-          executionStatus: 'COMPLETED', finishedAt, leaseOwner: null, leaseExpiresAt: null,
-        })
-      }
+      const job = await orm.public.ExtractionJob.select('id').first({
+        id,
+        executionStatus: 'RUNNING',
+        leaseOwner: lease.owner,
+        leaseVersion: lease.version,
+        cancelRequestedAt: null,
+      })
+      if (!job) return false
+      await orm.public.Extraction.create({
+        id: input.extractionId,
+        sourceDocumentId: input.sourceDocumentId,
+        sourceRepresentationRevisionId: input.sourceRepresentationRevisionId,
+        schemaRevisionId: input.schemaRevisionId,
+        strategy: input.strategy,
+        outcome: 'SUCCEEDED',
+        complete: input.complete,
+        modelAttribution: input.modelAttribution,
+        diagnostics: input.diagnostics,
+        failure: null,
+        resultPayload: input.result,
+        evidenceLinks: input.evidence,
+        reviewable: input.reviewable,
+        retryOfId: input.retryOfId,
+        batchExtractionId: input.batchExtractionId,
+      })
+      const updated = await orm.public.ExtractionJob.where({
+        id,
+        executionStatus: 'RUNNING',
+        leaseOwner: lease.owner,
+        leaseVersion: lease.version,
+        cancelRequestedAt: null,
+      }).update({
+        executionStatus: 'COMPLETED',
+        complete: null,
+        modelAttribution: null,
+        diagnostics: null,
+        resultPayload: null,
+        failure: null,
+        finishedAt,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+      })
+      if (!updated)
+        throw new Error('Extraction Job lease was lost during terminal promotion.')
       return true
     })
   }
-  async failBatch(id: string, lease: OperationLease, failure: unknown, finishedAt: Date): Promise<boolean> {
-    return Boolean(await this.database.orm.public.BatchExtraction.where({ id, leaseOwner: lease.owner, leaseVersion: lease.version }).update({
-      executionStatus: 'FAILED', failure, finishedAt, leaseOwner: null, leaseExpiresAt: null,
-    }))
+
+  async fail(
+    id: string,
+    lease: ClaimedExtractionJob['lease'],
+    failure: ExtractionJobFailure,
+    finishedAt: Date,
+  ): Promise<boolean> {
+    const active = {
+      id,
+      executionStatus: 'RUNNING',
+      leaseOwner: lease.owner,
+      leaseVersion: lease.version,
+    } as const
+    const failed = await this.database.orm.public.ExtractionJob.where({
+      ...active,
+      cancelRequestedAt: null,
+    }).update({
+      executionStatus: 'FAILED',
+      failure,
+      finishedAt,
+      leaseOwner: null,
+      leaseExpiresAt: null,
+    })
+    if (failed) return true
+    return Boolean(await this.database.orm.public.ExtractionJob.where({
+      id,
+      executionStatus: 'RUNNING',
+      leaseOwner: lease.owner,
+      leaseVersion: lease.version,
+    })
+      .where((job) => job.cancelRequestedAt.isNotNull())
+      .update({
+        executionStatus: 'FAILED',
+        failure: {
+          code: 'cancelled',
+          message: 'Extraction cancelled.',
+          phase: failure.phase,
+        },
+        finishedAt,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+      }))
   }
 }
 class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
@@ -1118,11 +1637,39 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
     )
   }
 
-  async isExtractionIdAvailable(extractionId: string): Promise<boolean> {
-    return (
-      (await this.database.orm.public.Extraction.select('id').first({
+  scheduleExtraction(input: RunSingleInput): Promise<RunSingleResult | null> {
+    return scheduleInteractiveExtraction(
+      this.database,
+      input,
+      this.researcherAccountId,
+    )
+  }
+
+  readExtractionAttempt(
+    extractionId: string,
+  ): Promise<ExtractionAttemptSnapshot | null> {
+    return this.database.transaction(async (transaction) => {
+      const job = await transaction.orm.public.ExtractionJob.select(
+        'kind', 'executionStatus',
+      ).first({
         id: extractionId,
-      })) === null
+      })
+      if (!job ||
+          (job.kind !== 'INTERACTIVE' && job.executionStatus !== 'COMPLETED') ||
+          !(await ownsResearcherJob(
+        transaction,
+        this.researcherAccountId,
+        extractionId,
+      ))) return null
+      return loadExtractionAttempt(transaction.orm, extractionId)
+    })
+  }
+
+  cancelExtraction(extractionId: string): Promise<CancellationResult> {
+    return cancelInteractiveExtraction(
+      this.database,
+      extractionId,
+      this.researcherAccountId,
     )
   }
 
@@ -1130,122 +1677,13 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
     input: ReadDocumentExtractionsInput,
   ): Promise<DocumentExtractionsSnapshot | null> {
     return this.database.transaction(async (transaction) => {
-      const { orm } = transaction
-      if (
-        !(await ownsResearcherDocument(
-          transaction,
-          this.researcherAccountId,
-          input.sourceDocumentId,
-        ))
-      )
-        return null
-      const selected = input.extractionId
-        ? await orm.public.Extraction.select(
-            'id',
-            'sourceRepresentationRevisionId',
-          ).first({
-            id: input.extractionId,
-            sourceDocumentId: input.sourceDocumentId,
-          })
-        : null
-      if (input.extractionId && !selected) return null
-
-      const representationId =
-        selected?.sourceRepresentationRevisionId ??
-        (
-          await orm.public.SourceRepresentationRevision.where({
-            sourceDocumentId: input.sourceDocumentId,
-          })
-            .select('id')
-            .orderBy([
-              (revision) => revision.revisionNumber.desc(),
-              (revision) => revision.id.desc(),
-            ])
-            .first()
-        )?.id
-      if (!representationId) return null
-
-      const latestAttemptRow =
-        selected ??
-        (await orm.public.Extraction.where({
-          sourceDocumentId: input.sourceDocumentId,
-        })
-          .select('id')
-          .orderBy([
-            (attempt) => attempt.createdAt.desc(),
-            (attempt) => attempt.id.desc(),
-          ])
-          .first())
-      const latestAttempt = latestAttemptRow
-        ? await loadExtraction(orm, latestAttemptRow.id)
-        : null
-      const latestReviewedRow = await orm.public.Extraction.where({
-        sourceDocumentId: input.sourceDocumentId,
-      })
-        .where((attempt) => attempt.reviewedAt.isNotNull())
-        .select('id')
-        .orderBy([
-          (attempt) => attempt.reviewedAt.desc(),
-          (attempt) => attempt.createdAt.desc(),
-          (attempt) => attempt.id.desc(),
-        ])
-        .first()
-      return {
-        sourceRepresentationRevisionId: representationId,
-        latestAttempt,
-        latestReviewed: latestReviewedRow
-          ? await loadExtraction(orm, latestReviewedRow.id)
-          : null,
-      }
+      if (!(await ownsResearcherDocument(
+        transaction,
+        this.researcherAccountId,
+        input.sourceDocumentId,
+      ))) return null
+      return loadDocumentExtractions(transaction.orm, input)
     })
-  }
-
-  async persistExtraction(
-    input: TerminalExtraction,
-  ): Promise<PersistExtractionResult> {
-    if (input.batchExtractionId !== null) return { status: 'invalid' }
-    try {
-      const created = await this.database.transaction(async (transaction) => {
-        const inputs = await this.ownedInputs(
-          transaction,
-          input.sourceRepresentationRevisionId,
-          input.schemaRevisionId,
-        )
-        if (!inputs || inputs.sourceDocumentId !== input.sourceDocumentId)
-          return false
-        await transaction.orm.public.Extraction.create({
-          id: input.extractionId,
-          sourceDocumentId: input.sourceDocumentId,
-          sourceRepresentationRevisionId:
-            input.sourceRepresentationRevisionId,
-          schemaRevisionId: input.schemaRevisionId,
-          strategy: input.strategy,
-          outcome: input.outcome,
-          complete: input.complete,
-          modelAttribution: input.modelAttribution,
-          diagnostics: input.diagnostics,
-          failure: input.failure,
-          resultPayload: input.result,
-          evidenceLinks: input.evidence,
-          reviewable: input.reviewable,
-          retryOfId: input.retryOfId,
-          batchExtractionId: null,
-        })
-        return true
-      })
-      if (!created) return { status: 'invalid' }
-      const extraction = await this.readExtraction(input.extractionId)
-      if (!extraction)
-        throw new Error('Persisted Extraction could not be read.')
-      return { status: 'created', extraction }
-    } catch (error) {
-      if (!uniqueConstraint(error)) throw error
-      const extraction = await this.readExtraction(input.extractionId)
-      if (!extraction) throw error
-      return extractionIdentityMatches(extraction, input)
-        ? { status: 'replayed', extraction }
-        : { status: 'conflict', extraction }
-    }
   }
 
   async finalizeReview(
@@ -1304,7 +1742,7 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
       if (!uniqueConstraint(error)) throw error
       status = await this.database.transaction(async (transaction) => {
         if (
-          !(await ownsResearcherExtraction(
+          !(await ownsResearcherJob(
             transaction,
             this.researcherAccountId,
             extractionId,
@@ -1426,11 +1864,26 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
           schemaRevisionId: input.schemaRevisionId,
           strategy: input.strategy,
         })
-        for (const member of members)
+        for (const member of members) {
+          const initialExtractionJobId = stableUuid(
+            'batch-member-extraction-job',
+            stableJson([batchExtractionId, member.sourceRepresentationRevisionId]),
+          )
+          await orm.public.ExtractionJob.create({
+            id: initialExtractionJobId,
+            kind: 'BATCH_MEMBER',
+            projectContextId: input.projectContextId,
+            ...member,
+            schemaRevisionId: input.schemaRevisionId,
+            strategy: input.strategy,
+            batchExtractionId,
+          })
           await orm.public.BatchExtractionMember.create({
             batchExtractionId,
             ...member,
+            initialExtractionJobId,
           })
+        }
         return 'created' as const
       })
       if (opened === 'missing') return null
@@ -1548,308 +2001,6 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
   }
 }
 
-class ClaimedBatchPostgresExtractionPersistence implements ExtractionPersistence {
-  private readonly batchExtractionId: string
-  private readonly lease: OperationLease
-  private readonly database: Database
-  private readonly packages: CanonicalPackageStore
-
-  constructor(
-    batchExtractionId: string,
-    lease: OperationLease,
-    database: Database = db,
-    packages: CanonicalPackageStore = canonicalPackageStore,
-  ) {
-    this.batchExtractionId = batchExtractionId
-    this.lease = lease
-    this.database = database
-    this.packages = packages
-  }
-
-  private async claimedInputs(
-    transaction: DatabaseTransaction,
-    sourceRepresentationRevisionId: string,
-    schemaRevisionId: string,
-  ) {
-    const { sql } = transaction
-    const query = sql.public.batchExtraction
-      .innerJoin(sql.public.batchExtractionMember, (fields, functions) =>
-        functions.eq(
-          fields.batchExtraction.id,
-          fields.batchExtractionMember.batchExtractionId,
-        ),
-      )
-      .innerJoin(
-        sql.public.sourceRepresentationRevision,
-        (fields, functions) =>
-          functions.eq(
-            fields.batchExtractionMember.sourceRepresentationRevisionId,
-            fields.sourceRepresentationRevision.id,
-          ),
-      )
-      .innerJoin(sql.public.sourceDocument, (fields, functions) =>
-        functions.and(
-          functions.eq(
-            fields.batchExtractionMember.sourceDocumentId,
-            fields.sourceDocument.id,
-          ),
-          functions.eq(
-            fields.sourceRepresentationRevision.sourceDocumentId,
-            fields.sourceDocument.id,
-          ),
-        ),
-      )
-      .innerJoin(sql.public.schemaRevision, (fields, functions) =>
-        functions.eq(
-          fields.batchExtraction.schemaRevisionId,
-          fields.schemaRevision.id,
-        ),
-      )
-      .select((fields) => ({
-        sourceDocumentId: fields.sourceDocument.id,
-        projectContextId: fields.batchExtraction.projectContextId,
-        sourceRepresentationRevisionId:
-          fields.sourceRepresentationRevision.id,
-        artifactReference:
-          fields.sourceRepresentationRevision.artifactReference,
-        artifactSha256: fields.sourceRepresentationRevision.artifactSha256,
-        schemaRevisionId: fields.schemaRevision.id,
-        schemaTree: fields.schemaRevision.schemaTree,
-      }))
-      .where((fields, functions) =>
-        functions.and(
-          functions.eq(
-            fields.batchExtraction.id,
-            this.batchExtractionId,
-          ),
-          functions.eq(
-            fields.batchExtraction.leaseOwner,
-            this.lease.owner,
-          ),
-          functions.eq(
-            fields.batchExtraction.leaseVersion,
-            this.lease.version,
-          ),
-          functions.eq(
-            fields.batchExtraction.executionStatus,
-            'RUNNING',
-          ),
-          functions.eq(
-            fields.batchExtractionMember.executionStatus,
-            'RUNNING',
-          ),
-          functions.eq(
-            fields.sourceRepresentationRevision.id,
-            sourceRepresentationRevisionId,
-          ),
-          functions.eq(fields.schemaRevision.id, schemaRevisionId),
-        ),
-      )
-    return transaction.execute(query.build()).first()
-  }
-
-  private async ownsClaimedExtraction(
-    transaction: DatabaseTransaction,
-    extractionId: string,
-  ): Promise<boolean> {
-    const { sql } = transaction
-    const query = sql.public.extraction
-      .innerJoin(sql.public.batchExtraction, (fields, functions) =>
-        functions.eq(
-          fields.extraction.batchExtractionId,
-          fields.batchExtraction.id,
-        ),
-      )
-      .select('extractionId', (fields) => fields.extraction.id)
-      .where((fields, functions) =>
-        functions.and(
-          functions.eq(fields.extraction.id, extractionId),
-          functions.eq(
-            fields.batchExtraction.id,
-            this.batchExtractionId,
-          ),
-          functions.eq(
-            fields.batchExtraction.leaseOwner,
-            this.lease.owner,
-          ),
-          functions.eq(
-            fields.batchExtraction.leaseVersion,
-            this.lease.version,
-          ),
-          functions.eq(
-            fields.batchExtraction.executionStatus,
-            'RUNNING',
-          ),
-        ),
-      )
-    const row = await transaction.execute(query.build()).first()
-    return row !== null
-  }
-
-  async loadExtractionInputs(
-    sourceRepresentationRevisionId: string,
-    schemaRevisionId: string,
-  ): Promise<LoadedExtractionInputs | null> {
-    const loaded = await this.database.transaction((transaction) =>
-      this.claimedInputs(
-        transaction,
-        sourceRepresentationRevisionId,
-        schemaRevisionId,
-      ),
-    )
-    if (!loaded) return null
-    const artifact = await this.packages.read(
-      {
-        artifactReference: loaded.artifactReference,
-        artifactSha256: loaded.artifactSha256,
-      },
-      'source',
-    )
-    return {
-      sourceDocumentId: loaded.sourceDocumentId,
-      projectContextId: loaded.projectContextId,
-      sourceRepresentationRevisionId: loaded.sourceRepresentationRevisionId,
-      schemaRevisionId: loaded.schemaRevisionId,
-      schemaTree: loaded.schemaTree,
-      parsedDocument: JSON.parse(new TextDecoder().decode(artifact.bytes)),
-    }
-  }
-
-  async readCanonicalParsedDocument(
-    sourceRepresentationRevisionId: string,
-  ): Promise<unknown | null> {
-    const row = await this.database.transaction(async (transaction) => {
-      const loaded = await this.claimedInputs(
-        transaction,
-        sourceRepresentationRevisionId,
-        (
-          await transaction.orm.public.BatchExtraction.select(
-            'schemaRevisionId',
-          ).first({
-            id: this.batchExtractionId,
-            leaseOwner: this.lease.owner,
-            leaseVersion: this.lease.version,
-            executionStatus: 'RUNNING',
-          })
-        )?.schemaRevisionId ?? '',
-      )
-      return loaded
-        ? {
-            artifactReference: loaded.artifactReference,
-            artifactSha256: loaded.artifactSha256,
-          }
-        : null
-    })
-    if (!row) return null
-    const artifact = await this.packages.read(row, 'source')
-    return JSON.parse(new TextDecoder().decode(artifact.bytes))
-  }
-
-  readExtraction(
-    extractionId: string,
-  ): Promise<ExtractionSnapshot | null> {
-    return this.database.transaction(async (transaction) => {
-      if (!(await this.ownsClaimedExtraction(transaction, extractionId)))
-        return null
-      return loadExtraction(transaction.orm, extractionId)
-    })
-  }
-
-  async isExtractionIdAvailable(extractionId: string): Promise<boolean> {
-    return (
-      (await this.database.orm.public.Extraction.select('id').first({
-        id: extractionId,
-      })) === null
-    )
-  }
-
-  async persistExtraction(
-    input: TerminalExtraction,
-  ): Promise<PersistExtractionResult> {
-    if (input.batchExtractionId !== this.batchExtractionId)
-      return { status: 'invalid' }
-    try {
-      const created = await this.database.transaction(async (transaction) => {
-        const inputs = await this.claimedInputs(
-          transaction,
-          input.sourceRepresentationRevisionId,
-          input.schemaRevisionId,
-        )
-        if (!inputs || inputs.sourceDocumentId !== input.sourceDocumentId)
-          return false
-        await transaction.orm.public.Extraction.create({
-          id: input.extractionId,
-          sourceDocumentId: input.sourceDocumentId,
-          sourceRepresentationRevisionId:
-            input.sourceRepresentationRevisionId,
-          schemaRevisionId: input.schemaRevisionId,
-          strategy: input.strategy,
-          outcome: input.outcome,
-          complete: input.complete,
-          modelAttribution: input.modelAttribution,
-          diagnostics: input.diagnostics,
-          failure: input.failure,
-          resultPayload: input.result,
-          evidenceLinks: input.evidence,
-          reviewable: input.reviewable,
-          retryOfId: input.retryOfId,
-          batchExtractionId: this.batchExtractionId,
-        })
-        return true
-      })
-      if (!created) return { status: 'invalid' }
-      const extraction = await this.readExtraction(input.extractionId)
-      if (!extraction)
-        throw new Error('Persisted Batch Extraction member could not be read.')
-      return { status: 'created', extraction }
-    } catch (error) {
-      if (!uniqueConstraint(error)) throw error
-      const extraction = await this.readExtraction(input.extractionId)
-      if (!extraction) throw error
-      return extractionIdentityMatches(extraction, input)
-        ? { status: 'replayed', extraction }
-        : { status: 'conflict', extraction }
-    }
-  }
-
-
-  private unsupported<T>(operation: string): Promise<T> {
-    return Promise.reject(
-      new Error(
-        `Claimed Batch Extraction persistence cannot perform ${operation}.`,
-      ),
-    )
-  }
-
-  finalizeReview(): Promise<PersistedReviewResult> {
-    return this.unsupported('researcher review')
-  }
-
-  readDocumentExtractions(): Promise<DocumentExtractionsSnapshot | null> {
-    return this.unsupported('researcher document reads')
-  }
-
-  scheduleBatch(): Promise<ScheduleBatchResult | null> {
-    return this.unsupported('researcher batch scheduling')
-  }
-
-  scheduleSuggestedBatch(): Promise<ScheduleBatchResult | null> {
-    return this.unsupported('researcher suggested-batch scheduling')
-  }
-
-  listBatches(): Promise<readonly BatchExtractionSnapshot[] | null> {
-    return this.unsupported('researcher batch listing')
-  }
-
-  readBatch(): Promise<BatchExtractionSnapshot | null> {
-    return this.unsupported('researcher batch reads')
-  }
-
-  readBatchResults(): Promise<BatchExtractionResults | null> {
-    return this.unsupported('researcher batch-result reads')
-  }
-}
-
 export function createResearcherExtractionPersistence(
   researcherAccountId: string,
   database: Database = db,
@@ -1862,30 +2013,23 @@ export function createResearcherExtractionPersistence(
   )
 }
 
-export function createInternalBatchExtractionWorkerStore(
+export function createInternalExtractionJobStore(
   database: Database = db,
   packages: CanonicalPackageStore = canonicalPackageStore,
-): InternalBatchExtractionWorkerStore {
+): InternalExtractionJobStore {
   const persistence = new PostgresExtractionPersistence(database, packages)
   return {
-    claimBatch: persistence.claimBatch.bind(persistence),
-    renewBatchLease: persistence.renewBatchLease.bind(persistence),
-    startBatchMember: persistence.startBatchMember.bind(persistence),
-    completeBatchMember: persistence.completeBatchMember.bind(persistence),
-    failBatch: persistence.failBatch.bind(persistence),
+    claim: persistence.claim.bind(persistence),
+    renew: persistence.renew.bind(persistence),
+    checkpoint: persistence.checkpoint.bind(persistence),
+    complete: persistence.complete.bind(persistence),
+    fail: persistence.fail.bind(persistence),
   }
 }
 
-export function createClaimedBatchExtractionPersistence(
-  batchExtractionId: string,
-  lease: OperationLease,
+export function createInternalExtractionPersistence(
   database: Database = db,
   packages: CanonicalPackageStore = canonicalPackageStore,
 ): ExtractionPersistence {
-  return new ClaimedBatchPostgresExtractionPersistence(
-    batchExtractionId,
-    lease,
-    database,
-    packages,
-  )
+  return new PostgresExtractionPersistence(database, packages)
 }

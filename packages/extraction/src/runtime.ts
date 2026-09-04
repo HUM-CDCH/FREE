@@ -5,14 +5,11 @@ import {
   type Database,
 } from 'db'
 import type { ExtractionModuleDependencies } from './dependencies.js'
+import { createExtractionModule } from './module.js'
+import { ExtractionJobWorker } from './job-worker.js'
 import {
-  createExtractionModule,
-  ExtractionOperationRegistry,
-} from './module.js'
-import { BatchExtractionWorker } from './batch-worker.js'
-import {
-  createClaimedBatchExtractionPersistence,
-  createInternalBatchExtractionWorkerStore,
+  createInternalExtractionJobStore,
+  createInternalExtractionPersistence,
   createResearcherExtractionPersistence,
 } from './postgres-persistence.js'
 import type { ExtractionModule, ExtractionRuntime } from './types.js'
@@ -38,27 +35,20 @@ export function createExtractionRuntimeWithInfrastructure(
     packages: CanonicalPackageStore
   }>,
 ): ExtractionRuntime {
-  const operations = new ExtractionOperationRegistry()
-  const workerStore = createInternalBatchExtractionWorkerStore(
+  const workerStore = createInternalExtractionJobStore(
     infrastructure.database,
     infrastructure.packages,
   )
-  const worker = new BatchExtractionWorker(workerStore, (batch) =>
-    createExtractionModule(
-      {
-        ...dependencies,
-        persistence: createClaimedBatchExtractionPersistence(
-          batch.batchExtractionId,
-          batch.lease,
-          infrastructure.database,
-          infrastructure.packages,
-        ),
-      },
-      {
-        operations,
-        operationScope: `batch:${batch.batchExtractionId}:${batch.lease.owner}:${batch.lease.version}`,
-      },
+  const workerExtractions = createExtractionModule({
+    ...dependencies,
+    persistence: createInternalExtractionPersistence(
+      infrastructure.database,
+      infrastructure.packages,
     ),
+  })
+  const worker = new ExtractionJobWorker(
+    workerStore,
+    workerExtractions.executeJob,
   )
 
   const wakeAfter = <T>(operation: () => Promise<T>): Promise<T> =>
@@ -78,13 +68,16 @@ export function createExtractionRuntimeWithInfrastructure(
             infrastructure.packages,
           ),
         },
-        {
-          operations,
-          operationScope: `researcher:${researcherAccountId}`,
-        },
       )
       const extractions: ExtractionModule = {
         ...module,
+        runSingle: (input) => wakeAfter(() => module.runSingle(input)),
+        async cancelSingle(extractionId) {
+          const outcome = await module.cancelSingle(extractionId)
+          if (outcome === 'cancellation-requested')
+            setTimeout(() => worker.abort(extractionId), 1_000)
+          return outcome
+        },
         scheduleBatch: (input) =>
           wakeAfter(() => module.scheduleBatch(input)),
         scheduleSuggestedBatch: (input) =>

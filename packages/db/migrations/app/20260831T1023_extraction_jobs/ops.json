@@ -1,0 +1,1430 @@
+[
+  {
+    "id": "data_migration.require-empty-batch-extraction-tables",
+    "label": "Data transform: require-empty-batch-extraction-tables",
+    "operationClass": "data",
+    "target": {
+      "id": "postgres"
+    },
+    "precheck": [
+      {
+        "description": "Check require-empty-batch-extraction-tables has work to do",
+        "sql": "SELECT EXISTS (SELECT \"batchExtraction\".\"id\" AS \"batchExtractionId\", \"batchExtractionMember\".\"batchExtractionId\" AS \"memberBatchExtractionId\" FROM \"public\".\"batchExtraction\" FULL JOIN \"public\".\"batchExtractionMember\" ON \"batchExtraction\".\"id\" = \"batchExtractionMember\".\"batchExtractionId\" LIMIT 1) AS ok",
+        "params": []
+      }
+    ],
+    "execute": [
+      {
+        "description": "Run require-empty-batch-extraction-tables",
+        "sql": "UPDATE \"public\".\"batchExtraction\" SET \"createdAt\" = \"createdAt\"",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "Verify require-empty-batch-extraction-tables resolved all violations",
+        "sql": "SELECT NOT EXISTS (SELECT \"batchExtraction\".\"id\" AS \"batchExtractionId\", \"batchExtractionMember\".\"batchExtractionId\" AS \"memberBatchExtractionId\" FROM \"public\".\"batchExtraction\" FULL JOIN \"public\".\"batchExtractionMember\" ON \"batchExtraction\".\"id\" = \"batchExtractionMember\".\"batchExtractionId\" LIMIT 1) AS ok",
+        "params": []
+      }
+    ]
+  },
+  {
+    "id": "table.extractionJob",
+    "label": "Create table \"extractionJob\"",
+    "summary": "Creates table \"extractionJob\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"extractionJob\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"extractionJob\"",
+        "sql": "CREATE TABLE \"public\".\"extractionJob\" (\n  \"batchExtractionId\" \"uuid\",\n  \"cancelRequestedAt\" timestamptz(6),\n  \"complete\" bool,\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"diagnostics\" jsonb,\n  \"executionStatus\" text DEFAULT 'QUEUED' NOT NULL,\n  \"failure\" jsonb,\n  \"finishedAt\" timestamptz(6),\n  \"id\" \"uuid\" NOT NULL,\n  \"kind\" text NOT NULL,\n  \"leaseExpiresAt\" timestamptz(6),\n  \"leaseOwner\" text,\n  \"leaseVersion\" int4 DEFAULT 0 NOT NULL,\n  \"modelAttribution\" jsonb,\n  \"projectContextId\" \"uuid\" NOT NULL,\n  \"rediscover\" bool,\n  \"resultPayload\" jsonb,\n  \"retryDocument\" bool,\n  \"retryOfId\" \"uuid\",\n  \"retryRecordStartBlockIds\" jsonb,\n  \"schemaRevisionId\" \"uuid\" NOT NULL,\n  \"sourceDocumentId\" \"uuid\" NOT NULL,\n  \"sourceRepresentationRevisionId\" \"uuid\" NOT NULL,\n  \"startedAt\" timestamptz(6),\n  \"strategy\" text NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"extractionJob\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.batchExtractionMember.initialExtractionJobId",
+    "label": "Add column \"initialExtractionJobId\" to \"batchExtractionMember\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "initialExtractionJobId",
+        "table": "batchExtractionMember"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"initialExtractionJobId\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtractionMember",
+          "initialExtractionJobId"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"initialExtractionJobId\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtractionMember\" ADD COLUMN \"initialExtractionJobId\" \"uuid\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"initialExtractionJobId\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtractionMember",
+          "initialExtractionJobId"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "alterNullability.setNotNull.batchExtractionMember.initialExtractionJobId",
+    "label": "Set NOT NULL on \"batchExtractionMember\".\"initialExtractionJobId\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "initialExtractionJobId",
+        "table": "batchExtractionMember"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"initialExtractionJobId\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtractionMember",
+          "initialExtractionJobId"
+        ]
+      },
+      {
+        "description": "ensure no NULL values in \"initialExtractionJobId\"",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"public\".\"batchExtractionMember\" WHERE \"initialExtractionJobId\" IS NULL) AS \"result\"",
+        "params": []
+      }
+    ],
+    "execute": [
+      {
+        "description": "set NOT NULL on \"initialExtractionJobId\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtractionMember\" ALTER COLUMN \"initialExtractionJobId\" SET NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"initialExtractionJobId\" is NOT NULL",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3 AND \"is_nullable\" = $4)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtractionMember",
+          "initialExtractionJobId",
+          "NO"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.batchExtractionMember.batchExtractionMember_initialExtractionJobId_key",
+    "label": "Add unique constraint on \"batchExtractionMember\" (initialExtractionJobId)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "batchExtractionMember_initialExtractionJobId_key",
+        "table": "batchExtractionMember"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchExtractionMember_initialExtractionJobId_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchExtractionMember_initialExtractionJobId_key",
+          "public",
+          "\"public\".\"batchExtractionMember\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"batchExtractionMember_initialExtractionJobId_key\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtractionMember\" ADD CONSTRAINT \"batchExtractionMember_initialExtractionJobId_key\" UNIQUE (\"initialExtractionJobId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchExtractionMember_initialExtractionJobId_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchExtractionMember_initialExtractionJobId_key",
+          "public",
+          "\"public\".\"batchExtractionMember\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.batchExtractionMember.batch_member_initial_job_key",
+    "label": "Add unique constraint on \"batchExtractionMember\" (initialExtractionJobId, batchExtractionId, sourceDocumentId, sourceRepresentationRevisionId)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "batch_member_initial_job_key",
+        "table": "batchExtractionMember"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batch_member_initial_job_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batch_member_initial_job_key",
+          "public",
+          "\"public\".\"batchExtractionMember\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"batch_member_initial_job_key\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtractionMember\" ADD CONSTRAINT \"batch_member_initial_job_key\" UNIQUE (\"initialExtractionJobId\", \"batchExtractionId\", \"sourceDocumentId\", \"sourceRepresentationRevisionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batch_member_initial_job_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batch_member_initial_job_key",
+          "public",
+          "\"public\".\"batchExtractionMember\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.extractionJob.extraction_job_batch_member_key",
+    "label": "Add unique constraint on \"extractionJob\" (id, batchExtractionId, sourceDocumentId, sourceRepresentationRevisionId)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "extraction_job_batch_member_key",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"extraction_job_batch_member_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_job_batch_member_key",
+          "public",
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"extraction_job_batch_member_key\"",
+        "sql": "ALTER TABLE \"public\".\"extractionJob\" ADD CONSTRAINT \"extraction_job_batch_member_key\" UNIQUE (\"id\", \"batchExtractionId\", \"sourceDocumentId\", \"sourceRepresentationRevisionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"extraction_job_batch_member_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_job_batch_member_key",
+          "public",
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.extractionJob.extraction_job_retry_pin_key",
+    "label": "Add unique constraint on \"extractionJob\" (id, sourceRepresentationRevisionId, schemaRevisionId, strategy)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "extraction_job_retry_pin_key",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"extraction_job_retry_pin_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_job_retry_pin_key",
+          "public",
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"extraction_job_retry_pin_key\"",
+        "sql": "ALTER TABLE \"public\".\"extractionJob\" ADD CONSTRAINT \"extraction_job_retry_pin_key\" UNIQUE (\"id\", \"sourceRepresentationRevisionId\", \"schemaRevisionId\", \"strategy\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"extraction_job_retry_pin_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_job_retry_pin_key",
+          "public",
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.extractionJob.extractionJob_kind_check",
+    "label": "Add check constraint \"extractionJob_kind_check\" on \"extractionJob\".\"kind\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "extractionJob_kind_check",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"extractionJob_kind_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionJob_kind_check",
+          "public",
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"extractionJob_kind_check\"",
+        "sql": "ALTER TABLE \"public\".\"extractionJob\" ADD CONSTRAINT \"extractionJob_kind_check\" CHECK (\"kind\" IN ('INTERACTIVE', 'BATCH_MEMBER'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"extractionJob_kind_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionJob_kind_check",
+          "public",
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.extractionJob.extractionJob_executionStatus_check",
+    "label": "Add check constraint \"extractionJob_executionStatus_check\" on \"extractionJob\".\"executionStatus\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "extractionJob_executionStatus_check",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"extractionJob_executionStatus_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionJob_executionStatus_check",
+          "public",
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"extractionJob_executionStatus_check\"",
+        "sql": "ALTER TABLE \"public\".\"extractionJob\" ADD CONSTRAINT \"extractionJob_executionStatus_check\" CHECK (\"executionStatus\" IN ('QUEUED', 'RUNNING', 'COMPLETED', 'FAILED'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"extractionJob_executionStatus_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionJob_executionStatus_check",
+          "public",
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extractionJob.extractionJob_executionStatus_kind_createdAt_idx",
+    "label": "Create index \"extractionJob_executionStatus_kind_createdAt_idx\" on \"extractionJob\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extractionJob_executionStatus_kind_createdAt_idx",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extractionJob_executionStatus_kind_createdAt_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionJob_executionStatus_kind_createdAt_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extractionJob_executionStatus_kind_createdAt_idx\"",
+        "sql": "CREATE INDEX \"extractionJob_executionStatus_kind_createdAt_idx\" ON \"public\".\"extractionJob\" (\"executionStatus\", \"kind\", \"createdAt\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extractionJob_executionStatus_kind_createdAt_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionJob_executionStatus_kind_createdAt_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extractionJob.extractionJob_executionStatus_leaseExpiresAt_idx",
+    "label": "Create index \"extractionJob_executionStatus_leaseExpiresAt_idx\" on \"extractionJob\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extractionJob_executionStatus_leaseExpiresAt_idx",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extractionJob_executionStatus_leaseExpiresAt_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionJob_executionStatus_leaseExpiresAt_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extractionJob_executionStatus_leaseExpiresAt_idx\"",
+        "sql": "CREATE INDEX \"extractionJob_executionStatus_leaseExpiresAt_idx\" ON \"public\".\"extractionJob\" (\"executionStatus\", \"leaseExpiresAt\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extractionJob_executionStatus_leaseExpiresAt_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionJob_executionStatus_leaseExpiresAt_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extractionJob.extractionJob_sourceDocumentId_createdAt_idx",
+    "label": "Create index \"extractionJob_sourceDocumentId_createdAt_idx\" on \"extractionJob\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extractionJob_sourceDocumentId_createdAt_idx",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extractionJob_sourceDocumentId_createdAt_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionJob_sourceDocumentId_createdAt_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extractionJob_sourceDocumentId_createdAt_idx\"",
+        "sql": "CREATE INDEX \"extractionJob_sourceDocumentId_createdAt_idx\" ON \"public\".\"extractionJob\" (\"sourceDocumentId\", \"createdAt\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extractionJob_sourceDocumentId_createdAt_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionJob_sourceDocumentId_createdAt_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extractionJob.extractionJob_projectContextId_idx",
+    "label": "Create index \"extractionJob_projectContextId_idx\" on \"extractionJob\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extractionJob_projectContextId_idx",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extractionJob_projectContextId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionJob_projectContextId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extractionJob_projectContextId_idx\"",
+        "sql": "CREATE INDEX \"extractionJob_projectContextId_idx\" ON \"public\".\"extractionJob\" (\"projectContextId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extractionJob_projectContextId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionJob_projectContextId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extractionJob.extractionJob_schemaRevisionId_idx",
+    "label": "Create index \"extractionJob_schemaRevisionId_idx\" on \"extractionJob\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extractionJob_schemaRevisionId_idx",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extractionJob_schemaRevisionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionJob_schemaRevisionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extractionJob_schemaRevisionId_idx\"",
+        "sql": "CREATE INDEX \"extractionJob_schemaRevisionId_idx\" ON \"public\".\"extractionJob\" (\"schemaRevisionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extractionJob_schemaRevisionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionJob_schemaRevisionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extractionJob.extraction_job_representation_idx",
+    "label": "Create index \"extraction_job_representation_idx\" on \"extractionJob\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extraction_job_representation_idx",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extraction_job_representation_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_job_representation_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extraction_job_representation_idx\"",
+        "sql": "CREATE INDEX \"extraction_job_representation_idx\" ON \"public\".\"extractionJob\" (\"sourceRepresentationRevisionId\", \"sourceDocumentId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extraction_job_representation_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_job_representation_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extractionJob.extraction_job_batch_pin_idx",
+    "label": "Create index \"extraction_job_batch_pin_idx\" on \"extractionJob\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extraction_job_batch_pin_idx",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extraction_job_batch_pin_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_job_batch_pin_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extraction_job_batch_pin_idx\"",
+        "sql": "CREATE INDEX \"extraction_job_batch_pin_idx\" ON \"public\".\"extractionJob\" (\"batchExtractionId\", \"schemaRevisionId\", \"strategy\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extraction_job_batch_pin_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_job_batch_pin_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extractionJob.extraction_job_retry_pin_idx",
+    "label": "Create index \"extraction_job_retry_pin_idx\" on \"extractionJob\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extraction_job_retry_pin_idx",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extraction_job_retry_pin_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_job_retry_pin_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extraction_job_retry_pin_idx\"",
+        "sql": "CREATE INDEX \"extraction_job_retry_pin_idx\" ON \"public\".\"extractionJob\" (\"retryOfId\", \"sourceRepresentationRevisionId\", \"schemaRevisionId\", \"strategy\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extraction_job_retry_pin_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_job_retry_pin_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.extractionJob.extractionJob_projectContextId_fkey",
+    "label": "Add foreign key \"extractionJob_projectContextId_fkey\" on \"extractionJob\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "extractionJob_projectContextId_fkey",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"extractionJob_projectContextId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionJob_projectContextId_fkey",
+          "public",
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"extractionJob_projectContextId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"extractionJob\"\nADD CONSTRAINT \"extractionJob_projectContextId_fkey\"\nFOREIGN KEY (\"projectContextId\")\nREFERENCES \"public\".\"projectContext\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"extractionJob_projectContextId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionJob_projectContextId_fkey",
+          "public",
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.extractionJob.extraction_job_representation_fkey",
+    "label": "Add foreign key \"extraction_job_representation_fkey\" on \"extractionJob\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "extraction_job_representation_fkey",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"extraction_job_representation_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_job_representation_fkey",
+          "public",
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"extraction_job_representation_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"extractionJob\"\nADD CONSTRAINT \"extraction_job_representation_fkey\"\nFOREIGN KEY (\"sourceRepresentationRevisionId\", \"sourceDocumentId\")\nREFERENCES \"public\".\"sourceRepresentationRevision\" (\"id\", \"sourceDocumentId\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"extraction_job_representation_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_job_representation_fkey",
+          "public",
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.extractionJob.extractionJob_schemaRevisionId_fkey",
+    "label": "Add foreign key \"extractionJob_schemaRevisionId_fkey\" on \"extractionJob\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "extractionJob_schemaRevisionId_fkey",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"extractionJob_schemaRevisionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionJob_schemaRevisionId_fkey",
+          "public",
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"extractionJob_schemaRevisionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"extractionJob\"\nADD CONSTRAINT \"extractionJob_schemaRevisionId_fkey\"\nFOREIGN KEY (\"schemaRevisionId\")\nREFERENCES \"public\".\"schemaRevision\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"extractionJob_schemaRevisionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionJob_schemaRevisionId_fkey",
+          "public",
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.extractionJob.extraction_job_retry_pin_fkey",
+    "label": "Add foreign key \"extraction_job_retry_pin_fkey\" on \"extractionJob\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "extraction_job_retry_pin_fkey",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"extraction_job_retry_pin_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_job_retry_pin_fkey",
+          "public",
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"extraction_job_retry_pin_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"extractionJob\"\nADD CONSTRAINT \"extraction_job_retry_pin_fkey\"\nFOREIGN KEY (\"retryOfId\", \"sourceRepresentationRevisionId\", \"schemaRevisionId\", \"strategy\")\nREFERENCES \"public\".\"extractionJob\" (\"id\", \"sourceRepresentationRevisionId\", \"schemaRevisionId\", \"strategy\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"extraction_job_retry_pin_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_job_retry_pin_fkey",
+          "public",
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.extractionJob.extraction_job_batch_pin_fkey",
+    "label": "Add foreign key \"extraction_job_batch_pin_fkey\" on \"extractionJob\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "extraction_job_batch_pin_fkey",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"extraction_job_batch_pin_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_job_batch_pin_fkey",
+          "public",
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"extraction_job_batch_pin_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"extractionJob\"\nADD CONSTRAINT \"extraction_job_batch_pin_fkey\"\nFOREIGN KEY (\"batchExtractionId\", \"schemaRevisionId\", \"strategy\")\nREFERENCES \"public\".\"batchExtraction\" (\"id\", \"schemaRevisionId\", \"strategy\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"extraction_job_batch_pin_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_job_batch_pin_fkey",
+          "public",
+          "\"public\".\"extractionJob\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.batchExtractionMember.batch_member_initial_job_fkey",
+    "label": "Add foreign key \"batch_member_initial_job_fkey\" on \"batchExtractionMember\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "batch_member_initial_job_fkey",
+        "table": "batchExtractionMember"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"batch_member_initial_job_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batch_member_initial_job_fkey",
+          "public",
+          "\"public\".\"batchExtractionMember\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"batch_member_initial_job_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtractionMember\"\nADD CONSTRAINT \"batch_member_initial_job_fkey\"\nFOREIGN KEY (\"initialExtractionJobId\", \"batchExtractionId\", \"sourceDocumentId\", \"sourceRepresentationRevisionId\")\nREFERENCES \"public\".\"extractionJob\" (\"id\", \"batchExtractionId\", \"sourceDocumentId\", \"sourceRepresentationRevisionId\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"batch_member_initial_job_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batch_member_initial_job_fkey",
+          "public",
+          "\"public\".\"batchExtractionMember\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropCheckConstraint.batchExtractionMember.batchExtractionMember_executionStatus_check",
+    "label": "Drop check constraint \"batchExtractionMember_executionStatus_check\" on \"batchExtractionMember\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "batchExtractionMember_executionStatus_check",
+        "table": "batchExtractionMember"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchExtractionMember_executionStatus_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchExtractionMember_executionStatus_check",
+          "public",
+          "\"public\".\"batchExtractionMember\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop check constraint \"batchExtractionMember_executionStatus_check\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtractionMember\" DROP CONSTRAINT \"batchExtractionMember_executionStatus_check\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchExtractionMember_executionStatus_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchExtractionMember_executionStatus_check",
+          "public",
+          "\"public\".\"batchExtractionMember\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.batchExtractionMember.executionStatus",
+    "label": "Drop column \"executionStatus\" from \"batchExtractionMember\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "executionStatus",
+        "table": "batchExtractionMember"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"executionStatus\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtractionMember",
+          "executionStatus"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"executionStatus\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtractionMember\" DROP COLUMN \"executionStatus\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"executionStatus\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtractionMember",
+          "executionStatus"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.batchExtractionMember.failure",
+    "label": "Drop column \"failure\" from \"batchExtractionMember\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "failure",
+        "table": "batchExtractionMember"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"failure\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtractionMember",
+          "failure"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"failure\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtractionMember\" DROP COLUMN \"failure\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"failure\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtractionMember",
+          "failure"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.batchExtractionMember.finishedAt",
+    "label": "Drop column \"finishedAt\" from \"batchExtractionMember\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "finishedAt",
+        "table": "batchExtractionMember"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"finishedAt\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtractionMember",
+          "finishedAt"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"finishedAt\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtractionMember\" DROP COLUMN \"finishedAt\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"finishedAt\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtractionMember",
+          "finishedAt"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.batchExtractionMember.startedAt",
+    "label": "Drop column \"startedAt\" from \"batchExtractionMember\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "startedAt",
+        "table": "batchExtractionMember"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"startedAt\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtractionMember",
+          "startedAt"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"startedAt\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtractionMember\" DROP COLUMN \"startedAt\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"startedAt\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtractionMember",
+          "startedAt"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropCheckConstraint.batchExtraction.batchExtraction_executionStatus_check",
+    "label": "Drop check constraint \"batchExtraction_executionStatus_check\" on \"batchExtraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "batchExtraction_executionStatus_check",
+        "table": "batchExtraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchExtraction_executionStatus_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchExtraction_executionStatus_check",
+          "public",
+          "\"public\".\"batchExtraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop check constraint \"batchExtraction_executionStatus_check\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtraction\" DROP CONSTRAINT \"batchExtraction_executionStatus_check\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchExtraction_executionStatus_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchExtraction_executionStatus_check",
+          "public",
+          "\"public\".\"batchExtraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.batchExtraction.executionStatus",
+    "label": "Drop column \"executionStatus\" from \"batchExtraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "executionStatus",
+        "table": "batchExtraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"executionStatus\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtraction",
+          "executionStatus"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"executionStatus\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtraction\" DROP COLUMN \"executionStatus\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"executionStatus\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtraction",
+          "executionStatus"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.batchExtraction.leaseExpiresAt",
+    "label": "Drop column \"leaseExpiresAt\" from \"batchExtraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "leaseExpiresAt",
+        "table": "batchExtraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"leaseExpiresAt\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtraction",
+          "leaseExpiresAt"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"leaseExpiresAt\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtraction\" DROP COLUMN \"leaseExpiresAt\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"leaseExpiresAt\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtraction",
+          "leaseExpiresAt"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.batchExtraction.leaseOwner",
+    "label": "Drop column \"leaseOwner\" from \"batchExtraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "leaseOwner",
+        "table": "batchExtraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"leaseOwner\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtraction",
+          "leaseOwner"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"leaseOwner\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtraction\" DROP COLUMN \"leaseOwner\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"leaseOwner\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtraction",
+          "leaseOwner"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.batchExtraction.leaseVersion",
+    "label": "Drop column \"leaseVersion\" from \"batchExtraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "leaseVersion",
+        "table": "batchExtraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"leaseVersion\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtraction",
+          "leaseVersion"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"leaseVersion\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtraction\" DROP COLUMN \"leaseVersion\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"leaseVersion\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtraction",
+          "leaseVersion"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.batchExtraction.startedAt",
+    "label": "Drop column \"startedAt\" from \"batchExtraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "startedAt",
+        "table": "batchExtraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"startedAt\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtraction",
+          "startedAt"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"startedAt\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtraction\" DROP COLUMN \"startedAt\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"startedAt\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtraction",
+          "startedAt"
+        ]
+      }
+    ]
+  }
+]

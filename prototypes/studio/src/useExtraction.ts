@@ -57,20 +57,22 @@ export type ExtractionController = ReturnType<typeof useExtraction>
 
 export function extractionStateFromAttempt(attempt: ExtractionAttempt | null): ExtractionState {
   if (!attempt) return { status: 'idle' }
-  if (attempt.outcome === 'CANCELLED') return { status: 'cancelled' }
-  if (attempt.outcome === 'FAILED')
+  const active = attempt.executionStatus === 'QUEUED' || attempt.executionStatus === 'RUNNING'
+  if (!attempt.resultPayload) {
+    if (active) return { status: 'running', step: 'extraction' }
+    if (attempt.failure?.code === 'cancelled' || attempt.outcome === 'CANCELLED')
+      return { status: 'cancelled' }
     return {
       status: 'error',
       message: attempt.failure?.message ?? 'Extraction failed.',
     }
-  if (!attempt.resultPayload || !attempt.evidenceLinks)
-    return { status: 'error', message: 'The stored Extraction Result is invalid.' }
+  }
   return {
     status: 'ready',
     result: attempt.resultPayload,
-    evidenceLinks: attempt.evidenceLinks,
+    evidenceLinks: attempt.evidenceLinks ?? [],
     ungroundedCount:
-      attempt.diagnostics.grounding?.ungroundedPaths.length ?? 0,
+      attempt.diagnostics?.grounding?.ungroundedPaths.length ?? 0,
   }
 }
 
@@ -105,6 +107,23 @@ function sameStrings(
     left.length === right.length &&
     left.every((value, index) => value === right[index])
   )
+}
+
+function pollingDelay(signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve()
+      return
+    }
+    const timer = window.setTimeout(done, 2_000)
+    const onAbort = () => done()
+    function done() {
+      window.clearTimeout(timer)
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
 function recoveredReview(
@@ -182,6 +201,7 @@ export function useExtraction({
   const [renderedDocumentKey, setRenderedDocumentKey] = useState(documentKey)
 
   if (renderedDocumentKey !== documentKey) {
+    activeIdRef.current = null
     setRenderedDocumentKey(documentKey)
     setAttempt(initialAttempt)
     setState(extractionStateFromAttempt(initialAttempt))
@@ -193,8 +213,6 @@ export function useExtraction({
   }
 
   function abandonRunning() {
-    const id = activeIdRef.current
-    if (id) void cancelExtraction(id).catch(() => {})
     activeIdRef.current = null
     abortRef.current?.abort()
     abortRef.current = null
@@ -202,8 +220,57 @@ export function useExtraction({
 
   useEffect(() => () => abandonRunning(), [])
   useEffect(() => {
+    if (!initialAttempt ||
+        (initialAttempt.executionStatus !== 'QUEUED' &&
+          initialAttempt.executionStatus !== 'RUNNING')) return
+    const controller = new AbortController()
+    abortRef.current = controller
+    activeIdRef.current = initialAttempt.extractionId
+    void (async () => {
+      let current = initialAttempt
+      try {
+        while (current.executionStatus === 'QUEUED' || current.executionStatus === 'RUNNING') {
+          await pollingDelay(controller.signal)
+          if (controller.signal.aborted) return
+          current = (await readExtraction(
+            initialAttempt.extractionId,
+            controller.signal,
+          )).extraction
+          if (
+            controller.signal.aborted ||
+            activeIdRef.current !== initialAttempt.extractionId
+          )
+            return
+          setAttempt(current)
+          setState(extractionStateFromAttempt(current))
+        }
+        if (
+          controller.signal.aborted ||
+          activeIdRef.current !== initialAttempt.extractionId
+        )
+          return
+        onTerminal(current, true)
+      } catch (error) {
+        if (
+          !controller.signal.aborted &&
+          activeIdRef.current === initialAttempt.extractionId
+        )
+          onError(error instanceof Error ? error.message : 'Extraction polling failed.')
+      } finally {
+        if (
+          activeIdRef.current === initialAttempt.extractionId &&
+          abortRef.current === controller
+        )
+          activeIdRef.current = null
+        if (abortRef.current === controller) abortRef.current = null
+      }
+    })()
+    return () => controller.abort()
+  }, [documentKey, initialAttempt?.extractionId])
+  useEffect(() => {
     if (previousInputsRef.current === runInputsKey) return
     previousInputsRef.current = runInputsKey
+    if (reviewTarget === null || sameTarget(attempt, reviewTarget)) return
     abandonRunning()
     setState((current) =>
       current.status === 'running' ? { status: 'idle' } : current,
@@ -215,13 +282,16 @@ export function useExtraction({
 
   const hasResults = state.status === 'ready'
   const stale = attempt !== null && !sameTarget(attempt, reviewTarget)
+  const activeAttempt = attempt?.executionStatus === 'QUEUED' ||
+    attempt?.executionStatus === 'RUNNING'
   const canRun =
     reviewTarget !== null &&
     schemaReady &&
-    state.status !== 'running' &&
+    !activeAttempt &&
     !indexing
   const reviewAvailable = Boolean(
     attempt?.outcome === 'SUCCEEDED' &&
+    attempt.executionStatus === 'COMPLETED' &&
     attempt.reviewable &&
     (attempt.evidenceLinks?.length ?? 0) > 0 &&
     sameTarget(attempt, reviewTarget),
@@ -290,7 +360,7 @@ export function useExtraction({
           attempt.extractionId,
           controller.signal,
         )
-        if (reviewLoadRef.current !== load) return
+        if (controller.signal.aborted || reviewLoadRef.current !== load) return
         if (prepared.extraction.reviewedAt) {
           removeSessionRecovery('extraction-review', attempt.extractionId)
           setAttempt(prepared.extraction)
@@ -308,10 +378,10 @@ export function useExtraction({
         const recovered = consumeSessionRecovery(
           'extraction-review',
           attempt.extractionId,
-          (value) => recoveredReview(value, prepared.pendingReviewDecisions),
+          (value) => recoveredReview(value, prepared.pendingReviewDecisions ?? []),
         )
         setReviewDecisions(
-          recovered?.decisions ?? [...prepared.pendingReviewDecisions],
+          recovered?.decisions ?? [...(prepared.pendingReviewDecisions ?? [])],
         )
         setTouchedPaths(recovered?.touchedPaths ?? new Set())
       } catch (error) {
@@ -330,8 +400,8 @@ export function useExtraction({
   }, [attempt, reviewAvailable])
 
   async function requestCancellation() {
-    const id = activeIdRef.current
-    if (state.status !== 'running' || !id || cancellationRequested) return
+    const id = attempt?.extractionId ?? activeIdRef.current
+    if ((!activeAttempt && state.status !== 'running') || !id || cancellationRequested) return
     setCancellationRequested(true)
     setCancellationError(null)
     try {
@@ -345,7 +415,8 @@ export function useExtraction({
   async function runRequest(isRerun: boolean, request: ExtractionRunRequest) {
     if (
       !schemaReady ||
-      state.status === 'running' ||
+      activeAttempt ||
+      activeIdRef.current !== null ||
       indexing
     )
       return null
@@ -361,17 +432,29 @@ export function useExtraction({
     setCancellationError(null)
     setState({ status: 'running', step: 'extraction' })
     try {
-      const terminal = await requestExtraction(
+      let current = await requestExtraction(
         { id: extractionId, ...request },
         controller.signal,
       )
-      if (controller.signal.aborted) return
-      setAttempt(terminal)
-      setState(extractionStateFromAttempt(terminal))
+      if (controller.signal.aborted || activeIdRef.current !== extractionId) return
+      setAttempt(current)
+      setState(extractionStateFromAttempt(current))
       setReviewDecisions([])
       setTouchedPaths(new Set())
-      onTerminal(terminal, isRerun)
-      return terminal
+      while (
+        current.executionStatus === 'QUEUED' ||
+        current.executionStatus === 'RUNNING'
+      ) {
+        await pollingDelay(controller.signal)
+        if (controller.signal.aborted) return
+        current = (await readExtraction(extractionId, controller.signal)).extraction
+        if (controller.signal.aborted || activeIdRef.current !== extractionId) return
+        setAttempt(current)
+        setState(extractionStateFromAttempt(current))
+      }
+      if (controller.signal.aborted || activeIdRef.current !== extractionId) return
+      onTerminal(current, isRerun)
+      return current
     } catch (error) {
       if (controller.signal.aborted) return
       const message =
