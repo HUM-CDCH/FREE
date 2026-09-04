@@ -1,0 +1,394 @@
+[
+  {
+    "value": "Schnurkeramische Gräber und Bestattungen",
+    "resultPath": [
+      "title"
+    ],
+    "goldAnchorIds": [
+      "anchor_e2cb51723b34fc69276df37c9fc539fa9da350cfa44a79866713b079c858cdc5"
+    ],
+    "note": "supported: opening section heading of the volume part; p1"
+  },
+  {
+    "value": 182.0,
+    "resultPath": [
+      "male_grave_length_median_cm"
+    ],
+    "goldAnchorIds": [
+      "anchor_5376123dfec8cba15a5b955609543b24b3843b7a317d91caf8c0a9e8812c4e4d"
+    ],
+    "context": "group: Männergräber, measure: Medianwert",
+    "note": "supported: grave-length table cell 'Medianwert: 182 cm' in the Maennergraeber column; p2"
+  },
+  {
+    "value": 36,
+    "resultPath": [
+      "female_grave_count"
+    ],
+    "goldAnchorIds": [
+      "anchor_68e04bd3ba75484cd571435c6a7c5993c3828b9edb3bb07c66ed1d0f995115fe"
+    ],
+    "context": "group: Frauengräber",
+    "note": "supported: column header cell 'Frauengraeber (36)' of the grave-length table; p2"
+  },
+  {
+    "value": 151,
+    "resultPath": [
+      "grave_pit_count"
+    ],
+    "goldAnchorIds": [
+      "anchor_92a2de57d02fb91f1f75cff9a5bb7a69679ca4ffc4167f4512605fd4a7ad2a34"
+    ],
+    "note": "supported: '151 Grabgruben' printed under Abb. 129; p3"
+  },
+  {
+    "value": 83,
+    "resultPath": [
+      "w_o_oriented_grave_count"
+    ],
+    "goldAnchorIds": [
+      "anchor_462db51a7619258272851b181ef24b43265cd52e1ba426262bf51aed99bfc97a"
+    ],
+    "context": "table: Abb. 129, row: insgesamt, orientation: W-O",
+    "note": "supported: the 'insgesamt' cell 83 in the W-O column of the axis-direction table; p3"
+  },
+  {
+    "value": 146,
+    "resultPath": [
+      "graves_with_pottery"
+    ],
+    "goldAnchorIds": [
+      "anchor_14dd3c78eaa7f5311c4cb91d357ed3cdf4d4630d29226fe7354feca66b8c74f5"
+    ],
+    "note": "supported: 'Keramik liegt aus 146 Graebern ... vor'; p6"
+  },
+  {
+    "value": 154,
+    "resultPath": [
+      "ware_classes",
+      0,
+      "count"
+    ],
+    "goldAnchorIds": [
+      "anchor_e41b263f6114f88759a664bace9e87d78eb56eded9123c3c4edd5bd5135628bf"
+    ],
+    "context": "code: A, name: Amphoren",
+    "note": "supported: the '154 Stueck' cell in the first (A - Amphoren) row of the ware table; p6"
+  },
+  {
+    "value": 364.0,
+    "resultPath": [
+      "vessels",
+      0,
+      "height_mm"
+    ],
+    "goldAnchorIds": [
+      "anchor_66e70f25539a14eeffce8828967860711f1796d9724a358a4bff0aca2cdfbddc"
+    ],
+    "context": "grave: 114/1963, item: 1, vessel_type: A25f, accession_no: 118/63",
+    "note": "supported: Hoehe cell 364 of the grave 114 row in Tabelle 1; measurements are in mm; p15"
+  },
+  {
+    "value": 19.0,
+    "resultPath": [
+      "vessels",
+      0,
+      "volume_l"
+    ],
+    "goldAnchorIds": [
+      "anchor_713e1974f590f4f9a6e33b6caca2ac1f8ed37785bbb48dc52d601140aaa766fe"
+    ],
+    "context": "grave: 114/1963, item: 1, vessel_type: A25f",
+    "note": "supported: 'Inhalt in 1' cell 19,00 of the same row; p15"
+  },
+  {
+    "value": 380.0,
+    "resultPath": [
+      "vessels",
+      2,
+      "height_mm"
+    ],
+    "goldAnchorIds": [
+      "anchor_d5da35dd06f6137abeae6c23f58b4b036446659f62c869797c1ddfaa0ecf187e"
+    ],
+    "context": "grave: 71/1964, item: 1, vessel_type: A25b/f, accession_no: 275/64",
+    "note": "supported: Hoehe cell 380 of the grave 71 row in Tabelle 1; p29"
+  },
+  {
+    "value": "275/64",
+    "resultPath": [
+      "vessels",
+      2,
+      "accession_no"
+    ],
+    "goldAnchorIds": [
+      "anchor_4945dd85eb0bdf25ea7045a7ec897ecf055c1283018c4d9a0a733e4cb799ba56"
+    ],
+    "context": "grave: 71/1964, item: 1, vessel_type: A25b/f",
+    "note": "supported: 'Zw. Nr.' cell 275/64 of the same row; p29"
+  },
+  {
+    "value": 510.0,
+    "resultPath": [
+      "finds",
+      0,
+      "weight_g"
+    ],
+    "goldAnchorIds": [
+      "anchor_e81f108693c79c7adb05917525a303256a505ba9858ef7daaf2a6e3b3420afca"
+    ],
+    "context": "grave: 120/1963, item: 4, find_class: Hammeraxt, type: FHA 2a",
+    "note": "supported: 'Gewicht in gr' cell 510 of the 120/1963 row in Tabelle 2; p35"
+  },
+  {
+    "value": 140.0,
+    "resultPath": [
+      "finds",
+      1,
+      "weight_g"
+    ],
+    "goldAnchorIds": [
+      "anchor_616fa48370efdeb3006e7f48568ff5b3f0f6d3e238748d8a2e835379691525bc"
+    ],
+    "context": "grave: 120/1963, item: 5, find_class: Keulenkopf",
+    "note": "supported: 'Gewicht in gr' cell 140 of the 120/1963 row in Tabelle 3; p36"
+  },
+  {
+    "value": 198.0,
+    "resultPath": [
+      "finds",
+      2,
+      "length_mm"
+    ],
+    "goldAnchorIds": [
+      "anchor_9e98ac4885e2888e4cef9be168ff4dd9b0a03e4679d70b710e9a570ae8b7832f"
+    ],
+    "context": "grave: 121/1963, item: 5, find_class: Beil, type: BL 2",
+    "note": "supported: 'gr. Laenge' cell 198 of the 121/1963 row in Tabelle 5; p39"
+  },
+  {
+    "value": 2150.0,
+    "resultPath": [
+      "finds",
+      3,
+      "weight_g"
+    ],
+    "goldAnchorIds": [
+      "anchor_7741f8350a660f0dfee19d1c953225d69dccb96e145b8eec1bc036f36b09d906"
+    ],
+    "context": "grave: 15/1964, item: 6, find_class: Schleifstein",
+    "note": "supported: 'Gewicht' cell '2150 gr' of the 15/1964 row in Tabelle 8; p63"
+  },
+  {
+    "value": 76.6,
+    "resultPath": [
+      "finds",
+      4,
+      "max_dimension_mm"
+    ],
+    "goldAnchorIds": [
+      "anchor_5201e0f35e3d536edc178045303399685763b6fe2b1368e66fcbf8f36ff5a30f"
+    ],
+    "context": "grave: 166/1963, item: 6, find_class: Knochengerät, type: Pfriem?",
+    "note": "supported: 'gr. Ausmass' cell '76,6 mm' of the 166/1963 row in Tabelle 9; p64"
+  },
+  {
+    "value": "linker Hocker",
+    "resultPath": [
+      "finds",
+      5,
+      "body_position"
+    ],
+    "goldAnchorIds": [
+      "anchor_43e5c18ceb1420a8b9ce66352d89488b462425346599e4765c1c5b3a4dad51e3"
+    ],
+    "context": "grave: 67/1964, item: 4, find_class: Tierzahnschmuck",
+    "note": "supported: 'Lage der Bestattung' cell of the 67/1964 row in Tabelle 10a; p65"
+  },
+  {
+    "value": 118.0,
+    "resultPath": [
+      "vessels",
+      0,
+      "base_diameter_mm"
+    ],
+    "goldAnchorIds": [],
+    "context": "grave: 114/1963, item: 1, vessel_type: A25f",
+    "note": "unsupported kind (a): the B. 0 cell of this row reads 112; 118 is not given for this vessel anywhere"
+  },
+  {
+    "value": 24,
+    "resultPath": [
+      "male_grave_count"
+    ],
+    "goldAnchorIds": [],
+    "note": "unsupported kind (a): the grave-length table header says 'Maennergraeber (22)'; 24 is stated nowhere; p2",
+    "expectedLexicalHitIds": [
+      "anchor_9aeed7cca5056f0bbb15aaf6b5e3418545b022be056da0fe8d2d6a57733e985c",
+      "anchor_c24409e04854fb5ec8f57761aae43acf6baddd7b561ed9e9e60f62b44ee90404",
+      "anchor_aa4c6cef2a922e0e7423a8ff5c6f920a61a8f7b205e30dff02f1716982fa147e",
+      "anchor_f28bbcd3fa0577fee42cbba972a2aadebd3458550ae9e4542e3fc3e37ddc7347",
+      "anchor_725665ffd54c0cdf0c0ec2fa112bfcf7c7ea4f538d9d1b405500ff425b2751b7",
+      "anchor_9a64f15692192579a23399b531e0eb7eb555423d74a9ccae38ea136e064e3a32",
+      "anchor_a31b9ad42890418d5814b259c2eace930d68a4428b216bfe9a0bafc850a46ae0",
+      "anchor_fd93ea492bcf020725569114a5508a5abd4ae55de7f78af6608ef744861b9e05",
+      "anchor_03c285a34b82000948b1e340ba1b6ed5ac4a3d4aac0cf9dbd1ec02c3f6e3f6be",
+      "anchor_0936d6f44d5ed17cb72db9186e8bef63b544c982e71e151c60ed85d499aca0f8",
+      "anchor_08359ae091eb1b8183ef0d50793d268be7f4088f75d11b59ff3d8e22a051414e",
+      "anchor_59a06e36c12ea036daba2be40dc16917ff6ca626fbf2d9a2e6fefa687d5fe35b",
+      "anchor_6a8e77fb203ea5e4b7324d78899ecbba721846c681e9efd3e32dfbaac79894de",
+      "anchor_3ba10c74cdef89a17d22d5d1b8a443eed0f25870368e683b204160ce8444b96b",
+      "anchor_05209f479c0fc138fd41724ca27aaf10e484590439b84f01864f0e2b1f1fbcce",
+      "anchor_738e99786d0fd1566d7a3a9dfd23b45bec92c7dc7bbca518e27287b725f3d369",
+      "anchor_5d54d963f79e4df691a3864e228f4c84bd1e31f39f97dd278b3be1c55438e634"
+    ]
+  },
+  {
+    "value": 2500.0,
+    "resultPath": [
+      "finds",
+      3,
+      "weight_g"
+    ],
+    "goldAnchorIds": [],
+    "context": "grave: 15/1964, item: 6, find_class: Schleifstein",
+    "note": "unsupported kind (a): Tabelle 8 gives '2150 gr' for this whetstone; 2500 appears nowhere; p63"
+  },
+  {
+    "value": 510.0,
+    "resultPath": [
+      "finds",
+      1,
+      "weight_g"
+    ],
+    "goldAnchorIds": [],
+    "context": "grave: 120/1963, item: 5, find_class: Keulenkopf",
+    "note": "unsupported kind (b): 510 gr is the weight of the hammer axe (item 4) from the same grave in Tabelle 2; the mace head weighs 140 gr; p35-36"
+  },
+  {
+    "value": 154,
+    "resultPath": [
+      "total_vessels"
+    ],
+    "goldAnchorIds": [],
+    "note": "unsupported kind (b): 154 is the count of amphorae (ware class A) in the p6 table, not the total of 396 vessels",
+    "expectedLexicalHitIds": [
+      "anchor_e41b263f6114f88759a664bace9e87d78eb56eded9123c3c4edd5bd5135628bf",
+      "anchor_c4b78b2b1f11dfc16dc7ca135a2e736587f10b677108cb05a41bce6a31c2d452",
+      "anchor_739da579ee23f3939679788a4e8416aea6b93f6a3c3264f2570e7b3c9ab56755",
+      "anchor_3a9caf7685096c3e1dee64da5c6fcf877bc7427b9172c72c0e14d1dfe9f73eaa",
+      "anchor_6ec2ed5dcaf05e2577bb07603211a7c69f8b996d83a5ff7f1efbed23d728b72a",
+      "anchor_58d22e6e25d586ea71feae16a0a167ccf19fe0ca9aa04058bddf76da3cf06a3d",
+      "anchor_6361e4ed0366184852e1fa492897b98c2b500626e1c2e9594cc7ca9373fb37bc"
+    ]
+  },
+  {
+    "value": 83,
+    "resultPath": [
+      "grave_pit_count"
+    ],
+    "goldAnchorIds": [],
+    "note": "unsupported kind (b): 83 is the number of W-O oriented pits in Abb. 129, not the total number of grave pits (151); p3",
+    "expectedLexicalHitIds": [
+      "anchor_462db51a7619258272851b181ef24b43265cd52e1ba426262bf51aed99bfc97a",
+      "anchor_49d467cb8264af0aaedda3a2bedbe03ddf0b45c2f0f9b8e29080cdf8a2724f60",
+      "anchor_50ccb3175e243a43dd83e2a1e8df64eeb10dcd25eb1f4df931169983688ba300",
+      "anchor_effd0f2d95180c95feb71e4a98678b4219c04ca5071231ff4bb5b7b33c1c568d",
+      "anchor_eb92beca1103897565832c5651d6c9be50c08f4fe5d99e051afc3f554a3c5269",
+      "anchor_c0b5cf26a1bdced6955eaaa276fb8fa25698634919be98104eb8f60c7f1b4a67",
+      "anchor_a2e8f6a2d2a368d76965db93f8586f2155ddc304d9d193a58b1bc6a548ec06a3",
+      "anchor_e96f150d849d2db854fa51850c0a1ff2a103ee037b595a3640824fbb1a6f587d"
+    ]
+  },
+  {
+    "value": 13,
+    "resultPath": [
+      "ware_class_count"
+    ],
+    "goldAnchorIds": [],
+    "note": "unsupported kind (c): the p6 table lists thirteen ware classes (A-H, J, N, P, X, Q) but never states how many; requires counting rows",
+    "expectedLexicalHitIds": [
+      "anchor_89969b5213d995cda3d83b8e36c51c89af6d2abe1b5b1f29c1a74d6c0ad6eaa1",
+      "anchor_e0eb389f0c76fcb5a7d4fe71c05986f57a5eedb8808156006b7eb20d2996c04f",
+      "anchor_aab441b88ba30825c2182c183b02cdef74b3099b2e2dbedb0de2d19bfd02eead",
+      "anchor_870e494cfe310305e7cffc63326139026f4423ff7757658868806e9724ab7caf",
+      "anchor_11f41776131f36c5a8cfe6710a7db8bd3de7fbb27afab7786ae442f2ad901c76",
+      "anchor_e3ca8238cc4192bebd43388603a4c69059006f25a7607ab4c48a7b1500e6e146",
+      "anchor_69184debe7311ee4522c0270e89ffc0623405b5b80c109a169a395b0708cf60e",
+      "anchor_8b328768d7262f6abb24fdf8fc5885e3167b4390f3da99cf254de5fd28108866",
+      "anchor_73f3374b46a7c17a5f0e40601de22f797630e8718012e69529487c42b3893286",
+      "anchor_3849db3c8cc2dfa94f87ec3a37bed395a64ab34c79648079954b22aa339d6b77",
+      "anchor_e727507c09907e984b2f0789df9ce1214b8725929817309e3d42710ca9cd443b",
+      "anchor_a4b2def03a6406b549e16aa13701ae5b1e7f31521686f4d6485907df4aba8817",
+      "anchor_bde2ea2bbdfa60b8263167afbec752dff097583c55cbe7f9e443407e05603267",
+      "anchor_230d9929b5ba12a7d8515236ae02e8ca2f587c51f138649beaffbba47487b076",
+      "anchor_c31c2e13cb8d89f798dcacaba11ef091d784c0a10f50479cb67b92a1ed9c531d",
+      "anchor_ed3256b3ea5ab413795fc72114833a0049c82ebc3f45613380b43752aaa2df03",
+      "anchor_2ce0b3d450ad9ab718cb361bdba0aa2c3db22d174a20d36ed88f9a414502f126",
+      "anchor_7ebddb5f2ace55c8a15d52ece365fca9bb0e0c5a9c9291451053c44316b0ce70",
+      "anchor_8707abdaa7f0b536e39520a62bcdac5da5fa76e3ed733b4b503555e1a113cbbb",
+      "anchor_c4ccb5bd3c83804582d96f05fc4b7e492c0f95d0b38579b14fe68f3f7314c4fa",
+      "anchor_1339949fe597971a5e3bc34eb33457d059148ffaf10fb5f865d24d8fe61320a5",
+      "anchor_66c18682a8e18da6c9303c13d74c266fcbce7795c67c8a0eed6422911c22aa60",
+      "anchor_105d6e54cb8860dea90a6f15a43a59bd0892f00ef8a601ce9fbdc9f82bcb590b",
+      "anchor_31702bf60be7124d62de8d1e7784ea723a3fa1e0288630337b7e8e6792cbd5bb",
+      "anchor_e7a66eed68a4dc0ca703909e93ca54e42e68123f1795995f7246c68c03b15323",
+      "anchor_e4cd1a1ff0cd3eba9a3cdee6a923d65fd3370e0988462ca925406808526919cb",
+      "anchor_24dd0317a273460a90aff72a18470e5febfc8dd1c5ecbb54c9eb4cec3508ca7c",
+      "anchor_3c65deb175a4a653adbad84736f2c33d29e18b90ad4df37779b97663690f1c90",
+      "anchor_18b1ac39beac827bd2c6e40a39b6933a8e7a83a99a3a335f32f7b6e72bda3df9",
+      "anchor_c04419af1fb2b87d4bc5bc0f96a6cdb5fd428a1b2d89c2e67e3454e04c8070a0",
+      "anchor_838e00d7b8e293167905016896cd5bf53a4ac61daeed3b5c2d4704e27949f133",
+      "anchor_6940a74f689afae6e8b9213f6056fe3fed1fbd3a2fb8c2a26848cc66be7f86a8",
+      "anchor_76e9626e95ae19340e7cec7dd027b644eff510cf6d6ef527f9314a8a5c54e242",
+      "anchor_f4b95928940c5441c8dcf84375db22926abfd4b7fb6189ac4b023dbda0875524",
+      "anchor_a26a81723fc2717f2e7634d8ffef49c8042f66fbbfadb6183e2f1acdfca9fd1f",
+      "anchor_d5a76e6a7a501c8c30af7a444dd8631f80b133e69d9c76214ade64297c16277f",
+      "anchor_f21cdc73002aa834da1ff26d351bb8b1a85a79cbf2605a87d214e60bac6fdc86",
+      "anchor_d584bfba478ac67dd78a7e8734d5ed2c0b8b16aa3e42482f0adca4e009324b4e",
+      "anchor_4353cf33ae4cfa8099f6e004dfd655fa75af29a833abeae622276635399dcd6f",
+      "anchor_6314fdc7121b500bdd53b6b61ce2eb73dc168ddcad2e2b4b3b9de649c9687621",
+      "anchor_e5b0eed9bf516f91e534474cbea670ebf87d7c9f872c97c5980b16b169f9e287",
+      "anchor_aba28600b27b0d34ac010f74f7979a58b3234c37ee40175a0b740b39879b851d",
+      "anchor_5f078df47832949c4e0a67812cdf85127c1f787ce209da33a9f3efa3edcd6c94",
+      "anchor_7244e01722d9b71cd887a01cafec7bed48f41fb1e3e20a5ca3b24be3c600c458",
+      "anchor_2fe2fcdb7fca86bfad12df8d50f0295ea352cf0ccbcbe169dedcab6f80b12b09",
+      "anchor_deef7550958f776feece248daf49cd86a80414a67e29bbc12266164afaed1084",
+      "anchor_2865a2c28baf216f4de5472cf913ee8920759c113d9452e1715375137b4148af",
+      "anchor_ceef1bd59e72aefc9c40b663b9d34a5c2a1ef6afe53795c81b7237d6d51402a9",
+      "anchor_a315c7a67b838b3cd3728a3b10a002b8a18955a19e5c39ab0fd87276b0587c70",
+      "anchor_91252db74d4282f9a34f0f28c0909ed20d5210cfd4411bee7a41b52859a1d5b0",
+      "anchor_e29507243ed58617e3c1e218def8500b60ba54df08b5601e432bcb6253c29738",
+      "anchor_eb79675f841c84aa008974c33ebadad01563fe2021d3785c90675e4c4dc9f723",
+      "anchor_9f96800e0e3a6e22c524f69901f89ae32c6dc0d3d833af1b7c7f6c3e8a6ba892",
+      "anchor_4713fa6381a5bf46ce389d5a2b142336060f90bcebcc0778178289af7d897766",
+      "anchor_00088bc13c588e3d566604beeffd20e5ac3e5aaa4efd3dd12d65760315c4ced0",
+      "anchor_c7264c2cb8be40739bdf5e75e239eb0920843b64348b120e9775066e7894fb8b",
+      "anchor_a8ccdfe39b77f35fb262a13955bc72d756d36b0b9f3b2b2b02971832096030af",
+      "anchor_66a053b389c444d66918adb82806ecb4fef9ffd2f41695eb86cfd402d78d0785",
+      "anchor_b36c52c02954c18e675129b871c2619e39da5b47a4f5c4ebabcb39fa4992a847",
+      "anchor_0ca296560c3f53bede89e8bf1c12104f6e1e93092a9952ac2dae4eeb16d8d73f",
+      "anchor_a8fa6876b50f133cfd5f8aa8dea6a08be0e9038dd0b5a6db78bf4c18553e7831",
+      "anchor_a01aa4dfe4ce23f114463a949ec0515e73005bc32d5304faadb11e64e32f5629",
+      "anchor_26a55d9ef9fd343755a1323591154a7d00a53006a65c0cc7d21e1b77a2087cba",
+      "anchor_39e95183e3e53c71f208eed6677460b2576498b9cf0eae0101567f30a89210b0",
+      "anchor_fb9c654b062c575abda20cfc926a532ce154fcd7c4ed94c92347b6c70758d3ce",
+      "anchor_19069060d2ffa4da25b130afe282b5681dd16fcde5cf4ba999f77d236c22df0d",
+      "anchor_baf05397864d1c362d6040e63b50ed745b2a7e20b3354a1bd3f52cde3d49a35b",
+      "anchor_b1706b6709e89748728f8914257acf2d3f255d72b457800eff7dbed2438916d7",
+      "anchor_cb3c0c0a6f4f98e511b59bf1696de0057e277ef2ef6cb179d53e5e7592c5cbba",
+      "anchor_948b9f53ab4ad73707520c2449f9ee2a607e93dc61ab0de043a90bd9d3a02778",
+      "anchor_6c72e5f07779f7af18417b9ed66ad9a8c0b08359913f1bfcf70af829a73a32ca",
+      "anchor_97b404ea1549790828a35a021383fa046f3d21fdfef47e98f7348f732ec3889e"
+    ]
+  },
+  {
+    "value": 75.0,
+    "resultPath": [
+      "male_grave_length_span_cm"
+    ],
+    "goldAnchorIds": [],
+    "context": "group: Männergräber",
+    "note": "unsupported kind (c): 215 cm - 140 cm from the p2 grave-length table; no anchor states a span"
+  }
+]

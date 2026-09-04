@@ -1,0 +1,33 @@
+{
+  "title": "string",
+  "authors": [
+    "string"
+  ],
+  "site": "string",
+  "publication_year": 0,
+  "catalogued_grave_number_max": 0,
+  "records": [
+    {
+      "grave_number": 0,
+      "grave_label": "string",
+      "planquadrat": "string",
+      "depth_m": 0.0,
+      "has_stone_construction": true,
+      "stone_construction_length_m": 0.0,
+      "stone_construction_width_m": 0.0,
+      "stone_construction_type": "string",
+      "body_position": "string",
+      "position_type_code": "string",
+      "orientation": "string",
+      "sex": "string",
+      "age_class": "string",
+      "age_min_years": 0.0,
+      "age_max_years": 0.0,
+      "is_cenotaph": true,
+      "grave_goods_count": 0,
+      "culture": "string",
+      "culture_phase": "string",
+      "table_reference": "string"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "journal_number": "TAK 1177",
+  "site_number": "020214-65, -66",
+  "daily_leader": "Tom Giersing",
+  "report_author": "Cand. mag Mette Brosolat Ohlsen",
+  "records": [
+    {
+      "dating": "senneolitikum",
+      "tooth_count": 8,
+      "grave_length": 215,
+      "radiocarbon_date": null
+    },
+    {
+      "dating": "senneolitikum",
+      "tooth_count": 7,
+      "grave_length": 240,
+      "radiocarbon_date": null
+    },
+    {
+      "dating": "førromersk jernalder per. III",
+      "tooth_count": null,
+      "grave_length": 220,
+      "radiocarbon_date": null
+    },
+    {
+      "dating": "yngre romersk jernalder C1b",
+      "tooth_count": null,
+      "grave_length": 260,
+      "radiocarbon_date": null
+    },
+    {
+      "dating": "Tidlig ældre germansk jernalder D",
+      "tooth_count": null,
+      "grave_length": 270,
+      "radiocarbon_date": null
+    },
+    {
+      "dating": "udateret",
+      "tooth_count": 32,
+      "grave_length": 240,
+      "radiocarbon_date": null
+    }
+  ],
+  "conservator": "Lone Brorson",
+  "surveyor": "Jan Poulsen",
+  "budget_approval_date": "2005-03-07",
+  "gps_latitude": null
+}

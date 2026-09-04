@@ -10,7 +10,8 @@
     "dump-anchors": "tsx scripts/dump-anchors.mts",
     "label-review": "uv run --no-sync python -X utf8 -m grounding_lab.label_review dataset",
     "model-benchmark": "uv run --no-sync python -X utf8 -m grounding_lab.model_benchmark",
-    "smoke:qwen-0.6b": "uv run --no-sync python -X utf8 scripts/smoke-qwen-06b.py"
+    "smoke:qwen-0.6b": "uv run --no-sync python -X utf8 scripts/smoke-qwen-06b.py",
+    "extract-real": "tsx scripts/extract-real.mts"
   },
   "dependencies": {
     "extraction": "workspace:*"

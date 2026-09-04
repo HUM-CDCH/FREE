@@ -1,0 +1,13 @@
+[
+  {
+    "value": "1 022",
+    "resultPath": [
+      "highestPointMetres"
+    ],
+    "goldAnchorId": null,
+    "expectedLexicalHitIds": [
+      "anchor_8f4b5a6a9f9ef1554416ac5f4986283f9f7de3425bbc8204de3f1257cc925987"
+    ],
+    "note": "TRAP wrong-row: 1 022 is the length in km of the longest river, Wisła (p3 country table). The highest point is Rysy - 2 499 m n.p.m., two rows above."
+  }
+]

@@ -1,0 +1,23 @@
+{
+  "journal_number": "string",
+  "excavation_leader": "string",
+  "records": [
+    {
+      "archaeologist": "string",
+      "find_number": "string"
+    }
+  ],
+  "machine_operator": "string",
+  "excavation_end": "string",
+  "field_area": "string",
+  "total_feature_count": "number",
+  "posthole_count": "number",
+  "fixpoint_elevation": "number",
+  "vessel_count": "number",
+  "slag_weight": "string",
+  "threed_visualization_by": "string",
+  "report_date": "string",
+  "museum_address": "string",
+  "regional_glass_bead_rate": "number",
+  "conservation_institution": "string"
+}

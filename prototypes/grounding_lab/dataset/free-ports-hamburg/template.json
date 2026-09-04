@@ -1,0 +1,14 @@
+{
+  "title": "string",
+  "author": "string",
+  "author_affiliations": [
+    "string"
+  ],
+  "publisher": "string",
+  "records": [
+    {
+      "free_port_year": "integer",
+      "port": "string"
+    }
+  ]
+}

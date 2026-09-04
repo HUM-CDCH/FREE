@@ -1,0 +1,17 @@
+{
+  "populationFrance": "string",
+  "populationMetropolitanFrance": "number",
+  "populationOverseasDepartments": "number",
+  "populationAnnualChange": "number",
+  "naturalBalance": "number",
+  "migrationBalance": "number",
+  "euPopulationShare": "string",
+  "births": "number",
+  "birthsAnnualChange": "number",
+  "birthsChangeSince2010": "number",
+  "fertilityRate": "number",
+  "deaths": "number",
+  "deathsAnnualChange": "number",
+  "femaleLifeExpectancy": "number",
+  "maleLifeExpectancy": "number"
+}

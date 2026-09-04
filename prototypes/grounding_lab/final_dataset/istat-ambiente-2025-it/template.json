@@ -1,0 +1,17 @@
+{
+  "climateConcern": "string",
+  "airPollutionConcern": "string",
+  "minimumAge": "number",
+  "extremeEventLossBillionsEuro": "number",
+  "territoryAtRisk": "number",
+  "exposedMunicipalities": "number",
+  "lossPeriod": "string",
+  "greenhouseGasEmissions": "string",
+  "emissionsChange": "number",
+  "renewableGenerationItaly": "number",
+  "renewableGenerationGermany": "number",
+  "electricityProductionChange": "number",
+  "rubberPlasticEnvironmentalAction": "number",
+  "environmentalProtectionShareGdp": "number",
+  "environmentalSpendingChange": "number"
+}

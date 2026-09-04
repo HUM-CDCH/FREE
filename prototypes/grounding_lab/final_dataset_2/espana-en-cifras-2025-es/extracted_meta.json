@@ -1,0 +1,45 @@
+{
+  "model": "qwen3.8:latest",
+  "provider": "ollama",
+  "baseUrl": "http://127.0.0.1:11434",
+  "temperature": 0,
+  "documentSource": "document.md",
+  "markdownChars": 85906,
+  "windowed": {
+    "pages": [
+      3,
+      4,
+      5,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      53,
+      54,
+      55,
+      56
+    ],
+    "fullMarkdownChars": 186276
+  },
+  "elapsedSeconds": 19.51,
+  "modelAttribution": null,
+  "metadata": {
+    "finishReason": "stop",
+    "inputTokens": 23513,
+    "outputTokens": 332,
+    "durationMs": 19497
+  },
+  "error": null
+}

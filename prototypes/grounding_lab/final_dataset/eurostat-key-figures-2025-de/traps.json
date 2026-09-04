@@ -1,0 +1,24 @@
+[
+  {
+    "value": "1,12",
+    "resultPath": [
+      "euAverageFertilityRate"
+    ],
+    "goldAnchorId": null,
+    "expectedLexicalHitIds": [
+      "anchor_e50bebbc5746aa798fe7650e68070ebd9cabb0742f4c8948b0fa4246a679ab24"
+    ],
+    "note": "TRAP wrong-record: 1,12 is Spain's total fertility rate in 2023 (p14). The EU average is 1,38 Lebendgeburten pro Frau, stated in the same paragraph."
+  },
+  {
+    "value": "29,0 Millionen",
+    "resultPath": [
+      "foreignNationals"
+    ],
+    "goldAnchorId": null,
+    "expectedLexicalHitIds": [
+      "anchor_dc77a67197dee6f34e29534e81fa6fdfab554b188c7dc15615afaba6a1ce71e5"
+    ],
+    "note": "TRAP wrong-quantity: 29,0 Millionen is the non-EU-citizen subset (p15). Total foreign nationals in the EU are 43,0 Millionen, stated at the start of the same paragraph."
+  }
+]

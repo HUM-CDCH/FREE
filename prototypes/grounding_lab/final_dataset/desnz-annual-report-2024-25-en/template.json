@@ -1,0 +1,17 @@
+{
+  "carbonCaptureCommitment": "number",
+  "nationalWealthFundAddition": "number",
+  "ukInfrastructureBankCapitalisation": "number",
+  "grangemouthInvestment": "number",
+  "offshoreWindSupplyChains": "number",
+  "auctionRound6SolarCapacity": "number",
+  "installedSolarCapacityIncrease": "number",
+  "climateFinanceGoal": "number",
+  "publicClimateFinanceGoal": "number",
+  "ratcliffeService": "number",
+  "northHydeCustomersAffected": "number",
+  "lossOfLoadExpectation2024_25": "string",
+  "nMinusOneStandard2024_25": "number",
+  "fossilFuelDependency2023": "number",
+  "averageDualFuelBill2024": "integer"
+}

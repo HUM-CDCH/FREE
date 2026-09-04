@@ -22,7 +22,7 @@
     "text": "Lukijalle",
     "page": 2,
     "kind": "table_cell",
-    "context": "Lukijalle | 1 — Lukijalle"
+    "context": "Lukijalle — Lukijalle"
   },
   {
     "anchorId": "anchor_7e0fd2d77a6d6d76ec7e98db0b743a3017c7fa8f45e01534e933d9339ea690d6",
@@ -36,7 +36,7 @@
     "text": "Suomi",
     "page": 2,
     "kind": "table_cell",
-    "context": "Suomi | 2 — Suomi"
+    "context": "Suomi — Suomi"
   },
   {
     "anchorId": "anchor_a1e78a6a72fae14ad4b59f398b0dff1159b8fb38ad3475658c559ecfea423c6b",
@@ -50,7 +50,7 @@
     "text": "Väestö ja yhteiskunta",
     "page": 2,
     "kind": "table_cell",
-    "context": "Väestö ja yhteiskunta | 4 — Väestö ja yhteiskunta"
+    "context": "Väestö ja yhteiskunta — Väestö ja yhteiskunta"
   },
   {
     "anchorId": "anchor_36ba0e7b5850b58985d5ddde3434034092179546298aa20a3c213173fe57382c",
@@ -64,7 +64,7 @@
     "text": "Koulutus ja tutkimus",
     "page": 2,
     "kind": "table_cell",
-    "context": "Koulutus ja tutkimus | 14 — Koulutus ja tutkimus"
+    "context": "Koulutus ja tutkimus — Koulutus ja tutkimus"
   },
   {
     "anchorId": "anchor_82e5c822426fbc1dd93c5ae65d0800c198e478a31244a2c8f7e83c2b9ded8b71",
@@ -78,7 +78,7 @@
     "text": "Digitalisaatio",
     "page": 2,
     "kind": "table_cell",
-    "context": "Digitalisaatio | 15 — Digitalisaatio"
+    "context": "Digitalisaatio — Digitalisaatio"
   },
   {
     "anchorId": "anchor_9325c46d36b578a8b4025cf852a01549f248e48540293619780e097d8e9221ee",
@@ -92,7 +92,7 @@
     "text": "Työ, palkat ja toimeentulo",
     "page": 2,
     "kind": "table_cell",
-    "context": "Työ, palkat ja toimeentulo | 16 — Työ, palkat ja toimeentulo"
+    "context": "Työ, palkat ja toimeentulo — Työ, palkat ja toimeentulo"
   },
   {
     "anchorId": "anchor_7721af328bc5f37b41ca51fd98fa3c70f3fba3f0d8693a9ff31e1359e53a6f57",
@@ -106,7 +106,7 @@
     "text": "Teema: Nuoret tilastoissa",
     "page": 2,
     "kind": "table_cell",
-    "context": "Teema: Nuoret tilastoissa | 20 — Teema: Nuoret tilastoissa"
+    "context": "Teema: Nuoret tilastoissa — Teema: Nuoret tilastoissa"
   },
   {
     "anchorId": "anchor_7c2b7687e3b6bb079aea8895b7cd7ffb59e3909f29b09986ef328dc7cbd08ef0",
@@ -120,7 +120,7 @@
     "text": "Kansantalous",
     "page": 2,
     "kind": "table_cell",
-    "context": "Kansantalous | 22 — Kansantalous"
+    "context": "Kansantalous — Kansantalous"
   },
   {
     "anchorId": "anchor_0506669d16d13a9c0fac0570977998584187f3f0f5ebce2eaa7d20df8d88668e",
@@ -134,7 +134,7 @@
     "text": "Hinnat ja kulutus",
     "page": 2,
     "kind": "table_cell",
-    "context": "Hinnat ja kulutus | 23 — Hinnat ja kulutus"
+    "context": "Hinnat ja kulutus — Hinnat ja kulutus"
   },
   {
     "anchorId": "anchor_e797982bbe552f12950489c3c189e1f209c419a79fe1e367bf53d9ed496ad262",
@@ -148,7 +148,7 @@
     "text": "Terveys ja sosiaaliturva",
     "page": 2,
     "kind": "table_cell",
-    "context": "Terveys ja sosiaaliturva | 27 — Terveys ja sosiaaliturva"
+    "context": "Terveys ja sosiaaliturva — Terveys ja sosiaaliturva"
   },
   {
     "anchorId": "anchor_b5252a76d10a7900e72f386e4b90482870109771060c4b11e8a303e07343e4a6",
@@ -162,7 +162,7 @@
     "text": "Asuminen ja rakentaminen",
     "page": 2,
     "kind": "table_cell",
-    "context": "Asuminen ja rakentaminen | 28 — Asuminen ja rakentaminen"
+    "context": "Asuminen ja rakentaminen — Asuminen ja rakentaminen"
   },
   {
     "anchorId": "anchor_d91e54b3b461368a2d8266819c17647c75e4268da24a675469eba221d3526fa5",
@@ -176,7 +176,7 @@
     "text": "Yritykset",
     "page": 2,
     "kind": "table_cell",
-    "context": "Yritykset | 30 — Yritykset"
+    "context": "Yritykset — Yritykset"
   },
   {
     "anchorId": "anchor_8dd92174f094b788ae29cd12dbdcb21486c0727420724f68af535be1cafa70cf",
@@ -190,7 +190,7 @@
     "text": "Kansainvälistä vertailutietoa",
     "page": 2,
     "kind": "table_cell",
-    "context": "Kansainvälistä vertailutietoa | 33 — Kansainvälistä vertailutietoa"
+    "context": "Kansainvälistä vertailutietoa — Kansainvälistä vertailutietoa"
   },
   {
     "anchorId": "anchor_eec1fe761ec0b43b9b146d0955126085e5feb1e58e0b900638ecd334a0c6847a",
@@ -204,7 +204,7 @@
     "text": "Liikenne ja matkailu",
     "page": 2,
     "kind": "table_cell",
-    "context": "Liikenne ja matkailu | 34 — Liikenne ja matkailu"
+    "context": "Liikenne ja matkailu — Liikenne ja matkailu"
   },
   {
     "anchorId": "anchor_29efaf242f05425711484fd22c278603b592ccd0fc3027d44bb6420ea08d7e08",
@@ -218,7 +218,7 @@
     "text": "Energia",
     "page": 2,
     "kind": "table_cell",
-    "context": "Energia | 36 — Energia"
+    "context": "Energia — Energia"
   },
   {
     "anchorId": "anchor_68a08bca6d3905c1868d2d2420b95a427240c500f3a5a76f334b21b6872819ce",
@@ -232,7 +232,7 @@
     "text": "Ympäristö ja luonto",
     "page": 2,
     "kind": "table_cell",
-    "context": "Ympäristö ja luonto | 37 — Ympäristö ja luonto"
+    "context": "Ympäristö ja luonto — Ympäristö ja luonto"
   },
   {
     "anchorId": "anchor_aa4906158e249d37bc5ac483e647e1091b15fe0065c12dde38d545fe2ba3cfbe",
@@ -246,7 +246,7 @@
     "text": "Maa-, metsä- ja kalatalous",
     "page": 2,
     "kind": "table_cell",
-    "context": "Maa-, metsä- ja kalatalous | 38 — Maa-, metsä- ja kalatalous"
+    "context": "Maa-, metsä- ja kalatalous — Maa-, metsä- ja kalatalous"
   },
   {
     "anchorId": "anchor_251e222ff807e3e84660eb423da8aa8dd348aade8da25de354ae766772f083a4",
@@ -260,7 +260,7 @@
     "text": "Kulttuuri, media ja ajankäyttö",
     "page": 2,
     "kind": "table_cell",
-    "context": "Kulttuuri, media ja ajankäyttö | 39 — Kulttuuri, media ja ajankäyttö"
+    "context": "Kulttuuri, media ja ajankäyttö — Kulttuuri, media ja ajankäyttö"
   },
   {
     "anchorId": "anchor_b8358e48f28ba6f1639381357e174531d839d690a5c410e112eff9de44a425b5",
@@ -274,7 +274,7 @@
     "text": "Vaalit",
     "page": 2,
     "kind": "table_cell",
-    "context": "Vaalit | 40 — Vaalit"
+    "context": "Vaalit — Vaalit"
   },
   {
     "anchorId": "anchor_b4662a8d85701d1263e454d98f88cd1fb8fdf635021fdba314c9e6d5f6f0cd47",
@@ -288,7 +288,7 @@
     "text": "Tilastokeskus 160 vuotta",
     "page": 2,
     "kind": "table_cell",
-    "context": "Tilastokeskus 160 vuotta | 41 — Tilastokeskus 160 vuotta"
+    "context": "Tilastokeskus 160 vuotta — Tilastokeskus 160 vuotta"
   },
   {
     "anchorId": "anchor_97f9fe41c6c33712976da781a5dea48e27d8c1247c813ed447e66306b5080f4c",
@@ -302,7 +302,7 @@
     "text": "Toimitus ja julkaisujen myynti",
     "page": 2,
     "kind": "table_cell",
-    "context": "Toimitus ja julkaisujen myynti | 41 — Toimitus ja julkaisujen myynti"
+    "context": "Toimitus ja julkaisujen myynti — Toimitus ja julkaisujen myynti"
   },
   {
     "anchorId": "anchor_3a42ce15b76ddb5518f30dbdfa9cde14000b91965fb31a7fa43dbc60bcfca67b",
@@ -376,14 +376,14 @@
     "text": "Suomen pinta-ala 1.1.2025, km 2",
     "page": 5,
     "kind": "table_cell",
-    "context": "Suomen pinta-ala 1.1.2025, km 2 | Korkein kohta, m merenpinnasta — Suomen pinta-ala 1.1.2025, km 2"
+    "context": "Suomen pinta-ala 1.1.2025, km 2 — Suomen pinta-ala 1.1.2025, km 2"
   },
   {
     "anchorId": "anchor_5650f132ad39e32b7bb32e3f3993bed587f75940c61d50695266a58608d04f4b",
     "text": "Korkein kohta, m merenpinnasta",
     "page": 5,
     "kind": "table_cell",
-    "context": "Suomen pinta-ala 1.1.2025, km 2 | Korkein kohta, m merenpinnasta — Korkein kohta, m merenpinnasta"
+    "context": "Korkein kohta, m merenpinnasta — Korkein kohta, m merenpinnasta"
   },
   {
     "anchorId": "anchor_c8cd28b694a83d9a4a871a3f39f803de9dafb74bca6c991031aa64c549eafb71",
@@ -845,42 +845,42 @@
     "text": "1900",
     "page": 6,
     "kind": "table_cell",
-    "context": "31.12. | 1900 | 1950 | 2000 | 2020 | 2024 — 1900"
+    "context": "1900 — 1900"
   },
   {
     "anchorId": "anchor_86d7b0cb059a0ce3d3da22bf3b6383c17234d5265957320b6351efeabdc2fc4f",
     "text": "1950",
     "page": 6,
     "kind": "table_cell",
-    "context": "31.12. | 1900 | 1950 | 2000 | 2020 | 2024 — 1950"
+    "context": "1950 — 1950"
   },
   {
     "anchorId": "anchor_2fe682a77eeed1bc18c6943858ab9714ce85d11f3e6303b8c48bedbc5ead8c56",
     "text": "2000",
     "page": 6,
     "kind": "table_cell",
-    "context": "31.12. | 1900 | 1950 | 2000 | 2020 | 2024 — 2000"
+    "context": "2000 — 2000"
   },
   {
     "anchorId": "anchor_b5e9dad45d083d10cf8a6f4ebe4a235255beb6bce84a96dddb7248c43f817a80",
     "text": "2020",
     "page": 6,
     "kind": "table_cell",
-    "context": "31.12. | 1900 | 1950 | 2000 | 2020 | 2024 — 2020"
+    "context": "2020 — 2020"
   },
   {
     "anchorId": "anchor_b8d8a2cae84585bdeeca930191d3d769f5a60abe43e20dad0f72e80c0b24dcfe",
     "text": "2024",
     "page": 6,
     "kind": "table_cell",
-    "context": "31.12. | 1900 | 1950 | 2000 | 2020 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_6a1f0e8a9826af39733550361b7bd8ad95e1305002fca76ae50d180d5bbc5db2",
     "text": "Väkiluku, henkilöä",
     "page": 6,
     "kind": "table_cell",
-    "context": "Väkiluku, henkilöä | 2 655 900 | 4 029 803 | 5 181 115 | 5 533 793 | 5 635 971 — Väkiluku, henkilöä"
+    "context": "Väkiluku, henkilöä — Väkiluku, henkilöä"
   },
   {
     "anchorId": "anchor_f2515ef0095fb9acdb3184a0ffe1fa8f2100573102a7206fb192c297fff0e4b2",
@@ -922,7 +922,7 @@
     "text": "Miehet",
     "page": 6,
     "kind": "table_cell",
-    "context": "Miehet | 1 310 600 | 1 926 161 | 2 529 341 | 2 733 808 | 2 790 772 — Miehet"
+    "context": "Miehet — Miehet"
   },
   {
     "anchorId": "anchor_722bd34698805aad9cae9bec78084834132568dc79d5f6db29195fa5a224eda5",
@@ -964,7 +964,7 @@
     "text": "Naiset",
     "page": 6,
     "kind": "table_cell",
-    "context": "Naiset | 1 345 300 | 2 103 642 | 2 651 774 | 2 799 985 | 2 845 199 — Naiset"
+    "context": "Naiset — Naiset"
   },
   {
     "anchorId": "anchor_a3a2c3b737333c12def69a76cb753418120e8cd739d654fcf68815a6835db36b",
@@ -1013,7 +1013,7 @@
     "text": "Miehet",
     "page": 6,
     "kind": "table_cell",
-    "context": "Miehet | 26,3 | 28,6 | 37,7 | 42,1 | 42,7 — Miehet"
+    "context": "Miehet — Miehet"
   },
   {
     "anchorId": "anchor_1bfef340089e072aed74732f737eafada0f835b9dda74739790f653e6a9987db",
@@ -1055,7 +1055,7 @@
     "text": "Naiset",
     "page": 6,
     "kind": "table_cell",
-    "context": "Naiset | 27,5 | 31,6 | 41,0 | 44,7 | 45,2 — Naiset"
+    "context": "Naiset — Naiset"
   },
   {
     "anchorId": "anchor_da63158ba8955cd393ddd6f8ac3054b63a9df3c85955fae7009a4fe1a0ad1cac",
@@ -1104,7 +1104,7 @@
     "text": "0-14-vuotiaat",
     "page": 6,
     "kind": "table_cell",
-    "context": "0-14-vuotiaat | 35,1 | 30,0 | 18,1 | 15,6 | 14,6 — 0-14-vuotiaat"
+    "context": "0-14-vuotiaat — 0-14-vuotiaat"
   },
   {
     "anchorId": "anchor_dc21c6a4586d214f80846114deeedbda1e428ac4eb8baecdef80e00ae9a280a2",
@@ -1146,7 +1146,7 @@
     "text": "15-64-vuotiaat",
     "page": 6,
     "kind": "table_cell",
-    "context": "15-64-vuotiaat | 59,6 | 63,4 | 66,9 | 61,7 | 61,9 — 15-64-vuotiaat"
+    "context": "15-64-vuotiaat — 15-64-vuotiaat"
   },
   {
     "anchorId": "anchor_9aabb0558f94ad08c640a2eb9ed50f7fb20a64d296fdf1d841eac8e8eaca3495",
@@ -1188,7 +1188,7 @@
     "text": "65-84-vuotiaat",
     "page": 6,
     "kind": "table_cell",
-    "context": "65-84-vuotiaat | 5,2 | 6,4 | 13,5 | 19,9 | 20,6 — 65-84-vuotiaat"
+    "context": "65-84-vuotiaat — 65-84-vuotiaat"
   },
   {
     "anchorId": "anchor_dc1dc7e38f649e6b858b4be6904d0cc2bae1b864201ca79380d4d8bf111529e0",
@@ -1230,7 +1230,7 @@
     "text": "85- -vuotiaat",
     "page": 6,
     "kind": "table_cell",
-    "context": "85- -vuotiaat | 0,1 | 0,2 | 1,5 | 2,8 | 3,0 — 85- -vuotiaat"
+    "context": "85- -vuotiaat — 85- -vuotiaat"
   },
   {
     "anchorId": "anchor_49f66b8f9386d89f49ebb97b9d904c140959a29643b8b11a0298902cec4e5044",
@@ -1279,7 +1279,7 @@
     "text": "Suomi",
     "page": 6,
     "kind": "table_cell",
-    "context": "Suomi | 86,8 | 91,1 | 92,4 | 86,9 | 84,1 — Suomi"
+    "context": "Suomi — Suomi"
   },
   {
     "anchorId": "anchor_374bed02cab1e66a9351add04a96122ab35bbf66ad93a183fec7f9df55d5f722",
@@ -1321,7 +1321,7 @@
     "text": "Ruotsi",
     "page": 6,
     "kind": "table_cell",
-    "context": "Ruotsi | 12,9 | 8,6 | 5,6 | 5,2 | 5,1 — Ruotsi"
+    "context": "Ruotsi — Ruotsi"
   },
   {
     "anchorId": "anchor_c78b1779d35427cbe0c5f16b58b4f6a29809b3d0433744d7fb06ae9c53ddc5b1",
@@ -1363,7 +1363,7 @@
     "text": "Saame",
     "page": 6,
     "kind": "table_cell",
-    "context": "Saame | 0,1 | 0,1 | 0,0 | 0,0 | 0,0 — Saame"
+    "context": "Saame — Saame"
   },
   {
     "anchorId": "anchor_8684d05c05279acc53728ba7d07c9490c9bf933dcef867835c1cedb3167bf43f",
@@ -1405,7 +1405,7 @@
     "text": "Muu",
     "page": 6,
     "kind": "table_cell",
-    "context": "Muu | 0,3 | 0,2 | 1,9 | 7,8 | 10,8 — Muu"
+    "context": "Muu — Muu"
   },
   {
     "anchorId": "anchor_fd5fd585bf68dfc948baafddcb0b0b3541df3bb809a8d461c0b309b3fa9dc340",
@@ -1454,7 +1454,7 @@
     "text": "Naimaton",
     "page": 6,
     "kind": "table_cell",
-    "context": "Naimaton | 60,9 | 53,3 | 47,1 | 48,9 | 50,2 — Naimaton"
+    "context": "Naimaton — Naimaton"
   },
   {
     "anchorId": "anchor_95b5af1167d8d84dc9efb697a1776a04041577a7943873a3cad9fce9fa66f9d9",
@@ -1496,7 +1496,7 @@
     "text": "Naimisissa 2)",
     "page": 6,
     "kind": "table_cell",
-    "context": "Naimisissa 2) | 33,6 | 39,4 | 38,3 | 35,3 | 34,0 — Naimisissa 2)"
+    "context": "Naimisissa 2) — Naimisissa 2)"
   },
   {
     "anchorId": "anchor_168b219b9a9ad1d94f27c1efb5e38c4c18019059d9b100abedb10716987e0937",
@@ -1538,7 +1538,7 @@
     "text": "Eronnut/leski 2)",
     "page": 6,
     "kind": "table_cell",
-    "context": "Eronnut/leski 2) | 5,5 | 7,2 | 14,6 | 15,8 | 15,8 — Eronnut/leski 2)"
+    "context": "Eronnut/leski 2) — Eronnut/leski 2)"
   },
   {
     "anchorId": "anchor_4788bf8d9de97c9ede3ee242fa5451b28f0f75a0a5c66e78648aed2ff142d4b5",
@@ -1587,7 +1587,7 @@
     "text": "Suomen ev.lut. kirkko",
     "page": 6,
     "kind": "table_cell",
-    "context": "Suomen ev.lut. kirkko | 3) 98,1 | 95,0 | 85,1 | 67,8 | 62,2 — Suomen ev.lut. kirkko"
+    "context": "Suomen ev.lut. kirkko — Suomen ev.lut. kirkko"
   },
   {
     "anchorId": "anchor_263472dc4dbdbf5292d0ff3562a347b668eba06e971c9a7198f754b7cba9e2ef",
@@ -1629,7 +1629,7 @@
     "text": "Ortodoksiset kirkot",
     "page": 6,
     "kind": "table_cell",
-    "context": "Ortodoksiset kirkot | 4) 1,7 | 1,7 | 1,1 | 1,1 | 1,0 — Ortodoksiset kirkot"
+    "context": "Ortodoksiset kirkot — Ortodoksiset kirkot"
   },
   {
     "anchorId": "anchor_d3fc4fff1088ffde4696c5df6ec2a518bb8ccf74c5787750a05ca94b61d89dce",
@@ -1671,7 +1671,7 @@
     "text": "Muu",
     "page": 6,
     "kind": "table_cell",
-    "context": "Muu | 0,2 | 0,5 | 1,1 | 1,7 | 1,8 — Muu"
+    "context": "Muu — Muu"
   },
   {
     "anchorId": "anchor_5b896450424ef8d095e344ef459703060d4efb738fd1f01c85e0372483cc9cd8",
@@ -1713,7 +1713,7 @@
     "text": "Uskontokuntiin kuulumattomat",
     "page": 6,
     "kind": "table_cell",
-    "context": "Uskontokuntiin kuulumattomat | - | 2,8 | 12,7 | 29,4 | 34,9 — Uskontokuntiin kuulumattomat"
+    "context": "Uskontokuntiin kuulumattomat — Uskontokuntiin kuulumattomat"
   },
   {
     "anchorId": "anchor_213bb99faf8372011ef3904de8899cb59685a28df9ce638ce37b216b7ad0fade",
@@ -1798,49 +1798,49 @@
     "text": "1900",
     "page": 9,
     "kind": "table_cell",
-    "context": "31.12. | 1900 | 1950 | 1990 | 2000 | 2020 | 2024 — 1900"
+    "context": "1900 — 1900"
   },
   {
     "anchorId": "anchor_ab0813894d0e44bc3cc76322905098b16b0a7b69b8f710ae4bbd31b3c853eca7",
     "text": "1950",
     "page": 9,
     "kind": "table_cell",
-    "context": "31.12. | 1900 | 1950 | 1990 | 2000 | 2020 | 2024 — 1950"
+    "context": "1950 — 1950"
   },
   {
     "anchorId": "anchor_00cffe54adfa9dd1fde227207aa68244e0773406bbd1059d850b032bf673b84c",
     "text": "1990",
     "page": 9,
     "kind": "table_cell",
-    "context": "31.12. | 1900 | 1950 | 1990 | 2000 | 2020 | 2024 — 1990"
+    "context": "1990 — 1990"
   },
   {
     "anchorId": "anchor_20323c745d1091c3d4dfff2fe0621fc12e29b5c3dbd63426e2ab01ad90573901",
     "text": "2000",
     "page": 9,
     "kind": "table_cell",
-    "context": "31.12. | 1900 | 1950 | 1990 | 2000 | 2020 | 2024 — 2000"
+    "context": "2000 — 2000"
   },
   {
     "anchorId": "anchor_e0eee7ef1983178ac0fb66d4418e62b2c75844b7a06f2222dd9027b9e43e7364",
     "text": "2020",
     "page": 9,
     "kind": "table_cell",
-    "context": "31.12. | 1900 | 1950 | 1990 | 2000 | 2020 | 2024 — 2020"
+    "context": "2020 — 2020"
   },
   {
     "anchorId": "anchor_d501755da9914ec7918e221f5595519e5b15b00c8500f745447f7b0e037f5659",
     "text": "2024",
     "page": 9,
     "kind": "table_cell",
-    "context": "31.12. | 1900 | 1950 | 1990 | 2000 | 2020 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_9c1800e9ff1207e7689fb364daf1678ecfbcfaa15ef6556c786bb577198992d0",
     "text": "Elävänä syntyneet",
     "page": 9,
     "kind": "table_cell",
-    "context": "Elävänä syntyneet | 86 339 | 98 065 | 65 549 | 56 742 | 46 463 | 43 720 — Elävänä syntyneet"
+    "context": "Elävänä syntyneet — Elävänä syntyneet"
   },
   {
     "anchorId": "anchor_86e80f71c8e2d07f9eaf18e0564dc77bbba5cb470d4fb1ed5ac19891a6fa76f1",
@@ -1889,7 +1889,7 @@
     "text": "Kuolleet",
     "page": 9,
     "kind": "table_cell",
-    "context": "Kuolleet | 57 915 | 40 681 | 50 058 | 49 339 | 55 488 | 58 267 — Kuolleet"
+    "context": "Kuolleet — Kuolleet"
   },
   {
     "anchorId": "anchor_ab0e38fd2bfbca985d9a874f0817c5da164275d5b65ea25330ddcce0740ef855",
@@ -1938,7 +1938,7 @@
     "text": "Luonnollinen väestönlisäys 1)",
     "page": 9,
     "kind": "table_cell",
-    "context": "Luonnollinen väestönlisäys 1) | 28 424 | 57 384 | 15 491 | 7 403 | -9 025 | -14 547 — Luonnollinen väestönlisäys 1)"
+    "context": "Luonnollinen väestönlisäys 1) — Luonnollinen väestönlisäys 1)"
   },
   {
     "anchorId": "anchor_93f9a3381e19465c00b17d49c02ed801c00c58d69b1cd7f2751d68d9514f1d3f",
@@ -1987,7 +1987,7 @@
     "text": "Maahanmuutto",
     "page": 9,
     "kind": "table_cell",
-    "context": "Maahanmuutto | . . | 1 634 | 13 558 | 16 895 | 32 898 | 63 965 — Maahanmuutto"
+    "context": "Maahanmuutto — Maahanmuutto"
   },
   {
     "anchorId": "anchor_81f3a632eaf98fd557fc713e96dd96f176455a60ae209d81a32d6a8f3bdd3c5e",
@@ -2036,7 +2036,7 @@
     "text": "Maastamuutto",
     "page": 9,
     "kind": "table_cell",
-    "context": "Maastamuutto | . . | 17 211 | 6 477 | 14 311 | 15 084 | 16 914 — Maastamuutto"
+    "context": "Maastamuutto — Maastamuutto"
   },
   {
     "anchorId": "anchor_506574740fea6d18f58d072756482d4db99dcfbaf03810fca94194813a761570",
@@ -2085,7 +2085,7 @@
     "text": "Nettomaahanmuutto 2)",
     "page": 9,
     "kind": "table_cell",
-    "context": "Nettomaahanmuutto 2) | . . | -15 577 | 7 081 | 2 584 | 17 814 | 47 051 — Nettomaahanmuutto 2)"
+    "context": "Nettomaahanmuutto 2) — Nettomaahanmuutto 2)"
   },
   {
     "anchorId": "anchor_4e47a6adf6eceed60a5119b968f615a8388ca1b735d5284ae233625e023dda6b",
@@ -2134,7 +2134,7 @@
     "text": "Kokonaismuutos 3)",
     "page": 9,
     "kind": "table_cell",
-    "context": "Kokonaismuutos 3) | 20 600 | 41 807 | 24 095 | 9 813 | 8 501 | 32 120 — Kokonaismuutos 3)"
+    "context": "Kokonaismuutos 3) — Kokonaismuutos 3)"
   },
   {
     "anchorId": "anchor_bc832b8b3324549eadf654f3bf88352460dd8790838bac8fc4a3f4fe4da0df16",
@@ -2183,7 +2183,7 @@
     "text": "Solmitut avioliitot 4)",
     "page": 9,
     "kind": "table_cell",
-    "context": "Solmitut avioliitot 4) | 18 295 | 34 205 | 25 815 | 27 751 | 22 082 | 21 420 — Solmitut avioliitot 4)"
+    "context": "Solmitut avioliitot 4) — Solmitut avioliitot 4)"
   },
   {
     "anchorId": "anchor_af2d6ea8547c821dc88e09995756b9b234967e2129dd2176f56464e948de5117",
@@ -2232,7 +2232,7 @@
     "text": "Avioerot 4)",
     "page": 9,
     "kind": "table_cell",
-    "context": "Avioerot 4) | 121 | 3 687 | 13 170 | 14 096 | 13 478 | 11 869 — Avioerot 4)"
+    "context": "Avioerot 4) — Avioerot 4)"
   },
   {
     "anchorId": "anchor_d490145620351dde31ba5b7192d378470f7e940534a19c6eba771e27ae80be63",
@@ -2300,42 +2300,42 @@
     "text": "2021",
     "page": 10,
     "kind": "table_cell",
-    "context": "Äidinkieli 31.12. | 2021 | 2022 | 2023 | 2024 | % — 2021"
+    "context": "2021 — 2021"
   },
   {
     "anchorId": "anchor_c4fee04e5430e3a5e08b2114f0369f6ab13cac2c6d4108254fd9abda5331102d",
     "text": "2022",
     "page": 10,
     "kind": "table_cell",
-    "context": "Äidinkieli 31.12. | 2021 | 2022 | 2023 | 2024 | % — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_161d86f3b7d0100de9951ba187f5ab821b2679b9f3025801dd68d7df023c3798",
     "text": "2023",
     "page": 10,
     "kind": "table_cell",
-    "context": "Äidinkieli 31.12. | 2021 | 2022 | 2023 | 2024 | % — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_9591cf952b14b6418d74e85e19a89c901a3ac85fde1489b87f0e16b03f9d1943",
     "text": "2024",
     "page": 10,
     "kind": "table_cell",
-    "context": "Äidinkieli 31.12. | 2021 | 2022 | 2023 | 2024 | % — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_b1dbbbbd79b77afefcd8e851ba1e3a020ef67b11fb026e2dc62267c064c62a15",
     "text": "%",
     "page": 10,
     "kind": "table_cell",
-    "context": "Äidinkieli 31.12. | 2021 | 2022 | 2023 | 2024 | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_43e6d697922596682487a60f30071ac66ce8671d54b806f40678a94bd05c99ba",
     "text": "Yhteensä",
     "page": 10,
     "kind": "table_cell",
-    "context": "Yhteensä | 5 548 241 | 5 563 970 | 5 603 851 | 5 635 971 | 100 — Yhteensä"
+    "context": "Yhteensä — Yhteensä"
   },
   {
     "anchorId": "anchor_48b3f20c655e8ccf103409605d4e1656e563c0569cc4332a7926b235b5517e86",
@@ -2377,7 +2377,7 @@
     "text": "suomi",
     "page": 10,
     "kind": "table_cell",
-    "context": "suomi | 4 800 243 | 4 778 891 | 4 757 476 | 4 738 386 | 84,1 — suomi"
+    "context": "suomi — suomi"
   },
   {
     "anchorId": "anchor_297906c39bed6d5be682111623e0911774f6ff654dea681ebe47d25094db2915",
@@ -2419,7 +2419,7 @@
     "text": "ruotsi",
     "page": 10,
     "kind": "table_cell",
-    "context": "ruotsi | 287 933 | 287 052 | 286 030 | 285 360 | 5,1 — ruotsi"
+    "context": "ruotsi — ruotsi"
   },
   {
     "anchorId": "anchor_f2ac3c2595e497eafdd3fd013e1cb7d717f483f8df4d32e28ab7594d56f396c5",
@@ -2461,7 +2461,7 @@
     "text": "saame",
     "page": 10,
     "kind": "table_cell",
-    "context": "saame | 2 023 | 2 035 | 2 051 | 2 077 | 0,0 — saame"
+    "context": "saame — saame"
   },
   {
     "anchorId": "anchor_5c1e1e8ef66e20dde32ed773c1579cc67d2bccde9df7ffab950408e037c3d2eb",
@@ -2503,7 +2503,7 @@
     "text": "Vieraskieliset yhteensä",
     "page": 10,
     "kind": "table_cell",
-    "context": "Vieraskieliset yhteensä | 458 042 | 495 992 | 558 294 | 610 148 | 10,8 — Vieraskieliset yhteensä"
+    "context": "Vieraskieliset yhteensä — Vieraskieliset yhteensä"
   },
   {
     "anchorId": "anchor_6ffbc2119c01f1ff241c99a63b157526a3f0a4b101cdfe490bd306b6cd23f779",
@@ -2545,7 +2545,7 @@
     "text": "venäjä",
     "page": 10,
     "kind": "table_cell",
-    "context": "venäjä | 87 552 | 93 535 | 99 606 | 102 487 | 1,8 — venäjä"
+    "context": "venäjä — venäjä"
   },
   {
     "anchorId": "anchor_a31d759419015c36d2e2969cee4eb61d3d7d5574b112afbe644f02d097e88b64",
@@ -2587,7 +2587,7 @@
     "text": "viro, eesti",
     "page": 10,
     "kind": "table_cell",
-    "context": "viro, eesti | 50 232 | 50 318 | 50 202 | 49 563 | 0,9 — viro, eesti"
+    "context": "viro, eesti — viro, eesti"
   },
   {
     "anchorId": "anchor_62ee912e5c7de3c7b4b61992175d593f75013966835b56551713eebc40fbddfb",
@@ -2629,7 +2629,7 @@
     "text": "arabia",
     "page": 10,
     "kind": "table_cell",
-    "context": "arabia | 36 466 | 39 069 | 41 311 | 43 534 | 0,8 — arabia"
+    "context": "arabia — arabia"
   },
   {
     "anchorId": "anchor_c4f31bdf04d6befc40d64d4fd6b68a55c422c14df4255a6f9ab41b2fecf1376a",
@@ -2671,7 +2671,7 @@
     "text": "ukraina",
     "page": 10,
     "kind": "table_cell",
-    "context": "ukraina | 7 278 | 8 761 | 26 519 | 38 850 | 0,7 — ukraina"
+    "context": "ukraina — ukraina"
   },
   {
     "anchorId": "anchor_57f05de862abb2bc7f0e1e9091ffeb48b7845e3cdbe8b039312cf4cd78b84d31",
@@ -2713,7 +2713,7 @@
     "text": "englanti",
     "page": 10,
     "kind": "table_cell",
-    "context": "englanti | 25 638 | 29 448 | 33 796 | 36 971 | 0,7 — englanti"
+    "context": "englanti — englanti"
   },
   {
     "anchorId": "anchor_11152551987bcea7e20f8163854a9337922d3769ca144c7811fa366ec58e2c98",
@@ -2755,7 +2755,7 @@
     "text": "somali",
     "page": 10,
     "kind": "table_cell",
-    "context": "somali | 23 656 | 24 647 | 25 654 | 26 891 | 0,5 — somali"
+    "context": "somali — somali"
   },
   {
     "anchorId": "anchor_e8fedc2ea570fb9ad09b688483002a234af1cef01d5b13992b0c1d437c1f257a",
@@ -2797,7 +2797,7 @@
     "text": "farsi, persia",
     "page": 10,
     "kind": "table_cell",
-    "context": "farsi, persia | 16 432 | 18 097 | 20 421 | 22 154 | 0,4 — farsi, persia"
+    "context": "farsi, persia — farsi, persia"
   },
   {
     "anchorId": "anchor_ccd9db33d7c390d4bbb2a3047756873db372007016254ab394f3bf974eaf06cd",
@@ -2839,7 +2839,7 @@
     "text": "kiina",
     "page": 10,
     "kind": "table_cell",
-    "context": "kiina | 14 780 | 15 735 | 17 501 | 19 264 | 0,3 — kiina"
+    "context": "kiina — kiina"
   },
   {
     "anchorId": "anchor_4250a9c4eb160fd991d597efdb742530b1e3a69327bf2421febe41ff50fcffba",
@@ -2881,7 +2881,7 @@
     "text": "albania",
     "page": 10,
     "kind": "table_cell",
-    "context": "albania | 13 830 | 15 576 | 17 779 | 19 072 | 0,3 — albania"
+    "context": "albania — albania"
   },
   {
     "anchorId": "anchor_d4453e241fc8787154a945edfdb3645051198a60489fdf1fce7a1666b15843e7",
@@ -2923,7 +2923,7 @@
     "text": "kurdi",
     "page": 10,
     "kind": "table_cell",
-    "context": "kurdi | 15 850 | 16 603 | 17 270 | 17 953 | 0,3 — kurdi"
+    "context": "kurdi — kurdi"
   },
   {
     "anchorId": "anchor_69470e47c092faeae79f032a981f054a49987c0f9932bf0990b1641423ad5681",
@@ -2965,7 +2965,7 @@
     "text": "Muut",
     "page": 10,
     "kind": "table_cell",
-    "context": "Muut | 166 328 | 184 203 | 208 235 | 233 409 | 4,1 — Muut"
+    "context": "Muut — Muut"
   },
   {
     "anchorId": "anchor_b1c21232b5072e79d4fe516352cde2fd409d896553b4290810f2546fc189fbcf",
@@ -3038,42 +3038,42 @@
     "text": "2021",
     "page": 11,
     "kind": "table_cell",
-    "context": "Kansalaisuus 31.12. | 2021 | 2022 | 2023 | 2024 | Muutos, % 2023-2024 — 2021"
+    "context": "2021 — 2021"
   },
   {
     "anchorId": "anchor_3cafd64a3691e4699ad5cfa03079427d68f0d4619d70062154e1466b84d793f6",
     "text": "2022",
     "page": 11,
     "kind": "table_cell",
-    "context": "Kansalaisuus 31.12. | 2021 | 2022 | 2023 | 2024 | Muutos, % 2023-2024 — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_fa72f3461647fdd2f55f7475001c67846ac2711ec1f9a51a93ede85ab2eb484a",
     "text": "2023",
     "page": 11,
     "kind": "table_cell",
-    "context": "Kansalaisuus 31.12. | 2021 | 2022 | 2023 | 2024 | Muutos, % 2023-2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_858d02f275289fb7d8478330841c3cdb12e9e56e535614e5563ca8fca589e0d8",
     "text": "2024",
     "page": 11,
     "kind": "table_cell",
-    "context": "Kansalaisuus 31.12. | 2021 | 2022 | 2023 | 2024 | Muutos, % 2023-2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_a871680b90b5edd5af934f682b3d8f14f40914b01ed6018e3440612f56efa13a",
     "text": "Muutos, % 2023-2024",
     "page": 11,
     "kind": "table_cell",
-    "context": "Kansalaisuus 31.12. | 2021 | 2022 | 2023 | 2024 | Muutos, % 2023-2024 — Muutos, % 2023-2024"
+    "context": "Muutos, % 2023-2024 — Muutos, % 2023-2024"
   },
   {
     "anchorId": "anchor_3431b5b6684e0d36649537e645d9c3cde4d8c36f1054b40f4d7db6bb3a031ffd",
     "text": "Yhteensä",
     "page": 11,
     "kind": "table_cell",
-    "context": "Yhteensä | 5 548 241 | 5 563 970 | 5 603 851 | 5 635 971 | 0,6 — Yhteensä"
+    "context": "Yhteensä — Yhteensä"
   },
   {
     "anchorId": "anchor_e8b4d256f4635e26b3159bc6ce6d97376a25dc18d0616b5360421f5666d2ec35",
@@ -3115,7 +3115,7 @@
     "text": "Suomi",
     "page": 11,
     "kind": "table_cell",
-    "context": "Suomi | 5 251 777 | 5 240 284 | 5 230 878 | 5 224 870 | -0,1 — Suomi"
+    "context": "Suomi — Suomi"
   },
   {
     "anchorId": "anchor_9fc2b020f65f818b5df439518aa57c5b0cf1cd2c9135fd2d07490bce53c2aec7",
@@ -3157,7 +3157,7 @@
     "text": "Ulkomaat yhteensä",
     "page": 11,
     "kind": "table_cell",
-    "context": "Ulkomaat yhteensä | 296 464 | 323 686 | 372 973 | 411 101 | 10,2 — Ulkomaat yhteensä"
+    "context": "Ulkomaat yhteensä — Ulkomaat yhteensä"
   },
   {
     "anchorId": "anchor_6125e991f02583e9563e1a6e155ab2ef6999b6244623b708250e91f1fe0ff9f7",
@@ -3199,7 +3199,7 @@
     "text": "Viro",
     "page": 11,
     "kind": "table_cell",
-    "context": "Viro | 51 805 | 51 819 | 51 597 | 50 444 | -2,2 — Viro"
+    "context": "Viro — Viro"
   },
   {
     "anchorId": "anchor_64bb3d00709dd665ed30d7d692ba7d11c92911deeed89f24bcabd67bf6a9030c",
@@ -3241,7 +3241,7 @@
     "text": "Ukraina",
     "page": 11,
     "kind": "table_cell",
-    "context": "Ukraina | 7 202 | 8 441 | 28 100 | 41 403 | 47,3 — Ukraina"
+    "context": "Ukraina — Ukraina"
   },
   {
     "anchorId": "anchor_2251a563b1cd1831efe3fc373d79d22b08a00c35e794673351ebca70e33839aa",
@@ -3283,7 +3283,7 @@
     "text": "Venäjä",
     "page": 11,
     "kind": "table_cell",
-    "context": "Venäjä | 30 049 | 33 428 | 35 359 | 35 172 | -0,5 — Venäjä"
+    "context": "Venäjä — Venäjä"
   },
   {
     "anchorId": "anchor_cf79eb66ca81d50970ce1d55b2c966b95b1deacde1b8a9bda7e6a66f7fe7c698",
@@ -3325,7 +3325,7 @@
     "text": "Kiina",
     "page": 11,
     "kind": "table_cell",
-    "context": "Kiina | 11 405 | 12 297 | 14 020 | 15 687 | 11,9 — Kiina"
+    "context": "Kiina — Kiina"
   },
   {
     "anchorId": "anchor_e061e1260e2cf1fa10f7d04d3b36e6592a2b9900676d8e65a4b2f0b24a1c11fe",
@@ -3367,7 +3367,7 @@
     "text": "Filippiinit",
     "page": 11,
     "kind": "table_cell",
-    "context": "Filippiinit | 5 351 | 8 140 | 11 540 | 15 122 | 31,0 — Filippiinit"
+    "context": "Filippiinit — Filippiinit"
   },
   {
     "anchorId": "anchor_de1362707ac7e7699d3b01f36c91a81d18d0d02942cee28fae81d9d609177c54",
@@ -3409,7 +3409,7 @@
     "text": "Intia",
     "page": 11,
     "kind": "table_cell",
-    "context": "Intia | 8 245 | 10 487 | 13 068 | 15 115 | 15,7 — Intia"
+    "context": "Intia — Intia"
   },
   {
     "anchorId": "anchor_c5bfc771207cb748d0d40f129b5ab740eedb0ab48939e4400d9774eb02174dfd",
@@ -3451,7 +3451,7 @@
     "text": "Irak",
     "page": 11,
     "kind": "table_cell",
-    "context": "Irak | 15 075 | 15 322 | 14 730 | 13 993 | -5,0 — Irak"
+    "context": "Irak — Irak"
   },
   {
     "anchorId": "anchor_0ebf2d721cecce3135acd5ec648a930ad88e577fc9344a79cb6681f9bd27b922",
@@ -3493,7 +3493,7 @@
     "text": "Vietnam",
     "page": 11,
     "kind": "table_cell",
-    "context": "Vietnam | 7 237 | 7 757 | 8 795 | 10 076 | 14,6 — Vietnam"
+    "context": "Vietnam — Vietnam"
   },
   {
     "anchorId": "anchor_94cdaca6b42ebadff085fc5254e9b5d472288f28cee0170dd220c47d1adbab73",
@@ -3535,7 +3535,7 @@
     "text": "Afganistan",
     "page": 11,
     "kind": "table_cell",
-    "context": "Afganistan | 7 686 | 8 362 | 9 222 | 9 237 | 0,2 — Afganistan"
+    "context": "Afganistan — Afganistan"
   },
   {
     "anchorId": "anchor_b084c9b8caeac63d03ce2ccd91df25230460f08b51d90054d9df4bdbcb300e48",
@@ -3577,7 +3577,7 @@
     "text": "Bangladesh",
     "page": 11,
     "kind": "table_cell",
-    "context": "Bangladesh | 2 819 | 3 880 | 6 272 | 8 668 | 38,2 — Bangladesh"
+    "context": "Bangladesh — Bangladesh"
   },
   {
     "anchorId": "anchor_1e3a42122a1bce58c71d232832de2a3a49459e3eb5014d351cb7d38e2d2f16f2",
@@ -3619,7 +3619,7 @@
     "text": "Muut",
     "page": 11,
     "kind": "table_cell",
-    "context": "Muut | 149 590 | 163 753 | 180 270 | 196 184 | 8,8 — Muut"
+    "context": "Muut — Muut"
   },
   {
     "anchorId": "anchor_4bc0984f94f0697993b2886b6faae6f7772db60e80a7913314b3a172a1984a85",
@@ -3692,35 +3692,35 @@
     "text": "2000",
     "page": 12,
     "kind": "table_cell",
-    "context": "Aluejako 1.1.2025 | 2000 | 2024 | % | Muutos, % 2000-2024 — 2000"
+    "context": "2000 — 2000"
   },
   {
     "anchorId": "anchor_4517b1be2cd67179851834a2c568ae98f244645e80c205752f2b8cf8273007d4",
     "text": "2024",
     "page": 12,
     "kind": "table_cell",
-    "context": "Aluejako 1.1.2025 | 2000 | 2024 | % | Muutos, % 2000-2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_1bc2a90b4036be307149cc8377ea1357105ac107972000953f95cdb0a8dd6fbc",
     "text": "%",
     "page": 12,
     "kind": "table_cell",
-    "context": "Aluejako 1.1.2025 | 2000 | 2024 | % | Muutos, % 2000-2024 — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_c55a84a34d2ec2e16b1d12d9f6c669a090c5d71893d8509b837785998c48a336",
     "text": "Muutos, % 2000-2024",
     "page": 12,
     "kind": "table_cell",
-    "context": "Aluejako 1.1.2025 | 2000 | 2024 | % | Muutos, % 2000-2024 — Muutos, % 2000-2024"
+    "context": "Muutos, % 2000-2024 — Muutos, % 2000-2024"
   },
   {
     "anchorId": "anchor_65ea37bd933c1f679f330319cf62ba2d0fd42e9c12470020192608b0ba4476e4",
     "text": "Koko maa",
     "page": 12,
     "kind": "table_cell",
-    "context": "Koko maa | 5 181 115 | 5 635 971 | 100 | 8,8 — Koko maa"
+    "context": "Koko maa — Koko maa"
   },
   {
     "anchorId": "anchor_be71e6ccff649da61e4d3ca08a9dfdab8e3b207c7a4823262a4dfe253940b2b6",
@@ -3755,7 +3755,7 @@
     "text": "Uusimaa",
     "page": 12,
     "kind": "table_cell",
-    "context": "Uusimaa | 1 394 199 | 1 782 300 | 31,6 | 27,8 — Uusimaa"
+    "context": "Uusimaa — Uusimaa"
   },
   {
     "anchorId": "anchor_7e51d800645aeafecd4c73c4c970bbf78f74f82e9ceab8caaf134eabc887d004",
@@ -3790,7 +3790,7 @@
     "text": "Varsinais-Suomi",
     "page": 12,
     "kind": "table_cell",
-    "context": "Varsinais-Suomi | 447 103 | 494 819 | 8,8 | 10,7 — Varsinais-Suomi"
+    "context": "Varsinais-Suomi — Varsinais-Suomi"
   },
   {
     "anchorId": "anchor_a8e537b828f881353528740b60cf0e6e628632fa3205dca72dff13cfad1073a9",
@@ -3825,7 +3825,7 @@
     "text": "Satakunta",
     "page": 12,
     "kind": "table_cell",
-    "context": "Satakunta | 232 569 | 211 261 | 3,7 | -9,2 — Satakunta"
+    "context": "Satakunta — Satakunta"
   },
   {
     "anchorId": "anchor_3e972ac0e327d6bdcc894af278aa198f5b93654b4d946089b2e0a89f2dbf457d",
@@ -3860,7 +3860,7 @@
     "text": "Kanta-Häme",
     "page": 12,
     "kind": "table_cell",
-    "context": "Kanta-Häme | 165 307 | 169 455 | 3,0 | 2,5 — Kanta-Häme"
+    "context": "Kanta-Häme — Kanta-Häme"
   },
   {
     "anchorId": "anchor_38be1b2ea90b407122d3de59a3f36831c18aa58e62414fc9a9ee5ef36ebdc5ec",
@@ -3895,7 +3895,7 @@
     "text": "Pirkanmaa",
     "page": 12,
     "kind": "table_cell",
-    "context": "Pirkanmaa | 453 319 | 545 406 | 9,7 | 20,3 — Pirkanmaa"
+    "context": "Pirkanmaa — Pirkanmaa"
   },
   {
     "anchorId": "anchor_d433e057f7d63f052e5f2e70ff74b6d54703b73ac806ae83145c1f16d915b0be",
@@ -3930,7 +3930,7 @@
     "text": "Päijät-Häme",
     "page": 12,
     "kind": "table_cell",
-    "context": "Päijät-Häme | 204 912 | 204 635 | 3,6 | -0,1 — Päijät-Häme"
+    "context": "Päijät-Häme — Päijät-Häme"
   },
   {
     "anchorId": "anchor_175fc7f05f313322f23fc16f3a402478f972a89c82e41379e4cee7d3cf32b0d4",
@@ -3965,7 +3965,7 @@
     "text": "Kymenlaakso",
     "page": 12,
     "kind": "table_cell",
-    "context": "Kymenlaakso | 179 940 | 157 442 | 2,8 | -12,5 — Kymenlaakso"
+    "context": "Kymenlaakso — Kymenlaakso"
   },
   {
     "anchorId": "anchor_5a99622b70188edf0250df391534a21ed3db87e89eefc59dfc847266c5e3db35",
@@ -4000,7 +4000,7 @@
     "text": "Etelä-Karjala",
     "page": 12,
     "kind": "table_cell",
-    "context": "Etelä-Karjala | 136 299 | 125 083 | 2,2 | -8,2 — Etelä-Karjala"
+    "context": "Etelä-Karjala — Etelä-Karjala"
   },
   {
     "anchorId": "anchor_7e4310c23c56d1d681304efb85f7ade8d91fb30978d398fbb88dd98665b2b99f",
@@ -4035,7 +4035,7 @@
     "text": "Etelä-Savo",
     "page": 12,
     "kind": "table_cell",
-    "context": "Etelä-Savo | 156 117 | 129 376 | 2,3 | -17,1 — Etelä-Savo"
+    "context": "Etelä-Savo — Etelä-Savo"
   },
   {
     "anchorId": "anchor_b5e04855566cbaa8ff3f4d79a4a0f7ac69ea16dd11160994312b991390e33699",
@@ -4070,7 +4070,7 @@
     "text": "Pohjois-Savo",
     "page": 12,
     "kind": "table_cell",
-    "context": "Pohjois-Savo | 259 639 | 248 815 | 4,4 | -4,2 — Pohjois-Savo"
+    "context": "Pohjois-Savo — Pohjois-Savo"
   },
   {
     "anchorId": "anchor_0b5871a70c8d42be6aa4d3af7ba70776e0bbdced3867f7598ed98dd35bd79042",
@@ -4105,7 +4105,7 @@
     "text": "Pohjois-Karjala",
     "page": 12,
     "kind": "table_cell",
-    "context": "Pohjois-Karjala | 176 187 | 162 091 | 2,9 | -8,0 — Pohjois-Karjala"
+    "context": "Pohjois-Karjala — Pohjois-Karjala"
   },
   {
     "anchorId": "anchor_7913b11ca6e4ae92ec0ff6069afd70c7b3fc2611c590cec32678e4a035903c8a",
@@ -4140,7 +4140,7 @@
     "text": "Keski-Suomi",
     "page": 12,
     "kind": "table_cell",
-    "context": "Keski-Suomi | 262 710 | 274 112 | 4,9 | 4,3 — Keski-Suomi"
+    "context": "Keski-Suomi — Keski-Suomi"
   },
   {
     "anchorId": "anchor_54eb6614f28fa6341c3e8fc748876f785d508c8b7bace9bfe7c336a3883a056d",
@@ -4175,7 +4175,7 @@
     "text": "Etelä-Pohjanmaa",
     "page": 12,
     "kind": "table_cell",
-    "context": "Etelä-Pohjanmaa | 200 766 | 189 929 | 3,4 | -5,4 — Etelä-Pohjanmaa"
+    "context": "Etelä-Pohjanmaa — Etelä-Pohjanmaa"
   },
   {
     "anchorId": "anchor_f0869f35da153d94964f1d19c8b9f6a22ea3198cb74aa763c8c997cb7002a3fd",
@@ -4210,7 +4210,7 @@
     "text": "Pohjanmaa",
     "page": 12,
     "kind": "table_cell",
-    "context": "Pohjanmaa | 168 077 | 178 749 | 3,2 | 6,3 — Pohjanmaa"
+    "context": "Pohjanmaa — Pohjanmaa"
   },
   {
     "anchorId": "anchor_1041340c077f23199f4e8cde060f0df9a1fe50d33176da508360ce98fc750957",
@@ -4245,7 +4245,7 @@
     "text": "Keski-Pohjanmaa",
     "page": 12,
     "kind": "table_cell",
-    "context": "Keski-Pohjanmaa | 68 052 | 67 723 | 1,2 | -0,5 — Keski-Pohjanmaa"
+    "context": "Keski-Pohjanmaa — Keski-Pohjanmaa"
   },
   {
     "anchorId": "anchor_868031b67cdb8e7eac02453856420e2ce343f358d5a23099a80eddb96202c4a0",
@@ -4280,7 +4280,7 @@
     "text": "Pohjois-Pohjanmaa",
     "page": 12,
     "kind": "table_cell",
-    "context": "Pohjois-Pohjanmaa | 372 639 | 418 331 | 7,4 | 12,3 — Pohjois-Pohjanmaa"
+    "context": "Pohjois-Pohjanmaa — Pohjois-Pohjanmaa"
   },
   {
     "anchorId": "anchor_8550f64e067857533543ba4e745323bf9852e27bf8dd0c3ff88d021c881eeb27",
@@ -4315,7 +4315,7 @@
     "text": "Kainuu",
     "page": 12,
     "kind": "table_cell",
-    "context": "Kainuu | 85 736 | 69 639 | 1,2 | -18,8 — Kainuu"
+    "context": "Kainuu — Kainuu"
   },
   {
     "anchorId": "anchor_ee6bd1731f6be6a2b4d4abd5b25b11eaac798eaf1188b180394c5ec1518bbcd7",
@@ -4350,7 +4350,7 @@
     "text": "Lappi",
     "page": 12,
     "kind": "table_cell",
-    "context": "Lappi | 191 768 | 176 151 | 3,1 | -8,1 — Lappi"
+    "context": "Lappi — Lappi"
   },
   {
     "anchorId": "anchor_137728f2c62562da5e2082b436401b71fc9f946687fc95d95a58c162858853f9",
@@ -4385,7 +4385,7 @@
     "text": "Ahvenanmaa",
     "page": 12,
     "kind": "table_cell",
-    "context": "Ahvenanmaa | 25 776 | 30 654 | 0,5 | 18,9 — Ahvenanmaa"
+    "context": "Ahvenanmaa — Ahvenanmaa"
   },
   {
     "anchorId": "anchor_eb9e20fd569b18a0ca0cd8d0d87e83775c699dbeae3a61a407745d3976e4682e",
@@ -5030,49 +5030,49 @@
     "text": "1980",
     "page": 14,
     "kind": "table_cell",
-    "context": "1980 | % | 2000 | % | 2023 | % — 1980"
+    "context": "1980 — 1980"
   },
   {
     "anchorId": "anchor_f79565f6adf99c3ed67066d7bce201b610591e65aacd394820ddea519992a3c5",
     "text": "%",
     "page": 14,
     "kind": "table_cell",
-    "context": "1980 | % | 2000 | % | 2023 | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_1f41ef07ec7fb73b9121fc8eaa212ce333d350859b126208179e8dc56615f06b",
     "text": "2000",
     "page": 14,
     "kind": "table_cell",
-    "context": "1980 | % | 2000 | % | 2023 | % — 2000"
+    "context": "2000 — 2000"
   },
   {
     "anchorId": "anchor_91297ce00bc07eb44ec2ead89b59a1d9204cfdde792ca0b9e8fa98fae37854d4",
     "text": "%",
     "page": 14,
     "kind": "table_cell",
-    "context": "1980 | % | 2000 | % | 2023 | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_536fc5d643252fff1d3de15565abdcee0a499482152fea5d5ffcbe4cb48fa5fd",
     "text": "2023",
     "page": 14,
     "kind": "table_cell",
-    "context": "1980 | % | 2000 | % | 2023 | % — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_c229fafb56d0a7311c34279d1026d872c86670e35a060b1edd9ca7e63541ec4e",
     "text": "%",
     "page": 14,
     "kind": "table_cell",
-    "context": "1980 | % | 2000 | % | 2023 | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_40a2f7d0a8f29165e1860522148948f9f0a593f9cd609a084d686dc7ce285c96",
     "text": "Verenkiertoelinten sairaudet",
     "page": 14,
     "kind": "table_cell",
-    "context": "Verenkiertoelinten sairaudet | 23 016 | 52 | 21 304 | 43 | 19 349 | 32 — Verenkiertoelinten sairaudet"
+    "context": "Verenkiertoelinten sairaudet — Verenkiertoelinten sairaudet"
   },
   {
     "anchorId": "anchor_e1023f454145722ba7c465a6e9ac3269e54dffd647a07ca9fede4245169c4335",
@@ -5121,7 +5121,7 @@
     "text": "Kasvaimet",
     "page": 14,
     "kind": "table_cell",
-    "context": "Kasvaimet | 9 101 | 20 | 10 492 | 21 | 13 875 | 23 — Kasvaimet"
+    "context": "Kasvaimet — Kasvaimet"
   },
   {
     "anchorId": "anchor_529600ec6756ed2e1a0fd58cf40d64cdbee3954edd9bdaa11e7d30c91f0ceaba",
@@ -5170,7 +5170,7 @@
     "text": "Dementia, Alzheimerin tauti",
     "page": 14,
     "kind": "table_cell",
-    "context": "Dementia, Alzheimerin tauti | 253 | 1 | 3 428 | 7 | 12 154 | 20 — Dementia, Alzheimerin tauti"
+    "context": "Dementia, Alzheimerin tauti — Dementia, Alzheimerin tauti"
   },
   {
     "anchorId": "anchor_164a2c07f716b8cd20e95b307479c4d28200a6dac08115f41c2b36e7f5b5d502",
@@ -5219,7 +5219,7 @@
     "text": "Tapaturmat pl. alkoholimyrkytykset",
     "page": 14,
     "kind": "table_cell",
-    "context": "Tapaturmat pl. alkoholimyrkytykset | 1 941 | 4 | 2 320 | 5 | 2 409 | 4 — Tapaturmat pl. alkoholimyrkytykset"
+    "context": "Tapaturmat pl. alkoholimyrkytykset — Tapaturmat pl. alkoholimyrkytykset"
   },
   {
     "anchorId": "anchor_b2328df491150e051126aa50ffe624c46541688a765de5865dc2907f435f66da",
@@ -5268,7 +5268,7 @@
     "text": "Covid-19-virusinfektio",
     "page": 14,
     "kind": "table_cell",
-    "context": "Covid-19-virusinfektio | - | - | - | - | 2 229 | 4 — Covid-19-virusinfektio"
+    "context": "Covid-19-virusinfektio — Covid-19-virusinfektio"
   },
   {
     "anchorId": "anchor_1360f89a1bef0144317487230f694e9c347b7f888a34d42e7dd9ef344764c9f3",
@@ -5317,7 +5317,7 @@
     "text": "Hengityselinten sairaudet",
     "page": 14,
     "kind": "table_cell",
-    "context": "Hengityselinten sairaudet | 3 751 | 8 | 4 293 | 9 | 2 113 | 3 — Hengityselinten sairaudet"
+    "context": "Hengityselinten sairaudet — Hengityselinten sairaudet"
   },
   {
     "anchorId": "anchor_bcf01a3bc0aee66f353a122a9b8bc95416003a60e7952ee36d319aeb99ffcd3b",
@@ -5366,7 +5366,7 @@
     "text": "Alkoholiperäiset taudit ja tapaturmainen alkoholimyrkytys",
     "page": 14,
     "kind": "table_cell",
-    "context": "Alkoholiperäiset taudit ja tapaturmainen alkoholimyrkytys | 646 | 1 | 1 477 | 3 | 1 727 | 3 — Alkoholiperäiset taudit ja tapaturmainen alkoholimyrkytys"
+    "context": "Alkoholiperäiset taudit ja tapaturmainen alkoholimyrkytys — Alkoholiperäiset taudit ja tapaturmainen alkoholimyrkytys"
   },
   {
     "anchorId": "anchor_17ecc7bd29d3ec0cdb4f76d287664082c4c33a226a4c1b473f72bef71c3e9474",
@@ -5415,7 +5415,7 @@
     "text": "Ruuansulatuselinten sairaudet",
     "page": 14,
     "kind": "table_cell",
-    "context": "Ruuansulatuselinten sairaudet | 1 026 | 2 | 1 391 | 3 | 1 370 | 2 — Ruuansulatuselinten sairaudet"
+    "context": "Ruuansulatuselinten sairaudet — Ruuansulatuselinten sairaudet"
   },
   {
     "anchorId": "anchor_425fb711f43006f39c131b753786e07d1359e42f76c8fee41538596e1e647a35",
@@ -5464,7 +5464,7 @@
     "text": "Itsemurhat",
     "page": 14,
     "kind": "table_cell",
-    "context": "Itsemurhat | 1 226 | 3 | 1 165 | 2 | 752 | 1 — Itsemurhat"
+    "context": "Itsemurhat — Itsemurhat"
   },
   {
     "anchorId": "anchor_50141cc465725c420f79736a98739926a3f69fd57c6ca1e83bf50aedb8c6f359",
@@ -5513,7 +5513,7 @@
     "text": "Diabetes",
     "page": 14,
     "kind": "table_cell",
-    "context": "Diabetes | 635 | 1 | 572 | 1 | 695 | 1 — Diabetes"
+    "context": "Diabetes — Diabetes"
   },
   {
     "anchorId": "anchor_6915a701095c48519f045cd147fb52cd2fff6865aef2f0a133492417b7a1706d",
@@ -5562,7 +5562,7 @@
     "text": "Muut kuolemansyyt",
     "page": 14,
     "kind": "table_cell",
-    "context": "Muut kuolemansyyt | 2 916 | 7 | 2 874 | 6 | 4 628 | 8 — Muut kuolemansyyt"
+    "context": "Muut kuolemansyyt — Muut kuolemansyyt"
   },
   {
     "anchorId": "anchor_c8059bf586e71aa4577555c7ff74b92b59a5bfead066ebcaf4764ce7626087a2",
@@ -5611,7 +5611,7 @@
     "text": "Yhteensä",
     "page": 14,
     "kind": "table_cell",
-    "context": "Yhteensä | 44 511 | 100 | 49 316 | 100 | 61 301 | 100 — Yhteensä"
+    "context": "Yhteensä — Yhteensä"
   },
   {
     "anchorId": "anchor_5218869f2a0766e26b14d3975e1e3afa00e4a883464809b1e2614402d89446c2",
@@ -5786,35 +5786,35 @@
     "text": "2010",
     "page": 16,
     "kind": "table_cell",
-    "context": "2010 | % | 2023 | % — 2010"
+    "context": "2010 — 2010"
   },
   {
     "anchorId": "anchor_17d260e1e79d63c3eba79e950f851ee9889096f312ab6565c3b0797b5634c1e5",
     "text": "%",
     "page": 16,
     "kind": "table_cell",
-    "context": "2010 | % | 2023 | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_d887774ba9faed03eeea5d45e68e18c491b6b5d5b04eb85d9ddbfc8a655ce1b6",
     "text": "2023",
     "page": 16,
     "kind": "table_cell",
-    "context": "2010 | % | 2023 | % — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_3a03916ccfda8c9e24533726212a072ff34cd9d4af098f90e521295244fcd44e",
     "text": "%",
     "page": 16,
     "kind": "table_cell",
-    "context": "2010 | % | 2023 | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_a23fe8f90ac8d5526cbc75e60a430ef205421f7864a9e2b4c8d53d03e0037825",
     "text": "15 vuotta täyttänyt väestö",
     "page": 16,
     "kind": "table_cell",
-    "context": "15 vuotta täyttänyt väestö | 4 487 599 | 100 | 4 771 619 | 100 — 15 vuotta täyttänyt väestö"
+    "context": "15 vuotta täyttänyt väestö — 15 vuotta täyttänyt väestö"
   },
   {
     "anchorId": "anchor_482e73eb9d7d812328852b307301028ec13bb53edf2faf0297e6219cb1d96dd8",
@@ -5849,7 +5849,7 @@
     "text": "Tutkinnon suorittaneita yhteensä",
     "page": 16,
     "kind": "table_cell",
-    "context": "Tutkinnon suorittaneita yhteensä | 3 004 903 | 67,0 | 3 581 780 | 75,1 — Tutkinnon suorittaneita yhteensä"
+    "context": "Tutkinnon suorittaneita yhteensä — Tutkinnon suorittaneita yhteensä"
   },
   {
     "anchorId": "anchor_5db608f0fa3b4c6fff884122477518cab56c524f2e300fa5fc5422c6d47e2f41",
@@ -5884,7 +5884,7 @@
     "text": "Toinen aste",
     "page": 16,
     "kind": "table_cell",
-    "context": "Toinen aste | 1 737 248 | 38,7 | 1 913 688 | 40,1 — Toinen aste"
+    "context": "Toinen aste — Toinen aste"
   },
   {
     "anchorId": "anchor_8253414afdbdf8b3ed5ba29c2730fc525af069fd4783a2ab927092788345169c",
@@ -5919,7 +5919,7 @@
     "text": "Erikoisammattikoulutusaste",
     "page": 16,
     "kind": "table_cell",
-    "context": "Erikoisammattikoulutusaste | 20 808 | 0,5 | 54 730 | 1,1 — Erikoisammattikoulutusaste"
+    "context": "Erikoisammattikoulutusaste — Erikoisammattikoulutusaste"
   },
   {
     "anchorId": "anchor_c229a4de78cb008da8a424a89f35e128536a9678b08c277400d26a518216e73f",
@@ -5954,7 +5954,7 @@
     "text": "Alin korkea-aste",
     "page": 16,
     "kind": "table_cell",
-    "context": "Alin korkea-aste | 472 283 | 10,5 | 403 701 | 8,5 — Alin korkea-aste"
+    "context": "Alin korkea-aste — Alin korkea-aste"
   },
   {
     "anchorId": "anchor_d615b637fb6324519f3f3965a4c019d0207b290d672f2c5f73dcba673dad232d",
@@ -5989,7 +5989,7 @@
     "text": "Alempi korkeakouluaste",
     "page": 16,
     "kind": "table_cell",
-    "context": "Alempi korkeakouluaste | 395 862 | 8,8 | 620 512 | 13,0 — Alempi korkeakouluaste"
+    "context": "Alempi korkeakouluaste — Alempi korkeakouluaste"
   },
   {
     "anchorId": "anchor_9547b28a7fd9da108fc94a8477555467642b9cc87f0aeef54a72c9eef2a26daa",
@@ -6024,7 +6024,7 @@
     "text": "Ylempi korkeakouluaste",
     "page": 16,
     "kind": "table_cell",
-    "context": "Ylempi korkeakouluaste | 342 598 | 7,6 | 534 078 | 11,2 — Ylempi korkeakouluaste"
+    "context": "Ylempi korkeakouluaste — Ylempi korkeakouluaste"
   },
   {
     "anchorId": "anchor_758e716d0f7b13cbca865c1b4a35f090b275d2f3d461caf20bf3307ddcec7076",
@@ -6059,7 +6059,7 @@
     "text": "Tutkijakoulutusaste",
     "page": 16,
     "kind": "table_cell",
-    "context": "Tutkijakoulutusaste | 36 104 | 0,8 | 55 071 | 1,2 — Tutkijakoulutusaste"
+    "context": "Tutkijakoulutusaste — Tutkijakoulutusaste"
   },
   {
     "anchorId": "anchor_5efaa9c7eeb4bf4170132e41d51d872d7b9c69533f5ec3ee8744deccf3c9f47c",
@@ -6094,7 +6094,7 @@
     "text": "Ei perusasteen jälkeistä tutkintoa",
     "page": 16,
     "kind": "table_cell",
-    "context": "Ei perusasteen jälkeistä tutkintoa | 1 482 696 | 33,0 | 1 189 839 | 24,9 — Ei perusasteen jälkeistä tutkintoa"
+    "context": "Ei perusasteen jälkeistä tutkintoa — Ei perusasteen jälkeistä tutkintoa"
   },
   {
     "anchorId": "anchor_e5911d072e88f152b8361aaf7eb7216ba8e825d8bd74fe78d7d4825850171813",
@@ -6142,49 +6142,49 @@
     "text": "Opiskelijat 1)",
     "page": 16,
     "kind": "table_cell",
-    "context": "Koulutussektori | Opiskelijat 1) | Suoritetut tutkinnot — Opiskelijat 1)"
+    "context": "Opiskelijat 1) — Opiskelijat 1)"
   },
   {
     "anchorId": "anchor_b3c0cc22727ca63a4a0cec9950c96af7aaa39f6c3717b4b07141e9f8885db282",
     "text": "Suoritetut tutkinnot",
     "page": 16,
     "kind": "table_cell",
-    "context": "Koulutussektori | Opiskelijat 1) | Suoritetut tutkinnot — Suoritetut tutkinnot"
+    "context": "Suoritetut tutkinnot — Suoritetut tutkinnot"
   },
   {
     "anchorId": "anchor_4fe804d27bf3f30a5bda3a3300f31c8de283858a561d94fc551a61f9b0d94e51",
     "text": "2010",
     "page": 16,
     "kind": "table_cell",
-    "context": "2010 | 2023 | 2010 | 2023 — 2010"
+    "context": "2010 — 2010"
   },
   {
     "anchorId": "anchor_ef07e88a581b58715f2aa15aab6b232bb64a8268c66d88cc9a2598c54ea2e9e0",
     "text": "2023",
     "page": 16,
     "kind": "table_cell",
-    "context": "2010 | 2023 | 2010 | 2023 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_aaf5d2daec5265313247102babc2ba7502078f66e2ed019a3aeb44c7d987f851",
     "text": "2010",
     "page": 16,
     "kind": "table_cell",
-    "context": "2010 | 2023 | 2010 | 2023 — 2010"
+    "context": "2010 — 2010"
   },
   {
     "anchorId": "anchor_ebd70768f17588607fed9b41fbdb4b7f220d1569e4be5d58a83264e23aca65a0",
     "text": "2023",
     "page": 16,
     "kind": "table_cell",
-    "context": "2010 | 2023 | 2010 | 2023 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_456aa77853d2cb67f055fb46b7da3d9e2188489b9f44e46559056d192a3f8dc9",
     "text": "Esiopetus",
     "page": 16,
     "kind": "table_cell",
-    "context": "Esiopetus | - | 52 271 | - | - — Esiopetus"
+    "context": "Esiopetus — Esiopetus"
   },
   {
     "anchorId": "anchor_28a1e4da0fe524117e9bfcee1ed7003ff94d114e65291da42c2c8aa6e5eb3ca8",
@@ -6219,7 +6219,7 @@
     "text": "Perusopetus",
     "page": 16,
     "kind": "table_cell",
-    "context": "Perusopetus | 548 784 | 558 138 | 64 957 | 62 337 — Perusopetus"
+    "context": "Perusopetus — Perusopetus"
   },
   {
     "anchorId": "anchor_e32d3838f4e9a6e1c1a6e1a1713a0224216a1b0c1550afff60f769fe2290ed0c",
@@ -6254,7 +6254,7 @@
     "text": "Lukiokoulutus",
     "page": 16,
     "kind": "table_cell",
-    "context": "Lukiokoulutus | 111 778 | 110 597 | 32 697 | 31 363 — Lukiokoulutus"
+    "context": "Lukiokoulutus — Lukiokoulutus"
   },
   {
     "anchorId": "anchor_7a58c6b039ad5b55872afe53093915159b1616f39724ce711e6135dae03bf723",
@@ -6289,7 +6289,7 @@
     "text": "Ammatillinen koulutus",
     "page": 16,
     "kind": "table_cell",
-    "context": "Ammatillinen koulutus | 279 863 | 347 730 | 67 056 | 68 470 — Ammatillinen koulutus"
+    "context": "Ammatillinen koulutus — Ammatillinen koulutus"
   },
   {
     "anchorId": "anchor_55746c951cfb2fc6c6d8e3fcbc42e09c92397e363a6eb28405b7fce1a2193e03",
@@ -6324,7 +6324,7 @@
     "text": "Ammattikorkeakoulukoulutus",
     "page": 16,
     "kind": "table_cell",
-    "context": "Ammattikorkeakoulukoulutus | 138 852 | 170 775 | 21 899 | 30 957 — Ammattikorkeakoulukoulutus"
+    "context": "Ammattikorkeakoulukoulutus — Ammattikorkeakoulukoulutus"
   },
   {
     "anchorId": "anchor_48fe16c446ed151b506a055bdfdf189f88d057734da5b7530febd282947c00d2",
@@ -6359,7 +6359,7 @@
     "text": "Yliopistokoulutus",
     "page": 16,
     "kind": "table_cell",
-    "context": "Yliopistokoulutus | 169 404 | 168 037 | 29 118 | 33 418 — Yliopistokoulutus"
+    "context": "Yliopistokoulutus — Yliopistokoulutus"
   },
   {
     "anchorId": "anchor_7801e43a236f969db6fac57531d08e32ee1a065a7aa070395128fcdccb022dba",
@@ -6394,7 +6394,7 @@
     "text": "Yhteensä",
     "page": 16,
     "kind": "table_cell",
-    "context": "Yhteensä | 1 248 681 | 1 407 548 | 215 727 | 226 545 — Yhteensä"
+    "context": "Yhteensä — Yhteensä"
   },
   {
     "anchorId": "anchor_d8236aa3f1d73fd0b95808f11ce886b595a070d5217c17752014d1eaf50b3e82",
@@ -6453,42 +6453,42 @@
     "text": "2020",
     "page": 17,
     "kind": "table_cell",
-    "context": "2020 | 2021 | 2022 | 2023 | 2024 — 2020"
+    "context": "2020 — 2020"
   },
   {
     "anchorId": "anchor_20ad0969b7bcd71dd57834ef5026b42c757e304cb12422308759c14d959f2f68",
     "text": "2021",
     "page": 17,
     "kind": "table_cell",
-    "context": "2020 | 2021 | 2022 | 2023 | 2024 — 2021"
+    "context": "2021 — 2021"
   },
   {
     "anchorId": "anchor_53a533666004f8a85b851bb51d565c5f8ce675e812ecf57513212015f1b1dd0f",
     "text": "2022",
     "page": 17,
     "kind": "table_cell",
-    "context": "2020 | 2021 | 2022 | 2023 | 2024 — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_b8d83a49c50daaefd65a40e0a2c37d48e4a150c92d6c6047e0239761669d7be9",
     "text": "2023",
     "page": 17,
     "kind": "table_cell",
-    "context": "2020 | 2021 | 2022 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_c6c0aef3255681e8c7bedd174b2729ee829e05336efdb43c87c8914eb125922e",
     "text": "2024",
     "page": 17,
     "kind": "table_cell",
-    "context": "2020 | 2021 | 2022 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_cbc17343ed0f702c1cefcde9542574535c00afa0ccd9c6c7d8bf306fd27f6ace",
     "text": "Käyttänyt internetiä 1)",
     "page": 17,
     "kind": "table_cell",
-    "context": "Käyttänyt internetiä 1) | 92 | 93 | 93 | 94 | 94 — Käyttänyt internetiä 1)"
+    "context": "Käyttänyt internetiä 1) — Käyttänyt internetiä 1)"
   },
   {
     "anchorId": "anchor_2dfb170304e2f2ad47e1e607976854cb7fe2ed1379eb2fab370bef1a4862a968",
@@ -6530,7 +6530,7 @@
     "text": "Älypuhelin omassa käytössä",
     "page": 17,
     "kind": "table_cell",
-    "context": "Älypuhelin omassa käytössä | 87 | 88 | 88 | 90 | 90 — Älypuhelin omassa käytössä"
+    "context": "Älypuhelin omassa käytössä — Älypuhelin omassa käytössä"
   },
   {
     "anchorId": "anchor_fe9e75ee27a24948d03f569b86aac26300da882a79b34cd43c98dfa6a4698a8f",
@@ -6572,7 +6572,7 @@
     "text": "Soittanut internet- tai videopuheluja 1)",
     "page": 17,
     "kind": "table_cell",
-    "context": "Soittanut internet- tai videopuheluja 1) | 72 | 67 | 68 | 68 | 72 — Soittanut internet- tai videopuheluja 1)"
+    "context": "Soittanut internet- tai videopuheluja 1) — Soittanut internet- tai videopuheluja 1)"
   },
   {
     "anchorId": "anchor_0639ca06b106d09459fb7f00c116d0fe2f6541a41741705fd930cf70186c66de",
@@ -6614,7 +6614,7 @@
     "text": "Pikaviestinyt älypuhelimella tai muulla laitteella 1)",
     "page": 17,
     "kind": "table_cell",
-    "context": "Pikaviestinyt älypuhelimella tai muulla laitteella 1) | 76 | 78 | 77 | 79 | 77 — Pikaviestinyt älypuhelimella tai muulla laitteella 1)"
+    "context": "Pikaviestinyt älypuhelimella tai muulla laitteella 1) — Pikaviestinyt älypuhelimella tai muulla laitteella 1)"
   },
   {
     "anchorId": "anchor_0590e0e78048f16e74e56d48e121a0f7e4f4ef3c7125a8caf8f36bda7fe294ed",
@@ -6656,7 +6656,7 @@
     "text": "Kuunnellut tai ladannut musiikkia 1)",
     "page": 17,
     "kind": "table_cell",
-    "context": "Kuunnellut tai ladannut musiikkia 1) | 68 | 69 | 71 | . . | 72 — Kuunnellut tai ladannut musiikkia 1)"
+    "context": "Kuunnellut tai ladannut musiikkia 1) — Kuunnellut tai ladannut musiikkia 1)"
   },
   {
     "anchorId": "anchor_bf59e3713117b34ba8b1d6a031a6cf36fcd8e7989a7c26f4108c0436cbc3f1b9",
@@ -6698,7 +6698,7 @@
     "text": "Katsonut elokuvia, sarjoja tai urheilulähetyksiä tilausvideopalveluissa 1)",
     "page": 17,
     "kind": "table_cell",
-    "context": "Katsonut elokuvia, sarjoja tai urheilulähetyksiä tilausvideopalveluissa 1) | 49 | 53 | 60 | 58 | 60 — Katsonut elokuvia, sarjoja tai urheilulähetyksiä tilausvideopalveluissa 1)"
+    "context": "Katsonut elokuvia, sarjoja tai urheilulähetyksiä tilausvideopalveluissa 1) — Katsonut elokuvia, sarjoja tai urheilulähetyksiä tilausvideopalveluissa 1)"
   },
   {
     "anchorId": "anchor_dda766465168698be6986c2e2ca2ea0e1ee6463c43cf7531fa8ec6bd6766ab72",
@@ -6740,7 +6740,7 @@
     "text": "Käyttänyt yhteisöpalvelua 2) päivittäin tai lähes päivittäin",
     "page": 17,
     "kind": "table_cell",
-    "context": "Käyttänyt yhteisöpalvelua 2) päivittäin tai lähes päivittäin | 59 | 58 | 59 | 3) 62 | 59 — Käyttänyt yhteisöpalvelua 2) päivittäin tai lähes päivittäin"
+    "context": "Käyttänyt yhteisöpalvelua 2) päivittäin tai lähes päivittäin — Käyttänyt yhteisöpalvelua 2) päivittäin tai lähes päivittäin"
   },
   {
     "anchorId": "anchor_254bb970658a86e80c05bd29a6e5c19d48e211a442441fa12e55aeaf53e4ef76",
@@ -6782,7 +6782,7 @@
     "text": "Ostanut verkkokaupasta 1)",
     "page": 17,
     "kind": "table_cell",
-    "context": "Ostanut verkkokaupasta 1) | 54 | 57 | 58 | 58 | 58 — Ostanut verkkokaupasta 1)"
+    "context": "Ostanut verkkokaupasta 1) — Ostanut verkkokaupasta 1)"
   },
   {
     "anchorId": "anchor_db201f1bb66d6bde9da8701e89d8c2178c8796110b4884dce43e22260e22d172",
@@ -6866,28 +6866,28 @@
     "text": "2010",
     "page": 18,
     "kind": "table_cell",
-    "context": "2010 | 2020 | 2023 | 2024 — 2010"
+    "context": "2010 — 2010"
   },
   {
     "anchorId": "anchor_bbee223901d09d1273b3a1d03413075988328150e1fb2944db93394423307246",
     "text": "2020",
     "page": 18,
     "kind": "table_cell",
-    "context": "2010 | 2020 | 2023 | 2024 — 2020"
+    "context": "2020 — 2020"
   },
   {
     "anchorId": "anchor_743cfdb7114cfdfca9114937c854f8cb9e90a1f46565a25c8006d496de60ced8",
     "text": "2023",
     "page": 18,
     "kind": "table_cell",
-    "context": "2010 | 2020 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_943af2fef61aa1e5c2a97cac68e90fd2ed42852b123624c090e6a1249703a05b",
     "text": "2024",
     "page": 18,
     "kind": "table_cell",
-    "context": "2010 | 2020 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_fc705f219b2806a0525a726937573360393f23ffd5dbe034e02a2a4ff38d2faf",
@@ -6901,7 +6901,7 @@
     "text": "15-74-vuotias väestö yhteensä",
     "page": 18,
     "kind": "table_cell",
-    "context": "15-74-vuotias väestö yhteensä | 4 043 | 4 133 | 4 131 | 4 153 — 15-74-vuotias väestö yhteensä"
+    "context": "15-74-vuotias väestö yhteensä — 15-74-vuotias väestö yhteensä"
   },
   {
     "anchorId": "anchor_12b2df6e35700fb062b2e15db034f1eafd6cd12e4e32846633b3cda0e3cf5556",
@@ -6936,7 +6936,7 @@
     "text": "Työlliset",
     "page": 18,
     "kind": "table_cell",
-    "context": "Työlliset | 2 411 | 2 495 | 2 628 | 2 602 — Työlliset"
+    "context": "Työlliset — Työlliset"
   },
   {
     "anchorId": "anchor_b58dede87ff26a97339dd3d25d6b86a160a10d5ef632719bed286728c762dc3e",
@@ -6971,7 +6971,7 @@
     "text": "Työttömät",
     "page": 18,
     "kind": "table_cell",
-    "context": "Työttömät | 226 | 209 | 204 | 238 — Työttömät"
+    "context": "Työttömät — Työttömät"
   },
   {
     "anchorId": "anchor_9d28357176147624b49d029820eb62a0ef8a33e8ee02182140d607c7bde9f174",
@@ -7006,7 +7006,7 @@
     "text": "Työvoiman ulkopuolella olevat",
     "page": 18,
     "kind": "table_cell",
-    "context": "Työvoiman ulkopuolella olevat | 1 406 | 1 429 | 1 299 | 1 312 — Työvoiman ulkopuolella olevat"
+    "context": "Työvoiman ulkopuolella olevat — Työvoiman ulkopuolella olevat"
   },
   {
     "anchorId": "anchor_6933c61b561517e3679462de7f42ecbb9bd4bbc853a338865428358166d17e4f",
@@ -7048,7 +7048,7 @@
     "text": "Kokoaikatyö",
     "page": 18,
     "kind": "table_cell",
-    "context": "Kokoaikatyö | 2 052 | 2 078 | 2 111 | 2 101 — Kokoaikatyö"
+    "context": "Kokoaikatyö — Kokoaikatyö"
   },
   {
     "anchorId": "anchor_4a225d289ff7abc2a9ac8188ac75e8cd1004b8a4b5b231332940a6005f7cb3ec",
@@ -7083,7 +7083,7 @@
     "text": "Osa-aikatyö",
     "page": 18,
     "kind": "table_cell",
-    "context": "Osa-aikatyö | 357 | 415 | 488 | 482 — Osa-aikatyö"
+    "context": "Osa-aikatyö — Osa-aikatyö"
   },
   {
     "anchorId": "anchor_982919c960839658c1e6ae801dbe3532113f5be9ef8dced1051384b3a1298978",
@@ -7125,7 +7125,7 @@
     "text": "Yksityinen sektori",
     "page": 18,
     "kind": "table_cell",
-    "context": "Yksityinen sektori | 1 756 | 1 866 | 1 944 | 1 907 — Yksityinen sektori"
+    "context": "Yksityinen sektori — Yksityinen sektori"
   },
   {
     "anchorId": "anchor_1aeaa784c24d0fa7e74cbfbd51e3cc927ac9375e768df4e4c9fdf029414bdea1",
@@ -7160,7 +7160,7 @@
     "text": "Paikallishallinto",
     "page": 18,
     "kind": "table_cell",
-    "context": "Paikallishallinto | 497 | 476 | 499 | 520 — Paikallishallinto"
+    "context": "Paikallishallinto — Paikallishallinto"
   },
   {
     "anchorId": "anchor_b729a813ae67c4d79f102d0cee5a14809841e6b061b5d96ad9eacd2035dab310",
@@ -7195,7 +7195,7 @@
     "text": "Valtio 1)",
     "page": 18,
     "kind": "table_cell",
-    "context": "Valtio 1) | 149 | 146 | 164 | 160 — Valtio 1)"
+    "context": "Valtio 1) — Valtio 1)"
   },
   {
     "anchorId": "anchor_2d538d525d415b7e78a23bd6bb17de6e25a02ede82f7485a5eaab1f10f0f5b7e",
@@ -7237,7 +7237,7 @@
     "text": "Palkansaajat",
     "page": 18,
     "kind": "table_cell",
-    "context": "Palkansaajat | 2 082 | 2 151 | 2 292 | 2 285 — Palkansaajat"
+    "context": "Palkansaajat — Palkansaajat"
   },
   {
     "anchorId": "anchor_6b436adef29d51cb8e5109ba39da1e28dca4be174addead416385991bf37316d",
@@ -7272,7 +7272,7 @@
     "text": "Yrittäjät ja yrittäjäperheenjäsenet",
     "page": 18,
     "kind": "table_cell",
-    "context": "Yrittäjät ja yrittäjäperheenjäsenet | 329 | 343 | 336 | 317 — Yrittäjät ja yrittäjäperheenjäsenet"
+    "context": "Yrittäjät ja yrittäjäperheenjäsenet — Yrittäjät ja yrittäjäperheenjäsenet"
   },
   {
     "anchorId": "anchor_0673265f999a084350e51f59babd26eb8ac5c441647c3b8d136a014c33559010",
@@ -7314,7 +7314,7 @@
     "text": "Työttömyysaste",
     "page": 18,
     "kind": "table_cell",
-    "context": "Työttömyysaste | 8,6 | 7,7 | 7,2 | 8,4 — Työttömyysaste"
+    "context": "Työttömyysaste — Työttömyysaste"
   },
   {
     "anchorId": "anchor_b2358692c198bc5dd00fb3d0294ffc8e875fd242a6452ea3ea68dadcfb015f83",
@@ -7349,7 +7349,7 @@
     "text": "Miehet",
     "page": 18,
     "kind": "table_cell",
-    "context": "Miehet | 9,4 | 8,1 | 7,9 | 9,2 — Miehet"
+    "context": "Miehet — Miehet"
   },
   {
     "anchorId": "anchor_ada214e85e8a98e322715cd98706697326a47bcd9055187707d5bd82cef28532",
@@ -7384,7 +7384,7 @@
     "text": "Naiset",
     "page": 18,
     "kind": "table_cell",
-    "context": "Naiset | 7,7 | 7,4 | 6,5 | 7,6 — Naiset"
+    "context": "Naiset — Naiset"
   },
   {
     "anchorId": "anchor_c49af7fe1fa69b115c4d8a92de8d96c3f6de88c33d587e66a7d37f0706e13ac8",
@@ -7467,49 +7467,49 @@
     "text": "2010",
     "page": 19,
     "kind": "table_cell",
-    "context": "2010 | 2020 | 2024 | 2024 — 2010"
+    "context": "2010 — 2010"
   },
   {
     "anchorId": "anchor_ffe42352470defe412cfc79600d78272f6af5ca3d4283fbdfe644d938317c412",
     "text": "2020",
     "page": 19,
     "kind": "table_cell",
-    "context": "2010 | 2020 | 2024 | 2024 — 2020"
+    "context": "2020 — 2020"
   },
   {
     "anchorId": "anchor_c113efa8596cd93d46072d309f46ed7d9febf4ece083644ddb455fb1beac9d59",
     "text": "2024",
     "page": 19,
     "kind": "table_cell",
-    "context": "2010 | 2020 | 2024 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_cf93939e438a1ecbb7645f3e8e3995e47611410dd12e19b804b0add60bad647f",
     "text": "2024",
     "page": 19,
     "kind": "table_cell",
-    "context": "2010 | 2020 | 2024 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_c05ee34a94fe219f04daa195e77730ba99725ec592d3be5eb0d57ae751acc8bf",
     "text": "tuhatta henkilöä",
     "page": 19,
     "kind": "table_cell",
-    "context": "tuhatta henkilöä | % — tuhatta henkilöä"
+    "context": "tuhatta henkilöä — tuhatta henkilöä"
   },
   {
     "anchorId": "anchor_6b48b69cde6169e07c2b32276dfebc33688989e2add8b3fb12f849724c55d684",
     "text": "%",
     "page": 19,
     "kind": "table_cell",
-    "context": "tuhatta henkilöä | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_3be602d8f171e35209974988e8d8f08a968d2c464401e8060758ede0d94c109c",
     "text": "Terveys- ja sosiaalipalvelut",
     "page": 19,
     "kind": "table_cell",
-    "context": "Terveys- ja sosiaalipalvelut | 370 | 402 | 441 | 16,9 — Terveys- ja sosiaalipalvelut"
+    "context": "Terveys- ja sosiaalipalvelut — Terveys- ja sosiaalipalvelut"
   },
   {
     "anchorId": "anchor_e4597e9c473e8a72faaf28ea1eb8cbbd6ee5a980b3f862579e28e0ddf991c710",
@@ -7544,7 +7544,7 @@
     "text": "Teollisuus",
     "page": 19,
     "kind": "table_cell",
-    "context": "Teollisuus | 359 | 328 | 333 | 12,8 — Teollisuus"
+    "context": "Teollisuus — Teollisuus"
   },
   {
     "anchorId": "anchor_58d4827baf21b5013fdb70eb1e5fe82f22e566c1ef6db22e268838316a09df01",
@@ -7579,7 +7579,7 @@
     "text": "Tukku- ja vähittäiskauppa; moottoriajoneuvojen ja -pyörien korjaus",
     "page": 19,
     "kind": "table_cell",
-    "context": "Tukku- ja vähittäiskauppa; moottoriajoneuvojen ja -pyörien korjaus | 294 | 272 | 277 | 10,6 — Tukku- ja vähittäiskauppa; moottoriajoneuvojen ja -pyörien korjaus"
+    "context": "Tukku- ja vähittäiskauppa; moottoriajoneuvojen ja -pyörien korjaus — Tukku- ja vähittäiskauppa; moottoriajoneuvojen ja -pyörien korjaus"
   },
   {
     "anchorId": "anchor_a92be0fc2cf729df67ccd19f517e31078d157572edc60a81f8ffe059217347c4",
@@ -7614,7 +7614,7 @@
     "text": "Koulutus",
     "page": 19,
     "kind": "table_cell",
-    "context": "Koulutus | 168 | 177 | 193 | 7,4 — Koulutus"
+    "context": "Koulutus — Koulutus"
   },
   {
     "anchorId": "anchor_98efe9326234e6d348c0c660e83de3f093908bde90fbf5969bd94be4c8cc3459",
@@ -7649,7 +7649,7 @@
     "text": "Ammatillinen, tieteellinen ja tekninen toiminta",
     "page": 19,
     "kind": "table_cell",
-    "context": "Ammatillinen, tieteellinen ja tekninen toiminta | 145 | 184 | 177 | 6,8 — Ammatillinen, tieteellinen ja tekninen toiminta"
+    "context": "Ammatillinen, tieteellinen ja tekninen toiminta — Ammatillinen, tieteellinen ja tekninen toiminta"
   },
   {
     "anchorId": "anchor_fe9dd82c7a3f5db95acc880e89bf5891de1a9e01b44f55ec370e73e800f2ec13",
@@ -7684,7 +7684,7 @@
     "text": "Rakentaminen",
     "page": 19,
     "kind": "table_cell",
-    "context": "Rakentaminen | 173 | 194 | 173 | 6,6 — Rakentaminen"
+    "context": "Rakentaminen — Rakentaminen"
   },
   {
     "anchorId": "anchor_931213c3b586974e3e9841cf402f68a32c4212b56d0fc2cf6841651a050ecae1",
@@ -7719,7 +7719,7 @@
     "text": "Informaatio ja viestintä",
     "page": 19,
     "kind": "table_cell",
-    "context": "Informaatio ja viestintä | 92 | 122 | 141 | 5,4 — Informaatio ja viestintä"
+    "context": "Informaatio ja viestintä — Informaatio ja viestintä"
   },
   {
     "anchorId": "anchor_b9ea53dd92b810dbb9a214e422d24ad74fdbe6853a4816cc9142b63fa0504019",
@@ -7754,7 +7754,7 @@
     "text": "Kuljetus ja varastointi",
     "page": 19,
     "kind": "table_cell",
-    "context": "Kuljetus ja varastointi | 156 | 139 | 136 | 5,2 — Kuljetus ja varastointi"
+    "context": "Kuljetus ja varastointi — Kuljetus ja varastointi"
   },
   {
     "anchorId": "anchor_2919df5abfa387cd8d0c367f97a9fecaedb8298ea25540dcc8e55f5a1d6c70b4",
@@ -7789,7 +7789,7 @@
     "text": "Hallinto- ja tukipalvelutoiminta",
     "page": 19,
     "kind": "table_cell",
-    "context": "Hallinto- ja tukipalvelutoiminta | 100 | 120 | 136 | 5,2 — Hallinto- ja tukipalvelutoiminta"
+    "context": "Hallinto- ja tukipalvelutoiminta — Hallinto- ja tukipalvelutoiminta"
   },
   {
     "anchorId": "anchor_fb63f038ee550441860dfec7d173e3b7b6bd3fa6398cf67762ee21d965474ab5",
@@ -7824,7 +7824,7 @@
     "text": "Julkinen hallinto ja maanpuolustus; pakollinen sosiaalivakuutus",
     "page": 19,
     "kind": "table_cell",
-    "context": "Julkinen hallinto ja maanpuolustus; pakollinen sosiaalivakuutus | 112 | 111 | 124 | 4,8 — Julkinen hallinto ja maanpuolustus; pakollinen sosiaalivakuutus"
+    "context": "Julkinen hallinto ja maanpuolustus; pakollinen sosiaalivakuutus — Julkinen hallinto ja maanpuolustus; pakollinen sosiaalivakuutus"
   },
   {
     "anchorId": "anchor_40e1cdb0b377c5a318d959026fc9eb9fef856981d4b9a77a1c4f0cb5f947d3b2",
@@ -7859,7 +7859,7 @@
     "text": "Majoitus- ja ravitsemistoiminta",
     "page": 19,
     "kind": "table_cell",
-    "context": "Majoitus- ja ravitsemistoiminta | 85 | 83 | 103 | 4,0 — Majoitus- ja ravitsemistoiminta"
+    "context": "Majoitus- ja ravitsemistoiminta — Majoitus- ja ravitsemistoiminta"
   },
   {
     "anchorId": "anchor_dbebe38217b2cf6a80101e72359179dfe60425a11bfe5ca52a44942a74bc8fbe",
@@ -7894,7 +7894,7 @@
     "text": "Maa-, metsä- ja kalatalous; kaivostoiminta",
     "page": 19,
     "kind": "table_cell",
-    "context": "Maa-, metsä- ja kalatalous; kaivostoiminta | 115 | 100 | 95 | 3,7 — Maa-, metsä- ja kalatalous; kaivostoiminta"
+    "context": "Maa-, metsä- ja kalatalous; kaivostoiminta — Maa-, metsä- ja kalatalous; kaivostoiminta"
   },
   {
     "anchorId": "anchor_b11a8702995acfb3786c6d8348325e9785e4ba7c299df9ec6ae2488c4950ead3",
@@ -7929,7 +7929,7 @@
     "text": "Muu palvelutoiminta",
     "page": 19,
     "kind": "table_cell",
-    "context": "Muu palvelutoiminta | 83 | 86 | 86 | 3,3 — Muu palvelutoiminta"
+    "context": "Muu palvelutoiminta — Muu palvelutoiminta"
   },
   {
     "anchorId": "anchor_790db9798dd5d4276992543747ab84f0649684c29a1e102c24d460de0b25eb3f",
@@ -7964,7 +7964,7 @@
     "text": "Rahoitus- ja vakuutustoiminta; kiinteistöala",
     "page": 19,
     "kind": "table_cell",
-    "context": "Rahoitus- ja vakuutustoiminta; kiinteistöala | 68 | 76 | 79 | 3,0 — Rahoitus- ja vakuutustoiminta; kiinteistöala"
+    "context": "Rahoitus- ja vakuutustoiminta; kiinteistöala — Rahoitus- ja vakuutustoiminta; kiinteistöala"
   },
   {
     "anchorId": "anchor_f2d01b84b5147b8b7c2e2656063323a446a9416deff51c3662319755e687403d",
@@ -7999,7 +7999,7 @@
     "text": "Taiteet, viihde ja virkistys",
     "page": 19,
     "kind": "table_cell",
-    "context": "Taiteet, viihde ja virkistys | 55 | 64 | 63 | 2,4 — Taiteet, viihde ja virkistys"
+    "context": "Taiteet, viihde ja virkistys — Taiteet, viihde ja virkistys"
   },
   {
     "anchorId": "anchor_e3b7b0ef9b70712145fcfeb7330995b5add7375c061f8fa124cfc72a94b67054",
@@ -8034,7 +8034,7 @@
     "text": "Sähkö-, lämpö-, vesi- ja jätehuolto yms.",
     "page": 19,
     "kind": "table_cell",
-    "context": "Sähkö-, lämpö-, vesi- ja jätehuolto yms. | 26 | 29 | 30 | 1,2 — Sähkö-, lämpö-, vesi- ja jätehuolto yms."
+    "context": "Sähkö-, lämpö-, vesi- ja jätehuolto yms. — Sähkö-, lämpö-, vesi- ja jätehuolto yms."
   },
   {
     "anchorId": "anchor_3abbea99ee0d2361cfda2f467f926cb8d07976f116e1dbf45df20d88318ceb5c",
@@ -8069,7 +8069,7 @@
     "text": "Yhteensä ml. tuntematon",
     "page": 19,
     "kind": "table_cell",
-    "context": "Yhteensä ml. tuntematon | 2 411 | 2 495 | 2 602 | 100 — Yhteensä ml. tuntematon"
+    "context": "Yhteensä ml. tuntematon — Yhteensä ml. tuntematon"
   },
   {
     "anchorId": "anchor_ab687899039b674a3b15a59e78eaa3ec90667431b95417784146c06e497a4fde",
@@ -8131,7 +8131,7 @@
     "text": "Palvelualat ja hallinto",
     "page": 19,
     "kind": "table_cell",
-    "context": "Palvelualat ja hallinto | 42 | 75 — Palvelualat ja hallinto"
+    "context": "Palvelualat ja hallinto — Palvelualat ja hallinto"
   },
   {
     "anchorId": "anchor_cee4d521c0523915d424217e48814a1498cca473f44d504deba5790c7b1311fc",
@@ -8152,7 +8152,7 @@
     "text": "Teollisuus ja rakentaminen",
     "page": 19,
     "kind": "table_cell",
-    "context": "Teollisuus ja rakentaminen | 34 | 21 — Teollisuus ja rakentaminen"
+    "context": "Teollisuus ja rakentaminen — Teollisuus ja rakentaminen"
   },
   {
     "anchorId": "anchor_c02a1e2ecf945edb63def4eab45f1ab05f46cefb75ac6b8f1e0198ce20556f13",
@@ -8173,7 +8173,7 @@
     "text": "Maa- ja metsätalous",
     "page": 19,
     "kind": "table_cell",
-    "context": "Maa- ja metsätalous | 24 | 4 — Maa- ja metsätalous"
+    "context": "Maa- ja metsätalous — Maa- ja metsätalous"
   },
   {
     "anchorId": "anchor_34e627fcecaa861fe3b7196002d9ef24348a99468adb82fbb1b7ba3ade127d39",
@@ -8200,35 +8200,35 @@
     "text": "Yhteensä mediaani 1)",
     "page": 20,
     "kind": "table_cell",
-    "context": "Yhteensä mediaani 1) | Miehet €/kk | Naiset | Kokoaikaiset palkansaajat — Yhteensä mediaani 1)"
+    "context": "Yhteensä mediaani 1) — Yhteensä mediaani 1)"
   },
   {
     "anchorId": "anchor_d96b259af7be5446f95b4c8f1d8b3ead09eaac191dbcbe717b33ed76ac470e3a",
     "text": "Miehet €/kk",
     "page": 20,
     "kind": "table_cell",
-    "context": "Yhteensä mediaani 1) | Miehet €/kk | Naiset | Kokoaikaiset palkansaajat — Miehet €/kk"
+    "context": "Miehet €/kk — Miehet €/kk"
   },
   {
     "anchorId": "anchor_3f1b79e138e9d37b52a37f356f863d38e78ac481000c40169f7268713cd4ca2f",
     "text": "Naiset",
     "page": 20,
     "kind": "table_cell",
-    "context": "Yhteensä mediaani 1) | Miehet €/kk | Naiset | Kokoaikaiset palkansaajat — Naiset"
+    "context": "Naiset — Naiset"
   },
   {
     "anchorId": "anchor_ac993fe9043901753bf3187a059f51b4db92ca244bd10733353c494190f15b25",
     "text": "Kokoaikaiset palkansaajat",
     "page": 20,
     "kind": "table_cell",
-    "context": "Yhteensä mediaani 1) | Miehet €/kk | Naiset | Kokoaikaiset palkansaajat — Kokoaikaiset palkansaajat"
+    "context": "Kokoaikaiset palkansaajat — Kokoaikaiset palkansaajat"
   },
   {
     "anchorId": "anchor_600aacf497de7e8904ee20a1182a22645b65590ecca1e58686805a2bc801d3b6",
     "text": "Johtajat",
     "page": 20,
     "kind": "table_cell",
-    "context": "Johtajat | 7 274 | 7 876 | 6 317 | 56 956 — Johtajat"
+    "context": "Johtajat — Johtajat"
   },
   {
     "anchorId": "anchor_ca06b55337966e31ff4f91ec1d12a4b3664b18d340aac6ec640c2ac8c32644b3",
@@ -8263,7 +8263,7 @@
     "text": "Toimitusjohtajat ja pääjohtajat",
     "page": 20,
     "kind": "table_cell",
-    "context": "Toimitusjohtajat ja pääjohtajat | 11 615 | 12 000 | 10 730 | 2 622 — Toimitusjohtajat ja pääjohtajat"
+    "context": "Toimitusjohtajat ja pääjohtajat — Toimitusjohtajat ja pääjohtajat"
   },
   {
     "anchorId": "anchor_6b6b67061bd2c0cde64b9882a0e2330a01d2127f393938845c8d3e5ff3a1c4c0",
@@ -8298,7 +8298,7 @@
     "text": "Erityisasiantuntijat",
     "page": 20,
     "kind": "table_cell",
-    "context": "Erityisasiantuntijat | 4 525 | 4 938 | 4 223 | 443 886 — Erityisasiantuntijat"
+    "context": "Erityisasiantuntijat — Erityisasiantuntijat"
   },
   {
     "anchorId": "anchor_6a77b39d6906e52630baec68994268c5f6b740048ca0d2d73d31380faccbbc78",
@@ -8333,7 +8333,7 @@
     "text": "Systeemityön erityisasiantuntijat",
     "page": 20,
     "kind": "table_cell",
-    "context": "Systeemityön erityisasiantuntijat | 5 063 | 5 178 | 4 747 | 57 346 — Systeemityön erityisasiantuntijat"
+    "context": "Systeemityön erityisasiantuntijat — Systeemityön erityisasiantuntijat"
   },
   {
     "anchorId": "anchor_8554984f5dedcfbeb012ff2ccff156c36943139fe950f71d8e3386dbc4feac2b",
@@ -8368,7 +8368,7 @@
     "text": "Tekniikan erityisasiantuntijat pl. sähköteknologia",
     "page": 20,
     "kind": "table_cell",
-    "context": "Tekniikan erityisasiantuntijat pl. sähköteknologia | 4 878 | 4 965 | 4 578 | 56 336 — Tekniikan erityisasiantuntijat pl. sähköteknologia"
+    "context": "Tekniikan erityisasiantuntijat pl. sähköteknologia — Tekniikan erityisasiantuntijat pl. sähköteknologia"
   },
   {
     "anchorId": "anchor_8aeb6bd2340e5867b8a5a3d12be0f05fbbad6d5c7296cd3171d8d279e269ae72",
@@ -8403,7 +8403,7 @@
     "text": "Peruskoulun alaluokkien opettajat ja lastentarhanopettajat",
     "page": 20,
     "kind": "table_cell",
-    "context": "Peruskoulun alaluokkien opettajat ja lastentarhanopettajat | 3 418 | 3 958 | 3 362 | 42 906 — Peruskoulun alaluokkien opettajat ja lastentarhanopettajat"
+    "context": "Peruskoulun alaluokkien opettajat ja lastentarhanopettajat — Peruskoulun alaluokkien opettajat ja lastentarhanopettajat"
   },
   {
     "anchorId": "anchor_55748394e361ae183e28dd409fb8ec99fe14d7e657ff90dd90004b93a3825db9",
@@ -8438,7 +8438,7 @@
     "text": "Lääkärit",
     "page": 20,
     "kind": "table_cell",
-    "context": "Lääkärit | 8 293 | 8 581 | 8 131 | 11 825 — Lääkärit"
+    "context": "Lääkärit — Lääkärit"
   },
   {
     "anchorId": "anchor_9cae23b0527f28bc0e9b30dd129db389ab443638c28f8985b5d1fd26672ace61",
@@ -8473,7 +8473,7 @@
     "text": "Asiantuntijat",
     "page": 20,
     "kind": "table_cell",
-    "context": "Asiantuntijat | 3 596 | 4 066 | 3 329 | 332 318 — Asiantuntijat"
+    "context": "Asiantuntijat — Asiantuntijat"
   },
   {
     "anchorId": "anchor_11c56a13444a41d696b0a4d3202c04b13da1bc3a8892e086ee9cf127449f31f5",
@@ -8508,7 +8508,7 @@
     "text": "Sairaanhoitajat, kätilöt ym.",
     "page": 20,
     "kind": "table_cell",
-    "context": "Sairaanhoitajat, kätilöt ym. | 3 419 | 3 728 | 3 388 | 55 457 — Sairaanhoitajat, kätilöt ym."
+    "context": "Sairaanhoitajat, kätilöt ym. — Sairaanhoitajat, kätilöt ym."
   },
   {
     "anchorId": "anchor_e6e9d5f71a5ffdab350f5f25912b7f681b4a6ba4af39b3d58125a2a49e10593e",
@@ -8543,7 +8543,7 @@
     "text": "Toimisto- ja asiakaspalvelutyöntekijät",
     "page": 20,
     "kind": "table_cell",
-    "context": "Toimisto- ja asiakaspalvelutyöntekijät | 2 996 | 3 129 | 2 954 | 86 491 — Toimisto- ja asiakaspalvelutyöntekijät"
+    "context": "Toimisto- ja asiakaspalvelutyöntekijät — Toimisto- ja asiakaspalvelutyöntekijät"
   },
   {
     "anchorId": "anchor_37100edb7c290ca095072bd683e0b3f8233b680dbd902c03d1bdb096b7ebccf5",
@@ -8578,7 +8578,7 @@
     "text": "Palvelu- ja myyntityöntekijät",
     "page": 20,
     "kind": "table_cell",
-    "context": "Palvelu- ja myyntityöntekijät | 2 794 | 3 008 | 2 732 | 236 043 — Palvelu- ja myyntityöntekijät"
+    "context": "Palvelu- ja myyntityöntekijät — Palvelu- ja myyntityöntekijät"
   },
   {
     "anchorId": "anchor_66ea1946ef6f1ef8d045a0d3b1b35c8ddd80a6892b8a094bbe0ff0dfebec83d5",
@@ -8613,7 +8613,7 @@
     "text": "Lähihoitajat, muut terveydenhuollon työntekijät ja kodinhoitajat",
     "page": 20,
     "kind": "table_cell",
-    "context": "Lähihoitajat, muut terveydenhuollon työntekijät ja kodinhoitajat | 3 031 | 3 077 | 3 025 | 82 956 — Lähihoitajat, muut terveydenhuollon työntekijät ja kodinhoitajat"
+    "context": "Lähihoitajat, muut terveydenhuollon työntekijät ja kodinhoitajat — Lähihoitajat, muut terveydenhuollon työntekijät ja kodinhoitajat"
   },
   {
     "anchorId": "anchor_dd5f1c428a2571f2ecf717aab7028f597c71fdb4c8dd80c6ed64d2a58790c1a7",
@@ -8648,7 +8648,7 @@
     "text": "Myyjät ja kauppiaat",
     "page": 20,
     "kind": "table_cell",
-    "context": "Myyjät ja kauppiaat | 2 789 | 3 056 | 2 679 | 47 369 — Myyjät ja kauppiaat"
+    "context": "Myyjät ja kauppiaat — Myyjät ja kauppiaat"
   },
   {
     "anchorId": "anchor_ce57f984f87c53223c72f3fd6b2d0eef8ed5210c781e35fa763e2cc029b0c01d",
@@ -8683,7 +8683,7 @@
     "text": "Lastenhoitajat ja koulunkäyntiavustajat",
     "page": 20,
     "kind": "table_cell",
-    "context": "Lastenhoitajat ja koulunkäyntiavustajat | 2 492 | 2 443 | 2 496 | 38 819 — Lastenhoitajat ja koulunkäyntiavustajat"
+    "context": "Lastenhoitajat ja koulunkäyntiavustajat — Lastenhoitajat ja koulunkäyntiavustajat"
   },
   {
     "anchorId": "anchor_4801cb074a0832ad53357078291cd0eae377fc8d8606f55f3cb77646807365fa",
@@ -8718,7 +8718,7 @@
     "text": "Rakennus-, korjaus- ja valmistus- työntekijät",
     "page": 20,
     "kind": "table_cell",
-    "context": "Rakennus-, korjaus- ja valmistus- työntekijät | 3 343 | 3 400 | 2 897 | 104 939 — Rakennus-, korjaus- ja valmistus- työntekijät"
+    "context": "Rakennus-, korjaus- ja valmistus- työntekijät — Rakennus-, korjaus- ja valmistus- työntekijät"
   },
   {
     "anchorId": "anchor_1a7043112571532a516f8de90ae553c9779f07a14f3e6f96b083a70cccd46a31",
@@ -8753,7 +8753,7 @@
     "text": "Prosessi- ja kuljetustyöntekijät",
     "page": 20,
     "kind": "table_cell",
-    "context": "Prosessi- ja kuljetustyöntekijät | 3 298 | 3 396 | 2 941 | 103 159 — Prosessi- ja kuljetustyöntekijät"
+    "context": "Prosessi- ja kuljetustyöntekijät — Prosessi- ja kuljetustyöntekijät"
   },
   {
     "anchorId": "anchor_1fa410b998839903ee7ad3234fb8779eed1e38469f4e8e2de1b082624e08c688",
@@ -8788,7 +8788,7 @@
     "text": "Raskaiden moottoriajoneuvojen kuljettajat",
     "page": 20,
     "kind": "table_cell",
-    "context": "Raskaiden moottoriajoneuvojen kuljettajat | 3 310 | 3 332 | 3 160 | 27 087 — Raskaiden moottoriajoneuvojen kuljettajat"
+    "context": "Raskaiden moottoriajoneuvojen kuljettajat — Raskaiden moottoriajoneuvojen kuljettajat"
   },
   {
     "anchorId": "anchor_19cc26b899276f2e1d38043d97f658687536c102b4731d404831d1394aa63d9d",
@@ -8823,7 +8823,7 @@
     "text": "Koti-, hotelli- ja toimistosiivoojat ym.",
     "page": 20,
     "kind": "table_cell",
-    "context": "Koti-, hotelli- ja toimistosiivoojat ym. | 2 294 | 2 219 | 2 304 | 36 532 — Koti-, hotelli- ja toimistosiivoojat ym."
+    "context": "Koti-, hotelli- ja toimistosiivoojat ym. — Koti-, hotelli- ja toimistosiivoojat ym."
   },
   {
     "anchorId": "anchor_3759e277f5d0c1d5f0c37d25e55cf4bdfcb651f07a0114a946099e420dca8d35",
@@ -8919,35 +8919,35 @@
     "text": "2000",
     "page": 21,
     "kind": "table_cell",
-    "context": "Eläkelaji | 2000 | 2010 | 2020 | 2024 — 2000"
+    "context": "2000 — 2000"
   },
   {
     "anchorId": "anchor_cd4bec12a0b525c63e43ca7927c3b2175926a4a05a751c852e51d1ac73f60bae",
     "text": "2010",
     "page": 21,
     "kind": "table_cell",
-    "context": "Eläkelaji | 2000 | 2010 | 2020 | 2024 — 2010"
+    "context": "2010 — 2010"
   },
   {
     "anchorId": "anchor_f8d6399ae6ca0eb7de39f08dc684a02ccf9560b35ffea4e7531d92afe7a90641",
     "text": "2020",
     "page": 21,
     "kind": "table_cell",
-    "context": "Eläkelaji | 2000 | 2010 | 2020 | 2024 — 2020"
+    "context": "2020 — 2020"
   },
   {
     "anchorId": "anchor_45cb744130b31ad2104ed4926031ae05fbe340d21b95d46fae5d5c43dd60e158",
     "text": "2024",
     "page": 21,
     "kind": "table_cell",
-    "context": "Eläkelaji | 2000 | 2010 | 2020 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_603cf5c84e5b6f7c9bd31c9bdb98020129596f65b5e7a4f5b420815d6893e63e",
     "text": "Vanhuuseläke",
     "page": 21,
     "kind": "table_cell",
-    "context": "Vanhuuseläke | 869 672 | 1 093 267 | 1 397 155 | 1 456 307 — Vanhuuseläke"
+    "context": "Vanhuuseläke — Vanhuuseläke"
   },
   {
     "anchorId": "anchor_1e34db83c9b4d339ff037ba4c6345c07bdad2de9da21e056116126790b22a59d",
@@ -8982,7 +8982,7 @@
     "text": "Työkyvyttömyyseläke",
     "page": 21,
     "kind": "table_cell",
-    "context": "Työkyvyttömyyseläke | 276 269 | 267 248 | 193 629 | 177 331 — Työkyvyttömyyseläke"
+    "context": "Työkyvyttömyyseläke — Työkyvyttömyyseläke"
   },
   {
     "anchorId": "anchor_859472aa198f030d7c90ad7e57025e8be706acb1403f0e74d11b3c01cbbfe264",
@@ -9017,7 +9017,7 @@
     "text": "Työttömyyseläke",
     "page": 21,
     "kind": "table_cell",
-    "context": "Työttömyyseläke | 54 291 | 33 938 | - | - — Työttömyyseläke"
+    "context": "Työttömyyseläke — Työttömyyseläke"
   },
   {
     "anchorId": "anchor_fc24f1dbe21abe4d176d3f29ff91a7f7840724cc7ef2b7a134e2e4972d4f6241",
@@ -9052,7 +9052,7 @@
     "text": "Osa-aikaeläke",
     "page": 21,
     "kind": "table_cell",
-    "context": "Osa-aikaeläke | 24 533 | 28 764 | 291 | - — Osa-aikaeläke"
+    "context": "Osa-aikaeläke — Osa-aikaeläke"
   },
   {
     "anchorId": "anchor_ddae27332aa71caaff59f6e0a9acebab2be1eae5131a9a23ed783537b07f5da2",
@@ -9087,7 +9087,7 @@
     "text": "Maatalouden erityiseläke",
     "page": 21,
     "kind": "table_cell",
-    "context": "Maatalouden erityiseläke | 40 845 | 24 330 | 8 409 | 4 008 — Maatalouden erityiseläke"
+    "context": "Maatalouden erityiseläke — Maatalouden erityiseläke"
   },
   {
     "anchorId": "anchor_bac6028f4c2f287d2ed988b5958fc0a060896444af901df1d4779e9aedffe05b",
@@ -9122,7 +9122,7 @@
     "text": "Leskeneläke",
     "page": 21,
     "kind": "table_cell",
-    "context": "Leskeneläke | 252 798 | 263 176 | 220 395 | 210 722 — Leskeneläke"
+    "context": "Leskeneläke — Leskeneläke"
   },
   {
     "anchorId": "anchor_df58077ba44839e075ff6f4bc2341b2160e72138818cb7e0739e2eeb7665b459",
@@ -9157,7 +9157,7 @@
     "text": "Lapseneläke",
     "page": 21,
     "kind": "table_cell",
-    "context": "Lapseneläke | 28 476 | 22 503 | 15 994 | 16 995 — Lapseneläke"
+    "context": "Lapseneläke — Lapseneläke"
   },
   {
     "anchorId": "anchor_6655ba16e19549419a0f658491a2830426868823f6ff8390ab7ae1ae56a7b43f",
@@ -9192,7 +9192,7 @@
     "text": "Yhteensä",
     "page": 21,
     "kind": "table_cell",
-    "context": "Yhteensä | 1 284 145 | 1 463 835 | 1 617 561 | 1 660 923 — Yhteensä"
+    "context": "Yhteensä — Yhteensä"
   },
   {
     "anchorId": "anchor_8fe84a9e26c32cffaf91c507162690fe5c199757adfb6766cff52bc438e63cd6",
@@ -9521,42 +9521,42 @@
     "text": "1990 %",
     "page": 25,
     "kind": "table_cell",
-    "context": "1990 % | 2000 | 2010 | 2020 | 2023* — 1990 %"
+    "context": "1990 % — 1990 %"
   },
   {
     "anchorId": "anchor_abbde9a468d847f443ed4c67356de1df53a45ced56b1c41e4aedabb0d1d2391b",
     "text": "2000",
     "page": 25,
     "kind": "table_cell",
-    "context": "1990 % | 2000 | 2010 | 2020 | 2023* — 2000"
+    "context": "2000 — 2000"
   },
   {
     "anchorId": "anchor_3fc244c24a43f9c6b76fae344ef2cabb40fca02305161c5f13306379d0ac2dab",
     "text": "2010",
     "page": 25,
     "kind": "table_cell",
-    "context": "1990 % | 2000 | 2010 | 2020 | 2023* — 2010"
+    "context": "2010 — 2010"
   },
   {
     "anchorId": "anchor_3c02f0840741e198c9d13cac101582c4e1e08d59d0b3137575e4729ab58bb0c4",
     "text": "2020",
     "page": 25,
     "kind": "table_cell",
-    "context": "1990 % | 2000 | 2010 | 2020 | 2023* — 2020"
+    "context": "2020 — 2020"
   },
   {
     "anchorId": "anchor_8727bbe4623025499d64a6e344faf9abe0bc883a51411e7a8006efd650ac7ef9",
     "text": "2023*",
     "page": 25,
     "kind": "table_cell",
-    "context": "1990 % | 2000 | 2010 | 2020 | 2023* — 2023*"
+    "context": "2023* — 2023*"
   },
   {
     "anchorId": "anchor_c24d75c9d8970824333e10d408d184775650cb49488781f79784b5417b2de4f1",
     "text": "Asuminen, vesi, sähkö, kaasu ja muut polttoaineet",
     "page": 25,
     "kind": "table_cell",
-    "context": "Asuminen, vesi, sähkö, kaasu ja muut polttoaineet | 18,2 | 24,4 | 25,7 | 31,0 | 29,7 — Asuminen, vesi, sähkö, kaasu ja muut polttoaineet"
+    "context": "Asuminen, vesi, sähkö, kaasu ja muut polttoaineet — Asuminen, vesi, sähkö, kaasu ja muut polttoaineet"
   },
   {
     "anchorId": "anchor_72e9d803c5c9bf1c48ce23f2a29e924a03325cf923bd79ed008e7e31e7148e78",
@@ -9598,7 +9598,7 @@
     "text": "Elintarvikkeet ja alkoholittomat juomat",
     "page": 25,
     "kind": "table_cell",
-    "context": "Elintarvikkeet ja alkoholittomat juomat | 16,3 | 12,6 | 12,1 | 12,7 | 12,5 — Elintarvikkeet ja alkoholittomat juomat"
+    "context": "Elintarvikkeet ja alkoholittomat juomat — Elintarvikkeet ja alkoholittomat juomat"
   },
   {
     "anchorId": "anchor_4595d4e60e935a0b87cb541b12c021a8ed80e639c70dfbcfb00916b99cd4b8da",
@@ -9640,7 +9640,7 @@
     "text": "Liikenne",
     "page": 25,
     "kind": "table_cell",
-    "context": "Liikenne | 14,5 | 13,2 | 12,3 | 10,4 | 11,1 — Liikenne"
+    "context": "Liikenne — Liikenne"
   },
   {
     "anchorId": "anchor_9941b63f5272846c6f253e9b7bb70758fb891400a06c9c0287a697bdb6851c67",
@@ -9682,7 +9682,7 @@
     "text": "Kulttuuri ja vapaa-aika",
     "page": 25,
     "kind": "table_cell",
-    "context": "Kulttuuri ja vapaa-aika | 11,2 | 11,3 | 11,9 | 9,2 | 8,9 — Kulttuuri ja vapaa-aika"
+    "context": "Kulttuuri ja vapaa-aika — Kulttuuri ja vapaa-aika"
   },
   {
     "anchorId": "anchor_31078071d75602979b2f5d049b9a1d5cad75290d76bfcb1b6f657c4e3fb6d9ef",
@@ -9724,7 +9724,7 @@
     "text": "Ravintolat ja hotellit",
     "page": 25,
     "kind": "table_cell",
-    "context": "Ravintolat ja hotellit | 7,7 | 6,4 | 6,3 | 5,2 | 6,7 — Ravintolat ja hotellit"
+    "context": "Ravintolat ja hotellit — Ravintolat ja hotellit"
   },
   {
     "anchorId": "anchor_2bb77bec4c7b9c6e4db09c3ea79ad04d7d7a11dcc0439262e732f28e5561456e",
@@ -9766,7 +9766,7 @@
     "text": "Kalusteet, kotitalouskoneet ja yleinen kodinhoito",
     "page": 25,
     "kind": "table_cell",
-    "context": "Kalusteet, kotitalouskoneet ja yleinen kodinhoito | 5,4 | 4,8 | 5,3 | 4,8 | 4,3 — Kalusteet, kotitalouskoneet ja yleinen kodinhoito"
+    "context": "Kalusteet, kotitalouskoneet ja yleinen kodinhoito — Kalusteet, kotitalouskoneet ja yleinen kodinhoito"
   },
   {
     "anchorId": "anchor_be392f9c57549e60d9842c74817da9524589d5d27bb12485954c538db16c03f0",
@@ -9808,7 +9808,7 @@
     "text": "Alkoholijuomat ja tupakka",
     "page": 25,
     "kind": "table_cell",
-    "context": "Alkoholijuomat ja tupakka | 6,6 | 5,8 | 5,1 | 5,2 | 4,2 — Alkoholijuomat ja tupakka"
+    "context": "Alkoholijuomat ja tupakka — Alkoholijuomat ja tupakka"
   },
   {
     "anchorId": "anchor_a79eaee938451e1f391d214b2edf6999440f1d3bc6118cc59808903ebc358adb",
@@ -9850,7 +9850,7 @@
     "text": "Terveys",
     "page": 25,
     "kind": "table_cell",
-    "context": "Terveys | 2,9 | 3,8 | 4,4 | 4,5 | 4,2 — Terveys"
+    "context": "Terveys — Terveys"
   },
   {
     "anchorId": "anchor_b5c9958573891696650e89df413efa394eb7efbf9e26b15cf5b564dc178a0813",
@@ -9892,7 +9892,7 @@
     "text": "Vaatteet ja jalkineet",
     "page": 25,
     "kind": "table_cell",
-    "context": "Vaatteet ja jalkineet | 5,6 | 4,6 | 4,8 | 3,5 | 3,7 — Vaatteet ja jalkineet"
+    "context": "Vaatteet ja jalkineet — Vaatteet ja jalkineet"
   },
   {
     "anchorId": "anchor_100591fd7aaf6689b502118c465f8bce4f995b1e0b9d50842ecb67a39fb899f0",
@@ -9934,7 +9934,7 @@
     "text": "Viestintä",
     "page": 25,
     "kind": "table_cell",
-    "context": "Viestintä | 1,4 | 3,1 | 2,5 | 2,6 | 2,4 — Viestintä"
+    "context": "Viestintä — Viestintä"
   },
   {
     "anchorId": "anchor_02efd0e68db68a14e71cabd990c36258c3688a1c62a337149a900b8b0a45d259",
@@ -9976,7 +9976,7 @@
     "text": "Koulutus",
     "page": 25,
     "kind": "table_cell",
-    "context": "Koulutus | 0,3 | 0,5 | 0,4 | 0,4 | 0,4 — Koulutus"
+    "context": "Koulutus — Koulutus"
   },
   {
     "anchorId": "anchor_385109920ae4c0649b7677ce5be2cb9b05b21d6aa691b3005da397b00a85fb7f",
@@ -10018,7 +10018,7 @@
     "text": "Muut tavarat ja palvelut",
     "page": 25,
     "kind": "table_cell",
-    "context": "Muut tavarat ja palvelut | 9,8 | 9,4 | 9,1 | 10,5 | 12,0 — Muut tavarat ja palvelut"
+    "context": "Muut tavarat ja palvelut — Muut tavarat ja palvelut"
   },
   {
     "anchorId": "anchor_d3a367ef9819f2e54700d4f44af12d61cb72ff4b1b6562646e55153922edd665",
@@ -10060,7 +10060,7 @@
     "text": "Yhteensä",
     "page": 25,
     "kind": "table_cell",
-    "context": "Yhteensä | 100 | 100 | 100 | 100 | 100 — Yhteensä"
+    "context": "Yhteensä — Yhteensä"
   },
   {
     "anchorId": "anchor_87f2f9c93f4f41f2754a1e3e4a97345bf51205379f91f311abf7272a8c42e30a",
@@ -10127,28 +10127,28 @@
     "text": "2023",
     "page": 26,
     "kind": "table_cell",
-    "context": "2015 = 100 | 2023 | 2024 | Vuosi- muutos,% — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_53126795407f36ead1e41240c4d2cd3706b0fe80c5551f8f6e9ec30793a99c10",
     "text": "2024",
     "page": 26,
     "kind": "table_cell",
-    "context": "2015 = 100 | 2023 | 2024 | Vuosi- muutos,% — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_cc3180c6302aed053eed19aa3af4209564942ba1d13faa861903cb6590d3ceb9",
     "text": "Vuosi- muutos,%",
     "page": 26,
     "kind": "table_cell",
-    "context": "2015 = 100 | 2023 | 2024 | Vuosi- muutos,% — Vuosi- muutos,%"
+    "context": "Vuosi- muutos,% — Vuosi- muutos,%"
   },
   {
     "anchorId": "anchor_d103b122ed44e2131e0e53fe692ece2a53afdddf79df05dcaf4b0ff2f59e5d11",
     "text": "Kokonaisindeksi",
     "page": 26,
     "kind": "table_cell",
-    "context": "Kokonaisindeksi | 120,4 | 122,3 | 1,6 — Kokonaisindeksi"
+    "context": "Kokonaisindeksi — Kokonaisindeksi"
   },
   {
     "anchorId": "anchor_88c0a00c69d77b25d8959efa6520ac4ded043b1232178e71ac0a3ec74c223271",
@@ -10176,7 +10176,7 @@
     "text": "Elintarvikkeet ja alkoholittomat juomat",
     "page": 26,
     "kind": "table_cell",
-    "context": "Elintarvikkeet ja alkoholittomat juomat | 124,5 | 124,4 | 0,0 — Elintarvikkeet ja alkoholittomat juomat"
+    "context": "Elintarvikkeet ja alkoholittomat juomat — Elintarvikkeet ja alkoholittomat juomat"
   },
   {
     "anchorId": "anchor_ee084b5a99722a661ca2ecb75780406ab4215c3bc7db2e29d87038aee6b2ba0b",
@@ -10204,7 +10204,7 @@
     "text": "Alkoholijuomat ja tupakka",
     "page": 26,
     "kind": "table_cell",
-    "context": "Alkoholijuomat ja tupakka | 134,7 | 141,2 | 4,8 — Alkoholijuomat ja tupakka"
+    "context": "Alkoholijuomat ja tupakka — Alkoholijuomat ja tupakka"
   },
   {
     "anchorId": "anchor_dbd7554ca2610096c6bbb5631724d0a763189716bbdb3917841f5a2b5af07b5c",
@@ -10232,7 +10232,7 @@
     "text": "Vaatetus ja jalkineet",
     "page": 26,
     "kind": "table_cell",
-    "context": "Vaatetus ja jalkineet | 99,8 | 101,5 | 1,7 — Vaatetus ja jalkineet"
+    "context": "Vaatetus ja jalkineet — Vaatetus ja jalkineet"
   },
   {
     "anchorId": "anchor_22638420c954c772567d5aafe01e2bd7713b8b5794ba48bce37ed55869c0c77e",
@@ -10260,7 +10260,7 @@
     "text": "Asuminen, vesi, sähkö, kaasu ja muut polttoaineet",
     "page": 26,
     "kind": "table_cell",
-    "context": "Asuminen, vesi, sähkö, kaasu ja muut polttoaineet | 129,7 | 131,9 | 1,7 — Asuminen, vesi, sähkö, kaasu ja muut polttoaineet"
+    "context": "Asuminen, vesi, sähkö, kaasu ja muut polttoaineet — Asuminen, vesi, sähkö, kaasu ja muut polttoaineet"
   },
   {
     "anchorId": "anchor_31a7738ee923d32a36f86f515d57a34d9f688e481b701e9e7db3a9023e2f4c17",
@@ -10288,7 +10288,7 @@
     "text": "Kalusteet, kotitalouskoneet ja yleinen kodinhoito",
     "page": 26,
     "kind": "table_cell",
-    "context": "Kalusteet, kotitalouskoneet ja yleinen kodinhoito | 110,2 | 109,8 | -0,4 — Kalusteet, kotitalouskoneet ja yleinen kodinhoito"
+    "context": "Kalusteet, kotitalouskoneet ja yleinen kodinhoito — Kalusteet, kotitalouskoneet ja yleinen kodinhoito"
   },
   {
     "anchorId": "anchor_18732f62b5919c0a4a84b783c925825f73a552714bd1c087724fe98908d449c1",
@@ -10316,7 +10316,7 @@
     "text": "Terveys",
     "page": 26,
     "kind": "table_cell",
-    "context": "Terveys | 110,6 | 113,0 | 2,2 — Terveys"
+    "context": "Terveys — Terveys"
   },
   {
     "anchorId": "anchor_7be9f741e84440cfa50048df64e33e9889cfd4cf5621b775c1eb5804f42eb2c9",
@@ -10344,7 +10344,7 @@
     "text": "Liikenne",
     "page": 26,
     "kind": "table_cell",
-    "context": "Liikenne | 119,3 | 117,9 | -1,1 — Liikenne"
+    "context": "Liikenne — Liikenne"
   },
   {
     "anchorId": "anchor_0670610be5a6d959c6d3f8fd01bd57592ed4384ded70601f2809beaf4f6ce9e0",
@@ -10372,7 +10372,7 @@
     "text": "Viestintä",
     "page": 26,
     "kind": "table_cell",
-    "context": "Viestintä | 111,0 | 113,5 | 2,3 — Viestintä"
+    "context": "Viestintä — Viestintä"
   },
   {
     "anchorId": "anchor_9266bf96864a1ab1ff3349c86782a1482e3ce3b415485793ba4416fa1a0806fd",
@@ -10400,7 +10400,7 @@
     "text": "Kulttuuri ja vapaa-aika",
     "page": 26,
     "kind": "table_cell",
-    "context": "Kulttuuri ja vapaa-aika | 109,0 | 110,9 | 1,8 — Kulttuuri ja vapaa-aika"
+    "context": "Kulttuuri ja vapaa-aika — Kulttuuri ja vapaa-aika"
   },
   {
     "anchorId": "anchor_89f9ace46f7dd44573f52e0f245247c034b2061f7ba94243e860be9b78d46785",
@@ -10428,7 +10428,7 @@
     "text": "Koulutus",
     "page": 26,
     "kind": "table_cell",
-    "context": "Koulutus | 114,3 | 122,2 | 6,9 — Koulutus"
+    "context": "Koulutus — Koulutus"
   },
   {
     "anchorId": "anchor_7097f63975433673a016d1eaeaf9c12c90365f748dc316632bdb89c4cde7a9ed",
@@ -10456,7 +10456,7 @@
     "text": "Ravintolat ja hotellit",
     "page": 26,
     "kind": "table_cell",
-    "context": "Ravintolat ja hotellit | 126,1 | 130,2 | 3,3 — Ravintolat ja hotellit"
+    "context": "Ravintolat ja hotellit — Ravintolat ja hotellit"
   },
   {
     "anchorId": "anchor_2eb848fbdcd27983d6d010688ca36924801f6d672e9d53d204b031db3c1b8e83",
@@ -10484,7 +10484,7 @@
     "text": "Muut tavarat ja palvelut",
     "page": 26,
     "kind": "table_cell",
-    "context": "Muut tavarat ja palvelut | 115,9 | 120,6 | 4,0 — Muut tavarat ja palvelut"
+    "context": "Muut tavarat ja palvelut — Muut tavarat ja palvelut"
   },
   {
     "anchorId": "anchor_cb37b762a74633f4e1ef19995d055ec31518e2190d92a2dcc369cbe915d847f2",
@@ -10524,42 +10524,42 @@
     "text": "1990 kg",
     "page": 27,
     "kind": "table_cell",
-    "context": "1990 kg | 2000 | 2010 | 2020 | 2023* — 1990 kg"
+    "context": "1990 kg — 1990 kg"
   },
   {
     "anchorId": "anchor_20172155301d809ad26a523c6a0e138c38517b0305ebf5bd33b868f55c18a55b",
     "text": "2000",
     "page": 27,
     "kind": "table_cell",
-    "context": "1990 kg | 2000 | 2010 | 2020 | 2023* — 2000"
+    "context": "2000 — 2000"
   },
   {
     "anchorId": "anchor_7a3c0ac0587065a96fe4ba0efb6d7478732812a17a8ff2e49cfd6f46400e71c2",
     "text": "2010",
     "page": 27,
     "kind": "table_cell",
-    "context": "1990 kg | 2000 | 2010 | 2020 | 2023* — 2010"
+    "context": "2010 — 2010"
   },
   {
     "anchorId": "anchor_7ebe9e359ab8f407d1c6b990878b1d7ce89076b8845bf31c8e413fe63a8c3c02",
     "text": "2020",
     "page": 27,
     "kind": "table_cell",
-    "context": "1990 kg | 2000 | 2010 | 2020 | 2023* — 2020"
+    "context": "2020 — 2020"
   },
   {
     "anchorId": "anchor_92077ee6376c6335ac5f285aad2fd17da3feaafdf154c3aaf4f008de351a37e7",
     "text": "2023*",
     "page": 27,
     "kind": "table_cell",
-    "context": "1990 kg | 2000 | 2010 | 2020 | 2023* — 2023*"
+    "context": "2023* — 2023*"
   },
   {
     "anchorId": "anchor_89a2208bb3664c571a59cc6e836ec22cc990e0ec99dba9d850d87b13c8950f5d",
     "text": "Maito",
     "page": 27,
     "kind": "table_cell",
-    "context": "Maito | 177,9 | 148,1 | 135,3 | 100,8 | 89,4 — Maito"
+    "context": "Maito — Maito"
   },
   {
     "anchorId": "anchor_b40cc1ab15c5383b020e62dd11180534ef47858cfab7ab25c38dbad84367d44c",
@@ -10601,7 +10601,7 @@
     "text": "Jogurtti",
     "page": 27,
     "kind": "table_cell",
-    "context": "Jogurtti | 11,8 | 17,1 | 23,4 | 19,6 | 19,4 — Jogurtti"
+    "context": "Jogurtti — Jogurtti"
   },
   {
     "anchorId": "anchor_ab0c8b6f4a1d4811f95f35f465403fd5b1571f527db3bd44c687aee6ecb0ae94",
@@ -10643,7 +10643,7 @@
     "text": "Juusto 1)",
     "page": 27,
     "kind": "table_cell",
-    "context": "Juusto 1) | 12,7 | 16,5 | 19,0 | 25,3 | 26,0 — Juusto 1)"
+    "context": "Juusto 1) — Juusto 1)"
   },
   {
     "anchorId": "anchor_19e45af5e103dd66cf1415fdfa7b44ec27a419063c1faec95cd78229fbb34cf8",
@@ -10685,7 +10685,7 @@
     "text": "Kananmunat",
     "page": 27,
     "kind": "table_cell",
-    "context": "Kananmunat | 11,1 | 10,1 | 9,8 | 12,4 | 11,4 — Kananmunat"
+    "context": "Kananmunat — Kananmunat"
   },
   {
     "anchorId": "anchor_051529bc10afdb624d575d4ed98e4ae1d19bfee563cdbd30e2d2114d14348584",
@@ -10727,7 +10727,7 @@
     "text": "Vehnä",
     "page": 27,
     "kind": "table_cell",
-    "context": "Vehnä | 43,5 | 45,9 | 46,4 | 44,9 | 48,9 — Vehnä"
+    "context": "Vehnä — Vehnä"
   },
   {
     "anchorId": "anchor_dae607a6f14d712b061931586187f1240345cb7d2ac01282332bfbef9d2ac67e",
@@ -10769,7 +10769,7 @@
     "text": "Ruis",
     "page": 27,
     "kind": "table_cell",
-    "context": "Ruis | 17,4 | 15,3 | 16,1 | 15,0 | 13,0 — Ruis"
+    "context": "Ruis — Ruis"
   },
   {
     "anchorId": "anchor_5925ca561b8fcf8ec1af0a52be9adc0aba4dbc2198bf7a9e3b526e0aad19afbd",
@@ -10811,7 +10811,7 @@
     "text": "Kaura",
     "page": 27,
     "kind": "table_cell",
-    "context": "Kaura | 4,5 | 3,0 | 5,4 | 11,0 | 9,7 — Kaura"
+    "context": "Kaura — Kaura"
   },
   {
     "anchorId": "anchor_95cefd7ed9b4d67ecdb628028968e43bc7223c3e173a7192678d7761035bbc94",
@@ -10853,7 +10853,7 @@
     "text": "Riisi",
     "page": 27,
     "kind": "table_cell",
-    "context": "Riisi | 4,6 | 5,6 | 5,2 | 7,0 | 7,9 — Riisi"
+    "context": "Riisi — Riisi"
   },
   {
     "anchorId": "anchor_e363e6e0f708adc97efff64b2912704df1dbad606a47376b21479d53ee0e42d9",
@@ -10895,7 +10895,7 @@
     "text": "Tuoreet vihannekset",
     "page": 27,
     "kind": "table_cell",
-    "context": "Tuoreet vihannekset | 41,5 | 52,8 | 56,1 | 64,5 | 56,7 — Tuoreet vihannekset"
+    "context": "Tuoreet vihannekset — Tuoreet vihannekset"
   },
   {
     "anchorId": "anchor_7c2b136c5b30a3e322df56871669c6a44e44bbedc102da8fa86e2e808690f82a",
@@ -10937,7 +10937,7 @@
     "text": "Tuoreet hedelmät",
     "page": 27,
     "kind": "table_cell",
-    "context": "Tuoreet hedelmät | 50,2 | 45,2 | 47,1 | 58,5 | 45,8 — Tuoreet hedelmät"
+    "context": "Tuoreet hedelmät — Tuoreet hedelmät"
   },
   {
     "anchorId": "anchor_5d8dee56e0d34f6b768ab16f68448926d19bb71f67dbb5e3ea4f6ad8551fb021",
@@ -10979,7 +10979,7 @@
     "text": "Naudanliha 2)",
     "page": 27,
     "kind": "table_cell",
-    "context": "Naudanliha 2) | 21,8 | 19,0 | 18,6 | 18,7 | 17,0 — Naudanliha 2)"
+    "context": "Naudanliha 2) — Naudanliha 2)"
   },
   {
     "anchorId": "anchor_ff996efba75d2f4e85ac32452ddf0b630d97bfa4a8b7f5c7a2a87733396fefc7",
@@ -11021,7 +11021,7 @@
     "text": "Sianliha 2)",
     "page": 27,
     "kind": "table_cell",
-    "context": "Sianliha 2) | 33,0 | 33,0 | 34,9 | 29,7 | 28,1 — Sianliha 2)"
+    "context": "Sianliha 2) — Sianliha 2)"
   },
   {
     "anchorId": "anchor_a2c680d9663c03c2a4ae5fa53a928e3df25f062b381bf8384c57b428c7ca69f6",
@@ -11063,7 +11063,7 @@
     "text": "Siipikarjanliha 2)",
     "page": 27,
     "kind": "table_cell",
-    "context": "Siipikarjanliha 2) | 6,8 | 13,3 | 18,2 | 27,5 | 29,9 — Siipikarjanliha 2)"
+    "context": "Siipikarjanliha 2) — Siipikarjanliha 2)"
   },
   {
     "anchorId": "anchor_0ce423e68a2703924cab8b9616b26ecb7b74333f6cac1891dc7ca515fc41c9a6",
@@ -11105,7 +11105,7 @@
     "text": "Kala 3)",
     "page": 27,
     "kind": "table_cell",
-    "context": "Kala 3) | 18,9 | 13,2 | 15,2 | 15,2 | 14,1 — Kala 3)"
+    "context": "Kala 3) — Kala 3)"
   },
   {
     "anchorId": "anchor_d00d9542311acd06b675a465595fb7864a8973da0fa8443f4a256a107abb272b",
@@ -11147,7 +11147,7 @@
     "text": "Kahvi 4)",
     "page": 27,
     "kind": "table_cell",
-    "context": "Kahvi 4) | 10,2 | 9,2 | 10,0 | 9,3 | 5) 8,3 — Kahvi 4)"
+    "context": "Kahvi 4) — Kahvi 4)"
   },
   {
     "anchorId": "anchor_574795029e2be4fda97a8d9183ba5cbacf8003464007ad12100aaee42fa85a2d",
@@ -11189,7 +11189,7 @@
     "text": "Sokeri",
     "page": 27,
     "kind": "table_cell",
-    "context": "Sokeri | 34,7 | 32,0 | 31,8 | 32,2 | 23,0 — Sokeri"
+    "context": "Sokeri — Sokeri"
   },
   {
     "anchorId": "anchor_0adf0ee798ae0991ed21f12d79eb0abc307d3732d0d7b775c36bccf9c02f4ca0",
@@ -11322,49 +11322,49 @@
     "text": "2010 milj. €",
     "page": 29,
     "kind": "table_cell",
-    "context": "Kohderyhmä | 2010 milj. € | % | 2020 milj. € | % | 2023 milj. € | % — 2010 milj. €"
+    "context": "2010 milj. € — 2010 milj. €"
   },
   {
     "anchorId": "anchor_a3240149f1d2f09bf10ced394cf7e801f66384f9af63e8176530a5a9816c95e7",
     "text": "%",
     "page": 29,
     "kind": "table_cell",
-    "context": "Kohderyhmä | 2010 milj. € | % | 2020 milj. € | % | 2023 milj. € | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_228bb61263c71ee95213aa58d518043e21b3b5ec5e9ed575f33139c8ddee6af6",
     "text": "2020 milj. €",
     "page": 29,
     "kind": "table_cell",
-    "context": "Kohderyhmä | 2010 milj. € | % | 2020 milj. € | % | 2023 milj. € | % — 2020 milj. €"
+    "context": "2020 milj. € — 2020 milj. €"
   },
   {
     "anchorId": "anchor_182c12106213b8b76e71d19da133995e6afbead41ff39fdc3ee7cff5cd3976fd",
     "text": "%",
     "page": 29,
     "kind": "table_cell",
-    "context": "Kohderyhmä | 2010 milj. € | % | 2020 milj. € | % | 2023 milj. € | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_e6c5d0e64a8463fbbd21eafbffe9552724225712bec875b8a3f5e38d2ffe47c5",
     "text": "2023 milj. €",
     "page": 29,
     "kind": "table_cell",
-    "context": "Kohderyhmä | 2010 milj. € | % | 2020 milj. € | % | 2023 milj. € | % — 2023 milj. €"
+    "context": "2023 milj. € — 2023 milj. €"
   },
   {
     "anchorId": "anchor_0ac9abefcded071a28dfe9a1e68d2b8542556596166b0cf022282e5fd4c59be0",
     "text": "%",
     "page": 29,
     "kind": "table_cell",
-    "context": "Kohderyhmä | 2010 milj. € | % | 2020 milj. € | % | 2023 milj. € | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_2aa3ad91c19c30a1df058817b2000433d0292ff42f40ae39309be9f97ece3f70",
     "text": "Sairaus ja terveys",
     "page": 29,
     "kind": "table_cell",
-    "context": "Sairaus ja terveys | 13 468 | 24,6 | 16 761 | 22,1 | 19 665 | 22,7 — Sairaus ja terveys"
+    "context": "Sairaus ja terveys — Sairaus ja terveys"
   },
   {
     "anchorId": "anchor_17ea6bea4f18138b41c5330f1a5c2c67e6d1a8a396a39fde6bce3a4e4ae3a6cb",
@@ -11413,7 +11413,7 @@
     "text": "Toimintarajoitteisuus",
     "page": 29,
     "kind": "table_cell",
-    "context": "Toimintarajoitteisuus | 6 427 | 11,7 | 6 902 | 9,1 | 7 519 | 8,7 — Toimintarajoitteisuus"
+    "context": "Toimintarajoitteisuus — Toimintarajoitteisuus"
   },
   {
     "anchorId": "anchor_442d974243bf8c5106c2a76a65de89a1c80e4ba04d882f7a2a2e6e89c0a6dae7",
@@ -11462,7 +11462,7 @@
     "text": "Ikääntyminen",
     "page": 29,
     "kind": "table_cell",
-    "context": "Ikääntyminen | 19 171 | 35,0 | 32 048 | 42,2 | 37 554 | 43,3 — Ikääntyminen"
+    "context": "Ikääntyminen — Ikääntyminen"
   },
   {
     "anchorId": "anchor_d6206586761389a43c7c76206e53227fb15b706b68d692884a2bba0d78f0bd21",
@@ -11511,7 +11511,7 @@
     "text": "Leski ja muut omaiset",
     "page": 29,
     "kind": "table_cell",
-    "context": "Leski ja muut omaiset | 1 724 | 3,1 | 1 858 | 2,4 | 2 070 | 2,4 — Leski ja muut omaiset"
+    "context": "Leski ja muut omaiset — Leski ja muut omaiset"
   },
   {
     "anchorId": "anchor_b1c9ef5643b542b8448a8988f764c223ebffec473a178f1fbd56fa6b4c8947c6",
@@ -11560,7 +11560,7 @@
     "text": "Perhe ja lapset",
     "page": 29,
     "kind": "table_cell",
-    "context": "Perhe ja lapset | 5 845 | 10,7 | 7 322 | 9,6 | 8 683 | 10,0 — Perhe ja lapset"
+    "context": "Perhe ja lapset — Perhe ja lapset"
   },
   {
     "anchorId": "anchor_a74aa68c1a2023ad5340c3456f3c4a0c44628ec57c6ad42c5a04784ba52990b0",
@@ -11609,7 +11609,7 @@
     "text": "Työttömyys",
     "page": 29,
     "kind": "table_cell",
-    "context": "Työttömyys | 4 370 | 8,0 | 5 308 | 7,0 | 4 366 | 5,0 — Työttömyys"
+    "context": "Työttömyys — Työttömyys"
   },
   {
     "anchorId": "anchor_a4fed951f2a03dfbd75805ace7f07e784979adbd70898e71a74c0ea5324956a5",
@@ -11658,7 +11658,7 @@
     "text": "Asuminen",
     "page": 29,
     "kind": "table_cell",
-    "context": "Asuminen | 923 | 1,7 | 2 203 | 2,9 | 2 681 | 3,1 — Asuminen"
+    "context": "Asuminen — Asuminen"
   },
   {
     "anchorId": "anchor_88fb8dfde80e26aba4a1c9f9db1e95563f63cca441514a9ff7b6c205c8069a7f",
@@ -11707,7 +11707,7 @@
     "text": "Muu sosiaaliturva",
     "page": 29,
     "kind": "table_cell",
-    "context": "Muu sosiaaliturva | 1 425 | 2,6 | 2 282 | 3,0 | 2 817 | 3,2 — Muu sosiaaliturva"
+    "context": "Muu sosiaaliturva — Muu sosiaaliturva"
   },
   {
     "anchorId": "anchor_55169c0b3996ba02d8b3f7d031de6d7eb949833f5ccd1543102799caf25557a4",
@@ -11756,7 +11756,7 @@
     "text": "Hallinto",
     "page": 29,
     "kind": "table_cell",
-    "context": "Hallinto | 1 480 | 2,7 | 1 206 | 1,6 | 1 330 | 1,5 — Hallinto"
+    "context": "Hallinto — Hallinto"
   },
   {
     "anchorId": "anchor_77e147cf7ff1709ee9ef221f0828f9596d048119b03509fe3f5f374982513ce7",
@@ -11805,7 +11805,7 @@
     "text": "Yhteensä",
     "page": 29,
     "kind": "table_cell",
-    "context": "Yhteensä | 54 832 | 100 | 75 891 | 100 | 86 686 | 100 — Yhteensä"
+    "context": "Yhteensä — Yhteensä"
   },
   {
     "anchorId": "anchor_7ddde27f8bd02fd1122369c69e7ad76166e44ffdd0339f2f16a54f1183c1688f",
@@ -11854,7 +11854,7 @@
     "text": "Suhde BKT:hen, %",
     "page": 29,
     "kind": "table_cell",
-    "context": "Suhde BKT:hen, % | 29,1 | 32,1 | 31,7 — Suhde BKT:hen, %"
+    "context": "Suhde BKT:hen, % — Suhde BKT:hen, %"
   },
   {
     "anchorId": "anchor_3019dd67d2629a57c65618ccddd5c478d77b42c7029767ad8a76d3742e862240",
@@ -11924,35 +11924,35 @@
     "text": "Vanhat asunnot Pääkaupunkiseutu €/m 2",
     "page": 31,
     "kind": "table_cell",
-    "context": "Vanhat asunnot Pääkaupunkiseutu €/m 2 | Muu Suomi | Uudet asunnot Pääkaupunkiseutu | Muu Suomi — Vanhat asunnot Pääkaupunkiseutu €/m 2"
+    "context": "Vanhat asunnot Pääkaupunkiseutu €/m 2 — Vanhat asunnot Pääkaupunkiseutu €/m 2"
   },
   {
     "anchorId": "anchor_e64747d25b69cf0511466f94d6a1d59984dc2a404f56cb48326d6564aa467a7a",
     "text": "Muu Suomi",
     "page": 31,
     "kind": "table_cell",
-    "context": "Vanhat asunnot Pääkaupunkiseutu €/m 2 | Muu Suomi | Uudet asunnot Pääkaupunkiseutu | Muu Suomi — Muu Suomi"
+    "context": "Muu Suomi — Muu Suomi"
   },
   {
     "anchorId": "anchor_7b07ebd28201bf9faa8142d93270d17b0824215b68038470cfc9d3aa38784ca5",
     "text": "Uudet asunnot Pääkaupunkiseutu",
     "page": 31,
     "kind": "table_cell",
-    "context": "Vanhat asunnot Pääkaupunkiseutu €/m 2 | Muu Suomi | Uudet asunnot Pääkaupunkiseutu | Muu Suomi — Uudet asunnot Pääkaupunkiseutu"
+    "context": "Uudet asunnot Pääkaupunkiseutu — Uudet asunnot Pääkaupunkiseutu"
   },
   {
     "anchorId": "anchor_2a3d1ffe692f00bd6037757cdb1578f158449bcbc41323328beb315a70541c87",
     "text": "Muu Suomi",
     "page": 31,
     "kind": "table_cell",
-    "context": "Vanhat asunnot Pääkaupunkiseutu €/m 2 | Muu Suomi | Uudet asunnot Pääkaupunkiseutu | Muu Suomi — Muu Suomi"
+    "context": "Muu Suomi — Muu Suomi"
   },
   {
     "anchorId": "anchor_04c4cd7c3fdd097c274f93d7865af6a539c6ac162e9dba0bb0cb434b8927a9b5",
     "text": "2020",
     "page": 31,
     "kind": "table_cell",
-    "context": "2020 | 4 851 | 1 933 | 6 262 | 4 238 — 2020"
+    "context": "2020 — 2020"
   },
   {
     "anchorId": "anchor_8e25454854590365efbfc408c915ca6dbf7c1f66084a7af15a0e6587561293ba",
@@ -11987,7 +11987,7 @@
     "text": "2021",
     "page": 31,
     "kind": "table_cell",
-    "context": "2021 | 5 144 | 2 003 | 6 441 | 4 376 — 2021"
+    "context": "2021 — 2021"
   },
   {
     "anchorId": "anchor_de2f53c30529cd55aeb58c2825a7f42dafc435cf2dbee3944139f2f2992732cb",
@@ -12022,7 +12022,7 @@
     "text": "2022",
     "page": 31,
     "kind": "table_cell",
-    "context": "2022 | 5 184 | 2 043 | 6 418 | 4 478 — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_7436e9490de4177d2b6d3488e9bfb5750d364ce2fcb2042f8748cfd4b6988107",
@@ -12057,7 +12057,7 @@
     "text": "2023",
     "page": 31,
     "kind": "table_cell",
-    "context": "2023 | 4 804 | 1 946 | 6 491 | 4 433 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_eb830f8a5fb0b62698bd9d430e683aba88fb3229197982456234d343fbbc1b91",
@@ -12092,7 +12092,7 @@
     "text": "2024",
     "page": 31,
     "kind": "table_cell",
-    "context": "2024 | 4 623 | 1 933 | 6 459 | 4 410 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_cd19d74cde310d2e1dd8d6af428b41089806e6ef551afc4767bba9ee94d6a7bb",
@@ -12133,56 +12133,56 @@
     "text": "Vapaarahoitteiset asunnot",
     "page": 31,
     "kind": "table_cell",
-    "context": "Vapaarahoitteiset asunnot | ARA-asunnot 1) | Suomi — Vapaarahoitteiset asunnot"
+    "context": "Vapaarahoitteiset asunnot — Vapaarahoitteiset asunnot"
   },
   {
     "anchorId": "anchor_56f99373ddb481306ba129756d71e9538de33c08355e8a22fac78aae4132fb3e",
     "text": "ARA-asunnot 1)",
     "page": 31,
     "kind": "table_cell",
-    "context": "Vapaarahoitteiset asunnot | ARA-asunnot 1) | Suomi — ARA-asunnot 1)"
+    "context": "ARA-asunnot 1) — ARA-asunnot 1)"
   },
   {
     "anchorId": "anchor_83d4adf568a57b5c8cc55c4eea3453a9196821525151100b0db0195925cd10c0",
     "text": "Suomi",
     "page": 31,
     "kind": "table_cell",
-    "context": "Vapaarahoitteiset asunnot | ARA-asunnot 1) | Suomi — Suomi"
+    "context": "Suomi — Suomi"
   },
   {
     "anchorId": "anchor_437586deee4f3c82ee10651c2844e49f0e4f19b0b0c31734a3047c5c28e768e4",
     "text": "Pääkaupunkiseutu €/m 2 /kk",
     "page": 31,
     "kind": "table_cell",
-    "context": "Pääkaupunkiseutu €/m 2 /kk | Muu Suomi | Pääkaupunkiseutu | Muu — Pääkaupunkiseutu €/m 2 /kk"
+    "context": "Pääkaupunkiseutu €/m 2 /kk — Pääkaupunkiseutu €/m 2 /kk"
   },
   {
     "anchorId": "anchor_631986f8db6818893049b6bce226364d5083eb4ec05c7dd1c0b39d2ac802d500",
     "text": "Muu Suomi",
     "page": 31,
     "kind": "table_cell",
-    "context": "Pääkaupunkiseutu €/m 2 /kk | Muu Suomi | Pääkaupunkiseutu | Muu — Muu Suomi"
+    "context": "Muu Suomi — Muu Suomi"
   },
   {
     "anchorId": "anchor_6be3828b41068ef8cbed27828b9ba0c9a0db3ccf7d6f03bc7b4cd19aaa57135d",
     "text": "Pääkaupunkiseutu",
     "page": 31,
     "kind": "table_cell",
-    "context": "Pääkaupunkiseutu €/m 2 /kk | Muu Suomi | Pääkaupunkiseutu | Muu — Pääkaupunkiseutu"
+    "context": "Pääkaupunkiseutu — Pääkaupunkiseutu"
   },
   {
     "anchorId": "anchor_4af8e6a3a0e0d594cc13fd88cdd282fecef5c027282bb715c5f7c41b86ef22bc",
     "text": "Muu",
     "page": 31,
     "kind": "table_cell",
-    "context": "Pääkaupunkiseutu €/m 2 /kk | Muu Suomi | Pääkaupunkiseutu | Muu — Muu"
+    "context": "Muu — Muu"
   },
   {
     "anchorId": "anchor_03e2bd0751055af66221c9e5fe1eaf0688cbfa81dcd2c41bbdead73dcd800a54",
     "text": "2020",
     "page": 31,
     "kind": "table_cell",
-    "context": "2020 | 20,12 | 12,99 | 13,29 | 11,05 — 2020"
+    "context": "2020 — 2020"
   },
   {
     "anchorId": "anchor_b3180c1214d7abe1ec4e6152f7b1e11afb4aa17fc1677a0e168d5332e1a58332",
@@ -12217,7 +12217,7 @@
     "text": "2021",
     "page": 31,
     "kind": "table_cell",
-    "context": "2021 | 20,28 | 13,05 | 13,41 | 11,13 — 2021"
+    "context": "2021 — 2021"
   },
   {
     "anchorId": "anchor_4b6be3e29aec80632fcc4d5ad1846bca356d3e457c7bf6c257e22e5eee602b0c",
@@ -12252,7 +12252,7 @@
     "text": "2022",
     "page": 31,
     "kind": "table_cell",
-    "context": "2022 | 20,55 | 13,54 | 13,55 | 11,27 — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_eb551183a77d65619afa5e0186ff4aa21d922363256761b66aba0c209ad570e3",
@@ -12287,7 +12287,7 @@
     "text": "2023",
     "page": 31,
     "kind": "table_cell",
-    "context": "2023 | 20,83 | 13,93 | 13,87 | 11,62 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_c29a58daf6c09a9224ab7b85586b384627bf5ab59af96d40991166d6bc21509c",
@@ -12322,7 +12322,7 @@
     "text": "2024",
     "page": 31,
     "kind": "table_cell",
-    "context": "2024 | 21,02 | 14,36 | 14,59 | 12,05 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_78670e60119871cfa5c07d027f57fa0e43493a34ba0981bb96ed944ac4c11371",
@@ -12387,49 +12387,49 @@
     "text": "Toimiala",
     "page": 32,
     "kind": "table_cell",
-    "context": "Toimiala | Yritysten määrä | % | Henkilöstö 1) tuhatta | Liikevaihto milj. € | % — Toimiala"
+    "context": "Toimiala — Toimiala"
   },
   {
     "anchorId": "anchor_f47590007072e10003de7dc8c78dbbad1a58e572fd906d5c1a0afb4e1ccb1d09",
     "text": "Yritysten määrä",
     "page": 32,
     "kind": "table_cell",
-    "context": "Toimiala | Yritysten määrä | % | Henkilöstö 1) tuhatta | Liikevaihto milj. € | % — Yritysten määrä"
+    "context": "Yritysten määrä — Yritysten määrä"
   },
   {
     "anchorId": "anchor_5ce944d4f6a3317d8d9dbca72f57599dc9e63740a533a0f90ef4f122a71c440b",
     "text": "%",
     "page": 32,
     "kind": "table_cell",
-    "context": "Toimiala | Yritysten määrä | % | Henkilöstö 1) tuhatta | Liikevaihto milj. € | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_fd72fb17762b87a63022fb4306c2c85e074938dc9b1c2c8e7e493ee722501fc6",
     "text": "Henkilöstö 1) tuhatta",
     "page": 32,
     "kind": "table_cell",
-    "context": "Toimiala | Yritysten määrä | % | Henkilöstö 1) tuhatta | Liikevaihto milj. € | % — Henkilöstö 1) tuhatta"
+    "context": "Henkilöstö 1) tuhatta — Henkilöstö 1) tuhatta"
   },
   {
     "anchorId": "anchor_e7b8042c56d28ac88525f7e0e159e7bd190346de787cbccf8370b151b1d8c7e3",
     "text": "Liikevaihto milj. €",
     "page": 32,
     "kind": "table_cell",
-    "context": "Toimiala | Yritysten määrä | % | Henkilöstö 1) tuhatta | Liikevaihto milj. € | % — Liikevaihto milj. €"
+    "context": "Liikevaihto milj. € — Liikevaihto milj. €"
   },
   {
     "anchorId": "anchor_deb96395c928ce718e79e6e8bf44a204307cb860e516bcf39d8d7f3a9eed720f",
     "text": "%",
     "page": 32,
     "kind": "table_cell",
-    "context": "Toimiala | Yritysten määrä | % | Henkilöstö 1) tuhatta | Liikevaihto milj. € | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_9b99d9ae29d6b992e18122b731e3b1d95aec218f6dc6d7c5b0369cf6a3c94adc",
     "text": "Maa-, metsä- ja kalatalous",
     "page": 32,
     "kind": "table_cell",
-    "context": "Maa-, metsä- ja kalatalous | 124 783 | 21,5 | 44 | 3 595 | 0,7 — Maa-, metsä- ja kalatalous"
+    "context": "Maa-, metsä- ja kalatalous — Maa-, metsä- ja kalatalous"
   },
   {
     "anchorId": "anchor_686ba8f35191cb84150a434a5ce31a07a639b317d172aad95e7bba32c0ee0463",
@@ -12471,7 +12471,7 @@
     "text": "Teollisuus",
     "page": 32,
     "kind": "table_cell",
-    "context": "Teollisuus | 28 539 | 4,9 | 308 | 161 330 | 29,6 — Teollisuus"
+    "context": "Teollisuus — Teollisuus"
   },
   {
     "anchorId": "anchor_80cb5e54333afdde4c1dd25a73b0457a4ff227ca8689ea8956f823c739c685dd",
@@ -12513,7 +12513,7 @@
     "text": "Rakentaminen",
     "page": 32,
     "kind": "table_cell",
-    "context": "Rakentaminen | 56 948 | 9,8 | 156 | 45 301 | 8,3 — Rakentaminen"
+    "context": "Rakentaminen — Rakentaminen"
   },
   {
     "anchorId": "anchor_c2bd261175cfdf16901aaa884d5ac8a5f39ff76aeee5a33dd3f6b37c33e4c05f",
@@ -12555,7 +12555,7 @@
     "text": "Tukku- ja vähittäiskauppa 2)",
     "page": 32,
     "kind": "table_cell",
-    "context": "Tukku- ja vähittäiskauppa 2) | 54 191 | 9,3 | 226 | 138 661 | 25,5 — Tukku- ja vähittäiskauppa 2)"
+    "context": "Tukku- ja vähittäiskauppa 2) — Tukku- ja vähittäiskauppa 2)"
   },
   {
     "anchorId": "anchor_6a5d0918021c879488b18ad9cc420a3bfd4966b1d99c6604f02407dbbeb6dd63",
@@ -12597,7 +12597,7 @@
     "text": "Kuljetus ja varastointi",
     "page": 32,
     "kind": "table_cell",
-    "context": "Kuljetus ja varastointi | 24 621 | 4,2 | 112 | 25 465 | 4,7 — Kuljetus ja varastointi"
+    "context": "Kuljetus ja varastointi — Kuljetus ja varastointi"
   },
   {
     "anchorId": "anchor_a67db58774722c20e58df877dd25653d41c6f270a45c410907cdc26c83417007",
@@ -12639,7 +12639,7 @@
     "text": "Majoitus- ja ravitsemistoiminta",
     "page": 32,
     "kind": "table_cell",
-    "context": "Majoitus- ja ravitsemistoiminta | 16 324 | 2,8 | 57 | 8 582 | 1,6 — Majoitus- ja ravitsemistoiminta"
+    "context": "Majoitus- ja ravitsemistoiminta — Majoitus- ja ravitsemistoiminta"
   },
   {
     "anchorId": "anchor_1ef32b5fa4ca1393eeee933af306e2569394ef9e7f3ac6aeba2856f6f7548eec",
@@ -12681,7 +12681,7 @@
     "text": "Informaatio ja viestintä",
     "page": 32,
     "kind": "table_cell",
-    "context": "Informaatio ja viestintä | 21 576 | 3,7 | 104 | 28 245 | 5,2 — Informaatio ja viestintä"
+    "context": "Informaatio ja viestintä — Informaatio ja viestintä"
   },
   {
     "anchorId": "anchor_23e72ab4b10449a437e76c422ecaebd3698fef826da68f84d904238ae5dbfa79",
@@ -12723,7 +12723,7 @@
     "text": "Rahoitus- ja vakuutustoiminta",
     "page": 32,
     "kind": "table_cell",
-    "context": "Rahoitus- ja vakuutustoiminta | 16 791 | 2,9 | 45 | 35 543 | 6,5 — Rahoitus- ja vakuutustoiminta"
+    "context": "Rahoitus- ja vakuutustoiminta — Rahoitus- ja vakuutustoiminta"
   },
   {
     "anchorId": "anchor_ad5787a315970679a8647c409df72a1b7e442aabd97160318935a95cfe66c2ba",
@@ -12765,7 +12765,7 @@
     "text": "Kiinteistöalan toiminta",
     "page": 32,
     "kind": "table_cell",
-    "context": "Kiinteistöalan toiminta | 43 284 | 7,5 | 20 | 14 103 | 2,6 — Kiinteistöalan toiminta"
+    "context": "Kiinteistöalan toiminta — Kiinteistöalan toiminta"
   },
   {
     "anchorId": "anchor_a3c20a99acbd66ffa29da1ca3dec9adb707cdc0ba7770a00dca421cf75feb03c",
@@ -12807,7 +12807,7 @@
     "text": "Ammatillinen, tieteellinen ja tekninen toiminta",
     "page": 32,
     "kind": "table_cell",
-    "context": "Ammatillinen, tieteellinen ja tekninen toiminta | 70 071 | 12,1 | 117 | 20 183 | 3,7 — Ammatillinen, tieteellinen ja tekninen toiminta"
+    "context": "Ammatillinen, tieteellinen ja tekninen toiminta — Ammatillinen, tieteellinen ja tekninen toiminta"
   },
   {
     "anchorId": "anchor_eb1569460c68782184b7b777fb3c88e542df5507a3d0ec1f653b4c4d419331e4",
@@ -12849,7 +12849,7 @@
     "text": "Hallinto- ja tukipalvelutoiminta",
     "page": 32,
     "kind": "table_cell",
-    "context": "Hallinto- ja tukipalvelutoiminta | 25 747 | 4,4 | 141 | 15 853 | 2,9 — Hallinto- ja tukipalvelutoiminta"
+    "context": "Hallinto- ja tukipalvelutoiminta — Hallinto- ja tukipalvelutoiminta"
   },
   {
     "anchorId": "anchor_5d0c9d729b788978ce465fd190450fb16dfdc165606ca1c73d00cb0ebf67d695",
@@ -12891,7 +12891,7 @@
     "text": "Terveys- ja sosiaalipalvelut",
     "page": 32,
     "kind": "table_cell",
-    "context": "Terveys- ja sosiaalipalvelut | 28 219 | 4,9 | 105 | 11 876 | 2,2 — Terveys- ja sosiaalipalvelut"
+    "context": "Terveys- ja sosiaalipalvelut — Terveys- ja sosiaalipalvelut"
   },
   {
     "anchorId": "anchor_9d9bd8710b0c2b1addaa2c665cab59caa5384b649e432d0dc0bb1573cc238c37",
@@ -12933,7 +12933,7 @@
     "text": "Muu palvelutoiminta",
     "page": 32,
     "kind": "table_cell",
-    "context": "Muu palvelutoiminta | 33 250 | 5,7 | 21 | 2 242 | 0,4 — Muu palvelutoiminta"
+    "context": "Muu palvelutoiminta — Muu palvelutoiminta"
   },
   {
     "anchorId": "anchor_7401f625aa36e71a2df491e6e0e5ef8fa0a6bdeb06b04753f8fa1f8d2a64b887",
@@ -12975,7 +12975,7 @@
     "text": "Muut toimialat",
     "page": 32,
     "kind": "table_cell",
-    "context": "Muut toimialat | 35 704 | 6,2 | 54 | 33 465 | 6,1 — Muut toimialat"
+    "context": "Muut toimialat — Muut toimialat"
   },
   {
     "anchorId": "anchor_63f42f929887e0a99046f87109f071addc1e546cbac7f2df54fc6a04cf943e11",
@@ -13017,7 +13017,7 @@
     "text": "Yhteensä",
     "page": 32,
     "kind": "table_cell",
-    "context": "Yhteensä | 580 048 | 100 | 1 510 | 544 444 | 100 — Yhteensä"
+    "context": "Yhteensä — Yhteensä"
   },
   {
     "anchorId": "anchor_8f2be0247dd405ff075df6bcb07910c7bf996a615adc4faa6c54f7b125897912",
@@ -13066,7 +13066,7 @@
     "text": "0-4",
     "page": 32,
     "kind": "table_cell",
-    "context": "0-4 | 542 400 | 93,5 | 219 | 66 708 | 12,3 — 0-4"
+    "context": "0-4 — 0-4"
   },
   {
     "anchorId": "anchor_fe991ecaddace34ef238e68bee32116319a1e5287f19c363caf1d495fd17c6ef",
@@ -13108,7 +13108,7 @@
     "text": "5-9",
     "page": 32,
     "kind": "table_cell",
-    "context": "5-9 | 17 511 | 3,0 | 114 | 30 628 | 5,6 — 5-9"
+    "context": "5-9 — 5-9"
   },
   {
     "anchorId": "anchor_7fe411bb862fa2c659355dad531a5b084063ad31d2f6f5a4d319de4c35b7cc04",
@@ -13150,7 +13150,7 @@
     "text": "10-19",
     "page": 32,
     "kind": "table_cell",
-    "context": "10-19 | 9 986 | 1,7 | 134 | 35 248 | 6,5 — 10-19"
+    "context": "10-19 — 10-19"
   },
   {
     "anchorId": "anchor_41fb6def5519abce63c65ad0410612766eb3e4a9b140a291dcfb9d596bf6b09b",
@@ -13192,7 +13192,7 @@
     "text": "20-49",
     "page": 32,
     "kind": "table_cell",
-    "context": "20-49 | 6 324 | 1,1 | 191 | 56 092 | 10,3 — 20-49"
+    "context": "20-49 — 20-49"
   },
   {
     "anchorId": "anchor_619467814587383270161ebd42139415fe0f009d5bbe52850b0c9f53b931ee7c",
@@ -13234,7 +13234,7 @@
     "text": "50-99",
     "page": 32,
     "kind": "table_cell",
-    "context": "50-99 | 2 090 | 0,4 | 144 | 51 759 | 9,5 — 50-99"
+    "context": "50-99 — 50-99"
   },
   {
     "anchorId": "anchor_cdb8ce99cfc15c36b4e091278759a03471c7491e13c06cfcddb5cab8406eb61b",
@@ -13276,7 +13276,7 @@
     "text": "100-249",
     "page": 32,
     "kind": "table_cell",
-    "context": "100-249 | 1 053 | 0,2 | 157 | 54 929 | 10,1 — 100-249"
+    "context": "100-249 — 100-249"
   },
   {
     "anchorId": "anchor_bc137cd4a4cf93e7fa1502a952d9a495687f7d496f1c3d076aeccd962964464e",
@@ -13318,7 +13318,7 @@
     "text": "250-499",
     "page": 32,
     "kind": "table_cell",
-    "context": "250-499 | 391 | 0,1 | 136 | 48 867 | 9,0 — 250-499"
+    "context": "250-499 — 250-499"
   },
   {
     "anchorId": "anchor_55d9f1fa925e2bd334a10ab8b84a9705cf0fc9fe7a81383bd74f031e73123872",
@@ -13360,7 +13360,7 @@
     "text": "500-999",
     "page": 32,
     "kind": "table_cell",
-    "context": "500-999 | 161 | 0,0 | 113 | 44 331 | 8,1 — 500-999"
+    "context": "500-999 — 500-999"
   },
   {
     "anchorId": "anchor_1d1c033c93110ca0b1bfda7057244174464452c3368334ca7f68524593b727fa",
@@ -13402,7 +13402,7 @@
     "text": "1 000-",
     "page": 32,
     "kind": "table_cell",
-    "context": "1 000- | 132 | 0,0 | 303 | 155 883 | 28,6 — 1 000-"
+    "context": "1 000- — 1 000-"
   },
   {
     "anchorId": "anchor_517a5876b2af91dfd9ca4e2a8c8255a8ec86e9c4384aa3fc87c8fb7a2e80b65a",
@@ -13444,7 +13444,7 @@
     "text": "Yhteensä",
     "page": 32,
     "kind": "table_cell",
-    "context": "Yhteensä | 580 048 | 100 | 1 510 | 544 444 | 100 — Yhteensä"
+    "context": "Yhteensä — Yhteensä"
   },
   {
     "anchorId": "anchor_57bed5180218b431da5e0f16e4faf9eec6af1dcea9777e05f0d7edc1b5f11868",
@@ -13546,42 +13546,42 @@
     "text": "Tuontimaa",
     "page": 34,
     "kind": "table_cell",
-    "context": "Tuontimaa | milj. € | % | Vientimaa | milj. € | % — Tuontimaa"
+    "context": "Tuontimaa — Tuontimaa"
   },
   {
     "anchorId": "anchor_25751fd38e0e7f4e2f51cca15564892996f3c825b6f565700436ec0e1fa0eae1",
     "text": "milj. €",
     "page": 34,
     "kind": "table_cell",
-    "context": "Tuontimaa | milj. € | % | Vientimaa | milj. € | % — milj. €"
+    "context": "milj. € — milj. €"
   },
   {
     "anchorId": "anchor_be04fdcd6845e3111543312a83779fbf05f0a0a14c929813fd09a907a7f01780",
     "text": "%",
     "page": 34,
     "kind": "table_cell",
-    "context": "Tuontimaa | milj. € | % | Vientimaa | milj. € | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_24d0ed73dab0b4fcadab4eb15d9182287a897752c975dfda7cce91f3620327d2",
     "text": "Vientimaa",
     "page": 34,
     "kind": "table_cell",
-    "context": "Tuontimaa | milj. € | % | Vientimaa | milj. € | % — Vientimaa"
+    "context": "Vientimaa — Vientimaa"
   },
   {
     "anchorId": "anchor_63abfb0b4a10f0324d5c805fdb60b033135d79b3c74e6d3a807c0c696309cd49",
     "text": "milj. €",
     "page": 34,
     "kind": "table_cell",
-    "context": "Tuontimaa | milj. € | % | Vientimaa | milj. € | % — milj. €"
+    "context": "milj. € — milj. €"
   },
   {
     "anchorId": "anchor_dcd30a327936673df4f82409bdd3190a7cd1b605b4267a37180ce0709e72500b",
     "text": "%",
     "page": 34,
     "kind": "table_cell",
-    "context": "Tuontimaa | milj. € | % | Vientimaa | milj. € | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_8a4bb058f808372b4474a7b5ec0648a49e1c633c230ec4b160ce5bdc34bc04fc",
@@ -14117,35 +14117,35 @@
     "text": "Väkiluku milj. 2023",
     "page": 35,
     "kind": "table_cell",
-    "context": "Maa | Väkiluku milj. 2023 | Bruttokansantulo/asukas USD, ostovoimakorjattu 2023 | Inflaatio % 2024 | Työttö- myys, % 2024 — Väkiluku milj. 2023"
+    "context": "Väkiluku milj. 2023 — Väkiluku milj. 2023"
   },
   {
     "anchorId": "anchor_e3d75c09ba9df7f8ea77009c1470665fd7ea7c3004d442e870eafab8b90813bd",
     "text": "Bruttokansantulo/asukas USD, ostovoimakorjattu 2023",
     "page": 35,
     "kind": "table_cell",
-    "context": "Maa | Väkiluku milj. 2023 | Bruttokansantulo/asukas USD, ostovoimakorjattu 2023 | Inflaatio % 2024 | Työttö- myys, % 2024 — Bruttokansantulo/asukas USD, ostovoimakorjattu 2023"
+    "context": "Bruttokansantulo/asukas USD, ostovoimakorjattu 2023 — Bruttokansantulo/asukas USD, ostovoimakorjattu 2023"
   },
   {
     "anchorId": "anchor_9badbc0d089cc38168b5788a4add5568fcdadcf94a93a6dbd6ef8fbb7938f95f",
     "text": "Inflaatio % 2024",
     "page": 35,
     "kind": "table_cell",
-    "context": "Maa | Väkiluku milj. 2023 | Bruttokansantulo/asukas USD, ostovoimakorjattu 2023 | Inflaatio % 2024 | Työttö- myys, % 2024 — Inflaatio % 2024"
+    "context": "Inflaatio % 2024 — Inflaatio % 2024"
   },
   {
     "anchorId": "anchor_9780d56fdf76ace6f9f5b7d9752fd464f69bc33949491a1b12bcf78aeec00d4c",
     "text": "Työttö- myys, % 2024",
     "page": 35,
     "kind": "table_cell",
-    "context": "Maa | Väkiluku milj. 2023 | Bruttokansantulo/asukas USD, ostovoimakorjattu 2023 | Inflaatio % 2024 | Työttö- myys, % 2024 — Työttö- myys, % 2024"
+    "context": "Työttö- myys, % 2024 — Työttö- myys, % 2024"
   },
   {
     "anchorId": "anchor_34b11e2323914e7435c6ee5fa4695d35eddc261ba6e8acc7e2983c1f38dbfee3",
     "text": "Suomi",
     "page": 35,
     "kind": "table_cell",
-    "context": "Suomi | 5,6 | 62 070 | 1,6 | 8,4 — Suomi"
+    "context": "Suomi — Suomi"
   },
   {
     "anchorId": "anchor_da909f0467fd50c3af2b142ef2886c864b6cd2ace5ac561b886322311e3bc011",
@@ -14180,7 +14180,7 @@
     "text": "Ruotsi",
     "page": 35,
     "kind": "table_cell",
-    "context": "Ruotsi | 10,5 | 69 680 | 2,8 | 8,4 — Ruotsi"
+    "context": "Ruotsi — Ruotsi"
   },
   {
     "anchorId": "anchor_bfbc8db2fca9831c9d977b0046e9006d4266df0b836723f7c6333e7b4f70fe7e",
@@ -14215,7 +14215,7 @@
     "text": "Norja",
     "page": 35,
     "kind": "table_cell",
-    "context": "Norja | 5,5 | 105 610 | 3,1 | 4,0 — Norja"
+    "context": "Norja — Norja"
   },
   {
     "anchorId": "anchor_240119ba62830f5e4ad03285178ab98f3188857d9f2de2ab9694e5a712198440",
@@ -14250,7 +14250,7 @@
     "text": "Tanska",
     "page": 35,
     "kind": "table_cell",
-    "context": "Tanska | 5,9 | 75 840 | 1,4 | 6,2 — Tanska"
+    "context": "Tanska — Tanska"
   },
   {
     "anchorId": "anchor_72eab2f8a31a9ccce442ee01fbebb86b2dda6d927e956be677b05808d8f795b8",
@@ -14285,7 +14285,7 @@
     "text": "Islanti",
     "page": 35,
     "kind": "table_cell",
-    "context": "Islanti | 0,4 | 77 690 | 5,9 | 3,6 — Islanti"
+    "context": "Islanti — Islanti"
   },
   {
     "anchorId": "anchor_b0928c9eeb067daea5161a31acaf745d4aff48ff14ed575566fb86dea9aa53fe",
@@ -14320,7 +14320,7 @@
     "text": "Alankomaat",
     "page": 35,
     "kind": "table_cell",
-    "context": "Alankomaat | 17,8 | 77 650 | 3,3 | 3,7 — Alankomaat"
+    "context": "Alankomaat — Alankomaat"
   },
   {
     "anchorId": "anchor_607fc889fd0b0c7f4a9f40926182b647ecdff9d0c8f53bd88f033588dd8ac06b",
@@ -14355,7 +14355,7 @@
     "text": "Belgia",
     "page": 35,
     "kind": "table_cell",
-    "context": "Belgia | 11,7 | 69 450 | 3,1 | 5,7 — Belgia"
+    "context": "Belgia — Belgia"
   },
   {
     "anchorId": "anchor_ebd0aff72ca7cadbbca14a695efdf2c6dac206b7563acd8ad96e7b4ec9925eb2",
@@ -14390,7 +14390,7 @@
     "text": "Espanja",
     "page": 35,
     "kind": "table_cell",
-    "context": "Espanja | 48,1 | 52 790 | 2,8 | 11,4 — Espanja"
+    "context": "Espanja — Espanja"
   },
   {
     "anchorId": "anchor_005cbd550672a249e35d845d73706e27d6de55879873c4173eb5373b63876a29",
@@ -14425,7 +14425,7 @@
     "text": "Irlanti",
     "page": 35,
     "kind": "table_cell",
-    "context": "Irlanti | 5,3 | 95 100 | 2,1 | 4,3 — Irlanti"
+    "context": "Irlanti — Irlanti"
   },
   {
     "anchorId": "anchor_750fc9becdb0393c211c6997b8fd1831682191a19180cff23c2be4b5ec136ee5",
@@ -14460,7 +14460,7 @@
     "text": "Israel",
     "page": 35,
     "kind": "table_cell",
-    "context": "Israel | 9,6 | 53 330 | 3,1 | 3,1 — Israel"
+    "context": "Israel — Israel"
   },
   {
     "anchorId": "anchor_521a4a697aaeff0109332082f8121f3fd3bd824338e15162951115decaab794a",
@@ -14495,7 +14495,7 @@
     "text": "Italia",
     "page": 35,
     "kind": "table_cell",
-    "context": "Italia | 59,0 | 56 540 | 1,0 | 6,5 — Italia"
+    "context": "Italia — Italia"
   },
   {
     "anchorId": "anchor_f57cce84027c70226bcf93db7bf46a607d0a2b1587217ef0cd340564c1630f66",
@@ -14530,7 +14530,7 @@
     "text": "Itävalta",
     "page": 35,
     "kind": "table_cell",
-    "context": "Itävalta | 9,1 | 70 260 | 2,9 | 5,2 — Itävalta"
+    "context": "Itävalta — Itävalta"
   },
   {
     "anchorId": "anchor_40c425e6f6e679b52003b129d8aa10442ed8c23590b77acb586c81daf10880ef",
@@ -14565,7 +14565,7 @@
     "text": "Kiina",
     "page": 35,
     "kind": "table_cell",
-    "context": "Kiina | 1 410,7 | 24 360 | 0,2 | 4,6 — Kiina"
+    "context": "Kiina — Kiina"
   },
   {
     "anchorId": "anchor_9b44f9e4ec14db4923a0fa1b0f05f97f2bbb2e2e0708f5ddb33c9f66803f8cb4",
@@ -14600,7 +14600,7 @@
     "text": "Kreikka",
     "page": 35,
     "kind": "table_cell",
-    "context": "Kreikka | 10,4 | 40 370 | 2,7 | 10,0 — Kreikka"
+    "context": "Kreikka — Kreikka"
   },
   {
     "anchorId": "anchor_9b7402eb485a1ca03a5da16d5e9579a202a0847f5fbfe3abf09c3bfdf8526fce",
@@ -14635,7 +14635,7 @@
     "text": "Latvia",
     "page": 35,
     "kind": "table_cell",
-    "context": "Latvia | 1,9 | 42 940 | 1,3 | 6,9 — Latvia"
+    "context": "Latvia — Latvia"
   },
   {
     "anchorId": "anchor_ffab0f2cc9572a97d18147918913c66a431eddd168aef7d6a5640c2212a51272",
@@ -14670,7 +14670,7 @@
     "text": "Liettua",
     "page": 35,
     "kind": "table_cell",
-    "context": "Liettua | 2,9 | 48 980 | 0,7 | 7,1 — Liettua"
+    "context": "Liettua — Liettua"
   },
   {
     "anchorId": "anchor_5fdf55f89872dba7570dc9370f88d7ad77dde2920b751e701fc29b568372aab0",
@@ -14705,7 +14705,7 @@
     "text": "Luxemburg",
     "page": 35,
     "kind": "table_cell",
-    "context": "Luxemburg | 0,7 | 90 770 | 2,1 | 6,4 — Luxemburg"
+    "context": "Luxemburg — Luxemburg"
   },
   {
     "anchorId": "anchor_29841437371d33650872c6d9344e611cc4f50ff87573bed9d55bdf6488af9524",
@@ -14740,7 +14740,7 @@
     "text": "Portugali",
     "page": 35,
     "kind": "table_cell",
-    "context": "Portugali | 10,5 | 46 130 | 2,4 | 6,5 — Portugali"
+    "context": "Portugali — Portugali"
   },
   {
     "anchorId": "anchor_ee40b456567fe0ff27011fe2e06ff931f1cf59aa0ef44c861d81d65d0f2d40cb",
@@ -14775,7 +14775,7 @@
     "text": "Puola",
     "page": 35,
     "kind": "table_cell",
-    "context": "Puola | 36,8 | 44 790 | 3,8 | 2,9 — Puola"
+    "context": "Puola — Puola"
   },
   {
     "anchorId": "anchor_fff52de7c010ffe29285a8f950ec47dee54932babfdd2fd556910ae9c114bb00",
@@ -14810,7 +14810,7 @@
     "text": "Ranska",
     "page": 35,
     "kind": "table_cell",
-    "context": "Ranska | 68,3 | 59 070 | 2,0 | 7,4 — Ranska"
+    "context": "Ranska — Ranska"
   },
   {
     "anchorId": "anchor_8fe44955714c1e7ef1c9dec16cf33dd57d6a3f4740bac7b39b9bcc4bc2784466",
@@ -14845,7 +14845,7 @@
     "text": "Saksa",
     "page": 35,
     "kind": "table_cell",
-    "context": "Saksa | 84,4 | 70 900 | 2,3 | 3,4 — Saksa"
+    "context": "Saksa — Saksa"
   },
   {
     "anchorId": "anchor_4fd511a162673bb3f0ed0d9f093ad931683336c1d7ea666235ec7ad51e049bdf",
@@ -14880,7 +14880,7 @@
     "text": "Sveitsi",
     "page": 35,
     "kind": "table_cell",
-    "context": "Sveitsi | 9,0 | 87 050 | 1,1 | 4,4 — Sveitsi"
+    "context": "Sveitsi — Sveitsi"
   },
   {
     "anchorId": "anchor_1b090bc6dad19664ed085707acdb3b3d6a95fb80108f3ea02153f81c6fbe62c2",
@@ -14915,7 +14915,7 @@
     "text": "Tšekki",
     "page": 35,
     "kind": "table_cell",
-    "context": "Tšekki | 10,8 | 49 290 | 2,4 | 2,6 — Tšekki"
+    "context": "Tšekki — Tšekki"
   },
   {
     "anchorId": "anchor_a252e7d2c5e36c20f7470ba2e2ff17245b38c92b3f9028105b7d081b9d5092f5",
@@ -14950,7 +14950,7 @@
     "text": "Turkki",
     "page": 35,
     "kind": "table_cell",
-    "context": "Turkki | 85,4 | 41 900 | 58,5 | 8,8 — Turkki"
+    "context": "Turkki — Turkki"
   },
   {
     "anchorId": "anchor_ae1b5f4d9beba6f84d7f762dc4cd5c4966f0cd99829a7ddf8e877d100b68b479",
@@ -14985,7 +14985,7 @@
     "text": "Ukraina",
     "page": 35,
     "kind": "table_cell",
-    "context": "Ukraina | 1) 41,0 | 18 120 | 6,5 | 1) 9,8 — Ukraina"
+    "context": "Ukraina — Ukraina"
   },
   {
     "anchorId": "anchor_b5da0e9f2bb4c74d05f29022d3745852c22670aa5b5bbdb7a9bf51912ba65a22",
@@ -15020,7 +15020,7 @@
     "text": "Unkari",
     "page": 35,
     "kind": "table_cell",
-    "context": "Unkari | 9,6 | 43 420 | 3,7 | 4,5 — Unkari"
+    "context": "Unkari — Unkari"
   },
   {
     "anchorId": "anchor_f6bf00b0fd645d00c1c60d85516faa9e02efcb7f433151588768275954f2fb59",
@@ -15055,7 +15055,7 @@
     "text": "Viro",
     "page": 35,
     "kind": "table_cell",
-    "context": "Viro | 1,4 | 45 380 | 3,5 | 7,6 — Viro"
+    "context": "Viro — Viro"
   },
   {
     "anchorId": "anchor_55a339942d2003264580404f2bfa1ce54a8d272ce7f9cbfa11f77164f2682b8d",
@@ -15090,7 +15090,7 @@
     "text": "Yhdistynyt kuningas- kunta",
     "page": 35,
     "kind": "table_cell",
-    "context": "Yhdistynyt kuningas- kunta | 68,3 | 56 780 | 3,3 | 4,4 — Yhdistynyt kuningas- kunta"
+    "context": "Yhdistynyt kuningas- kunta — Yhdistynyt kuningas- kunta"
   },
   {
     "anchorId": "anchor_e43066d562164f9c18c92a17a9ecdb2dc63247ae26d5ab4d599116c163c6bb18",
@@ -15125,7 +15125,7 @@
     "text": "Yhdysvallat",
     "page": 35,
     "kind": "table_cell",
-    "context": "Yhdysvallat | 335,0 | 82 340 | 2,9 | 4,0 — Yhdysvallat"
+    "context": "Yhdysvallat — Yhdysvallat"
   },
   {
     "anchorId": "anchor_8892914f6b73033457fdf0d05b3bdb31a89c149748bcfaaf94aa9df1e71a9671",
@@ -15179,42 +15179,42 @@
     "text": "2010",
     "page": 36,
     "kind": "table_cell",
-    "context": "Asuinmaa | 2010 | % | 2024 | % | Muutos, % 2023-2024 — 2010"
+    "context": "2010 — 2010"
   },
   {
     "anchorId": "anchor_c8a066eb6f7d4d1f2132f03032c91f16087b131f358b29d8e499bdee4b11c8c9",
     "text": "%",
     "page": 36,
     "kind": "table_cell",
-    "context": "Asuinmaa | 2010 | % | 2024 | % | Muutos, % 2023-2024 — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_ceb2210159689a9e73af45cb19a3c26ed005f23386c43db3ee98dbca8cbf0675",
     "text": "2024",
     "page": 36,
     "kind": "table_cell",
-    "context": "Asuinmaa | 2010 | % | 2024 | % | Muutos, % 2023-2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_896bda7d652750201232291ec6c45f37958e1c1afdea39e0c3422489367c5f0c",
     "text": "%",
     "page": 36,
     "kind": "table_cell",
-    "context": "Asuinmaa | 2010 | % | 2024 | % | Muutos, % 2023-2024 — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_f18809d2d4b24df27585d2fb3f37ab45880518247f24ca6ef6a8cff709fb9b99",
     "text": "Muutos, % 2023-2024",
     "page": 36,
     "kind": "table_cell",
-    "context": "Asuinmaa | 2010 | % | 2024 | % | Muutos, % 2023-2024 — Muutos, % 2023-2024"
+    "context": "Muutos, % 2023-2024 — Muutos, % 2023-2024"
   },
   {
     "anchorId": "anchor_0c8fbb5841f6d398cb4045e5a0f788e6643575efe280e73207e41377419d56a7",
     "text": "Saksa",
     "page": 36,
     "kind": "table_cell",
-    "context": "Saksa | 510 280 | 10,2 | 700 127 | 11,0 | 2,9 — Saksa"
+    "context": "Saksa — Saksa"
   },
   {
     "anchorId": "anchor_01a5b3dbc87afb21c091a913a9aac8b8edcc6043acd855e71b0ee7d69913c1cc",
@@ -15256,7 +15256,7 @@
     "text": "Yhdistynyt kuningaskunta",
     "page": 36,
     "kind": "table_cell",
-    "context": "Yhdistynyt kuningaskunta | 406 272 | 8,1 | 607 896 | 9,5 | 7,2 — Yhdistynyt kuningaskunta"
+    "context": "Yhdistynyt kuningaskunta — Yhdistynyt kuningaskunta"
   },
   {
     "anchorId": "anchor_51738d2796225d8f084cedbe77fef9b23330b922294be88cd2e4de6a1a84f21b",
@@ -15298,7 +15298,7 @@
     "text": "Ruotsi",
     "page": 36,
     "kind": "table_cell",
-    "context": "Ruotsi | 517 849 | 10,3 | 521 574 | 8,2 | 3,5 — Ruotsi"
+    "context": "Ruotsi — Ruotsi"
   },
   {
     "anchorId": "anchor_f99341cfb36f855894e4e1645c6b97cc2fed1357a011897689b149009ee82647",
@@ -15340,7 +15340,7 @@
     "text": "Yhdysvallat",
     "page": 36,
     "kind": "table_cell",
-    "context": "Yhdysvallat | 178 482 | 3,6 | 445 098 | 7,0 | 16,3 — Yhdysvallat"
+    "context": "Yhdysvallat — Yhdysvallat"
   },
   {
     "anchorId": "anchor_1891bc60f2869d27c0e045203501be0f44421d82fb1aaddbf8252ffba5371bdc",
@@ -15382,7 +15382,7 @@
     "text": "Ranska",
     "page": 36,
     "kind": "table_cell",
-    "context": "Ranska | 213 414 | 4,3 | 392 861 | 6,2 | 4,1 — Ranska"
+    "context": "Ranska — Ranska"
   },
   {
     "anchorId": "anchor_1c387011ca55c469dcb3501caa4301eb108fab8fa4f3d13816116bfb5a8a4212",
@@ -15424,7 +15424,7 @@
     "text": "Alankomaat",
     "page": 36,
     "kind": "table_cell",
-    "context": "Alankomaat | 165 779 | 3,3 | 299 544 | 4,7 | 7,5 — Alankomaat"
+    "context": "Alankomaat — Alankomaat"
   },
   {
     "anchorId": "anchor_bd7cf7391b62e1ae71a0989e5f9fd1d2261f9ca963169e6e5cae7f986f9fb245",
@@ -15466,7 +15466,7 @@
     "text": "Italia",
     "page": 36,
     "kind": "table_cell",
-    "context": "Italia | 142 389 | 2,8 | 220 541 | 3,5 | 14,6 — Italia"
+    "context": "Italia — Italia"
   },
   {
     "anchorId": "anchor_36925092c5ccdc73bab8c44bdb6db3e5ea55f20574d3deaafe23b60da52fda52",
@@ -15508,7 +15508,7 @@
     "text": "Espanja",
     "page": 36,
     "kind": "table_cell",
-    "context": "Espanja | 113 804 | 2,3 | 197 245 | 3,1 | 10,8 — Espanja"
+    "context": "Espanja — Espanja"
   },
   {
     "anchorId": "anchor_f0fb2fa944cf2707700efda54965dea5042a342775c0cbf62270d9d7bbcc36c0",
@@ -15550,7 +15550,7 @@
     "text": "Sveitsi",
     "page": 36,
     "kind": "table_cell",
-    "context": "Sveitsi | 107 859 | 2,2 | 180 691 | 2,8 | 12,0 — Sveitsi"
+    "context": "Sveitsi — Sveitsi"
   },
   {
     "anchorId": "anchor_26f152f40d042c583104e7662e857a2e5106d57eba882b2f4fe2d1de94e9d4de",
@@ -15592,7 +15592,7 @@
     "text": "Viro",
     "page": 36,
     "kind": "table_cell",
-    "context": "Viro | 205 429 | 4,1 | 179 900 | 2,8 | -9,1 — Viro"
+    "context": "Viro — Viro"
   },
   {
     "anchorId": "anchor_beb395518b784c4809cae8841712ad06313f7a6518cad27112c9fb735f787264",
@@ -15634,7 +15634,7 @@
     "text": "Muut",
     "page": 36,
     "kind": "table_cell",
-    "context": "Muut | 2 443 511 | 48,8 | 2 623 149 | 41,2 | 7,4 — Muut"
+    "context": "Muut — Muut"
   },
   {
     "anchorId": "anchor_fd935a26722a6870ecd1130efc27f493fd4ff52c1698ce47b894ab35ab30a601",
@@ -15676,7 +15676,7 @@
     "text": "Yhteensä",
     "page": 36,
     "kind": "table_cell",
-    "context": "Yhteensä | 5 005 068 | 100 | 6 368 626 | 100 | 10,7 — Yhteensä"
+    "context": "Yhteensä — Yhteensä"
   },
   {
     "anchorId": "anchor_02d72f1f16f712a8e340fb870d6bee248a4ae4d32b2152faecab00eaded516f7",
@@ -15736,49 +15736,49 @@
     "text": "Hankinta",
     "page": 38,
     "kind": "table_cell",
-    "context": "Hankinta | GWh | % | Kokonaiskulutus | GWh | % — Hankinta"
+    "context": "Hankinta — Hankinta"
   },
   {
     "anchorId": "anchor_eff74a3bdfaa5c7f384b38d4e5c0e975d70e680508838d8627f1edb99c57369a",
     "text": "GWh",
     "page": 38,
     "kind": "table_cell",
-    "context": "Hankinta | GWh | % | Kokonaiskulutus | GWh | % — GWh"
+    "context": "GWh — GWh"
   },
   {
     "anchorId": "anchor_0714409eb2f867b29115d2ffb66b79ef0d2b659fd17fccd31ca9c39f75dfe128",
     "text": "%",
     "page": 38,
     "kind": "table_cell",
-    "context": "Hankinta | GWh | % | Kokonaiskulutus | GWh | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_e7b353f767dbf0010dc4d09cd61df797772f2c596e112a3fff748f3ad77087c7",
     "text": "Kokonaiskulutus",
     "page": 38,
     "kind": "table_cell",
-    "context": "Hankinta | GWh | % | Kokonaiskulutus | GWh | % — Kokonaiskulutus"
+    "context": "Kokonaiskulutus — Kokonaiskulutus"
   },
   {
     "anchorId": "anchor_afb64d8482af76308c919535057fee3945ced9dc07e7e87758adfc468103496f",
     "text": "GWh",
     "page": 38,
     "kind": "table_cell",
-    "context": "Hankinta | GWh | % | Kokonaiskulutus | GWh | % — GWh"
+    "context": "GWh — GWh"
   },
   {
     "anchorId": "anchor_2caf902769b25f3ecbab07dd277dc14c256fb8b2e46becf92bc6b50525765e46",
     "text": "%",
     "page": 38,
     "kind": "table_cell",
-    "context": "Hankinta | GWh | % | Kokonaiskulutus | GWh | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_f078b8a022584f7c240df137c29647abe65821275fc2ce9cb20ccc307e49f5c3",
     "text": "Ydinvoima",
     "page": 38,
     "kind": "table_cell",
-    "context": "Ydinvoima | 31 133 | 37,6 | Teollisuus ja rakentaminen | 34 118 | 41,2 — Ydinvoima"
+    "context": "Ydinvoima — Ydinvoima"
   },
   {
     "anchorId": "anchor_3ca84a15e10c9bff4c8bcc991b2480128d44613244c0a7319411c2dabc3f00bb",
@@ -15820,7 +15820,7 @@
     "text": "Tuulivoima",
     "page": 38,
     "kind": "table_cell",
-    "context": "Tuulivoima | 19 858 | 24,0 | Kotitaloudet ja maatalous | 24 725 | 29,9 — Tuulivoima"
+    "context": "Tuulivoima — Tuulivoima"
   },
   {
     "anchorId": "anchor_05982fbdc93564d507e269748673ae597ae089fb5fb94bcfd33cb656900b8e88",
@@ -15862,7 +15862,7 @@
     "text": "Vesivoima",
     "page": 38,
     "kind": "table_cell",
-    "context": "Vesivoima | 14 147 | 17,1 | Palvelut ja julkinen kulutus | 20 604 | 24,9 — Vesivoima"
+    "context": "Vesivoima — Vesivoima"
   },
   {
     "anchorId": "anchor_5f0d1576d8c3b83d681e935fcf41e4a01d34b141517a46c903c83ad3bec54b1d",
@@ -15904,7 +15904,7 @@
     "text": "Aurinkovoima",
     "page": 38,
     "kind": "table_cell",
-    "context": "Aurinkovoima | 1 155 | 1,4 | Siirto- ja jakeluhäviöt | 3 297 | 4,0 — Aurinkovoima"
+    "context": "Aurinkovoima — Aurinkovoima"
   },
   {
     "anchorId": "anchor_b3b9d44a77c1c0fb2a0a478ab85cdfd6bf5f7c95d983646157d19b58b453cdc9",
@@ -15946,7 +15946,7 @@
     "text": "Nettotuonti",
     "page": 38,
     "kind": "table_cell",
-    "context": "Nettotuonti | 3 181 | 3,8 | Yhteensä | 82 744 | 100 — Nettotuonti"
+    "context": "Nettotuonti — Nettotuonti"
   },
   {
     "anchorId": "anchor_8954d769137cfbec9e447978e7fa93d7724102cb4f22fc01e84f3079114ea142",
@@ -15988,7 +15988,7 @@
     "text": "Muu lämpövoima",
     "page": 38,
     "kind": "table_cell",
-    "context": "Muu lämpövoima | 13 270 | 16,1 — Muu lämpövoima"
+    "context": "Muu lämpövoima — Muu lämpövoima"
   },
   {
     "anchorId": "anchor_e71236a56b1efd738d88af497c242abae21df9821c728c0ba814a1616eb355b5",
@@ -16009,7 +16009,7 @@
     "text": "Yhteensä",
     "page": 38,
     "kind": "table_cell",
-    "context": "Yhteensä | 82 744 | 100 — Yhteensä"
+    "context": "Yhteensä — Yhteensä"
   },
   {
     "anchorId": "anchor_be26579b9313020068241effa07aee0782c01106b013c572babc13905a4afb2b",
@@ -16067,42 +16067,42 @@
     "text": "milj. ha",
     "page": 40,
     "kind": "table_cell",
-    "context": "Maaluokka | milj. ha | % | Puuston tilavuus | milj. m 3 | % — milj. ha"
+    "context": "milj. ha — milj. ha"
   },
   {
     "anchorId": "anchor_9ec7d80109b32e7e8a906855b87952a624b66da7a11a33c9127674eca020b239",
     "text": "%",
     "page": 40,
     "kind": "table_cell",
-    "context": "Maaluokka | milj. ha | % | Puuston tilavuus | milj. m 3 | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_5a0a2aef8110a2c480447dced831abc637dce2d34702ed89374daea79709a1b4",
     "text": "Puuston tilavuus",
     "page": 40,
     "kind": "table_cell",
-    "context": "Maaluokka | milj. ha | % | Puuston tilavuus | milj. m 3 | % — Puuston tilavuus"
+    "context": "Puuston tilavuus — Puuston tilavuus"
   },
   {
     "anchorId": "anchor_83e89b250d38a09f50e88e2fe698e95c7678f60221892d3c9e3179284e813baa",
     "text": "milj. m 3",
     "page": 40,
     "kind": "table_cell",
-    "context": "Maaluokka | milj. ha | % | Puuston tilavuus | milj. m 3 | % — milj. m 3"
+    "context": "milj. m 3 — milj. m 3"
   },
   {
     "anchorId": "anchor_da8313bca2bcfe4dd2c9b4c95c56cc6db9735314f9207cf3b28177b157dc79f3",
     "text": "%",
     "page": 40,
     "kind": "table_cell",
-    "context": "Maaluokka | milj. ha | % | Puuston tilavuus | milj. m 3 | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_9d99546c3d80ad874e168407ee7cd69cfbaf09f2768d55e96f43c03921d1ba64",
     "text": "Metsätalousmaa",
     "page": 40,
     "kind": "table_cell",
-    "context": "Metsätalousmaa | 26,2 | 86 | Mänty | 1 283 | 50 — Metsätalousmaa"
+    "context": "Metsätalousmaa — Metsätalousmaa"
   },
   {
     "anchorId": "anchor_a47f0cefd41def269c02621a30063af610489173e1a42f19a459b4a170d2544c",
@@ -16144,7 +16144,7 @@
     "text": "Metsämaa",
     "page": 40,
     "kind": "table_cell",
-    "context": "Metsämaa | 20,3 | 67 | Kuusi | 763 | 30 — Metsämaa"
+    "context": "Metsämaa — Metsämaa"
   },
   {
     "anchorId": "anchor_a868729b52c9477d650646828ac14a0abd2a9458c02f45e0c68f87cd2b00d6cc",
@@ -16186,7 +16186,7 @@
     "text": "Kitumaa",
     "page": 40,
     "kind": "table_cell",
-    "context": "Kitumaa | 2,6 | 9 | Koivu | 422 | 17 — Kitumaa"
+    "context": "Kitumaa — Kitumaa"
   },
   {
     "anchorId": "anchor_24a72417f227c8b76f336696a10eacc10879a35efacbe4558ebbdcc597ac9c68",
@@ -16228,7 +16228,7 @@
     "text": "Joutomaa",
     "page": 40,
     "kind": "table_cell",
-    "context": "Joutomaa | 3,1 | 10 | Muut lehtipuut | 85 | 3 — Joutomaa"
+    "context": "Joutomaa — Joutomaa"
   },
   {
     "anchorId": "anchor_ef0a55a266cb6191bbd53db692ed8b564928d0525b13a496499954232657d055",
@@ -16270,7 +16270,7 @@
     "text": "Metsätiet, varastot ym.",
     "page": 40,
     "kind": "table_cell",
-    "context": "Metsätiet, varastot ym. | 0,2 | 1 | Puusto yhteensä | 2 552 | 100 — Metsätiet, varastot ym."
+    "context": "Metsätiet, varastot ym. — Metsätiet, varastot ym."
   },
   {
     "anchorId": "anchor_86c725b912ee5fe027d63aa5d360b2357cd582f35b0c942e8774087ad6a7a9be",
@@ -16312,7 +16312,7 @@
     "text": "Muu",
     "page": 40,
     "kind": "table_cell",
-    "context": "Muu | 4,2 | 14 — Muu"
+    "context": "Muu — Muu"
   },
   {
     "anchorId": "anchor_dabc8cb41123405ace7f1448220e4305fc43a4324f224859535d2aaff9462945",
@@ -16333,7 +16333,7 @@
     "text": "Maa-ala yhteensä",
     "page": 40,
     "kind": "table_cell",
-    "context": "Maa-ala yhteensä | 30,4 | 100 — Maa-ala yhteensä"
+    "context": "Maa-ala yhteensä — Maa-ala yhteensä"
   },
   {
     "anchorId": "anchor_e63419462191784ede907a3dcc88d0aed7aadd809a7e48a446b5f3a23507e252",
@@ -16360,49 +16360,49 @@
     "text": "1950 tuhatta",
     "page": 40,
     "kind": "table_cell",
-    "context": "1950 tuhatta | 1990 | 2000 | 2010 | 2020 | 2024 — 1950 tuhatta"
+    "context": "1950 tuhatta — 1950 tuhatta"
   },
   {
     "anchorId": "anchor_bb3b9051f58397ebb69fd804e80057eccda2e019e31643fa2c8cae265bdb31df",
     "text": "1990",
     "page": 40,
     "kind": "table_cell",
-    "context": "1950 tuhatta | 1990 | 2000 | 2010 | 2020 | 2024 — 1990"
+    "context": "1990 — 1990"
   },
   {
     "anchorId": "anchor_3d2d139ab2ffeda87fe209ba588ae009e43c032d63e1c2baf33475a58db7f580",
     "text": "2000",
     "page": 40,
     "kind": "table_cell",
-    "context": "1950 tuhatta | 1990 | 2000 | 2010 | 2020 | 2024 — 2000"
+    "context": "2000 — 2000"
   },
   {
     "anchorId": "anchor_73d2380cee3eda90e37ca5525a55b20dfc6229a25cf76e8b52fb6e04575f3a13",
     "text": "2010",
     "page": 40,
     "kind": "table_cell",
-    "context": "1950 tuhatta | 1990 | 2000 | 2010 | 2020 | 2024 — 2010"
+    "context": "2010 — 2010"
   },
   {
     "anchorId": "anchor_1a3e3576a0ccec6cefb69cf2ef9f4a668a8d5215779e702bed1ab738620d0a39",
     "text": "2020",
     "page": 40,
     "kind": "table_cell",
-    "context": "1950 tuhatta | 1990 | 2000 | 2010 | 2020 | 2024 — 2020"
+    "context": "2020 — 2020"
   },
   {
     "anchorId": "anchor_fbd61895888e5aa7993ef3aee32c131021d4d534ad3eea0c48fe2c087b77ab75",
     "text": "2024",
     "page": 40,
     "kind": "table_cell",
-    "context": "1950 tuhatta | 1990 | 2000 | 2010 | 2020 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_dbb5cb74542c269c6869e625d6eb84502d5b5bb23e77fee06fd70251e0b3d581",
     "text": "Naudat",
     "page": 40,
     "kind": "table_cell",
-    "context": "Naudat | 1 782 | 1 360 | 1 057 | 926 | 846 | 794 — Naudat"
+    "context": "Naudat — Naudat"
   },
   {
     "anchorId": "anchor_aa2f7586ee2e2b0623036e7ec43b79d2c06656b93acaef7de5da8f399f584079",
@@ -16451,7 +16451,7 @@
     "text": "Lypsylehmät",
     "page": 40,
     "kind": "table_cell",
-    "context": "Lypsylehmät | 1 111 | 490 | 364 | 289 | 260 | 234 — Lypsylehmät"
+    "context": "Lypsylehmät — Lypsylehmät"
   },
   {
     "anchorId": "anchor_7a1666493fe0aa20983b97ab46e187545722ed008ce5ab406e4ada47a7dcc3c6",
@@ -16500,7 +16500,7 @@
     "text": "Siat",
     "page": 40,
     "kind": "table_cell",
-    "context": "Siat | 446 | 1 381 | 1 296 | 1 367 | 1 087 | 987 — Siat"
+    "context": "Siat — Siat"
   },
   {
     "anchorId": "anchor_bc89af8ec1b1d9d74bdd1c0f2db3f0dab20a3b24aef1659a01a9b740bd10f866",
@@ -16549,7 +16549,7 @@
     "text": "Siipikarja",
     "page": 40,
     "kind": "table_cell",
-    "context": "Siipikarja | . . | . . | 12 570 | 9 587 | 13 577 | 15 279 — Siipikarja"
+    "context": "Siipikarja — Siipikarja"
   },
   {
     "anchorId": "anchor_97439481fda3c3162698b91ebb8943dd0465307c9723e6f854816a8445d54c9c",
@@ -16598,7 +16598,7 @@
     "text": "Munivat kanat",
     "page": 40,
     "kind": "table_cell",
-    "context": "Munivat kanat | 3 381 | 4 845 | 3 110 | 3 394 | 3 812 | 4 041 — Munivat kanat"
+    "context": "Munivat kanat — Munivat kanat"
   },
   {
     "anchorId": "anchor_2409b6291b41464c5cb35a4c9470dd02fa812c5c1cbd66bcbf49aca3c8b46229",
@@ -16647,7 +16647,7 @@
     "text": "Broilerit",
     "page": 40,
     "kind": "table_cell",
-    "context": "Broilerit | . . | 2 993 | 7 918 | 4 616 | 8 507 | 9 792 — Broilerit"
+    "context": "Broilerit — Broilerit"
   },
   {
     "anchorId": "anchor_8a81a7da24b684cc7f97ea7bb1621de5a4395882bc299a0d6b177baf03153fdb",
@@ -16696,7 +16696,7 @@
     "text": "Lampaat",
     "page": 40,
     "kind": "table_cell",
-    "context": "Lampaat | 1 220 | 103 | 100 | 126 | 140 | 115 — Lampaat"
+    "context": "Lampaat — Lampaat"
   },
   {
     "anchorId": "anchor_40f2aabae3978ec6b6944caa2acd4af6043a1d7862f933e3ad43d06e7beaa3d1",
@@ -16751,49 +16751,49 @@
     "text": "1950 milj. kg",
     "page": 40,
     "kind": "table_cell",
-    "context": "1950 milj. kg | 1990 | 2000 | 2010 | 2020 | 2024 — 1950 milj. kg"
+    "context": "1950 milj. kg — 1950 milj. kg"
   },
   {
     "anchorId": "anchor_11bf2c76c2ad4b937bc0f1f30d689889479228dd757077cce193e150c2ea35a2",
     "text": "1990",
     "page": 40,
     "kind": "table_cell",
-    "context": "1950 milj. kg | 1990 | 2000 | 2010 | 2020 | 2024 — 1990"
+    "context": "1990 — 1990"
   },
   {
     "anchorId": "anchor_85920b10c27177b0425fc7da7e37eeac55db16abcae2a0c00fc10096cb244c8f",
     "text": "2000",
     "page": 40,
     "kind": "table_cell",
-    "context": "1950 milj. kg | 1990 | 2000 | 2010 | 2020 | 2024 — 2000"
+    "context": "2000 — 2000"
   },
   {
     "anchorId": "anchor_2142eed802c9d0ee60ea787d22fdabb86ab9557ff7e6c62433a7341af4272bce",
     "text": "2010",
     "page": 40,
     "kind": "table_cell",
-    "context": "1950 milj. kg | 1990 | 2000 | 2010 | 2020 | 2024 — 2010"
+    "context": "2010 — 2010"
   },
   {
     "anchorId": "anchor_a34cdb0fd02a10e1aaabe86d37a31dcb66da535a993cbb13954e4939e45b7647",
     "text": "2020",
     "page": 40,
     "kind": "table_cell",
-    "context": "1950 milj. kg | 1990 | 2000 | 2010 | 2020 | 2024 — 2020"
+    "context": "2020 — 2020"
   },
   {
     "anchorId": "anchor_7b2333d8cb722560560c61e36752ae603bc9c5e60462d5c47fd61c354a6e4855",
     "text": "2024",
     "page": 40,
     "kind": "table_cell",
-    "context": "1950 milj. kg | 1990 | 2000 | 2010 | 2020 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_d8a8ce1748fd9d4686db3b29601e8167ce93b7ae6149dcfa4407b46f7dff1d7a",
     "text": "Vehnä",
     "page": 40,
     "kind": "table_cell",
-    "context": "Vehnä | 296 | 627 | 538 | 724 | 677 | 751 — Vehnä"
+    "context": "Vehnä — Vehnä"
   },
   {
     "anchorId": "anchor_a2af1515634c04aed378b7bd4736bb29698c6eaf6cabf0a7ad235e0ae142d62f",
@@ -16842,7 +16842,7 @@
     "text": "Ruis",
     "page": 40,
     "kind": "table_cell",
-    "context": "Ruis | 215 | 244 | 108 | 69 | 67 | 44 — Ruis"
+    "context": "Ruis — Ruis"
   },
   {
     "anchorId": "anchor_468f969a188fec1b44aadf7da8d6392075d471ab4f5d456d4e8a45ef1ef89dcf",
@@ -16891,7 +16891,7 @@
     "text": "Ohra",
     "page": 40,
     "kind": "table_cell",
-    "context": "Ohra | 176 | 1 720 | 1 985 | 1 340 | 1 382 | 1 165 — Ohra"
+    "context": "Ohra — Ohra"
   },
   {
     "anchorId": "anchor_3482c789e180c82f68759df6e2fca0e5956fb251138740317b3bf2596affc4e4",
@@ -16940,7 +16940,7 @@
     "text": "Kaura",
     "page": 40,
     "kind": "table_cell",
-    "context": "Kaura | 702 | 1 662 | 1 413 | 810 | 1 195 | 1 208 — Kaura"
+    "context": "Kaura — Kaura"
   },
   {
     "anchorId": "anchor_a68e21ffca9939373d40e116250ee53890435580e24b7c4889387e0c8fac83da",
@@ -16989,7 +16989,7 @@
     "text": "Peruna",
     "page": 40,
     "kind": "table_cell",
-    "context": "Peruna | 1 273 | 881 | 785 | 659 | 624 | 553 — Peruna"
+    "context": "Peruna — Peruna"
   },
   {
     "anchorId": "anchor_0a6ce86a463f09c229eafff7c64769a9395f10560d5a80be5e94a43f351a1c34",
@@ -17038,7 +17038,7 @@
     "text": "Sokerijuurikas",
     "page": 40,
     "kind": "table_cell",
-    "context": "Sokerijuurikas | 231 | 1 125 | 1 046 | 542 | 422 | 667 — Sokerijuurikas"
+    "context": "Sokerijuurikas — Sokerijuurikas"
   },
   {
     "anchorId": "anchor_5af2e406ca606b9bc2157af9a114b5c81e4631531674c64f80062402f283131e",
@@ -17087,7 +17087,7 @@
     "text": "Härkäpapu",
     "page": 40,
     "kind": "table_cell",
-    "context": "Härkäpapu | . . | . . | . . | 16 | 23 | 14 — Härkäpapu"
+    "context": "Härkäpapu — Härkäpapu"
   },
   {
     "anchorId": "anchor_6a0ba215026cc6c5ba5a2fca4c62fd1ce8d030604077ed57a61ace33f5ccef6e",
@@ -17154,42 +17154,42 @@
     "text": "1990",
     "page": 41,
     "kind": "table_cell",
-    "context": "1990 | 2000 | 2010 | 2020 | 2023 — 1990"
+    "context": "1990 — 1990"
   },
   {
     "anchorId": "anchor_35d1b6fa9c523cc71b18da06688863b0c83c3ace9a9a7433b9161fb86bffbcaf",
     "text": "2000",
     "page": 41,
     "kind": "table_cell",
-    "context": "1990 | 2000 | 2010 | 2020 | 2023 — 2000"
+    "context": "2000 — 2000"
   },
   {
     "anchorId": "anchor_c3e35febfb2e33325eb943f55ccdb090ad757d642cea6e4804259fe5e118d29a",
     "text": "2010",
     "page": 41,
     "kind": "table_cell",
-    "context": "1990 | 2000 | 2010 | 2020 | 2023 — 2010"
+    "context": "2010 — 2010"
   },
   {
     "anchorId": "anchor_3d6f266eee23099fcd7e46e0673de50d0e0c8faa20aabae08400afa8606c134c",
     "text": "2020",
     "page": 41,
     "kind": "table_cell",
-    "context": "1990 | 2000 | 2010 | 2020 | 2023 — 2020"
+    "context": "2020 — 2020"
   },
   {
     "anchorId": "anchor_7c5b019886dfd31549112ce035247309e44040faccb64bbe4d1a76882c0e14cc",
     "text": "2023",
     "page": 41,
     "kind": "table_cell",
-    "context": "1990 | 2000 | 2010 | 2020 | 2023 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_366a615660a7508640d8addc25429ff17d97d4f922b6cd212d0790ac24a4ec92",
     "text": "Elokuvateattereita",
     "page": 41,
     "kind": "table_cell",
-    "context": "Elokuvateattereita | 264 | 228 | 172 | 177 | 187 — Elokuvateattereita"
+    "context": "Elokuvateattereita — Elokuvateattereita"
   },
   {
     "anchorId": "anchor_e22f2a6f4179bcedd15ce8e42626c9de09e3ef8578ebe242ba57c6f3433bd2a4",
@@ -17231,7 +17231,7 @@
     "text": "Elokuvasaleja",
     "page": 41,
     "kind": "table_cell",
-    "context": "Elokuvasaleja | 340 | 343 | 289 | 360 | 381 — Elokuvasaleja"
+    "context": "Elokuvasaleja — Elokuvasaleja"
   },
   {
     "anchorId": "anchor_c59a0a3ebf5d6b5098e77d88bea377cb187012473f08e4f3c11672b030181292",
@@ -17273,7 +17273,7 @@
     "text": "Istumapaikkoja, tuhatta",
     "page": 41,
     "kind": "table_cell",
-    "context": "Istumapaikkoja, tuhatta | 66 | 59 | 50 | 50 | 48 — Istumapaikkoja, tuhatta"
+    "context": "Istumapaikkoja, tuhatta — Istumapaikkoja, tuhatta"
   },
   {
     "anchorId": "anchor_bbba8d767bedb34df3b04f11f6f87a300a7ed0d021437e864801e781d4148aba",
@@ -17315,7 +17315,7 @@
     "text": "Ensi-iltoja",
     "page": 41,
     "kind": "table_cell",
-    "context": "Ensi-iltoja | 172 | 176 | 186 | 131 | 227 — Ensi-iltoja"
+    "context": "Ensi-iltoja — Ensi-iltoja"
   },
   {
     "anchorId": "anchor_40988ac83685c4f38184f830beb9a7947ee8d46619feb01464981c578e8e2d6d",
@@ -17357,7 +17357,7 @@
     "text": "Käyntejä asukasta kohti",
     "page": 41,
     "kind": "table_cell",
-    "context": "Käyntejä asukasta kohti | 1,3 | 1,4 | 1,4 | 0,7 | 1,3 — Käyntejä asukasta kohti"
+    "context": "Käyntejä asukasta kohti — Käyntejä asukasta kohti"
   },
   {
     "anchorId": "anchor_3536ef57efce1e95209202c47a484fc823f855515ce709f1f7bb97a2c7a6aab7",
@@ -17399,7 +17399,7 @@
     "text": "Museoita 1)",
     "page": 41,
     "kind": "table_cell",
-    "context": "Museoita 1) | 114 | 155 | 158 | 150 | 152 — Museoita 1)"
+    "context": "Museoita 1) — Museoita 1)"
   },
   {
     "anchorId": "anchor_362c7f9d99a4d3a136b99f9696a88e572c18dccf9b3bee611fdc6ea4eb34eb36",
@@ -17441,7 +17441,7 @@
     "text": "Näyttelyitä",
     "page": 41,
     "kind": "table_cell",
-    "context": "Näyttelyitä | . . | 1 289 | 1 134 | 773 | 849 — Näyttelyitä"
+    "context": "Näyttelyitä — Näyttelyitä"
   },
   {
     "anchorId": "anchor_2e0b16ab777d60aa1474e38e66af845815835c4be506596f1be5db8529ff0370",
@@ -17483,7 +17483,7 @@
     "text": "Käyntejä, milj.",
     "page": 41,
     "kind": "table_cell",
-    "context": "Käyntejä, milj. | 4,0 | 4,9 | 4,9 | 4,5 | 8,7 — Käyntejä, milj."
+    "context": "Käyntejä, milj. — Käyntejä, milj."
   },
   {
     "anchorId": "anchor_63e66636f9f5cae0fc752543e93a1f82b5b5021f33462479d407214d9edf7063",
@@ -17525,7 +17525,7 @@
     "text": "Teattereita 2) 3)",
     "page": 41,
     "kind": "table_cell",
-    "context": "Teattereita 2) 3) | 54 | 60 | 59 | 59 | 71 — Teattereita 2) 3)"
+    "context": "Teattereita 2) 3) — Teattereita 2) 3)"
   },
   {
     "anchorId": "anchor_79df1f7f303b500ec3c8da0f69c2ae3494da448ae54550641d592bf7aa79b0e7",
@@ -17567,7 +17567,7 @@
     "text": "Esityskertoja",
     "page": 41,
     "kind": "table_cell",
-    "context": "Esityskertoja | 12 115 | 13 837 | 12 833 | 6 374 | 11 340 — Esityskertoja"
+    "context": "Esityskertoja — Esityskertoja"
   },
   {
     "anchorId": "anchor_96346a993ce2d7b295003b1dd5870130c0d1198ae62e15a3f8552bd62912d12c",
@@ -17609,7 +17609,7 @@
     "text": "Myytyjä lippuja, milj.",
     "page": 41,
     "kind": "table_cell",
-    "context": "Myytyjä lippuja, milj. | 2,5 | 2,6 | 2,6 | 0,8 | 2,0 — Myytyjä lippuja, milj."
+    "context": "Myytyjä lippuja, milj. — Myytyjä lippuja, milj."
   },
   {
     "anchorId": "anchor_937008f28183cdf6fecbdfd389bf93d56a16c4a4ad0f1644eec87567409595be",
@@ -17651,7 +17651,7 @@
     "text": "Orkestereita 2)",
     "page": 41,
     "kind": "table_cell",
-    "context": "Orkestereita 2) | . . | 24 | 27 | 28 | 31 — Orkestereita 2)"
+    "context": "Orkestereita 2) — Orkestereita 2)"
   },
   {
     "anchorId": "anchor_a9887f6869b7be5c869f2b4706d7b8fb5e0fdb0aa3a8569b8d656cccc31900e6",
@@ -17759,42 +17759,42 @@
     "text": "Puolue",
     "page": 42,
     "kind": "table_cell",
-    "context": "Puolue | Äänimäärä | % | Puolue | Äänimäärä | % — Puolue"
+    "context": "Puolue — Puolue"
   },
   {
     "anchorId": "anchor_3dfa20871d8b64dc186c2d739ccdc58a31e4a0c904d86d152e6de2f9f322d782",
     "text": "Äänimäärä",
     "page": 42,
     "kind": "table_cell",
-    "context": "Puolue | Äänimäärä | % | Puolue | Äänimäärä | % — Äänimäärä"
+    "context": "Äänimäärä — Äänimäärä"
   },
   {
     "anchorId": "anchor_1e02a16ae10e88469af6622f693957a039a55eaeb5383c87ea4997ae445042da",
     "text": "%",
     "page": 42,
     "kind": "table_cell",
-    "context": "Puolue | Äänimäärä | % | Puolue | Äänimäärä | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_6fb110c8bdd4b39317412844c495d5328862ae636b367facf02a2fb06163ab4b",
     "text": "Puolue",
     "page": 42,
     "kind": "table_cell",
-    "context": "Puolue | Äänimäärä | % | Puolue | Äänimäärä | % — Puolue"
+    "context": "Puolue — Puolue"
   },
   {
     "anchorId": "anchor_c5cddec4ad15125ba01be535b814776fecd050cab8dbb911b9a4cccb62db870b",
     "text": "Äänimäärä",
     "page": 42,
     "kind": "table_cell",
-    "context": "Puolue | Äänimäärä | % | Puolue | Äänimäärä | % — Äänimäärä"
+    "context": "Äänimäärä — Äänimäärä"
   },
   {
     "anchorId": "anchor_622eb2425cf5faa48787c6fa5298e89bcfd457ba60569b083dcaee9d6d877df1",
     "text": "%",
     "page": 42,
     "kind": "table_cell",
-    "context": "Puolue | Äänimäärä | % | Puolue | Äänimäärä | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_e0262e9b40924099c1ab302d8e47be13676ad7de22179264b174292c7e5f0fd5",
@@ -18086,42 +18086,42 @@
     "text": "Puolue",
     "page": 42,
     "kind": "table_cell",
-    "context": "Puolue | Äänimäärä | % | Puolue | Äänimäärä | % — Puolue"
+    "context": "Puolue — Puolue"
   },
   {
     "anchorId": "anchor_ae1afec76a6d75aef74555b21093062bd54728b43c378c568fb7ca4ebabb83f1",
     "text": "Äänimäärä",
     "page": 42,
     "kind": "table_cell",
-    "context": "Puolue | Äänimäärä | % | Puolue | Äänimäärä | % — Äänimäärä"
+    "context": "Äänimäärä — Äänimäärä"
   },
   {
     "anchorId": "anchor_4e36c5f37ba934feb79803d9cbf82bc0f7ec71447850862f58c40cb89d5d5190",
     "text": "%",
     "page": 42,
     "kind": "table_cell",
-    "context": "Puolue | Äänimäärä | % | Puolue | Äänimäärä | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_157283d059a0b932171e2a3bccf19ccaec7e2a4e1e3d18458696ecc362805b79",
     "text": "Puolue",
     "page": 42,
     "kind": "table_cell",
-    "context": "Puolue | Äänimäärä | % | Puolue | Äänimäärä | % — Puolue"
+    "context": "Puolue — Puolue"
   },
   {
     "anchorId": "anchor_0593bbfd11dfd5480ddcf5dc0bd9e7fca026d52f70fe1224160ae365b5447600",
     "text": "Äänimäärä",
     "page": 42,
     "kind": "table_cell",
-    "context": "Puolue | Äänimäärä | % | Puolue | Äänimäärä | % — Äänimäärä"
+    "context": "Äänimäärä — Äänimäärä"
   },
   {
     "anchorId": "anchor_de78de771a36d693de0d60eab894a1ed6060f30232e66db6e73f0e2f0df9565d",
     "text": "%",
     "page": 42,
     "kind": "table_cell",
-    "context": "Puolue | Äänimäärä | % | Puolue | Äänimäärä | % — %"
+    "context": "% — %"
   },
   {
     "anchorId": "anchor_7cfc3e023a45601b4309cbb28feca745523d9ecd030f8627552ebb7c46d425c6",

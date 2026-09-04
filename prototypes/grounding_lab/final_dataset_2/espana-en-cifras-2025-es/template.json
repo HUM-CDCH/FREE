@@ -1,0 +1,17 @@
+{
+  "poblacionEspana1Enero2024": "number",
+  "saldoMigratorioPorMil2023": "number",
+  "nacimientos2023": "number",
+  "hijosPorMujer2023": "number",
+  "fallecidos2023": "number",
+  "esperanzaVidaNacimiento2023": "number",
+  "matrimonios2023": "number",
+  "impuestosAmbientales2023": "number",
+  "consumoAguaHogaresPorHabitanteDia2022": "number",
+  "gastoProteccionAmbiental2023": "number",
+  "porcentajePoblacionExtranjera": "number",
+  "superficieEspanaKm2En2024": "number",
+  "poblacionAlemaniaMiles2024": "string",
+  "tasaMedicosColegiadosNoJubiladosPorMil2023": "number",
+  "jovenes25a34EstudiosSuperiores": "number"
+}

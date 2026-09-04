@@ -335,21 +335,21 @@
     "text": "Region",
     "page": 7,
     "kind": "table_cell",
-    "context": "Port | Region | Year — Region"
+    "context": "Region — Region"
   },
   {
     "anchorId": "anchor_364afa34ab1a57ed95e811b990a8e2d948fcbcf106378f8203348f89df09d8a9",
     "text": "Year",
     "page": 7,
     "kind": "table_cell",
-    "context": "Port | Region | Year — Year"
+    "context": "Year — Year"
   },
   {
     "anchorId": "anchor_b771fc1a9408f68d31e3c115e01fe47372532525cf6bcd0365bce5f169d7b6f2",
     "text": "Livorno",
     "page": 7,
     "kind": "table_cell",
-    "context": "Livorno | Med | 1591 — Livorno"
+    "context": "Livorno — Livorno"
   },
   {
     "anchorId": "anchor_d102ccfec3046e6df47450b9c66c55c25daa0921cb9b47c71e0f68e274fd1b2b",
@@ -370,7 +370,7 @@
     "text": "Genoa",
     "page": 7,
     "kind": "table_cell",
-    "context": "Genoa | Med | 1595 — Genoa"
+    "context": "Genoa — Genoa"
   },
   {
     "anchorId": "anchor_7f293fba3a61d71ceb5f09e66c03da145ec1da8fa9efc70800de0acbaae93c47",
@@ -391,7 +391,7 @@
     "text": "Nice",
     "page": 7,
     "kind": "table_cell",
-    "context": "Nice | Med | 1613 — Nice"
+    "context": "Nice — Nice"
   },
   {
     "anchorId": "anchor_9cfc140707d0c2cf5c761a3d75c0cdf0f8266dd0b133170c9d204c619a66cd44",
@@ -412,7 +412,7 @@
     "text": "Villefranche",
     "page": 7,
     "kind": "table_cell",
-    "context": "Villefranche | Med | 1613 — Villefranche"
+    "context": "Villefranche — Villefranche"
   },
   {
     "anchorId": "anchor_bd486ecb3d852e39ee5b670d1596354b3932b556f199dba54cbdcd1714a60ddd",
@@ -433,7 +433,7 @@
     "text": "Civitavecchia",
     "page": 7,
     "kind": "table_cell",
-    "context": "Civitavecchia | Med | 1630 — Civitavecchia"
+    "context": "Civitavecchia — Civitavecchia"
   },
   {
     "anchorId": "anchor_96e932287863f8029f87a3c6d57547d1a72350e897a80f43cc9073656e36a3ac",
@@ -454,7 +454,7 @@
     "text": "La Spezia",
     "page": 7,
     "kind": "table_cell",
-    "context": "La Spezia | Med | 1643 — La Spezia"
+    "context": "La Spezia — La Spezia"
   },
   {
     "anchorId": "anchor_7065050c47bd072e26e13d28abd32bb81f4ce246f2c4e9378a6ac434e88a4993",
@@ -475,7 +475,7 @@
     "text": "Tangier",
     "page": 7,
     "kind": "table_cell",
-    "context": "Tangier | Med | 1662 — Tangier"
+    "context": "Tangier — Tangier"
   },
   {
     "anchorId": "anchor_00c637e204f30b4eb94fb643651778ba78f77f5d21c38bcd2955eca1d742d689",
@@ -496,7 +496,7 @@
     "text": "Venice",
     "page": 7,
     "kind": "table_cell",
-    "context": "Venice | Med | 1662 — Venice"
+    "context": "Venice — Venice"
   },
   {
     "anchorId": "anchor_25908b2f658e06399a648da282d6f1c66beef1b906e5acef7bb18b307374049e",
@@ -517,7 +517,7 @@
     "text": "Altona",
     "page": 7,
     "kind": "table_cell",
-    "context": "Altona | Atlantic | 1664 — Altona"
+    "context": "Altona — Altona"
   },
   {
     "anchorId": "anchor_265a13b00bcab6b6a4311abd5ca84b7e56a5f442cbbd0467e0d5fdb106f294d1",
@@ -538,7 +538,7 @@
     "text": "Marseilles",
     "page": 7,
     "kind": "table_cell",
-    "context": "Marseilles | Med | 1669 — Marseilles"
+    "context": "Marseilles — Marseilles"
   },
   {
     "anchorId": "anchor_d781eb965f85ac35da966a443ec38399f7215d3737ddd7a0c5a921c39b6549ef",
@@ -559,7 +559,7 @@
     "text": "St Eustacius",
     "page": 7,
     "kind": "table_cell",
-    "context": "St Eustacius | Atlantic | 1683 — St Eustacius"
+    "context": "St Eustacius — St Eustacius"
   },
   {
     "anchorId": "anchor_98b3eb70332d0d6c5e5d962d1a3d85315ddb1b91269244409d89da8e3ed325a8",
@@ -580,7 +580,7 @@
     "text": "Curaçao",
     "page": 7,
     "kind": "table_cell",
-    "context": "Curaçao | Atlantic | 1675 — Curaçao"
+    "context": "Curaçao — Curaçao"
   },
   {
     "anchorId": "anchor_98faca03ba3971d3903f495db3c3d729f5275193925c538e6b9d31d527080068",
@@ -601,7 +601,7 @@
     "text": "Gibraltar",
     "page": 7,
     "kind": "table_cell",
-    "context": "Gibraltar | Med/Atlantic | 1706 — Gibraltar"
+    "context": "Gibraltar — Gibraltar"
   },
   {
     "anchorId": "anchor_46e213aabd9a379ac9b7b552adbf3d067d47d94f235fd5c59d8431a29aa97007",
@@ -622,7 +622,7 @@
     "text": "Trieste",
     "page": 7,
     "kind": "table_cell",
-    "context": "Trieste | Med | 1740 — Trieste"
+    "context": "Trieste — Trieste"
   },
   {
     "anchorId": "anchor_781f9d60024c46058fec5df07cecc9bb4fd9fa42e4664a36e28b56adeccb5a2d",
@@ -643,7 +643,7 @@
     "text": "Fiume",
     "page": 7,
     "kind": "table_cell",
-    "context": "Fiume | Med | 1719 — Fiume"
+    "context": "Fiume — Fiume"
   },
   {
     "anchorId": "anchor_19dea42f5e288f170ca8de78057441e9b6d8eae53844d5a9b8c1ae6802d9d407",
@@ -664,7 +664,7 @@
     "text": "Dunkirk",
     "page": 7,
     "kind": "table_cell",
-    "context": "Dunkirk | Atlantic | 1731 — Dunkirk"
+    "context": "Dunkirk — Dunkirk"
   },
   {
     "anchorId": "anchor_e32a2807bd0b3f4bc7009b48459a609a380f9b5772756e633fcd2fe0735dd4de",
@@ -685,7 +685,7 @@
     "text": "Ancona",
     "page": 7,
     "kind": "table_cell",
-    "context": "Ancona | Med | 1731 — Ancona"
+    "context": "Ancona — Ancona"
   },
   {
     "anchorId": "anchor_64f4a8f463fc932ea11de3acb02e20723f9b98d49f386ed54a910306b9b2b5a6",
@@ -706,7 +706,7 @@
     "text": "Naples",
     "page": 7,
     "kind": "table_cell",
-    "context": "Naples | Med | 1739 — Naples"
+    "context": "Naples — Naples"
   },
   {
     "anchorId": "anchor_645f87ec6e3b39bc6b19514ace8b32ede60c110e6b9ce6f665a1c9654b86d793",
@@ -727,7 +727,7 @@
     "text": "Amsterdam*",
     "page": 7,
     "kind": "table_cell",
-    "context": "Amsterdam* | Atlantic | 1750s — Amsterdam*"
+    "context": "Amsterdam* — Amsterdam*"
   },
   {
     "anchorId": "anchor_99a4caf044181bf8d118750dd97771a9db36ea46b5f6c5a6ddda9b53d5dc6f11",
@@ -748,7 +748,7 @@
     "text": "Hamburg*",
     "page": 7,
     "kind": "table_cell",
-    "context": "Hamburg* | Atlantic | 1750s — Hamburg*"
+    "context": "Hamburg* — Hamburg*"
   },
   {
     "anchorId": "anchor_92351d502aae8ba85cbd13bcb1df2c26793d2eaf2c8231b8ecd2c9341c8e5577",
@@ -769,7 +769,7 @@
     "text": "Bremen*",
     "page": 7,
     "kind": "table_cell",
-    "context": "Bremen* | Atlantic | 1750s — Bremen*"
+    "context": "Bremen* — Bremen*"
   },
   {
     "anchorId": "anchor_5b1c83a67a3e1b9f6203d29673851b9cbc3430d6dbb65f94803de7edfeeb8778",
@@ -790,7 +790,7 @@
     "text": "Saint Thomas (Town), Saint Thomas (Danish West Indies) St John (Danish West Indies)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Saint Thomas (Town), Saint Thomas (Danish West Indies) St John (Danish West Indies) | Atlantic Atlantic | 1764 — Saint Thomas (Town), Saint Thomas (Danish West Indies) St John (Danish West Indies)"
+    "context": "Saint Thomas (Town), Saint Thomas (Danish West Indies) St John (Danish West Indies) — Saint Thomas (Town), Saint Thomas (Danish West Indies) St John (Danish West Indies)"
   },
   {
     "anchorId": "anchor_a4fccc12fcd51a6fb42db0cd1c4936172e232dcdcee7065d97258273cbdd7f4c",
@@ -811,7 +811,7 @@
     "text": "Monte Christi (Saint Domingue)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Monte Christi (Saint Domingue) | Atlantic | 1764 1756 — Monte Christi (Saint Domingue)"
+    "context": "Monte Christi (Saint Domingue) — Monte Christi (Saint Domingue)"
   },
   {
     "anchorId": "anchor_a127e839a338edd2e9135c62e042e2e937b0f3f89b9ea37b515b88cb9f306091",
@@ -832,7 +832,7 @@
     "text": "Saint-Luce (Martinique)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Saint-Luce (Martinique) | Atlantic | 1765 — Saint-Luce (Martinique)"
+    "context": "Saint-Luce (Martinique) — Saint-Luce (Martinique)"
   },
   {
     "anchorId": "anchor_684da98facfbebe3a120e3b30e27794574c894816be5ea8720b5d80f6c847f8e",
@@ -853,7 +853,7 @@
     "text": "Kingston (Jamaica)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Kingston (Jamaica) | Atlantic | 1766 — Kingston (Jamaica)"
+    "context": "Kingston (Jamaica) — Kingston (Jamaica)"
   },
   {
     "anchorId": "anchor_eb8da2b840fb75f9ec3cbb16e9d98ca73ce88c02423d74e481521bdfd4759151",
@@ -874,7 +874,7 @@
     "text": "Kingston (Saint-Vincent)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Kingston (Saint-Vincent) | Atlantic | 1766 — Kingston (Saint-Vincent)"
+    "context": "Kingston (Saint-Vincent) — Kingston (Saint-Vincent)"
   },
   {
     "anchorId": "anchor_4dee7afe1d98aff5990d1c236402cba5baae2a58c3b6b75f3a5f680459754793",
@@ -895,7 +895,7 @@
     "text": "Montego Bay (Jamaica)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Montego Bay (Jamaica) | Atlantic | 1766 — Montego Bay (Jamaica)"
+    "context": "Montego Bay (Jamaica) — Montego Bay (Jamaica)"
   },
   {
     "anchorId": "anchor_79e9f6b9d3e23bef96f18793c7c787fccc1fac8b30a1c090338ebf0cd85fee9f",
@@ -916,7 +916,7 @@
     "text": "Nassau (Bahamas)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Nassau (Bahamas) | Atlantic | 1766 — Nassau (Bahamas)"
+    "context": "Nassau (Bahamas) — Nassau (Bahamas)"
   },
   {
     "anchorId": "anchor_b966d4104c74e305eb2f592187a1eea3af61c94caa321f4646ed581096f67e8a",
@@ -937,7 +937,7 @@
     "text": "Prince Rupert Bay (Dominica)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Prince Rupert Bay (Dominica) | Atlantic | 1766 — Prince Rupert Bay (Dominica)"
+    "context": "Prince Rupert Bay (Dominica) — Prince Rupert Bay (Dominica)"
   },
   {
     "anchorId": "anchor_05b8a48a6d8e20a4b1900ed468147cf7ee360c9c2c8ca675d92489328d1de001",
@@ -958,7 +958,7 @@
     "text": "Roseau (Dominica)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Roseau (Dominica) | Atlantic | 1766 — Roseau (Dominica)"
+    "context": "Roseau (Dominica) — Roseau (Dominica)"
   },
   {
     "anchorId": "anchor_6af1fcc21a76b58100b71b0772780530d913b57b92511d3ecee97c95dc9b74e5",
@@ -979,7 +979,7 @@
     "text": "Saint George (Granada)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Saint George (Granada) | Atlantic | 1766 — Saint George (Granada)"
+    "context": "Saint George (Granada) — Saint George (Granada)"
   },
   {
     "anchorId": "anchor_95ef23a0aa40172554873106b35657c777d8c9a9b228afed9a0cf57bd598d2e5",
@@ -1000,7 +1000,7 @@
     "text": "Lucea (Jamaica)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Lucea (Jamaica) | Atlantic | 1766 — Lucea (Jamaica)"
+    "context": "Lucea (Jamaica) — Lucea (Jamaica)"
   },
   {
     "anchorId": "anchor_d2f916cfa7f2b1fe21b15c6bc326d5f490c106be862de4da551f4e61794717d1",
@@ -1021,7 +1021,7 @@
     "text": "Savanna la Mar (Jamaica)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Savanna la Mar (Jamaica) | Atlantic | 1766 — Savanna la Mar (Jamaica)"
+    "context": "Savanna la Mar (Jamaica) — Savanna la Mar (Jamaica)"
   },
   {
     "anchorId": "anchor_94ca4801bf3da57aca828185026e8d50ee95b4359495a4568b7e3415283b466f",
@@ -1042,7 +1042,7 @@
     "text": "Mole Saint-Nicolas (Saint Domingue)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Mole Saint-Nicolas (Saint Domingue) | Atlantic | 1767 — Mole Saint-Nicolas (Saint Domingue)"
+    "context": "Mole Saint-Nicolas (Saint Domingue) — Mole Saint-Nicolas (Saint Domingue)"
   },
   {
     "anchorId": "anchor_469449a384a92db20d0cc80798ae0e4bf75786f9f0be0b8603729ce39ce53324",
@@ -1063,7 +1063,7 @@
     "text": "Marstrand",
     "page": 7,
     "kind": "table_cell",
-    "context": "Marstrand | Atlantic | 1775 — Marstrand"
+    "context": "Marstrand — Marstrand"
   },
   {
     "anchorId": "anchor_6ff3b2cfa43268c57d65327efd22d8a354075ae7c6c37601466dbffe1c330df3",
@@ -1084,7 +1084,7 @@
     "text": "Ostend",
     "page": 7,
     "kind": "table_cell",
-    "context": "Ostend | Atlantic | 1781 — Ostend"
+    "context": "Ostend — Ostend"
   },
   {
     "anchorId": "anchor_88181d9d6b931e6a06f1d2b4f913c505ed57369844b2cf10ae3d6a3db1825ce5",
@@ -1105,7 +1105,7 @@
     "text": "Saint John (New France)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Saint John (New France) | Atlantic | 1781 — Saint John (New France)"
+    "context": "Saint John (New France) — Saint John (New France)"
   },
   {
     "anchorId": "anchor_6cc476c01fd1c2d44416386dfa0c7501eecc8e7d3d9263ca7f9fe695913edf55",
@@ -1126,7 +1126,7 @@
     "text": "Charlotte Amalia, Saint Thomas (Danish West Indies)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Charlotte Amalia, Saint Thomas (Danish West Indies) | Atlantic | 1781 — Charlotte Amalia, Saint Thomas (Danish West Indies)"
+    "context": "Charlotte Amalia, Saint Thomas (Danish West Indies) — Charlotte Amalia, Saint Thomas (Danish West Indies)"
   },
   {
     "anchorId": "anchor_b9307a4781310b4d7212f37ecef5f4ea0bddaf92e9c2d2498dc9e20870ea1c7f",
@@ -1147,7 +1147,7 @@
     "text": "Cap Français (Saint Domingue)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Cap Français (Saint Domingue) | Atlantic | 1784 — Cap Français (Saint Domingue)"
+    "context": "Cap Français (Saint Domingue) — Cap Français (Saint Domingue)"
   },
   {
     "anchorId": "anchor_c588cf7de11fd69a5661d2af6ff3f35823cd7adf98bcb88bb23c9ea9b146f386",
@@ -1168,7 +1168,7 @@
     "text": "Cayes (Saint Domingue)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Cayes (Saint Domingue) | Atlantic | 1784 — Cayes (Saint Domingue)"
+    "context": "Cayes (Saint Domingue) — Cayes (Saint Domingue)"
   },
   {
     "anchorId": "anchor_267e518ef4352fe652ed4adf8ba63af74c187ddb072c113041715f2b78eca030",
@@ -1189,7 +1189,7 @@
     "text": "Lorient",
     "page": 7,
     "kind": "table_cell",
-    "context": "Lorient | Atlantic | 1784 — Lorient"
+    "context": "Lorient — Lorient"
   },
   {
     "anchorId": "anchor_c6d38caaa7e6534823260403cf0d7798f7fa9463a4a50555a8ba1331f82e04b3",
@@ -1210,7 +1210,7 @@
     "text": "Pointe-à-Pitre (Guadeloupe)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Pointe-à-Pitre (Guadeloupe) | Atlantic | 1784 — Pointe-à-Pitre (Guadeloupe)"
+    "context": "Pointe-à-Pitre (Guadeloupe) — Pointe-à-Pitre (Guadeloupe)"
   },
   {
     "anchorId": "anchor_af8616f80dd13b5b25b2786cf94012d66307719011b1fda82f41331775399233",
@@ -1231,7 +1231,7 @@
     "text": "Port au Prince (Haiti)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Port au Prince (Haiti) | Atlantic | 1784 — Port au Prince (Haiti)"
+    "context": "Port au Prince (Haiti) — Port au Prince (Haiti)"
   },
   {
     "anchorId": "anchor_20a5e296352a2467faac58984e9a4ce670aef6c882193f481ef9d3341b0f58d2",
@@ -1252,7 +1252,7 @@
     "text": "Saint-Pierre (Martinique)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Saint-Pierre (Martinique) | Atlantic | 1784 — Saint-Pierre (Martinique)"
+    "context": "Saint-Pierre (Martinique) — Saint-Pierre (Martinique)"
   },
   {
     "anchorId": "anchor_b45d8873dfc231db0031d3d663dd838ad596d65d5a79edb00588f1ebc923d63a",
@@ -1273,7 +1273,7 @@
     "text": "St Barthélemy",
     "page": 7,
     "kind": "table_cell",
-    "context": "St Barthélemy | Atlantic | 1785 — St Barthélemy"
+    "context": "St Barthélemy — St Barthélemy"
   },
   {
     "anchorId": "anchor_d2a8f6d517a6e77de9a98721fc7fa79613791a57a2e1a45027bc77ca2cce488d",
@@ -1294,7 +1294,7 @@
     "text": "Scarborough (Tobago)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Scarborough (Tobago) | Atlantic | 1784 — Scarborough (Tobago)"
+    "context": "Scarborough (Tobago) — Scarborough (Tobago)"
   },
   {
     "anchorId": "anchor_9fc9c1561474c3cb86ccb38f0dea7d88e30b8aaf7cd0a99d090d6d1302a98341",
@@ -1315,7 +1315,7 @@
     "text": "Sebastopol",
     "page": 7,
     "kind": "table_cell",
-    "context": "Sebastopol | other | 1786 — Sebastopol"
+    "context": "Sebastopol — Sebastopol"
   },
   {
     "anchorId": "anchor_13a48f6997ff775456d36e2ab170bcab808ed18b9039e7098f3c2b67d51700ee",
@@ -1336,7 +1336,7 @@
     "text": "Tortola*",
     "page": 7,
     "kind": "table_cell",
-    "context": "Tortola* | Atlantic | 1790s* — Tortola*"
+    "context": "Tortola* — Tortola*"
   },
   {
     "anchorId": "anchor_9a183fb652c6a51304106b1e208393e2093c022e8090fc57ddfd84161a0c4488",
@@ -1357,7 +1357,7 @@
     "text": "Port Louis (Mauritius)",
     "page": 7,
     "kind": "table_cell",
-    "context": "Port Louis (Mauritius) | other | 1787 — Port Louis (Mauritius)"
+    "context": "Port Louis (Mauritius) — Port Louis (Mauritius)"
   },
   {
     "anchorId": "anchor_a4067984bdf20bc5ae51e951561bacca5d3d98886329db8edfbd35626cb8d40b",

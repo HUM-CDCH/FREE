@@ -1,0 +1,25 @@
+{
+  "journal_number": "string",
+  "report_author": "string",
+  "responsible_archaeologist": "string",
+  "trial_excavation_start": "string",
+  "open_house_date": "string",
+  "visitor_count": "number",
+  "records": [
+    {
+      "body_height": "string",
+      "measured_height": "number",
+      "grave_id": "string"
+    }
+  ],
+  "boat_width": "number",
+  "metal_detectorist": "string",
+  "boat_reconstruction_expert": "string",
+  "developer": "string",
+  "media_coverage": "string",
+  "excavation_participant": "string",
+  "boat_grave_dating": "string",
+  "loose_feature_count": "number",
+  "loose_bone_minimum_individual_count": "string",
+  "trial_excavation_end": "string"
+}

@@ -32,21 +32,32 @@ BUCKETS = [(0.0, 0.1), (0.1, 0.3), (0.3, 0.5), (0.5, 0.7), (0.7, 0.9), (0.9, 1.0
 AUTO_ACCEPT = 0.5  # links with confidence >= this bypass human review
 
 
-def load_dataset(root: Path) -> list[tuple[str, AnchorIndex, list[Claim]]]:
+def load_dataset(
+    root: Path, claims_files: tuple[str, ...] = ("claims.json",)
+) -> list[tuple[str, AnchorIndex, list[Claim]]]:
+    """claims_files: claim files merged per document, in order. The first one
+    must exist for the document to be evaluated; later ones (e.g. traps.json)
+    are optional so a partial trap set still loads."""
     documents = []
     for doc_dir in sorted(p for p in root.iterdir() if p.is_dir()):
         if doc_dir.name.startswith("_"):
             continue  # fixtures (_smoke) are not documents
         anchors_file = doc_dir / "anchors.json"
-        claims_file = doc_dir / "claims.json"
+        claims_file = doc_dir / claims_files[0]
         if not anchors_file.exists() or not claims_file.exists():
             continue
         anchors = [
             Anchor(a["anchorId"], a["text"], a["page"], a.get("context"))
             for a in json.loads(anchors_file.read_text(encoding="utf-8"))
         ]
+        raw = [
+            c
+            for name in claims_files
+            if (doc_dir / name).exists()
+            for c in json.loads((doc_dir / name).read_text(encoding="utf-8"))
+        ]
         claims = []
-        for c in json.loads(claims_file.read_text(encoding="utf-8")):
+        for c in raw:
             # Either a single goldAnchorId (possibly null) or a goldAnchorIds
             # list of all anchors a reviewer would accept as evidence.
             golds = c.get("goldAnchorIds")

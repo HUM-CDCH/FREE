@@ -1,0 +1,364 @@
+[
+  {
+    "value": "Gräber der Kugelamphorenkultur in Nordwestböhmen",
+    "resultPath": [
+      "title"
+    ],
+    "goldAnchorIds": [
+      "anchor_5226359f325d0b0dc2a78b48afdaf5a936e6a1891ea0b503bb6786e6d3e4ff7a"
+    ],
+    "note": "supported: the article title heading (OCR repeats it twice in the same anchor); p2"
+  },
+  {
+    "value": "Miroslav Dobeš",
+    "resultPath": [
+      "author"
+    ],
+    "goldAnchorIds": [
+      "anchor_de38a6dc29340552713ea324f5208f6ba298fcbd5c3d3c3e1df9da25f10d2862"
+    ],
+    "note": "supported: byline 'Miroslav DOBES (Most)' directly under the title; p2"
+  },
+  {
+    "value": "Saarbrücker Studien und Materialien zur Altertumskunde",
+    "resultPath": [
+      "series_title"
+    ],
+    "goldAnchorIds": [
+      "anchor_55fba348da983aec034043837bc7143ad511b637e988ab8de8dd10c87790c795"
+    ],
+    "note": "supported: series title on the half-title page; p1"
+  },
+  {
+    "value": 1998,
+    "resultPath": [
+      "year"
+    ],
+    "goldAnchorIds": [
+      "anchor_29109e7378e0d8489112e2784cef0b3aa19ab8fd7c06b842fba86934b661c949"
+    ],
+    "note": "supported: imprint line 'DR. RUDOLF HABELT GMBH - BONN 1998'; p1"
+  },
+  {
+    "value": "1936-02-09",
+    "resultPath": [
+      "records",
+      0,
+      "discovery_date"
+    ],
+    "goldAnchorIds": [
+      "anchor_5df32c4fecf7195d012cf31a4d4950f2b35241c23722c4654af2fac54df6f081"
+    ],
+    "context": "site: Běšice, district: Chomutov",
+    "note": "supported: 'Das Grab wurde am 9.2.1936 bei Bodenarbeiten ... entdeckt' -> ISO 1936-02-09; p2"
+  },
+  {
+    "value": 34.0,
+    "resultPath": [
+      "grave_goods",
+      1,
+      "height_cm"
+    ],
+    "goldAnchorIds": [
+      "anchor_89c2157a04d22ab59b1134077791571a876cba69a4cb25f2fa0a8b13af6af5b9",
+      "anchor_76a914fd1a870efd83b638ef374c310a2f277969c5c50df5f0bc4a9841ba1d6b"
+    ],
+    "context": "site: Běšice, item_no: 2, vessel_type: Topf mit weiter Mündung",
+    "note": "supported: 'Topf mit weiter Mündung, H. 34,0 cm' (p2) and the analysis remark naming the two outliers 'Běšice 34 cm, Brozany 17 cm' (p28)"
+  },
+  {
+    "value": 100.0,
+    "resultPath": [
+      "records",
+      1,
+      "grave_pit_width_cm"
+    ],
+    "goldAnchorIds": [
+      "anchor_79e51473ac15b24c7bf3a19131e217deab388bd5709c96d3d52a6771e0dd601c"
+    ],
+    "context": "site: Blšany, district: Louny",
+    "note": "supported: 'In der Grabgrube (Breite 100 cm, Tiefe vom Abraumniveau 80 cm)'; p3"
+  },
+  {
+    "value": 14.8,
+    "resultPath": [
+      "grave_goods",
+      4,
+      "height_cm"
+    ],
+    "goldAnchorIds": [
+      "anchor_68718e17ddf2bc7224fe05d715a25478df0afe6c1ca2e97f8b40879bd45ba98a"
+    ],
+    "context": "site: Bohušovice nad Ohří, item_no: 1, vessel_type: Kugelamphore",
+    "note": "supported: '1 - Kugelamphore, H. 14,8 cm, Mdm. 8,1 cm, Bdm. 5,5 cm'; p5"
+  },
+  {
+    "value": "N-S",
+    "resultPath": [
+      "records",
+      3,
+      "orientation"
+    ],
+    "goldAnchorIds": [
+      "anchor_b8ef02b73ed39e87773fcc1f65c25434d394ee99dde4a8bc7ac2ca5fbb9380a8",
+      "anchor_a40166388c3ab72e64248753f3def1e315b329c2fe8035dfe03d204cef52ab33"
+    ],
+    "context": "site: Brozany nad Ohří, district: Litoměřice",
+    "note": "supported: 'in einer Grabgrube mit nordsuedlicher Ausrichtung' (p5) and the synthesis 'dreimal ist eine nord-suedliche (Blsany, Brozany, Hrdlovka)' (p35)"
+  },
+  {
+    "value": 22.6,
+    "resultPath": [
+      "grave_goods",
+      7,
+      "max_width_cm"
+    ],
+    "goldAnchorIds": [
+      "anchor_e0770d02051ffbd6d0445d78a2dc9b334d56219440b1c495cbeac7eb97576d4a"
+    ],
+    "context": "site: Hrdlovka, item_no: 2, vessel_type: Trommel",
+    "note": "supported: '2 - Trommel mit 12 Buckeln unterhalb des Randes, H. 26,0 cm, B. max. 22,6 cm'; p7"
+  },
+  {
+    "value": 500.0,
+    "resultPath": [
+      "records",
+      7,
+      "grave_pit_length_cm"
+    ],
+    "goldAnchorIds": [
+      "anchor_82404607174626d4571e9a9523e1d26e6c5465419d4af8b5c23e6cfaa192bd9f"
+    ],
+    "context": "site: Prosmyky, district: Litoměřice",
+    "note": "supported: 'wurde in der Grabgrube (Laenge 500 cm) in einer Tiefe von 50 cm ... gefunden'; p9"
+  },
+  {
+    "value": 175.0,
+    "resultPath": [
+      "grave_goods",
+      11,
+      "weight_g"
+    ],
+    "goldAnchorIds": [
+      "anchor_6418ac04e5cf584f484cc3bda7c803a3974b7cde3863d1f6ea4030f7ef7c5200"
+    ],
+    "context": "site: Prosmyky, item_no: 5, vessel_type: Feuersteinbeil",
+    "note": "supported: '5 - Feuersteinbeil, L. 11,1 cm, ... Gewicht 175 g'; p10"
+  },
+  {
+    "value": 29.7,
+    "resultPath": [
+      "grave_goods",
+      13,
+      "height_cm"
+    ],
+    "goldAnchorIds": [
+      "anchor_93207a4d129c8a89bd7517c340c396ac3704add36685f8ef175b01ce132e7519"
+    ],
+    "context": "site: Nová Ves, item_no: 1, vessel_type: Kugelamphore",
+    "note": "supported: '1 - Kugelamphore, am Hals Rauten, auf der Schulter Fransen ..., H. 29,7 cm'; p11"
+  },
+  {
+    "value": "SW-NO",
+    "resultPath": [
+      "records",
+      11,
+      "orientation"
+    ],
+    "goldAnchorIds": [
+      "anchor_055a0eb69bd764692b789ec9846cc47db85652a2ba6d7c657be815029f8a737e"
+    ],
+    "context": "site: Předměřice, district: Hradec Králové",
+    "note": "supported: 'Das Grab, mit seiner Laengsachse SW-NO orientiert, wurde am 21.1.1921 untersucht'; p14"
+  },
+  {
+    "value": 320.0,
+    "resultPath": [
+      "records",
+      12,
+      "grave_pit_length_cm"
+    ],
+    "goldAnchorIds": [
+      "anchor_8590246c5148a8b0ad03444ea99913257efd99c39bb8ada4c82513eafcabd743"
+    ],
+    "context": "site: Velvary, district: Kladno",
+    "note": "supported: 'In der Grabgrube mit den Ausmassen 320 x 220 x 50-60 cm' -> length 320 cm; p17"
+  },
+  {
+    "value": 1887,
+    "resultPath": [
+      "records",
+      13,
+      "discovery_year"
+    ],
+    "goldAnchorIds": [
+      "anchor_16e656371ff5b942d7be83d55c7600da5aacbbd3d24bf492fe15974af0944b5e"
+    ],
+    "context": "site: Žalov, district: Praha-Západ",
+    "note": "supported: 'Der Befund wurde im Jahre 1887 von C. Ryzner ausgegraben'; p20"
+  },
+  {
+    "value": 31,
+    "resultPath": [
+      "globular_amphora_share_percent"
+    ],
+    "goldAnchorIds": [
+      "anchor_7b5f10749a21354a7caf459615a54c3e3c3e1e4005bd9f1cf5e1cf816635d244"
+    ],
+    "note": "supported: 'dass die Kugelamphoren 31% der nachgewiesenen Grabgefaesse darstellen'; p28"
+  },
+  {
+    "value": 180.0,
+    "resultPath": [
+      "records",
+      1,
+      "grave_pit_length_cm"
+    ],
+    "goldAnchorIds": [],
+    "context": "site: Blšany, district: Louny",
+    "note": "unsupported kind (a): the Blsany entry gives only width 100 cm and depth 80 cm; no pit length is stated anywhere; p3"
+  },
+  {
+    "value": 120.0,
+    "resultPath": [
+      "records",
+      7,
+      "grave_pit_width_cm"
+    ],
+    "goldAnchorIds": [],
+    "context": "site: Prosmyky, district: Litoměřice",
+    "note": "unsupported kind (a): the entry states explicitly 'Die Breite des Grabes ist nicht angegeben'; p9"
+  },
+  {
+    "value": 300.0,
+    "resultPath": [
+      "records",
+      11,
+      "grave_pit_depth_cm"
+    ],
+    "goldAnchorIds": [],
+    "context": "site: Předměřice, district: Hradec Králové",
+    "note": "unsupported kind (a): the burial lay 'in einer Tiefe von 2,5 m'; 300 cm is stated nowhere; p14"
+  },
+  {
+    "value": 1988,
+    "resultPath": [
+      "year"
+    ],
+    "goldAnchorIds": [],
+    "note": "unsupported kind (b): 1988 recurs throughout as the year of the cited work 'Beier 1988', never as this study's year (1998); p28-29, p43",
+    "expectedLexicalHitIds": [
+      "anchor_729346ce3c7ef69846921b45b1a5c0c86f6b5772364db2b181e32daab3accdd4",
+      "anchor_7b5f10749a21354a7caf459615a54c3e3c3e1e4005bd9f1cf5e1cf816635d244",
+      "anchor_bc7c46f5a9af2fa1233b33185d2d22fb15390731e8a73c4989ff3fed5da535d7",
+      "anchor_8a2379ab323447012a4714e33c7f64fe8ee511ff57b28cd92ae3bfb6d94f171b",
+      "anchor_36f6012fc1e07a62b72f3de2b57b716325fbd61391d32f316a9a7f52e8bc4f9c",
+      "anchor_2499740c298803a9d6f3d0536c780cf6197cf03318ba1aec0e30092343ad539c",
+      "anchor_943a063454366d5a4a41fd502b8ab57600b903bbd27c28f157d20d3717bc698b",
+      "anchor_b6f533602bf8f590f9ef1ed7d2c68d29a27fe89241c107475f186434bf79e6f3",
+      "anchor_e425eaeda2e24e328883e6c132e0410fbd02dc331759e64243ee4d7dd4250445",
+      "anchor_ac528937b1937416da578858bf066ba0c113f4960a978350ebe75559f7c493e5",
+      "anchor_c436f4c115b8123279fd045dd11ae7a9e2bca30446cc5147810b19efaeb4525b",
+      "anchor_533c0633c2be978fc2384cb235b9129246f1ad2a76473799a0594c3ff6a9516a",
+      "anchor_f58c68130f355b9777dd8e227e6d49a7bfa448bc01fb3d55cd34a5657ebf1b91",
+      "anchor_a40166388c3ab72e64248753f3def1e315b329c2fe8035dfe03d204cef52ab33",
+      "anchor_5bc0854e3f0b8e0fa22b32482f9d6e3f75435b02dbee1a359ba64f6c6442c9fe",
+      "anchor_51a9052c309e35e395c2f938e2cf1c46df694a7356cd69355656e75cd446c6de",
+      "anchor_52ac4421ae84db3922b6b723d1910da5feeeb8b7a3f3373183e92bd1919b38d7",
+      "anchor_60f7791efd0e10cabc315616b5e618239f5e158774564dddbde836e61ac2bc7c",
+      "anchor_8a8de166ad689236e76168be5c019a94dd440e22ab7fc6f8947a5347b0e7489e",
+      "anchor_f3e4d565aedb4839fba75d8d029e4f67065a6affe50183c3ac57570d0cb42df7",
+      "anchor_8eeccdd9ea949081a56daf125cea4cd8fc67c17844537823d890fea704e108d6",
+      "anchor_36dc0737f6615b43073d9f537cec0fcdfbc21bcbd090708e31021bd384f4612a",
+      "anchor_b157162c301ecaa35744c78b3012f4d0674b4334424aae91da358e8b0b2104f6"
+    ]
+  },
+  {
+    "value": 500.0,
+    "resultPath": [
+      "records",
+      0,
+      "grave_pit_length_cm"
+    ],
+    "goldAnchorIds": [],
+    "context": "site: Běšice, district: Chomutov",
+    "note": "unsupported kind (b): 500 cm is the pit length of the Prosmyky grave; the Besice entry gives no pit dimensions at all; p2, p9"
+  },
+  {
+    "value": 27.0,
+    "resultPath": [
+      "grave_goods",
+      7,
+      "height_cm"
+    ],
+    "goldAnchorIds": [],
+    "context": "site: Hrdlovka, item_no: 2, vessel_type: Trommel",
+    "note": "unsupported kind (b): 27,0 cm is the height of the drum from Brozany; the Hrdlovka drum is 26,0 cm high; p5, p7",
+    "expectedLexicalHitIds": [
+      "anchor_b32af41eb94e5af840d48b3c2a76ca83a8c030d7ef232364b187166a49b2bff7"
+    ]
+  },
+  {
+    "value": 8,
+    "resultPath": [
+      "grave_count_northwest_bohemia"
+    ],
+    "goldAnchorIds": [],
+    "note": "unsupported kind (c): the introduction only says 'Knapp zehn Graeber'; eight is obtained by counting the entries 2.1.1-2.1.8 of the Fundliste; p2-p10",
+    "expectedLexicalHitIds": [
+      "anchor_f94ae7a7fa8dfe95781742ec9555eeca87276eb026412e616a917287c276214b",
+      "anchor_89c2157a04d22ab59b1134077791571a876cba69a4cb25f2fa0a8b13af6af5b9",
+      "anchor_401c46e6d765d5a2a0db38761c277381155ab505069a789f7d63321bf4e6c6af",
+      "anchor_b477609a90cbda93397dc66b8d242d01284ba8d90b5a888019a3fe58f202f2d3",
+      "anchor_48da79c6e10afd2d843234b6d66ada01561c8d2e0e15eab8ca2d17964d2f17bb",
+      "anchor_324b3ca3d07cee17d78a0b8576013399553489477d3fcc94462d57178e662bf3",
+      "anchor_8dcab5abd4606913493b9434c31151634f44f5ef7585995d7c4fd475d0dee943",
+      "anchor_68718e17ddf2bc7224fe05d715a25478df0afe6c1ca2e97f8b40879bd45ba98a",
+      "anchor_b8ef02b73ed39e87773fcc1f65c25434d394ee99dde4a8bc7ac2ca5fbb9380a8",
+      "anchor_9e720f93a77a687c39c901098b3b9a5e40c037f24f184e373d5a7f15d2e3e797",
+      "anchor_0c14fbd8a5df2cc494eddb4e8cf0956dc8697243eaac72966a71d54b0d61d6a0",
+      "anchor_2469a70ecacf523713c8591781c36c1312bd79d2376e5ef59e4423e627c19c9b",
+      "anchor_c5d7bab978252763b2b4d522cef22f7087289e56f7da1904edce229c6a5eb2c8",
+      "anchor_942e5782a51626b777a3037c846c040229cdc8a37a1f6f732c9b2e0ac5002dff",
+      "anchor_fcaf1fe00dc8d6e50c07af5976ef6c4a5c4b92ffe3b658aa913ad03cbf5fe474",
+      "anchor_0fb0eeca65d5139f9ba759987b99ecb1bbb0d400fd5f89a9e89680860c90f418",
+      "anchor_77a3a95e9ca43d387b25f4276b592686be9ad1c127bf19b161cb1bcea987caff",
+      "anchor_98576bd9c282202853a75658f6e4d154f12674a7f03f1cb3b32d3e73ad755a43",
+      "anchor_7151e5c95f6f1c7c89638a2f565f903c17683c64b35d3d3c6c9db74f8b6d1d65",
+      "anchor_eb28d05964e18e9c4b640a8bb7da34cc62af2717b3b426e5df2cf459c9024001",
+      "anchor_901ad16e2a41de606e088da17a77f11c8b64d1fbb409b24f9ffcba0018e3672c",
+      "anchor_5bdb42bfe07f9091641d87df61b9a59275b8813e2dc06a410a6ed739135caf2e",
+      "anchor_1d1d137bab50cd4437ea84e4b5d8abc40c73f0583f0ac9d582733bd5f1d541e7",
+      "anchor_e54806c706cff46c7b732cb76b7a3558e00eff023d75e5069edeb198648516a0",
+      "anchor_771905fde5ddab3487521368c4e6057084de05fde3b06d7e8bb7a97abc6512ed",
+      "anchor_3eccdbd9edc5564e17c8e4a1361ddab8e6a200906efc02889f6489f74d561313",
+      "anchor_5767423ac02ad826cbf2b3375bdb7e2449279de3abaf9c7006400360ee4e4f14",
+      "anchor_957edad3cf518361dd3d77edef8e2189437d0a5563e561540a602f61ddbca7f2",
+      "anchor_6418ac04e5cf584f484cc3bda7c803a3974b7cde3863d1f6ea4030f7ef7c5200",
+      "anchor_a2837c67c59d850ce60ebc13359ef18b1266209a2bbd6632649cc654834e40f1",
+      "anchor_a15b39d9303fd589e1885d12e2af28364d6105e3234be2aaf1471a8de7eab6b9",
+      "anchor_0ff735e446bf84e8769ebcfb0a1ac6b8ffa5528ee646b9a2ab4405912a21aca5",
+      "anchor_bcc48408cfb9c98e3cdf46cd83f6d1a1f49c69b0f4454f9bbff517122f6e5aba",
+      "anchor_2b0552c79683dbb6732e8c824587de2bbae32187b0f96a1a0ada32b3d2f17c14",
+      "anchor_a6b3a9afa5dbfe40b36a3f381235411f6570325e1f11269276aad5bc69f67d30",
+      "anchor_bb77bbd6c5b42bbc8099725ded37b70883418caffdcb25bd10a46f6ee4731974",
+      "anchor_af94f19e55d7a1343472e2e404caca1bd9c591ec861eaf6b73316376ba3df4c8",
+      "anchor_bc7c46f5a9af2fa1233b33185d2d22fb15390731e8a73c4989ff3fed5da535d7",
+      "anchor_01d06488f39c562376a8ffce9ceeaa8448b213977241cce34ba0be9439263cc9",
+      "anchor_55f36f3338a5f1ff890bf6ff6916722a6d702ab5ca81d27bcd59595fc77c0d29",
+      "anchor_217489229ef2407a20dd0057cb344f92786b7c6e7291dafe7027ad7d211ec510",
+      "anchor_422da46bd35c967d2ebc6133a524a8018b325f9c83bec5e0dbfb0c4de0725b1c",
+      "anchor_f250a6b9dde684b7f615b589402ce2a1efef4f3c81e6cbda0bac9733dccf2a70",
+      "anchor_705581f36cba44e5d4eaf2901cfbe698596a95595d27f226ef7a6fe4547a08bc",
+      "anchor_05ea918e4930c06c0488fd22bbcdaff97254312deb8155871f14e57a2ec7bc8d"
+    ]
+  },
+  {
+    "value": 30.0,
+    "resultPath": [
+      "bowl_and_dish_share_percent"
+    ],
+    "goldAnchorIds": [],
+    "note": "unsupported kind (c): sum of the separately stated shares for Schalen (ca. 23%, p29) and Schuesseln (7%, p29); no anchor states a combined share"
+  }
+]

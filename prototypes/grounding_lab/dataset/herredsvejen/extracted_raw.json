@@ -1,0 +1,40 @@
+{
+  "journal_number": "SBM1694",
+  "excavation_leader": "Merethe Schifter Bagge",
+  "campaign_start": "23-09-2019",
+  "campaign_end": "20-11-2019",
+  "slks_number": "19/06370",
+  "total_feature_count": 576,
+  "posthole_count": 362,
+  "machine_operator": "Poul Kragh",
+  "developer": "Skanderborg Kommune, Teknik og Miljø",
+  "developer_contact": "Lars Lykke Jensen",
+  "mound_diameter": "ca. 23 m",
+  "records": [
+    {
+      "house_length": 13.5,
+      "find_number": "K7",
+      "bead_size": null,
+      "ams_lab_number": null,
+      "construction_id": "K7"
+    },
+    {
+      "house_length": 18,
+      "find_number": "K11",
+      "bead_size": null,
+      "ams_lab_number": null,
+      "construction_id": "K11"
+    },
+    {
+      "house_length": null,
+      "find_number": "X233",
+      "bead_size": "6 x 4 mm",
+      "ams_lab_number": null,
+      "construction_id": "A225"
+    }
+  ],
+  "urn_fragment_count": 41,
+  "preinvestigation_area": "5.853 m2",
+  "zone_permit_area": "1300m2",
+  "conservation_institution": "Museum Skanderborg"
+}

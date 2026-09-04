@@ -20,7 +20,8 @@ routable incumbent.
 Protocol failures (unparseable JSON, missing claim label, unknown anchor
 label) are counted separately — never as abstentions.
 
-Usage: uv run python -m grounding_lab.llm_baseline dataset [model]
+Usage: uv run python -m grounding_lab.llm_baseline dataset [model] [--think]
+       [--claims claims.json,traps.json]
 """
 
 from __future__ import annotations
@@ -135,8 +136,17 @@ def parse_links(content: str) -> dict:
     )
 
 
-def main(root: Path, model: str, think: bool = False, ground=ground_batch) -> int:
-    documents = load_dataset(root)
+def main(
+    root: Path,
+    model: str,
+    think: bool = False,
+    ground=ground_batch,
+    claims_files: tuple[str, ...] = ("claims.json",),
+    only: set[str] | None = None,
+) -> int:
+    documents = load_dataset(root, claims_files)
+    if only:
+        documents = [d for d in documents if d[0] in only]
     correct = linkable = abstained = unlinkable = wrong = failures = 0
     total_seconds = 0.0
     total_claims = calls = 0
@@ -200,9 +210,24 @@ def main(root: Path, model: str, think: bool = False, ground=ground_batch) -> in
 
 
 if __name__ == "__main__":
-    args = [a for a in sys.argv[1:] if a != "--think"]
+    argv = sys.argv[1:]
+    claims = "claims.json"
+    if "--claims" in argv:
+        i = argv.index("--claims")
+        claims = argv[i + 1]
+        del argv[i:i + 2]
+    # --only doc1,doc2 restricts the run to named documents; a document whose
+    # anchors exceed the model's context cannot be run at all.
+    only = set()
+    if "--only" in argv:
+        i = argv.index("--only")
+        only = {n.strip() for n in argv[i + 1].split(",") if n.strip()}
+        del argv[i:i + 2]
+    args = [a for a in argv if a != "--think"]
     raise SystemExit(main(
         Path(args[0] if args else "dataset"),
         args[1] if len(args) > 1 else "qwen3.8:latest",
         think="--think" in sys.argv,
+        claims_files=tuple(n.strip() for n in claims.split(",") if n.strip()),
+        only=only,
     ))

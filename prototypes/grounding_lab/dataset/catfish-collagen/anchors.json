@@ -292,14 +292,14 @@
     "text": "Gene",
     "page": 5,
     "kind": "table_cell",
-    "context": "Gene | Primer Sequence (5 ′ -3 ′ ) — Gene"
+    "context": "Gene — Gene"
   },
   {
     "anchorId": "anchor_4c519a20b325dadbef7bb0c20289cdb6ac1544d0a7f8d1ec915ea29bd3fb8d23",
     "text": "Primer Sequence (5 ′ -3 ′ )",
     "page": 5,
     "kind": "table_cell",
-    "context": "Gene | Primer Sequence (5 ′ -3 ′ ) — Primer Sequence (5 ′ -3 ′ )"
+    "context": "Primer Sequence (5 ′ -3 ′ ) — Primer Sequence (5 ′ -3 ′ )"
   },
   {
     "anchorId": "anchor_2cbffc2c6ba710182e728faf0397a14916443cb0965ee9a5acb2dbcfbd404301",

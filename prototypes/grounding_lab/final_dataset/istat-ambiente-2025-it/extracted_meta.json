@@ -1,0 +1,18 @@
+{
+  "model": "qwen3.8:latest",
+  "provider": "ollama",
+  "baseUrl": "http://127.0.0.1:11434",
+  "temperature": 0,
+  "documentSource": "document.md",
+  "markdownChars": 2759,
+  "windowed": null,
+  "elapsedSeconds": 380.393,
+  "modelAttribution": null,
+  "metadata": {
+    "finishReason": "stop",
+    "inputTokens": 1085,
+    "outputTokens": 224,
+    "durationMs": 380385
+  },
+  "error": null
+}

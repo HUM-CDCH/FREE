@@ -1,0 +1,77 @@
+{
+  "title": "Properties of Skin Collagen from Southern Catfish ( Silurus meridionalis ) Fed with Raw and Cooked Food",
+  "corresponding_email": "zhangxi@mail.hzau.edu.cn",
+  "corresponding_phone": "+86-18672306015",
+  "academic_editor": "Carlos José Dias Pereira",
+  "received_date": "1 August 2024",
+  "published_date": "13 September 2024",
+  "affiliations": [
+    "College of Fisheries, National Demonstration Center for Experimental Aquaculture Education, Engineering Research Center of Green Development for Conventional Aquatic Biological Industry in the Yangtze River Economic Belt, Ministry of Education, Hubei Provincial Engineering Laboratory for Pond Aquaculture, Huazhong Agricultural University, Wuhan 430070, China",
+    "Faculty of Fisheries Sciences, Hokkaido University, 3-1-1 Minato-cho, Hakodate 041-8611, Hokkaido, Japan"
+  ],
+  "authors": [
+    {
+      "email": "zhang929@webmail.hazu.edu.cn"
+    },
+    {
+      "email": "houshufang@webmail.hazu.edu.cn"
+    },
+    {
+      "email": "311621lym@webmail.hzau.edu.cn"
+    },
+    {
+      "email": "2023308110056@webmail.hazu.edu.cn"
+    },
+    {
+      "email": "jiayongkang@webmail.hzau.edu.cn"
+    },
+    {
+      "email": "y357446@webmail.hzau.edu.cn"
+    },
+    {
+      "email": "2021308110042@webmail.hzau.edu.cn"
+    },
+    {
+      "email": "takagi@fish.hokudai.ac.jp"
+    },
+    {
+      "email": "ldp@mail.hzau.edu.cn"
+    },
+    {
+      "email": "zhangxi@mail.hzau.edu.cn"
+    }
+  ],
+  "culture_period": 6,
+  "rf_body_weight": "27.09 ± 0.89 g",
+  "rf_wet_extraction_rate": "8.66 ± 0.11%",
+  "cf_dpph_rate": "61.78 ± 3.91%",
+  "statistics_software": "SPSS Base 25",
+  "primers": [
+    {
+      "sequence": "GATCCGGTATGTGCAAGGCT",
+      "name": "β-actin-F"
+    },
+    {
+      "sequence": "TGC CAGATCTTCTCCATATCA",
+      "name": "β-actin-R"
+    },
+    {
+      "sequence": "AGCTTACCTTCTTGCGCCTT",
+      "name": "col1a1-F"
+    },
+    {
+      "sequence": "GACGCTGTATGTGAAACGGC",
+      "name": "col1a1-R"
+    },
+    {
+      "sequence": "ACAAGGAGTCTGCATGTCGG",
+      "name": "col1a2-F"
+    },
+    {
+      "sequence": "TATCTCCCCTTGGTCCCGAT",
+      "name": "col1a2-R"
+    }
+  ],
+  "ftir_instrument": "Nicolet IS50; Thermo Fisher Scientific",
+  "centrifuge_speed": "8000 × g"
+}

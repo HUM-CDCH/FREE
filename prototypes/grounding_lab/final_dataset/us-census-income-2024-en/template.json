@@ -1,0 +1,17 @@
+{
+  "medianHouseholdIncome2024": "number",
+  "medianHouseholdIncome2023": "number",
+  "asianHouseholdIncomeChange": "number",
+  "hispanicHouseholdIncomeChange": "number",
+  "blackHouseholdIncomeDecline": "number",
+  "ninetiethPercentileIncomeChange": "number",
+  "femaleToMaleEarningsRatio2024": "number",
+  "femaleToMaleEarningsRatio2023": "number",
+  "marriedCoupleMedianIncome": "number",
+  "femaleNoSpouseMedianIncome": "number",
+  "asianHouseholdMedianIncome": "number",
+  "blackHouseholdMedianIncome": "number",
+  "age45To54MedianIncome": "number",
+  "noHighSchoolDiplomaMedianIncome": "number",
+  "moneyIncomeGini2024": "number"
+}

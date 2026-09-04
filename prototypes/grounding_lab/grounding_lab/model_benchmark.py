@@ -1024,6 +1024,10 @@ def main() -> int:
         "--cv", type=int, metavar="FOLDS",
         help="document-level k-fold cross-validation: thresholds are tuned on the other folds",
     )
+    parser.add_argument(
+        "--claims", default="claims.json",
+        help="comma-separated claim files merged per document (e.g. claims.json,traps.json)",
+    )
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
 
@@ -1054,7 +1058,8 @@ def main() -> int:
     if args.split == "final" and args.abstain_threshold is None:
         parser.error("--split final requires frozen abstain and accept thresholds")
 
-    documents = [doc for root in args.root for doc in load_dataset(root)]
+    claims_files = tuple(n.strip() for n in args.claims.split(",") if n.strip())
+    documents = [doc for root in args.root for doc in load_dataset(root, claims_files)]
     if not documents:
         parser.error(f"no documents with anchors.json + claims.json under {args.root}")
     if len({name for name, _, _ in documents}) != len(documents):

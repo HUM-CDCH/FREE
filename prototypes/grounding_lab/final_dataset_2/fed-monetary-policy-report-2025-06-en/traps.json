@@ -1,0 +1,13 @@
+[
+  {
+    "value": "2,339",
+    "resultPath": [
+      "treasurySecuritiesJune2025Billions"
+    ],
+    "goldAnchorId": null,
+    "expectedLexicalHitIds": [
+      "anchor_6dff375917f3ecbeab788e89e148ecb9815ca35e349013e61b5f9bae95b9aea5"
+    ],
+    "note": "TRAP wrong-row: 2,339 is the Federal Reserve notes liability on June 11, 2025 (balance-sheet table, p51). Treasury securities holdings are 4,212 in the assets block of the same table."
+  }
+]

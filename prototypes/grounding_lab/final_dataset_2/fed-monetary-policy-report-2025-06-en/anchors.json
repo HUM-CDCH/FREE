@@ -98,7 +98,7 @@
     "text": "Summary",
     "page": 5,
     "kind": "table_cell",
-    "context": "Summary | . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1 — Summary"
+    "context": "Summary — Summary"
   },
   {
     "anchorId": "anchor_9da71ac6d7c31c141e131a03970ffdde5966978766b2410eb28ff7d9248db30b",
@@ -112,7 +112,7 @@
     "text": "Recent Economic and Financial Developments. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
     "page": 5,
     "kind": "table_cell",
-    "context": "Recent Economic and Financial Developments. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 1 — Recent Economic and Financial Developments. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
+    "context": "Recent Economic and Financial Developments. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . — Recent Economic and Financial Developments. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
   },
   {
     "anchorId": "anchor_841a3c3b6f7b1ee3dc8cffc2c12b2119e5def5fb39cfcc73dc4fbb88a9f7ef69",
@@ -126,7 +126,7 @@
     "text": "Monetary Policy. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
     "page": 5,
     "kind": "table_cell",
-    "context": "Monetary Policy. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 3 — Monetary Policy. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
+    "context": "Monetary Policy. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . — Monetary Policy. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
   },
   {
     "anchorId": "anchor_524af9e1429eece504be48c90ce1b601b2f2e0a968d350b348e5662c66613f79",
@@ -140,7 +140,7 @@
     "text": "Special Topics. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
     "page": 5,
     "kind": "table_cell",
-    "context": "Special Topics. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 3 — Special Topics. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
+    "context": "Special Topics. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . — Special Topics. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
   },
   {
     "anchorId": "anchor_fe28c08a3bdd0e6fc5ed1a0d406d5333637a093661ad3865b36ad4a5d51a37fc",
@@ -154,7 +154,7 @@
     "text": "Recent Economic and Financial Developments",
     "page": 5,
     "kind": "table_cell",
-    "context": "Recent Economic and Financial Developments | . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5 — Recent Economic and Financial Developments"
+    "context": "Recent Economic and Financial Developments — Recent Economic and Financial Developments"
   },
   {
     "anchorId": "anchor_239a3bfc93d81e44688e7153401c74b2aeb72f859167531bfd409c01fd02aa16",
@@ -168,7 +168,7 @@
     "text": "Domestic Developments. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
     "page": 5,
     "kind": "table_cell",
-    "context": "Domestic Developments. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 5 — Domestic Developments. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
+    "context": "Domestic Developments. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . — Domestic Developments. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
   },
   {
     "anchorId": "anchor_4781b12943cd83e8ec004190384a04e47797ef8f6d4e31b67dcc3897a1a8ce8b",
@@ -182,7 +182,7 @@
     "text": "Box 1. Employment and Earnings across Demographic Groups. . . . . . . . . . . . . . . . . . .",
     "page": 5,
     "kind": "table_cell",
-    "context": "Box 1. Employment and Earnings across Demographic Groups. . . . . . . . . . . . . . . . . . . | 12 — Box 1. Employment and Earnings across Demographic Groups. . . . . . . . . . . . . . . . . . ."
+    "context": "Box 1. Employment and Earnings across Demographic Groups. . . . . . . . . . . . . . . . . . . — Box 1. Employment and Earnings across Demographic Groups. . . . . . . . . . . . . . . . . . ."
   },
   {
     "anchorId": "anchor_fb322fe57a81e8edcd3d776e5d09cac9b439a8268674edcb1d330ec44859b35f",
@@ -196,7 +196,7 @@
     "text": "Financial Developments. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
     "page": 5,
     "kind": "table_cell",
-    "context": "Financial Developments. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 27 — Financial Developments. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
+    "context": "Financial Developments. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . — Financial Developments. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
   },
   {
     "anchorId": "anchor_b98ea4da236f6c41dd0e915740be7f2120daeaf098eea9a421fb6c935db2d6fc",
@@ -210,7 +210,7 @@
     "text": "Box 2. Developments Related to Financial Stability. . . . . . . . . . . . . . . . . . . . . . . . . . . .",
     "page": 5,
     "kind": "table_cell",
-    "context": "Box 2. Developments Related to Financial Stability. . . . . . . . . . . . . . . . . . . . . . . . . . . . | 30 — Box 2. Developments Related to Financial Stability. . . . . . . . . . . . . . . . . . . . . . . . . . . ."
+    "context": "Box 2. Developments Related to Financial Stability. . . . . . . . . . . . . . . . . . . . . . . . . . . . — Box 2. Developments Related to Financial Stability. . . . . . . . . . . . . . . . . . . . . . . . . . . ."
   },
   {
     "anchorId": "anchor_9e017979850c99a829c43f7c5dc721a935fb61410f0a29d287e6c4abb7c8d2e7",
@@ -224,7 +224,7 @@
     "text": "International Developments",
     "page": 5,
     "kind": "table_cell",
-    "context": "International Developments | . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 32 — International Developments"
+    "context": "International Developments — International Developments"
   },
   {
     "anchorId": "anchor_3a902ea1b65db1f05c15bbfde818ca29ce7c15959bbce3d26199396256c34e77",
@@ -238,7 +238,7 @@
     "text": "Monetary Policy . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
     "page": 5,
     "kind": "table_cell",
-    "context": "Monetary Policy . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 37 — Monetary Policy . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
+    "context": "Monetary Policy . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . — Monetary Policy . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
   },
   {
     "anchorId": "anchor_822b0e60b4a805636caca284dddce578e6df9e55cb2e74a493e11666a558b092",
@@ -252,7 +252,7 @@
     "text": "Box 3. Developments in the Federal Reserve's Balance Sheet and Money Markets. . . . . . .",
     "page": 5,
     "kind": "table_cell",
-    "context": "Box 3. Developments in the Federal Reserve's Balance Sheet and Money Markets. . . . . . . | 40 — Box 3. Developments in the Federal Reserve's Balance Sheet and Money Markets. . . . . . ."
+    "context": "Box 3. Developments in the Federal Reserve's Balance Sheet and Money Markets. . . . . . . — Box 3. Developments in the Federal Reserve's Balance Sheet and Money Markets. . . . . . ."
   },
   {
     "anchorId": "anchor_4987c1270a2347270568c49020f0f10f04e3f65c4ed56277084b52e4b6842fb4",
@@ -266,7 +266,7 @@
     "text": "Box 4. Monetary Policy Rules in the Current Environment. . . . . . . . . . . . . . . . . . . . . . . . . .",
     "page": 5,
     "kind": "table_cell",
-    "context": "Box 4. Monetary Policy Rules in the Current Environment. . . . . . . . . . . . . . . . . . . . . . . . . . | 43 — Box 4. Monetary Policy Rules in the Current Environment. . . . . . . . . . . . . . . . . . . . . . . . . ."
+    "context": "Box 4. Monetary Policy Rules in the Current Environment. . . . . . . . . . . . . . . . . . . . . . . . . . — Box 4. Monetary Policy Rules in the Current Environment. . . . . . . . . . . . . . . . . . . . . . . . . ."
   },
   {
     "anchorId": "anchor_345008df5bdd846dc9fc3192e64ae46bbf0e2e04e98dcc959d901b4a4b038a39",
@@ -280,7 +280,7 @@
     "text": "Summary of Economic Projections . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
     "page": 5,
     "kind": "table_cell",
-    "context": "Summary of Economic Projections . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 47 — Summary of Economic Projections . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
+    "context": "Summary of Economic Projections . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . — Summary of Economic Projections . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
   },
   {
     "anchorId": "anchor_dd1d080a721d5884f6ab685f9f6dad9947f621e8bff22d0666e19f23aa372689",
@@ -294,7 +294,7 @@
     "text": "Box 5. Forecast Uncertainty. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
     "page": 5,
     "kind": "table_cell",
-    "context": "Box 5. Forecast Uncertainty. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 63 — Box 5. Forecast Uncertainty. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
+    "context": "Box 5. Forecast Uncertainty. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . — Box 5. Forecast Uncertainty. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
   },
   {
     "anchorId": "anchor_bc87e8306bdeff405837e171963cc38c308132cf9894f3589c7cbe26f9327df8",
@@ -308,7 +308,7 @@
     "text": "Appendix: Source Notes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
     "page": 5,
     "kind": "table_cell",
-    "context": "Appendix: Source Notes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 65 — Appendix: Source Notes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
+    "context": "Appendix: Source Notes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . — Appendix: Source Notes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
   },
   {
     "anchorId": "anchor_d116c9e443eaacde3ff3b9af4c46ebbdbae79b359d119b683f0588320ee3d89e",
@@ -1960,28 +1960,28 @@
     "text": "June 11, 2025",
     "page": 51,
     "kind": "table_cell",
-    "context": "June 11, 2025 | January 8, 2025 | Change (since January 2025) | Change (since Fed's balance sheet reduction began on June 1, 2022) — June 11, 2025"
+    "context": "June 11, 2025 — June 11, 2025"
   },
   {
     "anchorId": "anchor_c347796fca99e1edd3f6386a537c4b02fc4aad617b3d9d28c8c2b65f205a4b5b",
     "text": "January 8, 2025",
     "page": 51,
     "kind": "table_cell",
-    "context": "June 11, 2025 | January 8, 2025 | Change (since January 2025) | Change (since Fed's balance sheet reduction began on June 1, 2022) — January 8, 2025"
+    "context": "January 8, 2025 — January 8, 2025"
   },
   {
     "anchorId": "anchor_5a71b41ff3665d9ec6ab96dc3ba0f58004a087ae9f2046cae0702ecd8aa76738",
     "text": "Change (since January 2025)",
     "page": 51,
     "kind": "table_cell",
-    "context": "June 11, 2025 | January 8, 2025 | Change (since January 2025) | Change (since Fed's balance sheet reduction began on June 1, 2022) — Change (since January 2025)"
+    "context": "Change (since January 2025) — Change (since January 2025)"
   },
   {
     "anchorId": "anchor_e01fc0d9d28480241a662903383551da9744813fb50a2532320799f01f00a57a",
     "text": "Change (since Fed's balance sheet reduction began on June 1, 2022)",
     "page": 51,
     "kind": "table_cell",
-    "context": "June 11, 2025 | January 8, 2025 | Change (since January 2025) | Change (since Fed's balance sheet reduction began on June 1, 2022) — Change (since Fed's balance sheet reduction began on June 1, 2022)"
+    "context": "Change (since Fed's balance sheet reduction began on June 1, 2022) — Change (since Fed's balance sheet reduction began on June 1, 2022)"
   },
   {
     "anchorId": "anchor_755f2c2b74e376f3fc94bb97667bbff71a6789fdc2b0166b6c91d887a2eaaee2",
@@ -2002,7 +2002,7 @@
     "text": "Treasury securities",
     "page": 51,
     "kind": "table_cell",
-    "context": "Treasury securities | 4,212 | 4,291 | -79 | -1,558 — Treasury securities"
+    "context": "Treasury securities — Treasury securities"
   },
   {
     "anchorId": "anchor_20bfd7ef67c7931c29f1e986cfede6631b99cdfad6f9c030683a77e07d71a613",
@@ -2037,7 +2037,7 @@
     "text": "Agency debt and MBS",
     "page": 51,
     "kind": "table_cell",
-    "context": "Agency debt and MBS | 2,159 | 2,236 | -77 | -551 — Agency debt and MBS"
+    "context": "Agency debt and MBS — Agency debt and MBS"
   },
   {
     "anchorId": "anchor_f9552c698e7c9cb7446e6ad9c0e09abd7ddf0c7f9638c1309787b12431ee5e27",
@@ -2072,7 +2072,7 @@
     "text": "Unamortized premiums",
     "page": 51,
     "kind": "table_cell",
-    "context": "Unamortized premiums | 238 | 249 | -11 | -99 — Unamortized premiums"
+    "context": "Unamortized premiums — Unamortized premiums"
   },
   {
     "anchorId": "anchor_bbe7057d391c4cb0a991ff9ec0233f7f3fee1d351924610bd6461e2e5b9a13dd",
@@ -2107,7 +2107,7 @@
     "text": "Repurchase agreements",
     "page": 51,
     "kind": "table_cell",
-    "context": "Repurchase agreements | 0 | 0 | 0 | 0 — Repurchase agreements"
+    "context": "Repurchase agreements — Repurchase agreements"
   },
   {
     "anchorId": "anchor_100a00997fa796503313c1baa36bd9a3dbb64a8d4a540a479a3f801cbc3f6d6b",
@@ -2149,7 +2149,7 @@
     "text": "PPPLF",
     "page": 51,
     "kind": "table_cell",
-    "context": "PPPLF | 2 | 2 | 0 | -18 — PPPLF"
+    "context": "PPPLF — PPPLF"
   },
   {
     "anchorId": "anchor_dc355e795486f0f72fb604eba4607d9e367971085af5df480bc4bdccafffa0e2",
@@ -2184,7 +2184,7 @@
     "text": "Discount window",
     "page": 51,
     "kind": "table_cell",
-    "context": "Discount window | 4 | 2 | 2 | 3 — Discount window"
+    "context": "Discount window — Discount window"
   },
   {
     "anchorId": "anchor_2241e671a36d7f16b96bfaaf8424efacee48c39a553728dc799d4f9fda09ba96",
@@ -2219,7 +2219,7 @@
     "text": "BTFP",
     "page": 51,
     "kind": "table_cell",
-    "context": "BTFP | 0 | 3 | -3 | 0 — BTFP"
+    "context": "BTFP — BTFP"
   },
   {
     "anchorId": "anchor_568ee5cdc676358b57b57a5e7db06fc7e0e0f65f107d0885c979d1a3d75f45a1",
@@ -2254,7 +2254,7 @@
     "text": "Other loans and lending facilities",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other loans and lending facilities | 5 | 8 | -3 | -29 — Other loans and lending facilities"
+    "context": "Other loans and lending facilities — Other loans and lending facilities"
   },
   {
     "anchorId": "anchor_8789017526551faed61a77902d37f93adb66179a5e33022184a6d8b7b959b1fe",
@@ -2289,7 +2289,7 @@
     "text": "Central bank liquidity swaps",
     "page": 51,
     "kind": "table_cell",
-    "context": "Central bank liquidity swaps | 0 | 1 | -1 | 0 — Central bank liquidity swaps"
+    "context": "Central bank liquidity swaps — Central bank liquidity swaps"
   },
   {
     "anchorId": "anchor_c66d5e0bf5ede453077eef43d1123b77bcd8e70bc5496431c39dd34b80d31d4a",
@@ -2324,7 +2324,7 @@
     "text": "Other assets",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other assets | 57 | 61 | -4 | 15 — Other assets"
+    "context": "Other assets — Other assets"
   },
   {
     "anchorId": "anchor_2b0928175124336d6282787c61684bac855537fa0aff00db5f7082aa6a27286d",
@@ -2359,7 +2359,7 @@
     "text": "Total assets",
     "page": 51,
     "kind": "table_cell",
-    "context": "Total assets | 6,677 | 6,854 | -176 | -2,238 — Total assets"
+    "context": "Total assets — Total assets"
   },
   {
     "anchorId": "anchor_606b44c0b0c48c7d4b2ecd71d3dd21841fd069e51ed1cee6aec9bbf21b97e8a7",
@@ -2401,7 +2401,7 @@
     "text": "Federal Reserve notes",
     "page": 51,
     "kind": "table_cell",
-    "context": "Federal Reserve notes | 2,339 | 2,315 | 24 | 108 — Federal Reserve notes"
+    "context": "Federal Reserve notes — Federal Reserve notes"
   },
   {
     "anchorId": "anchor_6dff375917f3ecbeab788e89e148ecb9815ca35e349013e61b5f9bae95b9aea5",
@@ -2436,7 +2436,7 @@
     "text": "Reserves held by depository institutions",
     "page": 51,
     "kind": "table_cell",
-    "context": "Reserves held by depository institutions | 3,430 | 3,332 | 97 | 72 — Reserves held by depository institutions"
+    "context": "Reserves held by depository institutions — Reserves held by depository institutions"
   },
   {
     "anchorId": "anchor_7968d0d46c23cd856db44defb1d6e392f2609b38c34d78ab6cf607c3e0c3c7fe",
@@ -2478,7 +2478,7 @@
     "text": "Foreign official and international accounts",
     "page": 51,
     "kind": "table_cell",
-    "context": "Foreign official and international accounts | 371 | 386 | -15 | 106 — Foreign official and international accounts"
+    "context": "Foreign official and international accounts — Foreign official and international accounts"
   },
   {
     "anchorId": "anchor_dc67a920ceb1aa7a81daff744ca6c5a4af99a9c29edc7e2f475c49c80763d22a",
@@ -2513,7 +2513,7 @@
     "text": "Others",
     "page": 51,
     "kind": "table_cell",
-    "context": "Others | 205 | 185 | 19 | -1,760 — Others"
+    "context": "Others — Others"
   },
   {
     "anchorId": "anchor_035b6b228028bd106bc3ee581f2dc9da7e89c410d5d1229bb7a92dcb3b72e7b7",
@@ -2548,7 +2548,7 @@
     "text": "U.S. Treasury General Account",
     "page": 51,
     "kind": "table_cell",
-    "context": "U.S. Treasury General Account | 277 | 621 | -344 | -504 — U.S. Treasury General Account"
+    "context": "U.S. Treasury General Account — U.S. Treasury General Account"
   },
   {
     "anchorId": "anchor_a5fa9503e9cc824e638b89186ae23356512e2389c68446f6e622e0a7301cbb32",
@@ -2583,7 +2583,7 @@
     "text": "Other deposits",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other deposits | 229 | 174 | 55 | -19 — Other deposits"
+    "context": "Other deposits — Other deposits"
   },
   {
     "anchorId": "anchor_ce4424b82064f6cbe25eadf9118d50425a5d350790fbe1a2b69e71c360afd08b",
@@ -2618,7 +2618,7 @@
     "text": "Other liabilities and capital",
     "page": 51,
     "kind": "table_cell",
-    "context": "Other liabilities and capital | -173 | -160 | -14 | -241 — Other liabilities and capital"
+    "context": "Other liabilities and capital — Other liabilities and capital"
   },
   {
     "anchorId": "anchor_6908b8865487832bf675bd3d61e90d968ec7bd4c6c337f1fe306fb0e1997ed2a",
@@ -2653,7 +2653,7 @@
     "text": "Total liabilities and capital",
     "page": 51,
     "kind": "table_cell",
-    "context": "Total liabilities and capital | 6,677 | 6,854 | -176 | -2,238 — Total liabilities and capital"
+    "context": "Total liabilities and capital — Total liabilities and capital"
   },
   {
     "anchorId": "anchor_7102f9752511e26b58eba241abb9d36c646214d2070603bdabe64ab4b990c89e",
@@ -2957,119 +2957,119 @@
     "text": "Median 1",
     "page": 57,
     "kind": "table_cell",
-    "context": "Median 1 | Central Tendency 2 | Range 3 — Median 1"
+    "context": "Median 1 — Median 1"
   },
   {
     "anchorId": "anchor_64d3d743a3c6b3e3b43fa584f4e9fdfce43f88c5df0f46d0075c666cd31e031a",
     "text": "Central Tendency 2",
     "page": 57,
     "kind": "table_cell",
-    "context": "Median 1 | Central Tendency 2 | Range 3 — Central Tendency 2"
+    "context": "Central Tendency 2 — Central Tendency 2"
   },
   {
     "anchorId": "anchor_79fa4af0c68d73ed07a56f10f613c5dbcfa6acc0f9d75ca468099697ae8f3eb1",
     "text": "Range 3",
     "page": 57,
     "kind": "table_cell",
-    "context": "Median 1 | Central Tendency 2 | Range 3 — Range 3"
+    "context": "Range 3 — Range 3"
   },
   {
     "anchorId": "anchor_26a129697cc024c9677300ae876f11020dc7bf1b7f43a536c936c1cb162d9b30",
     "text": "Variable",
     "page": 57,
     "kind": "table_cell",
-    "context": "Variable | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run — Variable"
+    "context": "Variable — Variable"
   },
   {
     "anchorId": "anchor_877ffb881231cbb9df83719b39f0a9a8f5321596edf7bf54c54a8037f2b5ab5c",
     "text": "2025",
     "page": 57,
     "kind": "table_cell",
-    "context": "Variable | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run — 2025"
+    "context": "2025 — 2025"
   },
   {
     "anchorId": "anchor_6cfa7c4e331326256953db5020e62bae005d353c2d7128121c0924cb6b4fb5e3",
     "text": "2026",
     "page": 57,
     "kind": "table_cell",
-    "context": "Variable | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run — 2026"
+    "context": "2026 — 2026"
   },
   {
     "anchorId": "anchor_78575f6a8078798283c8792a9b89551ae819c853dfd22d2fffd1e1e93a2c91fa",
     "text": "2027",
     "page": 57,
     "kind": "table_cell",
-    "context": "Variable | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run — 2027"
+    "context": "2027 — 2027"
   },
   {
     "anchorId": "anchor_1288ea4723f41c73cb04ddd8c9c3240d8968cbbf5990afc08ba7a588d7ffe86f",
     "text": "Longer run",
     "page": 57,
     "kind": "table_cell",
-    "context": "Variable | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run — Longer run"
+    "context": "Longer run — Longer run"
   },
   {
     "anchorId": "anchor_faf6b1a768d680beaf9aced3068d40de934e6ba52b5a58f72c8732265d7a5e46",
     "text": "2025",
     "page": 57,
     "kind": "table_cell",
-    "context": "Variable | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run — 2025"
+    "context": "2025 — 2025"
   },
   {
     "anchorId": "anchor_93745b7922c1c9809fff972410ef7df729283796116a0686fb747570cfd991db",
     "text": "2026",
     "page": 57,
     "kind": "table_cell",
-    "context": "Variable | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run — 2026"
+    "context": "2026 — 2026"
   },
   {
     "anchorId": "anchor_b79ee9c40de190138be54bacde13c636a7c93813287cdf3a6b0d964d09149acd",
     "text": "2027",
     "page": 57,
     "kind": "table_cell",
-    "context": "Variable | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run — 2027"
+    "context": "2027 — 2027"
   },
   {
     "anchorId": "anchor_397e939240dd678a92f2fbe25e1b8d3b6507e247bb6b37d6dae2ddb7e18db76b",
     "text": "Longer run",
     "page": 57,
     "kind": "table_cell",
-    "context": "Variable | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run — Longer run"
+    "context": "Longer run — Longer run"
   },
   {
     "anchorId": "anchor_d7466931735274cd04aa18ccd493367eb4d5367ded4845f42df30920b1cdd3be",
     "text": "2025",
     "page": 57,
     "kind": "table_cell",
-    "context": "Variable | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run — 2025"
+    "context": "2025 — 2025"
   },
   {
     "anchorId": "anchor_44fc1647653656bb6be69140796c6cc1eb11de949dc0e3ae48f2e0dd95012342",
     "text": "2026",
     "page": 57,
     "kind": "table_cell",
-    "context": "Variable | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run — 2026"
+    "context": "2026 — 2026"
   },
   {
     "anchorId": "anchor_24aaf58f7e48eaf142eb2f49f649d4f942c323153867f14e890ce9c6e66d8e92",
     "text": "2027",
     "page": 57,
     "kind": "table_cell",
-    "context": "Variable | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run — 2027"
+    "context": "2027 — 2027"
   },
   {
     "anchorId": "anchor_51cafd277949932810fa6cfc2469c25f2a977d6ba615e7a408ca932d7f6c6ead",
     "text": "Longer run",
     "page": 57,
     "kind": "table_cell",
-    "context": "Variable | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run | 2025 | 2026 | 2027 | Longer run — Longer run"
+    "context": "Longer run — Longer run"
   },
   {
     "anchorId": "anchor_459e2a566d2566caac3a75a1ed61db8166c238aa67cc2aa6e426e282bbdb6b51",
     "text": "Change in real GDP",
     "page": 57,
     "kind": "table_cell",
-    "context": "Change in real GDP | 1.4 | 1.6 | 1.8 | 1.8 | 1.2-1.5 | 1.5-1.8 | 1.7-2.0 | 1.7-2.0 | 1.1-2.1 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — Change in real GDP"
+    "context": "Change in real GDP — Change in real GDP"
   },
   {
     "anchorId": "anchor_173d245909cb69211513f51f2edb22f1e2c1519a789b7d111816641cdb491177",
@@ -3160,7 +3160,7 @@
     "text": "March projection",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 1.7 | 1.8 | 1.8 | 1.8 | 1.5-1.9 | 1.6-1.9 | 1.6-2.0 | 1.7-2.0 | 1.0-2.4 | 0.6-2.5 | 0.6-2.5 | 1.5-2.5 — March projection"
+    "context": "March projection — March projection"
   },
   {
     "anchorId": "anchor_d8070200fec843fabb28de5012e84a60a6b7939587daccdd8c15e1bb36587fd9",
@@ -3251,7 +3251,7 @@
     "text": "Unemployment rate",
     "page": 57,
     "kind": "table_cell",
-    "context": "Unemployment rate | 4.5 | 4.5 | 4.4 | 4.2 | 4.4-4.5 | 4.3-4.6 | 4.2-4.6 | 4.0-4.3 | 4.3-4.6 | 4.3-4.7 | 4.0-4.7 | 3.5-4.5 — Unemployment rate"
+    "context": "Unemployment rate — Unemployment rate"
   },
   {
     "anchorId": "anchor_0600584d6b04d1065097f845df1a08ba3079290a08e1ecb9fc5786ccacacfe55",
@@ -3342,7 +3342,7 @@
     "text": "March projection",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 4.4 | 4.3 | 4.3 | 4.2 | 4.3-4.4 | 4.2-4.5 | 4.1-4.4 | 3.9-4.3 | 4.1-4.6 | 4.1-4.7 | 3.9-4.7 | 3.5-4.5 — March projection"
+    "context": "March projection — March projection"
   },
   {
     "anchorId": "anchor_43b4549b2dbd2c183cc809112b39717ab38f9bdbd5cf6005035474c300bb37b0",
@@ -3433,7 +3433,7 @@
     "text": "PCE inflation",
     "page": 57,
     "kind": "table_cell",
-    "context": "PCE inflation | 3.0 | 2.4 | 2.1 | 2.0 | 2.8-3.2 | 2.3-2.6 | 2.0-2.2 | 2.0 | 2.5-3.3 | 2.1-3.1 | 2.0-2.8 | 2.0 — PCE inflation"
+    "context": "PCE inflation — PCE inflation"
   },
   {
     "anchorId": "anchor_2c282e0cf2fdd56458407cdebb8cf0ea26aca3f08b7ece9f23976dea898fbff9",
@@ -3524,7 +3524,7 @@
     "text": "March projection",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.7 | 2.2 | 2.0 | 2.0 | 2.6-2.9 | 2.1-2.3 | 2.0-2.1 | 2.0 | 2.5-3.4 | 2.0-3.1 | 1.9-2.8 | 2.0 — March projection"
+    "context": "March projection — March projection"
   },
   {
     "anchorId": "anchor_a74b83fe405501b512246479d64576063399e5db691db1ad10192b0b6bb758ba",
@@ -3615,7 +3615,7 @@
     "text": "Core PCE inflation 4",
     "page": 57,
     "kind": "table_cell",
-    "context": "Core PCE inflation 4 | 3.1 | 2.4 | 2.1 | 2.9-3.4 | 2.3-2.7 | 2.0-2.2 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — Core PCE inflation 4"
+    "context": "Core PCE inflation 4 — Core PCE inflation 4"
   },
   {
     "anchorId": "anchor_dbe7f679102bd6b329ce0bb5eba700037c0c395f49dc43c8b664ff24e03c3352",
@@ -3685,7 +3685,7 @@
     "text": "March projection",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 2.8 | 2.2 | 2.0 | 2.7-3.0 | 2.1-2.4 | 2.0-2.1 | 2.5-3.5 | 2.1-3.2 | 2.0-2.9 — March projection"
+    "context": "March projection — March projection"
   },
   {
     "anchorId": "anchor_f741d0a1f23c1bd3ad61e853ed6b79cf0284672fe924c87b7cfe507609926810",
@@ -3762,7 +3762,7 @@
     "text": "Federal funds rate",
     "page": 57,
     "kind": "table_cell",
-    "context": "Federal funds rate | 3.9 | 3.6 | 3.4 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.6-4.1 | 2.6-3.9 | 2.5-3.9 — Federal funds rate"
+    "context": "Federal funds rate — Federal funds rate"
   },
   {
     "anchorId": "anchor_37e5d712fdb53cebb85b5c320782a1672c9a5ae07d8e683b93c582f5a26dde4a",
@@ -3853,7 +3853,7 @@
     "text": "March projection",
     "page": 57,
     "kind": "table_cell",
-    "context": "March projection | 3.9 | 3.4 | 3.1 | 3.0 | 3.9-4.4 | 3.1-3.9 | 2.9-3.6 | 2.6-3.6 | 3.6-4.4 | 2.9-4.1 | 2.6-3.9 | 2.5-3.9 — March projection"
+    "context": "March projection — March projection"
   },
   {
     "anchorId": "anchor_baa26df7aab373350a8b110af2444ea9277f96558a40b29a30b6d250b7a99564",
@@ -4071,35 +4071,35 @@
     "text": "Variable",
     "page": 72,
     "kind": "table_cell",
-    "context": "Variable | 2025 | 2026 | 2027 — Variable"
+    "context": "Variable — Variable"
   },
   {
     "anchorId": "anchor_f434c69acd2d672649f8aff46852a3fe73850a845a92aee92d7208a1310743c5",
     "text": "2025",
     "page": 72,
     "kind": "table_cell",
-    "context": "Variable | 2025 | 2026 | 2027 — 2025"
+    "context": "2025 — 2025"
   },
   {
     "anchorId": "anchor_ace465a9a3b648059f0c1d839118506a4638729b746026dd46437cfcdf644fc6",
     "text": "2026",
     "page": 72,
     "kind": "table_cell",
-    "context": "Variable | 2025 | 2026 | 2027 — 2026"
+    "context": "2026 — 2026"
   },
   {
     "anchorId": "anchor_bf047a069d5dce6383b69005d908b54ce9e66cfca6f170e9e746401a74ea6a6a",
     "text": "2027",
     "page": 72,
     "kind": "table_cell",
-    "context": "Variable | 2025 | 2026 | 2027 — 2027"
+    "context": "2027 — 2027"
   },
   {
     "anchorId": "anchor_34535210beddcafa9f77e0ace338fad41dc9e72cc82da041dc4b4aab9e289586",
     "text": "Change in real GDP 1",
     "page": 72,
     "kind": "table_cell",
-    "context": "Change in real GDP 1 | ± 1.7 | ± 1.8 | ± 2.2 — Change in real GDP 1"
+    "context": "Change in real GDP 1 — Change in real GDP 1"
   },
   {
     "anchorId": "anchor_a8ecb93506fbd69c664ce4590dc0c6fc98b86d9a4db4e9a953a006304caa1584",
@@ -4127,7 +4127,7 @@
     "text": "Unemployment rate 1",
     "page": 72,
     "kind": "table_cell",
-    "context": "Unemployment rate 1 | ± 0.9 | ± 1.4 | ± 1.9 — Unemployment rate 1"
+    "context": "Unemployment rate 1 — Unemployment rate 1"
   },
   {
     "anchorId": "anchor_f2f54124ba938a47470406529cf658102000981362df0bcc4b1e4a108562a17a",
@@ -4155,7 +4155,7 @@
     "text": "Total consumer prices 2",
     "page": 72,
     "kind": "table_cell",
-    "context": "Total consumer prices 2 | ± 1.0 | ± 1.7 | ± 1.4 — Total consumer prices 2"
+    "context": "Total consumer prices 2 — Total consumer prices 2"
   },
   {
     "anchorId": "anchor_84f4767594a6f8a4a7582613a036666d5a4303defdbbfd6716aab0e9e91a2a58",
@@ -4183,7 +4183,7 @@
     "text": "Short-term interest rates 3",
     "page": 72,
     "kind": "table_cell",
-    "context": "Short-term interest rates 3 | ± 0.7 | ± 1.8 | ± 2.3 — Short-term interest rates 3"
+    "context": "Short-term interest rates 3 — Short-term interest rates 3"
   },
   {
     "anchorId": "anchor_2641fd51b378ceb453ad92eca78c729df9cfe0ff321e02e38782aeff34f161e7",

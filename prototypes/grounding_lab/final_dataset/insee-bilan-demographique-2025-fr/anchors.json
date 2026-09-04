@@ -88,56 +88,56 @@
     "text": "Année",
     "page": 1,
     "kind": "table_cell",
-    "context": "Année | Population au 1 er janvier | Nombre de naissances sur l'année (a) | Nombre de décès sur l'année (b) | Solde naturel (a)-(b) | Solde migratoire | Ajustements statistiques 1 | en milliers Évolution de la population 2 (en %) — Année"
+    "context": "Année — Année"
   },
   {
     "anchorId": "anchor_d842125d929600e86933630d0ca3d76daaa34a4ac4e446afae2fc7c4d50447d3",
     "text": "Population au 1 er janvier",
     "page": 1,
     "kind": "table_cell",
-    "context": "Année | Population au 1 er janvier | Nombre de naissances sur l'année (a) | Nombre de décès sur l'année (b) | Solde naturel (a)-(b) | Solde migratoire | Ajustements statistiques 1 | en milliers Évolution de la population 2 (en %) — Population au 1 er janvier"
+    "context": "Population au 1 er janvier — Population au 1 er janvier"
   },
   {
     "anchorId": "anchor_f30cdc8021288886818452c425acaeab139027a83b9699f7eed4c7ce4c680333",
     "text": "Nombre de naissances sur l'année (a)",
     "page": 1,
     "kind": "table_cell",
-    "context": "Année | Population au 1 er janvier | Nombre de naissances sur l'année (a) | Nombre de décès sur l'année (b) | Solde naturel (a)-(b) | Solde migratoire | Ajustements statistiques 1 | en milliers Évolution de la population 2 (en %) — Nombre de naissances sur l'année (a)"
+    "context": "Nombre de naissances sur l'année (a) — Nombre de naissances sur l'année (a)"
   },
   {
     "anchorId": "anchor_e321fb17e2475e964e40a37153bb5450408c1a90c1dbf94fd978e22ac9ca9a2d",
     "text": "Nombre de décès sur l'année (b)",
     "page": 1,
     "kind": "table_cell",
-    "context": "Année | Population au 1 er janvier | Nombre de naissances sur l'année (a) | Nombre de décès sur l'année (b) | Solde naturel (a)-(b) | Solde migratoire | Ajustements statistiques 1 | en milliers Évolution de la population 2 (en %) — Nombre de décès sur l'année (b)"
+    "context": "Nombre de décès sur l'année (b) — Nombre de décès sur l'année (b)"
   },
   {
     "anchorId": "anchor_2b63d677dfa2c83f91b1b4f3a1b1cfa2793152724f7c22659b246fddb5dffedd",
     "text": "Solde naturel (a)-(b)",
     "page": 1,
     "kind": "table_cell",
-    "context": "Année | Population au 1 er janvier | Nombre de naissances sur l'année (a) | Nombre de décès sur l'année (b) | Solde naturel (a)-(b) | Solde migratoire | Ajustements statistiques 1 | en milliers Évolution de la population 2 (en %) — Solde naturel (a)-(b)"
+    "context": "Solde naturel (a)-(b) — Solde naturel (a)-(b)"
   },
   {
     "anchorId": "anchor_54560283b28ef23c9e3f719ca56a60b6c2190d0b37232e8141cb1252df97973c",
     "text": "Solde migratoire",
     "page": 1,
     "kind": "table_cell",
-    "context": "Année | Population au 1 er janvier | Nombre de naissances sur l'année (a) | Nombre de décès sur l'année (b) | Solde naturel (a)-(b) | Solde migratoire | Ajustements statistiques 1 | en milliers Évolution de la population 2 (en %) — Solde migratoire"
+    "context": "Solde migratoire — Solde migratoire"
   },
   {
     "anchorId": "anchor_b821827a82411b46369d7c944ba5f0e2acd4eb594099f2261bb513bd05119c90",
     "text": "Ajustements statistiques 1",
     "page": 1,
     "kind": "table_cell",
-    "context": "Année | Population au 1 er janvier | Nombre de naissances sur l'année (a) | Nombre de décès sur l'année (b) | Solde naturel (a)-(b) | Solde migratoire | Ajustements statistiques 1 | en milliers Évolution de la population 2 (en %) — Ajustements statistiques 1"
+    "context": "Ajustements statistiques 1 — Ajustements statistiques 1"
   },
   {
     "anchorId": "anchor_cbbb15507cc2878d5e3d3998b38e419282460ee465980fdad05988e97c33ccdd",
     "text": "en milliers Évolution de la population 2 (en %)",
     "page": 1,
     "kind": "table_cell",
-    "context": "Année | Population au 1 er janvier | Nombre de naissances sur l'année (a) | Nombre de décès sur l'année (b) | Solde naturel (a)-(b) | Solde migratoire | Ajustements statistiques 1 | en milliers Évolution de la population 2 (en %) — en milliers Évolution de la population 2 (en %)"
+    "context": "en milliers Évolution de la population 2 (en %) — en milliers Évolution de la population 2 (en %)"
   },
   {
     "anchorId": "anchor_e153ccf4ce4070003b672618b2a11d7e56802b6d52aa0050ce2ab42b23ecafab",
@@ -686,56 +686,56 @@
     "text": "Taux de fécondité (en nombre de naissances pour 100 femmes de chaque groupe d'âges 1 )",
     "page": 2,
     "kind": "table_cell",
-    "context": "Taux de fécondité (en nombre de naissances pour 100 femmes de chaque groupe d'âges 1 ) | Âge conjoncturel moyen à l'accouchement — Taux de fécondité (en nombre de naissances pour 100 femmes de chaque groupe d'âges 1 )"
+    "context": "Taux de fécondité (en nombre de naissances pour 100 femmes de chaque groupe d'âges 1 ) — Taux de fécondité (en nombre de naissances pour 100 femmes de chaque groupe d'âges 1 )"
   },
   {
     "anchorId": "anchor_a7322f4053436ca2990b1ab9dce5fd3d6ca79f369bf0c35e82b881789f733098",
     "text": "Âge conjoncturel moyen à l'accouchement",
     "page": 2,
     "kind": "table_cell",
-    "context": "Taux de fécondité (en nombre de naissances pour 100 femmes de chaque groupe d'âges 1 ) | Âge conjoncturel moyen à l'accouchement — Âge conjoncturel moyen à l'accouchement"
+    "context": "Âge conjoncturel moyen à l'accouchement — Âge conjoncturel moyen à l'accouchement"
   },
   {
     "anchorId": "anchor_1534f22d6242ec62abdf1f825861a8cfbb53f50389e2c83f82043395684c6560",
     "text": "15-24 ans",
     "page": 2,
     "kind": "table_cell",
-    "context": "15-24 ans | 25-29 ans | 30-34 ans | 35-39 ans | 40-50 ans | (en années) — 15-24 ans"
+    "context": "15-24 ans — 15-24 ans"
   },
   {
     "anchorId": "anchor_13596b7660afcc93efbd1cb1131be7cd11e83bc5e0884450292214e41ba070f7",
     "text": "25-29 ans",
     "page": 2,
     "kind": "table_cell",
-    "context": "15-24 ans | 25-29 ans | 30-34 ans | 35-39 ans | 40-50 ans | (en années) — 25-29 ans"
+    "context": "25-29 ans — 25-29 ans"
   },
   {
     "anchorId": "anchor_1530b9a07997e57d61965a604f6b66fea17326aa33cf6e62d010eef71844929c",
     "text": "30-34 ans",
     "page": 2,
     "kind": "table_cell",
-    "context": "15-24 ans | 25-29 ans | 30-34 ans | 35-39 ans | 40-50 ans | (en années) — 30-34 ans"
+    "context": "30-34 ans — 30-34 ans"
   },
   {
     "anchorId": "anchor_5da75433a7e4243429ffa7544cd8abbff96e56562f1f85fee1c8d326667a137b",
     "text": "35-39 ans",
     "page": 2,
     "kind": "table_cell",
-    "context": "15-24 ans | 25-29 ans | 30-34 ans | 35-39 ans | 40-50 ans | (en années) — 35-39 ans"
+    "context": "35-39 ans — 35-39 ans"
   },
   {
     "anchorId": "anchor_b641638063feda290b2e5ae45016abdf4443804ead88f19a416adad3543b0a39",
     "text": "40-50 ans",
     "page": 2,
     "kind": "table_cell",
-    "context": "15-24 ans | 25-29 ans | 30-34 ans | 35-39 ans | 40-50 ans | (en années) — 40-50 ans"
+    "context": "40-50 ans — 40-50 ans"
   },
   {
     "anchorId": "anchor_c067f89ef97786339a526966102dbb71fea1d19fd10373562ba832d100e9a0ad",
     "text": "(en années)",
     "page": 2,
     "kind": "table_cell",
-    "context": "15-24 ans | 25-29 ans | 30-34 ans | 35-39 ans | 40-50 ans | (en années) — (en années)"
+    "context": "(en années) — (en années)"
   },
   {
     "anchorId": "anchor_5c2517a8046bffa4b24488db42edc6960ce6927d0fec17c8947962570ec26d9a",
@@ -1237,84 +1237,84 @@
     "text": "Année",
     "page": 3,
     "kind": "table_cell",
-    "context": "Année | Espérance de vie des femmes (en années) | Espérance de vie des hommes (en années) | Taux de mortalité infantile (en ‰) — Année"
+    "context": "Année — Année"
   },
   {
     "anchorId": "anchor_ed074690211dcad0e1418442dd325ae8e96d1e75ee049546479dfd9397a64256",
     "text": "Espérance de vie des femmes (en années)",
     "page": 3,
     "kind": "table_cell",
-    "context": "Année | Espérance de vie des femmes (en années) | Espérance de vie des hommes (en années) | Taux de mortalité infantile (en ‰) — Espérance de vie des femmes (en années)"
+    "context": "Espérance de vie des femmes (en années) — Espérance de vie des femmes (en années)"
   },
   {
     "anchorId": "anchor_6eb5ba5f41e7e387de0745a96f1e5e97425be581ece714509c961fb2c454a9f1",
     "text": "Espérance de vie des hommes (en années)",
     "page": 3,
     "kind": "table_cell",
-    "context": "Année | Espérance de vie des femmes (en années) | Espérance de vie des hommes (en années) | Taux de mortalité infantile (en ‰) — Espérance de vie des hommes (en années)"
+    "context": "Espérance de vie des hommes (en années) — Espérance de vie des hommes (en années)"
   },
   {
     "anchorId": "anchor_4f6236a746c470a456f3dc8a2bfdfe7c998334dcf4cbffa2b804fe82d9dd297f",
     "text": "Taux de mortalité infantile (en ‰)",
     "page": 3,
     "kind": "table_cell",
-    "context": "Année | Espérance de vie des femmes (en années) | Espérance de vie des hommes (en années) | Taux de mortalité infantile (en ‰) — Taux de mortalité infantile (en ‰)"
+    "context": "Taux de mortalité infantile (en ‰) — Taux de mortalité infantile (en ‰)"
   },
   {
     "anchorId": "anchor_fad77d4489f708ae5c4b0a168c76266aeed2b960e329d3348299c563b699fdc9",
     "text": "à la naissance",
     "page": 3,
     "kind": "table_cell",
-    "context": "à la naissance | 20 ans | 60 ans | 80 ans | à la naissance | 20 ans | 60 ans | 80 ans — à la naissance"
+    "context": "à la naissance — à la naissance"
   },
   {
     "anchorId": "anchor_0ff5d5d7f5f053797daca4175903b66a5edfd04d2b42b8b052a122b569322cc3",
     "text": "20 ans",
     "page": 3,
     "kind": "table_cell",
-    "context": "à la naissance | 20 ans | 60 ans | 80 ans | à la naissance | 20 ans | 60 ans | 80 ans — 20 ans"
+    "context": "20 ans — 20 ans"
   },
   {
     "anchorId": "anchor_38991feb2c463d6580fc3e1f3bb8dfbeb3f6f35d0ad473f4994d1240dd700e7e",
     "text": "60 ans",
     "page": 3,
     "kind": "table_cell",
-    "context": "à la naissance | 20 ans | 60 ans | 80 ans | à la naissance | 20 ans | 60 ans | 80 ans — 60 ans"
+    "context": "60 ans — 60 ans"
   },
   {
     "anchorId": "anchor_b33a1f3e51b301143d64dd6c0be567e4780176e8c2d7f11245fce1feec8fec22",
     "text": "80 ans",
     "page": 3,
     "kind": "table_cell",
-    "context": "à la naissance | 20 ans | 60 ans | 80 ans | à la naissance | 20 ans | 60 ans | 80 ans — 80 ans"
+    "context": "80 ans — 80 ans"
   },
   {
     "anchorId": "anchor_0231136a8f637c8c1e986c9c329eab6a9363ca7eac3fd7ef9f6f403d75666b4c",
     "text": "à la naissance",
     "page": 3,
     "kind": "table_cell",
-    "context": "à la naissance | 20 ans | 60 ans | 80 ans | à la naissance | 20 ans | 60 ans | 80 ans — à la naissance"
+    "context": "à la naissance — à la naissance"
   },
   {
     "anchorId": "anchor_948c9065e53e058b141c8998d3b68d681883ce7895279884fdac77d339f2cf1d",
     "text": "20 ans",
     "page": 3,
     "kind": "table_cell",
-    "context": "à la naissance | 20 ans | 60 ans | 80 ans | à la naissance | 20 ans | 60 ans | 80 ans — 20 ans"
+    "context": "20 ans — 20 ans"
   },
   {
     "anchorId": "anchor_ccc6492779672b54d3da16caed0380f56fe8645f44a3afcc4ca75bc7bdaa69da",
     "text": "60 ans",
     "page": 3,
     "kind": "table_cell",
-    "context": "à la naissance | 20 ans | 60 ans | 80 ans | à la naissance | 20 ans | 60 ans | 80 ans — 60 ans"
+    "context": "60 ans — 60 ans"
   },
   {
     "anchorId": "anchor_75a2ab78cffdc60c36eea3ae6799cd791ff1e6129f7d5bc702a13d9b6e0065ed",
     "text": "80 ans",
     "page": 3,
     "kind": "table_cell",
-    "context": "à la naissance | 20 ans | 60 ans | 80 ans | à la naissance | 20 ans | 60 ans | 80 ans — 80 ans"
+    "context": "80 ans — 80 ans"
   },
   {
     "anchorId": "anchor_a41d131eb38db75a7b54ceed73604d0bd7948eae76a9b6a43125776a259a923d",

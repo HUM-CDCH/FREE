@@ -102,7 +102,7 @@
     "text": "województwa",
     "page": 3,
     "kind": "table_cell",
-    "context": "województwa | 16 — województwa"
+    "context": "województwa — województwa"
   },
   {
     "anchorId": "anchor_b8ad8d296d5964f97c9166dc432fb17b2630f41078c3f5775beac61e2bf3b19f",
@@ -116,7 +116,7 @@
     "text": "powiaty",
     "page": 3,
     "kind": "table_cell",
-    "context": "powiaty | 314 — powiaty"
+    "context": "powiaty — powiaty"
   },
   {
     "anchorId": "anchor_174de4ac04460c22d90587fafa36b873abedb22a2101b10a7bda92a1481ec10d",
@@ -130,7 +130,7 @@
     "text": "miasta na prawach powiatu",
     "page": 3,
     "kind": "table_cell",
-    "context": "miasta na prawach powiatu | 66 — miasta na prawach powiatu"
+    "context": "miasta na prawach powiatu — miasta na prawach powiatu"
   },
   {
     "anchorId": "anchor_18683467f5ca7e18f9966ef3a4b2257185e4512271390355c9adee927201bb54",
@@ -144,7 +144,7 @@
     "text": "gminy",
     "page": 3,
     "kind": "table_cell",
-    "context": "gminy | 2 477 a — gminy"
+    "context": "gminy — gminy"
   },
   {
     "anchorId": "anchor_322c36307c62e59cbafc9bd14e1b58ca70c70198edfd3df26805917b40919abd",
@@ -158,7 +158,7 @@
     "text": "Powierzchnia ogólna kraju b w tys. ha",
     "page": 3,
     "kind": "table_cell",
-    "context": "Powierzchnia ogólna kraju b w tys. ha | 31 393 — Powierzchnia ogólna kraju b w tys. ha"
+    "context": "Powierzchnia ogólna kraju b w tys. ha — Powierzchnia ogólna kraju b w tys. ha"
   },
   {
     "anchorId": "anchor_adeba0509202b6f267c070899fedbb5bab8108509c2c63a7289be7f6adeaa31a",
@@ -172,7 +172,7 @@
     "text": "Ludność w tys.",
     "page": 3,
     "kind": "table_cell",
-    "context": "Ludność w tys. | 37 489 — Ludność w tys."
+    "context": "Ludność w tys. — Ludność w tys."
   },
   {
     "anchorId": "anchor_030a75afb9874212dd3896fa3cddf15db7b30cdcb443baf85f709e11e133f7ec",
@@ -186,7 +186,7 @@
     "text": "Gęstość zaludnienia na 1 km 2",
     "page": 3,
     "kind": "table_cell",
-    "context": "Gęstość zaludnienia na 1 km 2 | 119 — Gęstość zaludnienia na 1 km 2"
+    "context": "Gęstość zaludnienia na 1 km 2 — Gęstość zaludnienia na 1 km 2"
   },
   {
     "anchorId": "anchor_737cf5da2f41903b9ea3bd3638f35c10ef9a5f5ae38afc0612d373465a6ae351",
@@ -200,7 +200,7 @@
     "text": "Stolica",
     "page": 3,
     "kind": "table_cell",
-    "context": "Stolica | Warszawa — Stolica"
+    "context": "Stolica — Stolica"
   },
   {
     "anchorId": "anchor_011e99bd3ac6b80e75a40d08d27f0fcf11b808d2f79daf4c8de852a1c37c8a88",
@@ -214,7 +214,7 @@
     "text": "Ludność stolicy w tys.",
     "page": 3,
     "kind": "table_cell",
-    "context": "Ludność stolicy w tys. | 1 864 — Ludność stolicy w tys."
+    "context": "Ludność stolicy w tys. — Ludność stolicy w tys."
   },
   {
     "anchorId": "anchor_f249bff7c1c2e04897477faab282aef4cb4a1850d0025edb2233919f3458ef41",
@@ -228,7 +228,7 @@
     "text": "Najwyżej położony punkt - w m n.p.m.",
     "page": 3,
     "kind": "table_cell",
-    "context": "Najwyżej położony punkt - w m n.p.m. | Rysy - 2 499 — Najwyżej położony punkt - w m n.p.m."
+    "context": "Najwyżej położony punkt - w m n.p.m. — Najwyżej położony punkt - w m n.p.m."
   },
   {
     "anchorId": "anchor_04686d7168b7ed60d4c475fc6de3c647a1685a5720c7137c3886bd042adbb2cd",
@@ -242,7 +242,7 @@
     "text": "Najniżej położony punkt - w m p.p.m.",
     "page": 3,
     "kind": "table_cell",
-    "context": "Najniżej położony punkt - w m p.p.m. | Marzęcino - 2,2 — Najniżej położony punkt - w m p.p.m."
+    "context": "Najniżej położony punkt - w m p.p.m. — Najniżej położony punkt - w m p.p.m."
   },
   {
     "anchorId": "anchor_5a6eae76d0c13c9b7e3e32a45296f1b468a41a33770f82ccf4fb182d954ed2f9",
@@ -256,7 +256,7 @@
     "text": "Najdłuższa rzeka - długość w km",
     "page": 3,
     "kind": "table_cell",
-    "context": "Najdłuższa rzeka - długość w km | Wisła - 1 022 — Najdłuższa rzeka - długość w km"
+    "context": "Najdłuższa rzeka - długość w km — Najdłuższa rzeka - długość w km"
   },
   {
     "anchorId": "anchor_8f4b5a6a9f9ef1554416ac5f4986283f9f7de3425bbc8204de3f1257cc925987",
@@ -270,7 +270,7 @@
     "text": "Największe jezioro - powierzchnia w km 2",
     "page": 3,
     "kind": "table_cell",
-    "context": "Największe jezioro - powierzchnia w km 2 | Śniardwy - 113,4 — Największe jezioro - powierzchnia w km 2"
+    "context": "Największe jezioro - powierzchnia w km 2 — Największe jezioro - powierzchnia w km 2"
   },
   {
     "anchorId": "anchor_cc77fac2e604039fe03167cdb6f08373bbd2d19ea77894764c96da3f2a04c646",
@@ -284,7 +284,7 @@
     "text": "Najgłębsze jezioro - głębokość maksymalna w m",
     "page": 3,
     "kind": "table_cell",
-    "context": "Najgłębsze jezioro - głębokość maksymalna w m | Hańcza - 108,5 — Najgłębsze jezioro - głębokość maksymalna w m"
+    "context": "Najgłębsze jezioro - głębokość maksymalna w m — Najgłębsze jezioro - głębokość maksymalna w m"
   },
   {
     "anchorId": "anchor_9f2f735f00d21ea27b4bd16c63e659be967a32970be361ec48d639d42ae80d39",
@@ -316,42 +316,42 @@
     "text": "1990",
     "page": 4,
     "kind": "table_cell",
-    "context": "1990 | 2000 | 2010 | 2020 | 2024 — 1990"
+    "context": "1990 — 1990"
   },
   {
     "anchorId": "anchor_430b48ac4df03c9cfae0728d7df716babd546676757d58f9b83892de72cc762e",
     "text": "2000",
     "page": 4,
     "kind": "table_cell",
-    "context": "1990 | 2000 | 2010 | 2020 | 2024 — 2000"
+    "context": "2000 — 2000"
   },
   {
     "anchorId": "anchor_f436e2fc9bec09d7b70a67370c3c76b392bbe85defe69b9c8bd3130082223a41",
     "text": "2010",
     "page": 4,
     "kind": "table_cell",
-    "context": "1990 | 2000 | 2010 | 2020 | 2024 — 2010"
+    "context": "2010 — 2010"
   },
   {
     "anchorId": "anchor_45c3a3a4f3ea3b931782e8b7425480925386c4b91dcc80b97e775feeffe9d29c",
     "text": "2020",
     "page": 4,
     "kind": "table_cell",
-    "context": "1990 | 2000 | 2010 | 2020 | 2024 — 2020"
+    "context": "2020 — 2020"
   },
   {
     "anchorId": "anchor_fbca840a503131c9f694609145b4446bf68157d3e246de034cad834618eda660",
     "text": "2024",
     "page": 4,
     "kind": "table_cell",
-    "context": "1990 | 2000 | 2010 | 2020 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_0aaa3f5c4460264ebba6afadf630291c58441ddd3dd9e4bcc27dd845ed1ad765",
     "text": "O g ó ł e m w tys.",
     "page": 4,
     "kind": "table_cell",
-    "context": "O g ó ł e m w tys. | 38 073 | 38 254 | 38 530 | 38 089 | 37 489 — O g ó ł e m w tys."
+    "context": "O g ó ł e m w tys. — O g ó ł e m w tys."
   },
   {
     "anchorId": "anchor_6a2d1ccfa93310156750e670b197534700ad6cf6dd2d9ff6aa8dc41cec2f4243",
@@ -393,7 +393,7 @@
     "text": "w tym kobiety",
     "page": 4,
     "kind": "table_cell",
-    "context": "w tym kobiety | 19 521 | 19 717 | 19 877 | 19 671 | 19 382 — w tym kobiety"
+    "context": "w tym kobiety — w tym kobiety"
   },
   {
     "anchorId": "anchor_d6cfec0366abeb5d128bb1a3709929f1e48c9ff461380eb9eb0f8256c3b507ed",
@@ -435,7 +435,7 @@
     "text": "Ludność miejska w %",
     "page": 4,
     "kind": "table_cell",
-    "context": "Ludność miejska w % | 62 | 62 | 61 | 60 | 59 — Ludność miejska w %"
+    "context": "Ludność miejska w % — Ludność miejska w %"
   },
   {
     "anchorId": "anchor_c2bf09d58e68f4a901637437e707321092a59879556956f7240d063c1bb1dc59",
@@ -477,7 +477,7 @@
     "text": "Kobiety na 100 mężczyzn",
     "page": 4,
     "kind": "table_cell",
-    "context": "Kobiety na 100 mężczyzn | 105 | 106 | 107 | 107 | 107 — Kobiety na 100 mężczyzn"
+    "context": "Kobiety na 100 mężczyzn — Kobiety na 100 mężczyzn"
   },
   {
     "anchorId": "anchor_dc3dd080e58e0f51fce60e1d0757e19ee170eac769baa1dd1179ca718d12ea78",
@@ -519,7 +519,7 @@
     "text": "miasta",
     "page": 4,
     "kind": "table_cell",
-    "context": "miasta | 108 | 110 | 111 | 111 | 112 — miasta"
+    "context": "miasta — miasta"
   },
   {
     "anchorId": "anchor_989b258115a16be3c4977baa720099b3da575033e7f7a77c8204a60e5f38eee3",
@@ -561,7 +561,7 @@
     "text": "wieś",
     "page": 4,
     "kind": "table_cell",
-    "context": "wieś | 100 | 101 | 101 | 100 | 101 — wieś"
+    "context": "wieś — wieś"
   },
   {
     "anchorId": "anchor_549b3bd15d583d74dd9ca979b2e066884673b10a98741b769426d6089bc8a2ab",
@@ -603,7 +603,7 @@
     "text": "Mediana wieku (wiek środkowy)",
     "page": 4,
     "kind": "table_cell",
-    "context": "Mediana wieku (wiek środkowy) | 32,3 | 35,4 | 38,0 | 41,6 | 43,3 — Mediana wieku (wiek środkowy)"
+    "context": "Mediana wieku (wiek środkowy) — Mediana wieku (wiek środkowy)"
   },
   {
     "anchorId": "anchor_95a00262951c1cf570237c84eecebc758b514264a6a0a6ae61c24d723e3e9b3f",
@@ -645,7 +645,7 @@
     "text": "mężczyźni",
     "page": 4,
     "kind": "table_cell",
-    "context": "mężczyźni | 30,9 | 33,4 | 36,3 | 40,0 | 41,7 — mężczyźni"
+    "context": "mężczyźni — mężczyźni"
   },
   {
     "anchorId": "anchor_ebdd4db7761813fd2aa64e6b2b01a164b9f94ce8bebba4cca1d19b52cbbb0dca",
@@ -687,7 +687,7 @@
     "text": "kobiety",
     "page": 4,
     "kind": "table_cell",
-    "context": "kobiety | 33,7 | 37,4 | 39,9 | 43,2 | 44,9 — kobiety"
+    "context": "kobiety — kobiety"
   },
   {
     "anchorId": "anchor_f66ed95ce9c69461b9d9f51efbc35cc34f5996d3976b150a9d04309b2858d25c",
@@ -735,35 +735,35 @@
     "text": "1990",
     "page": 5,
     "kind": "table_cell",
-    "context": "1990 | 2000 | 2010 | 2020 | 2024 — 1990"
+    "context": "1990 — 1990"
   },
   {
     "anchorId": "anchor_4ae4e2774f9b55fef7e6062cb124eec4de211d5b35bf949c1b3ebc134741b813",
     "text": "2000",
     "page": 5,
     "kind": "table_cell",
-    "context": "1990 | 2000 | 2010 | 2020 | 2024 — 2000"
+    "context": "2000 — 2000"
   },
   {
     "anchorId": "anchor_878483f960dc1878ffc06082e71c0064444d1c6e767dee85ed0d409c498539d4",
     "text": "2010",
     "page": 5,
     "kind": "table_cell",
-    "context": "1990 | 2000 | 2010 | 2020 | 2024 — 2010"
+    "context": "2010 — 2010"
   },
   {
     "anchorId": "anchor_35901ac3b33fb6153ee43b68490ba2a11824c77cb67265e2e0b903bc81d6dce3",
     "text": "2020",
     "page": 5,
     "kind": "table_cell",
-    "context": "1990 | 2000 | 2010 | 2020 | 2024 — 2020"
+    "context": "2020 — 2020"
   },
   {
     "anchorId": "anchor_5979d7b69b0c4c3784b02602656830c8271c1a51d84312e56e3afbae48c8b135",
     "text": "2024",
     "page": 5,
     "kind": "table_cell",
-    "context": "1990 | 2000 | 2010 | 2020 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_0f37cab030794a61b8a4af517e8567f919fc84d0aeb9df080fe49d68ebaba577",
@@ -777,7 +777,7 @@
     "text": "urodzenia żywe",
     "page": 5,
     "kind": "table_cell",
-    "context": "urodzenia żywe | 14,3 | 9,9 | 10,7 | 9,3 | 6,7 — urodzenia żywe"
+    "context": "urodzenia żywe — urodzenia żywe"
   },
   {
     "anchorId": "anchor_c3a1f8c798c638dd095ea249e030176f431f12ddbbc2632fb2c43de817c8128d",
@@ -819,7 +819,7 @@
     "text": "zgony",
     "page": 5,
     "kind": "table_cell",
-    "context": "zgony | 10,2 | 9,6 | 9,8 | 12,5 | 10,9 — zgony"
+    "context": "zgony — zgony"
   },
   {
     "anchorId": "anchor_38b66a09195af6c63fe2cb7f5f1754ee137d439a04c71199321996b999334b29",
@@ -861,7 +861,7 @@
     "text": "przyrost naturalny",
     "page": 5,
     "kind": "table_cell",
-    "context": "przyrost naturalny | 4,1 | 0,3 | 0,9 | -3,2 | -4,2 — przyrost naturalny"
+    "context": "przyrost naturalny — przyrost naturalny"
   },
   {
     "anchorId": "anchor_4730b67f3eae1f5d0da7cfe83c4d92742e293de8c85ca8a3005b8daad42bbff1",
@@ -903,7 +903,7 @@
     "text": "małżeństwa zawarte",
     "page": 5,
     "kind": "table_cell",
-    "context": "małżeństwa zawarte | 6,7 | 5,5 | 5,9 | 3,8 | 3,6 — małżeństwa zawarte"
+    "context": "małżeństwa zawarte — małżeństwa zawarte"
   },
   {
     "anchorId": "anchor_50b88abd5b1a59bcdbf188569848575591920cedc911e27ede01dca9c46530b8",
@@ -945,7 +945,7 @@
     "text": "rozwody",
     "page": 5,
     "kind": "table_cell",
-    "context": "rozwody | 1,1 | 1,1 | 1,6 | 1,3 | 1,5 — rozwody"
+    "context": "rozwody — rozwody"
   },
   {
     "anchorId": "anchor_35fb68a1b818cd9e2a283e89bdc7fdc898b7bebaa25e545ec6f69153f8ac7d9c",
@@ -987,7 +987,7 @@
     "text": "Separacje w tys.",
     "page": 5,
     "kind": "table_cell",
-    "context": "Separacje w tys. | . | 1,3 | 2,8 | 0,7 | 0,5 — Separacje w tys."
+    "context": "Separacje w tys. — Separacje w tys."
   },
   {
     "anchorId": "anchor_e0ed24598d90d2a76963628a3d6565ebebe52c3ade8019c86fcbfade8f5e7e9b",
@@ -1029,7 +1029,7 @@
     "text": "Zgony niemowląt na 1 000 urodzeń żywych",
     "page": 5,
     "kind": "table_cell",
-    "context": "Zgony niemowląt na 1 000 urodzeń żywych | 19,3 | 8,1 | 5,0 | 3,6 | 3,6 — Zgony niemowląt na 1 000 urodzeń żywych"
+    "context": "Zgony niemowląt na 1 000 urodzeń żywych — Zgony niemowląt na 1 000 urodzeń żywych"
   },
   {
     "anchorId": "anchor_7c16b21544e3abaaec12c6b7b6fbeea92a3710e1ff82f488e3baefbafa1f0c4b",
@@ -1089,21 +1089,21 @@
     "text": "2015/16",
     "page": 6,
     "kind": "table_cell",
-    "context": "2015/16 | 2022/23 | 2023/24 — 2015/16"
+    "context": "2015/16 — 2015/16"
   },
   {
     "anchorId": "anchor_5cbdb1f4e8fa0af55da3bad73abc760fc3989a3477c5afb4548f91bdd806d71e",
     "text": "2022/23",
     "page": 6,
     "kind": "table_cell",
-    "context": "2015/16 | 2022/23 | 2023/24 — 2022/23"
+    "context": "2022/23 — 2022/23"
   },
   {
     "anchorId": "anchor_6ae04d6b9af8b037f297631e29e26c452c51b7ade173ea8497734846029d6ba9",
     "text": "2023/24",
     "page": 6,
     "kind": "table_cell",
-    "context": "2015/16 | 2022/23 | 2023/24 — 2023/24"
+    "context": "2023/24 — 2023/24"
   },
   {
     "anchorId": "anchor_fe42baf431c1456d85e6463eedc25a6fb23faf158f3e6b10dc044748951a4d77",
@@ -1117,7 +1117,7 @@
     "text": "1 000 dzieci w wieku 3-6 lat",
     "page": 6,
     "kind": "table_cell",
-    "context": "1 000 dzieci w wieku 3-6 lat | 698 | 973 | 986 — 1 000 dzieci w wieku 3-6 lat"
+    "context": "1 000 dzieci w wieku 3-6 lat — 1 000 dzieci w wieku 3-6 lat"
   },
   {
     "anchorId": "anchor_8add4082559f2a940830b7c747157d58627668eb9a7e85732d93c1f598ddc4ce",
@@ -1145,7 +1145,7 @@
     "text": "1 przedszkole",
     "page": 6,
     "kind": "table_cell",
-    "context": "1 przedszkole | 101 | 112 | 109 — 1 przedszkole"
+    "context": "1 przedszkole — 1 przedszkole"
   },
   {
     "anchorId": "anchor_a43238bace6f77763d9784ce965d2504a15c01d5f3d5d4a835c758d7cd89e39f",
@@ -1185,21 +1185,21 @@
     "text": "2015/16",
     "page": 6,
     "kind": "table_cell",
-    "context": "2015/16 | 2022/23 | 2023/24 — 2015/16"
+    "context": "2015/16 — 2015/16"
   },
   {
     "anchorId": "anchor_231ae2d61e5e08f6dbb8efc2c55ca89cbda5e4634f8c9f5ea7bc3aed66c145fd",
     "text": "2022/23",
     "page": 6,
     "kind": "table_cell",
-    "context": "2015/16 | 2022/23 | 2023/24 — 2022/23"
+    "context": "2022/23 — 2022/23"
   },
   {
     "anchorId": "anchor_ba949913f7c206d58e5ebae9746f2d168b87108cb536fa293bb450d3140d65b8",
     "text": "2023/24",
     "page": 6,
     "kind": "table_cell",
-    "context": "2015/16 | 2022/23 | 2023/24 — 2023/24"
+    "context": "2023/24 — 2023/24"
   },
   {
     "anchorId": "anchor_0d8bd5976437e8c96b24b23a7eca4d5d426ac97c5237cdbab0cebf5e6a9dd299",
@@ -1220,7 +1220,7 @@
     "text": "7-14 lat b",
     "page": 6,
     "kind": "table_cell",
-    "context": "7-14 lat b | 90,6 | 100,3 | 100,6 — 7-14 lat b"
+    "context": "7-14 lat b — 7-14 lat b"
   },
   {
     "anchorId": "anchor_f930978113d46809e6f7c668d68820d24d99a795f04382ebd22fed658836267d",
@@ -1248,7 +1248,7 @@
     "text": "15-18 c",
     "page": 6,
     "kind": "table_cell",
-    "context": "15-18 c | 94,0 | 95,7 | 96,0 — 15-18 c"
+    "context": "15-18 c — 15-18 c"
   },
   {
     "anchorId": "anchor_4ff7d681465332b4635caa0c2172de3323e8eea1141ceaa384328fe2000f3957",
@@ -1276,7 +1276,7 @@
     "text": "19-24",
     "page": 6,
     "kind": "table_cell",
-    "context": "19-24 | 52,9 | 51,9 | 52,9 — 19-24"
+    "context": "19-24 — 19-24"
   },
   {
     "anchorId": "anchor_5d4f157c61699d22e6d843c52562ffd631e7e36aa48ae42d89565831fd137468",
@@ -1304,7 +1304,7 @@
     "text": "25-29",
     "page": 6,
     "kind": "table_cell",
-    "context": "25-29 | 7,9 | 8,0 | 8,3 — 25-29"
+    "context": "25-29 — 25-29"
   },
   {
     "anchorId": "anchor_fb9c5017d2b6796f9f202c58fbe70cdf7fbcb9df7ed275594f1dc220510fe236",
@@ -1332,7 +1332,7 @@
     "text": "30 lat i więcej",
     "page": 6,
     "kind": "table_cell",
-    "context": "30 lat i więcej | 0,8 | 0,9 | 1,0 — 30 lat i więcej"
+    "context": "30 lat i więcej — 30 lat i więcej"
   },
   {
     "anchorId": "anchor_903783f9b18e5281c433a30cfc08d8d44dcc059428c0d0225ab468cb85d10ae3",
@@ -1366,28 +1366,28 @@
     "text": "2015/16",
     "page": 7,
     "kind": "table_cell",
-    "context": "2015/16 | 2022/23 | 2023/24 — 2015/16"
+    "context": "2015/16 — 2015/16"
   },
   {
     "anchorId": "anchor_e2ef0f8f1bb97d7e7f3f8b9dd10f8f059913a0abe875e961a787560226d08ff3",
     "text": "2022/23",
     "page": 7,
     "kind": "table_cell",
-    "context": "2015/16 | 2022/23 | 2023/24 — 2022/23"
+    "context": "2022/23 — 2022/23"
   },
   {
     "anchorId": "anchor_ff1f4508602f31976fb2ba9425f0df04a75dbe0d013b10bb97e42a9077a8817d",
     "text": "2023/24",
     "page": 7,
     "kind": "table_cell",
-    "context": "2015/16 | 2022/23 | 2023/24 — 2023/24"
+    "context": "2023/24 — 2023/24"
   },
   {
     "anchorId": "anchor_085959072aaa7c111beddb3ee928347d766c927da1d218868c360a760bbd6d2c",
     "text": "O g ó ł e m w tys.",
     "page": 7,
     "kind": "table_cell",
-    "context": "O g ó ł e m w tys. | 1 405,1 | 1 223,6 | 1 245,2 — O g ó ł e m w tys."
+    "context": "O g ó ł e m w tys. — O g ó ł e m w tys."
   },
   {
     "anchorId": "anchor_05b4e1a565a92d7ee9db4cf9385a946efdc008c10bc48b11f8cd267d9b8fde90",
@@ -1415,7 +1415,7 @@
     "text": "w tym cudzoziemcy",
     "page": 7,
     "kind": "table_cell",
-    "context": "w tym cudzoziemcy | 57,1 | 105,4 | 107,1 — w tym cudzoziemcy"
+    "context": "w tym cudzoziemcy — w tym cudzoziemcy"
   },
   {
     "anchorId": "anchor_ca0b34a3ea6f9c441eb1753653c6036fb3bd103cfce3421bccc117879bd5ebd2",
@@ -1443,7 +1443,7 @@
     "text": "Na 10 tys. ludności a :",
     "page": 7,
     "kind": "table_cell",
-    "context": "Na 10 tys. ludności a : | 351 | 296 | 302 — Na 10 tys. ludności a :"
+    "context": "Na 10 tys. ludności a : — Na 10 tys. ludności a :"
   },
   {
     "anchorId": "anchor_70eb78fe50712e59d08237c97937d3fed11dd5099dc2a29836dc6456e240a93c",
@@ -1471,7 +1471,7 @@
     "text": "kobiety",
     "page": 7,
     "kind": "table_cell",
-    "context": "kobiety | 394 | 340 | 348 — kobiety"
+    "context": "kobiety — kobiety"
   },
   {
     "anchorId": "anchor_9a75c31177d755ed9f2035d04d46ae6008d6a0493f975c4aac010ebb9954b6fe",
@@ -1499,7 +1499,7 @@
     "text": "mężczyźni",
     "page": 7,
     "kind": "table_cell",
-    "context": "mężczyźni | 304 | 249 | 254 — mężczyźni"
+    "context": "mężczyźni — mężczyźni"
   },
   {
     "anchorId": "anchor_f889a7bcaecd381c9b809950d4286b0cc0670a6f3b160fdbeec71c2984dd1c25",
@@ -1551,21 +1551,21 @@
     "text": "2021",
     "page": 8,
     "kind": "table_cell",
-    "context": "2021 | 2023 | 2024 — 2021"
+    "context": "2021 — 2021"
   },
   {
     "anchorId": "anchor_b42f8834d1ec009d32bd3a01b49f38f87e1a01a5a13f6a1ea4b3fa889fbc640e",
     "text": "2023",
     "page": 8,
     "kind": "table_cell",
-    "context": "2021 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_0b62736f46197407ed5b0a87319c2a785bc7c02b980077834654fcd0cc69ad69",
     "text": "2024",
     "page": 8,
     "kind": "table_cell",
-    "context": "2021 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_6544ed8c296cc5581413a8fa61a698b5fa863cb5215d06eb88ec8868a9fe6bff",
@@ -1579,7 +1579,7 @@
     "text": "Aktywni zawodowo",
     "page": 8,
     "kind": "table_cell",
-    "context": "Aktywni zawodowo | 17 760 | 17 809 | 17 743 — Aktywni zawodowo"
+    "context": "Aktywni zawodowo — Aktywni zawodowo"
   },
   {
     "anchorId": "anchor_cef5bfde5fc90df7b3ae8849a7afbe00b17b3786376c2e0573c69d3e6489bbdd",
@@ -1607,7 +1607,7 @@
     "text": "w tym kobiety",
     "page": 8,
     "kind": "table_cell",
-    "context": "w tym kobiety | 8 036 | 8 179 | 8 184 — w tym kobiety"
+    "context": "w tym kobiety — w tym kobiety"
   },
   {
     "anchorId": "anchor_8bc86b7016d717ab24b868d066400d710ce80c9e099996b6522f18d5be5ea78d",
@@ -1635,7 +1635,7 @@
     "text": "w tym w wieku produkcyjnym a",
     "page": 8,
     "kind": "table_cell",
-    "context": "w tym w wieku produkcyjnym a | 17 006 | 17 034 | 16 954 — w tym w wieku produkcyjnym a"
+    "context": "w tym w wieku produkcyjnym a — w tym w wieku produkcyjnym a"
   },
   {
     "anchorId": "anchor_3591c0a35531e230a6c36841b547f36bd249aa342a8d157d25a80f73cdf135a9",
@@ -1663,7 +1663,7 @@
     "text": "pracujący",
     "page": 8,
     "kind": "table_cell",
-    "context": "pracujący | 17 161 | 17 307 | 17 231 — pracujący"
+    "context": "pracujący — pracujący"
   },
   {
     "anchorId": "anchor_b9291d9c0877becc1d00cc079115a0d032fce879370b26d2af457ceb08f77087",
@@ -1691,7 +1691,7 @@
     "text": "w tym kobiety",
     "page": 8,
     "kind": "table_cell",
-    "context": "w tym kobiety | 7 764 | 7 945 | 7 931 — w tym kobiety"
+    "context": "w tym kobiety — w tym kobiety"
   },
   {
     "anchorId": "anchor_acef9e4897d69faa856c4d4735faa24fb7a26b82334ef17da59e3dbc84cdfdf6",
@@ -1719,7 +1719,7 @@
     "text": "bezrobotni b",
     "page": 8,
     "kind": "table_cell",
-    "context": "bezrobotni b | 599 | 502 | 512 — bezrobotni b"
+    "context": "bezrobotni b — bezrobotni b"
   },
   {
     "anchorId": "anchor_84eb55e4d093871f4cc4500789f1725304a4f6308950802f09a74cf01d161db0",
@@ -1747,7 +1747,7 @@
     "text": "w tym kobiety",
     "page": 8,
     "kind": "table_cell",
-    "context": "w tym kobiety | 272 | 234 | 253 — w tym kobiety"
+    "context": "w tym kobiety — w tym kobiety"
   },
   {
     "anchorId": "anchor_c8b08947b4c5d64e9ba634113e0fd4ca887cae2c7c3d09d819e4d12b747ddb65",
@@ -1775,7 +1775,7 @@
     "text": "Bierni zawodowo",
     "page": 8,
     "kind": "table_cell",
-    "context": "Bierni zawodowo | 12 772 | 12 550 | 12 607 — Bierni zawodowo"
+    "context": "Bierni zawodowo — Bierni zawodowo"
   },
   {
     "anchorId": "anchor_405a1ffbda27ef123b838c02b305c3a1c478ddcec77e3f3400b6f641c9d5a144",
@@ -1803,7 +1803,7 @@
     "text": "w tym kobiety",
     "page": 8,
     "kind": "table_cell",
-    "context": "w tym kobiety | 7 846 | 7 620 | 7 608 — w tym kobiety"
+    "context": "w tym kobiety — w tym kobiety"
   },
   {
     "anchorId": "anchor_bd7073de84f6f95596f7ef9a192030a960edffb063c4dd322dcb45b1adb3063a",
@@ -1873,21 +1873,21 @@
     "text": "Współczynnik aktywności zawodowej",
     "page": 8,
     "kind": "table_cell",
-    "context": "Współczynnik aktywności zawodowej | Wskaźnik zatrudnienia | Stopa bezrobocia — Współczynnik aktywności zawodowej"
+    "context": "Współczynnik aktywności zawodowej — Współczynnik aktywności zawodowej"
   },
   {
     "anchorId": "anchor_1d8ef72af88df03929da9b40999ae88049886e2c944c35a0b689ed22589a2ad5",
     "text": "Wskaźnik zatrudnienia",
     "page": 8,
     "kind": "table_cell",
-    "context": "Współczynnik aktywności zawodowej | Wskaźnik zatrudnienia | Stopa bezrobocia — Wskaźnik zatrudnienia"
+    "context": "Wskaźnik zatrudnienia — Wskaźnik zatrudnienia"
   },
   {
     "anchorId": "anchor_58ce716687b317d7e2ef591a8a20b91745cf1fca1e89a87a9badee97c308fbcf",
     "text": "Stopa bezrobocia",
     "page": 8,
     "kind": "table_cell",
-    "context": "Współczynnik aktywności zawodowej | Wskaźnik zatrudnienia | Stopa bezrobocia — Stopa bezrobocia"
+    "context": "Stopa bezrobocia — Stopa bezrobocia"
   },
   {
     "anchorId": "anchor_708ca9440b0e9d897b9b9bbaddc34ebf506419bd4f07fd2e316b4b607bbac368",
@@ -1901,7 +1901,7 @@
     "text": "O g ó ł e m",
     "page": 8,
     "kind": "table_cell",
-    "context": "O g ó ł e m | 58,5 | 56,8 | 2,9 — O g ó ł e m"
+    "context": "O g ó ł e m — O g ó ł e m"
   },
   {
     "anchorId": "anchor_823b33fd6011bb4ee6cf37910ec383947fed5f05b1562102145f3b8d8dcbf197",
@@ -1929,7 +1929,7 @@
     "text": "w tym kobiety",
     "page": 8,
     "kind": "table_cell",
-    "context": "w tym kobiety | 51,8 | 50,2 | 3,1 — w tym kobiety"
+    "context": "w tym kobiety — w tym kobiety"
   },
   {
     "anchorId": "anchor_114a4119b3ac271dcec13bef6c60016f205c65f6fdee8ee22e2f42dc0798029d",
@@ -1957,7 +1957,7 @@
     "text": "w tym w wieku produkcyjnym a",
     "page": 8,
     "kind": "table_cell",
-    "context": "w tym w wieku produkcyjnym a | 81,5 | 79,1 | 3,0 — w tym w wieku produkcyjnym a"
+    "context": "w tym w wieku produkcyjnym a — w tym w wieku produkcyjnym a"
   },
   {
     "anchorId": "anchor_d5f7fd6eb03a0789de7bfee6633e0bb57cc58c7286c9adf32cc84751ae682107",
@@ -1992,7 +1992,7 @@
     "text": "15-24 lata",
     "page": 8,
     "kind": "table_cell",
-    "context": "15-24 lata | 31,9 | 28,5 | 10,9 — 15-24 lata"
+    "context": "15-24 lata — 15-24 lata"
   },
   {
     "anchorId": "anchor_e2f14c7e366df97d8b316f0495078d6562987b02de6cbde33633b538c813035b",
@@ -2020,7 +2020,7 @@
     "text": "25-34",
     "page": 8,
     "kind": "table_cell",
-    "context": "25-34 | 88,2 | 85,2 | 3,4 — 25-34"
+    "context": "25-34 — 25-34"
   },
   {
     "anchorId": "anchor_a042643e65265c64b33810a6a8c639299183720f142018fb87920f751b9831f5",
@@ -2048,7 +2048,7 @@
     "text": "35-44",
     "page": 8,
     "kind": "table_cell",
-    "context": "35-44 | 90,3 | 88,3 | 2,2 — 35-44"
+    "context": "35-44 — 35-44"
   },
   {
     "anchorId": "anchor_2dfc77323be3a5fbb09faeca5ef7465ef3a3d82bc2a2f8765c882069df160dea",
@@ -2076,7 +2076,7 @@
     "text": "45-54",
     "page": 8,
     "kind": "table_cell",
-    "context": "45-54 | 87,5 | 85,8 | 1,9 — 45-54"
+    "context": "45-54 — 45-54"
   },
   {
     "anchorId": "anchor_b39c0f75e947f5cf679baf01927c466f17c534adfe7de0fabd909378a8ffe42c",
@@ -2104,7 +2104,7 @@
     "text": "55-59/64",
     "page": 8,
     "kind": "table_cell",
-    "context": "55-59/64 | 73,2 | 71,5 | 2,3 — 55-59/64"
+    "context": "55-59/64 — 55-59/64"
   },
   {
     "anchorId": "anchor_ae0c84612c315901c225d7652c6ee135dcfa47a31d8ccab11d2585d8748d46e2",
@@ -2132,7 +2132,7 @@
     "text": "60/65-89 lat",
     "page": 8,
     "kind": "table_cell",
-    "context": "60/65-89 lat | 9,1 | 9,1 | . — 60/65-89 lat"
+    "context": "60/65-89 lat — 60/65-89 lat"
   },
   {
     "anchorId": "anchor_420a1341b7009a1d5e4ed944ef6139080bc7fd488241ae233dea2b396f697872",
@@ -2172,28 +2172,28 @@
     "text": "2021",
     "page": 9,
     "kind": "table_cell",
-    "context": "2021 | 2023 | 2024 — 2021"
+    "context": "2021 — 2021"
   },
   {
     "anchorId": "anchor_a30c2f67f0878de79e088620417b51930252e809337371b6dce352c7f9d45548",
     "text": "2023",
     "page": 9,
     "kind": "table_cell",
-    "context": "2021 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_7a1444da1b463ae4ef97662faf765b34bdb41117d1eb0113edd42a7a7ae78412",
     "text": "2024",
     "page": 9,
     "kind": "table_cell",
-    "context": "2021 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_198460549056a35a51f88eb2b162009ae1854727c82eb29fc69f24482f46af30",
     "text": "O g ó ł e m w tys.",
     "page": 9,
     "kind": "table_cell",
-    "context": "O g ó ł e m w tys. | 599 | 502 | 512 — O g ó ł e m w tys."
+    "context": "O g ó ł e m w tys. — O g ó ł e m w tys."
   },
   {
     "anchorId": "anchor_7da841e2ed98508166ffa45cb52d4c8c1f92e60f55731d5d55a1e2847c5d7c6c",
@@ -2228,7 +2228,7 @@
     "text": "kobiety",
     "page": 9,
     "kind": "table_cell",
-    "context": "kobiety | 45,4 | 46,6 | 49,4 — kobiety"
+    "context": "kobiety — kobiety"
   },
   {
     "anchorId": "anchor_b4470c93a4b7ab63566b44618e60bbd6c2549ae25de8be2dc13bc5260ee25c8c",
@@ -2256,7 +2256,7 @@
     "text": "w wieku produkcyjnym",
     "page": 9,
     "kind": "table_cell",
-    "context": "w wieku produkcyjnym | 99,3 | 98,6 | 98,6 — w wieku produkcyjnym"
+    "context": "w wieku produkcyjnym — w wieku produkcyjnym"
   },
   {
     "anchorId": "anchor_d9ac8cb21fcc7d4580584bda7c9015c631598bf9840d6f1e40e4c7e7591f3673",
@@ -2284,7 +2284,7 @@
     "text": "dotychczas niepracujący",
     "page": 9,
     "kind": "table_cell",
-    "context": "dotychczas niepracujący | 15,9 | 17,1 | 17,0 — dotychczas niepracujący"
+    "context": "dotychczas niepracujący — dotychczas niepracujący"
   },
   {
     "anchorId": "anchor_7cc421787e6f1157292e136a97a052c1640dc2aed96f90e77f34ff9d80c00e01",
@@ -2312,7 +2312,7 @@
     "text": "zakończyli pracę na czas określony, dorywczą",
     "page": 9,
     "kind": "table_cell",
-    "context": "zakończyli pracę na czas określony, dorywczą | 23,2 | 22,9 | 20,9 — zakończyli pracę na czas określony, dorywczą"
+    "context": "zakończyli pracę na czas określony, dorywczą — zakończyli pracę na czas określony, dorywczą"
   },
   {
     "anchorId": "anchor_7702ed3d5bde444bab2d50b92059dfb9cae90ac5f3250a15235b097e42d4dca3",
@@ -2340,7 +2340,7 @@
     "text": "długotrwale (13 miesięcy i więcej)",
     "page": 9,
     "kind": "table_cell",
-    "context": "długotrwale (13 miesięcy i więcej) | 17,9 | 17,3 | 18,0 — długotrwale (13 miesięcy i więcej)"
+    "context": "długotrwale (13 miesięcy i więcej) — długotrwale (13 miesięcy i więcej)"
   },
   {
     "anchorId": "anchor_09c39e0db332f920e6b8192933ed3e32fe88c7f7d9b7348813b666e5daee2ac7",
@@ -2368,7 +2368,7 @@
     "text": "Stopa bezrobocia w %",
     "page": 9,
     "kind": "table_cell",
-    "context": "Stopa bezrobocia w % | 3,4 | 2,8 | 2,9 — Stopa bezrobocia w %"
+    "context": "Stopa bezrobocia w % — Stopa bezrobocia w %"
   },
   {
     "anchorId": "anchor_fb067b632d82ff1b22fc9c4a54e147537e5bb02c02ff21bdd0080254bf2c8c84",
@@ -2396,7 +2396,7 @@
     "text": "Przeciętny czas poszukiwania pracy w miesiącach",
     "page": 9,
     "kind": "table_cell",
-    "context": "Przeciętny czas poszukiwania pracy w miesiącach | 8,0 | 7,9 | 7,8 — Przeciętny czas poszukiwania pracy w miesiącach"
+    "context": "Przeciętny czas poszukiwania pracy w miesiącach — Przeciętny czas poszukiwania pracy w miesiącach"
   },
   {
     "anchorId": "anchor_f3db5a3f931d854ceb6dd990ca09ca2c81f410f3b4c292689a8f8de1eda506d1",
@@ -2436,28 +2436,28 @@
     "text": "2015",
     "page": 10,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_25611e333abe04a5565bd1678f5b143f7aa86509659955c1e493879b233eb970",
     "text": "2023",
     "page": 10,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_5f87c33738a1666411727ad956702905b16ee2bb4faefe824ae44de725fbbd3c",
     "text": "2024",
     "page": 10,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_40df83c14aec538512a0641e124d23b2f3cd289dcc964f260ca804a3a6cc10bb",
     "text": "Przeciętne miesięczne wynagrodzenie brutto ogółem w zł",
     "page": 10,
     "kind": "table_cell",
-    "context": "Przeciętne miesięczne wynagrodzenie brutto ogółem w zł | 3 907,85 | 7 199,22 | 8 181,72 — Przeciętne miesięczne wynagrodzenie brutto ogółem w zł"
+    "context": "Przeciętne miesięczne wynagrodzenie brutto ogółem w zł — Przeciętne miesięczne wynagrodzenie brutto ogółem w zł"
   },
   {
     "anchorId": "anchor_e7c2bf9072c00e5373d1f8d3bd47212ad6099c7665f2514dba27b953f6ad896e",
@@ -2485,7 +2485,7 @@
     "text": "sektor publiczny",
     "page": 10,
     "kind": "table_cell",
-    "context": "sektor publiczny | 4 482,55 | 7 966,20 | 9 336,12 — sektor publiczny"
+    "context": "sektor publiczny — sektor publiczny"
   },
   {
     "anchorId": "anchor_0050d85b6a30c4b0271ae9f7f333c2b28dfbd89339f8dcd9f606ec2e71eda621",
@@ -2513,7 +2513,7 @@
     "text": "sektor prywatny",
     "page": 10,
     "kind": "table_cell",
-    "context": "sektor prywatny | 3 664,68 | 6 914,81 | 7 775,16 — sektor prywatny"
+    "context": "sektor prywatny — sektor prywatny"
   },
   {
     "anchorId": "anchor_2821b6c5ce4fe9f793e9dd808b4da1dba8c5cafb648142aee7e96b2d4de3a53a",
@@ -2548,7 +2548,7 @@
     "text": "nominalne",
     "page": 10,
     "kind": "table_cell",
-    "context": "nominalne | 103,5 | 113,1 | 113,6 — nominalne"
+    "context": "nominalne — nominalne"
   },
   {
     "anchorId": "anchor_8f79c6ddd90dfbdf6ad1fdacf28066bea36d61c2e40ef0d6f3228504cbc6117e",
@@ -2576,7 +2576,7 @@
     "text": "realne",
     "page": 10,
     "kind": "table_cell",
-    "context": "realne | 104,5 | 101,6 | 109,5 — realne"
+    "context": "realne — realne"
   },
   {
     "anchorId": "anchor_136a3ab2e5030fa9f6b93a624efc0f360ce17688e45855f69513cac50e9c8058",
@@ -2622,21 +2622,21 @@
     "text": "2015",
     "page": 10,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_8a22cf709ea2926bf76e774239442f5d9ac4bd5d7912e26a61a5fed82bfd13ff",
     "text": "2023",
     "page": 10,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_531a6c23443129f72595e4cefa7fd27cd141c2353720026e9d023ad16ab9c018",
     "text": "2024",
     "page": 10,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_fd5f67e1f9364d61868e90e0ba7d14c0f71210d4002dfa675c8449d6b0ed43d5",
@@ -2657,7 +2657,7 @@
     "text": "nominalna w zł",
     "page": 10,
     "kind": "table_cell",
-    "context": "nominalna w zł | 2 049,26 | 3 364,38 | 3 849,11 — nominalna w zł"
+    "context": "nominalna w zł — nominalna w zł"
   },
   {
     "anchorId": "anchor_e7ba16f8441d61ad31b1d5a1ed1b82c7b1aa0d654c4b72ddac1d06fced6f5cc9",
@@ -2685,7 +2685,7 @@
     "text": "realna - rok poprzedni=100",
     "page": 10,
     "kind": "table_cell",
-    "context": "realna - rok poprzedni=100 | 103,5 | 104,7 | 110,4 — realna - rok poprzedni=100"
+    "context": "realna - rok poprzedni=100 — realna - rok poprzedni=100"
   },
   {
     "anchorId": "anchor_258fe6b50f1dc633af1600d14dc23029d59f977517829558ee50873fcb389a04",
@@ -2720,7 +2720,7 @@
     "text": "nominalna w zł",
     "page": 10,
     "kind": "table_cell",
-    "context": "nominalna w zł | 1 179,63 | 1 847,27 | 2 103,34 — nominalna w zł"
+    "context": "nominalna w zł — nominalna w zł"
   },
   {
     "anchorId": "anchor_cf84779911d54bd68b96f6bd7eeed06bfa26a4ed3c5a15ae35c37587fcab2d84",
@@ -2748,7 +2748,7 @@
     "text": "realna - rok poprzedni=100",
     "page": 10,
     "kind": "table_cell",
-    "context": "realna - rok poprzedni=100 | 103,6 | 110,0 | 109,9 — realna - rok poprzedni=100"
+    "context": "realna - rok poprzedni=100 — realna - rok poprzedni=100"
   },
   {
     "anchorId": "anchor_b98de104e46db14d22f66ab0b2fc187b383cc50f37b1bd3c1c5522f4638f0292",
@@ -2782,21 +2782,21 @@
     "text": "2015",
     "page": 11,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_1d5ed9fc30ca77943a37798bea8e4a6770ffabc04c4da62cbf91251cd6abce8c",
     "text": "2023",
     "page": 11,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_b98a40dd5b6deb6ab088bbabc2adf5fad43b8dee3646be71a715cb562e19d84d",
     "text": "2024",
     "page": 11,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_613327d18a7fc26ff044ff598d52da1ad8244df182ba139b550e3a8c4c0977a6",
@@ -2810,7 +2810,7 @@
     "text": "O g ó ł e m",
     "page": 11,
     "kind": "table_cell",
-    "context": "O g ó ł e m | 99,1 | 111,4 | 103,6 — O g ó ł e m"
+    "context": "O g ó ł e m — O g ó ł e m"
   },
   {
     "anchorId": "anchor_0de2e98dac225fdf9fe62e4b8f83a67a0b211af6213b70e11ba120c50faecec2",
@@ -2838,7 +2838,7 @@
     "text": "Towary",
     "page": 11,
     "kind": "table_cell",
-    "context": "Towary | 98,2 | 111,4 | 102,6 — Towary"
+    "context": "Towary — Towary"
   },
   {
     "anchorId": "anchor_2a3197bc1cce3ab40e7f85afeb631ad24d91c693c4e0bc6298c55448b29429b3",
@@ -2866,7 +2866,7 @@
     "text": "Usługi",
     "page": 11,
     "kind": "table_cell",
-    "context": "Usługi | 101,4 | 111,2 | 106,6 — Usługi"
+    "context": "Usługi — Usługi"
   },
   {
     "anchorId": "anchor_cfd7f9fabbb84d7eb318fbc450106373ae3078d92eb8811c0f410fa5ef53b8b0",
@@ -2924,28 +2924,28 @@
     "text": "2015",
     "page": 12,
     "kind": "table_cell",
-    "context": "2015 | 2023 a | 2024 a — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_5d27f4f08cafe42679312949b32870e710b1b28a8e2aa2fb69f9879a4e40be5d",
     "text": "2023 a",
     "page": 12,
     "kind": "table_cell",
-    "context": "2015 | 2023 a | 2024 a — 2023 a"
+    "context": "2023 a — 2023 a"
   },
   {
     "anchorId": "anchor_e8ca15f2de15d6e0c2c34a408a4be4f390374fbe61320c4d1133355c96a6e95d",
     "text": "2024 a",
     "page": 12,
     "kind": "table_cell",
-    "context": "2015 | 2023 a | 2024 a — 2024 a"
+    "context": "2024 a — 2024 a"
   },
   {
     "anchorId": "anchor_2eccee3b8b818114e24fdfac2dd9898e7db5dea04191f7c4ad35b8e1cba80e0b",
     "text": "Przeciętna liczba osób w zbadanych gospodarstwach domowych",
     "page": 12,
     "kind": "table_cell",
-    "context": "Przeciętna liczba osób w zbadanych gospodarstwach domowych | 2,72 | 2,43 | 2,41 — Przeciętna liczba osób w zbadanych gospodarstwach domowych"
+    "context": "Przeciętna liczba osób w zbadanych gospodarstwach domowych — Przeciętna liczba osób w zbadanych gospodarstwach domowych"
   },
   {
     "anchorId": "anchor_bd41bf2e82c9041d9524694e79e3e7634de583afe4bee7c9069b86cc085f9a99",
@@ -2980,7 +2980,7 @@
     "text": "dochód rozporządzalny w zł",
     "page": 12,
     "kind": "table_cell",
-    "context": "dochód rozporządzalny w zł | 1 386,16 | 2 678,30 | 3 167,17 — dochód rozporządzalny w zł"
+    "context": "dochód rozporządzalny w zł — dochód rozporządzalny w zł"
   },
   {
     "anchorId": "anchor_e326f87e177798b393cf8c937f42fc2466f5e50b883015c8f2d73c63d75b50f5",
@@ -3015,7 +3015,7 @@
     "text": "z pracy najemnej",
     "page": 12,
     "kind": "table_cell",
-    "context": "z pracy najemnej | 54,7 | 55,7 | 54,7 — z pracy najemnej"
+    "context": "z pracy najemnej — z pracy najemnej"
   },
   {
     "anchorId": "anchor_de98c307056c2fa10a4cbcb651540fe02e22524ac8762697fb5c7fd27acebaf9",
@@ -3043,7 +3043,7 @@
     "text": "z gospodarstwa indywidualnego w rolnictwie",
     "page": 12,
     "kind": "table_cell",
-    "context": "z gospodarstwa indywidualnego w rolnictwie | 3,2 | 2,9 | 3,3 — z gospodarstwa indywidualnego w rolnictwie"
+    "context": "z gospodarstwa indywidualnego w rolnictwie — z gospodarstwa indywidualnego w rolnictwie"
   },
   {
     "anchorId": "anchor_52006b319b53c23e174318e6d6feb0b63f4f62828c30884a41235e3de4e0f500",
@@ -3071,7 +3071,7 @@
     "text": "z pracy na własny rachunek",
     "page": 12,
     "kind": "table_cell",
-    "context": "z pracy na własny rachunek | 8,7 | 10,1 | 10,3 — z pracy na własny rachunek"
+    "context": "z pracy na własny rachunek — z pracy na własny rachunek"
   },
   {
     "anchorId": "anchor_e343f1df932c0019f91f18a03cb41b3c921d8ec5d897d13ffc01a8c2bb2139b7",
@@ -3099,7 +3099,7 @@
     "text": "ze świadczeń społecznych",
     "page": 12,
     "kind": "table_cell",
-    "context": "ze świadczeń społecznych | 28,7 | 29,6 | 30,1 — ze świadczeń społecznych"
+    "context": "ze świadczeń społecznych — ze świadczeń społecznych"
   },
   {
     "anchorId": "anchor_57d3b53c0d973970dc41ca7735eaf70f3de5bffd2af95ee0c6f78cd1571ee0a6",
@@ -3127,7 +3127,7 @@
     "text": "dochód do dyspozycji w zł",
     "page": 12,
     "kind": "table_cell",
-    "context": "dochód do dyspozycji w zł | 1 337,87 | 2 622,11 | 3 103,06 — dochód do dyspozycji w zł"
+    "context": "dochód do dyspozycji w zł — dochód do dyspozycji w zł"
   },
   {
     "anchorId": "anchor_6309860ed6642194954a129774f2b6e5798f5ef87185f5f19cf73ccc18c267b9",
@@ -3161,28 +3161,28 @@
     "text": "2015",
     "page": 12,
     "kind": "table_cell",
-    "context": "2015 | 2023 a | 2024 a — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_ec3510c428bc0ab8f2cb495e4f6d1bd40ff7b85f0acf2b894231954b0924a116",
     "text": "2023 a",
     "page": 12,
     "kind": "table_cell",
-    "context": "2015 | 2023 a | 2024 a — 2023 a"
+    "context": "2023 a — 2023 a"
   },
   {
     "anchorId": "anchor_31aff189ea3bc5e2726d76777963704af67ebe15cd482080dfa7982b094e9a98",
     "text": "2024 a",
     "page": 12,
     "kind": "table_cell",
-    "context": "2015 | 2023 a | 2024 a — 2024 a"
+    "context": "2024 a — 2024 a"
   },
   {
     "anchorId": "anchor_55f8c72bebefebc14d3b1e47785b31a2994146366efa8676a7bf654e42a22912",
     "text": "Pieczywo i produkty zbożowe w kg",
     "page": 12,
     "kind": "table_cell",
-    "context": "Pieczywo i produkty zbożowe w kg | 6,06 | 4,99 | 5,01 — Pieczywo i produkty zbożowe w kg"
+    "context": "Pieczywo i produkty zbożowe w kg — Pieczywo i produkty zbożowe w kg"
   },
   {
     "anchorId": "anchor_0405c0b190ef74e2861d598b8c7afece718995cb487773af072762b03fe94b00",
@@ -3210,7 +3210,7 @@
     "text": "Mięso w kg",
     "page": 12,
     "kind": "table_cell",
-    "context": "Mięso w kg | 5,27 | 4,85 | 5,00 — Mięso w kg"
+    "context": "Mięso w kg — Mięso w kg"
   },
   {
     "anchorId": "anchor_49ad88bdd829b8eb88ca6fce48897d8babc00dfe3e788b888218e489a0bef962",
@@ -3238,7 +3238,7 @@
     "text": "Ryby i owoce morza w kg",
     "page": 12,
     "kind": "table_cell",
-    "context": "Ryby i owoce morza w kg | 0,33 | 0,24 | 0,25 — Ryby i owoce morza w kg"
+    "context": "Ryby i owoce morza w kg — Ryby i owoce morza w kg"
   },
   {
     "anchorId": "anchor_fa5654c84f4a79ddbbffe6ec5fcbc537727213a352276a48765da0e2328abda3",
@@ -3266,7 +3266,7 @@
     "text": "Mleko w l",
     "page": 12,
     "kind": "table_cell",
-    "context": "Mleko w l | 3,15 | 2,76 | 2,69 — Mleko w l"
+    "context": "Mleko w l — Mleko w l"
   },
   {
     "anchorId": "anchor_203f52a77bdbc0cf470141e882852ea821277d339707f7fc6ffed4a7ae3e2a5b",
@@ -3294,7 +3294,7 @@
     "text": "Sery i twarogi w kg",
     "page": 12,
     "kind": "table_cell",
-    "context": "Sery i twarogi w kg | 0,83 | 1,01 | 1,06 — Sery i twarogi w kg"
+    "context": "Sery i twarogi w kg — Sery i twarogi w kg"
   },
   {
     "anchorId": "anchor_1f9504a2e6d45ce8e3bd81c5e5ecfca9671eb6cd44e5bcaf039aae1837e94a86",
@@ -3322,7 +3322,7 @@
     "text": "Jaja w szt.",
     "page": 12,
     "kind": "table_cell",
-    "context": "Jaja w szt. | 11,76 | 10,60 | 11,39 — Jaja w szt."
+    "context": "Jaja w szt. — Jaja w szt."
   },
   {
     "anchorId": "anchor_a78aa12e423cdefc503ee9944aecf19428804c466d9e5021d03bae54cdc47b84",
@@ -3350,7 +3350,7 @@
     "text": "Oleje i tłuszcze w kg",
     "page": 12,
     "kind": "table_cell",
-    "context": "Oleje i tłuszcze w kg | 1,15 | 1,01 | 1,02 — Oleje i tłuszcze w kg"
+    "context": "Oleje i tłuszcze w kg — Oleje i tłuszcze w kg"
   },
   {
     "anchorId": "anchor_41e614afbbc71983a59a66d9edb24eb7cb36b0842fe32ad0cdb9339cad8abba9",
@@ -3378,7 +3378,7 @@
     "text": "Owoce w kg",
     "page": 12,
     "kind": "table_cell",
-    "context": "Owoce w kg | 3,59 | 3,71 | 3,93 — Owoce w kg"
+    "context": "Owoce w kg — Owoce w kg"
   },
   {
     "anchorId": "anchor_c0643c598b6db210ce4de18c7b1c724d597fc79fe8df2444eb9a0371b5ac8e0c",
@@ -3406,7 +3406,7 @@
     "text": "Warzywa w kg",
     "page": 12,
     "kind": "table_cell",
-    "context": "Warzywa w kg | 8,68 | 6,83 | 7,12 — Warzywa w kg"
+    "context": "Warzywa w kg — Warzywa w kg"
   },
   {
     "anchorId": "anchor_d0563d7baee2da41e9a0718d39584a77b237a7cd5c790ed1a78d87c2a2d105c6",
@@ -3434,7 +3434,7 @@
     "text": "Cukier, dżem, miód, czekolada i wyroby cukiernicze w kg",
     "page": 12,
     "kind": "table_cell",
-    "context": "Cukier, dżem, miód, czekolada i wyroby cukiernicze w kg | 1,83 | 1,58 | 1,68 — Cukier, dżem, miód, czekolada i wyroby cukiernicze w kg"
+    "context": "Cukier, dżem, miód, czekolada i wyroby cukiernicze w kg — Cukier, dżem, miód, czekolada i wyroby cukiernicze w kg"
   },
   {
     "anchorId": "anchor_30df66d57972fc3c24433f555f7b9b37e5e495802fab4646562a21747a7228ee",
@@ -3462,7 +3462,7 @@
     "text": "Wody mineralne lub źródlane w l",
     "page": 12,
     "kind": "table_cell",
-    "context": "Wody mineralne lub źródlane w l | 4,57 | 5,95 | 6,33 — Wody mineralne lub źródlane w l"
+    "context": "Wody mineralne lub źródlane w l — Wody mineralne lub źródlane w l"
   },
   {
     "anchorId": "anchor_6e4df20b7434e7c54e7048e20c2d62dccc5c4402b41a7c649ad7183186b5c4c6",
@@ -3496,28 +3496,28 @@
     "text": "2015",
     "page": 13,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_351eeba4ab3ef6691905e6bab3f2720970537025a5dde62e004cd06b49ea97b0",
     "text": "2023",
     "page": 13,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_0da99cd61ddae37be56fdfa6dffaefebe6c0ee3af5d5810574cab039a1023858",
     "text": "2024",
     "page": 13,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_cec18bbc66f1fddef5266163bd43bc43743cd5fe5552bbea654bd0658d25a57a",
     "text": "O g ó ł e m w tys.",
     "page": 13,
     "kind": "table_cell",
-    "context": "O g ó ł e m w tys. | 147,7 | 221,3 | 200,1 — O g ó ł e m w tys."
+    "context": "O g ó ł e m w tys. — O g ó ł e m w tys."
   },
   {
     "anchorId": "anchor_7d32d317c68a820182e5f7ed2f396f446da1c0ba2ba224997c430bcadfd63ba0",
@@ -3545,7 +3545,7 @@
     "text": "w tym miasta",
     "page": 13,
     "kind": "table_cell",
-    "context": "w tym miasta | 91,0 | 141,4 | 128,9 — w tym miasta"
+    "context": "w tym miasta — w tym miasta"
   },
   {
     "anchorId": "anchor_7d0c9e4ce84239c3e54d4dadb32b44e6dde251969d8e79effe38913c7894603a",
@@ -3573,7 +3573,7 @@
     "text": "Na 1 000 ludności",
     "page": 13,
     "kind": "table_cell",
-    "context": "Na 1 000 ludności | 3,8 | 5,9 | 5,3 — Na 1 000 ludności"
+    "context": "Na 1 000 ludności — Na 1 000 ludności"
   },
   {
     "anchorId": "anchor_fe3d0f7027dbbeebfe0397d51f8e812c9d78b86126d8bd83fba3fd7ee5b46eca",
@@ -3601,7 +3601,7 @@
     "text": "Przeciętna powierzchnia użytko- wa 1 mieszkania w m 2",
     "page": 13,
     "kind": "table_cell",
-    "context": "Przeciętna powierzchnia użytko- wa 1 mieszkania w m 2 | 99,8 | 90,0 | 89,2 — Przeciętna powierzchnia użytko- wa 1 mieszkania w m 2"
+    "context": "Przeciętna powierzchnia użytko- wa 1 mieszkania w m 2 — Przeciętna powierzchnia użytko- wa 1 mieszkania w m 2"
   },
   {
     "anchorId": "anchor_467db4ded16d8e3f1c632edf5cbd072ebc543dae438de0433d8153e3f57b0e61",
@@ -3647,28 +3647,28 @@
     "text": "2015",
     "page": 14,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_71d4249e35526d4b208a1f2c7f78fbb6986ceda6910590023a71729b53279564",
     "text": "2022",
     "page": 14,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_82b101173cf54ec5bb2e1d184c0fe57b70d5cdb3cf9bc1e360507d3266b656bc",
     "text": "2023",
     "page": 14,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_00876d26e237a755e646bd5b7bcddec5ec139af7533606dbdb8aef7d38298fe2",
     "text": "Szpitale ogólne",
     "page": 14,
     "kind": "table_cell",
-    "context": "Szpitale ogólne | 956 | 896 | 894 — Szpitale ogólne"
+    "context": "Szpitale ogólne — Szpitale ogólne"
   },
   {
     "anchorId": "anchor_899e550d2e9e5678a5af59d971edf1115b150561f75811ff0ea5f5f33a4fa4fb",
@@ -3696,7 +3696,7 @@
     "text": "Łóżka na 10 tys. ludności a",
     "page": 14,
     "kind": "table_cell",
-    "context": "Łóżka na 10 tys. ludności a | 48,6 | 43,5 | 42,8 — Łóżka na 10 tys. ludności a"
+    "context": "Łóżka na 10 tys. ludności a — Łóżka na 10 tys. ludności a"
   },
   {
     "anchorId": "anchor_7fef3d416417cb4fdb2d7177d35f19570d526df43ab407b31b32e0d554a0eddf",
@@ -3724,7 +3724,7 @@
     "text": "Leczeni stacjonarnie (bez międzyod- działowego ruchu chorych; w ciągu roku) na 10 tys. ludności",
     "page": 14,
     "kind": "table_cell",
-    "context": "Leczeni stacjonarnie (bez międzyod- działowego ruchu chorych; w ciągu roku) na 10 tys. ludności | 2 027 | 1 823 | 1 899 — Leczeni stacjonarnie (bez międzyod- działowego ruchu chorych; w ciągu roku) na 10 tys. ludności"
+    "context": "Leczeni stacjonarnie (bez międzyod- działowego ruchu chorych; w ciągu roku) na 10 tys. ludności — Leczeni stacjonarnie (bez międzyod- działowego ruchu chorych; w ciągu roku) na 10 tys. ludności"
   },
   {
     "anchorId": "anchor_a02b759b4ef7eb7352a8e310429deb86ba3479affacccac3b0d2a363fe1279e1",
@@ -3752,7 +3752,7 @@
     "text": "Przeciętny pobyt chorego w dniach",
     "page": 14,
     "kind": "table_cell",
-    "context": "Przeciętny pobyt chorego w dniach | 5,4 | 5,3 | 5,1 — Przeciętny pobyt chorego w dniach"
+    "context": "Przeciętny pobyt chorego w dniach — Przeciętny pobyt chorego w dniach"
   },
   {
     "anchorId": "anchor_d2c835fa55e7bb07332b3d72f774d1b859568b943e7094b92d7cfe799b36602a",
@@ -3798,21 +3798,21 @@
     "text": "2015",
     "page": 14,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_e48604a1874178ab98c3c1080b3d537cd28a9d28e4220b463b8089ab61be6a39",
     "text": "2022",
     "page": 14,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_e13e0e50f169615b6f6fa2a2c5669d53e8db0d3d49981a0b647d86e2b5fc641f",
     "text": "2023",
     "page": 14,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_48523f588b5e5049044b75d29fa3dff8c317600f4b6e9d3a73507e65d745ecfd",
@@ -3826,7 +3826,7 @@
     "text": "przychodnie",
     "page": 14,
     "kind": "table_cell",
-    "context": "przychodnie | 20 412 | 22 601 | 23 460 — przychodnie"
+    "context": "przychodnie — przychodnie"
   },
   {
     "anchorId": "anchor_b0820420eef43b52c78627879cbe75ce8a3e271f9d66a41f57af1e5eafb4b46b",
@@ -3854,7 +3854,7 @@
     "text": "praktyki lekarzy i lekarzy dentystów",
     "page": 14,
     "kind": "table_cell",
-    "context": "praktyki lekarzy i lekarzy dentystów | 5 550 | 3 478 | 3 174 — praktyki lekarzy i lekarzy dentystów"
+    "context": "praktyki lekarzy i lekarzy dentystów — praktyki lekarzy i lekarzy dentystów"
   },
   {
     "anchorId": "anchor_479b7220abaa8f09494c80467677f79cb98f568a450138dce81436b046a650e3",
@@ -3882,7 +3882,7 @@
     "text": "porady udzielone (w ciągu roku) na 1 mieszkańca",
     "page": 14,
     "kind": "table_cell",
-    "context": "porady udzielone (w ciągu roku) na 1 mieszkańca | 8,3 | 8,9 | 9,3 — porady udzielone (w ciągu roku) na 1 mieszkańca"
+    "context": "porady udzielone (w ciągu roku) na 1 mieszkańca — porady udzielone (w ciągu roku) na 1 mieszkańca"
   },
   {
     "anchorId": "anchor_1f68d1b85ae00b6d1a42f3fac81e425b85e847d4c1eb9eb5cf6c02bcfd112cc2",
@@ -3910,7 +3910,7 @@
     "text": "Apteki ogólnodostępne",
     "page": 14,
     "kind": "table_cell",
-    "context": "Apteki ogólnodostępne | 12 740 | 11 657 | 11 473 — Apteki ogólnodostępne"
+    "context": "Apteki ogólnodostępne — Apteki ogólnodostępne"
   },
   {
     "anchorId": "anchor_58c1b329bedbd59fd93bf3d82d6bb28cd35668f3d477b9547dfd1019bb09167f",
@@ -3938,7 +3938,7 @@
     "text": "Punkty apteczne",
     "page": 14,
     "kind": "table_cell",
-    "context": "Punkty apteczne | 1 299 | 1 119 | 1 091 — Punkty apteczne"
+    "context": "Punkty apteczne — Punkty apteczne"
   },
   {
     "anchorId": "anchor_436a4bb7150b85f179c579dbf28f809b169d675fa264dc2bda4cd43649dbede5",
@@ -3984,28 +3984,28 @@
     "text": "2015",
     "page": 16,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_c8b26bcd7b6ae194e0b6070e443a6c44605bcae4d0c4b0ae07f294d8e918785a",
     "text": "2023",
     "page": 16,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_02c50e3f2d58fc2ec57e81eb311ac7958429e5baf03f91d7f9cce35ca40a5b53",
     "text": "2024",
     "page": 16,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_082134292edc5e2d9663d2c3d77779045ff326bfda8374f9249654427e2b2b22",
     "text": "Teatry i instytucje muzyczne a",
     "page": 16,
     "kind": "table_cell",
-    "context": "Teatry i instytucje muzyczne a | 177 | 182 | 180 — Teatry i instytucje muzyczne a"
+    "context": "Teatry i instytucje muzyczne a — Teatry i instytucje muzyczne a"
   },
   {
     "anchorId": "anchor_158bb17a31ce006ea7f1ef7c72e2dc16b8cb1362bbe9e33e3ddfdc9b2a2220de",
@@ -4033,7 +4033,7 @@
     "text": "Kina stałe",
     "page": 16,
     "kind": "table_cell",
-    "context": "Kina stałe | 450 | 535 | 535 — Kina stałe"
+    "context": "Kina stałe — Kina stałe"
   },
   {
     "anchorId": "anchor_b3beda90aef430acc54597228386a39055886e75a68d7fa2c94fa708a42612a7",
@@ -4061,7 +4061,7 @@
     "text": "Sale projekcyjne w kinach stałych",
     "page": 16,
     "kind": "table_cell",
-    "context": "Sale projekcyjne w kinach stałych | 1 276 | 1 585 | 1 555 — Sale projekcyjne w kinach stałych"
+    "context": "Sale projekcyjne w kinach stałych — Sale projekcyjne w kinach stałych"
   },
   {
     "anchorId": "anchor_34ec20f2de6fbcb6cf8494e3a79754b30344b54affdf6d5e404cb96c8f4eb8c2",
@@ -4089,7 +4089,7 @@
     "text": "Muzea i galerie sztuki",
     "page": 16,
     "kind": "table_cell",
-    "context": "Muzea i galerie sztuki | 1 257 | 1 291 | 1 292 — Muzea i galerie sztuki"
+    "context": "Muzea i galerie sztuki — Muzea i galerie sztuki"
   },
   {
     "anchorId": "anchor_603e0e34fea6097efbfe983def0886305c951d819919ea8e6aaf3762468598cd",
@@ -4117,7 +4117,7 @@
     "text": "Biblioteki publiczne i filie",
     "page": 16,
     "kind": "table_cell",
-    "context": "Biblioteki publiczne i filie | 8 050 | 7 570 | 7 541 — Biblioteki publiczne i filie"
+    "context": "Biblioteki publiczne i filie — Biblioteki publiczne i filie"
   },
   {
     "anchorId": "anchor_57b9199865d0bce0f240cc9b5b5e0f113892e5a13d22dbcc7276d45d1dddfa06",
@@ -4145,7 +4145,7 @@
     "text": "Imprezy masowe",
     "page": 16,
     "kind": "table_cell",
-    "context": "Imprezy masowe | 6 280 | 6 313 | 6 865 — Imprezy masowe"
+    "context": "Imprezy masowe — Imprezy masowe"
   },
   {
     "anchorId": "anchor_a6ce784c13e93b8e4c0024cc54acc5344174200ac96c191375e36037ea11472d",
@@ -4185,28 +4185,28 @@
     "text": "2015",
     "page": 17,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_a059ffcf55697e4579ade5752718aafc75483412dd7b8144173d8c8afd7d1bc8",
     "text": "2023",
     "page": 17,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_d47edffaeb7051f955f88461de17c35082c3e0b50bf516f9ca17a1820776eda1",
     "text": "2024",
     "page": 17,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_b139b29bda6409389b39c89a88bdb73f5b9c2953d5ca90923460fe6277a3047a",
     "text": "Obiekty",
     "page": 17,
     "kind": "table_cell",
-    "context": "Obiekty | 10 024 | 9 809 | 10 354 — Obiekty"
+    "context": "Obiekty — Obiekty"
   },
   {
     "anchorId": "anchor_e3ed7e4b44de994188a9983dcb347f2a5d25f956208084a88d73ec7c47b4c025",
@@ -4234,7 +4234,7 @@
     "text": "Miejsca noclegowe w tys.",
     "page": 17,
     "kind": "table_cell",
-    "context": "Miejsca noclegowe w tys. | 710,3 | 793,1 | 839,4 — Miejsca noclegowe w tys."
+    "context": "Miejsca noclegowe w tys. — Miejsca noclegowe w tys."
   },
   {
     "anchorId": "anchor_fd07d47b389672463046cab46ca1ee3f25b6c858834bff8a59cec4ae5b2cfdea",
@@ -4262,7 +4262,7 @@
     "text": "Korzystający z noclegów w tys. (w całym roku)",
     "page": 17,
     "kind": "table_cell",
-    "context": "Korzystający z noclegów w tys. (w całym roku) | 26 942 | 36 239 | 38 842 — Korzystający z noclegów w tys. (w całym roku)"
+    "context": "Korzystający z noclegów w tys. (w całym roku) — Korzystający z noclegów w tys. (w całym roku)"
   },
   {
     "anchorId": "anchor_2e39ac42f55ca261ba51e51feac6ec2f70b6a2f69524f1f706cc57ba197d1d39",
@@ -4290,7 +4290,7 @@
     "text": "w tym zagraniczni w %",
     "page": 17,
     "kind": "table_cell",
-    "context": "w tym zagraniczni w % | 21,1 | 19,5 | 20,3 — w tym zagraniczni w %"
+    "context": "w tym zagraniczni w % — w tym zagraniczni w %"
   },
   {
     "anchorId": "anchor_44ba433004e9eabab6bca2055d75ff9832b9c47f2a429adec38f94966233b3a1",
@@ -4318,7 +4318,7 @@
     "text": "Stopień wykorzystania miejsc noclegowych w % (w całym roku)",
     "page": 17,
     "kind": "table_cell",
-    "context": "Stopień wykorzystania miejsc noclegowych w % (w całym roku) | 36,7 | 40,5 | 40,1 — Stopień wykorzystania miejsc noclegowych w % (w całym roku)"
+    "context": "Stopień wykorzystania miejsc noclegowych w % (w całym roku) — Stopień wykorzystania miejsc noclegowych w % (w całym roku)"
   },
   {
     "anchorId": "anchor_31f404dd63358fa04c78c6ad59614a3b8175645aaeb93f47bb94610a13d073e6",
@@ -4370,21 +4370,21 @@
     "text": "2015",
     "page": 17,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_69f972427fde108f526051daaf3d44f853d9257b8db64767dc9e7c27846fe1da",
     "text": "2023",
     "page": 17,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_6d3df6b5ceff66c8de8d5c485d2129d08de675fe73b54db364359f845aee8299",
     "text": "2024",
     "page": 17,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_b1d96091ef4a0b64cff2033fb07bd0c29146eda8c41e21450f407b57528716bf",
@@ -4398,7 +4398,7 @@
     "text": "Wyjeżdżający a",
     "page": 17,
     "kind": "table_cell",
-    "context": "Wyjeżdżający a | 54 | 66 | 65 — Wyjeżdżający a"
+    "context": "Wyjeżdżający a — Wyjeżdżający a"
   },
   {
     "anchorId": "anchor_ec8c6884017514a7e5a413d60c627cbc18bb6a9d47e0326b85e328e6bdf8793f",
@@ -4426,7 +4426,7 @@
     "text": "w kraju na okres: 2-4 dni",
     "page": 17,
     "kind": "table_cell",
-    "context": "w kraju na okres: 2-4 dni | 35 | 46 | 45 — w kraju na okres: 2-4 dni"
+    "context": "w kraju na okres: 2-4 dni — w kraju na okres: 2-4 dni"
   },
   {
     "anchorId": "anchor_e41c36e4b3d8f9f6ef0522bdf85c41f0434047347b9714b6ce67398828a76661",
@@ -4454,7 +4454,7 @@
     "text": "5 dni i więcej",
     "page": 17,
     "kind": "table_cell",
-    "context": "5 dni i więcej | 30 | 37 | 36 — 5 dni i więcej"
+    "context": "5 dni i więcej — 5 dni i więcej"
   },
   {
     "anchorId": "anchor_60b2c67b43dbd9eaeed42c2d45956cd8b596797cd562b5cfe04934b1aa55efcd",
@@ -4482,7 +4482,7 @@
     "text": "za granicę",
     "page": 17,
     "kind": "table_cell",
-    "context": "za granicę | 17 | 21 | 22 — za granicę"
+    "context": "za granicę — za granicę"
   },
   {
     "anchorId": "anchor_87c9cb5a684f25088a6d26b84c432645858cab24df80ce1de7f3a67de0a5a246",
@@ -4510,7 +4510,7 @@
     "text": "Niewyjeżdżający",
     "page": 17,
     "kind": "table_cell",
-    "context": "Niewyjeżdżający | 46 | 34 | 35 — Niewyjeżdżający"
+    "context": "Niewyjeżdżający — Niewyjeżdżający"
   },
   {
     "anchorId": "anchor_2bdebb52d497fcf15d5ee297d4ddf384aa441a0d87226776fadf47998bc048cb",
@@ -4550,21 +4550,21 @@
     "text": "2015",
     "page": 18,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_840e0dd4c66531c05629e2ad2e4975ff218a125b29e1820433aa911a01f44ee0",
     "text": "2023",
     "page": 18,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_2d6308af38b6a88f9dad503fe23b5cab033997434fe51b1647834371cfebb3c9",
     "text": "2024",
     "page": 18,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_654a2f39d1879f214658d6e66558187a7b5e5c9c169beb3f7f7ef3662c73d455",
@@ -4585,7 +4585,7 @@
     "text": "dostęp do Internetu",
     "page": 18,
     "kind": "table_cell",
-    "context": "dostęp do Internetu | 92,7 | 98,7 | 98,7 — dostęp do Internetu"
+    "context": "dostęp do Internetu — dostęp do Internetu"
   },
   {
     "anchorId": "anchor_7571e1dbade62c4407928d2324ca6e7ace1a4c0b8eec4f8d7b3c99fb66e5721d",
@@ -4613,7 +4613,7 @@
     "text": "w tym szerokopasmowy",
     "page": 18,
     "kind": "table_cell",
-    "context": "w tym szerokopasmowy | 86,7 | 98,7 | 98,7 — w tym szerokopasmowy"
+    "context": "w tym szerokopasmowy — w tym szerokopasmowy"
   },
   {
     "anchorId": "anchor_69373c9a8ef59ab174b73fdb761a540c22ad463d7f2eec71771510be739ac088",
@@ -4641,7 +4641,7 @@
     "text": "w tym o prędkości przynaj- mniej 100 Mbit/s",
     "page": 18,
     "kind": "table_cell",
-    "context": "w tym o prędkości przynaj- mniej 100 Mbit/s | 7,9 | 54,9 | 63,4 — w tym o prędkości przynaj- mniej 100 Mbit/s"
+    "context": "w tym o prędkości przynaj- mniej 100 Mbit/s — w tym o prędkości przynaj- mniej 100 Mbit/s"
   },
   {
     "anchorId": "anchor_70b183c65f6dd8e2543b07a4acf8da49aa879a993a0e5c38b7ae9d31b7f729c5",
@@ -4669,7 +4669,7 @@
     "text": "Zatrudniające specjalistów ICT",
     "page": 18,
     "kind": "table_cell",
-    "context": "Zatrudniające specjalistów ICT | 12,0 | . | 26,0 — Zatrudniające specjalistów ICT"
+    "context": "Zatrudniające specjalistów ICT — Zatrudniające specjalistów ICT"
   },
   {
     "anchorId": "anchor_c48eb79bc8e4c41ac21c6644b71ac4c2cfd933f3668bb553a30af48cf02f04d4",
@@ -4697,7 +4697,7 @@
     "text": "Prowadzące sprzedaż elektroniczną",
     "page": 18,
     "kind": "table_cell",
-    "context": "Prowadzące sprzedaż elektroniczną | 11,8 | 17,8 | . — Prowadzące sprzedaż elektroniczną"
+    "context": "Prowadzące sprzedaż elektroniczną — Prowadzące sprzedaż elektroniczną"
   },
   {
     "anchorId": "anchor_e97f0259ae7bdf03de7193f34f56f67d3b6adb3094f5acbfcb452d15a3dc10a4",
@@ -4725,7 +4725,7 @@
     "text": "Wyposażające swoich pracowników w urządzenia przenośne",
     "page": 18,
     "kind": "table_cell",
-    "context": "Wyposażające swoich pracowników w urządzenia przenośne | 61,6 | . | 93,1 — Wyposażające swoich pracowników w urządzenia przenośne"
+    "context": "Wyposażające swoich pracowników w urządzenia przenośne — Wyposażające swoich pracowników w urządzenia przenośne"
   },
   {
     "anchorId": "anchor_eb808ffcf4495b84cd66574d5f9452f11404fc18e95069395fdb5c1919b02cd7",
@@ -4753,7 +4753,7 @@
     "text": "Przedsiębiorstwa wykorzystujące tech- nologie sztucznej inteligencji",
     "page": 18,
     "kind": "table_cell",
-    "context": "Przedsiębiorstwa wykorzystujące tech- nologie sztucznej inteligencji | . | 3,7 | 5,9 — Przedsiębiorstwa wykorzystujące tech- nologie sztucznej inteligencji"
+    "context": "Przedsiębiorstwa wykorzystujące tech- nologie sztucznej inteligencji — Przedsiębiorstwa wykorzystujące tech- nologie sztucznej inteligencji"
   },
   {
     "anchorId": "anchor_57adf5b532ce514573ea2f97ed14ee6a536833694e65e921032aa3c456842cf1",
@@ -4793,21 +4793,21 @@
     "text": "2015",
     "page": 18,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_7e048705a4024b7b2ad8c4ab7dd8116c70933b6d9b4481f3df8701716b8bda0c",
     "text": "2022",
     "page": 18,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_b6dd74ec07a2fbf411f73647b2348ba4dccfe4e74a53f5aac31097bbdf28f872",
     "text": "2023",
     "page": 18,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_63c940a1940219a22ee1446f6309fb887899040b189db9421d7d15bd84b1ecc4",
@@ -4821,7 +4821,7 @@
     "text": "Poprzez własne strony internetowe lub aplikację",
     "page": 18,
     "kind": "table_cell",
-    "context": "Poprzez własne strony internetowe lub aplikację | . | 12,5 | 12,0 — Poprzez własne strony internetowe lub aplikację"
+    "context": "Poprzez własne strony internetowe lub aplikację — Poprzez własne strony internetowe lub aplikację"
   },
   {
     "anchorId": "anchor_3ae2e8cff93683d5fd5a8986ed7c6ad4ed58342992b9d538e885c2700433b891",
@@ -4849,7 +4849,7 @@
     "text": "Poprzez internetowe platformy handlowe, serwisy aukcyjne",
     "page": 18,
     "kind": "table_cell",
-    "context": "Poprzez internetowe platformy handlowe, serwisy aukcyjne | . | 9,5 | 10,3 — Poprzez internetowe platformy handlowe, serwisy aukcyjne"
+    "context": "Poprzez internetowe platformy handlowe, serwisy aukcyjne — Poprzez internetowe platformy handlowe, serwisy aukcyjne"
   },
   {
     "anchorId": "anchor_7ad03ff4dbc2f6e82503f578021af930c3889e56348c722542de996ea27ddc5a",
@@ -4877,7 +4877,7 @@
     "text": "Do klientów indywidualnych",
     "page": 18,
     "kind": "table_cell",
-    "context": "Do klientów indywidualnych | 7,4 | 13,7 | 14,0 — Do klientów indywidualnych"
+    "context": "Do klientów indywidualnych — Do klientów indywidualnych"
   },
   {
     "anchorId": "anchor_02aa7963d248a9dc4903ea151ded7e55295ce3d2ff34e9b31d81cba535405d9a",
@@ -4905,7 +4905,7 @@
     "text": "Do innych przedsiębiorstw oraz organów administracji publicznej",
     "page": 18,
     "kind": "table_cell",
-    "context": "Do innych przedsiębiorstw oraz organów administracji publicznej | 6,9 | 12,3 | 12,8 — Do innych przedsiębiorstw oraz organów administracji publicznej"
+    "context": "Do innych przedsiębiorstw oraz organów administracji publicznej — Do innych przedsiębiorstw oraz organów administracji publicznej"
   },
   {
     "anchorId": "anchor_6d0e851d460369f7f1c064d35705c7a08561a74e1493245d21eb975a3340ebe8",
@@ -4933,7 +4933,7 @@
     "text": "Typu EDI",
     "page": 18,
     "kind": "table_cell",
-    "context": "Typu EDI | 3,8 | 3,5 | 3,0 — Typu EDI"
+    "context": "Typu EDI — Typu EDI"
   },
   {
     "anchorId": "anchor_357b8e1504b2d2cc481ba5fde0b9a8b1cad7f7e84e54f82e6a4bd12830c84e2b",
@@ -4973,21 +4973,21 @@
     "text": "2015",
     "page": 19,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_018640c32b6961410570d714ae53f0d92c5a44d65ad6349af9685b6792d2bc5e",
     "text": "2023",
     "page": 19,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_45280bda70e472e44df82efddb19ca26aab5addc7b5ba3ff82465983902d8157",
     "text": "2024",
     "page": 19,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_87a99f7f8acff7eef198cf724c70a303e9943f5833d7881453ec9df8005fbffb",
@@ -5001,7 +5001,7 @@
     "text": "O g ó ł e m",
     "page": 19,
     "kind": "table_cell",
-    "context": "O g ó ł e m | 75,8 | 93,3 | 95,9 — O g ó ł e m"
+    "context": "O g ó ł e m — O g ó ł e m"
   },
   {
     "anchorId": "anchor_3dee4fbdf6db078722f45910736952538b3597c72dbcf63a50b44e546182bf6a",
@@ -5029,7 +5029,7 @@
     "text": "w tym z dostępem szerokopasmowym",
     "page": 19,
     "kind": "table_cell",
-    "context": "w tym z dostępem szerokopasmowym | 71,0 | 92,8 | 94,7 — w tym z dostępem szerokopasmowym"
+    "context": "w tym z dostępem szerokopasmowym — w tym z dostępem szerokopasmowym"
   },
   {
     "anchorId": "anchor_5dea29f6bdc25596bda8b69b2c9371996ad15612baf4d681c723fe343e4bea10",
@@ -5064,7 +5064,7 @@
     "text": "z dziećmi",
     "page": 19,
     "kind": "table_cell",
-    "context": "z dziećmi | 95,0 | 99,8 | 99,9 — z dziećmi"
+    "context": "z dziećmi — z dziećmi"
   },
   {
     "anchorId": "anchor_3027eb22ff0ed20cfc2d9fbc9f231f56d8f0c7bc15c6a0c77f5cc193cd034139",
@@ -5092,7 +5092,7 @@
     "text": "bez dzieci",
     "page": 19,
     "kind": "table_cell",
-    "context": "bez dzieci | 65,2 b | 90,3 | 94,3 — bez dzieci"
+    "context": "bez dzieci — bez dzieci"
   },
   {
     "anchorId": "anchor_06ec378a9925108e9835616baf1fe53d6ddc13776cf67fe95df882ddfb9062d1",
@@ -5132,21 +5132,21 @@
     "text": "2015",
     "page": 20,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_f8795e9f3f67d3c907b14e5ed8692b106bb5ff397574551ed274a6af791f6a41",
     "text": "2022",
     "page": 20,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_c4dc848ef4ed6cfeaacbe97eaa242bb3c71709f884090ba567ce99cb0c854b5f",
     "text": "2023",
     "page": 20,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_11ee21af3b4c40d34c3ae5706ea484379cfd5a62249a5edda31b4eeeeef40d9e",
@@ -5160,7 +5160,7 @@
     "text": "na 1 mieszkańca w złotych",
     "page": 20,
     "kind": "table_cell",
-    "context": "na 1 mieszkańca w złotych | 470 | 1 182 | 1 409 — na 1 mieszkańca w złotych"
+    "context": "na 1 mieszkańca w złotych — na 1 mieszkańca w złotych"
   },
   {
     "anchorId": "anchor_e1dc624cd399fe610291fcc5e5ff657d7b5038df112cda50e71fbbed1cdfc071",
@@ -5188,7 +5188,7 @@
     "text": "w % PKB",
     "page": 20,
     "kind": "table_cell",
-    "context": "w % PKB | 1,00 | 1,44 | 1,56 — w % PKB"
+    "context": "w % PKB — w % PKB"
   },
   {
     "anchorId": "anchor_9276e771374d085fd44800bc6f2127ec052fc0d0df46f3760922de24e2c30407",
@@ -5216,7 +5216,7 @@
     "text": "Personel wewnętrzny B+R",
     "page": 20,
     "kind": "table_cell",
-    "context": "Personel wewnętrzny B+R | 157 921 | 263 057 | 266 452 — Personel wewnętrzny B+R"
+    "context": "Personel wewnętrzny B+R — Personel wewnętrzny B+R"
   },
   {
     "anchorId": "anchor_7aed0a320390c3ca657f92eedc81377c2ecb3fd9b579fd76df801af1da0953c3",
@@ -5244,7 +5244,7 @@
     "text": "w tym badacze w %",
     "page": 20,
     "kind": "table_cell",
-    "context": "w tym badacze w % | 75,0 | 69,3 | 69,1 — w tym badacze w %"
+    "context": "w tym badacze w % — w tym badacze w %"
   },
   {
     "anchorId": "anchor_2b422cab834a80ae65a3e2ecfe5600e39ba4d98c97afd859ef74ec45cd386a96",
@@ -5290,28 +5290,28 @@
     "text": "2015",
     "page": 20,
     "kind": "table_cell",
-    "context": "2015 | 2021 | 2022 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_8dded85218d42db554d45a9d5785414d6a66486290c8d4ade95ec23e9d70b45b",
     "text": "2021",
     "page": 20,
     "kind": "table_cell",
-    "context": "2015 | 2021 | 2022 — 2021"
+    "context": "2021 — 2021"
   },
   {
     "anchorId": "anchor_452284a74ce9938dd566d50347f8c56886eeee1d968da8859cd7d6f9d5da78dd",
     "text": "2022",
     "page": 20,
     "kind": "table_cell",
-    "context": "2015 | 2021 | 2022 — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_c06e915d9a841bc74706096ac1dd01a9d707844141365214c98bac7a31cc876e",
     "text": "Odsetek przedsiębiorstw innowacyjnych w przedsiębiorstwach: przemysłowych",
     "page": 20,
     "kind": "table_cell",
-    "context": "Odsetek przedsiębiorstw innowacyjnych w przedsiębiorstwach: przemysłowych | 17,6 | 22,0 | 32,2 — Odsetek przedsiębiorstw innowacyjnych w przedsiębiorstwach: przemysłowych"
+    "context": "Odsetek przedsiębiorstw innowacyjnych w przedsiębiorstwach: przemysłowych — Odsetek przedsiębiorstw innowacyjnych w przedsiębiorstwach: przemysłowych"
   },
   {
     "anchorId": "anchor_e7ada9f0eb90cb5663d7a4b74acda56925fe871fc81571ef39cac63152b13bca",
@@ -5339,7 +5339,7 @@
     "text": "usługowych",
     "page": 20,
     "kind": "table_cell",
-    "context": "usługowych | 9,8 | 19,7 | 32,1 — usługowych"
+    "context": "usługowych — usługowych"
   },
   {
     "anchorId": "anchor_bfaae042c1cfaaa21f093418958b063e80e5709e4aeb237c64e7449b5e062ac9",
@@ -5374,7 +5374,7 @@
     "text": "przemysłowych w mln zł",
     "page": 20,
     "kind": "table_cell",
-    "context": "przemysłowych w mln zł | 31 094 | 19 041 | 26 012 — przemysłowych w mln zł"
+    "context": "przemysłowych w mln zł — przemysłowych w mln zł"
   },
   {
     "anchorId": "anchor_f7bb9d648d8c2b60df89a685a82b8558e8beae9869213f245b864bc018c4c119",
@@ -5402,7 +5402,7 @@
     "text": "w tym w %: nakłady inwestycyjne",
     "page": 20,
     "kind": "table_cell",
-    "context": "w tym w %: nakłady inwestycyjne | 77,3 | 36,0 | 39,8 — w tym w %: nakłady inwestycyjne"
+    "context": "w tym w %: nakłady inwestycyjne — w tym w %: nakłady inwestycyjne"
   },
   {
     "anchorId": "anchor_a74794f0dbea12f0f89a609a7ab01c9bba7324901fab92bf12981ee86e3510d1",
@@ -5430,7 +5430,7 @@
     "text": "na prace B+R",
     "page": 20,
     "kind": "table_cell",
-    "context": "na prace B+R | 16,5 | 50,9 | 49,2 — na prace B+R"
+    "context": "na prace B+R — na prace B+R"
   },
   {
     "anchorId": "anchor_a8705c1cd52524e5c8caae0d4cfca9bcc0e308448c4033cac597640c1eb9df84",
@@ -5458,7 +5458,7 @@
     "text": "usługowych w mln zł",
     "page": 20,
     "kind": "table_cell",
-    "context": "usługowych w mln zł | 12 641 | 22 349 | 29 689 — usługowych w mln zł"
+    "context": "usługowych w mln zł — usługowych w mln zł"
   },
   {
     "anchorId": "anchor_0da1c09711ca360dcd5b1408ec1d4ca9b8ce60df241e67c3dc2dfd766ca2c79c",
@@ -5486,7 +5486,7 @@
     "text": "w tym w %: nakłady inwestycyjne",
     "page": 20,
     "kind": "table_cell",
-    "context": "w tym w %: nakłady inwestycyjne | 38,5 | 14,3 | 21,8 — w tym w %: nakłady inwestycyjne"
+    "context": "w tym w %: nakłady inwestycyjne — w tym w %: nakłady inwestycyjne"
   },
   {
     "anchorId": "anchor_3f67f5f8c9163efb1655485fcaf97155222884b01bd8390f9409c7de53c3c76e",
@@ -5514,7 +5514,7 @@
     "text": "na prace B+R",
     "page": 20,
     "kind": "table_cell",
-    "context": "na prace B+R | 32,7 | 60,7 | 55,4 — na prace B+R"
+    "context": "na prace B+R — na prace B+R"
   },
   {
     "anchorId": "anchor_2410870544af595e6451397c5ecd62f83960d2627aae5b318b5898ad2a400aa9",
@@ -5560,28 +5560,28 @@
     "text": "2015",
     "page": 21,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_77b46f749a853e95cc678921f8e43f345a24003340e250f12f21717a6451ab1e",
     "text": "2022",
     "page": 21,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_7ef7a21d6e271e7bc92be1af8ed555bf95955e3144302c848ae25b795bfdd921",
     "text": "2023",
     "page": 21,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_2b85147ec3fb18edb3114b583a1daceb3a93d45b9cbc780b2aab66c7ca205476",
     "text": "Odpady wytworzone w ciągu roku (bez komunalnych) w tys. t",
     "page": 21,
     "kind": "table_cell",
-    "context": "Odpady wytworzone w ciągu roku (bez komunalnych) w tys. t | 130 985 | 115 039 | 109 309 — Odpady wytworzone w ciągu roku (bez komunalnych) w tys. t"
+    "context": "Odpady wytworzone w ciągu roku (bez komunalnych) w tys. t — Odpady wytworzone w ciągu roku (bez komunalnych) w tys. t"
   },
   {
     "anchorId": "anchor_5cbd00e85e06a2bc467d072254115fc94c914f87a01dffdddb545c2aeb74395e",
@@ -5609,7 +5609,7 @@
     "text": "Odpady komunalne ogółem wy- tworzone w ciągu roku w tys. t",
     "page": 21,
     "kind": "table_cell",
-    "context": "Odpady komunalne ogółem wy- tworzone w ciągu roku w tys. t | 10 864 | 13 420 | 13 448 — Odpady komunalne ogółem wy- tworzone w ciągu roku w tys. t"
+    "context": "Odpady komunalne ogółem wy- tworzone w ciągu roku w tys. t — Odpady komunalne ogółem wy- tworzone w ciągu roku w tys. t"
   },
   {
     "anchorId": "anchor_c2d08a26c8bc12148b46d1ecaed88adc6c5b26f23626762f47969cb4d99fa3b2",
@@ -5637,7 +5637,7 @@
     "text": "na 1 mieszkańca w kg",
     "page": 21,
     "kind": "table_cell",
-    "context": "na 1 mieszkańca w kg | 283 | 355 | 357 — na 1 mieszkańca w kg"
+    "context": "na 1 mieszkańca w kg — na 1 mieszkańca w kg"
   },
   {
     "anchorId": "anchor_e4e8b69e1ae491557d35f4304b94dbfb643258269b9b9002873919ebebbe54f4",
@@ -5665,7 +5665,7 @@
     "text": "Ścieki przemysłowe i komunalne wymagające oczyszczania w hm 3",
     "page": 21,
     "kind": "table_cell",
-    "context": "Ścieki przemysłowe i komunalne wymagające oczyszczania w hm 3 | 2 122 | 2 148 | 2 125 — Ścieki przemysłowe i komunalne wymagające oczyszczania w hm 3"
+    "context": "Ścieki przemysłowe i komunalne wymagające oczyszczania w hm 3 — Ścieki przemysłowe i komunalne wymagające oczyszczania w hm 3"
   },
   {
     "anchorId": "anchor_6c9f19dec150123251ce2513bce20389831ace83431f57cf676abd85fff6e805",
@@ -5693,7 +5693,7 @@
     "text": "w tym oczyszczane",
     "page": 21,
     "kind": "table_cell",
-    "context": "w tym oczyszczane | 2 015 | 2 010 | 1 989 — w tym oczyszczane"
+    "context": "w tym oczyszczane — w tym oczyszczane"
   },
   {
     "anchorId": "anchor_71061dc074b5c61309d4866d674b1ffe503e11fcdff765933b6836421a49ff68",
@@ -5721,7 +5721,7 @@
     "text": "Ludność korzystająca z oczyszczalni ścieków w % ludności ogółem",
     "page": 21,
     "kind": "table_cell",
-    "context": "Ludność korzystająca z oczyszczalni ścieków w % ludności ogółem | 72,7 | 75,7 | 75,9 — Ludność korzystająca z oczyszczalni ścieków w % ludności ogółem"
+    "context": "Ludność korzystająca z oczyszczalni ścieków w % ludności ogółem — Ludność korzystająca z oczyszczalni ścieków w % ludności ogółem"
   },
   {
     "anchorId": "anchor_65f29f4b21b72d2643e180740c140703c943d2925db87a39df0777d4c66e5b83",
@@ -5833,21 +5833,21 @@
     "text": "2015",
     "page": 22,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_d383a0264d8880db2ef5a61938e1d205e1351a75afcec52e88f2106f265caf57",
     "text": "2022",
     "page": 22,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_b5771ff314a7ea59b1acf2bbf2386756bcdb6fb50ff2839e7ca5225fe65f1a23",
     "text": "2023",
     "page": 22,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_5b4d7f888adfe9c06a7f17b68809a0e08082486987ceeb7d9d41717fa7f57dc2",
@@ -5861,7 +5861,7 @@
     "text": "Gazy cieplarniane a",
     "page": 22,
     "kind": "table_cell",
-    "context": "Gazy cieplarniane a | 383 395 | 380 509 | 348 436 — Gazy cieplarniane a"
+    "context": "Gazy cieplarniane a — Gazy cieplarniane a"
   },
   {
     "anchorId": "anchor_85161266544a4e3212449d0b571e2b46ff1937286b71ec42a7d8746d04694172",
@@ -5889,7 +5889,7 @@
     "text": "Dwutlenek siarki",
     "page": 22,
     "kind": "table_cell",
-    "context": "Dwutlenek siarki | 639 | 320 | 273 — Dwutlenek siarki"
+    "context": "Dwutlenek siarki — Dwutlenek siarki"
   },
   {
     "anchorId": "anchor_9b026a0835792ae947d9be9a1baf9070bb9fe6d39374b9b8823acbd520acb7ad",
@@ -5917,7 +5917,7 @@
     "text": "Tlenki azotu b",
     "page": 22,
     "kind": "table_cell",
-    "context": "Tlenki azotu b | 721 | 529 | 492 — Tlenki azotu b"
+    "context": "Tlenki azotu b — Tlenki azotu b"
   },
   {
     "anchorId": "anchor_281920cd3c96b08a54a6fe5d1f3cf65d23f8d8c466dbfa36977f6b40933d272b",
@@ -5945,7 +5945,7 @@
     "text": "Tlenek węgla",
     "page": 22,
     "kind": "table_cell",
-    "context": "Tlenek węgla | 2 844 | 2 147 | 2 140 — Tlenek węgla"
+    "context": "Tlenek węgla — Tlenek węgla"
   },
   {
     "anchorId": "anchor_8ade95106347d83d7703017f8810b8840b8ab5d881aa1c19ae3f06c7ce1b7be6",
@@ -5979,21 +5979,21 @@
     "text": "2015",
     "page": 22,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_38bcb9fd953221225a5a767e81102c36df1421a28d0c946e692db20c7294dc73",
     "text": "2022",
     "page": 22,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_5623dbae0a0699716da41b8a97feaeabd95f365583309b4f6299e51e79cb9226",
     "text": "2023",
     "page": 22,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_dd76940cae5c32c84cd90e93032b93dc64efda42f256223fc2dcd8526969404d",
@@ -6007,7 +6007,7 @@
     "text": "w Mtoe",
     "page": 22,
     "kind": "table_cell",
-    "context": "w Mtoe | 67,8 | 59,2 | 54,2 — w Mtoe"
+    "context": "w Mtoe — w Mtoe"
   },
   {
     "anchorId": "anchor_46ff5000677603a65302dade74693d24547defefa7df62aae8e44c54c8738e01",
@@ -6035,7 +6035,7 @@
     "text": "na 1 mieszkańca w toe",
     "page": 22,
     "kind": "table_cell",
-    "context": "na 1 mieszkańca w toe | 1,8 | 1,6 | 1,5 — na 1 mieszkańca w toe"
+    "context": "na 1 mieszkańca w toe — na 1 mieszkańca w toe"
   },
   {
     "anchorId": "anchor_66c526acf433ec60c5d364f4e897cdd89fe59cd11c232c18e15b21b134d389a5",
@@ -6070,7 +6070,7 @@
     "text": "w Mtoe",
     "page": 22,
     "kind": "table_cell",
-    "context": "w Mtoe | 62,3 | 71,3 | 69,6 — w Mtoe"
+    "context": "w Mtoe — w Mtoe"
   },
   {
     "anchorId": "anchor_0a638c403b93ef0d450457134b635cb87db0fe1f214a4c9735813dd3e42df9b9",
@@ -6098,7 +6098,7 @@
     "text": "na 1 mieszkańca w toe",
     "page": 22,
     "kind": "table_cell",
-    "context": "na 1 mieszkańca w toe | 1,6 | 1,9 | 1,9 — na 1 mieszkańca w toe"
+    "context": "na 1 mieszkańca w toe — na 1 mieszkańca w toe"
   },
   {
     "anchorId": "anchor_734701718dceabca019c5bb88b4097130ee192b3fb2903f970d17a64891cd41c",
@@ -6150,21 +6150,21 @@
     "text": "2015",
     "page": 23,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_9e8251f96b83face12be9dca5477cde99b0439a81ae32546af82dbf01af1e777",
     "text": "2023",
     "page": 23,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_9706423514165b69f3d00cff5ab25d74e321e1a59752c0f58fe2b9d3874e28a6",
     "text": "2024",
     "page": 23,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_28d56e3ac5e81dcd8d87b03989c26441b0c8b65237e9aec617fc05417bdf78fd",
@@ -6178,7 +6178,7 @@
     "text": "Zboża",
     "page": 23,
     "kind": "table_cell",
-    "context": "Zboża | 28 003 | 35 851 | 34 997 — Zboża"
+    "context": "Zboża — Zboża"
   },
   {
     "anchorId": "anchor_8b92609d2383ed9d584c3e74345d5f45abc88d5293683f5da1761d26d2b2a1dc",
@@ -6213,7 +6213,7 @@
     "text": "pszenica",
     "page": 23,
     "kind": "table_cell",
-    "context": "pszenica | 10 958 | 13 178 | 12 415 — pszenica"
+    "context": "pszenica — pszenica"
   },
   {
     "anchorId": "anchor_db8a7f9864dff8c98a30473e821c1ddaea8b0de0269c36f618abce6964d28457",
@@ -6241,7 +6241,7 @@
     "text": "żyto",
     "page": 23,
     "kind": "table_cell",
-    "context": "żyto | 2 013 | 2 581 | 2 439 — żyto"
+    "context": "żyto — żyto"
   },
   {
     "anchorId": "anchor_f717f7f50ca8ffd571a0c6b3336260d99f706bb83a268894dea97c3b1c1fa917",
@@ -6269,7 +6269,7 @@
     "text": "jęczmień",
     "page": 23,
     "kind": "table_cell",
-    "context": "jęczmień | 2 961 | 2 905 | 3 016 — jęczmień"
+    "context": "jęczmień — jęczmień"
   },
   {
     "anchorId": "anchor_e7e6170cbee2b8e6059a67fb3a4ac8d0acf7e60c1ed574bd9cef4f9eff518608",
@@ -6297,7 +6297,7 @@
     "text": "owies",
     "page": 23,
     "kind": "table_cell",
-    "context": "owies | 1 220 | 1 532 | 1 648 — owies"
+    "context": "owies — owies"
   },
   {
     "anchorId": "anchor_55500954c33f556559fca52a6fd9fd660b56353bb9c0b79e659b86293194701f",
@@ -6325,7 +6325,7 @@
     "text": "kukurydza na ziarno",
     "page": 23,
     "kind": "table_cell",
-    "context": "kukurydza na ziarno | 3 156 | 9 152 | 9 398 — kukurydza na ziarno"
+    "context": "kukurydza na ziarno — kukurydza na ziarno"
   },
   {
     "anchorId": "anchor_51d9df57d50b731e1969cf1f059c9680861cc33f609d5f0655adfaa2d7ed3eca",
@@ -6353,7 +6353,7 @@
     "text": "pszenżyto",
     "page": 23,
     "kind": "table_cell",
-    "context": "pszenżyto | 5 339 | 5 383 | 5 052 — pszenżyto"
+    "context": "pszenżyto — pszenżyto"
   },
   {
     "anchorId": "anchor_bf1695f25e1911550aa13e668bedeb554d15ba60858abcf59bab7770551b3f47",
@@ -6381,7 +6381,7 @@
     "text": "Ziemniaki",
     "page": 23,
     "kind": "table_cell",
-    "context": "Ziemniaki | 6 152 | 5 590 | 5 920 — Ziemniaki"
+    "context": "Ziemniaki — Ziemniaki"
   },
   {
     "anchorId": "anchor_8cbc65e40b7f0fc16f5ac41d0b8c1462f28face93953595d1d7dbce635c38bf1",
@@ -6409,7 +6409,7 @@
     "text": "Buraki cukrowe",
     "page": 23,
     "kind": "table_cell",
-    "context": "Buraki cukrowe | 9 364 | 16 941 | 18 430 — Buraki cukrowe"
+    "context": "Buraki cukrowe — Buraki cukrowe"
   },
   {
     "anchorId": "anchor_ec569b6740a35382c60fa7dcb5287b7fbc0e0ae93ff8c82844dd46fe2bdf49eb",
@@ -6437,7 +6437,7 @@
     "text": "Oleiste",
     "page": 23,
     "kind": "table_cell",
-    "context": "Oleiste | 2 763 | 3 924 | 3 471 — Oleiste"
+    "context": "Oleiste — Oleiste"
   },
   {
     "anchorId": "anchor_c3d2e8577749acb3b95ec432d7390629b9648b92497ef5b97bdf096c5cbcc74e",
@@ -6465,7 +6465,7 @@
     "text": "Warzywa gruntowe a",
     "page": 23,
     "kind": "table_cell",
-    "context": "Warzywa gruntowe a | 3 793 | 3 833 | 3 831 — Warzywa gruntowe a"
+    "context": "Warzywa gruntowe a — Warzywa gruntowe a"
   },
   {
     "anchorId": "anchor_a5405978f289e4ac922c9afa9e06a53e2c625565d89474c9e33f6935236ebd8d",
@@ -6493,7 +6493,7 @@
     "text": "Owoce z drzew",
     "page": 23,
     "kind": "table_cell",
-    "context": "Owoce z drzew | 3 581 | 4 359 | 3 732 — Owoce z drzew"
+    "context": "Owoce z drzew — Owoce z drzew"
   },
   {
     "anchorId": "anchor_c2eba09254d1feaeb846c07a7bb9e5680183018a98b7980fd2e52c0a28e2ac7e",
@@ -6533,21 +6533,21 @@
     "text": "2015",
     "page": 24,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 a — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_3f1e0c4905d979aa31a9841785d79921b70b0e762d3ed10d90152a994604c6b7",
     "text": "2023",
     "page": 24,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 a — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_1d7edcfe450dd870e232e3ad1e3ce3e3beda7bfa2a7a5d37908d3683455c453a",
     "text": "2024 a",
     "page": 24,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 a — 2024 a"
+    "context": "2024 a — 2024 a"
   },
   {
     "anchorId": "anchor_49e7831b4e05f081b972f34a260030fb1b805fe4532bd725bb21c6edbeaa38c8",
@@ -6561,7 +6561,7 @@
     "text": "Bydło",
     "page": 24,
     "kind": "table_cell",
-    "context": "Bydło | 41 | 43 | 43 — Bydło"
+    "context": "Bydło — Bydło"
   },
   {
     "anchorId": "anchor_f3017466e49f021ad288b39ce5e493f6eabec58249410be6e6cfed6567537a42",
@@ -6589,7 +6589,7 @@
     "text": "w tym krowy",
     "page": 24,
     "kind": "table_cell",
-    "context": "w tym krowy | 17 | 16 | 16 — w tym krowy"
+    "context": "w tym krowy — w tym krowy"
   },
   {
     "anchorId": "anchor_b75f3716382c8ff93accb8af3979f4afef4cf3f7b35967bb7efad9fa92c5ce88",
@@ -6617,7 +6617,7 @@
     "text": "Trzoda chlewna",
     "page": 24,
     "kind": "table_cell",
-    "context": "Trzoda chlewna | 80 | 64 | 62 — Trzoda chlewna"
+    "context": "Trzoda chlewna — Trzoda chlewna"
   },
   {
     "anchorId": "anchor_40691aa69abde00c11ca1d2b51ab7c96eb8617c57bf31b9967ffee581bbebc62",
@@ -6651,28 +6651,28 @@
     "text": "2015",
     "page": 24,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 a — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_49260343678417954342284fd3ee59466368c3c23b8285502d78ac59a9a1e3de",
     "text": "2023",
     "page": 24,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 a — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_45e09e619d612cf5aea1385e779c5ed6ecd91e120f9dd316adaa5a0122982b3b",
     "text": "2024 a",
     "page": 24,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 a — 2024 a"
+    "context": "2024 a — 2024 a"
   },
   {
     "anchorId": "anchor_983d025f464ffc036746f32195be3c74bfe18c42dcdd5091c01626fa5d80b771",
     "text": "Zboża w kg",
     "page": 24,
     "kind": "table_cell",
-    "context": "Zboża w kg | 1 925 | 2 398 | 2 377 — Zboża w kg"
+    "context": "Zboża w kg — Zboża w kg"
   },
   {
     "anchorId": "anchor_2c903b9e5c4abc182bd01149966c7b01bf28a049ad3c005551dbae0990eb7f00",
@@ -6700,7 +6700,7 @@
     "text": "Ziemniaki w kg",
     "page": 24,
     "kind": "table_cell",
-    "context": "Ziemniaki w kg | 423 | 374 | 402 — Ziemniaki w kg"
+    "context": "Ziemniaki w kg — Ziemniaki w kg"
   },
   {
     "anchorId": "anchor_bf65798bae9297f3e740b23dafebbff2095c2c6cbd90235e5a8f45449743d233",
@@ -6728,7 +6728,7 @@
     "text": "Buraki cukrowe w kg",
     "page": 24,
     "kind": "table_cell",
-    "context": "Buraki cukrowe w kg | 644 | 1 133 | 1 252 — Buraki cukrowe w kg"
+    "context": "Buraki cukrowe w kg — Buraki cukrowe w kg"
   },
   {
     "anchorId": "anchor_4b57b52223e65a9d1e423eee107e106de287de6972daf7a93de7c787763e3bce",
@@ -6756,7 +6756,7 @@
     "text": "Warzywa ogółem b w kg",
     "page": 24,
     "kind": "table_cell",
-    "context": "Warzywa ogółem b w kg | 330 | 256 | 260 — Warzywa ogółem b w kg"
+    "context": "Warzywa ogółem b w kg — Warzywa ogółem b w kg"
   },
   {
     "anchorId": "anchor_449983180586bcea36eae94e369eb25954c751a9c98204ac978a6467b716a3f0",
@@ -6784,7 +6784,7 @@
     "text": "Żywiec rzeźny c w kg",
     "page": 24,
     "kind": "table_cell",
-    "context": "Żywiec rzeźny c w kg | 316 | 354 | 358 — Żywiec rzeźny c w kg"
+    "context": "Żywiec rzeźny c w kg — Żywiec rzeźny c w kg"
   },
   {
     "anchorId": "anchor_032414f3578d19089b7de3423b00075b016552a34bc4609d811d13ee70d4fdc2",
@@ -6819,7 +6819,7 @@
     "text": "wołowy",
     "page": 24,
     "kind": "table_cell",
-    "context": "wołowy | 33 | 35 | 42 — wołowy"
+    "context": "wołowy — wołowy"
   },
   {
     "anchorId": "anchor_224102d74f0b22fe3497086caf60224c8725450652c11526568b5f6651fbf6bf",
@@ -6847,7 +6847,7 @@
     "text": "wieprzowy",
     "page": 24,
     "kind": "table_cell",
-    "context": "wieprzowy | 126 | 110 | 118 — wieprzowy"
+    "context": "wieprzowy — wieprzowy"
   },
   {
     "anchorId": "anchor_7537f9a977f9328b747825ad563f544dfbd326b069c120ff6c7680951ab09dd5",
@@ -6875,7 +6875,7 @@
     "text": "Mleko krowie w l",
     "page": 24,
     "kind": "table_cell",
-    "context": "Mleko krowie w l | 884 | 1 006 | 1 058 — Mleko krowie w l"
+    "context": "Mleko krowie w l — Mleko krowie w l"
   },
   {
     "anchorId": "anchor_fe23d1947616e1d81e890a585c566d2cfe76e70d27d4a0774260c32b9d58c738",
@@ -6915,28 +6915,28 @@
     "text": "2015",
     "page": 25,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_c273c4c0717345f2ad3154fb9212a3d569f0ffcee0fdf171a79d070db4410eef",
     "text": "2023",
     "page": 25,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_c70552e171a27bb75070994cf76eaa993a8111d583b3128b365d2ad8c58dcd32",
     "text": "2024",
     "page": 25,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_2da681ba16da28ffbe1b5616d9540a4b14abca96f64986cba247ca64375ef3f7",
     "text": "Dynamika produkcji sprzedanej przemysłu (ceny stałe): rok poprzedni=100",
     "page": 25,
     "kind": "table_cell",
-    "context": "Dynamika produkcji sprzedanej przemysłu (ceny stałe): rok poprzedni=100 | 104,9 | 98,3 | 100,3 — Dynamika produkcji sprzedanej przemysłu (ceny stałe): rok poprzedni=100"
+    "context": "Dynamika produkcji sprzedanej przemysłu (ceny stałe): rok poprzedni=100 — Dynamika produkcji sprzedanej przemysłu (ceny stałe): rok poprzedni=100"
   },
   {
     "anchorId": "anchor_c68a0a2f96930fe499aeed0f98093395eb8466cbf7c6e0382c0a4fd2ed28bea7",
@@ -6964,7 +6964,7 @@
     "text": "2015=100",
     "page": 25,
     "kind": "table_cell",
-    "context": "2015=100 | 100,0 | 148,8 | 149,2 — 2015=100"
+    "context": "2015=100 — 2015=100"
   },
   {
     "anchorId": "anchor_b3a56fcc102eb257d0ac3216299ff565fa4efbf9d9b2b162919524922686f1e3",
@@ -6992,7 +6992,7 @@
     "text": "Wskaźniki cen produkcji sprzedanej prze- mysłu - rok poprzedni=100",
     "page": 25,
     "kind": "table_cell",
-    "context": "Wskaźniki cen produkcji sprzedanej prze- mysłu - rok poprzedni=100 | 97,8 | 102,4 | 93,2 — Wskaźniki cen produkcji sprzedanej prze- mysłu - rok poprzedni=100"
+    "context": "Wskaźniki cen produkcji sprzedanej prze- mysłu - rok poprzedni=100 — Wskaźniki cen produkcji sprzedanej prze- mysłu - rok poprzedni=100"
   },
   {
     "anchorId": "anchor_2b3a669d8c979ccff947484f6c6456a3aa8759d647df75942c4e649708e58796",
@@ -7044,21 +7044,21 @@
     "text": "2015",
     "page": 25,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_3fcfc9c7bc90823c5a3abd75b8d3a99c79f92b7935ca429dde2a175265a3c565",
     "text": "2023",
     "page": 25,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_d74db094d21ee103c93af5f741e1586126721c57ceed7ed1e389faec460b5edf",
     "text": "2024",
     "page": 25,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_1eefa8a34ddc0364af24c0ca7a348b65da28147492668b3cbbf22ce9ef6c45cc",
@@ -7072,7 +7072,7 @@
     "text": "Samochody osobowe wyposażone w silnik tłokowy wewnętrznego spalania",
     "page": 25,
     "kind": "table_cell",
-    "context": "Samochody osobowe wyposażone w silnik tłokowy wewnętrznego spalania | 535 | 297 | 216 — Samochody osobowe wyposażone w silnik tłokowy wewnętrznego spalania"
+    "context": "Samochody osobowe wyposażone w silnik tłokowy wewnętrznego spalania — Samochody osobowe wyposażone w silnik tłokowy wewnętrznego spalania"
   },
   {
     "anchorId": "anchor_cb6b2e9ee1ed95b1394c66df3a0211ac432aa8e65b495b428b98e761e4f79338",
@@ -7100,7 +7100,7 @@
     "text": "Odbiorniki telewizyjne",
     "page": 25,
     "kind": "table_cell",
-    "context": "Odbiorniki telewizyjne | 17 521 | 14 438 | 15 111 — Odbiorniki telewizyjne"
+    "context": "Odbiorniki telewizyjne — Odbiorniki telewizyjne"
   },
   {
     "anchorId": "anchor_abb91d52d71483f56be05fab8f4bf6b833e8c7a25ef469eb705a6a985655cdf4",
@@ -7128,7 +7128,7 @@
     "text": "Zmywarki do naczyń",
     "page": 25,
     "kind": "table_cell",
-    "context": "Zmywarki do naczyń | 4 309 | 4 782 | 4 968 — Zmywarki do naczyń"
+    "context": "Zmywarki do naczyń — Zmywarki do naczyń"
   },
   {
     "anchorId": "anchor_1da6c8656a366a3faf008deea19ba1f3cac96bf3c2d882f515d4197b8868686c",
@@ -7156,7 +7156,7 @@
     "text": "Opony",
     "page": 25,
     "kind": "table_cell",
-    "context": "Opony | 46 715 | 46 900 | 49 918 — Opony"
+    "context": "Opony — Opony"
   },
   {
     "anchorId": "anchor_b8c19821faefcdb9af059f86556e3852125f76ab3af72ff843427dba3cfc27c5",
@@ -7196,21 +7196,21 @@
     "text": "2015",
     "page": 26,
     "kind": "table_cell",
-    "context": "2015 | 20223 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_397b546e09f9fd45e8962d21a7eeae5344d90c85831960f4f303d4be1dc83139",
     "text": "20223",
     "page": 26,
     "kind": "table_cell",
-    "context": "2015 | 20223 | 2024 — 20223"
+    "context": "20223 — 20223"
   },
   {
     "anchorId": "anchor_8d2f09500949eb89f7f09e12b360a3d5c6667a6bcfd3e6ed28d036d6e37473ee",
     "text": "2024",
     "page": 26,
     "kind": "table_cell",
-    "context": "2015 | 20223 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_7d17efd21dd363733ad2744023ee184a59bf5ef11abaeed92f9108b6588d0f2d",
@@ -7224,7 +7224,7 @@
     "text": "inwestycyjnym",
     "page": 26,
     "kind": "table_cell",
-    "context": "inwestycyjnym | 61,0 | 70,7 | 70,2 — inwestycyjnym"
+    "context": "inwestycyjnym — inwestycyjnym"
   },
   {
     "anchorId": "anchor_11d7a946829604527bf8b56104589dff1db9af46ce040d3c2bbf50e29ce3d7ba",
@@ -7252,7 +7252,7 @@
     "text": "remontowym",
     "page": 26,
     "kind": "table_cell",
-    "context": "remontowym | 39,0 | 29,3 | 29,8 — remontowym"
+    "context": "remontowym — remontowym"
   },
   {
     "anchorId": "anchor_d85ad30f0bd4d71ebab09b1be2ce76773586010ed7ee6b9f51bd1f90ca84020f",
@@ -7280,7 +7280,7 @@
     "text": "Dynamika produkcji budowlano-montażowej (ceny stałe) - rok poprzedni=100",
     "page": 26,
     "kind": "table_cell",
-    "context": "Dynamika produkcji budowlano-montażowej (ceny stałe) - rok poprzedni=100 | 102,8 | 104,9 | 92,3 — Dynamika produkcji budowlano-montażowej (ceny stałe) - rok poprzedni=100"
+    "context": "Dynamika produkcji budowlano-montażowej (ceny stałe) - rok poprzedni=100 — Dynamika produkcji budowlano-montażowej (ceny stałe) - rok poprzedni=100"
   },
   {
     "anchorId": "anchor_5d8c4bb4558c6892b917dd10ad21cfe40224753c3762d716ff84cc5427cb798e",
@@ -7308,7 +7308,7 @@
     "text": "Wskaźniki cen produkcji budowlano-mon- tażowej - rok poprzedni=100",
     "page": 26,
     "kind": "table_cell",
-    "context": "Wskaźniki cen produkcji budowlano-mon- tażowej - rok poprzedni=100 | 99,5 | 110,2 | 106,0 — Wskaźniki cen produkcji budowlano-mon- tażowej - rok poprzedni=100"
+    "context": "Wskaźniki cen produkcji budowlano-mon- tażowej - rok poprzedni=100 — Wskaźniki cen produkcji budowlano-mon- tażowej - rok poprzedni=100"
   },
   {
     "anchorId": "anchor_42f5393d1ddb8cd310e9c99ee67b6dc2753a864a59cae0ddb48033dda19b1f62",
@@ -7360,28 +7360,28 @@
     "text": "2015",
     "page": 27,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_c9e4e4e2a2e389612fe8a0322cb24edddea0d14cb09754857c1c1280c828fddf",
     "text": "2022",
     "page": 27,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_a0591994bc6582d4f4b763a08a8071165f6eeeeb49e25fa155e3b9c1f9f7959c",
     "text": "2023",
     "page": 27,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_85cd04aea6b6b80e52aaafd558346f4b38c58e02d873e93896bc5c5f75b09e7a",
     "text": "Linie kolejowe na 100 km 2 powierzchni ogólnej w km",
     "page": 27,
     "kind": "table_cell",
-    "context": "Linie kolejowe na 100 km 2 powierzchni ogólnej w km | 6,2 | 6,2 | 6,3 — Linie kolejowe na 100 km 2 powierzchni ogólnej w km"
+    "context": "Linie kolejowe na 100 km 2 powierzchni ogólnej w km — Linie kolejowe na 100 km 2 powierzchni ogólnej w km"
   },
   {
     "anchorId": "anchor_9e32483e79b78364e18da6ca8d33c892b99f48f3fd9614029e0614ddc3f7a1c1",
@@ -7409,7 +7409,7 @@
     "text": "Linie kolejowe zelektryfikowane w % ogól- nej długości linii kolejowych normalno- torowych",
     "page": 27,
     "kind": "table_cell",
-    "context": "Linie kolejowe zelektryfikowane w % ogól- nej długości linii kolejowych normalno- torowych | 61,7 | 62,5 | 62,5 — Linie kolejowe zelektryfikowane w % ogól- nej długości linii kolejowych normalno- torowych"
+    "context": "Linie kolejowe zelektryfikowane w % ogól- nej długości linii kolejowych normalno- torowych — Linie kolejowe zelektryfikowane w % ogól- nej długości linii kolejowych normalno- torowych"
   },
   {
     "anchorId": "anchor_ce627c22c0723e94f5c2c0bba619798b207d0161712807af5e1b5658d5c04a6c",
@@ -7437,7 +7437,7 @@
     "text": "Drogi publiczne o twardej nawierzchni na 100 km 2 powierzchni ogólnej w km",
     "page": 27,
     "kind": "table_cell",
-    "context": "Drogi publiczne o twardej nawierzchni na 100 km 2 powierzchni ogólnej w km | 93,0 | 101,5 | 101,9 — Drogi publiczne o twardej nawierzchni na 100 km 2 powierzchni ogólnej w km"
+    "context": "Drogi publiczne o twardej nawierzchni na 100 km 2 powierzchni ogólnej w km — Drogi publiczne o twardej nawierzchni na 100 km 2 powierzchni ogólnej w km"
   },
   {
     "anchorId": "anchor_91fb6758318615d7d81b82d284040b314f19d30d230d3c157159e50cb0da2b08",
@@ -7465,7 +7465,7 @@
     "text": "Drogi ekspresowe w km",
     "page": 27,
     "kind": "table_cell",
-    "context": "Drogi ekspresowe w km | 1 492 | 3 070 | 3 244 — Drogi ekspresowe w km"
+    "context": "Drogi ekspresowe w km — Drogi ekspresowe w km"
   },
   {
     "anchorId": "anchor_e3caad1f826e8a587907852e8675c6d9f9d81b9188e278ea769a8c96f616dae2",
@@ -7493,7 +7493,7 @@
     "text": "Autostrady w km",
     "page": 27,
     "kind": "table_cell",
-    "context": "Autostrady w km | 1 559 | 1 802 | 1 851 — Autostrady w km"
+    "context": "Autostrady w km — Autostrady w km"
   },
   {
     "anchorId": "anchor_e865082b57a7970ae0d64dcc0680da8cffdefea4e1b448b5427c05a7ef4fe43f",
@@ -7521,7 +7521,7 @@
     "text": "Rurociągi magistralne do przetłaczania ropy naftowej i produktów naftowych w km",
     "page": 27,
     "kind": "table_cell",
-    "context": "Rurociągi magistralne do przetłaczania ropy naftowej i produktów naftowych w km | 2 483 | 2 483 | 2 584 — Rurociągi magistralne do przetłaczania ropy naftowej i produktów naftowych w km"
+    "context": "Rurociągi magistralne do przetłaczania ropy naftowej i produktów naftowych w km — Rurociągi magistralne do przetłaczania ropy naftowej i produktów naftowych w km"
   },
   {
     "anchorId": "anchor_a70f8adc5a3b4482b181df32b9dfca590b45f3f3cac82015db86ffa5a6df3a4d",
@@ -7549,7 +7549,7 @@
     "text": "Drogi wodne śródlądowe żeglowne w km",
     "page": 27,
     "kind": "table_cell",
-    "context": "Drogi wodne śródlądowe żeglowne w km | 3 655 | 3 768 | 3 767 — Drogi wodne śródlądowe żeglowne w km"
+    "context": "Drogi wodne śródlądowe żeglowne w km — Drogi wodne śródlądowe żeglowne w km"
   },
   {
     "anchorId": "anchor_76ca8aee5946d856142a2356f19efc9e6abd4c13a4d667811510864e16da9670",
@@ -7584,7 +7584,7 @@
     "text": "statki",
     "page": 27,
     "kind": "table_cell",
-    "context": "statki | 102 | 88 | 88 — statki"
+    "context": "statki — statki"
   },
   {
     "anchorId": "anchor_7ee2c50cb6169f5673f40e60e773fd797d81f6ce4c7ec823bfb9462a9e7dcab0",
@@ -7612,7 +7612,7 @@
     "text": "nośność (DWT) w tys. ton",
     "page": 27,
     "kind": "table_cell",
-    "context": "nośność (DWT) w tys. ton | 2 515 | 2 728 | 2 721 — nośność (DWT) w tys. ton"
+    "context": "nośność (DWT) w tys. ton — nośność (DWT) w tys. ton"
   },
   {
     "anchorId": "anchor_0844488e6baaad564a45a13094ff06609c6b24cac69bc5fae4f5aea4d12d5c54",
@@ -7652,63 +7652,63 @@
     "text": "2015",
     "page": 27,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 | 2015 | 2022 | 2023 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_71acb2f096fb9e0f7870c74c38377d5c5b54f04cec3233cc884a55d77b7189dd",
     "text": "2022",
     "page": 27,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 | 2015 | 2022 | 2023 — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_ddbb780b871469974ad5bd38db4356dfa94da98454e51f7af4579cb597b95011",
     "text": "2023",
     "page": 27,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 | 2015 | 2022 | 2023 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_f53888769b3e7ff4c04d9272e706a72f066ddf340898e7155abc7a64c51bd25f",
     "text": "2015",
     "page": 27,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 | 2015 | 2022 | 2023 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_d28618b92967c0ec473b58c603788b6e530239a7cc1b1879e33edb22cef8bc35",
     "text": "2022",
     "page": 27,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 | 2015 | 2022 | 2023 — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_1fe6e579edfa17256aceb2f304dd9f4568faed8cda756ed59a65e9f763584d32",
     "text": "2023",
     "page": 27,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 | 2015 | 2022 | 2023 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_9892898389d775f72d63c061f73eb3f9990c57adee37f6a7b58fd7ed29ef64aa",
     "text": "ładunki w mln ton",
     "page": 27,
     "kind": "table_cell",
-    "context": "ładunki w mln ton | pasażerowie w mln osób a — ładunki w mln ton"
+    "context": "ładunki w mln ton — ładunki w mln ton"
   },
   {
     "anchorId": "anchor_428c6a4e543bb65cbd402eafca7febe76b8cf71246ffdc248dee3f239a91953d",
     "text": "pasażerowie w mln osób a",
     "page": 27,
     "kind": "table_cell",
-    "context": "ładunki w mln ton | pasażerowie w mln osób a — pasażerowie w mln osób a"
+    "context": "pasażerowie w mln osób a — pasażerowie w mln osób a"
   },
   {
     "anchorId": "anchor_64469bd015349e8d1f3b3b91614c70eea0f03223d9f3c21e9b9f73a5d8dea4c1",
     "text": "O g ó ł e m b",
     "page": 27,
     "kind": "table_cell",
-    "context": "O g ó ł e m b | 1 804 | 2 277 | 2 226 | 703,7 | 572,0 | 646,9 — O g ó ł e m b"
+    "context": "O g ó ł e m b — O g ó ł e m b"
   },
   {
     "anchorId": "anchor_d5cbd6313326d100063cf31b596258bfab0c3bf82d339d93275544d1a23e1d6c",
@@ -7764,7 +7764,7 @@
     "text": "Kolejowym c",
     "page": 27,
     "kind": "table_cell",
-    "context": "Kolejowym c | 224,3 | 237,6 | 229,9 | 277,3 | 321,1 | 373,7 — Kolejowym c"
+    "context": "Kolejowym c — Kolejowym c"
   },
   {
     "anchorId": "anchor_f242026b6886bd254d146b66fbcf418e4d161f6e23d93fb6dc3d20e58b3a7d33",
@@ -7813,7 +7813,7 @@
     "text": "Samochodowym",
     "page": 27,
     "kind": "table_cell",
-    "context": "Samochodowym | 1 506 | 1 976 | 1 943 | 416,8 | 214,4 | 256,9 — Samochodowym"
+    "context": "Samochodowym — Samochodowym"
   },
   {
     "anchorId": "anchor_7d8bdff3030b55f1108a11a5ee9edcdcc043ea5b10aa3528b028b1876984895b",
@@ -7862,7 +7862,7 @@
     "text": "Lotniczym",
     "page": 27,
     "kind": "table_cell",
-    "context": "Lotniczym | 0,04 | 0,12 | 0,09 | 7,3 | 12,9 | 16,3 — Lotniczym"
+    "context": "Lotniczym — Lotniczym"
   },
   {
     "anchorId": "anchor_6c86523d4ca4b75d58b6dd11b6fc51464766ca6c56e66afe330d22778749d890",
@@ -7911,7 +7911,7 @@
     "text": "Rurociągowym",
     "page": 27,
     "kind": "table_cell",
-    "context": "Rurociągowym | 54,9 | 52,6 | 44,4 | . | . | . — Rurociągowym"
+    "context": "Rurociągowym — Rurociągowym"
   },
   {
     "anchorId": "anchor_ae3615a24ccbf6a0fbe9d6a8fab9dc3fec446bf34424cbcedc9ca33d283e5aab",
@@ -7966,21 +7966,21 @@
     "text": "2015",
     "page": 28,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_346e727eee021594f283eb9bffef358257e2c31cf3c3d6ea55830baf7d7686ab",
     "text": "2022",
     "page": 28,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_1f3c84b40c06109045545c7dcf903d55c5fee88ca20ab02eefb7ecffe35cfa21",
     "text": "2023",
     "page": 28,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_2eb1871895d6f37cacb3c0440c5431d95e62912a440900cc91593113eed847dc",
@@ -7994,7 +7994,7 @@
     "text": "rok poprzedni=100",
     "page": 28,
     "kind": "table_cell",
-    "context": "rok poprzedni=100 | 102,4 | 114,3 | 96,2 — rok poprzedni=100"
+    "context": "rok poprzedni=100 — rok poprzedni=100"
   },
   {
     "anchorId": "anchor_37fb5058cff4c988c51361b8e40408668174c85c44a4984393a0cc4a78fe1fc6",
@@ -8022,7 +8022,7 @@
     "text": "2010=100",
     "page": 28,
     "kind": "table_cell",
-    "context": "2010=100 | 132,2 | 202,9 | 178,5 — 2010=100"
+    "context": "2010=100 — 2010=100"
   },
   {
     "anchorId": "anchor_8c5acd7314b1311c03668b9c0ef840e6b09a10eefda643ac3bc794d18c8cef4c",
@@ -8056,28 +8056,28 @@
     "text": "2015",
     "page": 29,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_0e686855ab0efffa2bf62d66edd62cf855cfd835260dd07474d62758bd457478",
     "text": "2023",
     "page": 29,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_0bca3ba0f3d6a75e9ba95389a1976df68de8b89dfba56e00715b7edf3d87563a",
     "text": "2024",
     "page": 29,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_492a0475a35878a456d9186c2fcba89b525ba76f2d5cc1ef045b00f138ad7d43",
     "text": "Dynamika sprzedaży detalicznej (ceny stałe): rok poprzedni=100",
     "page": 29,
     "kind": "table_cell",
-    "context": "Dynamika sprzedaży detalicznej (ceny stałe): rok poprzedni=100 | 105,4 | 95,5 | 101,0 — Dynamika sprzedaży detalicznej (ceny stałe): rok poprzedni=100"
+    "context": "Dynamika sprzedaży detalicznej (ceny stałe): rok poprzedni=100 — Dynamika sprzedaży detalicznej (ceny stałe): rok poprzedni=100"
   },
   {
     "anchorId": "anchor_9c15bba53e688e210826942d15478bf2b755de72bb9902267b403605dceb7931",
@@ -8105,7 +8105,7 @@
     "text": "2015=100",
     "page": 29,
     "kind": "table_cell",
-    "context": "2015=100 | 100,0 | 123,9 | 125,1 — 2015=100"
+    "context": "2015=100 — 2015=100"
   },
   {
     "anchorId": "anchor_3af6d11cc2f71b7964260f58946e3e2310fc606a9953c7de82ce6e71ad49f0aa",
@@ -8133,7 +8133,7 @@
     "text": "Dynamika sprzedaży hurtowej w przedsię- biorstwach handlowych (ceny bieżące): rok poprzedni=100",
     "page": 29,
     "kind": "table_cell",
-    "context": "Dynamika sprzedaży hurtowej w przedsię- biorstwach handlowych (ceny bieżące): rok poprzedni=100 | 105,0 | 84,6 | 99,8 — Dynamika sprzedaży hurtowej w przedsię- biorstwach handlowych (ceny bieżące): rok poprzedni=100"
+    "context": "Dynamika sprzedaży hurtowej w przedsię- biorstwach handlowych (ceny bieżące): rok poprzedni=100 — Dynamika sprzedaży hurtowej w przedsię- biorstwach handlowych (ceny bieżące): rok poprzedni=100"
   },
   {
     "anchorId": "anchor_cafd6dde970cc5c74cd8496f3a34e1e39cc8ed809ba35d41bf06b9cc3e340138",
@@ -8161,7 +8161,7 @@
     "text": "2015=100",
     "page": 29,
     "kind": "table_cell",
-    "context": "2015=100 | 100,0 | 187,0 | 186,7 — 2015=100"
+    "context": "2015=100 — 2015=100"
   },
   {
     "anchorId": "anchor_116ba3d1800f2b96d49d3637262b86ddf407f5c5184afa1a726eeb1d5198b218",
@@ -8237,70 +8237,70 @@
     "text": "Import - cif",
     "page": 30,
     "kind": "table_cell",
-    "context": "Import - cif | Eksport | Saldo — Import - cif"
+    "context": "Import - cif — Import - cif"
   },
   {
     "anchorId": "anchor_865e6431692f130a600d1a194a253a1dd84ed2cd9d5451cfb747f93b3a66be67",
     "text": "Eksport",
     "page": 30,
     "kind": "table_cell",
-    "context": "Import - cif | Eksport | Saldo — Eksport"
+    "context": "Eksport — Eksport"
   },
   {
     "anchorId": "anchor_4403d9ef55c2bc9dd915fdaa4991b9f0a2d24b52344ba7c4e2af690242a0e2d0",
     "text": "Saldo",
     "page": 30,
     "kind": "table_cell",
-    "context": "Import - cif | Eksport | Saldo — Saldo"
+    "context": "Saldo — Saldo"
   },
   {
     "anchorId": "anchor_38659cfb09755b4fddcaea25d752b34f81c9de6e507ad2e79a256d3252c5f823",
     "text": "2015",
     "page": 30,
     "kind": "table_cell",
-    "context": "2015 | 2024 | 2015 | 2024 | 2015 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_e918cb408cc1b34806bfda1e4684f0c55df8d25a04a3d535e478856ad6e20e24",
     "text": "2024",
     "page": 30,
     "kind": "table_cell",
-    "context": "2015 | 2024 | 2015 | 2024 | 2015 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_46a47749c26927657916a838920f482ebcb000a24e050b76d3a6ea5b3effcadb",
     "text": "2015",
     "page": 30,
     "kind": "table_cell",
-    "context": "2015 | 2024 | 2015 | 2024 | 2015 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_367f71b7cba464e002d5c99c16841cde1e35f6b4e12d6e02873fdb808cfdd6a1",
     "text": "2024",
     "page": 30,
     "kind": "table_cell",
-    "context": "2015 | 2024 | 2015 | 2024 | 2015 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_0b564867a564b5f80d0b0d2a35e7fb282b8e29d38a23920329f4b3797f2c7c89",
     "text": "2015",
     "page": 30,
     "kind": "table_cell",
-    "context": "2015 | 2024 | 2015 | 2024 | 2015 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_2583b8139ca30f4d04bebea0ff5386a2899700cf4afc54245475913c1e7acbaf",
     "text": "2024",
     "page": 30,
     "kind": "table_cell",
-    "context": "2015 | 2024 | 2015 | 2024 | 2015 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_c613413baf83dcecc094133e59e88c576e4889fab1a0564096f947a48579917a",
     "text": "W miliardach złotych",
     "page": 30,
     "kind": "table_cell",
-    "context": "W miliardach złotych | 741,0 | 1 509,2 | 750,8 | 1 512,2 | 9,9 | 3,0 — W miliardach złotych"
+    "context": "W miliardach złotych — W miliardach złotych"
   },
   {
     "anchorId": "anchor_0bc798c3d189cfb90a63c6845b97ce4f29b4a16ce682aadfc60932cdf2074072",
@@ -8349,7 +8349,7 @@
     "text": "W miliardach USD",
     "page": 30,
     "kind": "table_cell",
-    "context": "W miliardach USD | 197,7 | 379,5 | 200,3 | 380,3 | 2,7 | 0,8 — W miliardach USD"
+    "context": "W miliardach USD — W miliardach USD"
   },
   {
     "anchorId": "anchor_fe2caafed76876cdfd3c54bb21ca0e0409af79327979093f20577f1e772104a1",
@@ -8398,7 +8398,7 @@
     "text": "W miliardach EUR",
     "page": 30,
     "kind": "table_cell",
-    "context": "W miliardach EUR | 177,2 | 349,7 | 179,6 | 350,4 | 2,3 | 0,7 — W miliardach EUR"
+    "context": "W miliardach EUR — W miliardach EUR"
   },
   {
     "anchorId": "anchor_e2720cc7c6fcb55029eb4d88ab969eace0867c1b14df8349b7ad59772939fed4",
@@ -8477,14 +8477,14 @@
     "text": "Import",
     "page": 31,
     "kind": "table_cell",
-    "context": "Import | Eksport — Import"
+    "context": "Import — Import"
   },
   {
     "anchorId": "anchor_6a9e4dfb22f6b02b6cbb679346f4bb6e0d04847897574cfbd66a2ea9b9060473",
     "text": "Eksport",
     "page": 31,
     "kind": "table_cell",
-    "context": "Import | Eksport — Eksport"
+    "context": "Eksport — Eksport"
   },
   {
     "anchorId": "anchor_048cd0acc9a2cfb33d013739227642076b1aafbefb64f5f86edc575915716bcc",
@@ -8498,7 +8498,7 @@
     "text": "O g ó ł e m",
     "page": 31,
     "kind": "table_cell",
-    "context": "O g ó ł e m | 100,0 | 100,0 — O g ó ł e m"
+    "context": "O g ó ł e m — O g ó ł e m"
   },
   {
     "anchorId": "anchor_4ec5f9695dfe87103f24b96700bf7dca44f4056bd3751aa3577ce3fb61c89a76",
@@ -8519,7 +8519,7 @@
     "text": "Żywność i zwierzęta żywe",
     "page": 31,
     "kind": "table_cell",
-    "context": "Żywność i zwierzęta żywe | 8,1 | 12,4 — Żywność i zwierzęta żywe"
+    "context": "Żywność i zwierzęta żywe — Żywność i zwierzęta żywe"
   },
   {
     "anchorId": "anchor_6a8927375419dbbeb44602aef6f9ed48ffeccf6fe86a8871842c323eff4c6755",
@@ -8540,7 +8540,7 @@
     "text": "Napoje i tytoń",
     "page": 31,
     "kind": "table_cell",
-    "context": "Napoje i tytoń | 0,9 | 2,0 — Napoje i tytoń"
+    "context": "Napoje i tytoń — Napoje i tytoń"
   },
   {
     "anchorId": "anchor_4cfc996799159f7514b99e38d2ad820fa44a2cd844fdac93dbd3184967c296b6",
@@ -8561,7 +8561,7 @@
     "text": "Surowce niejadalne z wyjątkiem paliw",
     "page": 31,
     "kind": "table_cell",
-    "context": "Surowce niejadalne z wyjątkiem paliw | 2,6 | 1,9 — Surowce niejadalne z wyjątkiem paliw"
+    "context": "Surowce niejadalne z wyjątkiem paliw — Surowce niejadalne z wyjątkiem paliw"
   },
   {
     "anchorId": "anchor_6b8a00a5c5e23b09a9ca0448bbe43c026fd64028c9aaf2e8c31424f2f4c00786",
@@ -8582,7 +8582,7 @@
     "text": "Paliwa mineralne, smary i materiały pochodne",
     "page": 31,
     "kind": "table_cell",
-    "context": "Paliwa mineralne, smary i materiały pochodne | 7,6 | 2,6 — Paliwa mineralne, smary i materiały pochodne"
+    "context": "Paliwa mineralne, smary i materiały pochodne — Paliwa mineralne, smary i materiały pochodne"
   },
   {
     "anchorId": "anchor_882a94f0211a9ffa7d7ca0006f98f5f1bf995af96959bbeb0066c049e7ac4152",
@@ -8603,7 +8603,7 @@
     "text": "Oleje, tłuszcze, woski zwierzęce i roślinne",
     "page": 31,
     "kind": "table_cell",
-    "context": "Oleje, tłuszcze, woski zwierzęce i roślinne | 0,5 | 0,3 — Oleje, tłuszcze, woski zwierzęce i roślinne"
+    "context": "Oleje, tłuszcze, woski zwierzęce i roślinne — Oleje, tłuszcze, woski zwierzęce i roślinne"
   },
   {
     "anchorId": "anchor_9159cee62b9d5b677cb3f1d9d7de52ebf44bf36c5a9b89761421c24f8457497d",
@@ -8624,7 +8624,7 @@
     "text": "Chemikalia i produkty pokrewne",
     "page": 31,
     "kind": "table_cell",
-    "context": "Chemikalia i produkty pokrewne | 14,0 | 9,3 — Chemikalia i produkty pokrewne"
+    "context": "Chemikalia i produkty pokrewne — Chemikalia i produkty pokrewne"
   },
   {
     "anchorId": "anchor_64ed88b605fd4338b35cfae464a75a6f98be3733ba7936d0a7e2ef95502ba207",
@@ -8645,7 +8645,7 @@
     "text": "Towary przemysłowe sklasyfikowane głów- nie według surowca",
     "page": 31,
     "kind": "table_cell",
-    "context": "Towary przemysłowe sklasyfikowane głów- nie według surowca | 14,5 | 16,4 — Towary przemysłowe sklasyfikowane głów- nie według surowca"
+    "context": "Towary przemysłowe sklasyfikowane głów- nie według surowca — Towary przemysłowe sklasyfikowane głów- nie według surowca"
   },
   {
     "anchorId": "anchor_9a84fbbb06c02883d16490a368a4ad889aa8fbd6fa593f003383ccdff5bae0d1",
@@ -8666,7 +8666,7 @@
     "text": "Maszyny, urządzenia i sprzęt transportowy",
     "page": 31,
     "kind": "table_cell",
-    "context": "Maszyny, urządzenia i sprzęt transportowy | 35,2 | 37,2 — Maszyny, urządzenia i sprzęt transportowy"
+    "context": "Maszyny, urządzenia i sprzęt transportowy — Maszyny, urządzenia i sprzęt transportowy"
   },
   {
     "anchorId": "anchor_f81b0264434a447b28a04371de8de00ea4b46c2ad846aeba1534e9c1dd0299cb",
@@ -8687,7 +8687,7 @@
     "text": "Różne wyroby przemysłowe",
     "page": 31,
     "kind": "table_cell",
-    "context": "Różne wyroby przemysłowe | 14,9 | 17,6 — Różne wyroby przemysłowe"
+    "context": "Różne wyroby przemysłowe — Różne wyroby przemysłowe"
   },
   {
     "anchorId": "anchor_f48b6eaabe0f3efd12d863b9062d7156543cca910f86053b43e7b126739b2514",
@@ -8708,7 +8708,7 @@
     "text": "Towary i transakcje niesklasyfikowane w SITC",
     "page": 31,
     "kind": "table_cell",
-    "context": "Towary i transakcje niesklasyfikowane w SITC | 1,7 | 0,3 — Towary i transakcje niesklasyfikowane w SITC"
+    "context": "Towary i transakcje niesklasyfikowane w SITC — Towary i transakcje niesklasyfikowane w SITC"
   },
   {
     "anchorId": "anchor_bd5d742989f6b95f2b43509aa798d30170c6b5193d88b8e1c519a14b10f62633",
@@ -8753,28 +8753,28 @@
     "text": "2015",
     "page": 32,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_e6c6904ff588010bbfda18953b80122729f34034d81111d2146896695c89a06c",
     "text": "2023",
     "page": 32,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_ccf5d26d68c39fbf82bcc8d923e010fab70454b609a4a5ee10b28ae9b41a5e7a",
     "text": "2024",
     "page": 32,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_58774caeef6f604b23d3019a2a35d436824a82d7988bd27190e7414782825e1a",
     "text": "Przychody ogółem w mln zł",
     "page": 32,
     "kind": "table_cell",
-    "context": "Przychody ogółem w mln zł | 3 017 976 | 6 037 958 | 5 909 258 — Przychody ogółem w mln zł"
+    "context": "Przychody ogółem w mln zł — Przychody ogółem w mln zł"
   },
   {
     "anchorId": "anchor_e7920f15e9b492f8ac576c9382fe30a52a81f9989e85982674fd19e7a7efe7a0",
@@ -8802,7 +8802,7 @@
     "text": "Koszty ogółem w mln zł",
     "page": 32,
     "kind": "table_cell",
-    "context": "Koszty ogółem w mln zł | 2 884 629 | 5 705 894 | 5 643 996 — Koszty ogółem w mln zł"
+    "context": "Koszty ogółem w mln zł — Koszty ogółem w mln zł"
   },
   {
     "anchorId": "anchor_261e6b92d20cdb4ad5b59a987a4387f3757fb2a9be1d7e4c9e6179f40625393c",
@@ -8837,7 +8837,7 @@
     "text": "brutto",
     "page": 32,
     "kind": "table_cell",
-    "context": "brutto | 133 488 | 332 064 | 265 262 — brutto"
+    "context": "brutto — brutto"
   },
   {
     "anchorId": "anchor_1115a4942b2286c0cd55eaa98e3facf181d5d7984c7cdfa65955966717047fdf",
@@ -8865,7 +8865,7 @@
     "text": "netto",
     "page": 32,
     "kind": "table_cell",
-    "context": "netto | 113 442 | 269 686 | 213 751 — netto"
+    "context": "netto — netto"
   },
   {
     "anchorId": "anchor_d92c77595ae232920a22e8a3440aad64065d22d2a9c55134c7a44b98af949318",
@@ -8900,7 +8900,7 @@
     "text": "poziomu kosztów",
     "page": 32,
     "kind": "table_cell",
-    "context": "poziomu kosztów | 95,6 | 94,5 | 95,5 — poziomu kosztów"
+    "context": "poziomu kosztów — poziomu kosztów"
   },
   {
     "anchorId": "anchor_cdaf43f66f015ead0ddafa0faaa199b48f5509fce0198af57fcbce265d0257bc",
@@ -8928,7 +8928,7 @@
     "text": "rentowności sprzedaży brutto",
     "page": 32,
     "kind": "table_cell",
-    "context": "rentowności sprzedaży brutto | 4,6 | 5,6 | 4,6 — rentowności sprzedaży brutto"
+    "context": "rentowności sprzedaży brutto — rentowności sprzedaży brutto"
   },
   {
     "anchorId": "anchor_f573c2290ecda9b239f3fbc5a22ee12b4256a85cae086d781a4f262f70c844d3",
@@ -8956,7 +8956,7 @@
     "text": "rentowności obrotu: brutto",
     "page": 32,
     "kind": "table_cell",
-    "context": "rentowności obrotu: brutto | 4,4 | 5,5 | 4,5 — rentowności obrotu: brutto"
+    "context": "rentowności obrotu: brutto — rentowności obrotu: brutto"
   },
   {
     "anchorId": "anchor_347c446a51ebf8131cf78e03f56b9651acee8483403c1d5d8da7aa68e638ff4b",
@@ -8984,7 +8984,7 @@
     "text": "netto",
     "page": 32,
     "kind": "table_cell",
-    "context": "netto | 3,8 | 4,5 | 3,6 — netto"
+    "context": "netto — netto"
   },
   {
     "anchorId": "anchor_b08513fa09b3ba76ffb256596663c7544e2901493deacda1b7a1bcd17cd8543d",
@@ -9012,7 +9012,7 @@
     "text": "płynności finansowej: I stopnia",
     "page": 32,
     "kind": "table_cell",
-    "context": "płynności finansowej: I stopnia | 39,0 | 40,8 | 46,0 — płynności finansowej: I stopnia"
+    "context": "płynności finansowej: I stopnia — płynności finansowej: I stopnia"
   },
   {
     "anchorId": "anchor_00be749d4b0c80093b0d934ab392aa248afa993c3ca81bad6cf4d29326ff128e",
@@ -9040,7 +9040,7 @@
     "text": "II stopnia",
     "page": 32,
     "kind": "table_cell",
-    "context": "II stopnia | 103,4 | 108,9 | 110,2 — II stopnia"
+    "context": "II stopnia — II stopnia"
   },
   {
     "anchorId": "anchor_d0fb44b2b5f3f312c62eba8ee371bae6ef44c608a682b591daa8e1ca3be73651",
@@ -9110,28 +9110,28 @@
     "text": "2015",
     "page": 33,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_a32d4f3e648432e0eea7212b99e54005e71cceb0e3c2aaa13cad52bbdb0fae13",
     "text": "2023",
     "page": 33,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_5294ca8381ab6fb0350c677ed58e4dbf0bc89ab41cbea090b26480455cd926a5",
     "text": "2024",
     "page": 33,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_ef4de22e4e49e55c0b6d8602a947dfa06e440b5b75e7d2fc25eed835cc343221",
     "text": "Dynamika produktu krajowego brutto (ceny stałe): rok poprzedni=100",
     "page": 33,
     "kind": "table_cell",
-    "context": "Dynamika produktu krajowego brutto (ceny stałe): rok poprzedni=100 | 104,4 | 100,2 | 102,9 — Dynamika produktu krajowego brutto (ceny stałe): rok poprzedni=100"
+    "context": "Dynamika produktu krajowego brutto (ceny stałe): rok poprzedni=100 — Dynamika produktu krajowego brutto (ceny stałe): rok poprzedni=100"
   },
   {
     "anchorId": "anchor_44882688413c072b4f6f9f21e77b3ea4dd97fe7d5f7f05d57cc0faa644985d6b",
@@ -9159,7 +9159,7 @@
     "text": "2015=100",
     "page": 33,
     "kind": "table_cell",
-    "context": "2015=100 | 100,0 | 133,1 | 137,0 — 2015=100"
+    "context": "2015=100 — 2015=100"
   },
   {
     "anchorId": "anchor_102d4c77129e82916af666a5c46903ad621df0bfcb230dd0263b6d8763430058",
@@ -9187,7 +9187,7 @@
     "text": "Dynamika wartości dodanej brutto (ceny stałe): rok poprzedni=100",
     "page": 33,
     "kind": "table_cell",
-    "context": "Dynamika wartości dodanej brutto (ceny stałe): rok poprzedni=100 | 104,6 | 101,3 | 102,2 — Dynamika wartości dodanej brutto (ceny stałe): rok poprzedni=100"
+    "context": "Dynamika wartości dodanej brutto (ceny stałe): rok poprzedni=100 — Dynamika wartości dodanej brutto (ceny stałe): rok poprzedni=100"
   },
   {
     "anchorId": "anchor_ed16120ee62e01974c66ec9c907225c5dbc7848c988ca88197b29a625652ffc4",
@@ -9215,7 +9215,7 @@
     "text": "2015=100",
     "page": 33,
     "kind": "table_cell",
-    "context": "2015=100 | 100,0 | 133,7 | 136,6 — 2015=100"
+    "context": "2015=100 — 2015=100"
   },
   {
     "anchorId": "anchor_3feb634df8225dc1708c4a2039118651557a764568f4bf0130bda21a47ac6b8c",
@@ -9261,42 +9261,42 @@
     "text": "2015",
     "page": 34,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_9beb7b96a1083be07f9ff317edfd09caebfe2c004c283017701a936ed52d54f8",
     "text": "2023",
     "page": 34,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_41024e0903be24e4b0a0ba3a383a2d5802a4621160720459d57d37b92f903d10",
     "text": "2024",
     "page": 34,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_79c24b296d46e237ebe18eb7fa89afc15ad8444b1eb9c8245033f065926e4611",
     "text": "rok poprzedni =100 (ceny stałe)",
     "page": 34,
     "kind": "table_cell",
-    "context": "rok poprzedni =100 (ceny stałe) | w % PKB (ceny bieżące) — rok poprzedni =100 (ceny stałe)"
+    "context": "rok poprzedni =100 (ceny stałe) — rok poprzedni =100 (ceny stałe)"
   },
   {
     "anchorId": "anchor_144347663afea45700ba234255ae8fe21fa8be0485557d3a7ba50a1f20b34c96",
     "text": "w % PKB (ceny bieżące)",
     "page": 34,
     "kind": "table_cell",
-    "context": "rok poprzedni =100 (ceny stałe) | w % PKB (ceny bieżące) — w % PKB (ceny bieżące)"
+    "context": "w % PKB (ceny bieżące) — w % PKB (ceny bieżące)"
   },
   {
     "anchorId": "anchor_3a089526822828e73f41f743c13d099fc7ae001b5701bb0227319d2bc67353e0",
     "text": "Popyt krajowy",
     "page": 34,
     "kind": "table_cell",
-    "context": "Popyt krajowy | 104,0 | 97,0 | 104,2 | 96,0 — Popyt krajowy"
+    "context": "Popyt krajowy — Popyt krajowy"
   },
   {
     "anchorId": "anchor_e0f60da5e3dcf92491b43508f0ef040971501ee10a59cffc938c63c95d59742e",
@@ -9331,7 +9331,7 @@
     "text": "spożycie",
     "page": 34,
     "kind": "table_cell",
-    "context": "spożycie | 103,6 | 100,9 | 104,3 | 78,3 — spożycie"
+    "context": "spożycie — spożycie"
   },
   {
     "anchorId": "anchor_749335c658c5dc21609de97682e16ede4cea5039e3ec941ee41651f37fa29825",
@@ -9373,7 +9373,7 @@
     "text": "spożycie w sektorze gospodarstw domowych",
     "page": 34,
     "kind": "table_cell",
-    "context": "spożycie w sektorze gospodarstw domowych | 104,0 | 99,7 | 103,1 | 56,6 — spożycie w sektorze gospodarstw domowych"
+    "context": "spożycie w sektorze gospodarstw domowych — spożycie w sektorze gospodarstw domowych"
   },
   {
     "anchorId": "anchor_b768b53ff2a60d776cf42ef0283ac9787555be47031937921705ab7171a9b8c0",
@@ -9408,7 +9408,7 @@
     "text": "spożycie publiczne",
     "page": 34,
     "kind": "table_cell",
-    "context": "spożycie publiczne | 102,4 | 104,5 | 108,2 | 20,8 — spożycie publiczne"
+    "context": "spożycie publiczne — spożycie publiczne"
   },
   {
     "anchorId": "anchor_9439ae1644ef468346230533956f83323843ea7038dbccfeea5fb75bd7bdea6f",
@@ -9443,7 +9443,7 @@
     "text": "akumulacja brutto",
     "page": 34,
     "kind": "table_cell",
-    "context": "akumulacja brutto | 105,5 | 83,4 | 104,0 | 17,7 — akumulacja brutto"
+    "context": "akumulacja brutto — akumulacja brutto"
   },
   {
     "anchorId": "anchor_1bbcbbb284c008bce021271edfa431f44f1ba830f25831968c00e5398925571c",
@@ -9478,7 +9478,7 @@
     "text": "w tym nakłady brutto na środki trwałe",
     "page": 34,
     "kind": "table_cell",
-    "context": "w tym nakłady brutto na środki trwałe | 106,8 | 112,7 | 97,8 | 16,9 a — w tym nakłady brutto na środki trwałe"
+    "context": "w tym nakłady brutto na środki trwałe — w tym nakłady brutto na środki trwałe"
   },
   {
     "anchorId": "anchor_bef36cc8c8ec10e2fb30346b582981d93f3bd836d8829b5c06be58cfe303f83f",
@@ -9525,21 +9525,21 @@
     "text": "2015",
     "page": 35,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_1eb99cb6c96a042a69ab278d9f9d8eded56817043fc44f17353207c05b4a36cd",
     "text": "2023",
     "page": 35,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_6f730712b16fc55147878c98b4001aa51179baa00bd1a9aa1b099ed579c907b0",
     "text": "2024",
     "page": 35,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_c0acff16d49c99a61e65b46f6011c4488c38ed19856ac94b62a604ea670f2fce",
@@ -9553,7 +9553,7 @@
     "text": "Rachunek bieżący",
     "page": 35,
     "kind": "table_cell",
-    "context": "Rachunek bieżący | -6 363 | 14 535 | 1 789 — Rachunek bieżący"
+    "context": "Rachunek bieżący — Rachunek bieżący"
   },
   {
     "anchorId": "anchor_80abbfd03c1896e70d90d70c05afdb895df6d50b311b5d36c38fd410f3101c3e",
@@ -9581,7 +9581,7 @@
     "text": "towary (saldo)",
     "page": 35,
     "kind": "table_cell",
-    "context": "towary (saldo) | -2 352 | 5 130 | -6 904 — towary (saldo)"
+    "context": "towary (saldo) — towary (saldo)"
   },
   {
     "anchorId": "anchor_8482796ec6f6658adfb3ef1a5aca4e6f2045b4ab2f81b9ddc141c12c6284bff5",
@@ -9609,7 +9609,7 @@
     "text": "usługi (saldo)",
     "page": 35,
     "kind": "table_cell",
-    "context": "usługi (saldo) | 12 265 | 42 644 | 43 538 — usługi (saldo)"
+    "context": "usługi (saldo) — usługi (saldo)"
   },
   {
     "anchorId": "anchor_b2ae98c3b110f902ca02a3433ab76a71f52a6d69bc664042cf58c55b2cd930ae",
@@ -9637,7 +9637,7 @@
     "text": "dochody pierwotne a (saldo)",
     "page": 35,
     "kind": "table_cell",
-    "context": "dochody pierwotne a (saldo) | -18 156 | -31 010 | -30 881 — dochody pierwotne a (saldo)"
+    "context": "dochody pierwotne a (saldo) — dochody pierwotne a (saldo)"
   },
   {
     "anchorId": "anchor_cdb68bd04274a9d29c0ca3a95463d726f8997018fd93521b663431903ac173e6",
@@ -9665,7 +9665,7 @@
     "text": "dochody wtórne (saldo)",
     "page": 35,
     "kind": "table_cell",
-    "context": "dochody wtórne (saldo) | 1 880 | -2 229 | -3 964 — dochody wtórne (saldo)"
+    "context": "dochody wtórne (saldo) — dochody wtórne (saldo)"
   },
   {
     "anchorId": "anchor_fcada8c2e5ad6a6273206b9eb8855659f0ed6d6b7e16c42b3b814782190fcb7c",
@@ -9711,28 +9711,28 @@
     "text": "2015",
     "page": 35,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_2412d1e049cdeccaf06c06de003a9817bda9d2e65c7255a3e44e5751593106d6",
     "text": "2023",
     "page": 35,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_d598f4582ff2432519a450bb596405ef497f2b854307d48fa4fa4b6ead7e1b10",
     "text": "2024",
     "page": 35,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_8366ddaea6eed83c1b5dbbea178fbc2c0a2663519aef2a63a426be474fd1ebe8",
     "text": "Banki",
     "page": 35,
     "kind": "table_cell",
-    "context": "Banki | 626 | 555 | 551 — Banki"
+    "context": "Banki — Banki"
   },
   {
     "anchorId": "anchor_7e49677cd93a59ebeb2b95801dae09c4b45aeb3c9445e7178485753e23e43d5a",
@@ -9760,7 +9760,7 @@
     "text": "komercyjne",
     "page": 35,
     "kind": "table_cell",
-    "context": "komercyjne | 65 | 63 | 62 — komercyjne"
+    "context": "komercyjne — komercyjne"
   },
   {
     "anchorId": "anchor_12f0f18b86bc8a09e6b311f9bf32bf1819a85f243c837fdf0e3c4a77cfd58a03",
@@ -9788,7 +9788,7 @@
     "text": "w tym z przeważającym udziałem kapitału zagranicznego",
     "page": 35,
     "kind": "table_cell",
-    "context": "w tym z przeważającym udziałem kapitału zagranicznego | 53 | 50 | 50 — w tym z przeważającym udziałem kapitału zagranicznego"
+    "context": "w tym z przeważającym udziałem kapitału zagranicznego — w tym z przeważającym udziałem kapitału zagranicznego"
   },
   {
     "anchorId": "anchor_86854cdf5867e950e0472ce30c9cab6ddb5b49f8ea39e1a5da70ccf6725e2163",
@@ -9816,7 +9816,7 @@
     "text": "spółdzielcze",
     "page": 35,
     "kind": "table_cell",
-    "context": "spółdzielcze | 561 | 492 | 489 — spółdzielcze"
+    "context": "spółdzielcze — spółdzielcze"
   },
   {
     "anchorId": "anchor_1fcfe74f70acebbac19f4e8fb896fa3f2f81e1f0c60e37e76ac662c6cf3e2db0",
@@ -9844,7 +9844,7 @@
     "text": "Fundusze inwestycyjne",
     "page": 35,
     "kind": "table_cell",
-    "context": "Fundusze inwestycyjne | 815 | 651 | 605 — Fundusze inwestycyjne"
+    "context": "Fundusze inwestycyjne — Fundusze inwestycyjne"
   },
   {
     "anchorId": "anchor_7977d27468b9d523b653bea3fb1eefbd568969904bacb2c24fa2362514491c97",
@@ -9872,7 +9872,7 @@
     "text": "Towarzystwa funduszy inwestycyjnych",
     "page": 35,
     "kind": "table_cell",
-    "context": "Towarzystwa funduszy inwestycyjnych | 60 | 56 | 55 — Towarzystwa funduszy inwestycyjnych"
+    "context": "Towarzystwa funduszy inwestycyjnych — Towarzystwa funduszy inwestycyjnych"
   },
   {
     "anchorId": "anchor_f29a104c276e4a3cf2df7e9f5e93bdb718fd9d7d54bbac587281237e6de6ac02",
@@ -9900,7 +9900,7 @@
     "text": "Zakłady ubezpieczeń",
     "page": 35,
     "kind": "table_cell",
-    "context": "Zakłady ubezpieczeń | 57 | 52 | 49 — Zakłady ubezpieczeń"
+    "context": "Zakłady ubezpieczeń — Zakłady ubezpieczeń"
   },
   {
     "anchorId": "anchor_d18a4903bccb9db58cd392dbbcf99823c3a1ad373b2ff4c5c5223e42186e03e8",
@@ -9928,7 +9928,7 @@
     "text": "w tym z przeważającym udziałem kapitału zagranicznego",
     "page": 35,
     "kind": "table_cell",
-    "context": "w tym z przeważającym udziałem kapitału zagranicznego | 41 | 31 | 28 — w tym z przeważającym udziałem kapitału zagranicznego"
+    "context": "w tym z przeważającym udziałem kapitału zagranicznego — w tym z przeważającym udziałem kapitału zagranicznego"
   },
   {
     "anchorId": "anchor_69ffdd52187d1d91ad8c596f00643bee333d1c0f0fb92d060b96239b0bee21ee",
@@ -9956,7 +9956,7 @@
     "text": "Spółdzielcze kasy oszczędnościowo- -kredytowe",
     "page": 35,
     "kind": "table_cell",
-    "context": "Spółdzielcze kasy oszczędnościowo- -kredytowe | 48 | 18 | 18 — Spółdzielcze kasy oszczędnościowo- -kredytowe"
+    "context": "Spółdzielcze kasy oszczędnościowo- -kredytowe — Spółdzielcze kasy oszczędnościowo- -kredytowe"
   },
   {
     "anchorId": "anchor_03352922a3fdf967bf9e412905e1bbb581dd4a4ea31812a9db2e6f17bf4ed9aa",
@@ -9990,28 +9990,28 @@
     "text": "2015",
     "page": 35,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_5b4ef00a51168d977577460b8be6493679e7e76e3a50a1a14381a8c5003b4411",
     "text": "2023",
     "page": 35,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_6ce39e6a2e7299643a7986307ee19f0eb7e3d0fd416f413264195c5a478f0d93",
     "text": "2024",
     "page": 35,
     "kind": "table_cell",
-    "context": "2015 | 2023 | 2024 — 2024"
+    "context": "2024 — 2024"
   },
   {
     "anchorId": "anchor_8330f53979571a87c383121aef5e5b20b953af361ec445bf5ad839dbc1fd0fe0",
     "text": "Liczba spółek a",
     "page": 35,
     "kind": "table_cell",
-    "context": "Liczba spółek a | 487 | 413 | 411 — Liczba spółek a"
+    "context": "Liczba spółek a — Liczba spółek a"
   },
   {
     "anchorId": "anchor_9b08baafe16d7803f8fc7ff53170a5a07fbcaa1c65a8280e5a9d656f3d10c641",
@@ -10039,7 +10039,7 @@
     "text": "w tym krajowe",
     "page": 35,
     "kind": "table_cell",
-    "context": "w tym krajowe | 433 | 371 | 368 — w tym krajowe"
+    "context": "w tym krajowe — w tym krajowe"
   },
   {
     "anchorId": "anchor_942eb3d3ed266553b720d6fab9afcac53fdc359edb1be1f9380b6a509314784c",
@@ -10067,7 +10067,7 @@
     "text": "Kapitalizacja spółek a w mln zł",
     "page": 35,
     "kind": "table_cell",
-    "context": "Kapitalizacja spółek a w mln zł | 1 082 863 | 1 440 286 | 1 491 700 — Kapitalizacja spółek a w mln zł"
+    "context": "Kapitalizacja spółek a w mln zł — Kapitalizacja spółek a w mln zł"
   },
   {
     "anchorId": "anchor_f36640b83d7462a262e10a393fc7e42e986a4a514ef3914f53ba35bce4c4b70d",
@@ -10095,7 +10095,7 @@
     "text": "krajowych",
     "page": 35,
     "kind": "table_cell",
-    "context": "krajowych | 516 785 | 760 213 | 731 906 — krajowych"
+    "context": "krajowych — krajowych"
   },
   {
     "anchorId": "anchor_329fa7c5834f5c6dadc445641f14cc30d2d0816841e5e51a3574a9bfa011d61e",
@@ -10123,7 +10123,7 @@
     "text": "zagranicznych",
     "page": 35,
     "kind": "table_cell",
-    "context": "zagranicznych | 566 077 | 680 073 | 759 794 — zagranicznych"
+    "context": "zagranicznych — zagranicznych"
   },
   {
     "anchorId": "anchor_e1529603cbe6331786e42e6728af5042ac2789c763a5f5f44fbe8f6364d852eb",
@@ -10151,7 +10151,7 @@
     "text": "Średnie obroty akcjami i prawami do akcji na 1 sesję w mln zł",
     "page": 35,
     "kind": "table_cell",
-    "context": "Średnie obroty akcjami i prawami do akcji na 1 sesję w mln zł | 898 | 1 152 | 1 396 — Średnie obroty akcjami i prawami do akcji na 1 sesję w mln zł"
+    "context": "Średnie obroty akcjami i prawami do akcji na 1 sesję w mln zł — Średnie obroty akcjami i prawami do akcji na 1 sesję w mln zł"
   },
   {
     "anchorId": "anchor_ea57c435fbf1e2d97e42265d9237d347f78b120b304864141bd1a23fba5d7ff0",
@@ -10203,42 +10203,42 @@
     "text": "2015",
     "page": 36,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_f6399318742182e8c3559777cbef0701d98b0a969425c44ad7faf94b2929895d",
     "text": "2022",
     "page": 36,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_948a0ec20ec735d29cc6c94b1f59ed66551e232c3d78beb10f2b5307e04400b8",
     "text": "2023",
     "page": 36,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_3115c68757b5720aadb049ca1f794b68d7ee9365ab18df3ad2f00bd0267dcee4",
     "text": "w mln zł",
     "page": 36,
     "kind": "table_cell",
-    "context": "w mln zł | w od- setkach — w mln zł"
+    "context": "w mln zł — w mln zł"
   },
   {
     "anchorId": "anchor_1e4d7e0046c0ace27298503775bacfb97c9537a92b521e3431e62e01836b4fed",
     "text": "w od- setkach",
     "page": 36,
     "kind": "table_cell",
-    "context": "w mln zł | w od- setkach — w od- setkach"
+    "context": "w od- setkach — w od- setkach"
   },
   {
     "anchorId": "anchor_bb30a2c8316bad952af2bdb4b5ea3b02a9a1d27d93b3390006ed2a630412b4f3",
     "text": "Dochody",
     "page": 36,
     "kind": "table_cell",
-    "context": "Dochody | 289 137 | 504 821 | 573 958 | 100,0 — Dochody"
+    "context": "Dochody — Dochody"
   },
   {
     "anchorId": "anchor_1f41a8348ade13173de78635e2378f9cc380efc43865396f3c3c664e345600c4",
@@ -10280,7 +10280,7 @@
     "text": "podatki pośrednie",
     "page": 36,
     "kind": "table_cell",
-    "context": "podatki pośrednie | 187 267 | 314 050 | 333 542 | 58,1 — podatki pośrednie"
+    "context": "podatki pośrednie — podatki pośrednie"
   },
   {
     "anchorId": "anchor_d29d1855f52141e55a885850ed50bb36dbe325e6778cc4538aa63782ea92630e",
@@ -10315,7 +10315,7 @@
     "text": "podatek dochodowy od osób prawnych",
     "page": 36,
     "kind": "table_cell",
-    "context": "podatek dochodowy od osób prawnych | 25 813 | 70 137 | 67 883 | 11,8 — podatek dochodowy od osób prawnych"
+    "context": "podatek dochodowy od osób prawnych — podatek dochodowy od osób prawnych"
   },
   {
     "anchorId": "anchor_52201b6390faddc1c491a770d9f26386c138182548358446d3c8983e1b4d8acd",
@@ -10350,7 +10350,7 @@
     "text": "podatek dochodowy od osób fizycznych",
     "page": 36,
     "kind": "table_cell",
-    "context": "podatek dochodowy od osób fizycznych | 45 040 | 68 107 | 91 666 | 9,5 — podatek dochodowy od osób fizycznych"
+    "context": "podatek dochodowy od osób fizycznych — podatek dochodowy od osób fizycznych"
   },
   {
     "anchorId": "anchor_e3fb1d8ef94b5d3e28451807b9d21da335879f26621c8aa878f6d126ccb02800",
@@ -10385,7 +10385,7 @@
     "text": "Wydatki",
     "page": 36,
     "kind": "table_cell",
-    "context": "Wydatki | 331 743 | 517 399 | 659 587 | 100,0 — Wydatki"
+    "context": "Wydatki — Wydatki"
   },
   {
     "anchorId": "anchor_956d7c748263ed7797dc420fb19d2006b74101ea41c72f55e8c6b56f02a79bd9",
@@ -10427,7 +10427,7 @@
     "text": "obsługa długu publicznego",
     "page": 36,
     "kind": "table_cell",
-    "context": "obsługa długu publicznego | 29 169 | 32 718 | 61 710 | 9,4 — obsługa długu publicznego"
+    "context": "obsługa długu publicznego — obsługa długu publicznego"
   },
   {
     "anchorId": "anchor_462b9071a57a0bc62ac24aedd8a834cb0ddb19cea7936e8d2065a93721f7232b",
@@ -10469,7 +10469,7 @@
     "text": "Funduszu Ubezpieczeń Społecznych",
     "page": 36,
     "kind": "table_cell",
-    "context": "Funduszu Ubezpieczeń Społecznych | 42 066 | 38 663 | 51 652 | 7,8 — Funduszu Ubezpieczeń Społecznych"
+    "context": "Funduszu Ubezpieczeń Społecznych — Funduszu Ubezpieczeń Społecznych"
   },
   {
     "anchorId": "anchor_d1dc87db340de2b5c2e2b30b574eef77d92f6283f01813f4a6b18d97f311c790",
@@ -10504,7 +10504,7 @@
     "text": "Funduszu Emerytalno- Rentowego",
     "page": 36,
     "kind": "table_cell",
-    "context": "Funduszu Emerytalno- Rentowego | 17 037 | 18 658 | 21 877 | 3,3 — Funduszu Emerytalno- Rentowego"
+    "context": "Funduszu Emerytalno- Rentowego — Funduszu Emerytalno- Rentowego"
   },
   {
     "anchorId": "anchor_782b6aa7ffb6c67b9599be7830b372edb8ad138ed1e1a5c3348d9131162c8265",
@@ -10539,7 +10539,7 @@
     "text": "subwencja ogólna dla jednostek samorządu terytorialnego",
     "page": 36,
     "kind": "table_cell",
-    "context": "subwencja ogólna dla jednostek samorządu terytorialnego | 51 049 | 74 645 | 99 373 | 15,1 — subwencja ogólna dla jednostek samorządu terytorialnego"
+    "context": "subwencja ogólna dla jednostek samorządu terytorialnego — subwencja ogólna dla jednostek samorządu terytorialnego"
   },
   {
     "anchorId": "anchor_58985245854a83e98ab36c76d93e53ae53adc6421f9574864396c9ae4f22ca5f",
@@ -10574,7 +10574,7 @@
     "text": "wydatki bieżące jednostek budżetowych",
     "page": 36,
     "kind": "table_cell",
-    "context": "wydatki bieżące jednostek budżetowych | 61 944 | 100 296 | 122 469 | 18,6 — wydatki bieżące jednostek budżetowych"
+    "context": "wydatki bieżące jednostek budżetowych — wydatki bieżące jednostek budżetowych"
   },
   {
     "anchorId": "anchor_4c1d2f2b71dae94870bcd4a8a004d1c1f6baee44c085c614336b23369ea9122a",
@@ -10609,7 +10609,7 @@
     "text": "środki własne Unii Europejskiej",
     "page": 36,
     "kind": "table_cell",
-    "context": "środki własne Unii Europejskiej | 18 196 | 34 294 | 30 314 | 4,6 — środki własne Unii Europejskiej"
+    "context": "środki własne Unii Europejskiej — środki własne Unii Europejskiej"
   },
   {
     "anchorId": "anchor_0ccde92f18c98092a88e1144c9001a92ba3861e5b83e893a90b0812e516245c3",
@@ -10644,7 +10644,7 @@
     "text": "Wynik budżetu państwa - deficyt (-)",
     "page": 36,
     "kind": "table_cell",
-    "context": "Wynik budżetu państwa - deficyt (-) | -42 607 | -12 578 | -85 629 | . — Wynik budżetu państwa - deficyt (-)"
+    "context": "Wynik budżetu państwa - deficyt (-) — Wynik budżetu państwa - deficyt (-)"
   },
   {
     "anchorId": "anchor_0484b97f8f396a05f73af2285abde24b3aeabc84ea5e1a0efd1ff480cf281657",
@@ -10679,7 +10679,7 @@
     "text": "Wynik budżetu środków europej- skich - nadwyżka (+)/deficyt (-)",
     "page": 36,
     "kind": "table_cell",
-    "context": "Wynik budżetu środków europej- skich - nadwyżka (+)/deficyt (-) | -3 232 | -1 386 | 968 | . — Wynik budżetu środków europej- skich - nadwyżka (+)/deficyt (-)"
+    "context": "Wynik budżetu środków europej- skich - nadwyżka (+)/deficyt (-) — Wynik budżetu środków europej- skich - nadwyżka (+)/deficyt (-)"
   },
   {
     "anchorId": "anchor_0576df3120fe44c7aaf9a3d43af552bc6935b639f59b9300ffca1d9464ff4125",
@@ -10720,21 +10720,21 @@
     "text": "2015",
     "page": 36,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2015"
+    "context": "2015 — 2015"
   },
   {
     "anchorId": "anchor_1134b89777c78d1cec10c84c5efe241ccc071dd2e6e00a1444b916bc260199cf",
     "text": "2022",
     "page": 36,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2022"
+    "context": "2022 — 2022"
   },
   {
     "anchorId": "anchor_380f3e28699590b79a80615848978462b246f66b0a1d5867e3b1d2abce674196",
     "text": "2023",
     "page": 36,
     "kind": "table_cell",
-    "context": "2015 | 2022 | 2023 — 2023"
+    "context": "2023 — 2023"
   },
   {
     "anchorId": "anchor_e7b48d4719a8e1679a9cb1c6c0615f2880b9c45aa5f53d00dfaafe9c21752c9b",
@@ -10748,7 +10748,7 @@
     "text": "Dochody budżetu państwa",
     "page": 36,
     "kind": "table_cell",
-    "context": "Dochody budżetu państwa | 16,0 | 16,3 | 16,9 — Dochody budżetu państwa"
+    "context": "Dochody budżetu państwa — Dochody budżetu państwa"
   },
   {
     "anchorId": "anchor_1c9e7ca85ba869b0d2a808e75ca6a6beb27b89f708abf28c9a1d9e8c65edadc0",
@@ -10776,7 +10776,7 @@
     "text": "Wydatki budżetu państwa",
     "page": 36,
     "kind": "table_cell",
-    "context": "Wydatki budżetu państwa | 18,3 | 16,7 | 19,4 — Wydatki budżetu państwa"
+    "context": "Wydatki budżetu państwa — Wydatki budżetu państwa"
   },
   {
     "anchorId": "anchor_ea0436c93365b3c20a2e8d10531f1abbda92d0979a4d5866074b6d86c2d3b954",
@@ -10804,7 +10804,7 @@
     "text": "Wynik budżetu państwa - deficyt (-)",
     "page": 36,
     "kind": "table_cell",
-    "context": "Wynik budżetu państwa - deficyt (-) | -2,4 | -0,4 | -2,5 — Wynik budżetu państwa - deficyt (-)"
+    "context": "Wynik budżetu państwa - deficyt (-) — Wynik budżetu państwa - deficyt (-)"
   },
   {
     "anchorId": "anchor_7e122102d74ce9a5d2bcd5d12e34397b4399df564cb4ac546a4d9313ad5c0c48",
@@ -10832,7 +10832,7 @@
     "text": "Wynik budżetu środków europej- skich - nadwyżka (+)/deficyt (-)",
     "page": 36,
     "kind": "table_cell",
-    "context": "Wynik budżetu środków europej- skich - nadwyżka (+)/deficyt (-) | -0,2 | 0,0 | 0,0 — Wynik budżetu środków europej- skich - nadwyżka (+)/deficyt (-)"
+    "context": "Wynik budżetu środków europej- skich - nadwyżka (+)/deficyt (-) — Wynik budżetu środków europej- skich - nadwyżka (+)/deficyt (-)"
   },
   {
     "anchorId": "anchor_1881d1c4cd4af037999c106a98b402d14d686e2f85c4683a40ca7004ad977fbc",
@@ -10860,7 +10860,7 @@
     "text": "Państwowy dług publiczny",
     "page": 36,
     "kind": "table_cell",
-    "context": "Państwowy dług publiczny | 48,5 | 39,0 | 39,0 — Państwowy dług publiczny"
+    "context": "Państwowy dług publiczny — Państwowy dług publiczny"
   },
   {
     "anchorId": "anchor_b9afe37665d7cfb21c165c9547fcff22876d5ca03d8c5b3579bc42caf9cdabdd",

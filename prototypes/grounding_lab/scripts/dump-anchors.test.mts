@@ -17,3 +17,17 @@ test('column headers stay within their repeated header group', () => {
   assert.equal(contexts.get('value-a'), 'Section A | 10 — 10')
   assert.equal(contexts.get('value-b'), 'Section B | 20 — 20')
 })
+
+test('header cells are not given the row values as context', () => {
+  const contexts = tableCellContexts([
+    cell('label', 0, 'Número de nacimientos', 'row_header'),
+    { ...cell('value', 0, '320.656', null), column: 1 },
+    { ...cell('delta', 0, '-2,6', null), column: 2 },
+  ])
+
+  assert.equal(contexts.get('label'), 'Número de nacimientos — Número de nacimientos')
+  assert.equal(
+    contexts.get('value'),
+    'Número de nacimientos | 320.656 | -2,6 — 320.656',
+  )
+})

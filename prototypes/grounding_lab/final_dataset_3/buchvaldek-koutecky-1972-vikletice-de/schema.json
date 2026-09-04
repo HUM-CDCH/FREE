@@ -1,0 +1,45 @@
+{
+  "title": "string",
+  "title_cs": "string",
+  "authors": [
+    "string"
+  ],
+  "translator": "string",
+  "journal": "string",
+  "year": 0,
+  "site": "string",
+  "district": "string",
+  "submitted_date": "1970-01-01",
+  "total_graves_approx": 0,
+  "total_ceramic_pieces": 0,
+  "non_amphora_ceramic_count": 0,
+  "ceramic_bearing_graves": 0,
+  "series_1a_grave_count": 0,
+  "series_1b_grave_count": 0,
+  "adult_right_crouched_pit_length_median_cm": 0.0,
+  "ceramic_types": [
+    {
+      "code": "string",
+      "name": "string",
+      "count": 0,
+      "percent": 0.0
+    }
+  ],
+  "records": [
+    {
+      "grave_id": "string",
+      "excavation_year": 0,
+      "series": "string",
+      "burial_position": "string",
+      "age_category": "string",
+      "pit_length_cm": 0.0,
+      "pit_width_cm": 0.0,
+      "pit_floor_area_m2": 0.0,
+      "pit_length_width_ratio": 0.0,
+      "find_group": "string",
+      "grave_goods_codes": [
+        "string"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "journal_number": "SBM1116",
+  "excavation_leader": "Merethe Schifter Christensen",
+  "records": [
+    {
+      "archaeologist": "Merethe Schifter Christensen",
+      "find_number": "A2"
+    },
+    {
+      "archaeologist": "Merethe Schifter Christensen",
+      "find_number": "A5"
+    },
+    {
+      "archaeologist": "Merethe Schifter Christensen",
+      "find_number": "A20"
+    },
+    {
+      "archaeologist": "Merethe Schifter Christensen",
+      "find_number": "A24"
+    },
+    {
+      "archaeologist": "Merethe Schifter Christensen",
+      "find_number": "A25"
+    },
+    {
+      "archaeologist": "Merethe Schifter Christensen",
+      "find_number": "A23"
+    },
+    {
+      "archaeologist": "Merethe Schifter Christensen",
+      "find_number": "A1"
+    },
+    {
+      "archaeologist": "Merethe Schifter Christensen",
+      "find_number": "A3"
+    },
+    {
+      "archaeologist": "Merethe Schifter Christensen",
+      "find_number": "A115"
+    },
+    {
+      "archaeologist": "Merethe Schifter Christensen",
+      "find_number": "A21"
+    },
+    {
+      "archaeologist": "Merethe Schifter Christensen",
+      "find_number": "A4"
+    },
+    {
+      "archaeologist": "Merethe Schifter Christensen",
+      "find_number": "A18"
+    },
+    {
+      "archaeologist": "Merethe Schifter Christensen",
+      "find_number": "A22"
+    }
+  ],
+  "machine_operator": "René D. Jensen",
+  "excavation_end": "13. oktober 2009",
+  "field_area": "2529 m2",
+  "total_feature_count": 116,
+  "posthole_count": 88,
+  "fixpoint_elevation": 75.5,
+  "vessel_count": 47,
+  "slag_weight": "ca. 83 kg",
+  "threed_visualization_by": "Peter Jensen",
+  "report_date": "26-11-2009",
+  "museum_address": "Adelgade 5, 8660 Skanderborg",
+  "regional_glass_bead_rate": 7.73,
+  "conservation_institution": "Moesgårds konserveringsafdeling"
+}

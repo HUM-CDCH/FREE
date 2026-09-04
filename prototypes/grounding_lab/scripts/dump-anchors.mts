@@ -22,7 +22,8 @@ export function tableCellContexts(cells: readonly ContextCell[]): Map<string, st
     const lastHeaderRow = headerRows.at(-1)
     let firstHeaderRow = lastHeaderRow
     while (firstHeaderRow !== undefined && headerRows.includes(firstHeaderRow - 1)) firstHeaderRow--
-    const headers = HEADER_ROLES.has(cell.role ?? '')
+    const isHeader = HEADER_ROLES.has(cell.role ?? '')
+    const headers = isHeader
       ? []
       : [
           ...sorted.filter((c) => c.role === 'row_section' && c.row < cell.row).slice(-1),
@@ -31,7 +32,13 @@ export function tableCellContexts(cells: readonly ContextCell[]): Map<string, st
             && firstHeaderRow !== undefined && c.row >= firstHeaderRow && c.row <= lastHeaderRow!
             && c.column <= cell.column && cell.column < c.column + c.colspan),
         ].map((c) => c.text)
-    const scope = [...headers, ...rowTexts.get(cell.row)!.filter((text) => !headers.includes(text))]
+    // A header cell labels its row, it does not state the row's values: giving
+    // it the whole row made every data cell's value read as part of the
+    // header's own passage, so a scorer asked for "the passage stating the
+    // value" could pick the label. Its own text is the whole scope.
+    const scope = isHeader
+      ? [cell.text]
+      : [...headers, ...rowTexts.get(cell.row)!.filter((text) => !headers.includes(text))]
     contexts.set(cell.evidence_anchor_id, `${scope.join(' | ')} — ${cell.text}`)
   }
   return contexts

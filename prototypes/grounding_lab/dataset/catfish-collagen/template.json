@@ -1,0 +1,29 @@
+{
+  "title": "string",
+  "corresponding_email": "string",
+  "corresponding_phone": "string",
+  "academic_editor": "string",
+  "received_date": "string",
+  "published_date": "string",
+  "affiliations": [
+    "string"
+  ],
+  "authors": [
+    {
+      "email": "string"
+    }
+  ],
+  "culture_period": "number",
+  "rf_body_weight": "string",
+  "rf_wet_extraction_rate": "string",
+  "cf_dpph_rate": "string",
+  "statistics_software": "string",
+  "primers": [
+    {
+      "sequence": "string",
+      "name": "string"
+    }
+  ],
+  "ftir_instrument": "string",
+  "centrifuge_speed": "string"
+}

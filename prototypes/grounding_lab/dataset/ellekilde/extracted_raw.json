@@ -1,0 +1,238 @@
+{
+  "records": [
+    {
+      "grave_label": "Grav 8",
+      "estimated_age": "over 45 år",
+      "finds": [
+        {
+          "description": "Jern",
+          "remarks": "jernspænde",
+          "find_number": "8-2"
+        }
+      ],
+      "dating": "Uvis, yngre romersk jernalder (?)",
+      "tooth_count": 3,
+      "grave_dimensions": "Oprindelig længde og bredde kan ikke bestemmes",
+      "radiocarbon_date": null
+    },
+    {
+      "grave_label": "Grav 13",
+      "estimated_age": "25-35 år",
+      "finds": [],
+      "dating": "Uvis, yngre romersk jernalder (?)",
+      "tooth_count": 14,
+      "grave_dimensions": "ca. 150 x 140 cm",
+      "radiocarbon_date": null
+    },
+    {
+      "grave_label": "Grav 24",
+      "estimated_age": "voksent individ",
+      "finds": [
+        {
+          "description": "Lerkar, ornamenteret sortbrunt",
+          "remarks": "Fundet stående på gravens bundlag, 30 cm dybde.",
+          "find_number": "24-1"
+        },
+        {
+          "description": "Lerkarskår",
+          "remarks": "Skårene hører til x24-1, men har ikke kunnet indplaceres i karret.",
+          "find_number": "24-2"
+        },
+        {
+          "description": "Lerkarskår",
+          "remarks": "Fundet i niveau 2.",
+          "find_number": "24-3"
+        },
+        {
+          "description": "Lerkarskår",
+          "remarks": "Fundet i niveau 3.",
+          "find_number": "24-4"
+        },
+        {
+          "description": "2 lerkarskår",
+          "remarks": "Fundet i niveau 3.",
+          "find_number": "24-5"
+        },
+        {
+          "description": "Fragment af ravperle",
+          "remarks": "Fundet i niveau 3.",
+          "find_number": "24-6"
+        },
+        {
+          "description": "Perle af mat rødligt glas",
+          "remarks": "Fundet i niveau 4, ved siden af venstre underarm.",
+          "find_number": "24-7"
+        },
+        {
+          "description": "Miniaturelerkar",
+          "remarks": "Lå med bunden i vejret. Sortglittet gods med stregeornamentik",
+          "find_number": "24-14"
+        },
+        {
+          "description": "Fragmenteret Haraldstedfibel",
+          "remarks": "Dårligt bevaret. Men nåleholderen tydelig.",
+          "find_number": "24-15"
+        },
+        {
+          "description": "Haraldstedfibel",
+          "remarks": "Lå mellem de to underarmsknogler (24-18)",
+          "find_number": "24-16"
+        }
+      ],
+      "dating": "Yngre romersk jernalder per. C3",
+      "tooth_count": null,
+      "grave_dimensions": "ca. 2,2 m x 2 m",
+      "radiocarbon_date": null
+    },
+    {
+      "grave_label": "Grav 26",
+      "estimated_age": "16-18 år",
+      "finds": [
+        {
+          "description": "Keramik",
+          "remarks": "Lille skår, 2x4 cm. Niv. 1",
+          "find_number": "26-1"
+        },
+        {
+          "description": "Keramik",
+          "remarks": "Små fragmenter. Niv. 1",
+          "find_number": "26-2"
+        },
+        {
+          "description": "Keramik",
+          "remarks": "Små skår. Niv 3",
+          "find_number": "26-4"
+        },
+        {
+          "description": "-",
+          "remarks": "Udgår",
+          "find_number": "26-5"
+        },
+        {
+          "description": "Jern",
+          "remarks": "Fragmenter af beslag e.l. Niv. 3",
+          "find_number": "26-6"
+        },
+        {
+          "description": "Keramik",
+          "remarks": "Lille skår. Niv. 4",
+          "find_number": "26-7"
+        },
+        {
+          "description": "Keramik",
+          "remarks": "Lille skår, ornamenteret. Niv. 4",
+          "find_number": "26-8"
+        },
+        {
+          "description": "Keramik",
+          "remarks": "Lille skår. Niv. 4",
+          "find_number": "26-9"
+        },
+        {
+          "description": "Keramik",
+          "remarks": "Hank, fragmenteret. Niv. 4.",
+          "find_number": "26-10"
+        },
+        {
+          "description": "Keramik",
+          "remarks": "Fragmenter af ornamenteret skår. Niv. 6",
+          "find_number": "26-11"
+        },
+        {
+          "description": "Keramik",
+          "remarks": "Niv. 6",
+          "find_number": "26-15"
+        },
+        {
+          "description": "Ravperle",
+          "remarks": "Niv. 6",
+          "find_number": "26-16"
+        },
+        {
+          "description": "Glasperle",
+          "remarks": "Hvid. Niv. 6",
+          "find_number": "26-17"
+        },
+        {
+          "description": "Glasperle",
+          "remarks": "Blå, facetteret. Niv. 6",
+          "find_number": "26-23"
+        },
+        {
+          "description": "Ravperle",
+          "remarks": "Niv. 6",
+          "find_number": "26-25"
+        },
+        {
+          "description": "Ravperle",
+          "remarks": "Niv. 6",
+          "find_number": "26-26"
+        },
+        {
+          "description": "Lerkar",
+          "remarks": "Hankekop. Niv. 6",
+          "find_number": "26-27"
+        }
+      ],
+      "dating": "Yngre romersk jernalder per. C3, evt. ældre germansk jernalder(?)",
+      "tooth_count": 15,
+      "grave_dimensions": "2,8 x 1,3 meter",
+      "radiocarbon_date": null
+    },
+    {
+      "grave_label": "Grav 28",
+      "estimated_age": "voksent individ",
+      "finds": [
+        {
+          "description": "Lille keramikskår",
+          "remarks": "Bundniveau",
+          "find_number": "28-2"
+        }
+      ],
+      "dating": "Yngre romersk jernalder (?)",
+      "tooth_count": null,
+      "grave_dimensions": "ca. 1,8 x 0,7 m",
+      "radiocarbon_date": null
+    },
+    {
+      "grave_label": "Grav 30",
+      "estimated_age": "20-35 år",
+      "finds": [
+        {
+          "description": "Lerkarskår",
+          "remarks": "6 stk.",
+          "find_number": "30-2"
+        },
+        {
+          "description": "Dyretand",
+          "remarks": "Fra hund",
+          "find_number": "30-5"
+        },
+        {
+          "description": "Keramikskår",
+          "remarks": "Fundet ved afrensning",
+          "find_number": "30-7"
+        },
+        {
+          "description": "Flintafslag",
+          "remarks": "Fundet ved afrensning",
+          "find_number": "30-8"
+        }
+      ],
+      "dating": "Yngre romersk jernalder (?)",
+      "tooth_count": null,
+      "grave_dimensions": "ca. 2 m x 1 m",
+      "radiocarbon_date": null
+    },
+    {
+      "grave_label": "Grav 31",
+      "estimated_age": "20-35 år",
+      "finds": [],
+      "dating": null,
+      "tooth_count": null,
+      "grave_dimensions": "ca. 2 m x 0,95 m",
+      "radiocarbon_date": null
+    }
+  ],
+  "storage_location": null
+}

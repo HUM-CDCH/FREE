@@ -52,21 +52,21 @@
     "text": "N ummer",
     "page": 1,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — N ummer"
+    "context": "N ummer — N ummer"
   },
   {
     "anchorId": "anchor_f3944653a9ec2f04be7cbd2161c4e6bfc3ebe520871befaf36f44ab3fcc95b07",
     "text": "Beskrivelse",
     "page": 1,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — Beskrivelse"
+    "context": "Beskrivelse — Beskrivelse"
   },
   {
     "anchorId": "anchor_34a8e118bc4a6c4d6bbbe96bf77bacc8ac8c41c058a65b36f3455b0906d505ec",
     "text": "Bemærkninger",
     "page": 1,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — Bemærkninger"
+    "context": "Bemærkninger — Bemærkninger"
   },
   {
     "anchorId": "anchor_93246a234731b550702bafa363e679a47832036cc151e1b4e4fefea2df21dde1",
@@ -141,21 +141,21 @@
     "text": "Fundnummer",
     "page": 1,
     "kind": "table_cell",
-    "context": "Fundnummer | Beskrivelse | Bemærkninger — Fundnummer"
+    "context": "Fundnummer — Fundnummer"
   },
   {
     "anchorId": "anchor_093fa21f0abdc738c96e97e6a563b32cf9e69f36590f09562534e111602b5424",
     "text": "Beskrivelse",
     "page": 1,
     "kind": "table_cell",
-    "context": "Fundnummer | Beskrivelse | Bemærkninger — Beskrivelse"
+    "context": "Beskrivelse — Beskrivelse"
   },
   {
     "anchorId": "anchor_96bf885a60de6929ba9c5605cdb612ea0ffaddb0d9861ecaaf2c4d6d4387d653",
     "text": "Bemærkninger",
     "page": 1,
     "kind": "table_cell",
-    "context": "Fundnummer | Beskrivelse | Bemærkninger — Bemærkninger"
+    "context": "Bemærkninger — Bemærkninger"
   },
   {
     "anchorId": "anchor_e3488d84d89a0a9287a6c0e15519acaaafccd2a98d8f2c6ac435471b11cf1ef6",
@@ -249,21 +249,21 @@
     "text": "N ummer",
     "page": 2,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — N ummer"
+    "context": "N ummer — N ummer"
   },
   {
     "anchorId": "anchor_32c723445123e8a448ecc5194cd3d1e6f94a27ac4c6c4269c8d325c591adfd0e",
     "text": "Beskrivelse",
     "page": 2,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — Beskrivelse"
+    "context": "Beskrivelse — Beskrivelse"
   },
   {
     "anchorId": "anchor_996717215085747387b9bddf7028280ef5b9e0544cde30c929b3ef3b3d1f21fd",
     "text": "Bemærkninger",
     "page": 2,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — Bemærkninger"
+    "context": "Bemærkninger — Bemærkninger"
   },
   {
     "anchorId": "anchor_1e7fac231b0928d83fe44a6b8649ce466018c747b4f7adfaf9cd7fe0bfb18093",
@@ -514,21 +514,21 @@
     "text": "N ummer",
     "page": 3,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — N ummer"
+    "context": "N ummer — N ummer"
   },
   {
     "anchorId": "anchor_a3297125d1b9b0cf3186fa128b45839ad2c039ce790714065bed2fc9dfceeb00",
     "text": "Beskrivelse",
     "page": 3,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — Beskrivelse"
+    "context": "Beskrivelse — Beskrivelse"
   },
   {
     "anchorId": "anchor_51a575a226c79272cbeca0e563c84d642b41508fdfd5280ba9627d7f4af2222d",
     "text": "Bemærkninger",
     "page": 3,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — Bemærkninger"
+    "context": "Bemærkninger — Bemærkninger"
   },
   {
     "anchorId": "anchor_31f2a84eab46b62e72ba6db44ded3a4649923388968b489188a1627d84ab2811",
@@ -687,21 +687,21 @@
     "text": "Fundnummer",
     "page": 3,
     "kind": "table_cell",
-    "context": "Fundnummer | Beskrivelse | Bemærkninger — Fundnummer"
+    "context": "Fundnummer — Fundnummer"
   },
   {
     "anchorId": "anchor_c04d3deb3580c3c3218a2205f80957e9378427ee944b1a2edf6fcfe2f4690273",
     "text": "Beskrivelse",
     "page": 3,
     "kind": "table_cell",
-    "context": "Fundnummer | Beskrivelse | Bemærkninger — Beskrivelse"
+    "context": "Beskrivelse — Beskrivelse"
   },
   {
     "anchorId": "anchor_1b62f4ac9801d8b8c8ba2c729e5bdf0f0e59286a63d2dd4994fd1571915cbf62",
     "text": "Bemærkninger",
     "page": 3,
     "kind": "table_cell",
-    "context": "Fundnummer | Beskrivelse | Bemærkninger — Bemærkninger"
+    "context": "Bemærkninger — Bemærkninger"
   },
   {
     "anchorId": "anchor_5ec5d56052a989e5424a08a9dd4964f4e6df8cb9fc6850e09cc71556bd9b790d",
@@ -978,21 +978,21 @@
     "text": "N ummer",
     "page": 4,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — N ummer"
+    "context": "N ummer — N ummer"
   },
   {
     "anchorId": "anchor_66c8f4dc9c194c238f01a9d0e10f28c730ff1d43b92a1781581054a851ea0ed3",
     "text": "Beskrivelse",
     "page": 4,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — Beskrivelse"
+    "context": "Beskrivelse — Beskrivelse"
   },
   {
     "anchorId": "anchor_5af9b7525689dec9bed8c29918a16948a2624a8638d14b70acca60e26b8fd27b",
     "text": "Bemærkninger",
     "page": 4,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — Bemærkninger"
+    "context": "Bemærkninger — Bemærkninger"
   },
   {
     "anchorId": "anchor_7244cc637bdcd79f674321c7661843e09bb0d244e62f0891b0c353cf4566439d",
@@ -1347,21 +1347,21 @@
     "text": "Fundnummer",
     "page": 4,
     "kind": "table_cell",
-    "context": "Fundnummer | Beskrivelse | Bemærkninger — Fundnummer"
+    "context": "Fundnummer — Fundnummer"
   },
   {
     "anchorId": "anchor_a72f5046d1f223726bb3b8d1785445a2e83ce63c16667e9c618cb553eed6f0a1",
     "text": "Beskrivelse",
     "page": 4,
     "kind": "table_cell",
-    "context": "Fundnummer | Beskrivelse | Bemærkninger — Beskrivelse"
+    "context": "Beskrivelse — Beskrivelse"
   },
   {
     "anchorId": "anchor_8971ea4805afacc99639aab533d86dc050d88707b00fb0fc7bcd4558634c34a5",
     "text": "Bemærkninger",
     "page": 4,
     "kind": "table_cell",
-    "context": "Fundnummer | Beskrivelse | Bemærkninger — Bemærkninger"
+    "context": "Bemærkninger — Bemærkninger"
   },
   {
     "anchorId": "anchor_34e1938374815dc2603a7705252926fb2e4bcdf3e763297775e352beaf9c9959",
@@ -1767,21 +1767,21 @@
     "text": "N ummer",
     "page": 5,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — N ummer"
+    "context": "N ummer — N ummer"
   },
   {
     "anchorId": "anchor_3df832189609fd7b74e9a44498066f87f8f1acd4934062a99f9b969ca6c65369",
     "text": "Beskrivelse",
     "page": 5,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — Beskrivelse"
+    "context": "Beskrivelse — Beskrivelse"
   },
   {
     "anchorId": "anchor_99196dea69526f39179098b737e1c1a539748b95a88137f602e573920bc96aa0",
     "text": "Bemærkninger",
     "page": 5,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — Bemærkninger"
+    "context": "Bemærkninger — Bemærkninger"
   },
   {
     "anchorId": "anchor_6051fff48eca8559768812d0c7f444b9b573ab51c30edd1f66523e9b2476fa6d",
@@ -1821,21 +1821,21 @@
     "text": "Fundnummer",
     "page": 5,
     "kind": "table_cell",
-    "context": "Fundnummer | Beskrivelse | Bemærkninger — Fundnummer"
+    "context": "Fundnummer — Fundnummer"
   },
   {
     "anchorId": "anchor_763d8e6a30288df3f4f85955c30ed39c45e6236821eb626c4b820980cd788a57",
     "text": "Beskrivelse",
     "page": 5,
     "kind": "table_cell",
-    "context": "Fundnummer | Beskrivelse | Bemærkninger — Beskrivelse"
+    "context": "Beskrivelse — Beskrivelse"
   },
   {
     "anchorId": "anchor_c789a5ca91fe948b02a0fdb9ca0c37dc6615790c40b46f0ff68301cec2760fe8",
     "text": "Bemærkninger",
     "page": 5,
     "kind": "table_cell",
-    "context": "Fundnummer | Beskrivelse | Bemærkninger — Bemærkninger"
+    "context": "Bemærkninger — Bemærkninger"
   },
   {
     "anchorId": "anchor_4f1987ca2d5bbb3316f2498d130011bec5f8684f84a10d2f06ef25f9d0864b51",
@@ -1923,21 +1923,21 @@
     "text": "N ummer",
     "page": 5,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — N ummer"
+    "context": "N ummer — N ummer"
   },
   {
     "anchorId": "anchor_2735ce421e206dd7381d990ec17a4dce2a5c0cb036465c7bc988bf020b05164e",
     "text": "Beskrivelse",
     "page": 5,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — Beskrivelse"
+    "context": "Beskrivelse — Beskrivelse"
   },
   {
     "anchorId": "anchor_9ffe48d00d289e1e22a75cf647baa5535894ce3bd3d35580863fda86be975e48",
     "text": "Bemærkninger",
     "page": 5,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — Bemærkninger"
+    "context": "Bemærkninger — Bemærkninger"
   },
   {
     "anchorId": "anchor_0fddc34abcb89f0ce88e6799b0e2891b9bf1a97cc47b2199239ff31a2a131a64",
@@ -2020,21 +2020,21 @@
     "text": "Fundnummer",
     "page": 6,
     "kind": "table_cell",
-    "context": "Fundnummer | Beskrivelse | Bemærkninger — Fundnummer"
+    "context": "Fundnummer — Fundnummer"
   },
   {
     "anchorId": "anchor_f1c95243028b98f6bb403296e816b9bc3d8cbc3b79591fbb2f84764c4d0b312f",
     "text": "Beskrivelse",
     "page": 6,
     "kind": "table_cell",
-    "context": "Fundnummer | Beskrivelse | Bemærkninger — Beskrivelse"
+    "context": "Beskrivelse — Beskrivelse"
   },
   {
     "anchorId": "anchor_ee958b5bdf8c861d770111d0aa7d037e696dd9596c06f31d924bb68c7469b95b",
     "text": "Bemærkninger",
     "page": 6,
     "kind": "table_cell",
-    "context": "Fundnummer | Beskrivelse | Bemærkninger — Bemærkninger"
+    "context": "Bemærkninger — Bemærkninger"
   },
   {
     "anchorId": "anchor_28ba67154b6c239c9f8b4a43890f19c850577222ed1f737c8c866f8a2c6c9bbb",
@@ -2179,21 +2179,21 @@
     "text": "N ummer",
     "page": 6,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — N ummer"
+    "context": "N ummer — N ummer"
   },
   {
     "anchorId": "anchor_6faf4f9cbdf453598b6523de070de70b426d7ed3c804aa9b944d9b692c7bf4a0",
     "text": "Beskrivelse",
     "page": 6,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — Beskrivelse"
+    "context": "Beskrivelse — Beskrivelse"
   },
   {
     "anchorId": "anchor_79708f5dd5e39a53bc63d00ddc97f39af2015ccc703ea0b24cbf08a0c43197a7",
     "text": "Bemærkninger",
     "page": 6,
     "kind": "table_cell",
-    "context": "N ummer | Beskrivelse | Bemærkninger — Bemærkninger"
+    "context": "Bemærkninger — Bemærkninger"
   },
   {
     "anchorId": "anchor_b400b086c28a2e939d4ac9169f00c4b4facf0442ca02888fe0447bc3cbb89d82",

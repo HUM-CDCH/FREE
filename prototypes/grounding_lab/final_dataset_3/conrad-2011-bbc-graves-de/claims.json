@@ -1,0 +1,453 @@
+[
+  {
+    "value": 2.34,
+    "resultPath": [
+      "records",
+      0,
+      "grave_pit_length_m"
+    ],
+    "goldAnchorIds": [
+      "anchor_1ff892bf024c3740bd5ddcca65965f7dfb1caeac5decd4c1ea206cdaeec0da23"
+    ],
+    "context": "site: Altranstaedt II, grave_id: Grab 7",
+    "note": "supported: 'Grab 7: Erdgrab; L 2,34, B 1,42 m' -> 2,34 m; p1"
+  },
+  {
+    "value": 0.8,
+    "resultPath": [
+      "records",
+      1,
+      "grave_pit_width_m"
+    ],
+    "goldAnchorIds": [
+      "anchor_055e5af5cb5a055e7f351e75ca94222fb8f3763bb88a7ef2e775d17b38053afc"
+    ],
+    "context": "site: Altranstaedt II, grave_id: Grab 8",
+    "note": "supported: 'Grab 8: Erdgrab; L 1, B 0,8 m'; p1"
+  },
+  {
+    "value": 12,
+    "resultPath": [
+      "records",
+      3,
+      "age_min_years"
+    ],
+    "goldAnchorIds": [
+      "anchor_a3cfc0e90986d04033065326df69ccf11d613a66877ffba1586fc3e611ecd4e0"
+    ],
+    "context": "site: Boesdorf, grave_id: Einzelgrab",
+    "note": "supported: 'Infans II, 12-14 Jahre' -> lower bound 12; p1"
+  },
+  {
+    "value": 1980,
+    "resultPath": [
+      "records",
+      3,
+      "excavation_year"
+    ],
+    "goldAnchorIds": [
+      "anchor_a3cfc0e90986d04033065326df69ccf11d613a66877ffba1586fc3e611ecd4e0"
+    ],
+    "context": "site: Boesdorf",
+    "note": "supported: 'systematisch ausgegraben, 1980'; p1"
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "feature_measurement_unit"
+    ],
+    "goldAnchorIds": [
+      "anchor_233970203669eb5d9295d36b37ca5f782b235ca8c2f9bac7297537250c3b332d"
+    ],
+    "note": "supported: 'Die Masse der Befunde sind in Metern ... angegeben'; p3"
+  },
+  {
+    "value": "Kölsa",
+    "resultPath": [
+      "catalogue_new_find_sites",
+      0
+    ],
+    "goldAnchorIds": [
+      "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+    ],
+    "note": "supported: the introductory sentence of section 7.3 lists exactly these seven sites; p2 [split from list value, production shape]"
+  },
+  {
+    "value": "Grebehna",
+    "resultPath": [
+      "catalogue_new_find_sites",
+      1
+    ],
+    "goldAnchorIds": [
+      "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+    ],
+    "note": "supported: the introductory sentence of section 7.3 lists exactly these seven sites; p2 [split from list value, production shape]"
+  },
+  {
+    "value": "Löbnitz-Bennewitz",
+    "resultPath": [
+      "catalogue_new_find_sites",
+      2
+    ],
+    "goldAnchorIds": [
+      "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+    ],
+    "note": "supported: the introductory sentence of section 7.3 lists exactly these seven sites; p2 [split from list value, production shape]"
+  },
+  {
+    "value": "Markranstädt",
+    "resultPath": [
+      "catalogue_new_find_sites",
+      3
+    ],
+    "goldAnchorIds": [
+      "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+    ],
+    "note": "supported: the introductory sentence of section 7.3 lists exactly these seven sites; p2 [split from list value, production shape]"
+  },
+  {
+    "value": "Zwenkau",
+    "resultPath": [
+      "catalogue_new_find_sites",
+      4
+    ],
+    "goldAnchorIds": [
+      "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+    ],
+    "note": "supported: the introductory sentence of section 7.3 lists exactly these seven sites; p2 [split from list value, production shape]"
+  },
+  {
+    "value": "Großstorkwitz",
+    "resultPath": [
+      "catalogue_new_find_sites",
+      5
+    ],
+    "goldAnchorIds": [
+      "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+    ],
+    "note": "supported: the introductory sentence of section 7.3 lists exactly these seven sites; p2 [split from list value, production shape]"
+  },
+  {
+    "value": "Wehlitz",
+    "resultPath": [
+      "catalogue_new_find_sites",
+      6
+    ],
+    "goldAnchorIds": [
+      "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+    ],
+    "note": "supported: the introductory sentence of section 7.3 lists exactly these seven sites; p2 [split from list value, production shape]"
+  },
+  {
+    "value": 0.1,
+    "resultPath": [
+      "records",
+      4,
+      "grave_pit_depth_m"
+    ],
+    "goldAnchorIds": [
+      "anchor_ea29bb2e6e60141c85a430d6ccab9a62759de0c76c369840b8a041fb655f0d18"
+    ],
+    "context": "site: Kolsa, site_code: KQA-01, grave_id: Grab 1",
+    "note": "supported: Pl. 2 'L 0,63; B 0,46; T ca. 0,1'; p3"
+  },
+  {
+    "value": 0.28,
+    "resultPath": [
+      "records",
+      5,
+      "grave_pit_depth_m"
+    ],
+    "goldAnchorIds": [
+      "anchor_60521b191a7e96cc1c2175e010e4f61d5310ea32b20dc4bddbc808be3f8736ed"
+    ],
+    "context": "site: Kolsa, grave_id: Grab 2, feature_number: Bef. 23",
+    "note": "supported: Pl. 2 'L 0,7; B 0,48; T 0,28'; p4"
+  },
+  {
+    "value": 0.49,
+    "resultPath": [
+      "records",
+      6,
+      "grave_pit_length_m"
+    ],
+    "goldAnchorIds": [
+      "anchor_52f594c76bf30b6ff42fd7d116d2dd361ceb8fb3a33e211157f3d7edf0dec02c"
+    ],
+    "context": "site: Kolsa, grave_id: Grab 3, feature_number: Bef. 24",
+    "note": "supported: Pl. 2 grave-pit remnant 'L 0,49; B 0,25-0,4; T 0,2'; p4"
+  },
+  {
+    "value": 0.36,
+    "resultPath": [
+      "records",
+      9,
+      "grave_pit_depth_m"
+    ],
+    "goldAnchorIds": [
+      "anchor_6380c15f55f65fc488e3140b8444dc5c4fe1ca60f487b7e077deb9e74763afff"
+    ],
+    "context": "site: Kolsa, grave_id: Grab 8, feature_number: Bef. 22",
+    "note": "supported: Pl. 2 'L 0,94; B 0,7; T 0,36'; p6"
+  },
+  {
+    "value": 48,
+    "resultPath": [
+      "records",
+      10,
+      "age_min_years"
+    ],
+    "goldAnchorIds": [
+      "anchor_05465db219c1b78af017a7c7536045c5298df7581879cc1a32f914fd5f34ce8e"
+    ],
+    "context": "site: Kolsa, grave_id: Grab 9",
+    "note": "supported: 'Matur bis Senil, 48-69 Jahre'; p6"
+  },
+  {
+    "value": "weiblich",
+    "resultPath": [
+      "records",
+      11,
+      "sex_estimate"
+    ],
+    "goldAnchorIds": [
+      "anchor_e24d1ab5e8123979740b260706feed0669d27a30fec4fe19b9ccf8478cc37d60"
+    ],
+    "context": "site: Grebehna, site_code: ZWC-09, grave_id: Grab 1",
+    "note": "supported: 'Adult, 25-35 Jahre. Weiblich.'; p9"
+  },
+  {
+    "value": 20,
+    "resultPath": [
+      "records",
+      12,
+      "age_min_years"
+    ],
+    "goldAnchorIds": [
+      "anchor_086a8a1b0d64957557a95a127574d2457d8a05e80f828a6cef91290d792b60d0"
+    ],
+    "context": "site: Lobnitz-Bennewitz, site_code: GRZ-27, grave_id: Grab 2",
+    "note": "supported: 'Fruehadult, 20-25 (29) Jahre'; p9"
+  },
+  {
+    "value": "Leichenbrand",
+    "resultPath": [
+      "records",
+      13,
+      "burial_type"
+    ],
+    "goldAnchorIds": [
+      "anchor_7f37fa547d8c0158ab3aa0ac933e7afd3fcf3734de937dac759bdea1b35678e1",
+      "anchor_ce240ffb5707976436691e76b0073ad57b6dbce6c950b6fad6b7b42fc7a3ab96"
+    ],
+    "context": "site: Markranstadt, site_code: MS-11, grave_id: Grab 1",
+    "note": "supported: Pl. 1 'Mit Brandbestattung' and 'Bestattung: Leichenbrand'; p9-10"
+  },
+  {
+    "value": 0.9,
+    "resultPath": [
+      "records",
+      14,
+      "grave_pit_depth_m"
+    ],
+    "goldAnchorIds": [
+      "anchor_1bb8c94007cd0dd28e3f00124ea3213525a6777a4a0505eced50086fdf88d89c"
+    ],
+    "context": "site: Zwenkau, site_code: ZW-01, grave_id: Grab 3",
+    "note": "supported: Pl. 2 'L mind. 1,45; B mind. 1,27; T ca. 0,9'; p13"
+  },
+  {
+    "value": 12,
+    "resultPath": [
+      "records",
+      16,
+      "age_max_years"
+    ],
+    "goldAnchorIds": [
+      "anchor_13aa72883a2f587d2968fa145c13fb8b84f5122b92b091ee3f833b1f308fcef6"
+    ],
+    "context": "site: Grossstorkwitz, site_code: PEG-08, grave_id: Grab 2",
+    "note": "supported: 'Juvenil, 11-12 Jahre'; p14"
+  },
+  {
+    "value": "S-N",
+    "resultPath": [
+      "records",
+      17,
+      "orientation"
+    ],
+    "goldAnchorIds": [
+      "anchor_bfabd4f7553304615ad3a85a6a155df2196c977d826f7be4c655098a9c0cdd93"
+    ],
+    "context": "site: Wehlitz, site_code: WEH-11, grave_id: Grab 1",
+    "note": "supported: 'Bestattung: S-N-ausgerichteter, re Hocker in Seitenlage mit Blick nach O.'; p16"
+  },
+  {
+    "value": "Marion Conrad",
+    "resultPath": [
+      "author"
+    ],
+    "goldAnchorIds": [],
+    "note": "unsupported kind (a): the excerpt never names an author anywhere; plausible hallucination from the file name"
+  },
+  {
+    "value": 0.25,
+    "resultPath": [
+      "records",
+      6,
+      "grave_pit_depth_m"
+    ],
+    "goldAnchorIds": [],
+    "context": "site: Kolsa, grave_id: Grab 3",
+    "note": "unsupported kind (a): Kolsa Grab 3 is given as T 0,2; 0,25 appears nowhere for this grave; p4",
+    "expectedLexicalHitIds": [
+      "anchor_a542a5e84424ea5e3191bf2f40c7a9744f66baf47fbce2637a82746c78ff19d9",
+      "anchor_598625f580969956e39a75ae9b812a7204cb9f7771b845ce338bad40a8bfafd9",
+      "anchor_0e2391a11700356bf029e7f9cf25da237a0267da7fa22e12873230e981e3f3c0"
+    ]
+  },
+  {
+    "value": 0.35,
+    "resultPath": [
+      "records",
+      17,
+      "grave_pit_depth_m"
+    ],
+    "goldAnchorIds": [],
+    "context": "site: Wehlitz, grave_id: Grab 1",
+    "note": "unsupported kind (a): Wehlitz Grab 1 has T 0,29 (Pl. 3) and T max. 0,34 in the profile; 0,35 is stated nowhere; p15-16",
+    "expectedLexicalHitIds": [
+      "anchor_f6c0856e1a3a0b65e304fa0b2037a93dd2fa30d885d033acd1b347ac4168868a",
+      "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4",
+      "anchor_1d805779753a00427c76024db05ecd994a0d0d178b038a4fe35daafe2daaf4ff",
+      "anchor_e37e7567fff5cccecb67ee9584b4c0d507b249adc00ed8ba6420bd4e95e4e81e"
+    ]
+  },
+  {
+    "value": 0.84,
+    "resultPath": [
+      "records",
+      9,
+      "grave_pit_depth_m"
+    ],
+    "goldAnchorIds": [],
+    "context": "site: Kolsa, grave_id: Grab 8",
+    "note": "unsupported kind (b): 'T ca. 0,84' is the depth of Kolsa Grab 9, not Grab 8 (0,36); p6",
+    "expectedLexicalHitIds": [
+      "anchor_52f594c76bf30b6ff42fd7d116d2dd361ceb8fb3a33e211157f3d7edf0dec02c",
+      "anchor_f6c0856e1a3a0b65e304fa0b2037a93dd2fa30d885d033acd1b347ac4168868a",
+      "anchor_1d805779753a00427c76024db05ecd994a0d0d178b038a4fe35daafe2daaf4ff",
+      "anchor_e2ddcdaa1ee0251dab1b6a2d3e016b1bf95f43de309576ab084609ec2a41d8fa",
+      "anchor_d65cd8b07ac586adfeb9913368200da83b24a77cb35db04d2ed76f8219dddaef"
+    ]
+  },
+  {
+    "value": 1958,
+    "resultPath": [
+      "year"
+    ],
+    "goldAnchorIds": [],
+    "note": "unsupported kind (b): 1958 occurs repeatedly, but only as the year of the cited work 'Billig 1958', never as this document's year; p1-2",
+    "expectedLexicalHitIds": [
+      "anchor_661f4561f753f4d97bb7a829212a4fafda086c68d26fefdb7897eb64d60c8718",
+      "anchor_ce69e1e3babf1751409e9917535639795779164e84764d0a9872b780fb320f85",
+      "anchor_931a0df62488916ef906c486a108b6dbc09a68f5b406055e7e64251aeee653a3",
+      "anchor_de2a80ac7f18e209abe5af9359c12b5d5d77408e92a306f6761731b8c61f8516",
+      "anchor_a4d4ab6d6f1bc2a8ee814d860d0377a6d5b6485ba69b546d46a46f6bc61518ed",
+      "anchor_b3d987673bb32dc150fe9f63f0bc9e74eaa6ed0ea369c85b194379e0ebef1964",
+      "anchor_a881b57f0d60be5d8ad08a9781e81eb647eb3fd740987aa701c56dac531cf00f",
+      "anchor_ac27a792c6f4421ba5db75ef1425090c8ca7e175d8ceca30f888ffcf20f884d9",
+      "anchor_7ff8048c06330c3f1080580e23b7207c19bbccb145b79296ff8c3fbb0545ba4c",
+      "anchor_2db141ebc83ca6b42445bfef9aabb1befd0a5b4c57b128845be243b1a152c79d",
+      "anchor_a09cc6cf06fc287d421bff2fec5d88a161f7718b8e624261fe29d9bfd233e410",
+      "anchor_793a4a9ee50a8ca085ec035347cbe85d4668854c55c62c332fbca7fdde59080b",
+      "anchor_6f569623ed61113473fd290ec412b70793370837db70a5faf4a40f1348a434e8",
+      "anchor_a1a8a4ab4fb4dbd6eab5229ea8e31e3eb222a89c185436136342196ac96d073a",
+      "anchor_e69cf816abfed028d03997da857704c6a713e3dcaf2c7ffab81a4c4b19009ba8",
+      "anchor_1dba9d6fbe5a172150574e034995dadf3915415b48c6c7fbea0141deb31a9826"
+    ]
+  },
+  {
+    "value": 1901,
+    "resultPath": [
+      "records",
+      3,
+      "excavation_year"
+    ],
+    "goldAnchorIds": [],
+    "context": "site: Boesdorf",
+    "note": "unsupported kind (b): 1901 is the find year of Altranstaedt I, not of Boesdorf (1980); p1",
+    "expectedLexicalHitIds": [
+      "anchor_4ae6a0477f93d722d53286be5c0669d7f4587a1adc9591394ef7a74f99f8bb5f"
+    ]
+  },
+  {
+    "value": 7,
+    "resultPath": [
+      "catalogue_new_find_sites_count"
+    ],
+    "goldAnchorIds": [],
+    "note": "unsupported kind (c): the seven sites are enumerated in the 7.3 intro but the number seven is never stated; requires counting; p2",
+    "expectedLexicalHitIds": [
+      "anchor_661f4561f753f4d97bb7a829212a4fafda086c68d26fefdb7897eb64d60c8718",
+      "anchor_296b4643a48bc17259b4f412c3c6d1d361d284583308b24f8087606fb3bb7ef4",
+      "anchor_1ff892bf024c3740bd5ddcca65965f7dfb1caeac5decd4c1ea206cdaeec0da23",
+      "anchor_a3cfc0e90986d04033065326df69ccf11d613a66877ffba1586fc3e611ecd4e0",
+      "anchor_d665a05d1ba52025f89f4a31edb3a0c19c54f0898f00d50446dd90bdba46d52d",
+      "anchor_5177d063f8374648d663cfd69ceb6de0bf25df3dff72c2d82f8ed97784d942f1",
+      "anchor_e4cf251af36f981933554a541de136b3400cc6093a0095a05fe3ea15e34a7c57",
+      "anchor_60521b191a7e96cc1c2175e010e4f61d5310ea32b20dc4bddbc808be3f8736ed",
+      "anchor_d2b91887d7100ec8d0abd99f8c646ecbe820cb5629adc3ffa3348799a7552f71",
+      "anchor_52f594c76bf30b6ff42fd7d116d2dd361ceb8fb3a33e211157f3d7edf0dec02c",
+      "anchor_efa7a5de9176e14786c6d265bf2d21f5f5c84e50b24cbb1e8a9a173917794fad",
+      "anchor_f6c0856e1a3a0b65e304fa0b2037a93dd2fa30d885d033acd1b347ac4168868a",
+      "anchor_925f8ae853be370b57ac6a1aa6e69ce8ff28bd28479a62639ef9c2f44803524d",
+      "anchor_426604c2a82a9afd093ddb8a026384c79c5099ac047ff94f8815272afe1f48c4",
+      "anchor_63921c89772750e7cd2ba8568612e3c10ec9afcfa93f67955778ed316af98889",
+      "anchor_d32bc7623b1dd528156ada43571fe63d964ac47dfa6dc753070468d6cf5a6619",
+      "anchor_b3ec4d5663a18716670ace1580e3ef765b90318ce9b3a0156dd27e8b744a6be3",
+      "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4",
+      "anchor_245e92e3854fcdc72b649c8b818dee9c926ffc816cd4436c789c306de5072800",
+      "anchor_6380c15f55f65fc488e3140b8444dc5c4fe1ca60f487b7e077deb9e74763afff",
+      "anchor_22aaab0b8769d0ad53eb359659ff1571c22a6d8b162a223b243c0c40292834ba",
+      "anchor_9d061f14a76778793d43cc0e44ca0039f2ea07a18190c2e3d14d1cf059e968a4",
+      "anchor_1d805779753a00427c76024db05ecd994a0d0d178b038a4fe35daafe2daaf4ff",
+      "anchor_a608caf0f30c0ec0d60cbd4ed5a37d49dd9dbffbbf28a49bf1f99e791b70fa85",
+      "anchor_3359078aae25629050fa2c7cc9434e3a3ddc45c84d16f5f5207b72fbb426ca8a",
+      "anchor_bf4ccb8c34fe3320df95f6b2fef00e7f87e47ae480ad0cd8a67bdb6bc78cb0fa",
+      "anchor_764f5b96976fe15e48d1f5215fabade292d41315a54f314f4967ebb793312129",
+      "anchor_4699a145efdeb2e581caa05e6f088f560833669908a1a44ad00339f9e018082e",
+      "anchor_86ca41b712246db19184e52e30a8ae7717bef58b73392b5ffed22446f1a989a9",
+      "anchor_916b658dc7efb1bde3b41e17fac033914a3b4595cf8d2b5628c204e8000cf8f3",
+      "anchor_d7dd648665feae3465f2ddad51a77abd749a0db83467fe2c31dd8e173184102b",
+      "anchor_bc164155c19d4930aecfabb0ed568a34362dee14586330d72f0035a61bd462e3",
+      "anchor_a542a5e84424ea5e3191bf2f40c7a9744f66baf47fbce2637a82746c78ff19d9",
+      "anchor_1eeda3e569da27f5804f4bd1864cafeb027084b9a1781def56ba842ef509778b",
+      "anchor_598625f580969956e39a75ae9b812a7204cb9f7771b845ce338bad40a8bfafd9",
+      "anchor_dc22c57c49aec744003af14deee9e9f6f1915219c98a24866d447d74e65481f9",
+      "anchor_251bdc4a19c9cfa7f308584c815649d72eb42468dd244991cf487b0090779ea6",
+      "anchor_dadd7fbd6cf241e9e8b3c0a5bc039345727e64dc202b596df680b0189a875c60",
+      "anchor_e2ddcdaa1ee0251dab1b6a2d3e016b1bf95f43de309576ab084609ec2a41d8fa",
+      "anchor_05704a03e0a078e69b43bfcfaa3a391e78933d00d1990d966ff08158eacc224b",
+      "anchor_fafdc1c1448dcbb920ce17a1496604487d5945cf06e0a0455ea7c64b0d8fe3f7",
+      "anchor_b954dcbf5f3af0b85c0a9855c8fd1e61b882d0ead2df62fa33b76731680792f3",
+      "anchor_80e0ce25302fe96a9cb031549d4bb64d48f56c8831f78ee529487a4b2484c07e",
+      "anchor_a1910e5a6843fff2dd9cc4b3ee9956bd0cf11c655441c6d665f905b2fae892af",
+      "anchor_09c82fa0914b335c142d309c8bceccfd69a327db839cbc2b154a8b36f3795649",
+      "anchor_b59d70fffeec12dc113b21b1588527aca3fd7e93fa052b8201ec7cbcece66046",
+      "anchor_9e16d3f2e8c94820f84d8a885060970e5c1c6f7f126d2777c80bade5f3a1dc22",
+      "anchor_37529750b74cb1ef47bd02769e81d8e6f479cffdddd0259f03eebbba4762ed5b"
+    ]
+  },
+  {
+    "value": 711.3,
+    "resultPath": [
+      "records",
+      13,
+      "cremated_bone_weight_g"
+    ],
+    "goldAnchorIds": [],
+    "context": "site: Markranstadt, grave_id: Grab 1",
+    "note": "unsupported kind (c): sum of the two weights given ('Gew. 295' + 'Gew. 416,3'); no anchor states 711,3; p10"
+  }
+]

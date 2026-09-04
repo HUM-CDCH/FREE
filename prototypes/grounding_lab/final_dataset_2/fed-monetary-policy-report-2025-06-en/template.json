@@ -1,0 +1,17 @@
+{
+  "pcePriceIndexChangeApril": "number",
+  "corePceChangeApril": "number",
+  "unemploymentRateMay": "number",
+  "marketImpliedFedFundsRateEnd2026": "number",
+  "securitiesHoldingsReductionSinceJanuary": "number",
+  "securitiesHoldingsReductionSinceMid2022": "string",
+  "federalFundsTargetRange": "string",
+  "treasurySecuritiesJune2025Billions": "number",
+  "totalAssetsJune2025Billions": "number",
+  "treasuryGeneralAccountChangeSinceJanuary": "number",
+  "unemploymentRateMedianProjection2027": "number",
+  "federalFundsRateMedianProjection2025": "number",
+  "realGdpGrowthMedianProjection2025": "number",
+  "informationCutoffDate": "string",
+  "strategyStatementReaffirmedDate": "string"
+}

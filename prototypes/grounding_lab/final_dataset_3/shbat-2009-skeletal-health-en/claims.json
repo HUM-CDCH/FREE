@@ -1,0 +1,342 @@
+[
+  {
+    "value": "Skeletal health of late Neolithic populations from Bohemia",
+    "resultPath": [
+      "title"
+    ],
+    "goldAnchorIds": [
+      "anchor_3e0b2e413bc19419a1630fac728ac23372aed57fe90985123d964020c9a7ec80",
+      "anchor_f45239946bf6ff156b7679bae83cd6421be2e54c97870f95b03203bb132022f9"
+    ],
+    "note": "supported: the title appears on the JSTOR cover page (p1) and again as the article title (p2)"
+  },
+  {
+    "value": "Andrej Shbat",
+    "resultPath": [
+      "authors",
+      0
+    ],
+    "goldAnchorIds": [
+      "anchor_cf9fcbd81a5e2bd92fbae365071b39a4043108e20cbc1775989a37964df8b418",
+      "anchor_893bb5775956be8168ad3d9b7d54261a3a8296d4580ec813a49cf21ef1dc285d"
+    ],
+    "note": "supported: 'Author(s): ANDREJ SHBAT, IVANA RUZICKOVA and PETRA HERLOVA' (p1) and the byline on p2 [split from list value, production shape]"
+  },
+  {
+    "value": "Ivana Růžičková",
+    "resultPath": [
+      "authors",
+      1
+    ],
+    "goldAnchorIds": [
+      "anchor_cf9fcbd81a5e2bd92fbae365071b39a4043108e20cbc1775989a37964df8b418",
+      "anchor_893bb5775956be8168ad3d9b7d54261a3a8296d4580ec813a49cf21ef1dc285d"
+    ],
+    "note": "supported: 'Author(s): ANDREJ SHBAT, IVANA RUZICKOVA and PETRA HERLOVA' (p1) and the byline on p2 [split from list value, production shape]"
+  },
+  {
+    "value": "Petra Herlová",
+    "resultPath": [
+      "authors",
+      2
+    ],
+    "goldAnchorIds": [
+      "anchor_cf9fcbd81a5e2bd92fbae365071b39a4043108e20cbc1775989a37964df8b418",
+      "anchor_893bb5775956be8168ad3d9b7d54261a3a8296d4580ec813a49cf21ef1dc285d"
+    ],
+    "note": "supported: 'Author(s): ANDREJ SHBAT, IVANA RUZICKOVA and PETRA HERLOVA' (p1) and the byline on p2 [split from list value, production shape]"
+  },
+  {
+    "value": "Anthropologie",
+    "resultPath": [
+      "journal"
+    ],
+    "goldAnchorIds": [
+      "anchor_ecadf07673d63bff6fc7a813e7c0dec9fd41f6edc04c2d1bb2c21f63ae1efd24",
+      "anchor_c7a48493c6766bd5676e48851be8f54fcfcb7f60ef4c92ead881300f2814a939"
+    ],
+    "note": "supported: 'Source: Anthropologie (1962-)' (p1) and the JSTOR collaboration line naming the same journal; p1"
+  },
+  {
+    "value": 2009,
+    "resultPath": [
+      "year"
+    ],
+    "goldAnchorIds": [
+      "anchor_ecadf07673d63bff6fc7a813e7c0dec9fd41f6edc04c2d1bb2c21f63ae1efd24",
+      "anchor_88425ad8b4fd78d6472d076b819f1dee3a11c5ac69c889fdd0dd430e4f833965"
+    ],
+    "note": "supported: 'Vol. 47, No. 3 (2009)' (p1) and the running head '· XLVII/3 · pp. 195-214 · 2009' (p2)"
+  },
+  {
+    "value": 195,
+    "resultPath": [
+      "page_start"
+    ],
+    "goldAnchorIds": [
+      "anchor_ecadf07673d63bff6fc7a813e7c0dec9fd41f6edc04c2d1bb2c21f63ae1efd24",
+      "anchor_88425ad8b4fd78d6472d076b819f1dee3a11c5ac69c889fdd0dd430e4f833965"
+    ],
+    "note": "supported: 'pp. 195-214' on p1 and on the p2 running head"
+  },
+  {
+    "value": 257,
+    "resultPath": [
+      "total_individuals"
+    ],
+    "goldAnchorIds": [
+      "anchor_295af45b4ab7182e00d036928ce8714bf8f89c44de6d1bbbd1256f8fe2d67839",
+      "anchor_0ef2bac096e36e73b92ad5c5724c9fab797d24047863775a6d98cf9ba7044983",
+      "anchor_8c2b573b055b8800bf4caf700d1b70f7ceca0e232748144c4c64475e04351840",
+      "anchor_8290a69a1a09c7110c6fa18c491ec6934a755c2bd6b3f8e8b51b467d91b9dc5e"
+    ],
+    "note": "supported: abstract 'The whole collection consisted of 257 individuals' (p2), MATERIAL 'We evaluated 257 skeletons' (p3), TOTAL cell of Table 1 (p4) and the Total cell of Table 2 (p5)"
+  },
+  {
+    "value": 5,
+    "resultPath": [
+      "n_burial_sites"
+    ],
+    "goldAnchorIds": [
+      "anchor_295af45b4ab7182e00d036928ce8714bf8f89c44de6d1bbbd1256f8fe2d67839",
+      "anchor_0ef2bac096e36e73b92ad5c5724c9fab797d24047863775a6d98cf9ba7044983"
+    ],
+    "note": "supported: abstract '5 Czech burial-grounds' (p2) and MATERIAL '5 burial sites' (p3)"
+  },
+  {
+    "value": 79.87,
+    "resultPath": [
+      "health_index_mean"
+    ],
+    "goldAnchorIds": [
+      "anchor_6fe1609300cc688a1dae1dcef51b0d280afd54c0a4c45051627de4fce53a825f",
+      "anchor_fbd5217f2a361c78ef4f7fc2ceb1df34455ccf6769fff6bfad3fee161ac91952",
+      "anchor_df3945571a7e075084d7a5916049f3635e40a94543916d31d25e7754d61e39c0"
+    ],
+    "note": "supported: abstract 'The Health Index value was 79.87' (p2), Health Index section (p6) and the Table 6 Average cell (p9)"
+  },
+  {
+    "value": 4.29,
+    "resultPath": [
+      "health_index_sd"
+    ],
+    "goldAnchorIds": [
+      "anchor_fbd5217f2a361c78ef4f7fc2ceb1df34455ccf6769fff6bfad3fee161ac91952",
+      "anchor_0c7122a6fa0b14f3135598210dcdadcd32b1eb7351d690326821287d75cf12b0"
+    ],
+    "note": "supported: 'established as 79.87 with SD 4.29' (p6) and the Table 6 Standard Deviation cell (p9)"
+  },
+  {
+    "value": 25.22,
+    "resultPath": [
+      "life_expectancy_total_years"
+    ],
+    "goldAnchorIds": [
+      "anchor_26d81d56783b6c624652c334e03700eb8ca4ec04b2076becf909e2edfded689e",
+      "anchor_7a3d0015c4174d59a3fcf13c72ec5591daad55121609f714179b477ed85dd897"
+    ],
+    "note": "supported: Age Statistics 'We calculated Life Expectancy ... which was 25.22' (p6) and the Table 3 Total/ex cell for the 0-4 interval (p5)"
+  },
+  {
+    "value": 167.83,
+    "resultPath": [
+      "mean_stature_male_cm"
+    ],
+    "goldAnchorIds": [
+      "anchor_0922dad65930fefa447f19cdcbaf125ec9bd6a8ada8cafa0da5c9f91b3b8dc8f",
+      "anchor_f483eb42275403eb383553329e066e0b9fbab2797a5bbba3e596c065a07126bb"
+    ],
+    "note": "supported: 'Average height for males was 167.83 cm' (p6) and the Table 4 Mean (E) stature cell 167.8300 (p7)"
+  },
+  {
+    "value": 61.82,
+    "resultPath": [
+      "mean_weight_male_kg"
+    ],
+    "goldAnchorIds": [
+      "anchor_549c106b9559b11cfc392898192763af881ee61dc2a37223d8f3bd6c2403b078",
+      "anchor_d5193b9ccd248fd6804f0f348489829cd5978eba97ee8c5eca277a5ac4cc0f4c"
+    ],
+    "note": "supported: 'Average weight for males was 61.82 kg' (p6) and the Table 4 Mean (E) weight cell 61.82111 (p7)"
+  },
+  {
+    "value": 150,
+    "resultPath": [
+      "sites",
+      0,
+      "n_individuals"
+    ],
+    "goldAnchorIds": [
+      "anchor_33abae9cb0fae1ccf84a46cbd15339a5a47f94ab060144e1b1fb46cd7c3dfead"
+    ],
+    "context": "locality: Vikletice",
+    "note": "supported: Table 1 Amount cell for the Vikletice row; p4"
+  },
+  {
+    "value": 16,
+    "resultPath": [
+      "sites",
+      4,
+      "n_bbc"
+    ],
+    "goldAnchorIds": [
+      "anchor_28fb876fded130e41dbe3d29b86b25b1b10137615210b610d8f5d8c807405f6d"
+    ],
+    "context": "locality: Brandýsek",
+    "note": "supported: Table 1 BBC cell for the Brandysek row; p4"
+  },
+  {
+    "value": "Chomutov",
+    "resultPath": [
+      "sites",
+      0,
+      "county"
+    ],
+    "goldAnchorIds": [
+      "anchor_0ef2bac096e36e73b92ad5c5724c9fab797d24047863775a6d98cf9ba7044983"
+    ],
+    "context": "locality: Vikletice",
+    "note": "supported: MATERIAL 'Vikletice (county Chomutov)'; p3"
+  },
+  {
+    "value": "36/63",
+    "resultPath": [
+      "pathology_cases",
+      0,
+      "grave_no"
+    ],
+    "goldAnchorIds": [
+      "anchor_e652350c70b89cb72fceda53315106da28bf6153f9aede8e8d4e914cba6f4d50"
+    ],
+    "context": "site: Vikletice, inventory_id: Ao 4780",
+    "note": "supported: Table 8 Grave No. cell of the Ao 4780 row; p11"
+  },
+  {
+    "value": "17 - 22 years",
+    "resultPath": [
+      "pathology_cases",
+      4,
+      "age"
+    ],
+    "goldAnchorIds": [
+      "anchor_94198133bf476f030b7df935ad5dfe7d9d2c74590896bdab162e9d0db009e366"
+    ],
+    "context": "site: Brandýsek, inventory_id: Ao 1625",
+    "note": "supported: Table 9 Age cell of the Ao 1625 row; p12"
+  },
+  {
+    "value": "35 - 45",
+    "resultPath": [
+      "pathology_cases",
+      0,
+      "age"
+    ],
+    "goldAnchorIds": [],
+    "context": "site: Vikletice, inventory_id: Ao 4780",
+    "note": "unsupported kind (a): Table 8 gives '45+' for Ao 4780; a 35-45 range for this individual is stated nowhere; p11"
+  },
+  {
+    "value": 215,
+    "resultPath": [
+      "page_end"
+    ],
+    "goldAnchorIds": [],
+    "note": "unsupported kind (a): the article runs pp. 195-214; 215 is an off-by-one that appears nowhere; p1-2"
+  },
+  {
+    "value": 15,
+    "resultPath": [
+      "sites",
+      3,
+      "n_individuals"
+    ],
+    "goldAnchorIds": [],
+    "context": "locality: Kněževes",
+    "note": "unsupported kind (a): Table 1 gives 14 for Knezeves; 15 is not stated for this site; p4",
+    "expectedLexicalHitIds": [
+      "anchor_7dd45b7bea36b8cef249dfaddec3163c4438db674f4b1e1724552792527505d9",
+      "anchor_562c63f5d1e007a59d6c5b8c173edccdbc073f55f63898e066779bd6056b0a23",
+      "anchor_fcd36f8e2eff4b77a7aa63c89154c999178445528887a3e3d8123a9d8b273c34",
+      "anchor_bf1714479e3678efdc47a842d5a11726b7a4f47575a837890dc73dd4506d590d",
+      "anchor_fe6ece9ac21ff7ac644c257015c6bb5f575e74eac2f4bc8527b58a1c943c0156",
+      "anchor_52bf1989ae9c50c1ed8d0d667badff40c6c8a02fae277879383c6dcc6fc19c77",
+      "anchor_97f36c11eb381fd0e259c5311cce9bbdaaad324df41415d20dd5a8dc7a889b2d",
+      "anchor_239e456da71d111c60bf9ca82d3089ad71c7d4db8a6f5e83129e19adfaf89dc6",
+      "anchor_14fe29de33ceffb285dd3159d620689f025a368ad1efe88a51d5f46218a6f47a",
+      "anchor_990f7f4d3dd3fe848822ceb71ecbcbfcf468e50cdebfdf90a58e109d777f2dce"
+    ]
+  },
+  {
+    "value": "Chomutov",
+    "resultPath": [
+      "sites",
+      1,
+      "county"
+    ],
+    "goldAnchorIds": [],
+    "context": "locality: Radovesice",
+    "note": "unsupported kind (b): Chomutov is stated, but as the county of Vikletice and Cachovice; Radovesice is county Litomerice; p3",
+    "expectedLexicalHitIds": [
+      "anchor_0ef2bac096e36e73b92ad5c5724c9fab797d24047863775a6d98cf9ba7044983"
+    ]
+  },
+  {
+    "value": 1962,
+    "resultPath": [
+      "year"
+    ],
+    "goldAnchorIds": [],
+    "note": "unsupported kind (b): 1962 appears in 'Anthropologie (1962-)' as the journal's founding year, not as this article's year (2009); p1",
+    "expectedLexicalHitIds": [
+      "anchor_ecadf07673d63bff6fc7a813e7c0dec9fd41f6edc04c2d1bb2c21f63ae1efd24",
+      "anchor_c7a48493c6766bd5676e48851be8f54fcfcb7f60ef4c92ead881300f2814a939"
+    ]
+  },
+  {
+    "value": "147/63",
+    "resultPath": [
+      "pathology_cases",
+      2,
+      "grave_no"
+    ],
+    "goldAnchorIds": [],
+    "context": "site: Vikletice, inventory_id: Ao 5365",
+    "note": "unsupported kind (b): 147/63 is the grave number of Ao 4824 in Table 8; Ao 5365 is grave 4/64; p11",
+    "expectedLexicalHitIds": [
+      "anchor_1b9e71d81918189dacd7d779d067921daf072df857d387dbe224c986e5656cc3"
+    ]
+  },
+  {
+    "value": 20,
+    "resultPath": [
+      "page_count"
+    ],
+    "goldAnchorIds": [],
+    "note": "unsupported kind (c): derived from 'pp. 195-214' (214-195+1); no anchor states a page count; p1-2",
+    "expectedLexicalHitIds": [
+      "anchor_e26ab903b2f9e3c23a3c0869dbd195c6ac9bda9b897d6ee0b0c00698ee423120",
+      "anchor_dbaa208ae0cfedf5bfc3ad13b13ae61e25ee3650e476cecd82d61ce44c538660",
+      "anchor_f00650b4ad544b84d1cae3cd2f08cd4e13e234287f55bb6673263aadbdb4b068",
+      "anchor_549c106b9559b11cfc392898192763af881ee61dc2a37223d8f3bd6c2403b078",
+      "anchor_c6dd88b343bc4737ad2d31ce82082199c3d450c405e25781ae3e61f123e73b13",
+      "anchor_70875db53cc45ad470490c889c4f9f73ec0a95946da51a8c8ca50795da50c08c",
+      "anchor_52bf1989ae9c50c1ed8d0d667badff40c6c8a02fae277879383c6dcc6fc19c77",
+      "anchor_15a9c23a1003c6a2bff076b46471f82b444bb965e78f08ee5f68cca6a03f0b1c",
+      "anchor_06afd175a7ab671d725a203d1591b2b10226fe9a44893a8d4ab00b56582e0cfe",
+      "anchor_3e7e87f95bec0eb9ed46983c74ef661bd9ed76870aa83acfee78b3e217fb05cf",
+      "anchor_6a50303041b9240a2ade0bdb1a34ca36158aad4ba80d158eacbce490d9a6cca4",
+      "anchor_67e4c736f7a4aba315af0adc29dbd6e544b2f676ee91c0a0ef69a3c9224387e9"
+    ]
+  },
+  {
+    "value": 83.1,
+    "resultPath": [
+      "sites",
+      2,
+      "cwc_percent"
+    ],
+    "goldAnchorIds": [],
+    "context": "locality: Čachovice",
+    "note": "unsupported kind (c): computed from Table 1 (49 CWC of 59 individuals); the table gives only counts, never a percentage; p4"
+  }
+]

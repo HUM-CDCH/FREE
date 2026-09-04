@@ -1,0 +1,17 @@
+{
+  "populationThousands2024": "number",
+  "gminyCount2024": "number",
+  "capitalPopulationThousands": "integer",
+  "medianAge2024": "number",
+  "liveBirthsPer1000Population2024": "number",
+  "naturalIncreasePer1000Population2024": "number",
+  "averageGrossMonthlyWagePln2024": "string",
+  "unemploymentRatePercent2024": "number",
+  "exportsBillionPln2024": "string",
+  "disposableIncomePerPersonPln2024": "string",
+  "averageHouseholdSize2024": "number",
+  "gdpGrowthIndex2024": "number",
+  "stockMarketCapitalisationMlnPln2024": "number",
+  "populationDensityPerKm2": "number",
+  "highestPointMetres": "number"
+}

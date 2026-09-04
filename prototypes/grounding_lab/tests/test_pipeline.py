@@ -413,6 +413,35 @@ class DatasetLoadingTest(unittest.TestCase):
                 [name for name, _, _ in load_dataset(root)], ["document"]
             )
 
+    def test_extra_claim_files_are_merged_when_present(self):
+        from grounding_lab.harness import load_dataset
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, traps in (("with", True), ("without", False)):
+                doc = root / name
+                doc.mkdir()
+                (doc / "anchors.json").write_text("[]", encoding="utf-8")
+                (doc / "claims.json").write_text(
+                    '[{"value": "a", "goldAnchorId": null}]', encoding="utf-8"
+                )
+                if traps:
+                    (doc / "traps.json").write_text(
+                        '[{"value": "b", "goldAnchorId": null}]', encoding="utf-8"
+                    )
+            loaded = {
+                name: [c.value for c in claims]
+                for name, _, claims in load_dataset(
+                    root, ("claims.json", "traps.json")
+                )
+            }
+            self.assertEqual(loaded, {"with": ["a", "b"], "without": ["a"]})
+            # default is unchanged
+            self.assertEqual(
+                {name: [c.value for c in claims] for name, _, claims in load_dataset(root)},
+                {"with": ["a"], "without": ["a"]},
+            )
+
 
 class LabelReviewTest(unittest.TestCase):
     def test_default_scope_validates_all_evaluated_documents(self):

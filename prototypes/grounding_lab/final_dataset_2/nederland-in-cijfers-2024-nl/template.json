@@ -1,0 +1,17 @@
+{
+  "cbsFoundedYear": "integer",
+  "firstPocketYearbookYear": "integer",
+  "infographicCount": "number",
+  "meatMealsPerWeek": "number",
+  "vegetarianMealsPerWeek": "number",
+  "engineeringTechnologyWorkers": "number",
+  "creativeLanguageWorkers": "number",
+  "syntheticDrugsRevenue": "number",
+  "cocaineRevenue": "number",
+  "illegalTobaccoRevenue": "number",
+  "greenhouseGasEmissions1990": "number",
+  "greenhouseGasEmissions2023": "number",
+  "fastFoodRestaurants2024": "number",
+  "workingPeopleAged67to90": "number",
+  "workingOlderMenShare": "number"
+}

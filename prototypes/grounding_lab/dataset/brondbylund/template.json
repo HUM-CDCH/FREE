@@ -1,0 +1,20 @@
+{
+  "journal_number": "string",
+  "report_author": "string",
+  "records": [
+    {
+      "bone_weight": "number",
+      "dating": "string",
+      "grave_count": "number"
+    }
+  ],
+  "youngest_individual_age": "string",
+  "approximate_site_use_end": "string",
+  "minimum_longhouse_count": "number",
+  "metal_detectorist": "string",
+  "contractor": "string",
+  "science_report_number": "string",
+  "parish": "string",
+  "graveyard_use_period": "string",
+  "excavated_area": "string"
+}

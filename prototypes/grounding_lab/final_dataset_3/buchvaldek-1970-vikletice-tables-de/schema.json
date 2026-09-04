@@ -1,0 +1,59 @@
+{
+  "title": "string",
+  "site": "string",
+  "measurement_unit": "string",
+  "graves_with_pottery": 0,
+  "total_vessels": 0,
+  "mean_vessels_per_grave": 0.0,
+  "ware_class_count": 0,
+  "grave_pit_count": 0,
+  "w_o_oriented_grave_count": 0,
+  "male_grave_count": 0,
+  "female_grave_count": 0,
+  "child_grave_count": 0,
+  "male_grave_length_median_cm": 0.0,
+  "male_grave_length_span_cm": 0.0,
+  "child_grave_length_min_cm": 0.0,
+  "ware_classes": [
+    {
+      "code": "string",
+      "name": "string",
+      "count": 0,
+      "percent": 0.0
+    }
+  ],
+  "vessels": [
+    {
+      "grave": "string",
+      "item_no": "string",
+      "height_mm": 0.0,
+      "mouth_width_mm": 0.0,
+      "base_diameter_mm": 0.0,
+      "max_body_diameter_mm": 0.0,
+      "rim_type": "string",
+      "colour": "string",
+      "volume_l": 0.0,
+      "accession_no": "string",
+      "vessel_type": "string",
+      "decoration": "string"
+    }
+  ],
+  "finds": [
+    {
+      "grave": "string",
+      "item_no": "string",
+      "find_class": "string",
+      "type": "string",
+      "length_mm": 0.0,
+      "width_mm": 0.0,
+      "height_mm": 0.0,
+      "max_dimension_mm": 0.0,
+      "shaft_hole_width_mm": "string",
+      "material": "string",
+      "weight_g": 0.0,
+      "body_position": "string",
+      "item_count": "string",
+      "note": "string"
+    }
+  ]
+}

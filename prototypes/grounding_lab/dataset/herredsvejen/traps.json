@@ -1,0 +1,60 @@
+[
+  {
+    "value": "89",
+    "resultPath": [
+      "posthole_count"
+    ],
+    "goldAnchorId": null,
+    "expectedLexicalHitIds": [
+      "anchor_7227d5631572167a2c059b6fc8df1212e7705e2f842d22f2cb9c3de206c8dc19"
+    ],
+    "note": "TRAP wrong-column: 89 is the number of fyldskifter in the results overview (p8, '576 anlæg ... Heraf 362 stolpehuller, 89 fyldskifter, 58 naturfænomener'). The posthole count is 362."
+  },
+  {
+    "value": "6. november 2019",
+    "resultPath": [
+      "campaign_end"
+    ],
+    "goldAnchorId": null,
+    "expectedLexicalHitIds": [
+      "anchor_87632b49ee68b7a2bb4acccb053ca4f09e6acf2ef7bb2053cbd72ec30612dfd5"
+    ],
+    "note": "TRAP wrong-field: the date permission to dig in the 100 m zone was granted (p5 sagsgang). The campaign ends 20. november 2019 ('20. november 2019 afsluttes udgravningen', p5)."
+  },
+  {
+    "value": "16.02.09",
+    "resultPath": [
+      "slks_number"
+    ],
+    "goldAnchorId": null,
+    "expectedLexicalHitIds": [
+      "anchor_e18050faa90744763e53be2e9faebda9bbe37a833e772ffec236e969612924e6"
+    ],
+    "note": "TRAP wrong-field: the sted-number of Stilling Sogn (p4). The SLKS case number is 19/06370 (campaign line, p1)."
+  },
+  {
+    "value": "8x10mm",
+    "resultPath": [
+      "records",
+      1,
+      "bead_size"
+    ],
+    "goldAnchorId": null,
+    "expectedLexicalHitIds": [
+      "anchor_0d64b3c1c89cfc1aefb93a9761ff8a1b95f917908b2b80237cbcd8e7841797b2"
+    ],
+    "context": "find_number: X233",
+    "note": "TRAP wrong-record: 8x10mm is the largest bone-comb fragment from the urn grave A240 (p10). The glass bead X233 measures 6 x 4 mm (p12)."
+  },
+  {
+    "value": "1300 m2",
+    "resultPath": [
+      "preinvestigation_area"
+    ],
+    "goldAnchorId": null,
+    "expectedLexicalHitIds": [
+      "anchor_9f47ea13623ac8fec7e84aa8f9213765499e87b809765b26f48964f2e13d20ef"
+    ],
+    "note": "TRAP wrong-field, field collision: 1300 m2 is the area applied for inside the 100 m mound zone (p5) and is claimed as zone_permit_area in claims.json. The pre-investigation area is 5.853 m2 (p4)."
+  }
+]

@@ -14,12 +14,13 @@ Containment/gold mismatches are listed with their complete hit sets for human
 review, not failed: deliberate paraphrases and contextual ambiguities are
 valid evidence judgments that lexical containment cannot settle.
 
-Usage: uv run python -m grounding_lab.label_review dataset [doc ...]
+Usage: uv run python -m grounding_lab.label_review dataset [doc ...] [--claims traps.json]
        (no doc args = every evaluated document)
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from datetime import date
@@ -30,8 +31,17 @@ from .pipeline import bounded_contains
 
 
 def main() -> int:
-    root = Path(sys.argv[1] if len(sys.argv) > 1 else "dataset")
-    docs = sys.argv[2:] or [name for name, _, _ in load_dataset(root)]
+    parser = argparse.ArgumentParser()
+    parser.add_argument("root", nargs="?", default="dataset", type=Path)
+    parser.add_argument("docs", nargs="*")
+    parser.add_argument(
+        "--claims", default="claims.json",
+        help="comma-separated claim files reviewed per document",
+    )
+    args = parser.parse_args()
+    root = args.root
+    claims_files = tuple(n.strip() for n in args.claims.split(",") if n.strip())
+    docs = args.docs or [name for name, _, _ in load_dataset(root, claims_files)]
     print(f"# Label review\n\nGenerated {date.today().isoformat()} by "
           "`pnpm --filter grounding-lab label-review` — do not hand-edit.")
     errors: list[str] = []
@@ -41,7 +51,12 @@ def main() -> int:
             a["anchorId"]: a
             for a in json.loads((root / doc / "anchors.json").read_text("utf-8"))
         }
-        claims = json.loads((root / doc / "claims.json").read_text("utf-8"))
+        claims = [
+            c
+            for name in claims_files
+            if (root / doc / name).exists()
+            for c in json.loads((root / doc / name).read_text("utf-8"))
+        ]
         print(f"\n## {doc} — {len(claims)} claims\n")
         for c in claims:
             golds = c.get("goldAnchorIds")
