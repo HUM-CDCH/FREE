@@ -87,6 +87,15 @@ byte-identical.
 | polska-w-liczbach | 14 | 0 |
 | nederland, suomi | 0 | 0 |
 
+The same rerun on the DGX Spark with the original `qwen3.8:27b` over all five
+`final_dataset_2` documents, España included
+([`SPARK_LLM_BASELINE_final2.md`](SPARK_LLM_BASELINE_final2.md)): 73/75 links,
+24/25 abstains, 3 wrong, against 48/75 and 28 wrong in
+[`LLM_BASELINE.md`](LLM_BASELINE.md). The three survivors are the fed
+`2.4 percent` trap and two España values (`83,77 años`, `128 litros`). The
+other Spark reruns (`dataset`, `final_dataset`, the blind set, LLM as scorer)
+were stopped before completing and are not reported.
+
 Replacing E's cross-encoder with the same LLM, on the same inputs (rich claim,
 hit-set candidates only), gives 372/382 correct, identical to E-Nemotron, at
 349 ms per claim; 4 wrong instead of 0 because a link/NONE protocol has no
