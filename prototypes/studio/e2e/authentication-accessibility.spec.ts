@@ -16,7 +16,7 @@ async function openAccountMenu(page: import('@playwright/test').Page) {
   if (await signOut.isVisible()) return signOut
   const account = page.getByRole('button', { name: 'Researcher Account' })
   if (!(await account.isVisible())) {
-    const expand = page.getByRole('button', { name: 'Expand Project Contexts' })
+    const expand = page.getByRole('button', { name: 'Expand projects' })
     if (await expand.isVisible()) await expand.click()
   }
   await account.click()
@@ -31,6 +31,46 @@ test('mock OIDC sign-in establishes a real Studio session @deterministic', async
 
   const session = await page.request.get('/api/auth/session')
   await expect(session.json()).resolves.toMatchObject({ authenticated: true })
+})
+
+test('reduced motion, focus, and mobile form text honor accessibility preferences', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/auth/signed-out')
+  const authCard = page.locator('.animate-fadeup')
+  await expect(authCard).toBeVisible()
+  expect(await authCard.evaluate((element) => getComputedStyle(element).animationName)).toBe(
+    'none',
+  )
+
+  await page.route('**/api/project-contexts**', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      json: { projectContexts: [] },
+    }),
+  )
+  await loginResearcher(page)
+  await page.goto('/projects')
+  await page.setViewportSize({ width: 390, height: 844 })
+  const create = page.getByRole('button', { name: 'Create your first project' })
+  await create.focus()
+  const focusStyle = await create.evaluate((element) => {
+    const style = getComputedStyle(element)
+    return {
+      boxShadow: style.boxShadow,
+      outlineStyle: style.outlineStyle,
+      outlineWidth: style.outlineWidth,
+    }
+  })
+  expect(focusStyle.outlineStyle).toBe('solid')
+  expect(focusStyle.outlineWidth).toBe('2px')
+  expect(focusStyle.boxShadow).not.toBe('none')
+  await create.click()
+  const name = page.getByRole('textbox', { name: 'Project name' })
+  expect(
+    await name.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize)),
+  ).toBeGreaterThanOrEqual(16)
 })
 
 test('deep-link Entra sign-in and keyboard logout clear local authority @deterministic', async ({
@@ -75,14 +115,14 @@ test('deep-link Entra sign-in and keyboard logout clear local authority @determi
   const session = await page.request.get('/api/auth/session')
   await expect(session.json()).resolves.toEqual({ authenticated: false })
   await expect(
-    page.getByRole('navigation', { name: 'Project Contexts' }),
+    page.getByRole('navigation', { name: 'Projects' }),
   ).toHaveCount(0)
   const signIn = page.getByRole('button', { name: 'Sign in with Microsoft' })
   await expectOperableInViewport(page, signIn)
   await page.goBack()
   await expect(page).toHaveURL(/\/auth\/signed-out#?$/)
   await expect(
-    page.getByRole('navigation', { name: 'Project Contexts' }),
+    page.getByRole('navigation', { name: 'Projects' }),
   ).toHaveCount(0)
 })
 
@@ -124,7 +164,7 @@ test('switching Entra accounts does not retain the previous project rail @determ
 
   await loginResearcher(page)
   await page.goto('/projects')
-  const projects = page.getByRole('navigation', { name: 'Project Contexts' })
+  const projects = page.getByRole('navigation', { name: 'Projects' })
   await expect(projects.getByText(first.name).first()).toBeVisible()
   const signOut = await openAccountMenu(page)
   const landing = page.waitForResponse(
@@ -176,7 +216,7 @@ test('the provider dialog remains keyboard-operable across required viewports @d
 
   for (const viewport of REQUIRED_VIEWPORTS) {
     await page.setViewportSize(viewport)
-    const expand = page.getByRole('button', { name: 'Expand Project Contexts' })
+    const expand = page.getByRole('button', { name: 'Expand projects' })
     if (viewport.width < 860) {
       await expect(expand).toBeVisible()
       await activateWithKeyboard(page, expand)

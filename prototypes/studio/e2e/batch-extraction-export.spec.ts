@@ -426,7 +426,7 @@ const panel = (page: Page) => page.getByRole('tabpanel', { name: 'Extractions' }
  */
 async function openExtractions(page: Page): Promise<void> {
   await gotoAuthenticated(page, `/projects/${id.project}`)
-  const project = page.getByRole('region', { name: 'Project Context' })
+  const project = page.getByRole('region', { name: 'Project' })
   for (const name of Object.values(documentName))
     await expect(project.getByText(name, { exact: true })).toBeVisible()
   await page.getByRole('tab', { name: 'Extractions' }).click()
@@ -511,7 +511,7 @@ async function expectBatchRunClearOfSession(page: Page): Promise<void> {
   })
   await run.scrollIntoViewIfNeeded()
   const scrollRegion = page
-    .getByRole('region', { name: 'Project Context' })
+    .getByRole('region', { name: 'Project' })
     .locator('.scrollbar-subtle')
     .first()
   await scrollRegion.evaluate((element) => {

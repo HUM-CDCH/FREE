@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import GearIcon from '../GearIcon'
 import PlusIcon from '../PlusIcon'
 import PanelToggleIcon from '../PanelToggleIcon'
@@ -7,6 +7,24 @@ import { SessionControls } from '../auth/AuthForms.tsx'
 import { DeleteDialog, Overline } from '../ui'
 import { CreateProjectModal } from './CreateProjectModal'
 import { useProjectContexts } from './useProjectContexts'
+
+/**
+ * Names wrap in this rail rather than truncate, but the line-breaking algorithm
+ * offers no break after `_`, so a name like `Herredsvejen_SBM1694.pdf` is one
+ * unbreakable word that `break-words` then splits mid-token. `<wbr>` marks the
+ * separators as break opportunities; it renders nothing and contributes nothing
+ * to text content, so the name a test or a screen reader reads is unchanged.
+ */
+function WrappedName({ name }: { name: string }) {
+  // Not `.`: breaking there strands the extension on a line of its own.
+  const segments = name.split(/(?<=[_\-/])/)
+  return segments.map((segment, index) => (
+    <Fragment key={index}>
+      {segment}
+      {index < segments.length - 1 && <wbr />}
+    </Fragment>
+  ))
+}
 
 function TrashIcon() {
   return (
@@ -228,8 +246,8 @@ export function ProjectContextRail({
           data-rail-toggle
           className="cursor-pointer text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
           type="button"
-          aria-label="Expand Project Contexts"
-          title="Expand Project Contexts"
+          aria-label="Expand projects"
+          title="Expand projects"
           onClick={onToggle}
         >
           <PanelToggleIcon side="left" />
@@ -244,10 +262,10 @@ export function ProjectContextRail({
         <Overline as="h2">Projects</Overline>
         <button
           ref={createTrigger}
-          className="cursor-pointer rounded-sm p-1 text-accent outline-none transition-colors hover:bg-accent-ghost focus-visible:ring-1 focus-visible:ring-accent"
+          className="cursor-pointer rounded-sm p-1 text-accent outline-none transition-colors hover:bg-accent-ghost"
           type="button"
-          aria-label="New Project Context"
-          title="New Project Context"
+          aria-label="Create project"
+          title="Create project"
           onClick={() => setCreating(true)}
         >
           <PlusIcon />
@@ -256,11 +274,11 @@ export function ProjectContextRail({
 
       <nav
         className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto pb-3 pl-3 pr-2"
-        aria-label="Project Contexts"
+        aria-label="Projects"
       >
         {listState.status === 'loading' && (
           <p className="py-6 pr-2 text-xs text-ink-muted" aria-live="polite">
-            Loading Project Contexts…
+            Loading projects…
           </p>
         )}
         {listState.status === 'error' && (
@@ -277,7 +295,7 @@ export function ProjectContextRail({
         )}
         {listState.status === 'ready' && projects.length === 0 && (
           <p className="py-6 pr-2 text-xs leading-relaxed text-ink-muted">
-            No Project Contexts yet.
+            No projects yet.
           </p>
         )}
         <ul className="flex flex-col">
@@ -294,7 +312,7 @@ export function ProjectContextRail({
                 <div className="flex items-center gap-0.5">
                   <button
                     data-project-row
-                    className={`flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-sm py-1 pl-1 pr-1 text-left outline-none transition-colors hover:bg-accent-ghost focus-visible:bg-accent-ghost focus-visible:ring-1 focus-visible:ring-accent ${
+                    className={`flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-sm py-1 pl-1 pr-1 text-left outline-none transition-colors hover:bg-accent-ghost focus-visible:bg-accent-ghost ${
                       active ? 'text-accent' : 'text-ink-faint hover:text-accent'
                     }`}
                     type="button"
@@ -309,16 +327,16 @@ export function ProjectContextRail({
                       {isExpanded ? '▾' : '▸'}
                     </span>
                     <span
-                      className={`min-w-0 flex-1 truncate text-[11px] font-bold uppercase tracking-[0.07em] ${
+                      className={`min-w-0 flex-1 break-words text-[11px] font-bold uppercase tracking-[0.07em] ${
                         active ? 'text-accent' : 'text-ink-muted'
                       }`}
                     >
-                      {project.name}
+                      <WrappedName name={project.name} />
                     </span>
                   </button>
                   <details className="relative shrink-0">
                     <summary
-                      className="flex size-6 cursor-pointer list-none items-center justify-center rounded-sm text-ink-faint outline-none transition-colors hover:bg-accent-ghost hover:text-accent focus-visible:ring-1 focus-visible:ring-accent [&::-webkit-details-marker]:hidden"
+                      className="flex size-6 cursor-pointer list-none items-center justify-center rounded-sm text-ink-faint outline-none transition-colors hover:bg-accent-ghost hover:text-accent [&::-webkit-details-marker]:hidden"
                       role="button"
                       aria-label={`Actions for ${project.name}`}
                     >
@@ -392,7 +410,7 @@ export function ProjectContextRail({
                         <p
                           className={`py-1 pr-1 text-[11px] leading-snug text-ink-muted ${guide}`}
                         >
-                          Empty Project Context.
+                          Empty project.
                         </p>
                       )}
                     {branch?.status === 'ready' &&
@@ -407,12 +425,13 @@ export function ProjectContextRail({
                             key={document.sourceDocumentId}
                           >
                             <button
-                              className={`min-w-0 flex-1 cursor-pointer truncate rounded-sm py-1.5 pr-1 text-left text-xs outline-none transition-colors focus-visible:ring-1 focus-visible:ring-accent ${
+                              className={`min-w-0 flex-1 cursor-pointer break-words rounded-sm py-1.5 pr-1 text-left text-xs leading-snug outline-none transition-colors ${
                                 documentActive
                                   ? 'font-bold text-ink'
                                   : 'font-medium text-ink-muted hover:text-ink'
                               }`}
                               type="button"
+                              aria-label={document.name}
                               aria-current={documentActive ? 'page' : undefined}
                               onClick={() =>
                                 onOpenSourceDocument(
@@ -434,7 +453,7 @@ export function ProjectContextRail({
                                 })
                               }}
                             >
-                              {document.name}
+                              <WrappedName name={document.name} />
                             </button>
                           </div>
                         )
@@ -508,7 +527,7 @@ export function ProjectContextRail({
 
       {deletingProject && (
         <DeleteDialog
-          title="Delete Project Context"
+          title="Delete project"
           description={
             <>
               Deleting “{deletingProject.name}” permanently removes its Source

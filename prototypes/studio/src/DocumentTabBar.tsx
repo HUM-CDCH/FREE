@@ -75,7 +75,7 @@ function DocumentTabBar({
               <button
                 type="button"
                 aria-label={`Close ${tab.name}`}
-                className="shrink-0 rounded-sm text-ink-faint opacity-0 outline-none transition-opacity hover:text-danger focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-accent group-hover:opacity-100"
+                className="shrink-0 rounded-sm text-ink-faint opacity-0 outline-none transition-opacity hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
                 onClick={(event) => {
                   event.stopPropagation()
                   onClose(tab.sourceDocumentId)

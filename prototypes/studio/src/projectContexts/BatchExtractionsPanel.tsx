@@ -71,7 +71,7 @@ const reading = <T,>(read: Read<T>) =>
   read.value === null && read.failure === null
 
 const control =
-  'rounded-md border border-line bg-surface px-3 py-2 text-xs text-ink outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/30'
+  'rounded-md border border-line bg-surface px-3 py-2 text-xs text-ink outline-none focus-visible:border-accent'
 
 function failureText(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
@@ -795,7 +795,7 @@ export default function BatchExtractionsPanel({
         <div className="flex min-w-0 items-center gap-3">
           {screen !== 'history' && (
             <button
-              className="shrink-0 rounded-md text-xs font-semibold text-ink-muted outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-50"
+              className="shrink-0 rounded-md text-xs font-semibold text-ink-muted outline-none hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
               disabled={openingAnyBatch}
               onClick={() => {

@@ -39,7 +39,7 @@ export default function SchemaNameEditor({
       <div className={`flex h-7 min-w-0 items-center gap-1 ${className}`}>
         <span className="truncate">{name}</span>
         <button
-          className="shrink-0 rounded-md p-1 text-ink-muted outline-none transition-colors hover:bg-accent-soft hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40"
+          className="shrink-0 rounded-md p-1 text-ink-muted outline-none transition-colors hover:bg-accent-soft hover:text-accent"
           type="button"
           aria-label={`Rename schema ${name}`}
           title="Rename schema"
@@ -82,7 +82,7 @@ export default function SchemaNameEditor({
         }}
       />
       <button
-        className="shrink-0 rounded-md p-1 leading-none text-accent outline-none hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-60"
+        className="shrink-0 rounded-md p-1 leading-none text-accent outline-none hover:bg-accent-soft disabled:opacity-60"
         type="submit"
         aria-label="Save schema name"
         title="Save schema name"
@@ -91,7 +91,7 @@ export default function SchemaNameEditor({
         <span aria-hidden="true">✓</span>
       </button>
       <button
-        className="shrink-0 rounded-md p-1 leading-none text-ink-muted outline-none hover:bg-line/60 hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-60"
+        className="shrink-0 rounded-md p-1 leading-none text-ink-muted outline-none hover:bg-line/60 hover:text-ink disabled:opacity-60"
         type="button"
         aria-label="Cancel schema rename"
         title="Cancel schema rename"

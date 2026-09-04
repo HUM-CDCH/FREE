@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { projectContextNameSchema } from '../../shared/projectContext.contract'
+import {
+  projectContextNameLimit,
+  projectContextNameSchema,
+} from '../../shared/projectContext.contract'
 import { Button, ModalDialog } from '../ui'
 import type { WriteResult } from './useProjectContexts'
 
@@ -17,6 +20,7 @@ export function CreateProjectModal({
   const initialFocus = useRef<HTMLInputElement>(null)
   const [name, setName] = useState('')
   const [failure, setFailure] = useState<string | null>(null)
+  const [validationError, setValidationError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   // The shared contract decides, so the field never narrows it: a name that
   // trims down to the limit stays submittable however it was typed.
@@ -51,7 +55,15 @@ export function CreateProjectModal({
         className="mt-4 flex flex-col gap-2"
         onSubmit={async (event) => {
           event.preventDefault()
-          if (!named.success) return
+          if (!named.success) {
+            setValidationError(
+              name.trim()
+                ? `Use no more than ${projectContextNameLimit} characters.`
+                : 'Enter a project name.',
+            )
+            initialFocus.current?.focus()
+            return
+          }
           setSaving(true)
           setFailure(null)
           const rejected = await onSubmit(named.data)
@@ -71,22 +83,26 @@ export function CreateProjectModal({
         <input
           id="new-project-context-name"
           ref={initialFocus}
-          className="rounded-sm border border-line bg-canvas px-2 py-1.5 text-sm text-ink outline-none focus-visible:border-accent focus-visible:ring-1 focus-visible:ring-accent disabled:opacity-60"
+          className="rounded-sm border border-line bg-canvas px-2 py-1.5 text-base text-ink outline-none focus-visible:border-accent disabled:opacity-60 sm:text-sm"
           value={name}
           disabled={saving}
-          aria-invalid={!named.success}
+          aria-invalid={validationError ? true : undefined}
           aria-describedby={
-            failure ? 'create-project-context-error' : undefined
+            failure || validationError ? 'create-project-context-error' : undefined
           }
-          onChange={(event) => setName(event.target.value)}
+          onChange={(event) => {
+            setName(event.target.value)
+            setFailure(null)
+            setValidationError(null)
+          }}
         />
-        {failure && (
+        {(failure || validationError) && (
           <p
             id="create-project-context-error"
             className="text-[11px] leading-snug text-danger"
             role="alert"
           >
-            {failure}
+            {failure ?? validationError}
           </p>
         )}
         <div className="mt-2 flex justify-end gap-2">
@@ -102,7 +118,7 @@ export function CreateProjectModal({
             type="submit"
             size="md"
             variant="primary"
-            disabled={saving || !named.success}
+            disabled={saving}
           >
             Create
           </Button>

@@ -202,7 +202,7 @@ export function BatchExtractionHistory({
             {/* `-mx-2 px-2` keeps the hover fill wider than the text while the
                 text itself stays flush with the panel heading. */}
             <button
-              className="-mx-2 grid w-[calc(100%+1rem)] grid-cols-1 items-center gap-2 rounded-xs px-2 py-3.5 text-left outline-none hover:bg-line/20 focus-visible:ring-2 focus-visible:ring-accent/40 sm:grid-cols-[1fr_13rem_auto] sm:gap-6"
+              className="-mx-2 grid w-[calc(100%+1rem)] grid-cols-1 items-center gap-2 rounded-xs px-2 py-3.5 text-left outline-none hover:bg-line/20 sm:grid-cols-[1fr_13rem_auto] sm:gap-6"
               type="button"
               onClick={() => onOpen(batch)}
             >
@@ -354,7 +354,7 @@ export function BatchExtractionMembers({
               {/* `-mx-2 px-2`: hover fill wider than the text, text still flush
                   with the column headings above. */}
               <button
-                className="-mx-2 grid w-[calc(100%+1rem)] grid-cols-[1fr_auto] items-center gap-6 rounded-xs px-2 py-3.5 text-left outline-none hover:bg-line/20 focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:hover:bg-transparent sm:grid-cols-[1fr_13rem_auto]"
+                className="-mx-2 grid w-[calc(100%+1rem)] grid-cols-[1fr_auto] items-center gap-6 rounded-xs px-2 py-3.5 text-left outline-none hover:bg-line/20 disabled:cursor-default disabled:hover:bg-transparent sm:grid-cols-[1fr_13rem_auto]"
                 type="button"
                 disabled={!member.latestExtraction}
                 onClick={() => {

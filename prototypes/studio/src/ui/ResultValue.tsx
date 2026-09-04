@@ -395,21 +395,21 @@ function ReviewActions({ name, action, touched, onApprove, onEdit, onReject, onR
           type="button"
           aria-label={`Approve ${name}`}
           aria-pressed={touched && action === 'APPROVED'}
-          className="flex h-6 w-7 items-center justify-center border-r border-line text-ink-muted outline-none transition-colors hover:bg-accent-ghost hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40 aria-pressed:border-green aria-pressed:bg-green aria-pressed:text-white aria-pressed:hover:bg-green"
+          className="flex h-6 w-7 items-center justify-center border-r border-line text-ink-muted outline-none transition-colors hover:bg-accent-ghost hover:text-accent aria-pressed:border-green aria-pressed:bg-green aria-pressed:text-white aria-pressed:hover:bg-green"
           onClick={onApprove}
         ><CheckIcon /></button>
         <button
           type="button"
           aria-label={`Edit ${name}`}
           aria-pressed={touched && action === 'EDITED'}
-          className="flex h-6 w-7 items-center justify-center border-r border-line text-ink-muted outline-none transition-colors hover:bg-accent-ghost hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40 aria-pressed:border-stale aria-pressed:bg-stale aria-pressed:text-white aria-pressed:hover:bg-stale"
+          className="flex h-6 w-7 items-center justify-center border-r border-line text-ink-muted outline-none transition-colors hover:bg-accent-ghost hover:text-accent aria-pressed:border-stale aria-pressed:bg-stale aria-pressed:text-white aria-pressed:hover:bg-stale"
           onClick={onEdit}
         ><PencilIcon /></button>
         <button
           type="button"
           aria-label={`Reject ${name}`}
           aria-pressed={touched && action === 'REJECTED'}
-          className="flex h-6 w-7 items-center justify-center text-ink-muted outline-none transition-colors hover:bg-accent-ghost hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40 aria-pressed:border-danger aria-pressed:bg-danger aria-pressed:text-white aria-pressed:hover:bg-danger"
+          className="flex h-6 w-7 items-center justify-center text-ink-muted outline-none transition-colors hover:bg-accent-ghost hover:text-accent aria-pressed:border-danger aria-pressed:bg-danger aria-pressed:text-white aria-pressed:hover:bg-danger"
           onClick={onReject}
         ><XIcon /></button>
       </div>
@@ -418,7 +418,7 @@ function ReviewActions({ name, action, touched, onApprove, onEdit, onReject, onR
           type="button"
           aria-label={`Reverse decision for ${name}`}
           title="Reverse to Approved"
-          className="flex h-6 w-6 items-center justify-center rounded-md text-ink-muted outline-none transition-colors hover:bg-surface-muted hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
+          className="flex h-6 w-6 items-center justify-center rounded-md text-ink-muted outline-none transition-colors hover:bg-surface-muted hover:text-ink"
           onClick={onReverse}
         ><UndoIcon /></button>
       )}

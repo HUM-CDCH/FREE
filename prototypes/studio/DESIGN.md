@@ -14,11 +14,11 @@ FREE feels like a quiet research desk: paper-forward, compact, and evidence-mind
 | Surface | `--color-surface` | `#ffffff` | n/a | Sidebars, toolbar, panels |
 | Surface muted | `--color-surface-muted` | `#f5efe9` | n/a | Pills and subtle fills |
 | Ink | `--color-ink` | `#33302c` | n/a | Primary text |
-| Ink muted | `--color-ink-muted` | `#94897f` | n/a | Secondary text |
-| Ink faint | `--color-ink-faint` | `#ab9f93` | n/a | Tertiary labels |
+| Ink muted | `--color-ink-muted` | `#6c6259` | n/a | Secondary text |
+| Ink faint | `--color-ink-faint` | `#776b60` | n/a | Tertiary labels |
 | Line | `--color-line` | `#eadfd6` | n/a | Hairline borders |
 | Line strong | `--color-line-strong` | `#d9cabc` | n/a | Emphasised borders |
-| Accent | `--color-accent` | `#bc5f3f` | n/a | Primary actions and focus |
+| Accent | `--color-accent` | `#a34828` | n/a | Primary actions and active states |
 | Accent soft | `--color-accent-soft` | `#f4ddd3` | n/a | Accent fills |
 | Accent ghost | `--color-accent-ghost` | `#fbf1ec` | n/a | Hover wash |
 | Evidence | `--color-ev` | `#4f8aa8` | n/a | Evidence-related marks only |
@@ -28,7 +28,7 @@ FREE feels like a quiet research desk: paper-forward, compact, and evidence-mind
 
 ### Rules
 
-- Use accent only for commands, focus, and active states.
+- Use accent only for commands and active states; focus uses the dual-color global indicator.
 - Preserve the warm paper palette; avoid decorative gradients.
 - Do not introduce raw colors outside this file and `index.css`.
 
@@ -91,7 +91,7 @@ All spacing derives from 4px. Existing Tailwind arbitrary values such as `px-3.2
 ### Action Button
 - **Structure**: compact rounded button with border.
 - **Variants**: accent primary, surface secondary, disabled line fill.
-- **States**: hover brightness or color shift, focus-visible accent ring.
+- **States**: hover brightness or color shift, global dual-color focus indicator.
 
 ### Result Card
 - **Structure**: shallow bordered section using `bg-surface` or `bg-canvas`.

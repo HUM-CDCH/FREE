@@ -105,10 +105,9 @@ export function SignedOutLanding() {
 export function SessionExpiryWarning({ onContinue }: { onContinue: () => void }) {
   return (
     <aside
-      role="status"
       className="fixed left-1/2 top-4 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-accent/40 bg-surface px-4 py-3 shadow-float"
     >
-      <p className="text-sm text-ink">Your session expires soon.</p>
+      <p role="alert" className="text-sm text-ink">Your session expires soon.</p>
       <Button variant="primary" size="sm" onClick={onContinue}>
         Continue session
       </Button>
@@ -123,7 +122,7 @@ export function SessionControls() {
   return (
     <details className="relative min-w-0 flex-1">
       <summary
-        className="flex cursor-pointer list-none items-center rounded-sm text-[11px] font-semibold text-ink-muted outline-none hover:text-accent focus-visible:ring-1 focus-visible:ring-accent [&::-webkit-details-marker]:hidden"
+        className="flex cursor-pointer list-none items-center rounded-sm text-[11px] font-semibold text-ink-muted outline-none hover:text-accent [&::-webkit-details-marker]:hidden"
         role="button"
         aria-label="Researcher Account"
         title={displayName}

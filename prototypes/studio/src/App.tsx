@@ -679,7 +679,7 @@ export function DocumentWorkspace({
                 title="Zoom out (Ctrl + -)"
                 disabled={zoomPercent <= 10}
                 onClick={() => pdfViewerRef.current?.decreaseScale()}
-                className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+                className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
               >
                 −
               </button>
@@ -690,7 +690,7 @@ export function DocumentWorkspace({
                 onClick={() => {
                   if (pdfViewerRef.current) pdfViewerRef.current.currentScale = 1
                 }}
-                className="min-w-11 rounded-full px-1.5 text-center text-xs font-medium text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
+                className="min-w-11 rounded-full px-1.5 text-center text-xs font-medium text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink"
               >
                 {zoomPercent}%
               </button>
@@ -700,7 +700,7 @@ export function DocumentWorkspace({
                 title="Zoom in (Ctrl + +)"
                 disabled={zoomPercent >= 2500}
                 onClick={() => pdfViewerRef.current?.increaseScale()}
-                className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+                className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
               >
                 +
               </button>

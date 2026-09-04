@@ -32,7 +32,7 @@ function SegmentedControl<T extends string>({
         return (
           <button
             key={option.value}
-            className={`cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${
+            className={`cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors ${
               active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'
             }`}
             type="button"

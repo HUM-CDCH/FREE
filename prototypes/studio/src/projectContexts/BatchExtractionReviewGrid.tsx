@@ -178,7 +178,7 @@ function ApproveAllBadge({
       title={pendingCount > 0 ? label : 'Nothing pending here'}
       disabled={pendingCount === 0}
       onClick={onClick}
-      className="flex size-3.5 shrink-0 items-center justify-center rounded-sm border border-green text-green opacity-0 outline-none transition-colors hover:bg-green-soft focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent/40 group-hover:opacity-100 disabled:opacity-0"
+      className="flex size-3.5 shrink-0 items-center justify-center rounded-sm border border-green text-green opacity-0 outline-none transition-colors hover:bg-green-soft focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-0"
     >
       <CheckIcon size={8} />
     </button>
@@ -204,7 +204,7 @@ function RevertRowBadge({
       title={touchedCount > 0 ? label : 'Nothing to revert here'}
       disabled={touchedCount === 0}
       onClick={onClick}
-      className="flex size-3.5 shrink-0 items-center justify-center rounded-sm border border-line-strong text-ink-muted opacity-0 outline-none transition-colors hover:bg-surface-muted focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent/40 group-hover:opacity-100 disabled:opacity-0"
+      className="flex size-3.5 shrink-0 items-center justify-center rounded-sm border border-line-strong text-ink-muted opacity-0 outline-none transition-colors hover:bg-surface-muted focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-0"
     >
       <UndoIcon size={8} />
     </button>
@@ -339,7 +339,7 @@ function GridCell({
     <td className="max-w-[16rem] px-3 py-2">
       <button
         type="button"
-        className="flex w-full items-center gap-1.5 truncate text-left outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+        className="flex w-full items-center gap-1.5 truncate text-left outline-none"
         onClick={active ? onClose : onActivate}
       >
         <StatusDot decision={decision} touched={touched} label={label} tone={tone} />
@@ -481,7 +481,7 @@ export default function BatchExtractionReviewGrid({
         <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
-            className="shrink-0 rounded-md text-xs font-semibold text-ink-muted outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
+            className="shrink-0 rounded-md text-xs font-semibold text-ink-muted outline-none hover:text-ink"
             onClick={onBack}
           >
             <span aria-hidden="true">← </span>Back to results
@@ -528,7 +528,7 @@ export default function BatchExtractionReviewGrid({
               title="Zoom out (Ctrl + -)"
               disabled={zoom.percent <= ZOOM_MIN}
               onClick={zoom.zoomOut}
-              className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+              className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
             >
               −
             </button>
@@ -538,7 +538,7 @@ export default function BatchExtractionReviewGrid({
               title="Fit columns to screen width"
               onClick={zoom.reset}
               disabled={zoom.fit}
-              className="min-w-11 rounded-full px-1.5 text-center text-xs font-medium text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 disabled:hover:bg-transparent"
+              className="min-w-11 rounded-full px-1.5 text-center text-xs font-medium text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:hover:bg-transparent"
             >
               {zoom.fit ? 'Fit' : `${zoom.percent}%`}
             </button>
@@ -548,7 +548,7 @@ export default function BatchExtractionReviewGrid({
               title="Zoom in (Ctrl + +)"
               disabled={zoom.percent >= ZOOM_MAX}
               onClick={zoom.zoomIn}
-              className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+              className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
             >
               +
             </button>
@@ -672,7 +672,7 @@ export default function BatchExtractionReviewGrid({
                         <button
                           type="button"
                           title="Open document"
-                          className="min-w-0 truncate text-left text-[12px] font-semibold text-ink outline-none hover:text-accent hover:underline focus-visible:ring-2 focus-visible:ring-accent/40"
+                          className="min-w-0 truncate text-left text-[12px] font-semibold text-ink outline-none hover:text-accent hover:underline"
                           onClick={() =>
                             onOpenMember(row.sourceDocumentId, member.latestExtraction!.extractionId)
                           }
