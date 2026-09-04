@@ -130,7 +130,7 @@ function AllowedValuesBadge({ node, onEdit, disabled }: { node: SchemaNode; onEd
   return (
     <button
       type="button"
-      className="min-w-0 shrink cursor-pointer truncate rounded bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-ink-muted outline-none transition-colors hover:bg-accent-soft hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-60 disabled:hover:bg-canvas disabled:hover:text-ink-muted"
+      className="min-w-0 shrink cursor-pointer truncate rounded bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-ink-muted outline-none transition-colors hover:bg-accent-soft hover:text-accent disabled:cursor-default disabled:opacity-60 disabled:hover:bg-canvas disabled:hover:text-ink-muted"
       title={title}
       disabled={disabled}
       onClick={onEdit}
@@ -213,7 +213,7 @@ function FieldTypeBadge({ node, onEdit, disabled }: { node: SchemaNode; onEdit?:
   return (
     <button
       type="button"
-      className={`${className} cursor-pointer outline-none transition-colors hover:bg-accent-soft hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-60`}
+      className={`${className} cursor-pointer outline-none transition-colors hover:bg-accent-soft hover:text-accent disabled:cursor-default disabled:opacity-60`}
       title={`Type: ${label} — click to edit`}
       disabled={disabled}
       onClick={onEdit}
@@ -293,7 +293,7 @@ function WorkingIndicator({ onStop }: { onStop: () => void }) {
 }
 
 const genBtnCls =
-  'inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-semibold text-ink-muted outline-none transition-colors hover:border-accent/50 hover:bg-accent-soft hover:text-accent focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-60 disabled:hover:border-line disabled:hover:bg-surface disabled:hover:text-ink-muted'
+  'inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-semibold text-ink-muted outline-none transition-colors hover:border-accent/50 hover:bg-accent-soft hover:text-accent focus-visible:border-accent disabled:cursor-default disabled:opacity-60 disabled:hover:border-line disabled:hover:bg-surface disabled:hover:text-ink-muted'
 
 // Superseded by the pre-generation doc chat (see below) — schema generation no
 // longer takes a highlights hints/fields mode. Left in place, commented out,
@@ -301,7 +301,7 @@ const genBtnCls =
 //
 // function AnnotationsModeToggle({ mode, onChange }: { mode: AnnotationsMode; onChange: (mode: AnnotationsMode) => void }) {
 //   const seg = (active: boolean) =>
-//     `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'}`
+//     `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors ${active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'}`
 //   return (
 //     <div className="flex shrink-0 overflow-hidden rounded-md border border-line" role="group" aria-label="How highlights shape the schema">
 //       <button className={seg(mode === 'hints')} type="button" aria-pressed={mode === 'hints'} onClick={() => onChange('hints')}>Hints</button>
@@ -1007,7 +1007,7 @@ function SchemaPanel({
   const chatBlocked = !!pending || chatLoading
 
   const tabCls = (active: boolean) =>
-    `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'}`
+    `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors ${active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'}`
 
   // Render helpers for field rows
   // ────────────────────────────────────────────────────────────────────────
@@ -1391,7 +1391,7 @@ function SchemaPanel({
               The Current Schema Revision changed elsewhere.
             </p>
             <button
-              className="shrink-0 cursor-pointer rounded-md border border-danger/40 bg-surface px-2 py-1 text-[11px] font-semibold text-danger outline-none hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-danger/30"
+              className="shrink-0 cursor-pointer rounded-md border border-danger/40 bg-surface px-2 py-1 text-[11px] font-semibold text-danger outline-none hover:bg-danger-soft"
               type="button"
               onClick={() => schema.reloadCurrent()}
             >

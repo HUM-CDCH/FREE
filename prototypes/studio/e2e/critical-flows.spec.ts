@@ -65,7 +65,7 @@ test('bundled parsed document renders its page-scoped PDF @deterministic', async
   )
   await activateWithKeyboard(
     page,
-    page.getByRole('navigation', { name: 'Project Contexts' }).getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }),
+    page.getByRole('navigation', { name: 'Projects' }).getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }),
   )
   await expect(page.getByText('6 pages', { exact: true })).toBeVisible({
     timeout: 15_000,
@@ -140,7 +140,7 @@ test('schema instruction editor retains clipboard ownership in a reopened Source
   )
   await activateWithKeyboard(
     page,
-    page.getByRole('navigation', { name: 'Project Contexts' }).getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }),
+    page.getByRole('navigation', { name: 'Projects' }).getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }),
   )
   await expect(page.getByText('6 pages', { exact: true })).toBeVisible({
     timeout: 15_000,

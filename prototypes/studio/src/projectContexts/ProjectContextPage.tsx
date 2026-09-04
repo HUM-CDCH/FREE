@@ -70,7 +70,7 @@ function RenameForm({
       <input
         autoFocus
         className="h-7 min-w-0 max-w-md flex-1 border-b border-line-strong bg-transparent px-0 py-0 text-lg font-bold leading-7 text-ink outline-none focus-visible:border-accent disabled:opacity-60"
-        aria-label="Project Context name"
+        aria-label="Project name"
         value={name}
         disabled={saving}
         aria-invalid={!named.success}
@@ -90,7 +90,7 @@ function RenameForm({
         </p>
       )}
       <button
-        className="rounded-md p-1.5 leading-none text-accent outline-none transition-colors hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-60"
+        className="rounded-md p-1.5 leading-none text-accent outline-none transition-colors hover:bg-accent-soft disabled:opacity-60"
         type="submit"
         aria-label="Rename"
         title="Rename"
@@ -99,7 +99,7 @@ function RenameForm({
         <span aria-hidden="true">✓</span>
       </button>
       <button
-        className="rounded-md p-1.5 leading-none text-ink-muted outline-none transition-colors hover:bg-line/60 hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-60"
+        className="rounded-md p-1.5 leading-none text-ink-muted outline-none transition-colors hover:bg-line/60 hover:text-ink disabled:opacity-60"
         type="button"
         aria-label="Cancel"
         title="Cancel"
@@ -315,8 +315,8 @@ export default function ProjectContextPage({
             icon="▢"
             title={
               branch.failure.code === 'not_found'
-                ? 'That Project Context no longer exists'
-                : 'Could not load this Project Context'
+                ? 'That project no longer exists'
+                : 'Could not load this project'
             }
             description={branch.failure.message}
             tone="danger"
@@ -361,7 +361,7 @@ export default function ProjectContextPage({
           ) : (
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-lg font-bold text-ink">
-                {project?.name ?? 'Project Context'}
+                {project?.name ?? 'Project'}
               </h1>
               <button
                 ref={(button) => {
@@ -371,7 +371,7 @@ export default function ProjectContextPage({
                   }
                   renameTrigger.current = button
                 }}
-                className="rounded-md p-1.5 text-ink-muted outline-none transition-colors hover:bg-accent-soft hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-60"
+                className="rounded-md p-1.5 text-ink-muted outline-none transition-colors hover:bg-accent-soft hover:text-accent disabled:opacity-60"
                 type="button"
                 aria-label="Rename"
                 title="Rename"
@@ -383,10 +383,10 @@ export default function ProjectContextPage({
               <span className="flex-1" />
               <button
                 ref={deleteTrigger}
-                className="rounded-md p-1.5 text-danger outline-none transition-colors hover:bg-danger/10 focus-visible:ring-2 focus-visible:ring-danger/30 disabled:opacity-60"
+                className="rounded-md p-1.5 text-danger outline-none transition-colors hover:bg-danger/10 disabled:opacity-60"
                 type="button"
-                aria-label="Delete Project Context"
-                title="Delete Project Context"
+                aria-label="Delete project"
+                title="Delete project"
                 onClick={() => setDeleting(true)}
                 disabled={!project}
               >
@@ -406,7 +406,7 @@ export default function ProjectContextPage({
               <button
                 key={value}
                 id={`project-${value}-tab`}
-                className={`border-b-2 px-0.5 pb-2 text-xs font-semibold capitalize outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                className={`border-b-2 px-0.5 pb-2 text-xs font-semibold capitalize outline-none transition-colors ${
                   tab === value
                     ? 'border-accent text-ink'
                     : 'border-transparent text-ink-muted hover:text-ink'
@@ -657,7 +657,7 @@ export default function ProjectContextPage({
                   />
                 </svg>
                 <input
-                  className="h-9 w-full rounded-md border border-line bg-surface pl-9 pr-3 text-xs text-ink outline-none placeholder:text-ink-faint focus-visible:border-accent focus-visible:ring-1 focus-visible:ring-accent"
+                  className="h-9 w-full rounded-md border border-line bg-surface pl-9 pr-3 text-xs text-ink outline-none placeholder:text-ink-faint focus-visible:border-accent"
                   type="search"
                   aria-label="Filter sources"
                   placeholder="Filter sources"
@@ -666,7 +666,7 @@ export default function ProjectContextPage({
                 />
               </div>
               <select
-                className="h-9 shrink-0 rounded-md border border-line bg-surface px-3 text-xs text-ink outline-none hover:border-line-strong focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/30"
+                className="h-9 shrink-0 rounded-md border border-line bg-surface px-3 text-xs text-ink outline-none hover:border-line-strong focus-visible:border-accent"
                 aria-label="Sort sources"
                 value={sort}
                 onChange={(event) => setSort(event.target.value as typeof sort)}
@@ -733,7 +733,7 @@ export default function ProjectContextPage({
                     key={document.sourceDocumentId}
                   >
                     <button
-                      className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left outline-none transition-colors hover:bg-line/20 focus-visible:ring-1 focus-visible:ring-accent"
+                      className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left outline-none transition-colors hover:bg-line/20"
                       type="button"
                       onClick={() =>
                         onOpenSourceDocument(
@@ -765,7 +765,7 @@ export default function ProjectContextPage({
                     </button>
                     <details className="relative ml-2 shrink-0">
                       <summary
-                        className="flex size-8 cursor-pointer list-none items-center justify-center rounded-md text-ink-muted outline-none transition-colors hover:bg-line/60 hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 [&::-webkit-details-marker]:hidden"
+                        className="flex size-8 cursor-pointer list-none items-center justify-center rounded-md text-ink-muted outline-none transition-colors hover:bg-line/60 hover:text-ink [&::-webkit-details-marker]:hidden"
                         aria-label={`Actions for ${document.name}`}
                       >
                         <span aria-hidden="true">•••</span>
@@ -831,7 +831,7 @@ export default function ProjectContextPage({
 
       {deleting && project && (
         <DeleteDialog
-          title="Delete Project Context"
+          title="Delete project"
           description={
             <>
               Deleting “{project.name}” permanently removes its Source
@@ -846,7 +846,9 @@ export default function ProjectContextPage({
             // dropping onto <body>.
             if (!rejected) {
               onNavigate({ kind: 'root' })
-              document.querySelector<HTMLElement>('[data-rail-toggle]')?.focus()
+              queueMicrotask(() =>
+                document.querySelector<HTMLElement>('[data-rail-toggle]')?.focus(),
+              )
             }
             return rejected
           }}

@@ -88,9 +88,14 @@ function FolderIcon() {
   )
 }
 
-/** Shared column track, so the rows line up with their headings. */
+/**
+ * Shared column track, so the rows line up with their headings. Sized against
+ * the content pane, not the viewport: the rail takes a user-resizable slice of
+ * the window, so a viewport breakpoint promotes to three columns while the pane
+ * is still too narrow for them and collapses the name track to nothing.
+ */
 const projectColumns =
-  'grid-cols-1 sm:grid-cols-[minmax(0,1fr)_15rem_6.5rem]'
+  'grid-cols-1 @2xl:grid-cols-[minmax(0,1fr)_15rem_6.5rem]'
 
 /** The zero-Project-Context welcome: promise, workflow walkthrough, one action. */
 function FirstRun({ onCreate }: { onCreate: () => void }) {
@@ -171,7 +176,7 @@ export function StudioHome({
 
   return (
     <div className="scrollbar-subtle h-full overflow-y-auto p-4 pt-16 sm:p-12">
-      <div className="mx-auto w-full max-w-[1120px]">
+      <div className="@container mx-auto w-full max-w-[1120px]">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4 sm:mb-10">
           <div className="flex flex-col gap-2">
             <h1 className="font-serif text-[32px] leading-none font-normal tracking-[-0.01em] text-ink">
@@ -192,7 +197,7 @@ export function StudioHome({
         {listState.status === 'error' ? (
           <EmptyState
             className="max-w-sm bg-surface"
-            title="Could not load your Project Contexts"
+            title="Could not load your projects"
             description={listState.failure.message}
             tone="danger"
           >
@@ -202,20 +207,20 @@ export function StudioHome({
           </EmptyState>
         ) : projects.length === 0 ? (
           <div aria-busy="true">
-            <p className="sr-only">Loading Project Contexts…</p>
+            <p className="sr-only">Loading projects…</p>
             {/* Ghost rows on the real track, so loaded rows land without a jump. */}
             <ul aria-hidden="true" className="divide-y divide-line border-t border-line">
               {[0, 1, 2].map((slot) => (
                 <li
                   key={slot}
-                  className={`grid animate-pulse items-center gap-6 py-4 ${projectColumns}`}
+                  className={`grid items-center gap-6 py-4 motion-safe:animate-pulse ${projectColumns}`}
                 >
                   <span className="flex items-center gap-3.5">
                     <span className="size-9 shrink-0 rounded-card bg-surface-muted" />
                     <span className="h-3 w-2/5 rounded-xs bg-surface-muted" />
                   </span>
-                  <span className="hidden h-0.5 bg-surface-muted sm:block" />
-                  <span className="hidden h-3 rounded-xs bg-surface-muted sm:block" />
+                  <span className="hidden h-0.5 bg-surface-muted @2xl:block" />
+                  <span className="hidden h-3 rounded-xs bg-surface-muted @2xl:block" />
                 </li>
               ))}
             </ul>
@@ -228,8 +233,8 @@ export function StudioHome({
                 className={`grid items-center gap-6 border-b border-line pb-2 ${projectColumns}`}
               >
                 <Overline>Project</Overline>
-                <Overline className="hidden sm:block">Progress</Overline>
-                <Overline className="hidden sm:block">Updated</Overline>
+                <Overline className="hidden @2xl:block">Progress</Overline>
+                <Overline className="hidden @2xl:block">Updated</Overline>
               </div>
               <ul className="divide-y divide-line">
                 {projects.map((project) => (
@@ -240,7 +245,7 @@ export function StudioHome({
                       type="button"
                       aria-labelledby={`project-${project.projectContextId}-name`}
                       aria-describedby={`project-${project.projectContextId}-count`}
-                      className={`-mx-2 grid w-[calc(100%+1rem)] cursor-pointer items-center gap-3 rounded-xs px-2 py-4 text-left outline-none hover:bg-line/20 focus-visible:ring-2 focus-visible:ring-accent/40 sm:gap-6 ${projectColumns}`}
+                      className={`-mx-2 grid w-[calc(100%+1rem)] cursor-pointer items-center gap-3 rounded-xs px-2 py-4 text-left outline-none hover:bg-line/20 @2xl:gap-6 ${projectColumns}`}
                       onClick={() => open(project.projectContextId)}
                     >
                       <span className="flex min-w-0 items-center gap-3.5">
@@ -250,13 +255,13 @@ export function StudioHome({
                         <span className="min-w-0">
                           <h2
                             id={`project-${project.projectContextId}-name`}
-                            className="truncate text-[12.5px] font-semibold text-ink"
+                            className="break-words text-[12.5px] font-semibold text-ink"
                           >
                             {project.name}
                           </h2>
                           <span
                             id={`project-${project.projectContextId}-count`}
-                            className="mt-1 block truncate text-[11px] text-ink-faint"
+                            className="mt-1 block break-words text-[11px] text-ink-faint"
                           >
                             {metaLine(project)}
                           </span>
@@ -268,7 +273,7 @@ export function StudioHome({
                         tone={summaryTone(project.summary)}
                         running={project.summary.runningBatch ?? undefined}
                       />
-                      <span className="hidden text-[11px] text-ink-faint sm:block">
+                      <span className="hidden text-[11px] text-ink-faint @2xl:block">
                         <time dateTime={project.summary.lastActivityAt}>
                           {activityDay(project.summary.lastActivityAt)}
                         </time>
@@ -282,7 +287,7 @@ export function StudioHome({
             {recentActivity.length > 0 && (
               <aside
                 aria-label="Recent activity"
-                className="hidden w-[280px] shrink-0 flex-col gap-6 border-l border-line pl-8 lg:flex"
+                className="hidden w-[280px] shrink-0 flex-col gap-6 border-l border-line pl-8 @5xl:flex"
               >
                 <Overline>Recent activity</Overline>
                 <ul className="flex flex-col gap-5">
@@ -292,7 +297,7 @@ export function StudioHome({
                     >
                       <button
                         type="button"
-                        className="group flex w-full cursor-pointer items-start gap-3 rounded-xs text-left outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                        className="group flex w-full cursor-pointer items-start gap-3 rounded-xs text-left outline-none"
                         onClick={() => open(event.projectContextId)}
                       >
                         <span

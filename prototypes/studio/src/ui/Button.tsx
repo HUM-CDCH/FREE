@@ -14,11 +14,11 @@ const base =
 
 const variants: Record<Variant, string> = {
   primary:
-    'rounded-[3px] border border-accent bg-accent text-white transition-[filter] hover:brightness-108 focus-visible:ring-2 focus-visible:ring-accent/40 disabled:border-line disabled:bg-line disabled:text-ink-muted',
+    'rounded-[3px] border border-accent bg-accent text-white transition-[filter] hover:brightness-108 disabled:border-line disabled:bg-line disabled:text-ink-muted',
   secondary:
-    'rounded-[3px] border border-line bg-surface text-ink-muted hover:border-accent/50 hover:text-accent focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/40',
+    'rounded-[3px] border border-line bg-surface text-ink-muted hover:border-accent/50 hover:text-accent focus-visible:border-accent',
   pill:
-    'rounded-full border border-line bg-surface text-ink-muted hover:border-accent/50 hover:bg-accent-soft hover:text-accent focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/40 disabled:hover:border-line disabled:hover:bg-surface disabled:hover:text-ink-muted',
+    'rounded-full border border-line bg-surface text-ink-muted hover:border-accent/50 hover:bg-accent-soft hover:text-accent focus-visible:border-accent disabled:hover:border-line disabled:hover:bg-surface disabled:hover:text-ink-muted',
 }
 
 const sizes: Record<Size, string> = {

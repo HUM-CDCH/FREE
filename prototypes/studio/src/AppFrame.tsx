@@ -64,8 +64,8 @@ function EmptyWorkspace({
   failure: Failure | null
   onRetry: () => void
 }) {
-  let title = 'That Project Context reference is invalid'
-  let description = 'Choose a valid Project Context from the rail.'
+  let title = 'That project reference is invalid'
+  let description = 'Choose a valid project from the navigation.'
   let tone: 'neutral' | 'danger' = 'danger'
   let retry = false
 
@@ -79,19 +79,19 @@ function EmptyWorkspace({
           className="flex h-full items-center justify-center text-sm text-ink-muted"
           aria-busy="true"
         >
-          Loading Project Context…
+          Loading project…
         </div>
       )
     }
     if (branch?.status === 'error') {
       title =
         branch.failure.code === 'not_found'
-          ? 'That Project Context no longer exists'
-          : 'Could not load this Project Context'
+          ? 'That project no longer exists'
+          : 'Could not load this project'
       description = branch.failure.message
       tone = 'danger'
     } else if (routedDocumentContained === false) {
-      title = 'That Source Document is not in this Project Context'
+      title = 'That Source Document is not in this project'
       description = 'Choose one of its Source Documents in the rail.'
       tone = 'danger'
     } else if (route.kind === 'document' && failure) {
@@ -149,6 +149,14 @@ export default function AppFrame({
   const providerInitialFocus = useRef<HTMLButtonElement>(null)
   const [tabBarSlot, setTabBarSlot] = useState<HTMLDivElement | null>(null)
   const resizeControllerRef = useRef<AbortController | null>(null)
+  const contentRef = useRef<HTMLElement>(null)
+  const routeFocusKey =
+    route.kind === 'project'
+      ? `project:${route.projectContextId}`
+      : route.kind === 'document'
+        ? `document:${route.projectContextId}:${route.sourceDocumentId}`
+        : JSON.stringify(route)
+  const previousRouteFocusKey = useRef(routeFocusKey)
   const tabs = useOpenDocumentTabs()
   const { projects } = useProjectContexts()
   useShiftWheelHorizontalScroll()
@@ -246,6 +254,18 @@ export default function AppFrame({
     document.body.style.cursor = ''
   }, [])
 
+  useEffect(() => {
+    if (previousRouteFocusKey.current === routeFocusKey) return
+    previousRouteFocusKey.current = routeFocusKey
+    queueMicrotask(() => {
+      // The rail is persistent navigation, so leave focus in it: the next
+      // project stays one Tab away and `aria-current` announces the change.
+      // Anywhere else, move focus to the new content.
+      if (document.activeElement?.closest('[data-project-rail]')) return
+      contentRef.current?.focus()
+    })
+  }, [routeFocusKey])
+
   function isRoutedDocument(projectContextId: string, sourceDocumentId: string) {
     return (
       route.kind === 'document' &&
@@ -320,7 +340,7 @@ export default function AppFrame({
   )
   const narrowNavToggle = narrowViewport && !effectiveNavOpen && (
     <button
-      className={`grid size-10 shrink-0 place-items-center rounded-md border border-line bg-surface/95 text-ink-muted shadow-sm backdrop-blur outline-none transition-colors hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40 ${
+      className={`grid size-10 shrink-0 place-items-center rounded-md border border-line bg-surface/95 text-ink-muted shadow-sm backdrop-blur outline-none transition-colors hover:text-accent ${
         hasOpenDocumentTabs ? 'self-center' : 'fixed left-2 top-2 z-30'
       }`}
       type="button"
@@ -364,6 +384,15 @@ export default function AppFrame({
 
   return (
     <main className="flex h-dvh overflow-hidden bg-canvas text-ink">
+      {/* Parked off-screen by transform, not `sr-only`: `focus:not-sr-only`
+          would set `position: static` and drop the link into this flex row,
+          shoving the whole shell sideways on the first Tab. */}
+      <a
+        href="#main-content"
+        className="fixed left-2 top-2 z-50 -translate-y-16 rounded-sm bg-surface px-3 py-2 text-sm font-semibold text-ink shadow-float focus:translate-y-0 motion-safe:transition-transform"
+      >
+        Skip to content
+      </a>
       {/* React 19 hoists this into <head>; no title-sync effect needed. */}
       <title>
         {workspace ? `FREE Studio — ${workspace.filename}` : 'FREE Studio'}
@@ -377,6 +406,7 @@ export default function AppFrame({
         />
       )}
       <div
+        data-project-rail
         style={{ width: effectiveNavWidth }}
         className={`flex shrink-0 flex-col overflow-hidden border-r border-line bg-surface transition-[width] duration-200 motion-reduce:transition-none ${
           narrowViewport
@@ -392,7 +422,7 @@ export default function AppFrame({
           <a
             href={browserStudioPath('/projects')}
             aria-label="Studio home"
-            className="outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            className="outline-none"
             onClick={(event) => {
               if (
                 event.button !== 0 ||
@@ -422,8 +452,8 @@ export default function AppFrame({
               data-rail-toggle
               className="ml-auto cursor-pointer rounded-sm p-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
               type="button"
-              aria-label="Collapse Project Contexts"
-              title="Collapse Project Contexts"
+              aria-label="Collapse projects"
+              title="Collapse projects"
               onClick={toggleNav}
             >
               <PanelToggleIcon side="left" />
@@ -449,7 +479,7 @@ export default function AppFrame({
         <div
           className="z-5 -ml-1.25 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft focus-visible:bg-accent-soft focus-visible:outline-none"
           role="separator"
-          aria-label="Resize Project Context rail"
+          aria-label="Resize project navigation"
           aria-orientation="vertical"
           aria-valuemin={navMin}
           aria-valuemax={navMax}
@@ -488,12 +518,15 @@ export default function AppFrame({
           />
         )}
         <section
+          id="main-content"
+          ref={contentRef}
+          tabIndex={-1}
           className="relative min-h-0 min-w-0 flex-1"
           aria-label={
             route.kind === 'root'
               ? 'Projects'
               : route.kind === 'project'
-                ? 'Project Context'
+                ? 'Project'
                 : 'Source Document'
           }
         >
@@ -519,10 +552,10 @@ export default function AppFrame({
           ) : route.kind === 'project' ? (
             <RouteLoadBoundary
               key="project-context-page"
-              resource="The Project Context page"
+              resource="The project page"
             >
               <Suspense
-                fallback={<RouteLoadingFallback label="Loading Project Context…" />}
+                fallback={<RouteLoadingFallback label="Loading project…" />}
               >
                 {/* Keyed to the Project Context only: switching resource tabs
                     is a route change within one page, not a new page. */}

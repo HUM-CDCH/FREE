@@ -301,7 +301,7 @@ function renderRoutes(fetch: ReturnType<typeof vi.fn> = studioFetch()) {
  * The rail lists Source Documents for navigation and the Project Context page
  * lists the same ones as cards, so every name-based query says which it means.
  */
-const rail = () => within(screen.getByRole('navigation', { name: 'Project Contexts' }))
+const rail = () => within(screen.getByRole('navigation', { name: 'Projects' }))
 /**
  * A Project Context's rail row. The chevron and the name are one control that
  * only discloses Source Documents, so the row's accessible name is that
@@ -326,7 +326,7 @@ async function openProjectPage(name = project.name) {
   // this row's own one.
   const menu = actions.closest('details') as HTMLElement
   fireEvent.click(within(menu).getByRole('button', { name: 'Open project' }))
-  const page = await screen.findByRole('region', { name: 'Project Context' })
+  const page = await screen.findByRole('region', { name: 'Project' })
   await within(page).findByRole('heading', { name })
   return page
 }
@@ -394,7 +394,7 @@ describe('Studio home', () => {
     fireEvent.click(await home().findByRole('button', { name: project.name }))
 
     expect(
-      await screen.findByRole('region', { name: 'Project Context' }),
+      await screen.findByRole('region', { name: 'Project' }),
     ).toBeInTheDocument()
     expect(location.pathname).toBe(`/projects/${projectContextId}`)
     expect(screen.queryByRole('region', { name: 'Projects' })).toBeNull()
@@ -403,7 +403,7 @@ describe('Studio home', () => {
   it('returns to Studio home through the logo', async () => {
     history.replaceState(null, '', `/projects/${projectContextId}`)
     renderRoutes()
-    await screen.findByRole('region', { name: 'Project Context' })
+    await screen.findByRole('region', { name: 'Project' })
 
     const logo = screen.getByRole('link', { name: 'Studio home' })
     expect(logo).toHaveAttribute('href', '/projects')
@@ -425,7 +425,7 @@ describe('Studio home', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     expect(
-      await screen.findByText('Empty Project Context.'),
+      await screen.findByText('Empty project.'),
     ).toBeInTheDocument()
     expect(location.pathname).toBe(
       `/projects/${secondProject.projectContextId}`,
@@ -459,7 +459,7 @@ describe('Studio home', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     expect(
-      await screen.findByText('Empty Project Context.'),
+      await screen.findByText('Empty project.'),
     ).toBeInTheDocument()
     expect(location.pathname).toBe(
       `/projects/${secondProject.projectContextId}`,
@@ -675,14 +675,17 @@ describe('Project Context lifecycle in the rail', () => {
     })
     renderRoutes(fetcher)
 
+    const homeRow = await screen.findByRole('button', { name: projectName })
+    expect(within(homeRow).getByText(projectName)).not.toHaveClass('truncate')
     const projectRow = await screen.findByRole('button', {
       name: `Expand Source Documents in ${projectName}`,
     })
     expect(projectRow).toHaveTextContent(projectName)
+    expect(projectRow.querySelector('.truncate')).toBeNull()
     fireEvent.click(projectRow)
-    expect(
-      await screen.findByRole('button', { name: sourceName }),
-    ).toHaveTextContent(sourceName)
+    const sourceRow = await screen.findByRole('button', { name: sourceName })
+    expect(sourceRow).toHaveTextContent(sourceName)
+    expect(sourceRow).not.toHaveClass('truncate')
     expect(document.querySelector('img[src="x"]')).toBeNull()
     expect(document.querySelector('script')).toBeNull()
   })
@@ -690,7 +693,7 @@ describe('Project Context lifecycle in the rail', () => {
   it('navigates to and expands an acknowledged new Project Context', async () => {
     renderRoutes(lifecycleFetch())
     fireEvent.click(
-      await screen.findByRole('button', { name: 'New Project Context' }),
+      await screen.findByRole('button', { name: 'Create project' }),
     )
 
     const name = screen.getByRole('textbox', {
@@ -701,13 +704,18 @@ describe('Project Context lifecycle in the rail', () => {
     fireEvent.change(name, { target: { value: `  ${'x'.repeat(512)}  ` } })
     expect(screen.getByRole('button', { name: 'Create' })).toBeEnabled()
     fireEvent.change(name, { target: { value: `  ${'x'.repeat(513)}  ` } })
-    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(name).toHaveAttribute('aria-invalid', 'true')
+    expect(name).toHaveFocus()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Use no more than 512 characters.',
+    )
 
     fireEvent.change(name, { target: { value: '  Fæstningen, TAK 1400  ' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     expect(
-      await screen.findByText('Empty Project Context.'),
+      await screen.findByText('Empty project.'),
     ).toBeInTheDocument()
     expect(location.pathname).toBe(
       `/projects/${secondProject.projectContextId}`,
@@ -730,7 +738,7 @@ describe('Project Context lifecycle in the rail', () => {
     })
     renderRoutes(renderFetch)
 
-    const trigger = await screen.findByRole('button', { name: 'New Project Context' })
+    const trigger = await screen.findByRole('button', { name: 'Create project' })
     trigger.focus()
     fireEvent.click(trigger)
     const dialog = await screen.findByRole('dialog', {
@@ -740,11 +748,15 @@ describe('Project Context lifecycle in the rail', () => {
       name: 'Project name',
     })
     expect(name).toHaveFocus()
+    expect(name).not.toHaveAttribute('aria-invalid')
+    expect(screen.getByRole('button', { name: 'Create' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
     expect(name).toHaveAttribute('aria-invalid', 'true')
-    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled()
+    expect(name).toHaveFocus()
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a project name.')
 
     fireEvent.change(name, { target: { value: secondProject.name } })
-    expect(name).toHaveAttribute('aria-invalid', 'false')
+    expect(name).not.toHaveAttribute('aria-invalid')
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
     expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled()
     expect(dialog).toBeInTheDocument()
@@ -764,9 +776,14 @@ describe('Project Context lifecycle in the rail', () => {
     ).toHaveValue(secondProject.name)
     expect(screen.getByRole('button', { name: 'Create' })).toBeEnabled()
 
+    fireEvent.change(name, { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a project name.')
+
+    fireEvent.change(name, { target: { value: secondProject.name } })
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
     expect(
-      await screen.findByText('Empty Project Context.'),
+      await screen.findByText('Empty project.'),
     ).toBeInTheDocument()
     await waitFor(() => expect(trigger).toHaveFocus())
     expect(location.pathname).toBe(
@@ -794,7 +811,7 @@ describe('Project Context lifecycle in the rail', () => {
     )
     const page = await openProjectPage()
     fireEvent.click(within(page).getByRole('button', { name: 'Rename' }))
-    const name = screen.getByRole('textbox', { name: 'Project Context name' })
+    const name = screen.getByRole('textbox', { name: 'Project name' })
     fireEvent.change(name, { target: { value: 'Ellekilde II' } })
 
     fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
@@ -813,7 +830,7 @@ describe('Project Context lifecycle in the rail', () => {
       await screen.findByRole('button', { name: railRow('Ellekilde II') }),
     ).toBeInTheDocument()
     expect(
-      screen.queryByRole('textbox', { name: 'Project Context name' }),
+      screen.queryByRole('textbox', { name: 'Project name' }),
     ).not.toBeInTheDocument()
   })
 
@@ -823,10 +840,10 @@ describe('Project Context lifecycle in the rail', () => {
     await rail().findByText('Beretning.pdf')
 
     fireEvent.click(
-      within(page).getByRole('button', { name: 'Delete Project Context' }),
+      within(page).getByRole('button', { name: 'Delete project' }),
     )
     const dialog = await screen.findByRole('dialog', {
-      name: 'Delete Project Context',
+      name: 'Delete project',
     })
     // Native modality: focus moves into the dialog, so the rail behind it is
     // out of reach until the researcher answers.
@@ -857,7 +874,7 @@ describe('Project Context lifecycle in the rail', () => {
     renderRoutes(lifecycleFetch({ remove: () => pending.promise as never }))
     const page = await openProjectPage()
     fireEvent.click(
-      within(page).getByRole('button', { name: 'Delete Project Context' }),
+      within(page).getByRole('button', { name: 'Delete project' }),
     )
     fireEvent.click(
       await screen.findByRole('button', { name: 'Delete permanently' }),
@@ -865,7 +882,7 @@ describe('Project Context lifecycle in the rail', () => {
 
     // Escape dispatches `cancel`; a write already sent must survive it.
     const dialog = screen.getByRole('dialog', {
-      name: 'Delete Project Context',
+      name: 'Delete project',
     })
     fireEvent(dialog, new Event('cancel', { cancelable: true }))
     expect(dialog).toBeInTheDocument()
@@ -909,11 +926,11 @@ describe('Project Context lifecycle in the rail', () => {
     // The route is already the Project Context page; renaming happens there.
     fireEvent.click(
       within(
-        await screen.findByRole('region', { name: 'Project Context' }),
+        await screen.findByRole('region', { name: 'Project' }),
       ).getByRole('button', { name: 'Rename' }),
     )
     fireEvent.change(
-      screen.getByRole('textbox', { name: 'Project Context name' }),
+      screen.getByRole('textbox', { name: 'Project name' }),
       { target: { value: 'Ellekilde II' } },
     )
     fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
@@ -924,7 +941,7 @@ describe('Project Context lifecycle in the rail', () => {
 
     await waitFor(() =>
       expect(
-        screen.queryByText('Loading Project Contexts…'),
+        screen.queryByText('Loading projects…'),
       ).not.toBeInTheDocument(),
     )
     expect(
@@ -949,7 +966,7 @@ describe('Project Context lifecycle in the rail', () => {
       }),
     )
     fireEvent.click(
-      await screen.findByRole('button', { name: 'New Project Context' }),
+      await screen.findByRole('button', { name: 'Create project' }),
     )
     fireEvent.change(
       screen.getByRole('textbox', { name: 'Project name' }),
@@ -976,7 +993,7 @@ describe('Project Context lifecycle in the rail', () => {
     await rail().findByText('Loading…')
 
     fireEvent.click(
-      within(page).getByRole('button', { name: 'Delete Project Context' }),
+      within(page).getByRole('button', { name: 'Delete project' }),
     )
     fireEvent.click(
       await screen.findByRole('button', { name: 'Delete permanently' }),
@@ -991,7 +1008,7 @@ describe('Project Context lifecycle in the rail', () => {
     branch.resolve(Response.json(detail))
 
     await waitFor(() =>
-      expect(screen.getByText('No Project Contexts yet.')).toBeInTheDocument(),
+      expect(screen.getByText('No projects yet.')).toBeInTheDocument(),
     )
     expect(
       screen.queryByRole('button', { name: railRow() }),
@@ -1003,7 +1020,7 @@ describe('Project Context lifecycle in the rail', () => {
     renderRoutes(lifecycleFetch())
     const page = await openProjectPage()
     fireEvent.click(
-      within(page).getByRole('button', { name: 'Delete Project Context' }),
+      within(page).getByRole('button', { name: 'Delete project' }),
     )
     fireEvent.click(
       await screen.findByRole('button', { name: 'Delete permanently' }),
@@ -1018,7 +1035,7 @@ describe('Project Context lifecycle in the rail', () => {
     // control takes focus instead of dropping it on <body>.
     await waitFor(() =>
       expect(
-        screen.getByRole('button', { name: 'Collapse Project Contexts' }),
+        screen.getByRole('button', { name: 'Collapse projects' }),
       ).toHaveFocus(),
     )
   })
@@ -1031,7 +1048,7 @@ describe('Project Context lifecycle in the rail', () => {
     await rail().findByText('Beretning.pdf')
 
     fireEvent.click(
-      within(page).getByRole('button', { name: 'Delete Project Context' }),
+      within(page).getByRole('button', { name: 'Delete project' }),
     )
     fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }))
 
@@ -1093,8 +1110,8 @@ describe('Project Context navigation', () => {
       'multiple',
     )
     expect(screen.queryByLabelText('Open a PDF (dev)')).not.toBeInTheDocument()
-    // Exactly six: the row's disclosure, add-sources and actions controls,
-    // the menu's open/delete actions, and its one Source Document.
+    // Exactly seven: the row's disclosure, add-sources and actions controls,
+    // the menu's open/delete actions, and the Source Document's open/delete actions.
     expect(rail().getAllByRole('button')).toHaveLength(6)
     expect(fetch).toHaveBeenCalledTimes(2)
 
@@ -1185,7 +1202,7 @@ describe('Project Context navigation', () => {
 
     // A deep link is the page's first render: the tab it names is the one that
     // reads its resource.
-    const page = await screen.findByRole('region', { name: 'Project Context' })
+    const page = await screen.findByRole('region', { name: 'Project' })
     expect(within(page).getByRole('tab', { name: 'Schemas' })).toHaveAttribute(
       'aria-selected',
       'true',
@@ -1225,7 +1242,7 @@ describe('Project Context navigation', () => {
     history.replaceState(null, '', `/projects/${projectContextId}/documents`)
     renderRoutes()
 
-    const page = await screen.findByRole('region', { name: 'Project Context' })
+    const page = await screen.findByRole('region', { name: 'Project' })
     expect(within(page).getByRole('tab', { name: 'Sources' })).toHaveAttribute(
       'aria-selected',
       'true',
@@ -1276,7 +1293,7 @@ describe('Project Context navigation', () => {
     history.replaceState(null, '', `/projects/${projectContextId}/extractions`)
     renderRoutes(batchFetch)
 
-    const page = await screen.findByRole('region', { name: 'Project Context' })
+    const page = await screen.findByRole('region', { name: 'Project' })
     fireEvent.click(await within(page).findByText('Places · Schema Revision 1'))
 
     expect(location.pathname).toBe(
@@ -1385,7 +1402,7 @@ describe('Project Context navigation', () => {
       await screen.findByRole('button', { name: `Actions for ${project.name}` }),
     )
     fireEvent.click(screen.getByRole('button', { name: 'Open project' }))
-    const page = await screen.findByRole('region', { name: 'Project Context' })
+    const page = await screen.findByRole('region', { name: 'Project' })
     await within(page).findByRole('heading', { name: project.name })
     fireEvent.click(within(page).getByRole('tab', { name: 'Schemas' }))
     await within(page).findByText('Places')
@@ -1429,10 +1446,10 @@ describe('Project Context navigation', () => {
     expect(menu).not.toHaveAttribute('open')
 
     fireEvent.click(
-      within(page).getByRole('button', { name: 'Delete Project Context' }),
+      within(page).getByRole('button', { name: 'Delete project' }),
     )
     const projectDialog = await screen.findByRole('dialog', {
-      name: 'Delete Project Context',
+      name: 'Delete project',
     })
 
     for (const attribute of ['aria-labelledby', 'aria-describedby'] as const) {
@@ -1558,7 +1575,7 @@ describe('Project Context navigation', () => {
     renderRoutes()
     await home().findByRole('heading', { name: 'Projects' })
     const separator = screen.getByRole('separator', {
-      name: 'Resize Project Context rail',
+      name: 'Resize project navigation',
     })
 
     expect(separator).toHaveAttribute('aria-valuenow', '212')
@@ -1571,7 +1588,7 @@ describe('Project Context navigation', () => {
     await home().findByRole('heading', { name: 'Projects' })
     fireEvent.mouseDown(
       screen.getByRole('separator', {
-        name: 'Resize Project Context rail',
+        name: 'Resize project navigation',
       }),
       { clientX: 100 },
     )
@@ -1591,7 +1608,7 @@ describe('Project Context navigation', () => {
     await screen.findByRole('button', { name: railRow() })
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'Collapse Project Contexts' }),
+      screen.getByRole('button', { name: 'Collapse projects' }),
     )
 
     const projectNavigation = screen.getByRole('complementary', {
@@ -1599,7 +1616,7 @@ describe('Project Context navigation', () => {
     })
     expect(
       within(projectNavigation).getByRole('button', {
-        name: 'Expand Project Contexts',
+        name: 'Expand projects',
       }),
     ).toBeInTheDocument()
     expect(projectNavigation.querySelector('ul')).toBeNull()
@@ -1654,7 +1671,7 @@ describe('Project Context navigation', () => {
 
     expect(await rail().findByText('Beretning.pdf')).toBeInTheDocument()
     expect(
-      await screen.findByRole('region', { name: 'Project Context' }),
+      await screen.findByRole('region', { name: 'Project' }),
     ).toBeInTheDocument()
   })
 
@@ -1728,7 +1745,7 @@ describe('Project Context navigation', () => {
     ).not.toHaveAttribute('aria-current')
 
     fireEvent.click(disclosure(secondProject.name))
-    expect(await rail().findByText('Empty Project Context.')).toBeInTheDocument()
+    expect(await rail().findByText('Empty project.')).toBeInTheDocument()
     // Both branches stay open; expansion is not an accordion.
     expect(rail().getByText('Beretning.pdf')).toBeInTheDocument()
 
@@ -1775,7 +1792,7 @@ describe('Project Context navigation', () => {
     expect(await rail().findByText('Loading…')).toBeInTheDocument()
     pending.resolve(Response.json({ ...detail, sourceDocuments: [] }))
     expect(
-      await rail().findByText('Empty Project Context.'),
+      await rail().findByText('Empty project.'),
     ).toBeInTheDocument()
   })
 
@@ -1785,7 +1802,7 @@ describe('Project Context navigation', () => {
 
     expect(
       await screen.findByRole('heading', {
-        name: 'That Project Context reference is invalid',
+        name: 'That project reference is invalid',
       }),
     ).toBeInTheDocument()
     expect(fetch).toHaveBeenCalledTimes(1)
@@ -2014,7 +2031,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
 
     renderRoutes(fetcher)
     await openProjectPage()
-    await rail().findByText('Empty Project Context.')
+    await rail().findByText('Empty project.')
     fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
       target: {
         files: [
@@ -2098,7 +2115,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
 
     renderRoutes(fetcher)
     await openProjectPage()
-    await rail().findByText('Empty Project Context.')
+    await rail().findByText('Empty project.')
     fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
       target: {
         files: [
@@ -2201,7 +2218,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     await waitFor(() => expect(pending).toHaveLength(1))
 
     fireEvent.click(
-      within(page).getByRole('button', { name: 'Delete Project Context' }),
+      within(page).getByRole('button', { name: 'Delete project' }),
     )
     fireEvent.click(await screen.findByRole('button', { name: 'Delete permanently' }))
     // The deleted Project Context was the only one; home is first-run again.
@@ -2422,7 +2439,7 @@ describe('routed Source Document reopening', () => {
       expect(location.pathname).toBe(`/projects/${projectContextId}`),
     )
     expect(
-      await screen.findByRole('region', { name: 'Project Context' }),
+      await screen.findByRole('region', { name: 'Project' }),
     ).toBeInTheDocument()
   })
 
@@ -2493,7 +2510,7 @@ describe('routed Source Document reopening', () => {
 
     expect(
       await screen.findByRole('heading', {
-        name: 'That Source Document is not in this Project Context',
+        name: 'That Source Document is not in this project',
       }),
     ).toBeInTheDocument()
     expect(screen.queryByText(/Opened /)).not.toBeInTheDocument()
@@ -2524,7 +2541,7 @@ describe('routed Source Document reopening', () => {
 
     expect(
       await screen.findByRole('heading', {
-        name: 'Could not load this Project Context',
+        name: 'Could not load this project',
       }),
     ).toBeInTheDocument()
     expect(screen.queryByText(/Opened /)).not.toBeInTheDocument()
@@ -2582,16 +2599,22 @@ describe('routed Source Document reopening', () => {
   })
 
   it.each([
-    ['Project Context', `/projects/${projectContextId}`, 2],
-    ['Source Document', documentPath(), 2],
+    [
+      'Project Context',
+      `/projects/${projectContextId}`,
+      2,
+      'That project no longer exists',
+    ],
+    ['Source Document', documentPath(), 2, 'That project no longer exists'],
     [
       'Batch Extraction',
       `/projects/${projectContextId}/extractions/51000000-0000-4000-8007-000000000099`,
       4,
+      'That project no longer exists',
     ],
   ] as const)(
     'renders a scoped not-found state for a stale cross-account %s route',
-    async (_kind, path, expectedCalls) => {
+    async (_kind, path, expectedCalls, expectedTitle) => {
       history.replaceState(null, '', path)
       const fetch = vi.fn(
         async (
@@ -2619,7 +2642,7 @@ describe('routed Source Document reopening', () => {
 
       expect(
         await screen.findByRole('heading', {
-          name: 'That Project Context no longer exists',
+          name: expectedTitle,
         }),
       ).toBeInTheDocument()
       expect(
@@ -2636,7 +2659,7 @@ describe('routed Source Document reopening', () => {
 
     expect(
       await screen.findByRole('heading', {
-        name: 'That Project Context reference is invalid',
+        name: 'That project reference is invalid',
       }),
     ).toBeInTheDocument()
     expect(fetch).toHaveBeenCalledTimes(1)

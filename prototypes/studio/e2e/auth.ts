@@ -73,7 +73,7 @@ export async function gotoAuthenticated(
       ),
     )
     await expect(
-      page.getByRole('navigation', { name: 'Project Contexts' }),
+      page.getByRole('navigation', { name: 'Projects' }),
     ).toBeVisible()
   } catch (cause) {
     const diagnostics = [...workspaceResponses, ...failedRequests].join('\n')

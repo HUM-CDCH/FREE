@@ -13,11 +13,11 @@
   --color-surface: #ffffff;       /* panels, toolbar, sidebars */
   --color-surface-muted: #f5efe9; /* pills, subtle fills */
   --color-ink: #33302c;           /* primary text */
-  --color-ink-muted: #94897f;     /* secondary text */
-  --color-ink-faint: #ab9f93;     /* tertiary text, overlines */
+  --color-ink-muted: #6c6259;     /* secondary text */
+  --color-ink-faint: #776b60;     /* tertiary text, overlines */
   --color-line: #eadfd6;          /* hairline borders */
   --color-line-strong: #d9cabc;   /* emphasised borders */
-  --color-accent: #bc5f3f;        /* terracotta */
+  --color-accent: #a34828;        /* terracotta */
   --color-accent-soft: #f4ddd3;   /* accent tint fill */
   --color-accent-ghost: #fbf1ec;  /* faint accent wash (hovers) */
   --color-ev: #4f8aa8;            /* evidence blue */
@@ -63,19 +63,50 @@
   scrollbar-color: var(--color-line) transparent;
 }
 
-@keyframes fadeup {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes fadeup {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+
+  .animate-fadeup {
+    animation: fadeup 0.2s ease;
   }
 }
 
-@utility animate-fadeup {
-  animation: fadeup 0.2s ease;
+/* Deliberately unlayered so it also reaches the many controls that carry
+   `outline-none` with no focus style of their own. That means it wins over
+   every Tailwind utility, so components must not declare their own ring —
+   this is the single focus indicator. */
+/* Accent ring, held off the control by a surface-coloured halo. The halo is
+   what keeps this legible on the dark `bg-ink` menus, where the accent alone
+   is only 2.2:1. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--color-surface);
+}
+
+/* The routed content region is focused on navigation, and the shell clips
+   anything drawn outside it — so this one ring goes inside. */
+#main-content:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -4px;
+  box-shadow: none;
+}
+
+@media (forced-colors: active) {
+  :focus-visible,
+  #main-content:focus-visible {
+    outline-color: Highlight;
+    box-shadow: none;
+  }
 }
 
 @keyframes spin {

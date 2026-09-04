@@ -202,8 +202,11 @@ describe('AuthApplication', () => {
       <AuthApplication loadNavigation={projectLoader()} navigate={navigate} />,
     )
 
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Your session expires soon.',
+    )
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Continue session' }),
+      screen.getByRole('button', { name: 'Continue session' }),
     )
     expect(navigate).toHaveBeenCalledWith(
       '/auth/login?returnTo=%2Fprojects&fragmentCaptured=1',

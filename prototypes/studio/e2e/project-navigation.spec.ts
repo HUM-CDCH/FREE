@@ -296,14 +296,14 @@ async function stubStudio(
 }
 
 const rail = (page: Page) =>
-  page.getByRole('navigation', { name: 'Project Contexts' })
+  page.getByRole('navigation', { name: 'Projects' })
 const workspace = (page: Page) =>
   page.getByRole('region', { name: 'Source Document' })
 /** The unrouted landing page: a card per Project Context. */
 const home = (page: Page) => page.getByRole('region', { name: 'Projects' })
 /** The management page for the routed Project Context. */
 const projectPage = (page: Page) =>
-  page.getByRole('region', { name: 'Project Context' })
+  page.getByRole('region', { name: 'Project' })
 const projectRows = (page: Page) => rail(page).locator('[data-project-row]')
 /** The row's chevron+name control; it only discloses, from either part of it. */
 const disclosure = (page: Page, name: string) =>
@@ -364,7 +364,10 @@ test.describe('rail navigation', () => {
     const name = page.getByRole('textbox', { name: 'Project name' })
     await expect(name).toBeFocused()
     await page.keyboard.type('Recovered project')
-    await activateWithKeyboard(page, page.getByRole('button', { name: 'Create' }))
+    await activateWithKeyboard(
+      page,
+      page.getByRole('button', { name: 'Create', exact: true }),
+    )
 
     const dialog = page.getByRole('dialog', { name: 'New Project', exact: true })
     await expect(dialog).toBeVisible()
@@ -374,7 +377,10 @@ test.describe('rail navigation', () => {
     )
     await expect(name).toBeFocused()
     unavailable = false
-    await activateWithKeyboard(page, dialog.getByRole('button', { name: 'Create' }))
+    await activateWithKeyboard(
+      page,
+      dialog.getByRole('button', { name: 'Create', exact: true }),
+    )
 
     await expect(dialog).toBeHidden()
     // A successful create routes into the created Project Context.
@@ -503,7 +509,7 @@ test.describe('rail navigation', () => {
 
     const remove = projectPage(page).getByRole('button', { name: 'Delete' })
     await remove.click()
-    const dialog = page.getByRole('dialog', { name: 'Delete Project Context' })
+    const dialog = page.getByRole('dialog', { name: 'Delete project' })
     await dialog.getByRole('button', { name: 'Cancel' }).click()
 
     await expect(dialog).not.toBeVisible()
@@ -516,7 +522,7 @@ test.describe('rail navigation', () => {
     await stubStudio(page)
     await gotoAuthenticated(page, '/')
 
-    const create = page.getByRole('button', { name: 'New Project Context' })
+    const create = page.getByRole('button', { name: 'Create project' })
     await create.click()
     await page.getByRole('button', { name: 'Cancel' }).click()
     await expect(create).toBeFocused()
@@ -525,7 +531,7 @@ test.describe('rail navigation', () => {
     const rename = projectPage(page).getByRole('button', { name: 'Rename' })
     await rename.click()
     await page
-      .getByRole('textbox', { name: 'Project Context name' })
+      .getByRole('textbox', { name: 'Project name' })
       .press('Escape')
     await expect(rename).toBeFocused()
   })
@@ -560,6 +566,24 @@ test.describe('rail navigation', () => {
     await page.getByRole('button', { name: 'Delete', exact: true }).click()
     await page.getByRole('button', { name: 'Cancel' }).click()
     await expect(railDocument).toBeFocused()
+  })
+
+  test('skip navigation and SPA routes move focus to the project content', async ({
+    page,
+  }) => {
+    await stubStudio(page)
+    await gotoAuthenticated(page, '/')
+
+    const skip = page.getByRole('link', { name: 'Skip to content' })
+    await page.keyboard.press('Tab')
+    await expect(skip).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(page.getByRole('region', { name: 'Projects' })).toBeFocused()
+
+    await page
+      .getByRole('button', { name: 'Hørsholm, TAK 1402', exact: true })
+      .click()
+    await expect(page.getByRole('region', { name: 'Project', exact: true })).toBeFocused()
   })
 
   test('moves focus deliberately after successful create and rename writes', async ({
@@ -598,18 +622,18 @@ test.describe('rail navigation', () => {
     })
     await gotoAuthenticated(page, '/')
 
-    await page.getByRole('button', { name: 'New Project Context' }).click()
+    await page.getByRole('button', { name: 'Create project' }).click()
     await page
       .getByRole('textbox', { name: 'Project name' })
       .fill('Created project')
-    await page.getByRole('button', { name: 'Create' }).click()
+    await page.getByRole('button', { name: 'Create', exact: true }).click()
     await expect(
-      page.getByRole('button', { name: 'New Project Context' }),
+      page.getByRole('button', { name: 'Create project' }),
     ).toBeFocused()
 
     await openProject(page, 'Hørsholm, TAK 1402')
     await projectPage(page).getByRole('button', { name: 'Rename' }).click()
-    const rename = page.getByRole('textbox', { name: 'Project Context name' })
+    const rename = page.getByRole('textbox', { name: 'Project name' })
     await rename.fill('Renamed project')
     await rename.press('Enter')
     await expect(
@@ -622,7 +646,7 @@ test.describe('rail navigation', () => {
     await projectPage(page).getByRole('button', { name: 'Delete' }).click()
     await page.getByRole('button', { name: 'Delete permanently' }).click()
     await expect(
-      page.getByRole('button', { name: 'Collapse Project Contexts' }),
+      page.getByRole('button', { name: 'Collapse projects' }),
     ).toBeFocused()
   })
 
@@ -871,7 +895,7 @@ test.describe('rail navigation', () => {
     await gotoAuthenticated(page, `/projects/${ELLEKILDE}/sources`)
     await expect(
       page.getByRole('heading', {
-        name: 'That Project Context reference is invalid',
+        name: 'That project reference is invalid',
       }),
     ).toBeVisible()
   })
@@ -1011,7 +1035,7 @@ test.describe('bad references and bounded failures', () => {
     await gotoAuthenticated(page, '/projects/NOT-A-UUID')
     await expect(
       workspace(page).getByRole('heading', {
-        name: 'That Project Context reference is invalid',
+        name: 'That project reference is invalid',
       }),
     ).toBeVisible()
     // The rail stays usable, so the researcher is never stranded.
@@ -1020,7 +1044,7 @@ test.describe('bad references and bounded failures', () => {
     await gotoAuthenticated(page, `/projects/${ELLEKILDE}/documents/xyz`)
     await expect(
       workspace(page).getByRole('heading', {
-        name: 'That Project Context reference is invalid',
+        name: 'That project reference is invalid',
       }),
     ).toBeVisible()
 
@@ -1061,7 +1085,7 @@ test.describe('bad references and bounded failures', () => {
     await gotoAuthenticated(page, `/projects/${ELLEKILDE}/documents/${OVERSIGT}`)
     await expect(
       workspace(page).getByRole('heading', {
-        name: 'That Source Document is not in this Project Context',
+        name: 'That Source Document is not in this project',
       }),
     ).toBeVisible()
     // Containment is settled by the branch read; no snapshot is ever requested.
@@ -1088,7 +1112,7 @@ test.describe('bad references and bounded failures', () => {
     await gotoAuthenticated(page, `/projects/${ELLEKILDE}`)
     await expect(
       projectPage(page).getByRole('heading', {
-        name: 'That Project Context no longer exists',
+        name: 'That project no longer exists',
       }),
     ).toBeVisible()
     await expect(projectRows(page)).toHaveCount(2)
