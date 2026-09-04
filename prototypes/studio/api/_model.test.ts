@@ -70,6 +70,20 @@ function unwrapNullable(schema: JsonSchemaLike | undefined): JsonSchemaLike | un
   return schema?.anyOf?.find((branch) => branch.type !== 'null') ?? schema
 }
 
+function expectEveryPropertyRequired(schema: unknown): void {
+  if (Array.isArray(schema)) {
+    schema.forEach(expectEveryPropertyRequired)
+    return
+  }
+  if (typeof schema !== 'object' || schema === null) return
+
+  const object = schema as Record<string, unknown>
+  if (typeof object.properties === 'object' && object.properties !== null && !Array.isArray(object.properties)) {
+    expect(object.required).toEqual(Object.keys(object.properties))
+  }
+  Object.values(object).forEach(expectEveryPropertyRequired)
+}
+
 function stubOllamaResponses(...generations: readonly {
   readonly response: string
   readonly doneReason?: string
@@ -292,6 +306,44 @@ describe('extractWithModel', () => {
     expect(result.result).toMatchObject({ records: [{ grave_number: 8 }] })
     expect(result).not.toHaveProperty('raw')
     expect(result).not.toHaveProperty('evidence')
+  })
+
+  it('emits OpenAI-compatible required fields while accepting an omitted model value', async () => {
+    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
+    generateTextMock.mockImplementation(generateText)
+    const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
+      async () => mockGeneration('{"records":[{"grave_number":8}]}'),
+    )
+    const target: ExecutionTarget = {
+      ...generalTarget,
+      model: new MockLanguageModelV4({ doGenerate }),
+      jsonOutput: 'native',
+    }
+
+    const result = await extractWithModel({
+      document,
+      template: {
+        records: [{
+          grave_number: 'integer',
+          discovered_features: {
+            longhouses: 'string',
+            storage_houses: 'string',
+            hedge_lines: 'string',
+            time_span: 'string',
+          },
+        }],
+      },
+    }, target)
+
+    const responseFormat = schemaRecord(doGenerate.mock.calls[0][0]).responseFormat as {
+      schema?: JsonSchemaLike & { properties?: Record<string, JsonSchemaLike> }
+    } | undefined
+    expectEveryPropertyRequired(responseFormat?.schema)
+    const records = unwrapNullable(responseFormat?.schema?.properties?.records)
+    const record = records?.items as JsonSchemaLike & { properties?: Record<string, JsonSchemaLike> }
+    const discoveredFeatures = unwrapNullable(record.properties?.discovered_features)
+    expect(discoveredFeatures?.required).toContain('longhouses')
+    expect(result.result).toEqual({ records: [{ grave_number: 8 }] })
   })
 
   it('repairs and preserves partial native extraction results', async () => {

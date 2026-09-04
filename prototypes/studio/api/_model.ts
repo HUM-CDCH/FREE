@@ -1,9 +1,11 @@
 import {
   NoObjectGeneratedError,
   Output,
+  asSchema,
   convertToModelMessages,
   createUIMessageStreamResponse,
   generateText,
+  jsonSchema,
   streamText,
   toUIMessageStream,
   type UIMessage,
@@ -157,6 +159,32 @@ function deriveExtractionSchema(template: unknown): z.ZodType | undefined {
   }
 }
 
+function requireEveryJsonSchemaProperty(schema: unknown): void {
+  if (Array.isArray(schema)) {
+    schema.forEach(requireEveryJsonSchemaProperty)
+    return
+  }
+  if (!isRecord(schema)) return
+
+  if (isRecord(schema.properties)) schema.required = Object.keys(schema.properties)
+  Object.values(schema).forEach(requireEveryJsonSchemaProperty)
+}
+
+function structuredOutputSchema(schema: z.ZodType) {
+  return jsonSchema(async () => {
+    const converted = await asSchema(schema).jsonSchema
+    requireEveryJsonSchemaProperty(converted)
+    return converted
+  }, {
+    validate: (value) => {
+      const result = schema.safeParse(value)
+      return result.success
+        ? { success: true, value: result.data }
+        : { success: false, error: result.error }
+    },
+  })
+}
+
 export async function extractWithModel(
   { document, template, instruction, temperature, signal }: ExtractModelInput,
   target?: ExecutionTarget,
@@ -293,7 +321,7 @@ async function generateWithGenericJsonPrompt(
   // provider); it supersedes the native/prompt `Output.json()` split, which
   // only guarantees valid JSON syntax, not a specific field set.
   const structuredOutput = input.schema
-    ? Output.object({ schema: input.schema })
+    ? Output.object({ schema: structuredOutputSchema(input.schema) })
     : target.jsonOutput === 'native'
       ? Output.json()
       : undefined
