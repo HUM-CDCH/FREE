@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { CredentialActions, ModelConfig, ModelConnection, ProviderDescriptor, ProviderKind, RouteKey } from '../../shared/modelConfig.contract'
+import type { CredentialActions, JsonOutputCapability, ModelConfig, ModelConnection, ProviderDescriptor, ProviderKind, RouteKey } from '../../shared/modelConfig.contract'
 
 export type ConfigurationMode = 'single' | 'routes'
 type ProbeSchedule = (connection: ModelConnection, action: string | null | undefined) => void
@@ -16,6 +16,7 @@ export function configurationMode(config: ModelConfig): ConfigurationMode {
   if (extraction === null || interaction === null) return 'routes'
   return extraction.connectionId === interaction.connectionId &&
     extraction.modelId === interaction.modelId &&
+    (extraction.jsonOutput ?? 'auto') === (interaction.jsonOutput ?? 'auto') &&
     !('nuextractRaw' in extraction && extraction.nuextractRaw)
     ? 'single'
     : 'routes'
@@ -66,6 +67,9 @@ export function useProviderConfigDraft({ providers, scheduleProbe, disposeProbe 
       baseUrl: provider.transport === 'http' ? (provider.defaultBaseUrl ?? '') : null,
     }
     const routes = { ...draft.routes }
+    for (const key of ['extraction', 'interaction'] as const) {
+      if (routes[key]?.connectionId === connection.id) routes[key] = { ...routes[key]!, jsonOutput: undefined }
+    }
     const { extraction } = routes
     if (extraction?.connectionId === connection.id && !provider.supportsNuextractRaw) {
       routes.extraction = { connectionId: extraction.connectionId, modelId: extraction.modelId }
@@ -146,6 +150,15 @@ export function useProviderConfigDraft({ providers, scheduleProbe, disposeProbe 
     setDraft({ ...draft, routes: { ...draft.routes, [key]: { ...draft.routes[key], modelId } } })
   }
 
+  function setJsonOutput(key: RouteKey | 'single', jsonOutput: JsonOutputCapability): void {
+    if (!draft) return
+    const routes = { ...draft.routes }
+    for (const routeKey of key === 'single' ? ['extraction', 'interaction'] as const : [key]) {
+      if (routes[routeKey]) routes[routeKey] = { ...routes[routeKey]!, jsonOutput }
+    }
+    setDraft({ ...draft, routes })
+  }
+
   function setSingleConnection(connectionId: string): void {
     if (!draft) return
     if (!connectionId) {
@@ -159,9 +172,9 @@ export function useProviderConfigDraft({ providers, scheduleProbe, disposeProbe 
 
   function setSingleModel(modelId: string): void {
     if (!draft) return
-    const connectionId = draft.routes.extraction?.connectionId ?? draft.routes.interaction?.connectionId
-    if (!connectionId) return
-    const route = { connectionId, modelId }
+    const current = draft.routes.extraction ?? draft.routes.interaction
+    if (!current) return
+    const route = { connectionId: current.connectionId, modelId, jsonOutput: current.jsonOutput }
     setDraft({ ...draft, routes: { extraction: route, interaction: route } })
   }
 
@@ -174,7 +187,7 @@ export function useProviderConfigDraft({ providers, scheduleProbe, disposeProbe 
         ...draft.routes,
         extraction: enabled
           ? { ...extraction, nuextractRaw: true }
-          : { connectionId: extraction.connectionId, modelId: extraction.modelId },
+          : { connectionId: extraction.connectionId, modelId: extraction.modelId, jsonOutput: extraction.jsonOutput },
       },
     })
   }
@@ -195,6 +208,7 @@ export function useProviderConfigDraft({ providers, scheduleProbe, disposeProbe 
     removeConnection,
     setRoute,
     setRouteModel,
+    setJsonOutput,
     setSingleConnection,
     setSingleModel,
     setRawNuextract,

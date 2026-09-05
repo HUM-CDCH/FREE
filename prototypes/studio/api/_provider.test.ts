@@ -32,8 +32,8 @@ function routed(overrides: Partial<ModelConfig> = {}): ModelConfig {
   return {
     connections: [connection],
     routes: {
-      extraction: { connectionId: ID, modelId: 'manual/model' },
-      interaction: { connectionId: ID, modelId: 'manual/model' },
+      extraction: { connectionId: ID, modelId: 'manual/model', jsonOutput: 'prompt' },
+      interaction: { connectionId: ID, modelId: 'manual/model', jsonOutput: 'prompt' },
     },
     ...overrides,
   }
@@ -317,6 +317,20 @@ describe('probeConnection', () => {
 })
 
 describe('resolveCapabilityRoute', () => {
+  it.each(['extraction', 'schema-suggestion', 'chat', 'schema-edit'] as const)(
+    'keeps an existing route usable for %s without an output setting', async (operation) => {
+      const config = routed()
+      const key = operation === 'extraction' || operation === 'schema-suggestion' ? 'extraction' : 'interaction'
+      delete config.routes[key]!.jsonOutput
+      const createModel = vi.fn(() => ({}) as never)
+      await expect(resolveCapabilityRoute(operation, {}, {
+        config, credentialStore: presentCredentialStore,
+        modelFactories: { 'openai-compatible': createModel },
+      })).resolves.toMatchObject({ profile: 'general', jsonOutput: 'schema', automaticOutputKey: expect.any(String) })
+      expect(createModel).toHaveBeenCalledOnce()
+    },
+  )
+
   it('passes an arbitrary saved model ID to the exact selected factory', async () => {
     const createModel = vi.fn(() => ({}) as never)
     const target = await resolveCapabilityRoute('chat', {}, {
@@ -324,28 +338,43 @@ describe('resolveCapabilityRoute', () => {
       credentialStore: { state: async () => 'absent', get: async () => undefined, set: async () => {}, delete: async () => {} },
       modelFactories: { 'openai-compatible': createModel },
     })
-    expect(target.profile).toBe('general')
+    expect(target).toMatchObject({ profile: 'general', jsonOutput: 'prompt' })
     expect(createModel).toHaveBeenCalledWith(connection, 'manual/model', null)
   })
 
   it.each([
     ['ollama', 'http://127.0.0.1:11434', 'native', true],
     ['openai', 'https://api.openai.com/v1', 'native', true],
-    ['anthropic', 'https://api.anthropic.com/v1', 'prompt', true],
+    ['anthropic', 'https://api.anthropic.com/v1', 'schema', true],
     ['google', 'https://generativelanguage.googleapis.com/v1beta', 'native', true],
     ['codex-cli', null, 'native', false],
-    ['claude-code', null, 'prompt', false],
+    ['claude-code', null, 'schema', false],
     ['openai-compatible', 'https://gateway.example/v1', 'prompt', true],
   ] as const)('constructs the exact %s general target', async (provider, baseUrl, jsonOutput, temperatureSupported) => {
     const selected = { ...connection, provider, baseUrl }
+    const config = routed({ connections: [selected] })
+    config.routes.extraction!.jsonOutput = jsonOutput
     const target = await resolveCapabilityRoute('extraction', {}, {
-      config: routed({ connections: [selected] }),
+      config,
       credentialStore: presentCredentialStore,
     })
     expect(target).toMatchObject({ profile: 'general', jsonOutput, temperatureSupported })
+    delete config.routes.extraction!.jsonOutput
+    expect(await resolveCapabilityRoute('extraction', {}, { config, credentialStore: presentCredentialStore }))
+      .toMatchObject({ jsonOutput: provider === 'openai-compatible' ? 'schema' : jsonOutput, automaticOutputKey: expect.any(String) })
     if (target.profile === 'general') {
       expect(target.model).toMatchObject({ modelId: 'manual/model' })
     }
+  })
+
+  it('uses independent output capabilities for routes sharing one provider and model', async () => {
+    const config = routed()
+    config.routes.extraction!.jsonOutput = 'schema'
+    config.routes.interaction!.jsonOutput = 'prompt'
+    const dependencies = { config, credentialStore: presentCredentialStore }
+    expect(await resolveCapabilityRoute('extraction', {}, dependencies)).toMatchObject({ jsonOutput: 'schema' })
+    expect(await resolveCapabilityRoute('schema-suggestion', {}, dependencies)).toMatchObject({ jsonOutput: 'schema' })
+    expect(await resolveCapabilityRoute('schema-edit', {}, dependencies)).toMatchObject({ jsonOutput: 'prompt' })
   })
 
   it('keeps native OpenAI Responses distinct from compatible Chat Completions', async () => {
@@ -435,8 +464,8 @@ describe('resolveCapabilityRoute', () => {
           { ...connection, id: interactionId, provider: 'openai', baseUrl: 'https://api.openai.com/v1' },
         ],
         routes: {
-          extraction: { connectionId: ID, modelId: 'extract-model' },
-          interaction: { connectionId: interactionId, modelId: 'interaction-model' },
+          extraction: { connectionId: ID, modelId: 'extract-model', jsonOutput: 'schema' },
+          interaction: { connectionId: interactionId, modelId: 'interaction-model', jsonOutput: 'native' },
         },
       },
       credentialStore: presentCredentialStore,

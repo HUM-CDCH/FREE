@@ -43,6 +43,7 @@ function ProviderConfigPage({
     removeConnection,
     setRoute,
     setRouteModel,
+    setJsonOutput,
     setSingleConnection,
     setSingleModel,
     setRawNuextract,
@@ -113,7 +114,7 @@ function ProviderConfigPage({
   }
 
   return (
-    <div className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-line bg-surface-muted shadow-page">
+    <fieldset disabled={applying} className="mx-auto min-w-0 max-w-4xl overflow-hidden rounded-2xl border border-line bg-surface-muted shadow-page">
       <header className="flex items-center justify-between gap-3 border-b border-line bg-surface px-4 py-2.75">
         <b className="text-[13px] text-ink">Model Connections</b>
         <div className="flex items-center gap-3">
@@ -147,6 +148,7 @@ function ProviderConfigPage({
           onModelListOpen={openModelList}
           setRoute={setRoute}
           setRouteModel={setRouteModel}
+          setJsonOutput={setJsonOutput}
           setSingleConnection={setSingleConnection}
           setSingleModel={setSingleModel}
           setRawNuextract={setRawNuextract}
@@ -191,7 +193,7 @@ function ProviderConfigPage({
           <Button variant="primary" size="md" disabled={applying} onClick={() => void apply()}>{applying ? 'Applying…' : 'Apply'}</Button>
         </div>
       </section>
-    </div>
+    </fieldset>
   )
 }
 

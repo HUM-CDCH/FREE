@@ -10,7 +10,9 @@ import { StatusPill } from './BatchExtractionScreens'
 import {
   projectedRecords,
   useBatchExtractionReviewGrid,
-  valueAtColumn,
+  valuesAtColumn,
+  decisionMatchesColumn,
+  pendingReviewCount,
   type GridColumn,
   type MemberReviewState,
 } from '../useBatchExtractionReviewGrid'
@@ -70,7 +72,7 @@ function useGridZoom(containerRef: React.RefObject<HTMLDivElement | null>) {
     document.addEventListener(
       'keydown',
       (event) => {
-        if (isEditableTarget(event.target)) return
+        if (event.ctrlKey || event.metaKey || event.altKey || isEditableTarget(event.target)) return
         const key = event.key
         if (key === '+' || key === '=' || key === 'Add') {
           event.preventDefault()
@@ -227,7 +229,7 @@ function qualityTone(share: number): 'success' | 'accent' | 'danger' {
   return 'danger'
 }
 
-/** A compact "N% no changes needed" quality signal for one document's Extraction. */
+/** Finalized review outcomes only; pending defaults are not researcher approvals. */
 function QualityScoreBadge({ decisions }: { decisions: readonly ReviewDecisionInput[] }) {
   const share = unchangedShare(decisions)
   if (share === null) return null
@@ -235,9 +237,9 @@ function QualityScoreBadge({ decisions }: { decisions: readonly ReviewDecisionIn
   return (
     <span
       className={`text-[10.5px] font-semibold ${qualityToneClass[qualityTone(share)]}`}
-      title={`${percent}% of fields needed no changes from the researcher`}
+      title={`${percent}% of reviewed fields were approved unchanged`}
     >
-      {percent}% no changes needed
+      {percent}% approved unchanged
     </span>
   )
 }
@@ -253,7 +255,6 @@ function decisionLabelAndTone(
 /** One field of one record, either a plain value or an Approve/Reject/Edit cell. */
 function GridCell({
   value,
-  column,
   decision,
   touched,
   editable,
@@ -268,7 +269,6 @@ function GridCell({
   onRevert,
 }: {
   value: unknown
-  column: GridColumn
   decision: ReviewDecisionInput | undefined
   /** Whether the researcher has explicitly acted on this field — an
    *  untouched field is showing its unreviewed 'APPROVED' default. */
@@ -286,11 +286,6 @@ function GridCell({
 }) {
   const [draftError, setDraftError] = useState<string | null>(null)
 
-  if (column.editableKind === 'scalar-array') {
-    const text = Array.isArray(value) && value.length > 0 ? value.map(String).join(', ') : '—'
-    return <td className="max-w-[16rem] truncate px-3 py-2 text-ink-faint">{text}</td>
-  }
-
   const { text, missing } = formatScalarValue(value)
   const interactive = editable && Boolean(decision)
   const { label, tone } = decision
@@ -299,21 +294,22 @@ function GridCell({
 
   if (!interactive)
     return (
-      <td className="max-w-[16rem] px-3 py-2">
+      <div className="max-w-[16rem] px-3 py-2">
         <div className="flex items-center gap-1.5">
           <StatusDot decision={decision} touched={touched} label={label} tone={tone} />
           <span className={`min-w-0 flex-1 truncate ${missing ? 'text-ink-faint italic' : 'text-ink'}`}>
             {text}
           </span>
         </div>
-      </td>
+      </div>
     )
 
   if (editing)
     return (
-      <td className="max-w-[16rem] bg-surface px-2 py-1.5">
+      <div className="max-w-[16rem] bg-surface px-2 py-1.5">
         <input
           autoFocus
+          aria-label="Edit review value"
           className="w-full rounded-xs border border-accent bg-surface px-1.5 py-1 text-xs text-ink outline-none"
           defaultValue={String(value ?? '')}
           onChange={() => setDraftError(null)}
@@ -332,11 +328,11 @@ function GridCell({
           }}
         />
         {draftError && <p className="mt-1 text-[10.5px] text-danger">{draftError}</p>}
-      </td>
+      </div>
     )
 
   return (
-    <td className="max-w-[16rem] px-3 py-2">
+    <div className="max-w-[16rem] px-3 py-2">
       <button
         type="button"
         className="flex w-full items-center gap-1.5 truncate text-left outline-none"
@@ -363,7 +359,7 @@ function GridCell({
           )}
         </div>
       )}
-    </td>
+    </div>
   )
 }
 
@@ -388,6 +384,22 @@ export default function BatchExtractionReviewGrid({
   const [activeCell, setActiveCell] = useState<string | null>(null)
   const [editingCell, setEditingCell] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'needs-review'>('all')
+  useEffect(() => {
+    setActiveCell(null)
+    setEditingCell(null)
+  }, [batch.batchExtractionId])
+  useEffect(() => {
+    const isCurrent = (cell: string | null) => cell === null || [...grid.members.values()].some(
+      (state) => state.status === 'ready' && cell.startsWith(state.attempt.extractionId + '#'),
+    )
+    setActiveCell((cell) => isCurrent(cell) ? cell : null)
+    setEditingCell((cell) => isCurrent(cell) ? cell : null)
+  }, [grid.members])
+  useEffect(() => {
+    if (editingCell !== null) return
+    for (const [id, state] of grid.members)
+      if (state.status === 'ready' && !state.saveError) void grid.saveMember(id)
+  })
   const progress = batchExtractionProgress(batch)
   const allRows = buildRows(batch, grid.members)
   const rows =
@@ -410,9 +422,7 @@ export default function BatchExtractionReviewGrid({
       if (state.status !== 'ready' || !state.editable) continue
       for (const decision of state.decisions) {
         if (
-          decision.resultPath[0] === 'records' &&
-          decision.resultPath.length === column.path.length + 2 &&
-          column.path.every((segment, index) => decision.resultPath[index + 2] === segment) &&
+            decisionMatchesColumn(decision.resultPath, column) &&
           !state.touched.has(resultPathKey(decision.resultPath))
         )
           count += 1
@@ -446,16 +456,6 @@ export default function BatchExtractionReviewGrid({
     ).length
   }
 
-  /** Untouched (still-pending) decisions across every record of one member —
-   *  once this reaches zero, "Needs review" no longer describes it, even
-   *  before the review is saved. */
-  function memberPendingCount(state: MemberReviewState): number {
-    if (state.status !== 'ready') return 0
-    return state.decisions.filter(
-      (decision) => !state.touched.has(resultPathKey(decision.resultPath)),
-    ).length
-  }
-
   /** Whether "Needs review" still accurately describes this member — false
    *  once every field's been approved locally (Approve all/row/column), even
    *  before saving, so the header count, the filter tab, and the per-row
@@ -463,7 +463,7 @@ export default function BatchExtractionReviewGrid({
   function needsReviewLocally(member: BatchExtraction['members'][number]): boolean {
     if (memberStatus(member).label !== 'Needs review') return false
     const state = grid.members.get(member.sourceDocumentId)
-    return !(state?.status === 'ready' && state.editable && memberPendingCount(state) === 0)
+    return !(state?.status === 'ready' && state.editable && pendingReviewCount(state) === 0)
   }
 
   const needsReviewCount = batch.members.filter(needsReviewLocally).length
@@ -525,7 +525,7 @@ export default function BatchExtractionReviewGrid({
             <button
               type="button"
               aria-label="Zoom out"
-              title="Zoom out (Ctrl + -)"
+              title="Zoom out (-)"
               disabled={zoom.percent <= ZOOM_MIN}
               onClick={zoom.zoomOut}
               className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
@@ -545,7 +545,7 @@ export default function BatchExtractionReviewGrid({
             <button
               type="button"
               aria-label="Zoom in"
-              title="Zoom in (Ctrl + +)"
+              title="Zoom in (+)"
               disabled={zoom.percent >= ZOOM_MAX}
               onClick={zoom.zoomIn}
               className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
@@ -553,25 +553,20 @@ export default function BatchExtractionReviewGrid({
               +
             </button>
           </div>
-          <Button size="sm" variant="secondary" onClick={grid.approveAll}>
-            Approve all
+          <Button size="sm" variant="secondary" disabled={savingAny || editingCell !== null} onClick={grid.approveAll}>
+            Approve remaining
           </Button>
           <Button
             size="sm"
             variant="secondary"
-            disabled={grid.dirtyCount === 0}
+            disabled={grid.dirtyCount === 0 || savingAny || editingCell !== null}
             onClick={grid.revertAll}
           >
             Revert all
           </Button>
-          <Button
-            size="sm"
-            variant="primary"
-            disabled={grid.dirtyCount === 0 || savingAny}
-            onClick={() => void grid.saveAll()}
-          >
-            {savingAny ? 'Saving…' : `Save all reviews${grid.dirtyCount ? ` (${grid.dirtyCount})` : ''}`}
-          </Button>
+          <span role="status" className="text-[11px] text-ink-muted">
+            {savingAny ? 'Saving…' : 'Completed reviews save automatically'}
+          </span>
         </div>
       </div>
 
@@ -635,7 +630,7 @@ export default function BatchExtractionReviewGrid({
                       </span>
                       <ApproveAllBadge
                         label={`Approve ${columnPendingCount(column)} pending in ${column.node.name}`}
-                        pendingCount={columnPendingCount(column)}
+                        pendingCount={savingAny || editingCell !== null ? 0 : columnPendingCount(column)}
                         onClick={() => grid.approveColumn(column)}
                       />
                     </div>
@@ -684,7 +679,7 @@ export default function BatchExtractionReviewGrid({
                           {titleContent}
                         </p>
                       )}
-                      {state?.status === 'ready' && state.editable && (
+                      {state?.status === 'ready' && state.editable && !state.saving && editingCell === null && (
                         <>
                           <ApproveAllBadge
                             label={`Approve ${pendingInRow} pending in this row`}
@@ -704,14 +699,24 @@ export default function BatchExtractionReviewGrid({
                         {(status.label !== 'Needs review' || needsReviewLocally(member)) && (
                           <StatusPill tone={status.tone} label={status.label} />
                         )}
-                        {state?.status === 'ready' && (
+                        {state?.status === 'ready' && state.attempt.reviewedAt && (
                           <QualityScoreBadge decisions={state.decisions} />
+                        )}
+                        {state?.status === 'ready' && (
+                          <span role="status" className="text-[10.5px] text-ink-muted">
+                            {state.saving ? 'Saving…' : state.attempt.reviewedAt ? 'Review saved'
+                              : state.saveError ? 'Review not saved'
+                              : state.touched.size > 0 ? 'Draft' : ''}
+                          </span>
                         )}
                       </div>
                     )}
                     {state?.status === 'ready' && state.saveError && (
                       <p className="mt-1 text-[10.5px] text-danger" role="alert">
                         {state.saveError}
+                        {' '}<button type="button" className="font-semibold underline"
+                          disabled={state.saving || editingCell !== null || pendingReviewCount(state) > 0}
+                          onClick={() => void grid.saveMember(row.sourceDocumentId)}>Retry</button>
                       </p>
                     )}
                   </td>
@@ -761,48 +766,44 @@ export default function BatchExtractionReviewGrid({
                   <tr key={`${row.sourceDocumentId}-${row.recordIndex}`} className="group">
                     {nameCell}
                     {grid.columns.map((column) => {
-                      const resultPath = ['records', row.recordIndex, ...column.path]
-                      const key = resultPathKey(resultPath)
-                      const cellKey = `${row.sourceDocumentId}#${key}`
-                      const decision = state.decisions.find(
-                        (candidate) => resultPathKey(candidate.resultPath) === key,
-                      )
-                      return (
-                        <GridCell
-                          key={column.key}
-                          value={valueAtColumn(record, column)}
-                          column={column}
-                          decision={decision}
-                          touched={state.touched.has(key)}
-                          editable={state.editable}
-                          active={activeCell === cellKey}
-                          editing={editingCell === cellKey}
-                          onActivate={() => setActiveCell(cellKey)}
-                          onClose={() => {
-                            setActiveCell(null)
-                            setEditingCell(null)
-                          }}
-                          onApprove={() => {
-                            grid.setDecision(row.sourceDocumentId, resultPath, 'APPROVED')
-                            setActiveCell(null)
-                          }}
-                          onReject={() => {
-                            grid.setDecision(row.sourceDocumentId, resultPath, 'REJECTED')
-                            setActiveCell(null)
-                          }}
-                          onStartEdit={() => setEditingCell(cellKey)}
-                          onCommitEdit={(raw) => {
-                            const parsed = parseReviewedValue(column.node, raw)
-                            if (parsed.error) return parsed.error
-                            grid.setDecision(row.sourceDocumentId, resultPath, 'EDITED', parsed.value)
-                            return null
-                          }}
-                          onRevert={() => {
-                            grid.revertDecision(row.sourceDocumentId, resultPath)
-                            setActiveCell(null)
-                          }}
-                        />
-                      )
+                      const values = valuesAtColumn(record, column)
+                      const scalarNode: SchemaNode = column.node.type === 'array' && column.node.itemType
+                        ? { id: column.node.id, name: column.node.name, type: column.node.itemType }
+                        : column.node
+                      return <td key={column.key} className="max-w-[16rem] align-top">
+                        {values.length === 0 && <span className="px-3 py-2 text-ink-faint">Empty</span>}
+                        {values.map(({ path, value }) => {
+                          const resultPath = ['records', row.recordIndex, ...path]
+                          const key = resultPathKey(resultPath)
+                          const cellKey = state.attempt.extractionId + '#' + key
+                          const decision = state.decisions.find((candidate) => resultPathKey(candidate.resultPath) === key)
+                          const indexes = path.filter((segment): segment is number => typeof segment === 'number')
+                          const label = column.node.name + (indexes.length ? ' · Item ' + indexes.map((index) => index + 1).join('.') : '')
+                          return <div key={key} role="group" aria-label={label}>
+                            {indexes.length > 0 && <p className="px-3 pt-2 text-[10px] text-ink-muted">{label}</p>}
+                            <GridCell
+                              value={value}
+                              decision={decision}
+                              touched={state.touched.has(key)}
+                              editable={state.editable && !state.saving}
+                              active={activeCell === cellKey}
+                              editing={editingCell === cellKey}
+                              onActivate={() => setActiveCell(cellKey)}
+                              onClose={() => { setActiveCell(null); setEditingCell(null) }}
+                              onApprove={() => { grid.setDecision(row.sourceDocumentId, resultPath, 'APPROVED'); setActiveCell(null) }}
+                              onReject={() => { grid.setDecision(row.sourceDocumentId, resultPath, 'REJECTED'); setActiveCell(null) }}
+                              onStartEdit={() => setEditingCell(cellKey)}
+                              onCommitEdit={(raw) => {
+                                const parsed = parseReviewedValue(scalarNode, raw)
+                                if (parsed.error) return parsed.error
+                                grid.setDecision(row.sourceDocumentId, resultPath, 'EDITED', parsed.value)
+                                return null
+                              }}
+                              onRevert={() => { grid.revertDecision(row.sourceDocumentId, resultPath); setActiveCell(null) }}
+                            />
+                          </div>
+                        })}
+                      </td>
                     })}
                   </tr>
                 )

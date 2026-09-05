@@ -59,7 +59,7 @@ export function parseReviewedValue(
       return { value: raw, error: 'Choose true or false.' }
     case 'integer': {
       const value = Number(raw)
-      return Number.isInteger(value)
+      return Number.isInteger(value) && raw.trim() !== ''
         ? { value, error: null }
         : { value: raw, error: 'Enter a whole number.' }
     }

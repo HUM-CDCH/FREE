@@ -38,7 +38,7 @@ function liveOllamaTarget(): GeneralExecutionTarget {
       LIVE_OLLAMA_MODEL,
       null,
     ),
-    jsonOutput: ollama.jsonOutput,
+    jsonOutput: 'native',
     temperatureSupported: ollama.temperatureSupported,
   }
 }
@@ -188,7 +188,7 @@ describe.skipIf(!CAPTURE_LIVE)('extended live captured-document Extraction E2E',
         provider: 'codex-cli',
         baseUrl: null,
       }, 'gpt-5.6-luna'),
-      jsonOutput: codex.jsonOutput,
+      jsonOutput: 'schema',
       temperatureSupported: codex.temperatureSupported,
     }
     const startedAt = Date.now()

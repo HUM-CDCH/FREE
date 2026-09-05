@@ -1,13 +1,18 @@
 // @vitest-environment jsdom
 
-import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   projectedRecords,
+  valuesAtColumn,
+  decisionMatchesColumn,
   useBatchExtractionReviewGrid,
 } from './useBatchExtractionReviewGrid'
 import { resultPathKey } from './reviewDecisions'
 import * as api from './api'
+import Grid from './projectContexts/BatchExtractionReviewGrid'
+import ResultsTab from './ResultsTab'
+import { useExtraction } from './useExtraction'
 import type { BatchExtraction } from '../shared/batchExtraction.contract'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 
@@ -120,6 +125,8 @@ beforeEach(() => {
   })
   vi.mocked(api.finalizeExtractionReview).mockReset()
 })
+
+afterEach(cleanup)
 
 describe('useBatchExtractionReviewGrid', () => {
   it('derives grid columns from the pinned schema, excluding grouped/internal fields', () => {
@@ -234,7 +241,12 @@ describe('useBatchExtractionReviewGrid', () => {
     })
     expect(result.current.dirtyCount).toBe(2)
 
-    await act(() => result.current.saveAll())
+    await act(async () => {
+      await Promise.all([
+        result.current.saveMember(reviewableDocumentId),
+        result.current.saveMember(secondDocumentId),
+      ])
+    })
 
     const failedState = result.current.members.get(reviewableDocumentId)
     if (failedState?.status !== 'ready') throw new Error('expected ready state')
@@ -370,7 +382,7 @@ describe('useBatchExtractionReviewGrid', () => {
       }),
     })
     await act(async () => {})
-    await act(() => result.current.saveAll())
+    await act(() => result.current.saveMember(reviewableDocumentId))
 
     expect(result.current.members.has(reviewableDocumentId)).toBe(false)
     expect(result.current.dirtyCount).toBe(0)
@@ -556,4 +568,230 @@ describe('projectedRecords', () => {
       { title: 'Corrected', year: 2021 },
     ])
   })
+})
+
+it.each(['grid', 'document'] as const)('automatically saves a complete %s review and retains failed drafts for retry', async (view) => {
+  const original = attempt()
+  const saving = Promise.withResolvers<ExtractionAttempt>()
+  vi.mocked(api.finalizeExtractionReview).mockReturnValueOnce(saving.promise)
+  vi.mocked(api.finalizeExtractionReview).mockImplementation(async (id, decisions) => attempt({
+    extractionId: id, reviewedAt: '2026-09-05T00:00:00Z',
+    reviewDecisions: decisions.map((decision) => ({ ...decision, createdAt: '2026-09-05T00:00:00Z' })),
+  }))
+  function DocumentReview() {
+    const controller = useExtraction({
+      initialAttempt: original, schemaReady: true, indexing: false,
+      reviewTarget: { sourceRepresentationId: original.sourceRepresentationRevisionId, schemaRevisionId: original.schemaRevisionId },
+      onTerminal: () => {}, onError: () => {},
+    })
+    return <ResultsTab controller={controller} onRunExtraction={async () => {}} runExtractionDisabled={false}
+      schemaReady pinnedSchema={{ recordDescription: 'Source', schemaNodes }} documentMarkdown="Grounded" sourceDocumentName="Source" />
+  }
+  const scene = view === 'grid'
+    ? <Grid batch={batch()} schemaNodes={schemaNodes} documentName={() => 'Source'} onBack={() => {}} onOpenMember={() => {}} />
+    : <DocumentReview />
+  const { rerender } = render(scene)
+  await screen.findByText('Grounded')
+  expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
+  if (view === 'grid') fireEvent.click(screen.getByRole('button', { name: 'Grounded' }))
+  fireEvent.click(await screen.findByRole('button', { name: view === 'grid' ? 'Edit' : 'Edit title' }))
+  const editor = screen.getByRole('textbox')
+  fireEvent.change(editor, { target: { value: 'Corrected' } })
+  expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
+  expect(screen.queryByRole('button', { name: /Save/ })).toBeNull()
+  fireEvent.blur(editor)
+  await waitFor(() => expect(api.finalizeExtractionReview).toHaveBeenCalledTimes(1))
+  expect(api.finalizeExtractionReview).toHaveBeenLastCalledWith(extractionId, [{ ...pendingDecisions[0], action: 'EDITED', reviewedValue: 'Corrected' }])
+  expect(screen.getByRole('button', { name: /Approve remaining/ }).hasAttribute('disabled')).toBe(true)
+  await act(async () => saving.reject(new Error('Offline')))
+  await screen.findByText('Review not saved')
+  rerender(scene)
+  expect(api.finalizeExtractionReview).toHaveBeenCalledTimes(1)
+  expect(screen.getByText('Corrected')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+  expect(await screen.findByText('Review saved')).toBeTruthy()
+  expect(api.finalizeExtractionReview).toHaveBeenCalledTimes(2)
+})
+
+it('preserves an unsaved review when another member completes', async () => {
+  const initial = batch()
+  const { result, rerender } = renderHook(({ current }) => useBatchExtractionReviewGrid(current, schemaNodes), {
+    initialProps: { current: initial },
+  })
+  await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
+  act(() => result.current.setDecision(reviewableDocumentId, pendingDecisions[0].resultPath, 'EDITED', 'Corrected'))
+  expect(result.current.dirtyCount).toBe(1)
+  const next = structuredClone(initial)
+  next.members[1].latestExtraction!.outcome = 'SUCCEEDED'
+  rerender({ current: next })
+  await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
+  const state = result.current.members.get(reviewableDocumentId)
+  expect(state?.status === 'ready' && state.decisions[0].reviewedValue).toBe('Corrected')
+  expect(result.current.dirtyCount).toBe(1)
+})
+
+it('renders existing nested array values instead of presenting them as missing', async () => {
+  vi.mocked(api.readExtraction).mockResolvedValue({
+    extraction: attempt({ resultPayload: { records: [{ finds: [{ material: 'Bronze' }] }] } }),
+    pendingReviewDecisions: [{ ...pendingDecisions[0], resultPath: ['records', 0, 'finds', 0, 'material'] }],
+  })
+  render(<Grid batch={batch()} schemaNodes={[{ id: 'finds', name: 'finds', type: 'array', children: [{ id: 'material', name: 'material', type: 'string' }] }]}
+    documentName={() => 'Source'} onBack={() => {}} onOpenMember={() => {}} />)
+  await waitFor(() => expect(screen.queryByText('Loading…')).toBeNull())
+  expect(screen.queryByText('Bronze')).not.toBeNull()
+})
+
+it('does not claim an unreviewed extraction needed no changes', async () => {
+  render(<Grid batch={batch()} schemaNodes={schemaNodes} documentName={() => 'Source'} onBack={() => {}} onOpenMember={() => {}} />)
+  await waitFor(() => expect(screen.queryByText('Loading…')).toBeNull())
+  expect(screen.queryByText(/approved unchanged/)).toBeNull()
+})
+
+it('does not save a reverted field as approved while another field stays edited', async () => {
+  const decisions = [...pendingDecisions, { ...pendingDecisions[0], resultPath: ['records', 0, 'year'] }]
+  vi.mocked(api.readExtraction).mockResolvedValue({ extraction: attempt(), pendingReviewDecisions: decisions })
+  vi.mocked(api.finalizeExtractionReview).mockResolvedValue(attempt())
+  const { result } = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
+  await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
+  act(() => result.current.setDecision(reviewableDocumentId, decisions[0].resultPath, 'EDITED', 'Corrected'))
+  act(() => result.current.setDecision(reviewableDocumentId, decisions[1].resultPath, 'REJECTED'))
+  act(() => result.current.revertDecision(reviewableDocumentId, decisions[1].resultPath))
+  await act(() => result.current.saveMember(reviewableDocumentId))
+  expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
+})
+
+it('locks edits, bulk changes, reversions and duplicate saves until the request settles', async () => {
+  const saving = Promise.withResolvers<ExtractionAttempt>()
+  vi.mocked(api.finalizeExtractionReview).mockReturnValue(saving.promise)
+  const { result } = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
+  await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
+  let save!: Promise<void>
+  act(() => {
+    result.current.setDecision(reviewableDocumentId, pendingDecisions[0].resultPath, 'EDITED', 'First')
+    save = result.current.saveMember(reviewableDocumentId)
+    void result.current.saveMember(reviewableDocumentId)
+    result.current.setDecision(reviewableDocumentId, pendingDecisions[0].resultPath, 'EDITED', 'Second')
+    result.current.revertAll()
+    result.current.approveAll()
+    result.current.revertRow(reviewableDocumentId, 0)
+  })
+  expect(api.finalizeExtractionReview).toHaveBeenCalledTimes(1)
+  let state = result.current.members.get(reviewableDocumentId)
+  expect(state?.status === 'ready' && state.decisions[0].reviewedValue).toBe('First')
+  await act(async () => { saving.reject(new Error('Offline')); await save })
+  state = result.current.members.get(reviewableDocumentId)
+  expect(state?.status === 'ready' && !state.saving && state.decisions[0].reviewedValue).toBe('First')
+  expect(state?.status === 'ready' && state.saveError).toBe('Offline')
+  act(() => result.current.setDecision(reviewableDocumentId, pendingDecisions[0].resultPath, 'EDITED', 'Retry edit'))
+  state = result.current.members.get(reviewableDocumentId)
+  expect(state?.status === 'ready' && state.decisions[0].reviewedValue).toBe('Retry edit')
+})
+
+it('ignores a save response after the member extraction changes', async () => {
+  const saving = Promise.withResolvers<ExtractionAttempt>()
+  vi.mocked(api.finalizeExtractionReview).mockReturnValue(saving.promise)
+  vi.mocked(api.readExtraction).mockImplementation(async (id) => ({ extraction: attempt({ extractionId: id }), pendingReviewDecisions: pendingDecisions }))
+  const { result, rerender } = renderHook(({ current }) => useBatchExtractionReviewGrid(current, schemaNodes), { initialProps: { current: batch() } })
+  await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
+  let save!: Promise<void>
+  act(() => { result.current.approveAll(); save = result.current.saveMember(reviewableDocumentId) })
+  const next = batch()
+  next.members[0].latestExtraction!.extractionId = 'new-extraction'
+  rerender({ current: next })
+  await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
+  await act(async () => { saving.resolve(attempt({ reviewedAt: '2026-09-04T00:00:00Z' })); await save })
+  const state = result.current.members.get(reviewableDocumentId)
+  expect(state?.status === 'ready' && state.attempt.extractionId).toBe('new-extraction')
+  expect(state?.status === 'ready' && state.editable).toBe(true)
+})
+
+it('preserves browser shortcuts and handles unmodified grid shortcuts', async () => {
+  render(<Grid batch={batch()} schemaNodes={schemaNodes} documentName={() => 'Source'} onBack={() => {}} onOpenMember={() => {}} />)
+  for (const modifier of ['ctrlKey', 'metaKey', 'altKey']) {
+    for (const key of ['+', '-', '0']) {
+      const event = new KeyboardEvent('keydown', { key, [modifier]: true, cancelable: true, bubbles: true })
+      act(() => { document.dispatchEvent(event) })
+      expect(event.defaultPrevented).toBe(false)
+    }
+  }
+  const event = new KeyboardEvent('keydown', { key: '+', cancelable: true, bubbles: true })
+  act(() => { document.dispatchEvent(event) })
+  expect(event.defaultPrevented).toBe(true)
+  expect(screen.getByRole('button', { name: 'Fit columns to screen width' }).textContent).toBe('110%')
+})
+
+it('expands nested and scalar arrays without losing numeric field names or joining sibling arrays', () => {
+  const column = { key: 'finds.material', path: ['finds', 'material'], node: schemaNodes[0] }
+  expect(valuesAtColumn({ finds: [{ material: ['Bronze', 'Iron'] }, { material: ['Gold'] }] }, column)).toEqual([
+    { path: ['finds', 0, 'material', 0], value: 'Bronze' },
+    { path: ['finds', 0, 'material', 1], value: 'Iron' },
+    { path: ['finds', 1, 'material', 0], value: 'Gold' },
+  ])
+  expect(valuesAtColumn({ finds: [] }, column)).toEqual([])
+  expect(valuesAtColumn({ finds: null }, column)).toEqual([{ path: ['finds', 'material'], value: undefined }])
+  expect(decisionMatchesColumn(['records', 0, 'finds', 1, 'material', 0], column)).toBe(true)
+  expect(decisionMatchesColumn(['records', 0, 'finds', 1, 'other'], column)).toBe(false)
+  expect(valuesAtColumn({ '0': 'Zero' }, { ...column, path: ['0'] })).toEqual([{ path: ['0'], value: 'Zero' }])
+})
+
+it('reviews indexed scalar array values and excludes open editors from saving', async () => {
+  const decisions = [0, 1].map((index) => ({ ...pendingDecisions[0], resultPath: ['records', 0, 'years', index] }))
+  vi.mocked(api.finalizeExtractionReview).mockImplementation(async (id, submitted) => attempt({
+    extractionId: id, reviewedAt: '2026-09-04T00:00:00Z',
+    reviewDecisions: submitted.map((decision) => ({ ...decision, createdAt: '2026-09-04T00:00:00Z' })),
+  }))
+  vi.mocked(api.readExtraction).mockResolvedValue({ extraction: attempt({ resultPayload: { records: [{ years: [2000, 2001] }] } }), pendingReviewDecisions: decisions })
+  render(<Grid batch={batch()} schemaNodes={[{ id: 'years', name: 'years', type: 'array', itemType: 'integer' }]} documentName={() => 'Source'} onBack={() => {}} onOpenMember={() => {}} />)
+  await screen.findByText('2001')
+  const item = within(screen.getByRole('group', { name: 'years · Item 2' }))
+  fireEvent.click(item.getByRole('button', { name: '2001' }))
+  fireEvent.click(item.getByRole('button', { name: 'Edit' }))
+  expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
+  fireEvent.change(item.getByRole('textbox'), { target: { value: '2002' } })
+  fireEvent.keyDown(item.getByRole('textbox'), { key: 'Enter' })
+  expect(item.getByText('2002')).toBeTruthy()
+  expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Approve remaining' }))
+  expect(api.finalizeExtractionReview).toHaveBeenCalledWith(extractionId, [decisions[0], { ...decisions[1], action: 'EDITED', reviewedValue: 2002 }])
+  expect(await screen.findByText('50% approved unchanged')).toBeTruthy()
+})
+
+it('autosaves only complete documents and preserves partially reviewed drafts', async () => {
+  const otherId = '51000000-0000-4000-8006-000000000002'
+  const decisions = [...pendingDecisions, { ...pendingDecisions[0], resultPath: ['records', 0, 'year'] }]
+  const current = batch()
+  current.members[1].latestExtraction!.outcome = 'SUCCEEDED'
+  vi.mocked(api.readExtraction).mockImplementation(async (id) => ({
+    extraction: attempt({ extractionId: id }), pendingReviewDecisions: decisions,
+  }))
+  vi.mocked(api.finalizeExtractionReview).mockImplementation(async (id, submitted) => attempt({
+    extractionId: id, reviewedAt: '2026-09-04T00:00:00Z',
+    reviewDecisions: submitted.map((decision) => ({ ...decision, createdAt: '2026-09-04T00:00:00Z' })),
+  }))
+  render(<Grid batch={current} schemaNodes={schemaNodes}
+    documentName={(id) => id === reviewableDocumentId ? 'Document A' : 'Document B'} onBack={() => {}} onOpenMember={() => {}} />)
+  await waitFor(() => expect(screen.getAllByRole('button', { name: 'Grounded' })).toHaveLength(2))
+  const firstRow = within(screen.getByRole('row', { name: /Document A/ }))
+  fireEvent.click(firstRow.getByRole('button', { name: 'Grounded' }))
+  fireEvent.click(firstRow.getByRole('button', { name: 'Edit' }))
+  fireEvent.change(firstRow.getByRole('textbox'), { target: { value: 'Draft title' } })
+  fireEvent.keyDown(firstRow.getByRole('textbox'), { key: 'Enter' })
+  expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
+  fireEvent.click(within(screen.getByRole('row', { name: /Document B/ })).getByRole('button', { name: 'Approve 2 pending in this row' }))
+  await screen.findByText('Review saved')
+  expect(api.finalizeExtractionReview).toHaveBeenCalledExactlyOnceWith(otherId, decisions)
+  expect(firstRow.getByText('Draft title')).toBeTruthy()
+  expect(firstRow.getByText('Draft')).toBeTruthy()
+})
+
+it('shows unchanged percentages only from finalized decisions', async () => {
+  const reviewedAt = '2026-09-04T00:00:00Z'
+  vi.mocked(api.readExtraction).mockResolvedValue({
+    extraction: attempt({ reviewedAt, reviewDecisions: [
+      { ...pendingDecisions[0], createdAt: reviewedAt },
+      { ...pendingDecisions[0], resultPath: ['records', 0, 'year'], action: 'REJECTED', createdAt: reviewedAt },
+    ] }), pendingReviewDecisions: [],
+  })
+  render(<Grid batch={batch()} schemaNodes={schemaNodes} documentName={() => 'Source'} onBack={() => {}} onOpenMember={() => {}} />)
+  expect(await screen.findByText('50% approved unchanged')).toBeTruthy()
 })

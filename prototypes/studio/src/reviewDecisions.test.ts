@@ -53,6 +53,7 @@ describe('Review Decision projection', () => {
     expect(age?.name).toBe('age')
     expect(parseReviewedValue(age, '12')).toEqual({ value: 12, error: null })
     expect(parseReviewedValue(age, '12.5').error).toBe('Enter a whole number.')
+    expect(parseReviewedValue(age, ' ').error).toBe('Enter a whole number.')
     expect(parseReviewedValue(active, 'false')).toEqual({ value: false, error: null })
     expect(parseReviewedValue(kind, 'C').error).toBe('Choose a value allowed by the pinned schema.')
   })

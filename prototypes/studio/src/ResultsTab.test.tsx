@@ -695,10 +695,10 @@ describe('ResultsTab grounded values', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Edit age' }))
     const input = screen.getByLabelText('Reviewed value for age')
     fireEvent.change(input, { target: { value: '1.5' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save reviewed value for age' }))
+    fireEvent.keyDown(input, { key: 'Enter' })
     expect(screen.getByRole('alert')).toHaveTextContent('Enter a whole number.')
     fireEvent.change(input, { target: { value: '7' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save reviewed value for age' }))
+    fireEvent.blur(input)
     expect(setDecision).toHaveBeenLastCalledWith(
       ['records', 0, 'person', 'age'], 'EDITED', 7,
     )
@@ -859,7 +859,7 @@ describe('ResultsTab grounded values', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Approve all (1)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Approve remaining (1)' }))
     expect(approveAll).toHaveBeenCalledTimes(1)
   })
 

@@ -2187,7 +2187,7 @@ describe('BatchExtractionsPanel', () => {
     fireEvent.change(input, { target: { value: 'Milan' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Save all reviews (1)' }))
+    expect(screen.queryByRole('button', { name: /Save/ })).not.toBeInTheDocument()
 
     await waitFor(() =>
       expect(

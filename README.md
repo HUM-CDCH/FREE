@@ -49,6 +49,14 @@ FREE's normative product and safety contract is:
    providers, with explicit Extraction and Interaction routes. Stored
    credentials are write-only; provider configuration is deployment-wide and
    is not seeded at startup.
+   Output formatting is automatic: selecting a connection and model is sufficient,
+   including for existing saved routes. FREE uses the adapter's output support and
+   falls back to prompt-only generation only after an explicit unsupported-format
+   response, remembering that endpoint/model/route for the server session. Returned
+   results are still validated. Advanced route settings can override Automatic
+   (`auto`, also the default when absent) with prompt only (`prompt`), schema output
+   (`schema`), or schema output plus schema-free JSON mode (`native`). Raw NuExtract
+   keeps its own protocol.
 8. **Safe startup.** Authored forward migrations finish before Studio becomes
    ready, both for a fresh database and an already-migrated one. Normal startup
    never resets the database or seeds an account, Project Context, provider,

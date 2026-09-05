@@ -12,6 +12,7 @@ import { createOllama } from 'ai-sdk-ollama'
 import { claudeCode } from 'ai-sdk-provider-claude-code'
 import { createCodexAppServer, type CodexAppServerProvider } from 'ai-sdk-provider-codex-cli'
 import type {
+  JsonOutputCapability,
   ModelConfig,
   ModelConnection,
   ModelDescriptor,
@@ -24,7 +25,7 @@ import { ApiError } from './_http.js'
 import { systemCredentialStore, type CredentialStore } from './_keyring.js'
 
 
-export type JsonOutputCapability = 'native' | 'prompt'
+export type { JsonOutputCapability } from '../shared/modelConfig.contract.js'
 type ExecutionCapability = 'general' | 'nuextract-raw'
 type Fetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 type CodexModel = { id: string; displayName?: string; name?: string | null; hidden?: boolean }
@@ -44,7 +45,6 @@ type DiscoveryObservation = Omit<ProbeResult, 'checkedAt'>
 type ModelFactory = (connection: ModelConnection, modelId: string, credential: string | null) => LanguageModel
 
 type ProviderEntry = ProviderDescriptor & {
-  jsonOutput: JsonOutputCapability
   temperatureSupported: boolean
   execution: readonly ExecutionCapability[]
   discover(connection: ModelConnection, credential: string | null, context: DiscoveryContext): Promise<DiscoveryObservation>
@@ -402,7 +402,6 @@ export const providerTable = {
     defaultBaseUrl: 'http://127.0.0.1:11434',
     authentication: 'optional',
     supportsNuextractRaw: true,
-    jsonOutput: 'native',
     temperatureSupported: true,
     execution: ['general', 'nuextract-raw'],
     discover: httpDiscovery('api/tags', commonHttpHeaders, ollamaCatalog),
@@ -416,7 +415,6 @@ export const providerTable = {
     defaultBaseUrl: 'https://api.openai.com/v1',
     authentication: 'managed',
     supportsNuextractRaw: false,
-    jsonOutput: 'native',
     temperatureSupported: true,
     execution: ['general'],
     discover: httpDiscovery('models', commonHttpHeaders, openAiCatalog),
@@ -430,7 +428,6 @@ export const providerTable = {
     defaultBaseUrl: 'https://api.anthropic.com/v1',
     authentication: 'managed',
     supportsNuextractRaw: false,
-    jsonOutput: 'prompt',
     temperatureSupported: true,
     execution: ['general'],
     discover: httpDiscovery(
@@ -448,7 +445,6 @@ export const providerTable = {
     defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
     authentication: 'managed',
     supportsNuextractRaw: false,
-    jsonOutput: 'native',
     temperatureSupported: true,
     execution: ['general'],
     discover: httpDiscovery(
@@ -466,7 +462,6 @@ export const providerTable = {
     defaultBaseUrl: null,
     authentication: 'external',
     supportsNuextractRaw: false,
-    jsonOutput: 'native',
     temperatureSupported: false,
     execution: ['general'],
     discover: discoverCodex,
@@ -479,7 +474,6 @@ export const providerTable = {
     defaultBaseUrl: null,
     authentication: 'external',
     supportsNuextractRaw: false,
-    jsonOutput: 'prompt',
     temperatureSupported: false,
     execution: ['general'],
     discover: discoverClaude,
@@ -492,7 +486,6 @@ export const providerTable = {
     defaultBaseUrl: null,
     authentication: 'optional',
     supportsNuextractRaw: false,
-    jsonOutput: 'prompt',
     temperatureSupported: true,
     execution: ['general'],
     discover: httpDiscovery('models', commonHttpHeaders, openAiCatalog),
@@ -575,6 +568,8 @@ export type ModelOperation = 'extraction' | 'schema-suggestion' | 'chat' | 'sche
  */
 export type ModelAttribution = { provider: ProviderKind; modelId: string }
 export type GeneralExecutionTarget = {
+  /** Automatic capability learning is scoped to the selected endpoint, model and route. */
+  automaticOutputKey?: string
   profile: 'general'
   model: LanguageModel
   jsonOutput: JsonOutputCapability
@@ -670,7 +665,11 @@ export async function resolveCapabilityRoute(
   return {
     profile: 'general',
     model,
-    jsonOutput: entry.jsonOutput,
+    jsonOutput: route.jsonOutput && route.jsonOutput !== 'auto' ? route.jsonOutput
+      : ['anthropic', 'claude-code', 'openai-compatible'].includes(connection.provider) ? 'schema' : 'native',
+    ...(!route.jsonOutput || route.jsonOutput === 'auto' ? {
+      automaticOutputKey: JSON.stringify([connection.id, connection.provider, connection.baseUrl, route.modelId, key]),
+    } : {}),
     temperatureSupported: entry.temperatureSupported,
     attribution: { provider: connection.provider, modelId: route.modelId },
   }

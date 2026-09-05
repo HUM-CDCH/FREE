@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { PROVIDER_KINDS, apiBaseIssue, isValidApiBase, modelConfigSchema, uuidSchema } from './modelConfig.contract'
+import { PROVIDER_KINDS, apiBaseIssue, isValidApiBase, modelConfigSchema, routeSchema, uuidSchema } from './modelConfig.contract'
 
 describe('model configuration runtime contract', () => {
+  it('persists explicit route output support and rejects unknown modes', () => {
+    const route = { connectionId: '11111111-1111-4111-8111-111111111111', modelId: 'manual' }
+    for (const jsonOutput of ['auto', 'prompt', 'schema', 'native']) {
+      expect(routeSchema.parse({ ...route, jsonOutput })).toEqual({ ...route, jsonOutput })
+    }
+    expect(routeSchema.parse(route)).toEqual(route)
+    expect(routeSchema.safeParse({ ...route, jsonOutput: 'guess' }).success).toBe(false)
+  })
   it('keeps the exact provider kinds and canonical lowercase UUIDs', () => {
     expect(PROVIDER_KINDS).toEqual([
       'ollama',

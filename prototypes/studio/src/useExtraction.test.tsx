@@ -84,6 +84,31 @@ beforeEach(() => {
 })
 
 describe('useExtraction server-owned lifecycle', () => {
+  it('locks a submitted review and ignores its response after switching documents', async () => {
+    const pending = [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1', reviewedOccurrenceIds: ['occurrence-1'], action: 'APPROVED' as const, reviewedValue: null }]
+    const original = attempt({ resultPayload: { records: [{ title: 'Grounded' }] }, evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' }] })
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: original, pendingReviewDecisions: pending })
+    const save = Promise.withResolvers<ExtractionAttempt>()
+    vi.mocked(api.finalizeExtractionReview).mockReturnValue(save.promise)
+    const { result, rerender } = renderHook(({ current, documentKey }) => useExtraction({ ...options(current), documentKey }), { initialProps: { current: original, documentKey: 'first' } })
+    await waitFor(() => expect(result.current.review.decisions).toHaveLength(1))
+    act(() => result.current.review.setDecision(pending[0].resultPath, 'EDITED', 'Submitted'))
+    let request!: Promise<void>
+    act(() => {
+      request = result.current.review.accept()
+      void result.current.review.accept()
+      result.current.review.setDecision(pending[0].resultPath, 'EDITED', 'Lost')
+      result.current.review.approveAll()
+    })
+    expect(api.finalizeExtractionReview).toHaveBeenCalledTimes(1)
+    expect(result.current.review.decisions[0].reviewedValue).toBe('Submitted')
+    const newer = attempt({ extractionId: '11111111-1111-4111-8111-111111111112' })
+    rerender({ current: newer, documentKey: 'second' })
+    await act(async () => { save.resolve({ ...original, reviewedAt: '2026-09-04T00:00:00Z' }); await request })
+    expect(result.current.attempt?.extractionId).toBe(newer.extractionId)
+    expect(result.current.review.saving).toBe(false)
+  })
+
   it('polls a queued job through provisional values to completion', async () => {
     vi.useFakeTimers()
     const queued = attempt({
@@ -478,7 +503,10 @@ describe('useExtraction server-owned lifecycle', () => {
     vi.mocked(api.finalizeExtractionReview).mockResolvedValue(reviewed)
     const { result } = renderHook(() => useExtraction(options(unreviewed)))
 
-    await waitFor(() => expect(result.current.review.canAccept).toBe(true))
+    await waitFor(() => expect(result.current.review.decisions.length).toBeGreaterThan(0))
+    expect(result.current.review.canAccept).toBe(false)
+    act(() => result.current.review.approveAll())
+    expect(result.current.review.canAccept).toBe(true)
     await act(() => result.current.review.accept())
 
     expect(api.readExtraction).toHaveBeenCalledWith(
@@ -521,7 +549,7 @@ describe('useExtraction server-owned lifecycle', () => {
       }),
     )
     const { result } = renderHook(() => useExtraction(options(unreviewed)))
-    await waitFor(() => expect(result.current.review.canAccept).toBe(true))
+    await waitFor(() => expect(result.current.review.decisions.length).toBeGreaterThan(0))
 
     act(() => result.current.review.setDecision(
       ['records', 0, 'title'], 'REJECTED', null,
@@ -571,19 +599,24 @@ describe('useExtraction server-owned lifecycle', () => {
       ],
     })
     const { result } = renderHook(() => useExtraction(options(unreviewed)))
-    await waitFor(() => expect(result.current.review.canAccept).toBe(true))
+    await waitFor(() => expect(result.current.review.decisions.length).toBeGreaterThan(0))
 
     expect(result.current.review.untouchedCount).toBe(2)
+    expect(result.current.review.canAccept).toBe(false)
+    await act(() => result.current.review.accept())
+    expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
     expect(result.current.review.isTouched(['records', 0, 'title'])).toBe(false)
     expect(result.current.review.isTouched(['records', 0, 'author'])).toBe(false)
 
     act(() => result.current.review.setDecision(['records', 0, 'title'], 'REJECTED', null))
     expect(result.current.review.untouchedCount).toBe(1)
+    expect(result.current.review.canAccept).toBe(false)
     expect(result.current.review.isTouched(['records', 0, 'title'])).toBe(true)
     expect(result.current.review.isTouched(['records', 0, 'author'])).toBe(false)
 
     act(() => result.current.review.approveAll())
     expect(result.current.review.untouchedCount).toBe(0)
+    expect(result.current.review.canAccept).toBe(true)
     expect(result.current.review.isTouched(['records', 0, 'author'])).toBe(true)
     // Approve All only fills in the untouched field — the explicit Reject stands.
     expect(result.current.review.decisions.find(
@@ -615,7 +648,7 @@ describe('useExtraction server-owned lifecycle', () => {
       pendingReviewDecisions: pending,
     })
     const first = renderHook(() => useExtraction(options(unreviewed)))
-    await waitFor(() => expect(first.result.current.review.canAccept).toBe(true))
+    await waitFor(() => expect(first.result.current.review.decisions.length).toBeGreaterThan(0))
     act(() =>
       first.result.current.review.setDecision(
         ['records', 0, 'title'],
@@ -659,7 +692,7 @@ describe('useExtraction server-owned lifecycle', () => {
       pendingReviewDecisions: pending,
     })
     const first = renderHook(() => useExtraction(options(unreviewed)))
-    await waitFor(() => expect(first.result.current.review.canAccept).toBe(true))
+    await waitFor(() => expect(first.result.current.review.decisions.length).toBeGreaterThan(0))
     act(() =>
       first.result.current.review.setDecision(
         ['records', 0, 'title'],
@@ -717,7 +750,7 @@ describe('useExtraction server-owned lifecycle', () => {
       pendingReviewDecisions: pending,
     })
     const first = renderHook(() => useExtraction(options(unreviewed)))
-    await waitFor(() => expect(first.result.current.review.canAccept).toBe(true))
+    await waitFor(() => expect(first.result.current.review.decisions.length).toBeGreaterThan(0))
     act(() =>
       first.result.current.review.setDecision(
         ['records', 0, 'title'],
