@@ -208,11 +208,18 @@ function createBatchFixtureHandler(
  * part a Batch Extraction has: the durable worker. The batch opens QUEUED and a
  * later read finds it finished, exactly as the panel's polling would observe it.
  */
-function batchFixture(): {
+function batchFixture(nested = false): {
   store: StudioStore
   extractions: ExtractionModule
 } {
   let batch: BatchExtractionSnapshot | null = null
+  const fixtureSchema = nested ? {
+    ...schemaTree,
+    schemaNodes: [...schemaTree.schemaNodes, {
+      id: 'finds', name: 'finds', type: 'array',
+      children: [{ id: 'material', name: 'material', type: 'string' }],
+    }],
+  } : schemaTree
   let readsWhileQueued = 0
 
   const member = (
@@ -307,7 +314,7 @@ function batchFixture(): {
         extractionSchemaId: id.schema,
         revisionNumber: 4,
         origin: 'researcher-edit',
-        schemaTree,
+        schemaTree: fixtureSchema,
         createdAt: at(4),
       }]
     },
@@ -323,7 +330,7 @@ function batchFixture(): {
         extractionSchemaId: id.schema,
         revisionNumber: 4,
         origin: 'researcher-edit',
-        schemaTree,
+        schemaTree: fixtureSchema,
         createdAt: at(4),
       }
     },
@@ -374,8 +381,8 @@ function batchFixture(): {
 }
 
 /** Browser-facing fixture responses over the same shipped JSON contracts. */
-async function stubStudio(page: Page): Promise<void> {
-  const { store, extractions } = batchFixture()
+async function stubStudio(page: Page, nested = false): Promise<void> {
+  const { store, extractions } = batchFixture(nested)
   const projectContexts = createGetProjectContexts(store)
   const extractionSchemas = createGetExtractionSchemas(store)
   const schemaRevisions = createSchemaRevisionHandlers(store)
@@ -769,7 +776,7 @@ test('the export stays unavailable until the batch has produced a result @determ
 test('the Batch review grid handles member failure, targeted reload, bulk decisions, edit, reject, and save @deterministic', async ({
   page,
 }) => {
-  await stubStudio(page)
+  await stubStudio(page, true)
   const batchExtractionId = '74000000-0000-4000-8005-000000000001'
   const completedBatch: BatchExtractionSnapshot = {
     batchExtractionId,
@@ -835,10 +842,12 @@ test('the Batch review grid handles member failure, targeted reload, bulk decisi
       retry: null,
     },
     failure: null,
-    resultPayload: { records: [{ place: 'Ellekilde', year: 1801 }] },
+    resultPayload: { records: [{ place: 'Ellekilde', year: 1801, finds: [{ material: 'Bronze' }, { material: 'Iron' }] }] },
     evidenceLinks: [
       { resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-place' },
       { resultPath: ['records', 0, 'year'], evidenceAnchorId: 'anchor-year' },
+      { resultPath: ['records', 0, 'finds', 0, 'material'], evidenceAnchorId: 'anchor-bronze' },
+      { resultPath: ['records', 0, 'finds', 1, 'material'], evidenceAnchorId: 'anchor-iron' },
     ],
     reviewable: true,
     retryOfId: null,
@@ -864,6 +873,13 @@ test('the Batch review grid handles member failure, targeted reload, bulk decisi
     },
   ]
   let extractionReads = 0
+  pendingReviewDecisions.push(...[0, 1].map((index) => ({
+    resultPath: ['records', 0, 'finds', index, 'material'],
+    evidenceAnchorId: index === 0 ? 'anchor-bronze' : 'anchor-iron',
+    reviewedOccurrenceIds: [`occurrence-material-${index}`],
+    action: 'APPROVED' as const,
+    reviewedValue: null,
+  })))
   let savedReview: unknown = null
 
   await page.route('**/api/batch-extractions**', async (route) => {
@@ -919,7 +935,7 @@ test('the Batch review grid handles member failure, targeted reload, bulk decisi
   await page.getByRole('button', { name: 'Retry' }).click()
   await expect(page.getByText('Ellekilde', { exact: true })).toBeVisible()
 
-  await page.getByRole('button', { name: /Approve 2 pending in this row/ }).click()
+  await expect(page.getByRole('button', { name: /Save completed/ })).toHaveCount(0)
   await page.getByText('Ellekilde', { exact: true }).click()
   await page.getByRole('button', { name: 'Edit', exact: true }).click()
   const placeInput = page.locator('input[value="Ellekilde"]')
@@ -927,14 +943,20 @@ test('the Batch review grid handles member failure, targeted reload, bulk decisi
   await placeInput.press('Enter')
   await page.getByText('1801', { exact: true }).click()
   await page.getByRole('button', { name: 'Reject', exact: true }).click()
-  await page.getByRole('button', { name: 'Approve all', exact: true }).click()
-  await page.getByRole('button', { name: 'Save all reviews (1)' }).click()
-
-  await expect(page.getByRole('button', { name: 'Save all reviews' })).toBeDisabled()
+  const material = page.getByRole('group', { name: 'material · Item 1', exact: true })
+  await material.getByRole('button', { name: 'Bronze', exact: true }).click()
+  await material.getByRole('button', { name: 'Edit', exact: true }).click()
+  await material.getByRole('textbox').fill('Copper')
+  await material.getByRole('textbox').press('Enter')
+  expect(savedReview).toBeNull()
+  await page.getByRole('button', { name: 'Approve remaining', exact: true }).click()
+  await expect(page.getByText('Review saved', { exact: true })).toBeVisible()
   expect(savedReview).toMatchObject({
     reviewDecisions: expect.arrayContaining([
       expect.objectContaining({ reviewedValue: 'Milan' }),
       expect.objectContaining({ action: 'REJECTED' }),
+      expect.objectContaining({ resultPath: ['records', 0, 'finds', 0, 'material'], reviewedValue: 'Copper' }),
+      expect.objectContaining({ resultPath: ['records', 0, 'finds', 1, 'material'], action: 'APPROVED' }),
     ]),
   })
   await page.getByRole('button', { name: /Back to results/ }).click()

@@ -1407,18 +1407,15 @@ describe('reopened Source Document workspace', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
-    const accept = await screen.findByRole('button', { name: 'Save Review' })
-    await waitFor(() => expect(accept).toBeEnabled())
+    const approve = await screen.findByRole('button', { name: /Approve remaining/ })
+    await waitFor(() => expect(approve).toBeEnabled())
+    fireEvent.click(approve)
     fireEvent.click(screen.getByRole('tab', { name: 'Pinned schema' }))
     expect(screen.getByText(reopened.extractionSchema!.schemaRevisionId)).toBeInTheDocument()
     expect(screen.getByText(/"place": "string"/)).toBeInTheDocument()
     expect(screen.queryByText(/"number": "string"/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: 'Review' }))
-    fireEvent.click(accept)
-
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Review saved' })).toBeDisabled(),
-    )
+    expect(await screen.findByText('Review saved')).toBeVisible()
     const review = calls.at(-1)!
     expect(review.url).toMatch(/\/api\/extractions\/[0-9a-f-]+\/review$/)
     expect(review.body).toEqual({

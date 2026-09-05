@@ -198,6 +198,12 @@ export function useExtraction({
   const runInputsKey = `${reviewTarget?.sourceRepresentationId ?? ''}\n${reviewTarget?.schemaRevisionId ?? ''}`
   const previousInputsRef = useRef(runInputsKey)
   const reviewLoadRef = useRef(0)
+  const saveScopeRef = useRef({ saving: false })
+  useEffect(() => {
+    saveScopeRef.current = { saving: false }
+    setSaving(false)
+    return () => { saveScopeRef.current = { saving: false } }
+  }, [documentKey, attempt?.extractionId])
   const [renderedDocumentKey, setRenderedDocumentKey] = useState(documentKey)
 
   if (renderedDocumentKey !== documentKey) {
@@ -301,7 +307,8 @@ export function useExtraction({
     !reviewLoading &&
     reviewAvailable &&
     attempt?.reviewedAt === null &&
-    reviewDecisions.length > 0
+    reviewDecisions.length > 0 &&
+    reviewDecisions.every((decision) => touchedPaths.has(resultPathKey(decision.resultPath)))
   )
 
   useEffect(() => {
@@ -487,7 +494,9 @@ export function useExtraction({
   }
 
   async function acceptResult() {
-    if (!attempt || !canAccept) return
+    const scope = saveScopeRef.current
+    if (!attempt || !canAccept || scope.saving) return
+    scope.saving = true
     setSaving(true)
     setReviewError(null)
     try {
@@ -495,14 +504,19 @@ export function useExtraction({
         attempt.extractionId,
         reviewDecisions,
       )
+      if (saveScopeRef.current !== scope) return
       setAttempt(finalized)
       removeSessionRecovery('extraction-review', attempt.extractionId)
     } catch (error) {
+      if (saveScopeRef.current !== scope) return
       setReviewError(
         error instanceof Error ? error.message : 'Saving the review failed.',
       )
     } finally {
-      setSaving(false)
+      if (saveScopeRef.current === scope) {
+        scope.saving = false
+        setSaving(false)
+      }
     }
   }
 
@@ -511,7 +525,9 @@ export function useExtraction({
     action: ReviewDecisionAction,
     reviewedValue: ReviewDecisionInput['reviewedValue'] = null,
   ) {
+    if (saveScopeRef.current.saving || !reviewAvailable || reviewLoading || attempt?.reviewedAt) return
     const key = resultPathKey(resultPath)
+    if (!reviewDecisions.some((decision) => resultPathKey(decision.resultPath) === key)) return
     setReviewDecisions((current) => current.map((decision) =>
       resultPathKey(decision.resultPath) === key
         ? {
@@ -528,6 +544,7 @@ export function useExtraction({
   // without changing its recorded action — every field already defaults to
   // 'APPROVED', so this only affects what the review UI displays.
   function approveAllRemaining() {
+    if (saveScopeRef.current.saving || !reviewAvailable || reviewLoading || attempt?.reviewedAt) return
     setTouchedPaths(
       (current) => new Set([...current, ...reviewDecisions.map((decision) => resultPathKey(decision.resultPath))]),
     )

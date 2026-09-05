@@ -156,6 +156,33 @@ afterEach(() => {
 })
 
 describe('ProviderConfigPage', () => {
+  it.each([undefined, 'prompt', 'schema', 'native'] as const)(
+    'preserves the displayed %s output setting when editing in Single model', async (jsonOutput) => {
+      const config = ollamaConfig()
+      config.routes.extraction = { ...config.routes.extraction!, jsonOutput }
+      config.routes.interaction = { ...config.routes.interaction!, jsonOutput: jsonOutput === 'schema' ? 'native' : 'schema' }
+      let submitted: ModelConfig | undefined
+      mockFetch((url, init) => {
+        if (url === '/api/model_config' && init.method === 'PUT') {
+          submitted = requestBody(init).config as ModelConfig
+          return configResponse(submitted)
+        }
+        return configResponse(config)
+      })
+      await renderPage()
+      fireEvent.click(screen.getByRole('button', { name: 'Single model' }))
+      expect(screen.getByLabelText('Single model output support')).toHaveValue(jsonOutput ?? 'auto')
+      fireEvent.change(screen.getByLabelText('Single model ID'), { target: { value: 'edited-model' } })
+      expect(screen.getByLabelText('Single model output support')).toHaveValue(jsonOutput ?? 'auto')
+      fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+      await waitFor(() => expect(submitted).toBeDefined())
+      for (const route of Object.values(submitted!.routes)) {
+        expect(route?.modelId).toBe('edited-model')
+        expect(route?.jsonOutput).toBe(jsonOutput)
+      }
+    },
+  )
+
   it('loads backend-owned state without probing and renders partial credential states', async () => {
     const config = mixedConfig()
     const request = mockFetch((url, init) => {
@@ -175,6 +202,29 @@ describe('ProviderConfigPage', () => {
     expect(request.mock.calls.some(([url]) => String(url) === '/api/model_probe')).toBe(false)
   })
 
+  it('keeps output support independent for routes with the same connection and model', async () => {
+    const config = ollamaConfig()
+    config.routes.extraction = { ...config.routes.extraction!, jsonOutput: 'schema' }
+    config.routes.interaction = { ...config.routes.interaction!, jsonOutput: 'prompt' }
+    const submitted: ModelConfig[] = []
+    mockFetch((url, init) => {
+      if (url === '/api/model_config' && init.method === 'PUT') {
+        const saved = requestBody(init).config as ModelConfig
+        submitted.push(saved)
+        return jsonResponse({ config: saved, credentialStates: { [OLLAMA_ID]: 'absent' } })
+      }
+      return configResponse(config)
+    })
+    render(<ProviderConfigPage onClose={() => {}} />)
+    expect(await screen.findByLabelText('Extraction & Schema Suggestion output support')).toHaveValue('schema')
+    expect(screen.getByLabelText('Chat & Extraction Schema editing output support')).toHaveValue('prompt')
+    fireEvent.change(screen.getByLabelText('Extraction & Schema Suggestion output support'), { target: { value: 'native' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+    await waitFor(() => expect(submitted).toHaveLength(1))
+    expect(submitted[0].routes.extraction?.jsonOutput).toBe('native')
+    expect(submitted[0].routes.interaction?.jsonOutput).toBe('prompt')
+  })
+
   it('submits one unchanged draft, disables pending Apply, replaces it from the response, and reloads it', async () => {
     let stored = ollamaConfig()
     let finishPut: ((response: Response) => void) | undefined
@@ -184,11 +234,13 @@ describe('ProviderConfigPage', () => {
         const submitted = requestBody(init).config as ModelConfig
         expect(submitted.routes.extraction?.modelId).toBe('manual-model')
         expect(submitted.routes.interaction?.modelId).toBe('manual-model')
+        expect(submitted.routes.extraction?.jsonOutput).toBe('schema')
+        expect(submitted.routes.interaction?.jsonOutput).toBe('schema')
         stored = {
           ...submitted,
           routes: {
-            extraction: { connectionId: OLLAMA_ID, modelId: 'normalized-model' },
-            interaction: { connectionId: OLLAMA_ID, modelId: 'normalized-model' },
+            extraction: { ...submitted.routes.extraction!, modelId: 'normalized-model' },
+            interaction: { ...submitted.routes.interaction!, modelId: 'normalized-model' },
           },
         }
         return putResponse
@@ -198,10 +250,14 @@ describe('ProviderConfigPage', () => {
 
     const first = render(<ProviderConfigPage onClose={() => {}} />)
     await screen.findByDisplayValue('saved-model')
+    fireEvent.change(screen.getByLabelText('Single model output support'), { target: { value: 'schema' } })
     fireEvent.change(screen.getByLabelText('Single model ID'), { target: { value: 'manual-model' } })
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Applying…' })).toBeDisabled())
+    expect(screen.getByLabelText('Single model output support')).toBeDisabled()
+    expect(screen.getByLabelText('Single model ID')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Capability Routes' })).toBeDisabled()
     expect(request.mock.calls.filter(([url]) => String(url) === '/api/model_config')).toHaveLength(2)
     expect(request.mock.calls.some(([url]) => String(url) === '/api/model_probe')).toBe(false)
 
@@ -210,10 +266,12 @@ describe('ProviderConfigPage', () => {
       await putResponse
     })
     expect(screen.getByLabelText('Single model ID')).toHaveValue('normalized-model')
+    expect(screen.getByLabelText('Single model output support')).toBeEnabled()
 
     first.unmount()
     render(<ProviderConfigPage onClose={() => {}} />)
     expect(await screen.findByLabelText('Single model ID')).toHaveValue('normalized-model')
+    expect(screen.getByLabelText('Single model output support')).toHaveValue('schema')
   })
 
   it('retains a failed draft, renders the stable error, and permits an offline save retry', async () => {

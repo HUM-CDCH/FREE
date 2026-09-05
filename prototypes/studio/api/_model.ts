@@ -1,4 +1,5 @@
 import {
+  APICallError,
   NoObjectGeneratedError,
   Output,
   asSchema,
@@ -304,6 +305,25 @@ export async function generateSchemaWithModel(
   }
 }
 
+// ponytail: remember at most 256 routes per process; persist only if restart retries matter.
+const promptOnlyRoutes = new Set<string>()
+
+async function generateWithRouteOutput(target: GeneralExecutionTarget, options: Parameters<typeof generateText>[0]) {
+  const key = target.automaticOutputKey
+  const request = key && promptOnlyRoutes.has(key) ? { ...options, output: undefined } : options
+  try {
+    return await generateText(request)
+  } catch (error) {
+    // Retry only an explicit unsupported output feature, never auth, transport, or schema-validation errors.
+    if (!key || !request.output || !APICallError.isInstance(error) ||
+      ![400, 422].includes(error.statusCode ?? 0) ||
+      !/(?:response_format|output_config|output_format|json_schema|structured outputs?)['"`\s]*(?:is |are )?(?:not supported|unsupported)|(?:unsupported|unknown|unrecognized) (?:parameter|field|argument)[:\s'"]+(?:response_format|output_config|output_format)/i.test(error.message)) throw error
+    if (promptOnlyRoutes.size >= 256) promptOnlyRoutes.delete(promptOnlyRoutes.values().next().value!)
+    promptOnlyRoutes.add(key)
+    return generateText({ ...options, output: undefined })
+  }
+}
+
 async function generateWithGenericJsonPrompt(
   target: GeneralExecutionTarget,
   input: {
@@ -316,17 +336,12 @@ async function generateWithGenericJsonPrompt(
   },
 ): Promise<GeneratedText> {
   const startedAt = performance.now()
-  // A derived schema constrains the model's key set at generation time
-  // (native structured output or forced tool-calling, depending on the
-  // provider); it supersedes the native/prompt `Output.json()` split, which
-  // only guarantees valid JSON syntax, not a specific field set.
-  const structuredOutput = input.schema
+  // The selected route declares schema support separately from schema-free JSON mode.
+  const structuredOutput = input.schema && target.jsonOutput !== 'prompt'
     ? Output.object({ schema: structuredOutputSchema(input.schema) })
-    : target.jsonOutput === 'native'
-      ? Output.json()
-      : undefined
+    : target.jsonOutput === 'native' ? Output.json() : undefined
   try {
-    const generated = await generateText({
+    const generated = await generateWithRouteOutput(target, {
       model: target.model,
       ...(structuredOutput ? { output: structuredOutput } : {}),
       instructions: input.instructions,
@@ -501,7 +516,7 @@ export async function generateSchemaEditJson(
     throw new ApiError(409, 'invalid_model_config', 'The Interaction Route must use general execution.')
   }
   try {
-    const result = await generateText({
+    const result = await generateWithRouteOutput(resolved, {
       model: resolved.model,
       ...(resolved.jsonOutput === 'native' ? { output: Output.json() } : {}),
       reasoning: 'none',

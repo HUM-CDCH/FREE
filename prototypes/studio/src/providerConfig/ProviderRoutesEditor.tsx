@@ -1,10 +1,10 @@
-import type { ModelConfig, ModelConnection, ProviderDescriptor, RouteKey } from '../../shared/modelConfig.contract'
+import { jsonOutputSchema, type JsonOutputCapability, type ModelConfig, type ModelConnection, type ProviderDescriptor, type RouteKey } from '../../shared/modelConfig.contract'
 import { Overline } from '../ui'
 import { ModelCombobox } from './ModelCombobox'
 import { providerFieldClass } from './ProviderConnectionCard'
 import { ROUTABLE_TASKS } from './providerConfig.data'
 import type { ProbeView } from './useProbeLifecycle'
-import type { ConfigurationMode } from './useProviderConfigDraft'
+import { configurationMode, type ConfigurationMode } from './useProviderConfigDraft'
 
 type Props = {
   mode: ConfigurationMode
@@ -14,6 +14,7 @@ type Props = {
   onModelListOpen: (connectionId: string) => void
   setRoute: (key: RouteKey, connectionId: string) => void
   setRouteModel: (key: RouteKey, modelId: string) => void
+  setJsonOutput: (key: RouteKey | 'single', value: JsonOutputCapability) => void
   setSingleConnection: (connectionId: string) => void
   setSingleModel: (modelId: string) => void
   setRawNuextract: (enabled: boolean) => void
@@ -27,22 +28,35 @@ export function ProviderRoutesEditor({
   onModelListOpen,
   setRoute,
   setRouteModel,
+  setJsonOutput,
   setSingleConnection,
   setSingleModel,
   setRawNuextract,
 }: Props) {
   const extraction = draft.routes.extraction
   const interaction = draft.routes.interaction
-  const uniform =
-    extraction !== null &&
-    interaction !== null &&
-    extraction.connectionId === interaction.connectionId &&
-    extraction.modelId === interaction.modelId &&
-    !('nuextractRaw' in extraction && extraction.nuextractRaw)
-  const singleConnectionId = uniform ? extraction.connectionId : (extraction?.connectionId ?? '')
-  const singleModelId = uniform ? extraction.modelId : (extraction?.modelId ?? '')
+  const uniform = configurationMode(draft) === 'single'
+  const singleRoute = extraction ?? interaction
+  const singleConnectionId = singleRoute?.connectionId ?? ''
+  const singleModelId = singleRoute?.modelId ?? ''
   const singleProbe = probes[singleConnectionId]
   const singleCatalog = singleProbe?.phase === 'done' ? singleProbe.result.catalog : []
+  const outputControl = (key: RouteKey | 'single', label: string, route: typeof interaction, disabled = false) => (
+    <details className="mt-2 text-[11px] text-ink-muted">
+      <summary className="cursor-pointer">Advanced output settings</summary>
+    <label className="mt-2 flex flex-col gap-1">
+      {label} output support
+      <select aria-label={`${label} output support`} className={providerFieldClass} disabled={!route || disabled}
+        value={route?.jsonOutput ?? 'auto'} onChange={(event) => setJsonOutput(key, jsonOutputSchema.parse(event.target.value))}>
+        <option value="auto">Automatic (recommended)</option>
+        <option value="prompt">Prompt only</option>
+        <option value="schema">Schema-constrained output</option>
+        <option value="native">JSON mode and schema-constrained output</option>
+      </select>
+      <span>Automatic handles output formatting for the selected model. Override only for an endpoint with special requirements.</span>
+    </label>
+    </details>
+  )
 
   if (mode === 'single') {
     return (
@@ -69,6 +83,7 @@ export function ProviderRoutesEditor({
             />
           </div>
         </div>
+        {outputControl('single', 'Single model', singleRoute, Boolean(extraction?.nuextractRaw))}
       </div>
     )
   }
@@ -112,6 +127,7 @@ export function ProviderRoutesEditor({
                   Use raw NuExtract protocol
                 </label>
               )}
+              {outputControl(task.key, task.label, route, Boolean(route && 'nuextractRaw' in route && route.nuextractRaw))}
             </div>
           )
         })}

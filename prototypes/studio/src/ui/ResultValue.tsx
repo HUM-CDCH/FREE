@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import pluralize from 'pluralize'
 import type { SchemaNode } from 'extraction/schema'
 import type {
@@ -35,6 +35,7 @@ export type ResultReview = {
    *  that default from an explicit choice. Missing isTouched treats every
    *  decision as touched (existing callers keep today's behavior). */
   isTouched?: (path: ResultPath) => boolean
+  onEditingChange?: (key: string, editing: boolean) => void
   onDecision?: (
     path: ResultPath,
     action: ReviewDecisionAction,
@@ -150,6 +151,13 @@ function PrimitiveRow({
   const decision = review?.getDecision(path)
   const touched = Boolean(decision) && (review?.isTouched?.(path) ?? true)
   const reviewEditable = Boolean(decision && review?.onDecision && !review.readOnly)
+  const editKey = JSON.stringify(path)
+  const onEditingChange = review?.onEditingChange
+  useEffect(() => {
+    if (!editing || !onEditingChange) return
+    onEditingChange(editKey, true)
+    return () => onEditingChange(editKey, false)
+  }, [editing, editKey, onEditingChange])
   const decisionLabel = decision
     ? decision.action === 'APPROVED'
       ? 'Approved'
@@ -181,7 +189,8 @@ function PrimitiveRow({
 
   if (editing) {
     return (
-      <div className="my-0.5 flex items-center gap-1.5 rounded-[3px] border border-accent bg-accent-ghost px-2.5 py-2">
+      <div className="my-0.5 flex items-center gap-1.5 rounded-[3px] border border-accent bg-accent-ghost px-2.5 py-2"
+        onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) save() }}>
         <span className="w-2 shrink-0" />
         <span className="shrink-0 font-mono text-[13.5px] font-medium text-ink">{name}</span>
         {review?.getSchemaNode(path)?.allowedValues ? (
@@ -219,12 +228,6 @@ function PrimitiveRow({
             onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
           />
         )}
-        <button
-          className="shrink-0 cursor-pointer rounded-[3px] border border-accent bg-accent px-2.5 py-1 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108"
-          type="button"
-          aria-label={`Save reviewed value for ${name}`}
-          onClick={save}
-        >Save</button>
         <button
           className="shrink-0 cursor-pointer rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent"
           type="button"

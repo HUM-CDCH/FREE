@@ -402,16 +402,11 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
     titleReview.getByRole('button', { name: 'Edit title' }),
   )
   await page.getByRole('textbox', { name: 'Reviewed value for title', exact: true }).fill('Reviewed, café')
-  await activateWithKeyboard(
-    page,
-    page.getByRole('button', { name: 'Save reviewed value for title' }),
-  )
+  await page.getByRole('textbox', { name: 'Reviewed value for title', exact: true }).press('Enter')
   await expect(page.getByText('Reviewed, café', { exact: true })).toBeVisible()
-  await activateWithKeyboard(
-    page,
-    page.getByRole('button', { name: 'Save Review' }),
-  )
-  await expect(page.getByRole('button', { name: 'Review saved' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Save/ })).toHaveCount(0)
+  await activateWithKeyboard(page, page.getByRole('button', { name: /Approve remaining/ }))
+  await expect(page.getByText('Review saved', { exact: true })).toBeVisible()
   await page.screenshot({
     path: testInfo.outputPath('canonical-reviewed-results.png'),
     fullPage: true,
@@ -959,9 +954,9 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     await expect(page.getByText('catalog', { exact: true })).toBeVisible()
     // The one-shot selector defaults the next run back to Article.
     await expect(page.getByLabel('Extraction strategy')).toHaveValue('ARTICLE')
-    await expect(page.getByRole('button', { name: 'Save Review' })).toBeVisible()
-    await page.getByRole('button', { name: 'Save Review' }).click()
-    await expect(page.getByRole('button', { name: 'Review saved' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Save Review' })).toHaveCount(0)
+    await page.getByRole('button', { name: /Approve remaining/ }).click()
+    await expect(page.getByText('Review saved', { exact: true })).toBeVisible()
     const complete = await db.orm.public.Extraction.where({ sourceDocumentId }).orderBy((attempt) => attempt.createdAt.asc()).first()
     expect(complete?.outcome).toBe('SUCCEEDED')
     expect(complete?.complete).toBe(true)

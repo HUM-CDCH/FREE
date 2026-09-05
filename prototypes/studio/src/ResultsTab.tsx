@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { exportExtractionResult } from 'extraction-result-export'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
 import ResultValue, { singularItemLabel } from './ui/ResultValue'
@@ -419,6 +419,20 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
     [state, visibleReviewDecisions],
   )
   const [view, setView] = useState<View>('review')
+  const [editingPaths, setEditingPaths] = useState<ReadonlySet<string>>(new Set())
+  const onEditingChange = useCallback((key: string, editing: boolean) => {
+    setEditingPaths((current) => {
+      const next = new Set(current)
+      if (editing) next.add(key)
+      else next.delete(key)
+      return next
+    })
+  }, [])
+  useEffect(() => {
+    if (!readOnly && !inspectedAttempt && editingPaths.size === 0 &&
+      controller.review.canAccept && !controller.review.error)
+      void controller.review.accept()
+  })
   const articleRecords =
     state.status === 'ready' &&
     isRecord(reviewedResult) &&
@@ -589,39 +603,31 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                     })
                   }}
                 />
-                {!readOnly && controller.review.available && !controller.review.reviewedExtractionId && (
+                {!readOnly && !inspectedAttempt && controller.review.available && !controller.review.reviewedExtractionId && (
                   <Button
                     variant="secondary"
                     size="sm"
-                    disabled={controller.review.loading || controller.review.saving || controller.review.untouchedCount === 0}
+                    disabled={controller.review.loading || controller.review.saving || editingPaths.size > 0 || controller.review.untouchedCount === 0}
                     title="Mark every untouched field Approved, without changing fields you've already acted on"
                     onClick={() => controller.review.approveAll()}
                   >
-                    {controller.review.untouchedCount > 0 ? `Approve all (${controller.review.untouchedCount})` : 'Approve all'}
+                    {controller.review.untouchedCount > 0 ? `Approve remaining (${controller.review.untouchedCount})` : 'Approve remaining'}
                   </Button>
                 )}
-                {!readOnly && controller.review.available && (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={!controller.review.canAccept}
-                    title={
-                      controller.review.reviewedExtractionId
-                        ? 'This result is already saved with its Review Decisions'
-                        : state.ungroundedCount > 0
-                          ? 'Save this review; values without Evidence remain explicitly ungrounded'
-                          : 'Save this result and its reviewed Evidence to the Source Representation'
-                    }
-                    onClick={() => void controller.review.accept()}
-                  >
-                    {controller.review.reviewedExtractionId
-                      ? 'Review saved'
-                      : controller.review.loading
-                        ? 'Loading review…'
-                      : controller.review.saving
-                        ? 'Saving…'
-                        : 'Save Review'}
-                  </Button>
+                {!readOnly && !inspectedAttempt && controller.review.available && (
+                  <>
+                    <span role="status" className="self-center text-[11px] text-ink-muted">
+                      {controller.review.reviewedExtractionId ? 'Review saved'
+                        : controller.review.saving ? 'Saving…'
+                        : controller.review.error ? 'Review not saved'
+                        : controller.review.loading ? 'Loading review…'
+                        : 'Review all fields to save automatically'}
+                    </span>
+                    {controller.review.error && controller.review.canAccept && (
+                      <Button size="sm" variant="secondary" disabled={editingPaths.size > 0}
+                        onClick={() => void controller.review.accept()}>Retry</Button>
+                    )}
+                  </>
                 )}
                 {!readOnly && attempt?.strategy !== 'CATALOG' && (
                   <Button variant="secondary" size="sm" disabled={runExtractionDisabled || activeAttempt} onClick={() => void onRunExtraction()}>
@@ -783,14 +789,15 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                         ? schemaNodeAtResultPath(pinnedSchema.schemaNodes, absoluteReviewPath(path))
                         : null,
                       isTouched: (path) => controller.review.isTouched(absoluteReviewPath(path)),
-                      onDecision: readOnly || inspectedAttempt || attempt?.reviewedAt
+                      onEditingChange,
+                      onDecision: readOnly || inspectedAttempt || attempt?.reviewedAt || controller.review.saving
                         ? undefined
                         : (path, action, reviewedValue) => controller.review.setDecision(
                             absoluteReviewPath(path),
                             action,
                             reviewedValue,
                           ),
-                      readOnly: readOnly || Boolean(inspectedAttempt) || Boolean(attempt?.reviewedAt),
+                      readOnly: readOnly || Boolean(inspectedAttempt) || Boolean(attempt?.reviewedAt) || controller.review.saving,
                     }}
                   />
                 ))}

@@ -14,8 +14,6 @@ export type GridColumn = {
   key: string
   path: readonly string[]
   node: SchemaNode
-  /** Arrays of scalars are shown as a joined summary, never edited in the grid. */
-  editableKind: 'scalar' | 'scalar-array'
 }
 
 export type MemberReviewState =
@@ -47,17 +45,34 @@ function buildColumns(schemaNodes: readonly SchemaNode[] | null): GridColumn[] {
       key: field.key,
       path: field.path,
       node: field.node,
-      editableKind: field.node.type === 'array' ? 'scalar-array' : 'scalar',
     }))
 }
 
-function getAtPath(root: unknown, path: readonly (string | number)[]): unknown {
-  let current = root
-  for (const segment of path) {
-    if (current === null || typeof current !== 'object') return undefined
-    current = (current as Record<string | number, unknown>)[segment]
+/** Expand one schema column into actual indexed scalar paths, without joining sibling arrays. */
+export function valuesAtColumn(record: unknown, column: GridColumn): Array<{
+  path: (string | number)[]
+  value: unknown
+}> {
+  const visit = (value: unknown, remaining: readonly string[], path: (string | number)[]): ReturnType<typeof valuesAtColumn> => {
+    if (Array.isArray(value))
+      return value.flatMap((item, index) => visit(item, remaining, [...path, index]))
+    if (remaining.length === 0) return [{ path, value }]
+    const [name, ...rest] = remaining
+    return visit(isRecord(value) ? value[name] : undefined, rest, [...path, name])
   }
-  return current
+  return visit(record, column.path, [])
+}
+
+export function decisionMatchesColumn(path: readonly (string | number)[], column: GridColumn): boolean {
+  if (path[0] !== 'records' || typeof path[1] !== 'number') return false
+  const fields = path.slice(2).filter((segment) => typeof segment === 'string')
+  return fields.length === column.path.length && fields.every((field, index) => field === column.path[index])
+}
+
+export function pendingReviewCount(state: MemberReviewState): number {
+  return state.status === 'ready'
+    ? state.decisions.filter((decision) => !state.touched.has(resultPathKey(decision.resultPath))).length
+    : 0
 }
 
 /** The reviewed projection of one Extraction's records, ready to read cells from. */
@@ -71,10 +86,6 @@ export function projectedRecords(
     : []
 }
 
-export function valueAtColumn(record: unknown, column: GridColumn): unknown {
-  return getAtPath(record, column.path)
-}
-
 function failureText(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
 }
@@ -83,7 +94,7 @@ function failureText(error: unknown, fallback: string): string {
  * Fetches and stages Review Decisions for every reviewable member of one
  * Batch Extraction, so a spreadsheet-style grid can approve/reject/edit
  * fields across many Source Documents and save them together. Mirrors the
- * staged-decisions-then-explicit-save shape of `useExtraction`'s `review`,
+ * staged-decisions-then-finalization shape of `useExtraction`'s `review`,
  * just fanned out over one member per Source Document instead of one attempt.
  */
 export function useBatchExtractionReviewGrid(
@@ -94,14 +105,22 @@ export function useBatchExtractionReviewGrid(
   onMemberSaved?: () => void,
 ) {
   const columns = useMemo(() => buildColumns(schemaNodes), [schemaNodes])
-  const [members, setMembers] = useState<ReadonlyMap<string, MemberReviewState>>(
+  const [members, renderMembers] = useState<ReadonlyMap<string, MemberReviewState>>(
     new Map(),
   )
   const membersRef = useRef(members)
   const loadControllerRef = useRef<AbortController | null>(null)
+  const scopeRef = useRef<object | null>(null)
+  // Publish state synchronously so a second event cannot edit or save an older snapshot.
+  function setMembers(update: (current: ReadonlyMap<string, MemberReviewState>) => ReadonlyMap<string, MemberReviewState>) {
+    membersRef.current = update(membersRef.current)
+    renderMembers(membersRef.current)
+  }
   useEffect(() => {
-    membersRef.current = members
-  }, [members])
+    scopeRef.current = {}
+    setMembers(() => new Map())
+    return () => { scopeRef.current = null }
+  }, [batch.batchExtractionId])
 
   // Identity, not reference: `batch` is re-fetched by the panel above (it
   // polls while a batch is running), so depending on `batch.members` itself
@@ -153,9 +172,14 @@ export function useBatchExtractionReviewGrid(
   useEffect(() => {
     const controller = new AbortController()
     loadControllerRef.current = controller
-    setMembers(new Map())
+    const successful = new Map(batch.members
+      .filter((member) => member.latestExtraction?.outcome === 'SUCCEEDED')
+      .map((member) => [member.sourceDocumentId, member.latestExtraction!.extractionId]))
+    setMembers((current) => new Map([...current].filter(([id, state]) =>
+      state.status === 'ready' && state.attempt.extractionId === successful.get(id),
+    )))
     for (const member of batch.members) {
-      if (member.latestExtraction?.outcome === 'SUCCEEDED')
+      if (member.latestExtraction?.outcome === 'SUCCEEDED' && !membersRef.current.has(member.sourceDocumentId))
         loadMember(member.sourceDocumentId, member.latestExtraction.extractionId, controller.signal)
     }
     return () => controller.abort()
@@ -166,6 +190,8 @@ export function useBatchExtractionReviewGrid(
   }, [batch.batchExtractionId, memberFetchKey])
 
   function retryMember(sourceDocumentId: string) {
+    const state = membersRef.current.get(sourceDocumentId)
+    if (state?.status === 'ready' && (state.saving || state.touched.size > 0)) return
     const member = batch.members.find((item) => item.sourceDocumentId === sourceDocumentId)
     const signal = loadControllerRef.current?.signal
     if (member?.latestExtraction?.outcome === 'SUCCEEDED' && signal)
@@ -181,7 +207,8 @@ export function useBatchExtractionReviewGrid(
     const key = resultPathKey(resultPath)
     setMembers((current) => {
       const state = current.get(sourceDocumentId)
-      if (!state || state.status !== 'ready' || !state.editable) return current
+      if (!state || state.status !== 'ready' || !state.editable || state.saving) return current
+      if (!state.decisions.some((decision) => resultPathKey(decision.resultPath) === key)) return current
       const next = new Map(current)
       next.set(sourceDocumentId, {
         ...state,
@@ -203,7 +230,7 @@ export function useBatchExtractionReviewGrid(
   function approveAllForMember(sourceDocumentId: string) {
     setMembers((current) => {
       const state = current.get(sourceDocumentId)
-      if (!state || state.status !== 'ready' || !state.editable) return current
+      if (!state || state.status !== 'ready' || !state.editable || state.saving) return current
       const next = new Map(current)
       next.set(sourceDocumentId, {
         ...state,
@@ -225,7 +252,7 @@ export function useBatchExtractionReviewGrid(
   function approveRow(sourceDocumentId: string, recordIndex: number) {
     setMembers((current) => {
       const state = current.get(sourceDocumentId)
-      if (!state || state.status !== 'ready' || !state.editable) return current
+      if (!state || state.status !== 'ready' || !state.editable || state.saving) return current
       const matching = state.decisions.filter(
         (decision) => decision.resultPath[0] === 'records' && decision.resultPath[1] === recordIndex,
       )
@@ -248,12 +275,10 @@ export function useBatchExtractionReviewGrid(
       const next = new Map(current)
       let changed = false
       for (const [sourceDocumentId, state] of current) {
-        if (state.status !== 'ready' || !state.editable) continue
+        if (state.status !== 'ready' || !state.editable || state.saving) continue
         const matching = state.decisions.filter(
           (decision) =>
-            decision.resultPath[0] === 'records' &&
-            decision.resultPath.length === column.path.length + 2 &&
-            column.path.every((segment, index) => decision.resultPath[index + 2] === segment),
+            decisionMatchesColumn(decision.resultPath, column),
         )
         if (matching.length === 0) continue
         changed = true
@@ -275,7 +300,7 @@ export function useBatchExtractionReviewGrid(
     const key = resultPathKey(resultPath)
     setMembers((current) => {
       const state = current.get(sourceDocumentId)
-      if (!state || state.status !== 'ready' || !state.editable || !state.touched.has(key))
+      if (!state || state.status !== 'ready' || !state.editable || state.saving || !state.touched.has(key))
         return current
       const touched = new Set(state.touched)
       touched.delete(key)
@@ -298,7 +323,7 @@ export function useBatchExtractionReviewGrid(
   function revertMember(sourceDocumentId: string) {
     setMembers((current) => {
       const state = current.get(sourceDocumentId)
-      if (!state || state.status !== 'ready' || !state.editable) return current
+      if (!state || state.status !== 'ready' || !state.editable || state.saving) return current
       const next = new Map(current)
       next.set(sourceDocumentId, {
         ...state,
@@ -322,7 +347,7 @@ export function useBatchExtractionReviewGrid(
   function revertRow(sourceDocumentId: string, recordIndex: number) {
     setMembers((current) => {
       const state = current.get(sourceDocumentId)
-      if (!state || state.status !== 'ready' || !state.editable) return current
+      if (!state || state.status !== 'ready' || !state.editable || state.saving) return current
       const matchingKeys = new Set(
         state.decisions
           .filter(
@@ -349,7 +374,14 @@ export function useBatchExtractionReviewGrid(
 
   async function saveMember(sourceDocumentId: string) {
     const state = membersRef.current.get(sourceDocumentId)
-    if (!state || state.status !== 'ready' || !state.editable) return
+    if (!state || state.status !== 'ready' || !state.editable || state.saving ||
+      state.decisions.length === 0 || pendingReviewCount(state) > 0) return
+    const scope = scopeRef.current
+    const isCurrent = () => {
+      const latest = membersRef.current.get(sourceDocumentId)
+      return scope !== null && scopeRef.current === scope && latest?.status === 'ready' &&
+        latest.attempt.extractionId === state.attempt.extractionId
+    }
     setMembers((current) => {
       const latest = current.get(sourceDocumentId)
       if (!latest || latest.status !== 'ready') return current
@@ -357,6 +389,7 @@ export function useBatchExtractionReviewGrid(
     })
     try {
       const updated = await finalizeExtractionReview(state.attempt.extractionId, state.decisions)
+      if (!isCurrent()) return
       setMembers((current) =>
         new Map(current).set(sourceDocumentId, {
           status: 'ready',
@@ -374,6 +407,7 @@ export function useBatchExtractionReviewGrid(
       )
       onMemberSaved?.()
     } catch (error) {
+      if (!isCurrent()) return
       setMembers((current) => {
         const latest = current.get(sourceDocumentId)
         if (!latest || latest.status !== 'ready') return current
@@ -386,20 +420,13 @@ export function useBatchExtractionReviewGrid(
     }
   }
 
-  const dirtyMemberIds = [...members.entries()]
-    .filter(([, state]) => state.status === 'ready' && state.editable && state.touched.size > 0)
-    .map(([sourceDocumentId]) => sourceDocumentId)
-
-  async function saveAll() {
-    // Sequential: each finalize is a distinct research action, and a failure
-    // on one Source Document must never block the rest from saving.
-    for (const sourceDocumentId of dirtyMemberIds) await saveMember(sourceDocumentId)
-  }
+  const dirtyCount = [...members.values()]
+    .filter((state) => state.status === 'ready' && state.editable && state.touched.size > 0).length
 
   return {
     columns,
     members,
-    dirtyCount: dirtyMemberIds.length,
+    dirtyCount,
     setDecision,
     approveAllForMember,
     approveAll,
@@ -410,7 +437,6 @@ export function useBatchExtractionReviewGrid(
     revertAll,
     revertRow,
     saveMember,
-    saveAll,
     retryMember,
   }
 }
