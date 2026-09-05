@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import pluralize from 'pluralize'
 import type { SchemaNode } from 'extraction/schema'
 import type {
@@ -147,7 +147,27 @@ function PrimitiveRow({
   const [draft, setDraft] = useState('')
   const [expanded, setExpanded] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
-  const long = !expandText && text.length > 80
+  const [overflowing, setOverflowing] = useState(false)
+  const valueRef = useRef<HTMLSpanElement | null>(null)
+
+  // The value is shown clamped to two lines; whether it actually needs a
+  // "More" button depends on rendered width, not character count, so this
+  // measures real overflow (scrollHeight vs clientHeight) instead of
+  // guessing from text.length. Only measured while collapsed — once expanded
+  // the clamp is lifted so there's nothing left to overflow, and remeasuring
+  // then would hide the "Less" button.
+  useLayoutEffect(() => {
+    if (expandText || missing || expanded) return
+    const el = valueRef.current
+    if (!el) return
+    const measure = () => setOverflowing(el.scrollHeight > el.clientHeight + 1)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [text, expandText, missing, expanded])
+  const long = !expandText && overflowing
   const decision = review?.getDecision(path)
   const touched = Boolean(decision) && (review?.isTouched?.(path) ?? true)
   const reviewEditable = Boolean(decision && review?.onDecision && !review.readOnly)
@@ -242,9 +262,10 @@ function PrimitiveRow({
   if (expandText && !missing) {
     return (
       <div className="-mx-2 group rounded-[3px] px-2 pb-2 pt-1.5 transition-colors hover:bg-accent-ghost/30">
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-[14px_minmax(7rem,max-content)_minmax(0,1fr)_auto_auto] items-center gap-x-2">
           <StatusDot decision={decision} touched={touched} label={decisionLabel ?? ''} tone={decisionTone} />
-          <span className="shrink-0 font-mono text-[13.5px] font-medium text-ink">{name}</span>
+          <span className="font-mono text-[13.5px] font-medium text-ink">{name}</span>
+          <span />
           {onChange && (
             <button
               className="shrink-0 cursor-pointer px-0.5 text-ink-faint opacity-0 outline-none transition-all group-hover:opacity-100 hover:text-accent"
@@ -286,26 +307,24 @@ function PrimitiveRow({
 
   return (
     <div className="-mx-2 group rounded-[3px] px-2 transition-colors hover:bg-accent-ghost/30">
-      <div className="flex items-center gap-2 py-1.5">
+      <div className="grid grid-cols-[14px_minmax(7rem,max-content)_minmax(0,1fr)_auto_auto] items-start gap-x-2 gap-y-0.5 py-1.5">
         <StatusDot decision={decision} touched={touched} label={decisionLabel ?? ''} tone={decisionTone} />
-        <span className="shrink-0 truncate font-mono text-[13.5px] font-medium text-ink">
+        <span className="font-mono text-[13.5px] font-medium leading-snug text-ink">
           {name}
         </span>
         {missing ? (
           <MissingBadge />
-        ) : long ? null : (
-          <span className="min-w-0 flex-1 truncate text-[13px] text-ink-muted">
+        ) : (
+          <span
+            ref={valueRef}
+            className={
+              expanded
+                ? 'min-w-0 wrap-anywhere whitespace-pre-wrap text-[13px] leading-relaxed text-ink'
+                : 'min-w-0 line-clamp-2 text-[13px] leading-snug text-ink-muted'
+            }
+          >
             {text}
           </span>
-        )}
-        {long && !missing && (
-          <button
-            className="shrink-0 cursor-pointer text-[11px] font-bold text-accent outline-none hover:underline"
-            type="button"
-            onClick={() => setExpanded(v => !v)}
-          >
-            {expanded ? 'Less' : 'More'}
-          </button>
         )}
         {evidenceAnchorId && onSelectEvidence && (
           <button
@@ -327,12 +346,16 @@ function PrimitiveRow({
             <PencilIcon />
           </button>
         )}
+        {long && !missing && (
+          <button
+            className="col-start-3 justify-self-start cursor-pointer text-[11px] font-bold text-accent outline-none hover:underline"
+            type="button"
+            onClick={() => setExpanded(v => !v)}
+          >
+            {expanded ? 'Less' : 'More'}
+          </button>
+        )}
       </div>
-      {expanded && !missing && (
-        <div className="pb-2 pl-6 text-[13px] leading-relaxed text-ink wrap-anywhere whitespace-pre-wrap">
-          {text}
-        </div>
-      )}
       {reviewEditable && (
         <ReviewActions
           name={name}
@@ -441,21 +464,23 @@ function ObjectSection({
   return (
     <div>
       <div
-        className="-mx-2 flex cursor-pointer items-center gap-2 rounded-[3px] px-2 py-1.5 transition-colors hover:bg-accent-ghost/30"
+        className="-mx-2 grid cursor-pointer grid-cols-[14px_minmax(7rem,max-content)_minmax(0,1fr)] items-center gap-x-2 rounded-[3px] px-2 py-1.5 transition-colors hover:bg-accent-ghost/30"
         onClick={() => onNavigateTo ? onNavigateTo(path) : setExpanded(v => !v)}
       >
-        {onNavigateTo ? <span className="w-2 shrink-0" /> : <span className="shrink-0 text-ink-faint"><CollapseArrow expanded={expanded} /></span>}
-        <span className="shrink-0 truncate font-mono text-[13.5px] font-medium text-ink">{name}</span>
-        {onNavigateTo && <EnterChevron />}
-        {expanded ? (
-          <span className="shrink-0 whitespace-nowrap rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white">
-            {entries.length} field{entries.length !== 1 ? 's' : ''}
-          </span>
-        ) : entries.length === 0 ? (
-          <MissingBadge />
-        ) : preview ? (
-          <span className="min-w-0 flex-1 truncate text-[13px] text-ink-muted">{preview}</span>
-        ) : null}
+        {onNavigateTo ? <span className="w-3.5 shrink-0" /> : <span className="flex w-3.5 shrink-0 items-center text-ink-faint"><CollapseArrow expanded={expanded} /></span>}
+        <span className="font-mono text-[13.5px] font-medium text-ink">{name}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          {onNavigateTo && <EnterChevron />}
+          {expanded ? (
+            <span className="shrink-0 whitespace-nowrap rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white">
+              {entries.length} field{entries.length !== 1 ? 's' : ''}
+            </span>
+          ) : entries.length === 0 ? (
+            <MissingBadge />
+          ) : preview ? (
+            <span className="min-w-0 flex-1 truncate text-[13px] text-ink-muted">{preview}</span>
+          ) : null}
+        </span>
       </div>
       {expanded && (
         <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
@@ -495,14 +520,16 @@ function ArraySection({
   return (
     <div>
       <div
-        className="-mx-2 flex cursor-pointer items-center gap-2 rounded-[3px] px-2 py-1.5 transition-colors hover:bg-accent-ghost/30"
+        className="-mx-2 grid cursor-pointer grid-cols-[14px_minmax(7rem,max-content)_minmax(0,1fr)] items-center gap-x-2 rounded-[3px] px-2 py-1.5 transition-colors hover:bg-accent-ghost/30"
         onClick={() => onNavigateTo ? onNavigateTo(path) : setExpanded(v => !v)}
       >
-        {onNavigateTo ? <span className="w-2 shrink-0" /> : <span className="shrink-0 text-ink-faint"><CollapseArrow expanded={expanded} /></span>}
-        <span className="min-w-0 truncate font-mono text-[13.5px] font-medium text-ink">{name}</span>
-        {onNavigateTo && <EnterChevron />}
-        <span className="shrink-0 whitespace-nowrap rounded-full bg-surface-muted px-2.5 py-0.5 font-sans text-[10.5px] font-semibold text-ink-muted">
-          {value.length} item{value.length !== 1 ? 's' : ''}
+        {onNavigateTo ? <span className="w-3.5 shrink-0" /> : <span className="flex w-3.5 shrink-0 items-center text-ink-faint"><CollapseArrow expanded={expanded} /></span>}
+        <span className="font-mono text-[13.5px] font-medium text-ink">{name}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          {onNavigateTo && <EnterChevron />}
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-surface-muted px-2.5 py-0.5 font-sans text-[10.5px] font-semibold text-ink-muted">
+            {value.length} item{value.length !== 1 ? 's' : ''}
+          </span>
         </span>
       </div>
       {expanded && (

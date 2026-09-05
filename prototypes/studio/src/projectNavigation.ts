@@ -33,6 +33,10 @@ export type Route =
       projectContextId: string
       sourceDocumentId: string
       extractionId?: string
+      /** The Batch Extraction whose review grid opened this document, so the
+       *  document view can offer a direct way back to it. Pure navigation
+       *  metadata — never affects which document snapshot is fetched. */
+      fromBatchExtractionId?: string
     }
   | { kind: 'badReference' }
 
@@ -116,17 +120,20 @@ export function parseRoute(pathname: string, search = ''): Route {
     /^\/projects\/([^/]+)\/documents\/([^/]+)$/.exec(path)
   if (document) {
     const [, projectContextId, sourceDocumentId] = document
-    const extractionId = new URLSearchParams(search || inlineSearch).get(
-      'extractionId',
-    )
+    const params = new URLSearchParams(search || inlineSearch)
+    const extractionId = params.get('extractionId')
+    const fromBatchExtractionId = params.get('fromBatchExtractionId')
     return canonicalUuidSchema.safeParse(projectContextId).success &&
       canonicalUuidSchema.safeParse(sourceDocumentId).success &&
-      (extractionId === null || canonicalUuidSchema.safeParse(extractionId).success)
+      (extractionId === null || canonicalUuidSchema.safeParse(extractionId).success) &&
+      (fromBatchExtractionId === null ||
+        canonicalUuidSchema.safeParse(fromBatchExtractionId).success)
       ? {
           kind: 'document',
           projectContextId,
           sourceDocumentId,
           ...(extractionId ? { extractionId } : {}),
+          ...(fromBatchExtractionId ? { fromBatchExtractionId } : {}),
         }
       : { kind: 'badReference' }
   }
@@ -139,12 +146,15 @@ export function parseRoute(pathname: string, search = ''): Route {
 export function href(route: NavigableRoute): string {
   if (route.kind === 'root') return '/projects'
   const project = `/projects/${route.projectContextId}`
-  if (route.kind === 'document')
-    return `${project}/documents/${route.sourceDocumentId}${
-      route.extractionId
-        ? `?${new URLSearchParams({ extractionId: route.extractionId })}`
-        : ''
-    }`
+  if (route.kind === 'document') {
+    const params = new URLSearchParams({
+      ...(route.extractionId ? { extractionId: route.extractionId } : {}),
+      ...(route.fromBatchExtractionId
+        ? { fromBatchExtractionId: route.fromBatchExtractionId }
+        : {}),
+    })
+    return `${project}/documents/${route.sourceDocumentId}${params.size ? `?${params}` : ''}`
+  }
   if (route.tab === 'sources') return project
   if (route.tab === 'schemas') return `${project}/schemas`
   return `${project}/extractions${

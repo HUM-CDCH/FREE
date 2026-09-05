@@ -282,27 +282,43 @@ function validatedAdditions(raw: unknown, issues: SchemaEditIssue[]): SchemaAddi
 }
 
 type PromptField =
-  | { id: string; name: string; type: Exclude<SchemaNode['type'], 'array'> }
-  | { id: string; name: string; type: 'array'; itemType: ScalarFieldType | null }
+  | { id: string; name: string; type: Exclude<SchemaNode['type'], 'array'>; description?: string; allowedValues?: string[] }
+  | { id: string; name: string; type: 'array'; itemType: ScalarFieldType | null; description?: string }
 
 type PromptFieldValue =
-  | { name: string; type: Exclude<SchemaNode['type'], 'array'> }
-  | { name: string; type: 'array'; itemType: ScalarFieldType | null }
+  | { name: string; type: Exclude<SchemaNode['type'], 'array'>; description?: string; allowedValues?: string[] }
+  | { name: string; type: 'array'; itemType: ScalarFieldType | null; description?: string }
 
 function toPromptField(id: string, node: SchemaNode): PromptField {
-  if (node.type !== 'array') return { id, name: node.name, type: node.type }
+  const description = node.description
+  if (node.type !== 'array') {
+    const allowedValues = node.type === 'string' ? node.allowedValues : undefined
+    return {
+      id,
+      name: node.name,
+      type: node.type,
+      ...(description && { description }),
+      ...(allowedValues && { allowedValues }),
+    }
+  }
   return {
     id,
     name: node.name,
     type: node.type,
     itemType: node.children === undefined ? node.itemType : null,
+    ...(description && { description }),
   }
 }
 
 function promptFieldValue(field: PromptField): PromptFieldValue {
   return field.type === 'array'
-    ? { name: field.name, type: field.type, itemType: field.itemType }
-    : { name: field.name, type: field.type }
+    ? { name: field.name, type: field.type, itemType: field.itemType, ...(field.description && { description: field.description }) }
+    : {
+        name: field.name,
+        type: field.type,
+        ...(field.description && { description: field.description }),
+        ...(field.allowedValues && { allowedValues: field.allowedValues }),
+      }
 }
 
 function schemaEditPrompt(fields: readonly PromptField[], instruction: string, markdown: string | null): string {
@@ -314,12 +330,15 @@ Existing fields, keyed by opaque field ids that must be echoed exactly and never
 ${JSON.stringify(Object.fromEntries(fields.map((field) => [field.id, promptFieldValue(field)])), null, 2)}${source}
 
 Return one JSON object:
-{"fields":{"opaque-field-id":{"name":"field_name","type":"${FIELD_TYPES.join('|')}","removed":false}},"additions":[{"path":["existing_parent","new_scalar"],"type":"string"},{"path":["existing_parent","new_dates"],"type":"array","itemType":"date"}]}
+{"fields":{"opaque-field-id":{"name":"field_name","type":"${FIELD_TYPES.join('|')}","removed":false,"description":"optional researcher note","allowedValues":["optional","closed","set"]}},"additions":[{"path":["existing_parent","new_scalar"],"type":"string"},{"path":["existing_parent","new_dates"],"type":"array","itemType":"date"}]}
 
 Rules:
 - fields must contain every supplied opaque field id exactly once, including unchanged and removed fields; the id itself is never renamed, only the "name" value inside it
 - additions must always be present; use [] when no fields are added
 - apply the researcher instruction to every relevant field; preserve only properties unrelated to that instruction
+- a field's "description", where present, is a researcher note recorded directly on that field (added via the schema editor's per-field description button); treat it as additional guidance alongside the researcher instruction when deciding that field's name, type, and allowed values
+- "description" is optional on every field entry and addition; set it to change or add the note (an empty string clears it), and either omit it or set it to null to leave the field's current note untouched
+- "allowedValues" is optional and meaningful only when type is "string"; use it to pin a field to a fixed list of options (for example when the researcher instruction or the field's own description asks for a closed set of choices) — 2 or more values sets that closed set, an empty array clears an existing one back to free text, and either omitting it or setting it to null leaves the field's current allowed values untouched; additions may set it the same way
 - itemType is allowed only when type is array; every array field and array addition requires itemType: a scalar type (${SCALAR_FIELD_TYPES.join('|')}) for a repeating scalar, or null for repeating records
 - removed is true only for a removed existing field
 - additions use full structural paths in the post-edit namespace (i.e. using each field's current "name", including any rename applied in this same edit) and must not invent root path segments that are not existing or explicitly added fields
@@ -331,5 +350,5 @@ function retryPrompt(fields: readonly PromptField[], instruction: string): strin
 Researcher instruction: ${JSON.stringify(instruction)}
 Required opaque field ids and current values:
 ${JSON.stringify(Object.fromEntries(fields.map((field) => [field.id, promptFieldValue(field)])), null, 2)}
-Return {"fields":{...},"additions":[]} with every listed field id exactly once, unchanged. Use name, type (${FIELD_TYPES.join('|')}), removed, and itemType for arrays (scalar type or null for records). JSON only.`
+Return {"fields":{...},"additions":[]} with every listed field id exactly once, unchanged. Use name, type (${FIELD_TYPES.join('|')}), removed, itemType for arrays (scalar type or null for records), and optionally description and, for string fields, allowedValues (2+ values, or [] to clear). JSON only.`
 }

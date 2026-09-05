@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { enumerateFieldPaths, type SchemaNode } from 'extraction/schema'
+import type { SchemaNode } from 'extraction/schema'
 import { finalizeExtractionReview, readExtraction } from './api'
+import { leafFields } from './fieldCoverage'
 import { applyReviewDecisions, resultPathKey } from './reviewDecisions'
 import { isRecord } from '../shared/template'
 import type { BatchExtraction } from '../shared/batchExtraction.contract'
@@ -30,22 +31,12 @@ export type MemberReviewState =
       saveError: string | null
     }
 
-function isInternalFieldName(name: string): boolean {
-  const normalized = name.toLowerCase()
-  return name.startsWith('_') || normalized === 'evidence' || normalized === 'internal'
-}
-
 function buildColumns(schemaNodes: readonly SchemaNode[] | null): GridColumn[] {
-  if (!schemaNodes) return []
-  return enumerateFieldPaths(schemaNodes)
-    .filter(
-      (field) => !field.node.children && !field.path.some(isInternalFieldName),
-    )
-    .map((field) => ({
-      key: field.key,
-      path: field.path,
-      node: field.node,
-    }))
+  return leafFields(schemaNodes).map((field) => ({
+    key: field.key,
+    path: field.path,
+    node: field.node,
+  }))
 }
 
 /** Expand one schema column into actual indexed scalar paths, without joining sibling arrays. */

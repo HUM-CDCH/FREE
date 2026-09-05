@@ -151,14 +151,19 @@ function buildRows(
 function formatScalarValue(value: unknown): { text: string; missing: boolean } {
   if (value === null || value === undefined || value === '')
     return { text: 'Missing', missing: true }
+  if (Array.isArray(value))
+    return value.length > 0
+      ? { text: value.map(String).join(', '), missing: false }
+      : { text: 'Missing', missing: true }
   if (typeof value === 'boolean') return { text: value ? 'Yes' : 'No', missing: false }
   return { text: String(value), missing: false }
 }
 
-const qualityToneClass: Record<'success' | 'accent' | 'danger', string> = {
+const qualityToneClass: Record<'success' | 'accent' | 'danger' | 'neutral', string> = {
   success: 'text-green',
   accent: 'text-accent',
   danger: 'text-danger',
+  neutral: 'text-ink-muted',
 }
 
 /** A compact, always-visible bulk-approve affordance for one row or column
@@ -213,14 +218,23 @@ function RevertRowBadge({
   )
 }
 
-/** Share of one member's Review Decisions still at their grounded APPROVED
- *  default — i.e. the researcher didn't need to touch them. A per-document
- *  extraction-quality signal, not a correctness guarantee: an untouched
- *  value can still be wrong if the researcher hasn't looked at it yet. */
-function unchangedShare(decisions: readonly ReviewDecisionInput[]): number | null {
-  if (decisions.length === 0) return null
-  const approved = decisions.filter((decision) => decision.action === 'APPROVED').length
-  return approved / decisions.length
+/** Share of this document's *reviewable* fields (every field with a Review
+ *  Decision — i.e. grounded to Evidence — not just the ones touched so far)
+ *  that the researcher has confirmed unchanged. Ungrounded/missing fields
+ *  have no Review Decision and no Approve/Reject affordance in the grid, so
+ *  they're excluded from the total: this reaches 100% exactly when every
+ *  field the researcher *can* act on has been confirmed. Returns null while
+ *  nothing has been touched. */
+function confirmedNoChangeShare(
+  decisions: readonly ReviewDecisionInput[],
+  touched: ReadonlySet<string>,
+): number | null {
+  if (touched.size === 0 || decisions.length === 0) return null
+  const confirmed = decisions.filter(
+    (decision) =>
+      touched.has(resultPathKey(decision.resultPath)) && decision.action === 'APPROVED',
+  ).length
+  return confirmed / decisions.length
 }
 
 function qualityTone(share: number): 'success' | 'accent' | 'danger' {
@@ -229,17 +243,40 @@ function qualityTone(share: number): 'success' | 'accent' | 'danger' {
   return 'danger'
 }
 
-/** Finalized review outcomes only; pending defaults are not researcher approvals. */
-function QualityScoreBadge({ decisions }: { decisions: readonly ReviewDecisionInput[] }) {
-  const share = unchangedShare(decisions)
-  if (share === null) return null
+/** A compact quality signal for one document's Extraction: "Not yet
+ *  reviewed" while untouched, then "N% approved unchanged" (scoped to
+ *  "so far" until every reviewable field has been acted on) once the
+ *  researcher starts making Review Decisions. Scoped to fields with a
+ *  Review Decision — ungrounded/missing fields have no Approve/Reject
+ *  affordance in the grid, so they're excluded from both the percentage and
+ *  the completion check. Not a correctness guarantee: a confirmed value can
+ *  still be wrong if the researcher approved it without close reading. */
+function QualityScoreBadge({
+  decisions,
+  touched,
+}: {
+  decisions: readonly ReviewDecisionInput[]
+  touched: ReadonlySet<string>
+}) {
+  const share = confirmedNoChangeShare(decisions, touched)
+  if (share === null)
+    return (
+      <span className={`text-[10.5px] font-semibold ${qualityToneClass.neutral}`}>
+        Not yet reviewed
+      </span>
+    )
   const percent = Math.round(share * 100)
+  const complete = touched.size >= decisions.length
   return (
     <span
       className={`text-[10.5px] font-semibold ${qualityToneClass[qualityTone(share)]}`}
-      title={`${percent}% of reviewed fields were approved unchanged`}
+      title={
+        complete
+          ? `${percent}% of reviewed fields were approved unchanged`
+          : `${percent}% of the fields reviewed so far were approved unchanged`
+      }
     >
-      {percent}% approved unchanged
+      {percent}% approved unchanged{complete ? '' : ' so far'}
     </span>
   )
 }
@@ -297,7 +334,7 @@ function GridCell({
       <div className="max-w-[16rem] px-3 py-2">
         <div className="flex items-center gap-1.5">
           <StatusDot decision={decision} touched={touched} label={label} tone={tone} />
-          <span className={`min-w-0 flex-1 truncate ${missing ? 'text-ink-faint italic' : 'text-ink'}`}>
+          <span className={`min-w-0 flex-1 truncate text-ink-faint ${missing ? 'italic' : ''}`}>
             {text}
           </span>
         </div>
@@ -339,7 +376,9 @@ function GridCell({
         onClick={active ? onClose : onActivate}
       >
         <StatusDot decision={decision} touched={touched} label={label} tone={tone} />
-        <span className="min-w-0 flex-1 truncate">{text}</span>
+        <span className={`min-w-0 flex-1 truncate text-ink ${missing ? 'italic text-ink-faint' : ''}`}>
+          {text}
+        </span>
       </button>
       {active && (
         <div className="mt-1.5 flex gap-1">
@@ -699,8 +738,8 @@ export default function BatchExtractionReviewGrid({
                         {(status.label !== 'Needs review' || needsReviewLocally(member)) && (
                           <StatusPill tone={status.tone} label={status.label} />
                         )}
-                        {state?.status === 'ready' && state.attempt.reviewedAt && (
-                          <QualityScoreBadge decisions={state.decisions} />
+                        {state?.status === 'ready' && (
+                          <QualityScoreBadge decisions={state.decisions} touched={state.touched} />
                         )}
                         {state?.status === 'ready' && (
                           <span role="status" className="text-[10.5px] text-ink-muted">

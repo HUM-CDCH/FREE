@@ -18,7 +18,8 @@ import {
 } from 'extraction/parsed-document'
 import { useEvidenceOverlays } from './useEvidenceOverlays'
 import { useExtraction } from './useExtraction'
-import type { ExtractionStrategy } from '../shared/extraction.contract'
+import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
+import ExtractionFinishedDialog from './ExtractionFinishedDialog'
 import { Button, Spinner } from './ui'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { DocumentSnapshot } from './projectContexts/transport'
@@ -179,6 +180,10 @@ export function DocumentWorkspace({
       : null
   const [latestAttemptSchema, setLatestAttemptSchema] =
     useState(persistedAttemptSchema)
+  const [finishedExtractionReport, setFinishedExtractionReport] = useState<{
+    attempt: ExtractionAttempt
+    schemaNodes: SchemaDefinition['schemaNodes']
+  } | null>(null)
   const [docIndex, setDocIndex] = useState<DocIndex>({ status: 'parsing' })
   const resizeControllerRef = useRef<AbortController | null>(null)
 
@@ -591,13 +596,19 @@ export function DocumentWorkspace({
         },
         strategy,
       )
-      if (terminal)
+      if (terminal) {
         setLatestAttemptSchema({
           schemaRevisionId: revision.schemaRevisionId,
           revisionNumber: revision.revisionNumber,
           recordDescription: revision.recordDescription,
           schemaNodes: revision.schemaNodes,
         })
+        if (terminal.outcome === 'SUCCEEDED')
+          setFinishedExtractionReport({
+            attempt: terminal,
+            schemaNodes: revision.schemaNodes,
+          })
+      }
     } catch (error) {
       showToast(
         error instanceof Error
@@ -834,6 +845,19 @@ export function DocumentWorkspace({
           </aside>
         </div>
       </div>
+      {finishedExtractionReport && (
+        <ExtractionFinishedDialog
+          key={finishedExtractionReport.attempt.extractionId}
+          attempt={finishedExtractionReport.attempt}
+          documentName={filename}
+          schemaNodes={finishedExtractionReport.schemaNodes}
+          onReviewNow={() => {
+            setRailTab('results')
+            setFinishedExtractionReport(null)
+          }}
+          onDismiss={() => setFinishedExtractionReport(null)}
+        />
+      )}
     </div>
   )
 }
