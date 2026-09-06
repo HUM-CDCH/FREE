@@ -1,6 +1,7 @@
 import type { GroundingModel, GroundingModelResponse } from './dependencies.js'
 export type { GroundingModel } from './dependencies.js'
 import { ExtractionError } from './errors.js'
+import { lexicalCheck, normalizeLexical } from './lexical.js'
 import type { ParsedDocument } from './parsed-document.js'
 import { sourceContext } from './source-context.js'
 import type {
@@ -64,6 +65,7 @@ export async function groundExtraction(
   const claims: Claim[] = paths.map((path, index) => ({ label: `C${index + 1}`, path, value: valueAtPath(result, path) as string | number | boolean }))
   const context = sourceContext(document, options?.allowedAnchorIds)
   const anchors = Object.fromEntries([...context.anchorIdByLabel].map(([label, anchorId]) => [label, anchorText(context.text, label, anchorId)]))
+  const normalizedTextByAnchorId = new Map([...context.textByAnchorId].map(([anchorId, text]) => [anchorId, normalizeLexical(text)]))
   const claimByLabel = new Map(claims.map((claim) => [claim.label, claim]))
   const selectedClaims = new Set<string>()
   const evidence: EvidenceLink[] = []
@@ -126,7 +128,7 @@ export async function groundExtraction(
       const evidenceAnchorId = context.anchorIdByLabel.get(selection.anchorLabel)
       if (!evidenceAnchorId)
         issues.push({ code: 'unknown_anchor_label', claimLabel: claim.label, anchorLabel: selection.anchorLabel, resultPath: claim.path })
-      else evidence.push({ resultPath: claim.path, evidenceAnchorId })
+      else evidence.push({ resultPath: claim.path, evidenceAnchorId, ...lexicalCheck(claim.value, evidenceAnchorId, normalizedTextByAnchorId) })
     }
   }
   const grounded = new Set(evidence.map((link) => resultPathKey(link.resultPath)))

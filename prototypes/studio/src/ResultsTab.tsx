@@ -50,6 +50,15 @@ function summaryItem(label: string, value: string | number) {
   )
 }
 
+/** Why a reviewer should look at a link before approving it. Undefined when
+ *  the value sits verbatim in a unique passage, or the link predates the check. */
+function evidenceCheck(link: { verbatim?: boolean; lexicalHits?: number }): string | undefined {
+  if (link.verbatim === false) return 'Value not found in the linked passage'
+  const others = (link.lexicalHits ?? 1) - 1
+  if (link.verbatim && others > 0) return `Value also appears in ${others} other passage${others === 1 ? '' : 's'}`
+  return undefined
+}
+
 type DiagnosticCall = {
   outcome: string
   finishReason: string | null
@@ -478,7 +487,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
     ),
     [articlePathPrefix, navPath, onResultPathChange, view],
   )
-  const evidenceAnchorIdByPath = useMemo(
+  const evidenceLinkByPath = useMemo(
     () =>
       new Map(
         state.status === 'ready'
@@ -486,12 +495,15 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
               JSON.stringify(
                 link.resultPath.map(String).slice(articlePathPrefix.length),
               ),
-              link.evidenceAnchorId,
+              link,
             ])
           : [],
       ),
     [articlePathPrefix.length, state],
   )
+  const checkCount = state.status === 'ready'
+    ? state.evidenceLinks.filter((link) => evidenceCheck(link) !== undefined).length
+    : 0
   const reviewDecisionByPath = useMemo(
     () => new Map(visibleReviewDecisions.map((decision) => [
       resultPathKey(decision.resultPath),
@@ -578,6 +590,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
               {summaryItem('Fields', stats.fields)}
               {summaryItem('Missing', stats.missing)}
               {summaryItem('Grounded', state.evidenceLinks.length)}
+              {checkCount > 0 && summaryItem('To check', checkCount)}
               {state.evidenceLinks.length > 0 && summaryItem(
                 'Decisions',
                 attempt?.reviewedAt
@@ -780,8 +793,12 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                     defaultExpanded={false}
                     expandText={navPath.length > 0}
                     getEvidenceAnchorId={(path) =>
-                      evidenceAnchorIdByPath.get(JSON.stringify(path))
+                      evidenceLinkByPath.get(JSON.stringify(path))?.evidenceAnchorId
                     }
+                    getEvidenceCheck={(path) => {
+                      const link = evidenceLinkByPath.get(JSON.stringify(path))
+                      return link && evidenceCheck(link)
+                    }}
                     onSelectEvidence={onSelectEvidence}
                     review={noReviewableResult ? undefined : {
                       getDecision: (path) => reviewDecisionByPath.get(resultPathKey(absoluteReviewPath(path))),

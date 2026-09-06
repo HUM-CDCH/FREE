@@ -238,7 +238,10 @@ less than the lab does, and cuts a cell containing ` | `.
 
 ## Next steps toward production
 
-No production changes from this experiment are currently applied.
+Applied so far (2026-09-06): the first half of step 1. Production links carry
+`verbatim` and `lexicalHits` from the lexical tier only, and Studio flags a
+link whose value is absent from its anchor or occurs in more than one
+candidate. Ungrounded values still carry no lexical count.
 
 1. **Contract: separate the two doubts.** Add reviewer-visible value risk and
    Evidence risk plus the proposed anchor; neither score authorizes

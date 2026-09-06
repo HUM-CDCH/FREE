@@ -292,6 +292,33 @@ describe('ResultsTab grounded values', () => {
     expect(screen.queryByText(/could not be grounded/)).not.toBeInTheDocument()
   })
 
+  it('marks links whose value is absent from, or not unique to, the passage', () => {
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller({
+          status: 'ready',
+          result: { title: 'Report', place: 'Ravenna', year: 1901, legacy: 'Old' },
+          evidenceLinks: [
+            { resultPath: ['title'], evidenceAnchorId: 'anchor-1', verbatim: true, lexicalHits: 1 },
+            { resultPath: ['place'], evidenceAnchorId: 'anchor-2', verbatim: true, lexicalHits: 3 },
+            { resultPath: ['year'], evidenceAnchorId: 'anchor-3', verbatim: false, lexicalHits: 0 },
+            { resultPath: ['legacy'], evidenceAnchorId: 'anchor-4' },
+          ],
+          ungroundedCount: 0,
+        })}
+        schemaReady
+        documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf"
+        onSelectEvidence={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('note', { name: 'Value also appears in 2 other passages' })).toBeInTheDocument()
+    expect(screen.getByRole('note', { name: 'Value not found in the linked passage' })).toBeInTheDocument()
+    expect(screen.getAllByRole('note')).toHaveLength(2)
+    expect(screen.getByText('To check:')).toBeInTheDocument()
+  })
+
   it('reports the persisted ungrounded value count', () => {
     render(
       <ResultsTab

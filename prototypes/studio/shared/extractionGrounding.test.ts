@@ -64,8 +64,9 @@ describe('canonical Extraction grounding', () => {
       { claims: ['C3', 'C4'] },
     ])
     expect(grounded.evidence).toEqual([
-      { resultPath: ['records', 0, 'title'], evidenceAnchorId: firstAnchorId },
-      { resultPath: ['records', 1, 'title'], evidenceAnchorId: firstAnchorId },
+      { resultPath: ['records', 0, 'title'], evidenceAnchorId: firstAnchorId, verbatim: false, lexicalHits: 0 },
+      { resultPath: ['records', 1, 'title'], evidenceAnchorId: firstAnchorId, verbatim: false, lexicalHits: 0 },
+      // Booleans are never verbatim in a source and carry no lexical check.
       { resultPath: ['records', 1, 'checked'], evidenceAnchorId: firstAnchorId },
     ])
     expect(grounded.ungroundedPaths).toEqual([['records', 0, 'count']])

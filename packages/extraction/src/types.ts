@@ -13,6 +13,12 @@ export type ResultPath = readonly (string | number)[]
 export type EvidenceLink = Readonly<{
   resultPath: ResultPath
   evidenceAnchorId: string
+  /** The value occurs as a bounded token in the linked anchor. Absent on
+   *  boolean values and on links stored before this check existed. */
+  verbatim?: boolean
+  /** Candidate anchors containing the value; above one, the passage is
+   *  ambiguous. A reviewer's doubt, not a probability; never auto-accept. */
+  lexicalHits?: number
 }>
 
 export type ReviewDecisionAction = 'APPROVED' | 'EDITED' | 'REJECTED'

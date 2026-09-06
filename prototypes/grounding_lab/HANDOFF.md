@@ -83,8 +83,13 @@ For a new session picking up `prototypes/grounding_lab` on branch
 
 ## Production status
 
-No Extraction or Studio grounding changes from this experiment are applied.
-The benchmark and risk-ranking work remains isolated in this lab.
+One contract change is applied (2026-09-06): every production `EvidenceLink`
+now carries `verbatim` (value is a bounded token of the linked anchor) and
+`lexicalHits` (candidate anchors containing it), computed in
+`packages/extraction/src/lexical.ts` from a reduced port of this lab's
+`normalize` and `bounded_contains`. Studio shows a "Check" badge and a
+"To check" count from them. No score, no auto-accept, no reranker; the
+benchmark and risk-ranking work remains isolated in this lab.
 
 ## What exists
 
