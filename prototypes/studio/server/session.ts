@@ -13,7 +13,8 @@ import { clearAuthCookie, serializeAuthCookie } from './authCookie.js'
 export const SESSION_COOKIE_NAME = 'free_session'
 export const SESSION_CLOCK_SKEW_MILLISECONDS = 60_000
 
-const SESSION_VERSION = 2
+const SESSION_VERSION = 4
+const SESSION_LIFETIME_MILLISECONDS = 8 * 60 * 60 * 1_000
 const MAX_COOKIE_VALUE_LENGTH = 2_048
 const SESSION_SIGNATURE_CONTEXT = 'FREE session cookie'
 
@@ -73,13 +74,12 @@ export function createSessionManager(
   return {
     issue(accountId, identityTokenExpiresAt) {
       const issuedAt = now()
-      const expiresAt =
-        identityTokenExpiresAt - SESSION_CLOCK_SKEW_MILLISECONDS
+      const expiresAt = issuedAt + SESSION_LIFETIME_MILLISECONDS
       if (
         !CANONICAL_UUID.test(accountId) ||
         !Number.isSafeInteger(identityTokenExpiresAt) ||
         !Number.isSafeInteger(expiresAt) ||
-        expiresAt <= issuedAt
+        identityTokenExpiresAt - SESSION_CLOCK_SKEW_MILLISECONDS <= issuedAt
       )
         return null
       return {

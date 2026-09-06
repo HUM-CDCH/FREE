@@ -59,6 +59,8 @@ export type ResultValueProps = {
   expandText?: boolean
   /** Exact canonical Evidence link for a scalar result path, when grounded. */
   getEvidenceAnchorId?: (path: ResultPath) => string | undefined
+  /** Reviewer-facing doubt about that link, when grounding flagged one. */
+  getEvidenceCheck?: (path: ResultPath) => string | undefined
   onSelectEvidence?: (anchorId: string) => void
   review?: ResultReview
 }
@@ -139,8 +141,8 @@ function firstStringValue(obj: Record<string, unknown>): string | null {
 // ── PrimitiveRow ──────────────────────────────────────────────────────────────
 
 function PrimitiveRow({
-  name, value, path, onChange, expandText, evidenceAnchorId, onSelectEvidence, review,
-}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; expandText?: boolean; evidenceAnchorId?: string; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
+  name, value, path, onChange, expandText, evidenceAnchorId, evidenceCheck, onSelectEvidence, review,
+}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; expandText?: boolean; evidenceAnchorId?: string; evidenceCheck?: string; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
   const missing = value === null || value === undefined || value === ''
   const text = missing ? '' : String(value)
   const [editing, setEditing] = useState(false)
@@ -286,6 +288,7 @@ function PrimitiveRow({
               Evidence
             </button>
           )}
+          {evidenceCheck && <CheckBadge reason={evidenceCheck} />}
         </div>
         <div className="pl-4 pt-0.5 text-[13px] leading-relaxed text-ink-muted wrap-anywhere whitespace-pre-wrap">
           {text}
@@ -336,6 +339,7 @@ function PrimitiveRow({
             Evidence
           </button>
         )}
+        {evidenceCheck && <CheckBadge reason={evidenceCheck} />}
         {(onChange || reviewEditable) && !reviewEditable && (
           <button
             className="shrink-0 cursor-pointer px-0.5 text-ink-faint opacity-0 outline-none transition-all group-hover:opacity-100 hover:text-accent"
@@ -452,19 +456,36 @@ function ReviewActions({ name, action, touched, onApprove, onEdit, onReject, onR
   )
 }
 
+/** Grounding's doubt about a link: the value is not in the passage, or it
+ *  also occurs elsewhere. A prompt to look, never a verdict. */
+function CheckBadge({ reason }: { reason: string }) {
+  return (
+    <span
+      className="shrink-0 rounded-full border border-amber-300/60 bg-amber-50/50 px-2 py-0.5 text-[10.5px] font-bold text-amber-800"
+      role="note"
+      aria-label={reason}
+      title={reason}
+    >
+      Check
+    </span>
+  )
+}
+
 // ── ObjectSection ─────────────────────────────────────────────────────────────
 
 function ObjectSection({
-  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, onSelectEvidence, review,
-}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
+  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, onSelectEvidence, review,
+}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const entries = Object.entries(value)
   const preview = firstStringValue(value)
 
   return (
     <div>
-      <div
-        className="-mx-2 grid cursor-pointer grid-cols-[14px_minmax(7rem,max-content)_minmax(0,1fr)] items-center gap-x-2 rounded-[3px] px-2 py-1.5 transition-colors hover:bg-accent-ghost/30"
+      <button
+        type="button"
+        aria-expanded={onNavigateTo ? undefined : expanded}
+        className="-mx-2 grid w-[calc(100%+1rem)] cursor-pointer grid-cols-[14px_minmax(7rem,max-content)_minmax(0,1fr)] items-center gap-x-2 rounded-[3px] px-2 py-1.5 text-left transition-colors hover:bg-accent-ghost/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         onClick={() => onNavigateTo ? onNavigateTo(path) : setExpanded(v => !v)}
       >
         {onNavigateTo ? <span className="w-3.5 shrink-0" /> : <span className="flex w-3.5 shrink-0 items-center text-ink-faint"><CollapseArrow expanded={expanded} /></span>}
@@ -481,7 +502,7 @@ function ObjectSection({
             <span className="min-w-0 flex-1 truncate text-[13px] text-ink-muted">{preview}</span>
           ) : null}
         </span>
-      </div>
+      </button>
       {expanded && (
         <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
           {entries.length === 0 ? (
@@ -498,6 +519,7 @@ function ObjectSection({
                 defaultExpanded={onNavigateTo ? false : undefined}
                 expandText={expandText}
                 getEvidenceAnchorId={getEvidenceAnchorId}
+                getEvidenceCheck={getEvidenceCheck}
                 onSelectEvidence={onSelectEvidence}
                 review={review}
                 depth={depth + 1}
@@ -513,14 +535,16 @@ function ObjectSection({
 // ── ArraySection ──────────────────────────────────────────────────────────────
 
 function ArraySection({
-  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, onSelectEvidence, review,
-}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
+  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, onSelectEvidence, review,
+}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
 
   return (
     <div>
-      <div
-        className="-mx-2 grid cursor-pointer grid-cols-[14px_minmax(7rem,max-content)_minmax(0,1fr)] items-center gap-x-2 rounded-[3px] px-2 py-1.5 transition-colors hover:bg-accent-ghost/30"
+      <button
+        type="button"
+        aria-expanded={onNavigateTo ? undefined : expanded}
+        className="-mx-2 grid w-[calc(100%+1rem)] cursor-pointer grid-cols-[14px_minmax(7rem,max-content)_minmax(0,1fr)] items-center gap-x-2 rounded-[3px] px-2 py-1.5 text-left transition-colors hover:bg-accent-ghost/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         onClick={() => onNavigateTo ? onNavigateTo(path) : setExpanded(v => !v)}
       >
         {onNavigateTo ? <span className="w-3.5 shrink-0" /> : <span className="flex w-3.5 shrink-0 items-center text-ink-faint"><CollapseArrow expanded={expanded} /></span>}
@@ -531,7 +555,7 @@ function ArraySection({
             {value.length} item{value.length !== 1 ? 's' : ''}
           </span>
         </span>
-      </div>
+      </button>
       {expanded && (
         <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
           {value.length === 0 ? (
@@ -549,6 +573,7 @@ function ArraySection({
                 defaultExpanded={false}
                 expandText={expandText}
                 getEvidenceAnchorId={getEvidenceAnchorId}
+                getEvidenceCheck={getEvidenceCheck}
                 onSelectEvidence={onSelectEvidence}
                 review={review}
               />
@@ -562,14 +587,14 @@ function ArraySection({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-function ResultValue({ name, value, path = [], onChange, depth = 0, defaultExpanded, onNavigateTo, expandText, getEvidenceAnchorId, onSelectEvidence, review }: ResultValueProps) {
+function ResultValue({ name, value, path = [], onChange, depth = 0, defaultExpanded, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, onSelectEvidence, review }: ResultValueProps) {
   if (Array.isArray(value)) {
-    return <ArraySection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} onSelectEvidence={onSelectEvidence} review={review} />
+    return <ArraySection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} getEvidenceCheck={getEvidenceCheck} onSelectEvidence={onSelectEvidence} review={review} />
   }
   if (isRecord(value)) {
-    return <ObjectSection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} onSelectEvidence={onSelectEvidence} review={review} />
+    return <ObjectSection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} getEvidenceCheck={getEvidenceCheck} onSelectEvidence={onSelectEvidence} review={review} />
   }
-  return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} expandText={expandText} evidenceAnchorId={getEvidenceAnchorId?.(path)} onSelectEvidence={onSelectEvidence} review={review} />
+  return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} expandText={expandText} evidenceAnchorId={getEvidenceAnchorId?.(path)} evidenceCheck={getEvidenceCheck?.(path)} onSelectEvidence={onSelectEvidence} review={review} />
 }
 
 export default ResultValue

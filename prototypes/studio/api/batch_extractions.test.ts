@@ -54,6 +54,8 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
     readExtractionAttempt: vi.fn<ExtractionModule['readExtractionAttempt']>(),
     cancelSingle: vi.fn<ExtractionModule['cancelSingle']>(),
     prepareReview: vi.fn<ExtractionModule['prepareReview']>(),
+    readReviewDraft: vi.fn(async () => ({ version: 0, decisions: [] })),
+    saveReviewDraft: vi.fn(async (_id, draft) => ({ ...draft, version: draft.version + 1 })),
     finalizeReview: vi.fn<ExtractionModule['finalizeReview']>(),
     readDocumentExtractions:
       vi.fn<ExtractionModule['readDocumentExtractions']>(),

@@ -4,6 +4,7 @@ import type { BatchExtraction } from '../../shared/batchExtraction.contract'
 import { batchExtractionProgress } from '../../shared/batchExtraction.contract'
 import type { ReviewDecisionInput } from '../../shared/extraction.contract'
 import { parseReviewedValue, resultPathKey } from '../reviewDecisions'
+import { REVIEW_DRAFT_CONFLICT } from '../reviewDrafts'
 import { Button, CheckIcon, EmptyState, Pill, PencilIcon, ProgressBar, SegmentedControl, Spinner, StatusDot, UndoIcon, XIcon } from '../ui'
 import { memberStatus } from './batchExtractionStatus'
 import { StatusPill } from './BatchExtractionScreens'
@@ -566,6 +567,11 @@ export default function BatchExtractionReviewGrid({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
+      {grid.draftError && <div role="alert" className="text-xs text-danger">
+        Draft not saved: {grid.draftError}
+        <Button onClick={grid.retryDrafts} disabled={grid.draftSaving}>{grid.draftError === REVIEW_DRAFT_CONFLICT ? 'Reload server review' : 'Retry draft'}</Button>
+      </div>}
+      {!grid.draftError && <p role="status" className="text-xs text-ink-muted">{grid.draftSaving ? 'Saving draft…' : grid.dirtyCount > 0 ? 'Draft saved' : ''}</p>}
       <div className="flex shrink-0 flex-col gap-2.5 rounded-card border border-line bg-surface px-4 py-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">

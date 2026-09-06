@@ -595,7 +595,9 @@ function twoAccountStoreFixture(): TwoAccountStores {
         if (extractionId !== ownedExtractionId) throw notFound()
         throw new Error('Authorized Extraction read is outside this test.')
       }),
-      finalizeReview: vi.fn<ExtractionModule['finalizeReview']>(async (extractionId) => {
+      readReviewDraft: vi.fn(async () => ({ version: 0, decisions: [] })),
+    saveReviewDraft: vi.fn(async (_id, draft) => ({ ...draft, version: draft.version + 1 })),
+    finalizeReview: vi.fn<ExtractionModule['finalizeReview']>(async (extractionId) => {
         const ownedExtractionId =
           accountId === ids.accountA ? ids.extractionA : ids.extractionB
         if (extractionId !== ownedExtractionId) throw notFound()

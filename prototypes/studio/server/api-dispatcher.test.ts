@@ -71,6 +71,7 @@ describe('eager API dispatcher', () => {
       ['/api/schema-revisions/revision', 'schema_revisions'],
       ['/api/extraction-schemas/schema', 'extraction_schemas'],
       ['/api/extractions/extraction/review', 'extractions'],
+      ['/api/extractions/extraction/review/draft', 'extractions'],
       ['/api/batch-extractions/batch/results', 'batch_extractions'],
       [
         '/api/batch-schema-suggestions/suggestion/retry',

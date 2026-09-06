@@ -48,6 +48,9 @@ function readyController(): ExtractionController {
       isTouched: () => false,
       reviewedExtractionId: null,
       error: null,
+      draftError: null,
+      draftSaving: false,
+      retryDraft: () => {},
       setDecision: () => {},
       approveAll: () => {},
       accept: async () => {},
@@ -107,7 +110,7 @@ describe('Article extraction lifecycle client', () => {
       },
       {
         url: `/api/extractions/${extractionId}/review`,
-        body: { reviewDecisions: [] },
+        body: { reviewDecisions: [], expectedDraftVersion: 0 },
       },
     ])
   })

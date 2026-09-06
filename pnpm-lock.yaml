@@ -96,6 +96,19 @@ importers:
 
   packages/studio-configuration: {}
 
+  prototypes/grounding_lab:
+    dependencies:
+      extraction:
+        specifier: workspace:*
+        version: link:../../packages/extraction
+    devDependencies:
+      tsx:
+        specifier: ^4.23.4
+        version: 4.23.4
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+
   prototypes/parsing_service: {}
 
   prototypes/studio:

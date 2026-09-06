@@ -118,6 +118,32 @@ const url = (query = '') =>
   )
 
 describe('document reopen ExtractionModule projection', () => {
+  it.each(['', `?extractionId=${extractionId}`])('opens the current schema for editing while preserving extraction pins (%s)', async (query) => {
+    const current = snapshot({ ...definition, recordDescription: 'Updated description.' })
+    current.extractionSchema = {
+      ...current.extractionSchema!,
+      schemaRevisionId: '66666666-6666-4666-8666-666666666666',
+      revisionNumber: 3,
+    }
+    const response = await createGetDocumentReopen({
+      getDocumentReopenSnapshot: vi.fn(async (_project: string, _document: string, pins?: unknown) =>
+        pins ? snapshot() : current),
+    }, extractionModule())(url(query))
+    const body = documentReopenResponseSchema.parse(await response.json())
+
+    expect(body.extractionSchema).toMatchObject({
+      schemaRevisionId: current.extractionSchema.schemaRevisionId,
+      revisionNumber: 3,
+      recordDescription: 'Updated description.',
+    })
+    for (const attempt of [body.latestAttempt, body.latestReviewed]) {
+      expect(attempt).toMatchObject({
+        schemaRevisionId,
+        extractionSchema: { revisionNumber: 2, ...definition },
+      })
+    }
+  })
+
   it('combines source/schema state with module-owned latest attempts', async () => {
     const getDocumentReopenSnapshot = vi.fn(async () => snapshot())
     const module = extractionModule()

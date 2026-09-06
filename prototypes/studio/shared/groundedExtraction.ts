@@ -10,6 +10,9 @@ export const evidenceLinkSchema = z
   .object({
     resultPath: resultPathSchema,
     evidenceAnchorId: z.string().min(1),
+    // Grounding's lexical checks; absent on booleans and on older links.
+    verbatim: z.boolean().optional(),
+    lexicalHits: z.number().int().nonnegative().optional(),
   })
   .strict()
 

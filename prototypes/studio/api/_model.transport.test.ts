@@ -1,7 +1,47 @@
-import { expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { extractWithModel } from './_model.js'
+import { resolveCapabilityRoute } from './_provider.js'
+
+afterEach(() => vi.unstubAllGlobals())
+
+it.each([
+  ['valid result', '{"records":[{"title":"Grounded"}]}'],
+  ['malformed JSON', 'not JSON'],
+  ['invalid root', '[]'],
+])('sends the extraction schema without retrying a %s from OpenAI-compatible', async (scenario, content) => {
+  const requests: Record<string, unknown>[] = []
+  vi.stubGlobal('fetch', async (_url: unknown, options: RequestInit) => {
+    requests.push(JSON.parse(String(options.body)))
+    return new Response(JSON.stringify({ id: 'test', object: 'chat.completion', created: 1, model: 'test', choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } }), { headers: { 'content-type': 'application/json' } })
+  })
+  const connectionId = '11111111-1111-4111-8111-111111111111'
+  const target = await resolveCapabilityRoute('extraction', {}, {
+    config: {
+      connections: [{ id: connectionId, name: 'Test', provider: 'openai-compatible', baseUrl: 'https://audit.invalid/v1' }],
+      routes: { extraction: { connectionId, modelId: 'test' }, interaction: null },
+    },
+    credentialStore: { get: async () => undefined, state: async () => 'absent', set: async () => {}, delete: async () => {} },
+  })
+  const result = extractWithModel({ document: { file: null, markdown: 'Grounded', pages: null }, template: { records: [{ title: 'string' }] } }, target)
+  if (scenario === 'valid result') await expect(result).resolves.toMatchObject({ result: JSON.parse(content) })
+  else await expect(result).rejects.toMatchObject({ code: 'invalid_model_output' })
+  expect(requests).toHaveLength(1)
+  expect(requests[0].response_format).toMatchObject({
+    type: 'json_schema',
+    json_schema: {
+      strict: true,
+      schema: {
+        additionalProperties: false,
+        required: ['records'],
+        properties: { records: { anyOf: expect.arrayContaining([
+          expect.objectContaining({ type: 'array', items: expect.objectContaining({ required: ['title'] }) }),
+        ]) } },
+      },
+    },
+  })
+})
 
 it('sends a JSON schema through the Anthropic adapter on a schema-enabled route', async () => {
   const requests: Record<string, unknown>[] = []
@@ -30,6 +70,7 @@ it.each([false, true])('keeps prompt-only endpoints compatible (automatic=%s)', 
   const requests: Record<string, unknown>[] = []
   const provider = createOpenAICompatible({
     name: 'audit-compatible', baseURL: 'https://audit.invalid/v1',
+    supportsStructuredOutputs: true,
     fetch: async (_url, options) => {
       const body = JSON.parse(String(options?.body))
       requests.push(body)
@@ -45,7 +86,7 @@ it.each([false, true])('keeps prompt-only endpoints compatible (automatic=%s)', 
   expect(requests.at(-1)!.response_format).toBeUndefined()
   expect(requests).toHaveLength(automatic ? 2 : 1)
   if (automatic) {
-    expect(requests[0].response_format).toBeDefined()
+    expect(requests[0].response_format).toMatchObject({ type: 'json_schema', json_schema: { strict: true } })
     await extractWithModel(input, target)
     expect(requests).toHaveLength(3)
     expect(requests[2].response_format).toBeUndefined()
@@ -61,7 +102,7 @@ it.each([
   [400, 'Context window exceeded'],
 ] as const)('never falls back for %s: %s', async (status, message) => {
   const requests: Record<string, unknown>[] = []
-  const provider = createOpenAICompatible({ name: 'failure-test', baseURL: 'https://audit.invalid/v1',
+  const provider = createOpenAICompatible({ name: 'failure-test', baseURL: 'https://audit.invalid/v1', supportsStructuredOutputs: true,
     fetch: async (_url, options) => {
       requests.push(JSON.parse(String(options?.body)))
       return new Response(JSON.stringify({ error: { message, type: 'invalid_request_error' } }), {

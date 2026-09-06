@@ -35,6 +35,9 @@ FREE's normative product and safety contract is:
    locatable source evidence or visibly marked ungrounded. Complete
    accept/reject/edit review decisions are validated and stored; partial or
    structurally invalid review cannot silently become authoritative.
+   Partial review decisions are saved as versioned drafts in PostgreSQL;
+   only a complete, validated review is finalized. Concurrent draft edits
+   report conflicts instead of silently overwriting another view's changes.
 5. **Durable, versioned state.** Project Contexts, source documents and their
    representation revisions, schema and prompt revisions, extractions, and
    review decisions survive ordinary restarts. An extraction remains pinned to
@@ -53,10 +56,10 @@ FREE's normative product and safety contract is:
    including for existing saved routes. FREE uses the adapter's output support and
    falls back to prompt-only generation only after an explicit unsupported-format
    response, remembering that endpoint/model/route for the server session. Returned
-   results are still validated. Advanced route settings can override Automatic
-   (`auto`, also the default when absent) with prompt only (`prompt`), schema output
-   (`schema`), or schema output plus schema-free JSON mode (`native`). Raw NuExtract
-   keeps its own protocol.
+   results are still validated. OpenAI-compatible requests include the JSON schema
+   when supplied. Output formatting has no route override; previously saved output
+   overrides are ignored and removed on the next save. Raw NuExtract keeps its own
+   protocol.
 8. **Safe startup.** Authored forward migrations finish before Studio becomes
    ready, both for a fresh database and an already-migrated one. Normal startup
    never resets the database or seeds an account, Project Context, provider,

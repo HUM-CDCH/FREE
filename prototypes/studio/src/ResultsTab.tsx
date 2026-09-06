@@ -7,9 +7,11 @@ import { isRecord } from '../shared/template'
 import { schemaDefinitionToTemplate, type SchemaDefinition } from 'extraction/schema'
 import { resultStats } from './resultStats'
 import { extractionStateFromAttempt, type ExtractionController, type ExtractionRetryInput } from './useExtraction'
-import type { ExtractionAttempt } from '../shared/extraction.contract'
+import type { ExtractionAttempt, ReviewDecisionAction } from '../shared/extraction.contract'
+import { REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import {
   applyReviewDecisions,
+  orderResultFields,
   resultPathKey,
   schemaNodeAtResultPath,
 } from './reviewDecisions'
@@ -48,6 +50,15 @@ function summaryItem(label: string, value: string | number) {
       {label}: <span className="font-mono text-ink">{value}</span>
     </span>
   )
+}
+
+/** Checks describe the original value, so hide them after an edit or rejection. */
+function evidenceCheck(link: { verbatim?: boolean; lexicalHits?: number }, action?: ReviewDecisionAction): string | undefined {
+  if (action === 'EDITED' || action === 'REJECTED') return undefined
+  if (link.verbatim === false) return 'Value not found in the linked passage'
+  const others = (link.lexicalHits ?? 1) - 1
+  if (link.verbatim && others > 0) return `Value also appears in ${others} other passage${others === 1 ? '' : 's'}`
+  return undefined
 }
 
 type DiagnosticCall = {
@@ -456,10 +467,13 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
       : []),
     ...path.map((segment) => /^\d+$/.test(segment) ? Number(segment) : segment),
   ]
-  const displayResult =
+  const unorderedResult =
     articleRecords?.length === 1
       ? articleRecords[0]
       : articleRecords ?? reviewedResult
+  const displayResult = useMemo(() => pinnedSchema
+    ? orderResultFields(unorderedResult, pinnedSchema.schemaNodes)
+    : unorderedResult, [unorderedResult, pinnedSchema])
   const provisional = attempt !== null && attempt.executionStatus !== 'COMPLETED'
   const activeAttempt =
     attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
@@ -478,7 +492,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
     ),
     [articlePathPrefix, navPath, onResultPathChange, view],
   )
-  const evidenceAnchorIdByPath = useMemo(
+  const evidenceLinkByPath = useMemo(
     () =>
       new Map(
         state.status === 'ready'
@@ -486,7 +500,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
               JSON.stringify(
                 link.resultPath.map(String).slice(articlePathPrefix.length),
               ),
-              link.evidenceAnchorId,
+              link,
             ])
           : [],
       ),
@@ -499,6 +513,9 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
     ])),
     [visibleReviewDecisions],
   )
+  const checkCount = state.status === 'ready'
+    ? state.evidenceLinks.filter((link) => evidenceCheck(link, reviewDecisionByPath.get(resultPathKey(link.resultPath))?.action) !== undefined).length
+    : 0
   const noReviewableResult = state.status === 'ready' && state.evidenceLinks.length === 0
 
   function navTo(newPath: string[]) {
@@ -578,6 +595,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
               {summaryItem('Fields', stats.fields)}
               {summaryItem('Missing', stats.missing)}
               {summaryItem('Grounded', state.evidenceLinks.length)}
+              {checkCount > 0 && summaryItem('To check', checkCount)}
               {state.evidenceLinks.length > 0 && summaryItem(
                 'Decisions',
                 attempt?.reviewedAt
@@ -674,6 +692,17 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                   Re-run extraction
                 </Button>
               </div>
+            )}
+            {controller.review.draftError && !readOnly && !inspectedAttempt && (
+              <div role="alert" className="text-xs text-danger">
+                Draft not saved: {controller.review.draftError}
+                <Button onClick={controller.review.retryDraft} disabled={controller.review.draftSaving}>{controller.review.draftError === REVIEW_DRAFT_CONFLICT ? 'Reload server review' : 'Retry draft'}</Button>
+              </div>
+            )}
+            {!readOnly && !inspectedAttempt && !controller.review.reviewedExtractionId && !controller.review.draftError && (
+              <p role="status" className="text-xs text-ink-muted">
+                {controller.review.draftSaving ? 'Saving draft…' : controller.review.untouchedCount < controller.review.reviewedCount ? 'Draft saved' : ''}
+              </p>
             )}
             {controller.review.error && (
               <p role="alert" className="mt-2 text-[11.5px] leading-snug text-danger">
@@ -780,8 +809,12 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                     defaultExpanded={false}
                     expandText={navPath.length > 0}
                     getEvidenceAnchorId={(path) =>
-                      evidenceAnchorIdByPath.get(JSON.stringify(path))
+                      evidenceLinkByPath.get(JSON.stringify(path))?.evidenceAnchorId
                     }
+                    getEvidenceCheck={(path) => {
+                      const link = evidenceLinkByPath.get(JSON.stringify(path))
+                      return link && evidenceCheck(link, reviewDecisionByPath.get(resultPathKey(link.resultPath))?.action)
+                    }}
                     onSelectEvidence={onSelectEvidence}
                     review={noReviewableResult ? undefined : {
                       getDecision: (path) => reviewDecisionByPath.get(resultPathKey(absoluteReviewPath(path))),

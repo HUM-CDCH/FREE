@@ -56,7 +56,7 @@ describe('same-tab authentication recovery', () => {
   it('rejects cross-account state before a resource can inspect it', () => {
     setSessionRecoveryAccount(ACCOUNT_A)
     const unregister = registerSessionRecoveryCapture(
-      'extraction-review',
+      'batch-schema-draft',
       'extraction-a',
       () => ({ decisions: [] }),
     )
@@ -65,7 +65,7 @@ describe('same-tab authentication recovery', () => {
 
     setSessionRecoveryAccount(ACCOUNT_B)
     expect(
-      consumeSessionRecovery('extraction-review', 'extraction-a', (value) => value),
+      consumeSessionRecovery('batch-schema-draft', 'extraction-a', (value) => value),
     ).toBeNull()
     expect(sessionStorage.getItem('free.auth.recovery.v1')).toBeNull()
   })
@@ -113,14 +113,14 @@ describe('same-tab authentication recovery', () => {
       'schema-a',
       () => ({ draft: 1 }),
     )
-    const unregisterReview = registerSessionRecoveryCapture(
-      'extraction-review',
+    const unregisterBatch = registerSessionRecoveryCapture(
+      'batch-schema-draft',
       'extraction-a',
       () => ({ draft: 2 }),
     )
     captureSessionRecovery()
     unregisterSchema()
-    unregisterReview()
+    unregisterBatch()
 
     removeSessionRecovery('schema-draft', 'schema-a')
     expect(

@@ -6,6 +6,7 @@ import {
   extractionReadResponseSchema,
   extractionRequestSchema,
   finalizeExtractionReviewSchema,
+  extractionReviewDraftSchema,
 } from '../shared/extraction.contract.js'
 import {
   ApiError,
@@ -22,6 +23,7 @@ import {
 const COLLECTION_ROUTE = '/api/extractions'
 const ITEM_ROUTE = /^\/api\/extractions\/([0-9a-f-]+)$/
 const REVIEW_ROUTE = /^\/api\/extractions\/([0-9a-f-]+)\/review$/
+const DRAFT_ROUTE = /^\/api\/extractions\/([0-9a-f-]+)\/review\/draft$/
 
 
 function asTransportError(error: unknown): unknown {
@@ -105,6 +107,7 @@ export function createResearcherApiHandlers(
       extractionReadResponseSchema.parse({
         extraction: extractionAttemptDto(extraction),
         pendingReviewDecisions,
+        reviewDraft: extraction.executionStatus === 'COMPLETED' ? await module.readReviewDraft(extractionId) : undefined,
       }),
       { headers: noStore },
     )
@@ -126,6 +129,7 @@ export function createResearcherApiHandlers(
     const finalized = await module.finalizeReview(
       extractionId,
       parsed.data.reviewDecisions,
+      parsed.data.expectedDraftVersion,
     )
     return json(extractionAttemptDto({
       ...finalized.extraction,
@@ -152,6 +156,12 @@ export function createResearcherApiHandlers(
       if (request.method === 'POST' && pathname === COLLECTION_ROUTE)
         return await create(request)
       const reviewMatch = REVIEW_ROUTE.exec(pathname)
+      const draftMatch = DRAFT_ROUTE.exec(pathname)
+      if (request.method === 'POST' && draftMatch) {
+        const parsed = extractionReviewDraftSchema.safeParse(await parseJsonRequest(request))
+        if (!parsed.success) throw new ApiError(422, 'invalid_request', 'The review draft is invalid.')
+        return json(await module.saveReviewDraft(draftMatch[1], parsed.data), { headers: noStore })
+      }
       if (request.method === 'POST' && reviewMatch)
         return await review(request, reviewMatch[1])
       const itemMatch = ITEM_ROUTE.exec(pathname)

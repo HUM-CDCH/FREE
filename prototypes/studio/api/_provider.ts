@@ -12,7 +12,6 @@ import { createOllama } from 'ai-sdk-ollama'
 import { claudeCode } from 'ai-sdk-provider-claude-code'
 import { createCodexAppServer, type CodexAppServerProvider } from 'ai-sdk-provider-codex-cli'
 import type {
-  JsonOutputCapability,
   ModelConfig,
   ModelConnection,
   ModelDescriptor,
@@ -25,7 +24,8 @@ import { ApiError } from './_http.js'
 import { systemCredentialStore, type CredentialStore } from './_keyring.js'
 
 
-export type { JsonOutputCapability } from '../shared/modelConfig.contract.js'
+/** Internal adapter capability; routes always select output formatting automatically. */
+export type JsonOutputCapability = 'prompt' | 'schema' | 'native'
 type ExecutionCapability = 'general' | 'nuextract-raw'
 type Fetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 type CodexModel = { id: string; displayName?: string; name?: string | null; hidden?: boolean }
@@ -493,6 +493,7 @@ export const providerTable = {
       createOpenAICompatible({
         name: 'free-openai-compatible',
         baseURL: connection.baseUrl!,
+        supportsStructuredOutputs: true,
         ...(credential ? { apiKey: credential } : {}),
       }).chatModel(modelId),
   },
@@ -665,11 +666,8 @@ export async function resolveCapabilityRoute(
   return {
     profile: 'general',
     model,
-    jsonOutput: route.jsonOutput && route.jsonOutput !== 'auto' ? route.jsonOutput
-      : ['anthropic', 'claude-code', 'openai-compatible'].includes(connection.provider) ? 'schema' : 'native',
-    ...(!route.jsonOutput || route.jsonOutput === 'auto' ? {
-      automaticOutputKey: JSON.stringify([connection.id, connection.provider, connection.baseUrl, route.modelId, key]),
-    } : {}),
+    jsonOutput: ['anthropic', 'claude-code', 'openai-compatible'].includes(connection.provider) ? 'schema' : 'native',
+    automaticOutputKey: JSON.stringify([connection.id, connection.provider, connection.baseUrl, route.modelId, key]),
     temperatureSupported: entry.temperatureSupported,
     attribution: { provider: connection.provider, modelId: route.modelId },
   }

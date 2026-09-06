@@ -382,6 +382,8 @@ model Extraction {
   batchExtractionId              Uuid?
   createdAt                      Timestamptz6                 @default(now())
   reviewedAt                     Timestamptz6?
+  reviewDraft                    Json?
+  reviewDraftVersion             Int                          @default(0)
   schemaRevision                 SchemaRevision               @relation(fields: [schemaRevisionId], references: [id], onDelete: Cascade)
   // The composite pin makes agreement a database guarantee: an Extraction can
   // only join a Batch Extraction that pinned the same Schema Revision and

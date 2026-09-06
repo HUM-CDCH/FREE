@@ -43,7 +43,6 @@ function ProviderConfigPage({
     removeConnection,
     setRoute,
     setRouteModel,
-    setJsonOutput,
     setSingleConnection,
     setSingleModel,
     setRawNuextract,
@@ -148,7 +147,6 @@ function ProviderConfigPage({
           onModelListOpen={openModelList}
           setRoute={setRoute}
           setRouteModel={setRouteModel}
-          setJsonOutput={setJsonOutput}
           setSingleConnection={setSingleConnection}
           setSingleModel={setSingleModel}
           setRawNuextract={setRawNuextract}

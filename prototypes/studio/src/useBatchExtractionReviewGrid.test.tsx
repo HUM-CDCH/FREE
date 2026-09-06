@@ -13,12 +13,16 @@ import * as api from './api'
 import Grid from './projectContexts/BatchExtractionReviewGrid'
 import ResultsTab from './ResultsTab'
 import { useExtraction } from './useExtraction'
+import { captureSessionRecovery, clearSessionRecovery, setSessionRecoveryAccount } from './auth/sessionRecovery'
+import { forgetReviewDraft, rememberReviewDraft, REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
+import type { ReviewDecisionInput } from '../shared/extraction.contract'
 import type { BatchExtraction } from '../shared/batchExtraction.contract'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 
 vi.mock('./api', () => ({
   readExtraction: vi.fn(),
   finalizeExtractionReview: vi.fn(),
+  saveExtractionReviewDraft: vi.fn(),
 }))
 
 const schemaNodes = [
@@ -117,18 +121,191 @@ function batch(overrides: Partial<BatchExtraction> = {}): BatchExtraction {
   }
 }
 
+const savedDrafts = new Map<string, { version: number; decisions: ReviewDecisionInput[] }>()
+
 beforeEach(() => {
-  vi.mocked(api.readExtraction).mockReset()
-  vi.mocked(api.readExtraction).mockResolvedValue({
-    extraction: attempt(),
-    pendingReviewDecisions: pendingDecisions,
+  savedDrafts.clear()
+  vi.mocked(api.saveExtractionReviewDraft).mockReset()
+  vi.mocked(api.saveExtractionReviewDraft).mockImplementation(async (id, decisions, version) => {
+    const saved = { decisions: [...decisions], version: (savedDrafts.get(id)?.version ?? version) + 1 }
+    savedDrafts.set(id, saved)
+    return saved
   })
+  clearSessionRecovery()
+  setSessionRecoveryAccount('99999999-9999-4999-8999-999999999999')
+  vi.mocked(api.readExtraction).mockReset()
+  vi.mocked(api.readExtraction).mockImplementation(async () => ({
+    extraction: attempt(), pendingReviewDecisions: pendingDecisions, reviewDraft: savedDrafts.get(extractionId),
+  }))
   vi.mocked(api.finalizeExtractionReview).mockReset()
 })
 
-afterEach(cleanup)
+afterEach(() => { cleanup(); forgetReviewDraft(extractionId) })
 
 describe('useBatchExtractionReviewGrid', () => {
+  it.each(['grid', 'document'] as const)('retains recovered conflicts in %s until explicitly reloading server state', async (view) => {
+    const local = [{ ...pendingDecisions[0], action: 'REJECTED' as const }]
+    rememberReviewDraft(extractionId, { version: 1, decisions: local })
+    captureSessionRecovery()
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: attempt(), pendingReviewDecisions: pendingDecisions, reviewDraft: { version: 2, decisions: [] } })
+    function DocumentReview() {
+      const original = attempt()
+      const controller = useExtraction({ schemaReady: true, indexing: false, initialAttempt: original,
+        reviewTarget: { sourceRepresentationId: original.sourceRepresentationRevisionId, schemaRevisionId: original.schemaRevisionId }, onTerminal: vi.fn(), onError: vi.fn() })
+      return <ResultsTab controller={controller} onRunExtraction={async () => {}} runExtractionDisabled={false} schemaReady
+        pinnedSchema={{ recordDescription: 'Source', schemaNodes }} documentMarkdown="Grounded" sourceDocumentName="Source" />
+    }
+    render(view === 'grid' ? <Grid batch={batch()} schemaNodes={schemaNodes} documentName={() => 'Source'} onBack={() => {}} onOpenMember={() => {}} /> : <DocumentReview />)
+    await screen.findByText(`Draft not saved: ${REVIEW_DRAFT_CONFLICT}`)
+    expect(api.saveExtractionReviewDraft).not.toHaveBeenCalled()
+    expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Reload server review' }))
+    await waitFor(() => expect(api.readExtraction).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByText(`Draft not saved: ${REVIEW_DRAFT_CONFLICT}`)).toBeNull())
+    expect(api.saveExtractionReviewDraft).not.toHaveBeenCalled()
+    expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
+  })
+
+  it.each(['grid', 'document'] as const)('stops retrying a stale version after a live conflict in %s and reloads server state instead', async (view) => {
+    vi.mocked(api.saveExtractionReviewDraft).mockRejectedValueOnce(new Error(REVIEW_DRAFT_CONFLICT))
+    const original = attempt()
+    const { result } = renderHook(() => view === 'grid'
+      ? useBatchExtractionReviewGrid(batch(), schemaNodes)
+      : useExtraction({ schemaReady: true, indexing: false, initialAttempt: original,
+        reviewTarget: { sourceRepresentationId: original.sourceRepresentationRevisionId, schemaRevisionId: original.schemaRevisionId }, onTerminal: vi.fn(), onError: vi.fn() }))
+    const current = () => {
+      const hook = result.current
+      return 'review' in hook
+        ? { draftError: hook.review.draftError, ready: !hook.review.loading && hook.review.decisions.length > 0,
+            decide: () => hook.review.setDecision(pendingDecisions[0].resultPath, 'REJECTED'), retry: hook.review.retryDraft }
+        : { draftError: hook.draftError, ready: hook.members.get(reviewableDocumentId)?.status === 'ready',
+            decide: () => hook.setDecision(reviewableDocumentId, pendingDecisions[0].resultPath, 'REJECTED'), retry: hook.retryDrafts }
+    }
+    await waitFor(() => expect(current().ready).toBe(true))
+    act(() => current().decide())
+    await waitFor(() => expect(current().draftError).toBe(REVIEW_DRAFT_CONFLICT))
+    // The retry control must reload, never re-send the stale version.
+    act(() => current().retry())
+    await waitFor(() => expect(api.readExtraction).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(current().draftError).toBeNull())
+    expect(api.saveExtractionReviewDraft).toHaveBeenCalledTimes(1)
+    expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
+  })
+
+  it('restores an empty batch Revert and retries it without finalizing default decisions', async () => {
+    rememberReviewDraft(extractionId, { version: 1, decisions: [] })
+    captureSessionRecovery()
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: attempt(), pendingReviewDecisions: pendingDecisions, reviewDraft: { version: 1, decisions: pendingDecisions } })
+    const { result } = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
+    await waitFor(() => expect(api.saveExtractionReviewDraft).toHaveBeenCalledWith(extractionId, [], 1))
+    expect(result.current.dirtyCount).toBe(0)
+    await act(() => result.current.saveMember(reviewableDocumentId))
+    expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
+  })
+
+  it('discards recovered changes when the server review is finalized', async () => {
+    rememberReviewDraft(extractionId, { version: 1, decisions: [{ ...pendingDecisions[0], action: 'REJECTED' }] })
+    captureSessionRecovery()
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: attempt({ reviewedAt: '2026-09-06T00:00:00Z', reviewDecisions: [] }), pendingReviewDecisions: pendingDecisions, reviewDraft: { version: 2, decisions: [] } })
+    const { result } = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
+    await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
+    expect(result.current.draftError).toBeNull()
+    expect(api.saveExtractionReviewDraft).not.toHaveBeenCalled()
+    expect(sessionStorage.getItem('free.auth.recovery.v1')).toBeNull()
+  })
+
+  it.each(['resolve', 'reject'] as const)('resets pending saves on a batch change and ignores an old %s', async (outcome) => {
+    const oldWrite = Promise.withResolvers<{ version: number; decisions: ReviewDecisionInput[] }>()
+    vi.mocked(api.saveExtractionReviewDraft).mockReturnValueOnce(oldWrite.promise)
+    const { result, rerender } = renderHook(({ current }) => useBatchExtractionReviewGrid(current, schemaNodes), { initialProps: { current: batch() } })
+    await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
+    act(() => result.current.setDecision(reviewableDocumentId, pendingDecisions[0].resultPath, 'REJECTED'))
+    expect(result.current.draftSaving).toBe(true)
+    rerender({ current: batch({ batchExtractionId: 'another-batch' }) })
+    await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
+    expect(result.current.draftSaving).toBe(false)
+    await act(async () => {
+      if (outcome === 'resolve') oldWrite.resolve({ version: 99, decisions: [] })
+      else oldWrite.reject(new Error('old error'))
+      await Promise.allSettled([oldWrite.promise])
+    })
+    expect(result.current.draftError).toBeNull()
+    act(() => result.current.setDecision(reviewableDocumentId, pendingDecisions[0].resultPath, 'REJECTED'))
+    expect(api.saveExtractionReviewDraft).toHaveBeenLastCalledWith(extractionId, expect.any(Array), 0)
+    await waitFor(() => expect(result.current.draftSaving).toBe(false))
+  })
+
+  it('shares drafts with document review and restores bulk actions and Revert after remount', async () => {
+    const original = attempt()
+    const pending = [...pendingDecisions, {
+      ...pendingDecisions[0], resultPath: ['records', 0, 'year'], evidenceAnchorId: 'year-anchor',
+    }]
+    vi.mocked(api.readExtraction).mockImplementation(async () => ({ extraction: original, pendingReviewDecisions: pending, reviewDraft: savedDrafts.get(original.extractionId) }))
+    const first = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
+    await waitFor(() => expect(first.result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
+    act(() => first.result.current.setDecision(reviewableDocumentId, pending[0].resultPath, 'EDITED', 'Corrected'))
+    first.unmount()
+    const document = renderHook(() => useExtraction({
+      schemaReady: true, indexing: false, initialAttempt: original,
+      reviewTarget: { sourceRepresentationId: original.sourceRepresentationRevisionId, schemaRevisionId: original.schemaRevisionId },
+      onTerminal: vi.fn(), onError: vi.fn(),
+    }))
+    await waitFor(() => expect(document.result.current.review.decisions[0]?.reviewedValue).toBe('Corrected'))
+    act(() => document.result.current.review.setDecision(pending[0].resultPath, 'REJECTED'))
+    document.unmount()
+    const second = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
+    await waitFor(() => expect(second.result.current.dirtyCount).toBe(1))
+    const state = second.result.current.members.get(reviewableDocumentId)
+    expect(state?.status === 'ready' && state.decisions[0].action).toBe('REJECTED')
+    act(() => second.result.current.approveColumn(second.result.current.columns[1]))
+    expect(savedDrafts.get(extractionId)?.decisions.length).toBe(2)
+    act(() => second.result.current.revertDecision(reviewableDocumentId, pending[0].resultPath))
+    expect(savedDrafts.get(extractionId)?.decisions.length).toBe(1)
+    second.unmount()
+    const third = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
+    await waitFor(() => expect(third.result.current.dirtyCount).toBe(1))
+    act(() => third.result.current.revertAll())
+    expect(savedDrafts.get(extractionId)?.decisions).toEqual([])
+  })
+
+  it('keeps a failed save draft and lets a finalized server review supersede it', async () => {
+    const first = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
+    await waitFor(() => expect(first.result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
+    act(() => first.result.current.approveAll())
+    vi.mocked(api.finalizeExtractionReview).mockRejectedValue(new Error('offline'))
+    await act(() => first.result.current.saveMember(reviewableDocumentId))
+    expect(savedDrafts.get(extractionId)?.decisions.length).toBe(1)
+    first.unmount()
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: attempt({ reviewedAt: '2026-09-06T00:00:00Z', reviewDecisions: [] }), pendingReviewDecisions: [] })
+    const restored = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
+    await waitFor(() => expect(restored.result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
+    expect(restored.result.current.dirtyCount).toBe(0)
+  })
+
+  it.each(['grid', 'document'] as const)('shows an accessible draft-save failure in the %s view while retaining the decision', async (view) => {
+    const pending = [...pendingDecisions, { ...pendingDecisions[0], resultPath: ['records', 0, 'year'] }]
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: attempt(), pendingReviewDecisions: pending })
+    vi.mocked(api.saveExtractionReviewDraft).mockRejectedValue(new Error('offline'))
+    function DocumentReview() {
+      const original = attempt()
+      const controller = useExtraction({ schemaReady: true, indexing: false, initialAttempt: original,
+        reviewTarget: { sourceRepresentationId: original.sourceRepresentationRevisionId, schemaRevisionId: original.schemaRevisionId }, onTerminal: vi.fn(), onError: vi.fn() })
+      return <ResultsTab controller={controller} onRunExtraction={async () => {}} runExtractionDisabled={false} schemaReady
+        pinnedSchema={{ recordDescription: 'Source', schemaNodes }} documentMarkdown="Grounded" sourceDocumentName="Source" />
+    }
+    {
+      render(view === 'grid' ? <Grid batch={batch()} schemaNodes={schemaNodes} documentName={() => 'Source'} onBack={() => {}} onOpenMember={() => {}} /> : <DocumentReview />)
+      if (view === 'grid') {
+        fireEvent.click(await screen.findByText('Grounded'))
+        fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
+      } else {
+        fireEvent.click(await screen.findByRole('button', { name: 'Reject title' }))
+      }
+      expect((await screen.findByText(/Draft not saved: offline/)).getAttribute('role')).toBe('alert')
+      expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
+    }
+  })
+
   it('derives grid columns from the pinned schema, excluding grouped/internal fields', () => {
     const { result } = renderHook(() =>
       useBatchExtractionReviewGrid(batch(), [
@@ -180,7 +357,7 @@ describe('useBatchExtractionReviewGrid', () => {
 
     expect(api.finalizeExtractionReview).toHaveBeenCalledWith(extractionId, [
       { ...pendingDecisions[0], action: 'REJECTED', reviewedValue: null },
-    ])
+    ], 1)
     const state = result.current.members.get(reviewableDocumentId)
     if (state?.status !== 'ready') throw new Error('expected ready state')
     expect(state.editable).toBe(false)
@@ -601,12 +778,12 @@ it.each(['grid', 'document'] as const)('automatically saves a complete %s review
   expect(screen.queryByRole('button', { name: /Save/ })).toBeNull()
   fireEvent.blur(editor)
   await waitFor(() => expect(api.finalizeExtractionReview).toHaveBeenCalledTimes(1))
-  expect(api.finalizeExtractionReview).toHaveBeenLastCalledWith(extractionId, [{ ...pendingDecisions[0], action: 'EDITED', reviewedValue: 'Corrected' }])
+  expect(api.finalizeExtractionReview).toHaveBeenLastCalledWith(extractionId, [{ ...pendingDecisions[0], action: 'EDITED', reviewedValue: 'Corrected' }], 1)
   expect(screen.getByRole('button', { name: /Approve remaining/ }).hasAttribute('disabled')).toBe(true)
   await act(async () => saving.reject(new Error('Offline')))
   await screen.findByText('Review not saved')
   rerender(scene)
-  expect(api.finalizeExtractionReview).toHaveBeenCalledTimes(1)
+  await waitFor(() => expect(api.finalizeExtractionReview).toHaveBeenCalledTimes(1))
   expect(screen.getByText('Corrected')).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
   expect(await screen.findByText('Review saved')).toBeTruthy()
@@ -614,6 +791,9 @@ it.each(['grid', 'document'] as const)('automatically saves a complete %s review
 })
 
 it('preserves an unsaved review when another member completes', async () => {
+  vi.mocked(api.readExtraction).mockImplementation(async (id) => ({
+    extraction: attempt({ extractionId: id }), pendingReviewDecisions: pendingDecisions,
+  }))
   const initial = batch()
   const { result, rerender } = renderHook(({ current }) => useBatchExtractionReviewGrid(current, schemaNodes), {
     initialProps: { current: initial },
@@ -675,7 +855,7 @@ it('locks edits, bulk changes, reversions and duplicate saves until the request 
     result.current.approveAll()
     result.current.revertRow(reviewableDocumentId, 0)
   })
-  expect(api.finalizeExtractionReview).toHaveBeenCalledTimes(1)
+  await waitFor(() => expect(api.finalizeExtractionReview).toHaveBeenCalledTimes(1))
   let state = result.current.members.get(reviewableDocumentId)
   expect(state?.status === 'ready' && state.decisions[0].reviewedValue).toBe('First')
   await act(async () => { saving.reject(new Error('Offline')); await save })
@@ -752,7 +932,7 @@ it('reviews indexed scalar array values and excludes open editors from saving', 
   expect(item.getByText('2002')).toBeTruthy()
   expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Approve remaining' }))
-  expect(api.finalizeExtractionReview).toHaveBeenCalledWith(extractionId, [decisions[0], { ...decisions[1], action: 'EDITED', reviewedValue: 2002 }])
+  await waitFor(() => expect(api.finalizeExtractionReview).toHaveBeenCalledWith(extractionId, [decisions[0], { ...decisions[1], action: 'EDITED', reviewedValue: 2002 }], 2))
   expect(await screen.findByText('50% approved unchanged')).toBeTruthy()
 })
 
@@ -779,7 +959,7 @@ it('autosaves only complete documents and preserves partially reviewed drafts', 
   expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
   fireEvent.click(within(screen.getByRole('row', { name: /Document B/ })).getByRole('button', { name: 'Approve 2 pending in this row' }))
   await screen.findByText('Review saved')
-  expect(api.finalizeExtractionReview).toHaveBeenCalledExactlyOnceWith(otherId, decisions)
+  expect(api.finalizeExtractionReview).toHaveBeenCalledExactlyOnceWith(otherId, decisions, 1)
   expect(firstRow.getByText('Draft title')).toBeTruthy()
   expect(firstRow.getByText('Draft')).toBeTruthy()
 })

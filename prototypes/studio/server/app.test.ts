@@ -131,7 +131,7 @@ describe('Microsoft Entra authentication routes', () => {
     expect(await session.json()).toEqual({
       authenticated: true,
       account: { id: ACCOUNT_ID, displayName: 'Development Researcher' },
-      expiresAt: new Date(NOW + 74 * 60 * 1_000).toISOString(),
+      expiresAt: new Date(NOW + 8 * 60 * 60 * 1_000).toISOString(),
     })
     expect(session.headers.get('set-cookie')).toBeNull()
 

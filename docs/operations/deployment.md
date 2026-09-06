@@ -278,12 +278,14 @@ FREE requests only `openid` and `profile`; it does not use Graph, groups, app
 roles, refresh tokens, or a local disable list. A successful sign-in creates or
 refreshes the local account keyed by the tenant and object claims.
 
-FREE sessions are fixed and expire one minute before the Entra ID token. On
+FREE sessions are fixed and expire eight hours after successful sign-in,
+independently of the identity token's later expiry. Token validity is checked
+at sign-in. This applies to both Microsoft Entra and local mock OIDC. On
 expiry the browser captures only the supported in-progress extraction, schema,
 and batch drafts in same-tab storage, signs in again through Entra, and restores
 them only for the same account and resource. Arbitrary component-local text can
-be lost. Removing an Entra assignment takes effect at the next sign-in, normally
-within about an hour; rotating `FREE_SESSION_SECRET` is the only immediate
+be lost. Removing an Entra assignment takes effect at the next sign-in, which
+can be up to eight hours later; rotating `FREE_SESSION_SECRET` is the only immediate
 global forced logout and signs out everyone.
 
 See [the Entra authentication runbook](entra-authentication.md)

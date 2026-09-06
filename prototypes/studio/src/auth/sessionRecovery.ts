@@ -111,6 +111,7 @@ function entryKey(kind: SessionRecoveryKind, resourceId: string): string {
 
 /** Establish the local account boundary before any recovered value is read. */
 export function setSessionRecoveryAccount(accountId: string): void {
+  if (currentAccountId !== accountId) captures.clear()
   currentAccountId = accountId
   authenticationRedirecting = false
   const store = storage()
@@ -204,6 +205,7 @@ export function removeSessionRecovery(
 }
 
 export function clearSessionRecovery(): void {
+  captures.clear()
   currentAccountId = null
   authenticationRedirecting = false
   removeStoredRecovery(storage())

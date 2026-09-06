@@ -3,6 +3,7 @@ import type { ParsedDocument, ParsedLogicalTable } from './parsed-document.js'
 export type SourceContext = Readonly<{
   text: string
   anchorIdByLabel: ReadonlyMap<string, string>
+  textByAnchorId: ReadonlyMap<string, string>
 }>
 export type AnchoredSource = SourceContext
 
@@ -164,8 +165,10 @@ export function sourceContext(document: ParsedDocument, selectedAnchorIds?: Read
   let lastPage: number | null = null
   let lastTable: string | null = null
   let lastRow: number | null = null
+  const textByAnchorId = new Map<string, string>()
   for (const entry of canonicalAnchorInventory(document)) {
     if (selectedAnchorIds && !selectedAnchorIds.has(entry.anchorId)) continue
+    textByAnchorId.set(entry.anchorId, entry.text)
     const rendered = `[${label(entry.anchorId)}] ${entry.text}`
     if (entry.page !== lastPage) {
       lines.push(`## Page ${entry.page}`)
@@ -189,7 +192,7 @@ export function sourceContext(document: ParsedDocument, selectedAnchorIds?: Read
       lines.push(rendered)
     }
   }
-  return { text: lines.join('\n'), anchorIdByLabel }
+  return { text: lines.join('\n'), anchorIdByLabel, textByAnchorId }
 }
 
 export const anchoredSource = sourceContext

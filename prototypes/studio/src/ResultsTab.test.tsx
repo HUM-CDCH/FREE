@@ -49,6 +49,9 @@ function controller(
       isTouched: () => true,
       reviewedExtractionId: null,
       error: null,
+      draftError: null,
+      draftSaving: false,
+      retryDraft: () => {},
       setDecision: () => {},
       approveAll: () => {},
       accept: async () => {},
@@ -139,6 +142,40 @@ const historicalExportSchema: SchemaDefinition = {
 }
 
 describe('ResultsTab grounded values', () => {
+  it('orders historical reviewed values by their pinned schema, falling back to payload order without it', () => {
+    const historical = { ...articleAttempt, resultPayload: { records: [{ year: 2020, title: 'Grounded' }] },
+      reviewedAt: '2026-09-06T00:00:00Z', reviewDecisions: [
+        { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor', reviewedOccurrenceIds: [], action: 'EDITED' as const, reviewedValue: 'Corrected', createdAt: '2026-09-06T00:00:00Z' },
+        { resultPath: ['records', 0, 'year'], evidenceAnchorId: 'anchor', reviewedOccurrenceIds: [], action: 'REJECTED' as const, reviewedValue: null, createdAt: '2026-09-06T00:00:00Z' },
+      ] }
+    const props = { ...defaultRunProps, controller: controller({ status: 'idle' }), schemaReady: true,
+      documentMarkdown: '', sourceDocumentName: 'Source', inspectedAttempt: historical,
+      exportSchema: { recordDescription: 'Current', schemaNodes: [{ id: 'year', name: 'year', type: 'integer' as const }] } }
+    const { container, rerender } = render(<ResultsTab {...props} pinnedSchema={{ recordDescription: 'Historical', schemaNodes: [
+      { id: 'title', name: 'title', type: 'string' }, { id: 'year', name: 'year', type: 'integer' },
+    ] }} />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Raw JSON' }))
+    expect(container.querySelector('pre')!.textContent).toBe(JSON.stringify({ title: 'Corrected', year: null }, null, 2))
+    rerender(<ResultsTab {...props} />)
+    expect(container.querySelector('pre')!.textContent).toBe(JSON.stringify({ year: null, title: 'Corrected' }, null, 2))
+    expect(historical.resultPayload.records[0]).toEqual({ year: 2020, title: 'Grounded' })
+  })
+
+  it('uses the pinned schema order in Review and Raw JSON', () => {
+    const result = { records: [{ year: 2020, title: 'Grounded' }] }
+    const { container } = render(<ResultsTab {...defaultRunProps}
+      controller={controller({ status: 'ready', result, evidenceLinks: [], ungroundedCount: 0 })}
+      schemaReady documentMarkdown="" sourceDocumentName="Source"
+      pinnedSchema={{ recordDescription: 'Source', schemaNodes: [
+        { id: 'title', name: 'title', type: 'string' },
+        { id: 'year', name: 'year', type: 'integer' },
+      ] }} />)
+    expect(container.textContent!.indexOf('title')).toBeLessThan(container.textContent!.indexOf('year'))
+    fireEvent.click(screen.getByRole('tab', { name: 'Raw JSON' }))
+    expect(container.querySelector('pre')!.textContent).toBe(JSON.stringify({ title: 'Grounded', year: 2020 }, null, 2))
+    expect(Object.keys(result.records[0])).toEqual(['year', 'title'])
+  })
+
   it('shows checkpointed values while Evidence linking keeps export and review disabled', () => {
     const provisional: ExtractionAttempt = {
       ...articleAttempt,
@@ -290,6 +327,69 @@ describe('ResultsTab grounded values', () => {
     ).not.toBeInTheDocument()
     expect(screen.getByText('Visible without Evidence')).toBeInTheDocument()
     expect(screen.queryByText(/could not be grounded/)).not.toBeInTheDocument()
+  })
+
+  it('marks links whose value is absent from, or not unique to, the passage', () => {
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller({
+          status: 'ready',
+          result: { title: 'Report', place: 'Ravenna', year: 1901, legacy: 'Old' },
+          evidenceLinks: [
+            { resultPath: ['title'], evidenceAnchorId: 'anchor-1', verbatim: true, lexicalHits: 1 },
+            { resultPath: ['place'], evidenceAnchorId: 'anchor-2', verbatim: true, lexicalHits: 3 },
+            { resultPath: ['year'], evidenceAnchorId: 'anchor-3', verbatim: false, lexicalHits: 0 },
+            { resultPath: ['legacy'], evidenceAnchorId: 'anchor-4' },
+          ],
+          ungroundedCount: 0,
+        })}
+        schemaReady
+        documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf"
+        onSelectEvidence={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('note', { name: 'Value also appears in 2 other passages' })).toBeInTheDocument()
+    expect(screen.getByRole('note', { name: 'Value not found in the linked passage' })).toBeInTheDocument()
+    expect(screen.getAllByRole('note')).toHaveLength(2)
+    expect(screen.getByText('To check:')).toBeInTheDocument()
+  })
+
+  it.each(['EDITED', 'REJECTED'] as const)('clears original-value warnings for %s decisions and restores them when reversed', (action) => {
+    const result = { records: [{ material: 'iron' }] }
+    const evidenceLinks = [{
+      resultPath: ['records', 0, 'material'], evidenceAnchorId: 'anchor-material',
+      verbatim: false, lexicalHits: 0,
+    }]
+    const initialDecision: ReviewDecisionInput = {
+      resultPath: ['records', 0, 'material'], evidenceAnchorId: 'anchor-material',
+      reviewedOccurrenceIds: ['occurrence-material'], action: 'APPROVED', reviewedValue: null,
+    }
+    const props = {
+      ...defaultRunProps, schemaReady: true,
+      documentMarkdown: 'bronze', sourceDocumentName: 'source.pdf',
+    }
+    const withDecision = (decision: ReviewDecisionInput) => controller(
+      { status: 'ready', result, evidenceLinks, ungroundedCount: 0 },
+      null,
+      { decisions: [decision] },
+    )
+    const { rerender } = render(<ResultsTab {...props} controller={withDecision(initialDecision)} />)
+    expect(screen.getByRole('note', { name: 'Value not found in the linked passage' })).toBeInTheDocument()
+    expect(screen.getByText('To check:')).toHaveTextContent('To check: 1')
+
+    rerender(<ResultsTab {...props} controller={withDecision({
+      ...initialDecision, action, reviewedValue: action === 'EDITED' ? 'bronze' : null,
+    })} />)
+    if (action === 'EDITED') expect(screen.getByText('bronze')).toBeInTheDocument()
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    expect(screen.queryByText('To check:')).not.toBeInTheDocument()
+
+    rerender(<ResultsTab {...props} controller={withDecision(initialDecision)} />)
+    expect(screen.getByText('iron')).toBeInTheDocument()
+    expect(screen.getByRole('note', { name: 'Value not found in the linked passage' })).toBeInTheDocument()
+    expect(screen.getByText('To check:')).toHaveTextContent('To check: 1')
   })
 
   it('reports the persisted ungrounded value count', () => {
