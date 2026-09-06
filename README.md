@@ -35,6 +35,9 @@ FREE's normative product and safety contract is:
    locatable source evidence or visibly marked ungrounded. Complete
    accept/reject/edit review decisions are validated and stored; partial or
    structurally invalid review cannot silently become authoritative.
+   Partial review decisions are saved as versioned drafts in PostgreSQL;
+   only a complete, validated review is finalized. Concurrent draft edits
+   report conflicts instead of silently overwriting another view's changes.
 5. **Durable, versioned state.** Project Contexts, source documents and their
    representation revisions, schema and prompt revisions, extractions, and
    review decisions survive ordinary restarts. An extraction remains pinned to

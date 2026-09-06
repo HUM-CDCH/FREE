@@ -33,6 +33,7 @@ import type {
   ReadDocumentExtractionsInput,
   ResultPath,
   ReviewDecisionAction,
+  ReviewDraft,
   RunSingleInput,
   RunSingleResult,
   ScheduleBatchInput,
@@ -982,6 +983,29 @@ async function loadResearcherExtraction(
   return loadCompletedJobExtraction(transaction.orm, extractionId)
 }
 
+async function readStoredReviewDraft(database: Database, accountId: string | null, extractionId: string): Promise<ReviewDraft | null> {
+    return database.transaction(async (transaction) => {
+      if (accountId && !await ownsResearcherJob(transaction, accountId, extractionId)) return null
+      const row = await transaction.orm.public.Extraction.select('reviewDraft', 'reviewDraftVersion', 'reviewedAt').first({ id: extractionId })
+      if (!row) return null
+      return { version: row.reviewDraftVersion, decisions: row.reviewedAt ? [] : (row.reviewDraft ?? []) as unknown as ReviewDraft['decisions'] }
+    })
+  }
+
+async function saveStoredReviewDraft(database: Database, accountId: string | null, extractionId: string, draft: ReviewDraft): Promise<ReviewDraft> {
+    return database.transaction(async (transaction) => {
+      if (accountId && !await ownsResearcherJob(transaction, accountId, extractionId))
+        throw new ExtractionError('not_found', 'That Extraction was not found.')
+      // updateAll keeps the version predicate in the atomic UPDATE; update first
+      // selects an identity, then updates by primary key and loses that guard.
+      const updated = await transaction.orm.public.Extraction.where({
+        id: extractionId, reviewedAt: null, reviewable: true, reviewDraftVersion: draft.version,
+      }).updateAll({ reviewDraft: draft.decisions, reviewDraftVersion: draft.version + 1 })
+      if (updated.length !== 1) throw new ExtractionError('review_conflict', 'The review changed elsewhere. Reload before continuing.')
+      return { decisions: draft.decisions, version: draft.version + 1 }
+    })
+  }
+
 class PostgresExtractionPersistence implements ExtractionPersistence {
   protected readonly database: Database
   protected readonly packages: CanonicalPackageStore
@@ -1040,6 +1064,9 @@ class PostgresExtractionPersistence implements ExtractionPersistence {
     return loadCompletedJobExtraction(this.database.orm, extractionId)
   }
 
+  readReviewDraft(extractionId: string) { return readStoredReviewDraft(this.database, null, extractionId) }
+  saveReviewDraft(extractionId: string, draft: ReviewDraft) { return saveStoredReviewDraft(this.database, null, extractionId, draft) }
+
   scheduleExtraction(input: RunSingleInput): Promise<RunSingleResult | null> {
     return scheduleInteractiveExtraction(this.database, input, null)
   }
@@ -1073,6 +1100,10 @@ class PostgresExtractionPersistence implements ExtractionPersistence {
         if (!reviewAuthorityMatchesExtraction(extraction, submitted, authority))
           return 'invalid' as const
         if (extraction.reviewedAt) return (await reviewDigest(orm, extractionId)) === digest ? 'replayed' as const : 'conflict' as const
+        const claimed = await orm.public.Extraction.where({
+          id: extractionId, reviewedAt: null, reviewDraftVersion: authority.expectedDraftVersion ?? 0,
+        }).updateAll({ reviewedAt: new Date(), reviewDraft: null, reviewDraftVersion: (authority.expectedDraftVersion ?? 0) + 1 })
+        if (claimed.length !== 1) return (await reviewDigest(orm, extractionId)) === digest ? 'replayed' as const : 'conflict' as const
         const review = await orm.public.ExtractionReview.create({
           extractionId,
           revisionNumber: 1,
@@ -1086,7 +1117,6 @@ class PostgresExtractionPersistence implements ExtractionPersistence {
             // an explicit envelope preserves scalar review values losslessly.
             reviewedValue: encodeReviewedValue(decision.reviewedValue),
           })
-        await orm.public.Extraction.where({ id: extractionId }).update({ reviewedAt: new Date() })
         return 'reviewed' as const
       })
     } catch (error) {
@@ -1686,6 +1716,9 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
     })
   }
 
+  readReviewDraft(extractionId: string) { return readStoredReviewDraft(this.database, this.researcherAccountId, extractionId) }
+  saveReviewDraft(extractionId: string, draft: ReviewDraft) { return saveStoredReviewDraft(this.database, this.researcherAccountId, extractionId, draft) }
+
   async finalizeReview(
     extractionId: string,
     authority: ReviewAuthority,
@@ -1721,6 +1754,10 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
           return (await reviewDigest(orm, extractionId)) === digest
             ? ('replayed' as const)
             : ('conflict' as const)
+        const claimed = await orm.public.Extraction.where({
+          id: extractionId, reviewedAt: null, reviewDraftVersion: authority.expectedDraftVersion ?? 0,
+        }).updateAll({ reviewedAt: new Date(), reviewDraft: null, reviewDraftVersion: (authority.expectedDraftVersion ?? 0) + 1 })
+        if (claimed.length !== 1) return (await reviewDigest(orm, extractionId)) === digest ? 'replayed' as const : 'conflict' as const
         const review = await orm.public.ExtractionReview.create({
           extractionId,
           revisionNumber: 1,
@@ -1732,10 +1769,6 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
             ...decision,
             reviewedValue: encodeReviewedValue(decision.reviewedValue),
           })
-        await orm.public.Extraction.where({
-          id: extractionId,
-          sourceDocumentId: extraction.sourceDocumentId,
-        }).update({ reviewedAt: new Date() })
         return 'reviewed' as const
       })
     } catch (error) {

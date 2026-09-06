@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import type { ReviewDecisionInput } from '../shared/extraction.contract'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,7 +8,6 @@ import { useExtraction, type ReviewTarget } from './useExtraction'
 import * as api from './api'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import {
-  captureSessionRecovery,
   clearSessionRecovery,
   setSessionRecoveryAccount,
 } from './auth/sessionRecovery'
@@ -17,6 +17,7 @@ vi.mock('./api', () => ({
   readExtraction: vi.fn(),
   cancelExtraction: vi.fn(),
   finalizeExtractionReview: vi.fn(),
+  saveExtractionReviewDraft: vi.fn(),
 }))
 
 const representationId = '22222222-2222-4222-8222-222222222222'
@@ -73,7 +74,16 @@ function options(initialAttempt: ExtractionAttempt | null = null) {
   }
 }
 
+const savedDrafts = new Map<string, { version: number; decisions: ReviewDecisionInput[] }>()
+
 beforeEach(() => {
+  savedDrafts.clear()
+  vi.mocked(api.saveExtractionReviewDraft).mockReset()
+  vi.mocked(api.saveExtractionReviewDraft).mockImplementation(async (id, decisions, version) => {
+    const saved = { decisions: [...decisions], version: (savedDrafts.get(id)?.version ?? version) + 1 }
+    savedDrafts.set(id, saved)
+    return saved
+  })
   clearSessionRecovery()
   sessionStorage.clear()
   setSessionRecoveryAccount('99999999-9999-4999-8999-999999999999')
@@ -84,10 +94,44 @@ beforeEach(() => {
 })
 
 describe('useExtraction server-owned lifecycle', () => {
+  it('retains successive decisions before React renders and clears the draft after saving', async () => {
+    const pending = ['title', 'year'].map((name) => ({ resultPath: ['records', 0, name], evidenceAnchorId: 'anchor-1', reviewedOccurrenceIds: ['occurrence-1'], action: 'APPROVED' as const, reviewedValue: null }))
+    const original = attempt({ evidenceLinks: [{ resultPath: pending[0].resultPath, evidenceAnchorId: 'anchor-1' }] })
+    vi.mocked(api.readExtraction).mockImplementation(async () => ({ extraction: original, pendingReviewDecisions: pending, reviewDraft: savedDrafts.get(original.extractionId) }))
+    const first = renderHook(() => useExtraction(options(original)))
+    await waitFor(() => expect(first.result.current.review.decisions).toHaveLength(2))
+    act(() => {
+      first.result.current.review.setDecision(pending[0].resultPath, 'EDITED', 'Corrected')
+      first.result.current.review.setDecision(pending[1].resultPath, 'REJECTED')
+      first.result.current.review.approveAll()
+    })
+    expect(first.result.current.review.decisions.map((decision) => decision.action)).toEqual(['EDITED', 'REJECTED'])
+    expect(first.result.current.review.untouchedCount).toBe(0)
+    vi.mocked(api.finalizeExtractionReview).mockResolvedValue(attempt({ reviewedAt: '2026-09-06T00:00:00Z' }))
+    await act(() => first.result.current.review.accept())
+    expect(Object.keys(sessionStorage).filter((key) => key.startsWith('free.review-draft.'))).toEqual([])
+  })
+
+  it('restores committed decisions after document navigation and a remount without authentication recovery', async () => {
+    const original = attempt({ evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' }] })
+    const pending = [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1', reviewedOccurrenceIds: ['occurrence-1'], action: 'APPROVED' as const, reviewedValue: null }]
+    vi.mocked(api.readExtraction).mockImplementation(async () => ({ extraction: original, pendingReviewDecisions: pending, reviewDraft: savedDrafts.get(original.extractionId) }))
+    const first = renderHook(({ documentKey }) => useExtraction({ ...options(original), documentKey }), { initialProps: { documentKey: 'first' } })
+    await waitFor(() => expect(first.result.current.review.decisions).toHaveLength(1))
+    act(() => first.result.current.review.setDecision(pending[0].resultPath, 'REJECTED'))
+    first.rerender({ documentKey: 'second' })
+    first.rerender({ documentKey: 'first' })
+    await waitFor(() => expect(first.result.current.review.decisions[0]?.action).toBe('REJECTED'))
+    first.unmount()
+    const restored = renderHook(() => useExtraction(options(original)))
+    await waitFor(() => expect(restored.result.current.review.decisions[0]?.action).toBe('REJECTED'))
+    expect(restored.result.current.review.isTouched(pending[0].resultPath)).toBe(true)
+  })
+
   it('locks a submitted review and ignores its response after switching documents', async () => {
     const pending = [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1', reviewedOccurrenceIds: ['occurrence-1'], action: 'APPROVED' as const, reviewedValue: null }]
     const original = attempt({ resultPayload: { records: [{ title: 'Grounded' }] }, evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' }] })
-    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: original, pendingReviewDecisions: pending })
+    vi.mocked(api.readExtraction).mockImplementation(async () => ({ extraction: original, pendingReviewDecisions: pending, reviewDraft: savedDrafts.get(original.extractionId) }))
     const save = Promise.withResolvers<ExtractionAttempt>()
     vi.mocked(api.finalizeExtractionReview).mockReturnValue(save.promise)
     const { result, rerender } = renderHook(({ current, documentKey }) => useExtraction({ ...options(current), documentKey }), { initialProps: { current: original, documentKey: 'first' } })
@@ -100,7 +144,7 @@ describe('useExtraction server-owned lifecycle', () => {
       result.current.review.setDecision(pending[0].resultPath, 'EDITED', 'Lost')
       result.current.review.approveAll()
     })
-    expect(api.finalizeExtractionReview).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(api.finalizeExtractionReview).toHaveBeenCalledTimes(1))
     expect(result.current.review.decisions[0].reviewedValue).toBe('Submitted')
     const newer = attempt({ extractionId: '11111111-1111-4111-8111-111111111112' })
     rerender({ current: newer, documentKey: 'second' })
@@ -516,6 +560,7 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(api.finalizeExtractionReview).toHaveBeenCalledWith(
       unreviewed.extractionId,
       decisions,
+      1,
     )
   })
 
@@ -534,10 +579,9 @@ describe('useExtraction server-owned lifecycle', () => {
       action: 'APPROVED' as const,
       reviewedValue: null,
     }]
-    vi.mocked(api.readExtraction).mockResolvedValue({
-      extraction: unreviewed,
-      pendingReviewDecisions: pending,
-    })
+    vi.mocked(api.readExtraction).mockImplementation(async () => ({
+      extraction: unreviewed, pendingReviewDecisions: pending, reviewDraft: savedDrafts.get(unreviewed.extractionId),
+    }))
     vi.mocked(api.finalizeExtractionReview).mockImplementation(
       async (_id, submitted) => attempt({
         ...unreviewed,
@@ -567,6 +611,7 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(api.finalizeExtractionReview).toHaveBeenCalledWith(
       unreviewed.extractionId,
       [{ ...pending[0], action: 'EDITED', reviewedValue: 'Corrected' }],
+      3,
     )
     expect(result.current.review.reviewedExtractionId).toBe(unreviewed.extractionId)
   })
@@ -624,7 +669,7 @@ describe('useExtraction server-owned lifecycle', () => {
     )?.action).toBe('REJECTED')
   })
 
-  it('restores touched review decisions only against the same server preparation', async () => {
+  it('restores server-saved draft decisions without browser storage', async () => {
     const unreviewed = attempt({
       resultPayload: { records: [{ title: 'Grounded' }] },
       evidenceLinks: [
@@ -643,10 +688,9 @@ describe('useExtraction server-owned lifecycle', () => {
         reviewedValue: null,
       },
     ]
-    vi.mocked(api.readExtraction).mockResolvedValue({
-      extraction: unreviewed,
-      pendingReviewDecisions: pending,
-    })
+    vi.mocked(api.readExtraction).mockImplementation(async () => ({
+      extraction: unreviewed, pendingReviewDecisions: pending, reviewDraft: savedDrafts.get(unreviewed.extractionId),
+    }))
     const first = renderHook(() => useExtraction(options(unreviewed)))
     await waitFor(() => expect(first.result.current.review.decisions.length).toBeGreaterThan(0))
     act(() =>
@@ -656,7 +700,6 @@ describe('useExtraction server-owned lifecycle', () => {
         null,
       ),
     )
-    act(() => captureSessionRecovery())
     first.unmount()
 
     setSessionRecoveryAccount('99999999-9999-4999-8999-999999999999')
@@ -672,7 +715,7 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(sessionStorage.getItem('free.auth.recovery.v1')).toBeNull()
   })
 
-  it('leaves recovery untouched when a pending review load unmounts', async () => {
+  it('does not write an empty draft when a pending review load unmounts', async () => {
     const unreviewed = attempt({
       resultPayload: { records: [{ title: 'Grounded' }] },
       evidenceLinks: [{
@@ -687,10 +730,9 @@ describe('useExtraction server-owned lifecycle', () => {
       action: 'APPROVED' as const,
       reviewedValue: null,
     }]
-    vi.mocked(api.readExtraction).mockResolvedValue({
-      extraction: unreviewed,
-      pendingReviewDecisions: pending,
-    })
+    vi.mocked(api.readExtraction).mockImplementation(async () => ({
+      extraction: unreviewed, pendingReviewDecisions: pending, reviewDraft: savedDrafts.get(unreviewed.extractionId),
+    }))
     const first = renderHook(() => useExtraction(options(unreviewed)))
     await waitFor(() => expect(first.result.current.review.decisions.length).toBeGreaterThan(0))
     act(() =>
@@ -700,7 +742,6 @@ describe('useExtraction server-owned lifecycle', () => {
         null,
       ),
     )
-    act(() => captureSessionRecovery())
     first.unmount()
 
     setSessionRecoveryAccount('99999999-9999-4999-8999-999999999999')
@@ -719,7 +760,7 @@ describe('useExtraction server-owned lifecycle', () => {
     await act(async () => deferred.promise)
 
     expect(signal?.aborted).toBe(true)
-    expect(sessionStorage.getItem('free.auth.recovery.v1')).not.toBeNull()
+    expect(savedDrafts.get(unreviewed.extractionId)?.decisions[0].action).toBe('REJECTED')
   })
 
   it('keeps a concurrently finalized server review over recovered decisions', async () => {
@@ -745,10 +786,9 @@ describe('useExtraction server-owned lifecycle', () => {
         createdAt: '2026-08-10T00:01:00.000Z',
       }],
     })
-    vi.mocked(api.readExtraction).mockResolvedValue({
-      extraction: unreviewed,
-      pendingReviewDecisions: pending,
-    })
+    vi.mocked(api.readExtraction).mockImplementation(async () => ({
+      extraction: unreviewed, pendingReviewDecisions: pending, reviewDraft: savedDrafts.get(unreviewed.extractionId),
+    }))
     const first = renderHook(() => useExtraction(options(unreviewed)))
     await waitFor(() => expect(first.result.current.review.decisions.length).toBeGreaterThan(0))
     act(() =>
@@ -758,7 +798,6 @@ describe('useExtraction server-owned lifecycle', () => {
         null,
       ),
     )
-    act(() => captureSessionRecovery())
     first.unmount()
 
     setSessionRecoveryAccount('99999999-9999-4999-8999-999999999999')

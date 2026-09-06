@@ -1,0 +1,86 @@
+[
+  {
+    "id": "column.public.extraction.reviewDraft",
+    "label": "Add column \"reviewDraft\" to \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "reviewDraft",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"reviewDraft\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewDraft"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"reviewDraft\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD COLUMN \"reviewDraft\" jsonb"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"reviewDraft\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewDraft"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.extraction.reviewDraftVersion",
+    "label": "Add column \"reviewDraftVersion\" to \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "reviewDraftVersion",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"reviewDraftVersion\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewDraftVersion"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"reviewDraftVersion\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD COLUMN \"reviewDraftVersion\" int4 DEFAULT 0 NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"reviewDraftVersion\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewDraftVersion"
+        ]
+      }
+    ]
+  }
+]

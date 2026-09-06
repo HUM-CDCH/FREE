@@ -121,7 +121,7 @@ export function createExtractionModule(
     return { extraction, reviewDecisions: decisions }
   }
 
-  const finalizeReview = async (extractionId: string, decisions: readonly ReviewDecisionInput[]): Promise<FinalizeReviewResult> => {
+  const finalizeReview = async (extractionId: string, decisions: readonly ReviewDecisionInput[], expectedDraftVersion = 0): Promise<FinalizeReviewResult> => {
     const extraction = await dependencies.persistence.readExtraction(extractionId)
     if (!extraction) throw new ExtractionError('not_found', 'That Extraction was not found.')
     if (extraction.outcome !== 'SUCCEEDED' || !extraction.reviewable || !extraction.result || !extraction.evidence)
@@ -180,6 +180,7 @@ export function createExtractionModule(
         'The Review Decisions do not match the pinned Extraction Result.',
       )
     const finalized = await dependencies.persistence.finalizeReview(extractionId, {
+      expectedDraftVersion,
       reviewDecisions: decisions.map((decision) => ({
         resultPath: [...decision.resultPath],
         evidenceAnchorId: decision.evidenceAnchorId,
@@ -206,6 +207,29 @@ export function createExtractionModule(
       dependencies.persistence.readExtractionAttempt(extractionId),
     prepareReview,
     finalizeReview,
+    readReviewDraft: async (extractionId) => {
+      const draft = await dependencies.persistence.readReviewDraft(extractionId)
+      if (!draft) throw new ExtractionError('not_found', 'That Extraction was not found.')
+      return draft
+    },
+    saveReviewDraft: async (extractionId, draft) => {
+      const { extraction, reviewDecisions } = await prepareReview(extractionId)
+      if (extraction.reviewedAt) throw new ExtractionError('review_conflict', 'This review is already finalized. Reload to see the saved review.')
+      if (!extraction.reviewable) throw new ExtractionError('invalid_review', 'This Extraction cannot be reviewed.')
+      const inputs = await dependencies.persistence.loadExtractionInputs(extraction.sourceRepresentationRevisionId, extraction.schemaRevisionId)
+      if (!inputs) throw new ExtractionError('invalid_review', 'The pinned schema is unavailable.')
+      const nodes = parsePinnedSchema(inputs.schemaTree).schemaNodes
+      const prepared = new Map(reviewDecisions.map((decision) => [resultPathKey(decision.resultPath), decision]))
+      const keys = draft.decisions.map((decision) => resultPathKey(decision.resultPath))
+      if (!Number.isSafeInteger(draft.version) || draft.version < 0 || new Set(keys).size !== keys.length || draft.decisions.some((decision) => {
+        const expected = prepared.get(resultPathKey(decision.resultPath))
+        return !expected || expected.evidenceAnchorId !== decision.evidenceAnchorId ||
+          expected.reviewedOccurrenceIds.length !== decision.reviewedOccurrenceIds.length ||
+          !expected.reviewedOccurrenceIds.every((id) => decision.reviewedOccurrenceIds.includes(id)) ||
+          !reviewDecisionMatchesSchema(nodes, decision)
+      })) throw new ExtractionError('invalid_review', 'Draft decisions do not match the pinned Extraction Result and Evidence.')
+      return dependencies.persistence.saveReviewDraft(extractionId, draft)
+    },
     readDocumentExtractions: (input) =>
       dependencies.persistence.readDocumentExtractions(input),
     async scheduleBatch(input) {

@@ -2146,6 +2146,10 @@ describe('BatchExtractionsPanel', () => {
         return response({ batchSchemaSuggestions: [] })
       if (url === `/api/extractions/${reviewedExtractionId}` && (init?.method ?? 'GET') === 'GET')
         return response({ extraction: attempt, pendingReviewDecisions })
+      if (url === `/api/extractions/${reviewedExtractionId}/review/draft` && init?.method === 'POST') {
+        const draft = JSON.parse(String(init.body))
+        return response({ ...draft, version: draft.version + 1 })
+      }
       if (url === `/api/extractions/${reviewedExtractionId}/review` && init?.method === 'POST') {
         reviewed = true
         return response({

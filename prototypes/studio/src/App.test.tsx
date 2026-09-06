@@ -1382,6 +1382,10 @@ describe('reopened Source Document workspace', () => {
             }],
           })
         }
+        if (url.endsWith('/review/draft')) {
+          const draft = JSON.parse(String(init?.body))
+          return Response.json({ ...draft, version: draft.version + 1 })
+        }
         if (url.endsWith('/review')) {
           const extractionId = url.split('/').at(-2)!
           return Response.json({
@@ -1419,6 +1423,7 @@ describe('reopened Source Document workspace', () => {
     const review = calls.at(-1)!
     expect(review.url).toMatch(/\/api\/extractions\/[0-9a-f-]+\/review$/)
     expect(review.body).toEqual({
+      expectedDraftVersion: 1,
       reviewDecisions: [
         {
           resultPath: ['records', 0, 'number'],

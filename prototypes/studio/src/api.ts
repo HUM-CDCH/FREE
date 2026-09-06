@@ -1,4 +1,5 @@
 import { authenticatedFetch } from './auth/authenticatedFetch.ts'
+import { acknowledgeReviewDraft, forgetReviewDraft, rememberReviewDraft, REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import { isRecord } from '../shared/template'
 import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/schemaEdit.contract'
 import {
@@ -6,6 +7,7 @@ import {
   extractionAttemptSchema,
   extractionReadResponseSchema,
   finalizeExtractionReviewSchema,
+  extractionReviewDraftSchema,
   type ExtractionRequestInput,
   type ExtractionAttempt,
   type ReviewDecisionInput,
@@ -128,6 +130,8 @@ export async function readExtraction(
   extractionId: string,
   signal?: AbortSignal,
 ) {
+  await draftWrites.get(extractionId)?.catch(() => {})
+  signal?.throwIfAborted()
   return extractionReadResponseSchema.parse(
     await extractionJson(`/extractions/${extractionId}`, 'GET', null, signal),
   )
@@ -140,8 +144,9 @@ export async function cancelExtraction(extractionId: string) {
 export async function finalizeExtractionReview(
   extractionId: string,
   reviewDecisions: readonly ReviewDecisionInput[],
+  expectedDraftVersion = 0,
 ): Promise<ExtractionAttempt> {
-  const review = finalizeExtractionReviewSchema.parse({ reviewDecisions })
+  const review = finalizeExtractionReviewSchema.parse({ reviewDecisions, expectedDraftVersion })
   return extractionAttemptSchema.parse(
     await extractionJson(
       `/extractions/${extractionId}/review`,
@@ -149,6 +154,36 @@ export async function finalizeExtractionReview(
       review,
     ),
   )
+}
+
+type SavedReviewDraft = { version: number; decisions: ReviewDecisionInput[] }
+// Only in-flight writes live here. PostgreSQL owns all persisted review state.
+const draftWrites = new Map<string, Promise<SavedReviewDraft>>()
+export function saveExtractionReviewDraft(extractionId: string, decisions: readonly ReviewDecisionInput[], version: number): Promise<SavedReviewDraft> {
+  const previous = draftWrites.get(extractionId) ?? Promise.resolve({ version, decisions: [] })
+  rememberReviewDraft(extractionId, { version, decisions })
+  const write = previous.then(async (saved) => {
+    acknowledgeReviewDraft(extractionId, saved.version)
+    // A conflict is one state for every caller: the hooks key their reload path on this message.
+    const result = extractionReviewDraftSchema.parse(
+      await extractionJson(`/extractions/${extractionId}/review/draft`, 'POST', { version: saved.version, decisions }).catch((error: unknown) => {
+        throw error instanceof Error && error.message.startsWith('review_conflict:') ? new Error(REVIEW_DRAFT_CONFLICT) : error
+      }),
+    )
+    acknowledgeReviewDraft(extractionId, result.version)
+    return result
+  })
+  draftWrites.set(extractionId, write)
+  const warn = (event: BeforeUnloadEvent) => event.preventDefault()
+  window.addEventListener('beforeunload', warn)
+  void write.then(() => {
+    if (draftWrites.get(extractionId) === write) forgetReviewDraft(extractionId)
+  }).catch(() => {})
+  void write.finally(() => {
+    if (draftWrites.get(extractionId) === write) draftWrites.delete(extractionId)
+    window.removeEventListener('beforeunload', warn)
+  }).catch(() => {})
+  return write
 }
 
 // export async function requestMarkdown(

@@ -101,6 +101,8 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
         },
       ],
     })),
+    readReviewDraft: vi.fn(async () => ({ version: 0, decisions: [] })),
+    saveReviewDraft: vi.fn(async (_id, draft) => ({ ...draft, version: draft.version + 1 })),
     finalizeReview: vi.fn<ExtractionModule['finalizeReview']>(async () => ({
       disposition: 'reviewed',
       extraction: {
@@ -152,6 +154,21 @@ const fresh = {
 }
 
 describe('/api/extractions transport', () => {
+  it('routes versioned draft writes and rejects malformed drafts before the module', async () => {
+    const module = extractionModule()
+    const handle = handlerFor(module)
+    const post = (body: unknown) => handle(new Request(`http://test/api/extractions/${EXTRACTION}/review/draft`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    }))
+    const response = await post({ version: 2, decisions: [] })
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(module.saveReviewDraft).toHaveBeenCalledWith(EXTRACTION, { version: 2, decisions: [] })
+    expect(await response.json()).toEqual({ version: 3, decisions: [] })
+    expect((await post({ version: -1, decisions: [] })).status).toBe(422)
+    expect(module.saveReviewDraft).toHaveBeenCalledTimes(1)
+  })
+
   it('maps a fresh request to runSingle and preserves created/replayed status', async () => {
     const module = extractionModule()
     const handle = handlerFor(module)
@@ -311,7 +328,7 @@ describe('/api/extractions transport', () => {
       }),
     )
     expect(reviewed.status).toBe(200)
-    expect(module.finalizeReview).toHaveBeenCalledWith(EXTRACTION, decisions)
+    expect(module.finalizeReview).toHaveBeenCalledWith(EXTRACTION, decisions, 0)
     expect(await reviewed.json()).toMatchObject({
       reviewedAt: '2026-08-20T10:01:00.000Z',
     })

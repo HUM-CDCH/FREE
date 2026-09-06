@@ -8,8 +8,10 @@ import { schemaDefinitionToTemplate, type SchemaDefinition } from 'extraction/sc
 import { resultStats } from './resultStats'
 import { extractionStateFromAttempt, type ExtractionController, type ExtractionRetryInput } from './useExtraction'
 import type { ExtractionAttempt, ReviewDecisionAction } from '../shared/extraction.contract'
+import { REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import {
   applyReviewDecisions,
+  orderResultFields,
   resultPathKey,
   schemaNodeAtResultPath,
 } from './reviewDecisions'
@@ -465,10 +467,13 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
       : []),
     ...path.map((segment) => /^\d+$/.test(segment) ? Number(segment) : segment),
   ]
-  const displayResult =
+  const unorderedResult =
     articleRecords?.length === 1
       ? articleRecords[0]
       : articleRecords ?? reviewedResult
+  const displayResult = useMemo(() => pinnedSchema
+    ? orderResultFields(unorderedResult, pinnedSchema.schemaNodes)
+    : unorderedResult, [unorderedResult, pinnedSchema])
   const provisional = attempt !== null && attempt.executionStatus !== 'COMPLETED'
   const activeAttempt =
     attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
@@ -687,6 +692,17 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                   Re-run extraction
                 </Button>
               </div>
+            )}
+            {controller.review.draftError && !readOnly && !inspectedAttempt && (
+              <div role="alert" className="text-xs text-danger">
+                Draft not saved: {controller.review.draftError}
+                <Button onClick={controller.review.retryDraft} disabled={controller.review.draftSaving}>{controller.review.draftError === REVIEW_DRAFT_CONFLICT ? 'Reload server review' : 'Retry draft'}</Button>
+              </div>
+            )}
+            {!readOnly && !inspectedAttempt && !controller.review.reviewedExtractionId && !controller.review.draftError && (
+              <p role="status" className="text-xs text-ink-muted">
+                {controller.review.draftSaving ? 'Saving draft…' : controller.review.untouchedCount < controller.review.reviewedCount ? 'Draft saved' : ''}
+              </p>
             )}
             {controller.review.error && (
               <p role="alert" className="mt-2 text-[11.5px] leading-snug text-danger">

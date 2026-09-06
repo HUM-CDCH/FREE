@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
+import { forgetReviewDraft, recoverReviewDraft, rememberReviewDraft, REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import {
   cancelExtraction,
   finalizeExtractionReview,
+  saveExtractionReviewDraft,
   readExtraction,
   requestExtraction,
 } from './api'
 import type { ExtractionState } from './extraction'
 import {
-  reviewDecisionInputSchema,
   type ExtractionAttempt,
   type ExtractionRetrySelection,
   type ExtractionStrategy,
@@ -15,11 +16,7 @@ import {
   type ReviewDecisionInput,
 } from '../shared/extraction.contract'
 import { resultPathKey } from '../shared/groundedExtraction'
-import {
-  consumeSessionRecovery,
-  registerSessionRecoveryCapture,
-  removeSessionRecovery,
-} from './auth/sessionRecovery'
+
 
 export type ExtractionRetryInput = Omit<ExtractionRetrySelection, 'retryOfId'>
 
@@ -99,16 +96,6 @@ function sameTarget(
   )
 }
 
-function sameStrings(
-  left: readonly string[],
-  right: readonly string[],
-): boolean {
-  return (
-    left.length === right.length &&
-    left.every((value, index) => value === right[index])
-  )
-}
-
 function pollingDelay(signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     if (signal.aborted) {
@@ -124,47 +111,6 @@ function pollingDelay(signal: AbortSignal): Promise<void> {
     }
     signal.addEventListener('abort', onAbort, { once: true })
   })
-}
-
-function recoveredReview(
-  value: unknown,
-  prepared: readonly ReviewDecisionInput[],
-): { decisions: ReviewDecisionInput[]; touchedPaths: Set<string> } | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
-  const candidate = value as Record<string, unknown>
-  if (!Array.isArray(candidate.decisions) || !Array.isArray(candidate.touchedPaths))
-    return null
-  const parsed = candidate.decisions.map((decision) =>
-    reviewDecisionInputSchema.safeParse(decision),
-  )
-  if (parsed.some((decision) => !decision.success)) return null
-  const decisions = parsed.map((decision) => decision.data!)
-  if (decisions.length !== prepared.length) return null
-  const byPath = new Map(
-    decisions.map((decision) => [resultPathKey(decision.resultPath), decision]),
-  )
-  if (byPath.size !== decisions.length) return null
-  const ordered = prepared.map((serverDecision) => {
-    const recovered = byPath.get(resultPathKey(serverDecision.resultPath))
-    return recovered &&
-      recovered.evidenceAnchorId === serverDecision.evidenceAnchorId &&
-      sameStrings(
-        recovered.reviewedOccurrenceIds,
-        serverDecision.reviewedOccurrenceIds,
-      )
-      ? recovered
-      : null
-  })
-  if (ordered.some((decision) => decision === null)) return null
-  if (!candidate.touchedPaths.every((path) => typeof path === 'string'))
-    return null
-  const validPaths = new Set(byPath.keys())
-  const touchedPaths = new Set(candidate.touchedPaths as string[])
-  if ([...touchedPaths].some((path) => !validPaths.has(path))) return null
-  return {
-    decisions: ordered as ReviewDecisionInput[],
-    touchedPaths,
-  }
 }
 
 export function useExtraction({
@@ -190,7 +136,13 @@ export function useExtraction({
   // default (every field is seeded 'APPROVED' by prepareReview) rather than a
   // decision the researcher actually made.
   const [touchedPaths, setTouchedPaths] = useState<ReadonlySet<string>>(new Set())
+  const draftRef = useRef({ decisions: reviewDecisions, touched: touchedPaths })
+  draftRef.current = { decisions: reviewDecisions, touched: touchedPaths }
   const [reviewError, setReviewError] = useState<string | null>(null)
+  const draftSaveRef = useRef({ version: 0, pending: Promise.resolve(), writes: 0, conflict: false })
+  const [reviewReload, setReviewReload] = useState(0)
+  const [draftSaving, setDraftSaving] = useState(false)
+  const [draftError, setDraftError] = useState<string | null>(null)
   const [cancellationRequested, setCancellationRequested] = useState(false)
   const [cancellationError, setCancellationError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -201,6 +153,8 @@ export function useExtraction({
   const saveScopeRef = useRef({ saving: false })
   useEffect(() => {
     saveScopeRef.current = { saving: false }
+    draftSaveRef.current = { version: 0, pending: Promise.resolve(), writes: 0, conflict: false }
+    setDraftSaving(false)
     setSaving(false)
     return () => { saveScopeRef.current = { saving: false } }
   }, [documentKey, attempt?.extractionId])
@@ -214,6 +168,7 @@ export function useExtraction({
     setReviewDecisions([])
     setTouchedPaths(new Set())
     setReviewError(null)
+    setDraftError(null)
     setCancellationRequested(false)
     setCancellationError(null)
   }
@@ -304,32 +259,13 @@ export function useExtraction({
   )
   const canAccept = Boolean(
     !saving &&
+    !draftError &&
     !reviewLoading &&
     reviewAvailable &&
     attempt?.reviewedAt === null &&
     reviewDecisions.length > 0 &&
     reviewDecisions.every((decision) => touchedPaths.has(resultPathKey(decision.resultPath)))
   )
-
-  useEffect(() => {
-    if (
-      !attempt ||
-      attempt.reviewedAt !== null ||
-      !reviewAvailable
-    )
-      return
-    return registerSessionRecoveryCapture(
-      'extraction-review',
-      attempt.extractionId,
-      () =>
-        touchedPaths.size === 0
-          ? null
-          : {
-              decisions: reviewDecisions,
-              touchedPaths: [...touchedPaths],
-            },
-    )
-  }, [attempt, reviewAvailable, reviewDecisions, touchedPaths])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -340,6 +276,7 @@ export function useExtraction({
       if (!reviewAvailable || !attempt) {
         setReviewLoading(false)
         if (attempt?.reviewedAt) {
+          forgetReviewDraft(attempt.extractionId)
           const decisions = attempt.reviewDecisions.map(pendingDecision)
           setReviewDecisions(decisions)
           setTouchedPaths(new Set(decisions.map((decision) => resultPathKey(decision.resultPath))))
@@ -350,7 +287,8 @@ export function useExtraction({
         return
       }
       if (attempt.reviewedAt) {
-        removeSessionRecovery('extraction-review', attempt.extractionId)
+        forgetReviewDraft(attempt.extractionId)
+        setDraftError(null)
         setReviewLoading(false)
         const decisions = attempt.reviewDecisions.map(pendingDecision)
         setReviewDecisions(decisions)
@@ -369,7 +307,7 @@ export function useExtraction({
         )
         if (controller.signal.aborted || reviewLoadRef.current !== load) return
         if (prepared.extraction.reviewedAt) {
-          removeSessionRecovery('extraction-review', attempt.extractionId)
+          forgetReviewDraft(attempt.extractionId)
           setAttempt(prepared.extraction)
           setState(extractionStateFromAttempt(prepared.extraction))
           const decisions =
@@ -382,15 +320,15 @@ export function useExtraction({
           )
           return
         }
-        const recovered = consumeSessionRecovery(
-          'extraction-review',
-          attempt.extractionId,
-          (value) => recoveredReview(value, prepared.pendingReviewDecisions ?? []),
-        )
+        const recovered = recoverReviewDraft(attempt.extractionId, prepared.reviewDraft, prepared.pendingReviewDecisions ?? [])
+        draftSaveRef.current = { version: recovered.version, pending: Promise.resolve(), writes: 0, conflict: recovered.conflict }
+        setDraftError(recovered.conflict ? REVIEW_DRAFT_CONFLICT : null)
+        draftRef.current = { decisions: recovered.decisions, touched: recovered.touchedPaths }
         setReviewDecisions(
-          recovered?.decisions ?? [...(prepared.pendingReviewDecisions ?? [])],
+          recovered.decisions,
         )
-        setTouchedPaths(recovered?.touchedPaths ?? new Set())
+        setTouchedPaths(recovered.touchedPaths)
+        if (recovered.retry) updateReview(recovered.decisions, recovered.touchedPaths)
       } catch (error) {
         if (reviewLoadRef.current !== load) return
         setReviewError(
@@ -404,7 +342,7 @@ export function useExtraction({
       controller.abort()
       reviewLoadRef.current += 1
     }
-  }, [attempt, reviewAvailable])
+  }, [attempt, reviewAvailable, documentKey, reviewReload])
 
   async function requestCancellation() {
     const id = attempt?.extractionId ?? activeIdRef.current
@@ -427,14 +365,13 @@ export function useExtraction({
       indexing
     )
       return null
-    if (attempt)
-      removeSessionRecovery('extraction-review', attempt.extractionId)
     abandonRunning()
     const controller = new AbortController()
     const extractionId = crypto.randomUUID()
     abortRef.current = controller
     activeIdRef.current = extractionId
     setReviewError(null)
+    setDraftError(null)
     setCancellationRequested(false)
     setCancellationError(null)
     setState({ status: 'running', step: 'extraction' })
@@ -500,13 +437,17 @@ export function useExtraction({
     setSaving(true)
     setReviewError(null)
     try {
+      const draft = draftSaveRef.current
+      await draft.pending
       const finalized = await finalizeExtractionReview(
         attempt.extractionId,
         reviewDecisions,
+        draft.version,
       )
       if (saveScopeRef.current !== scope) return
+      forgetReviewDraft(attempt.extractionId)
+      setDraftError(null)
       setAttempt(finalized)
-      removeSessionRecovery('extraction-review', attempt.extractionId)
     } catch (error) {
       if (saveScopeRef.current !== scope) return
       setReviewError(
@@ -520,6 +461,34 @@ export function useExtraction({
     }
   }
 
+  function updateReview(decisions: ReviewDecisionInput[], touched: ReadonlySet<string>) {
+    if (!attempt) return
+    draftRef.current = { decisions, touched }
+    setReviewDecisions(decisions)
+    setTouchedPaths(touched)
+    const scope = draftSaveRef.current
+    if (scope.conflict) {
+      rememberReviewDraft(attempt.extractionId, { version: scope.version, decisions: decisions.filter((decision) => touched.has(resultPathKey(decision.resultPath))) })
+      return
+    }
+    scope.writes += 1
+    setDraftSaving(true)
+    setDraftError(null)
+    const write = saveExtractionReviewDraft(attempt.extractionId,
+      decisions.filter((decision) => touched.has(resultPathKey(decision.resultPath))), scope.version)
+    scope.pending = write.then((saved) => { scope.version = saved.version })
+    void scope.pending.catch((error: unknown) => {
+      if (draftSaveRef.current !== scope) return
+      const message = error instanceof Error ? error.message : 'Draft could not be saved.'
+      // Retrying a stale version can never succeed; only reloading server state can.
+      if (message === REVIEW_DRAFT_CONFLICT) scope.conflict = true
+      setDraftError(message)
+    }).finally(() => {
+      scope.writes -= 1
+      if (draftSaveRef.current === scope) setDraftSaving(scope.writes > 0)
+    })
+  }
+
   function setReviewDecision(
     resultPath: ReviewDecisionInput['resultPath'],
     action: ReviewDecisionAction,
@@ -528,16 +497,11 @@ export function useExtraction({
     if (saveScopeRef.current.saving || !reviewAvailable || reviewLoading || attempt?.reviewedAt) return
     const key = resultPathKey(resultPath)
     if (!reviewDecisions.some((decision) => resultPathKey(decision.resultPath) === key)) return
-    setReviewDecisions((current) => current.map((decision) =>
+    updateReview(draftRef.current.decisions.map((decision) =>
       resultPathKey(decision.resultPath) === key
-        ? {
-            ...decision,
-            action,
-            reviewedValue: action === 'EDITED' ? reviewedValue : null,
-          }
+        ? { ...decision, action, reviewedValue: action === 'EDITED' ? reviewedValue : null }
         : decision,
-    ))
-    setTouchedPaths((current) => new Set(current).add(key))
+    ), new Set(draftRef.current.touched).add(key))
   }
 
   // Marks every field the researcher hasn't explicitly acted on as touched,
@@ -545,9 +509,8 @@ export function useExtraction({
   // 'APPROVED', so this only affects what the review UI displays.
   function approveAllRemaining() {
     if (saveScopeRef.current.saving || !reviewAvailable || reviewLoading || attempt?.reviewedAt) return
-    setTouchedPaths(
-      (current) => new Set([...current, ...reviewDecisions.map((decision) => resultPathKey(decision.resultPath))]),
-    )
+    const { decisions, touched } = draftRef.current
+    updateReview(decisions, new Set([...touched, ...decisions.map((decision) => resultPathKey(decision.resultPath))]))
   }
 
   return {
@@ -577,6 +540,14 @@ export function useExtraction({
         ? attempt.extractionId
         : null,
       error: reviewError,
+      draftError,
+      draftSaving,
+      retryDraft: () => {
+        if (draftSaveRef.current.conflict && attempt) {
+          forgetReviewDraft(attempt.extractionId)
+          setReviewReload((value) => value + 1)
+        } else updateReview(draftRef.current.decisions, draftRef.current.touched)
+      },
       setDecision: setReviewDecision,
       approveAll: approveAllRemaining,
       accept: acceptResult,

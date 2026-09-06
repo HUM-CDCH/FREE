@@ -15,6 +15,7 @@ import type {
   ReadBatchInput,
   ReadDocumentExtractionsInput,
   ReviewDecisionInput,
+  ReviewDraft,
   RunSingleInput,
   RunSingleResult,
   ScheduleBatchInput,
@@ -50,6 +51,7 @@ export type TerminalExtraction = Readonly<{
 }>
 
 export type ReviewAuthority = Readonly<{
+  expectedDraftVersion?: number
   reviewDecisions: readonly ReviewDecisionInput[]
   occurrenceIdsByAnchor: ReadonlyMap<string, ReadonlySet<string>>
   evidenceResultPathKeys: ReadonlySet<string>
@@ -70,6 +72,8 @@ export interface ExtractionPersistence {
   readExtractionAttempt(extractionId: string): Promise<ExtractionAttemptSnapshot | null>
   cancelExtraction(extractionId: string): Promise<CancellationResult>
   finalizeReview(extractionId: string, authority: ReviewAuthority): Promise<PersistedReviewResult>
+  readReviewDraft(extractionId: string): Promise<ReviewDraft | null>
+  saveReviewDraft(extractionId: string, draft: ReviewDraft): Promise<ReviewDraft>
   readDocumentExtractions(input: ReadDocumentExtractionsInput): Promise<DocumentExtractionsSnapshot | null>
   scheduleBatch(input: ScheduleBatchInput): Promise<ScheduleBatchResult | null>
   scheduleSuggestedBatch(input: ScheduleSuggestedBatchInput): Promise<ScheduleBatchResult | null>

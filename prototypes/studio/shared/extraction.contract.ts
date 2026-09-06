@@ -130,7 +130,7 @@ export const reviewDecisionSchema = z
 export type ReviewDecision = z.infer<typeof reviewDecisionSchema>
 
 export const finalizeExtractionReviewSchema = z
-  .object({ reviewDecisions: z.array(reviewDecisionInputSchema) })
+  .object({ reviewDecisions: z.array(reviewDecisionInputSchema), expectedDraftVersion: z.number().int().nonnegative().default(0) })
   .strict()
 
 export const extractionFailureSchema = z
@@ -361,5 +361,11 @@ export const extractionReadResponseSchema = z
   .object({
     extraction: extractionAttemptSchema,
     pendingReviewDecisions: z.array(reviewDecisionInputSchema).nullable(),
+    reviewDraft: z.object({ version: z.number().int().nonnegative(), decisions: z.array(reviewDecisionInputSchema) }).strict().optional(),
   })
   .strict()
+
+export const extractionReviewDraftSchema = z.object({
+  version: z.number().int().nonnegative(),
+  decisions: z.array(reviewDecisionInputSchema),
+}).strict()

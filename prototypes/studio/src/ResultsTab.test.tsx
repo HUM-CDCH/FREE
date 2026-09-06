@@ -49,6 +49,9 @@ function controller(
       isTouched: () => true,
       reviewedExtractionId: null,
       error: null,
+      draftError: null,
+      draftSaving: false,
+      retryDraft: () => {},
       setDecision: () => {},
       approveAll: () => {},
       accept: async () => {},
@@ -139,6 +142,40 @@ const historicalExportSchema: SchemaDefinition = {
 }
 
 describe('ResultsTab grounded values', () => {
+  it('orders historical reviewed values by their pinned schema, falling back to payload order without it', () => {
+    const historical = { ...articleAttempt, resultPayload: { records: [{ year: 2020, title: 'Grounded' }] },
+      reviewedAt: '2026-09-06T00:00:00Z', reviewDecisions: [
+        { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor', reviewedOccurrenceIds: [], action: 'EDITED' as const, reviewedValue: 'Corrected', createdAt: '2026-09-06T00:00:00Z' },
+        { resultPath: ['records', 0, 'year'], evidenceAnchorId: 'anchor', reviewedOccurrenceIds: [], action: 'REJECTED' as const, reviewedValue: null, createdAt: '2026-09-06T00:00:00Z' },
+      ] }
+    const props = { ...defaultRunProps, controller: controller({ status: 'idle' }), schemaReady: true,
+      documentMarkdown: '', sourceDocumentName: 'Source', inspectedAttempt: historical,
+      exportSchema: { recordDescription: 'Current', schemaNodes: [{ id: 'year', name: 'year', type: 'integer' as const }] } }
+    const { container, rerender } = render(<ResultsTab {...props} pinnedSchema={{ recordDescription: 'Historical', schemaNodes: [
+      { id: 'title', name: 'title', type: 'string' }, { id: 'year', name: 'year', type: 'integer' },
+    ] }} />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Raw JSON' }))
+    expect(container.querySelector('pre')!.textContent).toBe(JSON.stringify({ title: 'Corrected', year: null }, null, 2))
+    rerender(<ResultsTab {...props} />)
+    expect(container.querySelector('pre')!.textContent).toBe(JSON.stringify({ year: null, title: 'Corrected' }, null, 2))
+    expect(historical.resultPayload.records[0]).toEqual({ year: 2020, title: 'Grounded' })
+  })
+
+  it('uses the pinned schema order in Review and Raw JSON', () => {
+    const result = { records: [{ year: 2020, title: 'Grounded' }] }
+    const { container } = render(<ResultsTab {...defaultRunProps}
+      controller={controller({ status: 'ready', result, evidenceLinks: [], ungroundedCount: 0 })}
+      schemaReady documentMarkdown="" sourceDocumentName="Source"
+      pinnedSchema={{ recordDescription: 'Source', schemaNodes: [
+        { id: 'title', name: 'title', type: 'string' },
+        { id: 'year', name: 'year', type: 'integer' },
+      ] }} />)
+    expect(container.textContent!.indexOf('title')).toBeLessThan(container.textContent!.indexOf('year'))
+    fireEvent.click(screen.getByRole('tab', { name: 'Raw JSON' }))
+    expect(container.querySelector('pre')!.textContent).toBe(JSON.stringify({ title: 'Grounded', year: 2020 }, null, 2))
+    expect(Object.keys(result.records[0])).toEqual(['year', 'title'])
+  })
+
   it('shows checkpointed values while Evidence linking keeps export and review disabled', () => {
     const provisional: ExtractionAttempt = {
       ...articleAttempt,

@@ -342,6 +342,8 @@ function batchFixture(nested = false): {
     readExtractionAttempt: unsupported,
     cancelSingle: unsupported,
     prepareReview: unsupported,
+    readReviewDraft: async () => ({ version: 0, decisions: [] }),
+    saveReviewDraft: async (_id, draft) => ({ ...draft, version: draft.version + 1 }),
     finalizeReview: unsupported,
     readDocumentExtractions: unsupported,
     scheduleSuggestedBatch: unsupported,
@@ -881,6 +883,7 @@ test('the Batch review grid handles member failure, targeted reload, bulk decisi
     reviewedValue: null,
   })))
   let savedReview: unknown = null
+  let reviewDraft = { version: 0, decisions: [] as Array<Record<string, unknown>> }
 
   await page.route('**/api/batch-extractions**', async (route) => {
     const url = new URL(route.request().url())
@@ -905,6 +908,13 @@ test('the Batch review grid handles member failure, targeted reload, bulk decisi
   })
   await page.route('**/api/extractions/**', async (route) => {
     const request = route.request()
+    if (new URL(request.url()).pathname.endsWith('/review/draft')) {
+      const input = request.postDataJSON() as typeof reviewDraft
+      if (input.version !== reviewDraft.version)
+        return route.fulfill({ status: 409, json: { error: { message: 'Draft conflict' } } })
+      reviewDraft = { ...input, version: input.version + 1 }
+      return route.fulfill({ json: reviewDraft })
+    }
     if (request.method() === 'POST') {
       savedReview = request.postDataJSON()
       attempt.reviewedAt = at(46).toISOString()
@@ -913,13 +923,13 @@ test('the Batch review grid handles member failure, targeted reload, bulk decisi
       return route.fulfill({ json: attempt })
     }
     extractionReads += 1
-    if (extractionReads <= 2)
+    if (extractionReads === 1)
       return route.fulfill({
         status: 503,
         json: { error: { code: 'persistence_unavailable', message: 'Review data is temporarily unavailable.' } },
       })
     return route.fulfill({
-      json: { extraction: attempt, pendingReviewDecisions },
+      json: { extraction: attempt, pendingReviewDecisions, reviewDraft },
     })
   })
 
@@ -941,6 +951,12 @@ test('the Batch review grid handles member failure, targeted reload, bulk decisi
   const placeInput = page.locator('input[value="Ellekilde"]')
   await placeInput.fill('Milan')
   await placeInput.press('Enter')
+  await expect(page.getByText('Draft saved', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: /Back to results/ }).click()
+  await panel(page).getByRole('button', { name: 'Review grid' }).click()
+  await expect(page.getByText('Milan', { exact: true })).toBeVisible()
+  await page.reload()
+  await expect(page.getByText('Milan', { exact: true })).toBeVisible()
   await page.getByText('1801', { exact: true }).click()
   await page.getByRole('button', { name: 'Reject', exact: true }).click()
   const material = page.getByRole('group', { name: 'material · Item 1', exact: true })

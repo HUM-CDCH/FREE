@@ -655,6 +655,8 @@ if (!disposableDatabaseUrl) {
         module.prepareReview(foreignExtractionId),
         rejectsWithCode('not_found'),
       )
+      await assert.rejects(module.readReviewDraft(foreignExtractionId), rejectsWithCode('not_found'))
+      await assert.rejects(module.saveReviewDraft(foreignExtractionId, { version: 0, decisions: [] }), rejectsWithCode('not_found'))
       await assert.rejects(
         module.finalizeReview(foreignExtractionId, []),
         rejectsWithCode('not_found'),
@@ -924,6 +926,49 @@ if (!disposableDatabaseUrl) {
         'not-found',
       )
       assert.equal(await module.cancelSingle(randomUUID()), 'not-found')
+    })
+
+    it('persists drafts independently, rejects invalid and concurrent edits, and clears them atomically on finalization', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const { module } = createRuntime(project.researcherAccountId)
+      const { extraction } = await module.runSingle(freshInput(project))
+      const id = extraction.extractionId
+      const prepared = await module.prepareReview(id)
+      const edited = [{ ...prepared.reviewDecisions[0]!, action: 'EDITED' as const, reviewedValue: 'Draft title' }]
+      assert.deepEqual(await module.readReviewDraft(id), { version: 0, decisions: [] })
+      for (const invalid of [
+        [{ ...edited[0]!, evidenceAnchorId: 'foreign-anchor' }],
+        [{ ...edited[0]!, reviewedOccurrenceIds: ['foreign-occurrence'] }],
+        [{ ...edited[0]!, reviewedValue: 42 }],
+        [edited[0]!, edited[0]!],
+      ]) await assert.rejects(module.saveReviewDraft(id, { version: 0, decisions: invalid }), rejectsWithCode('invalid_review'))
+      const saved = await module.saveReviewDraft(id, { version: 0, decisions: edited })
+      assert.equal(saved.version, 1)
+      assert.deepEqual(await createRuntime(project.researcherAccountId).module.readReviewDraft(id), saved)
+      const unreviewed = await module.prepareReview(id)
+      assert.equal(unreviewed.extraction.reviewedAt, null)
+      assert.deepEqual(unreviewed.extraction.reviewDecisions, [])
+      await assert.rejects(module.finalizeReview(id, edited, 0), rejectsWithCode('review_conflict'))
+      const competing = await Promise.allSettled([
+        module.saveReviewDraft(id, { version: 1, decisions: [] }),
+        module.saveReviewDraft(id, { version: 1, decisions: prepared.reviewDecisions }),
+      ])
+      assert.equal(competing.filter((result) => result.status === 'fulfilled').length, 1)
+      const latest = await module.readReviewDraft(id)
+      assert.equal(latest.version, 2)
+      const reverted = await module.saveReviewDraft(id, { version: 2, decisions: [] })
+      assert.deepEqual(reverted.decisions, [])
+      const complete = await module.saveReviewDraft(id, { version: 3, decisions: edited })
+      const finalizations = await Promise.all([
+        module.finalizeReview(id, edited, complete.version),
+        module.finalizeReview(id, edited, complete.version),
+      ])
+      assert.deepEqual(finalizations.map((result) => result.disposition).sort(), ['replayed', 'reviewed'])
+      const finalized = finalizations[0]!
+      assert.ok(finalized.extraction.reviewedAt)
+      assert.deepEqual((await module.readReviewDraft(id)).decisions, [])
+      await assert.rejects(module.saveReviewDraft(id, { version: 4, decisions: [] }), rejectsWithCode('review_conflict'))
     })
 
     it('uses the canonical package as review authority and enforces replay and conflict', async (t) => {

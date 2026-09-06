@@ -6,6 +6,20 @@ import type {
 
 type Decision = ReviewDecision | ReviewDecisionInput
 
+/** Display ordering only: preserve values, unknown fields and array positions. */
+export function orderResultFields(value: unknown, nodes: readonly SchemaNode[]): unknown {
+  if (Array.isArray(value)) return value.map((item) => orderResultFields(item, nodes))
+  if (value === null || typeof value !== 'object') return value
+  const record = value as Record<string, unknown>
+  const byName = new Map(nodes.map((node) => [node.name, node]))
+  const names = [...nodes.map((node) => node.name).filter((name) => Object.hasOwn(record, name)),
+    ...Object.keys(record).filter((name) => !byName.has(name))]
+  return Object.fromEntries(names.map((name) => {
+    const children = byName.get(name)?.children
+    return [name, children ? orderResultFields(record[name], children) : record[name]]
+  }))
+}
+
 export function resultPathKey(path: readonly (string | number)[]): string {
   return JSON.stringify(path)
 }

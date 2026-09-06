@@ -201,6 +201,11 @@ export type ReviewPreparation = Readonly<{
   reviewDecisions: readonly ReviewDecisionInput[]
 }>
 
+export type ReviewDraft = Readonly<{
+  version: number
+  decisions: readonly ReviewDecisionInput[]
+}>
+
 export type BatchExtractionMemberSnapshot = Readonly<{
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
@@ -297,7 +302,9 @@ export interface ExtractionModule {
   readExtractionAttempt(extractionId: string): Promise<ExtractionAttemptSnapshot | null>
   cancelSingle(extractionId: string): Promise<CancellationResult>
   prepareReview(extractionId: string): Promise<ReviewPreparation>
-  finalizeReview(extractionId: string, decisions: readonly ReviewDecisionInput[]): Promise<FinalizeReviewResult>
+  finalizeReview(extractionId: string, decisions: readonly ReviewDecisionInput[], expectedDraftVersion?: number): Promise<FinalizeReviewResult>
+  readReviewDraft(extractionId: string): Promise<ReviewDraft>
+  saveReviewDraft(extractionId: string, draft: ReviewDraft): Promise<ReviewDraft>
   readDocumentExtractions(input: ReadDocumentExtractionsInput): Promise<DocumentExtractionsSnapshot | null>
   scheduleBatch(input: ScheduleBatchInput): Promise<ScheduleBatchResult>
   scheduleSuggestedBatch(input: ScheduleSuggestedBatchInput): Promise<ScheduleBatchResult>

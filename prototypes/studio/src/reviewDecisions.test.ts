@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyReviewDecisions,
+  orderResultFields,
   parseReviewedValue,
   schemaNodeAtResultPath,
 } from './reviewDecisions'
@@ -18,6 +19,15 @@ const nodes: SchemaNode[] = [{
 }]
 
 describe('Review Decision projection', () => {
+  it('orders nested records without coercing values, dropping extras or changing array positions', () => {
+    const first = { extra: 'keep', kind: 'not an allowed value', active: null, age: 4 }
+    const source = [{ people: [first, { active: false, age: 9 }], other: ['b', 'a'] }]
+    const sorted = orderResultFields(source, nodes) as typeof source
+    expect(sorted).toEqual(source)
+    expect(Object.keys(sorted[0].people[0])).toEqual(['age', 'active', 'kind', 'extra'])
+    expect(Object.keys(sorted[0].people[1])).toEqual(['age', 'active'])
+    expect(Object.keys(first)).toEqual(['extra', 'kind', 'active', 'age'])
+  })
   it('applies nested edits and rejections without mutating the Extraction Result', () => {
     const original = {
       records: [{ people: [{ age: 4, active: true }] }],

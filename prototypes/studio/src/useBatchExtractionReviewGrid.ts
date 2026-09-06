@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { enumerateFieldPaths, type SchemaNode } from 'extraction/schema'
-import { finalizeExtractionReview, readExtraction } from './api'
+import { finalizeExtractionReview, readExtraction, saveExtractionReviewDraft } from './api'
 import { applyReviewDecisions, resultPathKey } from './reviewDecisions'
 import { isRecord } from '../shared/template'
+import { forgetReviewDraft, recoverReviewDraft, rememberReviewDraft, REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import type { BatchExtraction } from '../shared/batchExtraction.contract'
 import type {
   ExtractionAttempt,
@@ -109,15 +110,33 @@ export function useBatchExtractionReviewGrid(
     new Map(),
   )
   const membersRef = useRef(members)
+  const draftVersions = useRef(new Map<string, number>())
+  const draftWrites = useRef(new Map<string, Promise<void>>())
+  const draftConflicts = useRef(new Set<string>())
+  const [draftSaving, setDraftSaving] = useState(0)
+  const [draftError, setDraftError] = useState<string | null>(null)
   const loadControllerRef = useRef<AbortController | null>(null)
   const scopeRef = useRef<object | null>(null)
   // Publish state synchronously so a second event cannot edit or save an older snapshot.
   function setMembers(update: (current: ReadonlyMap<string, MemberReviewState>) => ReadonlyMap<string, MemberReviewState>) {
-    membersRef.current = update(membersRef.current)
+    const previous = membersRef.current
+    membersRef.current = update(previous)
+    for (const [id, state] of membersRef.current) {
+      const old = previous.get(id)
+      if (state.status !== 'ready' || !state.editable || old?.status !== 'ready' ||
+        old.attempt.extractionId !== state.attempt.extractionId ||
+        (old.decisions === state.decisions && old.touched === state.touched)) continue
+      persistDraft(state)
+    }
     renderMembers(membersRef.current)
   }
   useEffect(() => {
     scopeRef.current = {}
+    draftVersions.current = new Map()
+    draftWrites.current = new Map()
+    draftConflicts.current = new Set()
+    setDraftSaving(0)
+    setDraftError(null)
     setMembers(() => new Map())
     return () => { scopeRef.current = null }
   }, [batch.batchExtractionId])
@@ -132,30 +151,72 @@ export function useBatchExtractionReviewGrid(
     )
     .join('|')
 
+  function persistDraft(state: Extract<MemberReviewState, { status: 'ready' }>) {
+    const id = state.attempt.extractionId
+    const decisions = state.decisions.filter((decision) => state.touched.has(resultPathKey(decision.resultPath)))
+    if (draftConflicts.current.has(id)) {
+      rememberReviewDraft(id, { version: draftVersions.current.get(id) ?? 0, decisions })
+      return
+    }
+    setDraftSaving((count) => count + 1)
+    const scope = scopeRef.current
+    const write = saveExtractionReviewDraft(id,
+      decisions,
+      draftVersions.current.get(id) ?? 0,
+    ).then((saved) => { if (scopeRef.current === scope) draftVersions.current.set(id, saved.version) })
+    draftWrites.current.set(id, write)
+    void write.catch((error: unknown) => {
+      if (scopeRef.current !== scope) return
+      const message = error instanceof Error ? error.message : 'Draft could not be saved.'
+      // Retrying a stale version can never succeed; only reloading server state can.
+      if (message === REVIEW_DRAFT_CONFLICT) draftConflicts.current.add(id)
+      setDraftError(message)
+    }).finally(() => {
+      if (scopeRef.current === scope) setDraftSaving((count) => count - 1)
+    })
+  }
+
+  function retryDrafts() {
+    setDraftError(null)
+    for (const [sourceDocumentId, state] of membersRef.current) {
+      if (state.status !== 'ready' || !state.editable) continue
+      if (draftConflicts.current.has(state.attempt.extractionId)) {
+        forgetReviewDraft(state.attempt.extractionId)
+        draftConflicts.current.delete(state.attempt.extractionId)
+        draftWrites.current.delete(state.attempt.extractionId)
+        const signal = loadControllerRef.current?.signal
+        if (signal) loadMember(sourceDocumentId, state.attempt.extractionId, signal)
+      } else persistDraft(state)
+    }
+  }
+
   function loadMember(sourceDocumentId: string, extractionId: string, signal: AbortSignal) {
     setMembers((current) => new Map(current).set(sourceDocumentId, { status: 'loading' }))
     readExtraction(extractionId, signal).then(
-      ({ extraction, pendingReviewDecisions }) => {
+      ({ extraction, pendingReviewDecisions, reviewDraft }) => {
         if (signal.aborted) return
+        if (extraction.reviewedAt) forgetReviewDraft(extraction.extractionId)
+        const recovered = recoverReviewDraft(extraction.extractionId, reviewDraft, pendingReviewDecisions ?? [])
+        draftVersions.current.set(extraction.extractionId, recovered.version)
+        if (recovered.conflict) draftConflicts.current.add(extraction.extractionId)
+        else draftConflicts.current.delete(extraction.extractionId)
         const decisions = extraction.reviewedAt
           ? extraction.reviewDecisions
-          : pendingReviewDecisions ?? []
-        setMembers((current) =>
-          new Map(current).set(sourceDocumentId, {
-            status: 'ready',
-            attempt: extraction,
-            decisions,
-            // Already-saved decisions were all explicitly made, not
-            // defaulted — this is a read of a finalized review, so every
-            // field is "touched" (mirrors useExtraction.ts).
-            touched: extraction.reviewedAt
-              ? new Set(decisions.map((decision) => resultPathKey(decision.resultPath)))
-              : new Set(),
-            editable: extraction.reviewable && extraction.reviewedAt === null,
-            saving: false,
-            saveError: null,
-          }),
-        )
+          : recovered.decisions
+        const state: Extract<MemberReviewState, { status: 'ready' }> = {
+          status: 'ready',
+          attempt: extraction,
+          decisions,
+          // Finalized decisions were explicitly made, so every field is touched.
+          touched: extraction.reviewedAt
+            ? new Set(decisions.map((decision) => resultPathKey(decision.resultPath)))
+            : recovered.touchedPaths,
+          editable: extraction.reviewable && extraction.reviewedAt === null,
+          saving: false,
+          saveError: null,
+        }
+        setMembers((current) => new Map(current).set(sourceDocumentId, state))
+        if (recovered.retry && state.editable) persistDraft(state)
       },
       (error: unknown) => {
         if (signal.aborted) return
@@ -375,6 +436,7 @@ export function useBatchExtractionReviewGrid(
   async function saveMember(sourceDocumentId: string) {
     const state = membersRef.current.get(sourceDocumentId)
     if (!state || state.status !== 'ready' || !state.editable || state.saving ||
+      draftConflicts.current.has(state.attempt.extractionId) ||
       state.decisions.length === 0 || pendingReviewCount(state) > 0) return
     const scope = scopeRef.current
     const isCurrent = () => {
@@ -388,8 +450,10 @@ export function useBatchExtractionReviewGrid(
       return new Map(current).set(sourceDocumentId, { ...latest, saving: true, saveError: null })
     })
     try {
-      const updated = await finalizeExtractionReview(state.attempt.extractionId, state.decisions)
+      await draftWrites.current.get(state.attempt.extractionId)
+      const updated = await finalizeExtractionReview(state.attempt.extractionId, state.decisions, draftVersions.current.get(state.attempt.extractionId) ?? 0)
       if (!isCurrent()) return
+      forgetReviewDraft(state.attempt.extractionId)
       setMembers((current) =>
         new Map(current).set(sourceDocumentId, {
           status: 'ready',
@@ -427,6 +491,9 @@ export function useBatchExtractionReviewGrid(
     columns,
     members,
     dirtyCount,
+    draftError: draftConflicts.current.size > 0 ? REVIEW_DRAFT_CONFLICT : draftError,
+    draftSaving: draftSaving > 0,
+    retryDrafts,
     setDecision,
     approveAllForMember,
     approveAll,
