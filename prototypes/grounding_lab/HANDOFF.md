@@ -86,8 +86,9 @@ For a new session picking up `prototypes/grounding_lab` on branch
 One contract change is applied (2026-09-06): every production `EvidenceLink`
 now carries `verbatim` (value is a bounded token of the linked anchor) and
 `lexicalHits` (candidate anchors containing it), computed in
-`packages/extraction/src/lexical.ts` from a reduced port of this lab's
-`normalize` and `bounded_contains`. Studio shows a "Check" badge and a
+`packages/extraction/src/lexical.ts`, a port of this lab's `normalize` and
+`bounded_contains` that replays `tests/test_pipeline.py`'s cases; change
+both together. Studio shows a "Check" badge and a
 "To check" count from them. No score, no auto-accept, no reranker; the
 benchmark and risk-ranking work remains isolated in this lab.
 

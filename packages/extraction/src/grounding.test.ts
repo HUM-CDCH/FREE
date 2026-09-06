@@ -17,15 +17,67 @@ function documentWith(texts: readonly string[]): ParsedDocument {
   } as unknown as ParsedDocument
 }
 
-describe('lexical containment', () => {
-  it('matches bounded tokens only', () => {
-    assert.equal(boundedContains('4', normalizeLexical('Grave 4, 1904')), true)
-    assert.equal(boundedContains('4', normalizeLexical('1904')), false)
-    assert.equal(boundedContains('4.4', normalizeLexical('4.3–4.4 m')), false)
-    assert.equal(boundedContains('1.5', normalizeLexical('ca. 1,5 m')), true)
-    assert.equal(boundedContains('wolfenbüttel', normalizeLexical('Kr. Wolfenbüttel.')), true)
-    assert.equal(boundedContains('a', 'a'), true)
-    assert.equal(boundedContains('a', 'a b'), false)
+// Replays prototypes/grounding_lab/tests/test_pipeline.py; keep both in step.
+describe('normalizeLexical', () => {
+  it('folds numbers, dates, spacing and markers like the lab', () => {
+    const same = (left: string, right: string) => assert.equal(normalizeLexical(left), normalizeLexical(right))
+    assert.equal(normalizeLexical('1.234,56'), '1234.56')
+    same('1.234,56', '1,234.56')
+    assert.equal(normalizeLexical('17.06.1790'), '1790-06-17')
+    assert.equal(normalizeLexical('17/6/1790'), '1790-06-17')
+    assert.equal(normalizeLexical('1790-06-17'), '1790-06-17')
+    assert.equal(normalizeLexical('35.06.1790'), '35.06.1790')
+    assert.equal(normalizeLexical('3.13.1790'), '3.13.1790')
+    assert.equal(normalizeLexical('Ærø, Danmark!'), 'ærø danmark')
+    assert.equal(normalizeLexical('13. august 2004'), '2004-08-13')
+    assert.equal(normalizeLexical('August 13, 2004'), '2004-08-13')
+    assert.equal(normalizeLexical('17 juin 1790'), '1790-06-17')
+    assert.equal(normalizeLexical('den 13. august 2004.'), 'den 2004-08-13.')
+    assert.equal(normalizeLexical('40 august 2004'), '40 august 2004')
+    assert.equal(normalizeLexical('645 000'), '645000')
+    assert.equal(normalizeLexical('1 234 567,89'), '1234567.89')
+    assert.equal(normalizeLexical('page 5 200'), 'page 5 200')
+    assert.equal(normalizeLexical('in 2024 100 cases'), 'in 2024 100 cases')
+    same('1300m2', '1300 m2')
+    same('1,300m2', '1,300 m2')
+    same('50 %', '50%')
+    same('$ 50', '$50')
+    same('50 €', '50€')
+  })
+})
+
+describe('boundedContains', () => {
+  it('matches the lab cases', () => {
+    const cases: [string | number | boolean, string, boolean][] = [
+      ['1.234,56', 'Total 1,234.56 kg', true],
+      ['18', 'dated 1834', false],
+      ['8-1', 'find 8-1', true],
+      ['1', 'find 8-1', false],
+      ['4.4', '4.3-4.4', false],
+      ['4.4', '4.3–4.4', false],
+      ['4.4', '4.4 | 4.2', true],
+      ['x', 'x', true],
+      ['x', 'grade x', false],
+      [5, 'there were 5 cases', true],
+      [true, 'true', true],
+      ['5200', 'page 5 200', false],
+      ['1234', '1 234', true],
+      ['645000', '645 000 bebes', true],
+      ['645 000', '645000 bebes', true],
+      ['645 000', '645 000 bebes', true],
+      ['−6 000', '-6000', true],
+      ['1300 m2', 'udgrave 1300m2 i 100m zonen', true],
+      ['1,300 m2', 'area 1,300m2', true],
+      ['2', '1300m2', false],
+      ['50%', 'rate: 50 %', true],
+      ['$50', 'budget: $ 50', true],
+      ['50%', 'budget: $50', false],
+      ['$50', 'rate: 50%', false],
+      ['$50', 'budget: €50', false],
+      ['$116,800', 'income in 2024 ($116,800), followed by', true],
+      ['wolfenbüttel', 'Kr. Wolfenbüttel.', true],
+    ]
+    for (const [value, text, expected] of cases) assert.equal(boundedContains(value, text), expected, `${String(value)} in ${text}`)
   })
 })
 
