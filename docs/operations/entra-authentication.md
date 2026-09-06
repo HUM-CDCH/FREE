@@ -91,9 +91,22 @@ loss of arbitrary component-local text across the reauthentication redirect.
 
 ## Operate and rotate
 
-FREE sessions never renew in place and expire one minute before the Entra ID
-token, normally after about an hour. Removing enterprise-app assignment blocks
-the next sign-in. FREE has no per-account emergency kill switch; rotating
+FREE sessions never renew in place and expire eight hours after successful
+sign-in, for both Microsoft Entra and local mock OIDC. The identity token must
+have more than one minute remaining at sign-in; its later expiry does not end
+the FREE session. Microsoft Entra token settings are unchanged, and local mock
+OIDC continues to issue 24-hour tokens.
+
+On expiry, FREE redirects through the existing authorization-code flow. Entra
+SSO may complete it without a credential prompt, subject to tenant policy.
+Only the supported drafts described above are restored. No token-lifetime
+policy change or refresh-token storage is required.
+
+Session cookie version 4 rejects older cookies issued under previous lifetime
+rules; updating Studio requires a fresh sign-in.
+Removing enterprise-app assignment blocks the next sign-in, but an existing
+FREE session can remain usable for up to eight hours. FREE has no
+per-account emergency kill switch; rotating
 `FREE_SESSION_SECRET` is the only immediate forced logout and invalidates every
 session. Session and authorization-transaction signatures use separate HMAC
 contexts even though both derive from that deployment secret.

@@ -37,7 +37,7 @@ services:
           "tokenCallbacks": [
             {
               "issuerId": "dev",
-              "tokenExpiry": 3600,
+              "tokenExpiry": 86400,
               "requestMappings": [
                 {
                   "requestParam": "grant_type",

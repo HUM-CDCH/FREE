@@ -4,6 +4,7 @@ import {
   SESSION_CLOCK_SKEW_MILLISECONDS,
   SESSION_COOKIE_NAME,
 } from './session.js'
+import { encodeSignedValue } from './signedCookie.js'
 
 const ACCOUNT_ID = '10000000-0000-4000-8000-000000000001'
 const SECRET = Buffer.alloc(32, 7)
@@ -12,34 +13,54 @@ function cookieValue(serialized: string): string {
   return serialized.slice(`${SESSION_COOKIE_NAME}=`.length).split(';', 1)[0]
 }
 
-describe('fixed Entra-capped browser sessions', () => {
-  it('expires before the identity token and emits hardened cookie attributes', () => {
+describe('fixed eight-hour browser sessions', () => {
+  it.each([1, 24])('issues an eight-hour session from a %i-hour identity token with hardened cookie attributes', (hours) => {
     let time = Date.UTC(2026, 7, 20)
-    const identityTokenExpiresAt = time + 60 * 60 * 1_000
+    const identityTokenExpiresAt = time + hours * 60 * 60 * 1_000
     const sessions = createSessionManager(SECRET, () => time)
     const payload = sessions.issue(ACCOUNT_ID, identityTokenExpiresAt)
 
     expect(payload).toEqual({
-      version: 2,
+      version: 4,
       accountId: ACCOUNT_ID,
       issuedAt: time,
-      expiresAt:
-        identityTokenExpiresAt - SESSION_CLOCK_SKEW_MILLISECONDS,
+      expiresAt: time + 8 * 60 * 60 * 1_000,
     })
     const cookie = sessions.serialize(payload!)
     expect(cookie).toBe(
-      `${SESSION_COOKIE_NAME}=${cookieValue(cookie)}; Max-Age=3540; Path=/; Expires=${new Date(payload!.expiresAt).toUTCString()}; HttpOnly; Secure; SameSite=Lax`,
+      `${SESSION_COOKIE_NAME}=${cookieValue(cookie)}; Max-Age=28800; Path=/; Expires=${new Date(payload!.expiresAt).toUTCString()}; HttpOnly; Secure; SameSite=Lax`,
     )
     expect(sessions.verify(cookieValue(cookie))).toEqual(payload)
 
+    if (hours < 8) {
+      time = identityTokenExpiresAt
+      expect(sessions.verify(cookieValue(cookie))).toEqual(payload)
+    }
+    time = payload!.expiresAt - 1
+    expect(sessions.verify(cookieValue(cookie))).toEqual(payload)
     time = payload!.expiresAt
     expect(sessions.verify(cookieValue(cookie))).toBeNull()
+  })
+
+  it.each([2, 3])('rejects version %i sessions issued under previous lifetime rules', (version) => {
+    const time = Date.UTC(2026, 7, 20)
+    const sessions = createSessionManager(SECRET, () => time)
+    const oldCookie = encodeSignedValue({
+      version,
+      accountId: ACCOUNT_ID,
+      issuedAt: time,
+      expiresAt: time + 24 * 60 * 60 * 1_000,
+    }, SECRET, 'FREE session cookie')
+    expect(sessions.verify(oldCookie)).toBeNull()
   })
 
   it('rejects tokens without positive post-skew lifetime', () => {
     const time = Date.UTC(2026, 7, 20)
     const sessions = createSessionManager(SECRET, () => time)
 
+    for (const expiry of [time - 1, time, NaN, Infinity, time + 120_000.5]) {
+      expect(sessions.issue(ACCOUNT_ID, expiry)).toBeNull()
+    }
     expect(
       sessions.issue(
         ACCOUNT_ID,
