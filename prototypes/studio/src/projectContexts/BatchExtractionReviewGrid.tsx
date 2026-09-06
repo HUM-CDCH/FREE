@@ -4,7 +4,7 @@ import type { BatchExtraction } from '../../shared/batchExtraction.contract'
 import { batchExtractionProgress } from '../../shared/batchExtraction.contract'
 import type { ReviewDecisionInput } from '../../shared/extraction.contract'
 import { parseReviewedValue, resultPathKey } from '../reviewDecisions'
-import { Button, CheckIcon, EmptyState, Pill, PencilIcon, SegmentedControl, Spinner, StatusDot, UndoIcon, XIcon } from '../ui'
+import { Button, CheckIcon, EmptyState, Pill, PencilIcon, ProgressBar, SegmentedControl, Spinner, StatusDot, UndoIcon, XIcon } from '../ui'
 import { memberStatus } from './batchExtractionStatus'
 import { StatusPill } from './BatchExtractionScreens'
 import {
@@ -146,6 +146,24 @@ function buildRows(
     }
   }
   return rows
+}
+
+/** Live share of every loaded member's Review Decisions the researcher has
+ *  touched so far — approvals/rejects/edits made locally count immediately,
+ *  and a saved member (fully touched by definition) keeps counting as done.
+ *  This is what actually moves as the researcher works the grid, unlike the
+ *  batch's own persisted "reviewed" document count, which only advances on
+ *  Save. Null while nothing has loaded yet. */
+function aggregateReviewFraction(gridMembers: ReadonlyMap<string, MemberReviewState>): number | null {
+  let totalDecisions = 0
+  let totalTouched = 0
+  for (const state of gridMembers.values()) {
+    if (state.status !== 'ready') continue
+    totalDecisions += state.decisions.length
+    totalTouched += state.touched.size
+  }
+  if (totalDecisions === 0) return null
+  return totalTouched / totalDecisions
 }
 
 function formatScalarValue(value: unknown): { text: string; missing: boolean } {
@@ -402,6 +420,37 @@ function GridCell({
   )
 }
 
+/** A small decorative page-and-pencil mark for the validation progress row —
+ *  purely cosmetic, no semantic weight beyond the adjacent progress bar. */
+function PencilAndPaperIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      className={className}
+    >
+      {/* Opaque page fill so the progress track underneath doesn't show
+          through the middle of the icon as it slides along the bar. */}
+      <path
+        d="M5 3h6l3 3v10.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5V3.5A.5.5 0 0 1 5 3Z"
+        fill="var(--color-surface)"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      <path d="M11 3v3h3" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M6.5 9.5h4M6.5 12h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+      <path
+        d="m13.4 12.1 2 2-.9 2.4-2.4.9-2-2 2.4-.9z"
+        fill="currentColor"
+      />
+    </svg>
+  )
+}
+
 export default function BatchExtractionReviewGrid({
   batch,
   schemaNodes,
@@ -440,6 +489,7 @@ export default function BatchExtractionReviewGrid({
       if (state.status === 'ready' && !state.saveError) void grid.saveMember(id)
   })
   const progress = batchExtractionProgress(batch)
+  const reviewFraction = aggregateReviewFraction(grid.members)
   const allRows = buildRows(batch, grid.members)
   const rows =
     filter === 'needs-review'
@@ -516,97 +566,121 @@ export default function BatchExtractionReviewGrid({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="flex shrink-0 flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <button
-            type="button"
-            className="shrink-0 rounded-md text-xs font-semibold text-ink-muted outline-none hover:text-ink"
-            onClick={onBack}
-          >
-            <span aria-hidden="true">← </span>Back to results
-          </button>
-          <div
-            className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-ink-faint"
-            aria-label={`${progress.total} Source Document${progress.total === 1 ? '' : 's'}, ${progress.reviewed} reviewed, ${needsReviewCount} need review${progress.unreviewable ? `, ${progress.unreviewable} with no reviewable result` : ''}${progress.failed ? `, ${progress.failed} failed` : ''}`}
-          >
-            <span className="min-w-0 shrink-0 truncate">
-              {progress.total} Source Document{progress.total === 1 ? '' : 's'}
-            </span>
-            <span className="flex shrink-0 flex-wrap items-center gap-1.5" aria-hidden="true">
-              {progress.reviewed > 0 && <Pill tone="success">{progress.reviewed} reviewed</Pill>}
-              {needsReviewCount > 0 && <Pill tone="accent">{needsReviewCount} need review</Pill>}
-              {progress.unreviewable > 0 && (
-                <span className="text-ink-faint">{progress.unreviewable} no reviewable result</span>
-              )}
-              {progress.failed > 0 && <Pill tone="danger">{progress.failed} failed</Pill>}
+      <div className="flex shrink-0 flex-col gap-2.5 rounded-card border border-line bg-surface px-4 py-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              className="shrink-0 rounded-md text-xs font-semibold text-ink-muted outline-none hover:text-ink"
+              onClick={onBack}
+            >
+              <span aria-hidden="true">← </span>Back to results
+            </button>
+            <div
+              className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-ink-faint"
+              aria-label={`${progress.total} Source Document${progress.total === 1 ? '' : 's'}, ${progress.reviewed} reviewed, ${needsReviewCount} need review${progress.unreviewable ? `, ${progress.unreviewable} with no reviewable result` : ''}${progress.failed ? `, ${progress.failed} failed` : ''}`}
+            >
+              <span className="min-w-0 shrink-0 truncate">
+                {progress.total} Source Document{progress.total === 1 ? '' : 's'}
+              </span>
+              <span className="flex shrink-0 flex-wrap items-center gap-1.5" aria-hidden="true">
+                {progress.reviewed > 0 && <Pill tone="success">{progress.reviewed} reviewed</Pill>}
+                {needsReviewCount > 0 && <Pill tone="accent">{needsReviewCount} need review</Pill>}
+                {progress.unreviewable > 0 && (
+                  <span className="text-ink-faint">{progress.unreviewable} no reviewable result</span>
+                )}
+                {progress.failed > 0 && <Pill tone="danger">{progress.failed} failed</Pill>}
+              </span>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <SegmentedControl
+              aria-label="Filter Source Documents"
+              value={filter}
+              onChange={setFilter}
+              options={[
+                { value: 'all', label: `All (${progress.total})` },
+                {
+                  value: 'needs-review',
+                  label: `Needs review (${needsReviewCount})`,
+                  title: 'Show only Source Documents that still need review',
+                },
+              ]}
+            />
+            <div
+              role="group"
+              aria-label="Grid zoom"
+              className="flex shrink-0 items-center rounded-full border border-line bg-surface-muted p-0.5"
+            >
+              <button
+                type="button"
+                aria-label="Zoom out"
+                title="Zoom out (-)"
+                disabled={zoom.percent <= ZOOM_MIN}
+                onClick={zoom.zoomOut}
+                className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+              >
+                −
+              </button>
+              <button
+                type="button"
+                aria-label="Fit columns to screen width"
+                title="Fit columns to screen width"
+                onClick={zoom.reset}
+                disabled={zoom.fit}
+                className="min-w-11 rounded-full px-1.5 text-center text-xs font-medium text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:hover:bg-transparent"
+              >
+                {zoom.fit ? 'Fit' : `${zoom.percent}%`}
+              </button>
+              <button
+                type="button"
+                aria-label="Zoom in"
+                title="Zoom in (+)"
+                disabled={zoom.percent >= ZOOM_MAX}
+                onClick={zoom.zoomIn}
+                className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+              >
+                +
+              </button>
+            </div>
+            <Button size="sm" variant="secondary" disabled={savingAny || editingCell !== null} onClick={grid.approveAll}>
+              Approve remaining
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={grid.dirtyCount === 0 || savingAny || editingCell !== null}
+              onClick={grid.revertAll}
+            >
+              Revert all
+            </Button>
+            <span role="status" className="text-[11px] text-ink-muted">
+              {savingAny ? 'Saving…' : 'Completed reviews save automatically'}
             </span>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <SegmentedControl
-            aria-label="Filter Source Documents"
-            value={filter}
-            onChange={setFilter}
-            options={[
-              { value: 'all', label: `All (${progress.total})` },
-              {
-                value: 'needs-review',
-                label: `Needs review (${needsReviewCount})`,
-                title: 'Show only Source Documents that still need review',
-              },
-            ]}
-          />
-          <div
-            role="group"
-            aria-label="Grid zoom"
-            className="flex shrink-0 items-center rounded-full border border-line bg-surface-muted p-0.5"
-          >
-            <button
-              type="button"
-              aria-label="Zoom out"
-              title="Zoom out (-)"
-              disabled={zoom.percent <= ZOOM_MIN}
-              onClick={zoom.zoomOut}
-              className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
-            >
-              −
-            </button>
-            <button
-              type="button"
-              aria-label="Fit columns to screen width"
-              title="Fit columns to screen width"
-              onClick={zoom.reset}
-              disabled={zoom.fit}
-              className="min-w-11 rounded-full px-1.5 text-center text-xs font-medium text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:hover:bg-transparent"
-            >
-              {zoom.fit ? 'Fit' : `${zoom.percent}%`}
-            </button>
-            <button
-              type="button"
-              aria-label="Zoom in"
-              title="Zoom in (+)"
-              disabled={zoom.percent >= ZOOM_MAX}
-              onClick={zoom.zoomIn}
-              className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
-            >
-              +
-            </button>
+        {reviewFraction !== null && (
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="relative h-5 min-w-0 flex-1">
+              <ProgressBar
+                fraction={reviewFraction}
+                tone={reviewFraction >= 1 ? 'success' : 'accent'}
+                aria-label="Validation progress"
+                className="absolute top-1/2 -translate-y-1/2"
+              />
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 text-ink-faint transition-[left] duration-300 ease-out"
+                style={{ left: `${Math.min(1, Math.max(0, reviewFraction)) * 100}%` }}
+              >
+                <PencilAndPaperIcon />
+              </span>
+            </div>
+            <span className="shrink-0 text-[10.5px] font-semibold text-ink-faint">
+              {Math.round(reviewFraction * 100)}%
+            </span>
           </div>
-          <Button size="sm" variant="secondary" disabled={savingAny || editingCell !== null} onClick={grid.approveAll}>
-            Approve remaining
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={grid.dirtyCount === 0 || savingAny || editingCell !== null}
-            onClick={grid.revertAll}
-          >
-            Revert all
-          </Button>
-          <span role="status" className="text-[11px] text-ink-muted">
-            {savingAny ? 'Saving…' : 'Completed reviews save automatically'}
-          </span>
-        </div>
+        )}
       </div>
 
       {grid.columns.length > 0 && (

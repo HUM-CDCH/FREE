@@ -302,7 +302,7 @@ function WorkingIndicator({ onStop }: { onStop: () => void }) {
 }
 
 const genBtnCls =
-  'inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-semibold text-ink-muted outline-none transition-colors hover:border-accent/50 hover:bg-accent-soft hover:text-accent focus-visible:border-accent disabled:cursor-default disabled:opacity-60 disabled:hover:border-line disabled:hover:bg-surface disabled:hover:text-ink-muted'
+  'inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-accent bg-accent px-3 py-1.5 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108 focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-50 disabled:hover:brightness-100'
 
 // Superseded by the pre-generation doc chat (see below) — schema generation no
 // longer takes a highlights hints/fields mode. Left in place, commented out,
@@ -1649,7 +1649,7 @@ function SchemaPanel({
               {showRegenerate && (
                 <div className="relative shrink-0">
                   <button
-                    className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-line bg-surface px-2 py-1 text-[11px] font-semibold text-ink-muted outline-none transition-colors hover:border-accent/50 hover:text-accent"
+                    className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-accent/60 bg-accent-soft px-2.5 py-1 text-[11px] font-bold text-accent outline-none transition-colors hover:border-accent hover:brightness-105 disabled:cursor-default disabled:opacity-50 disabled:hover:border-accent/60 disabled:hover:brightness-100"
                     type="button"
                     aria-expanded={instructions.open}
                     title="Start over: regenerate the whole schema from the document and instructions"
