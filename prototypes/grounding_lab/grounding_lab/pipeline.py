@@ -193,10 +193,15 @@ def bounded_contains(value: str | int | float | bool, text: str) -> bool:
         return False
     if len(needle) == 1 and not needle.isdigit():
         return haystack == needle  # safe for one-character table cells
-    # A hyphen glues digits into one token: "4.4" is not verbatim in "4.3-4.4".
+    # Match whole tokens, including numeric signs, decimals and ranges.
+    patterns = []
+    for n in {needle, _join_space_groups(needle)}:
+        numeric_start = r"(?<![.-])" if n[0].isdigit() else ""
+        numeric_end = r"(?!\.\d)" if n[-1].isdigit() else ""
+        patterns.append(rf"(?<!\w)(?<!\d-){numeric_start}{re.escape(n)}(?!\w)(?!-\d){numeric_end}")
     return any(
-        re.search(rf"(?<!\w)(?<!\d-){re.escape(n)}(?!\w)(?!-\d)", candidate)
-        for n in {needle, _join_space_groups(needle)}
+        re.search(pattern, candidate)
+        for pattern in patterns
         for candidate in {haystack, _join_document_space_groups(haystack)}
     )
 

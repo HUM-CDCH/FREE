@@ -109,16 +109,17 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-/** Matcher for a value as a bounded token: "4" is not in "1904", and a hyphen
- *  glues digits into one token so "4.4" is not in "4.3-4.4". */
+/** Match whole tokens, including numeric signs, decimals and ranges. */
 export function tokenMatcher(value: string): (text: LexicalText) => boolean {
   const needle = normalizeLexical(value)
   if (!needle) return () => false
   // safe for one-character table cells
   if (needle.length === 1 && !/\d/.test(needle)) return (text) => text.normalized === needle
-  const patterns = [...new Set([needle, joinSpaceGroups(needle)])].map(
-    (n) => new RegExp(`${START}(?<!\\d-)${escapeRegExp(n)}${END}(?!-\\d)`, 'u'),
-  )
+  const patterns = [...new Set([needle, joinSpaceGroups(needle)])].map((n) => {
+    const numericStart = /^\d/.test(n) ? '(?<![.-])' : ''
+    const numericEnd = /\d$/.test(n) ? '(?!\\.\\d)' : ''
+    return new RegExp(`${START}(?<!\\d-)${numericStart}${escapeRegExp(n)}${END}(?!-\\d)${numericEnd}`, 'u')
+  })
   return (text) =>
     patterns.some((pattern) => pattern.test(text.normalized) || (text.joined !== text.normalized && pattern.test(text.joined)))
 }

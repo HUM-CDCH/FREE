@@ -59,6 +59,15 @@ describe('boundedContains', () => {
       ['x', 'x', true],
       ['x', 'grade x', false],
       [5, 'there were 5 cases', true],
+      [12, '12.5', false],
+      [5, '0.5', false],
+      [5, '.5', false],
+      [50, '-50', false],
+      [50, '−50', false],
+      [-50, '-50', true],
+      [12.5, '12.5', true],
+      [12, 'There were 12.', true],
+      ['weight 12', 'weight 12.5', false],
       [true, 'true', true],
       ['5200', 'page 5 200', false],
       ['1234', '1 234', true],
@@ -82,6 +91,27 @@ describe('boundedContains', () => {
 })
 
 describe('groundExtraction lexical checks', () => {
+  it('flags partial decimal and sign matches as absent from the evidence', async () => {
+    const outcome = await groundExtraction(
+      documentWith(['12.5', '-50', '0.5']),
+      { measurement: 12, balance: 50, fraction: 5 },
+      {
+        async ground() {
+          return {
+            selections: [1, 2, 3].map((index) => ({ claimLabel: `C${index}`, anchorLabel: `E${index}` })),
+            metadata: { finishReason: 'stop', inputTokens: 1, outputTokens: 1, durationMs: 1 },
+          }
+        },
+      },
+      new AbortController().signal,
+    )
+    assert.equal(outcome.evidence.length, 3)
+    for (const link of outcome.evidence) {
+      assert.equal(link.verbatim, false)
+      assert.equal(link.lexicalHits, 0)
+    }
+  })
+
   it('flags each link with verbatim and lexicalHits', async () => {
     const document = documentWith([
       'Grave 12 held a bronze pin.',

@@ -459,8 +459,10 @@ function ObjectSection({
 
   return (
     <div>
-      <div
-        className="-mx-2 flex cursor-pointer items-center gap-2 rounded-[3px] px-2 py-1.5 transition-colors hover:bg-accent-ghost/30"
+      <button
+        type="button"
+        aria-expanded={onNavigateTo ? undefined : expanded}
+        className="-mx-2 flex w-[calc(100%+1rem)] cursor-pointer items-center gap-2 rounded-[3px] px-2 py-1.5 text-left transition-colors hover:bg-accent-ghost/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         onClick={() => onNavigateTo ? onNavigateTo(path) : setExpanded(v => !v)}
       >
         {onNavigateTo ? <span className="w-2 shrink-0" /> : <span className="shrink-0 text-ink-faint"><CollapseArrow expanded={expanded} /></span>}
@@ -475,7 +477,7 @@ function ObjectSection({
         ) : preview ? (
           <span className="min-w-0 flex-1 truncate text-[13px] text-ink-muted">{preview}</span>
         ) : null}
-      </div>
+      </button>
       {expanded && (
         <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
           {entries.length === 0 ? (
@@ -514,8 +516,10 @@ function ArraySection({
 
   return (
     <div>
-      <div
-        className="-mx-2 flex cursor-pointer items-center gap-2 rounded-[3px] px-2 py-1.5 transition-colors hover:bg-accent-ghost/30"
+      <button
+        type="button"
+        aria-expanded={onNavigateTo ? undefined : expanded}
+        className="-mx-2 flex w-[calc(100%+1rem)] cursor-pointer items-center gap-2 rounded-[3px] px-2 py-1.5 text-left transition-colors hover:bg-accent-ghost/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         onClick={() => onNavigateTo ? onNavigateTo(path) : setExpanded(v => !v)}
       >
         {onNavigateTo ? <span className="w-2 shrink-0" /> : <span className="shrink-0 text-ink-faint"><CollapseArrow expanded={expanded} /></span>}
@@ -524,7 +528,7 @@ function ArraySection({
         <span className="shrink-0 whitespace-nowrap rounded-full bg-surface-muted px-2.5 py-0.5 font-sans text-[10.5px] font-semibold text-ink-muted">
           {value.length} item{value.length !== 1 ? 's' : ''}
         </span>
-      </div>
+      </button>
       {expanded && (
         <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
           {value.length === 0 ? (

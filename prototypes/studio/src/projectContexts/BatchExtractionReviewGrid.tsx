@@ -477,8 +477,8 @@ export default function BatchExtractionReviewGrid({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="flex shrink-0 flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="flex shrink-0 flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex shrink-0 items-center gap-3">
           <button
             type="button"
             className="shrink-0 rounded-md text-xs font-semibold text-ink-muted outline-none hover:text-ink"
@@ -503,7 +503,7 @@ export default function BatchExtractionReviewGrid({
             </span>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <SegmentedControl
             aria-label="Filter Source Documents"
             value={filter}

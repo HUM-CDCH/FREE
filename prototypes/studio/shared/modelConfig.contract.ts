@@ -27,12 +27,8 @@ export const modelConnectionSchema = z
   .strict()
 export type ModelConnection = z.infer<typeof modelConnectionSchema>
 
-// `schema` requires an explicit schema; `native` also supports schema-free JSON mode.
-export const jsonOutputSchema = z.enum(['auto', 'prompt', 'schema', 'native'])
-export type JsonOutputCapability = z.infer<typeof jsonOutputSchema>
-
 export const routeSchema = z
-  .object({ connectionId: uuidSchema, modelId: z.string().min(1, 'Must not be empty.'), jsonOutput: jsonOutputSchema.optional() })
+  .object({ connectionId: uuidSchema, modelId: z.string().min(1, 'Must not be empty.') })
   .strict()
 export type Route = z.infer<typeof routeSchema>
 

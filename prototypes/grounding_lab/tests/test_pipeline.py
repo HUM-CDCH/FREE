@@ -95,6 +95,15 @@ class BoundedContainmentTest(unittest.TestCase):
             ("x", "x", True),
             ("x", "grade x", False),
             (5, "there were 5 cases", True),
+            (12, "12.5", False),
+            (5, "0.5", False),
+            (5, ".5", False),
+            (50, "-50", False),
+            (50, "−50", False),
+            (-50, "-50", True),
+            (12.5, "12.5", True),
+            (12, "There were 12.", True),
+            ("weight 12", "weight 12.5", False),
             (True, "true", True),
         ]
         for value, text, expected in cases:

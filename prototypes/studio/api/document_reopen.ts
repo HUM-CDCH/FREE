@@ -282,7 +282,11 @@ export function createGetDocumentReopen(
       }
 
       return json(
-        await reopenResponse(snapshot, documentExtractions, schemaFor),
+        await reopenResponse(
+          { ...snapshot, extractionSchema: currentSnapshot.extractionSchema },
+          documentExtractions,
+          schemaFor,
+        ),
         { headers: noStore },
       )
     } catch (error) {

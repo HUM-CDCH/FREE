@@ -7,7 +7,7 @@ import { isRecord } from '../shared/template'
 import { schemaDefinitionToTemplate, type SchemaDefinition } from 'extraction/schema'
 import { resultStats } from './resultStats'
 import { extractionStateFromAttempt, type ExtractionController, type ExtractionRetryInput } from './useExtraction'
-import type { ExtractionAttempt } from '../shared/extraction.contract'
+import type { ExtractionAttempt, ReviewDecisionAction } from '../shared/extraction.contract'
 import {
   applyReviewDecisions,
   resultPathKey,
@@ -50,9 +50,9 @@ function summaryItem(label: string, value: string | number) {
   )
 }
 
-/** Why a reviewer should look at a link before approving it. Undefined when
- *  the value sits verbatim in a unique passage, or the link predates the check. */
-function evidenceCheck(link: { verbatim?: boolean; lexicalHits?: number }): string | undefined {
+/** Checks describe the original value, so hide them after an edit or rejection. */
+function evidenceCheck(link: { verbatim?: boolean; lexicalHits?: number }, action?: ReviewDecisionAction): string | undefined {
+  if (action === 'EDITED' || action === 'REJECTED') return undefined
   if (link.verbatim === false) return 'Value not found in the linked passage'
   const others = (link.lexicalHits ?? 1) - 1
   if (link.verbatim && others > 0) return `Value also appears in ${others} other passage${others === 1 ? '' : 's'}`
@@ -501,9 +501,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
       ),
     [articlePathPrefix.length, state],
   )
-  const checkCount = state.status === 'ready'
-    ? state.evidenceLinks.filter((link) => evidenceCheck(link) !== undefined).length
-    : 0
   const reviewDecisionByPath = useMemo(
     () => new Map(visibleReviewDecisions.map((decision) => [
       resultPathKey(decision.resultPath),
@@ -511,6 +508,9 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
     ])),
     [visibleReviewDecisions],
   )
+  const checkCount = state.status === 'ready'
+    ? state.evidenceLinks.filter((link) => evidenceCheck(link, reviewDecisionByPath.get(resultPathKey(link.resultPath))?.action) !== undefined).length
+    : 0
   const noReviewableResult = state.status === 'ready' && state.evidenceLinks.length === 0
 
   function navTo(newPath: string[]) {
@@ -797,7 +797,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                     }
                     getEvidenceCheck={(path) => {
                       const link = evidenceLinkByPath.get(JSON.stringify(path))
-                      return link && evidenceCheck(link)
+                      return link && evidenceCheck(link, reviewDecisionByPath.get(resultPathKey(link.resultPath))?.action)
                     }}
                     onSelectEvidence={onSelectEvidence}
                     review={noReviewableResult ? undefined : {

@@ -99,6 +99,23 @@ afterEach(async () => {
 })
 
 describe('model configuration storage', () => {
+  it.each(['auto', 'prompt', 'schema', 'native'])('retires saved %s overrides without rewriting on read', async (jsonOutput) => {
+    const root = await temporaryRoot()
+    const config = configured()
+    const saved = { ...config, routes: {
+      extraction: { ...config.routes.extraction, jsonOutput },
+      interaction: { ...config.routes.interaction, jsonOutput },
+    } }
+    const path = modelConfigPath(root)
+    const bytes = JSON.stringify(saved)
+    await writeFile(path, bytes)
+    const loaded = await readModelConfig({ configRoot: root })
+    expect(loaded).toEqual(config)
+    expect(await readFile(path, 'utf8')).toBe(bytes)
+    await writeModelConfig(loaded, { configRoot: root })
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual(config)
+  })
+
   it('reads an absent file as a fresh empty configuration it does not create', async () => {
     const root = await temporaryRoot()
 
@@ -406,6 +423,15 @@ describe('OS credential adapter', () => {
 })
 
 describe('PUT /api/model_config', () => {
+  it.each(['auto', 'prompt', 'schema', 'native'])('rejects the retired %s output override', async (jsonOutput) => {
+    const config = configured()
+    const response = await createPutModelConfig({ credentialStore: fakeCredentialStore().store })(putRequest({
+      config: { ...config, routes: { ...config.routes, extraction: { ...config.routes.extraction, jsonOutput } } },
+    }))
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ error: { code: 'invalid_request' } })
+  })
+
   it.each([
     ['a wrong media type', { config: EMPTY_MODEL_CONFIG }, 'text/plain'],
     ['malformed JSON', '{ definitely not JSON', 'application/json'],

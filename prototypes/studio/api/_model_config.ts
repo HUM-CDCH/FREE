@@ -222,6 +222,14 @@ export async function readModelConfig(options: ConfigStorageOptions = {}): Promi
   } catch (error) {
     throw invalidModelConfig(path, [{ path: '', message: 'Document must contain valid JSON.' }], error)
   }
+  // Discard retired output overrides only on disk reads; new API writes stay strict.
+  if (document && typeof document === 'object' && 'routes' in document &&
+    document.routes && typeof document.routes === 'object') {
+    for (const key of ['extraction', 'interaction']) {
+      const route = Reflect.get(document.routes, key)
+      if (route && typeof route === 'object' && !Array.isArray(route)) delete route.jsonOutput
+    }
+  }
   return validateModelConfig(document, path)
 }
 

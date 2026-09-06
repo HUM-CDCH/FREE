@@ -159,6 +159,8 @@ test('Single model saves, reloads, and checks without probing on open or Apply',
   await gotoAuthenticated(page, '/')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await expect(page.getByText('No Model Connections yet.')).toBeVisible()
+  await expect(page.getByLabel(/output support/)).toHaveCount(0)
+  await expect(page.getByText('Advanced output settings')).toHaveCount(0)
   expect(state.probes()).toBe(0)
 
   await page.getByRole('button', { name: '+ New connection' }).click()
@@ -180,6 +182,8 @@ test('Single model saves, reloads, and checks without probing on open or Apply',
     modelId: 'manual-model-id',
   })
   expect(state.config().routes.extraction).not.toHaveProperty('nuextractRaw')
+  for (const route of Object.values(state.config().routes))
+    expect(route).not.toHaveProperty('jsonOutput')
   expect(state.probes()).toBe(1)
 
   await page.getByRole('button', { name: 'Close Model Connections' }).click()

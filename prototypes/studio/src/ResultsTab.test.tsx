@@ -319,6 +319,42 @@ describe('ResultsTab grounded values', () => {
     expect(screen.getByText('To check:')).toBeInTheDocument()
   })
 
+  it.each(['EDITED', 'REJECTED'] as const)('clears original-value warnings for %s decisions and restores them when reversed', (action) => {
+    const result = { records: [{ material: 'iron' }] }
+    const evidenceLinks = [{
+      resultPath: ['records', 0, 'material'], evidenceAnchorId: 'anchor-material',
+      verbatim: false, lexicalHits: 0,
+    }]
+    const initialDecision: ReviewDecisionInput = {
+      resultPath: ['records', 0, 'material'], evidenceAnchorId: 'anchor-material',
+      reviewedOccurrenceIds: ['occurrence-material'], action: 'APPROVED', reviewedValue: null,
+    }
+    const props = {
+      ...defaultRunProps, schemaReady: true,
+      documentMarkdown: 'bronze', sourceDocumentName: 'source.pdf',
+    }
+    const withDecision = (decision: ReviewDecisionInput) => controller(
+      { status: 'ready', result, evidenceLinks, ungroundedCount: 0 },
+      null,
+      { decisions: [decision] },
+    )
+    const { rerender } = render(<ResultsTab {...props} controller={withDecision(initialDecision)} />)
+    expect(screen.getByRole('note', { name: 'Value not found in the linked passage' })).toBeInTheDocument()
+    expect(screen.getByText('To check:')).toHaveTextContent('To check: 1')
+
+    rerender(<ResultsTab {...props} controller={withDecision({
+      ...initialDecision, action, reviewedValue: action === 'EDITED' ? 'bronze' : null,
+    })} />)
+    if (action === 'EDITED') expect(screen.getByText('bronze')).toBeInTheDocument()
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    expect(screen.queryByText('To check:')).not.toBeInTheDocument()
+
+    rerender(<ResultsTab {...props} controller={withDecision(initialDecision)} />)
+    expect(screen.getByText('iron')).toBeInTheDocument()
+    expect(screen.getByRole('note', { name: 'Value not found in the linked passage' })).toBeInTheDocument()
+    expect(screen.getByText('To check:')).toHaveTextContent('To check: 1')
+  })
+
   it('reports the persisted ungrounded value count', () => {
     render(
       <ResultsTab
