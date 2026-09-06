@@ -1,0 +1,774 @@
+<!-- FREE:PAGE 1 -->
+## Gräber
+
+## 1. Altranstädt I, Lkr. Leipzig
+
+Fundstelle/Jahr: 1901. Fundkomplex: Vier N-S-ausgerichtete Hockergräber, Grab 1 mit Beigaben. Nach Größler in 1,5 m Tiefe.
+
+Grab  1: Grabverband  nicht  gesichert.  N-S-ausgerichteter Hocker. Unverz. Glockenbecher, verz. Glockenbecher (nach Billig Tasse) (Abb. 37,1.2).
+
+Literatur: Größler 1909, 61 ff. Taf. 4; 37a.b; Neumann 1929a, 55; Gerhardt 1953, 7; Billig 1958, 59; 183 Abb. 26,1.2.
+
+## 2. Altranstädt II, Lkr. Leipzig
+
+Fundstelle/Jahr: Nördlich der Bahnstrecke Leipzig - Bad Dürrenberg und südöstlich von Altranstädt. Durch das LfA, Dresden, systematisch ausgegraben, 1993. Fundkomplex: Drei Gräber mit rechteckigen, NW-SO-ausgerichteten Grabgruben, dicht beieinander liegend, davon Grab 7 und 9 mit unverz. Glockenbechern. Am gleichen Fundort Gräber der Baalberger, Schnurkeramischen und Aunjetitzer Kultur sowie Gräber ohne datierendes Inventar (wohl spätneolithisch bis frühbronzezeitlich).
+
+Grab 7: Erdgrab; L 2,34, B 1,42 m. Reste von drei Individuen; Hauptbestattung: NW-SO-ausgerichteter, linker Hocker. Adult, männlich; zweites Individuum: Adult, männlich; drittes Individuum: Infans I, ca. 2-3 Jahre. Unverz. Glocken­ becher, drei Silexartefakte (Abb. 37,3.4).
+
+Grab 8: Erdgrab; L 1, B 0,8 m. S-N-ausgerichteter, rechter Hocker. Infans I, ca. 3 Jahre.
+
+Grab 9: Erdgrab; L 2,2, B 1,64 m. NW-SO-ausgerichteter, linker Hocker. Matur, männlich. Unverz. Glockenbecher, Knochenknebel (Abb. 37,5.6).
+
+Literatur:
+
+Szédeli 1994, 59-64; Funke 2000.
+
+## 3. Bösdorf, Lkr. Leipzig
+
+Fundstelle/Jahr: Unter der Dorfkirche bei der Devastierung der Ortschaft. Durch das Landesmuseum für Vorgeschichte Dresden systematisch ausgegraben, 1980. Fundkomplex: Einzelgrab, keine weiteren Gräber im Umkreis. N-S-ausgerichtete,  rechteckige  Grabgrube;  L  1,55-1,65,  B  0,9  m.  Vermutlich  N-S-ausgerichtet;  nur  noch  Zähne  erhalten.  Infans  II, 12-14 Jahre.  Verz.  Glockenbecher,  fünf  flächenretuschierte Silexpfeilspitzen, vier Silexklingen, zwei Silexabschläge (Abb. 37,7.8).
+
+Literatur:
+
+Herklotz 1985, 16-22 Abb. 1-4.
+
+## 4. Großlehna, Lkr. Leipzig
+
+Fundstelle/Jahr: Leipziger Straße, im westlichen Ortsteil nördlich der Bachaue, 1939 bei Baumaßnahmen. Fundkomplex: Zwei Körpergräber im Abstand von ca. 1 m.
+
+Grab 1: Körpergrab mit Becher am Kopf. Verz. Glockenbecher (Abb. 37,9).
+
+Grab 2: Anscheinend von steinkranz umgeben. Körpergrab. Verz. Glockenbecher (Abb. 38,10).
+
+Literatur:
+
+Schlette 1948, 37 Taf. 1,1.6.
+
+## 5. Groitzsch, Lkr. Leipzig
+
+Fundstelle/Jahr: Fundplatz 4, Mittelstraße 20, 1924 bei Bauarbeiten. Fundkomplex: Drei linke Hockergräber, ca. 2,2 m tief (nach Billig ist mit einer nachträglichen Aufschüttung von ca. 1,4 m zu rechnen).
+
+Grab 1: Linker Hocker. Zwei unverz. Glockenbecher, Silex­ abschlag (Abb. 38,11-13).
+
+Grab 2: Linker Hocker. Zwei atypische Scherben?
+
+Literatur: Gerhardt 1953, 12; Billig 1958, 185 Abb. 114,3; Hille 2005b, 174 Taf. 93,9-11.
+
+## 6. Knauthain, Stadt Leipzig
+
+Fundstelle/Jahr: Kiesgrube am Weg zwischen Knautnaundorf und Knauthain, 1897. Fundkomplex: Wahrscheinlich mehrere Gräber. Sechs Gefäße sollen sich im Kies, in zwei übereinander liegenden Reihen befunden haben. Insgesamt 6 Gefäße, davon eine Rand- und eine Wandscherbe eines verz. Glockenbechers erhalten (Abb. 38,14).
+
+Literatur: Ortsakte Knauthain, LfA, Dresden (Denkmalnummer 04120-03).
+
+## 7. Schnaudertrebnitz, Lkr. Leipzig
+
+Fundstelle/Jahr: Fundplatz 2, Sandgrube östlich des Ortes, 1935. Fundkomplex: Wohl Grabbefund, da zusammen mit Skelettresten gefunden. An gleicher Fundstelle: Schnurkeramik, Lausitzer Kultur und völkerwanderungszeitliche Inventare. Nach Hille NNO-SSW-ausgerichtete Grube mit Glockenbecher in der SW-Ecke. Skelettreste vorhanden. Unverz. Glockenbecher (Abb. 38,15).
+
+Billig 1958, 190 Abb. 121,1; Hille 2005b, 179 Taf. 96,5.
+
+Literatur:
+
+## 8. Wiederau, Lkr. Leipzig
+
+Fundstelle/Jahr: Fundplatz 2/5, Kiesgruben nördlich des Ortes, 1927 und 1934. Fundkomplex: Funde gehören wahrscheinlich zu einem Gräberfeld (Grabverbände nicht gesichert). Fund 1 in 1,8-2 m Tiefe, Fund 2 in 0,6 m Tiefe. Als Einzelfund (Fund 4) liegt außerdem eine Tasse von Fundplatz 2/5 (Kiesgruben nördlich der Kirche) vor. Nach Billig liegen außerdem ein unverz. Glockenbecher und eine unverz. Tasse als Einzelfunde vor (Fund 5 und 6). Beim Glockenbecher soll sich 'Knochenasche' befunden haben. Fund 4 in 1,2 m Tiefe, Fund 5 in 0,5 m Tiefe.
+
+Fund 1 (1927): Drei verz. Glockenbecher, Armschutzplatte aus Kieselschiefer (Abb. 38,16-19).
+
+Fund 2 (1927): Unverz. Glockenbecher, unverz. Tasse (vom Henkel nur noch Ansatz erhalten), unverz. konischer Napf (Abb. 38,20).
+
+Fund 3 (1934): Unverz. Glockenbecher, unverz. Tasse (Abb. 38,21.22).
+
+Fund 4 (Ende des 19. Jahrhunderts): Unverz. Tasse (Abb. 38,23).
+
+Fund 5: Unverz. Glockenbecher (verschollen).
+
+Fund 6: Unverz. Tasse (verschollen).
+
+Literatur: Braune 1928, 409 ff. Abb. 1-9; Neumann 1929a, 10 Abb. 1,2.8.10.16.17.20.22; ders. 1929b, 65; Billig 1958, 70; 190192 Abb. 122,1.2; Hille 2005b, 179 f.
+
+## Einzelfunde
+
+## 9. Carsdorf, Lkr. Leipzig
+
+Fundstelle/Jahr:
+
+Fundplatz 1, Ziegelei nördlich des Dorfes.
+
+Unverz. Glockenbecher (Abb. 38,24).
+
+Literatur:
+
+Neumann 1929a, 12 Abb. 1,13; Billig 1958, 183.
+
+## 10. Cröbern I, Lkr. Leipzig
+
+Fundstelle/Jahr: Fundplatz  1,  Hopfenberg,  westlich  des Ortes.
+
+Verz. Glockenbecher, unverz. Füßchenschale (Abb. 39,26.27). Literatur: Neumann 1929a, 8 f. Abb. 1,6.21; Billig 1958, 184.
+
+## 11. Cröbern II, Lkr. Leipzig
+
+Fundstelle/Jahr:
+
+1933.
+
+Unverz. Glockenbecher, Silexklinge (Abb. 39,28).
+
+Literatur: Reich 1996, 289  f. Abb. 41,3; Hille 2005b, 173 Taf. 93,3.
+
+## 12. Crostewitz, Ot. von Cröbern, Lkr. Leipzig
+
+Fundstelle/Jahr: Fundplatz 3, 'Wüste Mark', Sandgrube, 1935. Unverz. Glockenbecher (Abb. 38,25).
+
+Literatur:
+
+Billig 1958, 184 Abb. 114,1.
+
+<!-- FREE:PAGE 2 -->
+## 13. Ennewitz, Lkr. Nordsachsen
+
+Fundstelle/Jahr:
+
+1841.
+
+Fragment eines verz. Glockenbechers (Abb. 39,29).
+
+Literatur:
+
+Kretzschmar 1940, 63; Hille 2005b, 173 Taf. 93,7.
+
+## 14. Groß Miltitz, Lkr. Leipzig
+
+Fundstelle/Jahr: Sandgrube, Gutsbesitzer Rößner, 1928. Unverz. Tasse, unverz. Trichterbecher (Zugehörigkeit zur Glockenbecher-Kultur nach Hille fraglich) (Abb. 39,30.31). Literatur: Hille 2005b, 175, Taf. 94,3.4.
+
+## 15. Großstorkwitz, Ot. von Pegau, Lkr. Leipzig
+
+Fundstelle/Jahr: südlich vom Ort, westlich des Mühlgrabens, 1980. Verz. Randscherbe vermutlich eines Glockenbechers (Abb. 39,32). Literatur: Reuter 1993, 270; Hille 2005b, 175.
+
+16. Gundorf, Ot. von Böhlitz-Ehrenberg, Stadt Leipzig Fundstelle/Jahr: Fundplatz 2, Sandgrube an der Straße Gundorf Burghausen.
+
+Unverz. Glockenbecher(?) (Abb. 39,33).
+
+Literatur:
+
+Billig 1958, 185 Abb. 114,2.
+
+## 17. Hänichen, Ot. von Lützschena, Stadt Leipzig
+
+Fundstelle/Jahr:
+
+Sandgrube Fleischer.
+
+Unverz. Glockenbecher, unverz. Tasse (Abb. 39,34.35).
+
+Literatur:
+
+Billig 1958, 185 Abb. 115,1.2.
+
+## 18. Lindenthal, Stadt Leipzig
+
+Fundstelle/Jahr: Fundplatz 2, Sandgrube Parzelle 126. Verz. Glockenbecher (Fragment) (Abb. 39,37). Literatur: Billig 1958, 187 Abb. 117.
+
+## 19. Markkleeberg, Lkr. Leipzig
+
+Fundstelle/Jahr: Fundplatz 22, Sandgrube südlich des Ortes. Unverz. Tasse (Abb. 39,36).
+
+Literatur:
+
+Neumann 1929a, 12 Abb. 1,19; Billig 1958, 187.
+
+20. Gegend von Pegau, Lkr. Leipzig Fundstelle/Jahr: -.
+
+Verz. Tasse (verschollen) (Abb. 39,38).
+
+Literatur: Moschkau 1928, 116 f. Abb. 1; Neumann 1929a, 18 Abb. 1,5; Billig 1958, 188.
+
+## 21. Probstdeuben, Lkr. Leipzig
+
+Fundstelle/Jahr: Gemeindekiesgrube an der Straße nach Stöhna, 1897/98.
+
+Unverz. Tasse (Abb. 39,39).
+
+Literatur: Billig  1958,  63  f.  Abb.  30;  Zich  1996,  512;  Hille  2005b,  179.
+
+## 22. Zauschwitz, Lkr. Leipzig
+
+Fundstelle/Jahr: Fundplatz 1, VEB Ziegelwerke, Alte Grube. Unverz. Glockenbecher (Zugehörigkeit zur GlockenbecherKultur nach Billig fraglich).
+
+Literatur:
+
+Billig 1958, 190.
+
+## 23. Harth bei Zeschwitz, Lkr. Leipzig
+
+Fundstelle/Jahr: Südlich  von  Großdeuben,  auf  ehemaliger Zeschwitzer Flur, 1946.
+
+Unverz. Glockenbecher (Abb. 39,40).
+
+Literatur:
+
+Billig 1958, 192 Abb. 123.
+
+## Siedlungsbefunde
+
+24. Podelwitz, Ot. von Rackwitz, Lkr. Nordsachsen Fundstelle/Jahr: Südwestlich des Ortes, Galgenberg, 1933. Fundkomplex: Befundkategorie und Geschlossenheit des Fundes unklar. Nach Billig möglicherweise Siedlungsbefund. Unverz. Glockenbecher, unverz. Tasse (Abb. 39,41.42).
+
+Literatur:
+
+Billig 1958, 189 Abb. 120,1.
+
+## 7.3. Katalog Neufunde
+
+Der vorliegende Katalog enthält glockenbecherzeitliche Gräber aus Kölsa (Lkr. Nordsachsen), Grebehna (Lkr. Nordsachsen), Löbnitz-Bennewitz (Lkr. Leipzig), Mark­ ranstädt (Lkr. Leipzig), Zwenkau (Lkr. Leipzig), Großstorkwitz (Lkr. Leipzig) und Wehlitz (Lkr. Nordsachsen). Der Abschnitt von Kölsa beinhaltet außerdem elf Befunde ohne menschliche Skelettteile. Bei Markranstädt sind ferner vier Pfostengruben aufgeführt. Der Abschnitt von Zwenkau enthält zusätzlich einen Befund mit Glockenbecherinventar ohne menschliche Skelettteile, zwei Gräber mit schnurkeramischem und zwei Gräber ohne datierendes Inventar. Für jede Fundstelle erfolgt eine gesonderte Grabnummerierung. In Klammern steht die Befundnummer der Grabungsdokumentation.
+
+Die Beschreibung der Gräber erfolgt auf Grundlage der  schriftlichen,  zeichnerischen  und  fotografischen Dokumentation. Nicht immer sind zu jedem Grab und Befund alle Angaben vorhanden. Teils existieren zwischen den drei Dokumentationsarten Widersprüche, die nach bestem Wissen und Gewissen abgewogen wurden. Bei widersprüchlichen Maßangaben ist der zeichnerischen gegenüber der schriftlichen Dokumentation der Vorzug gegeben worden, während bei Ungereimtheiten in der Lage der Knochen die fotografische Dokumentation bevorzugt wurde. Diese Fälle sind mit * gekennzeichnet.
+
+## Beschreibung der menschlichen Überreste
+
+Die Ausrichtung der Skelette wird so angegeben, dass die erste Himmelsrichtung die Lage des Kopfes anzeigt. Die Lagevarianten der Extremitäten richten sich nach folgenden Kriterien:
+
+## Oberarm
+
+- 	 ausgestreckt: Winkel zwischen Oberarm und Körper ist 90° bis einschließlich 45°;
+- 	 am Körper angelegt: Winkel zwischen Oberarm und Körper ist kleiner als 45°.
+
+## Unterarm
+
+- 	 ausgestreckt: Winkel zwischen Ober- und Unterarm ist 180°;
+- 	 angewinkelt: Winkel zwischen Ober- und Unterarm ist weniger als 180° bis einschließlich 90°;
+- 	 stark angewinkelt: Winkel zwischen Ober- und Unterarm ist kleiner als 90°.
+
+## Oberschenkel
+
+- 	 angewinkelt: Winkel zwischen Körperachse und Oberschenkel beträgt zwischen 180° und einschließlich 90°;
+- 	 stark angewinkelt: Winkel zwischen Körperachse und Oberschenkel ist kleiner als 90°.
+
+<!-- FREE:PAGE 3 -->
+## Unterschenkel
+
+- 	 angewinkelt: Winkel zwischen Ober- und Unterschenkel ist kleiner als 180° bis einschließlich 90°;
+- 	 stark angewinkelt: Winkel zwischen Ober- und Unterschenkel ist kleiner als 90°.
+
+## Beigaben und Funde
+
+Zu jedem Grab und Befund werden alle vorhandenen Objekte aufgeführt. Sie werden bei den Gräbern den Kategorien Beigaben oder Funde zugewiesen. Beigaben sind alle Objekte, die den Toten mit ins Grab oder auf den Scheiterhaufen gegeben wurden, während die Kategorie Funde Objekte aus der Grabverfüllung umfasst.
+
+Vollständige Gefäße werden immer als Beigabe gewertet.  Tonscherben und Artefakte aus anderem Material werden in die Kategorie Beigabe gestellt, wenn sie durch Lage auf demselben Planum in räumlicher Beziehung zum Toten stehen 90 . Silextrümmerstücke tauchen immer in der Kategorie Funde auf. Es sei denn, sie befinden sich in räumlicher Beziehung zu eindeutigen Beigaben (z. B. mit diesen durchmischt).
+
+## Anmerkungen zur Beschreibung der Tongefäße
+
+Bei der Oberflächenbeschaffenheit wird zwischen rau und glatt unterschieden. Glatte Oberflächen werden in glattmatt und glatt-glänzend unterteilt. Die Angabe glatt-restauriert beschreibt eine durch die Restaurierung bedingte 'künstliche' glänzende Oberfläche.
+
+Bei der Magerung wird qualitativ zwischen organischen und anorganischen Magerungsbestandteilen nach den Korngrößen fein (0 bis einschließlich 1 mm), mittel (1 bis einschließlich 2 mm), grob (2  bis  einschließlich 4 mm) und sehr grob (über 4 mm) unterschieden.
+
+Keramikfragmente mit folgenden Eigenschaften werden unter Grobkeramik zusammengefasst: grobe oder sehr grobe anorganische Magerung, Wandstärke ≥ 0,6 cm und raue unverzierte Oberfläche.
+
+Zu der Beschreibung der Verzierung vgl. Kapitel 4.1.3 (S. 63  f.) ; 2 - bedeutet Dopplung eines Motivs, steht hinter dem betreffenden Code.
+
+Anmerkungen zur Beschreibung der Felsgestein-, Goldobjekte und der Artefakte aus organischem Hartmaterial sowie der unbearbeiteten Tierknochen
+
+Die Seiten der Felsgesteinobjekte werden bezüglich der Fundzeichnung in folgender Reihenfolge beschrieben: abgebildete  Breitseite,  gegenüberliegende  Breitseite, linke Schmalseite, rechte Schmalseite, oberes und unteres Ende 91 .
+
+Die Maße der Befunde sind in Metern, die der Funde in Zentimetern angegeben. Alle Gewichtsangaben erfolgen in Gramm bzw. Zehntelgramm. Bei 17 Objekten aus Zwenkau Grab A (Nr. 13-29) war aus logisitischen Gründen keine exakte Messung möglich. Die Katalog­ nummern der Artefakte sind den Nummern auf den Abbildungen 40-58 92 identisch zugeordnet.
+
+Abkürzungen: anorg. - anorganisch; Bdm - Bodendurchmesser; B - Breite; Bef. - Befund; BS - Bodenscherbe; Bst - Bodenstärke; Dm - Durchmesser; DS - Dorsalseite; erh. - erhalten; Gdm - größter Durchmesser; Gew. Gewicht; H - Höhe; Inv.-Nr. - Inventarnummer; L - Länge; LK - Lateralkante; li - links/linker; Mag. - Magerung; max. - maximal; Mdm - Mündungsdurchmesser; mind. - mindestens; N - Norden; n.b. - nicht bestimmt; O Osten; Ofl. - Oberfläche; org. - organisch; Pl. - Planum; re - rechts/rechter; rest. - restauriert; RS - Randscherbe; S - Süden; SFR - Schlagflächenrest; St - Stärke; T - Tiefe; unverz. - unverziert; verz. - verziert; VS Ventralseite; W - Westen; wahrsch. - wahrscheinlich; WS Wandscherbe; Wst - Wandstärke.
+
+## Kölsa, Lkr. Nordsachsen (KQA-01)
+
+Grab 1 (Bef. 10) - Abb. 40
+
+Pl. 1: Kreisförmige Grabgrube: Dm 0,63.* Die Verfüllung besteht aus rotbraunem, im Randbereich grauem, halbfestem schluffigem Sand und feinkörnigem Kies. Auf dem Planum befinden sich unbestimmte Knochenfragmente (4) und Holzkohlepartikel. Pl. 2: Mit Körperbestattung. WNW-OSO-ausgerichtete, ovale Grabgrube: L 0,63; B 0,46; T ca. 0,1.* Die Verfüllung besteht aus mittelbraungrauem bis orangebraunem, lockerem bis plastischem sandigem Schluff mit grobem Kies im Randbereich. An der nordwestlichen Grenze befindet sich eine Ansammlung von Steinen mit Seitenlängen von 0,03-0,05. Im gesamten Grabgrubenbereich befinden sich Holzkohlereste und im Bereich des Skelettes schwarz gefärbtes Sediment. Profil: Die Grabgrube ist muldenförmig. Objektlokalisierung: Aus der Verfüllung stammen eine Silexstichellamelle(?) (1), sechs Silexabschläge (2) und vier Silextrümmerstücke (3).
+
+Bestattung: OSO-WNW-ausgerichteter, re Hocker in Seitenlage mit Blick nach N.
+
+Li Oberarm am Körper angelegt, Unterarm stark angewinkelt, Hand wahrsch. vorm Gesicht; re Unterarm wahrsch. stark angewinkelt, Hand wahrsch. vorm Gesicht. Beide Ober- und Unterschenkel stark angewinkelt.
+
+Infans I, 4-5 (6) Jahre. Weiblich = männlich.
+
+## Beigaben: -.
+
+Funde: 1) Silexstichellamelle? Gew. 0,6. Inv.-Nr. KQA-01/8. 2) 6 Silexabschläge. Gew. 18,2. Inv.-Nr. KQA-01/8/9. 3) 4 Silextrümmerstücke. Gew. 8,3. Inv.-Nr. KQA-01/8. 4) Unbestimmte Knochenfragmente, wahrsch. tierisch. Gew. 0,8. Inv.-Nr. KQA01/9.
+
+90 Die Regelung wurde aufgrund der zum Teil hohen Anzahl an Siedlungshinterlassenschaften in den Grabverfüllungen aufgestellt.
+
+91 Bei den Artefakten aus Felsgestein mit rechteckiger oder trapezoider Breitseitengrundform werden die kürzeren Schmalseiten als Enden bezeichnet.
+
+92 Für das Digitalisieren der Grabpläne danke ich Ute Krämer recht herzlich.
+
+<!-- FREE:PAGE 4 -->
+Grab 2 (Bef. 23) - Abb. 40
+
+Pl. 1: N-S-ausgerichtete, unregelmäßig rechteckige Grabgrube mit abgerundeten Ecken: L 1,15; B 0,8. Die Verfüllung besteht aus mittelbraunem, lockerem bis halbfestem sandigem Schluff mit Kiesanteil. Pl. 2: Mit Körperbestattung. N-S-ausgerichtete, ovale Grabgrube: L 0,7; B 0,48; T 0,28. Die Verfüllung besteht aus rötlich braunorangem bis grauem, lockerem, leicht schluffigem Sand. Profil: Die Grabgrube weist schräg nach innen abfallende Wände auf. Objektlokalisierung: Eine Tasse (1) befindet sich östlich vor dem Oberkörper auf der Seite liegend mit der Öffnung in Richtung W. Aus der Verfüllung stammen eine Silexklinge (2), ein Abschlag (3) und fünf Silextrümmerstücke (4).
+
+Bestattung: S-N-ausgerichteter, re Hocker in Seitenlage mit Blick nach O.
+
+Li Oberarm am Körper angelegt; re Oberarm am Körper angelegt, Unterarm angewinkelt, Hand wahrsch. vorm Becken. Beide Ober- und Unterschenkel stark angewinkelt.
+
+Infans I, 1-2 Jahre. Weiblich &gt; männlich.
+
+Beigaben: 1) Unverz. Tasse mit Bandhenkel; vollständig, eine abgeplatzte Stelle am Henkel. Ofl. intakt glatt-glänzend: light yellowish brown (10YR6/4) bis very pale brown (10YR7/4), mit Flecken gray (10YR6/1 bis 5/1). Mag. anorg. mittel, Glimmer auf Ofl. H 6,6-7; Bdm 2,7-3; Gdm 7; Mdm 6,3; Wst 0,5; Bst 0,6. Inv.-Nr. KQA-01/20.
+
+Funde: 2) Silexklinge. Inv.-Nr. KQA-01/18. 3) Silexabschlag. Inv.-Nr. KQA-01/19. 4) 5 Silextrümmerstücke. Inv.-Nr. KQA01/18.
+
+Grab 3 (Bef. 24) - Abb. 40
+
+Pl.  1: NNW-SSO-ausgerichtete, rechteckige Grabgrube mit abgerundeten Ecken und Ausbuchtung im O: L 0,84; B 0,7.* Die Verfüllung besteht aus rötlich braunorangem, halbfestem schluffigem Sand. Pl. 2: Mit Körperbestattung. N-S-ausgerichteter, unregelmäßiger Grabgrubenrest mit geraden Kanten im W und N, welliger O-Seite und abgerundeten Ecken: L 0,49; B 0,25-0,4; T 0,2. Die Verfüllung besteht aus gelbbraunem, lockerem Sand. Profil: Der Befund weist schräg nach innen bis teils senkrecht abfallende Wände auf. Objektlokalisierung: Aus der Verfüllung stammen eine WS (1), ein Silexkratzer (2), sieben Silextrümmerstücke (3) und drei Belemniten (4).
+
+Bestattung: N-S-ausgerichteter, li Hocker in Seitenlage mit Blick wahrsch. nach O.
+
+Beide Oberarme am Körper angelegt; li Unterarm wahrsch. ausgestreckt, Hand wahrsch. vorm Becken. Ein Oberschenkel wahrsch. stark angewinkelt, ein Unterschenkel stark angewinkelt. Der anatomische Verband ist zum Teil gestört.
+
+Infans I, 0,5-1 Jahr. Männlich = weiblich.
+
+Beigaben: -.
+
+Funde: 1) WS, verz. Inv.-Nr. KQA-01/21. 2) Silexkratzer. Inv.Nr. KQA-01/21. 3) 7 Silextrümmerstücke. Inv.-Nr. KQA-01/21. 4) 3  Belemniten (fossiler Tintenfisch). Inv.-Nr. KQA-01/21.
+
+Grab 4 (Bef. 90) - Abb. 40
+
+Pl. 1: N-S-ausgerichtete, langovale Grabgrube mit Einbuchtung im W: L 1,28; B 0,64-0,75.* Die Verfüllung besteht aus rötlich braunorangem, halbfestem schluffigem Sand. Pl. 2: Mit Körperbestattung. Die N-S-ausgerichtete Grabgrube ist nur noch teilweise im W und S erkennbar, mit geraden Grenzen im W und S: L ca. 0,83; B ca. 0,5; T 0,16. Die Verfüllung besteht aus gelbbraunem, lockerem Sand. Profil: Der Befund weist schräg nach innen abfallende Wände auf. Objektlokalisierung: Knochen des re Vorderfußes vom Schaf (1) befinden sich N-S-ausgerichtet östlich vor dem Kopf im anatomischen Verband.
+
+Bestattung: N-S-ausgerichteter, li Hocker in Seitenlage mit Blick nach O.
+
+Beide Oberarme am Körper angelegt; re Unterarm angewinkelt, Hand vorm Becken; li Unterarm über re Unterarm ausgestreckt, Hand wahrsch. vorm Becken. Beide Oberschenkel angewinkelt, beide Unterschenkel stark angewinkelt.
+
+Infans II, 6-8 Jahre. Männlich &gt; weiblich.
+
+Beigaben: 1) Re Vorderfußknochen vom Schaf (Ovis ammon f. aries) . Metacarpus re, Phalanx I re lateral, Phalanx I re medial. Ein Individuum. Alter geringer als 7-10 Monate, wahrsch. 6-8 Monate. Geschlecht n. b. Phalangen sind distal alt gebrochen. Gew. 19,2. Inv.-Nr. KQA-01/90.
+
+Grab 5 (Bef. 3) - Abb. 41
+
+Pl. 1: O-W-ausgerichteter, unregelmäßig ovaler Befund: L 2,34; B 1,86.* Die Verfüllung besteht aus graubraunem, halbfestem schluffigem Sand. Pl. 2: Mit menschlichen Knochen, zum Teil im anatomischen Verband. O-W-ausgerichteter, unregelmäßig ovaler Befund: L 1,99; B 1,65; T ca. 0,35. Die Verfüllung besteht aus graubraunem, im Zentrum und im Bereich der Knochen grauem, halbfestem schluffigem Sand. Pl. 3: Mit menschlichen Knochen im N-Bereich (wahrsch. Teile des Schädels). N-Sausgerichteter, unregelmäßig ovaler Befund: L 1,2; B 0,84; T ca. 0,81. Die Verfüllung ist graubraun, im SW gelbgrau. Pl. 4: Mit Resten einer Körperbestattung zum Teil im anatomischen Verband. N-S-ausgerichteter, unregelmäßig länglich ovaler Befund mit Ausbuchtung im W: L ca. 0,8; B ca. 0,5; T max. 1,1. Die Verfüllung besteht aus dunkelbraunem bis dunkelgrauem, sandigem Schluff. Profil: Der Befund weist schräg nach innen bis teils senkrecht abfallende Wände auf. Störungen: Das Grab ist gestört. Menschliche Knochen befinden sich auf den verschiedenen Plana zum Teil im anatomischen Verband. Objektlokalisierung: Mind. zwei durchbohrte Tierzähne und mind. fünf durchbohrte Scheiben aus organischem Hartmaterial befinden sich nördlich der Rippen und des li Oberarmes sowie südlich der vermuteten Schädellage auf Pl. 4 eng beieinander; davon liegt jeweils noch ein Exemplar vor (1, 2). Aus der Verfüllung stammen zwei WS (3), eine Silexklingenspitze (4), ein Silexkratzer (5), elf Silexabschläge (6) und 27 Silextrümmerstücke (7). Außerdem liegt ein menschlicher Zahn eines zweiten Individuums (8) vor, dessen Lage nicht dokumentiert ist.
+
+Bestattung: Wahrsch. N-S-ausgerichtete Bestattung.
+
+Li Unterarm ausgestreckt. Skelettverband ist fast vollständig gestört. Auf Pl. 4 befindet sich der li Arm im anatomischen Verband, auf Pl. 2 nach Befundzeichnung möglicherweise der re Arm im anatomischen Verband.
+
+Infans I, (1) 1,5-2 Jahre. Männlich = weiblich.
+
+Beigaben: 1) Durchbohrter Tierzahn (Prämolar), möglicherweise vom Bären (Ursus) . Konische Bohrung im Wurzelbereich. Gew. 0,9. L 2,1; B 1,1; St 0,3-0,6; Dm Bohrung 0,2-0,4. Inv.Nr. KQA-01/4. 2) Kreisrunde, zentral durchbohrte Scheibe aus organischem Hartmaterial. Gew. 0,05. Dm 0,6-0,7; St max. 0,1; Dm Bohrung 0,2. Inv.-Nr. KQA-01/4.
+
+Funde: 3) 2  WS,  unverz.  Inv.-Nr.  KQA-01/1/2. 4) Silexklingenspitze;  proximal  abgebrochen.  Inv.-Nr.  KQA-01/2. 5) Silexkratzer. Inv.-Nr. KQA-01/2. 6) 11 Silexabschläge. Inv.-Nr. KQA-01/1/2. 7) 27 Silextrümmerstücke. Inv.-Nr. KQA-01/2. 8) Menschlicher Zahn. Unterer li Prämolar. Juvenil bis Adult, 15-35 Jahre. Geschlecht n. b. Inv.-Nr. KQA-01/2.
+
+Grab 6 (Bef. 91) - Abb. 41
+
+Pl.  1: NNW-SSO-ausgerichtete, rechteckige Grabgrube mit abgerundeten Ecken: L 1,0; B 0,7. Die Verfüllung besteht aus leicht rötlich mittelbraunem, halbfestem, sandigem bis kiesigem Schluff. Pl. 2: Mit Körperbestattung im NW-Bereich. NNWSSO-ausgerichtete, im SSO ovale und im NNW eckige Grabgrube mit Einbuchtung im NNO: L 0,9; B 0,72; T ca. 0,24. Die Verfüllung besteht aus rötlich mittelbraunem, teils dunkelbraun geflecktem, halbfestem, leicht lehmigem Sand. Pl. 3: Dieselbe Befundsituation wie auf Pl. 2. NNW-SSO-ausgerichtete, im SSO unregelmäßige und NNW eckige Grabgrube mit leicht konvexer W-Seite: L 0,9; B 0,7; T ca. 0,3. Grabeinbauten: Im östlichen und südwestlichen Randbereich befindet sich eine zum Teil geschlossene Setzung aus Felsgesteinen mit Seitenlängen von 0,06-0,16, in die im SO ein Schafsschädel (2) integriert ist. Vor dem Skelett in Höhe des Brustkorbes befindet sich eine lineare N-S-ausgerichtete Setzung aus Felsgesteinen mit Seitenlängen von ca. 0,05. Profil: Die Grabgrube weist schräg nach innen gebogene Wände und einen waagerechten Boden auf: T max. 0,39. Objektlokalisierung: Eine Tasse (1) befindet sich östlich vor dem Oberkörper mit der Öffnung nach oben. Aus der Verfüllung stammen ein Silexabschlag (3) und drei Silextrümmerstücke (4).
+
+<!-- FREE:PAGE 5 -->
+Bestattung: N-S-ausgerichteter, li Hocker in Seitenlage mit Blick nach O.
+
+Beide Oberarme am Körper angelegt, beide Unterarme angewinkelt, Hände wahrsch. vorm Bauch. Beide Oberschenkel angewinkelt, beide Unterschenkel stark angewinkelt.
+
+Infans I, 0,5-1 Jahr. Männlich &gt; weiblich.
+
+Beigaben: 1) Unverz. Tasse mit Bandhenkel; vollständig, ein Loch befindet sich im unteren Gefäßbereich. Gerundeter bzw. gerader Rand mit abgerundeten Kanten. Ofl. intakt glatt-glänzend: very dark gray (10YR2/1) bis dark gray (10YR4/1), mit Flecken white (10YR8/1) und very pale brown (10YR8/3). Mag. anorg. fein und mittel, Glimmer auf Ofl. H 8,6-8,9; Bdm ca. 2,7; Gdm 7,2; Mdm 7,1; Wst 0,4-0,5; Bst 0,6. Inv.-Nr. KQA-01/55. 2) Schädel vom Schaf (Ovis ammon f. aries) . Cranium. Ein Individuum. Adult. Männlich. An den Hornzapfen und den Hinterhauptscondylen sind Zerteilungsspuren zu erkennen. Gew. 370. Inv.-Nr. KQA-01/55.
+
+Funde: 3) Silexabschlag. Inv.-Nr. KQA-01/55. 4) 3 Silextrüm- merstücke. Inv.-Nr. KQA-01/55.
+
+Grab 7 (Bef. 21) - Abb. 42
+
+Pl. 1: N-S-ausgerichtete, rechteckige Grabgrube mit gerundeter S-Seite und Ausbuchtung im O: L 1,35; B 0,65-1,02.* Die Verfüllung besteht aus rötlich braunorangem, lockerem bis halbfestem, leicht schluffigem Sand. Pl. 2: Mit Körperbestattung. Die nur teilweise erkennbare NNW-SSO-ausgerichtete Grabgrube ist länglich, im N eckig mit gerader Schmalseite und im S abgerundet: L 1,67; B 0,75-0,97; T 0,4-0,52. Die Verfüllung besteht aus rötlich braungrauem, lockerem, leicht schluffigem Sand. Im S befinden sich Holzkohlepartikel. Profil: Die Grabgrube weist schräg nach innen abfallende Wände auf. Objektlokalisierung: Eine Silexpfeilspitze (2) befindet sich östlich der Schulter, vor dem Skelett und nördlich der re Hand mit der Spitze nach N gerichtet. Eine Silexpfeilspitze (3) befindet sich im Brustkorbbereich, nördlich des re Ellenbogens mit der Spitze nach N gerichtet. Eine Silexpfeilspitze (4) befindet sich unter dem li Unterarm, dabei liegt ein Silextrümmerstück (27). Westlich des Beckens hinter dem Skelett befinden sich eine Knochennadel (17), zwei Eberhauer (18, 19 oder 21) und ca. 0,35 m westlich davon ein weiterer Eberhauer (20). Westlich des Beckens hinter dem Skelett und südlich von (17-19) befindet sich eine Ansammlung von Objekten: vier Silexabschläge (11-14), eine Silexklinge (9), eine zerbrochene Silexklinge (10), ein Silexpfeilspitzenhalbfabrikat (7), zehn Silextrümmerstücke (15), ein Schleif- oder Polierstein (16) und ein Geweihspatel (22). Unmittelbar am Becken befindet sich eine Silexpfeilspitze (5) mit der Spitze nach N gerichtet, darunter eine weitere Silex­ pfeilspitze (6). Ein unverz. Glockenbecher (1) befindet sich westlich der Füße, hinter dem Skelett mit Öffnung nach oben. Darin befinden sich vier Schwanzwirbel vom Schwein (23). Direkt westlich am Gefäß liegen die li Unterarmknochen vom Schwein im anatomischen Verband (25). Zwei Silextrümmerstücke liegen im li Unterschenkelbereich (28). Ein Schwanzwirbel vom Schwein befindet sich im Fußbereich (24). Die Lage des Silexdolches (8) und eines Eberhauers (21 oder 19) auf Planum 2 ist nicht dokumentiert.
+
+Bestattung: N-S-ausgerichteter, li Hocker in Seitenlage mit Blick nach O.
+
+Beide Oberarme am Körper angelegt, re Unterarm über li Oberarm stark angewinkelt, Hand vor der Brust; li Unterarm angewinkelt, Hand am Becken. Beide Ober- und Unterschenkel stark angewinkelt.
+
+Mitteladult, 25-35 Jahre. Männlich.
+
+Im Humerus li befindet sich ein dreieckiges Silexobjekt (26).
+
+Beigaben: 1) Unverz. Glockenbecher; zu ca. 90 % erh., geklebt; dazu eine WS. Gerundeter Rand bzw. gerader Rand mit abgerundeten Kanten. Ofl. nur an wenigen Stellen intakt glatt-matt und glatt-glänzend: dark gray (5YR4/1); zum Großteil abgearbeitet rau: reddish yellow (5YR6/6) bis yellowish red (5YR5/6). Mag. anorg. fein, mittel und minimal grob, Glimmer auf Ofl. H 8,5-8,9; Bdm 4,7; Gdm = Mdm 12,9; Wst 0,5-0,6; Bst 0,7. Inv.Nr. KQA-01/16. 2) Geflügelte Silexpfeilspitze mit bogenförmig eingezogener Basis und spitzen Flügeln. Beidseitig flächig retuschiert. Gew. 1,32. L 2,5; B 1,6; St max. 0,4. Inv.-Nr. KQA-01/16. 3) Silexpfeilspitze mit gerader bis leicht eingezogener Basis. Beidseitig flächig retuschiert. Gew. 3. L 3,5; B 2,4; St max. 0,5. Inv.-Nr. KQA-01/16. 4) Silexpfeilspitze mit leicht eingezogener Basis; Spitze abgebrochen. Beidseitig flächig retuschiert. Unebene gestufte Bruchfläche. Gew. 1,6. L 1,9; B 2,1; St max. 0,5; L Bruchfläche 1,1; B  Bruchfläche 0,4. Inv.-Nr. KQA-01/16. 5) Geflügelte Silexpfeilspitze mit nahezu rechteckigem Basisausschnitt; Spitze abgebrochen? Beidseitig flächig retuschiert. Gew. 2. L 2,5; B 1,8; St max. 0,5. Inv.-Nr. KQA-01/16. 6) Geflügelte Silexpfeilspitze mit rechteckigem Basisausschnitt und eckigem Flügel; ein Flügel abgebrochen. Beidseitig flächig retuschiert. Gew. 1,7. L 2,5; B 1,7; St max. 0,5. Inv.-Nr. KQA-01/16. 7) Silexpfeilspitzenhalbfabrikat. Ein beidseitig retuschiertes spitzes Basisende. Gew. 2,1. L 2,9; B 2,2; St max. 0,6. Inv.-Nr. KQA-01/16. 8) Silexdolch; zerbrochen, zwei nicht aneinanderfügbare Teile (A, B) erh. A: proximal und distal gebrochen, beidseitig flächig retuschiert, eine Seite im mittleren Bereich vom proximalen bis distalen Ende glattglänzend geschliffen, darauf fast senkrecht zu den Schneiden verlaufende feine Schleifspuren. B: proximal abgebrochen, beidseitig flächig retuschiert. Gew. 31,2. A: L 4,9; B 3,4; St max. 1,3. B: L 2,8; B 1,9; St max. 1. Inv.-Nr. KQA-01/16. 9) Silexklinge. DS mit Retusche an beiden LK und am proximalen und distalen Ende. VS mit Bulbus und Schlagnarbe. Fünfeckiger, ebener SFR. Gew. 7,1. L 5,1; B 2; St max. 0,6. Inv.-Nr. KQA-01/16. 10) Silexklinge; zerbrochen, zwei nicht aneinanderfügbare Teile (A, B) erh. A: DS mit Retusche an li LK im distalen Bereich. VS mit Bulbus und Schlagnarbe, Retusche an li und re LK im distalen Bereich. Ovaler, ebener SFR. B: VS mit Retusche an li LK. Gew. 13,7. A: L 3,2; B 2,8; St max. 0,9. B: L 2,7; B 2; St max. 0,7. Inv.-Nr. KQA-01/16. 11) Silexabschlag. Rundoval. Spitzovaler Querschnitt. DS eben. VS mit Schlagwellen. Gew. 1,7. L 2,3; B 1,8; St max. 0,4. Inv.-Nr. KQA-01/16. 12) Silexabschlag. Viereckig. Trapezförmiger Querschnitt. DS mit mind. zwei Abschlagnegativen und Cortex an re LK. VS mit Schlagnarbe. Länglicher, ebener SFR. Gew. 13,4. L 4,4; B 3,3; St max. 0,6. Inv.-Nr. KQA-01/16. 13) Silexabschlag. Unregelmäßig viereckig. Unregelmäßig trapezförmiger Querschnitt. DS mit zwei Abschlagnegativen. VS mit Bulbus und Schlagwellen. Länglicher, ebener SFR. Gew. 5,7. L 4,1; B 2,8; St max. 0,6. Inv.-Nr. KQA-01/16. 14) Silexabschlag. Oval. Spitz­ ovaler Querschnitt. DS vollständig mit abgerollter alter Ofl., beide LK gezackt. VS mit Schlagwellen. Gew. 7,6. L 4; B 2,5; St max. 0,7. Inv.-Nr. KQA-01/16. 15) 10 Silextrümmerstücke. Gew. 58,1. Inv.-Nr. KQA-01/16. 16) Unregelmäßiger Schleif- bzw. Polierstein aus Ton- bis Sandstein. Breitseiten eben. Schmalseiten gerundet und eben. Kanten abgerundet. Ofl. auf einer Breitseite und auf Schmalseiten glatt, gegenüberliegende Breitseite etwas rauer. Zum Großteil durch Bodenlagerung patiniert. Weak red (7.5R4/3-4). Gew. 37,1. L  5,5; B 4,4; St max. 0,7. Inv.-Nr. KQA01/16. 17) Knochennadel; Kopf abgebrochen. Querschnitt im Bereich der Spitze rund, zum Kopf hin flachoval. Ofl. im oberen Bereich abgearbeitet rau, im unteren Bereich stellenweise intakt glatt. Darauf in Längsrichtung parallel zueinander verlaufende feine Rillen (Polierspuren?). Gew. 1,1. L 7,4; B 0,6; St max. 0,4. Inv.-Nr. KQA-01/16. 18) Eckzahn (Caninus) des Unterkiefers vom Haus- oder Wildschwein (Sus scrofa spec.) ; Fragment. Auf einer Seite Zahnschmelz erhalten, darauf feine, nahezu parallel verlaufende Kratzer dicht beieinanderliegend und selten einander überschneidend. Halbrunder Ausbruch als Rest einer Bohrung? Adult. Männlich. Gew. 1,3. L 5,1; B 0,7; St max. 0,4. Inv.-Nr. KQA-01/16. 19) Eckzahn (Caninus) wohl des Unterkiefers vom Haus- oder Wildschwein (Sus scrofa spec.) ; Fragment. Teil des Schaftes, eine Seite zum Teil mit Zahnschmelz. Adult. Männlich. Gew. 3. L 4,8; B1,6; St max. 0,3. Inv.-Nr. KQA-01/16. 20) Eckzahn (Caninus) des Unterkiefers vom Haus- oder Wildschwein (Sus scrofa spec.) ; Fragment. Zahnspitze, zum Großteil mit Zahnschmelz. Adult. Männlich. Gew. 10,9. L 6,9; B 1,8; St max. 1,4. Inv.-Nr. KQA-01/16. 21) Eckzahn (Caninus) des Unterkiefers vom Haus- oder Wildschwein (Sus scrofa spec.) ; Fragment. Teil der Spitze, zu ca. 2/3 mit Zahnschmelz. Adult. Männlich. Gew. 4,9. L 7,1; B 1,2; St max. 0,8. Inv.-Nr. KQA01/16. 22) Geweihspatel möglicherweise vom Rothirsch (Cervus elaphus) . Eine Breitseite mit relativ feiner Oberflächenstruktur, andere Breitseite etwas gröber. Abgewitterte Ofl. Gew. 5,4. L 11,9; B 1,6; St max. 0,5. Inv.-Nr. KQA-01/16. 23) 4 Schwanzwirbel und 2 zusammengehörige Knochenelemente vom Sacrum eines Hausschweins (Sus scrofa f. domestica) . 4 Vertebrae coccygeae. Ein Individuum. Jungtier. Geschlecht n. b. Gew. 7. Inv.-Nr. KQA-01/16. 24) Schwanzwirbel vom Hausschwein (Sus scrofa  f. domestica) ; zu 23) gehörig. 1 Vertebra coccygea. Jungtier. Geschlecht n. b. Mit Schnittspuren. Gew. 1. Inv.-Nr. KQA-01/16. 25) Li Unterarmknochen vom Hausschwein (Sus scrofa f. domestica). Ulna li, Radius li. Ein Individuum. Alter ca. 12 Monate. Geschlecht n. b. Radius ist distal alt gebrochen. Auf Ulna befinden sich distal Schnittspuren. Gew. 64,8. Inv.-Nr. KQA-01/16. Im  linken Humerus befindlich: 26) Dreieckiges  Silexobjekt; abgebrochen. Nur ebene bis leicht konkave Bruchfläche sichtbar. Im Röntgenbild in Aufsicht dreieckig, in Seitenansicht spitz zulaufend. L Bruchfläche ca. 1; B Bruchfläche ca. 0,4;  St  max.  0,4;  L  Bruchfläche  im  Röntgenbild  1;  Abstand Spitze zu Bruchfläche im Röntgenbild ca. 0,6. Inv.-Nr. KQA01/16. Funde: 27) Silextrümmerstück. Inv.-Nr. KQA-01/16. 28) 2 Silextrümmerstücke. Inv.-Nr. KQA-01/16.
+
+<!-- FREE:PAGE 6 -->
+Grab 8 (Bef. 22) - Abb. 43
+
+Pl. 1: ONO-WSW-ausgerichteter, unregelmäßig rundlich ovaler Befund mit welligen Grenzen: L 1,14; B 0,9. Die Verfüllung besteht  aus  rötlich  braungrauem,  lockerem  bis  halbfestem, schluffigem grobem Sand. Pl. 2: Mit Körperbestattung. NOSW-ausgerichtete, unregelmäßig ovale Grabgrube mit welligen Grenzen: L 0,94; B 0,7; T 0,36. Die Verfüllung ist braun. Profil: Der Befund weist schräg nach innen bis senkrecht abfallende Wände auf. Objektlokalisierung: Ein unverz. Glockenbecher (1) befindet sich westlich hinter dem Becken. Aus der Verfüllung stammen eine Silexklinge (3), sieben Silexabschläge (4) und 23 Silextrümmerstücke (5). Eine WS (2) stammt aus dem Bereich unterhalb des Befundes.
+
+Bestattung: NNO-SSW-ausgerichteter, li Hocker wahrsch. in Seitenlage mit Blick nach O.
+
+Beide Oberschenkel wahrsch. angewinkelt, beide Unterschenkel stark angewinkelt.
+
+Infans I, (18) 30-42 (60) Monate. Weiblich &gt; männlich.
+
+Beigaben: 1) Unverz. Glockenbecher; geklebt; dazu Krümel. Ofl. intakt glatt-glänzend: grayish brown (10YR5/2) bis very dark grayish brown (10YR3/2), im Randbereich pale brown (10YR6/3). Mag. anorg. fein bis grob, Glimmer auf Ofl. H 9-9,6; Bdm 6-6,4; Gdm 12,3; Mdm 11,6-12,1; Wst 0,4-0,5; Bst 0,7. Inv.-Nr. KQA-01/17/R12253.
+
+Funde: 2) WS, unverz. Inv.-Nr. KQA-01/17. 3) Silexklinge. Inv.-Nr. KQA-01/17. 4) 7 Silexabschläge. Inv.-Nr. KQA-01/17. 5) 23 Silextrümmerstücke. Inv.-Nr. KQA-01/17.
+
+Grab 9 (Bef. 25) - Abb. 43
+
+Pl. 1: N-S-ausgerichtete, ovale Grabgrube mit Ausbuchtung im N (unklar, ob dazugehörig): L 2,3; B 1,7.* Die Verfüllung besteht aus rötlich braunorangem, halbfestem, schluffigem Sand. Pl. 2: Mit Körperbestattung. N-S-ausgerichtete, rechteckige Grabgrube mit gerundeten Ecken: L 2,35; B 1,05; T ca. 0,84. Die Verfüllung besteht aus hellgrauem bis gelbbraunem, sehr schwach lehmigem Sand mit Kiesanteil. Der Bereich um das Skelett und südlich des Schädels (L ca. 0,35) ist dunkler und humoser. An der W-Grenze befindet sich ein dünnes weißgelbes Band (B 0,0050,03). Im O und W befinden sich vereinzelte Felsgesteine mit Seitenlängen von 0,1-0,17 und hinter den Lendenwirbeln ein poröser, schieferartiger Stein mit hohem Glimmer- und Quarzanteil. Grabeinbauten: Im N sind eine lineare und eine L-förmige, N-S-ausgerichtete und hell- bis mittelgraue Verfärbung (L 0,4-0,45; B 0,05-0,08), wahrsch. die Reste eines eckigen Grab­ einbaus aus Holz, zu erkennen. Profil: Der Befund weist leicht schräg nach innen bis senkrecht abfallende Wände und einen welligen Boden auf: T max. 0,92. Störungen: Die SO-Ecke und der südliche Teil des O-Bereiches sind durch Aushubarbeiten gestört. Objektlokalisierung: Ein verz. Glockenbecher (1) befindet sich nördlich der Unterschenkel wahrsch. mit der Öffnung nach oben. Westlich daneben liegt eine Tasse (2) auf der Seite mit der Öffnung nach O. Nördlich der Gefäße liegt ein Silexobjekt. Bei diesem könnte es sich um einen Kratzer handeln (3), von dem lediglich die Lage auf  Pl. 2 gesichert ist. Nördlich der Füße und südlich der Tasse befinden sich NW-SO-ausgerichtet die re Unterarmknochen vom Schwein (4) im anatomischen Verband. Aus der Verfüllung stammen ein Silexabschlag (5) und ein Belemnit (6).
+
+Bestattung: S-N-ausgerichteter, re Hocker in Seitenlage mit Blick nach O.
+
+Re Oberarm ausgestreckt; li Unterarm wahrsch. angewinkelt, Hand vorm Bauch. Beide Oberschenkel angewinkelt, beide Unterschenkel stark angewinkelt.
+
+Stärkere Beschädigung der li Maxilla, ventrale Enden der Costae stark beschädigt, Molaren und Prämolaren des li Unterkiefers liegen nicht mehr im Verband, Darmbeinschaufeln der li Beckenhälfte stark beschädigt.
+
+Matur bis Senil, 48-69 Jahre. Weiblich.
+
+Beigaben: 1) Verz. Glockenbecher; fast vollständig, ca. 25% des Randes fehlen, geklebt; dazu fünf WS und eine RS. Verzierung aus zwei umlaufenden Zierzonen, die durch unverz. Bereich getrennt und jeweils oben und unten durch mit senkrechten Linien gefüllte Bänder und waagerechte Linien gerahmt sind. Zoneneinteilung in Metopen mit fünf Motiven: waagerechtes Zackenornament (B), senkrechtes Zackenornament (A), Leitermotiv, das von unverz. Rechtecken gerahmt wird (E), doppeltes Leitermotiv, das von unverz. Rechtecken getrennt und gerahmt wird (E2), doppeltes liegendes Sanduhrmotiv, das von unverz. Rechtecken getrennt und gerahmt wird (C2). Abrollung untere Zone: AEAE2AEAE. Abrollung obere Zone: AC2BC2AC2BC2. Stempeltechnik. In den Vertiefungen befinden sich Reste weißer Inkrustation. Ofl. intakt, glatt-glänzend und glattmatt: dark gray (10YR4/1) und black (10YR2/1), im Randbereich reddish yellow (5YR6/6) bis yellowish red (5YR5/6), am Boden stellenweise white (7.5YR8/1), pink (7.5YR8/4) und reddish yellow (5YR7/6). Mag. anorg. fein und mittel, Glimmer auf Ofl. H 12,5; Bdm 7,4; Gdm = Mdm 17,1-17,5; Wst 0,4; Bst 1,2. Inv.Nr. KQA-01/24. 2) Unverz. Tasse mit zwei kreisrunden Zapflöchern; fast vollständig, Henkel fehlt. Gerundeter Rand bzw. gerader Rand mit abgerundeten Kanten. Ofl. großteils intakt, glatt-glänzend: black (10YR2/1), stellenweise reddish yellow (5YR6/6) gescheckt. Mag. anorg. fein, Glimmer auf Ofl. H 8,4; Bdm 2,9; Gdm 6,9; Mdm 6,6-6,8; Wst 0,4-0,5; Bst 0,6; Dm Zapflöcher ca. 1. Inv.-Nr. KQA-01/24. 3) Silexkratzer. VS mit Schlagwellen und parallel dazu verlaufenden Graten. Gew. 2,3. L 2,3; B 1,8; St max. 0,5. Inv.-Nr. KQA-01/24. 4) Re Unterarmknochen vom Hausschwein (Sus scrofa f. domestica). Ulna re, Radius re. Ein Individuum. Alter (1) &gt; 3,5 Jahre (ausgewachsenes Tier). Geschlecht n. b. Ulna ist beiderseits alt gebrochen. Radius ist distal alt gebrochen. Gew. 59,4. Inv.-Nr. KQA-01/24.
+
+<!-- FREE:PAGE 7 -->
+Funde: 5) Silexabschlag. Inv.-Nr. KQA-01/23. 6) Belemnit (fossiler Tintenfisch). Inv.-Nr. KQA-01/22.
+
+Grab 10 (Bef. 11) - Abb. 44
+
+Pl. 1: Ovaler Befund: L 1,02; B 0,88. Die Verfüllung besteht aus braunem, festem Schluff. Pl. 2: Mit Körperbestattung. N-S-ausgerichtete, unregelmäßig rechteckige Grabgrube mit welligen Kanten und abgerundeten Ecken: L 1,25; B 0,77; T 0,28.* Die Verfüllung besteht aus rötlich braunorangem, halbfestem bis plastischem, leicht lehmigem Sand, der im Oberkörperbereich etwas heller ist. Im  Randbereich befindet sich grober, lockerer Kies. Profil: Der Befund weist im oberen Teil senkrecht und im unteren Teil schräg nach innen abfallende Wände sowie einen konvexen Boden auf: T max. 0,43. Störungen: Grab wird im N durch eine Lehmschicht (Befund?) gestört. Objektlokalisierung: Ein unverz. Glockenbecher(?) (1) befindet sich direkt westlich hinter dem Schädel. Aus der Verfüllung stammen sechs Silex­ trümmerstücke (2).
+
+Bestattung: S-N-ausgerichtete Bestattung in re Seitenlage mit Blick nach O.
+
+Beide Unterarme stark angewinkelt, Hände wahrsch. vorm Gesicht.
+
+Mitteladult bis Mittelmatur, 30-50 Jahre. Weiblich ≥ männlich. Beigaben: 1) Unverz. Glockenbecher(?); nur noch einzelne Scherben erh., teilweise geklebt: 5 BS, 68 WS und 2 RS. Ofl. großteils  intakt,  glatt-matt  und  glatt-glänzend,  stellenweise abgearbeitet rau: light reddish yellow (10YR6/4) und yellowish red (5YR5/8), stellenweise very dark gray (10YR3/1) bis black (10YR2/1). Mag. org. und anorg. fein und mittel, Glimmer auf Ofl. Bdm ca. 4,5; Wst 0,3-0,4; Bst 0,4. Inv.-Nr. KQA-01/10. Funde: 2) 6 Silextrümmerstücke. Inv.-Nr. KQA-01/10.
+
+Grab 11 (Bef. 9) - Abb. 44
+
+Pl. 1: Mit zwei menschlichen Zähnen. Unregelmäßig kreisförmiger Befund mit welligen Grenzen: Dm 2,0-2,4. Die Verfüllung besteht aus mittelbraungrauem, im Randbereich rotbraunem, halbfestem Schluff. Profil: Der Befund weist schräg nach innen abfallende Wände und einen konvexen Boden auf: T max. 0,82. Störungen: Das Grab ist vollständig zerstört. Objektlokalisierung: Aus dem Befund stammen eine Silexstichellamelle(?) (1), ein Silexabschlag (2) und vier Silextrümmerstücke (3).
+
+Bestattung: Skelett  nicht  vorhanden.  Vorhanden: Incisivus (Krone), Prämolar (Krone).
+
+Infans I, 4-5 ±1 Jahre. Männlich = weiblich.
+
+Beigaben: -.
+
+Funde: 1) Silexstichellamelle(?) Inv.-Nr. KQA-01/7. 2) Silexabschlag. Inv.-Nr. KQA-01/7. 3) 4 Silextrümmerstücke. Inv.-Nr. KQA-01/7.
+
+Befund 1 (Bef. 1) - Abb. 44
+
+Pl. 1: NNO-SSW-ausgerichteter, birnenförmiger Befund aus wahrsch. zwei Teilbefunden (1a/1b): L 3,5; B 1,3-2.* Die Verfüllung besteht aus graubraunem, halbfestem schluffigem Sand. Profil: Die Teilbefunde (1a/1b) weisen senkrecht abfallende bis leicht nach innen gebogene Wände und einen waagerechten Boden auf. Sie sind im NNO-SSW-Profil durch eine 0,2 starke Schicht verbunden: T max. 0,59 (1a); 0,75 (1b).
+
+Befund 2 (Bef. 4) - Abb. 45
+
+Pl. 1: NW-SO-ausgerichteter, ovaler Befund: L 0,55; B 0,44.* Die Verfüllung besteht aus dunkelgraubraunem, halbfestem sandigem Schluff. Profil: Der  Befund weist unregelmäßig schräg nach außen(?) abfallende Wände und einen waagerechten bis stellenweise konvexen Boden auf: T max. 0,22. Störungen: Der Befund ist durch Tiergänge gestört. Objektlokalisierung: Aus der Verfüllung stammen zwei Silexabschläge (1) und sechs Silextrümmerstücke (2). Funde: 1) 2 Silexabschläge. Inv.-Nr. KQA-01/5. 2) Sechs Silextrümmerstücke. Inv.-Nr. KQA-01/5.
+
+Befund 3 (Bef. 5) - Abb. 45
+
+Pl. 1: Kreisförmiger Befund: Dm 1,7-1,8. Die Verfüllung besteht aus rötlich mittelbraungrauem, plastischem bis halbfestem schluffigem Sand. Profil: Der Befund weist leicht schräg nach innen abfallende Wände und einen unregelmäßigen konkaven Boden auf: T max. 0,58. Störungen: Der Befund ist durch Tiergänge gestört. Befund 4 (Bef. 6) - Abb. 45
+
+Pl. 1: N-S-ausgerichteter, unregelmäßig ovaler Befund: L 1,4; B 1-1,1.* Die Verfüllung besteht aus rötlich braunorangem, halbfestem bis plastischem schluffigem Sand. Der Befund weist im W-Bereich eine kreisförmige mittelbraune Stelle aus schluffigem Sand (Dm ca. 0,65) auf. Profil: Der Befund weist senkrecht bis schräg nach innen abfallende Wände und einen waagerechten Boden auf: T max. 0,72. Störungen: Der Befund ist durch Tiergänge gestört.
+
+Befund 5 (Bef. 7) - Abb. 45
+
+Pl. 1: Unregelmäßig kreisförmiger Befund: Dm 1,6-1,8. Die Verfüllung besteht aus rötlich braunorangem, lockerem bis halbfestem schluffigem Sand. Profil: Der Befund weist wellige, schräg nach innen abfallende Wände und einen waagerechten Boden auf: T max. 0,59. Objektlokalisierung: Aus der Verfüllung stammen zwei Silextrümmerstücke (1).
+
+Funde: 1) 2 Silextrümmerstücke. Inv.-Nr. KQA-01/6.
+
+Befund 6 (Bef. 8) - Abb. 45
+
+Pl. 1: Kreisförmiger Befund: Dm 2,05-2,3.* Die Verfüllung besteht aus rötlich braunorangem, halbfestem schluffigem Sand. Im NW befindet sich mittelbraungrauer, halbfester sandiger Schluff und stellenweise feiner Kies. Profil: Der Befund weist schräg nach innen abfallende Wände und einen konvexen Boden auf: T max. 0,88. Störungen: Der Befund ist durch Tiergänge gestört. Befund 7 (Bef. 17) - Abb. 45
+
+Pl. 1: Unregelmäßig kreisförmiger Befund: Dm 1,8-2,1. Die Verfüllung besteht aus rötlich braungrauem bis rostbraunem, plastischem bis halbfestem Schluff. Profil: Der Befund weist leicht schräg nach innen abfallende Wände und einen unregelmäßigen welligen Boden auf: T max. 0,75. Objektlokalisierung: Aus der Verfüllung stammen neun Silextrümmerstücke (1).
+
+Funde: 1) 9 Silextrümmerstücke. Inv.-Nr. KQA-01/14.
+
+Befund 8 (Bef. 18) - Abb. 46
+
+Pl.  1: Unregelmäßiger Befund mit Ausbuchtung im N: Dm 1-1,1. Die Verfüllung besteht aus mittelbraungrauem bis mittelbraunem, lockerem bis halbfestem schluffigem Kies. Profil: Der Befund weist schräg nach innen abfallende Wände und einen  waagerechten,  leicht  welligen  Boden  auf:  T  max.  0,2. Störungen: Der Befund ist durch Tiergänge gestört. Objektlokalisierung: Auf Planum 1 befinden sich Rippen eines Ferkels (3). Aus der Verfüllung stammen eine Silexklinge (1) und ein Silexabschlag (2).
+
+Funde: 1) Silexklinge.  DS  mit  Retusche  an  beiden  LK  und am distalen  Ende.  VS  ohne  Merkmale.  Dreieckiger,  ebener SFR. Gew. 1,2. L 2,8; B 1,3; St max. 0,4. Inv.-Nr. KQA-01/15. 2) Silexabschlag. Gew. 2,1. Inv.-Nr. KQA-01/15. 3) Rippenknochen vom Hausschwein (Sus scrofa f. domestica). Costae (li/re?). Individuenanzahl? Alter infantil (Ferkel). Geschlecht n. b. Gew. 5. Inv.-Nr. KQA-01/15.
+
+Befund 9 (Bef. 19) - Abb. 46
+
+Pl. 1: Unregelmäßig kreisförmiger Befund: Dm 0,81-0,88. Die Verfüllung besteht aus mittelbraungrauem, plastischem bis halbfestem sandigem Schluff mit leichtem Kiesanteil. Profil: Der Befund ist muldenförmig: T max. 0,12.
+
+Befund 10 (Bef. 20)  - Abb. 46
+
+Pl. 1: N-S-ausgerichteter, unregelmäßig ovaler Befund: L 1,1; B 0,9.* Die Verfüllung besteht aus mittelbraungrauem, lockerem bis halbfestem, lehmigem, feinem Kies. Profil: Der Befund ist muldenförmig: T max. 0,18.
+
+<!-- FREE:PAGE 8 -->
+Befund 8
+
+N
+
+O
+
+Befund 10
+
+N
+
+NW
+
+## Befund 11 (Bef. 92) - Abb. 46
+
+Pl. 1: nnW-sso-ausgerichteter, ovaler bis rechteckiger Befund mit abgerundeten ecken und schmalseiten: l 1,44; B 1,08. die Verfüllung  besteht  aus  dunkelbraunem, stellenweise  gelb-lich hellgrauem, halbfestem, sandigem schluff mit kiesanteil. Profil: der Befund weist gestufte Wände auf. sie sind oben senk-recht bis leicht nach innen abfallend und unten leicht nach außen bis senkrecht abfallend. der Boden ist waagerecht: t max. 0,9. Objektlokalisierung: Aus der Verfüllung stammen eine Bs (1), eine Ws (2) und drei silextrümmerstücke (3).
+
+Funde: 1) BS, unverz. Ofl. intakt, rau: pale brown (10YR6/3) und reddish yellow (5YR6/6). Mag. anorg. mittel und grob, Glimmer auf Ofl. Bdm ca. 8; Wst 1-1,8; Bst 0,9-1,1. Inv.-Nr. KQA-01/56. 2) WS, unverz. Ofl. intakt, rau: very pale brown (10YR7/3) und gray (10YR5/1). Mag. anorg. mittel und grob, Glimmer auf Ofl. Wst 1. Inv.-Nr. KQA-01/56. 3) 3 Silextrümmerstücke. Inv.-Nr. KQA-01/56. S Betonplatte Kiesbett
+
+## Grebehna, Lkr. Nordsachsen (ZWC-09) Grab 1 - Abb. 47
+
+Pl. 1: -. Profil: Die wahrsch. N-S-ausgerichtete Grabgrube wurde baubegleitend nur im Profil dokumentiert. Sie weist
+
+W
+
+SO
+
+1
+
+Befund 9
+
+N
+
+N
+
+Befund 11
+
+N
+
+SSO
+
+N
+
+1
+
+S
+
+NNW
+
+1
+
+<!-- FREE:PAGE 9 -->
+senkrecht abfallende Wände und einen waagerechten Boden auf: L ca. 1,6; T max. ca. 0,64. Die Verfüllung besteht aus dunkelgrauem, lehmig-humosem Material. Objektlokalisierung: Die Lage des unverz. Glockenbechers (1) ist nicht dokumentiert.
+
+Bestattung: ungefähr S-N-ausgerichtete Bestattung.
+
+Adult, 25-35 Jahre. Weiblich.
+
+Beigaben: 1) Unverz. Glockenbecher; vollständig, eine abgeplatzte Stelle am Rand. Gerundeter bis gerader Rand mit abgerundeten Kanten. Ofl. intakt, glatt-glänzend: dark gray bis very dark gray (7.5YR4/1-3/1) mit Flecken gray (7.5YR6/1), pinkish gray (7.5YR6/2) und dusky red (2.5YR4/4). Mag. anorg. fein, mittel und grob. H 9,7-10,2; Bdm 5,5; Gdm = Mdm 12-12,5;
+
+Wst = Bst 0,5. Inv.-Nr. ZWC-09/1/2.
+
+## Löbnitz-Bennewitz, Lkr. Leipzig (GRZ-27)
+
+Grab 1 (Bef. 98) - Abb. 48
+
+Pl. 1: WNW-OSO-ausgerichtete, wahrsch. ovale Grabgrube: L 1,05; B 0,8. Pl. 2: Mit Körperbestattung. WNW-OSO-ausgerichtete,  wahrsch.  unregelmäßig  ovale  Grabgrube:  L  0,8; B 0,35. Die Verfüllung besteht aus mittel- bis dunkelbraunem, humosem lehmigem Sand, der mit Kies durchsetzt ist. Stellenweise sind ockerfarbene Flecken zu erkennen. Pl. 3: Es sind keine Befundgrenzen mehr zu erkennen, lediglich die auf der Grabsohle liegenden Knochen. Profil: Die Grabgrube weist unregelmäßig schräg nach innen abfallende Wände und einen waagerechten Boden auf: T max. 0,22. Störungen: Der S-Teil des Grabes ist durch das Profil gestört. Objektlokalisierung: Westlich der Beinknochen im Beckenbereich hinter dem Skelett befindet sich eine verz. Schale (1) mit der Öffnung nach oben, darin liegt ein unverz. Glockenbecher(?) (2). Aus der Verfüllung stammen sechs Silextrümmerstücke (3).
+
+Bestattung: WNW-OSO-ausgerichteter, li Hocker mit Blick nach NO.
+
+Die Mandibula liegt aufrecht. Ein Oberarm wahrsch. am Körper angelegt, Unterarm (li?) stark angewinkelt, Hand wahrsch. vorm Schädel. Ein Oberschenkel wahrsch. angewinkelt, ein Unterschenkel stark angewinkelt.
+
+Infans I. Geschlecht n. b. (anthropologische Bestimmung aus Grabungsdokumentation).
+
+Beigaben: 1) Verz. Standringschale; zu ca. 90 % erh., geklebt. Verzierung aus einer umlaufenden Zierzone, die oben und unten durch jeweils zwei waagerechte Linien gerahmt wird. Zoneneinteilung in Metopen mit drei Motiven: zweifaches Rhombenmuster (G2), zweifaches Leitermotiv, das durch unverz. Quadrate gerahmt und getrennt wird (E2), Gittermuster (F). Abrollung: G2E2FE2G2E2FE2. Stempeltechnik. Ofl. großteils intakt, glatt-rest.: very dark brown (10YR2/2) bis dark grayish brown (10YR5/2), mit Stellen black (7.5YR2.5/1); stellenweise abgearbeitet rau: pink (7.5YR8/3) und white (7.5YR8/1). Mag. anorg. fein, mittel und minimal grob, Glimmer auf Ofl. H 9,1; Dm Fuß ca. 8; Gdm = Mdm 21; Wst 0,7-0,9. Inv.-Nr. GRZ27/36. 2) Unverz. Glockenbecher(?); zerscherbt. Zur Zeit nicht auffindbar; Ansprache nach schriftlicher und fotografischer Dokumentation.
+
+Funde: 3) 6 Silextrümmerstücke. Gew. 446,7. Inv.-Nr. GRZ27/2/38.
+
+Grab 2 (Bef. 103) - Abb. 48
+
+Pl.  1: Kreisförmige Grabgrube (W-Grenze nicht freigelegt): L 1,6; B 0,85. Pl. 2: Mit Körperbestattung. NNW-SSO-ausgerichtete, rechteckige Grabgrube mit abgerundeten Ecken und welligen Grenzen: L 1,75; B 0,65; T 0,26. Die Verfüllung besteht aus dunkelgraubraunem, hartem humosem Lehm. Im W und an den Schmalseiten ist ein mittelgelbbrauner Saum aus leicht humosem Lehm zu erkennen. Objektlokalisierung: Westlich hinter den Füßen befindet sich ein unverz. Glockenbecher (1)
+
+mit der Öffnung nach oben. Die Lage der Tasse (2) ist nicht dokumentiert. Aus der Verfüllung stammen zwei Silexabschläge (3) und zwei Silextrümmerstücke (4).
+
+Bestattung: N-S-ausgerichteter, li Hocker in Seitenlage mit Blick nach O.
+
+Re Oberarm am Körper angelegt, Unterarm über li Ober- und Unterarm stark angewinkelt, Hand vor der Brust; li Oberarm ausgestreckt, Unterarm stark angewinkelt, Hand am Bauch. Beide Oberschenkel angewinkelt, beide Unterschenkel stark angewinkelt. Rippen sind an Rückenpartie durch Tierfraß(?) zusammengepresst und verwirbelt.
+
+Frühadult, 20-25 (29) Jahre. Männlich &gt; weiblich.
+
+Beigaben: 1) Unverz. Glockenbecher; zu ca. 60 % erh., geklebt; dazu 2 WS und 3 RS. Gerundeter bzw. gerader Rand mit abgerundeten Kanten. Ofl. intakt glatt-matt und teilweise abgearbeitet rau: very dark gray (10YR3/1) bis pale brown (10YR6/3), mit Wurzelabdrücken yellowish red (5YR5/8). Mag. anorg. mittel und grob, Glimmer auf Ofl. H 12,3; Bdm 6,4; Gdm = Mdm 14,2; Wst 0,5-0,6; Bst 0,9. Inv.-Nr. GRZ-27/40. 2) Unverz. Tasse; zu ca. 60 % erh., geklebt; dazu 2 WS und 3 RS. Ofl. großteils intakt glatt-matt: very dark gray (7.5YR3/1); stellenweise abgearbeitet rau: white (10YR8/1) und very pale brown (10YR8/4), mit Wurzelabdrücken yellowish red (5YR5/8). Mag. anorg. mittel, Glimmer auf Ofl. H 9,9-11; Bdm 4,8; Gdm = Mdm 9,1; Wst = Bst 0,6-0,7. Inv.-Nr. GRZ-27/40.
+
+Funde: 3) 2 Silexabschläge. Inv.-Nr. GRZ-27/40. 4) 2 Silextrüm- merstücke. Inv.-Nr. GRZ-27/40.
+
+Grab 3 (Bef. 22) - Abb. 49
+
+Pl.  1: WSW-ONO-ausgerichtete, unregelmäßig rechteckige Grabgrube mit abgerundeten Ecken: L 1,85; B 1,15. Pl. 2: Mit Körperbestattung. WSW-ONO-ausgerichtete, oval bis rechteckige Grabgrube mit abgerundeten Ecken und welligen Seiten: L 1,35; B 0,95. Die Verfüllung besteht aus mittelbraunem, humosem, leicht lehmig-schluffigem Material. Grabeinbauten: Im Randbereich befindet sich eine lockere, nicht geschlossene Setzung aus Felsgesteinen mit Seitenlängen von 0,05 bis 0,1. Profil: Die Grabgrube weist schräg nach innen abfallende Wände auf. Störungen: Der SW-Teil des Grabes ist durch das Profil gestört. Objektlokalisierung: Eine Silexklinge (1) wurde beim Anlegen des Profils gefunden. Aus der Verfüllung stammen zwei Silexklingenfragmente (2, 3), ein Silexabschlag (4) und sieben Silextrümmerstücke (5).
+
+Bestattung: WSW-ONO-ausgerichteter, re Hocker in Seitenlage mit Blick nach S.
+
+Li Oberarm am Körper angelegt, Unterarm angewinkelt, Hand wahrsch. vorm Bauch; re Arm wahrsch. am Körper angelegt, Hand am Becken. Beide Ober- und Unterschenkel stark angewinkelt. Gesichtsschädel, Teile der Rippen und des re Armes sind durch das Profil gestört.
+
+Juvenil. Geschlecht n. b. (anthropologische Bestimmung aus Grabungsdokumentation).
+
+## Beigaben: -.
+
+Funde: 1) Silexklinge. Inv.-Nr. GRZ-27/41. 2) Silexklingenfragment; distal abgebrochen. Inv.-Nr. GRZ-27/41. 3) Silexklingenfragment. Inv.-Nr. GRZ-27/41. 4) Silexabschlag. Inv.-Nr. GRZ-
+
+27/41. 5) 7 Silextrümmerstücke. Inv.-Nr. GRZ-27/41.
+
+## Markranstädt, Lkr. Leipzig (MS-11)
+
+Grab 1 (Bef. 547/548) - Abb. 50
+
+Pl. 1: Mit Brandbestattung. NNW-SSO-ausgerichtete, langovale Grabgrube mit leicht nach innen gebogenen Längsseiten: L 1,15; B 0,48. Im südöstlichen Bereich befindet sich Leichenbrand auf einer Fläche von ca. 0,3 mal 0,2 verteilt. Ein Leichenbrandfragment befindet sich nach der Befundzeichnung in Gefäß (3), wahrsch. beim Baggerabzug verlagert. Pl. 2: Ähnliche Befundsituation wie auf Pl. 1. NNW-SSO-ausgerichtete, Grab 3
+
+<!-- FREE:PAGE 10 -->
+N
+
+langovale Grabgrube mit welligen Längsseiten: L 1,1; B 0,48; T ca. 0,04. Die Verfüllung besteht aus mittel- bis hellbraunem und rotgelbem, festem, sandigem Schluff mit Kiesanteil. Leichenbrand und Holzkohlepartikel sind auf einer Fläche von ca. 0,2 mal 0,25 verteilt. Profil: Die Grabgrube weist senkrecht abfallende Wände auf. Der Boden ist im mittleren Bereich relativ waagerecht und in den Ecken unregelmäßig konvex: T max. 0,16. Störungen: Der Befund ist im Zentrum und im O durch Tiergänge und der obere Befundbereich durch die Baggertätigkeit gestört. Objektlokalisierung: Relativ zentral, im SSO-Bereich befindet sich ein Gefäß (3) wahrsch. mit der Öffnung nach oben und unmittelbar östlich daneben eine Tasse (2) wahrsch. mit der Öffnung nach oben, beide im Bereich des Leichenbrandes. Ein verz. Glockenbecher (1) befindet sich relativ zentral im NNW-Befundbereich mit der Öffnung nach oben, etwa 0,2 abseits vom Leichenbrand. Aus dem Bereich des Leichenbrandes stammen drei BS, vier WS und vier RS, die wahrsch. zu einem vierten Gefäß gehören (4), eine WS (6), vier Keramikkrümel (7) und zwei Silextrümmerstücke (9). Aus dem Abraum stammen eine RS (5) und drei Silextrümmerstücke (8).
+
+Bestattung: Leichenbrand. Gew. 295. Leichenbrand zu ca. 2/3 mit Feinkies durchsetzt. Gew. 416,3.
+
+Adult. Männlich ≥ weiblich.
+
+Beigaben: 1) Verz. Glockenbecher; zu ca. 75% erh., Gefäßmündung fehlt, geklebt; dazu 11 WS und 2 RS. Verzierung aus zwei umlaufenden Zierzonen, die durch unverz. Bereich getrennt und jeweils oben und unten durch mit schrägen Linien gefüllte Bänder gerahmt sind. Zoneneinteilung in Metopen mit zwei Motiven: stehendes Sanduhrmotiv, das von schmalen unverz. senkrechten Balken gerahmt wird (D), waagerechtes Zackenornament (B). Abrollung untere Zone: BDBDBDBDBDBD. Obere Zone ist nur zu ca. 25 % erh. Ritztechnik. Ofl. großteils intakt glatt-rest. und glatt-matt, im unteren Bereich abgearbeitet rau:
+
+brown (10Yr5/3, 10Yr4/3) bis reddish brown (5Yr4/4), mit Flecken black (5 Yr2.5/1). mag.  anorg. fein, mittel  und minimal  grob,  glimmer  auf  ofl.  h  ca.  11,5;  Bdm  5,8;  gdm 12,5;  Wst  0,5.  inv.-nr.  ms-11/242. 2) Unverz.  tasse  mit Bandhenkel; nur noch einzelne scherben erh., teilweise geklebt: 1 Bs, 29 Ws, 1 rs und 1 henkelfragm. ofl. intakt glatt-matt und  glatt-glänzend:  dark  reddish  gray  (5Yr4/2),  stellenweise reddish  gray  (5Yr5/2).  mag.  org.,  anorg.  mittel  und  minimal grob, glimmer auf ofl. Bdm ca. 4,7; Wst 0,4-0,6; Bst 0,6. inv.nr. ms-11/242. 3) Unverz. gefäß; nur noch einzelne scherben erh., teilweise geklebt: 1 Bs und  19 Ws. ofl. abgearbeitet rau: dark gray (5Yr4/1) bis reddish brown (5Yr5/4). mag. anorg. fein, mittel und minimal grob, glimmer auf ofl. Bdm ca. 5; Wst 0,5; Bst 0,8. inv.-nr. ms-11/242/lesefunde. 4) 3 Bs, 4 Ws und 4 rs;  wahrsch.  zu  einem  vierten  unverz.  gefäß  gehörig.  ofl. abgearbeitet  rau:  yellow  (10Yr7/6)  und  dark  gray  (10Yr4/1) bis very dark gray (10Yr3/1). mag. anorg. fein und mittel, zum teil glimmer. Bdm ca. 7; Wst 0,4-0,6.  inv.-nr. ms-11. 5) rs, unverz.  ofl.  intakt  glatt-matt:  brown  (7.5Yr5/4)  bis  reddish brown (5Yr5/4). mag. anorg. fein und mittel. Wst 0,4. inv.-nr. ms-11/lesefunde. 6) Ws,  unverz.  ofl.  intakt  glatt-matt:  dark grayish brown (10Yr4/2). mag. anorg. fein. Wst 0,4. inv.-nr. ms-11. 7) 4 keramikkrümel. ofl. intakt glatt-matt und abgearbeitet  rau:  dark  grayish  brown  (10Yr4/2).  mag.  anorg. fein  und  mittel,  zum  teil  glimmer.  inv.-nr.  ms-11. 8) 3 silextrümmerstücke.  2  davon  erhitzt. gew.  3,7. inv.-nr. ms-11. Funde: 9) 2 silextrümmerstücke. inv.-nr. ms-11/lesefunde.
+
+## Pfostengrube 1 (Bef. 546) - Abb. 50
+
+Pl. 1: Unregelmäßig kreisförmiger Befund: dm 0,46. die Verfüllung besteht aus mittelbraungrauem, halbfestem, lehmigschluffigem material. Profil: der Befund weist unregelmäßig senkrecht bis leicht nach innen abfallende Wände und einen leicht konvexen Boden auf: t max. 0,42. Objektlokalisierung: rotlehmfragmente (1).
+
+<!-- FREE:PAGE 11 -->
+Funde: 1) Rotlehmfragmente. Anzahl und Gew. n. b. Inv.-Nr. MS-11.
+
+Pfostengrube 2 (Bef. 549) - Abb. 50
+
+Pl. 1: Unregelmäßig kreisförmiger Befund: Dm 0,4-0,48.* Die Verfüllung besteht aus mittelbraungrauem, halbfestem, humosem, lehmig-schluffigem Material. Profil: Der Befund weist senkrecht bis leicht nach innen abfallende Wände und einen waagerechten Boden auf: T max. 0,32.
+
+## Pfostengrube 3 (Bef. 550) - Abb. 50
+
+Pl. 1: Unregelmäßig kreisförmiger Befund: Dm 0,37. Die Verfüllung besteht aus mittelbraungrauem, halbfestem, humosem, lehmig-schluffigem Material. Profil: Der Befund weist senkrecht bis leicht nach innen abfallende Wände und einen konvexen Boden auf: T max. 0,28.
+
+Pfostengrube 4 (Bef. 551) - Abb. 50
+
+Pl. 1: Unregelmäßig kreisförmiger Befund: Dm 0,48.* Die Verfüllung besteht aus mittelbraungrauem, halbfestem, humosem, lehmig-schluffigem Material. Profil: Der Befund weist leicht wellige Wände und einen schrägen Boden auf: T max. 0,3.
+
+## Zwenkau, Lkr. Leipzig (ZW-01)
+
+Grab 1 (Bef. 95-186/24) - Abb. 51; 52
+
+Pl. 1: NW-SO-ausgerichteter, unregelmäßiger Befund mit relativ geraden Grenzen im NW und SW (Befundgrenzen sehr undeutlich und Abgrenzung zum eisenzeitlichen Bef. 95-186/6 im NO unklar): L ca. 2,6; B im NW ca. 1,3. Pl. 2: Mit Brandbestattung. WNW-OSO-ausgerichtete, unregelmäßig ovale Grabgrube (zum Teil undeutliche Grenzen): L ca. 1,1; B ca. 0,83; T ca. 0,1. Die Verfüllung besteht aus mittelgrauem und im zentralen und nördlichen Bereich aus mittelbraunem Schluff. Leichenbrand und Brandreste (45) sind im zentralen Bereich auf einer Fläche von ca. 0,5 mal 0,25 verteilt. Pl. 3: Ähnliche Befundsituation wie auf Pl. 2. WNWOSO-ausgerichtete, unregelmäßig ovale Grabgrube: L ca. 1,2; B ca. 0,92; T ca. 0,15. Die Verfüllung besteht aus mittelgrauem und im zentralen und nördlichen Bereich aus dunkelgrauem Schluff. Leichenbrand und Brandreste (45) sind im zentralen Bereich auf einer Fläche von ca. 0,5 mal 0,25 verteilt. Objektlokalisierung: Fünf Pfeilspitzen (8-11, 30) befinden sich im Bereich des Leichenbrandes. Auf Pl. 3 befindet sich etwa 0,1 nördlich vom Leichenbrand eine Ansammlung von Objekten: ein verz. Glockenbecher (1) vermutlich mit der Öffnung nach oben; östlich daneben zwei Pfeilschaftglätter (33, 34), etwa WNW-OSO-ausgerichtet mit den Enden aneinander und mit den gerillten Breitseiten nach unten; davon südlich ein Schleifstein (36) zum Teil unter (33); davon südlich ein etwa NNO-SSW-ausgerichteter Hammer (31) mit der Arbeitsfläche nach NNO; davon westlich ein weiterer NNO-SSW-ausgerichteter Hammer (32) mit der Arbeitsfläche nach NNO und ein etwa NW-SO-ausgerichteter Schleifstein (39) zwischen (32) und dem Glockenbecher (1). Über dem Hammer (32) lag ein natürliches Geröll (40). In der Ansammlung befinden sich außerdem folgende Objekte, ohne dass deren exakte Position bekannt ist: eine Klinge (12), ein ausgesplittertes Stück (13) und 16 Abschläge (14-29) aus Silex sowie drei Schleifsteine (35, 37, 38). Die Lage der vier Plättchen aus Gold (2-5) und der Bernsteinperlenfragmente (6, 7) ist nicht dokumentiert. Aus der Verfüllung stammen eine verz. WS (41) und sechs unverz. WS (42-44). Bestattung: Leichenbrand. Gew. 1497,1.
+
+Individuum 1: Adult, (21) 25-38 Jahre. Männlich &gt; weiblich. Individuum 2: Wahrsch. Adult. Weiblich &gt; männlich.
+
+Beigaben: 1) Verz. Glockenbecher; zu ca. 30 % erh., teilweise geklebt;  dazu  1  BS,  36  WS  und  1  RS.  Verzierung  aus  mind. sieben  umlaufenden  Zierzonen,  die  durch  unverz.  Bereiche getrennt sind. Oberer Abschluss durch eine waagerechte Linie und ein umlaufendes Band mit senkrechten Linien. ­ Zierzonen ungegliedert  und  durchlaufend  mit  fünf  Motiven  gefüllt:  stehende  gefüllte  Dreiecke  (I),  flächendeckende  schräge  Stempelreihen  (H),  Gittermuster  (F),  Leitermotiv  (E),  hängende gefüllte Dreiecke (J). Erhaltene Abfolge der Zonen von unten nach oben: IHFEHFJ. Innenverzierung knapp unterhalb des Randes aus drei waagerechten Linien. Stempel- und Ritztechnik.  Auf  ebener  Ofl.  befinden  sich  Spuren  roter  Bemalung. Ofl. nur stellenweise intakt glatt-glänzend: pink (7.5YR7/4) bis light brown (7.5YR6/4), Farbreste red (10R4/6); zum Großteil abgearbeitet  glatt-matt  und  rau:  light  brown  (7.5YR6/4)  und gray  (7.5YR6/1)  bis  very  dark  gray  (7.5YR3/1).  Mag.  anorg. mittel  und  grob.  Bdm  ca.  6,5;  Mdm  ca. 14;  Wst  0,5;  Bst  1. Inv.-Nr.  ZW-1/1866/1. 2) Plättchen  aus  Gold.  Leicht  oval, in  zwölf  Facetten  unterschiedlicher  Länge,  davon  eine  wellig.  Gew.  0,016.  Dm  0,4-0,45;  St  ca.  0,01;  L  kürzeste  Facette 0,06; L längste Facette 0,17. Inv.-Nr. ZW-1/1866/2/R6402 (läuft ursprünglich unter Bef. 6). 3) Plättchen aus Gold. Rund, in elf Facetten  unterschiedlicher  Länge.  Gew.  0,02.  Dm  0,47-0,48; St  ca.  0,015;  L  kürzeste  Facette  0,08;  L  längste  Facette  0,155. Inv.-Nr.  ZW-1/1866/2/R7957. 4) Plättchen  aus  Gold.  Leicht oval,  gerundet,  keine  geraden  Schnittkanten.  Leicht  geknickt. Gew. 0,02.  Dm 0,48-0,5;  St  ca.  0,02.  Inv.-Nr.  ZW-1/1866/2/ R7958. 5) Plättchen aus Gold. Rund, in 13 geraden bis leicht gerundeten  Facetten  unterschiedlicher  Länge.  Gew.  0,016. Dm 0,45-0,46; St ca. 0,02;  L  kürzeste  Facette  0,07;  L  längste Facette 0,14. Inv.-Nr. ZW-1/1866/2/R7959. 6) Bernsteinperlenfragment; an zwei Seiten gebrochen. Vermutlich mit Bohrung. Vier intakte Seiten: bearbeitet glatt. Gerundete Kanten. Dusky red  (10R3/2  bis  10R3/3).  Gew.  0,9.  L  1,3;  B  1,3;  St  max.  1. Inv.-Nr.  ZW-1/1866/2. 7) Bernsteinperlenfragment;  an  einer Seite  gebrochen.  Mit  schräger  Bohrung.  Vier  intakte  Seiten: bearbeitet glatt. Scharfe Kanten, eine zum Teil mit abgeplatzten Stellen. Dark reddish gray (10R3/1) und dusky red (10R3/3). Gew. 0,4. L 1,1; B 0,9; St max. 0,7; B Bohrung ca. 0,2. Inv.-Nr. ZW-1/1866/2. 8) Geflügelte Silexpfeilspitze mit rundem Basisausschnitt und eckigen Flügeln aus nordischem Flint. Beidseitig flächig  retuschiert.  Erhitzt.  Gew.  1,1.  L  2,4;  B  1,8;  St  max. 0,4.  Inv.-Nr.  ZW-1/1866/2. 9) Silexpfeilspitze  mit  bogenförmigem Basisausschnitt und runden Flügeln. Beidseitig flächig retuschiert.  Ofl.  aufgrund  von  Hitzeeinwirkung  stellenweise abgeplatzt und rissig. Gew. 1,2. L 2,3; B 2; St max. 0,4. Inv.-Nr. ZW-1/1866/2. 10) Silexpfeilspitze mit bogenförmigem Basisausschnitt; zerbrochen, geklebt. Beidseitig flächig retuschiert. Ofl. aufgrund von Hitzeeinwirkung großteils abgeplatzt und rissig. Gew. 0,9. L 2,1; B 1,9; St max. 0,4. Inv.-Nr. ZW-1/1866/2. 11) Silexpfeilspitze  mit  spitz  zulaufender  Schaftzunge  aus  nordischem Flint. Beidseitig flächig retuschiert. Stark erhitzt. Gew. 1,2. L 2,5; B 1,6; St max. 0,5. Inv.-Nr. ZW-1/1866/2. 12) Silexklinge.  DS  mit  feiner  Retusche  an  beiden  LK  (Gebrauchsretusche?).  VS  mit  Bulbus  und  Schlagwellen.  Gew.  2,8.  L  3,5; B 1,7; St max. 0,4. Inv.-Nr. ZW-1/1866/2. 13) Ausgesplittertes Silexstück. Unregelmäßig fünfeckig. Unregelmäßiger spitzovaler Querschnitt. Beidseitig Abschlagnegative. Gew. 1. L 2,3; B 2,2; St max. 0,6. Inv.-Nr. ZW-1/1866. 14) Silexabschlag. Rechteckig. Dreieckiger Querschnitt. DS mit mehreren Abschlagnegativen. VS mit Bulbus. Länglich dreieckiger, ebener SFR mit abgerollter alter Ofl. Gew. 9. L 4,1; B 2,6; St max. 0,8. Inv.-Nr. ZW-1/1866. 15) Silexabschlag.  Unregelmäßig  halbkreisförmig.  Spitzovaler Querschnitt. DS mit mehreren Abschlagnegativen. VS mit Bulbus und Schlagwellen. Rechteckiger, ebener SFR mit abgerollter alter Ofl. Gew. 7. L 2,6; B 3,5; St max. 0,8. Inv.-Nr. ZW-1/1866. 16) Silexabschlag. Unregelmäßig dreieckig. Dreieckiger Querschnitt.  DS  mit  mehreren  Abschlagnegativen.  VS  mit  Schlagwellen. Dreieckiger, leicht unebener SFR mit abgerollter alter Ofl.  Gew.  11.  L  4,2;  B  4,8;  St  max.  0,9.  Inv.-Nr.  ZW-1/1866. 17) Silexabschlag. Halboval. Dreieckiger Querschnitt. DS mit mehreren Abschlagnegativen und abgerollter alter Ofl. VS mit Schlagwellen und Schlagnarbe. Länglich spitzovaler, ebener SFR mit abgerollter alter Ofl. Gew. 7. L 3,1; B 3,1; St max. 1. Inv.-Nr. ZW-1/1866. 18) Silexabschlag.  Trapezförmig.  Dreieckiger  bis spitzovaler Querschnitt. DS mit zwei Abschlagnegativen. VS mit Bulbus und Schlagwellen und abgerollter alter Ofl. an li LK. Rechteckiger, ebener SFR. Gew. 7. L 3,7; B 3,1; St max. 0,8. Inv.Nr. ZW-1/1866. 19) Silexabschlag. Unregelmäßig. Gebogener dreieckiger  bis  spitzovaler  Querschnitt.  DS  mit  mehreren Abschlagnegativen und verrollter alter Ofl. an li LK. VS mit Bulbus, Schlagwellen und Schlagnarbe. Gebogen länglicher, ebener SFR. Gew. 3. L 3,4; B 3,4; St max. 0,4. Inv.-Nr. ZW-1/1866. 20) Silexabschlag. Unregelmäßig. Spitzovaler Querschnitt. DS mit mehreren Abschlagnegativen. VS mit Bulbus und Schlagwellen. Unregelmäßig länglicher, ebener SFR. Gew. 3. L 2,1; B 2,9; St max. 0,6. Inv.-Nr. ZW-1/1866. 21) Silexabschlag. Fünfeckig. Gebogener dreieckiger Querschnitt. DS mit mehreren Abschlagnegativen und Cortex an li und re LK. VS mit Bulbus und Schlagwellen. Gebogen spitzovaler, ebener SFR. Gew. 11. L 4,6; B 4,6; St max. 0,7. Inv.-Nr. ZW-1/1866. 22) Silexabschlag. Dreieckig. Unregelmäßiger spitzovaler Querschnitt. DS zum Großteil mit Cortex. VS mit Schlagwellen und Schlagnarbe. Nahezu ebener SFR mit abgerollter alter Ofl. Gew. 6. L 2,8; B 3,5; St max. 0,7. Inv.-Nr. ZW-1/1866. 23) Silexabschlag; gebrochen. Unregelmäßig viereckig. Spitzovaler Querschnitt. DS mit mehreren Abschlagnegativen. VS mit Schlagwellen und abgerollter alter Ofl. an li LK. Unebener SFR mit abgerollter alter Ofl. Gew. 3. L 3,5; B 2,7; St max. 0,8. Inv.-Nr. ZW-1/1866. 24) Silexabschlag. Sechseckig. Dreieckiger Querschnitt. DS mit mehreren Abschlagnegativen und teils mit Cortex. VS mit Schlagwellen. Gew. 13. L 3,4; B 4,1; St max. 1,3. Inv.-Nr. ZW-1/1866. 25) Silexabschlag. Viereckig. Spitzovaler Querschnitt. DS mit mehreren Abschlagnegativen. VS mit Schlagwellen. Unebener SFR. Gew. 2. L 2,5; B 2,5; St max. 0,5. Inv.-Nr. ZW-1/1866. 26) Silexabschlag. Trapezförmig. Gebogener spitzovaler Querschnitt. DS mit mind. zwei Abschlagnegativen. VS mit Schlagwellen. Länglich dreieckiger, ebener SFR mit verrollter alter Ofl. Gew. 2. L 3,2; B 3,9; St max. 0,5. Inv.-Nr. ZW-1/1866. 27) Silexabschlag. Viereckig. Spitzovaler Querschnitt. DS mit mehreren Abschlagnegativen und teils mit verrollter alter Ofl. VS mit Schlagwellen. Länglich dreieckiger, nahezu ebener SFR. Gew. 7. L 3; B 3,8; St max. 0,7. Inv.-Nr. ZW-1/1866. 28) Silexabschlag. Unregelmäßig. Gebogener spitzovaler Querschnitt. DS mit mehreren Abschlagnegativen und Cortex an re LK. VS mit Schlagwellen. Unregelmäßig länglicher, ebener SFR. Gew. 9. L 3; B 4,7; St max. 0,5. Inv.-Nr. ZW-1/1866. 29) Silexabschlag. Fünfeckig. Dreieckiger Querschnitt. DS mit mind. zwei Abschlagnegativen und abgerollter alter Ofl. an li LK. VS mit Schlagwellen und Schlagnarbe. Gew. 11. L 4,8; B 3; St max. 1,3. Inv.-Nr. ZW-1/1866. 30) Geflügelte Pfeilspitze mit Schaftzunge und Flügeln aus verkieseltem Sandstein ('Tertiärquarzit'). Beide Seiten im zentralen Bereich mit unregelmäßig vergrateter Ofl. Zu den Schneiden und der Basis hin flächig retuschiert. Gew. 1,7. L 2,5; B 2; St max. 0,5. Inv.-Nr. ZW-1/1866/2. 31) Hammer aus eventuell Amphibolitfels(?). Breitseiten leicht konvex gewölbt, davon eine zur Arbeitsfläche hin abgeschrägt. Schmalseiten eben. Arbeitsfläche eben bis leicht konvex in Beziehung zu Schmalseiten. Schiefer ebener Nacken. Ofl. vollständig glatt geschliffen, am Nacken abgeplatzte Stellen rau. Dark gray (5Y4/1). Gew. 82. L 5,2; B 3,5-4,5; St max. 1,8. Inv.-Nr. ZW-1/1866/2. 32) Hammer aus Amphibolitschiefer. Breitseiten konvex gewölbt. Schmalseiten eben bis leicht konvex gewölbt. Arbeitsfläche eben bis leicht konvex in Beziehung zu Schmalseiten hin gewölbt und schräg in Beziehung zu Breitseiten. Schiefer konvexer Nacken. Ofl. wahrsch. gepickt und überschliffen glatt und rau, abgeplatzte Stellen auf Breitseiten rau, Arbeitsfläche glatt. Dark greenish gray (10GY3/1) und white (N8/) gemasert. Gew. 215,8. L 6,8; B 3,9-5,2; St max. 3,1. Inv.Nr. ZW-1/1866/2. 33) Pfeilschaftglätter aus Sandstein. Eine Breitseite mit schräg von einem Ende zum anderen verlaufender Rille und zu den Schmalseiten hin leicht abfallenden, ebenen Flächen. Gegenüberliegende Breitseite uneben und mit glatt geschliffenem Bereich von ca. Mitte bis zu einem Ende (L ca. 3; B ca. 3). Schmalseiten gerundet. Enden eben. Ofl. vollständig überschliffen  rau.  Light  gray  (7.5YR7/1)  und  pinkish  gray (7.5YR7/2). Gew. 147,8. L 8,6; B 4,7-4,9; St max. 2,5; L Rille 8,5; B Rille 1,2-1,3; T Rille 0,3-0,4. Inv.-Nr. ZW-1/1866/2. 34) Pfeilschaftglätter aus Sandstein. Eine Breitseite mit schräg von einem Ende zum anderen verlaufender Rille und zu den Schmalseiten hin  leicht  abfallenden,  ebenen  Flächen.  Gegenüberliegende Breitseite bildet mit Schmalseiten Rundung, zum Teil unregelmäßig uneben. Enden leicht konvex gewölbt. Ofl. vollständig überschliffen  rau.  Light  gray  (7.5YR7/1)  und  pinkish  gray ( 7 . 5 Y R 7 / 2 ) . Gew. 154,9. L 8,8; B 4,5-4,7; St max. 3; L Rille 8,7; B Rille 1-1,2; T Rille 0,2-0,3. Inv.-Nr. ZW-1/1866/2. 35) Unregelmäßig fünfeckiger Schleifstein aus Sandstein. Breit-, Schmalseiten und Enden uneben. Auf einer Breitseite geschliffener Bereich (L ca. 3; B ca. 2,5) und an einem Ende geschliffener Bereich zwischen beiden Längskanten (B ca. 1,5). Ofl. rau und geschliffene Bereiche glatt. Light gray (5Y7/1). Gew. 129,7. L 7,9; B 5,1-5,7; St max. 1,9. Inv.-Nr. ZW-1/1866/2. 36) Unregelmäßig rechteckiger Schleifstein aus feinem Sandstein(?) (glimmerführend, aus dem Buntsandstein). Eine Breitseite mit zwei Schleifspuren: eine leicht schräg von einer Längskante zur anderen verlaufend (B ca. 3,5-5; T ca. 0,2-0,4), eine in Längsrichtung von einem Ende bis zur anderen Schleifspur verlaufend (L ca. 3; B ca. 3,5; T ca. 0,1). Gegenüberliegende Breitseite mit je einer halbrunden Schleifspur an den Längskanten (L ca. 5,5; B ca. 2; T 0,3 und L 2,5; B ca. 1,3; T 0,05) und mit zentraler, von einer Längskante zur anderen verlaufender Schleifspur (B ca. 5,5; T ca. 0,1-0,2). Eine Schmalseite mit ungefähr zentraler, von einer Längskante zur anderen verlaufender Schleifspur (B ca. 3,7; T ca. 0,3). Andere Schmalseite unregelmäßig uneben. Ein Ende konvex, eins konkav (T ca. 0,2). Ofl. vollständig glatt geschliffen, Ecken zwischen Schmalseiten und Enden abgeplatzt rau. Light gray (5YR7/1) bis pinkish white (5YR8/2). Gew. 313,2. L 11,9; B 9,5-9,9; St max. 2,1. Inv.-Nr. ZW-1/1866/2. 37) Unregelmäßig rechteckiger Schleifstein aus feinem Sandstein (aus dem Buntsandstein). Eine Breitseite mit leicht schräg von einer Längskante zur anderen verlaufender Schleifspur (B ca. 3; T ca. 0,3). Gegenüberliegende Breitseite relativ eben, mit leicht schräg von einer Längskante zur anderen verlaufender Schleifspur (B ca. 2,7; T ca. 0,1). Eine Schmalseite mit zentraler, von einer Längskante zur anderen verlaufender Schleifspur (B max. 2,4; T max. 0,2). Andere Schmalseite mit zentraler, von einer Längskante zur anderen verlaufender Schleifspur (B ca. 2,4; T ca. 0,2); darin feine Kerben, leicht schräg von einer Längskante zur anderen verlaufend. Ein Ende mit diagonal verlaufendem Grat, der zwei ebene, zu den Ecken hin abfallende Flächen trennt. Gegenüberliegendes Ende mit abgerundetem, diagonalem Grat. Ofl. vollständig glatt geschliffen, ebene Breitseite aufgrund abgeplatzter Schieferung rau.  Pinkish gray (5YR6/2 bis 5YR7/2). Gew. 135,2. L 6,4; B 4,5-4,8; St max. 2,8. Inv.-Nr. ZW-1/1866/2. 38) Unregelmäßig trapezoider Schleifstein aus Feinsandstein (aus dem Buntsandstein[?]). Eine Breitseite mit zwei sich kreuzenden Schleifspuren: eine leicht schräg von einer Längskante zur anderen verlaufend (B ca. 1,3-2,2; T ca. 0,3), eine zentral in Längsrichtung verlaufend (B ca. 1-1,8; T ca. 0,1-0,2); jeweils eine Kerbe parallel in jeder Schleifspur verlaufend (L ca. 1; B ca. 0,1). Andere Breitseite mit leicht schräg von einer Längskante zur anderen verlaufender Schleifspur (B ca. 3-3,8; T ca. 0,1). Eine Schmalseite mit zentraler, leicht schräg von einer Längskante zur anderen verlaufender Schleifspur (B ca. 3,2; T ca. 0,3). Gegenüberliegende Schmalseite konkav (T ca. 0,4). Breites Ende mit zentraler, von einer Längskante zur anderen verlaufender Schleifspur (B ca. 2,5; T ca. 0,1). Schmales Ende eben. Ofl. vollständig glatt geschliffen, die leicht schräg zwischen beiden Längskanten auf den Breitseiten verlaufenden Schleifspuren und das schmale Ende sind glänzend. Light gray (7.5YR7/1). Gew. 113,9. L 6,5; B 3,8-5,5; St max. 2,5. Inv.-Nr. ZW-1/1866/2. 39) Unregelmäßig trapezoider Schleifstein aus Feinsandstein (aus dem Buntsandstein[?]). Eine Breitseite mit von einer Längskante zur anderen verlaufender Schleifspur (B ca. 4,5; T max. 0,7) und mit schräg von einer Längskante zur anderen verlaufender Kerbe (L ca. 3,4; B ca. 0,1). Gegenüberliegende Breitseite leicht konkav (T 0,1) und mit halbrunder, an der Kante zum breiten Ende liegender Abflachung (L ca. 2; B ca. 0,8; T ca. 0,1). Eine Schmalseite konkav (T ca. 0,8) und mit mehreren orthogonal oder leicht schräg zu den Längskanten verlaufenden Kerben (L ca. 0,3-1,2). Andere Schmalseite konkav (T ca. 0,2) und mit in Längsrichtung verlaufender Kerbe (L ca. 2,9; B ca. 0,1). Breites Ende konkav (T ca. 0,2) und mit in Längsrichtung verlaufender Schleifspur (L ca. 0,7; B ca. 0,5; T ca. 0,1). Schmales Ende konvex über Diagonale zwischen zwei Ecken gewölbt und mit mehreren orthogonal zu den Längskanten verlaufenden parallelen Kerben (L max. 1). Ofl. vollständig glatt geschliffen. Light gray (7.5YR7/1) bis gray (7.5YR6/1). Gew. 57,9.  L  6,4;  B  2,1-3,6;  St  max.  2,1.  Inv.-Nr.  ZW-1/1866/2. 40) Natürliches Geröll. Nicht geborgen. Gew. n. b.
+
+<!-- FREE:PAGE 12 -->
+
+
+<!-- FREE:PAGE 13 -->
+Funde: 41) WS, verz. Frühneolithisch (Stichbandkeramik). Inv.Nr. ZW-1/1866/1. 42) 4 WS, unverz. Frühneolithisch. Inv.-Nr. ZW-1/1866/1. 43) WS, unverz. Inv.-Nr. ZW-1/1866/1. 44) WS, unverz. Inv.-Nr. ZW-1/1866/1. 45) Brandreste mit Knochen, Keramik, Erde und Holzkohle. Gew. 52,95.
+
+Befund 1 (Bef. 95-186/3) - Abb. 53
+
+Pl. 1: NW-SO-ausgerichteter, ovaler Befund: L 2,05; B 1,27. Pl. 2: -. Profil: Der Befund weist flachschräg nach innen abfallende Wände und einen waagerechten Boden auf: T max. 0,13. Die Verfüllung besteht aus dunkelgraubraunem, kompaktem, lehmig-humosem Material. Störungen: Der Befund ist durch eine NW-SO-ausgerichtete Drainageleitung gestört. Der SO-Teil ist modern und das Zentrum durch Tiergänge gestört. Objektlokalisierung: Die Position der folgenden Objekte ist nicht dokumentiert: zwei verz. Glockenbecher (1, 2), eine verz. WS (3), zwei unverz. WS (4), zehn WS Grobkeramik (5), eine Silexklinge (6) und ein Silexabschlag (7).
+
+Funde: 1) Verz. Glockenbecher; zu ca. 40 % erh., geklebt; dazu 24 WS und 2 RS. Verzierung aus sieben umlaufenden Zierzonen, die durch unverz. Bereiche getrennt sind. Unterer Abschluss durch  eine  und  oberer  Abschluss  durch  zwei  waagerechte Linien.  Zierzonen ungegliedert und durchlaufend mit zwei Motiven verziert: Gittermuster (F), flächendeckende schräge Stempelreihen (H). Abfolge der Zonen von unten nach oben: FHFHFHF. Stempeltechnik. Auf ebener Ofl. und in den Vertiefungen befinden sich Spuren roter Bemalung. Ofl. großteils intakt glatt-matt: reddish yellow (7.5YR7/6) und yellowish red (5YR5/6), Farbreste red (10R4/6); wenige abgearbeitete Stellen rau: black (10YR2/1). Mag. anorg. fein und mittel. H 11,5; Bdm 5,7; Gdm 11,4; Mdm ca. 11; Wst 0,4-0,6; Bst 0,9-1,1. Inv.-Nr. ZW-1/1829. 2) Verz. Glockenbecher; zu ca. 75% erh., geklebt; dazu 18 WS und 3 RS. Verzierung aus fünf umlaufenden Zierzonen, die durch unverz. Bereiche getrennt sind. Oberer Abschluss aus umlaufendem Band mit senkrechten Linien. Zierzonen ungegliedert und durchlaufend mit einem Motiv verziert: Band mit flächendeckenden schrägen Stempelreihen, das jeweils oben und unten durch gleichstarke Bänder mit senkrechten Linien gerahmt ist  (K). Abfolge der Zonen von unten nach oben: KKKKK. Innenverzierung knapp unterhalb des Randes aus drei waagerechten Linien. Stempel- und Ritztechnik. Auf ebener Ofl. und in den Vertiefungen befinden sich Spuren roter Bemalung. In den Vertiefungen befinden sich Reste weißer Inkrustation. Ofl. großteils intakt glatt-rest., auf einer WS intakt glatt-glänzend: yellowish red (5YR5/6) bis reddish yellow (7.5YR6/6), Farbreste red (10R4/6); wenige abgearbeitete Stellen rau: black (10YR2/1). Mag. anorg. fein und mittel. H 16,4; Bdm 7,6-7,7; Gdm 14,4; Mdm ca. 14; Wst 0,4-0,6; Bst 0,9. Inv.-Nr. ZW-1/1829. 3) WS, verz. Frühneolithisch. Inv.-Nr. ZW-1/1829. 4) 2 WS, unverz. Frühneolithisch. Inv.-Nr. ZW-1/1829. 5) 10 WS, Grobkeramik. Inv.-Nr. ZW-1/1829. 6) Silexklinge; distal abgebrochen. Inv.-Nr. ZW-1/1829. 7) Silexabschlag. Inv.-Nr. ZW-1/1829.
+
+Grab 2 (Bef. 96-187/1) - Abb. 53
+
+Pl. 1: Rundlich-ovale Grabgrube: L 1,6; B 1,45. Pl. 2: Mit Körperbestattung. OSO-WNW-ausgerichtete, ovale Grabgrube mit konkaven Längsseiten: L 0,82; B 0,27-0,44; T 0,84. Die Verfüllung besteht aus grauem, sandig-kiesigem Material. Profil: Die Grabgrube weist im Profil senkrecht bis leicht schräg nach innen abfallende Wände und wahrsch. einen leicht konkaven Boden auf: T max. 0,84. Objektlokalisierung: Die Lage der unverz. Amphore (1) mit Gefäßinhalt (2) ist nicht dokumentiert. Aus der Verfüllung stammen 27 WS und drei RS (3-6) sowie 29 WS und zwei RS Grobkeramik (7), eine Silexklinge (8) und zwei Silexabschläge (9).
+
+Bestattung: OSO-WNW-ausgerichteter, wahrsch. li Hocker in Seitenlage mit Blick etwa nach S.
+
+Beide Oberschenkel wahrsch. angewinkelt, ein Unterschenkel angewinkelt.
+
+Beigaben: 1) Unverz. Amphore mit zwei Ösen; fast vollständig, eine Öse abgebrochen, drei längliche Löcher im Bauchbereich. Schräger Standboden. Ofl. abgearbeitet(?) rau: very pale brown (10YR7/4) und gray (10YR5/1), im Randbereich very dark gray (10YR3/1). Mag. org. und anorg. mittel und grob. H 9,3; Bdm 3,2-3,3; Gdm 8; Mdm 4,8-5,3; Wst 0,4-0,6; Bst 0,8-1. Inv.-Nr. ZW-1/1791. 2) Organischer Gefäßinhalt. Teerartig, dunkelbraun. Gew. 143,2. Inv.-Nr. ZW-1/1791/3.
+
+Funde: 3) WS, verz. Inv.-Nr. ZW-1/1791. 4) 4 WS und 1 RS, verz. Frühneolithisch. Inv.-Nr. ZW-1/1791. 5) 6 WS und 2 RS, unverz. Frühneolithisch. Inv.-Nr. ZW-1/1791. 6) 16 WS, unverz. Inv.-Nr. ZW-1/1791. 7) 29 WS und 2 RS, Grobkeramik. Inv.-Nr. ZW-1/1791. 8) Silexklinge. Inv.-Nr. ZW-1/1791. 9) 2 Silexabschläge. Inv.-Nr. ZW-1/1791/1.
+
+Grab 3 (Bef. 98-195/7) - Abb. 53; 54
+
+Pl. 1: Ovale Grabgrube: L 2,5; B 1,8. Die Verfüllung besteht aus dunkelgrauem, kompaktem, lehmig-humosem Material. Pl. 2: Mit Körperbestattung. O-W-ausgerichtete, unregelmäßig ovale Grabgrube: L mind. 1,45; B mind. 1,27; T ca. 0,9. Die Verfüllung besteht aus braunem Grobkies. Im Bereich des Skelettes befindet sich graues, lehmig-toniges Material. Im Bereich der Gefäße befindet sich graubraunes bis dunkelgraues, lehmig-humoses Sediment. Profil: Die Grabgrube weist im W eine gestuft senkrecht abfallende Wand, im O eine stark wellige Wand, im S eine leicht wellige oben nach außen und unten nach innen abfallende Wand und im N eine oben wellige, flachschräg nach innen und unten senkrecht abfallende Wand auf. Der Boden ist von S nach N leicht wellig bis gerade und von W nach O leicht konvex: T max. 1,1. Objektlokalisierung: Südöstlich vor dem Unterkiefer befindet sich eine ONO-WSW-ausgerichtete Silexklinge (3). Etwas weiter südlich vor dem Becken und westlich des Calvariums befindet sich eine verz. Amphore (1) mit der Öffnung nach oben und unmittelbar östlich daneben ein verz. krugähnliches Gefäß (2) auf der Seite liegend mit der Öffnung nach NO. Aus der Verfüllung stammen drei RS (4), eine BS und 32 WS Grobkeramik (5) und ein Silextrümmerstück (6).
+
+Bestattung: O-W-ausgerichteter, li Hocker in Seitenlage.
+
+Das Calvarium befindet sich ca. 0,5 südlich vom Skelett. Beide Oberschenkel angewinkelt, ein Unterschenkel stark angewinkelt.
+
+Adult, 24-39 (50) Jahre. Männlich &gt; weiblich.
+
+Beigaben: 1) Verz. Amphore mit vier Ösen; zu ca. 90 % erh., geklebt. Jeweils zwei gleichgroße, einander gegenüberliegende Ösen. Verzierung auf Schulter aus drei umlaufenden Zickzackbändern aus jeweils drei parallelen Ritzlinien. Unterer Abschluss durch eine umlaufende Reihe runder Einstiche. Verzierung auf oberem Schulterbereich aus hängenden, mit Schnurlinien gefüllten Dreiecken. Verzierung auf Hals durch umlaufende Schnurlinien (Doppellinien) und zentrale, erhabene Leiste mit rechteckigen Kerben. Oberer Abschluss durch umlaufendes Band mit senkrechten Kerben. Handhaben durch senkrechte Schnurlinien verziert. Ritz-, Schnur- und Stichtechnik. Ofl. intakt glatt-matt und glatt-glänzend und abgearbeitet rau: gray (10YR5/1) bis very dark gray (10YR3/1) und very pale brown (10YR7/3 bis 10YR8/4), mit Flecken reddish yellow (5YR7/6). Mag. anorg. mittel und grob. H 20,4-21,4; Bdm 7,3-7,5; Gdm ca. 26; Mdm 10,2; Wst 0,4-0,6; Bst 0,7-0,9. Inv.-Nr. ZW-1/1516. 2) Verz. krugähnliches Gefäß mit Öse; nur noch einzelne Scherben erh., teilweise geklebt: 1 BS, 15 WS und 3 RS. Verzierung auf Schulter aus umlaufender Reihe runder Einstiche und mind. einer Schnurlinie. Knapp unterhalb des Randes mind. zwei umlaufende Schnurlinien. Öse durch senkrechte Reihe rechteckiger Einstiche verziert. Schnur- und Stichtechnik. Ofl. stellenweise intakt und großteils abgearbeitet glatt-rest.: yellow (10YR7/6) und very pale yellow (10YR7/4), am Boden gray (10YR5/1) bis dark gray (10YR4/1). Mag. anorg. mittel und grob. Bdm ca. 5,3; Mdm ca. 7; Wst 0,4-0,6; Bst 0,6. Inv.-Nr. ZW-1/1516. 3) Silexklinge; proximal und distal abgebrochen. VS mit Schlagnarbe und Schlagwellen und Retusche an beiden LK und am distalen Ende. Gew. 9,2. L 4,6; B 2,2; St max. 0,8. Inv.-Nr. ZW-1/1516/3.
+
+<!-- FREE:PAGE 14 -->
+Funde: 4) 3 RS, verz. Frühneolithisch. Inv.-Nr. ZW-1/1516. 5) 1 BS und 32 WS, Grobkeramik. 6) 1 Silextrümmerstück. Inv.-Nr. ZW-1/1516.
+
+Grab 4 (Bef. 96-186/9) - Abb. 54
+
+Pl. 1: WNW-OSO-ausgerichtete, unregelmäßig ovale Grabgrube: L ca. 1,5; B ca. 1,2. Pl. 2: Mit Körperbestattung. OSO-WNWausgerichtete, unregelmäßig längliche Grabgrube mit welligen Grenzen (zum Teil undeutlich zu erkennen): L 1,43; B 0,7-0,94; T 0,7-0,75. Die Verfüllung besteht im W aus graubraunem, kompaktem, humosem Material, im Zentrum aus weißgelbem bis gelbem, lehmigem Material und im O aus grauem, sandigem Material. Profil: Der Befund weist senkrecht abfallende Wände auf. Objektlokalisierung: Aus der Verfüllung stammen vier WS und eine RS (1), neun WS (2), 95 WS, vier RS und eine Handhabe Grobkeramik (3) und zwei Silextrümmerstücke (4).
+
+Bestattung: OSO-WNW-ausgerichteter, re Hocker in Seitenlage mit Blick nach N.
+
+Beide Unterschenkel wahrsch. stark angewinkelt. Beigaben: -.
+
+Funde: 1) 4  WS  und  1  RS,  verz.  Frühneolithisch.  Inv.-Nr. ZW-1/1802. 2) 9  WS,  unverz.  Frühneolithisch.  Inv.-Nr. ZW-1/1802. 3) 95 WS, 4 RS und 1 Handhabe, Grobkeramik. Inv.Nr. ZW-1/1802 4) 2 Silextrümmerstücke. Inv.-Nr. ZW-1/1802.
+
+Grab 5 (Bef. 96-187/5) - Abb. 55
+
+Pl. 1: Rundlich-ovale Grabgrube: L ca. 1,9; B ca. 1,6. Pl. 2: Mit Körperbestattung. WNW-OSO-ausgerichtete, unregelmäßig ovale Grabgrube mit welligen Grenzen (zum Teil undeutlich zu erkennen): L 1,75; B 1,05-1,42; T 0,43-0,47. Die Verfüllung besteht aus graubraunem, kompaktem, humosem Material. Im SO befindet sich ein bis zu 0,43 breites unregelmäßiges Band aus gelblichem, sandig-lehmigem Material. Um das Skelett befinden sich Felsgesteine mit Seitenlängen bis zu 0,1 unregelmäßig verteilt. Profil: Der Befund weist senkrecht bis leicht nach innen abfallende Wände auf. Objektlokalisierung: Aus der Verfüllung stammen eine WS (1), zwei WS (2), 125 WS und zwei RS Grobkeramik (3), eine Silexklinge (4) und drei Silexabschläge (5).
+
+Bestattung: WNW-OSO-ausgerichteter, re Hocker in Seitenlage mit Blick nach S.
+
+Beide Oberarme am Körper angelegt; re Unterarm ausgestreckt, Hand wahrsch. vorm Becken. Beide Oberschenkel angewinkelt, beide Unterschenkel stark angewinkelt .
+
+## Beigaben: -.
+
+Funde: 1) WS, verz. Frühneolithisch. Inv.-Nr. ZW-1/1787. 2) 2  WS, unverz. Frühneolithisch. Inv.-Nr. ZW-1/1787. 3) 125 WS und 2 RS, Grobkeramik. Inv.-Nr. ZW-1/1787. 4) Silexklinge; proximal und distal abgebrochen. Inv.-Nr. ZW-1/1787. 5) 3 Silexabschläge. Inv.-Nr. ZW-1/1787.
+
+## Großstorkwitz, Lkr. Leipzig (PEG-08)
+
+Grab 1 (Bef. 128) - Abb. 56
+
+Pl.  1: ONO-WSW-ausgerichtete,  unregelmäßig  rechteckige Grabgrube mit abgerundeten Ecken: L 1,6; B 0,9. Die Verfüllung besteht aus dunkelgraubraunem, halbfestem, humosem, schluffigem Lehm mit kleinen Lösseinschlüssen. Pl. 2: Mit Körperbestattung. NO-SW-ausgerichtete, rechteckige Grabgrube mit leicht welligen Seiten: L 0,95; B 0,74; T 0,19. Störungen: Leicht bioturbiert. Objektlokalisierung: Hinter dem Skelett in  Lendengegend befindet  sich  eine  Schale  (1)  mit  der  Öffnung nach oben. Aus der Verfüllung stammen 24 WS, eine BS und eine RS (2, 3), eine Klinge (4) sowie ein Abschlag (5) aus Silex.
+
+Bestattung: ONO-WSW-ausgerichteter, li Hocker mit Blick nach SO.
+
+Beide Oberarme am Körper angelegt, beide Unterarme stark angewinkelt, Hände vorm Gesicht. Beide Ober- und Unterschenkel stark angewinkelt. Einige Hand- und Fußknochen sowie Rippen sind durch Wühler verschleppt.
+
+Spätadult-Frühmatur, (26) 35-45 Jahre. Männlich.
+
+Beigaben: 1) Unverz. Standringschale mit umlaufender Riefe knapp unterhalb des Randes; zu ca. 60 % erh., geklebt; dazu 5 WS. Ofl. großteils intakt glatt-matt: brown (7.5YR5/3) bis light brown (7.5YR6/4) und gray (7.5YR5/1) bis very dark gray und black (7.5YR3/1-2.5/1). Mag. anorg. fein bis mittel und minimal grob, Glimmer auf Ofl. H 10,1; Dm Standring ca. 10; Gdm 17,4; Mdm 15,3-16,5; Wst 0,5-0,7. Inv.-Nr. PEG-08/933.
+
+Funde: 2) 23 WS, 1 BS, 1 RS, unverz. Urgeschichtlich. Inv.-Nr. PEG-08/30/761. 3) WS, unverz. Frühneolithisch. Inv.-Nr. PEG08/30. 4) Silexklinge; proximal abgebrochen. Inv.-Nr. PEG08/30. 5) Silexabschlag. Inv.-Nr. PEG-08/30.
+
+Grab 2 (Bef. 127) - Abb. 56
+
+Pl.  1: NNO-SSW-ausgerichtete, rechteckige Grabgrube mit abgerundeten Ecken: L 1,35; B 0,9.* Die Verfüllung besteht aus dunkelgraubraunem bis schwarzem, festem bis halbfestem, sehr humosem, schluffigem Lehm. Pl. 2: Mit Körperbestattung. NNO-SSW-ausgerichtete, ovale Grabgrube: L 1,5; B 1,02; T 0,11. Störungen: Leicht bioturbiert. Objektlokalisierung: Eine Silexklinge (1) befand sich in der NNW-Ecke bzw. im Fußbereich der Bestattung. Eine WS (2) stammt aus der Verfüllung.
+
+Bestattung: SSW-NNO-ausgerichteter, re Hocker mit Blick nach O.
+
+Beide Oberarme am Körper angelegt, beide Unterarme stark angewinkelt, Hände vorm Gesicht. Beide Ober- und Unterschenkel stark angewinkelt. Rippen und Wirbel sind durch Wühler verschoben.
+
+Juvenil, 11-12 Jahre. Männlich &gt; weiblich.
+
+Beigaben: 1) Silexklinge; distal abgebrochen. DS mit mehreren Abschlagnegativen, leichte Retusche an re LK im distalen Bereich. VS mit leichter Retusche an re LK vor allem im proximalen Bereich. Dreieckiger Querschnitt. Gew. 4,04. L 4,7; B 1,4; St max. 0,6. Inv.-Nr. PEG-08/794.
+
+Funde: 2) WS, unverz. Urgeschichtlich. Inv.-Nr. PEG-08/793.
+
+## Großstorkwitz, Lkr. Leipzig (PEG-05)
+
+Einzelfund aus früheisenzeitlichem Bef. 63. - Abb. 56
+
+1) WS, verz. Eine Zierzone mit zwei Leitermotiven (E), die durch unverz. Bereich getrennt sind. Abrollung: E2. Stempeltechnik. Ofl. abgearb. glatt-matt: reddish yellow (7.5YR6/6-5YR6/6). Mag. anorg. fein bis mittel, Glimmer auf Ofl. und im Bruch. Wst 0,6. Inv.-Nr. PEG-05/899.
+
+## Großstorkwitz, Lkr. Leipzig (PEG-04)
+
+Einzelfund aus Verfüllung eines vermutlich mittelalterlichen Grabes (Bef. 572). - Abb. 56
+
+<!-- FREE:PAGE 15 -->
+1) WS, verz. Schmales Band mit senkrechten Linien. Stempeltechnik. Ofl. abgearb. glatt-matt: gray (10YR5/1). Mag. anorg. fein, Glimmer auf Ofl. und im Bruch. Wst 0,4. Inv.-Nr. PEG04/179.
+
+## Großstorkwitz, Lkr. Leipzig (ZAX-19)
+
+Einzelfund bei  Feldbegehung  am  31.03.2007  durch  André Gerdts. - Abb. 56
+
+1) WS, verz. Band mit aneinandergereihten, auf einer Ecke stehenden ausgesparten Vierecken (L), das oben und unten durch schmale Bänder mit senkechten Linien gerahmt wird. Stempeltechnik. Ofl. abgearb. glatt-matt: reddish yellow (7.5YR6/6). Mag. anorg. fein, Glimmer auf Ofl. Wst 0,5. Inv.-Nr. ZAX19/1/10.
+
+## Großstorkwitz, Lkr. Leipzig (ZAX-20)
+
+Einzelfund bei  Feldbegehung  am  24.09.2006  durch  André Gerdts. - Abb. 56
+
+1) RS, verz. Band mit senkrechten Stempelreihen gefüllt (M), unter dem Rand eine umlaufende Linie. Stempeltechnik. Ofl. abgearb. glatt-matt: reddish yellow (7.5YR7/6-6/6). Mag. anorg. fein, Glimmer auf Ofl. Wst 0,7. Inv.-Nr. ZAX-20/1/3.
+
+## Wehlitz, Lkr. Nordsachsen (WEH-11)
+
+Grab 1 (Bef. 30) - Abb. 57; 58
+
+Pl. 1: N-S-ausgerichtete, rechteckige Grabgrube mit gerundet zipfelartigen Ausbuchtungen an den Ecken und leicht konvexen Längsseiten: L 1,9; B 0,84. Ohne Ausbuchtungen: L 1,56. Die Verfüllung besteht im langovalen bis unregelmäßig rechteckigen Inneren aus dunkelbraunem, festem, lehmig-humosem Material sowie aus gelbbraunem Material an den Ausbuchtungen. Pl. 2: Mit Körperbestattung. N-S-ausgerichtete, unregelmäßig rechteckige Grabgrube mit gerundet zipfelartigen Ausbuchtungen an den Ecken und leicht konvexen Längsseiten: L 1,9; B 0,88; T 0,2.* Ohne Ausbuchtungen: L 1,6; B 0,7-0,8.* Die Verfüllung im unregelmäßig langovalen Inneren und der SW-Ausbuchtung besteht aus dunkelbraunem, festem, lehmig-humosem Material sowie aus gelbbraunem Material an den übrigen Ausbuchtungen. SO- und NO-Ausbuchtung sind durch einen an der östlichen Längsseite verlaufenden Steg gleichen Sedimentes verbunden: B 0,03. Pl. 3: Mit Körperbestattung. N-S-ausgerichtete, langovale Grabgrube: L 1,65; B 0,8; T 0,29.* Die Verfüllung besteht aus dunkelbraunem, festem, lehmig-humosem Material. Grabeinbauten: Ausbuchtungen als Reste eines hölzernen Grabeinbaus? Profil: Der Befund weist leicht schräg nach innen abfallende Wände sowie einen waagerechten Boden auf: T max. 0,34. W-O-Querprofil durch SO-Ausbuchtung: muldenför-
+
+<!-- FREE:PAGE 16 -->
+N
+
+1
+
+2
+
+mig mit zwei Schichten, oben grau, unten hellgrau bis braun: T 0,24. N-S-Profil durch SW-Ausbuchtung: im S schräg nach innen abfallende Wandung, waagerechter Boden, im S hellgrau bis braune Schicht, die unter eine graue Schicht (Grabgrube) zieht: T 0,25. Objektlokalisierung: Ein verz. Glockenbecher (1) befindet sich nördlich der Unterschenkel. Direkt daneben liegt ein Tierknochen (2).
+
+Bestattung: S-N-ausgerichteter, re Hocker in Seitenlage mit Blick nach O.
+
+Ein Oberarm wahrsch. am Körper angelegt, ein Unterarm wahr­ sch. stark angewinkelt, eine Hand vorm Gesicht. Beide Oberschenkel angewinkelt, beide Unterschenkel stark angewinkelt. Spätadult-frühmatur, 35-45 Jahre. Weiblich &gt; männlich.
+
+Beigaben: 1) V erz. Glockenbecher; sehr schlecht erhalten, geklebt,
+
+1
+
+teils mit Gips rekonstruiert; dazu 16 WS, 1 RS sowie mehrere Keramikkrümel. Verzierung aus zwei umlaufenden Zierzonen, die durch unverz. Bereich getrennt und jeweils oben und unten durch mit senkrechten Linien gefüllte Bänder gerahmt sind. Zierzonen ungegliedert und durchlaufend mit einem Motiv verziert: schmales Band mit aneinandergereihten, auf einer Ecke stehenden Vierecken (L). Am Übergang von der Gefäßwandung zum Boden ein umlaufendes Band mit senkrechten Linien. Abfolge der Zonen von unten nach oben: LL. Stempeltechnik. Ofl. teils intakt glatt-rest.: dark grayish brown bis very dark grayish brown (10YR4/2-3/2) bis yellowish red (5YR5/6), zwei Stellen black (10YR2/1); abgearbeitet rau: red (2.5YR5/6-4/6). Mag. anorg. fein bis mittel. Bdm 5,5; Wst 0,5-0,8; Bst 0,7. Inv.-Nr. WEH-11/4. 2) Tierknochen(?), n. b.

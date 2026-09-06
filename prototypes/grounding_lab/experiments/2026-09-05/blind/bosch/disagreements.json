@@ -1,0 +1,3505 @@
+[
+  {
+    "claim": {
+      "claimId": "c0026",
+      "value": "2",
+      "resultPath": [
+        "records",
+        20,
+        "grave_goods",
+        1,
+        "item_id"
+      ],
+      "context": "item_type: Tasse",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.14",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3089",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Süden",
+        "body_position": "rechter Hocker",
+        "sex": "eher weiblich",
+        "age_class": "adult",
+        "individual_count": 1,
+        "pit_length_value": 2.17,
+        "pit_length_unit": "m",
+        "pit_width_value": 0.91,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0026",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_211bdb3e4f35d200221f767ca18f0a8ba4c20646fc65d991c44dec2bbb162411"
+        ]
+      ],
+      "note": "7.14 Burgweinting Obj. 3089: The canonical list omits item 2 but the narrative explicitly retains its number; PDF p13 confirms it.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0026",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_ac3d8cedd76989eca192eac9b0447311f7777f65eb06521ad212ad7c287f5ef4"
+        ],
+        [
+          "anchor_211bdb3e4f35d200221f767ca18f0a8ba4c20646fc65d991c44dec2bbb162411"
+        ]
+      ],
+      "note": "Catalogue 7.14; PDF page(s) 13. PDF p13 confirms the canonical inventory phrase with Taf. 18,2 belongs to item 2, also explicit in the narrative.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0031",
+      "value": "Grab 1",
+      "resultPath": [
+        "records",
+        0,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 1, site: Aiterhofen, district: Ldkr. Straubing-Bogen, Niederbayern, burial_type: Körpergrab, orientation: Kopf im Norden, body_position: linker Hocker, sex: männlich, individual_count: 1, pit_length_value: 1.7, pit_length_unit: m, pit_width_value: 0.9, pit_width_unit: m, pit_depth_value: 0.8, pit_depth_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "1",
+        "site": "Aiterhofen",
+        "district": "Ldkr. Straubing-Bogen, Niederbayern",
+        "grave_id": "Grab 1",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "individual_count": 1,
+        "pit_length_value": 1.7,
+        "pit_length_unit": "m",
+        "pit_width_value": 0.9,
+        "pit_width_unit": "m",
+        "pit_depth_value": 0.8,
+        "pit_depth_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0031",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_1575d0b8377e21172f892a8b210b0e8ffcc68e8745fec8a2b999629bf5b8138a"
+        ]
+      ],
+      "note": "1 Aiterhofen Grab 1: PDF page(s) 4: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0031",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_1575d0b8377e21172f892a8b210b0e8ffcc68e8745fec8a2b999629bf5b8138a"
+        ],
+        [
+          "anchor_7560987e6beeacd4247a9d513e6e2874fe5da24682ad75b09c995dd13ca2aac0"
+        ]
+      ],
+      "note": "Catalogue 1; PDF page(s) 4. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0038",
+      "value": "3",
+      "resultPath": [
+        "records",
+        9,
+        "grave_goods",
+        2,
+        "item_id"
+      ],
+      "context": "item_type: Silexkratzer",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.2",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 2011",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordosten",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "adult",
+        "individual_count": 1,
+        "pit_length_value": 2.26,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.29,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0038",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_e5d7d908c2dc91faaf66fb1945ea44b07b3fec2db7caa4c460feeff200b40aee"
+        ],
+        [
+          "anchor_dbcfff2beaf76e6b26a4ecfef0d98ce0eb0af4a9bd73f5408475a8663d49f41e"
+        ]
+      ],
+      "note": "7.2 Burgweinting Obj. 2011: PDF page(s) 8, 9: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0038",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_e5d7d908c2dc91faaf66fb1945ea44b07b3fec2db7caa4c460feeff200b40aee"
+        ],
+        [
+          "anchor_a0c59268694901123e803fd926a9c19da3c652ef2622c3ba3cf1c22bb20fc414",
+          "anchor_dbcfff2beaf76e6b26a4ecfef0d98ce0eb0af4a9bd73f5408475a8663d49f41e"
+        ]
+      ],
+      "note": "Catalogue 7.2; PDF page(s) 8, 9. The inventory identifies Silexkratzer 3; narrative type and marker continue on the next anchor.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0050",
+      "value": 1,
+      "resultPath": [
+        "records",
+        10,
+        "individual_count"
+      ],
+      "context": "catalogue_id: 7.3, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 2012, burial_type: Körpergrab, orientation: Kopf im Norden, body_position: Rückenhocker mit Kopf und Beinen zur rechten Seite gelegt, sex: männlich, age_class: adult, pit_length_value: 2.26, pit_length_unit: m, pit_width_value: 1.06, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.3",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 2012",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "body_position": "Rückenhocker mit Kopf und Beinen zur rechten Seite gelegt",
+        "sex": "männlich",
+        "age_class": "adult",
+        "individual_count": 1,
+        "pit_length_value": 2.26,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.06,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0050",
+      "valueSupported": false,
+      "goldAnchorSets": [],
+      "note": "7.3 Burgweinting Obj. 2012: PDF p9 describes the male individual but states no explicit total individual count.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0050",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_4846c2f84e70f236660dc1c1dc9474739444739df42c8c70b637f587032e7717"
+        ]
+      ],
+      "note": "Catalogue 7.3; PDF page(s) 9. The text explicitly describes one adult male Rücken-/Rückenhocker burial.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0072",
+      "value": "Silexkratzer",
+      "resultPath": [
+        "records",
+        9,
+        "grave_goods",
+        2,
+        "item_type"
+      ],
+      "context": "item_id: 3",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.2",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 2011",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordosten",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "adult",
+        "individual_count": 1,
+        "pit_length_value": 2.26,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.29,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0072",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_e5d7d908c2dc91faaf66fb1945ea44b07b3fec2db7caa4c460feeff200b40aee"
+        ],
+        [
+          "anchor_dbcfff2beaf76e6b26a4ecfef0d98ce0eb0af4a9bd73f5408475a8663d49f41e"
+        ]
+      ],
+      "note": "7.2 Burgweinting Obj. 2011: PDF page(s) 8, 9: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0072",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_e5d7d908c2dc91faaf66fb1945ea44b07b3fec2db7caa4c460feeff200b40aee"
+        ],
+        [
+          "anchor_a0c59268694901123e803fd926a9c19da3c652ef2622c3ba3cf1c22bb20fc414",
+          "anchor_dbcfff2beaf76e6b26a4ecfef0d98ce0eb0af4a9bd73f5408475a8663d49f41e"
+        ]
+      ],
+      "note": "Catalogue 7.2; PDF page(s) 8, 9. The inventory identifies Silexkratzer 3; narrative type and marker continue on the next anchor.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0077",
+      "value": "Obj. 3089",
+      "resultPath": [
+        "records",
+        20,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 7.14, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, burial_type: Körpergrab, orientation: Kopf im Süden, body_position: rechter Hocker, sex: eher weiblich, age_class: adult, individual_count: 1, pit_length_value: 2.17, pit_length_unit: m, pit_width_value: 0.91, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.14",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3089",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Süden",
+        "body_position": "rechter Hocker",
+        "sex": "eher weiblich",
+        "age_class": "adult",
+        "individual_count": 1,
+        "pit_length_value": 2.17,
+        "pit_length_unit": "m",
+        "pit_width_value": 0.91,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0077",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_39dd9857ec53494e0f33ec46fff778c5549769cfb89d4b652baccc2c8d7c9194"
+        ]
+      ],
+      "note": "7.14 Burgweinting Obj. 3089: This identity is source-stated; eligibility or first-20 selection is a separate question.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0077",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_39dd9857ec53494e0f33ec46fff778c5549769cfb89d4b652baccc2c8d7c9194"
+        ],
+        [
+          "anchor_26f7ca89d6c5beaf925676c28070e9bb18279340bb88b4ca6675713e1b0a87f9"
+        ]
+      ],
+      "note": "Catalogue 7.14; PDF page(s) 13. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0081",
+      "value": "Obj. 2012",
+      "resultPath": [
+        "records",
+        10,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 7.3, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, burial_type: Körpergrab, orientation: Kopf im Norden, body_position: Rückenhocker mit Kopf und Beinen zur rechten Seite gelegt, sex: männlich, age_class: adult, individual_count: 1, pit_length_value: 2.26, pit_length_unit: m, pit_width_value: 1.06, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.3",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 2012",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "body_position": "Rückenhocker mit Kopf und Beinen zur rechten Seite gelegt",
+        "sex": "männlich",
+        "age_class": "adult",
+        "individual_count": 1,
+        "pit_length_value": 2.26,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.06,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0081",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_5c2113540f9fd6d37a7cbd11c3679d6c558b99a3437da1c188999e54de000183"
+        ]
+      ],
+      "note": "7.3 Burgweinting Obj. 2012: PDF page(s) 9: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0081",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_5c2113540f9fd6d37a7cbd11c3679d6c558b99a3437da1c188999e54de000183"
+        ],
+        [
+          "anchor_a22cdc2ed4b7cfe205b69eb4ca5a47723a0b91751d1325d0b0e90eaaa4ece679"
+        ]
+      ],
+      "note": "Catalogue 7.3; PDF page(s) 9. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0083",
+      "value": 1,
+      "resultPath": [
+        "records",
+        7,
+        "individual_count"
+      ],
+      "context": "catalogue_id: 6.2, site: Barbing, district: Ldkr. Regensburg, Oberpfalz, grave_id: Grab 7, burial_type: Körpergrab, orientation: Kopf im Nordosten, body_position: linker Hocker, sex: vermutlich männlich",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "6.2",
+        "site": "Barbing",
+        "district": "Ldkr. Regensburg, Oberpfalz",
+        "grave_id": "Grab 7",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordosten",
+        "body_position": "linker Hocker",
+        "sex": "vermutlich männlich",
+        "individual_count": 1
+      }
+    },
+    "labelA": {
+      "claimId": "c0083",
+      "valueSupported": false,
+      "goldAnchorSets": [],
+      "note": "6.2 Barbing Grab 7: PDF p8 refers to the presumably male individual but states no numeric individual count; singular reference is not an explicit count.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0083",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_0baf3059f6d3005e1318c52da62cd8907a0b11396491e74f65deea0d3f81c005"
+        ]
+      ],
+      "note": "Catalogue 6.2; PDF page(s) 8. The source explicitly describes one left crouched individual, head NE, retaining the sex qualification vermutlich männlich.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0089",
+      "value": 1,
+      "resultPath": [
+        "records",
+        20,
+        "individual_count"
+      ],
+      "context": "catalogue_id: 7.14, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 3089, burial_type: Körpergrab, orientation: Kopf im Süden, body_position: rechter Hocker, sex: eher weiblich, age_class: adult, pit_length_value: 2.17, pit_length_unit: m, pit_width_value: 0.91, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.14",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3089",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Süden",
+        "body_position": "rechter Hocker",
+        "sex": "eher weiblich",
+        "age_class": "adult",
+        "individual_count": 1,
+        "pit_length_value": 2.17,
+        "pit_length_unit": "m",
+        "pit_width_value": 0.91,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0089",
+      "valueSupported": false,
+      "goldAnchorSets": [],
+      "note": "7.14 Burgweinting Obj. 3089: PDF p13 describes the individual but gives no explicit total individual count.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0089",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_00ca5d79ffd2c2636565e66f98306808a0de087e6549cc0847ac81d77a68e5a2"
+        ]
+      ],
+      "note": "Catalogue 7.14; PDF page(s) 13. The source explicitly describes one adult inhumation, right crouched, head south; record eligibility is separate from attribute support.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0095",
+      "value": 1,
+      "resultPath": [
+        "records",
+        12,
+        "individual_count"
+      ],
+      "context": "catalogue_id: 7.5, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 3081, burial_type: Körpergrab, orientation: Kopf im Norden, body_position: linker Hocker, sex: eher männlich, age_class: Infans I, pit_length_value: 1.52, pit_length_unit: m, pit_width_value: 0.85, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.5",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3081",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "body_position": "linker Hocker",
+        "sex": "eher männlich",
+        "age_class": "Infans I",
+        "individual_count": 1,
+        "pit_length_value": 1.52,
+        "pit_length_unit": "m",
+        "pit_width_value": 0.85,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0095",
+      "valueSupported": false,
+      "goldAnchorSets": [],
+      "note": "7.5 Burgweinting Obj. 3081: PDF p10 describes the individual but states no explicit individual count.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0095",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_ba6a135d64c3b6d7a68da5a1706500a8d3f132f3dd440cd6276ed5b6017b143c"
+        ]
+      ],
+      "note": "Catalogue 7.5; PDF page(s) 10. The source identifies one Infans I individual and explicitly qualifies sex as eher männlich.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0106",
+      "value": "Obj. 3080",
+      "resultPath": [
+        "records",
+        11,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 7.4, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, burial_type: Körpergrab, orientation: Kopf im Norden, body_position: linker Hocker, sex: männlich, age_class: frühjuvenil, individual_count: 2, pit_length_value: 2.17, pit_length_unit: m, pit_width_value: 1.2, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.4",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3080",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "frühjuvenil",
+        "individual_count": 2,
+        "pit_length_value": 2.17,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.2,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0106",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_7b49c3dffde5dfd3f40ada2894698b95ee5babc1231646997bdf6db0029bf94f"
+        ]
+      ],
+      "note": "7.4 Burgweinting Obj. 3080: PDF page(s) 9: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0106",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_7b49c3dffde5dfd3f40ada2894698b95ee5babc1231646997bdf6db0029bf94f"
+        ],
+        [
+          "anchor_a281c397b5f85335a3fb9c4b831988a6378605644fcd93688e0dc635e61b948d"
+        ]
+      ],
+      "note": "Catalogue 7.4; PDF page(s) 9. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0113",
+      "value": "Gold",
+      "resultPath": [
+        "records",
+        4,
+        "grave_goods",
+        5,
+        "material"
+      ],
+      "context": "item_id: 9-10, item_type: Goldbleche, item_count: 2",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "4",
+        "site": "Aufhausen",
+        "district": "Ldkr. Dingolfing-Landau, Niederbayern",
+        "burial_type": "Brandschüttungsgrab",
+        "orientation": "Nordwest-Südost",
+        "sex": "männlich",
+        "individual_count": 1,
+        "pit_length_value": 2.2,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.2,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0113",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_bd8a78032756795bb7994bc736eb7327e46bae7bba3c6cc92337877bb29a599f"
+        ],
+        [
+          "anchor_1e64b12ca3f1670e6b2e86c086ea33d8a923ea21444c813849131812001599b1",
+          "anchor_2f55d2b9872bb65b1eb1b3ebf8b43b7ea5ae585b59ccfaae8055b56043e72e4d"
+        ]
+      ],
+      "note": "4 Aufhausen: PDF page(s) 6: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0113",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_bd8a78032756795bb7994bc736eb7327e46bae7bba3c6cc92337877bb29a599f"
+        ]
+      ],
+      "note": "Catalogue 4; PDF page(s) 6. Two gold sheets (9–10) are explicitly stated, preserving the group.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0117",
+      "value": "Obj. 3084",
+      "resultPath": [
+        "records",
+        15,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 7.8, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, burial_type: Körpergrab, orientation: Kopf im Norden, body_position: linker Hocker, sex: eher männlich, age_class: adult, individual_count: 1, pit_length_value: 2.14, pit_length_unit: m, pit_width_value: 1.15, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.8",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3084",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "body_position": "linker Hocker",
+        "sex": "eher männlich",
+        "age_class": "adult",
+        "individual_count": 1,
+        "pit_length_value": 2.14,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.15,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0117",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_39b2654f65433db13c48bc29ce6a1dafe1939c678bf5a66ed99de09101afead4"
+        ]
+      ],
+      "note": "7.8 Burgweinting Obj. 3084: PDF page(s) 11: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0117",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_39b2654f65433db13c48bc29ce6a1dafe1939c678bf5a66ed99de09101afead4"
+        ],
+        [
+          "anchor_138027c162d0a29bc42c5eb048dc814b44c777c4de7f4488ff89b277b4991de8"
+        ]
+      ],
+      "note": "Catalogue 7.8; PDF page(s) 11. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0119",
+      "value": "2",
+      "resultPath": [
+        "records",
+        14,
+        "grave_goods",
+        1,
+        "item_id"
+      ],
+      "context": "item_type: 'Becher' (Krug?)",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.7",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3083",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Süden",
+        "sex": "eher weiblich",
+        "age_class": "Infans I",
+        "individual_count": 1,
+        "pit_length_value": 1.02,
+        "pit_length_unit": "m",
+        "pit_width_value": 0.7,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0119",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_226d78eb6fa00dbc660ccf8d7e5cbb2783c493858c7297b03f639b5c3fe78470"
+        ],
+        [
+          "anchor_482c14ae361b3a2bee002cb623020f529949a1fdff0db8290391e70e7c1b7e47"
+        ]
+      ],
+      "note": "7.7 Burgweinting Obj. 3083: PDF page(s) 10, 11: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0119",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_226d78eb6fa00dbc660ccf8d7e5cbb2783c493858c7297b03f639b5c3fe78470"
+        ]
+      ],
+      "note": "Catalogue 7.7; PDF page(s) 11. The source gives item 2 as Becher (Krug?), preserving the question and alternative rather than flattening it to a certain jug.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0124",
+      "value": "Grab 4",
+      "resultPath": [
+        "records",
+        5,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 5, site: Augsburg-Haunstetten, district: Stadt Augsburg, Schwaben, burial_type: Körpergrab, orientation: Kopf im Norden, body_position: linker Hocker, sex: männlich, age_class: frühadult, individual_count: 1, pit_length_value: 1.65, pit_length_unit: m, pit_width_value: 0.8, pit_width_unit: m, pit_depth_value: 0.65, pit_depth_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "5",
+        "site": "Augsburg-Haunstetten",
+        "district": "Stadt Augsburg, Schwaben",
+        "grave_id": "Grab 4",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "frühadult",
+        "individual_count": 1,
+        "pit_length_value": 1.65,
+        "pit_length_unit": "m",
+        "pit_width_value": 0.8,
+        "pit_width_unit": "m",
+        "pit_depth_value": 0.65,
+        "pit_depth_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0124",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_92651a5cfddcff45512094e86906d480026c978bad1cd4bfabf6e9c7874b48bb"
+        ]
+      ],
+      "note": "5 Augsburg-Haunstetten Grab 4: PDF page(s) 6: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0124",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_92651a5cfddcff45512094e86906d480026c978bad1cd4bfabf6e9c7874b48bb"
+        ],
+        [
+          "anchor_60f5a727fa3cda4dbd123926df953910974d96344eb2900285db8a419fad84cf"
+        ]
+      ],
+      "note": "Catalogue 5; PDF page(s) 6. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0132",
+      "value": "Körpergrab",
+      "resultPath": [
+        "records",
+        19,
+        "burial_type"
+      ],
+      "context": "catalogue_id: 7.13, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 3088, orientation: Kopf im Süden, body_position: rechter Hocker, sex: eher weiblich, age_class: adult, individual_count: 1, pit_length_value: 1.67, pit_length_unit: m, pit_width_value: 1.08, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.13",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3088",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Süden",
+        "body_position": "rechter Hocker",
+        "sex": "eher weiblich",
+        "age_class": "adult",
+        "individual_count": 1,
+        "pit_length_value": 1.67,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.08,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0132",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_5a9f2738cb8d36fcd02ccea76a59b828183fc9e3251b6c5eb4abff8f7f363927",
+          "anchor_85cbd8c600cabea8c1db06a18674359072d868878bb5bee76c3ad2fd349f38ce"
+        ]
+      ],
+      "note": "7.13 Burgweinting Obj. 3088: PDF page(s) 12: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0132",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_e52cbd25b8ea7d269d2bfebe9549b0f16001e380c533ac75889daeac5229c549"
+        ]
+      ],
+      "note": "Catalogue 7.13; PDF page(s) 12. The source explicitly describes the poorly preserved skeleton in this grave.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0134",
+      "value": "Befund 4777",
+      "resultPath": [
+        "records",
+        2,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 3.1, site: Atting 'Aufeld', district: Ldkr. Straubing-Bogen, Niederbayern, burial_type: Körpergrab, orientation: Kopf im Norden, body_position: linker Hocker, sex: männlich, individual_count: 1",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "3.1",
+        "site": "Atting 'Aufeld'",
+        "district": "Ldkr. Straubing-Bogen, Niederbayern",
+        "grave_id": "Befund 4777",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "individual_count": 1
+      }
+    },
+    "labelA": {
+      "claimId": "c0134",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_5ea924a9acc392f08890a4e154145541fc9e3cb717003b0325e65245ef515bbd"
+        ]
+      ],
+      "note": "3.1 Atting 'Aufeld' Befund 4777: PDF page(s) 5: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0134",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_5ea924a9acc392f08890a4e154145541fc9e3cb717003b0325e65245ef515bbd"
+        ],
+        [
+          "anchor_fe932599430c1a2104836f8137dba7b28e41b6502c5eb356c2bfc5d6d592a5f2"
+        ]
+      ],
+      "note": "Catalogue 3.1; PDF page(s) 5. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0140",
+      "value": "Körpergrab",
+      "resultPath": [
+        "records",
+        10,
+        "burial_type"
+      ],
+      "context": "catalogue_id: 7.3, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 2012, orientation: Kopf im Norden, body_position: Rückenhocker mit Kopf und Beinen zur rechten Seite gelegt, sex: männlich, age_class: adult, individual_count: 1, pit_length_value: 2.26, pit_length_unit: m, pit_width_value: 1.06, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.3",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 2012",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "body_position": "Rückenhocker mit Kopf und Beinen zur rechten Seite gelegt",
+        "sex": "männlich",
+        "age_class": "adult",
+        "individual_count": 1,
+        "pit_length_value": 2.26,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.06,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0140",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_4846c2f84e70f236660dc1c1dc9474739444739df42c8c70b637f587032e7717",
+          "anchor_d7f03f0a316d2959a2b19589797debbd17e8e56d13bed884f12c213a94216d34"
+        ]
+      ],
+      "note": "7.3 Burgweinting Obj. 2012: PDF page(s) 9: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0140",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_4846c2f84e70f236660dc1c1dc9474739444739df42c8c70b637f587032e7717"
+        ]
+      ],
+      "note": "Catalogue 7.3; PDF page(s) 9. The text explicitly describes one adult male Rücken-/Rückenhocker burial.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0141",
+      "value": 1,
+      "resultPath": [
+        "records",
+        18,
+        "individual_count"
+      ],
+      "context": "catalogue_id: 7.12, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 3087b, burial_type: Körpergrab, orientation: Kopf im Nordnordwesten, body_position: linker Hocker, sex: eher männlich, age_class: juvenil, pit_length_value: 2.09, pit_length_unit: m, pit_width_value: 0.9, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.12",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3087b",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordnordwesten",
+        "body_position": "linker Hocker",
+        "sex": "eher männlich",
+        "age_class": "juvenil",
+        "individual_count": 1,
+        "pit_length_value": 2.09,
+        "pit_length_unit": "m",
+        "pit_width_value": 0.9,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0141",
+      "valueSupported": false,
+      "goldAnchorSets": [],
+      "note": "7.12 Burgweinting Obj. 3087b: PDF p12 describes the individual but states no explicit total individual count.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0141",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_8805a9adeb49700684ab6feb855363e92f38be569d3d3e5fbac57c284fd0db9d"
+        ]
+      ],
+      "note": "Catalogue 7.12; PDF page(s) 12. The source explicitly describes one juvenile, eher männlich, as a left crouched inhumation with head NNW.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0157",
+      "value": "Grab 2",
+      "resultPath": [
+        "records",
+        1,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 2, site: Altdorf, district: Ldkr. Landshut, Niederbayern, burial_type: Körpergrab, orientation: Kopf im Nordnordosten, body_position: linker Hocker, sex: männlich, age_class: in jungen Jahren verstorben, individual_count: 1, pit_length_value: 1.55, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "2",
+        "site": "Altdorf",
+        "district": "Ldkr. Landshut, Niederbayern",
+        "grave_id": "Grab 2",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordnordosten",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "in jungen Jahren verstorben",
+        "individual_count": 1,
+        "pit_length_value": 1.55,
+        "pit_length_unit": "m",
+        "pit_width_value": 1,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0157",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_71d8459f9df360385f877fda89ae7476af7f7445deae933de7d46a7da69a9e65"
+        ]
+      ],
+      "note": "2 Altdorf Grab 2: PDF page(s) 4: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0157",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_71d8459f9df360385f877fda89ae7476af7f7445deae933de7d46a7da69a9e65"
+        ],
+        [
+          "anchor_8a8104384c39be56fd0c3bbcfc8dc0d69211e5e59727d51ad6484dc4b6eed88d"
+        ]
+      ],
+      "note": "Catalogue 2; PDF page(s) 4. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0162",
+      "value": "m",
+      "resultPath": [
+        "records",
+        18,
+        "pit_width_unit"
+      ],
+      "context": "catalogue_id: 7.12, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 3087b, burial_type: Körpergrab, orientation: Kopf im Nordnordwesten, body_position: linker Hocker, sex: eher männlich, age_class: juvenil, individual_count: 1, pit_length_value: 2.09, pit_length_unit: m, pit_width_value: 0.9",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.12",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3087b",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordnordwesten",
+        "body_position": "linker Hocker",
+        "sex": "eher männlich",
+        "age_class": "juvenil",
+        "individual_count": 1,
+        "pit_length_value": 2.09,
+        "pit_length_unit": "m",
+        "pit_width_value": 0.9,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0162",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_ec729a112d294c5a87991977f5cccbbe8f20402d80e0f5aa2008a795dbff3a17"
+        ],
+        [
+          "anchor_b72c72acb5b43ebb503cb1a61223590e6e1208732e20cff6b2b06a839599e78d",
+          "anchor_0134c6f22c8e0a7574d3a681a271e94c01f54ecfff7e338928fd1f5723ba9e32",
+          "anchor_23070859ee7c91300b6d3ab491ecdcfb0adc06a5626a1127ea00790b9d213ecc"
+        ]
+      ],
+      "note": "7.12 Burgweinting Obj. 3087b: Both the adjacent 3087a paragraph and the split local 3087b passage explicitly state the relevant metres.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0162",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_ec729a112d294c5a87991977f5cccbbe8f20402d80e0f5aa2008a795dbff3a17"
+        ],
+        [
+          "anchor_b72c72acb5b43ebb503cb1a61223590e6e1208732e20cff6b2b06a839599e78d",
+          "anchor_8c9a899af24ded21795b0764a48e00de4dde166d8d1fe1512f2af507f499bf13",
+          "anchor_0134c6f22c8e0a7574d3a681a271e94c01f54ecfff7e338928fd1f5723ba9e32",
+          "anchor_23070859ee7c91300b6d3ab491ecdcfb0adc06a5626a1127ea00790b9d213ecc",
+          "anchor_915eb3103d5a10ba4fb928db761c105c45ccc89601a2c3ecdf2d36d7a4fe19f8"
+        ]
+      ],
+      "note": "Catalogue 7.12; PDF page(s) 12. The comparison in Obj. 3087a explicitly gives 3087b as 2.09 x 0.9 m. PDF p12 confirms the same measurements in 3087b; that alternative is fragmented into five canonical anchors.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0167",
+      "value": "Obj. 3087b",
+      "resultPath": [
+        "records",
+        18,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 7.12, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, burial_type: Körpergrab, orientation: Kopf im Nordnordwesten, body_position: linker Hocker, sex: eher männlich, age_class: juvenil, individual_count: 1, pit_length_value: 2.09, pit_length_unit: m, pit_width_value: 0.9, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.12",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3087b",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordnordwesten",
+        "body_position": "linker Hocker",
+        "sex": "eher männlich",
+        "age_class": "juvenil",
+        "individual_count": 1,
+        "pit_length_value": 2.09,
+        "pit_length_unit": "m",
+        "pit_width_value": 0.9,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0167",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_a9a546703a6d347878bb536f599a8cfb3a0b3adf46923a54f3e1fd1c8a0268a5"
+        ]
+      ],
+      "note": "7.12 Burgweinting Obj. 3087b: PDF page(s) 12: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0167",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_a9a546703a6d347878bb536f599a8cfb3a0b3adf46923a54f3e1fd1c8a0268a5"
+        ],
+        [
+          "anchor_ec729a112d294c5a87991977f5cccbbe8f20402d80e0f5aa2008a795dbff3a17"
+        ],
+        [
+          "anchor_915eb3103d5a10ba4fb928db761c105c45ccc89601a2c3ecdf2d36d7a4fe19f8"
+        ]
+      ],
+      "note": "Catalogue 7.12; PDF page(s) 12. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0170",
+      "value": "Grab 3",
+      "resultPath": [
+        "records",
+        6,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 6.1, site: Barbing, district: Ldkr. Regensburg, Oberpfalz, burial_type: Körpergrab, orientation: Kopf im Nordosten, body_position: linker Hocker, sex: männlich, age_class: matur, individual_count: 1",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "6.1",
+        "site": "Barbing",
+        "district": "Ldkr. Regensburg, Oberpfalz",
+        "grave_id": "Grab 3",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordosten",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "matur",
+        "individual_count": 1
+      }
+    },
+    "labelA": {
+      "claimId": "c0170",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_efb1761dea88f92a6a4c437c41a3644f8969b97deacab2d7286397b5b3b35013"
+        ]
+      ],
+      "note": "6.1 Barbing Grab 3: PDF page(s) 7: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0170",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_efb1761dea88f92a6a4c437c41a3644f8969b97deacab2d7286397b5b3b35013"
+        ],
+        [
+          "anchor_06e92da634bc6a673faf566dcc37bec7503517fe1f4ca66ac4f533fff746f1c9"
+        ]
+      ],
+      "note": "Catalogue 6.1; PDF page(s) 7. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0173",
+      "value": 1,
+      "resultPath": [
+        "records",
+        16,
+        "individual_count"
+      ],
+      "context": "catalogue_id: 7.9, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 3085, burial_type: Körpergrab, orientation: Kopf im Norden, sex: eher männlich, age_class: Infans I, pit_length_value: 1.76, pit_length_unit: m, pit_width_value: 1.15, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.9",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3085",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "sex": "eher männlich",
+        "age_class": "Infans I",
+        "individual_count": 1,
+        "pit_length_value": 1.76,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.15,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0173",
+      "valueSupported": false,
+      "goldAnchorSets": [],
+      "note": "7.9 Burgweinting Obj. 3085: PDF p11 describes the individual but gives no explicit total individual count.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0173",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_0b9d05b9d3caef9053b1f90a8b51c027c162105f2e9995b7c031308edf76ae29"
+        ]
+      ],
+      "note": "Catalogue 7.9; PDF page(s) 11. The source explicitly identifies one Infans I individual, eher männlich.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0176",
+      "value": "13",
+      "resultPath": [
+        "records",
+        3,
+        "grave_goods",
+        4,
+        "item_id"
+      ],
+      "context": "item_type: Silexdolch, material: Plattenhornstein",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "3.2",
+        "site": "Atting 'Aufeld'",
+        "district": "Ldkr. Straubing-Bogen, Niederbayern",
+        "grave_id": "Befund 4799",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordnordwesten",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "individual_count": 1
+      }
+    },
+    "labelA": {
+      "claimId": "c0176",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_ca2f44738b305e042100008fa4fc6848fbaad72e03ef0e3d34a9d5db0fb1745c"
+        ]
+      ],
+      "note": "3.2 Atting 'Aufeld' Befund 4799: PDF page(s) 5: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0176",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_ca2f44738b305e042100008fa4fc6848fbaad72e03ef0e3d34a9d5db0fb1745c"
+        ],
+        [
+          "anchor_bde061b4694be8e6f786ded4723ff34efde1e539e7ff256bb24528a21b88d321"
+        ]
+      ],
+      "note": "Catalogue 3.2; PDF page(s) 5. The local source explicitly supports this attribute; numeric rendering and grammatical inflection are normalized without changing the assertion.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0187",
+      "value": 1,
+      "resultPath": [
+        "records",
+        14,
+        "individual_count"
+      ],
+      "context": "catalogue_id: 7.7, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 3083, burial_type: Körpergrab, orientation: Kopf im Süden, sex: eher weiblich, age_class: Infans I, pit_length_value: 1.02, pit_length_unit: m, pit_width_value: 0.7, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.7",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3083",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Süden",
+        "sex": "eher weiblich",
+        "age_class": "Infans I",
+        "individual_count": 1,
+        "pit_length_value": 1.02,
+        "pit_length_unit": "m",
+        "pit_width_value": 0.7,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0187",
+      "valueSupported": false,
+      "goldAnchorSets": [],
+      "note": "7.7 Burgweinting Obj. 3083: PDF p10 describes the individual but does not explicitly state an individual count.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0187",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_c5ed511ba06cbd141367f9c380a2f0c41120c285d9fd0e7f680d69f6942ab7fd"
+        ]
+      ],
+      "note": "Catalogue 7.7; PDF page(s) 10. The source explicitly identifies one Infans I individual, eher weiblich.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0188",
+      "value": "2",
+      "resultPath": [
+        "records",
+        7,
+        "grave_goods",
+        1,
+        "item_id"
+      ],
+      "context": "item_type: Kupferdraht, material: Kupfer",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "6.2",
+        "site": "Barbing",
+        "district": "Ldkr. Regensburg, Oberpfalz",
+        "grave_id": "Grab 7",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordosten",
+        "body_position": "linker Hocker",
+        "sex": "vermutlich männlich",
+        "individual_count": 1
+      }
+    },
+    "labelA": {
+      "claimId": "c0188",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_76d1714a0ba450f847518ba2df9c6f971c2fe5d9b04280677f5f8fd25c9c1b58"
+        ],
+        [
+          "anchor_09003c72b30d43e55a1cdbf326df361f4c88ae0eed6f97bfe2c851590b03c9a5",
+          "anchor_035a4293bff40ffdd2b8d9aa995e44a2d080af4222a0c90eadf5f2d838237ae6"
+        ]
+      ],
+      "note": "6.2 Barbing Grab 7: PDF page(s) 8: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0188",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_76d1714a0ba450f847518ba2df9c6f971c2fe5d9b04280677f5f8fd25c9c1b58"
+        ],
+        [
+          "anchor_09003c72b30d43e55a1cdbf326df361f4c88ae0eed6f97bfe2c851590b03c9a5"
+        ]
+      ],
+      "note": "Catalogue 6.2; PDF page(s) 8. The source records copper wire ornament (2), now decayed. The item type/material remain source-stated despite its indirect preservation.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0190",
+      "value": "Körpergrab",
+      "resultPath": [
+        "records",
+        7,
+        "burial_type"
+      ],
+      "context": "catalogue_id: 6.2, site: Barbing, district: Ldkr. Regensburg, Oberpfalz, grave_id: Grab 7, orientation: Kopf im Nordosten, body_position: linker Hocker, sex: vermutlich männlich, individual_count: 1",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "6.2",
+        "site": "Barbing",
+        "district": "Ldkr. Regensburg, Oberpfalz",
+        "grave_id": "Grab 7",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordosten",
+        "body_position": "linker Hocker",
+        "sex": "vermutlich männlich",
+        "individual_count": 1
+      }
+    },
+    "labelA": {
+      "claimId": "c0190",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_0baf3059f6d3005e1318c52da62cd8907a0b11396491e74f65deea0d3f81c005",
+          "anchor_d6ba1dc2011bbfde5b5ad88d87de59b51cf20f55f8cfbe76a2ca1ad774f32de4"
+        ]
+      ],
+      "note": "6.2 Barbing Grab 7: The stated left-crouched burial supports inhumation even though sex is qualified.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0190",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_0baf3059f6d3005e1318c52da62cd8907a0b11396491e74f65deea0d3f81c005"
+        ]
+      ],
+      "note": "Catalogue 6.2; PDF page(s) 8. The source explicitly describes one left crouched individual, head NE, retaining the sex qualification vermutlich männlich.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0191",
+      "value": 1,
+      "resultPath": [
+        "records",
+        1,
+        "individual_count"
+      ],
+      "context": "catalogue_id: 2, site: Altdorf, district: Ldkr. Landshut, Niederbayern, grave_id: Grab 2, burial_type: Körpergrab, orientation: Kopf im Nordnordosten, body_position: linker Hocker, sex: männlich, age_class: in jungen Jahren verstorben, pit_length_value: 1.55, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "2",
+        "site": "Altdorf",
+        "district": "Ldkr. Landshut, Niederbayern",
+        "grave_id": "Grab 2",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordnordosten",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "in jungen Jahren verstorben",
+        "individual_count": 1,
+        "pit_length_value": 1.55,
+        "pit_length_unit": "m",
+        "pit_width_value": 1,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0191",
+      "valueSupported": false,
+      "goldAnchorSets": [],
+      "note": "2 Altdorf Grab 2: PDF p4 describes the individual in the singular but states no individual count; the protocol forbids inferring a numeric count.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0191",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_635f8fbb2ca09f9c757383f6d4145dd158895c5b495a3aeae1a9d9d9900bca8f"
+        ]
+      ],
+      "note": "Catalogue 2; PDF page(s) 4. PDF p4 confirms the rearranged canonical sentence: one male who died in young years, buried as a left crouched inhumation with head NNE. The age wording remains qualitative.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0202",
+      "value": "Obj. 2010",
+      "resultPath": [
+        "records",
+        8,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 7.1, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, burial_type: Körpergrab, orientation: Kopf ungefähr im Norden, body_position: linker Hocker, sex: männlich, age_class: spätadult-matur, individual_count: 1, pit_length_value: 2.5, pit_length_unit: m, pit_width_value: 1.2, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.1",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 2010",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf ungefähr im Norden",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "spätadult-matur",
+        "individual_count": 1,
+        "pit_length_value": 2.5,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.2,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0202",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_65c6ac329a4b7b3752230dc8e1801b7753da2c6f4f612a7014a30db07ab70f33"
+        ]
+      ],
+      "note": "7.1 Burgweinting Obj. 2010: PDF page(s) 8: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0202",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_65c6ac329a4b7b3752230dc8e1801b7753da2c6f4f612a7014a30db07ab70f33"
+        ],
+        [
+          "anchor_11e2c27af60cc250c8e16ce54de71697c382b25f0b23e734bf81ae75d61a2083"
+        ]
+      ],
+      "note": "Catalogue 7.1; PDF page(s) 8. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0207",
+      "value": "Obj. 3081",
+      "resultPath": [
+        "records",
+        12,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 7.5, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, burial_type: Körpergrab, orientation: Kopf im Norden, body_position: linker Hocker, sex: eher männlich, age_class: Infans I, individual_count: 1, pit_length_value: 1.52, pit_length_unit: m, pit_width_value: 0.85, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.5",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3081",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "body_position": "linker Hocker",
+        "sex": "eher männlich",
+        "age_class": "Infans I",
+        "individual_count": 1,
+        "pit_length_value": 1.52,
+        "pit_length_unit": "m",
+        "pit_width_value": 0.85,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0207",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_25371c923a1b0c3d77a7c9f2567949525ba4da77d53f0c3494e95d74a6e744ce"
+        ]
+      ],
+      "note": "7.5 Burgweinting Obj. 3081: PDF page(s) 10: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0207",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_25371c923a1b0c3d77a7c9f2567949525ba4da77d53f0c3494e95d74a6e744ce"
+        ],
+        [
+          "anchor_3ca9a3e9d46060d73bcb6250b158cc6d47e2c465de541fb3b87c0a3bc91d38ae"
+        ]
+      ],
+      "note": "Catalogue 7.5; PDF page(s) 10. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0221",
+      "value": 1,
+      "resultPath": [
+        "records",
+        4,
+        "individual_count"
+      ],
+      "context": "catalogue_id: 4, site: Aufhausen, district: Ldkr. Dingolfing-Landau, Niederbayern, burial_type: Brandschüttungsgrab, orientation: Nordwest-Südost, sex: männlich, pit_length_value: 2.2, pit_length_unit: m, pit_width_value: 1.2, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "4",
+        "site": "Aufhausen",
+        "district": "Ldkr. Dingolfing-Landau, Niederbayern",
+        "burial_type": "Brandschüttungsgrab",
+        "orientation": "Nordwest-Südost",
+        "sex": "männlich",
+        "individual_count": 1,
+        "pit_length_value": 2.2,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.2,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0221",
+      "valueSupported": false,
+      "goldAnchorSets": [],
+      "note": "4 Aufhausen: PDF p6 refers to the male individual but gives no explicit total individual count; do not infer a numeric count from singular reference.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0221",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_960fff50eb394c6c18ab8a09482af01932b094fab989d1246f11c9966b0aadda"
+        ]
+      ],
+      "note": "Catalogue 4; PDF page(s) 6. The source explicitly refers to the male individual; only the proposed head location is qualified as conjectural.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0223",
+      "value": "6",
+      "resultPath": [
+        "records",
+        6,
+        "grave_goods",
+        5,
+        "item_id"
+      ],
+      "context": "item_type: Griffzungendolch, material: Kupfer",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "6.1",
+        "site": "Barbing",
+        "district": "Ldkr. Regensburg, Oberpfalz",
+        "grave_id": "Grab 3",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordosten",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "matur",
+        "individual_count": 1
+      }
+    },
+    "labelA": {
+      "claimId": "c0223",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_06e92da634bc6a673faf566dcc37bec7503517fe1f4ca66ac4f533fff746f1c9"
+        ]
+      ],
+      "note": "6.1 Barbing Grab 3: PDF page(s) 7: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0223",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_16cb4b950f8ad505573fcc2376fe3a4567044a01cfa9b3baeafe83a23e4896fa"
+        ],
+        [
+          "anchor_06e92da634bc6a673faf566dcc37bec7503517fe1f4ca66ac4f533fff746f1c9"
+        ]
+      ],
+      "note": "Catalogue 6.1; PDF page(s) 7. The local source explicitly supports this attribute; numeric rendering and grammatical inflection are normalized without changing the assertion.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0225",
+      "value": "Kupfer",
+      "resultPath": [
+        "records",
+        7,
+        "grave_goods",
+        1,
+        "material"
+      ],
+      "context": "item_id: 2, item_type: Kupferdraht",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "6.2",
+        "site": "Barbing",
+        "district": "Ldkr. Regensburg, Oberpfalz",
+        "grave_id": "Grab 7",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordosten",
+        "body_position": "linker Hocker",
+        "sex": "vermutlich männlich",
+        "individual_count": 1
+      }
+    },
+    "labelA": {
+      "claimId": "c0225",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_76d1714a0ba450f847518ba2df9c6f971c2fe5d9b04280677f5f8fd25c9c1b58"
+        ],
+        [
+          "anchor_09003c72b30d43e55a1cdbf326df361f4c88ae0eed6f97bfe2c851590b03c9a5",
+          "anchor_035a4293bff40ffdd2b8d9aa995e44a2d080af4222a0c90eadf5f2d838237ae6"
+        ]
+      ],
+      "note": "6.2 Barbing Grab 7: PDF page(s) 8: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0225",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_76d1714a0ba450f847518ba2df9c6f971c2fe5d9b04280677f5f8fd25c9c1b58"
+        ],
+        [
+          "anchor_09003c72b30d43e55a1cdbf326df361f4c88ae0eed6f97bfe2c851590b03c9a5"
+        ]
+      ],
+      "note": "Catalogue 6.2; PDF page(s) 8. The source records copper wire ornament (2), now decayed. The item type/material remain source-stated despite its indirect preservation.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0235",
+      "value": "Kupferdraht",
+      "resultPath": [
+        "records",
+        7,
+        "grave_goods",
+        1,
+        "item_type"
+      ],
+      "context": "item_id: 2, material: Kupfer",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "6.2",
+        "site": "Barbing",
+        "district": "Ldkr. Regensburg, Oberpfalz",
+        "grave_id": "Grab 7",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordosten",
+        "body_position": "linker Hocker",
+        "sex": "vermutlich männlich",
+        "individual_count": 1
+      }
+    },
+    "labelA": {
+      "claimId": "c0235",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_76d1714a0ba450f847518ba2df9c6f971c2fe5d9b04280677f5f8fd25c9c1b58"
+        ],
+        [
+          "anchor_09003c72b30d43e55a1cdbf326df361f4c88ae0eed6f97bfe2c851590b03c9a5",
+          "anchor_035a4293bff40ffdd2b8d9aa995e44a2d080af4222a0c90eadf5f2d838237ae6"
+        ]
+      ],
+      "note": "6.2 Barbing Grab 7: PDF page(s) 8: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0235",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_76d1714a0ba450f847518ba2df9c6f971c2fe5d9b04280677f5f8fd25c9c1b58"
+        ],
+        [
+          "anchor_09003c72b30d43e55a1cdbf326df361f4c88ae0eed6f97bfe2c851590b03c9a5"
+        ]
+      ],
+      "note": "Catalogue 6.2; PDF page(s) 8. The source records copper wire ornament (2), now decayed. The item type/material remain source-stated despite its indirect preservation.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0238",
+      "value": "Obj. 3088",
+      "resultPath": [
+        "records",
+        19,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 7.13, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, burial_type: Körpergrab, orientation: Kopf im Süden, body_position: rechter Hocker, sex: eher weiblich, age_class: adult, individual_count: 1, pit_length_value: 1.67, pit_length_unit: m, pit_width_value: 1.08, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.13",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3088",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Süden",
+        "body_position": "rechter Hocker",
+        "sex": "eher weiblich",
+        "age_class": "adult",
+        "individual_count": 1,
+        "pit_length_value": 1.67,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.08,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0238",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_cb5e18e695ea22bac36379c50e377eb4cd3505c78fb1dde178ea5a58952dfa25"
+        ]
+      ],
+      "note": "7.13 Burgweinting Obj. 3088: PDF page(s) 12: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0238",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_cb5e18e695ea22bac36379c50e377eb4cd3505c78fb1dde178ea5a58952dfa25"
+        ],
+        [
+          "anchor_e0c521f280e6b24e1fb8030e5bc8bfacffb802409906b352afd5d01ecc73ed4e"
+        ]
+      ],
+      "note": "Catalogue 7.13; PDF page(s) 12. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0246",
+      "value": "Körpergrab",
+      "resultPath": [
+        "records",
+        11,
+        "burial_type"
+      ],
+      "context": "catalogue_id: 7.4, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 3080, orientation: Kopf im Norden, body_position: linker Hocker, sex: männlich, age_class: frühjuvenil, individual_count: 2, pit_length_value: 2.17, pit_length_unit: m, pit_width_value: 1.2, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.4",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3080",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "frühjuvenil",
+        "individual_count": 2,
+        "pit_length_value": 2.17,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.2,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0246",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_c1fdb1356585114a8921fec617d969dbf4132c3d4aa06f576480c2df4747fe5b",
+          "anchor_98a3e52e5b979e9866fe051cc4ee8cd44f1da2877ee006fdd9679d3d29f8ddc0"
+        ]
+      ],
+      "note": "7.4 Burgweinting Obj. 3080: PDF page(s) 9: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0246",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_c1fdb1356585114a8921fec617d969dbf4132c3d4aa06f576480c2df4747fe5b"
+        ]
+      ],
+      "note": "Catalogue 7.4; PDF page(s) 9. This describes the primary early-juvenile male and his left crouched inhumation; a second child is separately reported.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0253",
+      "value": "1",
+      "resultPath": [
+        "records",
+        6,
+        "grave_goods",
+        0,
+        "item_id"
+      ],
+      "context": "item_type: Bogenförmiger Anhänger, material: Knochen",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "6.1",
+        "site": "Barbing",
+        "district": "Ldkr. Regensburg, Oberpfalz",
+        "grave_id": "Grab 3",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordosten",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "matur",
+        "individual_count": 1
+      }
+    },
+    "labelA": {
+      "claimId": "c0253",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_06e92da634bc6a673faf566dcc37bec7503517fe1f4ca66ac4f533fff746f1c9"
+        ]
+      ],
+      "note": "6.1 Barbing Grab 3: PDF page(s) 7: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0253",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f840883cf520b3b2877fbdc3bad4e3fa5759de3b4d951639172c0d847acb9afa"
+        ],
+        [
+          "anchor_06e92da634bc6a673faf566dcc37bec7503517fe1f4ca66ac4f533fff746f1c9"
+        ]
+      ],
+      "note": "Catalogue 6.1; PDF page(s) 7. The local source explicitly supports this attribute; numeric rendering and grammatical inflection are normalized without changing the assertion.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0254",
+      "value": "Obj. 3085",
+      "resultPath": [
+        "records",
+        16,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 7.9, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, burial_type: Körpergrab, orientation: Kopf im Norden, sex: eher männlich, age_class: Infans I, individual_count: 1, pit_length_value: 1.76, pit_length_unit: m, pit_width_value: 1.15, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.9",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3085",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "sex": "eher männlich",
+        "age_class": "Infans I",
+        "individual_count": 1,
+        "pit_length_value": 1.76,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.15,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0254",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_c01418ebe3b76ea88d9c57e1648dd83a6b1396cbf298794483d1ff753d435adf"
+        ]
+      ],
+      "note": "7.9 Burgweinting Obj. 3085: PDF page(s) 11: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0254",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_c01418ebe3b76ea88d9c57e1648dd83a6b1396cbf298794483d1ff753d435adf"
+        ],
+        [
+          "anchor_dccc231fbae9a30a7311534552796c5a043ba4281a9f9e97fa869afc92718661"
+        ]
+      ],
+      "note": "Catalogue 7.9; PDF page(s) 11. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0257",
+      "value": "Befund 4799",
+      "resultPath": [
+        "records",
+        3,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 3.2, site: Atting 'Aufeld', district: Ldkr. Straubing-Bogen, Niederbayern, burial_type: Körpergrab, orientation: Kopf im Nordnordwesten, body_position: linker Hocker, sex: männlich, individual_count: 1",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "3.2",
+        "site": "Atting 'Aufeld'",
+        "district": "Ldkr. Straubing-Bogen, Niederbayern",
+        "grave_id": "Befund 4799",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordnordwesten",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "individual_count": 1
+      }
+    },
+    "labelA": {
+      "claimId": "c0257",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_16734d0365e7fa77a8a09a13734ac49364b7293c6ceabd796999a26ce2a5fe5e"
+        ]
+      ],
+      "note": "3.2 Atting 'Aufeld' Befund 4799: PDF page(s) 5: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0257",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_16734d0365e7fa77a8a09a13734ac49364b7293c6ceabd796999a26ce2a5fe5e"
+        ],
+        [
+          "anchor_8be15ae7a7087aa8d3b2753e12c94643af7d4ea39e80abda2465be8042b5c5a4"
+        ]
+      ],
+      "note": "Catalogue 3.2; PDF page(s) 5. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0260",
+      "value": "m",
+      "resultPath": [
+        "records",
+        18,
+        "pit_length_unit"
+      ],
+      "context": "catalogue_id: 7.12, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 3087b, burial_type: Körpergrab, orientation: Kopf im Nordnordwesten, body_position: linker Hocker, sex: eher männlich, age_class: juvenil, individual_count: 1, pit_length_value: 2.09, pit_width_value: 0.9, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.12",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3087b",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordnordwesten",
+        "body_position": "linker Hocker",
+        "sex": "eher männlich",
+        "age_class": "juvenil",
+        "individual_count": 1,
+        "pit_length_value": 2.09,
+        "pit_length_unit": "m",
+        "pit_width_value": 0.9,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0260",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_ec729a112d294c5a87991977f5cccbbe8f20402d80e0f5aa2008a795dbff3a17"
+        ],
+        [
+          "anchor_b72c72acb5b43ebb503cb1a61223590e6e1208732e20cff6b2b06a839599e78d",
+          "anchor_0134c6f22c8e0a7574d3a681a271e94c01f54ecfff7e338928fd1f5723ba9e32",
+          "anchor_23070859ee7c91300b6d3ab491ecdcfb0adc06a5626a1127ea00790b9d213ecc"
+        ]
+      ],
+      "note": "7.12 Burgweinting Obj. 3087b: Both the adjacent 3087a paragraph and the split local 3087b passage explicitly state the relevant metres.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0260",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_ec729a112d294c5a87991977f5cccbbe8f20402d80e0f5aa2008a795dbff3a17"
+        ],
+        [
+          "anchor_b72c72acb5b43ebb503cb1a61223590e6e1208732e20cff6b2b06a839599e78d",
+          "anchor_8c9a899af24ded21795b0764a48e00de4dde166d8d1fe1512f2af507f499bf13",
+          "anchor_0134c6f22c8e0a7574d3a681a271e94c01f54ecfff7e338928fd1f5723ba9e32",
+          "anchor_23070859ee7c91300b6d3ab491ecdcfb0adc06a5626a1127ea00790b9d213ecc",
+          "anchor_915eb3103d5a10ba4fb928db761c105c45ccc89601a2c3ecdf2d36d7a4fe19f8"
+        ]
+      ],
+      "note": "Catalogue 7.12; PDF page(s) 12. The comparison in Obj. 3087a explicitly gives 3087b as 2.09 x 0.9 m. PDF p12 confirms the same measurements in 3087b; that alternative is fragmented into five canonical anchors.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0264",
+      "value": "7-10",
+      "resultPath": [
+        "records",
+        6,
+        "grave_goods",
+        6,
+        "item_id"
+      ],
+      "context": "item_type: Silexpfeilspitzen, item_count: 4",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "6.1",
+        "site": "Barbing",
+        "district": "Ldkr. Regensburg, Oberpfalz",
+        "grave_id": "Grab 3",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordosten",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "matur",
+        "individual_count": 1
+      }
+    },
+    "labelA": {
+      "claimId": "c0264",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_c973a4bc828906e4c402166db61f8ca5ce1175efbd241e2c947e1a45cb40bdb6"
+        ],
+        [
+          "anchor_06e92da634bc6a673faf566dcc37bec7503517fe1f4ca66ac4f533fff746f1c9"
+        ]
+      ],
+      "note": "6.1 Barbing Grab 3: PDF page(s) 7: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0264",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_c973a4bc828906e4c402166db61f8ca5ce1175efbd241e2c947e1a45cb40bdb6"
+        ]
+      ],
+      "note": "Catalogue 6.1; PDF page(s) 7. Grouped 7–10 is intact in the inventory; the narrative canonical OCR concatenates it to 710, so that occurrence is not accepted for the grouped ID.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0265",
+      "value": "Grab 7",
+      "resultPath": [
+        "records",
+        7,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 6.2, site: Barbing, district: Ldkr. Regensburg, Oberpfalz, burial_type: Körpergrab, orientation: Kopf im Nordosten, body_position: linker Hocker, sex: vermutlich männlich, individual_count: 1",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "6.2",
+        "site": "Barbing",
+        "district": "Ldkr. Regensburg, Oberpfalz",
+        "grave_id": "Grab 7",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordosten",
+        "body_position": "linker Hocker",
+        "sex": "vermutlich männlich",
+        "individual_count": 1
+      }
+    },
+    "labelA": {
+      "claimId": "c0265",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_e8fc257ebbbb78a0aa860c5824d17dd6c5d6c7ed0f6bf59b509b1ebf4408c8cc"
+        ]
+      ],
+      "note": "6.2 Barbing Grab 7: PDF page(s) 8: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0265",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_e8fc257ebbbb78a0aa860c5824d17dd6c5d6c7ed0f6bf59b509b1ebf4408c8cc"
+        ],
+        [
+          "anchor_0baf3059f6d3005e1318c52da62cd8907a0b11396491e74f65deea0d3f81c005"
+        ]
+      ],
+      "note": "Catalogue 6.2; PDF page(s) 8. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0269",
+      "value": 1,
+      "resultPath": [
+        "records",
+        9,
+        "individual_count"
+      ],
+      "context": "catalogue_id: 7.2, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 2011, burial_type: Körpergrab, orientation: Kopf im Nordosten, body_position: linker Hocker, sex: männlich, age_class: adult, pit_length_value: 2.26, pit_length_unit: m, pit_width_value: 1.29, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.2",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 2011",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordosten",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "adult",
+        "individual_count": 1,
+        "pit_length_value": 2.26,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.29,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0269",
+      "valueSupported": false,
+      "goldAnchorSets": [],
+      "note": "7.2 Burgweinting Obj. 2011: PDF p8 describes the male individual but states no explicit total individual count.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0269",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_c0d1b7a48a68f05f0ad3c6ca60e4a75625dbb7a4eb0f29824d885d894b95fd5c"
+        ]
+      ],
+      "note": "Catalogue 7.2; PDF page(s) 8. One adult male is explicitly described in a left crouched burial.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0283",
+      "value": 0.9,
+      "resultPath": [
+        "records",
+        18,
+        "pit_width_value"
+      ],
+      "context": "catalogue_id: 7.12, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 3087b, burial_type: Körpergrab, orientation: Kopf im Nordnordwesten, body_position: linker Hocker, sex: eher männlich, age_class: juvenil, individual_count: 1, pit_length_value: 2.09, pit_length_unit: m, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.12",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3087b",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordnordwesten",
+        "body_position": "linker Hocker",
+        "sex": "eher männlich",
+        "age_class": "juvenil",
+        "individual_count": 1,
+        "pit_length_value": 2.09,
+        "pit_length_unit": "m",
+        "pit_width_value": 0.9,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0283",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_ec729a112d294c5a87991977f5cccbbe8f20402d80e0f5aa2008a795dbff3a17"
+        ],
+        [
+          "anchor_b72c72acb5b43ebb503cb1a61223590e6e1208732e20cff6b2b06a839599e78d",
+          "anchor_0134c6f22c8e0a7574d3a681a271e94c01f54ecfff7e338928fd1f5723ba9e32"
+        ]
+      ],
+      "note": "7.12 Burgweinting Obj. 3087b: PDF p12 confirms 0.9 is the width of 3087b; the fragmented canonical local passage preserves the dimension relationship.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0283",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_ec729a112d294c5a87991977f5cccbbe8f20402d80e0f5aa2008a795dbff3a17"
+        ],
+        [
+          "anchor_b72c72acb5b43ebb503cb1a61223590e6e1208732e20cff6b2b06a839599e78d",
+          "anchor_8c9a899af24ded21795b0764a48e00de4dde166d8d1fe1512f2af507f499bf13",
+          "anchor_0134c6f22c8e0a7574d3a681a271e94c01f54ecfff7e338928fd1f5723ba9e32",
+          "anchor_23070859ee7c91300b6d3ab491ecdcfb0adc06a5626a1127ea00790b9d213ecc",
+          "anchor_915eb3103d5a10ba4fb928db761c105c45ccc89601a2c3ecdf2d36d7a4fe19f8"
+        ]
+      ],
+      "note": "Catalogue 7.12; PDF page(s) 12. The comparison in Obj. 3087a explicitly gives 3087b as 2.09 x 0.9 m. PDF p12 confirms the same measurements in 3087b; that alternative is fragmented into five canonical anchors.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0289",
+      "value": "6",
+      "resultPath": [
+        "records",
+        4,
+        "grave_goods",
+        3,
+        "item_id"
+      ],
+      "context": "item_type: Griffzungendolch, material: Kupfer",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "4",
+        "site": "Aufhausen",
+        "district": "Ldkr. Dingolfing-Landau, Niederbayern",
+        "burial_type": "Brandschüttungsgrab",
+        "orientation": "Nordwest-Südost",
+        "sex": "männlich",
+        "individual_count": 1,
+        "pit_length_value": 2.2,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.2,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0289",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_bd8a78032756795bb7994bc736eb7327e46bae7bba3c6cc92337877bb29a599f"
+        ]
+      ],
+      "note": "4 Aufhausen: PDF page(s) 6: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0289",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_d9ae8c0ae02142f2d1a08c8d0eba436c63ae37a82028a4aeeb7750fd7df6612c"
+        ],
+        [
+          "anchor_bd8a78032756795bb7994bc736eb7327e46bae7bba3c6cc92337877bb29a599f"
+        ]
+      ],
+      "note": "Catalogue 4; PDF page(s) 6. The local source explicitly supports this attribute; numeric rendering and grammatical inflection are normalized without changing the assertion.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0297",
+      "value": "Körpergrab",
+      "resultPath": [
+        "records",
+        3,
+        "burial_type"
+      ],
+      "context": "catalogue_id: 3.2, site: Atting 'Aufeld', district: Ldkr. Straubing-Bogen, Niederbayern, grave_id: Befund 4799, orientation: Kopf im Nordnordwesten, body_position: linker Hocker, sex: männlich, individual_count: 1",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "3.2",
+        "site": "Atting 'Aufeld'",
+        "district": "Ldkr. Straubing-Bogen, Niederbayern",
+        "grave_id": "Befund 4799",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordnordwesten",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "individual_count": 1
+      }
+    },
+    "labelA": {
+      "claimId": "c0297",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_8be15ae7a7087aa8d3b2753e12c94643af7d4ea39e80abda2465be8042b5c5a4",
+          "anchor_7ee899f2566f91e12a9380bbbd5a929b1d589b0a8ed23823962baab1907e5fee"
+        ]
+      ],
+      "note": "3.2 Atting 'Aufeld' Befund 4799: The text explicitly describes a bodily burial.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0297",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_8be15ae7a7087aa8d3b2753e12c94643af7d4ea39e80abda2465be8042b5c5a4"
+        ]
+      ],
+      "note": "Catalogue 3.2; PDF page(s) 5. One male is explicitly buried as a left crouched inhumation with head NNW.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0299",
+      "value": "Obj. 3082",
+      "resultPath": [
+        "records",
+        13,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 7.6, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, burial_type: Körpergrab, orientation: Kopf im Norden, body_position: linker Hocker, sex: eher männlich, age_class: Infans II, individual_count: 1, pit_length_value: 1.53, pit_length_unit: m, pit_width_value: 1.02, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.6",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3082",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "body_position": "linker Hocker",
+        "sex": "eher männlich",
+        "age_class": "Infans II",
+        "individual_count": 1,
+        "pit_length_value": 1.53,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.02,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0299",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_fcb9987fd9af632b2f3d75e9ba73cd5bacb1df2d755dad153feb1bbce1039574"
+        ]
+      ],
+      "note": "7.6 Burgweinting Obj. 3082: PDF page(s) 10: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0299",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_fcb9987fd9af632b2f3d75e9ba73cd5bacb1df2d755dad153feb1bbce1039574"
+        ],
+        [
+          "anchor_f0d76211fdf4222671eb94114c0aa5086826e7c24d0b9dff7c9e61d744013e56"
+        ]
+      ],
+      "note": "Catalogue 7.6; PDF page(s) 10. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0312",
+      "value": "Körpergrab",
+      "resultPath": [
+        "records",
+        2,
+        "burial_type"
+      ],
+      "context": "catalogue_id: 3.1, site: Atting 'Aufeld', district: Ldkr. Straubing-Bogen, Niederbayern, grave_id: Befund 4777, orientation: Kopf im Norden, body_position: linker Hocker, sex: männlich, individual_count: 1",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "3.1",
+        "site": "Atting 'Aufeld'",
+        "district": "Ldkr. Straubing-Bogen, Niederbayern",
+        "grave_id": "Befund 4777",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "individual_count": 1
+      }
+    },
+    "labelA": {
+      "claimId": "c0312",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_fe932599430c1a2104836f8137dba7b28e41b6502c5eb356c2bfc5d6d592a5f2",
+          "anchor_61b71bd37d883851c1fb27b2f9439d623f07bb2730c0b93164f08f47d99692c6"
+        ]
+      ],
+      "note": "3.1 Atting 'Aufeld' Befund 4777: The explicitly described bodily burial supports inhumation.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0312",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_fe932599430c1a2104836f8137dba7b28e41b6502c5eb356c2bfc5d6d592a5f2"
+        ]
+      ],
+      "note": "Catalogue 3.1; PDF page(s) 5. Befund 4777 explicitly contains one male, left crouched, head north; this directly describes an inhumation.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0316",
+      "value": 1,
+      "resultPath": [
+        "records",
+        17,
+        "individual_count"
+      ],
+      "context": "catalogue_id: 7.11, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 3087a, burial_type: Körpergrab, orientation: Kopf im Süden, body_position: rechter Hocker, sex: weiblich, age_class: spätadult, pit_length_value: 1.93, pit_length_unit: m, pit_width_value: 1.15, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.11",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3087a",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Süden",
+        "body_position": "rechter Hocker",
+        "sex": "weiblich",
+        "age_class": "spätadult",
+        "individual_count": 1,
+        "pit_length_value": 1.93,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.15,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0316",
+      "valueSupported": false,
+      "goldAnchorSets": [],
+      "note": "7.11 Burgweinting Obj. 3087a: PDF p12 describes a woman and additionally undetermined calcined remains, including a possible skull fragment; no total individual count is stated and one cannot be inferred.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0316",
+      "valueSupported": null,
+      "goldAnchorSets": [],
+      "note": "Catalogue 7.11; PDF page(s) see rationale. PDF p12, Obj. 3087a names one female skeleton but also undetermined calcined bones in the bowl, including probably a skull fragment. Whether these represent another person is not settled; an exact total individual_count of 1 cannot be resolved from the source.",
+      "status": "unresolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0317",
+      "value": "Obj. 3083",
+      "resultPath": [
+        "records",
+        14,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 7.7, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, burial_type: Körpergrab, orientation: Kopf im Süden, sex: eher weiblich, age_class: Infans I, individual_count: 1, pit_length_value: 1.02, pit_length_unit: m, pit_width_value: 0.7, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.7",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3083",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Süden",
+        "sex": "eher weiblich",
+        "age_class": "Infans I",
+        "individual_count": 1,
+        "pit_length_value": 1.02,
+        "pit_length_unit": "m",
+        "pit_width_value": 0.7,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0317",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_10f72bae0daa4ffa526fec4bbe722e7d91468a5262a26eda75c5b0aa60fb82ea"
+        ]
+      ],
+      "note": "7.7 Burgweinting Obj. 3083: PDF page(s) 10: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0317",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_10f72bae0daa4ffa526fec4bbe722e7d91468a5262a26eda75c5b0aa60fb82ea"
+        ],
+        [
+          "anchor_21496afa6cdbedee4d438de848d5d03a525315f9bcde3bd2ddcf9ea9a4f694cc"
+        ]
+      ],
+      "note": "Catalogue 7.7; PDF page(s) 10. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0320",
+      "value": "Obj. 3087a",
+      "resultPath": [
+        "records",
+        17,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 7.11, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, burial_type: Körpergrab, orientation: Kopf im Süden, body_position: rechter Hocker, sex: weiblich, age_class: spätadult, individual_count: 1, pit_length_value: 1.93, pit_length_unit: m, pit_width_value: 1.15, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.11",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3087a",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Süden",
+        "body_position": "rechter Hocker",
+        "sex": "weiblich",
+        "age_class": "spätadult",
+        "individual_count": 1,
+        "pit_length_value": 1.93,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.15,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0320",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_31c3a299395920ca8fa65ddc438c39f765f00f1284dfa0d74b25641d27647bf8"
+        ]
+      ],
+      "note": "7.11 Burgweinting Obj. 3087a: PDF page(s) 12: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0320",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_31c3a299395920ca8fa65ddc438c39f765f00f1284dfa0d74b25641d27647bf8"
+        ],
+        [
+          "anchor_3aa65b34b67cbc5a1f026d385ccba8a6f8e48dab16b70cddfb8232ad690696c9"
+        ],
+        [
+          "anchor_5068f9023993b0c1fde75ab0f38b5043988c2add34edaf5cb8880a77f771d4f8"
+        ],
+        [
+          "anchor_f3293760d6d302e064f283af59651bbbe7bc5ca481a6edfbed8b7cfcbbff4cfe"
+        ]
+      ],
+      "note": "Catalogue 7.11; PDF page(s) 12. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0326",
+      "value": "Obj. 2011",
+      "resultPath": [
+        "records",
+        9,
+        "grave_id"
+      ],
+      "context": "catalogue_id: 7.2, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, burial_type: Körpergrab, orientation: Kopf im Nordosten, body_position: linker Hocker, sex: männlich, age_class: adult, individual_count: 1, pit_length_value: 2.26, pit_length_unit: m, pit_width_value: 1.29, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.2",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 2011",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordosten",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "adult",
+        "individual_count": 1,
+        "pit_length_value": 2.26,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.29,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0326",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_fa90f51e5fc5ca417a33e065f70bfaae16f1cd8d235ce59481afaac875de647a"
+        ]
+      ],
+      "note": "7.2 Burgweinting Obj. 2011: PDF page(s) 8: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0326",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_fa90f51e5fc5ca417a33e065f70bfaae16f1cd8d235ce59481afaac875de647a"
+        ],
+        [
+          "anchor_1834fc0715395d3aec62193285f5411e01562e57c31b28da1562cbff197dce14"
+        ]
+      ],
+      "note": "Catalogue 7.2; PDF page(s) 8. The record heading states the catalogue ID, named site, district and, where present, feature/grave identifier. Suffixes are retained. Attribute support is separate from record-selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0349",
+      "value": 1,
+      "resultPath": [
+        "records",
+        13,
+        "individual_count"
+      ],
+      "context": "catalogue_id: 7.6, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 3082, burial_type: Körpergrab, orientation: Kopf im Norden, body_position: linker Hocker, sex: eher männlich, age_class: Infans II, pit_length_value: 1.53, pit_length_unit: m, pit_width_value: 1.02, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.6",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3082",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "body_position": "linker Hocker",
+        "sex": "eher männlich",
+        "age_class": "Infans II",
+        "individual_count": 1,
+        "pit_length_value": 1.53,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.02,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0349",
+      "valueSupported": false,
+      "goldAnchorSets": [],
+      "note": "7.6 Burgweinting Obj. 3082: PDF p10 describes the individual but gives no explicit total individual count.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0349",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_e558f345424ad36fa9b96d3b564343dceb6e1986c4df4fb40f1e4135d3953021"
+        ]
+      ],
+      "note": "Catalogue 7.6; PDF page(s) 10. The source explicitly identifies the poorly preserved skeleton of one Infans II individual, eher männlich; inhumation is supported independently of uncertain posture.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0354",
+      "value": "3",
+      "resultPath": [
+        "records",
+        5,
+        "grave_goods",
+        1,
+        "item_id"
+      ],
+      "context": "item_type: Armschutzplatte, material: Sandstein",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "5",
+        "site": "Augsburg-Haunstetten",
+        "district": "Stadt Augsburg, Schwaben",
+        "grave_id": "Grab 4",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "frühadult",
+        "individual_count": 1,
+        "pit_length_value": 1.65,
+        "pit_length_unit": "m",
+        "pit_width_value": 0.8,
+        "pit_width_unit": "m",
+        "pit_depth_value": 0.65,
+        "pit_depth_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0354",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_a3a6455d708ab73e43def761e6cde4373510b56972b079fccf9cdebf23ef39f3"
+        ]
+      ],
+      "note": "5 Augsburg-Haunstetten Grab 4: PDF page(s) 6: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0354",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_a3a6455d708ab73e43def761e6cde4373510b56972b079fccf9cdebf23ef39f3"
+        ],
+        [
+          "anchor_50ae5b844e798d211c122099315d92439dd29c40fb36436f7cdd51074c6161ed"
+        ]
+      ],
+      "note": "Catalogue 5; PDF page(s) 6, 7. Armschutzplatte is identified as item 3 in the narrative and in the inventory plate reference, which the catalogue convention maps to item numbers.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0360",
+      "value": 1,
+      "resultPath": [
+        "records",
+        5,
+        "individual_count"
+      ],
+      "context": "catalogue_id: 5, site: Augsburg-Haunstetten, district: Stadt Augsburg, Schwaben, grave_id: Grab 4, burial_type: Körpergrab, orientation: Kopf im Norden, body_position: linker Hocker, sex: männlich, age_class: frühadult, pit_length_value: 1.65, pit_length_unit: m, pit_width_value: 0.8, pit_width_unit: m, pit_depth_value: 0.65, pit_depth_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "5",
+        "site": "Augsburg-Haunstetten",
+        "district": "Stadt Augsburg, Schwaben",
+        "grave_id": "Grab 4",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "frühadult",
+        "individual_count": 1,
+        "pit_length_value": 1.65,
+        "pit_length_unit": "m",
+        "pit_width_value": 0.8,
+        "pit_width_unit": "m",
+        "pit_depth_value": 0.65,
+        "pit_depth_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0360",
+      "valueSupported": false,
+      "goldAnchorSets": [],
+      "note": "5 Augsburg-Haunstetten Grab 4: PDF p6 describes the male individual in the singular but states no individual count; the protocol forbids inferring a numeric count.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0360",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_6ee33cf33c2d35691a9285f41ef026739a7e3a965929905196d3da0fbfcddd5e"
+        ]
+      ],
+      "note": "Catalogue 5; PDF page(s) 6. The source explicitly describes one early-adult male inhumation, left crouched, head north.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0364",
+      "value": 1,
+      "resultPath": [
+        "records",
+        8,
+        "individual_count"
+      ],
+      "context": "catalogue_id: 7.1, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 2010, burial_type: Körpergrab, orientation: Kopf ungefähr im Norden, body_position: linker Hocker, sex: männlich, age_class: spätadult-matur, pit_length_value: 2.5, pit_length_unit: m, pit_width_value: 1.2, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.1",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 2010",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf ungefähr im Norden",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "spätadult-matur",
+        "individual_count": 1,
+        "pit_length_value": 2.5,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.2,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0364",
+      "valueSupported": false,
+      "goldAnchorSets": [],
+      "note": "7.1 Burgweinting Obj. 2010: PDF p8 describes the individual in the singular but gives no explicit individual count.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0364",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_9914df5519002093af55b82fb8d58c242afd30f78d403df9d1c286fbb7bee026"
+        ]
+      ],
+      "note": "Catalogue 7.1; PDF page(s) 8. The source explicitly identifies one late-adult–mature male inhumation, left crouched, with head approximately north; the orientation qualification is retained.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0380",
+      "value": 1,
+      "resultPath": [
+        "records",
+        19,
+        "individual_count"
+      ],
+      "context": "catalogue_id: 7.13, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 3088, burial_type: Körpergrab, orientation: Kopf im Süden, body_position: rechter Hocker, sex: eher weiblich, age_class: adult, pit_length_value: 1.67, pit_length_unit: m, pit_width_value: 1.08, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.13",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3088",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Süden",
+        "body_position": "rechter Hocker",
+        "sex": "eher weiblich",
+        "age_class": "adult",
+        "individual_count": 1,
+        "pit_length_value": 1.67,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.08,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0380",
+      "valueSupported": false,
+      "goldAnchorSets": [],
+      "note": "7.13 Burgweinting Obj. 3088: PDF p12 describes the individual but gives no explicit total individual count.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0380",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_5a9f2738cb8d36fcd02ccea76a59b828183fc9e3251b6c5eb4abff8f7f363927"
+        ]
+      ],
+      "note": "Catalogue 7.13; PDF page(s) 12. The source explicitly identifies one adult individual, eher weiblich.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0383",
+      "value": "Silexdolch",
+      "resultPath": [
+        "records",
+        3,
+        "grave_goods",
+        4,
+        "item_type"
+      ],
+      "context": "item_id: 13, material: Plattenhornstein",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "3.2",
+        "site": "Atting 'Aufeld'",
+        "district": "Ldkr. Straubing-Bogen, Niederbayern",
+        "grave_id": "Befund 4799",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordnordwesten",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "individual_count": 1
+      }
+    },
+    "labelA": {
+      "claimId": "c0383",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_ca2f44738b305e042100008fa4fc6848fbaad72e03ef0e3d34a9d5db0fb1745c"
+        ]
+      ],
+      "note": "3.2 Atting 'Aufeld' Befund 4799: PDF page(s) 5: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0383",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_ca2f44738b305e042100008fa4fc6848fbaad72e03ef0e3d34a9d5db0fb1745c"
+        ],
+        [
+          "anchor_bde061b4694be8e6f786ded4723ff34efde1e539e7ff256bb24528a21b88d321"
+        ]
+      ],
+      "note": "Catalogue 3.2; PDF page(s) 5. The local source explicitly supports this attribute; numeric rendering and grammatical inflection are normalized without changing the assertion.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0394",
+      "value": "Körpergrab",
+      "resultPath": [
+        "records",
+        9,
+        "burial_type"
+      ],
+      "context": "catalogue_id: 7.2, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 2011, orientation: Kopf im Nordosten, body_position: linker Hocker, sex: männlich, age_class: adult, individual_count: 1, pit_length_value: 2.26, pit_length_unit: m, pit_width_value: 1.29, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.2",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 2011",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordosten",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "adult",
+        "individual_count": 1,
+        "pit_length_value": 2.26,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.29,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0394",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_c0d1b7a48a68f05f0ad3c6ca60e4a75625dbb7a4eb0f29824d885d894b95fd5c",
+          "anchor_cd584334091cb3bced421f72184f6055bdd116e54fdb5b72ce3e2666780d195c"
+        ]
+      ],
+      "note": "7.2 Burgweinting Obj. 2011: PDF page(s) 8: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0394",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_c0d1b7a48a68f05f0ad3c6ca60e4a75625dbb7a4eb0f29824d885d894b95fd5c"
+        ]
+      ],
+      "note": "Catalogue 7.2; PDF page(s) 8. One adult male is explicitly described in a left crouched burial.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0397",
+      "value": 1,
+      "resultPath": [
+        "records",
+        15,
+        "individual_count"
+      ],
+      "context": "catalogue_id: 7.8, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 3084, burial_type: Körpergrab, orientation: Kopf im Norden, body_position: linker Hocker, sex: eher männlich, age_class: adult, pit_length_value: 2.14, pit_length_unit: m, pit_width_value: 1.15, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.8",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3084",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Norden",
+        "body_position": "linker Hocker",
+        "sex": "eher männlich",
+        "age_class": "adult",
+        "individual_count": 1,
+        "pit_length_value": 2.14,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.15,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0397",
+      "valueSupported": false,
+      "goldAnchorSets": [],
+      "note": "7.8 Burgweinting Obj. 3084: PDF p11 describes the individual in the singular but does not explicitly state a total individual count.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0397",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f7325ff98dbcbf9ca5248ef704f3ddb796e4e2ceef9d0efec02f58dbb2e0e1fe"
+        ]
+      ],
+      "note": "Catalogue 7.8; PDF page(s) 11. The source explicitly describes one adult inhumation, left crouched, head north.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0407",
+      "value": "5",
+      "resultPath": [
+        "records",
+        6,
+        "grave_goods",
+        4,
+        "item_id"
+      ],
+      "context": "item_type: Armschutzplatte, material: Schiefer",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "6.1",
+        "site": "Barbing",
+        "district": "Ldkr. Regensburg, Oberpfalz",
+        "grave_id": "Grab 3",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordosten",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "matur",
+        "individual_count": 1
+      }
+    },
+    "labelA": {
+      "claimId": "c0407",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_06e92da634bc6a673faf566dcc37bec7503517fe1f4ca66ac4f533fff746f1c9"
+        ]
+      ],
+      "note": "6.1 Barbing Grab 3: PDF page(s) 7: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0407",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_d3b63aac69bcce4291040fa5f222c2d847f307ae553bd78f4be322aaee2faeb5"
+        ],
+        [
+          "anchor_06e92da634bc6a673faf566dcc37bec7503517fe1f4ca66ac4f533fff746f1c9"
+        ]
+      ],
+      "note": "Catalogue 6.1; PDF page(s) 7. The local source explicitly supports this attribute; numeric rendering and grammatical inflection are normalized without changing the assertion.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0415",
+      "value": "Armschutzplatte",
+      "resultPath": [
+        "records",
+        4,
+        "grave_goods",
+        2,
+        "item_type"
+      ],
+      "context": "item_id: 5, material: versteinertes Holz",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "4",
+        "site": "Aufhausen",
+        "district": "Ldkr. Dingolfing-Landau, Niederbayern",
+        "burial_type": "Brandschüttungsgrab",
+        "orientation": "Nordwest-Südost",
+        "sex": "männlich",
+        "individual_count": 1,
+        "pit_length_value": 2.2,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.2,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0415",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_8d3c48f6743814801433948ffc64fe53dff1b1cea5454269932d6a35d5c8055d"
+        ]
+      ],
+      "note": "4 Aufhausen: PDF page(s) 6: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0415",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_8d3c48f6743814801433948ffc64fe53dff1b1cea5454269932d6a35d5c8055d"
+        ],
+        [
+          "anchor_5ed88f378d78d062a54e98e506429583246b242e9d75d0f547c2cc54b3a30a28"
+        ]
+      ],
+      "note": "Catalogue 4; PDF page(s) 6. The local source explicitly supports this attribute; numeric rendering and grammatical inflection are normalized without changing the assertion.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0428",
+      "value": "weiblich",
+      "resultPath": [
+        "records",
+        17,
+        "sex"
+      ],
+      "context": "catalogue_id: 7.11, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 3087a, burial_type: Körpergrab, orientation: Kopf im Süden, body_position: rechter Hocker, age_class: spätadult, individual_count: 1, pit_length_value: 1.93, pit_length_unit: m, pit_width_value: 1.15, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.11",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3087a",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Süden",
+        "body_position": "rechter Hocker",
+        "sex": "weiblich",
+        "age_class": "spätadult",
+        "individual_count": 1,
+        "pit_length_value": 1.93,
+        "pit_length_unit": "m",
+        "pit_width_value": 1.15,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0428",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_90e3bc48aca168728b7ea376af64e3e6e1f109cf9ba8714b2d520bf273a7d739",
+          "anchor_81c6e66b3ad19287e54474798b34b9c314adbedc3194334a417cc62ad5857d6f"
+        ]
+      ],
+      "note": "7.11 Burgweinting Obj. 3087a: PDF page(s) 12: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0428",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_90e3bc48aca168728b7ea376af64e3e6e1f109cf9ba8714b2d520bf273a7d739"
+        ]
+      ],
+      "note": "Catalogue 7.11; PDF page(s) 12. The source explicitly identifies the primary individual as female.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0429",
+      "value": 2.09,
+      "resultPath": [
+        "records",
+        18,
+        "pit_length_value"
+      ],
+      "context": "catalogue_id: 7.12, site: Burgweinting, district: Stadt Regensburg, Oberpfalz, grave_id: Obj. 3087b, burial_type: Körpergrab, orientation: Kopf im Nordnordwesten, body_position: linker Hocker, sex: eher männlich, age_class: juvenil, individual_count: 1, pit_length_unit: m, pit_width_value: 0.9, pit_width_unit: m",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "7.12",
+        "site": "Burgweinting",
+        "district": "Stadt Regensburg, Oberpfalz",
+        "grave_id": "Obj. 3087b",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordnordwesten",
+        "body_position": "linker Hocker",
+        "sex": "eher männlich",
+        "age_class": "juvenil",
+        "individual_count": 1,
+        "pit_length_value": 2.09,
+        "pit_length_unit": "m",
+        "pit_width_value": 0.9,
+        "pit_width_unit": "m"
+      }
+    },
+    "labelA": {
+      "claimId": "c0429",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_ec729a112d294c5a87991977f5cccbbe8f20402d80e0f5aa2008a795dbff3a17"
+        ],
+        [
+          "anchor_b72c72acb5b43ebb503cb1a61223590e6e1208732e20cff6b2b06a839599e78d"
+        ]
+      ],
+      "note": "7.12 Burgweinting Obj. 3087b: Both catalogue passages explicitly give the 3087b pit length 2.09 m.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0429",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_ec729a112d294c5a87991977f5cccbbe8f20402d80e0f5aa2008a795dbff3a17"
+        ],
+        [
+          "anchor_b72c72acb5b43ebb503cb1a61223590e6e1208732e20cff6b2b06a839599e78d",
+          "anchor_8c9a899af24ded21795b0764a48e00de4dde166d8d1fe1512f2af507f499bf13",
+          "anchor_0134c6f22c8e0a7574d3a681a271e94c01f54ecfff7e338928fd1f5723ba9e32",
+          "anchor_23070859ee7c91300b6d3ab491ecdcfb0adc06a5626a1127ea00790b9d213ecc",
+          "anchor_915eb3103d5a10ba4fb928db761c105c45ccc89601a2c3ecdf2d36d7a4fe19f8"
+        ]
+      ],
+      "note": "Catalogue 7.12; PDF page(s) 12. The comparison in Obj. 3087a explicitly gives 3087b as 2.09 x 0.9 m. PDF p12 confirms the same measurements in 3087b; that alternative is fragmented into five canonical anchors.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "c0432",
+      "value": "2",
+      "resultPath": [
+        "records",
+        6,
+        "grave_goods",
+        1,
+        "item_id"
+      ],
+      "context": "item_type: Glockenbecher, height_value: 11.8, height_unit: cm",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "catalogue_id": "6.1",
+        "site": "Barbing",
+        "district": "Ldkr. Regensburg, Oberpfalz",
+        "grave_id": "Grab 3",
+        "burial_type": "Körpergrab",
+        "orientation": "Kopf im Nordosten",
+        "body_position": "linker Hocker",
+        "sex": "männlich",
+        "age_class": "matur",
+        "individual_count": 1
+      }
+    },
+    "labelA": {
+      "claimId": "c0432",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_06e92da634bc6a673faf566dcc37bec7503517fe1f4ca66ac4f533fff746f1c9"
+        ]
+      ],
+      "note": "6.1 Barbing Grab 3: PDF page(s) 7: source explicitly supports this field and value in the cited local passage.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "c0432",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_1b48e8386de3db718d1ae006840838e758ce957de48c4e9a4c94539b0565c64e"
+        ],
+        [
+          "anchor_06e92da634bc6a673faf566dcc37bec7503517fe1f4ca66ac4f533fff746f1c9"
+        ]
+      ],
+      "note": "Catalogue 6.1; PDF page(s) 7. The local source explicitly supports this attribute; numeric rendering and grammatical inflection are normalized without changing the assertion.",
+      "status": "resolved"
+    }
+  }
+]

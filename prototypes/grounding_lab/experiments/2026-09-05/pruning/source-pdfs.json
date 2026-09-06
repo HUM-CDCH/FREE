@@ -1,0 +1,38 @@
+[
+  {
+    "document": "buchvaldek-1970-vikletice-tables-de",
+    "path": "D:\\progetti\\FREE\\prototypes\\grounding_lab\\final_sources_3\\buchvaldek-1970-vikletice-tables-de.pdf",
+    "bytes": 21127026,
+    "sha256": "4b0c34a7a223cb4612a76e671c71fb74c7c061767fe411c0f1c87e97fcf0dd86"
+  },
+  {
+    "document": "buchvaldek-koutecky-1972-vikletice-de",
+    "path": "D:\\progetti\\FREE\\prototypes\\grounding_lab\\final_sources_3\\buchvaldek-koutecky-1972-vikletice-de.pdf",
+    "bytes": 2307085,
+    "sha256": "a6f1090c8fcb7c0b5c533af34a237f6314cf6366992834900c90d12190dd9213"
+  },
+  {
+    "document": "conrad-2011-bbc-graves-de",
+    "path": "D:\\progetti\\FREE\\prototypes\\grounding_lab\\final_sources_3\\conrad-2011-bbc-graves-de.pdf",
+    "bytes": 583745,
+    "sha256": "ccd446862eefc765ec19b3254b1f98f00cc8e71b89b4f93487f3dfb6ba934814"
+  },
+  {
+    "document": "dobes-1998-kugelamphoren-de",
+    "path": "D:\\progetti\\FREE\\prototypes\\grounding_lab\\final_sources_3\\dobes-1998-kugelamphoren-de.pdf",
+    "bytes": 13219221,
+    "sha256": "9de6eee787f673c4bbdb87c11eab5412dd4950aac80f519dc3c6f2a3c8350ee4"
+  },
+  {
+    "document": "durankulak-catalogue-de",
+    "path": "D:\\progetti\\FREE\\prototypes\\grounding_lab\\final_sources_3\\durankulak-catalogue-de.pdf",
+    "bytes": 849739,
+    "sha256": "59bccf2477af51a98dc0cc322f00277afff54ce22de8e3980079d899a3b1b914"
+  },
+  {
+    "document": "shbat-2009-skeletal-health-en",
+    "path": "D:\\progetti\\FREE\\prototypes\\grounding_lab\\final_sources_3\\shbat-2009-skeletal-health-en.pdf",
+    "bytes": 4038561,
+    "sha256": "475a5a609a334aa8564ad0d825d9d4e13a829dc85944def92bed8300b0453623"
+  }
+]

@@ -1,0 +1,184 @@
+{
+  "model": "qwen3.8:27b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Extract document metadata and the first 20 eligible burial records in source reading order. Eligible records are definite, explicitly identified graves or burials. Exclude probable or conjectured graves (including EvG, vG, and \"vermutlich Grab\"), explicitly rejected burial interpretations, settlements, stray finds, bibliographic references, and unrelated find records. If fewer than 20 exist, return all eligible records. Use only explicitly stated information, preserve identifiers and suffixes, and never infer or compute values. Respect source legends for measurement units, emit each measurement in its declared unit using the schema value and unit fields, and perform no unit conversions. Return null for missing scalar information and [] for empty collections. Return exactly the schema keys and JSON types, without explanations. Extract EXACTLY these requested records in this order: R015, R016. sourceKey is a routing ID copied from REQUEST, never an extracted source identifier. Each record object must concern only that requested individual burial. Do not add neighbouring graves.  The sourceKey routing field remains a plain string.\n\nSCHEMA:\n{\"records\":[{\"sourceKey\":\"string\",\"record\":{\"site\":\"string\",\"site_code\":\"string\",\"grave_id\":\"string\",\"feature_number\":\"string\",\"excavation_year\":\"integer\",\"orientation\":\"string\",\"body_position\":\"string\",\"burial_type\":\"string\",\"grave_pit_length_m\":\"number\",\"grave_pit_width_m\":\"number\",\"grave_pit_depth_m\":\"number\",\"age_class\":\"string\",\"age_min_years\":\"number\",\"age_max_years\":\"number\",\"sex_estimate\":\"string\",\"cremated_bone_weight_g\":\"number\",\"grave_goods\":[\"string\"],\"figure_reference\":\"string\"}}]}\n\nSOURCE:\nREQUEST R015: Grab 6 (Bef. 91) - Abb. 41\n## Page 4\nGrab 6 (Bef. 91) - Abb. 41\nPl.  1: NNW-SSO-ausgerichtete, rechteckige Grabgrube mit abgerundeten Ecken: L 1,0; B 0,7. Die Verfüllung besteht aus leicht rötlich mittelbraunem, halbfestem, sandigem bis kiesigem Schluff. Pl. 2: Mit Körperbestattung im NW-Bereich. NNWSSO-ausgerichtete, im SSO ovale und im NNW eckige Grabgrube mit Einbuchtung im NNO: L 0,9; B 0,72; T ca. 0,24. Die Verfüllung besteht aus rötlich mittelbraunem, teils dunkelbraun geflecktem, halbfestem, leicht lehmigem Sand. Pl. 3: Dieselbe Befundsituation wie auf Pl. 2. NNW-SSO-ausgerichtete, im SSO unregelmäßige und NNW eckige Grabgrube mit leicht konvexer W-Seite: L 0,9; B 0,7; T ca. 0,3. Grabeinbauten: Im östlichen und südwestlichen Randbereich befindet sich eine zum Teil geschlossene Setzung aus Felsgesteinen mit Seitenlängen von 0,06-0,16, in die im SO ein Schafsschädel (2) integriert ist. Vor dem Skelett in Höhe des Brustkorbes befindet sich eine lineare N-S-ausgerichtete Setzung aus Felsgesteinen mit Seitenlängen von ca. 0,05. Profil: Die Grabgrube weist schräg nach innen gebogene Wände und einen waagerechten Boden auf: T max. 0,39. Objektlokalisierung: Eine Tasse (1) befindet sich östlich vor dem Oberkörper mit der Öffnung nach oben. Aus der Verfüllung stammen ein Silexabschlag (3) und drei Silextrümmerstücke (4).\n## Page 5\nBestattung: N-S-ausgerichteter, li Hocker in Seitenlage mit Blick nach O.\nBeide Oberarme am Körper angelegt, beide Unterarme angewinkelt, Hände wahrsch. vorm Bauch. Beide Oberschenkel angewinkelt, beide Unterschenkel stark angewinkelt.\nInfans I, 0,5-1 Jahr. Männlich > weiblich.\nBeigaben: 1) Unverz. Tasse mit Bandhenkel; vollständig, ein Loch befindet sich im unteren Gefäßbereich. Gerundeter bzw. gerader Rand mit abgerundeten Kanten. Ofl. intakt glatt-glänzend: very dark gray (10YR2/1) bis dark gray (10YR4/1), mit Flecken white (10YR8/1) und very pale brown (10YR8/3). Mag. anorg. fein und mittel, Glimmer auf Ofl. H 8,6-8,9; Bdm ca. 2,7; Gdm 7,2; Mdm 7,1; Wst 0,4-0,5; Bst 0,6. Inv.-Nr. KQA-01/55. 2) Schädel vom Schaf (Ovis ammon f. aries) . Cranium. Ein Individuum. Adult. Männlich. An den Hornzapfen und den Hinterhauptscondylen sind Zerteilungsspuren zu erkennen. Gew. 370. Inv.-Nr. KQA-01/55.\nFunde: 3) Silexabschlag. Inv.-Nr. KQA-01/55. 4) 3 Silextrüm- merstücke. Inv.-Nr. KQA-01/55.\n\nREQUEST R016: Grab 7 (Bef. 21) - Abb. 42\n## Page 5\nGrab 7 (Bef. 21) - Abb. 42\nPl. 1: N-S-ausgerichtete, rechteckige Grabgrube mit gerundeter S-Seite und Ausbuchtung im O: L 1,35; B 0,65-1,02.* Die Verfüllung besteht aus rötlich braunorangem, lockerem bis halbfestem, leicht schluffigem Sand. Pl. 2: Mit Körperbestattung. Die nur teilweise erkennbare NNW-SSO-ausgerichtete Grabgrube ist länglich, im N eckig mit gerader Schmalseite und im S abgerundet: L 1,67; B 0,75-0,97; T 0,4-0,52. Die Verfüllung besteht aus rötlich braungrauem, lockerem, leicht schluffigem Sand. Im S befinden sich Holzkohlepartikel. Profil: Die Grabgrube weist schräg nach innen abfallende Wände auf. Objektlokalisierung: Eine Silexpfeilspitze (2) befindet sich östlich der Schulter, vor dem Skelett und nördlich der re Hand mit der Spitze nach N gerichtet. Eine Silexpfeilspitze (3) befindet sich im Brustkorbbereich, nördlich des re Ellenbogens mit der Spitze nach N gerichtet. Eine Silexpfeilspitze (4) befindet sich unter dem li Unterarm, dabei liegt ein Silextrümmerstück (27). Westlich des Beckens hinter dem Skelett befinden sich eine Knochennadel (17), zwei Eberhauer (18, 19 oder 21) und ca. 0,35 m westlich davon ein weiterer Eberhauer (20). Westlich des Beckens hinter dem Skelett und südlich von (17-19) befindet sich eine Ansammlung von Objekten: vier Silexabschläge (11-14), eine Silexklinge (9), eine zerbrochene Silexklinge (10), ein Silexpfeilspitzenhalbfabrikat (7), zehn Silextrümmerstücke (15), ein Schleif- oder Polierstein (16) und ein Geweihspatel (22). Unmittelbar am Becken befindet sich eine Silexpfeilspitze (5) mit der Spitze nach N gerichtet, darunter eine weitere Silex­ pfeilspitze (6). Ein unverz. Glockenbecher (1) befindet sich westlich der Füße, hinter dem Skelett mit Öffnung nach oben. Darin befinden sich vier Schwanzwirbel vom Schwein (23). Direkt westlich am Gefäß liegen die li Unterarmknochen vom Schwein im anatomischen Verband (25). Zwei Silextrümmerstücke liegen im li Unterschenkelbereich (28). Ein Schwanzwirbel vom Schwein befindet sich im Fußbereich (24). Die Lage des Silexdolches (8) und eines Eberhauers (21 oder 19) auf Planum 2 ist nicht dokumentiert.\nBestattung: N-S-ausgerichteter, li Hocker in Seitenlage mit Blick nach O.\nBeide Oberarme am Körper angelegt, re Unterarm über li Oberarm stark angewinkelt, Hand vor der Brust; li Unterarm angewinkelt, Hand am Becken. Beide Ober- und Unterschenkel stark angewinkelt.\nMitteladult, 25-35 Jahre. Männlich.\nIm Humerus li befindet sich ein dreieckiges Silexobjekt (26).\nBeigaben: 1) Unverz. Glockenbecher; zu ca. 90 % erh., geklebt; dazu eine WS. Gerundeter Rand bzw. gerader Rand mit abgerundeten Kanten. Ofl. nur an wenigen Stellen intakt glatt-matt und glatt-glänzend: dark gray (5YR4/1); zum Großteil abgearbeitet rau: reddish yellow (5YR6/6) bis yellowish red (5YR5/6). Mag. anorg. fein, mittel und minimal grob, Glimmer auf Ofl. H 8,5-8,9; Bdm 4,7; Gdm = Mdm 12,9; Wst 0,5-0,6; Bst 0,7. Inv.Nr. KQA-01/16. 2) Geflügelte Silexpfeilspitze mit bogenförmig eingezogener Basis und spitzen Flügeln. Beidseitig flächig retuschiert. Gew. 1,32. L 2,5; B 1,6; St max. 0,4. Inv.-Nr. KQA-01/16. 3) Silexpfeilspitze mit gerader bis leicht eingezogener Basis. Beidseitig flächig retuschiert. Gew. 3. L 3,5; B 2,4; St max. 0,5. Inv.-Nr. KQA-01/16. 4) Silexpfeilspitze mit leicht eingezogener Basis; Spitze abgebrochen. Beidseitig flächig retuschiert. Unebene gestufte Bruchfläche. Gew. 1,6. L 1,9; B 2,1; St max. 0,5; L Bruchfläche 1,1; B  Bruchfläche 0,4. Inv.-Nr. KQA-01/16. 5) Geflügelte Silexpfeilspitze mit nahezu rechteckigem Basisausschnitt; Spitze abgebrochen? Beidseitig flächig retuschiert. Gew. 2. L 2,5; B 1,8; St max. 0,5. Inv.-Nr. KQA-01/16. 6) Geflügelte Silexpfeilspitze mit rechteckigem Basisausschnitt und eckigem Flügel; ein Flügel abgebrochen. Beidseitig flächig retuschiert. Gew. 1,7. L 2,5; B 1,7; St max. 0,5. Inv.-Nr. KQA-01/16. 7) Silexpfeilspitzenhalbfabrikat. Ein beidseitig retuschiertes spitzes Basisende. Gew. 2,1. L 2,9; B 2,2; St max. 0,6. Inv.-Nr. KQA-01/16. 8) Silexdolch; zerbrochen, zwei nicht aneinanderfügbare Teile (A, B) erh. A: proximal und distal gebrochen, beidseitig flächig retuschiert, eine Seite im mittleren Bereich vom proximalen bis distalen Ende glattglänzend geschliffen, darauf fast senkrecht zu den Schneiden verlaufende feine Schleifspuren. B: proximal abgebrochen, beidseitig flächig retuschiert. Gew. 31,2. A: L 4,9; B 3,4; St max. 1,3. B: L 2,8; B 1,9; St max. 1. Inv.-Nr. KQA-01/16. 9) Silexklinge. DS mit Retusche an beiden LK und am proximalen und distalen Ende. VS mit Bulbus und Schlagnarbe. Fünfeckiger, ebener SFR. Gew. 7,1. L 5,1; B 2; St max. 0,6. Inv.-Nr. KQA-01/16. 10) Silexklinge; zerbrochen, zwei nicht aneinanderfügbare Teile (A, B) erh. A: DS mit Retusche an li LK im distalen Bereich. VS mit Bulbus und Schlagnarbe, Retusche an li und re LK im distalen Bereich. Ovaler, ebener SFR. B: VS mit Retusche an li LK. Gew. 13,7. A: L 3,2; B 2,8; St max. 0,9. B: L 2,7; B 2; St max. 0,7. Inv.-Nr. KQA-01/16. 11) Silexabschlag. Rundoval. Spitzovaler Querschnitt. DS eben. VS mit Schlagwellen. Gew. 1,7. L 2,3; B 1,8; St max. 0,4. Inv.-Nr. KQA-01/16. 12) Silexabschlag. Viereckig. Trapezförmiger Querschnitt. DS mit mind. zwei Abschlagnegativen und Cortex an re LK. VS mit Schlagnarbe. Länglicher, ebener SFR. Gew. 13,4. L 4,4; B 3,3; St max. 0,6. Inv.-Nr. KQA-01/16. 13) Silexabschlag. Unregelmäßig viereckig. Unregelmäßig trapezförmiger Querschnitt. DS mit zwei Abschlagnegativen. VS mit Bulbus und Schlagwellen. Länglicher, ebener SFR. Gew. 5,7. L 4,1; B 2,8; St max. 0,6. Inv.-Nr. KQA-01/16. 14) Silexabschlag. Oval. Spitz­ ovaler Querschnitt. DS vollständig mit abgerollter alter Ofl., beide LK gezackt. VS mit Schlagwellen. Gew. 7,6. L 4; B 2,5; St max. 0,7. Inv.-Nr. KQA-01/16. 15) 10 Silextrümmerstücke. Gew. 58,1. Inv.-Nr. KQA-01/16. 16) Unregelmäßiger Schleif- bzw. Polierstein aus Ton- bis Sandstein. Breitseiten eben. Schmalseiten gerundet und eben. Kanten abgerundet. Ofl. auf einer Breitseite und auf Schmalseiten glatt, gegenüberliegende Breitseite etwas rauer. Zum Großteil durch Bodenlagerung patiniert. Weak red (7.5R4/3-4). Gew. 37,1. L  5,5; B 4,4; St max. 0,7. Inv.-Nr. KQA01/16. 17) Knochennadel; Kopf abgebrochen. Querschnitt im Bereich der Spitze rund, zum Kopf hin flachoval. Ofl. im oberen Bereich abgearbeitet rau, im unteren Bereich stellenweise intakt glatt. Darauf in Längsrichtung parallel zueinander verlaufende feine Rillen (Polierspuren?). Gew. 1,1. L 7,4; B 0,6; St max. 0,4. Inv.-Nr. KQA-01/16. 18) Eckzahn (Caninus) des Unterkiefers vom Haus- oder Wildschwein (Sus scrofa spec.) ; Fragment. Auf einer Seite Zahnschmelz erhalten, darauf feine, nahezu parallel verlaufende Kratzer dicht beieinanderliegend und selten einander überschneidend. Halbrunder Ausbruch als Rest einer Bohrung? Adult. Männlich. Gew. 1,3. L 5,1; B 0,7; St max. 0,4. Inv.-Nr. KQA-01/16. 19) Eckzahn (Caninus) wohl des Unterkiefers vom Haus- oder Wildschwein (Sus scrofa spec.) ; Fragment. Teil des Schaftes, eine Seite zum Teil mit Zahnschmelz. Adult. Männlich. Gew. 3. L 4,8; B1,6; St max. 0,3. Inv.-Nr. KQA-01/16. 20) Eckzahn (Caninus) des Unterkiefers vom Haus- oder Wildschwein (Sus scrofa spec.) ; Fragment. Zahnspitze, zum Großteil mit Zahnschmelz. Adult. Männlich. Gew. 10,9. L 6,9; B 1,8; St max. 1,4. Inv.-Nr. KQA-01/16. 21) Eckzahn (Caninus) des Unterkiefers vom Haus- oder Wildschwein (Sus scrofa spec.) ; Fragment. Teil der Spitze, zu ca. 2/3 mit Zahnschmelz. Adult. Männlich. Gew. 4,9. L 7,1; B 1,2; St max. 0,8. Inv.-Nr. KQA01/16. 22) Geweihspatel möglicherweise vom Rothirsch (Cervus elaphus) . Eine Breitseite mit relativ feiner Oberflächenstruktur, andere Breitseite etwas gröber. Abgewitterte Ofl. Gew. 5,4. L 11,9; B 1,6; St max. 0,5. Inv.-Nr. KQA-01/16. 23) 4 Schwanzwirbel und 2 zusammengehörige Knochenelemente vom Sacrum eines Hausschweins (Sus scrofa f. domestica) . 4 Vertebrae coccygeae. Ein Individuum. Jungtier. Geschlecht n. b. Gew. 7. Inv.-Nr. KQA-01/16. 24) Schwanzwirbel vom Hausschwein (Sus scrofa  f. domestica) ; zu 23) gehörig. 1 Vertebra coccygea. Jungtier. Geschlecht n. b. Mit Schnittspuren. Gew. 1. Inv.-Nr. KQA-01/16. 25) Li Unterarmknochen vom Hausschwein (Sus scrofa f. domestica). Ulna li, Radius li. Ein Individuum. Alter ca. 12 Monate. Geschlecht n. b. Radius ist distal alt gebrochen. Auf Ulna befinden sich distal Schnittspuren. Gew. 64,8. Inv.-Nr. KQA-01/16. Im  linken Humerus befindlich: 26) Dreieckiges  Silexobjekt; abgebrochen. Nur ebene bis leicht konkave Bruchfläche sichtbar. Im Röntgenbild in Aufsicht dreieckig, in Seitenansicht spitz zulaufend. L Bruchfläche ca. 1; B Bruchfläche ca. 0,4;  St  max.  0,4;  L  Bruchfläche  im  Röntgenbild  1;  Abstand Spitze zu Bruchfläche im Röntgenbild ca. 0,6. Inv.-Nr. KQA01/16. Funde: 27) Silextrümmerstück. Inv.-Nr. KQA-01/16. 28) 2 Silextrümmerstücke. Inv.-Nr. KQA-01/16."
+    }
+  ],
+  "format": {
+    "type": "object",
+    "properties": {
+      "records": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "sourceKey": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "record": {
+              "type": "object",
+              "properties": {
+                "site": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "site_code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "grave_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "feature_number": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "excavation_year": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "orientation": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "body_position": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "burial_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "grave_pit_length_m": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "grave_pit_width_m": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "grave_pit_depth_m": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "age_class": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "age_min_years": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "age_max_years": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "sex_estimate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "cremated_bone_weight_g": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "grave_goods": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "figure_reference": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "site",
+                "site_code",
+                "grave_id",
+                "feature_number",
+                "excavation_year",
+                "orientation",
+                "body_position",
+                "burial_type",
+                "grave_pit_length_m",
+                "grave_pit_width_m",
+                "grave_pit_depth_m",
+                "age_class",
+                "age_min_years",
+                "age_max_years",
+                "sex_estimate",
+                "cremated_bone_weight_g",
+                "grave_goods",
+                "figure_reference"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "sourceKey",
+            "record"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "records"
+    ],
+    "additionalProperties": false
+  },
+  "stream": false,
+  "think": false,
+  "truncate": false,
+  "shift": false,
+  "options": {
+    "temperature": 0,
+    "num_ctx": 262144,
+    "num_predict": 8192,
+    "seed": 0
+  }
+}

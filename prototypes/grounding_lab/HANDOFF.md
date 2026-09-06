@@ -1,18 +1,90 @@
-# Handoff — grounding lab (2026-09-04)
+# Handoff — grounding lab (2026-09-05)
 
 For a new session picking up `prototypes/grounding_lab` on branch
 `experiment/radical-context-prune`. Never push or merge this branch.
 
 ## State
 
+- Follow-up authorized after the completed comparison: bounded record batches,
+  explicit scope/completion checks, whole-workflow timing, and quote/E candidate
+  fallback. Development work is in `experiments/2026-09-05-bounded/PROTOCOL.md`.
+  The original experiment remains frozen. New code lives in
+  `scripts/bounded-extraction.mts`, `grounding_lab/bounded_scoring.py`, and
+  `grounding_lab/bounded_evaluation.py`; no production integration.
+  This follow-up is now complete: `RESULTS.md` and `evaluation.json` contain
+  the adjudicated comparison. All model jobs and both labeling rounds finished.
+  Three attempts remain visible: one aborted after invalid discovery, one
+  completed with missing required context, and one valid completed comparison.
+  The final attempt has both 20-record identities and mandatory context intact.
+  Quote-only improves evidence quality; the hybrid adds 17 correct suggestions
+  versus 26 new erroneous suggestions (23 wrong anchors, 3 unsupported values).
+  Keep the hybrid unpromoted. There is still no production winner.
+  `CANDIDATE_FREEZE.json` preserves the development implementation, not approval.
+  1,203 emitted values have 1,053 distinct blind judgments, 99 adjudications,
+  and one unresolved title interpretation. Labels are model-generated.
+  98 Python and 12 Node checks pass; the previous freeze is unchanged.
+  No additional family was opened. The provided folder's remaining Matthias
+  series is one related family; additional independent sources are still needed.
+
 - Tag `grounding-lab-freeze-2026-09-04` (commit `0af8ff0a`) is the audited
   state. Everything since is uncommitted in the work tree; `git status`
   lists it. The root `tmp/` and `skills-lock.json` are not ours.
-- [`AUDIT.md`](AUDIT.md) is the only results document: verdict, the two
-  blind sets, the reviewer's-view table, and the numbered steps toward
-  production. Start there. [`README.md`](README.md) has the labeling
-  protocol and the commands.
-- Nothing is running locally or on the Spark.
+- [`AUDIT.md`](AUDIT.md) is the results entry point. The dated experiment
+  keeps its detailed pruning and paired-evaluation reports under
+  `experiments/2026-09-05/`. [`README.md`](README.md) has reproduction commands.
+- The 2026-09-05 experiment is complete. All model jobs and labeling rounds
+  finished. The immutable configuration is `experiments/2026-09-05/freeze.json`;
+  preserve every attempt, blind packet and prediction. No holdout retry was run.
+
+## 2026-09-05 experiment
+
+- Pruning is complete: nine warmed, rotated runs retain E. Both pruning
+  variants preserve recoverable gold but pass six fewer correct values and
+  improve p95 in only one of three repetitions. Reproduction and all counts:
+  `experiments/2026-09-05/pruning/SUMMARY.md`.
+- All four original PDFs parsed. Eight frozen full-source Qwen calls produced
+  four runner-valid completions and four failures. Beier quote (25 records)
+  and Bosch baseline (21 records) remain failed diagnostic outputs; Wiermann
+  and Bosch quote calls exhausted the output budget. No prefix was salvaged.
+  Six complete typed outputs received frozen E replay; no labels tune it.
+- Beier is an overlap-flagged transfer case: Menz appeared in earlier labeled
+  output. Keep it in the comparison but exclude it from strictly untouched
+  summaries. Source-only audits and first-20 manifests live beside each source.
+- Every family received two fresh blind labelers and a separate adjudicator.
+  All 2,709 populated emitted values are covered by 2,687 distinct claims;
+  326 disagreements were adjudicated and five remain unresolved. Model labels
+  are not human ground truth. `labeling_runs.json` records actors and hashes.
+- Results: `experiments/2026-09-05/EVALUATION.md` and `evaluation.json`.
+  Only Kirsch has two runner-valid arms; quote-only improves correct evidence
+  versus E on the same values but leaves more missing evidence and takes
+  longer than baseline plus E. No production replacement is established.
+- `WORKFLOW_TIMINGS.md` distinguishes core timers from broader file-boundary
+  spans including risk and audit-file work. `REPRODUCIBILITY.md`,
+  `VALIDATION.md`, `validation.json` and `EXECUTION.md` retain checks and caveats.
+- The successful development quote pilot and its earlier HTTP timeout are
+  retained under `experiments/2026-09-05/pilot`. Quote occurrence is location
+  evidence, not a semantic support label.
+
+## Follow-up experiment
+
+- `model_benchmark --dump` is now auditable: routes, proposed/gold anchors,
+  all candidate raw scores, unclipped margins, structural features and timing.
+- `--bare-number-prune` and `--row-prune` are conservative candidate-only
+  ablations. Neither gates singleton hits or auto-links a pruned singleton.
+- `review_risk.py` emits exploratory leave-one-Extraction-out `valueRiskScore`,
+  `evidenceRiskScore` and `reviewRiskScore`; it never auto-accepts.
+- The instrumented E replay remains best. See `AUDIT.md`; generated reports
+  are `EXTRACTED_CV6_*_NEMOTRON*.md` and auditable dumps are under `outcomes/`.
+- `label-review` no longer hard-codes `dataset`, and extractor-output checks
+  now reject the `finishReason='length'` runaway before benchmarking.
+- Direct checks pass: 95 Python tests and 10 Node tests. The pnpm shim itself
+  could not verify its registry signature in this environment, so tests were
+  run with the existing `.venv` and Node directly.
+
+## Production status
+
+No Extraction or Studio grounding changes from this experiment are applied.
+The benchmark and risk-ranking work remains isolated in this lab.
 
 ## What exists
 

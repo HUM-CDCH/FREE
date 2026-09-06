@@ -1,3 +1,11 @@
 # copyrighted scans supplied by the user; derived anchors and labels are committed, the PDFs are not
 final_sources_3/
 *.log
+
+# experiment run dumps: regenerable E replays, full-text parses of copyrighted
+# scans, labeler page renders and scratch dirs. Reports, labels, hashes stay.
+experiments/**/e-proposals.jsonl
+experiments/**/parsed_document.json
+experiments/**/rep-*.jsonl
+experiments/**/*.png
+experiments/**/*-work/

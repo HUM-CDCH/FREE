@@ -1,5 +1,6 @@
 import json
 import math
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,6 +12,7 @@ from grounding_lab.model_benchmark import (
     CONTAINMENT_CAP,
     _candidate_labels,
     _candidates,
+    _decision,
     _encode,
     _evaluation_metrics,
     _rerank_scores,
@@ -24,6 +26,7 @@ from grounding_lab.model_benchmark import (
     _verbatim_flags,
     choose_thresholds,
     claim_text,
+    dump_outcomes,
     scores_from_ranking,
     split_names,
     verifier_claim_text,
@@ -461,6 +464,74 @@ class ZeroHitAbstainTest(unittest.TestCase):
             (metrics["correct_abstains"], metrics["wrong"], metrics["correct_links"], metrics["auto"]),
             (1, 0, 0, 0),
         )
+
+
+class BareNumberPruningTest(unittest.TestCase):
+    def test_prunes_multi_hits_but_still_runs_the_scorer(self):
+        class Index:
+            anchors = [
+                Anchor("wrong", "40", 1, "grave: Grave 7 | material: Copper | 40"),
+                Anchor("right", "40", 1, "grave: Grave 8 | material: Bronze | 40"),
+                Anchor("single", "unique", 1),
+            ]
+
+        seen = []
+        with patch(
+            "grounding_lab.model_benchmark._rerank_scores",
+            side_effect=lambda *args: (seen.append((args[2], args[3])), np.array([0.9]))[1],
+        ):
+            entries, _ = _score_entries(
+                [("doc", Index(), [
+                    Claim(40, ("records", 0, "weight"), ("right",), "grave: Grave 8, material: Bronze"),
+                    claim("unique", ("single",)),
+                ])],
+                None, None, object(), None, "rich-hitset", 30, "hitset", "abstain",
+                bare_number_prune=True,
+            )
+
+        self.assertIn("grave: Grave 8", seen[0][0])
+        self.assertEqual(seen[0][1], ["grave: Grave 8 | material: Bronze | 40"])
+        self.assertEqual([entry[2] for entry in entries], ["neural", "lexical"])
+
+
+class OutcomeDumpTest(unittest.TestCase):
+    def test_lexical_confidence_is_not_a_raw_model_score(self):
+        item = claim("unique", ("gold",))
+        decision = _decision(("doc", item, "lexical", "gold"), -math.inf, 1.0)
+        self.assertIsNone(decision["score"])
+        self.assertEqual(decision["legacy_confidence"], 1.0)
+
+    def test_dump_keeps_raw_decision_and_candidate_evidence(self):
+        anchors = [
+            Anchor(
+                "gold", "1591", 1, "site: Livorno | year: 1591",
+                "table_cell", False, "table-1", 3,
+            ),
+            Anchor("other", "1591", 2, "site: Pisa | year: 1591"),
+        ]
+        item = Claim("1591", ("records", 0, "year"), ("gold",), "site: Livorno")
+        entries = [
+            ("doc", item, "neural", (anchors, np.array([2.0, 0.5]), [True, True]))
+        ]
+        documents = [("doc", SimpleNamespace(anchors=anchors), [item])]
+        latencies = [("doc", "index", 0.01), ("doc", "neural", 0.02)]
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "outcomes.jsonl"
+            dump_outcomes(
+                path, entries, {"doc": (-math.inf, 0.5)}, documents, latencies,
+                "bare-number-row",
+            )
+            row = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertEqual(row["goldAnchorIds"], ["gold"])
+        self.assertEqual(row["bestCandidateAnchorId"], "gold")
+        self.assertEqual(row["candidateAnchorIdsBeforePruning"], ["gold", "other"])
+        self.assertEqual([candidate["rawScore"] for candidate in row["candidates"]], [2.0, 0.5])
+        self.assertEqual(row["rawMargin"], 1.5)
+        self.assertEqual(row["pruningMode"], "bare-number-row")
+        self.assertEqual(row["prePruningCandidates"][0]["logicalTableId"], "table-1")
+        self.assertEqual((row["tier"], row["route"], row["latencyMs"]), ("neural", "strict-multi", 20.0))
 
 
 class FieldCollisionTest(unittest.TestCase):

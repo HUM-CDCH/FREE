@@ -8,8 +8,9 @@
     "harness": "uv run --no-sync python -X utf8 -m grounding_lab.harness dataset",
     "calibrate": "uv run --no-sync python -X utf8 -m grounding_lab.calibrate dataset",
     "dump-anchors": "tsx scripts/dump-anchors.mts",
-    "label-review": "uv run --no-sync python -X utf8 -m grounding_lab.label_review dataset",
+    "label-review": "uv run --no-sync python -X utf8 -m grounding_lab.label_review",
     "model-benchmark": "uv run --no-sync python -X utf8 -m grounding_lab.model_benchmark",
+    "review-risk": "uv run --no-sync python -X utf8 -m grounding_lab.review_risk",
     "smoke:qwen-0.6b": "uv run --no-sync python -X utf8 scripts/smoke-qwen-06b.py",
     "extract-real": "tsx scripts/extract-real.mts"
   },

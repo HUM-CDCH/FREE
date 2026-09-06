@@ -1,0 +1,199 @@
+{
+  "frozenAt": "2026-09-05T09:08:10.088923+00:00",
+  "policy": "E; hitset; rich-hitset; zero-hit abstain; no pruning",
+  "reranker": {
+    "repo": "nvidia/llama-nemotron-rerank-1b-v2",
+    "revision": "828765652b05bd439c9789d2a6d093db1caa1443"
+  },
+  "thresholds": {
+    "abstain": -1.4296874999999998,
+    "legacyAccept": 1.0,
+    "containmentCap": 0.25
+  },
+  "trainingMetrics": {
+    "correct_links": 153,
+    "linkable": 256,
+    "correct_abstains": 83,
+    "abstains_due": 104,
+    "review": 30,
+    "wrong": 38,
+    "auto": 191,
+    "auto_correct": 153,
+    "total_correct": 236
+  },
+  "riskModel": {
+    "version": 1,
+    "trainingDocuments": [
+      "buchvaldek-1970-vikletice-tables-de",
+      "buchvaldek-koutecky-1972-vikletice-de",
+      "conrad-2011-bbc-graves-de",
+      "dobes-1998-kugelamphoren-de",
+      "durankulak-catalogue-de",
+      "shbat-2009-skeletal-health-en"
+    ],
+    "value": [
+      [
+        0.20833333333333334,
+        0.002777777777777778,
+        0.24722222222222223,
+        0.5416666666666666,
+        1.7497599693684398,
+        1.7497599693684398,
+        0.23055555555555557,
+        0.09722222222222222,
+        0.2361111111111111,
+        0.0,
+        2.097579927876066,
+        1.0469476761988226,
+        0.27549603174603166,
+        0.5444444444444444,
+        1.8342949761284721,
+        0.7888888888888889
+      ],
+      [
+        0.4061164310337077,
+        0.052631375893045805,
+        0.43139702718230244,
+        0.49826086429589067,
+        1.7170317879733155,
+        1.7170317879733155,
+        0.42118842737903356,
+        0.2962601251069643,
+        0.4246912458727978,
+        1.0,
+        0.9021667273274449,
+        0.684537700139783,
+        0.3679015502681657,
+        0.49802077402255607,
+        7.3133121986456,
+        0.40809705938237534
+      ],
+      [
+        1.607667895667641,
+        -0.4472252816441204,
+        0.2916782505754504,
+        0.3502011974708735,
+        0.03050280121910043,
+        0.01404501492196506,
+        0.01404501492196506,
+        0.7485209249427713,
+        -1.302211324751063,
+        -0.6688554556806012,
+        0.0,
+        -0.11781090927980897,
+        1.3417993984333487,
+        0.002476697738884659,
+        0.06134238035490988,
+        0.3415299730045458,
+        0.4074376518545253
+      ]
+    ],
+    "evidence": [
+      [
+        0.0,
+        0.005050505050505051,
+        0.46967298118193274,
+        0.5252765137675616,
+        1.6836137742853472,
+        1.6836137742853472,
+        0.1584586733244022,
+        0.010514350667803353,
+        0.16242692729265615,
+        0.0,
+        2.2228389943052544,
+        1.1903072099959298,
+        0.33041213850494094,
+        0.5303270188180667,
+        3.0683486394547517,
+        0.9949494949494946,
+        3.21787325261724,
+        0.27834012392835944
+      ],
+      [
+        1.0,
+        0.0708872164021121,
+        0.4990794244703028,
+        0.49936068913337384,
+        1.4250693239196577,
+        1.4250693239196577,
+        0.36517053847849335,
+        0.10199901518072539,
+        0.36884199948341306,
+        1.0,
+        0.7433433251271324,
+        0.6156445779170556,
+        0.38353126400714177,
+        0.49907942447030273,
+        6.851688772248985,
+        0.0708872164021121,
+        5.466728013065787,
+        0.44818177042345725
+      ],
+      [
+        2.843293881248149,
+        0.0,
+        0.13680909725556792,
+        1.0357485164030984,
+        -1.0545859956643637,
+        -0.18659487717299172,
+        -0.18659487717299172,
+        0.06711830503453149,
+        -0.12299251361386868,
+        0.07372065581304357,
+        0.0,
+        -0.5305435580527966,
+        -0.40193437158444356,
+        0.22246001769976398,
+        -1.0357485164031002,
+        0.6535490367591383,
+        -0.136809097255568,
+        0.6420546411480101,
+        0.18879076237443304
+      ]
+    ]
+  },
+  "recordLimit": 20,
+  "autoAccept": false,
+  "sources": [
+    {
+      "family": "beier",
+      "source": "C:\\Users\\arkan\\Downloads\\OneDrive_2026-09-04\\Grave Catalogues German\\Beier 1988 - GAC Germany - MES and Altmark\\Beier1988_GAC_02_Catalogue.pdf",
+      "sha256": "31b024007313aa5323e5d428ea49ec47dfd236ed95a31a56ba14cacc3211dc2f"
+    },
+    {
+      "family": "bosch",
+      "source": "C:\\Users\\arkan\\Downloads\\OneDrive_2026-09-04\\Grave Catalogues German\\Bosch 2008 - eastern Bell Beaker graves\\Katalog and tables.pdf",
+      "sha256": "6815e365975b30ceaf380bbe39588fde5363c2617c44bcbdb84f63bdafcee401"
+    },
+    {
+      "family": "wiermann",
+      "source": "C:\\Users\\arkan\\Downloads\\OneDrive_2026-09-04\\Grave Catalogues German\\Wiermann 2004 - Die Becherkulturen in Hessen\\OCR\\Wiermann2004_03_catalogue.pdf",
+      "sha256": "4744c194428042361f9b6c06a9cba30e19d3e2f86078e8b490633318972f91e2"
+    },
+    {
+      "family": "kirsch",
+      "source": "C:\\Users\\arkan\\Downloads\\OneDrive_2026-09-04\\Grave Catalogues German\\Kirsch 1993 - Middle Neolithic Brandenburg\\Kirsch 1993 - Middle Neolithic Brandenburg 02.pdf",
+      "sha256": "46a177c055aa7e6fac6b409a485c1d44afa1c6204877a60dc6e9bfccc9ae59c5"
+    }
+  ],
+  "sourceBinding": "Original PDFs and parser code frozen; every extraction binds its complete parsed source and canonical text by SHA-256 in prepared.json.",
+  "files": {
+    "grounding_lab\\pipeline.py": "422bd9a08c7dab8e6ea5c5109d29c546b35330075d462118be428dd62fc38603",
+    "grounding_lab\\calibrate.py": "b7dee430f75cc473179a9b6a15f0f8346bd884c651e55f469c5b90dabbfcd6dd",
+    "grounding_lab\\model_benchmark.py": "4cfd854f9288c6e11d1198ad98572da54ce30181da655452996f585297b70eb8",
+    "grounding_lab\\review_risk.py": "5f3bc5905866d868671b7c260138fcc8bd0805631898a4dd1fa329f042625b0f",
+    "scripts\\quote-extraction.mts": "3be1fe905e63d93b22f60b4b1b9a77463a7af1c3a0e25e3d7b6672ea77853b34",
+    "scripts\\dump-anchors.mts": "61504fffe601f02a74ee3f5f50eae28c334a79bab406212202a8f95db7f28680",
+    "scripts\\parse-source.py": "acd2619240784ae9ba14b635aac862e975122010b1835533a1dad2c7a7b6d57a",
+    "..\\parsing_service\\app\\docling_parser.py": "27b47f5cdd630f6e14c4b51daba8ab320e35eaeb6f85db29800df37b1af8cc92",
+    "outcomes\\extracted_cv6_E_ranked.jsonl": "dfa70c59926e0ca5f2f3ad9e1cddb985767993980f8e69043e8bfc5d324ede23",
+    "experiments\\2026-09-05\\holdout\\beier\\instruction.txt": "7bcad0e0c9e6c35a24fa23138bf9ff6827cba40d62695aa946ff77ddc818bbce",
+    "experiments\\2026-09-05\\holdout\\beier\\schema.json": "54b4466a8af33216879608157b0ee299d984cd2f896d90b909d2ccbde10b75b2",
+    "experiments\\2026-09-05\\holdout\\bosch\\instruction.txt": "bc1f72dd6e7414359521d78fcd9891260b6980d73244d9e3828010640925cd0c",
+    "experiments\\2026-09-05\\holdout\\bosch\\schema.json": "ea580a6c7230fb33f27d363aa8de40ed85be1e2ed41543ccb9cbd35872817e2c",
+    "experiments\\2026-09-05\\holdout\\kirsch\\instruction.txt": "dfff09cd9c92b07ee6b145439e490c18baabd46bd6e4d1778fc7ce9beb66273f",
+    "experiments\\2026-09-05\\holdout\\kirsch\\schema.json": "b7b2348fef90c7d34e7c3a836b908afe5c5614a196ed005097b757fc66d85c39",
+    "experiments\\2026-09-05\\holdout\\wiermann\\instruction.txt": "ad645ac3544b0e0098a3ffaad9604a19d4b467f4c39130f3df19258dd10a3480",
+    "experiments\\2026-09-05\\holdout\\wiermann\\schema.json": "662ab1c92c85f64ebc494778e5bab32e3f66c1dce37a60695e554c327384a233"
+  }
+}

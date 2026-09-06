@@ -1,0 +1,184 @@
+{
+  "model": "qwen3.8:27b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Extract document metadata and the first 20 eligible burial records in source reading order. Eligible records are definite, explicitly identified graves or burials. Exclude probable or conjectured graves (including EvG, vG, and \"vermutlich Grab\"), explicitly rejected burial interpretations, settlements, stray finds, bibliographic references, and unrelated find records. If fewer than 20 exist, return all eligible records. Use only explicitly stated information, preserve identifiers and suffixes, and never infer or compute values. Respect source legends for measurement units, emit each measurement in its declared unit using the schema value and unit fields, and perform no unit conversions. Return null for missing scalar information and [] for empty collections. Return exactly the schema keys and JSON types, without explanations. Extract EXACTLY these requested records in this order: R005, R006. sourceKey is a routing ID copied from REQUEST, never an extracted source identifier. Each record object must concern only that requested individual burial. Do not add neighbouring graves.  The sourceKey routing field remains a plain string.\n\nSCHEMA:\n{\"records\":[{\"sourceKey\":\"string\",\"record\":{\"site\":\"string\",\"site_code\":\"string\",\"grave_id\":\"string\",\"feature_number\":\"string\",\"excavation_year\":\"integer\",\"orientation\":\"string\",\"body_position\":\"string\",\"burial_type\":\"string\",\"grave_pit_length_m\":\"number\",\"grave_pit_width_m\":\"number\",\"grave_pit_depth_m\":\"number\",\"age_class\":\"string\",\"age_min_years\":\"number\",\"age_max_years\":\"number\",\"sex_estimate\":\"string\",\"cremated_bone_weight_g\":\"number\",\"grave_goods\":[\"string\"],\"figure_reference\":\"string\"}}]}\n\nSOURCE:\nREQUEST R005: Einzelgrab, keine weiteren Gräber im Umkreis.\nSHARED SOURCE CONTEXT:\n## Page 1\nGräber\n## Page 1\n3. Bösdorf, Lkr. Leipzig\nCOMPLETE BURIAL REGION:\n## Page 1\nFundstelle/Jahr: Unter der Dorfkirche bei der Devastierung der Ortschaft. Durch das Landesmuseum für Vorgeschichte Dresden systematisch ausgegraben, 1980. Fundkomplex: Einzelgrab, keine weiteren Gräber im Umkreis. N-S-ausgerichtete,  rechteckige  Grabgrube;  L  1,55-1,65,  B  0,9  m.  Vermutlich  N-S-ausgerichtet;  nur  noch  Zähne  erhalten.  Infans  II, 12-14 Jahre.  Verz.  Glockenbecher,  fünf  flächenretuschierte Silexpfeilspitzen, vier Silexklingen, zwei Silexabschläge (Abb. 37,7.8).\n\nREQUEST R006: Grab 1: Körpergrab mit Becher am Kopf.\nSHARED SOURCE CONTEXT:\n## Page 1\nGräber\n## Page 1\n4. Großlehna, Lkr. Leipzig\n## Page 1\nFundstelle/Jahr: Leipziger Straße, im westlichen Ortsteil nördlich der Bachaue, 1939 bei Baumaßnahmen. Fundkomplex: Zwei Körpergräber im Abstand von ca. 1 m.\nCOMPLETE BURIAL REGION:\n## Page 1\nGrab 1: Körpergrab mit Becher am Kopf. Verz. Glockenbecher (Abb. 37,9)."
+    }
+  ],
+  "format": {
+    "type": "object",
+    "properties": {
+      "records": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "sourceKey": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "record": {
+              "type": "object",
+              "properties": {
+                "site": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "site_code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "grave_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "feature_number": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "excavation_year": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "orientation": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "body_position": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "burial_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "grave_pit_length_m": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "grave_pit_width_m": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "grave_pit_depth_m": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "age_class": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "age_min_years": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "age_max_years": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "sex_estimate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "cremated_bone_weight_g": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "grave_goods": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "figure_reference": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "site",
+                "site_code",
+                "grave_id",
+                "feature_number",
+                "excavation_year",
+                "orientation",
+                "body_position",
+                "burial_type",
+                "grave_pit_length_m",
+                "grave_pit_width_m",
+                "grave_pit_depth_m",
+                "age_class",
+                "age_min_years",
+                "age_max_years",
+                "sex_estimate",
+                "cremated_bone_weight_g",
+                "grave_goods",
+                "figure_reference"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "sourceKey",
+            "record"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "records"
+    ],
+    "additionalProperties": false
+  },
+  "stream": false,
+  "think": false,
+  "truncate": false,
+  "shift": false,
+  "options": {
+    "temperature": 0,
+    "num_ctx": 262144,
+    "num_predict": 8192,
+    "seed": 0
+  }
+}

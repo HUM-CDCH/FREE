@@ -1,0 +1,1391 @@
+{
+  "source_only": true,
+  "inputs_read": [
+    "parsed_document.json",
+    "document.md",
+    "schema.json"
+  ],
+  "source_directory": "D:/progetti/FREE/prototypes/grounding_lab/final_dataset_3/conrad-2011-bbc-graves-de",
+  "index_basis": "Zero-based parsed_document.json content_stream array; every range is start inclusive, end exclusive.",
+  "scope_rule": "First 20 definite, individually described burial/grave records in source reading order; one record per grave, not per individual. Unnumbered but uniquely identifiable Einzelgrab qualifies. Uncertain grave existence, stray finds, settlements, and aggregate-only graves excluded. Uncertain attributes or inventory associations do not alone negate definite grave existence.",
+  "shared_context": {
+    "new_catalogue_context_block_range": {
+      "start": 108,
+      "end": 138
+    },
+    "explanation": "Conservative context envelope only; per-record mandatoryContextBlocks below identifies the subset required for schema interpretation. Other blocks here are optional or unrelated conventions.",
+    "koelsa_heading_block_range": {
+      "start": 138,
+      "end": 139
+    },
+    "new_catalogue_footnote_block_range": {
+      "start": 146,
+      "end": 149
+    },
+    "footnote_explanation": "Optional explanatory/acknowledgement footnotes, not mandatory burial/schema context."
+  },
+  "records": [
+    {
+      "ordinal": 1,
+      "site": "Altranstädt I",
+      "site_code": null,
+      "literal_grave_identity": "Grab 1",
+      "literal_feature_identity": null,
+      "record_block_range": {
+        "start": 3,
+        "end": 4
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 0,
+          "end": 3
+        },
+        {
+          "start": 3,
+          "end": 4
+        },
+        {
+          "start": 4,
+          "end": 5
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 0,
+        "end": 5
+      },
+      "source_support": "N-S-ausgerichteter Hocker.",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": "Grave association is not secured (Grabverband nicht gesichert), but the grave and crouched burial are asserted; this qualifies as a definite grave with uncertain assemblage.",
+      "mandatoryRecordBlockRange": {
+        "start": 3,
+        "end": 4
+      },
+      "mandatoryContextBlocks": [
+        1,
+        2
+      ],
+      "mandatoryContextReason": "Site heading and applicable inherited find year/location or depth information; Bösdorf already carries those details inside its complete record.",
+      "optionalContextBlocks": [
+        0,
+        4
+      ],
+      "optionalContextReason": "Bibliography and, for Altranstädt I, general Gräber section heading. Figure references themselves remain in the mandatory record block.",
+      "unrelatedConventionBlocks": []
+    },
+    {
+      "ordinal": 2,
+      "site": "Altranstädt II",
+      "site_code": null,
+      "literal_grave_identity": "Grab 7",
+      "literal_feature_identity": null,
+      "record_block_range": {
+        "start": 7,
+        "end": 8
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 5,
+          "end": 7
+        },
+        {
+          "start": 7,
+          "end": 8
+        },
+        {
+          "start": 10,
+          "end": 12
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 5,
+        "end": 12
+      },
+      "source_support": "Erdgrab; L 2,34, B 1,42 m. Reste von drei Individuen.",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": "One grave-level record, not three person records.",
+      "mandatoryRecordBlockRange": {
+        "start": 7,
+        "end": 8
+      },
+      "mandatoryContextBlocks": [
+        5,
+        6
+      ],
+      "mandatoryContextReason": "Site heading and applicable inherited find year/location or depth information; Bösdorf already carries those details inside its complete record.",
+      "optionalContextBlocks": [
+        10,
+        11
+      ],
+      "optionalContextReason": "Bibliography and, for Altranstädt I, general Gräber section heading. Figure references themselves remain in the mandatory record block.",
+      "unrelatedConventionBlocks": []
+    },
+    {
+      "ordinal": 3,
+      "site": "Altranstädt II",
+      "site_code": null,
+      "literal_grave_identity": "Grab 8",
+      "literal_feature_identity": null,
+      "record_block_range": {
+        "start": 8,
+        "end": 9
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 5,
+          "end": 7
+        },
+        {
+          "start": 8,
+          "end": 9
+        },
+        {
+          "start": 10,
+          "end": 12
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 5,
+        "end": 12
+      },
+      "source_support": "Erdgrab; L 1, B 0,8 m. S-N-ausgerichteter, rechter Hocker.",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": null,
+      "mandatoryRecordBlockRange": {
+        "start": 8,
+        "end": 9
+      },
+      "mandatoryContextBlocks": [
+        5,
+        6
+      ],
+      "mandatoryContextReason": "Site heading and applicable inherited find year/location or depth information; Bösdorf already carries those details inside its complete record.",
+      "optionalContextBlocks": [
+        10,
+        11
+      ],
+      "optionalContextReason": "Bibliography and, for Altranstädt I, general Gräber section heading. Figure references themselves remain in the mandatory record block.",
+      "unrelatedConventionBlocks": []
+    },
+    {
+      "ordinal": 4,
+      "site": "Altranstädt II",
+      "site_code": null,
+      "literal_grave_identity": "Grab 9",
+      "literal_feature_identity": null,
+      "record_block_range": {
+        "start": 9,
+        "end": 10
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 5,
+          "end": 7
+        },
+        {
+          "start": 9,
+          "end": 10
+        },
+        {
+          "start": 10,
+          "end": 12
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 5,
+        "end": 12
+      },
+      "source_support": "Erdgrab; L 2,2, B 1,64 m. NW-SO-ausgerichteter, linker Hocker.",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": null,
+      "mandatoryRecordBlockRange": {
+        "start": 9,
+        "end": 10
+      },
+      "mandatoryContextBlocks": [
+        5,
+        6
+      ],
+      "mandatoryContextReason": "Site heading and applicable inherited find year/location or depth information; Bösdorf already carries those details inside its complete record.",
+      "optionalContextBlocks": [
+        10,
+        11
+      ],
+      "optionalContextReason": "Bibliography and, for Altranstädt I, general Gräber section heading. Figure references themselves remain in the mandatory record block.",
+      "unrelatedConventionBlocks": []
+    },
+    {
+      "ordinal": 5,
+      "site": "Bösdorf",
+      "site_code": null,
+      "literal_grave_identity": "Einzelgrab",
+      "literal_feature_identity": null,
+      "record_block_range": {
+        "start": 13,
+        "end": 14
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 12,
+          "end": 13
+        },
+        {
+          "start": 13,
+          "end": 14
+        },
+        {
+          "start": 14,
+          "end": 16
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 12,
+        "end": 16
+      },
+      "source_support": "Fundkomplex: Einzelgrab, keine weiteren Gräber im Umkreis.",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": "Unnumbered unique grave; do not fabricate Grab 1. Orientation is conjectural but grave existence is definite.",
+      "mandatoryRecordBlockRange": {
+        "start": 13,
+        "end": 14
+      },
+      "mandatoryContextBlocks": [
+        12
+      ],
+      "mandatoryContextReason": "Site heading and applicable inherited find year/location or depth information; Bösdorf already carries those details inside its complete record.",
+      "optionalContextBlocks": [
+        14,
+        15
+      ],
+      "optionalContextReason": "Bibliography and, for Altranstädt I, general Gräber section heading. Figure references themselves remain in the mandatory record block.",
+      "unrelatedConventionBlocks": []
+    },
+    {
+      "ordinal": 6,
+      "site": "Großlehna",
+      "site_code": null,
+      "literal_grave_identity": "Grab 1",
+      "literal_feature_identity": null,
+      "record_block_range": {
+        "start": 18,
+        "end": 19
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 16,
+          "end": 18
+        },
+        {
+          "start": 18,
+          "end": 19
+        },
+        {
+          "start": 20,
+          "end": 22
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 16,
+        "end": 22
+      },
+      "source_support": "Körpergrab mit Becher am Kopf.",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": null,
+      "mandatoryRecordBlockRange": {
+        "start": 18,
+        "end": 19
+      },
+      "mandatoryContextBlocks": [
+        16,
+        17
+      ],
+      "mandatoryContextReason": "Site heading and applicable inherited find year/location or depth information; Bösdorf already carries those details inside its complete record.",
+      "optionalContextBlocks": [
+        20,
+        21
+      ],
+      "optionalContextReason": "Bibliography and, for Altranstädt I, general Gräber section heading. Figure references themselves remain in the mandatory record block.",
+      "unrelatedConventionBlocks": []
+    },
+    {
+      "ordinal": 7,
+      "site": "Großlehna",
+      "site_code": null,
+      "literal_grave_identity": "Grab 2",
+      "literal_feature_identity": null,
+      "record_block_range": {
+        "start": 19,
+        "end": 20
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 16,
+          "end": 18
+        },
+        {
+          "start": 19,
+          "end": 20
+        },
+        {
+          "start": 20,
+          "end": 22
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 16,
+        "end": 22
+      },
+      "source_support": "Anscheinend von steinkranz umgeben. Körpergrab.",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": "Stone ring is uncertain; burial is definite.",
+      "mandatoryRecordBlockRange": {
+        "start": 19,
+        "end": 20
+      },
+      "mandatoryContextBlocks": [
+        16,
+        17
+      ],
+      "mandatoryContextReason": "Site heading and applicable inherited find year/location or depth information; Bösdorf already carries those details inside its complete record.",
+      "optionalContextBlocks": [
+        20,
+        21
+      ],
+      "optionalContextReason": "Bibliography and, for Altranstädt I, general Gräber section heading. Figure references themselves remain in the mandatory record block.",
+      "unrelatedConventionBlocks": []
+    },
+    {
+      "ordinal": 8,
+      "site": "Groitzsch",
+      "site_code": null,
+      "literal_grave_identity": "Grab 1",
+      "literal_feature_identity": null,
+      "record_block_range": {
+        "start": 24,
+        "end": 25
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 22,
+          "end": 24
+        },
+        {
+          "start": 24,
+          "end": 25
+        },
+        {
+          "start": 26,
+          "end": 27
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 22,
+        "end": 27
+      },
+      "source_support": "Linker Hocker. Zwei unverz. Glockenbecher, Silex­ abschlag",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": null,
+      "mandatoryRecordBlockRange": {
+        "start": 24,
+        "end": 25
+      },
+      "mandatoryContextBlocks": [
+        22,
+        23
+      ],
+      "mandatoryContextReason": "Site heading and applicable inherited find year/location or depth information; Bösdorf already carries those details inside its complete record.",
+      "optionalContextBlocks": [
+        26
+      ],
+      "optionalContextReason": "Bibliography and, for Altranstädt I, general Gräber section heading. Figure references themselves remain in the mandatory record block.",
+      "unrelatedConventionBlocks": []
+    },
+    {
+      "ordinal": 9,
+      "site": "Groitzsch",
+      "site_code": null,
+      "literal_grave_identity": "Grab 2",
+      "literal_feature_identity": null,
+      "record_block_range": {
+        "start": 25,
+        "end": 26
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 22,
+          "end": 24
+        },
+        {
+          "start": 25,
+          "end": 26
+        },
+        {
+          "start": 26,
+          "end": 27
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 22,
+        "end": 27
+      },
+      "source_support": "Linker Hocker. Zwei atypische Scherben?",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": "Goods identification is uncertain; grave is definite. The aggregate third grave is not independently described.",
+      "mandatoryRecordBlockRange": {
+        "start": 25,
+        "end": 26
+      },
+      "mandatoryContextBlocks": [
+        22,
+        23
+      ],
+      "mandatoryContextReason": "Site heading and applicable inherited find year/location or depth information; Bösdorf already carries those details inside its complete record.",
+      "optionalContextBlocks": [
+        26
+      ],
+      "optionalContextReason": "Bibliography and, for Altranstädt I, general Gräber section heading. Figure references themselves remain in the mandatory record block.",
+      "unrelatedConventionBlocks": []
+    },
+    {
+      "ordinal": 10,
+      "site": "Kölsa",
+      "site_code": "KQA-01",
+      "literal_grave_identity": "Grab 1",
+      "literal_feature_identity": "Bef. 10",
+      "record_block_range": {
+        "start": 139,
+        "end": 146
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 108,
+          "end": 139
+        },
+        {
+          "start": 139,
+          "end": 146
+        },
+        {
+          "start": 146,
+          "end": 149
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 108,
+        "end": 149
+      },
+      "source_support": "Bestattung: OSO-WNW-ausgerichteter, re Hocker in Seitenlage mit Blick nach N.",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": null,
+      "mandatoryRecordBlockRange": {
+        "start": 139,
+        "end": 146
+      },
+      "mandatoryContextBlocks": [
+        109,
+        110,
+        112,
+        127,
+        136,
+        137,
+        138
+      ],
+      "mandatoryContextReason": "109: site-specific grave numbering and parenthesized excavation feature identity; 138: site/code heading; 136: feature units in metres; 137: abbreviations for dimensions, features and positions; 127: Beigaben versus fill Funde for grave_goods. 110: asterisk convention on recorded dimensions. 112: orientation begins at the head.",
+      "optionalContextBlocks": [
+        108,
+        111,
+        126,
+        128,
+        146,
+        147,
+        148
+      ],
+      "optionalContextReason": "Catalogue/section headings; additional object classification rationale; footnotes/acknowledgements; documentation convention when no starred schema value appears. Illustration references are already included in the record heading.",
+      "unrelatedConventionBlocks": [
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135
+      ],
+      "unrelatedConventionReason": "Detailed limb-angle thresholds, ceramic texture/temper/motif conventions, and object-view descriptions do not define this schema's grave-level fields; broad crouched/side body_position is stated in the record itself."
+    },
+    {
+      "ordinal": 11,
+      "site": "Kölsa",
+      "site_code": "KQA-01",
+      "literal_grave_identity": "Grab 2",
+      "literal_feature_identity": "Bef. 23",
+      "record_block_range": {
+        "start": 149,
+        "end": 156
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 108,
+          "end": 139
+        },
+        {
+          "start": 146,
+          "end": 149
+        },
+        {
+          "start": 149,
+          "end": 156
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 108,
+        "end": 156
+      },
+      "source_support": "Bestattung: S-N-ausgerichteter, re Hocker in Seitenlage mit Blick nach O.",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": null,
+      "mandatoryRecordBlockRange": {
+        "start": 149,
+        "end": 156
+      },
+      "mandatoryContextBlocks": [
+        109,
+        112,
+        127,
+        136,
+        137,
+        138
+      ],
+      "mandatoryContextReason": "109: site-specific grave numbering and parenthesized excavation feature identity; 138: site/code heading; 136: feature units in metres; 137: abbreviations for dimensions, features and positions; 127: Beigaben versus fill Funde for grave_goods. 112: orientation begins at the head.",
+      "optionalContextBlocks": [
+        108,
+        110,
+        111,
+        126,
+        128,
+        146,
+        147,
+        148
+      ],
+      "optionalContextReason": "Catalogue/section headings; additional object classification rationale; footnotes/acknowledgements; documentation convention when no starred schema value appears. Illustration references are already included in the record heading.",
+      "unrelatedConventionBlocks": [
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135
+      ],
+      "unrelatedConventionReason": "Detailed limb-angle thresholds, ceramic texture/temper/motif conventions, and object-view descriptions do not define this schema's grave-level fields; broad crouched/side body_position is stated in the record itself."
+    },
+    {
+      "ordinal": 12,
+      "site": "Kölsa",
+      "site_code": "KQA-01",
+      "literal_grave_identity": "Grab 3",
+      "literal_feature_identity": "Bef. 24",
+      "record_block_range": {
+        "start": 156,
+        "end": 163
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 108,
+          "end": 139
+        },
+        {
+          "start": 146,
+          "end": 149
+        },
+        {
+          "start": 156,
+          "end": 163
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 108,
+        "end": 163
+      },
+      "source_support": "Bestattung: N-S-ausgerichteter, li Hocker in Seitenlage mit Blick wahrsch. nach O.",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": null,
+      "mandatoryRecordBlockRange": {
+        "start": 156,
+        "end": 163
+      },
+      "mandatoryContextBlocks": [
+        109,
+        110,
+        112,
+        127,
+        136,
+        137,
+        138
+      ],
+      "mandatoryContextReason": "109: site-specific grave numbering and parenthesized excavation feature identity; 138: site/code heading; 136: feature units in metres; 137: abbreviations for dimensions, features and positions; 127: Beigaben versus fill Funde for grave_goods. 110: asterisk convention on recorded dimensions. 112: orientation begins at the head.",
+      "optionalContextBlocks": [
+        108,
+        111,
+        126,
+        128,
+        146,
+        147,
+        148
+      ],
+      "optionalContextReason": "Catalogue/section headings; additional object classification rationale; footnotes/acknowledgements; documentation convention when no starred schema value appears. Illustration references are already included in the record heading.",
+      "unrelatedConventionBlocks": [
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135
+      ],
+      "unrelatedConventionReason": "Detailed limb-angle thresholds, ceramic texture/temper/motif conventions, and object-view descriptions do not define this schema's grave-level fields; broad crouched/side body_position is stated in the record itself."
+    },
+    {
+      "ordinal": 13,
+      "site": "Kölsa",
+      "site_code": "KQA-01",
+      "literal_grave_identity": "Grab 4",
+      "literal_feature_identity": "Bef. 90",
+      "record_block_range": {
+        "start": 163,
+        "end": 169
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 108,
+          "end": 139
+        },
+        {
+          "start": 146,
+          "end": 149
+        },
+        {
+          "start": 163,
+          "end": 169
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 108,
+        "end": 169
+      },
+      "source_support": "Bestattung: N-S-ausgerichteter, li Hocker in Seitenlage mit Blick nach O.",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": null,
+      "mandatoryRecordBlockRange": {
+        "start": 163,
+        "end": 169
+      },
+      "mandatoryContextBlocks": [
+        109,
+        110,
+        112,
+        127,
+        136,
+        137,
+        138
+      ],
+      "mandatoryContextReason": "109: site-specific grave numbering and parenthesized excavation feature identity; 138: site/code heading; 136: feature units in metres; 137: abbreviations for dimensions, features and positions; 127: Beigaben versus fill Funde for grave_goods. 110: asterisk convention on recorded dimensions. 112: orientation begins at the head.",
+      "optionalContextBlocks": [
+        108,
+        111,
+        126,
+        128,
+        146,
+        147,
+        148
+      ],
+      "optionalContextReason": "Catalogue/section headings; additional object classification rationale; footnotes/acknowledgements; documentation convention when no starred schema value appears. Illustration references are already included in the record heading.",
+      "unrelatedConventionBlocks": [
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135
+      ],
+      "unrelatedConventionReason": "Detailed limb-angle thresholds, ceramic texture/temper/motif conventions, and object-view descriptions do not define this schema's grave-level fields; broad crouched/side body_position is stated in the record itself."
+    },
+    {
+      "ordinal": 14,
+      "site": "Kölsa",
+      "site_code": "KQA-01",
+      "literal_grave_identity": "Grab 5",
+      "literal_feature_identity": "Bef. 3",
+      "record_block_range": {
+        "start": 169,
+        "end": 176
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 108,
+          "end": 139
+        },
+        {
+          "start": 146,
+          "end": 149
+        },
+        {
+          "start": 169,
+          "end": 176
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 108,
+        "end": 176
+      },
+      "source_support": "Pl. 4: Mit Resten einer Körperbestattung zum Teil im anatomischen Verband.",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": "Disturbed definite burial; estimated orientation is uncertain. Additional tooth from a second individual does not create a separate grave.",
+      "mandatoryRecordBlockRange": {
+        "start": 169,
+        "end": 176
+      },
+      "mandatoryContextBlocks": [
+        109,
+        110,
+        112,
+        127,
+        136,
+        137,
+        138
+      ],
+      "mandatoryContextReason": "109: site-specific grave numbering and parenthesized excavation feature identity; 138: site/code heading; 136: feature units in metres; 137: abbreviations for dimensions, features and positions; 127: Beigaben versus fill Funde for grave_goods. 110: asterisk convention on recorded dimensions. 112: orientation begins at the head.",
+      "optionalContextBlocks": [
+        108,
+        111,
+        126,
+        128,
+        146,
+        147,
+        148
+      ],
+      "optionalContextReason": "Catalogue/section headings; additional object classification rationale; footnotes/acknowledgements; documentation convention when no starred schema value appears. Illustration references are already included in the record heading.",
+      "unrelatedConventionBlocks": [
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135
+      ],
+      "unrelatedConventionReason": "Detailed limb-angle thresholds, ceramic texture/temper/motif conventions, and object-view descriptions do not define this schema's grave-level fields; broad crouched/side body_position is stated in the record itself."
+    },
+    {
+      "ordinal": 15,
+      "site": "Kölsa",
+      "site_code": "KQA-01",
+      "literal_grave_identity": "Grab 6",
+      "literal_feature_identity": "Bef. 91",
+      "record_block_range": {
+        "start": 176,
+        "end": 183
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 108,
+          "end": 139
+        },
+        {
+          "start": 146,
+          "end": 149
+        },
+        {
+          "start": 176,
+          "end": 183
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 108,
+        "end": 183
+      },
+      "source_support": "Bestattung: N-S-ausgerichteter, li Hocker in Seitenlage mit Blick nach O.",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": "Record continues from page 4 onto page 5, including Beigaben and Funde.",
+      "mandatoryRecordBlockRange": {
+        "start": 176,
+        "end": 183
+      },
+      "mandatoryContextBlocks": [
+        109,
+        112,
+        127,
+        136,
+        137,
+        138
+      ],
+      "mandatoryContextReason": "109: site-specific grave numbering and parenthesized excavation feature identity; 138: site/code heading; 136: feature units in metres; 137: abbreviations for dimensions, features and positions; 127: Beigaben versus fill Funde for grave_goods. 112: orientation begins at the head.",
+      "optionalContextBlocks": [
+        108,
+        110,
+        111,
+        126,
+        128,
+        146,
+        147,
+        148
+      ],
+      "optionalContextReason": "Catalogue/section headings; additional object classification rationale; footnotes/acknowledgements; documentation convention when no starred schema value appears. Illustration references are already included in the record heading.",
+      "unrelatedConventionBlocks": [
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135
+      ],
+      "unrelatedConventionReason": "Detailed limb-angle thresholds, ceramic texture/temper/motif conventions, and object-view descriptions do not define this schema's grave-level fields; broad crouched/side body_position is stated in the record itself."
+    },
+    {
+      "ordinal": 16,
+      "site": "Kölsa",
+      "site_code": "KQA-01",
+      "literal_grave_identity": "Grab 7",
+      "literal_feature_identity": "Bef. 21",
+      "record_block_range": {
+        "start": 183,
+        "end": 190
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 108,
+          "end": 139
+        },
+        {
+          "start": 146,
+          "end": 149
+        },
+        {
+          "start": 183,
+          "end": 190
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 108,
+        "end": 190
+      },
+      "source_support": "Bestattung: N-S-ausgerichteter, li Hocker in Seitenlage mit Blick nach O.",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": "Block 189 contains the entire long inventory, embedded Silexobjekt item 26, and Funde items 27–28; retain the complete block.",
+      "mandatoryRecordBlockRange": {
+        "start": 183,
+        "end": 190
+      },
+      "mandatoryContextBlocks": [
+        109,
+        110,
+        112,
+        127,
+        136,
+        137,
+        138
+      ],
+      "mandatoryContextReason": "109: site-specific grave numbering and parenthesized excavation feature identity; 138: site/code heading; 136: feature units in metres; 137: abbreviations for dimensions, features and positions; 127: Beigaben versus fill Funde for grave_goods. 110: asterisk convention on recorded dimensions. 112: orientation begins at the head.",
+      "optionalContextBlocks": [
+        108,
+        111,
+        126,
+        128,
+        146,
+        147,
+        148
+      ],
+      "optionalContextReason": "Catalogue/section headings; additional object classification rationale; footnotes/acknowledgements; documentation convention when no starred schema value appears. Illustration references are already included in the record heading.",
+      "unrelatedConventionBlocks": [
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135
+      ],
+      "unrelatedConventionReason": "Detailed limb-angle thresholds, ceramic texture/temper/motif conventions, and object-view descriptions do not define this schema's grave-level fields; broad crouched/side body_position is stated in the record itself."
+    },
+    {
+      "ordinal": 17,
+      "site": "Kölsa",
+      "site_code": "KQA-01",
+      "literal_grave_identity": "Grab 8",
+      "literal_feature_identity": "Bef. 22",
+      "record_block_range": {
+        "start": 190,
+        "end": 197
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 108,
+          "end": 139
+        },
+        {
+          "start": 146,
+          "end": 149
+        },
+        {
+          "start": 190,
+          "end": 197
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 108,
+        "end": 197
+      },
+      "source_support": "Bestattung: NNO-SSW-ausgerichteter, li Hocker wahrsch. in Seitenlage mit Blick nach O.",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": null,
+      "mandatoryRecordBlockRange": {
+        "start": 190,
+        "end": 197
+      },
+      "mandatoryContextBlocks": [
+        109,
+        112,
+        127,
+        136,
+        137,
+        138
+      ],
+      "mandatoryContextReason": "109: site-specific grave numbering and parenthesized excavation feature identity; 138: site/code heading; 136: feature units in metres; 137: abbreviations for dimensions, features and positions; 127: Beigaben versus fill Funde for grave_goods. 112: orientation begins at the head.",
+      "optionalContextBlocks": [
+        108,
+        110,
+        111,
+        126,
+        128,
+        146,
+        147,
+        148
+      ],
+      "optionalContextReason": "Catalogue/section headings; additional object classification rationale; footnotes/acknowledgements; documentation convention when no starred schema value appears. Illustration references are already included in the record heading.",
+      "unrelatedConventionBlocks": [
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135
+      ],
+      "unrelatedConventionReason": "Detailed limb-angle thresholds, ceramic texture/temper/motif conventions, and object-view descriptions do not define this schema's grave-level fields; broad crouched/side body_position is stated in the record itself."
+    },
+    {
+      "ordinal": 18,
+      "site": "Kölsa",
+      "site_code": "KQA-01",
+      "literal_grave_identity": "Grab 9",
+      "literal_feature_identity": "Bef. 25",
+      "record_block_range": {
+        "start": 197,
+        "end": 205
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 108,
+          "end": 139
+        },
+        {
+          "start": 146,
+          "end": 149
+        },
+        {
+          "start": 197,
+          "end": 205
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 108,
+        "end": 205
+      },
+      "source_support": "Bestattung: S-N-ausgerichteter, re Hocker in Seitenlage mit Blick nach O.",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": "Funde continues onto page 7 at block 204; include it.",
+      "mandatoryRecordBlockRange": {
+        "start": 197,
+        "end": 205
+      },
+      "mandatoryContextBlocks": [
+        109,
+        110,
+        112,
+        127,
+        136,
+        137,
+        138
+      ],
+      "mandatoryContextReason": "109: site-specific grave numbering and parenthesized excavation feature identity; 138: site/code heading; 136: feature units in metres; 137: abbreviations for dimensions, features and positions; 127: Beigaben versus fill Funde for grave_goods. 110: asterisk convention on recorded dimensions. 112: orientation begins at the head.",
+      "optionalContextBlocks": [
+        108,
+        111,
+        126,
+        128,
+        146,
+        147,
+        148
+      ],
+      "optionalContextReason": "Catalogue/section headings; additional object classification rationale; footnotes/acknowledgements; documentation convention when no starred schema value appears. Illustration references are already included in the record heading.",
+      "unrelatedConventionBlocks": [
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135
+      ],
+      "unrelatedConventionReason": "Detailed limb-angle thresholds, ceramic texture/temper/motif conventions, and object-view descriptions do not define this schema's grave-level fields; broad crouched/side body_position is stated in the record itself."
+    },
+    {
+      "ordinal": 19,
+      "site": "Kölsa",
+      "site_code": "KQA-01",
+      "literal_grave_identity": "Grab 10",
+      "literal_feature_identity": "Bef. 11",
+      "record_block_range": {
+        "start": 205,
+        "end": 210
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 108,
+          "end": 139
+        },
+        {
+          "start": 146,
+          "end": 149
+        },
+        {
+          "start": 205,
+          "end": 210
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 108,
+        "end": 210
+      },
+      "source_support": "Bestattung: S-N-ausgerichtete Bestattung in re Seitenlage mit Blick nach O.",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": "Block 209 combines age/sex, Beigaben and Funde; retain all.",
+      "mandatoryRecordBlockRange": {
+        "start": 205,
+        "end": 210
+      },
+      "mandatoryContextBlocks": [
+        109,
+        110,
+        112,
+        127,
+        136,
+        137,
+        138
+      ],
+      "mandatoryContextReason": "109: site-specific grave numbering and parenthesized excavation feature identity; 138: site/code heading; 136: feature units in metres; 137: abbreviations for dimensions, features and positions; 127: Beigaben versus fill Funde for grave_goods. 110: asterisk convention on recorded dimensions. 112: orientation begins at the head.",
+      "optionalContextBlocks": [
+        108,
+        111,
+        126,
+        128,
+        146,
+        147,
+        148
+      ],
+      "optionalContextReason": "Catalogue/section headings; additional object classification rationale; footnotes/acknowledgements; documentation convention when no starred schema value appears. Illustration references are already included in the record heading.",
+      "unrelatedConventionBlocks": [
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135
+      ],
+      "unrelatedConventionReason": "Detailed limb-angle thresholds, ceramic texture/temper/motif conventions, and object-view descriptions do not define this schema's grave-level fields; broad crouched/side body_position is stated in the record itself."
+    },
+    {
+      "ordinal": 20,
+      "site": "Kölsa",
+      "site_code": "KQA-01",
+      "literal_grave_identity": "Grab 11",
+      "literal_feature_identity": "Bef. 9",
+      "record_block_range": {
+        "start": 210,
+        "end": 216
+      },
+      "complete_source_block_ranges": [
+        {
+          "start": 108,
+          "end": 139
+        },
+        {
+          "start": 146,
+          "end": 149
+        },
+        {
+          "start": 210,
+          "end": 216
+        }
+      ],
+      "contiguous_source_envelope": {
+        "start": 108,
+        "end": 216
+      },
+      "source_support": "Störungen: Das Grab ist vollständig zerstört.",
+      "eligibility": "included",
+      "eligibility_or_boundary_note": "Eligible: definite catalogued grave, explicitly destroyed, with two human teeth and age/sex assessment. Skelett nicht vorhanden is preservation status, not conjectural eligibility.",
+      "mandatoryRecordBlockRange": {
+        "start": 210,
+        "end": 216
+      },
+      "mandatoryContextBlocks": [
+        109,
+        127,
+        136,
+        137,
+        138
+      ],
+      "mandatoryContextReason": "109: site-specific grave numbering and parenthesized excavation feature identity; 138: site/code heading; 136: feature units in metres; 137: abbreviations for dimensions, features and positions; 127: Beigaben versus fill Funde for grave_goods. No orientation/body-position definition required for Grab 11, which records no skeleton/position.",
+      "optionalContextBlocks": [
+        108,
+        110,
+        111,
+        126,
+        128,
+        146,
+        147,
+        148
+      ],
+      "optionalContextReason": "Catalogue/section headings; additional object classification rationale; footnotes/acknowledgements; documentation convention when no starred schema value appears. Illustration references are already included in the record heading.",
+      "unrelatedConventionBlocks": [
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135
+      ],
+      "unrelatedConventionReason": "Detailed limb-angle thresholds, ceramic texture/temper/motif conventions, and object-view descriptions do not define this schema's grave-level fields; broad crouched/side body_position is stated in the record itself."
+    }
+  ],
+  "exclusions_before_cutoff": [
+    {
+      "site": "Altranstädt I",
+      "block_range": {
+        "start": 1,
+        "end": 5
+      },
+      "excluded_identity": "Three remaining graves in the count of four",
+      "reason": "Aggregate count only; no individually identifiable description."
+    },
+    {
+      "site": "Groitzsch",
+      "block_range": {
+        "start": 22,
+        "end": 27
+      },
+      "excluded_identity": "Third grave in the count of three",
+      "reason": "Aggregate count only; no separately described Grab 3."
+    },
+    {
+      "site": "Knauthain",
+      "block_range": {
+        "start": 27,
+        "end": 30
+      },
+      "excluded_identity": null,
+      "reason": "Wahrscheinlich mehrere Gräber; conjectured plural graves and vessel aggregate, no definite individually described grave."
+    },
+    {
+      "site": "Schnaudertrebnitz",
+      "block_range": {
+        "start": 30,
+        "end": 34
+      },
+      "excluded_identity": null,
+      "reason": "Wohl Grabbefund explicitly marks burial interpretation as conjectural, despite skeletal remains. Excluded under definite-only rule; this is the principal eligibility-sensitive boundary."
+    },
+    {
+      "site": "Wiederau",
+      "block_range": {
+        "start": 34,
+        "end": 43
+      },
+      "excluded_identity": "Fund 1–6",
+      "reason": "Funde gehören wahrscheinlich zu einem Gräberfeld (Grabverbände nicht gesichert). Fund 1–3 are uncertain grave assemblages; Fund 4–6 are stray finds, and reported Knochenasche for Fund 5 does not establish an individually described definite grave."
+    },
+    {
+      "site": "Old catalogue Einzelfunde, Carsdorf through Harth bei Zeschwitz",
+      "block_range": {
+        "start": 43,
+        "end": 104
+      },
+      "excluded_identity": "Catalogue sites 9–23",
+      "reason": "Explicit stray-find section, no definite individually described burial records."
+    },
+    {
+      "site": "Podelwitz",
+      "block_range": {
+        "start": 104,
+        "end": 108
+      },
+      "excluded_identity": "Catalogue site 24",
+      "reason": "Siedlungsbefunde; feature category and association unclear and possibly settlement."
+    }
+  ],
+  "cutoff": {
+    "selected_record_count": 20,
+    "last_record": "Kölsa (KQA-01), Grab 11 (Bef. 9)",
+    "last_record_end_exclusive": 216,
+    "next_block": "Befund 1 (Bef. 1) - Abb. 44",
+    "note": "The next section begins non-burial Befunde; no later graves are needed to reach 20."
+  },
+  "range_note": "record_block_range is complete mandatory record content. mandatoryContextBlocks gives the additional mandatory source indices. complete_source_block_ranges and contiguous_source_envelope are conservative source packages, not mandatory-coverage requirements; envelopes can include sibling records. Reading order remains record_block_range.start.",
+  "context_coverage_criterion": "Mandatory coverage is the complete record_block_range plus mandatoryContextBlocks: source blocks carrying site/feature identity, applicable measurements or abbreviations, inherited excavation/date/depth information, and definitions needed for actual schema fields. Bibliography, acknowledgements, illustration-only explanation, detailed limb-angle thresholds, ceramic description conventions, and object-view geometry are optional or unrelated to this schema. Their absence alone is not a semantic scope failure. These refined classifications supersede the earlier conservative complete_source_block_ranges/envelope as a mandatory-coverage test."
+}

@@ -1,0 +1,2730 @@
+[
+  {
+    "claimId": "c0013",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_7a9f41790570f9f7a3137c54b1d7ccaafe89df25eb083aa4372a3221cabfcd0e"
+      ],
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ]
+    ],
+    "note": "Printed p. 94, Thüritz, catalogue 18: The local heading names Thüritz; the alphabetical index on PDF p. 38 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0016",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_a58ace0116255b54e1f45bb992830a6258c0bd99112baa152db7a950ef3fc0ed"
+      ],
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ]
+    ],
+    "note": "Printed p. 94, Tangeln, catalogue 17: The local heading names Tangeln; the alphabetical index on PDF p. 38 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0023",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_fcbd1742673cdd9b1638a8251a6863be0149414076dd77aae42a6aa90178ac02"
+      ],
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ]
+    ],
+    "note": "Printed p. 99, Emden, catalogue 55: The local heading names Emden; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0024",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_634b4e4fab3c7ec1ca3cd120e1f0aaba353f15946d58991da4d4554b5fceb42c",
+        "anchor_7babe9906a41d17a53c0105d39a62e141b9b2233cbb16bdb6c490d8c6f80b3c3"
+      ],
+      [
+        "anchor_f8e046ce8db4915a81c1ed36a43f6ba1ffda01dcb29f313cab85cab5f7db5729"
+      ]
+    ],
+    "note": "Printed p. 92, Bertkow, OT Plätz, catalogue 9: The source district heading governs this entry and states Kreis Osterburg; the alphabetical index on PDF p. 36 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0029",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_435bb45c6b3d3e142ccadd03623543aca205b165e7c88956ae19ae0cac7bc04d"
+      ],
+      [
+        "anchor_b95fe307d160ab473e40de6fa57040a9653e27cc5d0e86277aabd142d6d0349e"
+      ]
+    ],
+    "note": "Printed p. 95, Estedt, catalogue 30: The local heading names Estedt; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0041",
+    "valueSupported": false,
+    "goldAnchorSets": [],
+    "note": "Printed p. 97, Dornburg, catalogue 42: The remains are described as wohl nur noch Schädel erh., with the burial position unknown. This does not establish a total of one individual. Reject converting the singular surviving skull into an explicit total individual count.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0053",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d53a5376281d66902648c7c7ac8b80983d6eb87b8b7ad99f6a27fa91ef927612"
+      ],
+      [
+        "anchor_eefe73599b2dccca35a156a6662553a9a5b072512ba2ada17259dd9580f34b6a"
+      ]
+    ],
+    "note": "Printed p. 93, Hindenburg, catalogue 14: The local heading names Hindenburg; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0059",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_634b4e4fab3c7ec1ca3cd120e1f0aaba353f15946d58991da4d4554b5fceb42c",
+        "anchor_d53a5376281d66902648c7c7ac8b80983d6eb87b8b7ad99f6a27fa91ef927612"
+      ],
+      [
+        "anchor_eefe73599b2dccca35a156a6662553a9a5b072512ba2ada17259dd9580f34b6a"
+      ]
+    ],
+    "note": "Printed p. 93, Hindenburg, catalogue 14: The source district heading governs this entry and states Kreis Osterburg; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0062",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_4f1fe32bf0f0d3d8573827c76056e4dd06d836f5522f52b42438d4ab91e8c826",
+        "anchor_b7f7f3fd5a421e4263558227bdf0b7b0558d60fd0c46b08f59ad280dcd885615"
+      ],
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ]
+    ],
+    "note": "Printed p. 95, Schinne, catalogue 28: The source district heading governs this entry and states Kreis Stendal; the alphabetical index on PDF p. 38 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0068",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_4f1fe32bf0f0d3d8573827c76056e4dd06d836f5522f52b42438d4ab91e8c826",
+        "anchor_6b925596d0c8ffda41b94d29d52cf9980ec70e2a576b11c2b7f5753b5b2c6173"
+      ],
+      [
+        "anchor_8fe9cb4e2e5e1f9cee50d54c2e6796785797505880572fc1e8a9cd76e3ee65af"
+      ]
+    ],
+    "note": "Printed p. 95, Sanne, catalogue 26: The source district heading governs this entry and states Kreis Stendal; the alphabetical index on PDF p. 38 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0072",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_b18f69d99b1f72d773fd15380a9c94a2d0c023ddd8e2ba2774150383ed429df8"
+      ],
+      [
+        "anchor_b95fe307d160ab473e40de6fa57040a9653e27cc5d0e86277aabd142d6d0349e"
+      ]
+    ],
+    "note": "Printed p. 93, Hanum, catalogue 16: The local heading names Hanum; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0075",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ],
+      [
+        "anchor_73793f880f580519ab89bfeb3cbe6a595cb43c51a9eb6035cedb66ec5642f6b6"
+      ],
+      [
+        "anchor_1a00731e6257fc0dcc8833e8eccf1189240f802478b7282e2d59b87068ae824a"
+      ]
+    ],
+    "note": "Printed p. 94, Thüritz, catalogue 18: The original numbered entry states 18. Every accepted index/list passage (PDF pages 33, 34, 38) explicitly pairs this site with 18; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0086",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_fd08edcf31a0e34516a62774f0ae41709633b6e20ac76f2bea388d72bce6745e"
+      ],
+      [
+        "anchor_1d7e2e4d177837644dc8a1ef5bfa6709be50a1bc64564dc422034125b7ad6203"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: Find 5 states Schneidezahn eines Rindes; it directly supports item_count=1. Fundliste 9 (p. 156) independently matches this find and is accepted as an alternative; its stated object/count suffices in local list context.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0089",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_a46f31dc7b16d3c5deb4e6da3594fc68d4eccae6196fdeb0c939eb58a6c9c477"
+      ],
+      [
+        "anchor_f8e046ce8db4915a81c1ed36a43f6ba1ffda01dcb29f313cab85cab5f7db5729"
+      ]
+    ],
+    "note": "Printed p. 93, Bertkow, OT Plätz, catalogue 10: The local heading names Bertkow, OT Plätz; the alphabetical index on PDF p. 36 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0094",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_91ffc1828f89efda6b4e1d6dccd24cf181ea596fbd2b37def78278ef8526b780"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: The original numbered entry states 40. Every accepted index/list passage (PDF pages 37) explicitly pairs this site with 40; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field. The site catalogue number is 40; a and b distinguish its features, which must remain separate records.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0101",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_299144f014e9f0cca9798d9fdf1a104b0b92c923509df9cbffe1f805632f3f62"
+      ],
+      [
+        "anchor_73793f880f580519ab89bfeb3cbe6a595cb43c51a9eb6035cedb66ec5642f6b6"
+      ]
+    ],
+    "note": "Printed p. 92, Heidberg, OT Leetze, catalogue 8: Find 6 states ein Querschneider; it directly supports item_count=1. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative; its stated object/count suffices in local list context. The qualified KAK association does not make the stated object attribute uncertain.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0110",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_cc04328d0324ff022238e13f50ee4b6a1e14b94cf9763b3ff274dd0e76191a77",
+        "anchor_a58ace0116255b54e1f45bb992830a6258c0bd99112baa152db7a950ef3fc0ed"
+      ],
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ]
+    ],
+    "note": "Printed p. 94, Tangeln, catalogue 17: The source district heading governs this entry and states Kreis Klötze; the alphabetical index on PDF p. 38 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0114",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_b18f69d99b1f72d773fd15380a9c94a2d0c023ddd8e2ba2774150383ed429df8"
+      ],
+      [
+        "anchor_b95fe307d160ab473e40de6fa57040a9653e27cc5d0e86277aabd142d6d0349e"
+      ]
+    ],
+    "note": "Printed p. 93, Hanum, catalogue 16: The local heading names Hanum; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0115",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_4f1679d14581d36b46932fd4f05dc5d959d773d12eea59838e07777e49688d71"
+      ],
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ],
+      [
+        "anchor_7fb7f7d63636b314b2a8942729285d5bdbb5448a734f71cf76c72db9272067e4"
+      ],
+      [
+        "anchor_7a03045d1dc85983ee5367b8a3b03dc3146971984d85e09caf29aaf7d30d20f5"
+      ]
+    ],
+    "note": "Printed p. 98, Eimersleben, catalogue 53: The original numbered entry states 53. Every accepted index/list passage (PDF pages 5, 33, 34, 37) explicitly pairs this site with 53; these are genuine alternatives regardless of list topic.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0122",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_8d4cd2c5ab1f319d8c0e6ed221ee4168e0908a7bd38f737ff6150a461f3c6ad6",
+        "anchor_a57a3ad3c5f590bdc470ce45d98fd3d052c98bc00519878d30ebdc8191833474"
+      ],
+      [
+        "anchor_91ffc1828f89efda6b4e1d6dccd24cf181ea596fbd2b37def78278ef8526b780"
+      ]
+    ],
+    "note": "Printed p. 101, Meseberg, catalogue 72: The source district heading governs this entry and states Kreis Wolmirstedt; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0126",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_588bcd8cdd52d7e2b2a37379d5484df6b8587aa1d9531503121394177e1ed7e1"
+      ],
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: The local heading names Dornburg; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0132",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_7e49c19e3bb42eab778e27f5e8646ec73ca4d225d1cd08abc19d2497d96a235c"
+      ],
+      [
+        "anchor_a2ec0a4a389a4d93cc8112d866a90e778afff5236ef4f62e228540bc76ae17b1",
+        "anchor_714f8ed3952ffe9c824f093c3e2e9140a60f691e2a269c53bfeb10cd36f26fb3"
+      ]
+    ],
+    "note": "Printed p. 95, Schinne, catalogue 28: Find 3 states kl. durchb. Bernsteinscheibe; it directly supports item_type='Bernsteinscheibe'. Fundliste 8 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0136",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_7babe9906a41d17a53c0105d39a62e141b9b2233cbb16bdb6c490d8c6f80b3c3"
+      ],
+      [
+        "anchor_f8e046ce8db4915a81c1ed36a43f6ba1ffda01dcb29f313cab85cab5f7db5729"
+      ]
+    ],
+    "note": "Printed p. 92, Bertkow, OT Plätz, catalogue 9: The local heading names Bertkow, OT Plätz; the alphabetical index on PDF p. 36 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0138",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_49f733ec3a27cb982e2ef7a778bcf46f03fc6a732b69bcf3cfdf88d03fdba700"
+      ],
+      [
+        "anchor_91ffc1828f89efda6b4e1d6dccd24cf181ea596fbd2b37def78278ef8526b780"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: The local heading names Menz; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0139",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_37576bb7ed033acd8ea5bb01bcf95a1d569debd6c4fb86c396145ba373884618"
+      ],
+      [
+        "anchor_a4dfe65b7d0f0307f7cb7efa0cac9ae235d962984876399b94cc987d00815c38"
+      ]
+    ],
+    "note": "Printed p. 102, Bahrendorf, OT Stemmern, catalogue 77: Find 2 states 3 graue Feuersteinklingen; it directly supports item_count=3. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative; its stated object/count suffices in local list context.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0145",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_b95fe307d160ab473e40de6fa57040a9653e27cc5d0e86277aabd142d6d0349e"
+      ],
+      [
+        "anchor_4a58f5e583e108ebc41b7cc4c6aa000d9cdfdae0096df0b06a2d53e630c09cbd"
+      ]
+    ],
+    "note": "Printed p. 94, Grassau, catalogue 21: The original numbered entry states 21. Every accepted index/list passage (PDF pages 34, 37) explicitly pairs this site with 21; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0147",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_4f1679d14581d36b46932fd4f05dc5d959d773d12eea59838e07777e49688d71"
+      ],
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ],
+      [
+        "anchor_7fb7f7d63636b314b2a8942729285d5bdbb5448a734f71cf76c72db9272067e4"
+      ],
+      [
+        "anchor_7a03045d1dc85983ee5367b8a3b03dc3146971984d85e09caf29aaf7d30d20f5"
+      ]
+    ],
+    "note": "Printed p. 98, Eimersleben, catalogue 53: The original numbered entry states 53. Every accepted index/list passage (PDF pages 5, 33, 34, 37) explicitly pairs this site with 53; these are genuine alternatives regardless of list topic.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0148",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d53a5376281d66902648c7c7ac8b80983d6eb87b8b7ad99f6a27fa91ef927612"
+      ],
+      [
+        "anchor_eefe73599b2dccca35a156a6662553a9a5b072512ba2ada17259dd9580f34b6a"
+      ],
+      [
+        "anchor_1a00731e6257fc0dcc8833e8eccf1189240f802478b7282e2d59b87068ae824a"
+      ]
+    ],
+    "note": "Printed p. 93, Hindenburg, catalogue 14: The original numbered entry states 14. Every accepted index/list passage (PDF pages 2, 34, 37) explicitly pairs this site with 14; these are genuine alternatives regardless of list topic.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0151",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_10eafb685cfeffdc9901633bc69331b71ae1c76213b890fb8142e47762ed0172",
+        "anchor_435bb45c6b3d3e142ccadd03623543aca205b165e7c88956ae19ae0cac7bc04d"
+      ],
+      [
+        "anchor_b95fe307d160ab473e40de6fa57040a9653e27cc5d0e86277aabd142d6d0349e"
+      ]
+    ],
+    "note": "Printed p. 95, Estedt, catalogue 30: The source district heading governs this entry and states Kreis Gardelegen; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0167",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_3b0ef37212286e949e8ae94f074fcdaa1d4074c54b450ac3d0346d7a4bd26b24"
+      ],
+      [
+        "anchor_1f112d8a2f4c0d754e467432c8140c1280a0fbc24fee2aa6dbdd2fb0b0c82674"
+      ]
+    ],
+    "note": "Printed p. 102, Ampfurth, OT Schermcke, catalogue 76: The local heading names Ampfurth, OT Schermcke; the alphabetical index on PDF p. 36 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0172",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d7cd1434312546a3343013f7f6f0e2a360b6a0f98975db703d92901b7d68f909"
+      ],
+      [
+        "anchor_9796456fa5163baea152bc5a572965d9558839b1672cadd926b33a9c89989910",
+        "anchor_2fc042f5a462418b7956036d217754353782b243e7fcbb7276e2f72c44ef4aa4"
+      ]
+    ],
+    "note": "Printed p. 99, Emden, catalogue 55: Find 6 states Feuersteinmeißel; it directly supports item_type='Feuersteinmeißel'. Fundliste 3 (p. 154) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0180",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_f8e046ce8db4915a81c1ed36a43f6ba1ffda01dcb29f313cab85cab5f7db5729"
+      ],
+      [
+        "anchor_a4dfe65b7d0f0307f7cb7efa0cac9ae235d962984876399b94cc987d00815c38"
+      ],
+      [
+        "anchor_64815023edbe5edc9122e797672106cb4bcdd54c37892f47a5570d4b272a915b"
+      ],
+      [
+        "anchor_7a03045d1dc85983ee5367b8a3b03dc3146971984d85e09caf29aaf7d30d20f5"
+      ]
+    ],
+    "note": "Printed p. 102, Bahrendorf, OT Stemmern, catalogue 77: The original numbered entry states 77. Every accepted index/list passage (PDF pages 33, 34, 36) explicitly pairs this site with 77; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0182",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_f8e046ce8db4915a81c1ed36a43f6ba1ffda01dcb29f313cab85cab5f7db5729"
+      ],
+      [
+        "anchor_1a00731e6257fc0dcc8833e8eccf1189240f802478b7282e2d59b87068ae824a"
+      ]
+    ],
+    "note": "Printed p. 92, Bertkow, OT Plätz, catalogue 9: The original numbered entry states 9. Every accepted index/list passage (PDF pages 34, 36) explicitly pairs this site with 9; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0186",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_e1d4b49a8e1a89e5e4b87f206bac6fb2b7f3bb1de1f4794eceb0ab47cbc9efc1",
+        "anchor_7a9f41790570f9f7a3137c54b1d7ccaafe89df25eb083aa4372a3221cabfcd0e"
+      ],
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ]
+    ],
+    "note": "Printed p. 94, Thüritz, catalogue 18: The source district heading governs this entry and states Kreis Kalbe/M.; the alphabetical index on PDF p. 38 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0197",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_bc074b98d1a4825917f6ac12d04a07b9cfb94bdf6000eae081f763c7e3176bdd"
+      ],
+      [
+        "anchor_78219573e1d34448a1e0f52c4162645b03dd74ec0bb30d631d06bca5008a0e13",
+        "anchor_73793f880f580519ab89bfeb3cbe6a595cb43c51a9eb6035cedb66ec5642f6b6"
+      ]
+    ],
+    "note": "Printed p. 94, Thüritz, catalogue 18: Find 4 states klingenartiger Feuersteinabschlag; it directly supports item_type='Feuersteinabschlag'. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0198",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_37576bb7ed033acd8ea5bb01bcf95a1d569debd6c4fb86c396145ba373884618"
+      ],
+      [
+        "anchor_78219573e1d34448a1e0f52c4162645b03dd74ec0bb30d631d06bca5008a0e13",
+        "anchor_a4dfe65b7d0f0307f7cb7efa0cac9ae235d962984876399b94cc987d00815c38"
+      ]
+    ],
+    "note": "Printed p. 102, Bahrendorf, OT Stemmern, catalogue 77: Find 2 states 3 graue Feuersteinklingen; it directly supports material='Feuerstein'. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0210",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_49f733ec3a27cb982e2ef7a778bcf46f03fc6a732b69bcf3cfdf88d03fdba700"
+      ],
+      [
+        "anchor_91ffc1828f89efda6b4e1d6dccd24cf181ea596fbd2b37def78278ef8526b780"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: The local heading names Menz; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0216",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_299144f014e9f0cca9798d9fdf1a104b0b92c923509df9cbffe1f805632f3f62"
+      ],
+      [
+        "anchor_73793f880f580519ab89bfeb3cbe6a595cb43c51a9eb6035cedb66ec5642f6b6"
+      ]
+    ],
+    "note": "Printed p. 92, Heidberg, OT Leetze, catalogue 8: Find 5 states 4 Feuersteinklingen; it directly supports item_count=4. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative; its stated object/count suffices in local list context. The qualified KAK association does not make the stated object attribute uncertain.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0217",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_fd08edcf31a0e34516a62774f0ae41709633b6e20ac76f2bea388d72bce6745e"
+      ],
+      [
+        "anchor_a4dfe65b7d0f0307f7cb7efa0cac9ae235d962984876399b94cc987d00815c38"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: Find 3 states Feuersteingerät; it directly supports item_count=1. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative; its stated object/count suffices in local list context.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0218",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_299144f014e9f0cca9798d9fdf1a104b0b92c923509df9cbffe1f805632f3f62"
+      ],
+      [
+        "anchor_714f8ed3952ffe9c824f093c3e2e9140a60f691e2a269c53bfeb10cd36f26fb3"
+      ]
+    ],
+    "note": "Printed p. 92, Heidberg, OT Leetze, catalogue 8: Find 8 states röhrenförmige Bernsteinperle; it directly supports item_count=1. Fundliste 8 (p. 155) independently matches this find and is accepted as an alternative; its stated object/count suffices in local list context. The qualified KAK association does not make the stated object attribute uncertain.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0223",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_6b925596d0c8ffda41b94d29d52cf9980ec70e2a576b11c2b7f5753b5b2c6173"
+      ],
+      [
+        "anchor_8fe9cb4e2e5e1f9cee50d54c2e6796785797505880572fc1e8a9cd76e3ee65af"
+      ]
+    ],
+    "note": "Printed p. 95, Sanne, catalogue 26: The local heading names Sanne; the alphabetical index on PDF p. 38 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0238",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_042afdf9d6911ba8c0483efcd97bbbb878d0bebb6685879b904464841d6806ad",
+        "anchor_49f733ec3a27cb982e2ef7a778bcf46f03fc6a732b69bcf3cfdf88d03fdba700"
+      ],
+      [
+        "anchor_91ffc1828f89efda6b4e1d6dccd24cf181ea596fbd2b37def78278ef8526b780"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: The source district heading governs this entry and states Kreis Burg; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0246",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_b95fe307d160ab473e40de6fa57040a9653e27cc5d0e86277aabd142d6d0349e"
+      ],
+      [
+        "anchor_ad2f39c855f44443c27cbe5ea16f5e4971413bed76a669512609704dd827836c"
+      ],
+      [
+        "anchor_1a00731e6257fc0dcc8833e8eccf1189240f802478b7282e2d59b87068ae824a"
+      ]
+    ],
+    "note": "Printed p. 95, Estedt, catalogue 30: The original numbered entry states 30. Every accepted index/list passage (PDF pages 33, 34, 37) explicitly pairs this site with 30; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0249",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_fd08edcf31a0e34516a62774f0ae41709633b6e20ac76f2bea388d72bce6745e"
+      ],
+      [
+        "anchor_78219573e1d34448a1e0f52c4162645b03dd74ec0bb30d631d06bca5008a0e13",
+        "anchor_a4dfe65b7d0f0307f7cb7efa0cac9ae235d962984876399b94cc987d00815c38"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: Find 3 states Feuersteingerät; it directly supports material='Feuerstein'. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0256",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_7e49c19e3bb42eab778e27f5e8646ec73ca4d225d1cd08abc19d2497d96a235c"
+      ],
+      [
+        "anchor_714f8ed3952ffe9c824f093c3e2e9140a60f691e2a269c53bfeb10cd36f26fb3"
+      ]
+    ],
+    "note": "Printed p. 95, Schinne, catalogue 28: Find 3 states kl. durchb. Bernsteinscheibe; it directly supports item_count=1. Fundliste 8 (p. 155) independently matches this find and is accepted as an alternative; its stated object/count suffices in local list context.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0257",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_fd08edcf31a0e34516a62774f0ae41709633b6e20ac76f2bea388d72bce6745e"
+      ],
+      [
+        "anchor_a4dfe65b7d0f0307f7cb7efa0cac9ae235d962984876399b94cc987d00815c38"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: Find 3 states Feuersteingerät; it directly supports item_count=1. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative; its stated object/count suffices in local list context.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0261",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_e1d4b49a8e1a89e5e4b87f206bac6fb2b7f3bb1de1f4794eceb0ab47cbc9efc1",
+        "anchor_7a9f41790570f9f7a3137c54b1d7ccaafe89df25eb083aa4372a3221cabfcd0e"
+      ],
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ]
+    ],
+    "note": "Printed p. 94, Thüritz, catalogue 18: The source district heading governs this entry and states Kreis Kalbe/M.; the alphabetical index on PDF p. 38 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0266",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ],
+      [
+        "anchor_73793f880f580519ab89bfeb3cbe6a595cb43c51a9eb6035cedb66ec5642f6b6"
+      ],
+      [
+        "anchor_1a00731e6257fc0dcc8833e8eccf1189240f802478b7282e2d59b87068ae824a"
+      ]
+    ],
+    "note": "Printed p. 94, Thüritz, catalogue 18: The original numbered entry states 18. Every accepted index/list passage (PDF pages 33, 34, 38) explicitly pairs this site with 18; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0271",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_fd08edcf31a0e34516a62774f0ae41709633b6e20ac76f2bea388d72bce6745e"
+      ],
+      [
+        "anchor_64815023edbe5edc9122e797672106cb4bcdd54c37892f47a5570d4b272a915b"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: Find 4 states Bernsteinperle; it directly supports item_count=1. Fundliste 8 (p. 155) independently matches this find and is accepted as an alternative; its stated object/count suffices in local list context.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0274",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ],
+      [
+        "anchor_4a58f5e583e108ebc41b7cc4c6aa000d9cdfdae0096df0b06a2d53e630c09cbd"
+      ]
+    ],
+    "note": "Printed p. 94, Tangeln, catalogue 17: The original numbered entry states 17. Every accepted index/list passage (PDF pages 34, 38) explicitly pairs this site with 17; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0276",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_035ee369ac562da8cdf783720073dec987741f9aca640adff339b589f9526d07",
+        "anchor_848f07b036bc9335e8320ca356d68be7c77317ba70b0e2ab6d62f7765e32c4bf"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: The original subentry b crosses columns: Grube von 2,70 continues × 0,95 × 0,50 m. Metres applies to that dimension series, overriding the centimetre convention. Accept opening plus continuation to connect the unit to this pit length; the mixed-column unit fragment alone is ambiguous about that connection.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0277",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_035ee369ac562da8cdf783720073dec987741f9aca640adff339b589f9526d07"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: Subentry b expressly begins Holzkammer and describes a wood-framed pit. Accept this passage alone. The mixed-column continuation discusses chamber contents and presumed covering but does not independently establish a wooden chamber; reject that continuation as sole type evidence.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0283",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_a46f31dc7b16d3c5deb4e6da3594fc68d4eccae6196fdeb0c939eb58a6c9c477"
+      ],
+      [
+        "anchor_f8e046ce8db4915a81c1ed36a43f6ba1ffda01dcb29f313cab85cab5f7db5729"
+      ]
+    ],
+    "note": "Printed p. 93, Bertkow, OT Plätz, catalogue 10: The local heading names Bertkow, OT Plätz; the alphabetical index on PDF p. 36 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0288",
+    "valueSupported": false,
+    "goldAnchorSets": [],
+    "note": "Printed p. 97, Dornburg, catalogue 42: The remains are described as wohl nur noch Schädel erh., with the burial position unknown. This does not establish a total of one individual. Reject converting the singular surviving skull into an explicit total individual count.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0294",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_f45c0c167d8633330ead28139edfc0ad360fa56446ed1e299b49a084854933f4",
+        "anchor_37576bb7ed033acd8ea5bb01bcf95a1d569debd6c4fb86c396145ba373884618"
+      ],
+      [
+        "anchor_f8e046ce8db4915a81c1ed36a43f6ba1ffda01dcb29f313cab85cab5f7db5729"
+      ]
+    ],
+    "note": "Printed p. 102, Bahrendorf, OT Stemmern, catalogue 77: The source district heading governs this entry and states Kreis Wanzleben; the alphabetical index on PDF p. 36 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0296",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_37576bb7ed033acd8ea5bb01bcf95a1d569debd6c4fb86c396145ba373884618"
+      ],
+      [
+        "anchor_78219573e1d34448a1e0f52c4162645b03dd74ec0bb30d631d06bca5008a0e13",
+        "anchor_a4dfe65b7d0f0307f7cb7efa0cac9ae235d962984876399b94cc987d00815c38"
+      ]
+    ],
+    "note": "Printed p. 102, Bahrendorf, OT Stemmern, catalogue 77: Find 2 states 3 graue Feuersteinklingen; it directly supports item_type='Feuersteinklingen'. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0299",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_1f112d8a2f4c0d754e467432c8140c1280a0fbc24fee2aa6dbdd2fb0b0c82674"
+      ],
+      [
+        "anchor_c289fd99d110c175dbe9727fadeddf5a5f9dec3cd6538b2a8284b6a3ff5517a1"
+      ],
+      [
+        "anchor_7fb7f7d63636b314b2a8942729285d5bdbb5448a734f71cf76c72db9272067e4"
+      ],
+      [
+        "anchor_7a03045d1dc85983ee5367b8a3b03dc3146971984d85e09caf29aaf7d30d20f5"
+      ]
+    ],
+    "note": "Printed p. 98, Ackendorf, catalogue 51: The original numbered entry states 51. Every accepted index/list passage (PDF pages 33, 34, 36) explicitly pairs this site with 51; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0308",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_299144f014e9f0cca9798d9fdf1a104b0b92c923509df9cbffe1f805632f3f62"
+      ],
+      [
+        "anchor_73793f880f580519ab89bfeb3cbe6a595cb43c51a9eb6035cedb66ec5642f6b6"
+      ]
+    ],
+    "note": "Printed p. 92, Heidberg, OT Leetze, catalogue 8: Find 6 states ein Querschneider; it directly supports item_type='Querschneider'. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative; its stated object/count suffices in local list context. The qualified KAK association does not make the stated object attribute uncertain.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0315",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_a46f31dc7b16d3c5deb4e6da3594fc68d4eccae6196fdeb0c939eb58a6c9c477"
+      ],
+      [
+        "anchor_f8e046ce8db4915a81c1ed36a43f6ba1ffda01dcb29f313cab85cab5f7db5729"
+      ],
+      [
+        "anchor_1a00731e6257fc0dcc8833e8eccf1189240f802478b7282e2d59b87068ae824a"
+      ]
+    ],
+    "note": "Printed p. 93, Bertkow, OT Plätz, catalogue 10: The original numbered entry states 10. Every accepted index/list passage (PDF pages 2, 34, 36) explicitly pairs this site with 10; these are genuine alternatives regardless of list topic.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0324",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_634b4e4fab3c7ec1ca3cd120e1f0aaba353f15946d58991da4d4554b5fceb42c",
+        "anchor_7babe9906a41d17a53c0105d39a62e141b9b2233cbb16bdb6c490d8c6f80b3c3"
+      ],
+      [
+        "anchor_f8e046ce8db4915a81c1ed36a43f6ba1ffda01dcb29f313cab85cab5f7db5729"
+      ]
+    ],
+    "note": "Printed p. 92, Bertkow, OT Plätz, catalogue 9: The source district heading governs this entry and states Kreis Osterburg; the alphabetical index on PDF p. 36 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0325",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_f45c0c167d8633330ead28139edfc0ad360fa56446ed1e299b49a084854933f4",
+        "anchor_ceef75c373832705edbf769bccd07320bd9550154bb3c50e2c486df4ab3ea0bc"
+      ],
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ]
+    ],
+    "note": "Printed p. 102, Eilsleben, catalogue 80: The source district heading governs this entry and states Kreis Wanzleben; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0331",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_4f1fe32bf0f0d3d8573827c76056e4dd06d836f5522f52b42438d4ab91e8c826",
+        "anchor_a015e8d1e590899061f5f68ea2e9f1db07568f13ac0893f7374b6981e795ed65"
+      ],
+      [
+        "anchor_b95fe307d160ab473e40de6fa57040a9653e27cc5d0e86277aabd142d6d0349e"
+      ]
+    ],
+    "note": "Printed p. 94, Grassau, catalogue 21: The source district heading governs this entry and states Kreis Stendal; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0335",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_4f1679d14581d36b46932fd4f05dc5d959d773d12eea59838e07777e49688d71"
+      ],
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ]
+    ],
+    "note": "Printed p. 98, Eimersleben, catalogue 53: The local heading names Eimersleben; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0338",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d7cd1434312546a3343013f7f6f0e2a360b6a0f98975db703d92901b7d68f909"
+      ],
+      [
+        "anchor_9796456fa5163baea152bc5a572965d9558839b1672cadd926b33a9c89989910",
+        "anchor_2fc042f5a462418b7956036d217754353782b243e7fcbb7276e2f72c44ef4aa4"
+      ]
+    ],
+    "note": "Printed p. 99, Emden, catalogue 55: Find 6 states Feuersteinmeißel; it directly supports material='Feuerstein'. Fundliste 3 (p. 154) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0348",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_49f733ec3a27cb982e2ef7a778bcf46f03fc6a732b69bcf3cfdf88d03fdba700"
+      ],
+      [
+        "anchor_91ffc1828f89efda6b4e1d6dccd24cf181ea596fbd2b37def78278ef8526b780"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: The local heading names Menz; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0349",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_fd08edcf31a0e34516a62774f0ae41709633b6e20ac76f2bea388d72bce6745e"
+      ],
+      [
+        "anchor_a2ec0a4a389a4d93cc8112d866a90e778afff5236ef4f62e228540bc76ae17b1",
+        "anchor_64815023edbe5edc9122e797672106cb4bcdd54c37892f47a5570d4b272a915b"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: Find 4 states Bernsteinperle; it directly supports item_type='Bernsteinperle'. Fundliste 8 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0357",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d7cd1434312546a3343013f7f6f0e2a360b6a0f98975db703d92901b7d68f909"
+      ],
+      [
+        "anchor_a4dfe65b7d0f0307f7cb7efa0cac9ae235d962984876399b94cc987d00815c38"
+      ]
+    ],
+    "note": "Printed p. 99, Emden, catalogue 55: Find 7 states Querschneider; it directly supports item_type='Querschneider'. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative; its stated object/count suffices in local list context.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0358",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_c9797c5f98ebc3e49b51a6eaa5df38e86c1941ae0339ddf0d091a86c84c2197c",
+        "anchor_7a03045d1dc85983ee5367b8a3b03dc3146971984d85e09caf29aaf7d30d20f5"
+      ]
+    ],
+    "note": "Printed p. 98, Eimersleben, catalogue 53: The local entry describes a crouched burial in a rectangular pit without naming Flachgrab. Printed p. 156 Fundliste 10 explicitly lists Eimersleben (53) under Flachgräber. Its heading and entry together support this classification; reject restricting evidence to the local paragraph.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0370",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_8fe9cb4e2e5e1f9cee50d54c2e6796785797505880572fc1e8a9cd76e3ee65af"
+      ],
+      [
+        "anchor_1a00731e6257fc0dcc8833e8eccf1189240f802478b7282e2d59b87068ae824a"
+      ]
+    ],
+    "note": "Printed p. 94, Peulingen, catalogue 25: The original numbered entry states 25. Every accepted index/list passage (PDF pages 34, 38) explicitly pairs this site with 25; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0371",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_4f1fe32bf0f0d3d8573827c76056e4dd06d836f5522f52b42438d4ab91e8c826",
+        "anchor_6b925596d0c8ffda41b94d29d52cf9980ec70e2a576b11c2b7f5753b5b2c6173"
+      ],
+      [
+        "anchor_8fe9cb4e2e5e1f9cee50d54c2e6796785797505880572fc1e8a9cd76e3ee65af"
+      ]
+    ],
+    "note": "Printed p. 95, Sanne, catalogue 26: The source district heading governs this entry and states Kreis Stendal; the alphabetical index on PDF p. 38 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0373",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_7e49c19e3bb42eab778e27f5e8646ec73ca4d225d1cd08abc19d2497d96a235c"
+      ],
+      [
+        "anchor_a2ec0a4a389a4d93cc8112d866a90e778afff5236ef4f62e228540bc76ae17b1",
+        "anchor_714f8ed3952ffe9c824f093c3e2e9140a60f691e2a269c53bfeb10cd36f26fb3"
+      ]
+    ],
+    "note": "Printed p. 95, Schinne, catalogue 28: Find 3 states kl. durchb. Bernsteinscheibe; it directly supports material='Bernstein'. Fundliste 8 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0374",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_91ffc1828f89efda6b4e1d6dccd24cf181ea596fbd2b37def78278ef8526b780"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: The original numbered entry states 40. Every accepted index/list passage (PDF pages 37) explicitly pairs this site with 40; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field. The site catalogue number is 40; a and b distinguish its features, which must remain separate records.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0389",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_435bb45c6b3d3e142ccadd03623543aca205b165e7c88956ae19ae0cac7bc04d"
+      ],
+      [
+        "anchor_b95fe307d160ab473e40de6fa57040a9653e27cc5d0e86277aabd142d6d0349e"
+      ]
+    ],
+    "note": "Printed p. 95, Estedt, catalogue 30: The local heading names Estedt; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0392",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d7cd1434312546a3343013f7f6f0e2a360b6a0f98975db703d92901b7d68f909"
+      ],
+      [
+        "anchor_9796456fa5163baea152bc5a572965d9558839b1672cadd926b33a9c89989910",
+        "anchor_2fc042f5a462418b7956036d217754353782b243e7fcbb7276e2f72c44ef4aa4"
+      ]
+    ],
+    "note": "Printed p. 99, Emden, catalogue 55: Find 6 states Feuersteinmeißel; it directly supports item_type='Feuersteinmeißel'. Fundliste 3 (p. 154) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0396",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_2466a40e356d1ad3555b5197304300c84ac14e74891c851f0faedb6828aa802d"
+      ]
+    ],
+    "note": "Printed p. 105, Schönebeck, catalogue 87 (context says 37): Find 5 states 5. wT mit leicht ovaler Mdg.; it directly supports item_count=1. Accept the p. 105 passage naming and numbering the single wT. The p. 106 continuation starts with its height and then find 6, so it is not independent evidence for item 5 ID, type or count.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0402",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_fcbd1742673cdd9b1638a8251a6863be0149414076dd77aae42a6aa90178ac02"
+      ],
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ]
+    ],
+    "note": "Printed p. 99, Emden, catalogue 55: The local heading names Emden; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0409",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_fd08edcf31a0e34516a62774f0ae41709633b6e20ac76f2bea388d72bce6745e"
+      ],
+      [
+        "anchor_1d7e2e4d177837644dc8a1ef5bfa6709be50a1bc64564dc422034125b7ad6203"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: Find 5 states Schneidezahn eines Rindes; it directly supports material='Zahn'. Fundliste 9 (p. 156) independently matches this find and is accepted as an alternative; its stated object/count suffices in local list context.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0418",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_2466a40e356d1ad3555b5197304300c84ac14e74891c851f0faedb6828aa802d"
+      ]
+    ],
+    "note": "Printed p. 105, Schönebeck, catalogue 87 (context says 37): Find 5 states 5. wT mit leicht ovaler Mdg.; it directly supports item_id='5'. Accept the p. 105 passage naming and numbering the single wT. The p. 106 continuation starts with its height and then find 6, so it is not independent evidence for item 5 ID, type or count.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0419",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_588bcd8cdd52d7e2b2a37379d5484df6b8587aa1d9531503121394177e1ed7e1"
+      ],
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: The local heading names Dornburg; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0420",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_1f112d8a2f4c0d754e467432c8140c1280a0fbc24fee2aa6dbdd2fb0b0c82674"
+      ],
+      [
+        "anchor_c289fd99d110c175dbe9727fadeddf5a5f9dec3cd6538b2a8284b6a3ff5517a1"
+      ],
+      [
+        "anchor_7fb7f7d63636b314b2a8942729285d5bdbb5448a734f71cf76c72db9272067e4"
+      ],
+      [
+        "anchor_7a03045d1dc85983ee5367b8a3b03dc3146971984d85e09caf29aaf7d30d20f5"
+      ]
+    ],
+    "note": "Printed p. 98, Ackendorf, catalogue 51: The original numbered entry states 51. Every accepted index/list passage (PDF pages 33, 34, 36) explicitly pairs this site with 51; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0422",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_c3274f26aae11e10fc8ea93fccd96808f35c23bf51a4ba97d61a03b7a5c19131",
+        "anchor_4f1679d14581d36b46932fd4f05dc5d959d773d12eea59838e07777e49688d71"
+      ],
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ]
+    ],
+    "note": "Printed p. 98, Eimersleben, catalogue 53: The source district heading governs this entry and states Kreis Haldensleben; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0428",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_a58ace0116255b54e1f45bb992830a6258c0bd99112baa152db7a950ef3fc0ed"
+      ],
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ]
+    ],
+    "note": "Printed p. 94, Tangeln, catalogue 17: The local heading names Tangeln; the alphabetical index on PDF p. 38 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0431",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_2ef68de7fe9a9df7164708d931d02d61275777d13188ddf4c3b2db1d392da04d"
+      ]
+    ],
+    "note": "Printed p. 94, Peulingen, catalogue 25: The original heading states Fdpl. noch zu 1. Here noch zu marks continued membership in findspot 1, not a doubtful number or a suffix identifying another findspot. Fdpl. 1 preserves the explicit identifier; requiring the explanatory words as part of it would conflate description and identifier.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0433",
+    "valueSupported": false,
+    "goldAnchorSets": [],
+    "note": "Printed p. 100, Haldensleben/Stadtforst, catalogue 61: FA: G establishes a grave, but ovales Pflaster describes its paving and the position of objects upon it. It does not name Pflaster as a burial type. The proposed passage supports a structural component, not this field as stated.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0438",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_4ed614877f61fd487245d19d91dc4149f2f85872a063e3d8142030587c087543"
+      ],
+      [
+        "anchor_0dfd306785803a3e00774a51dd81cf113809cdf5b0edee5662f03a3e2ca137ff",
+        "anchor_e0739707383aebfa01562faf56d6d32a2d96aba1afb53f3a067f8a3f3123ce8b"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: Find 4 states atypisches Flintgerät; it directly supports item_type='Flintgerät'. Fundliste 6 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0439",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_6b925596d0c8ffda41b94d29d52cf9980ec70e2a576b11c2b7f5753b5b2c6173"
+      ],
+      [
+        "anchor_8fe9cb4e2e5e1f9cee50d54c2e6796785797505880572fc1e8a9cd76e3ee65af"
+      ]
+    ],
+    "note": "Printed p. 95, Sanne, catalogue 26: The local heading names Sanne; the alphabetical index on PDF p. 38 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0447",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d7cd1434312546a3343013f7f6f0e2a360b6a0f98975db703d92901b7d68f909"
+      ],
+      [
+        "anchor_9796456fa5163baea152bc5a572965d9558839b1672cadd926b33a9c89989910",
+        "anchor_2fc042f5a462418b7956036d217754353782b243e7fcbb7276e2f72c44ef4aa4"
+      ]
+    ],
+    "note": "Printed p. 99, Emden, catalogue 55: Find 6 states Feuersteinmeißel; it directly supports material='Feuerstein'. Fundliste 3 (p. 154) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0455",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_4f1fe32bf0f0d3d8573827c76056e4dd06d836f5522f52b42438d4ab91e8c826",
+        "anchor_b7f7f3fd5a421e4263558227bdf0b7b0558d60fd0c46b08f59ad280dcd885615"
+      ],
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ]
+    ],
+    "note": "Printed p. 95, Schinne, catalogue 28: The source district heading governs this entry and states Kreis Stendal; the alphabetical index on PDF p. 38 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0461",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_2ef68de7fe9a9df7164708d931d02d61275777d13188ddf4c3b2db1d392da04d"
+      ],
+      [
+        "anchor_8fe9cb4e2e5e1f9cee50d54c2e6796785797505880572fc1e8a9cd76e3ee65af"
+      ]
+    ],
+    "note": "Printed p. 94, Peulingen, catalogue 25: The local heading names Peulingen; the alphabetical index on PDF p. 38 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0476",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_eefe73599b2dccca35a156a6662553a9a5b072512ba2ada17259dd9580f34b6a"
+      ],
+      [
+        "anchor_73793f880f580519ab89bfeb3cbe6a595cb43c51a9eb6035cedb66ec5642f6b6"
+      ],
+      [
+        "anchor_714f8ed3952ffe9c824f093c3e2e9140a60f691e2a269c53bfeb10cd36f26fb3"
+      ],
+      [
+        "anchor_4a58f5e583e108ebc41b7cc4c6aa000d9cdfdae0096df0b06a2d53e630c09cbd"
+      ]
+    ],
+    "note": "Printed p. 92, Heidberg, OT Leetze, catalogue 8: The original numbered entry states 8. Every accepted index/list passage (PDF pages 33, 34, 37) explicitly pairs this site with 8; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0490",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_4f1679d14581d36b46932fd4f05dc5d959d773d12eea59838e07777e49688d71"
+      ],
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ]
+    ],
+    "note": "Printed p. 98, Eimersleben, catalogue 53: The local heading names Eimersleben; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0492",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_cc04328d0324ff022238e13f50ee4b6a1e14b94cf9763b3ff274dd0e76191a77",
+        "anchor_b18f69d99b1f72d773fd15380a9c94a2d0c023ddd8e2ba2774150383ed429df8"
+      ],
+      [
+        "anchor_b95fe307d160ab473e40de6fa57040a9653e27cc5d0e86277aabd142d6d0349e"
+      ]
+    ],
+    "note": "Printed p. 93, Hanum, catalogue 16: The source district heading governs this entry and states Kreis Klötze; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0506",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_7e49c19e3bb42eab778e27f5e8646ec73ca4d225d1cd08abc19d2497d96a235c"
+      ],
+      [
+        "anchor_714f8ed3952ffe9c824f093c3e2e9140a60f691e2a269c53bfeb10cd36f26fb3"
+      ]
+    ],
+    "note": "Printed p. 95, Schinne, catalogue 28: Find 3 states kl. durchb. Bernsteinscheibe; it directly supports item_count=1. Fundliste 8 (p. 155) independently matches this find and is accepted as an alternative; its stated object/count suffices in local list context.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0510",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d7cd1434312546a3343013f7f6f0e2a360b6a0f98975db703d92901b7d68f909"
+      ],
+      [
+        "anchor_9796456fa5163baea152bc5a572965d9558839b1672cadd926b33a9c89989910",
+        "anchor_2fc042f5a462418b7956036d217754353782b243e7fcbb7276e2f72c44ef4aa4"
+      ]
+    ],
+    "note": "Printed p. 99, Emden, catalogue 55: Find 6 states Feuersteinmeißel; it directly supports item_count=1. Fundliste 3 (p. 154) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0511",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_6b925596d0c8ffda41b94d29d52cf9980ec70e2a576b11c2b7f5753b5b2c6173"
+      ],
+      [
+        "anchor_8fe9cb4e2e5e1f9cee50d54c2e6796785797505880572fc1e8a9cd76e3ee65af"
+      ],
+      [
+        "anchor_ad2f39c855f44443c27cbe5ea16f5e4971413bed76a669512609704dd827836c"
+      ]
+    ],
+    "note": "Printed p. 95, Sanne, catalogue 26: The original numbered entry states 26. Every accepted index/list passage (PDF pages 3, 33, 38) explicitly pairs this site with 26; these are genuine alternatives regardless of list topic.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0520",
+    "valueSupported": null,
+    "goldAnchorSets": [],
+    "note": "Printed p. 102, Bahrendorf, OT Stemmern, catalogue 77: Find 3 includes one oval amber bead, two tubular beads and fragments of seven others; p. 155 Fundliste 8 mentions the oval bead and seven fragmentary beads. Generic Bernsteinperle/item 3 does not distinguish the oval bead from the group. Count 1 is valid only for the subgroup; neither passage establishes the intended scope.",
+    "status": "unresolved"
+  },
+  {
+    "claimId": "c0521",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_8c512d9e15b96b21651fac240be343122d6a9786b842d084159756ad2408fbb8",
+        "anchor_588bcd8cdd52d7e2b2a37379d5484df6b8587aa1d9531503121394177e1ed7e1"
+      ],
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: The source district heading governs this entry and states Kreis Zerbst; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0533",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_fd08edcf31a0e34516a62774f0ae41709633b6e20ac76f2bea388d72bce6745e"
+      ],
+      [
+        "anchor_78219573e1d34448a1e0f52c4162645b03dd74ec0bb30d631d06bca5008a0e13",
+        "anchor_a4dfe65b7d0f0307f7cb7efa0cac9ae235d962984876399b94cc987d00815c38"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: Find 3 states Feuersteingerät; it directly supports item_type='Feuersteingerät'. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0547",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_035ee369ac562da8cdf783720073dec987741f9aca640adff339b589f9526d07"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: Subentry b expressly begins Holzkammer and describes a wood-framed pit. Accept this passage alone. The mixed-column continuation discusses chamber contents and presumed covering but does not independently establish a wooden chamber; reject that continuation as sole type evidence.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0556",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ],
+      [
+        "anchor_4a58f5e583e108ebc41b7cc4c6aa000d9cdfdae0096df0b06a2d53e630c09cbd"
+      ]
+    ],
+    "note": "Printed p. 94, Tangeln, catalogue 17: The original numbered entry states 17. Every accepted index/list passage (PDF pages 34, 38) explicitly pairs this site with 17; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0568",
+    "valueSupported": null,
+    "goldAnchorSets": [],
+    "note": "Printed p. 105, Schönebeck, catalogue 87 (context says 37): Original p. 105 heading and p. 164 index identify Schönebeck as 87, while original p. 154 Fundliste 2 visibly prints Schönebeck (37). This is a source conflict, not an OCR error. Neither choosing 87 alone nor treating the list number as an uncontested 37 resolves provenance; no unambiguous evidence set accepted.",
+    "status": "unresolved"
+  },
+  {
+    "claimId": "c0569",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_fd08edcf31a0e34516a62774f0ae41709633b6e20ac76f2bea388d72bce6745e"
+      ],
+      [
+        "anchor_a2ec0a4a389a4d93cc8112d866a90e778afff5236ef4f62e228540bc76ae17b1",
+        "anchor_64815023edbe5edc9122e797672106cb4bcdd54c37892f47a5570d4b272a915b"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: Find 4 states Bernsteinperle; it directly supports item_type='Bernsteinperle'. Fundliste 8 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0572",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_634b4e4fab3c7ec1ca3cd120e1f0aaba353f15946d58991da4d4554b5fceb42c",
+        "anchor_a46f31dc7b16d3c5deb4e6da3594fc68d4eccae6196fdeb0c939eb58a6c9c477"
+      ],
+      [
+        "anchor_f8e046ce8db4915a81c1ed36a43f6ba1ffda01dcb29f313cab85cab5f7db5729"
+      ]
+    ],
+    "note": "Printed p. 93, Bertkow, OT Plätz, catalogue 10: The source district heading governs this entry and states Kreis Osterburg; the alphabetical index on PDF p. 36 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0574",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_91ffc1828f89efda6b4e1d6dccd24cf181ea596fbd2b37def78278ef8526b780"
+      ],
+      [
+        "anchor_c289fd99d110c175dbe9727fadeddf5a5f9dec3cd6538b2a8284b6a3ff5517a1"
+      ],
+      [
+        "anchor_7a03045d1dc85983ee5367b8a3b03dc3146971984d85e09caf29aaf7d30d20f5"
+      ]
+    ],
+    "note": "Printed p. 101, Meseberg, catalogue 72: The original numbered entry states 72. Every accepted index/list passage (PDF pages 33, 34, 37) explicitly pairs this site with 72; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0584",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ],
+      [
+        "anchor_688a93f8499cc1947187959281a9e750c32355e98d5df6450e76eb0806f7e598"
+      ],
+      [
+        "anchor_714f8ed3952ffe9c824f093c3e2e9140a60f691e2a269c53bfeb10cd36f26fb3"
+      ],
+      [
+        "anchor_1a00731e6257fc0dcc8833e8eccf1189240f802478b7282e2d59b87068ae824a"
+      ]
+    ],
+    "note": "Printed p. 95, Schinne, catalogue 28: The original numbered entry states 28. Every accepted index/list passage (PDF pages 33, 34, 38) explicitly pairs this site with 28; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0595",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_fd08edcf31a0e34516a62774f0ae41709633b6e20ac76f2bea388d72bce6745e"
+      ],
+      [
+        "anchor_64815023edbe5edc9122e797672106cb4bcdd54c37892f47a5570d4b272a915b"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: Find 4 states Bernsteinperle; it directly supports item_count=1. Fundliste 8 (p. 155) independently matches this find and is accepted as an alternative; its stated object/count suffices in local list context.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0596",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ],
+      [
+        "anchor_7fb7f7d63636b314b2a8942729285d5bdbb5448a734f71cf76c72db9272067e4"
+      ],
+      [
+        "anchor_2fc042f5a462418b7956036d217754353782b243e7fcbb7276e2f72c44ef4aa4"
+      ],
+      [
+        "anchor_a4dfe65b7d0f0307f7cb7efa0cac9ae235d962984876399b94cc987d00815c38"
+      ],
+      [
+        "anchor_c85708884a800f4f392b0fcf6488f478b0aad1efa6e1e52994dcf4218c6bc02e"
+      ]
+    ],
+    "note": "Printed p. 99, Emden, catalogue 55: The original numbered entry states 55. Every accepted index/list passage (PDF pages 33, 34, 37) explicitly pairs this site with 55; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0604",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_bc074b98d1a4825917f6ac12d04a07b9cfb94bdf6000eae081f763c7e3176bdd"
+      ],
+      [
+        "anchor_78219573e1d34448a1e0f52c4162645b03dd74ec0bb30d631d06bca5008a0e13",
+        "anchor_73793f880f580519ab89bfeb3cbe6a595cb43c51a9eb6035cedb66ec5642f6b6"
+      ]
+    ],
+    "note": "Printed p. 94, Thüritz, catalogue 18: Find 4 states klingenartiger Feuersteinabschlag; it directly supports material='Feuerstein'. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0612",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_1ac70323cff3bf03ab48cfa19023dbbd297794e55205acf3a05c85e03b672ddb"
+      ],
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ]
+    ],
+    "note": "Printed p. 105, Schönebeck, catalogue 87 (context says 37): The local heading names Schönebeck; the alphabetical index on PDF p. 38 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0615",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_2ef68de7fe9a9df7164708d931d02d61275777d13188ddf4c3b2db1d392da04d"
+      ],
+      [
+        "anchor_8fe9cb4e2e5e1f9cee50d54c2e6796785797505880572fc1e8a9cd76e3ee65af"
+      ]
+    ],
+    "note": "Printed p. 94, Peulingen, catalogue 25: The local heading names Peulingen; the alphabetical index on PDF p. 38 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0619",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_8c512d9e15b96b21651fac240be343122d6a9786b842d084159756ad2408fbb8",
+        "anchor_588bcd8cdd52d7e2b2a37379d5484df6b8587aa1d9531503121394177e1ed7e1"
+      ],
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: The source district heading governs this entry and states Kreis Zerbst; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0623",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_b95fe307d160ab473e40de6fa57040a9653e27cc5d0e86277aabd142d6d0349e"
+      ]
+    ],
+    "note": "Printed p. 100, Haldensleben/Stadtforst, catalogue 61: The original numbered entry states 61. Every accepted index/list passage (PDF pages 37) explicitly pairs this site with 61; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0640",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_91ffc1828f89efda6b4e1d6dccd24cf181ea596fbd2b37def78278ef8526b780"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: The original numbered entry states 40. Every accepted index/list passage (PDF pages 37) explicitly pairs this site with 40; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field. The site catalogue number is 40; a and b distinguish its features, which must remain separate records.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0642",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_4f1fe32bf0f0d3d8573827c76056e4dd06d836f5522f52b42438d4ab91e8c826",
+        "anchor_2ef68de7fe9a9df7164708d931d02d61275777d13188ddf4c3b2db1d392da04d"
+      ],
+      [
+        "anchor_8fe9cb4e2e5e1f9cee50d54c2e6796785797505880572fc1e8a9cd76e3ee65af"
+      ]
+    ],
+    "note": "Printed p. 94, Peulingen, catalogue 25: The source district heading governs this entry and states Kreis Stendal; the alphabetical index on PDF p. 38 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0651",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_91ffc1828f89efda6b4e1d6dccd24cf181ea596fbd2b37def78278ef8526b780"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: The original numbered entry states 40. Every accepted index/list passage (PDF pages 37) explicitly pairs this site with 40; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field. The site catalogue number is 40; a and b distinguish its features, which must remain separate records.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0654",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_634b4e4fab3c7ec1ca3cd120e1f0aaba353f15946d58991da4d4554b5fceb42c",
+        "anchor_a46f31dc7b16d3c5deb4e6da3594fc68d4eccae6196fdeb0c939eb58a6c9c477"
+      ],
+      [
+        "anchor_f8e046ce8db4915a81c1ed36a43f6ba1ffda01dcb29f313cab85cab5f7db5729"
+      ]
+    ],
+    "note": "Printed p. 93, Bertkow, OT Plätz, catalogue 10: The source district heading governs this entry and states Kreis Osterburg; the alphabetical index on PDF p. 36 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0661",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_fd08edcf31a0e34516a62774f0ae41709633b6e20ac76f2bea388d72bce6745e"
+      ],
+      [
+        "anchor_a2ec0a4a389a4d93cc8112d866a90e778afff5236ef4f62e228540bc76ae17b1",
+        "anchor_64815023edbe5edc9122e797672106cb4bcdd54c37892f47a5570d4b272a915b"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: Find 4 states Bernsteinperle; it directly supports material='Bernstein'. Fundliste 8 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0662",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_7e49c19e3bb42eab778e27f5e8646ec73ca4d225d1cd08abc19d2497d96a235c"
+      ],
+      [
+        "anchor_a2ec0a4a389a4d93cc8112d866a90e778afff5236ef4f62e228540bc76ae17b1",
+        "anchor_714f8ed3952ffe9c824f093c3e2e9140a60f691e2a269c53bfeb10cd36f26fb3"
+      ]
+    ],
+    "note": "Printed p. 95, Schinne, catalogue 28: Find 3 states kl. durchb. Bernsteinscheibe; it directly supports material='Bernstein'. Fundliste 8 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0667",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_c3274f26aae11e10fc8ea93fccd96808f35c23bf51a4ba97d61a03b7a5c19131",
+        "anchor_f7cfbd2f14f1d66ac643399f7c72760dff60df837fa2ce5774c87d6da63258cc"
+      ],
+      [
+        "anchor_eefe73599b2dccca35a156a6662553a9a5b072512ba2ada17259dd9580f34b6a"
+      ]
+    ],
+    "note": "Printed p. 100, Hillersleben, catalogue 62: The source district heading governs this entry and states Kreis Haldensleben; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0674",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_2aa2383465f9fa3efcf1784805b7aa9fac582359f3c6335eb90d5043a23ab2d3",
+        "anchor_4a87160c125372a963db6d33473b919c56870688e6fdd7c8a5ce4d802ec84852"
+      ],
+      [
+        "anchor_eefe73599b2dccca35a156a6662553a9a5b072512ba2ada17259dd9580f34b6a"
+      ]
+    ],
+    "note": "Printed p. 92, Heidberg, OT Leetze, catalogue 8: The source district heading governs this entry and states Kreis Salzwedel; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0685",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_a46f31dc7b16d3c5deb4e6da3594fc68d4eccae6196fdeb0c939eb58a6c9c477"
+      ],
+      [
+        "anchor_f8e046ce8db4915a81c1ed36a43f6ba1ffda01dcb29f313cab85cab5f7db5729"
+      ],
+      [
+        "anchor_1a00731e6257fc0dcc8833e8eccf1189240f802478b7282e2d59b87068ae824a"
+      ]
+    ],
+    "note": "Printed p. 93, Bertkow, OT Plätz, catalogue 10: The original numbered entry states 10. Every accepted index/list passage (PDF pages 2, 34, 36) explicitly pairs this site with 10; these are genuine alternatives regardless of list topic.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0694",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_37576bb7ed033acd8ea5bb01bcf95a1d569debd6c4fb86c396145ba373884618"
+      ],
+      [
+        "anchor_f8e046ce8db4915a81c1ed36a43f6ba1ffda01dcb29f313cab85cab5f7db5729"
+      ]
+    ],
+    "note": "Printed p. 102, Bahrendorf, OT Stemmern, catalogue 77: The local heading names Bahrendorf, OT Stemmern; the alphabetical index on PDF p. 36 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0698",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_8fe9cb4e2e5e1f9cee50d54c2e6796785797505880572fc1e8a9cd76e3ee65af"
+      ],
+      [
+        "anchor_1a00731e6257fc0dcc8833e8eccf1189240f802478b7282e2d59b87068ae824a"
+      ]
+    ],
+    "note": "Printed p. 94, Peulingen, catalogue 25: The original numbered entry states 25. Every accepted index/list passage (PDF pages 34, 38) explicitly pairs this site with 25; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0700",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_7a9f41790570f9f7a3137c54b1d7ccaafe89df25eb083aa4372a3221cabfcd0e"
+      ],
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ]
+    ],
+    "note": "Printed p. 94, Thüritz, catalogue 18: The local heading names Thüritz; the alphabetical index on PDF p. 38 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0706",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_91ffc1828f89efda6b4e1d6dccd24cf181ea596fbd2b37def78278ef8526b780"
+      ],
+      [
+        "anchor_2fc042f5a462418b7956036d217754353782b243e7fcbb7276e2f72c44ef4aa4"
+      ],
+      [
+        "anchor_a4dfe65b7d0f0307f7cb7efa0cac9ae235d962984876399b94cc987d00815c38"
+      ],
+      [
+        "anchor_7a03045d1dc85983ee5367b8a3b03dc3146971984d85e09caf29aaf7d30d20f5"
+      ]
+    ],
+    "note": "Printed p. 101, Magdeburg (Altstadt), catalogue 74: The original numbered entry states 74. Every accepted index/list passage (PDF pages 33, 34, 37) explicitly pairs this site with 74; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0707",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_c3274f26aae11e10fc8ea93fccd96808f35c23bf51a4ba97d61a03b7a5c19131",
+        "anchor_f2277daa78d8b82499bb219cd937e885fb7510c9d277bfb226a4c4de826c47da"
+      ],
+      [
+        "anchor_1f112d8a2f4c0d754e467432c8140c1280a0fbc24fee2aa6dbdd2fb0b0c82674"
+      ]
+    ],
+    "note": "Printed p. 98, Ackendorf, catalogue 51: The source district heading governs this entry and states Kreis Haldensleben; the alphabetical index on PDF p. 36 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0714",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_a57a3ad3c5f590bdc470ce45d98fd3d052c98bc00519878d30ebdc8191833474"
+      ],
+      [
+        "anchor_91ffc1828f89efda6b4e1d6dccd24cf181ea596fbd2b37def78278ef8526b780"
+      ]
+    ],
+    "note": "Printed p. 101, Meseberg, catalogue 72: The local heading names Meseberg; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0718",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_ceef75c373832705edbf769bccd07320bd9550154bb3c50e2c486df4ab3ea0bc"
+      ],
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ],
+      [
+        "anchor_7fb7f7d63636b314b2a8942729285d5bdbb5448a734f71cf76c72db9272067e4"
+      ],
+      [
+        "anchor_c85708884a800f4f392b0fcf6488f478b0aad1efa6e1e52994dcf4218c6bc02e"
+      ]
+    ],
+    "note": "Printed p. 102, Eilsleben, catalogue 80: The original numbered entry states 80. Every accepted index/list passage (PDF pages 7, 33, 34, 37) explicitly pairs this site with 80; these are genuine alternatives regardless of list topic.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0720",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d7cd1434312546a3343013f7f6f0e2a360b6a0f98975db703d92901b7d68f909"
+      ],
+      [
+        "anchor_9796456fa5163baea152bc5a572965d9558839b1672cadd926b33a9c89989910",
+        "anchor_2fc042f5a462418b7956036d217754353782b243e7fcbb7276e2f72c44ef4aa4"
+      ]
+    ],
+    "note": "Printed p. 99, Emden, catalogue 55: Find 6 states Feuersteinmeißel; it directly supports item_count=1. Fundliste 3 (p. 154) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0728",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_cc04328d0324ff022238e13f50ee4b6a1e14b94cf9763b3ff274dd0e76191a77",
+        "anchor_a58ace0116255b54e1f45bb992830a6258c0bd99112baa152db7a950ef3fc0ed"
+      ],
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ]
+    ],
+    "note": "Printed p. 94, Tangeln, catalogue 17: The source district heading governs this entry and states Kreis Klötze; the alphabetical index on PDF p. 38 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0729",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_4f1fe32bf0f0d3d8573827c76056e4dd06d836f5522f52b42438d4ab91e8c826",
+        "anchor_2ef68de7fe9a9df7164708d931d02d61275777d13188ddf4c3b2db1d392da04d"
+      ],
+      [
+        "anchor_8fe9cb4e2e5e1f9cee50d54c2e6796785797505880572fc1e8a9cd76e3ee65af"
+      ]
+    ],
+    "note": "Printed p. 94, Peulingen, catalogue 25: The source district heading governs this entry and states Kreis Stendal; the alphabetical index on PDF p. 38 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0744",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_4a87160c125372a963db6d33473b919c56870688e6fdd7c8a5ce4d802ec84852"
+      ],
+      [
+        "anchor_eefe73599b2dccca35a156a6662553a9a5b072512ba2ada17259dd9580f34b6a"
+      ]
+    ],
+    "note": "Printed p. 92, Heidberg, OT Leetze, catalogue 8: The local heading names Heidberg, OT Leetze; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0749",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_2466a40e356d1ad3555b5197304300c84ac14e74891c851f0faedb6828aa802d"
+      ]
+    ],
+    "note": "Printed p. 105, Schönebeck, catalogue 87 (context says 37): Find 5 states 5. wT mit leicht ovaler Mdg.; it directly supports item_id='5'. Accept the p. 105 passage naming and numbering the single wT. The p. 106 continuation starts with its height and then find 6, so it is not independent evidence for item 5 ID, type or count.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0752",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_10eafb685cfeffdc9901633bc69331b71ae1c76213b890fb8142e47762ed0172",
+        "anchor_435bb45c6b3d3e142ccadd03623543aca205b165e7c88956ae19ae0cac7bc04d"
+      ],
+      [
+        "anchor_b95fe307d160ab473e40de6fa57040a9653e27cc5d0e86277aabd142d6d0349e"
+      ]
+    ],
+    "note": "Printed p. 95, Estedt, catalogue 30: The source district heading governs this entry and states Kreis Gardelegen; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0757",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_b95fe307d160ab473e40de6fa57040a9653e27cc5d0e86277aabd142d6d0349e"
+      ],
+      [
+        "anchor_ad2f39c855f44443c27cbe5ea16f5e4971413bed76a669512609704dd827836c"
+      ],
+      [
+        "anchor_1a00731e6257fc0dcc8833e8eccf1189240f802478b7282e2d59b87068ae824a"
+      ]
+    ],
+    "note": "Printed p. 95, Estedt, catalogue 30: The original numbered entry states 30. Every accepted index/list passage (PDF pages 33, 34, 37) explicitly pairs this site with 30; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0763",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_fd08edcf31a0e34516a62774f0ae41709633b6e20ac76f2bea388d72bce6745e"
+      ],
+      [
+        "anchor_78219573e1d34448a1e0f52c4162645b03dd74ec0bb30d631d06bca5008a0e13",
+        "anchor_a4dfe65b7d0f0307f7cb7efa0cac9ae235d962984876399b94cc987d00815c38"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: Find 3 states Feuersteingerät; it directly supports item_type='Feuersteingerät'. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0767",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_f2277daa78d8b82499bb219cd937e885fb7510c9d277bfb226a4c4de826c47da"
+      ],
+      [
+        "anchor_1f112d8a2f4c0d754e467432c8140c1280a0fbc24fee2aa6dbdd2fb0b0c82674"
+      ]
+    ],
+    "note": "Printed p. 98, Ackendorf, catalogue 51: The local heading names Ackendorf; the alphabetical index on PDF p. 36 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0776",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_cc04328d0324ff022238e13f50ee4b6a1e14b94cf9763b3ff274dd0e76191a77",
+        "anchor_b18f69d99b1f72d773fd15380a9c94a2d0c023ddd8e2ba2774150383ed429df8"
+      ],
+      [
+        "anchor_b95fe307d160ab473e40de6fa57040a9653e27cc5d0e86277aabd142d6d0349e"
+      ]
+    ],
+    "note": "Printed p. 93, Hanum, catalogue 16: The source district heading governs this entry and states Kreis Klötze; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0790",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_035ee369ac562da8cdf783720073dec987741f9aca640adff339b589f9526d07"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: Subentry b states rectangular Grube von 2,70; the next column completes × 0,95 × 0,50 m. Thus 2.7 preserves the stated length numerically. The opening passage alone supplies the value; requiring the continuation for the number is unnecessary.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0802",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_2466a40e356d1ad3555b5197304300c84ac14e74891c851f0faedb6828aa802d"
+      ]
+    ],
+    "note": "Printed p. 105, Schönebeck, catalogue 87 (context says 37): Find 5 states 5. wT mit leicht ovaler Mdg.; it directly supports item_type='wT'. Accept the p. 105 passage naming and numbering the single wT. The p. 106 continuation starts with its height and then find 6, so it is not independent evidence for item 5 ID, type or count.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0823",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_299144f014e9f0cca9798d9fdf1a104b0b92c923509df9cbffe1f805632f3f62"
+      ],
+      [
+        "anchor_78219573e1d34448a1e0f52c4162645b03dd74ec0bb30d631d06bca5008a0e13",
+        "anchor_73793f880f580519ab89bfeb3cbe6a595cb43c51a9eb6035cedb66ec5642f6b6"
+      ]
+    ],
+    "note": "Printed p. 92, Heidberg, OT Leetze, catalogue 8: Find 5 states 4 Feuersteinklingen; it directly supports material='Feuerstein'. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body. The qualified KAK association does not make the stated object attribute uncertain.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0827",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_c3274f26aae11e10fc8ea93fccd96808f35c23bf51a4ba97d61a03b7a5c19131",
+        "anchor_fcbd1742673cdd9b1638a8251a6863be0149414076dd77aae42a6aa90178ac02"
+      ],
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ]
+    ],
+    "note": "Printed p. 99, Emden, catalogue 55: The source district heading governs this entry and states Kreis Haldensleben; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0832",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_f8e046ce8db4915a81c1ed36a43f6ba1ffda01dcb29f313cab85cab5f7db5729"
+      ],
+      [
+        "anchor_1a00731e6257fc0dcc8833e8eccf1189240f802478b7282e2d59b87068ae824a"
+      ]
+    ],
+    "note": "Printed p. 92, Bertkow, OT Plätz, catalogue 9: The original numbered entry states 9. Every accepted index/list passage (PDF pages 34, 36) explicitly pairs this site with 9; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0835",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_4ed614877f61fd487245d19d91dc4149f2f85872a063e3d8142030587c087543"
+      ],
+      [
+        "anchor_e0739707383aebfa01562faf56d6d32a2d96aba1afb53f3a067f8a3f3123ce8b"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: Find 4 states atypisches Flintgerät; it directly supports item_count=1. Fundliste 6 (p. 155) independently matches this find and is accepted as an alternative; its stated object/count suffices in local list context.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0840",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_042afdf9d6911ba8c0483efcd97bbbb878d0bebb6685879b904464841d6806ad",
+        "anchor_49f733ec3a27cb982e2ef7a778bcf46f03fc6a732b69bcf3cfdf88d03fdba700"
+      ],
+      [
+        "anchor_91ffc1828f89efda6b4e1d6dccd24cf181ea596fbd2b37def78278ef8526b780"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: The source district heading governs this entry and states Kreis Burg; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0843",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_2466a40e356d1ad3555b5197304300c84ac14e74891c851f0faedb6828aa802d"
+      ]
+    ],
+    "note": "Printed p. 105, Schönebeck, catalogue 87 (context says 37): Find 5 states 5. wT mit leicht ovaler Mdg.; it directly supports item_type='wT'. Accept the p. 105 passage naming and numbering the single wT. The p. 106 continuation starts with its height and then find 6, so it is not independent evidence for item 5 ID, type or count.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0844",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_299144f014e9f0cca9798d9fdf1a104b0b92c923509df9cbffe1f805632f3f62"
+      ],
+      [
+        "anchor_a2ec0a4a389a4d93cc8112d866a90e778afff5236ef4f62e228540bc76ae17b1",
+        "anchor_714f8ed3952ffe9c824f093c3e2e9140a60f691e2a269c53bfeb10cd36f26fb3"
+      ]
+    ],
+    "note": "Printed p. 92, Heidberg, OT Leetze, catalogue 8: Find 8 states röhrenförmige Bernsteinperle; it directly supports material='Bernstein'. Fundliste 8 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body. The qualified KAK association does not make the stated object attribute uncertain.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0854",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_eefe73599b2dccca35a156a6662553a9a5b072512ba2ada17259dd9580f34b6a"
+      ],
+      [
+        "anchor_c85708884a800f4f392b0fcf6488f478b0aad1efa6e1e52994dcf4218c6bc02e"
+      ]
+    ],
+    "note": "Printed p. 100, Hillersleben, catalogue 62: The original numbered entry states 62. Every accepted index/list passage (PDF pages 34, 37) explicitly pairs this site with 62; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0856",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_fd08edcf31a0e34516a62774f0ae41709633b6e20ac76f2bea388d72bce6745e"
+      ],
+      [
+        "anchor_a2ec0a4a389a4d93cc8112d866a90e778afff5236ef4f62e228540bc76ae17b1",
+        "anchor_64815023edbe5edc9122e797672106cb4bcdd54c37892f47a5570d4b272a915b"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: Find 4 states Bernsteinperle; it directly supports material='Bernstein'. Fundliste 8 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0866",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_1ac70323cff3bf03ab48cfa19023dbbd297794e55205acf3a05c85e03b672ddb"
+      ],
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ]
+    ],
+    "note": "Printed p. 105, Schönebeck, catalogue 87 (context says 37): The local heading names Schönebeck; the alphabetical index on PDF p. 38 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0870",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_c3274f26aae11e10fc8ea93fccd96808f35c23bf51a4ba97d61a03b7a5c19131",
+        "anchor_4f1679d14581d36b46932fd4f05dc5d959d773d12eea59838e07777e49688d71"
+      ],
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ]
+    ],
+    "note": "Printed p. 98, Eimersleben, catalogue 53: The source district heading governs this entry and states Kreis Haldensleben; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0879",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_c9797c5f98ebc3e49b51a6eaa5df38e86c1941ae0339ddf0d091a86c84c2197c",
+        "anchor_7a03045d1dc85983ee5367b8a3b03dc3146971984d85e09caf29aaf7d30d20f5"
+      ]
+    ],
+    "note": "Printed p. 98, Eimersleben, catalogue 53: The local entry describes a crouched burial in a rectangular pit without naming Flachgrab. Printed p. 156 Fundliste 10 explicitly lists Eimersleben (53) under Flachgräber. Its heading and entry together support this classification; reject restricting evidence to the local paragraph.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0880",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_299144f014e9f0cca9798d9fdf1a104b0b92c923509df9cbffe1f805632f3f62"
+      ],
+      [
+        "anchor_a2ec0a4a389a4d93cc8112d866a90e778afff5236ef4f62e228540bc76ae17b1",
+        "anchor_714f8ed3952ffe9c824f093c3e2e9140a60f691e2a269c53bfeb10cd36f26fb3"
+      ]
+    ],
+    "note": "Printed p. 92, Heidberg, OT Leetze, catalogue 8: Find 8 states röhrenförmige Bernsteinperle; it directly supports item_type='Bernsteinperle'. Fundliste 8 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body. The qualified KAK association does not make the stated object attribute uncertain.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0897",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ],
+      [
+        "anchor_7fb7f7d63636b314b2a8942729285d5bdbb5448a734f71cf76c72db9272067e4"
+      ],
+      [
+        "anchor_2fc042f5a462418b7956036d217754353782b243e7fcbb7276e2f72c44ef4aa4"
+      ],
+      [
+        "anchor_a4dfe65b7d0f0307f7cb7efa0cac9ae235d962984876399b94cc987d00815c38"
+      ],
+      [
+        "anchor_c85708884a800f4f392b0fcf6488f478b0aad1efa6e1e52994dcf4218c6bc02e"
+      ]
+    ],
+    "note": "Printed p. 99, Emden, catalogue 55: The original numbered entry states 55. Every accepted index/list passage (PDF pages 33, 34, 37) explicitly pairs this site with 55; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0902",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_4ed614877f61fd487245d19d91dc4149f2f85872a063e3d8142030587c087543"
+      ],
+      [
+        "anchor_0dfd306785803a3e00774a51dd81cf113809cdf5b0edee5662f03a3e2ca137ff",
+        "anchor_e0739707383aebfa01562faf56d6d32a2d96aba1afb53f3a067f8a3f3123ce8b"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: Find 4 states atypisches Flintgerät; it directly supports material='Flint'. Fundliste 6 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0905",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_634b4e4fab3c7ec1ca3cd120e1f0aaba353f15946d58991da4d4554b5fceb42c",
+        "anchor_d53a5376281d66902648c7c7ac8b80983d6eb87b8b7ad99f6a27fa91ef927612"
+      ],
+      [
+        "anchor_eefe73599b2dccca35a156a6662553a9a5b072512ba2ada17259dd9580f34b6a"
+      ]
+    ],
+    "note": "Printed p. 93, Hindenburg, catalogue 14: The source district heading governs this entry and states Kreis Osterburg; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0906",
+    "valueSupported": null,
+    "goldAnchorSets": [],
+    "note": "Printed p. 105, Schönebeck, catalogue 87 (context says 37): Original p. 105 heading and p. 164 index identify Schönebeck as 87, while original p. 154 Fundliste 2 visibly prints Schönebeck (37). This is a source conflict, not an OCR error. Neither choosing 87 alone nor treating the list number as an uncontested 37 resolves provenance; no unambiguous evidence set accepted.",
+    "status": "unresolved"
+  },
+  {
+    "claimId": "c0912",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_f2277daa78d8b82499bb219cd937e885fb7510c9d277bfb226a4c4de826c47da"
+      ],
+      [
+        "anchor_1f112d8a2f4c0d754e467432c8140c1280a0fbc24fee2aa6dbdd2fb0b0c82674"
+      ]
+    ],
+    "note": "Printed p. 98, Ackendorf, catalogue 51: The local heading names Ackendorf; the alphabetical index on PDF p. 36 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0918",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_042afdf9d6911ba8c0483efcd97bbbb878d0bebb6685879b904464841d6806ad",
+        "anchor_49f733ec3a27cb982e2ef7a778bcf46f03fc6a732b69bcf3cfdf88d03fdba700"
+      ],
+      [
+        "anchor_91ffc1828f89efda6b4e1d6dccd24cf181ea596fbd2b37def78278ef8526b780"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: The source district heading governs this entry and states Kreis Burg; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0927",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_035ee369ac562da8cdf783720073dec987741f9aca640adff339b589f9526d07",
+        "anchor_848f07b036bc9335e8320ca356d68be7c77317ba70b0e2ab6d62f7765e32c4bf"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: The original subentry b crosses columns: Grube von 2,70 continues × 0,95 × 0,50 m. Metres applies to that dimension series, overriding the centimetre convention. Accept opening plus continuation to connect the unit to this pit length; the mixed-column unit fragment alone is ambiguous about that connection.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0932",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ],
+      [
+        "anchor_a4dfe65b7d0f0307f7cb7efa0cac9ae235d962984876399b94cc987d00815c38"
+      ],
+      [
+        "anchor_64815023edbe5edc9122e797672106cb4bcdd54c37892f47a5570d4b272a915b"
+      ],
+      [
+        "anchor_1d7e2e4d177837644dc8a1ef5bfa6709be50a1bc64564dc422034125b7ad6203"
+      ],
+      [
+        "anchor_c85708884a800f4f392b0fcf6488f478b0aad1efa6e1e52994dcf4218c6bc02e"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: The original numbered entry states 42. Every accepted index/list passage (PDF pages 33, 34, 37) explicitly pairs this site with 42; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0933",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_b95fe307d160ab473e40de6fa57040a9653e27cc5d0e86277aabd142d6d0349e"
+      ],
+      [
+        "anchor_b1a7327a0ea69e7429f831e4e879713d961db36ad1c6cff69fc6c69bff17916e"
+      ],
+      [
+        "anchor_1a00731e6257fc0dcc8833e8eccf1189240f802478b7282e2d59b87068ae824a"
+      ]
+    ],
+    "note": "Printed p. 93, Hanum, catalogue 16: The original numbered entry states 16. Every accepted index/list passage (PDF pages 33, 34, 37) explicitly pairs this site with 16; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0935",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_7e49c19e3bb42eab778e27f5e8646ec73ca4d225d1cd08abc19d2497d96a235c"
+      ],
+      [
+        "anchor_a2ec0a4a389a4d93cc8112d866a90e778afff5236ef4f62e228540bc76ae17b1",
+        "anchor_714f8ed3952ffe9c824f093c3e2e9140a60f691e2a269c53bfeb10cd36f26fb3"
+      ]
+    ],
+    "note": "Printed p. 95, Schinne, catalogue 28: Find 3 states kl. durchb. Bernsteinscheibe; it directly supports item_type='Bernsteinscheibe'. Fundliste 8 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0946",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_fd08edcf31a0e34516a62774f0ae41709633b6e20ac76f2bea388d72bce6745e"
+      ],
+      [
+        "anchor_78219573e1d34448a1e0f52c4162645b03dd74ec0bb30d631d06bca5008a0e13",
+        "anchor_a4dfe65b7d0f0307f7cb7efa0cac9ae235d962984876399b94cc987d00815c38"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: Find 3 states Feuersteingerät; it directly supports material='Feuerstein'. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0947",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_b7f7f3fd5a421e4263558227bdf0b7b0558d60fd0c46b08f59ad280dcd885615"
+      ],
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ]
+    ],
+    "note": "Printed p. 95, Schinne, catalogue 28: The local heading names Schinne; the alphabetical index on PDF p. 38 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0953",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_2466a40e356d1ad3555b5197304300c84ac14e74891c851f0faedb6828aa802d"
+      ]
+    ],
+    "note": "Printed p. 105, Schönebeck, catalogue 87 (context says 37): Find 5 states 5. wT mit leicht ovaler Mdg.; it directly supports item_count=1. Accept the p. 105 passage naming and numbering the single wT. The p. 106 continuation starts with its height and then find 6, so it is not independent evidence for item 5 ID, type or count.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0958",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_b7f7f3fd5a421e4263558227bdf0b7b0558d60fd0c46b08f59ad280dcd885615"
+      ],
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ]
+    ],
+    "note": "Printed p. 95, Schinne, catalogue 28: The local heading names Schinne; the alphabetical index on PDF p. 38 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0972",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_ceef75c373832705edbf769bccd07320bd9550154bb3c50e2c486df4ab3ea0bc"
+      ],
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ]
+    ],
+    "note": "Printed p. 102, Eilsleben, catalogue 80: The local heading names Eilsleben; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0986",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_7babe9906a41d17a53c0105d39a62e141b9b2233cbb16bdb6c490d8c6f80b3c3"
+      ],
+      [
+        "anchor_f8e046ce8db4915a81c1ed36a43f6ba1ffda01dcb29f313cab85cab5f7db5729"
+      ]
+    ],
+    "note": "Printed p. 92, Bertkow, OT Plätz, catalogue 9: The local heading names Bertkow, OT Plätz; the alphabetical index on PDF p. 36 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c0990",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_042afdf9d6911ba8c0483efcd97bbbb878d0bebb6685879b904464841d6806ad",
+        "anchor_49f733ec3a27cb982e2ef7a778bcf46f03fc6a732b69bcf3cfdf88d03fdba700"
+      ],
+      [
+        "anchor_91ffc1828f89efda6b4e1d6dccd24cf181ea596fbd2b37def78278ef8526b780"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: The source district heading governs this entry and states Kreis Burg; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c1003",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d53a5376281d66902648c7c7ac8b80983d6eb87b8b7ad99f6a27fa91ef927612"
+      ],
+      [
+        "anchor_eefe73599b2dccca35a156a6662553a9a5b072512ba2ada17259dd9580f34b6a"
+      ]
+    ],
+    "note": "Printed p. 93, Hindenburg, catalogue 14: The local heading names Hindenburg; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c1006",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_6b925596d0c8ffda41b94d29d52cf9980ec70e2a576b11c2b7f5753b5b2c6173"
+      ],
+      [
+        "anchor_8fe9cb4e2e5e1f9cee50d54c2e6796785797505880572fc1e8a9cd76e3ee65af"
+      ],
+      [
+        "anchor_ad2f39c855f44443c27cbe5ea16f5e4971413bed76a669512609704dd827836c"
+      ]
+    ],
+    "note": "Printed p. 95, Sanne, catalogue 26: The original numbered entry states 26. Every accepted index/list passage (PDF pages 3, 33, 38) explicitly pairs this site with 26; these are genuine alternatives regardless of list topic.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c1014",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_49f733ec3a27cb982e2ef7a778bcf46f03fc6a732b69bcf3cfdf88d03fdba700"
+      ],
+      [
+        "anchor_91ffc1828f89efda6b4e1d6dccd24cf181ea596fbd2b37def78278ef8526b780"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: The local heading names Menz; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c1015",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d021be0138cbc05dfc5e4c3f8226bc78f1d2f58c7913b6aea419634b758ba712"
+      ],
+      [
+        "anchor_688a93f8499cc1947187959281a9e750c32355e98d5df6450e76eb0806f7e598"
+      ],
+      [
+        "anchor_714f8ed3952ffe9c824f093c3e2e9140a60f691e2a269c53bfeb10cd36f26fb3"
+      ],
+      [
+        "anchor_1a00731e6257fc0dcc8833e8eccf1189240f802478b7282e2d59b87068ae824a"
+      ]
+    ],
+    "note": "Printed p. 95, Schinne, catalogue 28: The original numbered entry states 28. Every accepted index/list passage (PDF pages 33, 34, 38) explicitly pairs this site with 28; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c1020",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_c3274f26aae11e10fc8ea93fccd96808f35c23bf51a4ba97d61a03b7a5c19131",
+        "anchor_f2277daa78d8b82499bb219cd937e885fb7510c9d277bfb226a4c4de826c47da"
+      ],
+      [
+        "anchor_1f112d8a2f4c0d754e467432c8140c1280a0fbc24fee2aa6dbdd2fb0b0c82674"
+      ]
+    ],
+    "note": "Printed p. 98, Ackendorf, catalogue 51: The source district heading governs this entry and states Kreis Haldensleben; the alphabetical index on PDF p. 36 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c1024",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_c3274f26aae11e10fc8ea93fccd96808f35c23bf51a4ba97d61a03b7a5c19131",
+        "anchor_fcbd1742673cdd9b1638a8251a6863be0149414076dd77aae42a6aa90178ac02"
+      ],
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ]
+    ],
+    "note": "Printed p. 99, Emden, catalogue 55: The source district heading governs this entry and states Kreis Haldensleben; the alphabetical index on PDF p. 37 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c1031",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_299144f014e9f0cca9798d9fdf1a104b0b92c923509df9cbffe1f805632f3f62"
+      ],
+      [
+        "anchor_78219573e1d34448a1e0f52c4162645b03dd74ec0bb30d631d06bca5008a0e13",
+        "anchor_73793f880f580519ab89bfeb3cbe6a595cb43c51a9eb6035cedb66ec5642f6b6"
+      ]
+    ],
+    "note": "Printed p. 92, Heidberg, OT Leetze, catalogue 8: Find 5 states 4 Feuersteinklingen; it directly supports item_type='Feuersteinklingen'. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative with its heading, which supplies the material/type missing from the list body. The qualified KAK association does not make the stated object attribute uncertain.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c1032",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_bc074b98d1a4825917f6ac12d04a07b9cfb94bdf6000eae081f763c7e3176bdd"
+      ],
+      [
+        "anchor_73793f880f580519ab89bfeb3cbe6a595cb43c51a9eb6035cedb66ec5642f6b6"
+      ]
+    ],
+    "note": "Printed p. 94, Thüritz, catalogue 18: Find 4 states klingenartiger Feuersteinabschlag; it directly supports item_count=1. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative; its stated object/count suffices in local list context.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c1065",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_a015e8d1e590899061f5f68ea2e9f1db07568f13ac0893f7374b6981e795ed65"
+      ],
+      [
+        "anchor_b95fe307d160ab473e40de6fa57040a9653e27cc5d0e86277aabd142d6d0349e"
+      ]
+    ],
+    "note": "Printed p. 94, Grassau, catalogue 21: The local heading names Grassau; the alphabetical index on PDF p. 37 independently gives the same site and catalogue number. Both are accepted alternatives. Other context assertions and record eligibility do not alter this site assertion.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c1069",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_3b0ef37212286e949e8ae94f074fcdaa1d4074c54b450ac3d0346d7a4bd26b24"
+      ],
+      [
+        "anchor_1f112d8a2f4c0d754e467432c8140c1280a0fbc24fee2aa6dbdd2fb0b0c82674"
+      ],
+      [
+        "anchor_7fb7f7d63636b314b2a8942729285d5bdbb5448a734f71cf76c72db9272067e4"
+      ],
+      [
+        "anchor_c85708884a800f4f392b0fcf6488f478b0aad1efa6e1e52994dcf4218c6bc02e"
+      ]
+    ],
+    "note": "Printed p. 102, Ampfurth, OT Schermcke, catalogue 76: The original numbered entry states 76. Every accepted index/list passage (PDF pages 7, 33, 34, 36) explicitly pairs this site with 76; these are genuine alternatives regardless of list topic.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c1081",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_035ee369ac562da8cdf783720073dec987741f9aca640adff339b589f9526d07"
+      ]
+    ],
+    "note": "Printed p. 97, Menz, catalogue 40: Subentry b states rectangular Grube von 2,70; the next column completes × 0,95 × 0,50 m. Thus 2.7 preserves the stated length numerically. The opening passage alone supplies the value; requiring the continuation for the number is unnecessary.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c1091",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d40b2153fe4040d595ff395341f4c5d9be417d5b9d5f8f0f1ea80dfb0df6761f"
+      ],
+      [
+        "anchor_a4dfe65b7d0f0307f7cb7efa0cac9ae235d962984876399b94cc987d00815c38"
+      ],
+      [
+        "anchor_64815023edbe5edc9122e797672106cb4bcdd54c37892f47a5570d4b272a915b"
+      ],
+      [
+        "anchor_1d7e2e4d177837644dc8a1ef5bfa6709be50a1bc64564dc422034125b7ad6203"
+      ],
+      [
+        "anchor_c85708884a800f4f392b0fcf6488f478b0aad1efa6e1e52994dcf4218c6bc02e"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: The original numbered entry states 42. Every accepted index/list passage (PDF pages 33, 34, 37) explicitly pairs this site with 42; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c1104",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_fd08edcf31a0e34516a62774f0ae41709633b6e20ac76f2bea388d72bce6745e"
+      ],
+      [
+        "anchor_1d7e2e4d177837644dc8a1ef5bfa6709be50a1bc64564dc422034125b7ad6203"
+      ]
+    ],
+    "note": "Printed p. 97, Dornburg, catalogue 42: Find 5 states Schneidezahn eines Rindes; it directly supports item_type='Schneidezahn'. Fundliste 9 (p. 156) independently matches this find and is accepted as an alternative; its stated object/count suffices in local list context.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c1105",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_b95fe307d160ab473e40de6fa57040a9653e27cc5d0e86277aabd142d6d0349e"
+      ],
+      [
+        "anchor_b1a7327a0ea69e7429f831e4e879713d961db36ad1c6cff69fc6c69bff17916e"
+      ],
+      [
+        "anchor_1a00731e6257fc0dcc8833e8eccf1189240f802478b7282e2d59b87068ae824a"
+      ]
+    ],
+    "note": "Printed p. 93, Hanum, catalogue 16: The original numbered entry states 16. Every accepted index/list passage (PDF pages 33, 34, 37) explicitly pairs this site with 16; these are genuine alternatives regardless of list topic. The canonical local heading omits its leading number and is not accepted alone for this field.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c1108",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d53a5376281d66902648c7c7ac8b80983d6eb87b8b7ad99f6a27fa91ef927612"
+      ],
+      [
+        "anchor_eefe73599b2dccca35a156a6662553a9a5b072512ba2ada17259dd9580f34b6a"
+      ],
+      [
+        "anchor_1a00731e6257fc0dcc8833e8eccf1189240f802478b7282e2d59b87068ae824a"
+      ]
+    ],
+    "note": "Printed p. 93, Hindenburg, catalogue 14: The original numbered entry states 14. Every accepted index/list passage (PDF pages 2, 34, 37) explicitly pairs this site with 14; these are genuine alternatives regardless of list topic.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c1114",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_f45c0c167d8633330ead28139edfc0ad360fa56446ed1e299b49a084854933f4",
+        "anchor_3b0ef37212286e949e8ae94f074fcdaa1d4074c54b450ac3d0346d7a4bd26b24"
+      ],
+      [
+        "anchor_1f112d8a2f4c0d754e467432c8140c1280a0fbc24fee2aa6dbdd2fb0b0c82674"
+      ]
+    ],
+    "note": "Printed p. 102, Ampfurth, OT Schermcke, catalogue 76: The source district heading governs this entry and states Kreis Wanzleben; the alphabetical index on PDF p. 36 directly links the same site to that district. Accept the heading plus entry together, or the index passage alone.",
+    "status": "resolved"
+  },
+  {
+    "claimId": "c1116",
+    "valueSupported": true,
+    "goldAnchorSets": [
+      [
+        "anchor_d7cd1434312546a3343013f7f6f0e2a360b6a0f98975db703d92901b7d68f909"
+      ],
+      [
+        "anchor_a4dfe65b7d0f0307f7cb7efa0cac9ae235d962984876399b94cc987d00815c38"
+      ]
+    ],
+    "note": "Printed p. 99, Emden, catalogue 55: Find 7 states Querschneider; it directly supports item_count=1. Fundliste 5 (p. 155) independently matches this find and is accepted as an alternative; its stated object/count suffices in local list context.",
+    "status": "resolved"
+  }
+]

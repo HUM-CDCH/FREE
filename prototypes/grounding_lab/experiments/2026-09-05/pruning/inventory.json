@@ -1,0 +1,158 @@
+{
+  "buchvaldek-1970-vikletice-tables-de": {
+    "originalCount": 9906,
+    "regeneratedCount": 9906,
+    "differentPositionsByField": {
+      "anchorId": [],
+      "text": [],
+      "page": [],
+      "context": []
+    },
+    "compatible": true,
+    "tableCells": 9592,
+    "tableCellsWithIdentity": 9592,
+    "sourceHashes": {
+      "anchors.json": "73e191c6baf6af0028babf471416ebd2183477ff6e2a85acd319c75a95260377",
+      "claims.json": "ba9f05dee910f2579e118a194fb6c8b2b855d3702c53a9309b922851d4166915",
+      "claims_extracted.json": "cc697b00d54ca3f6801378e47eac58ede0e68599e84114fc450bc0fc83eff139",
+      "document.md": "01a4b3244b3ad24a7f69f9a9ae6936b9d701266a7aa49a321153bcf8abfd76ab",
+      "extracted_meta.json": "41e547f76cecd3a5aef6e4e0e1a41a8b634b526a09318a2f2a1cbeaaf94506a4",
+      "extracted_raw.json": "69817eb82dd18d328025fd2ddb034fabdca04dd1f199986b5cfe3a85c9a9f889",
+      "labeling_notes.md": "18c5464c5e81728b50c0146bd38a646ca5e798f274ac175ec3f23a90cbf1cefa",
+      "parsed_document.json": "17d5a24e671c7101f5073c129783f598a183ccf9d40a7ce905093b4476ca3d61",
+      "schema.json": "9b35ff74b18e43c552424859198f867afa22a0fc123af81e763fa06654028f56",
+      "template.json": "46661dae7d57f56b7fac3fffc4e70ce3941ca3e423d023fa5457bc71d8ad258a"
+    },
+    "regeneratedAnchorsSha256": "a47408cecae9ef52477c353778bd6c2f1cceede74731f42b9f18537c618fe0b9"
+  },
+  "buchvaldek-koutecky-1972-vikletice-de": {
+    "originalCount": 752,
+    "regeneratedCount": 752,
+    "differentPositionsByField": {
+      "anchorId": [],
+      "text": [],
+      "page": [],
+      "context": []
+    },
+    "compatible": true,
+    "tableCells": 430,
+    "tableCellsWithIdentity": 430,
+    "sourceHashes": {
+      "anchors.json": "1f275e10445fb0489d3f6c7ba65b8515e62c89f5e6215d0a3a1493035a7fa4b3",
+      "claims.json": "1304a11e15c84ce8cd58007a636ae18ea111ed21b546b4ec90f96729c5b08510",
+      "claims_extracted.json": "689d0b3f81d7c3f6bfd156ab23c3b19ea3caf162389274026e568cbd6e1cfcd7",
+      "document.md": "0f27bbae9ba17028b33338651348e3c0263c01845a4dd029b1ac1349a86b8ddc",
+      "extracted_meta.json": "577dbac668c592c4f0e7d5010a2c83bd3d8d3ac5a2bb5ced94dc81647bf5e954",
+      "extracted_raw.json": "72a410886e5d573f84dafd9fc4b7684a909bf11bb8a86fcef33a46db60a9dfb4",
+      "labeling_notes.md": "3b365ef89e1835a72f2eb98bcddf693132795ccd619810b0c83a9d354a2122a8",
+      "parsed_document.json": "d90897e6bbbdabed08facef2ffaabacbf07649a9e3f75905242c99179983662e",
+      "schema.json": "6c61a4bf22ae823d62a8028053397742778c81c2570bdfd8963bfd8afe89e4d3",
+      "template.json": "04f5d046e69162ba929733ef6162b32994014762966d63d2a4b7e213cea70b22"
+    },
+    "regeneratedAnchorsSha256": "188de91210f1767aace7dd210fc3dc4fa64683ba5875ee8307d67461ae607916"
+  },
+  "conrad-2011-bbc-graves-de": {
+    "originalCount": 381,
+    "regeneratedCount": 381,
+    "differentPositionsByField": {
+      "anchorId": [],
+      "text": [],
+      "page": [],
+      "context": []
+    },
+    "compatible": true,
+    "tableCells": 0,
+    "tableCellsWithIdentity": 0,
+    "sourceHashes": {
+      "anchors.json": "94d8b3912da4d2de308ed691337f4e1600bf854e85d952ba1736d15e5ec8ce87",
+      "claims.json": "eb7a800f740f2f5787ee00a93b0534919ea0be97144390dff1fe57a6886419f3",
+      "claims_extracted.json": "234863caa86669e00218c2f22b7c15307870216d16b31965419098e0fc6f083e",
+      "document.md": "f064c35de5536b55c9bdf624d21eb57cc9032c256d6596b3942dfc7733b9bd64",
+      "extracted_meta.json": "1d03b74d4dda447502c491ab3921e74cdde399158baab1e11dd0c82471a25ad5",
+      "extracted_raw.json": "f3cc2cb4751c633c2c6bae012e58342bf4cd5a480b8ecab93557fe5a4293eb33",
+      "labeling_notes.md": "9dd4a7541d5d555b715218eebfa95ca4f9bd8c2a84867519fb12398c2c8f58ac",
+      "parsed_document.json": "61e0e61bee27fddaf89d0ccd08e9674ad1acf4ac3f1815ab6222a576bcbc4429",
+      "schema.json": "5d5de644739cc640c79479609cd421ad6f5d0d3399349b3a867cf8e627a179d0",
+      "template.json": "db5831d1bd8ef0b3d864aef02238a96e4223372fb8a0296be0409c2f01f85a21"
+    },
+    "regeneratedAnchorsSha256": "94d8b3912da4d2de308ed691337f4e1600bf854e85d952ba1736d15e5ec8ce87"
+  },
+  "dobes-1998-kugelamphoren-de": {
+    "originalCount": 887,
+    "regeneratedCount": 887,
+    "differentPositionsByField": {
+      "anchorId": [],
+      "text": [],
+      "page": [],
+      "context": []
+    },
+    "compatible": true,
+    "tableCells": 33,
+    "tableCellsWithIdentity": 33,
+    "sourceHashes": {
+      "anchors.json": "adaf829400aeb78aabd15e1e09b0a3e51aab61d29bfe6145508bbf63f9937ee7",
+      "claims.json": "40ac2337dbf8689a70d680aeb3da3670b207da95ea703777e28af16ceb20f350",
+      "claims_extracted.json": "9700748913f3b796e1af40e4566b08f18a492afef3da1998d4622a02992c89fe",
+      "document.md": "876f9d1f17e9e8183603e3c738feeabd1e5f7e87158475158110e47b0fd01468",
+      "extracted_meta.json": "3041d4f6314eab5755b20b9b356b0cbc145b118220e7e6dfdfbadee3cf68846c",
+      "extracted_raw.json": "09e88ab4db416006cc57471099c01eaa8d34260cf60248521621972b089dfe7f",
+      "labeling_notes.md": "a7952f8760e64c5f611bef392491a1ddca4d6a11e618424509c574131d8db189",
+      "parsed_document.json": "32ab2cad6a35b4a37f86c9c202773090e2224cb2fc935609bb8b2ddbdbdd3a40",
+      "schema.json": "06e20b293e0945ccbdb89fc41b7a6685ad0614e189e438f60fc3b5376bd6f2bd",
+      "template.json": "9210fc41128318d6d95132ee3e2f96437b9d61b5a73507bd37e2a464f3fa67b7"
+    },
+    "regeneratedAnchorsSha256": "c5f707a86bf61cf326ff2eb9299d2fd47f1c06ed6e4d09a3a627c036406ff68c"
+  },
+  "durankulak-catalogue-de": {
+    "originalCount": 3974,
+    "regeneratedCount": 3974,
+    "differentPositionsByField": {
+      "anchorId": [],
+      "text": [],
+      "page": [],
+      "context": []
+    },
+    "compatible": true,
+    "tableCells": 22,
+    "tableCellsWithIdentity": 22,
+    "sourceHashes": {
+      "anchors.json": "a8d9c55a24c1e893c49d083e889bafcdb60a849a3925049ab22a0259118742c4",
+      "claims.json": "25fa91c1297fb8a0da0c58de3865046c82f57e23509ae7c5f1edfedf04c6f95a",
+      "claims_extracted.json": "67a0d2dffd0479036c614036879e55c423a7a2b215810ae293d9bf5c7252559c",
+      "document.md": "9fc2a549682f561521add00907f3b685e5f9e9e3e56119805b45416880efd9b1",
+      "extracted_meta.json": "45679f71c9eddc7d2d6fedd8c57cb2dbc483a7b18e83d5cda2b2a1838e95e540",
+      "extracted_raw.json": "d8d1f730a287d05de0cf76b2e66ed745e4efb9556fc6e70bffc5545dac99328f",
+      "labeling_notes.md": "8ed5fe93ed6b1130f74b9058a20277d6d76d5a3537b7b199dd664b7d676596a1",
+      "parsed_document.json": "ea53b0f4749e69c4ff18d7fa2b53da0f0ed1b6df9c362b2d6b47a12f051de4ca",
+      "schema.json": "7074154c7d1ea5840d8485b81a8d2aeb4c9a2d58d475e2b1239743d6c3bf1340",
+      "template.json": "5e7c50d6f67cd01a9d913b1d9f9ca65357fb5d49a8c3524a635602850816428b"
+    },
+    "regeneratedAnchorsSha256": "76cdbc177ee01a6e7f891b9a3188f441f8248a79f099c3cf9b832640c293459c"
+  },
+  "shbat-2009-skeletal-health-en": {
+    "originalCount": 864,
+    "regeneratedCount": 864,
+    "differentPositionsByField": {
+      "anchorId": [],
+      "text": [],
+      "page": [],
+      "context": []
+    },
+    "compatible": true,
+    "tableCells": 637,
+    "tableCellsWithIdentity": 637,
+    "sourceHashes": {
+      "anchors.json": "232cb93a38be2fc43e1abe18d160620f02c3d519f331408f11f4fa09d0e7d534",
+      "claims.json": "81c43cfb49d6ba5ebf971b66001fc0d4c88ad2601896a5fe2896ad1c52da4c9a",
+      "claims_extracted.json": "bc6744b1a445beaafab16430830817671dadeafc4a5e93f51970d892bc5eabb0",
+      "document.md": "693b77fc41d38ea5965ffdbb2b4ed53729fb4b2a57565445f129638dba58a14e",
+      "extracted_meta.json": "00c7260060bbfb8113dac30e25edaf0b8cf52706d983850f8982de59c55f1a41",
+      "extracted_raw.json": "1d0171d9c453b5deb9f886e7936f2c2ae0dd1a1595d81b68ba4fe65cded51c99",
+      "labeling_notes.md": "e2a6256053e5a94fb0ebd82048e60ceca3d796cbea0808483ac5e3dfcc69fde6",
+      "parsed_document.json": "6cae088805c5d2a9d01c393731c820edfb275d6227c4fc4edf6f6251f348e7f0",
+      "schema.json": "d8331379fcbbd87e38703f5d517954e6ed8fb0e0edce7a00751a123ca56d1aba",
+      "template.json": "9294bf3a7c1b178d29f9ba59a7b597657c47fa58e6b85b828b93298194a5d68d"
+    },
+    "regeneratedAnchorsSha256": "4952425ebea6806b1896324be7576f44e24d92d34f0b90a4ed78994ffe27ad0d"
+  }
+}

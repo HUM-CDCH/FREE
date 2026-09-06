@@ -1,0 +1,6822 @@
+[
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      0,
+      "catalogue_id"
+    ],
+    "context": "site: Havelberg, district: Kreis Havelberg, burial_type: Brandgrab, age_class: erwachsen, individual_count: 1, findspot_id: Fdpl. 52",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Havelberg",
+    "resultPath": [
+      "records",
+      0,
+      "site"
+    ],
+    "context": "catalogue_id: 3, district: Kreis Havelberg, burial_type: Brandgrab, age_class: erwachsen, individual_count: 1, findspot_id: Fdpl. 52",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Havelberg",
+    "resultPath": [
+      "records",
+      0,
+      "district"
+    ],
+    "context": "catalogue_id: 3, site: Havelberg, burial_type: Brandgrab, age_class: erwachsen, individual_count: 1, findspot_id: Fdpl. 52",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Brandgrab",
+    "resultPath": [
+      "records",
+      0,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 3, site: Havelberg, district: Kreis Havelberg, age_class: erwachsen, individual_count: 1, findspot_id: Fdpl. 52",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "erwachsen",
+    "resultPath": [
+      "records",
+      0,
+      "age_class"
+    ],
+    "context": "catalogue_id: 3, site: Havelberg, district: Kreis Havelberg, burial_type: Brandgrab, individual_count: 1, findspot_id: Fdpl. 52",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      0,
+      "individual_count"
+    ],
+    "context": "catalogue_id: 3, site: Havelberg, district: Kreis Havelberg, burial_type: Brandgrab, age_class: erwachsen, findspot_id: Fdpl. 52",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      0,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: wT, item_count: 1, height_value: 22.4, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "wT",
+    "resultPath": [
+      "records",
+      0,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 22.4, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      0,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: wT, height_value: 22.4, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 22.4,
+    "resultPath": [
+      "records",
+      0,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: wT, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      0,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: wT, item_count: 1, height_value: 22.4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      0,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: LBR",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "LBR",
+    "resultPath": [
+      "records",
+      0,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 52",
+    "resultPath": [
+      "records",
+      0,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 3, site: Havelberg, district: Kreis Havelberg, burial_type: Brandgrab, age_class: erwachsen, individual_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "9",
+    "resultPath": [
+      "records",
+      1,
+      "catalogue_id"
+    ],
+    "context": "site: Bertkow, OT Plätz, district: Kreis Osterburg, burial_type: Flachgrab, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Bertkow, OT Plätz",
+    "resultPath": [
+      "records",
+      1,
+      "site"
+    ],
+    "context": "catalogue_id: 9, district: Kreis Osterburg, burial_type: Flachgrab, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Osterburg",
+    "resultPath": [
+      "records",
+      1,
+      "district"
+    ],
+    "context": "catalogue_id: 9, site: Bertkow, OT Plätz, burial_type: Flachgrab, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Flachgrab",
+    "resultPath": [
+      "records",
+      1,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 9, site: Bertkow, OT Plätz, district: Kreis Osterburg, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      1,
+      "pit_depth_value"
+    ],
+    "context": "catalogue_id: 9, site: Bertkow, OT Plätz, district: Kreis Osterburg, burial_type: Flachgrab, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      1,
+      "pit_depth_unit"
+    ],
+    "context": "catalogue_id: 9, site: Bertkow, OT Plätz, district: Kreis Osterburg, burial_type: Flachgrab, pit_depth_value: 1, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      1,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      1,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      1,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: KA",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      1,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinbeil, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinbeil",
+    "resultPath": [
+      "records",
+      1,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      1,
+      "grave_goods",
+      1,
+      "material"
+    ],
+    "context": "item_id: 2, item_type: Feuersteinbeil, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      1,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 2, item_type: Feuersteinbeil, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      1,
+      "grave_goods",
+      2,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinbeil, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinbeil",
+    "resultPath": [
+      "records",
+      1,
+      "grave_goods",
+      2,
+      "item_type"
+    ],
+    "context": "item_id: 3, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      1,
+      "grave_goods",
+      2,
+      "material"
+    ],
+    "context": "item_id: 3, item_type: Feuersteinbeil, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      1,
+      "grave_goods",
+      2,
+      "item_count"
+    ],
+    "context": "item_id: 3, item_type: Feuersteinbeil, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 1",
+    "resultPath": [
+      "records",
+      1,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 9, site: Bertkow, OT Plätz, district: Kreis Osterburg, burial_type: Flachgrab, pit_depth_value: 1, pit_depth_unit: m",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "10",
+    "resultPath": [
+      "records",
+      2,
+      "catalogue_id"
+    ],
+    "context": "site: Bertkow, OT Plätz, district: Kreis Osterburg, burial_type: Flachgrab, pit_depth_value: 0.6, pit_depth_unit: m, findspot_id: Fdpl. 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Bertkow, OT Plätz",
+    "resultPath": [
+      "records",
+      2,
+      "site"
+    ],
+    "context": "catalogue_id: 10, district: Kreis Osterburg, burial_type: Flachgrab, pit_depth_value: 0.6, pit_depth_unit: m, findspot_id: Fdpl. 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Osterburg",
+    "resultPath": [
+      "records",
+      2,
+      "district"
+    ],
+    "context": "catalogue_id: 10, site: Bertkow, OT Plätz, burial_type: Flachgrab, pit_depth_value: 0.6, pit_depth_unit: m, findspot_id: Fdpl. 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Flachgrab",
+    "resultPath": [
+      "records",
+      2,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 10, site: Bertkow, OT Plätz, district: Kreis Osterburg, pit_depth_value: 0.6, pit_depth_unit: m, findspot_id: Fdpl. 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 0.6,
+    "resultPath": [
+      "records",
+      2,
+      "pit_depth_value"
+    ],
+    "context": "catalogue_id: 10, site: Bertkow, OT Plätz, district: Kreis Osterburg, burial_type: Flachgrab, pit_depth_unit: m, findspot_id: Fdpl. 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      2,
+      "pit_depth_unit"
+    ],
+    "context": "catalogue_id: 10, site: Bertkow, OT Plätz, district: Kreis Osterburg, burial_type: Flachgrab, pit_depth_value: 0.6, findspot_id: Fdpl. 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      2,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 11.8, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      2,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 11.8, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      2,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: KA, height_value: 11.8, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 11.8,
+    "resultPath": [
+      "records",
+      2,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      2,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_value: 11.8",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      2,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 17, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      2,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2, item_count: 1, height_value: 17, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      2,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 2, item_type: KA, height_value: 17, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 17,
+    "resultPath": [
+      "records",
+      2,
+      "grave_goods",
+      1,
+      "height_value"
+    ],
+    "context": "item_id: 2, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      2,
+      "grave_goods",
+      1,
+      "height_unit"
+    ],
+    "context": "item_id: 2, item_type: KA, item_count: 1, height_value: 17",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      2,
+      "grave_goods",
+      2,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 15.8, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      2,
+      "grave_goods",
+      2,
+      "item_type"
+    ],
+    "context": "item_id: 3, item_count: 1, height_value: 15.8, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      2,
+      "grave_goods",
+      2,
+      "item_count"
+    ],
+    "context": "item_id: 3, item_type: KA, height_value: 15.8, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 15.8,
+    "resultPath": [
+      "records",
+      2,
+      "grave_goods",
+      2,
+      "height_value"
+    ],
+    "context": "item_id: 3, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      2,
+      "grave_goods",
+      2,
+      "height_unit"
+    ],
+    "context": "item_id: 3, item_type: KA, item_count: 1, height_value: 15.8",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 4",
+    "resultPath": [
+      "records",
+      2,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 10, site: Bertkow, OT Plätz, district: Kreis Osterburg, burial_type: Flachgrab, pit_depth_value: 0.6, pit_depth_unit: m",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "14",
+    "resultPath": [
+      "records",
+      3,
+      "catalogue_id"
+    ],
+    "context": "site: Hindenburg, district: Kreis Osterburg, burial_type: Flachgrab, orientation: W(Schädel)-O, individual_count: 1, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 7",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Hindenburg",
+    "resultPath": [
+      "records",
+      3,
+      "site"
+    ],
+    "context": "catalogue_id: 14, district: Kreis Osterburg, burial_type: Flachgrab, orientation: W(Schädel)-O, individual_count: 1, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 7",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Osterburg",
+    "resultPath": [
+      "records",
+      3,
+      "district"
+    ],
+    "context": "catalogue_id: 14, site: Hindenburg, burial_type: Flachgrab, orientation: W(Schädel)-O, individual_count: 1, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 7",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Flachgrab",
+    "resultPath": [
+      "records",
+      3,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 14, site: Hindenburg, district: Kreis Osterburg, orientation: W(Schädel)-O, individual_count: 1, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 7",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "W(Schädel)-O",
+    "resultPath": [
+      "records",
+      3,
+      "orientation"
+    ],
+    "context": "catalogue_id: 14, site: Hindenburg, district: Kreis Osterburg, burial_type: Flachgrab, individual_count: 1, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 7",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      3,
+      "individual_count"
+    ],
+    "context": "catalogue_id: 14, site: Hindenburg, district: Kreis Osterburg, burial_type: Flachgrab, orientation: W(Schädel)-O, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 7",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      3,
+      "pit_depth_value"
+    ],
+    "context": "catalogue_id: 14, site: Hindenburg, district: Kreis Osterburg, burial_type: Flachgrab, orientation: W(Schädel)-O, individual_count: 1, pit_depth_unit: m, findspot_id: Fdpl. 7",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      3,
+      "pit_depth_unit"
+    ],
+    "context": "catalogue_id: 14, site: Hindenburg, district: Kreis Osterburg, burial_type: Flachgrab, orientation: W(Schädel)-O, individual_count: 1, pit_depth_value: 1, findspot_id: Fdpl. 7",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      3,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 13.7, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      3,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 13.7, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      3,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: KA, height_value: 13.7, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 13.7,
+    "resultPath": [
+      "records",
+      3,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      3,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_value: 13.7",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      3,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 11.9, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      3,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2, item_count: 1, height_value: 11.9, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      3,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 2, item_type: KA, height_value: 11.9, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 11.9,
+    "resultPath": [
+      "records",
+      3,
+      "grave_goods",
+      1,
+      "height_value"
+    ],
+    "context": "item_id: 2, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      3,
+      "grave_goods",
+      1,
+      "height_unit"
+    ],
+    "context": "item_id: 2, item_type: KA, item_count: 1, height_value: 11.9",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      3,
+      "grave_goods",
+      2,
+      "item_id"
+    ],
+    "context": "item_type: T, item_count: 1, height_value: 13.3, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "T",
+    "resultPath": [
+      "records",
+      3,
+      "grave_goods",
+      2,
+      "item_type"
+    ],
+    "context": "item_id: 3, item_count: 1, height_value: 13.3, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      3,
+      "grave_goods",
+      2,
+      "item_count"
+    ],
+    "context": "item_id: 3, item_type: T, height_value: 13.3, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 13.3,
+    "resultPath": [
+      "records",
+      3,
+      "grave_goods",
+      2,
+      "height_value"
+    ],
+    "context": "item_id: 3, item_type: T, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      3,
+      "grave_goods",
+      2,
+      "height_unit"
+    ],
+    "context": "item_id: 3, item_type: T, item_count: 1, height_value: 13.3",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 7",
+    "resultPath": [
+      "records",
+      3,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 14, site: Hindenburg, district: Kreis Osterburg, burial_type: Flachgrab, orientation: W(Schädel)-O, individual_count: 1, pit_depth_value: 1, pit_depth_unit: m",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "16",
+    "resultPath": [
+      "records",
+      4,
+      "catalogue_id"
+    ],
+    "context": "site: Hanum, district: Kreis Klötze, burial_type: Flachgrab, findspot_id: Fdpl. 3",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Hanum",
+    "resultPath": [
+      "records",
+      4,
+      "site"
+    ],
+    "context": "catalogue_id: 16, district: Kreis Klötze, burial_type: Flachgrab, findspot_id: Fdpl. 3",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Klötze",
+    "resultPath": [
+      "records",
+      4,
+      "district"
+    ],
+    "context": "catalogue_id: 16, site: Hanum, burial_type: Flachgrab, findspot_id: Fdpl. 3",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Flachgrab",
+    "resultPath": [
+      "records",
+      4,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 16, site: Hanum, district: Kreis Klötze, findspot_id: Fdpl. 3",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      4,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 24.5, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      4,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 24.5, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      4,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: KA, height_value: 24.5, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 24.5,
+    "resultPath": [
+      "records",
+      4,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      4,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_value: 24.5",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      4,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: Trichterrandschüssel, item_count: 1, height_value: 18.3, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Trichterrandschüssel",
+    "resultPath": [
+      "records",
+      4,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2, item_count: 1, height_value: 18.3, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      4,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 2, item_type: Trichterrandschüssel, height_value: 18.3, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 18.3,
+    "resultPath": [
+      "records",
+      4,
+      "grave_goods",
+      1,
+      "height_value"
+    ],
+    "context": "item_id: 2, item_type: Trichterrandschüssel, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      4,
+      "grave_goods",
+      1,
+      "height_unit"
+    ],
+    "context": "item_id: 2, item_type: Trichterrandschüssel, item_count: 1, height_value: 18.3",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      4,
+      "grave_goods",
+      2,
+      "item_id"
+    ],
+    "context": "item_type: TM\", item_count: 1, height_value: 14, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "TM\"",
+    "resultPath": [
+      "records",
+      4,
+      "grave_goods",
+      2,
+      "item_type"
+    ],
+    "context": "item_id: 3, item_count: 1, height_value: 14, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      4,
+      "grave_goods",
+      2,
+      "item_count"
+    ],
+    "context": "item_id: 3, item_type: TM\", height_value: 14, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 14,
+    "resultPath": [
+      "records",
+      4,
+      "grave_goods",
+      2,
+      "height_value"
+    ],
+    "context": "item_id: 3, item_type: TM\", item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      4,
+      "grave_goods",
+      2,
+      "height_unit"
+    ],
+    "context": "item_id: 3, item_type: TM\", item_count: 1, height_value: 14",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 3",
+    "resultPath": [
+      "records",
+      4,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 16, site: Hanum, district: Kreis Klötze, burial_type: Flachgrab",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "17",
+    "resultPath": [
+      "records",
+      5,
+      "catalogue_id"
+    ],
+    "context": "site: Tangeln, district: Kreis Klötze, burial_type: Nachbestattung in Großsteingrab, findspot_id: Fdpl. 6, construction_type: Großsteingrab",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Tangeln",
+    "resultPath": [
+      "records",
+      5,
+      "site"
+    ],
+    "context": "catalogue_id: 17, district: Kreis Klötze, burial_type: Nachbestattung in Großsteingrab, findspot_id: Fdpl. 6, construction_type: Großsteingrab",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Klötze",
+    "resultPath": [
+      "records",
+      5,
+      "district"
+    ],
+    "context": "catalogue_id: 17, site: Tangeln, burial_type: Nachbestattung in Großsteingrab, findspot_id: Fdpl. 6, construction_type: Großsteingrab",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Nachbestattung in Großsteingrab",
+    "resultPath": [
+      "records",
+      5,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 17, site: Tangeln, district: Kreis Klötze, findspot_id: Fdpl. 6, construction_type: Großsteingrab",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "6",
+    "resultPath": [
+      "records",
+      5,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinbeil, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinbeil",
+    "resultPath": [
+      "records",
+      5,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 6, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      5,
+      "grave_goods",
+      0,
+      "material"
+    ],
+    "context": "item_id: 6, item_type: Feuersteinbeil, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      5,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 6, item_type: Feuersteinbeil, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "7",
+    "resultPath": [
+      "records",
+      5,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinbeil, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinbeil",
+    "resultPath": [
+      "records",
+      5,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 7, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      5,
+      "grave_goods",
+      1,
+      "material"
+    ],
+    "context": "item_id: 7, item_type: Feuersteinbeil, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      5,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 7, item_type: Feuersteinbeil, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 6",
+    "resultPath": [
+      "records",
+      5,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 17, site: Tangeln, district: Kreis Klötze, burial_type: Nachbestattung in Großsteingrab, construction_type: Großsteingrab",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Großsteingrab",
+    "resultPath": [
+      "records",
+      5,
+      "construction_type"
+    ],
+    "context": "catalogue_id: 17, site: Tangeln, district: Kreis Klötze, burial_type: Nachbestattung in Großsteingrab, findspot_id: Fdpl. 6",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "18",
+    "resultPath": [
+      "records",
+      6,
+      "catalogue_id"
+    ],
+    "context": "site: Thüritz, district: Kreis Kalbe/M., burial_type: Flachgrab, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Thüritz",
+    "resultPath": [
+      "records",
+      6,
+      "site"
+    ],
+    "context": "catalogue_id: 18, district: Kreis Kalbe/M., burial_type: Flachgrab, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Kalbe/M.",
+    "resultPath": [
+      "records",
+      6,
+      "district"
+    ],
+    "context": "catalogue_id: 18, site: Thüritz, burial_type: Flachgrab, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Flachgrab",
+    "resultPath": [
+      "records",
+      6,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 18, site: Thüritz, district: Kreis Kalbe/M., findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      6,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 20, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      6,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 20, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      6,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: KA, height_value: 20, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 20,
+    "resultPath": [
+      "records",
+      6,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      6,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_value: 20",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      6,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: WB, item_count: 1, height_value: 22.1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "WB",
+    "resultPath": [
+      "records",
+      6,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2, item_count: 1, height_value: 22.1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      6,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 2, item_type: WB, height_value: 22.1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 22.1,
+    "resultPath": [
+      "records",
+      6,
+      "grave_goods",
+      1,
+      "height_value"
+    ],
+    "context": "item_id: 2, item_type: WB, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      6,
+      "grave_goods",
+      1,
+      "height_unit"
+    ],
+    "context": "item_id: 2, item_type: WB, item_count: 1, height_value: 22.1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      6,
+      "grave_goods",
+      2,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinbeil, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinbeil",
+    "resultPath": [
+      "records",
+      6,
+      "grave_goods",
+      2,
+      "item_type"
+    ],
+    "context": "item_id: 3, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      6,
+      "grave_goods",
+      2,
+      "material"
+    ],
+    "context": "item_id: 3, item_type: Feuersteinbeil, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      6,
+      "grave_goods",
+      2,
+      "item_count"
+    ],
+    "context": "item_id: 3, item_type: Feuersteinbeil, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 1",
+    "resultPath": [
+      "records",
+      6,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 18, site: Thüritz, district: Kreis Kalbe/M., burial_type: Flachgrab",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "25",
+    "resultPath": [
+      "records",
+      7,
+      "catalogue_id"
+    ],
+    "context": "site: Peulingen, district: Kreis Stendal, burial_type: Brandgrab, findspot_id: Fdpl. noch zu 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Peulingen",
+    "resultPath": [
+      "records",
+      7,
+      "site"
+    ],
+    "context": "catalogue_id: 25, district: Kreis Stendal, burial_type: Brandgrab, findspot_id: Fdpl. noch zu 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Stendal",
+    "resultPath": [
+      "records",
+      7,
+      "district"
+    ],
+    "context": "catalogue_id: 25, site: Peulingen, burial_type: Brandgrab, findspot_id: Fdpl. noch zu 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Brandgrab",
+    "resultPath": [
+      "records",
+      7,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 25, site: Peulingen, district: Kreis Stendal, findspot_id: Fdpl. noch zu 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      7,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      7,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      7,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: KA",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      7,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: Ostharzamphore, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Ostharzamphore",
+    "resultPath": [
+      "records",
+      7,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      7,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 2, item_type: Ostharzamphore",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      7,
+      "grave_goods",
+      2,
+      "item_id"
+    ],
+    "context": "item_type: Becher, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Becher",
+    "resultPath": [
+      "records",
+      7,
+      "grave_goods",
+      2,
+      "item_type"
+    ],
+    "context": "item_id: 3, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      7,
+      "grave_goods",
+      2,
+      "item_count"
+    ],
+    "context": "item_id: 3, item_type: Becher",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. noch zu 1",
+    "resultPath": [
+      "records",
+      7,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 25, site: Peulingen, district: Kreis Stendal, burial_type: Brandgrab",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "26",
+    "resultPath": [
+      "records",
+      8,
+      "catalogue_id"
+    ],
+    "context": "site: Sanne, district: Kreis Stendal, burial_type: Erdhügel, body_position: Hocker, individual_count: 2, findspot_id: Fdpl. in der Nähe von 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Sanne",
+    "resultPath": [
+      "records",
+      8,
+      "site"
+    ],
+    "context": "catalogue_id: 26, district: Kreis Stendal, burial_type: Erdhügel, body_position: Hocker, individual_count: 2, findspot_id: Fdpl. in der Nähe von 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Stendal",
+    "resultPath": [
+      "records",
+      8,
+      "district"
+    ],
+    "context": "catalogue_id: 26, site: Sanne, burial_type: Erdhügel, body_position: Hocker, individual_count: 2, findspot_id: Fdpl. in der Nähe von 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Erdhügel",
+    "resultPath": [
+      "records",
+      8,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 26, site: Sanne, district: Kreis Stendal, body_position: Hocker, individual_count: 2, findspot_id: Fdpl. in der Nähe von 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Hocker",
+    "resultPath": [
+      "records",
+      8,
+      "body_position"
+    ],
+    "context": "catalogue_id: 26, site: Sanne, district: Kreis Stendal, burial_type: Erdhügel, individual_count: 2, findspot_id: Fdpl. in der Nähe von 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 2,
+    "resultPath": [
+      "records",
+      8,
+      "individual_count"
+    ],
+    "context": "catalogue_id: 26, site: Sanne, district: Kreis Stendal, burial_type: Erdhügel, body_position: Hocker, findspot_id: Fdpl. in der Nähe von 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: Napf, item_count: 1, height_value: 7.2, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Napf",
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 7.2, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: Napf, height_value: 7.2, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 7.2,
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: Napf, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: Napf, item_count: 1, height_value: 7.2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinklingen, material: Feuerstein, item_count: 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinklingen",
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2, material: Feuerstein, item_count: 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      1,
+      "material"
+    ],
+    "context": "item_id: 2, item_type: Feuersteinklingen, item_count: 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 2,
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 2, item_type: Feuersteinklingen, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      2,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinklingenfragmente, material: Feuerstein, item_count: 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinklingenfragmente",
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      2,
+      "item_type"
+    ],
+    "context": "item_id: 3, material: Feuerstein, item_count: 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      2,
+      "material"
+    ],
+    "context": "item_id: 3, item_type: Feuersteinklingenfragmente, item_count: 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 2,
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      2,
+      "item_count"
+    ],
+    "context": "item_id: 3, item_type: Feuersteinklingenfragmente, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "4",
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      3,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinrundschaber, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinrundschaber",
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      3,
+      "item_type"
+    ],
+    "context": "item_id: 4, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      3,
+      "material"
+    ],
+    "context": "item_id: 4, item_type: Feuersteinrundschaber, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      3,
+      "item_count"
+    ],
+    "context": "item_id: 4, item_type: Feuersteinrundschaber, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "5",
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      4,
+      "item_id"
+    ],
+    "context": "item_type: Knochenpfrieme, material: Knochen, item_count: 3",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Knochenpfrieme",
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      4,
+      "item_type"
+    ],
+    "context": "item_id: 5, material: Knochen, item_count: 3",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Knochen",
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      4,
+      "material"
+    ],
+    "context": "item_id: 5, item_type: Knochenpfrieme, item_count: 3",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 3,
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      4,
+      "item_count"
+    ],
+    "context": "item_id: 5, item_type: Knochenpfrieme, material: Knochen",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "8",
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      5,
+      "item_id"
+    ],
+    "context": "item_type: Felsgesteinbeil, material: Felsgestein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Felsgesteinbeil",
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      5,
+      "item_type"
+    ],
+    "context": "item_id: 8, material: Felsgestein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Felsgestein",
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      5,
+      "material"
+    ],
+    "context": "item_id: 8, item_type: Felsgesteinbeil, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      8,
+      "grave_goods",
+      5,
+      "item_count"
+    ],
+    "context": "item_id: 8, item_type: Felsgesteinbeil, material: Felsgestein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. in der Nähe von 4",
+    "resultPath": [
+      "records",
+      8,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 26, site: Sanne, district: Kreis Stendal, burial_type: Erdhügel, body_position: Hocker, individual_count: 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "28",
+    "resultPath": [
+      "records",
+      9,
+      "catalogue_id"
+    ],
+    "context": "site: Schinne, district: Kreis Stendal, burial_type: Flachgrab, orientation: W(Schädel)-O, body_position: Hocker, sex: männlich, age_class: infans II, individual_count: 1, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Schinne",
+    "resultPath": [
+      "records",
+      9,
+      "site"
+    ],
+    "context": "catalogue_id: 28, district: Kreis Stendal, burial_type: Flachgrab, orientation: W(Schädel)-O, body_position: Hocker, sex: männlich, age_class: infans II, individual_count: 1, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Stendal",
+    "resultPath": [
+      "records",
+      9,
+      "district"
+    ],
+    "context": "catalogue_id: 28, site: Schinne, burial_type: Flachgrab, orientation: W(Schädel)-O, body_position: Hocker, sex: männlich, age_class: infans II, individual_count: 1, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Flachgrab",
+    "resultPath": [
+      "records",
+      9,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 28, site: Schinne, district: Kreis Stendal, orientation: W(Schädel)-O, body_position: Hocker, sex: männlich, age_class: infans II, individual_count: 1, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "W(Schädel)-O",
+    "resultPath": [
+      "records",
+      9,
+      "orientation"
+    ],
+    "context": "catalogue_id: 28, site: Schinne, district: Kreis Stendal, burial_type: Flachgrab, body_position: Hocker, sex: männlich, age_class: infans II, individual_count: 1, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Hocker",
+    "resultPath": [
+      "records",
+      9,
+      "body_position"
+    ],
+    "context": "catalogue_id: 28, site: Schinne, district: Kreis Stendal, burial_type: Flachgrab, orientation: W(Schädel)-O, sex: männlich, age_class: infans II, individual_count: 1, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "männlich",
+    "resultPath": [
+      "records",
+      9,
+      "sex"
+    ],
+    "context": "catalogue_id: 28, site: Schinne, district: Kreis Stendal, burial_type: Flachgrab, orientation: W(Schädel)-O, body_position: Hocker, age_class: infans II, individual_count: 1, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "infans II",
+    "resultPath": [
+      "records",
+      9,
+      "age_class"
+    ],
+    "context": "catalogue_id: 28, site: Schinne, district: Kreis Stendal, burial_type: Flachgrab, orientation: W(Schädel)-O, body_position: Hocker, sex: männlich, individual_count: 1, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      9,
+      "individual_count"
+    ],
+    "context": "catalogue_id: 28, site: Schinne, district: Kreis Stendal, burial_type: Flachgrab, orientation: W(Schädel)-O, body_position: Hocker, sex: männlich, age_class: infans II, pit_depth_value: 1, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      9,
+      "pit_depth_value"
+    ],
+    "context": "catalogue_id: 28, site: Schinne, district: Kreis Stendal, burial_type: Flachgrab, orientation: W(Schädel)-O, body_position: Hocker, sex: männlich, age_class: infans II, individual_count: 1, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      9,
+      "pit_depth_unit"
+    ],
+    "context": "catalogue_id: 28, site: Schinne, district: Kreis Stendal, burial_type: Flachgrab, orientation: W(Schädel)-O, body_position: Hocker, sex: männlich, age_class: infans II, individual_count: 1, pit_depth_value: 1, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      9,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 14.4, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      9,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 14.4, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      9,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: KA, height_value: 14.4, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 14.4,
+    "resultPath": [
+      "records",
+      9,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      9,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_value: 14.4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      9,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: WB, item_count: 1, height_value: 31, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "WB",
+    "resultPath": [
+      "records",
+      9,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2, item_count: 1, height_value: 31, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      9,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 2, item_type: WB, height_value: 31, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 31,
+    "resultPath": [
+      "records",
+      9,
+      "grave_goods",
+      1,
+      "height_value"
+    ],
+    "context": "item_id: 2, item_type: WB, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      9,
+      "grave_goods",
+      1,
+      "height_unit"
+    ],
+    "context": "item_id: 2, item_type: WB, item_count: 1, height_value: 31",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      9,
+      "grave_goods",
+      2,
+      "item_id"
+    ],
+    "context": "item_type: Bernsteinscheibe, material: Bernstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Bernsteinscheibe",
+    "resultPath": [
+      "records",
+      9,
+      "grave_goods",
+      2,
+      "item_type"
+    ],
+    "context": "item_id: 3, material: Bernstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Bernstein",
+    "resultPath": [
+      "records",
+      9,
+      "grave_goods",
+      2,
+      "material"
+    ],
+    "context": "item_id: 3, item_type: Bernsteinscheibe, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      9,
+      "grave_goods",
+      2,
+      "item_count"
+    ],
+    "context": "item_id: 3, item_type: Bernsteinscheibe, material: Bernstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 1",
+    "resultPath": [
+      "records",
+      9,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 28, site: Schinne, district: Kreis Stendal, burial_type: Flachgrab, orientation: W(Schädel)-O, body_position: Hocker, sex: männlich, age_class: infans II, individual_count: 1, pit_depth_value: 1, pit_depth_unit: m",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "30",
+    "resultPath": [
+      "records",
+      10,
+      "catalogue_id"
+    ],
+    "context": "site: Estedt, district: Kreis Gardelegen, burial_type: Flachgrab, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Estedt",
+    "resultPath": [
+      "records",
+      10,
+      "site"
+    ],
+    "context": "catalogue_id: 30, district: Kreis Gardelegen, burial_type: Flachgrab, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Gardelegen",
+    "resultPath": [
+      "records",
+      10,
+      "district"
+    ],
+    "context": "catalogue_id: 30, site: Estedt, burial_type: Flachgrab, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Flachgrab",
+    "resultPath": [
+      "records",
+      10,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 30, site: Estedt, district: Kreis Gardelegen, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      10,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 24, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      10,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 24, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      10,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: KA, height_value: 24, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 24,
+    "resultPath": [
+      "records",
+      10,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      10,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_value: 24",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      10,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: wT, item_count: 1, height_value: 18.9, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "wT",
+    "resultPath": [
+      "records",
+      10,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2, item_count: 1, height_value: 18.9, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      10,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 2, item_type: wT, height_value: 18.9, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 18.9,
+    "resultPath": [
+      "records",
+      10,
+      "grave_goods",
+      1,
+      "height_value"
+    ],
+    "context": "item_id: 2, item_type: wT, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      10,
+      "grave_goods",
+      1,
+      "height_unit"
+    ],
+    "context": "item_id: 2, item_type: wT, item_count: 1, height_value: 18.9",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 2",
+    "resultPath": [
+      "records",
+      10,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 30, site: Estedt, district: Kreis Gardelegen, burial_type: Flachgrab",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "37",
+    "resultPath": [
+      "records",
+      11,
+      "catalogue_id"
+    ],
+    "context": "site: Schönebeck, district: Kreis Schönebeck, burial_type: Steinkiste, orientation: NO—SW, body_position: Hocker, sex: männlich, individual_count: 1, pit_length_value: 2, pit_length_unit: m, pit_width_value: 1.25, pit_width_unit: m, pit_depth_value: 1.47, pit_depth_unit: m, findspot_id: Fdpl. 22, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Schönebeck",
+    "resultPath": [
+      "records",
+      11,
+      "site"
+    ],
+    "context": "catalogue_id: 37, district: Kreis Schönebeck, burial_type: Steinkiste, orientation: NO—SW, body_position: Hocker, sex: männlich, individual_count: 1, pit_length_value: 2, pit_length_unit: m, pit_width_value: 1.25, pit_width_unit: m, pit_depth_value: 1.47, pit_depth_unit: m, findspot_id: Fdpl. 22, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Schönebeck",
+    "resultPath": [
+      "records",
+      11,
+      "district"
+    ],
+    "context": "catalogue_id: 37, site: Schönebeck, burial_type: Steinkiste, orientation: NO—SW, body_position: Hocker, sex: männlich, individual_count: 1, pit_length_value: 2, pit_length_unit: m, pit_width_value: 1.25, pit_width_unit: m, pit_depth_value: 1.47, pit_depth_unit: m, findspot_id: Fdpl. 22, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Steinkiste",
+    "resultPath": [
+      "records",
+      11,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 37, site: Schönebeck, district: Kreis Schönebeck, orientation: NO—SW, body_position: Hocker, sex: männlich, individual_count: 1, pit_length_value: 2, pit_length_unit: m, pit_width_value: 1.25, pit_width_unit: m, pit_depth_value: 1.47, pit_depth_unit: m, findspot_id: Fdpl. 22, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "NO—SW",
+    "resultPath": [
+      "records",
+      11,
+      "orientation"
+    ],
+    "context": "catalogue_id: 37, site: Schönebeck, district: Kreis Schönebeck, burial_type: Steinkiste, body_position: Hocker, sex: männlich, individual_count: 1, pit_length_value: 2, pit_length_unit: m, pit_width_value: 1.25, pit_width_unit: m, pit_depth_value: 1.47, pit_depth_unit: m, findspot_id: Fdpl. 22, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Hocker",
+    "resultPath": [
+      "records",
+      11,
+      "body_position"
+    ],
+    "context": "catalogue_id: 37, site: Schönebeck, district: Kreis Schönebeck, burial_type: Steinkiste, orientation: NO—SW, sex: männlich, individual_count: 1, pit_length_value: 2, pit_length_unit: m, pit_width_value: 1.25, pit_width_unit: m, pit_depth_value: 1.47, pit_depth_unit: m, findspot_id: Fdpl. 22, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "männlich",
+    "resultPath": [
+      "records",
+      11,
+      "sex"
+    ],
+    "context": "catalogue_id: 37, site: Schönebeck, district: Kreis Schönebeck, burial_type: Steinkiste, orientation: NO—SW, body_position: Hocker, individual_count: 1, pit_length_value: 2, pit_length_unit: m, pit_width_value: 1.25, pit_width_unit: m, pit_depth_value: 1.47, pit_depth_unit: m, findspot_id: Fdpl. 22, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      11,
+      "individual_count"
+    ],
+    "context": "catalogue_id: 37, site: Schönebeck, district: Kreis Schönebeck, burial_type: Steinkiste, orientation: NO—SW, body_position: Hocker, sex: männlich, pit_length_value: 2, pit_length_unit: m, pit_width_value: 1.25, pit_width_unit: m, pit_depth_value: 1.47, pit_depth_unit: m, findspot_id: Fdpl. 22, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 2,
+    "resultPath": [
+      "records",
+      11,
+      "pit_length_value"
+    ],
+    "context": "catalogue_id: 37, site: Schönebeck, district: Kreis Schönebeck, burial_type: Steinkiste, orientation: NO—SW, body_position: Hocker, sex: männlich, individual_count: 1, pit_length_unit: m, pit_width_value: 1.25, pit_width_unit: m, pit_depth_value: 1.47, pit_depth_unit: m, findspot_id: Fdpl. 22, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      11,
+      "pit_length_unit"
+    ],
+    "context": "catalogue_id: 37, site: Schönebeck, district: Kreis Schönebeck, burial_type: Steinkiste, orientation: NO—SW, body_position: Hocker, sex: männlich, individual_count: 1, pit_length_value: 2, pit_width_value: 1.25, pit_width_unit: m, pit_depth_value: 1.47, pit_depth_unit: m, findspot_id: Fdpl. 22, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1.25,
+    "resultPath": [
+      "records",
+      11,
+      "pit_width_value"
+    ],
+    "context": "catalogue_id: 37, site: Schönebeck, district: Kreis Schönebeck, burial_type: Steinkiste, orientation: NO—SW, body_position: Hocker, sex: männlich, individual_count: 1, pit_length_value: 2, pit_length_unit: m, pit_width_unit: m, pit_depth_value: 1.47, pit_depth_unit: m, findspot_id: Fdpl. 22, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      11,
+      "pit_width_unit"
+    ],
+    "context": "catalogue_id: 37, site: Schönebeck, district: Kreis Schönebeck, burial_type: Steinkiste, orientation: NO—SW, body_position: Hocker, sex: männlich, individual_count: 1, pit_length_value: 2, pit_length_unit: m, pit_width_value: 1.25, pit_depth_value: 1.47, pit_depth_unit: m, findspot_id: Fdpl. 22, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1.47,
+    "resultPath": [
+      "records",
+      11,
+      "pit_depth_value"
+    ],
+    "context": "catalogue_id: 37, site: Schönebeck, district: Kreis Schönebeck, burial_type: Steinkiste, orientation: NO—SW, body_position: Hocker, sex: männlich, individual_count: 1, pit_length_value: 2, pit_length_unit: m, pit_width_value: 1.25, pit_width_unit: m, pit_depth_unit: m, findspot_id: Fdpl. 22, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      11,
+      "pit_depth_unit"
+    ],
+    "context": "catalogue_id: 37, site: Schönebeck, district: Kreis Schönebeck, burial_type: Steinkiste, orientation: NO—SW, body_position: Hocker, sex: männlich, individual_count: 1, pit_length_value: 2, pit_length_unit: m, pit_width_value: 1.25, pit_width_unit: m, pit_depth_value: 1.47, findspot_id: Fdpl. 22, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 22.2, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 22.2, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: KA, height_value: 22.2, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 22.2,
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_value: 22.2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 19, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2, item_count: 1, height_value: 19, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 2, item_type: KA, height_value: 19, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 19,
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      1,
+      "height_value"
+    ],
+    "context": "item_id: 2, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      1,
+      "height_unit"
+    ],
+    "context": "item_id: 2, item_type: KA, item_count: 1, height_value: 19",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      2,
+      "item_id"
+    ],
+    "context": "item_type: Sch, item_count: 1, height_value: 11.6, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Sch",
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      2,
+      "item_type"
+    ],
+    "context": "item_id: 3, item_count: 1, height_value: 11.6, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      2,
+      "item_count"
+    ],
+    "context": "item_id: 3, item_type: Sch, height_value: 11.6, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 11.6,
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      2,
+      "height_value"
+    ],
+    "context": "item_id: 3, item_type: Sch, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      2,
+      "height_unit"
+    ],
+    "context": "item_id: 3, item_type: Sch, item_count: 1, height_value: 11.6",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "5",
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      3,
+      "item_id"
+    ],
+    "context": "item_type: wT, item_count: 1, height_value: 25, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "wT",
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      3,
+      "item_type"
+    ],
+    "context": "item_id: 5, item_count: 1, height_value: 25, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      3,
+      "item_count"
+    ],
+    "context": "item_id: 5, item_type: wT, height_value: 25, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 25,
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      3,
+      "height_value"
+    ],
+    "context": "item_id: 5, item_type: wT, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      3,
+      "height_unit"
+    ],
+    "context": "item_id: 5, item_type: wT, item_count: 1, height_value: 25",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "6",
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      4,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinbeil, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinbeil",
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      4,
+      "item_type"
+    ],
+    "context": "item_id: 6, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      4,
+      "material"
+    ],
+    "context": "item_id: 6, item_type: Feuersteinbeil, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      4,
+      "item_count"
+    ],
+    "context": "item_id: 6, item_type: Feuersteinbeil, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "7",
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      5,
+      "item_id"
+    ],
+    "context": "item_type: Knochendolch, material: Knochen, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Knochendolch",
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      5,
+      "item_type"
+    ],
+    "context": "item_id: 7, material: Knochen, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Knochen",
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      5,
+      "material"
+    ],
+    "context": "item_id: 7, item_type: Knochendolch, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      11,
+      "grave_goods",
+      5,
+      "item_count"
+    ],
+    "context": "item_id: 7, item_type: Knochendolch, material: Knochen",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 22",
+    "resultPath": [
+      "records",
+      11,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 37, site: Schönebeck, district: Kreis Schönebeck, burial_type: Steinkiste, orientation: NO—SW, body_position: Hocker, sex: männlich, individual_count: 1, pit_length_value: 2, pit_length_unit: m, pit_width_value: 1.25, pit_width_unit: m, pit_depth_value: 1.47, pit_depth_unit: m, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Steinkiste",
+    "resultPath": [
+      "records",
+      11,
+      "construction_type"
+    ],
+    "context": "catalogue_id: 37, site: Schönebeck, district: Kreis Schönebeck, burial_type: Steinkiste, orientation: NO—SW, body_position: Hocker, sex: männlich, individual_count: 1, pit_length_value: 2, pit_length_unit: m, pit_width_value: 1.25, pit_width_unit: m, pit_depth_value: 1.47, pit_depth_unit: m, findspot_id: Fdpl. 22",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "40",
+    "resultPath": [
+      "records",
+      12,
+      "catalogue_id"
+    ],
+    "context": "site: Menz, district: Kreis Burg, burial_type: Hügelgrab mit Steinkiste, orientation: N-S, pit_length_value: 3.3, pit_length_unit: m, pit_width_value: 1.3, pit_width_unit: m, pit_depth_value: 0.7, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Menz",
+    "resultPath": [
+      "records",
+      12,
+      "site"
+    ],
+    "context": "catalogue_id: 40, district: Kreis Burg, burial_type: Hügelgrab mit Steinkiste, orientation: N-S, pit_length_value: 3.3, pit_length_unit: m, pit_width_value: 1.3, pit_width_unit: m, pit_depth_value: 0.7, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Burg",
+    "resultPath": [
+      "records",
+      12,
+      "district"
+    ],
+    "context": "catalogue_id: 40, site: Menz, burial_type: Hügelgrab mit Steinkiste, orientation: N-S, pit_length_value: 3.3, pit_length_unit: m, pit_width_value: 1.3, pit_width_unit: m, pit_depth_value: 0.7, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Hügelgrab mit Steinkiste",
+    "resultPath": [
+      "records",
+      12,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, orientation: N-S, pit_length_value: 3.3, pit_length_unit: m, pit_width_value: 1.3, pit_width_unit: m, pit_depth_value: 0.7, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "N-S",
+    "resultPath": [
+      "records",
+      12,
+      "orientation"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Hügelgrab mit Steinkiste, pit_length_value: 3.3, pit_length_unit: m, pit_width_value: 1.3, pit_width_unit: m, pit_depth_value: 0.7, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 3.3,
+    "resultPath": [
+      "records",
+      12,
+      "pit_length_value"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Hügelgrab mit Steinkiste, orientation: N-S, pit_length_unit: m, pit_width_value: 1.3, pit_width_unit: m, pit_depth_value: 0.7, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      12,
+      "pit_length_unit"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Hügelgrab mit Steinkiste, orientation: N-S, pit_length_value: 3.3, pit_width_value: 1.3, pit_width_unit: m, pit_depth_value: 0.7, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1.3,
+    "resultPath": [
+      "records",
+      12,
+      "pit_width_value"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Hügelgrab mit Steinkiste, orientation: N-S, pit_length_value: 3.3, pit_length_unit: m, pit_width_unit: m, pit_depth_value: 0.7, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      12,
+      "pit_width_unit"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Hügelgrab mit Steinkiste, orientation: N-S, pit_length_value: 3.3, pit_length_unit: m, pit_width_value: 1.3, pit_depth_value: 0.7, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 0.7,
+    "resultPath": [
+      "records",
+      12,
+      "pit_depth_value"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Hügelgrab mit Steinkiste, orientation: N-S, pit_length_value: 3.3, pit_length_unit: m, pit_width_value: 1.3, pit_width_unit: m, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      12,
+      "pit_depth_unit"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Hügelgrab mit Steinkiste, orientation: N-S, pit_length_value: 3.3, pit_length_unit: m, pit_width_value: 1.3, pit_width_unit: m, pit_depth_value: 0.7, findspot_id: Fdpl. 5, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      12,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: wT, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "wT",
+    "resultPath": [
+      "records",
+      12,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      12,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: wT",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 5",
+    "resultPath": [
+      "records",
+      12,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Hügelgrab mit Steinkiste, orientation: N-S, pit_length_value: 3.3, pit_length_unit: m, pit_width_value: 1.3, pit_width_unit: m, pit_depth_value: 0.7, pit_depth_unit: m, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Steinkiste",
+    "resultPath": [
+      "records",
+      12,
+      "construction_type"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Hügelgrab mit Steinkiste, orientation: N-S, pit_length_value: 3.3, pit_length_unit: m, pit_width_value: 1.3, pit_width_unit: m, pit_depth_value: 0.7, pit_depth_unit: m, findspot_id: Fdpl. 5",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "40",
+    "resultPath": [
+      "records",
+      13,
+      "catalogue_id"
+    ],
+    "context": "site: Menz, district: Kreis Burg, burial_type: Holzkammer, orientation: O—W, body_position: Hocker, age_class: erwachsen, individual_count: 3, pit_length_value: 2.7, pit_length_unit: m, pit_width_value: 0.95, pit_width_unit: m, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Holzkammer",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Menz",
+    "resultPath": [
+      "records",
+      13,
+      "site"
+    ],
+    "context": "catalogue_id: 40, district: Kreis Burg, burial_type: Holzkammer, orientation: O—W, body_position: Hocker, age_class: erwachsen, individual_count: 3, pit_length_value: 2.7, pit_length_unit: m, pit_width_value: 0.95, pit_width_unit: m, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Holzkammer",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Burg",
+    "resultPath": [
+      "records",
+      13,
+      "district"
+    ],
+    "context": "catalogue_id: 40, site: Menz, burial_type: Holzkammer, orientation: O—W, body_position: Hocker, age_class: erwachsen, individual_count: 3, pit_length_value: 2.7, pit_length_unit: m, pit_width_value: 0.95, pit_width_unit: m, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Holzkammer",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Holzkammer",
+    "resultPath": [
+      "records",
+      13,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, orientation: O—W, body_position: Hocker, age_class: erwachsen, individual_count: 3, pit_length_value: 2.7, pit_length_unit: m, pit_width_value: 0.95, pit_width_unit: m, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Holzkammer",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "O—W",
+    "resultPath": [
+      "records",
+      13,
+      "orientation"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Holzkammer, body_position: Hocker, age_class: erwachsen, individual_count: 3, pit_length_value: 2.7, pit_length_unit: m, pit_width_value: 0.95, pit_width_unit: m, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Holzkammer",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Hocker",
+    "resultPath": [
+      "records",
+      13,
+      "body_position"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Holzkammer, orientation: O—W, age_class: erwachsen, individual_count: 3, pit_length_value: 2.7, pit_length_unit: m, pit_width_value: 0.95, pit_width_unit: m, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Holzkammer",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "erwachsen",
+    "resultPath": [
+      "records",
+      13,
+      "age_class"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Holzkammer, orientation: O—W, body_position: Hocker, individual_count: 3, pit_length_value: 2.7, pit_length_unit: m, pit_width_value: 0.95, pit_width_unit: m, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Holzkammer",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 3,
+    "resultPath": [
+      "records",
+      13,
+      "individual_count"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Holzkammer, orientation: O—W, body_position: Hocker, age_class: erwachsen, pit_length_value: 2.7, pit_length_unit: m, pit_width_value: 0.95, pit_width_unit: m, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Holzkammer",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 2.7,
+    "resultPath": [
+      "records",
+      13,
+      "pit_length_value"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Holzkammer, orientation: O—W, body_position: Hocker, age_class: erwachsen, individual_count: 3, pit_length_unit: m, pit_width_value: 0.95, pit_width_unit: m, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Holzkammer",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      13,
+      "pit_length_unit"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Holzkammer, orientation: O—W, body_position: Hocker, age_class: erwachsen, individual_count: 3, pit_length_value: 2.7, pit_width_value: 0.95, pit_width_unit: m, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Holzkammer",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 0.95,
+    "resultPath": [
+      "records",
+      13,
+      "pit_width_value"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Holzkammer, orientation: O—W, body_position: Hocker, age_class: erwachsen, individual_count: 3, pit_length_value: 2.7, pit_length_unit: m, pit_width_unit: m, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Holzkammer",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      13,
+      "pit_width_unit"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Holzkammer, orientation: O—W, body_position: Hocker, age_class: erwachsen, individual_count: 3, pit_length_value: 2.7, pit_length_unit: m, pit_width_value: 0.95, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Holzkammer",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 0.5,
+    "resultPath": [
+      "records",
+      13,
+      "pit_depth_value"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Holzkammer, orientation: O—W, body_position: Hocker, age_class: erwachsen, individual_count: 3, pit_length_value: 2.7, pit_length_unit: m, pit_width_value: 0.95, pit_width_unit: m, pit_depth_unit: m, findspot_id: Fdpl. 5, construction_type: Holzkammer",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      13,
+      "pit_depth_unit"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Holzkammer, orientation: O—W, body_position: Hocker, age_class: erwachsen, individual_count: 3, pit_length_value: 2.7, pit_length_unit: m, pit_width_value: 0.95, pit_width_unit: m, pit_depth_value: 0.5, findspot_id: Fdpl. 5, construction_type: Holzkammer",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      13,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 19, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      13,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 19, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      13,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: KA, height_value: 19, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 19,
+    "resultPath": [
+      "records",
+      13,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      13,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_value: 19",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      13,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: Sch, item_count: 1, height_value: 10.5, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Sch",
+    "resultPath": [
+      "records",
+      13,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2, item_count: 1, height_value: 10.5, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      13,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 2, item_type: Sch, height_value: 10.5, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 10.5,
+    "resultPath": [
+      "records",
+      13,
+      "grave_goods",
+      1,
+      "height_value"
+    ],
+    "context": "item_id: 2, item_type: Sch, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      13,
+      "grave_goods",
+      1,
+      "height_unit"
+    ],
+    "context": "item_id: 2, item_type: Sch, item_count: 1, height_value: 10.5",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      13,
+      "grave_goods",
+      2,
+      "item_id"
+    ],
+    "context": "item_type: Schlagstein, material: Granit, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Schlagstein",
+    "resultPath": [
+      "records",
+      13,
+      "grave_goods",
+      2,
+      "item_type"
+    ],
+    "context": "item_id: 3, material: Granit, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Granit",
+    "resultPath": [
+      "records",
+      13,
+      "grave_goods",
+      2,
+      "material"
+    ],
+    "context": "item_id: 3, item_type: Schlagstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      13,
+      "grave_goods",
+      2,
+      "item_count"
+    ],
+    "context": "item_id: 3, item_type: Schlagstein, material: Granit",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 5",
+    "resultPath": [
+      "records",
+      13,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Holzkammer, orientation: O—W, body_position: Hocker, age_class: erwachsen, individual_count: 3, pit_length_value: 2.7, pit_length_unit: m, pit_width_value: 0.95, pit_width_unit: m, pit_depth_value: 0.5, pit_depth_unit: m, construction_type: Holzkammer",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Holzkammer",
+    "resultPath": [
+      "records",
+      13,
+      "construction_type"
+    ],
+    "context": "catalogue_id: 40, site: Menz, district: Kreis Burg, burial_type: Holzkammer, orientation: O—W, body_position: Hocker, age_class: erwachsen, individual_count: 3, pit_length_value: 2.7, pit_length_unit: m, pit_width_value: 0.95, pit_width_unit: m, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. 5",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "42",
+    "resultPath": [
+      "records",
+      14,
+      "catalogue_id"
+    ],
+    "context": "site: Dornburg, district: Kreis Zerbst, burial_type: Steinkiste, individual_count: 1, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. Acker K. Platte, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Dornburg",
+    "resultPath": [
+      "records",
+      14,
+      "site"
+    ],
+    "context": "catalogue_id: 42, district: Kreis Zerbst, burial_type: Steinkiste, individual_count: 1, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. Acker K. Platte, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Zerbst",
+    "resultPath": [
+      "records",
+      14,
+      "district"
+    ],
+    "context": "catalogue_id: 42, site: Dornburg, burial_type: Steinkiste, individual_count: 1, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. Acker K. Platte, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Steinkiste",
+    "resultPath": [
+      "records",
+      14,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 42, site: Dornburg, district: Kreis Zerbst, individual_count: 1, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. Acker K. Platte, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      14,
+      "individual_count"
+    ],
+    "context": "catalogue_id: 42, site: Dornburg, district: Kreis Zerbst, burial_type: Steinkiste, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. Acker K. Platte, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 0.5,
+    "resultPath": [
+      "records",
+      14,
+      "pit_depth_value"
+    ],
+    "context": "catalogue_id: 42, site: Dornburg, district: Kreis Zerbst, burial_type: Steinkiste, individual_count: 1, pit_depth_unit: m, findspot_id: Fdpl. Acker K. Platte, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      14,
+      "pit_depth_unit"
+    ],
+    "context": "catalogue_id: 42, site: Dornburg, district: Kreis Zerbst, burial_type: Steinkiste, individual_count: 1, pit_depth_value: 0.5, findspot_id: Fdpl. Acker K. Platte, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      14,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      14,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      14,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: KA",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      14,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteingerät, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteingerät",
+    "resultPath": [
+      "records",
+      14,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 3, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      14,
+      "grave_goods",
+      1,
+      "material"
+    ],
+    "context": "item_id: 3, item_type: Feuersteingerät, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      14,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 3, item_type: Feuersteingerät, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "4",
+    "resultPath": [
+      "records",
+      14,
+      "grave_goods",
+      2,
+      "item_id"
+    ],
+    "context": "item_type: Bernsteinperle, material: Bernstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Bernsteinperle",
+    "resultPath": [
+      "records",
+      14,
+      "grave_goods",
+      2,
+      "item_type"
+    ],
+    "context": "item_id: 4, material: Bernstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Bernstein",
+    "resultPath": [
+      "records",
+      14,
+      "grave_goods",
+      2,
+      "material"
+    ],
+    "context": "item_id: 4, item_type: Bernsteinperle, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      14,
+      "grave_goods",
+      2,
+      "item_count"
+    ],
+    "context": "item_id: 4, item_type: Bernsteinperle, material: Bernstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. Acker K. Platte",
+    "resultPath": [
+      "records",
+      14,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 42, site: Dornburg, district: Kreis Zerbst, burial_type: Steinkiste, individual_count: 1, pit_depth_value: 0.5, pit_depth_unit: m, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Steinkiste",
+    "resultPath": [
+      "records",
+      14,
+      "construction_type"
+    ],
+    "context": "catalogue_id: 42, site: Dornburg, district: Kreis Zerbst, burial_type: Steinkiste, individual_count: 1, pit_depth_value: 0.5, pit_depth_unit: m, findspot_id: Fdpl. Acker K. Platte",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "51",
+    "resultPath": [
+      "records",
+      15,
+      "catalogue_id"
+    ],
+    "context": "site: Ackendorf, district: Kreis Haldensleben, burial_type: Flachgrab, body_position: Hocker, age_class: infans II, individual_count: 1, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Ackendorf",
+    "resultPath": [
+      "records",
+      15,
+      "site"
+    ],
+    "context": "catalogue_id: 51, district: Kreis Haldensleben, burial_type: Flachgrab, body_position: Hocker, age_class: infans II, individual_count: 1, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Haldensleben",
+    "resultPath": [
+      "records",
+      15,
+      "district"
+    ],
+    "context": "catalogue_id: 51, site: Ackendorf, burial_type: Flachgrab, body_position: Hocker, age_class: infans II, individual_count: 1, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Flachgrab",
+    "resultPath": [
+      "records",
+      15,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 51, site: Ackendorf, district: Kreis Haldensleben, body_position: Hocker, age_class: infans II, individual_count: 1, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Hocker",
+    "resultPath": [
+      "records",
+      15,
+      "body_position"
+    ],
+    "context": "catalogue_id: 51, site: Ackendorf, district: Kreis Haldensleben, burial_type: Flachgrab, age_class: infans II, individual_count: 1, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "infans II",
+    "resultPath": [
+      "records",
+      15,
+      "age_class"
+    ],
+    "context": "catalogue_id: 51, site: Ackendorf, district: Kreis Haldensleben, burial_type: Flachgrab, body_position: Hocker, individual_count: 1, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      15,
+      "individual_count"
+    ],
+    "context": "catalogue_id: 51, site: Ackendorf, district: Kreis Haldensleben, burial_type: Flachgrab, body_position: Hocker, age_class: infans II, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 0.8,
+    "resultPath": [
+      "records",
+      15,
+      "pit_depth_value"
+    ],
+    "context": "catalogue_id: 51, site: Ackendorf, district: Kreis Haldensleben, burial_type: Flachgrab, body_position: Hocker, age_class: infans II, individual_count: 1, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      15,
+      "pit_depth_unit"
+    ],
+    "context": "catalogue_id: 51, site: Ackendorf, district: Kreis Haldensleben, burial_type: Flachgrab, body_position: Hocker, age_class: infans II, individual_count: 1, pit_depth_value: 0.8, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      15,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 15.5, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      15,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 15.5, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      15,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: KA, height_value: 15.5, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 15.5,
+    "resultPath": [
+      "records",
+      15,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      15,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_value: 15.5",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      15,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: T,,M\", item_count: 1, height_value: 15.5, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "T,,M\"",
+    "resultPath": [
+      "records",
+      15,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2, item_count: 1, height_value: 15.5, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      15,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 2, item_type: T,,M\", height_value: 15.5, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 15.5,
+    "resultPath": [
+      "records",
+      15,
+      "grave_goods",
+      1,
+      "height_value"
+    ],
+    "context": "item_id: 2, item_type: T,,M\", item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      15,
+      "grave_goods",
+      1,
+      "height_unit"
+    ],
+    "context": "item_id: 2, item_type: T,,M\", item_count: 1, height_value: 15.5",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      15,
+      "grave_goods",
+      2,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinbeil, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinbeil",
+    "resultPath": [
+      "records",
+      15,
+      "grave_goods",
+      2,
+      "item_type"
+    ],
+    "context": "item_id: 3, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      15,
+      "grave_goods",
+      2,
+      "material"
+    ],
+    "context": "item_id: 3, item_type: Feuersteinbeil, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      15,
+      "grave_goods",
+      2,
+      "item_count"
+    ],
+    "context": "item_id: 3, item_type: Feuersteinbeil, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 1",
+    "resultPath": [
+      "records",
+      15,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 51, site: Ackendorf, district: Kreis Haldensleben, burial_type: Flachgrab, body_position: Hocker, age_class: infans II, individual_count: 1, pit_depth_value: 0.8, pit_depth_unit: m",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "53",
+    "resultPath": [
+      "records",
+      16,
+      "catalogue_id"
+    ],
+    "context": "site: Eimersleben, district: Kreis Haldensleben, burial_type: Flachgrab, body_position: Hocker, individual_count: 1, findspot_id: Fdpl. Autobahn km 300,25",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Eimersleben",
+    "resultPath": [
+      "records",
+      16,
+      "site"
+    ],
+    "context": "catalogue_id: 53, district: Kreis Haldensleben, burial_type: Flachgrab, body_position: Hocker, individual_count: 1, findspot_id: Fdpl. Autobahn km 300,25",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Haldensleben",
+    "resultPath": [
+      "records",
+      16,
+      "district"
+    ],
+    "context": "catalogue_id: 53, site: Eimersleben, burial_type: Flachgrab, body_position: Hocker, individual_count: 1, findspot_id: Fdpl. Autobahn km 300,25",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Flachgrab",
+    "resultPath": [
+      "records",
+      16,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 53, site: Eimersleben, district: Kreis Haldensleben, body_position: Hocker, individual_count: 1, findspot_id: Fdpl. Autobahn km 300,25",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Hocker",
+    "resultPath": [
+      "records",
+      16,
+      "body_position"
+    ],
+    "context": "catalogue_id: 53, site: Eimersleben, district: Kreis Haldensleben, burial_type: Flachgrab, individual_count: 1, findspot_id: Fdpl. Autobahn km 300,25",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      16,
+      "individual_count"
+    ],
+    "context": "catalogue_id: 53, site: Eimersleben, district: Kreis Haldensleben, burial_type: Flachgrab, body_position: Hocker, findspot_id: Fdpl. Autobahn km 300,25",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      16,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 23, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      16,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 23, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      16,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: KA, height_value: 23, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 23,
+    "resultPath": [
+      "records",
+      16,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      16,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_value: 23",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      16,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      16,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      16,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 2, item_type: KA",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      16,
+      "grave_goods",
+      2,
+      "item_id"
+    ],
+    "context": "item_type: wT, item_count: 1, height_value: 22, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "wT",
+    "resultPath": [
+      "records",
+      16,
+      "grave_goods",
+      2,
+      "item_type"
+    ],
+    "context": "item_id: 3, item_count: 1, height_value: 22, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      16,
+      "grave_goods",
+      2,
+      "item_count"
+    ],
+    "context": "item_id: 3, item_type: wT, height_value: 22, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 22,
+    "resultPath": [
+      "records",
+      16,
+      "grave_goods",
+      2,
+      "height_value"
+    ],
+    "context": "item_id: 3, item_type: wT, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      16,
+      "grave_goods",
+      2,
+      "height_unit"
+    ],
+    "context": "item_id: 3, item_type: wT, item_count: 1, height_value: 22",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "5",
+    "resultPath": [
+      "records",
+      16,
+      "grave_goods",
+      3,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinbeil, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinbeil",
+    "resultPath": [
+      "records",
+      16,
+      "grave_goods",
+      3,
+      "item_type"
+    ],
+    "context": "item_id: 5, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      16,
+      "grave_goods",
+      3,
+      "material"
+    ],
+    "context": "item_id: 5, item_type: Feuersteinbeil, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      16,
+      "grave_goods",
+      3,
+      "item_count"
+    ],
+    "context": "item_id: 5, item_type: Feuersteinbeil, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. Autobahn km 300,25",
+    "resultPath": [
+      "records",
+      16,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 53, site: Eimersleben, district: Kreis Haldensleben, burial_type: Flachgrab, body_position: Hocker, individual_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "55",
+    "resultPath": [
+      "records",
+      17,
+      "catalogue_id"
+    ],
+    "context": "site: Emden, district: Kreis Haldensleben, burial_type: Steinkiste, orientation: O—W, pit_length_value: 1.34, pit_length_unit: m, pit_width_value: 0.8, pit_width_unit: m, pit_depth_value: 1.2, pit_depth_unit: m, findspot_id: Fdpl. 2, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Emden",
+    "resultPath": [
+      "records",
+      17,
+      "site"
+    ],
+    "context": "catalogue_id: 55, district: Kreis Haldensleben, burial_type: Steinkiste, orientation: O—W, pit_length_value: 1.34, pit_length_unit: m, pit_width_value: 0.8, pit_width_unit: m, pit_depth_value: 1.2, pit_depth_unit: m, findspot_id: Fdpl. 2, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Haldensleben",
+    "resultPath": [
+      "records",
+      17,
+      "district"
+    ],
+    "context": "catalogue_id: 55, site: Emden, burial_type: Steinkiste, orientation: O—W, pit_length_value: 1.34, pit_length_unit: m, pit_width_value: 0.8, pit_width_unit: m, pit_depth_value: 1.2, pit_depth_unit: m, findspot_id: Fdpl. 2, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Steinkiste",
+    "resultPath": [
+      "records",
+      17,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 55, site: Emden, district: Kreis Haldensleben, orientation: O—W, pit_length_value: 1.34, pit_length_unit: m, pit_width_value: 0.8, pit_width_unit: m, pit_depth_value: 1.2, pit_depth_unit: m, findspot_id: Fdpl. 2, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "O—W",
+    "resultPath": [
+      "records",
+      17,
+      "orientation"
+    ],
+    "context": "catalogue_id: 55, site: Emden, district: Kreis Haldensleben, burial_type: Steinkiste, pit_length_value: 1.34, pit_length_unit: m, pit_width_value: 0.8, pit_width_unit: m, pit_depth_value: 1.2, pit_depth_unit: m, findspot_id: Fdpl. 2, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1.34,
+    "resultPath": [
+      "records",
+      17,
+      "pit_length_value"
+    ],
+    "context": "catalogue_id: 55, site: Emden, district: Kreis Haldensleben, burial_type: Steinkiste, orientation: O—W, pit_length_unit: m, pit_width_value: 0.8, pit_width_unit: m, pit_depth_value: 1.2, pit_depth_unit: m, findspot_id: Fdpl. 2, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      17,
+      "pit_length_unit"
+    ],
+    "context": "catalogue_id: 55, site: Emden, district: Kreis Haldensleben, burial_type: Steinkiste, orientation: O—W, pit_length_value: 1.34, pit_width_value: 0.8, pit_width_unit: m, pit_depth_value: 1.2, pit_depth_unit: m, findspot_id: Fdpl. 2, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 0.8,
+    "resultPath": [
+      "records",
+      17,
+      "pit_width_value"
+    ],
+    "context": "catalogue_id: 55, site: Emden, district: Kreis Haldensleben, burial_type: Steinkiste, orientation: O—W, pit_length_value: 1.34, pit_length_unit: m, pit_width_unit: m, pit_depth_value: 1.2, pit_depth_unit: m, findspot_id: Fdpl. 2, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      17,
+      "pit_width_unit"
+    ],
+    "context": "catalogue_id: 55, site: Emden, district: Kreis Haldensleben, burial_type: Steinkiste, orientation: O—W, pit_length_value: 1.34, pit_length_unit: m, pit_width_value: 0.8, pit_depth_value: 1.2, pit_depth_unit: m, findspot_id: Fdpl. 2, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1.2,
+    "resultPath": [
+      "records",
+      17,
+      "pit_depth_value"
+    ],
+    "context": "catalogue_id: 55, site: Emden, district: Kreis Haldensleben, burial_type: Steinkiste, orientation: O—W, pit_length_value: 1.34, pit_length_unit: m, pit_width_value: 0.8, pit_width_unit: m, pit_depth_unit: m, findspot_id: Fdpl. 2, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      17,
+      "pit_depth_unit"
+    ],
+    "context": "catalogue_id: 55, site: Emden, district: Kreis Haldensleben, burial_type: Steinkiste, orientation: O—W, pit_length_value: 1.34, pit_length_unit: m, pit_width_value: 0.8, pit_width_unit: m, pit_depth_value: 1.2, findspot_id: Fdpl. 2, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      17,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 20.9, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      17,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 20.9, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      17,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: KA, height_value: 20.9, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 20.9,
+    "resultPath": [
+      "records",
+      17,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      17,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_value: 20.9",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      17,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 20.4, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      17,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2, item_count: 1, height_value: 20.4, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      17,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 2, item_type: KA, height_value: 20.4, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 20.4,
+    "resultPath": [
+      "records",
+      17,
+      "grave_goods",
+      1,
+      "height_value"
+    ],
+    "context": "item_id: 2, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      17,
+      "grave_goods",
+      1,
+      "height_unit"
+    ],
+    "context": "item_id: 2, item_type: KA, item_count: 1, height_value: 20.4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "5",
+    "resultPath": [
+      "records",
+      17,
+      "grave_goods",
+      2,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinbeil, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinbeil",
+    "resultPath": [
+      "records",
+      17,
+      "grave_goods",
+      2,
+      "item_type"
+    ],
+    "context": "item_id: 5, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      17,
+      "grave_goods",
+      2,
+      "material"
+    ],
+    "context": "item_id: 5, item_type: Feuersteinbeil, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      17,
+      "grave_goods",
+      2,
+      "item_count"
+    ],
+    "context": "item_id: 5, item_type: Feuersteinbeil, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "6",
+    "resultPath": [
+      "records",
+      17,
+      "grave_goods",
+      3,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinmeißel, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinmeißel",
+    "resultPath": [
+      "records",
+      17,
+      "grave_goods",
+      3,
+      "item_type"
+    ],
+    "context": "item_id: 6, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      17,
+      "grave_goods",
+      3,
+      "material"
+    ],
+    "context": "item_id: 6, item_type: Feuersteinmeißel, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      17,
+      "grave_goods",
+      3,
+      "item_count"
+    ],
+    "context": "item_id: 6, item_type: Feuersteinmeißel, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 2",
+    "resultPath": [
+      "records",
+      17,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 55, site: Emden, district: Kreis Haldensleben, burial_type: Steinkiste, orientation: O—W, pit_length_value: 1.34, pit_length_unit: m, pit_width_value: 0.8, pit_width_unit: m, pit_depth_value: 1.2, pit_depth_unit: m, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Steinkiste",
+    "resultPath": [
+      "records",
+      17,
+      "construction_type"
+    ],
+    "context": "catalogue_id: 55, site: Emden, district: Kreis Haldensleben, burial_type: Steinkiste, orientation: O—W, pit_length_value: 1.34, pit_length_unit: m, pit_width_value: 0.8, pit_width_unit: m, pit_depth_value: 1.2, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "61",
+    "resultPath": [
+      "records",
+      18,
+      "catalogue_id"
+    ],
+    "context": "site: Haldensleben/Stadtforst, district: Kreis Haldensleben, burial_type: Pflaster, orientation: NNO bis SSW, pit_length_value: 1.5, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m, pit_depth_value: 1.35, pit_depth_unit: m, findspot_id: Fdpl. 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Haldensleben/Stadtforst",
+    "resultPath": [
+      "records",
+      18,
+      "site"
+    ],
+    "context": "catalogue_id: 61, district: Kreis Haldensleben, burial_type: Pflaster, orientation: NNO bis SSW, pit_length_value: 1.5, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m, pit_depth_value: 1.35, pit_depth_unit: m, findspot_id: Fdpl. 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Haldensleben",
+    "resultPath": [
+      "records",
+      18,
+      "district"
+    ],
+    "context": "catalogue_id: 61, site: Haldensleben/Stadtforst, burial_type: Pflaster, orientation: NNO bis SSW, pit_length_value: 1.5, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m, pit_depth_value: 1.35, pit_depth_unit: m, findspot_id: Fdpl. 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Pflaster",
+    "resultPath": [
+      "records",
+      18,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 61, site: Haldensleben/Stadtforst, district: Kreis Haldensleben, orientation: NNO bis SSW, pit_length_value: 1.5, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m, pit_depth_value: 1.35, pit_depth_unit: m, findspot_id: Fdpl. 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "NNO bis SSW",
+    "resultPath": [
+      "records",
+      18,
+      "orientation"
+    ],
+    "context": "catalogue_id: 61, site: Haldensleben/Stadtforst, district: Kreis Haldensleben, burial_type: Pflaster, pit_length_value: 1.5, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m, pit_depth_value: 1.35, pit_depth_unit: m, findspot_id: Fdpl. 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1.5,
+    "resultPath": [
+      "records",
+      18,
+      "pit_length_value"
+    ],
+    "context": "catalogue_id: 61, site: Haldensleben/Stadtforst, district: Kreis Haldensleben, burial_type: Pflaster, orientation: NNO bis SSW, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m, pit_depth_value: 1.35, pit_depth_unit: m, findspot_id: Fdpl. 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      18,
+      "pit_length_unit"
+    ],
+    "context": "catalogue_id: 61, site: Haldensleben/Stadtforst, district: Kreis Haldensleben, burial_type: Pflaster, orientation: NNO bis SSW, pit_length_value: 1.5, pit_width_value: 1, pit_width_unit: m, pit_depth_value: 1.35, pit_depth_unit: m, findspot_id: Fdpl. 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      18,
+      "pit_width_value"
+    ],
+    "context": "catalogue_id: 61, site: Haldensleben/Stadtforst, district: Kreis Haldensleben, burial_type: Pflaster, orientation: NNO bis SSW, pit_length_value: 1.5, pit_length_unit: m, pit_width_unit: m, pit_depth_value: 1.35, pit_depth_unit: m, findspot_id: Fdpl. 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      18,
+      "pit_width_unit"
+    ],
+    "context": "catalogue_id: 61, site: Haldensleben/Stadtforst, district: Kreis Haldensleben, burial_type: Pflaster, orientation: NNO bis SSW, pit_length_value: 1.5, pit_length_unit: m, pit_width_value: 1, pit_depth_value: 1.35, pit_depth_unit: m, findspot_id: Fdpl. 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1.35,
+    "resultPath": [
+      "records",
+      18,
+      "pit_depth_value"
+    ],
+    "context": "catalogue_id: 61, site: Haldensleben/Stadtforst, district: Kreis Haldensleben, burial_type: Pflaster, orientation: NNO bis SSW, pit_length_value: 1.5, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m, pit_depth_unit: m, findspot_id: Fdpl. 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      18,
+      "pit_depth_unit"
+    ],
+    "context": "catalogue_id: 61, site: Haldensleben/Stadtforst, district: Kreis Haldensleben, burial_type: Pflaster, orientation: NNO bis SSW, pit_length_value: 1.5, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m, pit_depth_value: 1.35, findspot_id: Fdpl. 4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      18,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 22, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      18,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 22, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      18,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: KA, height_value: 22, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 22,
+    "resultPath": [
+      "records",
+      18,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      18,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_value: 22",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      18,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 16.4, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      18,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2, item_count: 1, height_value: 16.4, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      18,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 2, item_type: KA, height_value: 16.4, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 16.4,
+    "resultPath": [
+      "records",
+      18,
+      "grave_goods",
+      1,
+      "height_value"
+    ],
+    "context": "item_id: 2, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      18,
+      "grave_goods",
+      1,
+      "height_unit"
+    ],
+    "context": "item_id: 2, item_type: KA, item_count: 1, height_value: 16.4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 4",
+    "resultPath": [
+      "records",
+      18,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 61, site: Haldensleben/Stadtforst, district: Kreis Haldensleben, burial_type: Pflaster, orientation: NNO bis SSW, pit_length_value: 1.5, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m, pit_depth_value: 1.35, pit_depth_unit: m",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "62",
+    "resultPath": [
+      "records",
+      19,
+      "catalogue_id"
+    ],
+    "context": "site: Hillersleben, district: Kreis Haldensleben, burial_type: Steinkiste, findspot_id: Fdpl. 2, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Hillersleben",
+    "resultPath": [
+      "records",
+      19,
+      "site"
+    ],
+    "context": "catalogue_id: 62, district: Kreis Haldensleben, burial_type: Steinkiste, findspot_id: Fdpl. 2, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Haldensleben",
+    "resultPath": [
+      "records",
+      19,
+      "district"
+    ],
+    "context": "catalogue_id: 62, site: Hillersleben, burial_type: Steinkiste, findspot_id: Fdpl. 2, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Steinkiste",
+    "resultPath": [
+      "records",
+      19,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 62, site: Hillersleben, district: Kreis Haldensleben, findspot_id: Fdpl. 2, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      19,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 13.5, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      19,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 13.5, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      19,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: KA, height_value: 13.5, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 13.5,
+    "resultPath": [
+      "records",
+      19,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      19,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_value: 13.5",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      19,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: wT, item_count: 1, height_value: 31, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "wT",
+    "resultPath": [
+      "records",
+      19,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 3, item_count: 1, height_value: 31, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      19,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 3, item_type: wT, height_value: 31, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 31,
+    "resultPath": [
+      "records",
+      19,
+      "grave_goods",
+      1,
+      "height_value"
+    ],
+    "context": "item_id: 3, item_type: wT, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      19,
+      "grave_goods",
+      1,
+      "height_unit"
+    ],
+    "context": "item_id: 3, item_type: wT, item_count: 1, height_value: 31",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "4",
+    "resultPath": [
+      "records",
+      19,
+      "grave_goods",
+      2,
+      "item_id"
+    ],
+    "context": "item_type: Sch, item_count: 1, height_value: 13.5, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Sch",
+    "resultPath": [
+      "records",
+      19,
+      "grave_goods",
+      2,
+      "item_type"
+    ],
+    "context": "item_id: 4, item_count: 1, height_value: 13.5, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      19,
+      "grave_goods",
+      2,
+      "item_count"
+    ],
+    "context": "item_id: 4, item_type: Sch, height_value: 13.5, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 13.5,
+    "resultPath": [
+      "records",
+      19,
+      "grave_goods",
+      2,
+      "height_value"
+    ],
+    "context": "item_id: 4, item_type: Sch, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      19,
+      "grave_goods",
+      2,
+      "height_unit"
+    ],
+    "context": "item_id: 4, item_type: Sch, item_count: 1, height_value: 13.5",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 2",
+    "resultPath": [
+      "records",
+      19,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 62, site: Hillersleben, district: Kreis Haldensleben, burial_type: Steinkiste, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Steinkiste",
+    "resultPath": [
+      "records",
+      19,
+      "construction_type"
+    ],
+    "context": "catalogue_id: 62, site: Hillersleben, district: Kreis Haldensleben, burial_type: Steinkiste, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "72",
+    "resultPath": [
+      "records",
+      20,
+      "catalogue_id"
+    ],
+    "context": "site: Meseberg, district: Kreis Wolmirstedt, burial_type: Flachgrab, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Meseberg",
+    "resultPath": [
+      "records",
+      20,
+      "site"
+    ],
+    "context": "catalogue_id: 72, district: Kreis Wolmirstedt, burial_type: Flachgrab, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Wolmirstedt",
+    "resultPath": [
+      "records",
+      20,
+      "district"
+    ],
+    "context": "catalogue_id: 72, site: Meseberg, burial_type: Flachgrab, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Flachgrab",
+    "resultPath": [
+      "records",
+      20,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 72, site: Meseberg, district: Kreis Wolmirstedt, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 0.8,
+    "resultPath": [
+      "records",
+      20,
+      "pit_depth_value"
+    ],
+    "context": "catalogue_id: 72, site: Meseberg, district: Kreis Wolmirstedt, burial_type: Flachgrab, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      20,
+      "pit_depth_unit"
+    ],
+    "context": "catalogue_id: 72, site: Meseberg, district: Kreis Wolmirstedt, burial_type: Flachgrab, pit_depth_value: 0.8, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      20,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 19.2, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      20,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 19.2, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      20,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: KA, height_value: 19.2, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 19.2,
+    "resultPath": [
+      "records",
+      20,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      20,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_value: 19.2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      20,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: T,,M\", item_count: 1, height_value: 13.6, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "T,,M\"",
+    "resultPath": [
+      "records",
+      20,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2, item_count: 1, height_value: 13.6, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      20,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 2, item_type: T,,M\", height_value: 13.6, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 13.6,
+    "resultPath": [
+      "records",
+      20,
+      "grave_goods",
+      1,
+      "height_value"
+    ],
+    "context": "item_id: 2, item_type: T,,M\", item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      20,
+      "grave_goods",
+      1,
+      "height_unit"
+    ],
+    "context": "item_id: 2, item_type: T,,M\", item_count: 1, height_value: 13.6",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 2",
+    "resultPath": [
+      "records",
+      20,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 72, site: Meseberg, district: Kreis Wolmirstedt, burial_type: Flachgrab, pit_depth_value: 0.8, pit_depth_unit: m",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "74",
+    "resultPath": [
+      "records",
+      21,
+      "catalogue_id"
+    ],
+    "context": "site: Magdeburg (Altstadt), district: Stadtkreis Magdeburg, burial_type: Flachgrab, orientation: W(Schädel)-O, body_position: liegend, sex: weiblich, age_class: juvenil, individual_count: 1, pit_depth_value: 2.5, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Magdeburg (Altstadt)",
+    "resultPath": [
+      "records",
+      21,
+      "site"
+    ],
+    "context": "catalogue_id: 74, district: Stadtkreis Magdeburg, burial_type: Flachgrab, orientation: W(Schädel)-O, body_position: liegend, sex: weiblich, age_class: juvenil, individual_count: 1, pit_depth_value: 2.5, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Stadtkreis Magdeburg",
+    "resultPath": [
+      "records",
+      21,
+      "district"
+    ],
+    "context": "catalogue_id: 74, site: Magdeburg (Altstadt), burial_type: Flachgrab, orientation: W(Schädel)-O, body_position: liegend, sex: weiblich, age_class: juvenil, individual_count: 1, pit_depth_value: 2.5, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Flachgrab",
+    "resultPath": [
+      "records",
+      21,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 74, site: Magdeburg (Altstadt), district: Stadtkreis Magdeburg, orientation: W(Schädel)-O, body_position: liegend, sex: weiblich, age_class: juvenil, individual_count: 1, pit_depth_value: 2.5, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "W(Schädel)-O",
+    "resultPath": [
+      "records",
+      21,
+      "orientation"
+    ],
+    "context": "catalogue_id: 74, site: Magdeburg (Altstadt), district: Stadtkreis Magdeburg, burial_type: Flachgrab, body_position: liegend, sex: weiblich, age_class: juvenil, individual_count: 1, pit_depth_value: 2.5, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "liegend",
+    "resultPath": [
+      "records",
+      21,
+      "body_position"
+    ],
+    "context": "catalogue_id: 74, site: Magdeburg (Altstadt), district: Stadtkreis Magdeburg, burial_type: Flachgrab, orientation: W(Schädel)-O, sex: weiblich, age_class: juvenil, individual_count: 1, pit_depth_value: 2.5, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "weiblich",
+    "resultPath": [
+      "records",
+      21,
+      "sex"
+    ],
+    "context": "catalogue_id: 74, site: Magdeburg (Altstadt), district: Stadtkreis Magdeburg, burial_type: Flachgrab, orientation: W(Schädel)-O, body_position: liegend, age_class: juvenil, individual_count: 1, pit_depth_value: 2.5, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "juvenil",
+    "resultPath": [
+      "records",
+      21,
+      "age_class"
+    ],
+    "context": "catalogue_id: 74, site: Magdeburg (Altstadt), district: Stadtkreis Magdeburg, burial_type: Flachgrab, orientation: W(Schädel)-O, body_position: liegend, sex: weiblich, individual_count: 1, pit_depth_value: 2.5, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      21,
+      "individual_count"
+    ],
+    "context": "catalogue_id: 74, site: Magdeburg (Altstadt), district: Stadtkreis Magdeburg, burial_type: Flachgrab, orientation: W(Schädel)-O, body_position: liegend, sex: weiblich, age_class: juvenil, pit_depth_value: 2.5, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 2.5,
+    "resultPath": [
+      "records",
+      21,
+      "pit_depth_value"
+    ],
+    "context": "catalogue_id: 74, site: Magdeburg (Altstadt), district: Stadtkreis Magdeburg, burial_type: Flachgrab, orientation: W(Schädel)-O, body_position: liegend, sex: weiblich, age_class: juvenil, individual_count: 1, pit_depth_unit: m, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      21,
+      "pit_depth_unit"
+    ],
+    "context": "catalogue_id: 74, site: Magdeburg (Altstadt), district: Stadtkreis Magdeburg, burial_type: Flachgrab, orientation: W(Schädel)-O, body_position: liegend, sex: weiblich, age_class: juvenil, individual_count: 1, pit_depth_value: 2.5, findspot_id: Fdpl. 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      21,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: Gefäß, item_count: 1, height_value: 15.2, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Gefäß",
+    "resultPath": [
+      "records",
+      21,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 15.2, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      21,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: Gefäß, height_value: 15.2, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 15.2,
+    "resultPath": [
+      "records",
+      21,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: Gefäß, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      21,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: Gefäß, item_count: 1, height_value: 15.2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      21,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinmeißel, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinmeißel",
+    "resultPath": [
+      "records",
+      21,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      21,
+      "grave_goods",
+      1,
+      "material"
+    ],
+    "context": "item_id: 2, item_type: Feuersteinmeißel, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      21,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 2, item_type: Feuersteinmeißel, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      21,
+      "grave_goods",
+      2,
+      "item_id"
+    ],
+    "context": "item_type: Knochenpfriem, material: Knochen, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Knochenpfriem",
+    "resultPath": [
+      "records",
+      21,
+      "grave_goods",
+      2,
+      "item_type"
+    ],
+    "context": "item_id: 3, material: Knochen, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Knochen",
+    "resultPath": [
+      "records",
+      21,
+      "grave_goods",
+      2,
+      "material"
+    ],
+    "context": "item_id: 3, item_type: Knochenpfriem, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      21,
+      "grave_goods",
+      2,
+      "item_count"
+    ],
+    "context": "item_id: 3, item_type: Knochenpfriem, material: Knochen",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 1",
+    "resultPath": [
+      "records",
+      21,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 74, site: Magdeburg (Altstadt), district: Stadtkreis Magdeburg, burial_type: Flachgrab, orientation: W(Schädel)-O, body_position: liegend, sex: weiblich, age_class: juvenil, individual_count: 1, pit_depth_value: 2.5, pit_depth_unit: m",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "76",
+    "resultPath": [
+      "records",
+      22,
+      "catalogue_id"
+    ],
+    "context": "site: Ampfurth, OT Schermcke, district: Kreis Wanzleben, burial_type: Steinkiste, findspot_id: Fdpl. zwischen Sauren Holz und Schermcker Park, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Ampfurth, OT Schermcke",
+    "resultPath": [
+      "records",
+      22,
+      "site"
+    ],
+    "context": "catalogue_id: 76, district: Kreis Wanzleben, burial_type: Steinkiste, findspot_id: Fdpl. zwischen Sauren Holz und Schermcker Park, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Wanzleben",
+    "resultPath": [
+      "records",
+      22,
+      "district"
+    ],
+    "context": "catalogue_id: 76, site: Ampfurth, OT Schermcke, burial_type: Steinkiste, findspot_id: Fdpl. zwischen Sauren Holz und Schermcker Park, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Steinkiste",
+    "resultPath": [
+      "records",
+      22,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 76, site: Ampfurth, OT Schermcke, district: Kreis Wanzleben, findspot_id: Fdpl. zwischen Sauren Holz und Schermcker Park, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      22,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: KA, item_count: 1, height_value: 18.2, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "KA",
+    "resultPath": [
+      "records",
+      22,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 18.2, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      22,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: KA, height_value: 18.2, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 18.2,
+    "resultPath": [
+      "records",
+      22,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      22,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: KA, item_count: 1, height_value: 18.2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      22,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinbeil, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinbeil",
+    "resultPath": [
+      "records",
+      22,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 3, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      22,
+      "grave_goods",
+      1,
+      "material"
+    ],
+    "context": "item_id: 3, item_type: Feuersteinbeil, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      22,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 3, item_type: Feuersteinbeil, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "4",
+    "resultPath": [
+      "records",
+      22,
+      "grave_goods",
+      2,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinbeil, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinbeil",
+    "resultPath": [
+      "records",
+      22,
+      "grave_goods",
+      2,
+      "item_type"
+    ],
+    "context": "item_id: 4, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      22,
+      "grave_goods",
+      2,
+      "material"
+    ],
+    "context": "item_id: 4, item_type: Feuersteinbeil, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      22,
+      "grave_goods",
+      2,
+      "item_count"
+    ],
+    "context": "item_id: 4, item_type: Feuersteinbeil, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. zwischen Sauren Holz und Schermcker Park",
+    "resultPath": [
+      "records",
+      22,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 76, site: Ampfurth, OT Schermcke, district: Kreis Wanzleben, burial_type: Steinkiste, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Steinkiste",
+    "resultPath": [
+      "records",
+      22,
+      "construction_type"
+    ],
+    "context": "catalogue_id: 76, site: Ampfurth, OT Schermcke, district: Kreis Wanzleben, burial_type: Steinkiste, findspot_id: Fdpl. zwischen Sauren Holz und Schermcker Park",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "77",
+    "resultPath": [
+      "records",
+      23,
+      "catalogue_id"
+    ],
+    "context": "site: Bahrendorf, OT Stemmern, district: Kreis Wanzleben, grave_id: 45, burial_type: Brandgrab, orientation: NW—SO, sex: weiblich, age_class: erwachsen, individual_count: 1, pit_length_value: 2.2, pit_length_unit: m, pit_width_value: 0.93, pit_width_unit: m, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Bahrendorf, OT Stemmern",
+    "resultPath": [
+      "records",
+      23,
+      "site"
+    ],
+    "context": "catalogue_id: 77, district: Kreis Wanzleben, grave_id: 45, burial_type: Brandgrab, orientation: NW—SO, sex: weiblich, age_class: erwachsen, individual_count: 1, pit_length_value: 2.2, pit_length_unit: m, pit_width_value: 0.93, pit_width_unit: m, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Wanzleben",
+    "resultPath": [
+      "records",
+      23,
+      "district"
+    ],
+    "context": "catalogue_id: 77, site: Bahrendorf, OT Stemmern, grave_id: 45, burial_type: Brandgrab, orientation: NW—SO, sex: weiblich, age_class: erwachsen, individual_count: 1, pit_length_value: 2.2, pit_length_unit: m, pit_width_value: 0.93, pit_width_unit: m, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "45",
+    "resultPath": [
+      "records",
+      23,
+      "grave_id"
+    ],
+    "context": "catalogue_id: 77, site: Bahrendorf, OT Stemmern, district: Kreis Wanzleben, burial_type: Brandgrab, orientation: NW—SO, sex: weiblich, age_class: erwachsen, individual_count: 1, pit_length_value: 2.2, pit_length_unit: m, pit_width_value: 0.93, pit_width_unit: m, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Brandgrab",
+    "resultPath": [
+      "records",
+      23,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 77, site: Bahrendorf, OT Stemmern, district: Kreis Wanzleben, grave_id: 45, orientation: NW—SO, sex: weiblich, age_class: erwachsen, individual_count: 1, pit_length_value: 2.2, pit_length_unit: m, pit_width_value: 0.93, pit_width_unit: m, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "NW—SO",
+    "resultPath": [
+      "records",
+      23,
+      "orientation"
+    ],
+    "context": "catalogue_id: 77, site: Bahrendorf, OT Stemmern, district: Kreis Wanzleben, grave_id: 45, burial_type: Brandgrab, sex: weiblich, age_class: erwachsen, individual_count: 1, pit_length_value: 2.2, pit_length_unit: m, pit_width_value: 0.93, pit_width_unit: m, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "weiblich",
+    "resultPath": [
+      "records",
+      23,
+      "sex"
+    ],
+    "context": "catalogue_id: 77, site: Bahrendorf, OT Stemmern, district: Kreis Wanzleben, grave_id: 45, burial_type: Brandgrab, orientation: NW—SO, age_class: erwachsen, individual_count: 1, pit_length_value: 2.2, pit_length_unit: m, pit_width_value: 0.93, pit_width_unit: m, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "erwachsen",
+    "resultPath": [
+      "records",
+      23,
+      "age_class"
+    ],
+    "context": "catalogue_id: 77, site: Bahrendorf, OT Stemmern, district: Kreis Wanzleben, grave_id: 45, burial_type: Brandgrab, orientation: NW—SO, sex: weiblich, individual_count: 1, pit_length_value: 2.2, pit_length_unit: m, pit_width_value: 0.93, pit_width_unit: m, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      23,
+      "individual_count"
+    ],
+    "context": "catalogue_id: 77, site: Bahrendorf, OT Stemmern, district: Kreis Wanzleben, grave_id: 45, burial_type: Brandgrab, orientation: NW—SO, sex: weiblich, age_class: erwachsen, pit_length_value: 2.2, pit_length_unit: m, pit_width_value: 0.93, pit_width_unit: m, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 2.2,
+    "resultPath": [
+      "records",
+      23,
+      "pit_length_value"
+    ],
+    "context": "catalogue_id: 77, site: Bahrendorf, OT Stemmern, district: Kreis Wanzleben, grave_id: 45, burial_type: Brandgrab, orientation: NW—SO, sex: weiblich, age_class: erwachsen, individual_count: 1, pit_length_unit: m, pit_width_value: 0.93, pit_width_unit: m, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      23,
+      "pit_length_unit"
+    ],
+    "context": "catalogue_id: 77, site: Bahrendorf, OT Stemmern, district: Kreis Wanzleben, grave_id: 45, burial_type: Brandgrab, orientation: NW—SO, sex: weiblich, age_class: erwachsen, individual_count: 1, pit_length_value: 2.2, pit_width_value: 0.93, pit_width_unit: m, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 0.93,
+    "resultPath": [
+      "records",
+      23,
+      "pit_width_value"
+    ],
+    "context": "catalogue_id: 77, site: Bahrendorf, OT Stemmern, district: Kreis Wanzleben, grave_id: 45, burial_type: Brandgrab, orientation: NW—SO, sex: weiblich, age_class: erwachsen, individual_count: 1, pit_length_value: 2.2, pit_length_unit: m, pit_width_unit: m, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      23,
+      "pit_width_unit"
+    ],
+    "context": "catalogue_id: 77, site: Bahrendorf, OT Stemmern, district: Kreis Wanzleben, grave_id: 45, burial_type: Brandgrab, orientation: NW—SO, sex: weiblich, age_class: erwachsen, individual_count: 1, pit_length_value: 2.2, pit_length_unit: m, pit_width_value: 0.93, pit_depth_value: 0.8, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 0.8,
+    "resultPath": [
+      "records",
+      23,
+      "pit_depth_value"
+    ],
+    "context": "catalogue_id: 77, site: Bahrendorf, OT Stemmern, district: Kreis Wanzleben, grave_id: 45, burial_type: Brandgrab, orientation: NW—SO, sex: weiblich, age_class: erwachsen, individual_count: 1, pit_length_value: 2.2, pit_length_unit: m, pit_width_value: 0.93, pit_width_unit: m, pit_depth_unit: m, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      23,
+      "pit_depth_unit"
+    ],
+    "context": "catalogue_id: 77, site: Bahrendorf, OT Stemmern, district: Kreis Wanzleben, grave_id: 45, burial_type: Brandgrab, orientation: NW—SO, sex: weiblich, age_class: erwachsen, individual_count: 1, pit_length_value: 2.2, pit_length_unit: m, pit_width_value: 0.93, pit_width_unit: m, pit_depth_value: 0.8, findspot_id: Fdpl. 2",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "1",
+    "resultPath": [
+      "records",
+      23,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: T, item_count: 1, height_value: 12.4, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "T",
+    "resultPath": [
+      "records",
+      23,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 1, item_count: 1, height_value: 12.4, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      23,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 1, item_type: T, height_value: 12.4, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 12.4,
+    "resultPath": [
+      "records",
+      23,
+      "grave_goods",
+      0,
+      "height_value"
+    ],
+    "context": "item_id: 1, item_type: T, item_count: 1, height_unit: cm",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "cm",
+    "resultPath": [
+      "records",
+      23,
+      "grave_goods",
+      0,
+      "height_unit"
+    ],
+    "context": "item_id: 1, item_type: T, item_count: 1, height_value: 12.4",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "2",
+    "resultPath": [
+      "records",
+      23,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinklingen, material: Feuerstein, item_count: 3",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinklingen",
+    "resultPath": [
+      "records",
+      23,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 2, material: Feuerstein, item_count: 3",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      23,
+      "grave_goods",
+      1,
+      "material"
+    ],
+    "context": "item_id: 2, item_type: Feuersteinklingen, item_count: 3",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 3,
+    "resultPath": [
+      "records",
+      23,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 2, item_type: Feuersteinklingen, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      23,
+      "grave_goods",
+      2,
+      "item_id"
+    ],
+    "context": "item_type: Bernsteinperle, material: Bernstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Bernsteinperle",
+    "resultPath": [
+      "records",
+      23,
+      "grave_goods",
+      2,
+      "item_type"
+    ],
+    "context": "item_id: 3, material: Bernstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Bernstein",
+    "resultPath": [
+      "records",
+      23,
+      "grave_goods",
+      2,
+      "material"
+    ],
+    "context": "item_id: 3, item_type: Bernsteinperle, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      23,
+      "grave_goods",
+      2,
+      "item_count"
+    ],
+    "context": "item_id: 3, item_type: Bernsteinperle, material: Bernstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 2",
+    "resultPath": [
+      "records",
+      23,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 77, site: Bahrendorf, OT Stemmern, district: Kreis Wanzleben, grave_id: 45, burial_type: Brandgrab, orientation: NW—SO, sex: weiblich, age_class: erwachsen, individual_count: 1, pit_length_value: 2.2, pit_length_unit: m, pit_width_value: 0.93, pit_width_unit: m, pit_depth_value: 0.8, pit_depth_unit: m",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "80",
+    "resultPath": [
+      "records",
+      24,
+      "catalogue_id"
+    ],
+    "context": "site: Eilsleben, district: Kreis Wanzleben, burial_type: Steinkiste, age_class: erwachsen, individual_count: 1, pit_length_value: 1.7, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m, findspot_id: Fdpl. 3, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Eilsleben",
+    "resultPath": [
+      "records",
+      24,
+      "site"
+    ],
+    "context": "catalogue_id: 80, district: Kreis Wanzleben, burial_type: Steinkiste, age_class: erwachsen, individual_count: 1, pit_length_value: 1.7, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m, findspot_id: Fdpl. 3, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Kreis Wanzleben",
+    "resultPath": [
+      "records",
+      24,
+      "district"
+    ],
+    "context": "catalogue_id: 80, site: Eilsleben, burial_type: Steinkiste, age_class: erwachsen, individual_count: 1, pit_length_value: 1.7, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m, findspot_id: Fdpl. 3, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Steinkiste",
+    "resultPath": [
+      "records",
+      24,
+      "burial_type"
+    ],
+    "context": "catalogue_id: 80, site: Eilsleben, district: Kreis Wanzleben, age_class: erwachsen, individual_count: 1, pit_length_value: 1.7, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m, findspot_id: Fdpl. 3, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "erwachsen",
+    "resultPath": [
+      "records",
+      24,
+      "age_class"
+    ],
+    "context": "catalogue_id: 80, site: Eilsleben, district: Kreis Wanzleben, burial_type: Steinkiste, individual_count: 1, pit_length_value: 1.7, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m, findspot_id: Fdpl. 3, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      24,
+      "individual_count"
+    ],
+    "context": "catalogue_id: 80, site: Eilsleben, district: Kreis Wanzleben, burial_type: Steinkiste, age_class: erwachsen, pit_length_value: 1.7, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m, findspot_id: Fdpl. 3, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1.7,
+    "resultPath": [
+      "records",
+      24,
+      "pit_length_value"
+    ],
+    "context": "catalogue_id: 80, site: Eilsleben, district: Kreis Wanzleben, burial_type: Steinkiste, age_class: erwachsen, individual_count: 1, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m, findspot_id: Fdpl. 3, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      24,
+      "pit_length_unit"
+    ],
+    "context": "catalogue_id: 80, site: Eilsleben, district: Kreis Wanzleben, burial_type: Steinkiste, age_class: erwachsen, individual_count: 1, pit_length_value: 1.7, pit_width_value: 1, pit_width_unit: m, findspot_id: Fdpl. 3, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      24,
+      "pit_width_value"
+    ],
+    "context": "catalogue_id: 80, site: Eilsleben, district: Kreis Wanzleben, burial_type: Steinkiste, age_class: erwachsen, individual_count: 1, pit_length_value: 1.7, pit_length_unit: m, pit_width_unit: m, findspot_id: Fdpl. 3, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "m",
+    "resultPath": [
+      "records",
+      24,
+      "pit_width_unit"
+    ],
+    "context": "catalogue_id: 80, site: Eilsleben, district: Kreis Wanzleben, burial_type: Steinkiste, age_class: erwachsen, individual_count: 1, pit_length_value: 1.7, pit_length_unit: m, pit_width_value: 1, findspot_id: Fdpl. 3, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "3",
+    "resultPath": [
+      "records",
+      24,
+      "grave_goods",
+      0,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinbeil, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinbeil",
+    "resultPath": [
+      "records",
+      24,
+      "grave_goods",
+      0,
+      "item_type"
+    ],
+    "context": "item_id: 3, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      24,
+      "grave_goods",
+      0,
+      "material"
+    ],
+    "context": "item_id: 3, item_type: Feuersteinbeil, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      24,
+      "grave_goods",
+      0,
+      "item_count"
+    ],
+    "context": "item_id: 3, item_type: Feuersteinbeil, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "4",
+    "resultPath": [
+      "records",
+      24,
+      "grave_goods",
+      1,
+      "item_id"
+    ],
+    "context": "item_type: Feuersteinmeißel, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuersteinmeißel",
+    "resultPath": [
+      "records",
+      24,
+      "grave_goods",
+      1,
+      "item_type"
+    ],
+    "context": "item_id: 4, material: Feuerstein, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Feuerstein",
+    "resultPath": [
+      "records",
+      24,
+      "grave_goods",
+      1,
+      "material"
+    ],
+    "context": "item_id: 4, item_type: Feuersteinmeißel, item_count: 1",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": 1,
+    "resultPath": [
+      "records",
+      24,
+      "grave_goods",
+      1,
+      "item_count"
+    ],
+    "context": "item_id: 4, item_type: Feuersteinmeißel, material: Feuerstein",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Fdpl. 3",
+    "resultPath": [
+      "records",
+      24,
+      "findspot_id"
+    ],
+    "context": "catalogue_id: 80, site: Eilsleben, district: Kreis Wanzleben, burial_type: Steinkiste, age_class: erwachsen, individual_count: 1, pit_length_value: 1.7, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m, construction_type: Steinkiste",
+    "goldAnchorIds": null,
+    "note": ""
+  },
+  {
+    "value": "Steinkiste",
+    "resultPath": [
+      "records",
+      24,
+      "construction_type"
+    ],
+    "context": "catalogue_id: 80, site: Eilsleben, district: Kreis Wanzleben, burial_type: Steinkiste, age_class: erwachsen, individual_count: 1, pit_length_value: 1.7, pit_length_unit: m, pit_width_value: 1, pit_width_unit: m, findspot_id: Fdpl. 3",
+    "goldAnchorIds": null,
+    "note": ""
+  }
+]

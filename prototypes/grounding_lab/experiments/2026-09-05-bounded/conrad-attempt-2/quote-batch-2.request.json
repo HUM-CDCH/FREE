@@ -1,0 +1,472 @@
+{
+  "model": "qwen3.8:27b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Extract document metadata and the first 20 eligible burial records in source reading order. Eligible records are definite, explicitly identified graves or burials. Exclude probable or conjectured graves (including EvG, vG, and \"vermutlich Grab\"), explicitly rejected burial interpretations, settlements, stray finds, bibliographic references, and unrelated find records. If fewer than 20 exist, return all eligible records. Use only explicitly stated information, preserve identifiers and suffixes, and never infer or compute values. Respect source legends for measurement units, emit each measurement in its declared unit using the schema value and unit fields, and perform no unit conversions. Return null for missing scalar information and [] for empty collections. Return exactly the schema keys and JSON types, without explanations. Extract EXACTLY these requested records in this order: R003, R004. sourceKey is a routing ID copied from REQUEST, never an extracted source identifier. Each record object must concern only that requested individual burial. Do not add neighbouring graves. For every scalar leaf, emit {\"value\": the typed scalar or null, \"evidenceQuote\": one contiguous verbatim source quote or null}. Quotes must include enough local context to support the field and record. Copy characters, punctuation, numeric suffixes, and units exactly; whitespace may differ. Do not splice passages or invent text. Use null when no quote is available. Keep the original array and object structure. The sourceKey routing field remains a plain string.\n\nSCHEMA:\n{\"records\":[{\"sourceKey\":\"string\",\"record\":{\"site\":{\"value\":\"string\",\"evidenceQuote\":\"string\"},\"site_code\":{\"value\":\"string\",\"evidenceQuote\":\"string\"},\"grave_id\":{\"value\":\"string\",\"evidenceQuote\":\"string\"},\"feature_number\":{\"value\":\"string\",\"evidenceQuote\":\"string\"},\"excavation_year\":{\"value\":\"integer\",\"evidenceQuote\":\"string\"},\"orientation\":{\"value\":\"string\",\"evidenceQuote\":\"string\"},\"body_position\":{\"value\":\"string\",\"evidenceQuote\":\"string\"},\"burial_type\":{\"value\":\"string\",\"evidenceQuote\":\"string\"},\"grave_pit_length_m\":{\"value\":\"number\",\"evidenceQuote\":\"string\"},\"grave_pit_width_m\":{\"value\":\"number\",\"evidenceQuote\":\"string\"},\"grave_pit_depth_m\":{\"value\":\"number\",\"evidenceQuote\":\"string\"},\"age_class\":{\"value\":\"string\",\"evidenceQuote\":\"string\"},\"age_min_years\":{\"value\":\"number\",\"evidenceQuote\":\"string\"},\"age_max_years\":{\"value\":\"number\",\"evidenceQuote\":\"string\"},\"sex_estimate\":{\"value\":\"string\",\"evidenceQuote\":\"string\"},\"cremated_bone_weight_g\":{\"value\":\"number\",\"evidenceQuote\":\"string\"},\"grave_goods\":[{\"value\":\"string\",\"evidenceQuote\":\"string\"}],\"figure_reference\":{\"value\":\"string\",\"evidenceQuote\":\"string\"}}}]}\n\nSOURCE:\nREQUEST R003: Grab 8: Erdgrab; L 1, B 0,8 m.\n## Page 1\n2. Altranstädt II, Lkr. Leipzig\nFundstelle/Jahr: Nördlich der Bahnstrecke Leipzig - Bad Dürrenberg und südöstlich von Altranstädt. Durch das LfA, Dresden, systematisch ausgegraben, 1993. Fundkomplex: Drei Gräber mit rechteckigen, NW-SO-ausgerichteten Grabgruben, dicht beieinander liegend, davon Grab 7 und 9 mit unverz. Glockenbechern. Am gleichen Fundort Gräber der Baalberger, Schnurkeramischen und Aunjetitzer Kultur sowie Gräber ohne datierendes Inventar (wohl spätneolithisch bis frühbronzezeitlich).\nGrab 7: Erdgrab; L 2,34, B 1,42 m. Reste von drei Individuen; Hauptbestattung: NW-SO-ausgerichteter, linker Hocker. Adult, männlich; zweites Individuum: Adult, männlich; drittes Individuum: Infans I, ca. 2-3 Jahre. Unverz. Glocken­ becher, drei Silexartefakte (Abb. 37,3.4).\nGrab 8: Erdgrab; L 1, B 0,8 m. S-N-ausgerichteter, rechter Hocker. Infans I, ca. 3 Jahre.\nGrab 9: Erdgrab; L 2,2, B 1,64 m. NW-SO-ausgerichteter, linker Hocker. Matur, männlich. Unverz. Glockenbecher, Knochenknebel (Abb. 37,5.6).\nLiteratur:\nSzédeli 1994, 59-64; Funke 2000.\n\nREQUEST R004: Grab 9: Erdgrab; L 2,2, B 1,64 m.\n## Page 1\n2. Altranstädt II, Lkr. Leipzig\nFundstelle/Jahr: Nördlich der Bahnstrecke Leipzig - Bad Dürrenberg und südöstlich von Altranstädt. Durch das LfA, Dresden, systematisch ausgegraben, 1993. Fundkomplex: Drei Gräber mit rechteckigen, NW-SO-ausgerichteten Grabgruben, dicht beieinander liegend, davon Grab 7 und 9 mit unverz. Glockenbechern. Am gleichen Fundort Gräber der Baalberger, Schnurkeramischen und Aunjetitzer Kultur sowie Gräber ohne datierendes Inventar (wohl spätneolithisch bis frühbronzezeitlich).\nGrab 7: Erdgrab; L 2,34, B 1,42 m. Reste von drei Individuen; Hauptbestattung: NW-SO-ausgerichteter, linker Hocker. Adult, männlich; zweites Individuum: Adult, männlich; drittes Individuum: Infans I, ca. 2-3 Jahre. Unverz. Glocken­ becher, drei Silexartefakte (Abb. 37,3.4).\nGrab 8: Erdgrab; L 1, B 0,8 m. S-N-ausgerichteter, rechter Hocker. Infans I, ca. 3 Jahre.\nGrab 9: Erdgrab; L 2,2, B 1,64 m. NW-SO-ausgerichteter, linker Hocker. Matur, männlich. Unverz. Glockenbecher, Knochenknebel (Abb. 37,5.6).\nLiteratur:\nSzédeli 1994, 59-64; Funke 2000."
+    }
+  ],
+  "format": {
+    "type": "object",
+    "properties": {
+      "records": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "sourceKey": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "record": {
+              "type": "object",
+              "properties": {
+                "site": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "evidenceQuote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "evidenceQuote"
+                  ],
+                  "additionalProperties": false
+                },
+                "site_code": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "evidenceQuote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "evidenceQuote"
+                  ],
+                  "additionalProperties": false
+                },
+                "grave_id": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "evidenceQuote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "evidenceQuote"
+                  ],
+                  "additionalProperties": false
+                },
+                "feature_number": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "evidenceQuote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "evidenceQuote"
+                  ],
+                  "additionalProperties": false
+                },
+                "excavation_year": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "evidenceQuote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "evidenceQuote"
+                  ],
+                  "additionalProperties": false
+                },
+                "orientation": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "evidenceQuote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "evidenceQuote"
+                  ],
+                  "additionalProperties": false
+                },
+                "body_position": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "evidenceQuote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "evidenceQuote"
+                  ],
+                  "additionalProperties": false
+                },
+                "burial_type": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "evidenceQuote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "evidenceQuote"
+                  ],
+                  "additionalProperties": false
+                },
+                "grave_pit_length_m": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "evidenceQuote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "evidenceQuote"
+                  ],
+                  "additionalProperties": false
+                },
+                "grave_pit_width_m": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "evidenceQuote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "evidenceQuote"
+                  ],
+                  "additionalProperties": false
+                },
+                "grave_pit_depth_m": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "evidenceQuote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "evidenceQuote"
+                  ],
+                  "additionalProperties": false
+                },
+                "age_class": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "evidenceQuote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "evidenceQuote"
+                  ],
+                  "additionalProperties": false
+                },
+                "age_min_years": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "evidenceQuote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "evidenceQuote"
+                  ],
+                  "additionalProperties": false
+                },
+                "age_max_years": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "evidenceQuote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "evidenceQuote"
+                  ],
+                  "additionalProperties": false
+                },
+                "sex_estimate": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "evidenceQuote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "evidenceQuote"
+                  ],
+                  "additionalProperties": false
+                },
+                "cremated_bone_weight_g": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "evidenceQuote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "evidenceQuote"
+                  ],
+                  "additionalProperties": false
+                },
+                "grave_goods": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "evidenceQuote": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "evidenceQuote"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "figure_reference": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "evidenceQuote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "evidenceQuote"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "site",
+                "site_code",
+                "grave_id",
+                "feature_number",
+                "excavation_year",
+                "orientation",
+                "body_position",
+                "burial_type",
+                "grave_pit_length_m",
+                "grave_pit_width_m",
+                "grave_pit_depth_m",
+                "age_class",
+                "age_min_years",
+                "age_max_years",
+                "sex_estimate",
+                "cremated_bone_weight_g",
+                "grave_goods",
+                "figure_reference"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "sourceKey",
+            "record"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "records"
+    ],
+    "additionalProperties": false
+  },
+  "stream": false,
+  "think": false,
+  "truncate": false,
+  "shift": false,
+  "options": {
+    "temperature": 0,
+    "num_ctx": 262144,
+    "num_predict": 8192,
+    "seed": 0
+  }
+}

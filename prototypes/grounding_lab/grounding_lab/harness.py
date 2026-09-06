@@ -47,7 +47,12 @@ def load_dataset(
         if not anchors_file.exists() or not claims_file.exists():
             continue
         anchors = [
-            Anchor(a["anchorId"], a["text"], a["page"], a.get("context"))
+            Anchor(
+                a["anchorId"], a["text"], a["page"], a.get("context"),
+                a.get("kind"), a.get("afterBibliography"),
+                a.get("logicalTableId"), a.get("row"),
+                a.get("column"), a.get("role"),
+            )
             for a in json.loads(anchors_file.read_text(encoding="utf-8"))
         ]
         raw = [

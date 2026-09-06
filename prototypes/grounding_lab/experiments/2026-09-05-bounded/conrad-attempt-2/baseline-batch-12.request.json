@@ -1,0 +1,184 @@
+{
+  "model": "qwen3.8:27b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Extract document metadata and the first 20 eligible burial records in source reading order. Eligible records are definite, explicitly identified graves or burials. Exclude probable or conjectured graves (including EvG, vG, and \"vermutlich Grab\"), explicitly rejected burial interpretations, settlements, stray finds, bibliographic references, and unrelated find records. If fewer than 20 exist, return all eligible records. Use only explicitly stated information, preserve identifiers and suffixes, and never infer or compute values. Respect source legends for measurement units, emit each measurement in its declared unit using the schema value and unit fields, and perform no unit conversions. Return null for missing scalar information and [] for empty collections. Return exactly the schema keys and JSON types, without explanations. Extract EXACTLY these requested records in this order: R013, R014. sourceKey is a routing ID copied from REQUEST, never an extracted source identifier. Each record object must concern only that requested individual burial. Do not add neighbouring graves.  The sourceKey routing field remains a plain string.\n\nSCHEMA:\n{\"records\":[{\"sourceKey\":\"string\",\"record\":{\"site\":\"string\",\"site_code\":\"string\",\"grave_id\":\"string\",\"feature_number\":\"string\",\"excavation_year\":\"integer\",\"orientation\":\"string\",\"body_position\":\"string\",\"burial_type\":\"string\",\"grave_pit_length_m\":\"number\",\"grave_pit_width_m\":\"number\",\"grave_pit_depth_m\":\"number\",\"age_class\":\"string\",\"age_min_years\":\"number\",\"age_max_years\":\"number\",\"sex_estimate\":\"string\",\"cremated_bone_weight_g\":\"number\",\"grave_goods\":[\"string\"],\"figure_reference\":\"string\"}}]}\n\nSOURCE:\nREQUEST R013: Grab 4 (Bef. 90) - Abb. 40\n## Page 4\nGrab 4 (Bef. 90) - Abb. 40\nPl. 1: N-S-ausgerichtete, langovale Grabgrube mit Einbuchtung im W: L 1,28; B 0,64-0,75.* Die Verfüllung besteht aus rötlich braunorangem, halbfestem schluffigem Sand. Pl. 2: Mit Körperbestattung. Die N-S-ausgerichtete Grabgrube ist nur noch teilweise im W und S erkennbar, mit geraden Grenzen im W und S: L ca. 0,83; B ca. 0,5; T 0,16. Die Verfüllung besteht aus gelbbraunem, lockerem Sand. Profil: Der Befund weist schräg nach innen abfallende Wände auf. Objektlokalisierung: Knochen des re Vorderfußes vom Schaf (1) befinden sich N-S-ausgerichtet östlich vor dem Kopf im anatomischen Verband.\nBestattung: N-S-ausgerichteter, li Hocker in Seitenlage mit Blick nach O.\nBeide Oberarme am Körper angelegt; re Unterarm angewinkelt, Hand vorm Becken; li Unterarm über re Unterarm ausgestreckt, Hand wahrsch. vorm Becken. Beide Oberschenkel angewinkelt, beide Unterschenkel stark angewinkelt.\nInfans II, 6-8 Jahre. Männlich > weiblich.\nBeigaben: 1) Re Vorderfußknochen vom Schaf (Ovis ammon f. aries) . Metacarpus re, Phalanx I re lateral, Phalanx I re medial. Ein Individuum. Alter geringer als 7-10 Monate, wahrsch. 6-8 Monate. Geschlecht n. b. Phalangen sind distal alt gebrochen. Gew. 19,2. Inv.-Nr. KQA-01/90.\n\nREQUEST R014: Grab 5 (Bef. 3) - Abb. 41\n## Page 4\nGrab 5 (Bef. 3) - Abb. 41\nPl. 1: O-W-ausgerichteter, unregelmäßig ovaler Befund: L 2,34; B 1,86.* Die Verfüllung besteht aus graubraunem, halbfestem schluffigem Sand. Pl. 2: Mit menschlichen Knochen, zum Teil im anatomischen Verband. O-W-ausgerichteter, unregelmäßig ovaler Befund: L 1,99; B 1,65; T ca. 0,35. Die Verfüllung besteht aus graubraunem, im Zentrum und im Bereich der Knochen grauem, halbfestem schluffigem Sand. Pl. 3: Mit menschlichen Knochen im N-Bereich (wahrsch. Teile des Schädels). N-Sausgerichteter, unregelmäßig ovaler Befund: L 1,2; B 0,84; T ca. 0,81. Die Verfüllung ist graubraun, im SW gelbgrau. Pl. 4: Mit Resten einer Körperbestattung zum Teil im anatomischen Verband. N-S-ausgerichteter, unregelmäßig länglich ovaler Befund mit Ausbuchtung im W: L ca. 0,8; B ca. 0,5; T max. 1,1. Die Verfüllung besteht aus dunkelbraunem bis dunkelgrauem, sandigem Schluff. Profil: Der Befund weist schräg nach innen bis teils senkrecht abfallende Wände auf. Störungen: Das Grab ist gestört. Menschliche Knochen befinden sich auf den verschiedenen Plana zum Teil im anatomischen Verband. Objektlokalisierung: Mind. zwei durchbohrte Tierzähne und mind. fünf durchbohrte Scheiben aus organischem Hartmaterial befinden sich nördlich der Rippen und des li Oberarmes sowie südlich der vermuteten Schädellage auf Pl. 4 eng beieinander; davon liegt jeweils noch ein Exemplar vor (1, 2). Aus der Verfüllung stammen zwei WS (3), eine Silexklingenspitze (4), ein Silexkratzer (5), elf Silexabschläge (6) und 27 Silextrümmerstücke (7). Außerdem liegt ein menschlicher Zahn eines zweiten Individuums (8) vor, dessen Lage nicht dokumentiert ist.\nBestattung: Wahrsch. N-S-ausgerichtete Bestattung.\nLi Unterarm ausgestreckt. Skelettverband ist fast vollständig gestört. Auf Pl. 4 befindet sich der li Arm im anatomischen Verband, auf Pl. 2 nach Befundzeichnung möglicherweise der re Arm im anatomischen Verband.\nInfans I, (1) 1,5-2 Jahre. Männlich = weiblich.\nBeigaben: 1) Durchbohrter Tierzahn (Prämolar), möglicherweise vom Bären (Ursus) . Konische Bohrung im Wurzelbereich. Gew. 0,9. L 2,1; B 1,1; St 0,3-0,6; Dm Bohrung 0,2-0,4. Inv.Nr. KQA-01/4. 2) Kreisrunde, zentral durchbohrte Scheibe aus organischem Hartmaterial. Gew. 0,05. Dm 0,6-0,7; St max. 0,1; Dm Bohrung 0,2. Inv.-Nr. KQA-01/4.\nFunde: 3) 2  WS,  unverz.  Inv.-Nr.  KQA-01/1/2. 4) Silexklingenspitze;  proximal  abgebrochen.  Inv.-Nr.  KQA-01/2. 5) Silexkratzer. Inv.-Nr. KQA-01/2. 6) 11 Silexabschläge. Inv.-Nr. KQA-01/1/2. 7) 27 Silextrümmerstücke. Inv.-Nr. KQA-01/2. 8) Menschlicher Zahn. Unterer li Prämolar. Juvenil bis Adult, 15-35 Jahre. Geschlecht n. b. Inv.-Nr. KQA-01/2."
+    }
+  ],
+  "format": {
+    "type": "object",
+    "properties": {
+      "records": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "sourceKey": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "record": {
+              "type": "object",
+              "properties": {
+                "site": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "site_code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "grave_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "feature_number": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "excavation_year": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "orientation": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "body_position": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "burial_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "grave_pit_length_m": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "grave_pit_width_m": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "grave_pit_depth_m": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "age_class": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "age_min_years": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "age_max_years": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "sex_estimate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "cremated_bone_weight_g": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "grave_goods": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "figure_reference": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "site",
+                "site_code",
+                "grave_id",
+                "feature_number",
+                "excavation_year",
+                "orientation",
+                "body_position",
+                "burial_type",
+                "grave_pit_length_m",
+                "grave_pit_width_m",
+                "grave_pit_depth_m",
+                "age_class",
+                "age_min_years",
+                "age_max_years",
+                "sex_estimate",
+                "cremated_bone_weight_g",
+                "grave_goods",
+                "figure_reference"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "sourceKey",
+            "record"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "records"
+    ],
+    "additionalProperties": false
+  },
+  "stream": false,
+  "think": false,
+  "truncate": false,
+  "shift": false,
+  "options": {
+    "temperature": 0,
+    "num_ctx": 262144,
+    "num_predict": 8192,
+    "seed": 0
+  }
+}

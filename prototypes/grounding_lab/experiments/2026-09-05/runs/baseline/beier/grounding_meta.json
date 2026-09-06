@@ -1,0 +1,9 @@
+{
+  "durationSeconds": 1197.6806379999907,
+  "reranker": {
+    "repo": "nvidia/llama-nemotron-rerank-1b-v2",
+    "revision": "828765652b05bd439c9789d2a6d093db1caa1443"
+  },
+  "calls": 498,
+  "autoAccept": false
+}

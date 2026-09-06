@@ -1,0 +1,52 @@
+{
+  "startedAt": "2026-09-05T14:03:33.235Z",
+  "source": "D:\\progetti\\FREE\\prototypes\\grounding_lab\\final_dataset_3\\conrad-2011-bbc-graves-de",
+  "model": "qwen3.8:27b",
+  "modelDigest": "22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643",
+  "context": 262144,
+  "outputTokens": 8192,
+  "batchSize": 2,
+  "retries": 0,
+  "complete": false,
+  "calls": [],
+  "arms": {},
+  "autoAccept": false,
+  "sourceHash": "61e0e61bee27fddaf89d0ccd08e9674ad1acf4ac3f1815ab6222a576bcbc4429",
+  "schemaHash": "5d5de644739cc640c79479609cd421ad6f5d0d3399349b3a867cf8e627a179d0",
+  "instruction": "Extract document metadata and the first 20 eligible burial records in source reading order. Eligible records are definite, explicitly identified graves or burials. Exclude probable or conjectured graves (including EvG, vG, and \"vermutlich Grab\"), explicitly rejected burial interpretations, settlements, stray finds, bibliographic references, and unrelated find records. If fewer than 20 exist, return all eligible records. Use only explicitly stated information, preserve identifiers and suffixes, and never infer or compute values. Respect source legends for measurement units, emit each measurement in its declared unit using the schema value and unit fields, and perform no unit conversions. Return null for missing scalar information and [] for empty collections. Return exactly the schema keys and JSON types, without explanations.",
+  "quoteInstruction": "For every scalar leaf, emit {\"value\": the typed scalar or null, \"evidenceQuote\": one contiguous verbatim source quote or null}. Quotes must include enough local context to support the field and record. Copy characters, punctuation, numeric suffixes, and units exactly; whitespace may differ. Do not splice passages or invent text. Use null when no quote is available. Keep the original array and object structure.",
+  "sourceCodeHash": "96e4d1a329cf06b00886c1c2fc8bf175819d47a5edfba7270f8eb85e32fb3117",
+  "recordTemplate": {
+    "site": "string",
+    "site_code": "string",
+    "grave_id": "string",
+    "feature_number": "string",
+    "excavation_year": "integer",
+    "orientation": "string",
+    "body_position": "string",
+    "burial_type": "string",
+    "grave_pit_length_m": "number",
+    "grave_pit_width_m": "number",
+    "grave_pit_depth_m": "number",
+    "age_class": "string",
+    "age_min_years": "number",
+    "age_max_years": "number",
+    "sex_estimate": "string",
+    "cremated_bone_weight_g": "number",
+    "grave_goods": [
+      "string"
+    ],
+    "figure_reference": "string"
+  },
+  "metadataTemplate": {
+    "title": "string",
+    "author": "string",
+    "year": "integer",
+    "region": "string",
+    "feature_measurement_unit": "string",
+    "catalogue_new_find_sites": [
+      "string"
+    ],
+    "catalogue_new_find_sites_count": "integer"
+  }
+}

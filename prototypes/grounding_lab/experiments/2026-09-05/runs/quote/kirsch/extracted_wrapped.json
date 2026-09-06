@@ -1,0 +1,2893 @@
+{
+  "title": {
+    "value": null,
+    "evidenceQuote": null
+  },
+  "author": {
+    "value": null,
+    "evidenceQuote": null
+  },
+  "publication_year": {
+    "value": null,
+    "evidenceQuote": null
+  },
+  "records": [
+    {
+      "catalogue_id": {
+        "value": "311",
+        "evidenceQuote": "311 Parstein"
+      },
+      "site": {
+        "value": "Parstein",
+        "evidenceQuote": "311 Parstein"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "burial_type": {
+        "value": "Steinkistengrab",
+        "evidenceQuote": "FA Steinkistengrab."
+      },
+      "orientation": {
+        "value": "O-W",
+        "evidenceQuote": "versenkte Steinkiste unter 0,3 m Pflug-horizont; O-W;"
+      },
+      "body_position": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_goods": [],
+      "findspot_id": {
+        "value": "2",
+        "evidenceQuote": "Fpl. 2, Acker Otto."
+      },
+      "discovery_year": {
+        "value": 1932,
+        "evidenceQuote": "FU beim Pflügen entdeckt und ausgeräumt, 1932;"
+      },
+      "construction_type": {
+        "value": "Steinkiste",
+        "evidenceQuote": "versenkte Steinkiste unter 0,3 m Pflug-horizont;"
+      },
+      "chamber_length_value": {
+        "value": 1.3,
+        "evidenceQuote": "L 1,3; Br 0,8–0,9; T 0,6 m;"
+      },
+      "chamber_length_unit": {
+        "value": "m",
+        "evidenceQuote": "L 1,3; Br 0,8–0,9; T 0,6 m;"
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "316",
+        "evidenceQuote": "316 Stolzenhagen"
+      },
+      "site": {
+        "value": "Stolzenhagen",
+        "evidenceQuote": "316 Stolzenhagen"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "burial_type": {
+        "value": "Grabhügel mit Steinkistengrab",
+        "evidenceQuote": "FA Grabhügel mit Steinkistengrab."
+      },
+      "orientation": {
+        "value": "N-S",
+        "evidenceQuote": "an O-Seite Steinkiste, in Lehm eingesenkt; N-S;"
+      },
+      "body_position": {
+        "value": "rechter Hocker",
+        "evidenceQuote": "auf Boden in Sandschicht nebeneinander 2 rechte Hocker;"
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": 2,
+        "evidenceQuote": "auf Boden in Sandschicht nebeneinander 2 rechte Hocker;"
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_goods": [],
+      "findspot_id": {
+        "value": "5",
+        "evidenceQuote": "Fpl. 5, Graffberg\"."
+      },
+      "discovery_year": {
+        "value": 1910,
+        "evidenceQuote": "FU beim Anlegen von Pflanzlöchern entdeckt, 1910;"
+      },
+      "construction_type": {
+        "value": "Steinkiste",
+        "evidenceQuote": "an O-Seite Steinkiste, in Lehm eingesenkt;"
+      },
+      "chamber_length_value": {
+        "value": 1.3,
+        "evidenceQuote": "Innenmaße: L 1,3; Br 0,6; T 0,4 m;"
+      },
+      "chamber_length_unit": {
+        "value": "m",
+        "evidenceQuote": "Innenmaße: L 1,3; Br 0,6; T 0,4 m;"
+      },
+      "chamber_width_value": {
+        "value": 0.6,
+        "evidenceQuote": "Innenmaße: L 1,3; Br 0,6; T 0,4 m;"
+      },
+      "chamber_width_unit": {
+        "value": "m",
+        "evidenceQuote": "Innenmaße: L 1,3; Br 0,6; T 0,4 m;"
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "331",
+        "evidenceQuote": "331 Hohensaaten"
+      },
+      "site": {
+        "value": "Hohensaaten",
+        "evidenceQuote": "331 Hohensaaten"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "burial_type": {
+        "value": "Grab",
+        "evidenceQuote": "FA Grab."
+      },
+      "orientation": {
+        "value": "N-S",
+        "evidenceQuote": "ein Skelett; N-S; Kopf im N;"
+      },
+      "body_position": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": 1,
+        "evidenceQuote": "ein Skelett;"
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": 1,
+        "evidenceQuote": "in etwa 1 m T ein Skelett;"
+      },
+      "pit_depth_unit": {
+        "value": "m",
+        "evidenceQuote": "in etwa 1 m T ein Skelett;"
+      },
+      "grave_goods": [
+        {
+          "item_id": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_type": {
+            "value": "Eberhauer",
+            "evidenceQuote": "und 2 Eberhauer."
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 2,
+            "evidenceQuote": "und 2 Eberhauer."
+          },
+          "height_value": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "height_unit": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        }
+      ],
+      "findspot_id": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "discovery_year": {
+        "value": 1879,
+        "evidenceQuote": "FU beim Sandgraben von Arbeitern gefunden und zerstört, 1879."
+      },
+      "construction_type": {
+        "value": "Steinpackung",
+        "evidenceQuote": "unter Steinpackung von 8 Fuß L (etwa 1,8 m)"
+      },
+      "chamber_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "356",
+        "evidenceQuote": "356 Neuendorf (im Sande)"
+      },
+      "site": {
+        "value": "Neuendorf (im Sande)",
+        "evidenceQuote": "356 Neuendorf (im Sande)"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "burial_type": {
+        "value": "Grab",
+        "evidenceQuote": "FA Grab."
+      },
+      "orientation": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "body_position": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": 1.2,
+        "evidenceQuote": "Grabgrubenrest mit großen Geschieben in Einfüllung; T etwa 1,2 m;"
+      },
+      "pit_depth_unit": {
+        "value": "m",
+        "evidenceQuote": "Grabgrubenrest mit großen Geschieben in Einfüllung; T etwa 1,2 m;"
+      },
+      "grave_goods": [
+        {
+          "item_id": {
+            "value": "a",
+            "evidenceQuote": "a. große verz. KA,"
+          },
+          "item_type": {
+            "value": "KA",
+            "evidenceQuote": "a. große verz. KA,"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "a. große verz. KA,"
+          },
+          "height_value": {
+            "value": 21.6,
+            "evidenceQuote": "H 21,6; Mdm 8,2–8,4; gr. Dm 20,5 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "H 21,6; Mdm 8,2–8,4; gr. Dm 20,5 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        },
+        {
+          "item_id": {
+            "value": "b",
+            "evidenceQuote": "b. große unverz. KA;"
+          },
+          "item_type": {
+            "value": "KA",
+            "evidenceQuote": "b. große unverz. KA;"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "b. große unverz. KA;"
+          },
+          "height_value": {
+            "value": 26,
+            "evidenceQuote": "rekonstr. H 26; Mdm 9,8–10; gr. Dm 25,5 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "rekonstr. H 26; Mdm 9,8–10; gr. Dm 25,5 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        }
+      ],
+      "findspot_id": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "discovery_year": {
+        "value": 1930,
+        "evidenceQuote": "FU beim Sandabbau entdeckt, Notbergung, 1930 (1);"
+      },
+      "construction_type": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "363",
+        "evidenceQuote": "363 Tempelberg"
+      },
+      "site": {
+        "value": "Tempelberg",
+        "evidenceQuote": "363 Tempelberg"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "burial_type": {
+        "value": "Steinkistengrab",
+        "evidenceQuote": "FA Steinkistengrab."
+      },
+      "orientation": {
+        "value": "O-W",
+        "evidenceQuote": "schwach trapezförmiger Grundriß; O-W;"
+      },
+      "body_position": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_goods": [],
+      "findspot_id": {
+        "value": "1",
+        "evidenceQuote": "Fpl. 1, im Tempelberger Forst,"
+      },
+      "discovery_year": {
+        "value": 1872,
+        "evidenceQuote": "FU 1872 von Steinschlägern entdeckt (a);"
+      },
+      "construction_type": {
+        "value": "Steinkiste",
+        "evidenceQuote": "eingetiefte große Steinkiste in ebenem Gelände,"
+      },
+      "chamber_length_value": {
+        "value": 4.8,
+        "evidenceQuote": "Innenmaße: L 4,8; W–Br 1,1–1,2 (4 Fuß);"
+      },
+      "chamber_length_unit": {
+        "value": "m",
+        "evidenceQuote": "Innenmaße: L 4,8; W–Br 1,1–1,2 (4 Fuß);"
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "364.4",
+        "evidenceQuote": "364.4"
+      },
+      "site": {
+        "value": "Trebus",
+        "evidenceQuote": "364 Trebus"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": "C",
+        "evidenceQuote": "C. Flachgrab (Keller\");"
+      },
+      "burial_type": {
+        "value": "Flachgrab",
+        "evidenceQuote": "C. Flachgrab (Keller\");"
+      },
+      "orientation": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "body_position": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": 2.05,
+        "evidenceQuote": "in 2,05 m T unter Oberfläche"
+      },
+      "pit_depth_unit": {
+        "value": "m",
+        "evidenceQuote": "in 2,05 m T unter Oberfläche"
+      },
+      "grave_goods": [
+        {
+          "item_id": {
+            "value": "1",
+            "evidenceQuote": "1. verz. KA;"
+          },
+          "item_type": {
+            "value": "KA",
+            "evidenceQuote": "1. verz. KA;"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "1. verz. KA;"
+          },
+          "height_value": {
+            "value": 16.5,
+            "evidenceQuote": "H 16,5; Mdm 8; gr. Dm 17 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "H 16,5; Mdm 8; gr. Dm 17 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        },
+        {
+          "item_id": {
+            "value": "2",
+            "evidenceQuote": "2. unverz. beutelförmige KA;"
+          },
+          "item_type": {
+            "value": "KA",
+            "evidenceQuote": "2. unverz. beutelförmige KA;"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "2. unverz. beutelförmige KA;"
+          },
+          "height_value": {
+            "value": 23,
+            "evidenceQuote": "H 23; Mdm 8,8× 9,4; gr. Dm 18,5 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "H 23; Mdm 8,8× 9,4; gr. Dm 18,5 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        },
+        {
+          "item_id": {
+            "value": "3",
+            "evidenceQuote": "3. hochschultriges unverz. Gefäß;"
+          },
+          "item_type": {
+            "value": "Gefäß",
+            "evidenceQuote": "3. hochschultriges unverz. Gefäß;"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "3. hochschultriges unverz. Gefäß;"
+          },
+          "height_value": {
+            "value": 22.5,
+            "evidenceQuote": "H 22,5; Mdm 13,5; gr. Dm 20,5; Bdm 11,5 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "H 22,5; Mdm 13,5; gr. Dm 20,5; Bdm 11,5 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        },
+        {
+          "item_id": {
+            "value": "4",
+            "evidenceQuote": "4. unverz. weitmündiger Topf,"
+          },
+          "item_type": {
+            "value": "Topf",
+            "evidenceQuote": "4. unverz. weitmündiger Topf,"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "4. unverz. weitmündiger Topf,"
+          },
+          "height_value": {
+            "value": 22.5,
+            "evidenceQuote": "H 22,5; Mdm 16× 17; gr. Dm 23,5; Bdm 11,5 ×12 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "H 22,5; Mdm 16× 17; gr. Dm 23,5; Bdm 11,5 ×12 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        },
+        {
+          "item_id": {
+            "value": "5",
+            "evidenceQuote": "5. stark zerscherbte unverz. KA;"
+          },
+          "item_type": {
+            "value": "KA",
+            "evidenceQuote": "5. stark zerscherbte unverz. KA;"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "5. stark zerscherbte unverz. KA;"
+          },
+          "height_value": {
+            "value": 18.5,
+            "evidenceQuote": "Maße nach C. Umbreit: H 18,5; Mdm etwa 8; gr. Dm 15,5 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "Maße nach C. Umbreit: H 18,5; Mdm etwa 8; gr. Dm 15,5 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        },
+        {
+          "item_id": {
+            "value": "6",
+            "evidenceQuote": "Grube B\": hohes schlankes Vorratsgefäß;"
+          },
+          "item_type": {
+            "value": "Vorratsgefäß",
+            "evidenceQuote": "Grube B\": hohes schlankes Vorratsgefäß;"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "Grube B\": hohes schlankes Vorratsgefäß;"
+          },
+          "height_value": {
+            "value": 42.5,
+            "evidenceQuote": "H 42,5; Mdm 17,5×18,5; gr. Dm 29; Bdm 17×17,8 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "H 42,5; Mdm 17,5×18,5; gr. Dm 29; Bdm 17×17,8 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        }
+      ],
+      "findspot_id": {
+        "value": "1",
+        "evidenceQuote": "Fpl. 1, ehem. Sandgrube am Buchholzer Kirchweg"
+      },
+      "discovery_year": {
+        "value": 1926,
+        "evidenceQuote": "Notbergung C. Umbreit, 1926."
+      },
+      "construction_type": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "369.1",
+        "evidenceQuote": "369.1"
+      },
+      "site": {
+        "value": "Schwedt",
+        "evidenceQuote": "369 Schwedt"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": "Grab 1",
+        "evidenceQuote": "Grab 1:"
+      },
+      "burial_type": {
+        "value": "Gräberfeld",
+        "evidenceQuote": "FA Gräberfeld."
+      },
+      "orientation": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "body_position": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": 1,
+        "evidenceQuote": "unter einer großen Steinplatte kleines Skelett,"
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_goods": [
+        {
+          "item_id": {
+            "value": "1",
+            "evidenceQuote": "1. gedrungenes Hängegefäß,"
+          },
+          "item_type": {
+            "value": "Hängegefäß",
+            "evidenceQuote": "1. gedrungenes Hängegefäß,"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "1. gedrungenes Hängegefäß,"
+          },
+          "height_value": {
+            "value": 10,
+            "evidenceQuote": "H 10; Mdm 9,3; gr. Dm 12,6 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "H 10; Mdm 9,3; gr. Dm 12,6 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        },
+        {
+          "item_id": {
+            "value": "2",
+            "evidenceQuote": "2. Schleifstein in Form eines Trapezes;"
+          },
+          "item_type": {
+            "value": "Schleifstein",
+            "evidenceQuote": "2. Schleifstein in Form eines Trapezes;"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "2. Schleifstein in Form eines Trapezes;"
+          },
+          "height_value": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "height_unit": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        },
+        {
+          "item_id": {
+            "value": "3",
+            "evidenceQuote": "3. Steinaxt mit parallelen Lochseiten,"
+          },
+          "item_type": {
+            "value": "Steinaxt",
+            "evidenceQuote": "3. Steinaxt mit parallelen Lochseiten,"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "3. Steinaxt mit parallelen Lochseiten,"
+          },
+          "height_value": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "height_unit": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        }
+      ],
+      "findspot_id": {
+        "value": "5",
+        "evidenceQuote": "Fpl. 5, Mittelstraße, Ecke Kietzer Straße,"
+      },
+      "discovery_year": {
+        "value": 1902,
+        "evidenceQuote": "FU bei Schachtarbeiten für Neubau, 1902."
+      },
+      "construction_type": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "369.2",
+        "evidenceQuote": "369.2"
+      },
+      "site": {
+        "value": "Schwedt",
+        "evidenceQuote": "369 Schwedt"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": "Grab 2",
+        "evidenceQuote": "Grab 2:"
+      },
+      "burial_type": {
+        "value": "Gräberfeld",
+        "evidenceQuote": "FA Gräberfeld."
+      },
+      "orientation": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "body_position": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": 1,
+        "evidenceQuote": "großes Skelett in reinem Sand;"
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_goods": [
+        {
+          "item_id": {
+            "value": "1",
+            "evidenceQuote": "1. birnenförmiger Zweihenkelkrug"
+          },
+          "item_type": {
+            "value": "Zweihenkelkrug",
+            "evidenceQuote": "1. birnenförmiger Zweihenkelkrug"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "1. birnenförmiger Zweihenkelkrug"
+          },
+          "height_value": {
+            "value": 16.4,
+            "evidenceQuote": "H 16,4; rekonstr. Mdm 6,5; gr. Dm 17,2 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "H 16,4; rekonstr. Mdm 6,5; gr. Dm 17,2 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        },
+        {
+          "item_id": {
+            "value": "2",
+            "evidenceQuote": "2. birnenförmiger Zweihenkelkrug wie 1;"
+          },
+          "item_type": {
+            "value": "Zweihenkelkrug",
+            "evidenceQuote": "2. birnenförmiger Zweihenkelkrug wie 1;"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "2. birnenförmiger Zweihenkelkrug wie 1;"
+          },
+          "height_value": {
+            "value": 14,
+            "evidenceQuote": "H 14; Mdm 6; gr. Dm 14 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "H 14; Mdm 6; gr. Dm 14 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        }
+      ],
+      "findspot_id": {
+        "value": "5",
+        "evidenceQuote": "Fpl. 5, Mittelstraße, Ecke Kietzer Straße,"
+      },
+      "discovery_year": {
+        "value": 1902,
+        "evidenceQuote": "FU bei Schachtarbeiten für Neubau, 1902."
+      },
+      "construction_type": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "369.3",
+        "evidenceQuote": "369.3"
+      },
+      "site": {
+        "value": "Schwedt",
+        "evidenceQuote": "369 Schwedt"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": "Grab 3",
+        "evidenceQuote": "Grab 3:"
+      },
+      "burial_type": {
+        "value": "Gräberfeld",
+        "evidenceQuote": "FA Gräberfeld."
+      },
+      "orientation": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "body_position": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": 1,
+        "evidenceQuote": "großes Skelett in reinem Sand;"
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_goods": [
+        {
+          "item_id": {
+            "value": "1",
+            "evidenceQuote": "1. birnenförmiger Zweihenkelkrug,"
+          },
+          "item_type": {
+            "value": "Zweihenkelkrug",
+            "evidenceQuote": "1. birnenförmiger Zweihenkelkrug,"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "1. birnenförmiger Zweihenkelkrug,"
+          },
+          "height_value": {
+            "value": 15,
+            "evidenceQuote": "H 15; Mdm 7,3; gr. Dm 15,5 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "H 15; Mdm 7,3; gr. Dm 15,5 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        },
+        {
+          "item_id": {
+            "value": "2",
+            "evidenceQuote": "2. kleiner Schnurbecher,"
+          },
+          "item_type": {
+            "value": "Schnurbecher",
+            "evidenceQuote": "2. kleiner Schnurbecher,"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "2. kleiner Schnurbecher,"
+          },
+          "height_value": {
+            "value": 8.8,
+            "evidenceQuote": "erh. H 8,8; Halsdm 8,2; gr. Dm 10; Bdm 4,6 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "erh. H 8,8; Halsdm 8,2; gr. Dm 10; Bdm 4,6 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        },
+        {
+          "item_id": {
+            "value": "3",
+            "evidenceQuote": "3. kleiner konischer Napf,"
+          },
+          "item_type": {
+            "value": "Napf",
+            "evidenceQuote": "3. kleiner konischer Napf,"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "3. kleiner konischer Napf,"
+          },
+          "height_value": {
+            "value": 3.2,
+            "evidenceQuote": "H 3,2; Mdm 6 cm."
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "H 3,2; Mdm 6 cm."
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        }
+      ],
+      "findspot_id": {
+        "value": "5",
+        "evidenceQuote": "Fpl. 5, Mittelstraße, Ecke Kietzer Straße,"
+      },
+      "discovery_year": {
+        "value": 1902,
+        "evidenceQuote": "FU bei Schachtarbeiten für Neubau, 1902."
+      },
+      "construction_type": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "369.4",
+        "evidenceQuote": "369.4"
+      },
+      "site": {
+        "value": "Schwedt",
+        "evidenceQuote": "369 Schwedt"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": "Grab 4",
+        "evidenceQuote": "Grab 4:"
+      },
+      "burial_type": {
+        "value": "Gräberfeld",
+        "evidenceQuote": "FA Gräberfeld."
+      },
+      "orientation": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "body_position": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": 1,
+        "evidenceQuote": "neben Skelett ein Gefäß:"
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_goods": [
+        {
+          "item_id": {
+            "value": "1",
+            "evidenceQuote": "1. große, etwa doppelkonische Tasse;"
+          },
+          "item_type": {
+            "value": "Tasse",
+            "evidenceQuote": "1. große, etwa doppelkonische Tasse;"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "1. große, etwa doppelkonische Tasse;"
+          },
+          "height_value": {
+            "value": 13,
+            "evidenceQuote": "H 13; Mdm 15; gr. Dm 18; Bdm 9 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "H 13; Mdm 15; gr. Dm 18; Bdm 9 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        }
+      ],
+      "findspot_id": {
+        "value": "5",
+        "evidenceQuote": "Fpl. 5, Mittelstraße, Ecke Kietzer Straße,"
+      },
+      "discovery_year": {
+        "value": 1902,
+        "evidenceQuote": "FU bei Schachtarbeiten für Neubau, 1902."
+      },
+      "construction_type": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "369.5",
+        "evidenceQuote": "369.5"
+      },
+      "site": {
+        "value": "Schwedt",
+        "evidenceQuote": "369 Schwedt"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": "Grab 5",
+        "evidenceQuote": "Grab 5:"
+      },
+      "burial_type": {
+        "value": "Gräberfeld",
+        "evidenceQuote": "FA Gräberfeld."
+      },
+      "orientation": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "body_position": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": 1,
+        "evidenceQuote": "neben Skelett in reinem Sand ein Gefäß:"
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_goods": [
+        {
+          "item_id": {
+            "value": "1",
+            "evidenceQuote": "1. doppelkonisches Hängegefäß"
+          },
+          "item_type": {
+            "value": "Hängegefäß",
+            "evidenceQuote": "1. doppelkonisches Hängegefäß"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "1. doppelkonisches Hängegefäß"
+          },
+          "height_value": {
+            "value": 12.5,
+            "evidenceQuote": "H 12,5; Mdm 9,8; gr. Dm 14 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "H 12,5; Mdm 9,8; gr. Dm 14 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        }
+      ],
+      "findspot_id": {
+        "value": "5",
+        "evidenceQuote": "Fpl. 5, Mittelstraße, Ecke Kietzer Straße,"
+      },
+      "discovery_year": {
+        "value": 1902,
+        "evidenceQuote": "FU bei Schachtarbeiten für Neubau, 1902."
+      },
+      "construction_type": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "369.6",
+        "evidenceQuote": "369.6"
+      },
+      "site": {
+        "value": "Schwedt",
+        "evidenceQuote": "369 Schwedt"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": "Grab 6",
+        "evidenceQuote": "Grab 6:"
+      },
+      "burial_type": {
+        "value": "Gräberfeld",
+        "evidenceQuote": "FA Gräberfeld."
+      },
+      "orientation": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "body_position": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": 1,
+        "evidenceQuote": "neben Skelett in reinem Sand ein Gefäß:"
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_goods": [
+        {
+          "item_id": {
+            "value": "1",
+            "evidenceQuote": "1. große Tasse mit geschwungenem Profil;"
+          },
+          "item_type": {
+            "value": "Tasse",
+            "evidenceQuote": "1. große Tasse mit geschwungenem Profil;"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "1. große Tasse mit geschwungenem Profil;"
+          },
+          "height_value": {
+            "value": 15.4,
+            "evidenceQuote": "H 15,4; Mdm 16,5; gr. Dm 19,2; Bdm 7–8 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "H 15,4; Mdm 16,5; gr. Dm 19,2; Bdm 7–8 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        }
+      ],
+      "findspot_id": {
+        "value": "5",
+        "evidenceQuote": "Fpl. 5, Mittelstraße, Ecke Kietzer Straße,"
+      },
+      "discovery_year": {
+        "value": 1902,
+        "evidenceQuote": "FU bei Schachtarbeiten für Neubau, 1902."
+      },
+      "construction_type": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "369.7",
+        "evidenceQuote": "369.7"
+      },
+      "site": {
+        "value": "Schwedt",
+        "evidenceQuote": "369 Schwedt"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": "Grab 7",
+        "evidenceQuote": "Grab 7:"
+      },
+      "burial_type": {
+        "value": "Gräberfeld",
+        "evidenceQuote": "FA Gräberfeld."
+      },
+      "orientation": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "body_position": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": 1,
+        "evidenceQuote": "neben Skelett in reinem Sand ein Gefäß:"
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_goods": [
+        {
+          "item_id": {
+            "value": "1",
+            "evidenceQuote": "1. Hängegefäß mit hohem, leicht konischem Oberteil"
+          },
+          "item_type": {
+            "value": "Hängegefäß",
+            "evidenceQuote": "1. Hängegefäß mit hohem, leicht konischem Oberteil"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "1. Hängegefäß mit hohem, leicht konischem Oberteil"
+          },
+          "height_value": {
+            "value": 10.5,
+            "evidenceQuote": "H 10,5; Mdm 10; gr. Dm 13,5 cm."
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "H 10,5; Mdm 10; gr. Dm 13,5 cm."
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        }
+      ],
+      "findspot_id": {
+        "value": "5",
+        "evidenceQuote": "Fpl. 5, Mittelstraße, Ecke Kietzer Straße,"
+      },
+      "discovery_year": {
+        "value": 1902,
+        "evidenceQuote": "FU bei Schachtarbeiten für Neubau, 1902."
+      },
+      "construction_type": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "371",
+        "evidenceQuote": "371 Falkenhagen"
+      },
+      "site": {
+        "value": "Falkenhagen",
+        "evidenceQuote": "371 Falkenhagen"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "burial_type": {
+        "value": "Grab",
+        "evidenceQuote": "FA Grab."
+      },
+      "orientation": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "body_position": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_goods": [
+        {
+          "item_id": {
+            "value": "1",
+            "evidenceQuote": "1. Flintmeißel mit rechteckigem Querschnitt;"
+          },
+          "item_type": {
+            "value": "Flintmeißel",
+            "evidenceQuote": "1. Flintmeißel mit rechteckigem Querschnitt;"
+          },
+          "material": {
+            "value": "Flint",
+            "evidenceQuote": "1. Flintmeißel mit rechteckigem Querschnitt;"
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "1. Flintmeißel mit rechteckigem Querschnitt;"
+          },
+          "height_value": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "height_unit": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        },
+        {
+          "item_id": {
+            "value": "2",
+            "evidenceQuote": "2. keilförmiges\" Flintbeil;"
+          },
+          "item_type": {
+            "value": "Flintbeil",
+            "evidenceQuote": "2. keilförmiges\" Flintbeil;"
+          },
+          "material": {
+            "value": "Flint",
+            "evidenceQuote": "2. keilförmiges\" Flintbeil;"
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "2. keilförmiges\" Flintbeil;"
+          },
+          "height_value": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "height_unit": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        }
+      ],
+      "findspot_id": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "discovery_year": {
+        "value": 1867,
+        "evidenceQuote": "FU u, 1867."
+      },
+      "construction_type": {
+        "value": "Steingrab",
+        "evidenceQuote": "FB aus einem Steingrab\";"
+      },
+      "chamber_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "375.1",
+        "evidenceQuote": "375.1"
+      },
+      "site": {
+        "value": "Jahnsfelde",
+        "evidenceQuote": "375 Jahnsfelde"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": "1",
+        "evidenceQuote": "Grab (1); unbestimmt (2)."
+      },
+      "burial_type": {
+        "value": "Flachgrab",
+        "evidenceQuote": "Flachgrab ohne Steinschutz,"
+      },
+      "orientation": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "body_position": {
+        "value": "rechter Hocker",
+        "evidenceQuote": "rechter Hocker, Gesicht\" nach O"
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": 1,
+        "evidenceQuote": "Skelettreste entdeckt und zerstört;"
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": 0.4,
+        "evidenceQuote": "in 0,4 m T Skelettreste entdeckt"
+      },
+      "pit_depth_unit": {
+        "value": "m",
+        "evidenceQuote": "in 0,4 m T Skelettreste entdeckt"
+      },
+      "grave_goods": [
+        {
+          "item_id": {
+            "value": "1",
+            "evidenceQuote": "1. KA; keine Angaben zu Form, Maßen und Verzierung."
+          },
+          "item_type": {
+            "value": "KA",
+            "evidenceQuote": "1. KA; keine Angaben zu Form, Maßen und Verzierung."
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "1. KA; keine Angaben zu Form, Maßen und Verzierung."
+          },
+          "height_value": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "height_unit": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        },
+        {
+          "item_id": {
+            "value": "2",
+            "evidenceQuote": "2. dünnbl. Flintbeil;"
+          },
+          "item_type": {
+            "value": "Flintbeil",
+            "evidenceQuote": "2. dünnbl. Flintbeil;"
+          },
+          "material": {
+            "value": "Flint",
+            "evidenceQuote": "2. dünnbl. Flintbeil;"
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "2. dünnbl. Flintbeil;"
+          },
+          "height_value": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "height_unit": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        },
+        {
+          "item_id": {
+            "value": "3",
+            "evidenceQuote": "3. kleines Flintbeil;"
+          },
+          "item_type": {
+            "value": "Flintbeil",
+            "evidenceQuote": "3. kleines Flintbeil;"
+          },
+          "material": {
+            "value": "Flint",
+            "evidenceQuote": "3. kleines Flintbeil;"
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "3. kleines Flintbeil;"
+          },
+          "height_value": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "height_unit": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        },
+        {
+          "item_id": {
+            "value": "4",
+            "evidenceQuote": "4. kleine verzierte Knochenplatte;"
+          },
+          "item_type": {
+            "value": "Knochenplatte",
+            "evidenceQuote": "4. kleine verzierte Knochenplatte;"
+          },
+          "material": {
+            "value": "Knochen",
+            "evidenceQuote": "4. kleine verzierte Knochenplatte;"
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "4. kleine verzierte Knochenplatte;"
+          },
+          "height_value": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "height_unit": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        }
+      ],
+      "findspot_id": {
+        "value": "3",
+        "evidenceQuote": "Fpl. 3, Sandgrube, Acker Kliems."
+      },
+      "discovery_year": {
+        "value": 1936,
+        "evidenceQuote": "beim Sandschachten und Notbergung, 1936 (1);"
+      },
+      "construction_type": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "383",
+        "evidenceQuote": "383 Buckow"
+      },
+      "site": {
+        "value": "Buckow",
+        "evidenceQuote": "383 Buckow"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "burial_type": {
+        "value": "Grab",
+        "evidenceQuote": "FA Grab."
+      },
+      "orientation": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "body_position": {
+        "value": "Hockerbestattung",
+        "evidenceQuote": "Hockerbestattung (sitzendes Skelett\");"
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": 1,
+        "evidenceQuote": "Hockerbestattung (sitzendes Skelett\");"
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_goods": [
+        {
+          "item_id": {
+            "value": "1",
+            "evidenceQuote": "1. Gefäß; Form und Maße unbekannt."
+          },
+          "item_type": {
+            "value": "Gefäß",
+            "evidenceQuote": "1. Gefäß; Form und Maße unbekannt."
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "1. Gefäß; Form und Maße unbekannt."
+          },
+          "height_value": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "height_unit": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        }
+      ],
+      "findspot_id": {
+        "value": "12",
+        "evidenceQuote": "Fpl. 12."
+      },
+      "discovery_year": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "construction_type": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "397",
+        "evidenceQuote": "397 Bagemühl"
+      },
+      "site": {
+        "value": "Bagemühl",
+        "evidenceQuote": "397 Bagemühl"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "burial_type": {
+        "value": "Steinkistengrab",
+        "evidenceQuote": "FA Steinkistengrab und Siedlung (?)."
+      },
+      "orientation": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "body_position": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": 3,
+        "evidenceQuote": "mürbe menschliche Skelettreste von mindestens 3 Individuen"
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_goods": [
+        {
+          "item_id": {
+            "value": "1",
+            "evidenceQuote": "17 unverz. Scherben wohl eines Gefäßes,"
+          },
+          "item_type": {
+            "value": "Gefäß",
+            "evidenceQuote": "17 unverz. Scherben wohl eines Gefäßes,"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "17 unverz. Scherben wohl eines Gefäßes,"
+          },
+          "height_value": {
+            "value": 12.2,
+            "evidenceQuote": "H 12,2; Mdm 10; gr. Dm 13; Bdm 6; Henkelbr 3,7 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "H 12,2; Mdm 10; gr. Dm 13; Bdm 6; Henkelbr 3,7 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        }
+      ],
+      "findspot_id": {
+        "value": "19",
+        "evidenceQuote": "Fpl. 19, Acker."
+      },
+      "discovery_year": {
+        "value": 1976,
+        "evidenceQuote": "FU Notbergung, 1976;"
+      },
+      "construction_type": {
+        "value": "Steinkiste",
+        "evidenceQuote": "versenkte Steinkiste aus Rotsandsteinplatten;"
+      },
+      "chamber_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "398.1",
+        "evidenceQuote": "398.1"
+      },
+      "site": {
+        "value": "Bagemühl",
+        "evidenceQuote": "398 Bagemühl"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": "Grab I",
+        "evidenceQuote": "Grab I bei I. Nilius"
+      },
+      "burial_type": {
+        "value": "Steinkistengrab",
+        "evidenceQuote": "FA Steinkistengrab (1); Siedlung ? (2)."
+      },
+      "orientation": {
+        "value": "NO-SW",
+        "evidenceQuote": "NO-SW;"
+      },
+      "body_position": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_goods": [
+        {
+          "item_id": {
+            "value": "1",
+            "evidenceQuote": "1. unverz. gedrungene Amphore;"
+          },
+          "item_type": {
+            "value": "Amphore",
+            "evidenceQuote": "1. unverz. gedrungene Amphore;"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "1. unverz. gedrungene Amphore;"
+          },
+          "height_value": {
+            "value": 14,
+            "evidenceQuote": "H 14; Mdm 8; gr. Dm 14,5 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "H 14; Mdm 8; gr. Dm 14,5 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        }
+      ],
+      "findspot_id": {
+        "value": "20 (a)",
+        "evidenceQuote": "Fpl. 20 (a), ehem. Sandgrube im Sandfeld."
+      },
+      "discovery_year": {
+        "value": 1933,
+        "evidenceQuote": "FU bei Kiesabbau, 1933;"
+      },
+      "construction_type": {
+        "value": "Steinkiste",
+        "evidenceQuote": "versenkte Steinkiste aus Rotsandsteinplatten"
+      },
+      "chamber_length_value": {
+        "value": 1.15,
+        "evidenceQuote": "Innenmaße: Î 1,15; Br 0,6–0,8; T 0,65 m"
+      },
+      "chamber_length_unit": {
+        "value": "m",
+        "evidenceQuote": "Innenmaße: Î 1,15; Br 0,6–0,8; T 0,65 m"
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "402",
+        "evidenceQuote": "402 Bagemühl"
+      },
+      "site": {
+        "value": "Bagemühl",
+        "evidenceQuote": "402 Bagemühl"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": "Grab II",
+        "evidenceQuote": "Grab II bei I. Nilius"
+      },
+      "burial_type": {
+        "value": "Steinkistengrab",
+        "evidenceQuote": "FA Steinkistengrab."
+      },
+      "orientation": {
+        "value": "N-S",
+        "evidenceQuote": "N-S;"
+      },
+      "body_position": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_goods": [
+        {
+          "item_id": {
+            "value": "1",
+            "evidenceQuote": "1. Tasse, darin angeblich Lbr.:"
+          },
+          "item_type": {
+            "value": "Tasse",
+            "evidenceQuote": "1. Tasse, darin angeblich Lbr.:"
+          },
+          "material": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "1. Tasse, darin angeblich Lbr.:"
+          },
+          "height_value": {
+            "value": 9.5,
+            "evidenceQuote": "H 9,5; Mdm ca. 19,5; gr. Dm ca. 14,5; Bdm ca. 5 cm"
+          },
+          "height_unit": {
+            "value": "cm",
+            "evidenceQuote": "H 9,5; Mdm ca. 19,5; gr. Dm ca. 14,5; Bdm ca. 5 cm"
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        }
+      ],
+      "findspot_id": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "discovery_year": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "construction_type": {
+        "value": "Steinkiste",
+        "evidenceQuote": "FB eingesenkte Steinkiste aus Platten"
+      },
+      "chamber_length_value": {
+        "value": 0.75,
+        "evidenceQuote": "Maße 0,75 ×0,4-0,5 m;"
+      },
+      "chamber_length_unit": {
+        "value": "m",
+        "evidenceQuote": "Maße 0,75 ×0,4-0,5 m;"
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    },
+    {
+      "catalogue_id": {
+        "value": "403",
+        "evidenceQuote": "403 Bagemühl"
+      },
+      "site": {
+        "value": "Bagemühl",
+        "evidenceQuote": "403 Bagemühl"
+      },
+      "district": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_id": {
+        "value": "Grab III",
+        "evidenceQuote": "Grab III bei I. Nilius"
+      },
+      "burial_type": {
+        "value": "Steinkistengrab",
+        "evidenceQuote": "FA Steinkistengrab."
+      },
+      "orientation": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "body_position": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "sex": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "age_class": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "individual_count": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "pit_depth_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "grave_goods": [
+        {
+          "item_id": {
+            "value": "1",
+            "evidenceQuote": "1. dickn. Flintbeil;"
+          },
+          "item_type": {
+            "value": "Flintbeil",
+            "evidenceQuote": "1. dickn. Flintbeil;"
+          },
+          "material": {
+            "value": "Flint",
+            "evidenceQuote": "1. dickn. Flintbeil;"
+          },
+          "item_count": {
+            "value": 1,
+            "evidenceQuote": "1. dickn. Flintbeil;"
+          },
+          "height_value": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "height_unit": {
+            "value": null,
+            "evidenceQuote": null
+          },
+          "inventory_number": {
+            "value": null,
+            "evidenceQuote": null
+          }
+        }
+      ],
+      "findspot_id": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "discovery_year": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "construction_type": {
+        "value": "Steinkiste",
+        "evidenceQuote": "FB Steinkistengrab (Grab III bei I. Nilius);"
+      },
+      "chamber_length_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_length_unit": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_value": {
+        "value": null,
+        "evidenceQuote": null
+      },
+      "chamber_width_unit": {
+        "value": null,
+        "evidenceQuote": null
+      }
+    }
+  ]
+}

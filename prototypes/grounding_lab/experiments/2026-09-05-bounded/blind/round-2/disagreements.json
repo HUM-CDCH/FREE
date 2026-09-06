@@ -1,0 +1,1515 @@
+[
+  {
+    "claim": {
+      "claimId": "round-2-c0020",
+      "value": "Kölsa",
+      "resultPath": [
+        "records",
+        12,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: 4, feature_number: 90, orientation: N-S, body_position: li Hocker in Seitenlage mit Blick nach O, burial_type: Körperbestattung, grave_pit_length_m: 1.28, grave_pit_width_m: 0.64, age_class: Infans II, age_min_years: 6, age_max_years: 8, sex_estimate: Männlich > weiblich, figure_reference: Abb. 40",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "4",
+        "feature_number": "90",
+        "orientation": "N-S",
+        "body_position": "li Hocker in Seitenlage mit Blick nach O",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 1.28,
+        "grave_pit_width_m": 0.64,
+        "age_class": "Infans II",
+        "age_min_years": 6,
+        "age_max_years": 8,
+        "sex_estimate": "Männlich > weiblich",
+        "figure_reference": "Abb. 40"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0020",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 4: source states site \"Kölsa\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0020",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 4 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0036",
+      "value": "Kölsa, Lkr. Nordsachsen",
+      "resultPath": [
+        "records",
+        9,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: Grab 1, feature_number: Bef. 10, orientation: OSO-WNW, body_position: re Hocker in Seitenlage mit Blick nach N., burial_type: Körperbestattung, grave_pit_length_m: 0.63, grave_pit_width_m: 0.46, grave_pit_depth_m: 0.1, age_class: Infans I, age_min_years: 4, age_max_years: 5, sex_estimate: Weiblich = männlich, figure_reference: Abb. 40",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa, Lkr. Nordsachsen",
+        "site_code": "KQA-01",
+        "grave_id": "Grab 1",
+        "feature_number": "Bef. 10",
+        "orientation": "OSO-WNW",
+        "body_position": "re Hocker in Seitenlage mit Blick nach N.",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 0.63,
+        "grave_pit_width_m": 0.46,
+        "grave_pit_depth_m": 0.1,
+        "age_class": "Infans I",
+        "age_min_years": 4,
+        "age_max_years": 5,
+        "sex_estimate": "Weiblich = männlich",
+        "figure_reference": "Abb. 40"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0036",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 1: source states site \"Kölsa, Lkr. Nordsachsen\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0036",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 1 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0048",
+      "value": "Kölsa",
+      "resultPath": [
+        "records",
+        19,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: 11, feature_number: 9, grave_pit_depth_m: 0.82, age_class: Infans I, age_min_years: 4, age_max_years: 5, sex_estimate: Männlich = weiblich, figure_reference: Abb. 44",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "11",
+        "feature_number": "9",
+        "grave_pit_depth_m": 0.82,
+        "age_class": "Infans I",
+        "age_min_years": 4,
+        "age_max_years": 5,
+        "sex_estimate": "Männlich = weiblich",
+        "figure_reference": "Abb. 44"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0048",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 11: source states site \"Kölsa\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0048",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 11 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0058",
+      "value": "Kölsa",
+      "resultPath": [
+        "records",
+        13,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: Grab 5, feature_number: 3, orientation: N-S, body_position: Li Unterarm ausgestreckt, burial_type: Körperbestattung, grave_pit_length_m: 2.34, grave_pit_width_m: 1.86, age_class: Infans I, age_min_years: 1.5, age_max_years: 2, sex_estimate: Männlich = weiblich, figure_reference: Abb. 41",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "Grab 5",
+        "feature_number": "3",
+        "orientation": "N-S",
+        "body_position": "Li Unterarm ausgestreckt",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 2.34,
+        "grave_pit_width_m": 1.86,
+        "age_class": "Infans I",
+        "age_min_years": 1.5,
+        "age_max_years": 2,
+        "sex_estimate": "Männlich = weiblich",
+        "figure_reference": "Abb. 41"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0058",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 5: source states site \"Kölsa\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0058",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 5 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0064",
+      "value": "Kölsa",
+      "resultPath": [
+        "records",
+        15,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: Grab 7, feature_number: Bef. 21, orientation: N-S, body_position: li Hocker in Seitenlage mit Blick nach O, burial_type: Körperbestattung, grave_pit_length_m: 1.67, grave_pit_width_m: 0.75, grave_pit_depth_m: 0.4, age_class: Mitteladult, age_min_years: 25, age_max_years: 35, sex_estimate: Männlich, figure_reference: Abb. 42",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "Grab 7",
+        "feature_number": "Bef. 21",
+        "orientation": "N-S",
+        "body_position": "li Hocker in Seitenlage mit Blick nach O",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 1.67,
+        "grave_pit_width_m": 0.75,
+        "grave_pit_depth_m": 0.4,
+        "age_class": "Mitteladult",
+        "age_min_years": 25,
+        "age_max_years": 35,
+        "sex_estimate": "Männlich",
+        "figure_reference": "Abb. 42"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0064",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 7: source states site \"Kölsa\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0064",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 7 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0102",
+      "value": "Kölsa",
+      "resultPath": [
+        "records",
+        14,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: Grab 6, feature_number: Bef. 91, orientation: N-S, body_position: li Hocker in Seitenlage mit Blick nach O, burial_type: Körperbestattung, grave_pit_length_m: 0.9, grave_pit_width_m: 0.7, grave_pit_depth_m: 0.3, age_class: Infans I, age_min_years: 0.5, age_max_years: 1, sex_estimate: Männlich > weiblich, figure_reference: Abb. 41",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "Grab 6",
+        "feature_number": "Bef. 91",
+        "orientation": "N-S",
+        "body_position": "li Hocker in Seitenlage mit Blick nach O",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 0.9,
+        "grave_pit_width_m": 0.7,
+        "grave_pit_depth_m": 0.3,
+        "age_class": "Infans I",
+        "age_min_years": 0.5,
+        "age_max_years": 1,
+        "sex_estimate": "Männlich > weiblich",
+        "figure_reference": "Abb. 41"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0102",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 6: source states site \"Kölsa\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0102",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 6 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0127",
+      "value": "Kölsa",
+      "resultPath": [
+        "records",
+        10,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: Grab 2, feature_number: Bef. 23, orientation: S-N, body_position: Hocker in Seitenlage, burial_type: Körperbestattung, grave_pit_length_m: 0.7, grave_pit_width_m: 0.48, grave_pit_depth_m: 0.28, age_class: Infans I, age_min_years: 1, age_max_years: 2, sex_estimate: Weiblich > männlich, figure_reference: Abb. 40",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "Grab 2",
+        "feature_number": "Bef. 23",
+        "orientation": "S-N",
+        "body_position": "Hocker in Seitenlage",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 0.7,
+        "grave_pit_width_m": 0.48,
+        "grave_pit_depth_m": 0.28,
+        "age_class": "Infans I",
+        "age_min_years": 1,
+        "age_max_years": 2,
+        "sex_estimate": "Weiblich > männlich",
+        "figure_reference": "Abb. 40"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0127",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 2: source states site \"Kölsa\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0127",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 2 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0128",
+      "value": "Kölsa",
+      "resultPath": [
+        "records",
+        12,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: Grab 4, feature_number: 90, orientation: N-S, body_position: li Hocker in Seitenlage mit Blick nach O, burial_type: Körperbestattung, grave_pit_length_m: 1.28, grave_pit_width_m: 0.64, age_class: Infans II, age_min_years: 6, age_max_years: 8, sex_estimate: Männlich > weiblich, figure_reference: Abb. 40",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "Grab 4",
+        "feature_number": "90",
+        "orientation": "N-S",
+        "body_position": "li Hocker in Seitenlage mit Blick nach O",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 1.28,
+        "grave_pit_width_m": 0.64,
+        "age_class": "Infans II",
+        "age_min_years": 6,
+        "age_max_years": 8,
+        "sex_estimate": "Männlich > weiblich",
+        "figure_reference": "Abb. 40"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0128",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 4: source states site \"Kölsa\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0128",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 4 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0162",
+      "value": "Unverz. Glockenbecher",
+      "resultPath": [
+        "records",
+        1,
+        "grave_goods",
+        0
+      ],
+      "context": "site: Altranstädt II, site_code: Lkr. Leipzig, grave_id: Grab 7, excavation_year: 1993, orientation: NW-SO, body_position: Hocker, burial_type: Erdgrab, grave_pit_length_m: 2.34, grave_pit_width_m: 1.42, age_class: Adult, sex_estimate: männlich, figure_reference: Abb. 37,3.4",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Altranstädt II",
+        "site_code": "Lkr. Leipzig",
+        "grave_id": "Grab 7",
+        "excavation_year": 1993,
+        "orientation": "NW-SO",
+        "body_position": "Hocker",
+        "burial_type": "Erdgrab",
+        "grave_pit_length_m": 2.34,
+        "grave_pit_width_m": 1.42,
+        "age_class": "Adult",
+        "sex_estimate": "männlich",
+        "figure_reference": "Abb. 37,3.4"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0162",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_1ff892bf024c3740bd5ddcca65965f7dfb1caeac5decd4c1ea206cdaeec0da23"
+        ],
+        [
+          "anchor_296b4643a48bc17259b4f412c3c6d1d361d284583308b24f8087606fb3bb7ef4"
+        ]
+      ],
+      "note": "P1 Altranstädt II Grab 7: source states grave_goods \"Unverz. Glockenbecher\" in this record's local context. Alternative source passages independently support the same typed assertion.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0162",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_1ff892bf024c3740bd5ddcca65965f7dfb1caeac5decd4c1ea206cdaeec0da23"
+        ]
+      ],
+      "note": "Altranstädt II Grab 7 (p.1): the local source explicitly supports this grave_goods value.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0184",
+      "value": "Re Vorderfußknochen vom Schaf (Ovis ammon f. aries)",
+      "resultPath": [
+        "records",
+        12,
+        "grave_goods",
+        0
+      ],
+      "context": "site: Kölsa, site_code: KQA-01, grave_id: 4, feature_number: 90, orientation: N-S, body_position: li Hocker in Seitenlage mit Blick nach O, burial_type: Körperbestattung, grave_pit_length_m: 1.28, grave_pit_width_m: 0.64, age_class: Infans II, age_min_years: 6, age_max_years: 8, sex_estimate: Männlich > weiblich, figure_reference: Abb. 40",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "4",
+        "feature_number": "90",
+        "orientation": "N-S",
+        "body_position": "li Hocker in Seitenlage mit Blick nach O",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 1.28,
+        "grave_pit_width_m": 0.64,
+        "age_class": "Infans II",
+        "age_min_years": 6,
+        "age_max_years": 8,
+        "sex_estimate": "Männlich > weiblich",
+        "figure_reference": "Abb. 40"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0184",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_0bc4ff101ca0ba6fdeee4d3365d48ec2650ca3a78f0b73a9f705ea205f0bb77e"
+        ]
+      ],
+      "note": "P4 Kölsa Grab 4: source states grave_goods \"Re Vorderfußknochen vom Schaf (Ovis ammon f. aries)\" in this record's local context.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0184",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_85e9be918a03348a9893a0a60d722d6a3fccfc4c432879f3a3927fc4041082e8"
+        ],
+        [
+          "anchor_0bc4ff101ca0ba6fdeee4d3365d48ec2650ca3a78f0b73a9f705ea205f0bb77e"
+        ]
+      ],
+      "note": "Kölsa Grab 4 (p.4): the local source explicitly supports this grave_goods value.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0186",
+      "value": "Kölsa",
+      "resultPath": [
+        "records",
+        16,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: 8, feature_number: 22, orientation: NNO-SSW, body_position: li Hocker wahrsch. in Seitenlage mit Blick nach O, burial_type: Körperbestattung, grave_pit_length_m: 0.94, grave_pit_width_m: 0.7, grave_pit_depth_m: 0.36, age_class: Infans I, sex_estimate: Weiblich > männlich, figure_reference: Abb. 43",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "8",
+        "feature_number": "22",
+        "orientation": "NNO-SSW",
+        "body_position": "li Hocker wahrsch. in Seitenlage mit Blick nach O",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 0.94,
+        "grave_pit_width_m": 0.7,
+        "grave_pit_depth_m": 0.36,
+        "age_class": "Infans I",
+        "sex_estimate": "Weiblich > männlich",
+        "figure_reference": "Abb. 43"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0186",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 8: source states site \"Kölsa\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0186",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 8 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0212",
+      "value": "Kölsa",
+      "resultPath": [
+        "records",
+        13,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: 5, feature_number: 3, orientation: N-S, body_position: Wahrsch. N-S-ausgerichtete Bestattung, burial_type: Körperbestattung, grave_pit_length_m: 0.8, grave_pit_width_m: 0.5, grave_pit_depth_m: 1.1, age_class: Infans I, age_min_years: 1.5, age_max_years: 2, sex_estimate: Männlich = weiblich, figure_reference: Abb. 41",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "5",
+        "feature_number": "3",
+        "orientation": "N-S",
+        "body_position": "Wahrsch. N-S-ausgerichtete Bestattung",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 0.8,
+        "grave_pit_width_m": 0.5,
+        "grave_pit_depth_m": 1.1,
+        "age_class": "Infans I",
+        "age_min_years": 1.5,
+        "age_max_years": 2,
+        "sex_estimate": "Männlich = weiblich",
+        "figure_reference": "Abb. 41"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0212",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 5: source states site \"Kölsa\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0212",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 5 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0226",
+      "value": "Kölsa, Lkr. Nordsachsen",
+      "resultPath": [
+        "records",
+        18,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: Grab 10, feature_number: Bef. 11, orientation: S-N, body_position: re Seitenlage, burial_type: Körperbestattung, grave_pit_length_m: 1.25, grave_pit_width_m: 0.77, grave_pit_depth_m: 0.28, age_class: Mitteladult bis Mittelmatur, age_min_years: 30, age_max_years: 50, sex_estimate: Weiblich ≥ männlich, figure_reference: Abb. 44",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa, Lkr. Nordsachsen",
+        "site_code": "KQA-01",
+        "grave_id": "Grab 10",
+        "feature_number": "Bef. 11",
+        "orientation": "S-N",
+        "body_position": "re Seitenlage",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 1.25,
+        "grave_pit_width_m": 0.77,
+        "grave_pit_depth_m": 0.28,
+        "age_class": "Mitteladult bis Mittelmatur",
+        "age_min_years": 30,
+        "age_max_years": 50,
+        "sex_estimate": "Weiblich ≥ männlich",
+        "figure_reference": "Abb. 44"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0226",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 10: source states site \"Kölsa, Lkr. Nordsachsen\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0226",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 10 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0249",
+      "value": "Unverz. Glockenbecher",
+      "resultPath": [
+        "records",
+        3,
+        "grave_goods",
+        0
+      ],
+      "context": "site: Altranstädt II, Lkr. Leipzig, grave_id: Grab 9, excavation_year: 1993, orientation: NW-SO, body_position: linker Hocker, burial_type: Erdgrab, grave_pit_length_m: 2.2, grave_pit_width_m: 1.64, age_class: Matur, sex_estimate: männlich, figure_reference: Abb. 37,5.6",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Altranstädt II, Lkr. Leipzig",
+        "grave_id": "Grab 9",
+        "excavation_year": 1993,
+        "orientation": "NW-SO",
+        "body_position": "linker Hocker",
+        "burial_type": "Erdgrab",
+        "grave_pit_length_m": 2.2,
+        "grave_pit_width_m": 1.64,
+        "age_class": "Matur",
+        "sex_estimate": "männlich",
+        "figure_reference": "Abb. 37,5.6"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0249",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_628a59567791a101cab543729e808c7c810673f314213dc620d64dbfcfc8c366"
+        ],
+        [
+          "anchor_296b4643a48bc17259b4f412c3c6d1d361d284583308b24f8087606fb3bb7ef4"
+        ]
+      ],
+      "note": "P1 Altranstädt II Grab 9: source states grave_goods \"Unverz. Glockenbecher\" in this record's local context. Alternative source passages independently support the same typed assertion.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0249",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_628a59567791a101cab543729e808c7c810673f314213dc620d64dbfcfc8c366"
+        ]
+      ],
+      "note": "Altranstädt II, Lkr. Leipzig Grab 9 (p.1): the local source explicitly supports this grave_goods value.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0265",
+      "value": "Kölsa, Lkr. Nordsachsen",
+      "resultPath": [
+        "records",
+        19,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: Grab 11, feature_number: Bef. 9, grave_pit_depth_m: 0.82, age_class: Infans I, age_min_years: 4, age_max_years: 5, sex_estimate: Männlich = weiblich, figure_reference: Abb. 44",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa, Lkr. Nordsachsen",
+        "site_code": "KQA-01",
+        "grave_id": "Grab 11",
+        "feature_number": "Bef. 9",
+        "grave_pit_depth_m": 0.82,
+        "age_class": "Infans I",
+        "age_min_years": 4,
+        "age_max_years": 5,
+        "sex_estimate": "Männlich = weiblich",
+        "figure_reference": "Abb. 44"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0265",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 11: source states site \"Kölsa, Lkr. Nordsachsen\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0265",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 11 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0267",
+      "value": "Kölsa, Lkr. Nordsachsen",
+      "resultPath": [
+        "records",
+        9,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: Grab 1, feature_number: Bef. 10, orientation: OSO-WNW, body_position: re Hocker in Seitenlage mit Blick nach N, burial_type: Körperbestattung, grave_pit_length_m: 0.63, grave_pit_width_m: 0.46, grave_pit_depth_m: 0.1, age_class: Infans I, age_min_years: 4, age_max_years: 5, sex_estimate: Weiblich = männlich, figure_reference: Abb. 40",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa, Lkr. Nordsachsen",
+        "site_code": "KQA-01",
+        "grave_id": "Grab 1",
+        "feature_number": "Bef. 10",
+        "orientation": "OSO-WNW",
+        "body_position": "re Hocker in Seitenlage mit Blick nach N",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 0.63,
+        "grave_pit_width_m": 0.46,
+        "grave_pit_depth_m": 0.1,
+        "age_class": "Infans I",
+        "age_min_years": 4,
+        "age_max_years": 5,
+        "sex_estimate": "Weiblich = männlich",
+        "figure_reference": "Abb. 40"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0267",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 1: source states site \"Kölsa, Lkr. Nordsachsen\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0267",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 1 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0282",
+      "value": "Kölsa",
+      "resultPath": [
+        "records",
+        11,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: Grab 3, feature_number: 24, orientation: N-S, body_position: li Hocker in Seitenlage, burial_type: Körperbestattung, grave_pit_length_m: 0.49, grave_pit_width_m: 0.25, grave_pit_depth_m: 0.2, age_class: Infans I, age_min_years: 0.5, age_max_years: 1, sex_estimate: Männlich = weiblich, figure_reference: Abb. 40",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "Grab 3",
+        "feature_number": "24",
+        "orientation": "N-S",
+        "body_position": "li Hocker in Seitenlage",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 0.49,
+        "grave_pit_width_m": 0.25,
+        "grave_pit_depth_m": 0.2,
+        "age_class": "Infans I",
+        "age_min_years": 0.5,
+        "age_max_years": 1,
+        "sex_estimate": "Männlich = weiblich",
+        "figure_reference": "Abb. 40"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0282",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 3: source states site \"Kölsa\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0282",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 3 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0309",
+      "value": "Unverz. Glocken­ becher",
+      "resultPath": [
+        "records",
+        1,
+        "grave_goods",
+        0
+      ],
+      "context": "site: Altranstädt II, grave_id: Grab 7, excavation_year: 1993, orientation: NW-SO, body_position: linker Hocker, burial_type: Erdgrab, grave_pit_length_m: 2.34, grave_pit_width_m: 1.42, age_class: Adult, sex_estimate: männlich, figure_reference: Abb. 37,3.4",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Altranstädt II",
+        "grave_id": "Grab 7",
+        "excavation_year": 1993,
+        "orientation": "NW-SO",
+        "body_position": "linker Hocker",
+        "burial_type": "Erdgrab",
+        "grave_pit_length_m": 2.34,
+        "grave_pit_width_m": 1.42,
+        "age_class": "Adult",
+        "sex_estimate": "männlich",
+        "figure_reference": "Abb. 37,3.4"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0309",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_1ff892bf024c3740bd5ddcca65965f7dfb1caeac5decd4c1ea206cdaeec0da23"
+        ],
+        [
+          "anchor_296b4643a48bc17259b4f412c3c6d1d361d284583308b24f8087606fb3bb7ef4"
+        ]
+      ],
+      "note": "P1 Altranstädt II Grab 7: source states grave_goods \"Unverz. Glocken­ becher\" in this record's local context. Alternative source passages independently support the same typed assertion.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0309",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_1ff892bf024c3740bd5ddcca65965f7dfb1caeac5decd4c1ea206cdaeec0da23"
+        ]
+      ],
+      "note": "Altranstädt II Grab 7 (p.1): the local source explicitly supports this grave_goods value.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0331",
+      "value": "Kölsa",
+      "resultPath": [
+        "records",
+        10,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: Grab 2, feature_number: 23, orientation: S-N, body_position: re Hocker in Seitenlage, burial_type: Körperbestattung, grave_pit_length_m: 0.7, grave_pit_width_m: 0.48, grave_pit_depth_m: 0.28, age_class: Infans I, age_min_years: 1, age_max_years: 2, sex_estimate: Weiblich > männlich, figure_reference: Abb. 40",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "Grab 2",
+        "feature_number": "23",
+        "orientation": "S-N",
+        "body_position": "re Hocker in Seitenlage",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 0.7,
+        "grave_pit_width_m": 0.48,
+        "grave_pit_depth_m": 0.28,
+        "age_class": "Infans I",
+        "age_min_years": 1,
+        "age_max_years": 2,
+        "sex_estimate": "Weiblich > männlich",
+        "figure_reference": "Abb. 40"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0331",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 2: source states site \"Kölsa\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0331",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 2 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0370",
+      "value": "Kölsa",
+      "resultPath": [
+        "records",
+        17,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: 9, feature_number: 25, orientation: S-N, body_position: re Hocker in Seitenlage mit Blick nach O, burial_type: Körperbestattung, grave_pit_length_m: 2.35, grave_pit_width_m: 1.05, grave_pit_depth_m: 0.84, age_class: Matur bis Senil, age_min_years: 48, age_max_years: 69, sex_estimate: Weiblich, figure_reference: Abb. 43",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "9",
+        "feature_number": "25",
+        "orientation": "S-N",
+        "body_position": "re Hocker in Seitenlage mit Blick nach O",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 2.35,
+        "grave_pit_width_m": 1.05,
+        "grave_pit_depth_m": 0.84,
+        "age_class": "Matur bis Senil",
+        "age_min_years": 48,
+        "age_max_years": 69,
+        "sex_estimate": "Weiblich",
+        "figure_reference": "Abb. 43"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0370",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 9: source states site \"Kölsa\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0370",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 9 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0373",
+      "value": "Re Vorderfußknochen vom Schaf (Ovis ammon f. aries)",
+      "resultPath": [
+        "records",
+        12,
+        "grave_goods",
+        0
+      ],
+      "context": "site: Kölsa, site_code: KQA-01, grave_id: Grab 4, feature_number: 90, orientation: N-S, body_position: li Hocker in Seitenlage mit Blick nach O, burial_type: Körperbestattung, grave_pit_length_m: 1.28, grave_pit_width_m: 0.64, age_class: Infans II, age_min_years: 6, age_max_years: 8, sex_estimate: Männlich > weiblich, figure_reference: Abb. 40",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "Grab 4",
+        "feature_number": "90",
+        "orientation": "N-S",
+        "body_position": "li Hocker in Seitenlage mit Blick nach O",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 1.28,
+        "grave_pit_width_m": 0.64,
+        "age_class": "Infans II",
+        "age_min_years": 6,
+        "age_max_years": 8,
+        "sex_estimate": "Männlich > weiblich",
+        "figure_reference": "Abb. 40"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0373",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_0bc4ff101ca0ba6fdeee4d3365d48ec2650ca3a78f0b73a9f705ea205f0bb77e"
+        ]
+      ],
+      "note": "P4 Kölsa Grab 4: source states grave_goods \"Re Vorderfußknochen vom Schaf (Ovis ammon f. aries)\" in this record's local context.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0373",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_85e9be918a03348a9893a0a60d722d6a3fccfc4c432879f3a3927fc4041082e8"
+        ],
+        [
+          "anchor_0bc4ff101ca0ba6fdeee4d3365d48ec2650ca3a78f0b73a9f705ea205f0bb77e"
+        ]
+      ],
+      "note": "Kölsa Grab 4 (p.4): the local source explicitly supports this grave_goods value.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0411",
+      "value": "Kölsa",
+      "resultPath": [
+        "records",
+        18,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: 10, feature_number: 11, orientation: S-N, body_position: re Seitenlage mit Blick nach O, burial_type: Körperbestattung, grave_pit_length_m: 1.25, grave_pit_width_m: 0.77, grave_pit_depth_m: 0.28, age_class: Mitteladult bis Mittelmatur, age_min_years: 30, age_max_years: 50, sex_estimate: Weiblich ≥ männlich, figure_reference: Abb. 44",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "10",
+        "feature_number": "11",
+        "orientation": "S-N",
+        "body_position": "re Seitenlage mit Blick nach O",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 1.25,
+        "grave_pit_width_m": 0.77,
+        "grave_pit_depth_m": 0.28,
+        "age_class": "Mitteladult bis Mittelmatur",
+        "age_min_years": 30,
+        "age_max_years": 50,
+        "sex_estimate": "Weiblich ≥ männlich",
+        "figure_reference": "Abb. 44"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0411",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 10: source states site \"Kölsa\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0411",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 10 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0426",
+      "value": "Kölsa",
+      "resultPath": [
+        "records",
+        17,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: Grab 9, feature_number: Bef. 25, orientation: S-N, body_position: re Hocker in Seitenlage mit Blick nach O, burial_type: Körperbestattung, grave_pit_length_m: 2.35, grave_pit_width_m: 1.05, grave_pit_depth_m: 0.84, age_class: Matur bis Senil, age_min_years: 48, age_max_years: 69, sex_estimate: Weiblich, figure_reference: Abb. 43",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "Grab 9",
+        "feature_number": "Bef. 25",
+        "orientation": "S-N",
+        "body_position": "re Hocker in Seitenlage mit Blick nach O",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 2.35,
+        "grave_pit_width_m": 1.05,
+        "grave_pit_depth_m": 0.84,
+        "age_class": "Matur bis Senil",
+        "age_min_years": 48,
+        "age_max_years": 69,
+        "sex_estimate": "Weiblich",
+        "figure_reference": "Abb. 43"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0426",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 9: source states site \"Kölsa\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0426",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 9 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0442",
+      "value": "Gräber",
+      "resultPath": [
+        "title"
+      ],
+      "context": "feature_measurement_unit: Meter, catalogue_new_find_sites_count: 7",
+      "goldAnchorIds": null,
+      "note": ""
+    },
+    "labelA": {
+      "claimId": "round-2-c0442",
+      "valueSupported": false,
+      "goldAnchorSets": [],
+      "note": "P1 'Gräber' is the section heading; the supplied source does not identify it as the publication title.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0442",
+      "valueSupported": null,
+      "goldAnchorSets": [],
+      "note": "The excerpt starts with the section heading Gräber (p.1), but no document-level title metadata is supplied. The bare schema does not clarify whether its title field accepts this excerpt heading.",
+      "status": "unresolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0461",
+      "value": "Kölsa",
+      "resultPath": [
+        "records",
+        14,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: Grab 6, feature_number: 91, orientation: N-S, body_position: li Hocker in Seitenlage mit Blick nach O, burial_type: Körperbestattung, grave_pit_length_m: 0.9, grave_pit_width_m: 0.72, grave_pit_depth_m: 0.24, age_class: Infans I, age_min_years: 0.5, age_max_years: 1, sex_estimate: Männlich > weiblich, figure_reference: Abb. 41",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "Grab 6",
+        "feature_number": "91",
+        "orientation": "N-S",
+        "body_position": "li Hocker in Seitenlage mit Blick nach O",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 0.9,
+        "grave_pit_width_m": 0.72,
+        "grave_pit_depth_m": 0.24,
+        "age_class": "Infans I",
+        "age_min_years": 0.5,
+        "age_max_years": 1,
+        "sex_estimate": "Männlich > weiblich",
+        "figure_reference": "Abb. 41"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0461",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 6: source states site \"Kölsa\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0461",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 6 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0478",
+      "value": "Kölsa",
+      "resultPath": [
+        "records",
+        16,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: Grab 8, feature_number: Bef. 22, orientation: NNO-SSW, body_position: li Hocker wahrsch. in Seitenlage mit Blick nach O, burial_type: Körperbestattung, grave_pit_length_m: 0.94, grave_pit_width_m: 0.7, grave_pit_depth_m: 0.36, age_class: Infans I, sex_estimate: Weiblich > männlich, figure_reference: Abb. 43",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "Grab 8",
+        "feature_number": "Bef. 22",
+        "orientation": "NNO-SSW",
+        "body_position": "li Hocker wahrsch. in Seitenlage mit Blick nach O",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 0.94,
+        "grave_pit_width_m": 0.7,
+        "grave_pit_depth_m": 0.36,
+        "age_class": "Infans I",
+        "sex_estimate": "Weiblich > männlich",
+        "figure_reference": "Abb. 43"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0478",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 8: source states site \"Kölsa\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0478",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 8 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0490",
+      "value": "Kölsa",
+      "resultPath": [
+        "records",
+        15,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: Grab 7, feature_number: 21, orientation: N-S, body_position: li Hocker in Seitenlage mit Blick nach O, burial_type: Körperbestattung, grave_pit_length_m: 1.67, grave_pit_width_m: 0.75, grave_pit_depth_m: 0.4, age_class: Mitteladult, age_min_years: 25, age_max_years: 35, sex_estimate: Männlich, figure_reference: Abb. 42",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "Grab 7",
+        "feature_number": "21",
+        "orientation": "N-S",
+        "body_position": "li Hocker in Seitenlage mit Blick nach O",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 1.67,
+        "grave_pit_width_m": 0.75,
+        "grave_pit_depth_m": 0.4,
+        "age_class": "Mitteladult",
+        "age_min_years": 25,
+        "age_max_years": 35,
+        "sex_estimate": "Männlich",
+        "figure_reference": "Abb. 42"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0490",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 7: source states site \"Kölsa\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0490",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 7 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  },
+  {
+    "claim": {
+      "claimId": "round-2-c0518",
+      "value": "Kölsa",
+      "resultPath": [
+        "records",
+        11,
+        "site"
+      ],
+      "context": "site_code: KQA-01, grave_id: Grab 3, feature_number: Bef. 24, orientation: N-S, body_position: Hocker in Seitenlage, burial_type: Körperbestattung, grave_pit_length_m: 0.49, grave_pit_width_m: 0.25, grave_pit_depth_m: 0.2, age_class: Infans I, age_min_years: 0.5, age_max_years: 1, sex_estimate: Männlich = weiblich, figure_reference: Abb. 40",
+      "goldAnchorIds": null,
+      "note": "",
+      "recordContext": {
+        "site": "Kölsa",
+        "site_code": "KQA-01",
+        "grave_id": "Grab 3",
+        "feature_number": "Bef. 24",
+        "orientation": "N-S",
+        "body_position": "Hocker in Seitenlage",
+        "burial_type": "Körperbestattung",
+        "grave_pit_length_m": 0.49,
+        "grave_pit_width_m": 0.25,
+        "grave_pit_depth_m": 0.2,
+        "age_class": "Infans I",
+        "age_min_years": 0.5,
+        "age_max_years": 1,
+        "sex_estimate": "Männlich = weiblich",
+        "figure_reference": "Abb. 40"
+      }
+    },
+    "labelA": {
+      "claimId": "round-2-c0518",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "P3 Kölsa Grab 3: source states site \"Kölsa\" in this record's local context. The named site is assessable separately from record-selection eligibility.",
+      "status": "resolved"
+    },
+    "labelB": {
+      "claimId": "round-2-c0518",
+      "valueSupported": true,
+      "goldAnchorSets": [
+        [
+          "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+        ],
+        [
+          "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+        ]
+      ],
+      "note": "Kölsa Grab 3 (p.3): the local source explicitly supports this site value. Site support is independent of record selection eligibility.",
+      "status": "resolved"
+    }
+  }
+]

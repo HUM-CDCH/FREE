@@ -8,8 +8,9 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { decodeParsedDocument } from 'extraction/parsed-document'
 import { canonicalSource } from 'extraction/source-context'
-import { extractWithModel } from '../../studio/api/_model.js'
-import { providerTable, type GeneralExecutionTarget } from '../../studio/api/_provider.js'
+import type { GeneralExecutionTarget } from '../../studio/api/_provider.js'
+import { templateFromSchema } from './quote-extraction.mts'
+export { templateFromSchema } from './quote-extraction.mts'
 
 const OLLAMA_URL = process.env.FREE_LIVE_OLLAMA_URL ?? 'http://127.0.0.1:11434'
 const OLLAMA_MODEL = process.env.FREE_LIVE_OLLAMA_MODEL ?? 'qwen3.8:latest'
@@ -22,7 +23,8 @@ const WINDOWED = new Set([
   'buchvaldek-1970-vikletice-tables-de', 'durankulak-catalogue-de',
 ])
 
-function target(): GeneralExecutionTarget {
+async function target(): Promise<GeneralExecutionTarget> {
+  const { providerTable } = await import('../../studio/api/_provider.js')
   const ollama = providerTable.ollama
   return {
     profile: 'general',
@@ -92,19 +94,6 @@ export function deriveTemplate(claims: readonly Claim[]): Record<string, unknown
   return Object.fromEntries([...root.children].map(([name, child]) => [name, render(child)]))
 }
 
-/** A hand-written schema.json is example-shaped ("string", 0, 0.0, true,
- * "1900-01-01", ["string"]). JSON.parse folds 0.0 into 0, so the scalar types
- * are rewritten on the text before parsing. */
-export function templateFromSchema(text: string): Record<string, unknown> {
-  return JSON.parse(
-    text
-      .replace(/:\s*0\.0(?=\s*[,}\]])/g, ': "number"')
-      .replace(/:\s*0(?=\s*[,}\]])/g, ': "integer"')
-      .replace(/:\s*(?:true|false)(?=\s*[,}\]])/g, ': "boolean"')
-      .replace(/"\d{4}-\d{2}-\d{2}"/g, '"date"'),
-  )
-}
-
 // --- document text -----------------------------------------------------------
 
 function documentText(dir: string): { markdown: string; source: 'document.md' | 'canonicalSource' } {
@@ -141,15 +130,16 @@ async function main(): Promise<void> {
   const onlyIndex = args.indexOf('--only')
   const only = onlyIndex === -1 ? null : args[onlyIndex + 1]
   const roots = args.filter((a, i) => !a.startsWith('--') && !(onlyIndex !== -1 && i === onlyIndex + 1))
-  const executionTarget = target()
+  let executionTarget: GeneralExecutionTarget | undefined
   for (const root of roots.length ? roots : ['dataset', 'final_dataset', 'final_dataset_2']) {
     for (const name of readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory() && !e.name.startsWith('_')).map((e) => e.name)) {
       if (only && name !== only) continue
       const dir = join(root, name)
-      if (!existsSync(join(dir, 'claims.json'))) continue
-      const claims: Claim[] = JSON.parse(readFileSync(join(dir, 'claims.json'), 'utf8'))
       const schema = join(dir, 'schema.json')
-      const template = existsSync(schema) ? templateFromSchema(readFileSync(schema, 'utf8')) : deriveTemplate(claims)
+      const claimsPath = join(dir, 'claims.json')
+      if (!existsSync(schema) && !existsSync(claimsPath)) continue
+      const template = existsSync(schema) ? templateFromSchema(readFileSync(schema, 'utf8'))
+        : deriveTemplate(JSON.parse(readFileSync(claimsPath, 'utf8')) as Claim[])
       writeFileSync(join(dir, 'template.json'), JSON.stringify(template, null, 2) + '\n')
       if (args.includes('--templates-only')) continue
       if (args.includes('--resume') && existsSync(join(dir, 'extracted_raw.json'))) {
@@ -157,11 +147,13 @@ async function main(): Promise<void> {
         continue
       }
       const full = documentText(dir)
-      const windowed = WINDOWED.has(name) ? windowPages(full.markdown, dir) : null
+      const windowed = WINDOWED.has(name) && existsSync(claimsPath) ? windowPages(full.markdown, dir) : null
       const markdown = windowed?.markdown ?? full.markdown
       const started = Date.now()
       process.stderr.write(`${dir}: ${markdown.length} chars${windowed ? ` (windowed to ${windowed.pages.length} pages)` : ''} ... `)
       try {
+        const { extractWithModel } = await import('../../studio/api/_model.js')
+        executionTarget ??= await target()
         const result = await extractWithModel({ document: { file: null, markdown, pages: null }, template, temperature: 0 }, executionTarget)
         writeFileSync(join(dir, 'extracted_raw.json'), JSON.stringify(result.result, null, 2) + '\n')
         writeFileSync(

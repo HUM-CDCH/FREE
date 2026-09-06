@@ -1,0 +1,4652 @@
+[
+  {
+    "path": [
+      "title"
+    ],
+    "value": "Gräber",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_296b4643a48bc17259b4f412c3c6d1d361d284583308b24f8087606fb3bb7ef4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "feature_measurement_unit"
+    ],
+    "value": "Meter",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_233970203669eb5d9295d36b37ca5f782b235ca8c2f9bac7297537250c3b332d"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "catalogue_new_find_sites",
+      0
+    ],
+    "value": "Kölsa (Lkr. Nordsachsen)",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "catalogue_new_find_sites",
+      1
+    ],
+    "value": "Grebehna (Lkr. Nordsachsen)",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "catalogue_new_find_sites",
+      2
+    ],
+    "value": "Löbnitz-Bennewitz (Lkr. Leipzig)",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "catalogue_new_find_sites",
+      3
+    ],
+    "value": "Markranstädt (Lkr. Leipzig)",
+    "route": "E-fallback",
+    "quoteStatus": "not_found",
+    "proposedAnchorSets": [
+      [
+        "anchor_0df678b13f01ab6f1f1738bcca954302c578992865fa58dc9254a1178d573df1"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "catalogue_new_find_sites",
+      4
+    ],
+    "value": "Zwenkau (Lkr. Leipzig)",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "catalogue_new_find_sites",
+      5
+    ],
+    "value": "Großstorkwitz (Lkr. Leipzig)",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "catalogue_new_find_sites",
+      6
+    ],
+    "value": "Wehlitz (Lkr. Nordsachsen)",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_420bbc56fe121f4d3a5f3af32a0da728432da3b95834f04336b88ff9f2694d44"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "catalogue_new_find_sites_count"
+    ],
+    "value": 7,
+    "route": "E-fallback",
+    "quoteStatus": "not_found",
+    "proposedAnchorSets": [
+      [
+        "anchor_e4cf251af36f981933554a541de136b3400cc6093a0095a05fe3ea15e34a7c57"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      0,
+      "site"
+    ],
+    "value": "Altranstädt I",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_3fb1aa89a771189517afe89f7146b17de709cf08f540296923e49d06019e8182"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      0,
+      "grave_id"
+    ],
+    "value": "Grab 1",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_db596f3ccbbb8153134edfd55e5ee52acc6780e2b47e6b9d93fcaa2ce90c6579"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      0,
+      "excavation_year"
+    ],
+    "value": 1901,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_4ae6a0477f93d722d53286be5c0669d7f4587a1adc9591394ef7a74f99f8bb5f"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      0,
+      "orientation"
+    ],
+    "value": "N-S",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_db596f3ccbbb8153134edfd55e5ee52acc6780e2b47e6b9d93fcaa2ce90c6579"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      0,
+      "body_position"
+    ],
+    "value": "Hocker",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_db596f3ccbbb8153134edfd55e5ee52acc6780e2b47e6b9d93fcaa2ce90c6579"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      0,
+      "grave_pit_depth_m"
+    ],
+    "value": 1.5,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_4ae6a0477f93d722d53286be5c0669d7f4587a1adc9591394ef7a74f99f8bb5f"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      0,
+      "grave_goods",
+      0
+    ],
+    "value": "Unverz. Glockenbecher",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_db596f3ccbbb8153134edfd55e5ee52acc6780e2b47e6b9d93fcaa2ce90c6579"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      0,
+      "grave_goods",
+      1
+    ],
+    "value": "verz. Glockenbecher (nach Billig Tasse)",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_db596f3ccbbb8153134edfd55e5ee52acc6780e2b47e6b9d93fcaa2ce90c6579"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      0,
+      "figure_reference"
+    ],
+    "value": "Abb. 37,1.2",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_db596f3ccbbb8153134edfd55e5ee52acc6780e2b47e6b9d93fcaa2ce90c6579"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      1,
+      "site"
+    ],
+    "value": "Altranstädt II",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_df8ce2bb8b66d8b2f3b3c96faa50e70ac84cd0feecebb6cd7d432c74a149a367"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      1,
+      "grave_id"
+    ],
+    "value": "Grab 7",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_1ff892bf024c3740bd5ddcca65965f7dfb1caeac5decd4c1ea206cdaeec0da23"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      1,
+      "excavation_year"
+    ],
+    "value": 1993,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_296b4643a48bc17259b4f412c3c6d1d361d284583308b24f8087606fb3bb7ef4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      1,
+      "orientation"
+    ],
+    "value": "NW-SO",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_1ff892bf024c3740bd5ddcca65965f7dfb1caeac5decd4c1ea206cdaeec0da23"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      1,
+      "body_position"
+    ],
+    "value": "linker Hocker",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_1ff892bf024c3740bd5ddcca65965f7dfb1caeac5decd4c1ea206cdaeec0da23"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      1,
+      "burial_type"
+    ],
+    "value": "Erdgrab",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_1ff892bf024c3740bd5ddcca65965f7dfb1caeac5decd4c1ea206cdaeec0da23"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      1,
+      "grave_pit_length_m"
+    ],
+    "value": 2.34,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_1ff892bf024c3740bd5ddcca65965f7dfb1caeac5decd4c1ea206cdaeec0da23"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      1,
+      "grave_pit_width_m"
+    ],
+    "value": 1.42,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_1ff892bf024c3740bd5ddcca65965f7dfb1caeac5decd4c1ea206cdaeec0da23"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      1,
+      "age_class"
+    ],
+    "value": "Adult",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_1ff892bf024c3740bd5ddcca65965f7dfb1caeac5decd4c1ea206cdaeec0da23"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      1,
+      "sex_estimate"
+    ],
+    "value": "männlich",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_1ff892bf024c3740bd5ddcca65965f7dfb1caeac5decd4c1ea206cdaeec0da23"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      1,
+      "grave_goods",
+      0
+    ],
+    "value": "Unverz. Glocken­ becher",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_1ff892bf024c3740bd5ddcca65965f7dfb1caeac5decd4c1ea206cdaeec0da23"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      1,
+      "grave_goods",
+      1
+    ],
+    "value": "drei Silexartefakte",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_1ff892bf024c3740bd5ddcca65965f7dfb1caeac5decd4c1ea206cdaeec0da23"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      1,
+      "figure_reference"
+    ],
+    "value": "Abb. 37,3.4",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_1ff892bf024c3740bd5ddcca65965f7dfb1caeac5decd4c1ea206cdaeec0da23"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      2,
+      "site"
+    ],
+    "value": "Altranstädt II",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_df8ce2bb8b66d8b2f3b3c96faa50e70ac84cd0feecebb6cd7d432c74a149a367"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      2,
+      "grave_id"
+    ],
+    "value": "Grab 8",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_055e5af5cb5a055e7f351e75ca94222fb8f3763bb88a7ef2e775d17b38053afc"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      2,
+      "excavation_year"
+    ],
+    "value": 1993,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_296b4643a48bc17259b4f412c3c6d1d361d284583308b24f8087606fb3bb7ef4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      2,
+      "orientation"
+    ],
+    "value": "S-N",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_055e5af5cb5a055e7f351e75ca94222fb8f3763bb88a7ef2e775d17b38053afc"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      2,
+      "body_position"
+    ],
+    "value": "rechter Hocker",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_055e5af5cb5a055e7f351e75ca94222fb8f3763bb88a7ef2e775d17b38053afc"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      2,
+      "burial_type"
+    ],
+    "value": "Erdgrab",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_055e5af5cb5a055e7f351e75ca94222fb8f3763bb88a7ef2e775d17b38053afc"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      2,
+      "grave_pit_length_m"
+    ],
+    "value": 1,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_055e5af5cb5a055e7f351e75ca94222fb8f3763bb88a7ef2e775d17b38053afc"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      2,
+      "grave_pit_width_m"
+    ],
+    "value": 0.8,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_055e5af5cb5a055e7f351e75ca94222fb8f3763bb88a7ef2e775d17b38053afc"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      2,
+      "age_class"
+    ],
+    "value": "Infans I",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_055e5af5cb5a055e7f351e75ca94222fb8f3763bb88a7ef2e775d17b38053afc"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      2,
+      "age_min_years"
+    ],
+    "value": 3,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_055e5af5cb5a055e7f351e75ca94222fb8f3763bb88a7ef2e775d17b38053afc"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      2,
+      "age_max_years"
+    ],
+    "value": 3,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_055e5af5cb5a055e7f351e75ca94222fb8f3763bb88a7ef2e775d17b38053afc"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      3,
+      "site"
+    ],
+    "value": "Altranstädt II",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_df8ce2bb8b66d8b2f3b3c96faa50e70ac84cd0feecebb6cd7d432c74a149a367"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      3,
+      "grave_id"
+    ],
+    "value": "Grab 9",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_628a59567791a101cab543729e808c7c810673f314213dc620d64dbfcfc8c366"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      3,
+      "excavation_year"
+    ],
+    "value": 1993,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_296b4643a48bc17259b4f412c3c6d1d361d284583308b24f8087606fb3bb7ef4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      3,
+      "orientation"
+    ],
+    "value": "NW-SO",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_628a59567791a101cab543729e808c7c810673f314213dc620d64dbfcfc8c366"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      3,
+      "body_position"
+    ],
+    "value": "linker Hocker",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_628a59567791a101cab543729e808c7c810673f314213dc620d64dbfcfc8c366"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      3,
+      "burial_type"
+    ],
+    "value": "Erdgrab",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_628a59567791a101cab543729e808c7c810673f314213dc620d64dbfcfc8c366"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      3,
+      "grave_pit_length_m"
+    ],
+    "value": 2.2,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_628a59567791a101cab543729e808c7c810673f314213dc620d64dbfcfc8c366"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      3,
+      "grave_pit_width_m"
+    ],
+    "value": 1.64,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_628a59567791a101cab543729e808c7c810673f314213dc620d64dbfcfc8c366"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      3,
+      "age_class"
+    ],
+    "value": "Matur",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_628a59567791a101cab543729e808c7c810673f314213dc620d64dbfcfc8c366"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      3,
+      "sex_estimate"
+    ],
+    "value": "männlich",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_628a59567791a101cab543729e808c7c810673f314213dc620d64dbfcfc8c366"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      3,
+      "grave_goods",
+      0
+    ],
+    "value": "Unverz. Glockenbecher",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_628a59567791a101cab543729e808c7c810673f314213dc620d64dbfcfc8c366"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      3,
+      "grave_goods",
+      1
+    ],
+    "value": "Knochenknebel",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_628a59567791a101cab543729e808c7c810673f314213dc620d64dbfcfc8c366"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      3,
+      "figure_reference"
+    ],
+    "value": "Abb. 37,5.6",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_628a59567791a101cab543729e808c7c810673f314213dc620d64dbfcfc8c366"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      4,
+      "site"
+    ],
+    "value": "Bösdorf, Lkr. Leipzig",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_88771bf2239cbf3d3d40b704ef2ffc75a88053eec909970a12aa52d80ff93bf2"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      4,
+      "excavation_year"
+    ],
+    "value": 1980,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a3cfc0e90986d04033065326df69ccf11d613a66877ffba1586fc3e611ecd4e0"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      4,
+      "orientation"
+    ],
+    "value": "N-S",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_a3cfc0e90986d04033065326df69ccf11d613a66877ffba1586fc3e611ecd4e0"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      4,
+      "burial_type"
+    ],
+    "value": "Einzelgrab",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a3cfc0e90986d04033065326df69ccf11d613a66877ffba1586fc3e611ecd4e0"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      4,
+      "grave_pit_length_m"
+    ],
+    "value": 1.55,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a3cfc0e90986d04033065326df69ccf11d613a66877ffba1586fc3e611ecd4e0"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      4,
+      "grave_pit_width_m"
+    ],
+    "value": 0.9,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a3cfc0e90986d04033065326df69ccf11d613a66877ffba1586fc3e611ecd4e0"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      4,
+      "age_class"
+    ],
+    "value": "Infans II",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a3cfc0e90986d04033065326df69ccf11d613a66877ffba1586fc3e611ecd4e0"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      4,
+      "age_min_years"
+    ],
+    "value": 12,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a3cfc0e90986d04033065326df69ccf11d613a66877ffba1586fc3e611ecd4e0"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      4,
+      "age_max_years"
+    ],
+    "value": 14,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a3cfc0e90986d04033065326df69ccf11d613a66877ffba1586fc3e611ecd4e0"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      4,
+      "grave_goods",
+      0
+    ],
+    "value": "Glockenbecher",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a3cfc0e90986d04033065326df69ccf11d613a66877ffba1586fc3e611ecd4e0"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      4,
+      "grave_goods",
+      1
+    ],
+    "value": "fünf  flächenretuschierte Silexpfeilspitzen",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a3cfc0e90986d04033065326df69ccf11d613a66877ffba1586fc3e611ecd4e0"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      4,
+      "grave_goods",
+      2
+    ],
+    "value": "vier Silexklingen",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a3cfc0e90986d04033065326df69ccf11d613a66877ffba1586fc3e611ecd4e0"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      4,
+      "grave_goods",
+      3
+    ],
+    "value": "zwei Silexabschläge",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a3cfc0e90986d04033065326df69ccf11d613a66877ffba1586fc3e611ecd4e0"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      4,
+      "figure_reference"
+    ],
+    "value": "Abb. 37,7.8",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a3cfc0e90986d04033065326df69ccf11d613a66877ffba1586fc3e611ecd4e0"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      5,
+      "site"
+    ],
+    "value": "Großlehna, Lkr. Leipzig",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_982e5df89292490636dde76e8d7a4d4a7258742a85f48f15133b6e1448615eaa"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      5,
+      "grave_id"
+    ],
+    "value": "Grab 1",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f1bb662df66bffa86c89ea1821b0dc85b5f64a643bf1359ad279727d0630b82c"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      5,
+      "excavation_year"
+    ],
+    "value": 1939,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_ac1d00075a4b9750d01a582ff43b7789aa0abe2a9940b8d8a98cf43e1c848da5"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      5,
+      "burial_type"
+    ],
+    "value": "Körpergrab",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f1bb662df66bffa86c89ea1821b0dc85b5f64a643bf1359ad279727d0630b82c"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      5,
+      "grave_goods",
+      0
+    ],
+    "value": "Glockenbecher",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f1bb662df66bffa86c89ea1821b0dc85b5f64a643bf1359ad279727d0630b82c"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      5,
+      "figure_reference"
+    ],
+    "value": "Abb. 37,9",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f1bb662df66bffa86c89ea1821b0dc85b5f64a643bf1359ad279727d0630b82c"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      6,
+      "site"
+    ],
+    "value": "Großlehna, Lkr. Leipzig",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_982e5df89292490636dde76e8d7a4d4a7258742a85f48f15133b6e1448615eaa"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      6,
+      "grave_id"
+    ],
+    "value": "Grab 2",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_19631e5425167704de9cc55030e74204ba0c36da422d33d53aad704492cf0e53"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      6,
+      "excavation_year"
+    ],
+    "value": 1939,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_ac1d00075a4b9750d01a582ff43b7789aa0abe2a9940b8d8a98cf43e1c848da5"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      6,
+      "burial_type"
+    ],
+    "value": "Körpergrab",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_19631e5425167704de9cc55030e74204ba0c36da422d33d53aad704492cf0e53"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      6,
+      "grave_goods",
+      0
+    ],
+    "value": "Verz. Glockenbecher",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_19631e5425167704de9cc55030e74204ba0c36da422d33d53aad704492cf0e53"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      6,
+      "figure_reference"
+    ],
+    "value": "Abb. 38,10",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_19631e5425167704de9cc55030e74204ba0c36da422d33d53aad704492cf0e53"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      7,
+      "site"
+    ],
+    "value": "Groitzsch, Lkr. Leipzig",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_1e192972237a3063c47d2324ac7e06253f9360c5f298b840e8075067f9280bf5"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      7,
+      "grave_id"
+    ],
+    "value": "Grab 1",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a6735b143c815855e3a185fede3e087fb26fcf66794abd209092902bf2642c39"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      7,
+      "excavation_year"
+    ],
+    "value": 1924,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_e69e6fd2a4bafda5f4ef1708efe71e9f28a2d2c0fdb9dd0ab9bbed8ec7f27b13"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      7,
+      "body_position"
+    ],
+    "value": "Linker Hocker",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_a6735b143c815855e3a185fede3e087fb26fcf66794abd209092902bf2642c39"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      7,
+      "grave_goods",
+      0
+    ],
+    "value": "Zwei unverz. Glockenbecher",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a6735b143c815855e3a185fede3e087fb26fcf66794abd209092902bf2642c39"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      7,
+      "grave_goods",
+      1
+    ],
+    "value": "Silex­ abschlag",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a6735b143c815855e3a185fede3e087fb26fcf66794abd209092902bf2642c39"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      7,
+      "figure_reference"
+    ],
+    "value": "Abb. 38,11-13",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a6735b143c815855e3a185fede3e087fb26fcf66794abd209092902bf2642c39"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      8,
+      "site"
+    ],
+    "value": "Groitzsch, Lkr. Leipzig",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_1e192972237a3063c47d2324ac7e06253f9360c5f298b840e8075067f9280bf5"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      8,
+      "grave_id"
+    ],
+    "value": "Grab 2",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_2b7e7d2c8a506dc0a9b6307368f3263c9159617cd1faad98b32be768bf2a5937"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      8,
+      "excavation_year"
+    ],
+    "value": 1924,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_e69e6fd2a4bafda5f4ef1708efe71e9f28a2d2c0fdb9dd0ab9bbed8ec7f27b13"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      8,
+      "body_position"
+    ],
+    "value": "Linker Hocker",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_2b7e7d2c8a506dc0a9b6307368f3263c9159617cd1faad98b32be768bf2a5937"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      8,
+      "grave_goods",
+      0
+    ],
+    "value": "Zwei atypische Scherben?",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_2b7e7d2c8a506dc0a9b6307368f3263c9159617cd1faad98b32be768bf2a5937"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      9,
+      "site"
+    ],
+    "value": "Kölsa, Lkr. Nordsachsen",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      9,
+      "site_code"
+    ],
+    "value": "KQA-01",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f92ce0a8e6b15a8d6d96e54f39ebc6db988d4c35eebdb1d43ac2061439cdaf04"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      9,
+      "grave_id"
+    ],
+    "value": "Grab 1",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_bebd0a354ad5d2f649c18624e849a9a9309d98eb907547a1034b856de78fee32"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      9,
+      "feature_number"
+    ],
+    "value": "Bef. 10",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_bebd0a354ad5d2f649c18624e849a9a9309d98eb907547a1034b856de78fee32"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      9,
+      "orientation"
+    ],
+    "value": "OSO-WNW-ausgerichteter",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_6f7149017529f7d5b0d795f07b09a96b838fee3cd3cda9cf5c927d64aebac287"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      9,
+      "body_position"
+    ],
+    "value": "re Hocker in Seitenlage mit Blick nach N.",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_6f7149017529f7d5b0d795f07b09a96b838fee3cd3cda9cf5c927d64aebac287"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      9,
+      "burial_type"
+    ],
+    "value": "Körperbestattung",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_91c1ec3772d298826f5c0656d29bc9d41eddee5fc46f183d0df884449e6a1011"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      9,
+      "grave_pit_length_m"
+    ],
+    "value": 0.63,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_ea29bb2e6e60141c85a430d6ccab9a62759de0c76c369840b8a041fb655f0d18"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      9,
+      "grave_pit_width_m"
+    ],
+    "value": 0.46,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_ea29bb2e6e60141c85a430d6ccab9a62759de0c76c369840b8a041fb655f0d18"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      9,
+      "grave_pit_depth_m"
+    ],
+    "value": 0.1,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_ea29bb2e6e60141c85a430d6ccab9a62759de0c76c369840b8a041fb655f0d18"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      9,
+      "age_class"
+    ],
+    "value": "Infans I",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_95ebb16bc8ec4ac39b82ae36851e7fd903c231ef2618c3bc130baa2e7142b027"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      9,
+      "age_min_years"
+    ],
+    "value": 4,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_95ebb16bc8ec4ac39b82ae36851e7fd903c231ef2618c3bc130baa2e7142b027"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      9,
+      "age_max_years"
+    ],
+    "value": 5,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_95ebb16bc8ec4ac39b82ae36851e7fd903c231ef2618c3bc130baa2e7142b027"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      9,
+      "sex_estimate"
+    ],
+    "value": "Weiblich = männlich",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_95ebb16bc8ec4ac39b82ae36851e7fd903c231ef2618c3bc130baa2e7142b027"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      9,
+      "figure_reference"
+    ],
+    "value": "Abb. 40",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_bebd0a354ad5d2f649c18624e849a9a9309d98eb907547a1034b856de78fee32"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      10,
+      "grave_id"
+    ],
+    "value": "Grab 2",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_3f84c29fa29342b95e932578a6a71c52a35887931e3d7fb94a39e3cef46f1c31"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      10,
+      "feature_number"
+    ],
+    "value": "Bef. 23",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_3f84c29fa29342b95e932578a6a71c52a35887931e3d7fb94a39e3cef46f1c31"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      10,
+      "orientation"
+    ],
+    "value": "N-S-ausgerichtet",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_85e9be918a03348a9893a0a60d722d6a3fccfc4c432879f3a3927fc4041082e8"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      10,
+      "body_position"
+    ],
+    "value": "re Hocker in Seitenlage mit Blick nach O",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_bfabd4f7553304615ad3a85a6a155df2196c977d826f7be4c655098a9c0cdd93"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      10,
+      "burial_type"
+    ],
+    "value": "Körperbestattung",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_60521b191a7e96cc1c2175e010e4f61d5310ea32b20dc4bddbc808be3f8736ed"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      10,
+      "grave_pit_length_m"
+    ],
+    "value": 0.7,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_60521b191a7e96cc1c2175e010e4f61d5310ea32b20dc4bddbc808be3f8736ed"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      10,
+      "grave_pit_width_m"
+    ],
+    "value": 0.48,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_60521b191a7e96cc1c2175e010e4f61d5310ea32b20dc4bddbc808be3f8736ed"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      10,
+      "grave_pit_depth_m"
+    ],
+    "value": 0.28,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_60521b191a7e96cc1c2175e010e4f61d5310ea32b20dc4bddbc808be3f8736ed"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      10,
+      "age_class"
+    ],
+    "value": "Infans I",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_71c6294ac061476943a926c2d040fdf7cff2fc749e23151c12138c44e48f175f"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      10,
+      "age_min_years"
+    ],
+    "value": 1,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_71c6294ac061476943a926c2d040fdf7cff2fc749e23151c12138c44e48f175f"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      10,
+      "age_max_years"
+    ],
+    "value": 2,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_71c6294ac061476943a926c2d040fdf7cff2fc749e23151c12138c44e48f175f"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      10,
+      "sex_estimate"
+    ],
+    "value": "Weiblich > männlich",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_c63c50b4a5499e7a27eb8d6ce470d2b3fae7ce3de1a963b96d525c5ae3200b3f"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      10,
+      "grave_goods",
+      0
+    ],
+    "value": "Unverz. Tasse mit Bandhenkel",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_d2b91887d7100ec8d0abd99f8c646ecbe820cb5629adc3ffa3348799a7552f71"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      10,
+      "figure_reference"
+    ],
+    "value": "Abb. 40",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_3f84c29fa29342b95e932578a6a71c52a35887931e3d7fb94a39e3cef46f1c31"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      11,
+      "grave_id"
+    ],
+    "value": "Grab 3",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a49f7bfb7746044a7da3bd976b0f7f9454b51bb9dd82040e159c07467b514a8e"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      11,
+      "feature_number"
+    ],
+    "value": "Bef. 24",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a49f7bfb7746044a7da3bd976b0f7f9454b51bb9dd82040e159c07467b514a8e"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      11,
+      "orientation"
+    ],
+    "value": "N-S-ausgerichtet",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_52f594c76bf30b6ff42fd7d116d2dd361ceb8fb3a33e211157f3d7edf0dec02c"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      11,
+      "body_position"
+    ],
+    "value": "li Hocker in Seitenlage mit Blick wahrsch. nach O",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_fdbac21d803e45ff5b216757ecf9b49bbb2ec26dda4ac0acc1e86b310fdf24de"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      11,
+      "burial_type"
+    ],
+    "value": "Körperbestattung",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_d65cd8b07ac586adfeb9913368200da83b24a77cb35db04d2ed76f8219dddaef"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      11,
+      "grave_pit_length_m"
+    ],
+    "value": 0.49,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_52f594c76bf30b6ff42fd7d116d2dd361ceb8fb3a33e211157f3d7edf0dec02c"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      11,
+      "grave_pit_width_m"
+    ],
+    "value": 0.25,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_52f594c76bf30b6ff42fd7d116d2dd361ceb8fb3a33e211157f3d7edf0dec02c"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      11,
+      "grave_pit_depth_m"
+    ],
+    "value": 0.2,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_52f594c76bf30b6ff42fd7d116d2dd361ceb8fb3a33e211157f3d7edf0dec02c"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      11,
+      "age_class"
+    ],
+    "value": "Infans I",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_aecc97f6ae930baf5c98e5725bb319f93430f98e85e99543d10de9e3c12965d8"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      11,
+      "age_min_years"
+    ],
+    "value": 0.5,
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_1132d0db3b6c04744f61298d69f3a525c8e10be45edf0875ce80fd327f552056"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      11,
+      "age_max_years"
+    ],
+    "value": 1,
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_7c6af0d164b174b37b59cf4cc9e9cc39dfee8faf3f67e131a6753ebd8cc914bf"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      11,
+      "sex_estimate"
+    ],
+    "value": "Männlich = weiblich",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_63ddabadb43dbeefcd2813a605760bdb1ed80fb355ce77170c66d372ead51397"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      11,
+      "figure_reference"
+    ],
+    "value": "Abb. 40",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a49f7bfb7746044a7da3bd976b0f7f9454b51bb9dd82040e159c07467b514a8e"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      12,
+      "grave_id"
+    ],
+    "value": "Grab 4",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_39b57f353576f6cf76da002177ded9430e27187e1a81ab2f862818ee46c78713"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      12,
+      "feature_number"
+    ],
+    "value": "Bef. 90",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_39b57f353576f6cf76da002177ded9430e27187e1a81ab2f862818ee46c78713"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      12,
+      "orientation"
+    ],
+    "value": "N-S",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_df78eb9c7981be206b65eec2a6a681db2c8badf13689b06eaf3aba92ba988f08"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      12,
+      "body_position"
+    ],
+    "value": "li Hocker in Seitenlage mit Blick nach O",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_86a63c50d5711af041b9f70cb86c151a9c72de69a0f0172b49a96747bf9239a2"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      12,
+      "burial_type"
+    ],
+    "value": "Körperbestattung",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_85e9be918a03348a9893a0a60d722d6a3fccfc4c432879f3a3927fc4041082e8"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      12,
+      "grave_pit_length_m"
+    ],
+    "value": 1.28,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_85e9be918a03348a9893a0a60d722d6a3fccfc4c432879f3a3927fc4041082e8"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      12,
+      "grave_pit_width_m"
+    ],
+    "value": 0.64,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_85e9be918a03348a9893a0a60d722d6a3fccfc4c432879f3a3927fc4041082e8"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      12,
+      "age_class"
+    ],
+    "value": "Infans II",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_07cb2d70eb81602b110984ec89709faabb47fef7662e2a6f29ef0de543e74ee6"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      12,
+      "age_min_years"
+    ],
+    "value": 6,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_07cb2d70eb81602b110984ec89709faabb47fef7662e2a6f29ef0de543e74ee6"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      12,
+      "age_max_years"
+    ],
+    "value": 8,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_07cb2d70eb81602b110984ec89709faabb47fef7662e2a6f29ef0de543e74ee6"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      12,
+      "sex_estimate"
+    ],
+    "value": "Männlich > weiblich",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_07cb2d70eb81602b110984ec89709faabb47fef7662e2a6f29ef0de543e74ee6"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      12,
+      "grave_goods",
+      0
+    ],
+    "value": "Re Vorderfußknochen vom Schaf (Ovis ammon f. aries)",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_0bc4ff101ca0ba6fdeee4d3365d48ec2650ca3a78f0b73a9f705ea205f0bb77e"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      12,
+      "figure_reference"
+    ],
+    "value": "Abb. 40",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_39b57f353576f6cf76da002177ded9430e27187e1a81ab2f862818ee46c78713"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      13,
+      "grave_id"
+    ],
+    "value": "Grab 5",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f45e427f04e8a949aa69555bd097fe676a98c3d61570e3485df9eae29bec51f3"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      13,
+      "feature_number"
+    ],
+    "value": "Bef. 3",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f45e427f04e8a949aa69555bd097fe676a98c3d61570e3485df9eae29bec51f3"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      13,
+      "orientation"
+    ],
+    "value": "N-S",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_2ba54a811f62e246562af650d16c104c85358ac6d246117dd0178428d4d7e4e8"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      13,
+      "burial_type"
+    ],
+    "value": "Körperbestattung",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f6c0856e1a3a0b65e304fa0b2037a93dd2fa30d885d033acd1b347ac4168868a"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      13,
+      "grave_pit_length_m"
+    ],
+    "value": 0.8,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f6c0856e1a3a0b65e304fa0b2037a93dd2fa30d885d033acd1b347ac4168868a"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      13,
+      "grave_pit_width_m"
+    ],
+    "value": 0.5,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f6c0856e1a3a0b65e304fa0b2037a93dd2fa30d885d033acd1b347ac4168868a"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      13,
+      "grave_pit_depth_m"
+    ],
+    "value": 1.1,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f6c0856e1a3a0b65e304fa0b2037a93dd2fa30d885d033acd1b347ac4168868a"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      13,
+      "age_class"
+    ],
+    "value": "Infans I",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_7c6af0d164b174b37b59cf4cc9e9cc39dfee8faf3f67e131a6753ebd8cc914bf"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      13,
+      "age_min_years"
+    ],
+    "value": 1.5,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_7c6af0d164b174b37b59cf4cc9e9cc39dfee8faf3f67e131a6753ebd8cc914bf"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      13,
+      "age_max_years"
+    ],
+    "value": 2,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_7c6af0d164b174b37b59cf4cc9e9cc39dfee8faf3f67e131a6753ebd8cc914bf"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      13,
+      "sex_estimate"
+    ],
+    "value": "Männlich = weiblich",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_7c6af0d164b174b37b59cf4cc9e9cc39dfee8faf3f67e131a6753ebd8cc914bf"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      13,
+      "grave_goods",
+      0
+    ],
+    "value": "Durchbohrter Tierzahn (Prämolar), möglicherweise vom Bären (Ursus)",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_925f8ae853be370b57ac6a1aa6e69ce8ff28bd28479a62639ef9c2f44803524d"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      13,
+      "grave_goods",
+      1
+    ],
+    "value": "Kreisrunde, zentral durchbohrte Scheibe aus organischem Hartmaterial",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_925f8ae853be370b57ac6a1aa6e69ce8ff28bd28479a62639ef9c2f44803524d"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      13,
+      "figure_reference"
+    ],
+    "value": "Abb. 41",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f45e427f04e8a949aa69555bd097fe676a98c3d61570e3485df9eae29bec51f3"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      14,
+      "grave_id"
+    ],
+    "value": "Grab 6",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_399a032fc4e75280648da656ba1ef1d55fd090a592312e7213fe234709ff292b"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      14,
+      "feature_number"
+    ],
+    "value": "Bef. 91",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_399a032fc4e75280648da656ba1ef1d55fd090a592312e7213fe234709ff292b"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      14,
+      "orientation"
+    ],
+    "value": "NNW-SSO",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_63921c89772750e7cd2ba8568612e3c10ec9afcfa93f67955778ed316af98889"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      14,
+      "body_position"
+    ],
+    "value": "li Hocker in Seitenlage mit Blick nach O",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_86a63c50d5711af041b9f70cb86c151a9c72de69a0f0172b49a96747bf9239a2"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      14,
+      "burial_type"
+    ],
+    "value": "Körperbestattung",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_63921c89772750e7cd2ba8568612e3c10ec9afcfa93f67955778ed316af98889"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      14,
+      "grave_pit_length_m"
+    ],
+    "value": 0.9,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_63921c89772750e7cd2ba8568612e3c10ec9afcfa93f67955778ed316af98889"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      14,
+      "grave_pit_width_m"
+    ],
+    "value": 0.72,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_63921c89772750e7cd2ba8568612e3c10ec9afcfa93f67955778ed316af98889"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      14,
+      "grave_pit_depth_m"
+    ],
+    "value": 0.24,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_63921c89772750e7cd2ba8568612e3c10ec9afcfa93f67955778ed316af98889"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      14,
+      "age_class"
+    ],
+    "value": "Infans I",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_c63c50b4a5499e7a27eb8d6ce470d2b3fae7ce3de1a963b96d525c5ae3200b3f"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      14,
+      "age_min_years"
+    ],
+    "value": 0.5,
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_1132d0db3b6c04744f61298d69f3a525c8e10be45edf0875ce80fd327f552056"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      14,
+      "age_max_years"
+    ],
+    "value": 1,
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_7c6af0d164b174b37b59cf4cc9e9cc39dfee8faf3f67e131a6753ebd8cc914bf"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      14,
+      "sex_estimate"
+    ],
+    "value": "Männlich > weiblich",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_c310359c0db602ffe026ba9fc62758beca7a95b9e2c73440470e2d9daf6698e8"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      14,
+      "grave_goods",
+      0
+    ],
+    "value": "Tasse",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_c55ae05eaba9ec0ec37cccc429e1fafd9ccb85a0b783fbeb566e3c61f1e4f4e2"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      14,
+      "grave_goods",
+      1
+    ],
+    "value": "Schafsschädel",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_63921c89772750e7cd2ba8568612e3c10ec9afcfa93f67955778ed316af98889"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      14,
+      "figure_reference"
+    ],
+    "value": "Abb. 41",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_399a032fc4e75280648da656ba1ef1d55fd090a592312e7213fe234709ff292b"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_id"
+    ],
+    "value": "Grab 7",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_b3ec4d5663a18716670ace1580e3ef765b90318ce9b3a0156dd27e8b744a6be3"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "feature_number"
+    ],
+    "value": "Bef. 21",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_b3ec4d5663a18716670ace1580e3ef765b90318ce9b3a0156dd27e8b744a6be3"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "orientation"
+    ],
+    "value": "NNW-SSO",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "body_position"
+    ],
+    "value": "li Hocker in Seitenlage mit Blick nach O",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_86a63c50d5711af041b9f70cb86c151a9c72de69a0f0172b49a96747bf9239a2"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "burial_type"
+    ],
+    "value": "Körperbestattung",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_pit_length_m"
+    ],
+    "value": 1.67,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_pit_width_m"
+    ],
+    "value": 0.75,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_pit_depth_m"
+    ],
+    "value": 0.4,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "age_class"
+    ],
+    "value": "Mitteladult",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_56dbe4b3675ac98e212845bfc7878db913bd5f7400cebe6db2b9c014cc743c66"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "age_min_years"
+    ],
+    "value": 25,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_56dbe4b3675ac98e212845bfc7878db913bd5f7400cebe6db2b9c014cc743c66"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "age_max_years"
+    ],
+    "value": 35,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_56dbe4b3675ac98e212845bfc7878db913bd5f7400cebe6db2b9c014cc743c66"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "sex_estimate"
+    ],
+    "value": "Männlich",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_56dbe4b3675ac98e212845bfc7878db913bd5f7400cebe6db2b9c014cc743c66"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      0
+    ],
+    "value": "Glockenbecher",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      1
+    ],
+    "value": "Silexpfeilspitze",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      2
+    ],
+    "value": "Silexpfeilspitze",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      3
+    ],
+    "value": "Silexpfeilspitze",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      4
+    ],
+    "value": "Knochennadel",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      5
+    ],
+    "value": "Eberhauer",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      6
+    ],
+    "value": "Eberhauer",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      7
+    ],
+    "value": "Silexabschläge",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      8
+    ],
+    "value": "Silexklinge",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      9
+    ],
+    "value": "Silexklinge",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      10
+    ],
+    "value": "Silexpfeilspitzenhalbfabrikat",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      11
+    ],
+    "value": "Silextrümmerstücke",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      12
+    ],
+    "value": "Schleif- oder Polierstein",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      13
+    ],
+    "value": "Geweihspatel",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      14
+    ],
+    "value": "Silexpfeilspitze",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      15
+    ],
+    "value": "Silexpfeilspitze",
+    "route": "E-fallback",
+    "quoteStatus": "not_found",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      16
+    ],
+    "value": "Schwanzwirbel vom Schwein",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      17
+    ],
+    "value": "Unterarmknochen vom Schwein",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      18
+    ],
+    "value": "Silextrümmerstücke",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      19
+    ],
+    "value": "Schwanzwirbel vom Schwein",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      20
+    ],
+    "value": "Silexdolch",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      21
+    ],
+    "value": "Eberhauer",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_f709bd30e4ad4ac5af0df4b96d4ff75985e2651c28ab83bade686010292c44e4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "grave_goods",
+      22
+    ],
+    "value": "Silexobjekt",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_fd5d38d81f8fb80af9efe2d4cd2fa737a1b8bb7c6d63f6e9e56d452c9dd56848"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      15,
+      "figure_reference"
+    ],
+    "value": "Abb. 42",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_b3ec4d5663a18716670ace1580e3ef765b90318ce9b3a0156dd27e8b744a6be3"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      16,
+      "grave_id"
+    ],
+    "value": "Grab 8",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_766399b2072a39c0b37a18f3f59b07aaf80df54e5dcd215158ff2aaf345d939a"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      16,
+      "feature_number"
+    ],
+    "value": "Bef. 22",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_766399b2072a39c0b37a18f3f59b07aaf80df54e5dcd215158ff2aaf345d939a"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      16,
+      "orientation"
+    ],
+    "value": "NNO-SSW",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_3f37091eca43ea1b89b775e7af07dd4ab08dd58a89b4285f84a783cd483dc429"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      16,
+      "body_position"
+    ],
+    "value": "li Hocker wahrsch. in Seitenlage mit Blick nach O.",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_3f37091eca43ea1b89b775e7af07dd4ab08dd58a89b4285f84a783cd483dc429"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      16,
+      "burial_type"
+    ],
+    "value": "Körperbestattung",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_4adee666ed411f11098ada96b375ccf872c3035818d185680e9a78686e56d8e3"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      16,
+      "grave_pit_length_m"
+    ],
+    "value": 0.94,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_6380c15f55f65fc488e3140b8444dc5c4fe1ca60f487b7e077deb9e74763afff"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      16,
+      "grave_pit_width_m"
+    ],
+    "value": 0.7,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_6380c15f55f65fc488e3140b8444dc5c4fe1ca60f487b7e077deb9e74763afff"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      16,
+      "grave_pit_depth_m"
+    ],
+    "value": 0.36,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_6380c15f55f65fc488e3140b8444dc5c4fe1ca60f487b7e077deb9e74763afff"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      16,
+      "age_class"
+    ],
+    "value": "Infans I",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_c63c50b4a5499e7a27eb8d6ce470d2b3fae7ce3de1a963b96d525c5ae3200b3f"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      16,
+      "sex_estimate"
+    ],
+    "value": "Weiblich > männlich",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_c63c50b4a5499e7a27eb8d6ce470d2b3fae7ce3de1a963b96d525c5ae3200b3f"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      16,
+      "grave_goods",
+      0
+    ],
+    "value": "Unverz. Glockenbecher",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_22aaab0b8769d0ad53eb359659ff1571c22a6d8b162a223b243c0c40292834ba"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      16,
+      "grave_goods",
+      1
+    ],
+    "value": "WS",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_9d061f14a76778793d43cc0e44ca0039f2ea07a18190c2e3d14d1cf059e968a4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      16,
+      "grave_goods",
+      2
+    ],
+    "value": "Silexklinge",
+    "route": "E-fallback",
+    "quoteStatus": "not_found",
+    "proposedAnchorSets": [
+      [
+        "anchor_b6fb1fcc6e2e16556cb1c68015daf418877573a0c60ba7f003e3b33b11da9b64"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      16,
+      "grave_goods",
+      3
+    ],
+    "value": "7 Silexabschläge",
+    "route": "E-fallback",
+    "quoteStatus": "not_found",
+    "proposedAnchorSets": [
+      [
+        "anchor_9d061f14a76778793d43cc0e44ca0039f2ea07a18190c2e3d14d1cf059e968a4"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      16,
+      "grave_goods",
+      4
+    ],
+    "value": "23 Silextrümmerstücke",
+    "route": "E-fallback",
+    "quoteStatus": "not_found",
+    "proposedAnchorSets": [
+      [
+        "anchor_6380c15f55f65fc488e3140b8444dc5c4fe1ca60f487b7e077deb9e74763afff"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      16,
+      "figure_reference"
+    ],
+    "value": "Abb. 43",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_766399b2072a39c0b37a18f3f59b07aaf80df54e5dcd215158ff2aaf345d939a"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "grave_id"
+    ],
+    "value": "Grab 9",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_9f4d5827fcfc673793ee08e8fc623f81b1e3bf2294620b1666f21303a1916746"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "feature_number"
+    ],
+    "value": "Bef. 25",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_9f4d5827fcfc673793ee08e8fc623f81b1e3bf2294620b1666f21303a1916746"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "orientation"
+    ],
+    "value": "S-N",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_bfabd4f7553304615ad3a85a6a155df2196c977d826f7be4c655098a9c0cdd93"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "body_position"
+    ],
+    "value": "re Hocker in Seitenlage mit Blick nach O.",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_bfabd4f7553304615ad3a85a6a155df2196c977d826f7be4c655098a9c0cdd93"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "burial_type"
+    ],
+    "value": "Körperbestattung",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_1d805779753a00427c76024db05ecd994a0d0d178b038a4fe35daafe2daaf4ff"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "grave_pit_length_m"
+    ],
+    "value": 2.35,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_1d805779753a00427c76024db05ecd994a0d0d178b038a4fe35daafe2daaf4ff"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "grave_pit_width_m"
+    ],
+    "value": 1.05,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_1d805779753a00427c76024db05ecd994a0d0d178b038a4fe35daafe2daaf4ff"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "grave_pit_depth_m"
+    ],
+    "value": 0.84,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_1d805779753a00427c76024db05ecd994a0d0d178b038a4fe35daafe2daaf4ff"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "age_class"
+    ],
+    "value": "Matur bis Senil",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_05465db219c1b78af017a7c7536045c5298df7581879cc1a32f914fd5f34ce8e"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "age_min_years"
+    ],
+    "value": 48,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_05465db219c1b78af017a7c7536045c5298df7581879cc1a32f914fd5f34ce8e"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "age_max_years"
+    ],
+    "value": 69,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_05465db219c1b78af017a7c7536045c5298df7581879cc1a32f914fd5f34ce8e"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "sex_estimate"
+    ],
+    "value": "Weiblich",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_05465db219c1b78af017a7c7536045c5298df7581879cc1a32f914fd5f34ce8e"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "grave_goods",
+      0
+    ],
+    "value": "Verz. Glockenbecher",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a608caf0f30c0ec0d60cbd4ed5a37d49dd9dbffbbf28a49bf1f99e791b70fa85"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "grave_goods",
+      1
+    ],
+    "value": "Unverz. Tasse mit zwei kreisrunden Zapflöchern",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a608caf0f30c0ec0d60cbd4ed5a37d49dd9dbffbbf28a49bf1f99e791b70fa85"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "grave_goods",
+      2
+    ],
+    "value": "Silexkratzer",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a608caf0f30c0ec0d60cbd4ed5a37d49dd9dbffbbf28a49bf1f99e791b70fa85"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "grave_goods",
+      3
+    ],
+    "value": "Re Unterarmknochen vom Hausschwein (Sus scrofa f. domestica)",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_a608caf0f30c0ec0d60cbd4ed5a37d49dd9dbffbbf28a49bf1f99e791b70fa85"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "grave_goods",
+      4
+    ],
+    "value": "Silexabschlag",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_b56a12a622654fc54bd71035770c894db3823bde8b79795da7c17d59fb3240bd"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "grave_goods",
+      5
+    ],
+    "value": "Belemnit (fossiler Tintenfisch)",
+    "route": "E-fallback",
+    "quoteStatus": "not_found",
+    "proposedAnchorSets": [
+      [
+        "anchor_b56a12a622654fc54bd71035770c894db3823bde8b79795da7c17d59fb3240bd"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      17,
+      "figure_reference"
+    ],
+    "value": "Abb. 43",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_9f4d5827fcfc673793ee08e8fc623f81b1e3bf2294620b1666f21303a1916746"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      18,
+      "grave_id"
+    ],
+    "value": "Grab 10",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_520a1473af6aa342de78346ca26c9072223ea734d4b85f509c0ea91cf54a4e1b"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      18,
+      "feature_number"
+    ],
+    "value": "Bef. 11",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_520a1473af6aa342de78346ca26c9072223ea734d4b85f509c0ea91cf54a4e1b"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      18,
+      "orientation"
+    ],
+    "value": "S-N-ausgerichtete Bestattung in re Seitenlage mit Blick nach O",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_271d2223af7f7f80a2ddb0e4c2d77f518c7c052a22da19f8bd108d1803e04467"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      18,
+      "body_position"
+    ],
+    "value": "re Seitenlage",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_271d2223af7f7f80a2ddb0e4c2d77f518c7c052a22da19f8bd108d1803e04467"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      18,
+      "burial_type"
+    ],
+    "value": "Körperbestattung",
+    "route": "E-fallback",
+    "quoteStatus": "ambiguous",
+    "proposedAnchorSets": [
+      [
+        "anchor_33763181eb364cc3cbcc62ac57b93c3d767a6b9ee4e5d465380286ca781473ea"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      18,
+      "grave_pit_length_m"
+    ],
+    "value": 1.25,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_33763181eb364cc3cbcc62ac57b93c3d767a6b9ee4e5d465380286ca781473ea"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      18,
+      "grave_pit_width_m"
+    ],
+    "value": 0.77,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_33763181eb364cc3cbcc62ac57b93c3d767a6b9ee4e5d465380286ca781473ea"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      18,
+      "grave_pit_depth_m"
+    ],
+    "value": 0.28,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_33763181eb364cc3cbcc62ac57b93c3d767a6b9ee4e5d465380286ca781473ea"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      18,
+      "age_class"
+    ],
+    "value": "Mitteladult bis Mittelmatur",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_d03fa9b4cf24be261760f7ff141338d92d896151cd4a4b92da3db07c6cb36036"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      18,
+      "age_min_years"
+    ],
+    "value": 30,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_d03fa9b4cf24be261760f7ff141338d92d896151cd4a4b92da3db07c6cb36036"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      18,
+      "age_max_years"
+    ],
+    "value": 50,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_d03fa9b4cf24be261760f7ff141338d92d896151cd4a4b92da3db07c6cb36036"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      18,
+      "sex_estimate"
+    ],
+    "value": "Weiblich ≥ männlich",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_d03fa9b4cf24be261760f7ff141338d92d896151cd4a4b92da3db07c6cb36036"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      18,
+      "grave_goods",
+      0
+    ],
+    "value": "Unverz. Glockenbecher(?)",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_d03fa9b4cf24be261760f7ff141338d92d896151cd4a4b92da3db07c6cb36036"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      18,
+      "figure_reference"
+    ],
+    "value": "Abb. 44",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_520a1473af6aa342de78346ca26c9072223ea734d4b85f509c0ea91cf54a4e1b"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      19,
+      "grave_id"
+    ],
+    "value": "Grab 11",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_6228000bc4c41d73347e24994f8e0d5ad1ad40ad3f887d5341de0059e87cb924"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      19,
+      "feature_number"
+    ],
+    "value": "Bef. 9",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_6228000bc4c41d73347e24994f8e0d5ad1ad40ad3f887d5341de0059e87cb924"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      19,
+      "grave_pit_depth_m"
+    ],
+    "value": 0.82,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_31fa1f43cce724e911d38c1f26e08e551fad076a1721eb3455780d2b9f7e6fc7"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      19,
+      "age_class"
+    ],
+    "value": "Infans I",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_aecc97f6ae930baf5c98e5725bb319f93430f98e85e99543d10de9e3c12965d8"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      19,
+      "age_min_years"
+    ],
+    "value": 4,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_aecc97f6ae930baf5c98e5725bb319f93430f98e85e99543d10de9e3c12965d8"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      19,
+      "age_max_years"
+    ],
+    "value": 5,
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_aecc97f6ae930baf5c98e5725bb319f93430f98e85e99543d10de9e3c12965d8"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      19,
+      "sex_estimate"
+    ],
+    "value": "Männlich = weiblich",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_aecc97f6ae930baf5c98e5725bb319f93430f98e85e99543d10de9e3c12965d8"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  },
+  {
+    "path": [
+      "records",
+      19,
+      "figure_reference"
+    ],
+    "value": "Abb. 44",
+    "route": "quote",
+    "quoteStatus": "mapped",
+    "proposedAnchorSets": [
+      [
+        "anchor_6228000bc4c41d73347e24994f8e0d5ad1ad40ad3f887d5341de0059e87cb924"
+      ]
+    ],
+    "reviewRequired": true,
+    "autoAccept": false
+  }
+]

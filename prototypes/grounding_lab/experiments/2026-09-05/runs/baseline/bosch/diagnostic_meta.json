@@ -1,0 +1,18 @@
+{
+  "diagnosticOnly": true,
+  "usableForLabeling": true,
+  "originalAttemptComplete": false,
+  "originalError": "Error: Result exceeds 20 burial records",
+  "recoveredAt": "2026-09-05T11:36:39.220Z",
+  "recordCount": 21,
+  "recordLimit": 20,
+  "recoveryReason": "All valid typed values from an over-record-limit failed attempt are retained for labeling; no records were sliced or accepted.",
+  "sourceSha256": "9e41c75b6c80ca19cb8d6af710b8584b53dd32e72176c908cd4e948da9c27e43",
+  "parsedSha256": "ba2b569aee644ff4cc0afdbee83c22753ece8b286a10d39f8c5f246a5bc3ae28",
+  "schemaSha256": "ea580a6c7230fb33f27d363aa8de40ed85be1e2ed41543ccb9cbd35872817e2c",
+  "requestSha256": "ecc0ab3932bde4abf35fda7d9ef54f61c13fb8354935d8ff0623863652b0f9b2",
+  "originalMetadataSha256": "1c98c203be4d92d2e6ecca95151a2192d901df456d98e16d8404d86f178e3910",
+  "transportSha256": "7901078b901737516f555da737316a48b12e6d30f7fb1e46a2e199286aa45478",
+  "diagnosticRawSha256": "4df341ab00535073961e995af2479e3d102dbf7ed909a3af5bf43777f385ca7e",
+  "diagnosticQuoteMappingsSha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+}

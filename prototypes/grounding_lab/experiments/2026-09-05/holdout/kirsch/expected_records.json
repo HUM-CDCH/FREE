@@ -1,0 +1,252 @@
+{
+  "artifact_role": "source-only eligibility manifest; not claim labels or model output",
+  "reading_order": "Original PDF page and column order. Conservative exclusion of catalogue 312; see SOURCE_AUDIT.md for boundary sensitivity.",
+  "expected_record_count": 20,
+  "records": [
+    {
+      "order": 1,
+      "catalogue_id": "311",
+      "site": "Parstein",
+      "feature": "Steinkistengrab",
+      "findspot_id": "2",
+      "associated_item_id": null,
+      "pdf_page": 1,
+      "printed_pages": [
+        82,
+        83
+      ]
+    },
+    {
+      "order": 2,
+      "catalogue_id": "315",
+      "site": "Stolzenhagen",
+      "feature": "Megalithgrab; historical descriptions may refer to same monument",
+      "findspot_id": "4",
+      "associated_item_id": null,
+      "pdf_page": 1,
+      "printed_pages": [
+        83
+      ]
+    },
+    {
+      "order": 3,
+      "catalogue_id": "316",
+      "site": "Stolzenhagen",
+      "feature": "Grabhügel mit Steinkistengrab",
+      "findspot_id": "5",
+      "associated_item_id": null,
+      "pdf_page": 1,
+      "printed_pages": [
+        83,
+        84
+      ]
+    },
+    {
+      "order": 4,
+      "catalogue_id": "325",
+      "site": "Bad Freienwalde",
+      "feature": "Megalithgrab",
+      "findspot_id": null,
+      "associated_item_id": null,
+      "pdf_page": 2,
+      "printed_pages": [
+        85
+      ]
+    },
+    {
+      "order": 5,
+      "catalogue_id": "331",
+      "site": "Hohensaaten",
+      "feature": "Grab",
+      "findspot_id": null,
+      "associated_item_id": null,
+      "pdf_page": 3,
+      "printed_pages": [
+        86
+      ]
+    },
+    {
+      "order": 6,
+      "catalogue_id": "356",
+      "site": "Neuendorf (im Sande)",
+      "feature": "Grab",
+      "findspot_id": null,
+      "associated_item_id": null,
+      "pdf_page": 5,
+      "printed_pages": [
+        90
+      ]
+    },
+    {
+      "order": 7,
+      "catalogue_id": "363",
+      "site": "Tempelberg",
+      "feature": "Steinkistengrab",
+      "findspot_id": "1",
+      "associated_item_id": null,
+      "pdf_page": 6,
+      "printed_pages": [
+        92,
+        93
+      ]
+    },
+    {
+      "order": 8,
+      "catalogue_id": "364.4",
+      "site": "Trebus",
+      "feature": "C. Flachgrab ('Keller'), Grube A",
+      "findspot_id": "1",
+      "associated_item_id": null,
+      "pdf_page": 7,
+      "printed_pages": [
+        95,
+        96
+      ]
+    },
+    {
+      "order": 9,
+      "catalogue_id": "369.1",
+      "site": "Schwedt",
+      "feature": "Grab 1",
+      "findspot_id": "5",
+      "associated_item_id": null,
+      "pdf_page": 8,
+      "printed_pages": [
+        97
+      ]
+    },
+    {
+      "order": 10,
+      "catalogue_id": "369.2",
+      "site": "Schwedt",
+      "feature": "Grab 2",
+      "findspot_id": "5",
+      "associated_item_id": null,
+      "pdf_page": 8,
+      "printed_pages": [
+        97
+      ]
+    },
+    {
+      "order": 11,
+      "catalogue_id": "369.3",
+      "site": "Schwedt",
+      "feature": "Grab 3",
+      "findspot_id": "5",
+      "associated_item_id": null,
+      "pdf_page": 8,
+      "printed_pages": [
+        97,
+        98
+      ]
+    },
+    {
+      "order": 12,
+      "catalogue_id": "369.4",
+      "site": "Schwedt",
+      "feature": "Grab 4",
+      "findspot_id": "5",
+      "associated_item_id": null,
+      "pdf_page": 9,
+      "printed_pages": [
+        98
+      ]
+    },
+    {
+      "order": 13,
+      "catalogue_id": "369.5",
+      "site": "Schwedt",
+      "feature": "Grab 5",
+      "findspot_id": "5",
+      "associated_item_id": null,
+      "pdf_page": 9,
+      "printed_pages": [
+        98
+      ]
+    },
+    {
+      "order": 14,
+      "catalogue_id": "369.6",
+      "site": "Schwedt",
+      "feature": "Grab 6",
+      "findspot_id": "5",
+      "associated_item_id": null,
+      "pdf_page": 9,
+      "printed_pages": [
+        98
+      ]
+    },
+    {
+      "order": 15,
+      "catalogue_id": "369.7",
+      "site": "Schwedt",
+      "feature": "Grab 7",
+      "findspot_id": "5",
+      "associated_item_id": null,
+      "pdf_page": 9,
+      "printed_pages": [
+        98
+      ]
+    },
+    {
+      "order": 16,
+      "catalogue_id": "370",
+      "site": "Schwedt",
+      "feature": "Grave associated with vessel item 1",
+      "findspot_id": null,
+      "associated_item_id": "1",
+      "pdf_page": 9,
+      "printed_pages": [
+        99
+      ]
+    },
+    {
+      "order": 17,
+      "catalogue_id": "370",
+      "site": "Schwedt",
+      "feature": "Grave associated with vessel item 2",
+      "findspot_id": null,
+      "associated_item_id": "2",
+      "pdf_page": 9,
+      "printed_pages": [
+        99
+      ]
+    },
+    {
+      "order": 18,
+      "catalogue_id": "370",
+      "site": "Schwedt",
+      "feature": "Grave associated with vessel item 3",
+      "findspot_id": null,
+      "associated_item_id": "3",
+      "pdf_page": 9,
+      "printed_pages": [
+        99
+      ]
+    },
+    {
+      "order": 19,
+      "catalogue_id": "371",
+      "site": "Falkenhagen",
+      "feature": "Grab ('Steingrab')",
+      "findspot_id": null,
+      "associated_item_id": null,
+      "pdf_page": 9,
+      "printed_pages": [
+        99
+      ]
+    },
+    {
+      "order": 20,
+      "catalogue_id": "383",
+      "site": "Buckow",
+      "feature": "Grab; flat-grave subtype uncertain",
+      "findspot_id": "12",
+      "associated_item_id": null,
+      "pdf_page": 11,
+      "printed_pages": [
+        102
+      ]
+    }
+  ]
+}

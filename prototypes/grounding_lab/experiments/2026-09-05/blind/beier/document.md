@@ -1,0 +1,4638 @@
+<!-- FREE:PAGE 1 -->
+lich mehr Gefäße enthalten haben, als uns jetzt bekannt sind. Dies trifft vor allem für ältere (z. B. Sittichenbach und Niedereichstädt) oder für gestörte Befunde zu (z. B. Magdeburg und Ermsleben). Unberücksichtigt blieben die Gräber, für die Hinweise über Beigabengefäße vorliegen (z. B. Eilsleben und Hornburg), deren Zahl jedoch nicht mehr erschlossen werden kann.
+
+37 Lediglich W. Pape (1978, S. 82) hat diese Abfolge angezweifelt.
+
+- 38 U. Fischer (1953 b, S. 168) faßte die Gräber der Kalbsriethgruppe erstmals zusammen. Er sieht in dieser Gruppe einen Vorläufer der späteren Schnurkeramik. Da die Gräber ebenso starke Bindungen zur Baalberger Kultur aufweisen, worauf auch U. Fischer (1956, S. 111) aufmerksam machte, und kulturspezifische Keramik nicht auftritt, halte ich die angenommene Zuweisung zur Schnurkeramik für nicht erwiesen. Eine Datierung dieser Gräber in den Baalberger Horizont oder in das ältere Mittelneolithikum allgemein scheint wahrscheinlicher zu sein.
+
+39 Die von J. Preuß (1976 b, S. 197 ff.) dargelegten Gedanken bieten die Möglichkeit zu einer Relativierung der Kulturenabfolge im Neolithikum desMittelelbe-Saale-Gebietes. Durch die Annahme des Nachlebens einzelner Kulturen in Randgebieten" ergeben sich neue Möglichkeiten zum Verständnis der Genese neuer Kulturen. Das bisher festgestellte relative Altersverhältnis der neolithischen Kulturen untereinander wird bei einer derartigen Betrachtungsweise nicht berührt.
+
+40 Ob in diesem Zusammenhang eine keramisch-technologische Untersuchung der Baalberger und der Kugelamphorengefäße zu einer Aufhellung des Verhältnisses der Fundobjekte zueinander beitragen könnte, bleibt fraglich.
+
+- 41 Freundliche Mitteilung von E. Kirsch, Berlin. Aus redaktionellen Gründen konnte dieser Fundplatz im Gesamtverzeichnis nicht mehr aufgenommen werden.
+- 42 Freundliche Mitteilung von Direktor Dr. D. Kaufmann, Landesmus. Halle.
+- 43 Beobachtungen über die Herstellung und den Austausch von Keramik bei eingeborenen Stämmen Zentralafrikas (David/David-Hennig 1971, S. 289 ff.) bilden gute Vergleichsmöglichkeiten.
+- 44 Entgegen G. Wetzel stellt J. Preuß (1980, S. 94 f.) die Fischbecker Gruppe nicht an den Beginn, sondern an das Ende der Schönfelder Entwicklung. Da ich es für möglich halte, daß die Kugelamphorenkultur das Erbe der Tiefstichkeramik weitergeführt hat (vgl. Kap. 6.4.3.), gebe ich der Auffassung von G. Wetzel den Vorzug.
+- 45 W. Pape (1978, S. 117) hat versucht, einige Argumente für den Kontakt zwischen der Kugelamphorenkultur und der Glockenbécherkultur zusammenzutragen. Da aber jedes seiner
+
+Beispiele auch eine andere Deutung zuläßt bzw. allgemeine Ähnlichkeiten angeführt werden, wird auf weitere Erörterung verzichtet. U. Fischer (1953 b, S. 176) gibt sogar nicht einmal eine Begründung für die vermutete Zeitgleichheit.
+
+46 Da sich inzwischen auch die Untergliederung der Kugel. amphorenkultur in der VR Polen als nicht haltbar erwiesen hat (Nortmann 1985, S. 30 ff.), gibt es zur Zeit innerhalb der Gesamterscheinung der Kugelamphorenkultur keine Gruppe, die eindeutig in mehrere Stufen unterteilt werden kann.
+
+47 Die bei W. Pape (1979, S. 43) angeführte Datierung von Gnewitz, Kr. Rostock, entfällt, da die Probe aus einem Abschnitt der Kammer entnommen wurde, der frei von Funden der Kugelamphorenkultur gewesen ist (Schuldt 1972 b, S. 95). In den Großsteingräbern von Katelbogen und vom Poggendorfer Forst (Schuldt 1972 b, S. 96) lagen unstratifiziert Reste der Trichterbecherkultur und der Kugelamphorenkultur. Die ermittelten 14C-Daten gewinnen somit nur bei Annahme einer relativen Zeitgleichheit der materiellen Hinterlassenschaften beider Kulturen für diese Betrachtung an Bedeutung.
+
+48 Die 14C-Untersuchung von Zarebowo wurde an einer aus einer Siedlungsgrube stammenden Probe vorgenommen, die im wesentlichen Material der Trichterbecherkultur enthielt (Bakker/Vogel/Wiślański 1969, S. 9 f.). Abgesehen von einer uncharakteristischen, eventuell zur Kugelamphorenkultur gehörigen Scherbe (Fig. 3,5) fanden sich typische Scherben der Kugelamphorenkultur erst im upermost part of the pit (later filling?)" (Fig. 3,7,8) der Grube. Während also die trichterbecherzeitliche Stellung der Grube nicht angezweifelt werden kann, erscheint eine Zuweisung dieses 14C-Datums zur Kugelamphorenkultur (Pape 1979, S. 44) wohl fraglich.
+
+- 49 Der Argumentation von K. Ebbesen (1975, S. 257 ff.) stimme ich nicht zu.
+
+50 Diese Auffassung wurde von V. G. Childe (1950, S. 133) später korrigiert. Er schreibt: More graves with globular amphorae have been found in Central Germany than elsewhere; thence they spread south to the upper Elbe north as far as Rügen and eastward well into the Ukraine along the Bug", während er noch 1947 (S. 191) diese Frage offen ließ.
+
+51 Mit derartigen Theorien über eine monozentrische Entstehung der Kugelamphorenkultur ist noch ein anderes Problem verbunden, was meist von den Verfechtern dieser Hypothesen auch nicht gelöst werden kann: die schnelle, weite Ausbreitung einer Kultur setzt eine starke und rasche Bevölkerungszunahme in ihrem Ausgangsgebiet oder einen uns unbekannten Mechanismus voraus, der ein rasches Ubertragen des materiellen Sachgutes von den Bewohnern eines Gebietes auf die Siedler in anderen Gegenden ermöglichte. Wie ist dies zu erklären, während gleichzeitig die Entwicklung in vergleichbaren Gebieten zu stagnieren scheint? Nach erfolgter Expansion" müßte der archäologische Fundniederschlag auf Grund der wahrscheinlichen Bevölkerungsabwanderung aus dem Kerngebiet dort geringer werden. Dies läßt sich jedoch für keine einzige Gruppe der Kugelamphorenkultur belegen!
+
+Im Katalog verwendete Abkürzungen:
+
+Lit.
+
+—Literatur
+
+Mbl.
+
+Meßtischblatt
+
+angeordn. — angeordnet
+
+Mdg.
+
+Mündung
+
+Anm.
+
+— Anmerkung
+
+Mitt.
+
+Mitteilung
+
+Bdm.
+
+— Bodendurchmesser
+
+Mus.
+
+Museum
+
+BdS
+
+— Bodenscherbe
+
+N
+
+Norden
+
+Br.
+
+—Breite
+
+nebenst.
+
+nebenständig
+
+BS
+
+— Bauchscherbe
+
+nördl.
+
+nördlich
+
+charakt.
+
+— charakteristisch
+
+0
+
+Osten
+
+dickn.
+
+— dicknackig
+
+OA
+
+Ortsakte
+
+Dm.
+
+— Durchmesser
+
+östl.
+
+östlich
+
+dopp.
+
+— doppelt
+
+RS
+
+Randscherbe
+
+dünnbl.
+
+— dünnblattig
+
+S
+
+Süden
+
+durchb.
+
+— durchbohrt
+
+Siedl.
+
+Siedlung
+
+Durchb.
+
+— Durchbohrung
+
+Sch
+
+Schale
+
+EF
+
+1 Einzelfund
+
+Schönf.
+
+Schönfelder
+
+erg.
+
+— ergänzt
+
+Schnbr.
+
+Schneidenbreite
+
+erh.
+
+— erhalten
+
+senkr.
+
+senkrecht
+
+err. — errechnet
+
+-sit.
+
+-situation
+
+EvG Einzelfund, vermutlich Grab
+
+Slg.
+
+- Sammlung
+
+EvS — Einzelfund, vermutlich Siedlung
+
+St., -st.
+
+— Stich
+
+FA
+
+— Fundart
+
+steh.
+
+— stehend
+
+Fdpl.
+
+— Fundplatz
+
+südl.
+
+— südlich
+
+folg. — folgend
+
+SS 1
+
+Schulterscherbe
+
+Fr., -fr. — Fransen, -fransen
+
+T
+
+— Tasse
+
+G, g.
+
+— Grab, Gräber
+
+Taf.
+
+— Tafel
+
+gr.
+
+gors
+
+TM“
+
+— Tasse Typ Meseberg
+
+gr. Dm.
+
+— größter Durchmesser
+
+TmhU
+
+— Topf mit hochliegendem Umbruch
+
+H.
+
+— Höhe
+
+u.
+
+unbekannt
+
+Handh.
+
+— Handhabe
+
+umlauf.
+
+— umlaufend
+
+häng.
+
+— hängend
+
+verz. verziert
+
+HaS
+
+— Halsscherbe
+
+vG
+
+vermutlich Grab
+
+HBI
+
+— Höhen-Breiten-Index
+
+vS
+
+— vermutlich Siedlung
+
+He., he.
+
+— Henkel, -henkel
+
+W
+
+— Westen
+
+HeS
+
+— Henkelscherbe
+
+waag.
+
+waagerecht
+
+HK
+
+— Hauptkatalog
+
+WB 一
+
+Warzenbecher
+
+Inv.-Nr.
+
+— Inventarnummer
+
+Wdg.
+
+Wandung
+
+KA
+
+— Kugelamphore
+
+westl. — westlich
+
+kl.
+
+— klein
+
+WS 一
+
+Wandungsscherbe
+
+L.
+
+— Länge
+
+wT
+
+weitmundiger Topf
+
+längl.
+
+— länglich
+
+zahlr. — zahlreich
+
+LBR
+
+— Leichenbrand
+
+## Vorbemerkung
+
+Im Katalog werden die mir bekannt gewordenen Funde der KAK aus dem Mittelelbe-Saale-Gebiet, der Altmark und auf dem heutigen Territorium der BRD (mit Ausnahme der Funde in Schleswig-Holstein) beschrieben. Grundlage bilden Der Aufbau des Kataloges erfolgt nach Bezirken und KreiSn n I    o l dlir Kreise werden. die Fundplätze in alphabetischer Reihenfolge aufgeführt. Die Funde der Bezirke Magdeburg und Halle werden ausführlich vorgelegt, während die Funde der ande-5 ren Gebiete nur summarisch behandelt werden können.
+
+die Materialaufnahme und Archivstudien in zahlreichen Museen sowie eine Durchsicht der entsprechenden Literatur.
+
+<!-- FREE:PAGE 2 -->
+FA: EvG. Etwas erg. Trichterrandschüssel mit kl. Osenhe. und 3 schmalen gekerbten Griffleisten; zwischen Handh. Einst.reihen; graubraun-schwarz gefleckt; H. 8,2; Wdg. 0,4; HBI 0,53 (Taf. 7,5).
+
+5. Schollene. Fdpl. 1. Burgwall. Mbl. 1758 (3339), N 7,7; W 15,2. Geländesit.: Trockener Horst in Havelniederung.
+
+Mus. Havelberg o. Nr. Schmidt/Schneider 1974, S. 328,
+
+Abb. 3.
+
+Kreis Salzwedel
+
+6. Bierstedt. Fdpl. 1. Mbl. 1679 (3232), S 16,0; W 5,3. Geländesit.: eben.
+
+FA: EF (vermutlich Nachbestattung in Großsteingrab). Lesefunde aus Kammer: 1. SS mit Schnurfr. und Fingernagelkerbe; braun; Wdg. 0,5 (Taf. 1,25). 2. 14 uncharakt. Feuersteinabschläge.
+
+- LM Halle HK 70:105 a, b.
+7. Cheine. Fdpl. 2. Molochsberg. Mbl. 1609 (3132), N 13,0; W 18,5. Geländesit.: kl. Anhöhe.
+- FA: EF. Lesefund einer RS mit Bogenst.reihen; rot; Wdg. 0,4 (Taf. 1,26).
+
+Mus. Salzwedel Inv.-Nr. V 6260.
+
+8. Heidberg, OT Leetze (Forst Wötz): Fdpl. 6. Wötz. Mbl. 1679 (3232), N 15,4; W 9,0. Geländesit.: eben.
+
+LM Halle HK 39:171. Fischer 1939, S. 6 ff.; Grimm 1940 a, S. 402; Fischer 1956, S. 160, 269, 295; Wetzel 1966, S. 44;
+
+- FA: G (Nachbestattung in Großsteingrab). Megalithgrab KS 112. Aus ca. 0,30 m mächtiger, über dem Bodenpflaster liegender Granitgrusschicht: 1. wenige Scherben der Tiefstichkeramik und zahlr. unverz. Scherben. 2. drei HaS, eine HeS und eine SS einer KA mit ausgespartem Winkelband aus Winkelst.dreiecken und eingeritzten Fr.gruppen auf Schulter; graubräunlich; Wdg. 0,4/0,5 (Taf. 1,15,17,18). 3. eine HaS und zwei SS einer KA; am Hals gestempelte Rauten und auf Schulter unter Bogenst.reihe eingeritzte·Fr.gruppen mit Winkelst.abschluß; grau-rötlich; Wdg. 0,3/0,4 (Taf. 1,20,21). 4. HaS einer unverz. atypischen KA; grau; Wdg. 0,4 (Taf. 1,19). Folgende Objekte wohlebenfalls zur KAKigehörig: 5. 4 Feuersteinklingen; L. 5,0—8,1 (Taf. 1,6–9). 6. ein Querschneider (Taf. 1,10): 7. 3 dreieckige Feuersteinpfeilspitzen (Taf. 1,11—13). 8. röhrenförmige Bernsteinperle (Taf. 1,16). Im Eingangsbereich und im Gang nur Reste·der Tiefstichkeramik. Aus Hügelschüttung südl. der Kammer: 9. Scherben der Tiefstichkeramik. 10. RS mit Winkelst.; rötlich-braun; Wdg. 0,3 (Taf. 1,14). 11. HaS einer KA (gehört zu 2.).
+
+Preuß 1980, S. 63, 83, 96, 101 f.
+
+Kreis Osterburg
+
+9. Bertkow, OT Plätz. Fdpl. 1. Bullenfleck. Mbl. 1684 (3237), S 17,9; W 12,7. Geländesit.: eben.
+2. Mus. Osterburg Inv.-Nr. III/52/16—18, III/55/102. Fischer 1956, S. 295; Wetzel 1966, S. 44.
+3. FA: G. Zerstörtes Flachgrab. In ca. 1,00 m Tiefe folgende Beigaben: 1. 3 BS und 2 HaS einer KA mit häng. Dreiecken aus Bogen-Winkelst.; rötlich-grau-schwarz gefleckt; Wdg. 0,3/0,4 (Taf. 2,7). 2. dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; L. 10,1, Schnbr. 3,6 (Taf. 2,6). 3. dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; dunkelbraun; L. 12,8; Schnbr. 4,0 (Taf. 2,5).
+
+Bei der Beschreibung der Fundkomplexe wird wie folgt verfahren: Am Beginn stehen allgemeine Angaben über den Fundplatz, dann schließen sich eine Charakteristik des Fundzusammenhanges und das Vorstellen der einzelnen Fundobjekte an; endlich werden noch der Verbleib der Funde und die wichtigsten Erwähnungen in der Literatur in Kurzform angefügt, soweit es sich bereits um publizierte Komplexe handelt. Das menschliche Skelettmaterial wurde, soweit es noch verfügbar war, von Dr. med. K. Bruchhaus, Jena, und die tierischen Knochen und -geräte wurden von Dipl.-Biol. H.-J. Döhle, Halle, bestimmt. Die entsprechenden Angaben sind mit (Br.) und (Dö.) gekennzeichnet. Am Ende des Kataloges befinden sich ein Kapitel über Funde, deren genauer Fundort nicht mehr bekannt ist, sowie ein Abschnitt über Funde, die in der Literatur bisher teilweise mit der KAK verbunden worden sind, deren Uberprüfung aber ergeben hat, daß sie dieser Kultur aus verschiedenen Gründen nicht zugeordnet werden können. Schließlich folgt noch ein Nachtrag zum Katalog, in dem Funde aufgeführt sind, die mir erst nach Abschluß dieser Arbeit bekannt geworden sind.
+
+werden nahezu vollständig abgebildet. Sämtliche Maßangaben erfolgen in cm.
+
+Die Funde aus den Bezirken Halle, Magdeburg und Erfurt
+
+I. Funde des Arbeitsgebietes
+
+Bezirk Magdeburg
+
+## Kreis Havelberg
+
+1. Havelberg. Fdpl. 2. Großer Burgwall. Mbl. 1615 (3138), S 8,4; O 5,5. Geländesit.: Trockener Horst in Havelniederung. FA: EvS. Mit unverz. neolithischer und Schönf. Keramik: 1. WS einer T,,M" (?) ; auf Umbug ausgespartes Winkelband; gelblich-braun; Wdg. 0,4 (Taf. 7,4). 2. unverz. abdruckgerauhte WS.
+
+Mus. Havelberg Inv.-Nr. IV 300. Wetzel 1979, S. 144.
+
+2. Havelberg. Evtl. Fdpl. 2. Bereich des Großen Burgwalles. Mbl. 1615 (3138). Geländesit.: s. o.
+
+Mus. Havelberg Inv.-Nr. 24. Bohm 1937, S. 23, 122 f., Taf. 15,16; Priebe 1938, S. 97.
+
+- FA: EF. WS einer Sch oder Schüssel mit Knubbe und senkr. Einst.reihen; rötlich-braun; Wdg. 0,5 (Taf. 7,3).
+3. Havelberg. Fdpl. 52. Bei Großem Burgwall. Mbl. .1615 (3138), S 8,5; 0 3,5. Geländesit.: Niederung.
+
+Mus. Havelberg Inv.-Nr. IV 280. Schneider 1964, S. 16; Behrens 1973, S. 121; Müller 1976, S. 219; Wetzel 1979, S. 144.
+
+- FA: G. Brandgrab. Im Sand 0,40 m tief mit LBR gefüllter wT. Funde: 1. etwas erg. wT mit Band aus punktartigen Einst. auf Schulter; graubraun mit gelben Flecken; H. 22,4; Wdg. 0,5/0,7; HBI 1,08 (Taf. 7,1). 2. 132 g LBR eines erwachsenen Individuums, zwischen 20—50 Jahre (Br.).
+4. Havelberg. Fdpl. westlich der Havel. Mbl. 1615 (3138), S ca. 12,0; W ca. 19,0. Geländesit.: Niederung.
+
+Verschollen (ehemals Mus. Havelberg). Bohm 1937, S. 23, 122 f., Taf. 15,17; Priebe 1938, S. 97.
+
+FA: EF. RS mit Rauten aus Bogenst. (Taf. 7,2).
+
+1902 a, S. 27 (Anm. 1) ; Aberg 1918, S. 173; Kossinna 1922,
+
+S. 250; Priebe 1938, S. 69.
+
+10. Bertkow, OT Plätz. Fdpl. 4. Krumme Land. Mbl. 1684 (3237), S. 14,6;W 13,0. Geländesit.: eben.
+
+FA: G. 1 oder 2 zerstörte Flachgräber. In 0,60 m Tiefe 2 KA und in 3—4 m Entfernung eine 3. KA. Unklar, welche 2 KA zusammen. Funde: 1. Reste einer unverz. KA mit gekehltem He. und abgeplattetem Boden; grau; erh. H. 11,8; gr. Dm. 12,8; Wdg. 0,5/0,6; HBI 0,92 ? (Taf. 2,9). 2. Reste einer KA mit Hals-Schulter-Kehle; am Hals ausgesparte Winkelbänder aus Winkelst.dreiecken und auf Schulter unter Winkelst.reihen eingeritzte Fr.gruppen mit Winkelst.abschluß; grau-schwarz; H. 17,0; Wdg. 0,4/0,5; HBI 1,00 (Taf. 2,10). 3. KA mit ovalem Bauch; am Hals und auf Schulter Schnurfr.; graubraun mit gelben und schwarzen Flecken; H. 15,8; Wdg. 0,4/0,5; HBI1,24 (Taf. 2,8).
+
+Mus. Osterburg Inv.-Nr. 901—903. Wetzel 1966, S. 44. Anm.: Vom gleichen Fdpl. stammen neolithische Feuersteingeräte, tiefstichkeramische Scherben und gelochte RS (Taf. 2,11).
+
+Mus. Osterburg Inv.-Nr. 1542 a.
+
+11. Dequede, OT Polkern. Fdpl. 1 a. Mittlere Düne. Mbl. 1613 (3136), S 10,5; W 19,7. Geländesit.: flache Anhöhe.
+
+FA: EvG. Auf Schönf. Brandgräberfeld auch Scherben. der KAK oder zumindest von dieser beeinflußte Keramik. 1. HaS einer KA mit eingeritzten schachbrettartig angeordn. Rauten; rötlich; Wdg. 0,4 (Taf. 1,23). 2. unverz. SS einer KA mit He.; rötlich; Wdg. 0,6 (Taf. 1,22). 3. SS einer KA oder eines wT mit Abdruckrauhung und eingeritztem häng. Dreieck; rotbraun; Wdg. 0,5 (Taf. 1,22).
+
+LM Halle HK 71:438 a, b; 71:468 a. Wetzel 1974, S. 175 ff. ; 1976, S. 28 ff.; 1979, S. 167.
+
+Anm.: Weitere von G. Wetzel (1974, S. 224) angeführte Scherben sind m. E. nicht eindeutig mit der KAK zu verbinden. Fdpl. steht in Zusammenhang mit der Fischbecker Gruppe" der Schönf. Kultur.
+
+12. Ellingen (ehemals Groß-Ellingen). Fdpl. 2/10. Trifennenkuhle. Mbl. 1684 (3237), S 0,3–0,4; 0 5,4—5,8. Geländesit.: eben.
+
+FA: EF. Intensiver Fundniederschlag der Schönf. und der Einzelgrabkultur. Einige Reste der KAK. Verhältnis der Kulturen zueinander unklar. 1. Bauch einer KA mit Furchenst.fr.gruppen' unter Winkel-Bogenst.reihen; gelb mit dunklen Flecken; erh. H. 16,1; gr. Dm. 19,1; Wdg. 0,6/0,7 (Taf. 1,5). 2. Hals einer unverz. KA (Taf. 1,3). 3. wT mit häng. Dreiecken aus Winkel-Bogenst.; H. 24,0; HBI 0,93 (Taf. 1,1). 4. Oberteil eines WB mit häng. Dreiecken aus Furchst.linien; gr. Dm. 20,0 (Taf. 1,4). 5. RS und HaS von KA oder wT mit ausgesparten Winkelbändern aus Bogenst.dreiecken (Taf. 1,2). 6. RS mit häng. Bogenst.dreiecken unter dem Rand. 7. SS von Sch oder wT mit 2 Reihen häng. Bogenst.dreiecke.
+
+1. Mus. Stendal o. Nr.; Rest Kriegsverlust. Kupka 1925, S. 7 f., Abb. 6; 1927, S. 136 f., Abb. 20, 21; 1928, S. 245 f., Abb. 7, 8; 1952, S. 48 f., Abb. 1; Wetzel 1966, S. 44; 1979, S. 138.
+13. Hindenburg. Fdpl. 3. Sandgrube auf der alten Mühlenbreite. Mbl. 1684 (3237), N 20,9; 0 20,5. Geländesit.: eben. FA: EvG. Altfund. KA mit abgeplattetem Boden und gekehltem He.; am Hals häng. Bogenst.dreiecke und auf Schulter unter Bogenst.reihen eingeritzte Fr.gruppen mit Bogenst.abschluß; grau gefleckt; H. 29,8; Wdg. 0,5/0,6, HBI 1,19 (Taf. 2,1).
+
+Mus. Stendal Inv.-Nr. 3050. Götze 1900 a, S. 160; Höfer
+
+14. Hindenburg. Fdpl. 7. Am Schwarzholzer Wege (Turnplatz). Mbl. 1684 (3237), N 19,2; O 15,4. Geländesit.: eben. FA: Flachgrab auf mehrperiodigem Fdpl. mit Siedl. der Tiefstichkeramik, G der Einzelgrabkultur und EF der Schönf. Kultur. Hinter dem Schädel eines Skelettes mit Schädellage im W in 1,00 m Tiefe folg. Beigaben: 1. einhenklige KA mit abgeplattetem Boden; am Hals zwischen Bogenst.bändern häng. Bogenst.dreiecke, auf Schulter unter 4 Furchenst.linien Furchenst.fr.gruppen; dunkelgrau-graubraun; H. 13,7; Wdg. 0,4/0,5, HBI 1,09 (Taf. 2,2). 2. Bauch einer KA; unter Winkelst.reihen eingeritzte Fr.gruppen mit Winkelst.abschluß; dunkelgrau; erh. H. 11,9; gr. Dm. 15,9; Wdg. 0,5 (Taf. 2,3). 3. Doppelkonische T mit leicht geschwungenem Profil; am Umbug unter Bogenst.reihen ausgespartes Winkelband aus eingeritzten mit Furchenst.linien gefüllten Dreiecken; dunkelgrau gefleckt; H. 13,3; Wdg. 0,4/0,5; HBI 1,15 (Taf. 2,4). LM Halle HK 31:254 a—c; Skelettreste nicht aufbewahrt. Höfer 1905, S. 95 (Anm.); 1911 a, S. 22 ff., Taf. III,1—3; Åberg 1918, S. 173; Kossinna 1922, S. 250; Niklasson 1925 c, S. 4; Priebe 1938, S. 69; Grimm 1940 a, S. 401; Fischer 1956, S. 294; Wetzel 1966, S. 44 f.; Preuß 1980, S. 106 f.; Beier 1984, S. 82.
+
+15. Schwarzholz, OT Polkritz. Fdpl. 4. Mbl. 1684 (3237), S19,8; 0 6,0. Geländesit.: eben.
+2. FA: zerstörtes Flachgrab ?, wahrscheinlich zusammengehörig: 1. KA; am Hals schachbrettartig angeordn. Rauten aus Furchenst.linien und auf der Schulter unter Fischgrätenlinie aus Winkelst. Furchenst.fr.gruppen; H 22,0; HBI 1,04 (Taf. 3,6). 2. KA; am Hals häng. Dreiecke und Rauten aus Winkelst. und auf Schulter unter häng. Dreiecken und Rauten aus Winkelst. Furchenst.fr.gruppen; H. 16,5; HBI 1,22 (Taf. 3,8). 3. Trichterrandschüssel mit 2 gegenständigen Knubben auf Umbruch; dort unter Fischgrätenlinie aus Winkelst. häng. mit Punktst. gefüllte Dreiecke aus Furchenst.linien; H. 10,2; HBI 0,59 (Taf. 3,5). 4. dickn. Feuersteinbeil; hellgrau; L. 11,0; Schnbr. 4,5 (Taf. 3,7). 5. dickn. Feuersteinbeil; hellgrau; L. 20,0; Schnbr. 7,5. 6. dickn. Feuersteinbeil; grau; L. 10,0; Schnbr. 4,5. 7. dickn. Feuersteinmeißel; gelb-grau; L. 11,0; Schnbr. 2,1 (5.—7. Kupka 1934, S. 155, Abb.).
+
+Kriegsverlust (ehemals Mus. Stendal). Kupka 1911, S. 250 f., Abb. 1; 1912, S. 234 ff.; Åberg 1918, S. 173; Kossinna 1922, S. 250; Kupka 1933, S. 177 f.; 1934, S. 155 f., Abb.; Priebe 1938, S. 69; Fischer 1956, S. 295; Wetzel 1966, S. 44 f.
+
+## Kreis Klötze
+
+16. Hanum. Fdpl. 3. Mbl. 1750 (3331), N 6,2; W 7,5. Geländesit.: eben.
+
+FA: zerstörtes Flachgrab? In Kiesschicht auf einer Fläche von 5 m2 Reste von 3 Gefäßen. 1. erg. KA mit abdruckgerauhtem Bauch; am Hals häng. Bogen-Winkelst.dreiecke und auf der Schulter zwischen punktförmigen bzw. halbrunden Einst. eingeritzte Fr.; rötlich-braun mit gelben Flecken; H. ca. 24,5; gr. Dm. 23,5; Wdg. 0,5; HBI 1,04 ? (Taf. 4,7). 2. Trichterrandschüssel mit :zwei gegenständigen Bandhe. und 2 Gruppen aus je 3 kl. Knubben auf Umbruch; dort Band aus dreieckigen-unförmigen Einst.; Unterteil abdruckgerauht; graubraun; H. 18,3; Wdg. 0,6/0,7; HBI 0,69 (Taf. 4,9). 3. Reste einer TM" mit 3 Gruppen aus je 3 kl. Knubben auf Umbruch; dort Band aus bogenstichartigen Einst.; rötlich-dunkelbraun mit gelben Flecken; H. ca. 14,0; gr. Dm. 16,5; Wdg. 0,4/0,5; HBI 0,85 ? (Taf. 4,8).
+
+<!-- FREE:PAGE 3 -->
+Mus. Salzwedel Inv.-Nr. V 3917—3919. Niemann 1959, S. 1 ff.; Wetzel 1966, S. 44, 56.
+
+17. Tangeln. Fdpl. bisher immer unter Ristedt publiziert. Fdpl. 6. Forstrevier Gutstein. Mbl. 1751 (3332), N 21,2; W 6,7. Geländesit.: eben.
+2. FA: G (Nachbestattung in Großsteingrab) Mehrjochige mit Sand gefüllte und mit Steinpflaster ausgelegte Kammer in Hünenbett. Daraus: 1. pfeilstichverz. Scherbe der Schönf. Kultur (Taf. 84,4). 2. 3 HaS einer KA mit ausgespartem Rautenmuster aus Dreiecken und Rauten mit Winkelst. (Taf. 84,8). 3. HaS einer KA mit ausgesparten Winkelbändern aus Dreiecken aus Winkel-Bogenst. (Taf. 84,11). 4. 2 SS von KΛ oder wT mit eingeritzten Fr.gruppen zwischen Winkel-Bogenst.reihen (Taf. 84,9). 5. 2 SS von KA oder wT mit Furchenst.fr.gruppen unter häng. Bogenst.dreiecken (Taf. 84,10). 6. am Nacken abgebrochenes dickn. Feuersteinbeil; L. 6,3; Schnbr. 3,7. 7. dickn. Feuersteinbeil; L. 6,3; Schnbr. 2,0. 8. doppelschneidiges Beil aus Kalkstein ?; L. 4,0; Schnbr. 1,0 (5.-7. Müller 1906, Abb. n. 128).
+
+Verschollen (ehemals Privatslg. Grafen von der Schulenburg-. Wolfsburg). Blasius 1904, S. 110 f.; Müller 1906, S. 127 f., Foto, Abb.; Kupka 1909, S. 318 f.; Aberg 1918, S. 173; Kossinna 1922, S. 250; Priebe 1938, S. 68; Grimm 1940 a, S. 401 ; Fischer 1953 b, S. 181; 1956, S. 160, 269, 295; Wetzel 1966,
+
+S. 44 f.
+
+## Kreis Kalbe/M.
+
+18. Thüritz. Fdpl. 1. Kiesgrube Köhn. Mbl. 1681 (3234), (S 17,7; W 8,9. Geländesit.: flache Anhöhe.
+
+FA: zerstörtes Flachgrab. Beigaben: 1. Reste einer KA mit ovalem leicht gesacktem Bauch; am Hals eingeritztes Gitterband und auf Schulter unter Bogenst.reihen eingeritzte Fr.gruppen mit Bogenst.abschluß; unter He je ein häng. Bogenst.dreieck; ockerfarben; H. ca. 20,0; gr. Dm. 16,8; Wdg. 0,4/ 0,5; HBI 1,19 ? (Taf. 3,2). 2. WB mit He.ösenpaar in Höhe des Warzenkranzes; gelblich-braun gefleckt; H. 22,1; ovale Mdg. 18,0 × 21,0; Wdg. 0,5; HBI 1,13 ? (Taf. 3,1). 3. dechselförmiges dickn. Feuersteinbeil; Breitseiten überschliffen; grau; L. 14,5; Schnbr. 6,5 (Taf. 3,3). 4. klingenartiger Feuersteinabschlag; graubraun; L. 8,2 (Taf. 3,4).
+
+Mus. Salzwedel Inv.-Nr. V 2352—2355. Bohnstedt 1934, S. 12; 1936 b, S. 125 ff., Abb. 6—9; 1937, S. 24, Abb. 26; Priebe 1938, S. 68, Abb. 3 a, b; Fischer 1956, S. 295; Wetzel 1966, S. 44 f.
+
+## Kreis Stendal
+
+19. Beelitz. Fdpl. 8. Mbl. 1756 (3337), N 7,0; 0 7,0. Geländesit.: eben.
+2. FA: EvS. Bei Brandstellen" gefunden: 1. Reste eines wT mit ausgespartem Winkelband aus eingeritzten mit Furchenst.linien gefüllten Dreiecken unter einer Winkelst.reihe (Taf. 4,10). 2. 2 Feuersteinpfeilspitzen.
+1. Mus. Arneburg Inv.-Nr. III-30. 2. nicht aufbewahrt. Kupka 1935, S. 244 ff., Abb. 2; Wetzel 1966, S. 44 f.
+20. Döbbelin. Fdpl. 1. Sandgrube. Mbl. 1827. (3436), N 9,6; 0 6,6. Geländesit.: eben.
+
+FA: zerstörtes Flachgrab ? 2 ähnliche KA gefunden; folg. blieb erh.: KA mit leicht ovalem Bauch und gekehltem He.; am Hals häng. Winkelst.dreiecke und auf Schulter unter Winkelkelbraun mit hellen Flecken; H. 22,4; Wdg. 0,5/0,6; HBI 1,32
+
+st.reihen eingeritzte Fr.gruppen mit Winkelst.abschluß; dun(Taf. 4,6).
+
+Mus. Stendal Inv.-Nr. 47-101. Kupka 1920, S. 342, Abb. 15; 1922 b, S. 424; Priebe 1938, S. 69; Schwarz 1949 c, S. 147; Fischer 1956, S. 293; Wetzel 1966, S. 44.
+
+21. Grassau. Fdpl. 2. Krumme Stücken. Mbl. 1755 (3336), N 7,3; W 4,9. Geländesit.: eben.
+2. FA: G (Nachbestattung ? in Großsteingrab). Aus Kammer über Lehmestrichboden in gestörter Lagerung Reste von 3 (5?) Gefäßen: 1. BS, SS und HeS einer KA; am Hals Bogenst. und auf Schulter unter Bogenst.reihen eingeritzte Fr.gruppen mit Bogenst.abschluß; unter He. ein Bogenst.dreieck; dunkelgrau; Wdg. 0,5. (Taf. 4,4). 2. HaS eines Gefäßes mit konischem Hals (wT ?) ; dunkelgrau; Wdg. 0,5 (Taf. 4,1). 3. SS mit Fingernagelkerben auf Umbug; dunkelgrau; Wdg. 0,5/0,6 (Taf. 4,2). 4. SS mit Fingernagelkerben auf Umbruch (zu 2. gehörig ?) ; dunkelgrau; Wdg. 0,4/0,5 (Taf. 4,3). 5. BdS (zu 3. gehörig ?) ; dunkelgrau; Wdg. 0,7 (Taf. 4,5).
+
+Mus. Stendal Inv.-Nr. 38:1. Schwarz 1949 b, S. 70 ff., Abb. 13; Kupka 1952, S. 47 f., Abb. 1; Fischer 1953 b, S. 181; 1956, S. 160, 268, 294; Wetzel 1966, S. 44.
+
+22. Hassel. Fdpl. 3. Kiesgrube. Mbl. 1756 (3337), 0 10,5; S 18,0. Geländesit.: eben.
+
+FA: zerstörtes Flachgrab? Aus einer abgerutschten Bodenscholle: 1. Sch mit gekerbtem Rand; am Hals Schnurwinkellinien und auf Umbug Fingertupfenleiste; grau mit gelblichen Flecken; H. 12,2; Wdg. 0,6/0,7; HBI 0,47 (Taf. 5,1). 2. Reste eines TmhU mit Fingernagelkerbreihe; braun gefleckt; Wdg. 0,6/0,7 (Taf. 5,2).
+
+Mus. Stendal Inv.-Nr. III-54-2 a, b. Hoffmann/Schmidt 1955, S. 218, Abb. 5; Wetzel 1966, S. 44.
+
+23. Hassel. Fdpl. 18. Kiesgrube Mbl. 1756 (3337), 0 11,1;
+2. S 20,0. Geländesit.: eben.
+3. FA: EvS. Lesefund. Neben uncharakt. neolithischer Keramik und Feuersteinabschlägen RS mit 2 Bogenst.reihen; bräunlich; Wdg. 0,5 (Taf. 5,3).
+4. Mus. Stendal Inv.-Nr. III-76-6 c. Schmidt/Schneider 1974, S. 324.
+24. Jarchau. Fdpl. vermutlich 2. Mbl. 1756 (3337), N 15,8; W 16,3. Geländesit.: eben.
+6. FA: EF. Altfund. Reste eines wT mit gekehltem He., am Hals
+7. zwischen Schnurlinien Dreiecke aus Schnurlinien und auf Schulter unter Schnurlinie Schnurfr.gruppen; rötlich-grau; stark verwittert; Wdg. 0,6/0,7 (Taf. 5,8).
+
+Mus. Stendal Inv.-Nr. 3104. Kupka 1926 b, S. 83 f., Abb. 2; Priebe 1938, S. 69; Wetzel 1966, S. 44.
+
+25. Peulingen. Fdpl. noch zu 1. Mbl. 1755 (3336), N 17,0; O 3,3.
+2. Geländesit.: eben.
+3. FA: G. Innerhalb einer Schönf. S 3 Gefäße und daneben deponierter LBR (Brandgrab ?). Funde: 1. HaS und einige SS einer KA; am Hals mit Punktst. gefüllte Rauten aus Furchenst.linien und auf Schulter Einst.gruppen zwischen 2 Furchenst.linien; dunkelgrau mit rötlichen Flecken; Wdg. 0,5 (Taf. 5,4). 2. Ostharzamphore. 3. bauchiger Becher (Wetzel 1979, Taf. 54,7,10).
+
+ir (Z    )    ir  -- -    . 1952, S. 54, Abb. A—C; Wetzel 1966, S. 44; 1976, S. 28 ff., pelbestattung. OSO(Schädel)-WNW gerichtete, gestreckte BeAbb. 1 a, c, f; 1979, S. 166, Taf. 54,6,7,10. stattung eines erwachsenen Individuums mit rechtem UnterAnm.: G. Wetzel (1979, S. 166) ordnet die KA bereits zu seiarm auf Becken und linkem Unterarm auf Brust. Auf der rechnen Amphoren vom Typ Arneburg der Schönf. Kultur (Fischten Beckenhälfte Schädel eines Kindes. Außerde noch rechbecker Gruppe). ter Oberarm und einige Rippen des Kindes geborgen. In 0,30  0,40 m gr. muldenförmiger Vertiefung folg. Beigaben: 26. Sanne. Fdpl. in der Nähe von 4. Mbl. 1756 (3337), 1. unverz. Napf mit eingedelltem Boden, 4 Spitzknubben auf N ca. 18,1; S ca. 14,8. Geländesit.: eben. Umbug und 4 Knubbengruppen am Hals; schwarzgrau; H. 7,2; FA: G. In flachem Erdhügel ,,unter einer glocken- oder bieWdg. 0,4; HBI 0,70 (Taf. 5,25). 2. 2 Feuersteinklingen; grau; nenkorbförmigen Steinsetzung einen rückwärts gelehnten kauL. 8,2 und 5,4 (Taf. 5,19). 3. 2 Feuersteinklingenfragmente; ernden Hocker" gefunden. Zwischen den Knochen seiner grau; L. 2,4 und 2,0. 4. Feuersteinrundschaber; grau; Dm.: Rechten lagen drei fingerlange geschliffene und polierte Flint3,5 (Taf. 5,24). 5. 3 Knochenpfrieme (wahrscheinlich aus Exmeißel" (Kupka 1936, S. 341) : 1. Feuersteinmeißel; grau getremitätenknochen eines kleinen Wiederkäuers hergestellt/ fleckt; L. 12,9; Schnbr. 1,3 (Taf. 5,5). 2. Feuersteinmeißel; Dö.) ; L. 6,0—7,2 (Taf. 5,20—22). 6. Knochen von Schaf/Ziege, grau gefleckt; L. 8,7; Schnbr. 1,6 (Taf. 5,6). 3. dechselförmiger 8 durchb. Hirschgrandeln, 4 Reiß-, 1 Eck- und 12 sonstige Feuersteinmeißel; grau gefleckt; L. 10,8; Schnbr. 1,6 (Taf. 5,7). Zähne vom Hund. (Dö.). 7. Fragment einer menschlichen Mus. Stendal Inv.-Nr. III-83-4 u. o. Nr. Kupka 1920, S. 347; Rippe. 8. Auf rechtem Oberarm Felsgesteinbeil; grauweiß; 1936, S. 341; Fischer 1956, S. 151, 295. L. 6,7; Schnbr. 2,9 (Taf. 5,23). Unter dem Kinderschädel: 9. 2 flache scheibenförmige Steinchen. 10. längl. Feuerstein27. Schäplitz. Fdpl. u. Mbl. 1754 (3335). gerät (Feuersteinschläger?) ; grau; L. 10,4 (Taf. 5,18). 11. Querschneider. 12. 4 klingenartige Abschläge; grau; L. 4,3; 4,0; 3,9; 2,7.
+
+- LM Halle HK 49:445 a—k.
+
+c) Siedlungsgrube (Abb. 1,2). 4,00 m südl. von G 14 am O.rand der untersuchten Gesamtfläche runde kesselförmige, schwarz gefärbte Grube von 1,37 m Tiefe und mit einem Dm. von 1,50 in 0,95 m Tiefe untersucht. Inhalt des oberen Bereiches der Grube: 1. kl. unverz. WS verschiedener Gefäße (einige passen zu der auf Taf. 5,17 abgebildeten Sch.). 2. Rest eines durchb. Steinanhängers. 3. Fragment eines Femurs oder einer Tibia vom Rind (Dö.). Aus der eigentlichen Grube: 4. Reste einer Sch., am Hals ausgespartes Winkelband aus Winkelst.dreiecken und auf Umbug Furchenst.fr.gruppen; grau gelblich gefleckt; H. 9,5; Wdg. 0,4/0,5; HBI 0,53 (Taf. 5,11,16,17). 5. HeS einer kl. unverz. KA; grau; Wdg. 0,5 (Taf. 5,15). 6. HeS einer KA (?) mit Resten einer Verz. ; schwarz; Wdg. 0,5 (Taf. 5,14). 7. 4 kl. verz. tiefstichkeramische Scherben (Taf. 5,9,10,12,13). 8. zahlr. kl. verz. und unverz. Scherben. 9. zahlr. Feuersteinabsplisse. 10. zahlr. Lehmbewurfreste. 11. Reste von 5 Muscheln, 5 Vogelknochen, 8 Rinderknochen (u. a. 3 Phalangen, 2 Radien und 1 Ulna), angekohlter Schweineunterkiefer, Schneidezahn vom Schwein, Radius und Ulna vom Schwein, Backenzahn, Halswirbel und lose Phalangenepiphyse von Schaf/Ziege (Dö.). 12. Holzkohle.
+
+LM Halle HK 50:716 a—d. Kupka 1909, S. 321, Abb. 6; Niklasson 1925 c, S. 4 f., Taf. I,6; Preuß 1954, S. 415 ff. (mit Lit.zusammenstellung) ; Gomolka 1959, S. 5 f., Abb. 3; Weber 1964, S. 158; Wetzel 1966, S. 44, 57; Preuß 1980, S. 96, 113.
+
+## Kreis Gardelegen
+
+30. Estedt. Fdpl. 2. Pfaffenberg. Mbl. 1825 (3434), N 8,2; W 4,4. Geländesit.: Hang einer kl. Anhöhe.
+2. FA: Zerstörtes Flachgrab. Dicht unter Oberfläche an Kiesgrubenkante lagen: 1. KA; am Hals Dreiecke aus Punktst. und auf Schulter unter Einst.reihe eingeritzte Fr.gruppen mit St.abschluß; ockerfarben-dunkel gefleckt. H. 24,0; Wdg. 0,5/0,6; HBI 1,06 (Taf. 6,8). 2. wT mit gekerbtem Bodenrand; am Hals Reihen und Dreiecke aus dreikantigen-unförmigen Einst., auf Umbug Spitzknubben und darunter zwischen kl. Einst. Furchenst.fr.; ockerfarben-dunkel gefleckt; H. 18,9; Wdg. 0,6/0,7; HBI 0,94 (Taf. 6,7). 3. Reste zweier weiterer Gefäße
+3. FA: EF. 4 WS; auf einer Scherbe Reste von zwei mit schrägen Schnurlinien gefüllten Dreiecken; schwarzbraun (wie Taf. 9,9). Kriegsverlust (ehemals Mus. Stendal). Wetzel 1966, S. 44.
+28. Schinne. Fdpl. 1. Mbl. 1755 (3336), N 11,5; W 19,0. Geländesit.: flache Anhöhe.
+5. FA: G. Im W.teil einer zur Tiefstichkeramik gehörigen Siedlungsgrube von 5,00 m L., einer erh. Br. von 0,80 m und einer Tiefe von 1,20 m (Hausgrundriß ?), ein später eingetieftes Flachgrab. In ca. 1,00 m Tiefe extremer W(Schädel) -O-gerichteter, linker Hocker mit Blick nach N. Funde: 1. 0,30 m südl. des Toten in Schädelhöhe stark erg. KA; am Hals Bogenst.dreiecke und auf Schulter unter Bogenst.reihen eingeritzte von schrägen Einst. begrenzte Fr.gruppen; grau-rötlich-braun gefleckt; H. ca. 14,4; Wdg. 0,4/0,5; HBI 0,92 ? (Taf. 6,5). 2. Am Becken ein WB mit 4 breiten Warzen; graubraun; H. 31,0; Wdg. 0,7/0,8; HBI 1,07 (Taf. 6,6). 3. Bei Skelett kl. durchb. Bernsteinscheibe; Dm. 2,9 (Taf. 6,3). 4. In Höhe des Brustbeins Schweineunterkiefer mit zwei Hauern (Taf. 6,1) sowie bei Skelett kl. Knochenfragmente vom Schwein, Zahn Schaf/ Ziege und Knochenfragment vom Rind (Dö.). 5. Skelettreste eines Individuums, infans II; wahrscheinlich männl. (Br.). Unter den tiefstichkeramischen Resten im W.teil der Grube auch 2 Scherben der KAK: 6. WS mit Dreiecken aus kl. Einst. ; schwarz; Wdg. 0,3 (Taf. 6,2). Unverz. gekehlte HeS einer KA; grau; Wdg. 0,3 (Taf. 6,3).
+
+Mus. Stendal Inv.-Nr. III-67-1, III-84-11. Hoffmann 1969, S. 345 ff., Taf. 33; Preuß 1980, S. 112.
+
+29. Tangermünde. Fdpl. 2. Hartsteinwerk. Mbl. 1828 (3437) ; S15,8; 0 12,8. Geländesit.: Talrandterrasse.
+- a. EvG. Altfunde. 1. stark erg. T,M"; unter Fischgrätenlinie ausgespartes Winkelband aus Dreiecken mit Furchenst.linien; grau-ockerfarben gefleckt; H. 15,4; Wdg. 0,5; HBI 0,83 (Taf. 5,26). 2. Im oberen Bereich beschädigter Napf; am Hals 3 mit Fingernagelkerben besetzte Wulstreihen; grau gefleckt; erh. H. 9,1; Wdg. 0,4/0,5; HBI 0,65 ? (Taf. 7,6).
+3. FA: G und Siedl. Auf seit über 100 Jahren bekanntem Flachgräberfeld der Walternienburger und der Elb-Havel-Kultur auch Befunde der KAK.
+
+Mus. Stendal Inv.-Nr. III-701, III-59-22.
+
+<!-- FREE:PAGE 4 -->
+(angeblich ähnlich dem wT aber etwas kl.). 4. Auf Böschung unterhalb G aufgelesen und wohl zugehörig: Feuersteinmeißel, hellgrau gefleckt; L. 12,0; Schnbr. 1,5 (Taf. 6,9). Mus. Salzwedel Inv.-Nr. 4903, 4913, 5084; 3. verschollen. Kupka 1933, S. 174 f., Abb. 6, 7; Schumacher 1934, S. 3; 1936, S. 112 ff.; Priebe 1938, S. 68; Fischer 1956, S. 294; Wetzel 1966, S. 44 f.
+
+Kreis Tangerhütte
+
+31. Windberge. Fdpl. 2. Dellberg. Mbl. 1827 (3436), S 12,8; W 10,5. Geländesit.: kl. Anhöhe.
+
+FA: EF. Altfund. Halsfragment einer KA; am Hals kl. unförmige Gruppen aus punktförmigen Einst. und auf Schulter eingeritzte Fr.gruppen; rötlich dunkel gefleckt; Wdg. 0,4/0,5 (Taf. 7,7).
+
+Mus. Stendal Inv.-Nr. III-67-58. Kupka 1925, S. 8 f., Abb. 7; Priebe 1938, S. 70; Wetzel 1966, S. 44.
+
+Kreis Genthin
+
+32. Güsen. Fdpl. u. Mbl. 1967 (3637).
+
+FA: EF. Altfund. RS eines wT (?) mit ausgespartem Winkelband aus Dreiecken mit Schnurlinien und Punktst.; rötlich-gelb; Wdg. 0,5 (Taf. 8,1). Mus. Magdeburg Inv.-Nr. 81:32 a.
+
+## Kreis Burg
+
+33. Dannigkow. Fdpl. 12. Theuberg. Mbl. 2169 (3937), S ca. 19,3; W ca. 12,9. Geländesit.: kl. Anhöhe am Rande der Elbniederung.
+2. FA: EvS. Auf mehrperiodigem Fdpl. neben Walternienburger und Schönf. Keramik auch folg. Reste: 1. RS eines schalenartigen Gefäßes mit Winkelschnurlinien zwischen Fingernagelkerbreihen; braun; Wdg. 0,5 (Taf. 8,3). 2. WS mit eingeritztem Punktst. gefülltem Dreieck; rötlich-braun, Wdg. 0,7 (Taf. 8,2).
+
+Mus. Zerbst Inv.-Nr. 3/80.
+
+34. Gerwisch. Fdpl. 1. Norddüne. Mbl. 2101 (3836), N 2,3 bis 2,6; W 18,6—18,9. Geländesit.: Düne in Elbniederung.
+2. FA: Siedl. Mehrperiodiger Fdpl. mit Tiefstichkeramik, Schönf. und Einzelgrabkultur sowie KAK. 1. RS mit Bogenst.dreieck; grau; Wdg. 0,5 (Taf. 8,11). 2. HaS mit senkr. Bogenst.reihen; grau; Wdg. 0,4 (Taf. 8,10). 3. SS mit Furchenst.fr. unter dreieckigen Einst.; schwarz; Wdg. 0,5 (Taf. 8,12). 4. HaS mit Punktst.reihen und eingeritzten Fr.; grau; Wdg. 0,5 (Taf. 8,7). 5. SS einer KA mit Furchenst.fr. unter Winkelst.reihen; graubraun; Wdg. 0,4 (Taf. 8,8). 6. WS und Umbruchscherbe mit groben bogenst.artigen Einst.; grau; Wdg. 0,4/0,6 (Taf. 8,4). 7. verz. WS einer Bernburger (?) T; schwärzlich; Wdg. 0,4 (Taf. 8,5). 8. RS mit gekerbtem Rand. 9. 2 SS eines wT (?) mit eingeritzten Fr. unter Bogenst.reihen; grau; Wdg. 0,6 (Taf. 8,6). 10. HaS mit Bogenst.dreiecken; braun; Wdg. 0,5 (Taf. 8,9). 11. abdruckgerauhte WS. 12. Scherbe eines Bernburger Gefäßes mit gelochtem Rand und tief sitzendem Bandhe. 13. 12 verz. WS mit Bogenst., Kerben, Einst. sowie Abdruckrauhung. Mus. Magdeburg Inv.-Nr. 62:208 c; 64:25 a; 67:62; 68:41 c; 78:4. 13. Inv.-Nr. III/70/998 (von Mus. Burg übernommen; nicht auffindbar; Beschreibung nach Foto). Preuß 1980, S. 120; s. auch Angaben bei Gerwisch (38.).
+35. Gerwisch. Fdpl. 7. Mitteldüne. Mbl. 2101 (3836), N 5,2; W 17,6. Geländesit.: Düne in Elbniederung.
+4. FA: EvS. Lesefunde auf mehrperiodigem Fdpl.: 1. RS mit Dreieck (?) aus Schnurlinien; braun; Wdg. 0,5 (Taf. 8,13). 2. WS mit 2 Durchlochungen, ockerfarben; Wdg. 0,5. 3. RS eines Napfes (?) mit gekerbtem Umbruch, ockerfarben'; Wdg. 0,5.
+
+Mus. Magdeburg Inv.-Nr. 68:54 a, b. Lies 1974, S. 100.
+
+36. Gerwisch. Fdpl 9. Süddüne. Mbl. 2101 (3836), N 6,8; W 17,0. Geländesit.: Düne in Elbniederung.
+2. FA: Siedl. Mehrperiodiger Fdpl. mit Mesolithikum, Tiefstichkeramik (Taf. 8,15), Bernburger, Schönf. (Taf. 8,14,23), Einzelgrabkultur sowie KAK. 1. 4 HaS eines wT mit schnurverz. ausgespartem Winkelband und unförmigen Einst.reihen; braun; Wdg. 0,6 (Taf. 8,24). 2. 2 SS einer KA mit Furchenst.fr. zwischen unförmigen Einst.; grau-schwarz; Wdg. 0,5 (Taf. 8,26). 3. HaS der gleichen (?) KA mit rautenartigem Bogenst.(?)mustern; schwarz; Wdg. 0,5 (Taf. 8,25). 4. WS mit Warze; hellgrau; Wdg. 0,5. 5. HaS mit Bogenst.; rötlich-gelb; Wdg. 0,5 (Taf. 8,17). 6. HaS mit senkr. Bogenst.doppelreihen; grau; Wdg. 0,5 (Taf. 8,21). 7. WS mit Dreieck aus Furchenst.linien; grau; Wdg. 0,5 (Taf. 8,22). 8. 2 WS einer Bernburg-III(?)-T mit Band aus Furchenst.linien'; grau; Wdg. 0,4. 9. HaS einer KA (?) mit Gitterband aus Schnurlinien; schwarz; Wdg. 0,5 (Taf. 8,19). 10. SS einer KA mit eingeritzten Fr. unter Bogenst.dreiecken; grauschwarz; Wdg. 0,4 (Taf. 8,20). 11. durchlochte WS; grau; Wdg. 0,5. 12. WS mit 4 unförmigen Einst.; dunkelbraun; Wdg. 0,5. 13. HaS einer KA mit konischem Hals und ausgespartem Winkelband (?) aus Bogenst.; dunkelgrau; Wdg.0,4 (Taf. 8,18). 14. SS einer KA (?) mit Reihen aus Federkieleinst.; braun; Wdg. 0,4 (Taf. 8,16).
+3. Mus. Magdeburg Inv.-Nr. 64:23 d; 64:74 b; 67:64 a; 68:79 b; 69:72. Behrens 1952, S. 283 f.; Hoffmann/Toepfer 1963, S. 81 ff.; Lies 1974, S. 100; Preuß 1980, S. 125.
+4. Anm.: 1952 Untersuchung eines begrenzten Areals durch W. Hoffmann. Ergebnis: stratigraphische Trennung des mesolithischen vom neolithischen Fundhorizont; Aufgliederung der neolithischen Fundschicht nicht möglich, keine Fundzusammenhänge.
+37. Gerwisch. Fdpl. 10. Mitteldüne. Mbl. 2101 (3836), N 5,2; W 16,4. Geländesit.: Düne in Elbniederung.
+6. FA: EvS. Altfunde von mehrperiodigem Fdpl. 1. WS mit rautenartigen Bogenst.mustern (wie Taf. 8,25). 2. WS mit Kerbreihe. 3. WS mit 2 Reihen längl. Einst. 4. WS mit ausgespartem Winkelband aus eingeritzten mit kl. Einst. gefüllten Dreiecken.
+7. Mus. Magdeburg Inv.-Nr. III/70/992 (vom Mus. Burg übernommen; nicht auffindbar; Beschreibung nach Foto). Lies 1974, S. 100.
+38. Gerwisch. Fdpl. 11. Höhe zwischen Nord- und Mitteldüne. Mbl. 2101 (3836), N 3,0; W 18,2. Geländesit.: Düne in Elbniederung.
+9. FA: Siedl. Neben einigen Schönf. Scherben viele Funde KAK; u. Fundzusammenhänge. 1. Reste eines wT; am Hals Dreiecke aus bogenst.artigen-herzförmigen Einst. und auf Schulter eingeritzte Fr.; graubraun; Wdg. 0,4/0,5 (Taf. 8,27). 2. 2. HaS eines wT mit Dreiecken aus bogenst.artigen-herzförmigen Einst.; grau; Wdg. 0,5 (Taf. 8,42). 3. Reste eines wT mit Reihe aus Kerben und Einst.; ockerfarben-braun;
+
+Wdg. 0,8 (Taf. 8,31). 4. 3 RS und eine SS eines wT; am Hals × 0,95 × 0,50 m; annähernd O—W. Holzkohlesplitter (Eiche) Dreiecke aus Schnurlinien und auf Schulter eingeritzte Fr. im Bereich des G vermutlich Reste der Holzabdeckung. mit Bogenst.abschluß, dunkelgrau-ockerfarben; Wdg. 0,5/0,7 Oberkante des G 0,40 m unter der ehemaligen Oberfläche. (Taf. 8,29,30). 5. Reste eines wT; am Hals 3 Bänder aus boAuf G.sohle Skelettreste von 3 vermutlich erwachsenen Indigenst.artigen-herzförmigen Einst., auf Schulter eingeritzte Fr. viduen; 2 als W(Schädel ?)-O-gerichtete Hocker nebeneinanmit Bogenst.(?)abschluß; grau; Wdg. 0,7 (Taf. 8,28). 6. SS : der im W.teil der Kammer und das dritte unmittelbar östl. in mit eingeritzten Fr. unter Einst.; grau; Wdg. 0,5 (Taf. 8,32). gleicher Art und Weise bestattet. Beigaben: 1. Im W.teil der 7. Gipsabguß einer Sch (Original Kriegsverlust; eine RS Kammer KA; am Hals Punktst.dreiecke und auf Schulter un[Taf. 8,40] erh.); am Hals Dreiecke aus Schnurlinien, auf ter Winkelst.reihen eingeritzte Fr.gruppen mit Punktst.abUmbug 2 Reihen Schnurfr.; H. 12,2; HBI 0,53 (Taf. 8,41). schluß; grau mit hellen und rötlichen Flecken; H. 19,0; Wdg. 8. SS mit He.; braun; Wdg. 0,5 (Taf. 8,38). 9. WS eines WB 0,5/0,6; HBI 1,03 (Taf. 9,6). 2. Daneben Sch.; am Hals unter (?) mit Warze; ockerfarben (Wdg. 0,5). 10. Reste eines TmhU Einst.reihe ausgespartes Winkelband aus Schnurlinien und mit gekerbtem Umbug; dunkelgrau; Wdg. 0,6/0,7 (Taf. 8,39). auf Umbug unter Winkelschnurlinie eingeritzte Fr. mit kom11. WS mit gekerbtem Umbruch; ockerfarben; Wdg. 0,5. maartigen Einst.; braun mit grauen Flecken; H. 10,5; Wdg. 12. RS mit Schnurlinien; grau; Wdg. 0,3/0,4 (Taf. 8,33). 0,5—0,6; HBI 0,62 (Taf. 9,7). 3. Im O.teil der Kammer an 13. RS mit Schnurgitterband; grau; Wdg. 0,3 (Taf. 8,34). N-Wand Schlagstein aus Granit; gr. Dm. 10,8 (Taf. 9,5). 14. verz. Umbugscherbe der Bernburger Kultur (?); gelb4. 3 Kiefer vom Rind und 3 Kiefer von Schaf/Ziege (alle mit grau; Wdg. 0,3 (Taf. 8,35). 15. RS eines Napfes mit Warze Schnauze nach O) ; Lage: 2 Rinder- und 1 Schaf/Ziege-Kiefer auf Umbruch; braun; Wdg. 0,4/0,5 (Taf. 8,37). 16. RS eines an O-Wand, 1 Rinderkiefer in Kammermitte und 2 Schaf/ Napfes mit Fingerkniffleiste; graubraun; Wdg. 0,4/0,5 Ziege-Kiefer in W.hälfte der Kammer. 5. kl. Knochenreste so(Taf. 8,36). 17. über 100 meist unverz. Scherben; einige mit wie der hohe Phosphatgehalt des Bodens in W.hälfte der Kerben, Warzen, Durchlochungen oder Einst. 18. Rest eines Kammer weisen auf weitere vergangene organische Beigaben. Schiefermessers. Mus. Magdeburg Inv.-Nr. 63:41 a—e. Lies 1955, S. 125 ff., Abb. 6; 7; Taf. 31–33; 1965, S. 24 ff., Abb. 1; 2; Taf. 5; Häusler 1966 a, S. 126; Behrens 1973, S. 121, 304; Lies 1974, S. 100.
+
+Verbleib: Mus. Magdeburg Inv.-Nr. 65:71 a, b; 67:62; 68:47; 68:49 a—f. Kupka 1928, S. 243; Engel 1928, S. 115; 1930, S. 74, Abb. 27; Priebe 1938, S. 82; Behrens 1973, S. 303; Lies 1974, S. 100.
+
+39. Gerwisch. Fdpl. 17. N.bereich der Mitteldüne. Mbl. 2101 (3836), N 4,3; W 17,0. Geländesit.: Düne in Elbniederung. FA: EvS. Lesefund auf mehrperiodigem Fdpl. WS einer Sch(?) mit He.; am Hals neben eingeritzter Raute Doppelreihe kommaartiger Einst., auf Umbug eingeritzte Fr. und punktartige Einst.; grau-braun; Wdg.: 0,6 (Taf. 8,43). Mus. Magdeburg Inv.-Nr. 70:168.
+
+40. Menz. Fdpl. 5. ,Waldsiedlung". Mbl. 2101 (3836), S 8,2; 0 15,2. Geländesit.: bis zu 20 m hohe hügelartige Düne in der Elbniederung.
+1. Mus. Magdeburg Inv.-Nr. 65:8; 2.—5. nicht auffindbar. Anm.: Ca. 8 m südl. der Steinkiste unter der Schönf. Siedl.schicht Anhäufung von Bruchsteinsplittern. Annahme: die aus ca. 6—8 km Entfernung geholten Quarzitblöcke wurden in unmittelbarer Nähe des Grabes bearbeitet.
+3. FA: G. Hügelgrab mit Steinkiste (Abb. 6,1). Auf Siedl.schicht der Walternienburger Kultur Grabhügel mit durch Nachbestattungen stark gestörter Steinkiste. Hügel später erweitert und erhöht. Südl. des neolithischen Kernhügels Siedl.reste der Schönf. Kultur; von dem bronzezeitlich erweiterten Totenhügel teilweise überlagert. Steinkiste; N-S; nur 2 Platten der östl. Längswand in situ. 0,70 m tiefe, leicht trapezförmige Grube von 3,30 m × 1,30 m (im Süden) bzw. 1,70 m (im N). Oberkante der Platten in Höhe der neolithischen Siedl.schicht; Hügelabdeckung wahrscheinlich. Zahlr. Tonklumpen dienten zum Abdichten der einstigen Kammer. Holz- oder Steinabdeckung möglich. An der östl. Längswand 2 gr. Holzkohlenester. Funde aus zerstörtem G: 1. 4 RS eines wT mit ausgespartem Winkelband aus Schnurlinien; grau mit braunen Flecken. Wdg. 0,5 (Taf. 9,8). 2. WS mit Reihen dreieckiger Einst. 3. unverz. RS eines wT (Lies 1955, Abb. 7, 256, 263). 4. atypisches Flintgerät. 5. kl. Knochenstück.
+- b) Holzkammer (Abb. 7,1). 15 m westl. der Steinkiste. Rechteckige Grube mit Holzumrahmung (Weißbuche) von 2,70
+
+7 Beier, Kugelamphoren
+
+41. Möckern, OT Lütnitz. Fdpl. 1. am Heerweg". Mbl. 2102 (3837), S 6,8; 0 17,4. Geländesit.: flache Anhöhe.
+
+Verschollen (ehemals Mus. Magdeburg). Herms 1928, S. 247 ff., Taf. 27; 28; Fischer 1956, S. 160, 270, 294; Behrens 1973, S. 303; Beier 1984, S. 89 f.
+
+- FA: EF (vermutlich Bestattung in Großsteingrab/Abb. 6,2). In gestörter Lage über der teilweise im O von einer Lehmschicht überdeckten Feldsteinpflasterung in der Grabkammer sowie nördl. und südl. außerhalb derselben über 100 Scherben, eine Walternienburger T, zahlr. Flintartefakte und jüngere Reste beobachtet. Neben einer kreuzst. verz. Walternienburger (?) und einigen schnurverz. Scherben (Herms 1928, Taf. 27,5,2,11—13) auch folg. Reste: 1. In östl. Kammerhälfte neben ca. 0,5 m2 gr. Brandstelle mit glatten, dünnwandigen unverz. Scherben Feuersteinklinge (Herms 1928, Taf. 27,5,4) und 2 WS mit Winkel-Bogenst. (Taf. 9,4). 2. Im Eingangsbereich zusammen mit glatten dünnwandigen unverz. Scherben 2 HaS einer KA, am Hals von imitierten Schnurfr.gruppen unterbrochene grobe Punktst.reihen (Taf. 9,3).
+
+Kreis Zerbst
+
+42. Dornburg. Fdpl. Acker K. Platte. Mbl. 2169 (3937). Geländesit.: unbekannt.
+2. FA: G (Abb. 4,8). Flach gelegene kl. nur 0,25 m hohe Steinkiste aus Quarzitsteinplatten; Plattenfußboden in 0,50 m Tiefe; schräg liegender 1,20 × 0,70 m großer Deckstein in 0,25 m Tiefe. Von Bestattung (genaue Lage u.) wohl nur noch Schädel erh. Beigaben: 1. 0,40 m vom Schädel entfernt eine KA mit stark gedrücktem Bauch und überdurchschnittlich breiter Mdg; am Hals Dreiecke aus Bogen-Winkelst. und auf der Schulter unter gleichartigen Dreiecken eingeritzte, von senkr. Strichgruppe unterbrochene Dreiecke; Maße u.; HBI ca. 0,69 (Taf. 10,1). 2. WS mit tief und breit eingedrücktem Zickzackmuster. 3. Feuersteingerät. 4. Bernsteinperle. 5. Schneidezahn eines Rindes.
+
+<!-- FREE:PAGE 5 -->
+Kriegsverlust (ehemals Mus. Zerbst). König 1940, S. 484, Abb. 8; Fischer 1956, S. 150, 156, 293; 1958 b, S. 6; Behrens 1973, S. 302.
+
+43. Gehrden. Fdpl. 1. Mbl. 2169 (3937), S 5,1; 0 12,0. Geländesit.: flacher Hang.
+2. FA: EF (vermutlich Bestattung in Großsteingrab). Innerhalb eines kammerlosen Hünenbettes von 65,0  5,0 m Größe uncharakt. und postneolithische Scherben, einige Feuersteinartefakte und folg. Funde: 1. RS mit Dreieck aus Schnurlinien; dunkelgrau-rötlich; Wdg. 0,4 (Taf. 9,1). 2. Dazugehörige (?) WS mit 2 Punktst.reihen; unter eingeritzter Winkel(?)linie dunkelgrau; Wdg. 0,4 cm (Taf. 9,2).
+
+LM Halle HK 31:1328 a. Herms 1928, S. 252; Priebe 1938, S. 81; Fischer 1953 b, S. 181; 1956, S. 160, 270, 294; 1958 b, S. 6; Behrens 1973, S. 303; Preuß 1980, S. 127 (unter Tief-
+
+- stichkeramik).
+44. Gödnitz. Fdpl. Sportplatz. Mbl. 2239 (4037). Geländesit.: am Rande der Elbniederung am Gödnitzer See.
+- FA: EF. Lesefund. Rest eines wT (?) mit kaum abgesetztem Hals und einem Osenhe. auf Schulter; dort häng. (?) Dreiecke aus fischgrätenartig angeordn. Winkelst.
+
+Kriegsverlust (ehemals Mus. Zerbst). König 1940, S. 484 f.
+
+45. Hobek. Fdpl. Kiesgrube an der anhaltischen Grenze. Mbl. 2170 (3938).
+
+FA: EF. Lesefund. Hals einer KA mit Bandhe. und mehreren Reihen gestempelter" Rauten aus Bogenst. sowie einer unmittelbar über dem He. umlauf. Reihe steh. Dreiecke aus Bogenst.
+
+Kriegsverlust (ehemals Mus. Zerbst). König 1935, S. 199; 1940, S. 484; Voigt 1942, S. 34; Fischer 1958 b, S. 6.
+
+46. Hohenlepte, OT Kämeritz. Fdpl. 1. Burg. Mbl. 2239 (4037), N 16,5; O 5,6. Geländesit.: Sandhöhe an der Nutheniederung. FA: EvS. Auf mehrperiodigem neolithischem Fdpl. eine Feuersteinschlagstätte und Scherben der KAK; einige mit Fr.zier.
+
+Kriegsverlust (ehemals Mus. Zerbst). König 1940, S. 485 f.; Preuß 1980, S. 127.
+
+47. Leps, OT Eichholz. Fdpl. 2. Mbl. 2240 (4038), S 13,7; W 12,3. Geländesit.: flache Anhöhe.
+2. FA: Siedl. Bis zu 0,50 m starker Siedl.horizont mit neolithischen und postneolithischen Resten. In 0,35 m Tiefe gepflasterter, muldenartiger Herd mit schwarzer Branderde; in der Nähe 3 zugehörige (?) Pfostenlöcher. Funde aus Bereich des Herdes: 1. Reste einer Sch; am Hals Dreiecke aus Furchenst.linien und auf Schulter gleichartige Dreiecke sowie Furchenst.fr.gruppen; Maße u.; HBI ca. 0,70 (Taf. 10,2). 2. 2 Röhrenknochen.
+
+Kriegsverlust (ehemals Mus. Zerbst). Unbekannt 1938, S. 158; König 1940, S. 481 f., Abb. 4; Fischer 1958 b, S. 6; Preuß 1980, S. 126.
+
+48. Lübs (früher Groß-Lübz). Fdpl. nahe am Weg nach Buhlendorf. Mbl. 2169 (3937).
+
+FA: EF (vermutlich Bestattung in Großsteingrab). 1766 (!) berichtet C. v. Meußbach von einem Hauffen von wohl etliche zwanzig sehr grossen Steinen, so dichte bey einander lagen ... Es fanden sich theils Orten Knochen wie von Menschen und kleine Stückchen von Urnen, alles aber so confus durcheinander liegend", ... und eine ledige Urne, welche aber umgekehrt unter einem Stein stand und bloß mit schlechtem Sand gefüllet war". Entsprechend der Zeichnung (Taf. 10,3) kann es sich bei der Urne" um eine KA mit kurzem Hals handeln.
+
+Verschollen. Wäschke 1902, S. 238 f., Abb.; Höfer 1902 b, S. 252 f.; Kossinna 1922, S. 259.
+
+49. Nutha, OT Niederlepte. Fdpl. 2. Kiesgrube. Mbl. 2040 (4038), N 17,8; W 10,0. Geländesit.: flache Anhöhe.
+2. FA: EvS. Lesefund auf mehrperiodigem Fdpl. 5 Scherben wT; unter dem Rand Dreiecke aus Schnurlinien, ein He. erh.; grau; Wdg. 0,5/0,6 (Taf. 9,10,11).
+
+Mus. Zerbst Inv.-Nr. 62—9 a—d. Behrens 1973, S. 304.
+
+50. Steutz. Fdpl. u. Mbl. 2313 (4138).
+2. FA: EvG. Altfund. wT mit abgeflachter Standfläche; am Hals Dreiecke aus Schnurlinien, auf Schulter zwischen runden-unförmigen Einst. Schnurfr.gruppen; braun mit grauen Flecken; H. 25,7; Wdg. 0,7/0,8; HBI 0,99 (Taf. 9,9).
+
+Mus. Zerbst Inv.-Nr. 52—6. Kossinna 1922, S. 259; 1925, Abb. 475; 1936, Abb. 58; Priebe 1938, S. 94; Voigt 1942, S. 34; Fischer 1958 b, S. 6; Behrens 1973, S. 305.
+
+## Kreis Haldensleben
+
+51. Ackendorf. Fdpl. 1. Mbl. 2031 (3734), S 12,2; W 15,8. Geländesit.: eben.
+
+FA: In ca. 0,80 m Tiefe Flachg. mit Hocker. Funde: 1. Kaum erg. KA mit Schwalbenschwanzhe.; am Hals ausgespartes Rautenband aus Winkel-Bogenst. und auf Schulter unter Sanduhrmuster aus gleichartigen Einst. Fr.gruppen aus Einst. mit Winkelst.abschluß; schwarz hell gefleckt; H. 15,5; Wdg. 0,5; HBI 1,01 (Taf. 10,6). 2. Erg. T,,M" mit eingeritztem ausgespartem Winkelband; schwarz hell gefleckt; H. 15,5; Wdg. 0,5; HBI 0,79 (Taf. 10,5). 3. Dickn. an Schneiden überschliffenes Feuersteinbeil; grau gefleckt; L. 10,5; Schnbr. 4,7 (Taf. 10,7). 4. Skelettreste eines Individuums; infans II, 8 bis 10 Jahre (Br.).
+
+Mus. Haldensleben Inv.-Nr. IV 878—880. Nitzschke/Stahlhofen 1977, S. 106, Abb. 1.
+
+52. Alleringersleben. Fdpl. 1. Allerberg. Mbl. 2029 (3732), S 5,1; 0 6,3. Geländesit.: kl. Anhöhe.
+2. FA: EvG. Zu 75 % erh. Sch; eine He.öse erh.; am Hals Reihen, Dreiecke und Rauten aus Bogen-Winkelst. und auf Umbug eingeritzte Linien und Fr.; rötlich-braun; H. 14,5; Wdg. 0,6; HBI 0,61 (Taf. 10,8).
+3. Mus. Haldensleben Inv.-Nr. IV 355. Hansen 1935, S. 112. 53. Eimersleben (bisher unter Ostingersleben publiziert). Fdpl. Autobahn km 300,25. Mbl. 2030 (3733), W ca. 8,5;
+4. S ca. 2,0. Geländesit.: nach SO leicht fallender Hang.
+5. FA: G. In rechteckiger Grube Reste eines Hockers mit gekreuzten Oberschenkeln zwischen 2 Gefäßen. Beigaben: 1. Erg. KA; am Hals eingeritztes, mit Einst. gefülltes Sanduhrmuster und Dreiecke sowie auf Schulter unter Fischgrätenlinie Schnurfr.gruppen; gelb-grau; H. ca. 23,0; gr. Dm. err. 20,5; Wdg. 0,5/0,6; HBI 1,12 ? (Taf. 11,3). 2. Hals und 2 BS einer KA; ausgespartes Winkelband und Dreiecke aus eingeritzten Punktst. gefüllten Dreiecken; dunkelgrau-braun; Wdg. 0,6 (Taf. 11,4). 3. Reste eines wT; am Hals eingeritzte Rauten und auf Schulter Fr.gruppen; rötlich mit gelben und dunklen Flecken; H. ca. 22,0; Wdg. 0,6; HBI 0,96 ? (Taf. 11,2). 4. Rest
+
+unverz. Bernburger T mit Bandhe.; rötlich-dunkelgrau; Wdg. 0,7/0,8 (Taf. 11,1). 5. dickn. an Breitseiten überschliffenes Feuersteinbeil; hellgrau gefleckt; L. 9,6; Schnbr. 4,3 (Taf. 11,5).
+
+Mus. Haldensleben Inv.-Nr. IV 373–377, 384. Hansen 1935, S. 112; Grimm 1938 a, S. 75; Priebe 1938, S. 71, Taf. IV f, g; Fischer 1956, S. 294 f.; Koch 1968, S. 37; Behrens 1973, S. 302, 304. Anm.: Von H. Priebe (1938, S. 71) angeführter Querschneider nicht nachweisbar. Angabe U. Fischer (1956, S. 294) über einen O-W gerichteten Hocker nicht belegt.
+
+54. Eimersleben (bisher unter Erxleben publiziert). Fdpl.
+2. Bruchberg (Autobahn km 302,5). Mbl. 2030 (3733), S ca. 1,0; W ca. 17,5. Geländesit.: nach SO leicht fallender Hang. FA: Siedl. In 0,80 m Tiefe 0,45 m starke und 1,70 m breite dunkle Verfärbung (G. Fock neolithische Kochstelle"). Neben Holzkohle und Lehmbewurfresten folg. Funde: 1. SS einer KA mit eingeritzten Fr. und Winkel-Bogenst.abschluß; braungrau; Wdg. 0,4 (Taf. 12,9). RS mit rautenartigen Schnurmustern; dunkelgrau; Wdg. 0,5 (Taf. 12,7). 3. RS mit Winkelst.dreiecken; braun; Wdg. 0,5 (Taf. 12,8). 4. Rest eines Napfes mit Fingernagelkerbreihe; dunkelgrau-rötlich gefleckt; Wdg. 0,5/0,7 (Taf. 12,5). 5. Unverz. RS eines wT (?); braun mit dunklen Flecken; Wdg. 0,5 (Taf. 12,6). 6. Unverz. dickwandige Scherben; hell-dunkelgrau. 7. Feuersteinabschlag; L. 4,0. 8. Rest einer menschlichen Hinterhauptschuppe.
+
+Mus. Haldensleben o. Nr. Priebe 1938, S. 71; Koch 1968, S.37; Behrens 1973, S. 302.
+
+55. Emden. Fdpl. 2. Am Windmühlenberg". Mbl. 2030 (3733), S 17,2; 0 10,5. Geländesit.: leicht fallender Hang.
+
+FA: G (Abb. 4,7). Im Sand getiefte Steinkiste aus Granit mit Plattenfußboden in 1,20 m Tiefe. O—W. Ostl. Schmalseite abgewinkelt; G im Grundriß ein zu Fünfeck erweitertes Rechteck.Maße: L. 1,34 m; Breite am O.ende 0,80 m, am W.ende 1,08 m; H. ca. 0,7 m. In der Kammermitte ein Häufchen sehr mürber Knochen, aus dem zwei Zahnkronen gerettet werden konnten" (Bock 1938, S. 35). In der NO- und der SO-Ecke je eine KA. 1. Erg. KA mit Hals-Schulter-Kehle. Bogenst. Dreiecke und auf Schulter unter Bogenst.reihen eingeritzte Fr.gruppen mit Bogenst.abschluß; graubraun gefleckt; H. 20,9; Wdg.0,5; HBI 1,02 (Taf. 11,7). 2. Erg. KA; am Hals 2 ausgesparte Winkelbänder aus Winkel-Bogenst. und auf Schulter unter Bogen-Winkelst.reihen ausgespartes Winkelband aus Ritzlinien und gleichartigen Einst.; dunkelgrau gefleckt; H. 20,4; Wdg. 0,4/0,5; HBI 1,02 (Taf. 11,8). 3. An abgewinkelter O-Seite Reste unverz. KA; rötlich-braun gefleckt; Wdg. 0,5 (Taf. 11,6). N-Seite: 4. Reste eines kl. Gefäßes, das zerfiel. Im SW der Kammer: 5. gebändertes (?) Feuersteinbeil. 6. Feuersteinmeißel. 7. Querschneider. 8. Bearbeitetes Feuersteingerät.
+
+- 1.—3. LM Halle HK 28:26 a—c; Rest verschollen. Bock 1938, S. 33 ff., Abb.; Priebe 1938, S. 71, Taf. IV a, b; Fischer 1956, S. 150, 156, 294; Koch 1968, S. 37; Behrens 1973, S. 302. Anm.: Von H. Priebe (1938, S. 71) angeführte Schweinsreste nicht nachweisbar.
+56. Erxleben (bisher unter Brumby publiziert). Fdpl. 6. Brumbyer Heide. Mbl. 2030 (3733), S 9,0; 0 12,0. Geländesit.: flacheAnhöhe.
+- FA: EvG. In 1,00 m Tiefe KA mit leicht asymmetrisch angeordn. He. ; am Hals senkr. Doppelreihen aus unförmigen Einst. und auf Schulter Furchenst.fr.gruppen mit Einst.; braun-
+
+ockerfarben und schwarz gefleckt; H. 18,2; Wdg. 0,7; HBI 1,14 (Taf. 12,11).
+
+Mus. Haldensleben Inv.-Nr. 826. Priebe 1938, S. 71, Taf. XVI a; Koch 1968, S. 37; Behrens 1973, S. 303.
+
+Anm.: Ob ein Beil aus Diorit (L. 9,6; Schnbr. 5,0; Dicke 2,6) zusammen mit der KA gefunden wurde, ist nicht mehr zu überprüfen.
+
+57. Flechtingen. Fdpl. Kiesgrube am Galgenberg. Mbl. 1963 (3633), S ca. 21,6; O ca. 20,7. Geländesit.: leicht nach S fallend. FA: vG. Beigaben: 1. Asymmetrische KA mit gesacktem Bauch; am Hals Bogenst. Dreiecke, auf Schulter unter Bogenst.reihen eingeritzte Fr.gruppen mit Bogenst.abschluß und unter den He. je ein eingeritztes Tannenzweigmuster; gelb mit rötlichen und dunkelgrauen Flecken; H. 28,2; Wdg. 0,5; HBI 1,19 (Taf. 12,4). 2. Reste einer KA mit gesacktem Bauch; am Hals Dreiecke aus dreieckigen Einst. und auf Schulter unter Bogenst.reihen Furchenst.fr.; braun; H. ca. 15,3; Wdg. 0,5/ 0,6; HBI ca. 1,13 (?) (Taf. 12,2). 3. Unverz. wT mit 12 Warzen auf Umbruch; keine He.; grau-gelb mit dunklen Flecken; H. 23,0; Wdg. 0,5/0,6; HBI 0,87 (Taf. 12,1). 4. 2 RS und 1 WS eines unverz. TmhU (?) mit leicht gewölbtem Hals; braun gefleckt; Mdg. err. ca. 20,0 (Taf. 12,3).
+
+Mus. Haldensleben Inv.-Nr. IV 562—565. Koch 1968, S. 41, Abb. Anm.: Die dort aufgeführten Reste eines wT sind früheisenzeitlich.
+
+58. Haldensleben I (ehemals Neuhaldensleben). Fdpl. 21. Kiesgrube Müller. Mbl. 1964 (3634), S 4,0; 0 19,8. Geländesit.: eben.
+2. FA: vG. Unter trichterförmiger mit Branderde gefüllter Grube in 1,00 m Tiefe: 1. KA; am Hals Bogen-Winkelst.dreiecke und auf Schulter unter Bogen-Winkelst.reihe eingeritzte Fr.gruppen mit Bogenst.abschluß; H. 21,8; HBI 1,14 (Taf. 13,5). 2. 3 BS von KA mit Resten einger. Fr.gruppen; dunkelgrau ockerfarben gefleckt; Wdg. 0,5 (Taf. 13,6).
+2. Mus. Haldensleben Inv.-Nr. 1862. 1. Kriegsverlust. Wieprecht 1928, S. 54; Priebe 1938, S. 70, Taf. VI c; Fischer 1956, S. 294; Wetzel 1966, S. 44; Koch 1968, S. 36; Behrens 1973, S. 303.
+59. Haldensleben II (ehemals Althaldensleben). Fdpl. Hamsterberg (?). Mbl. 2031 (3734), N ca. 15,6; 0 ca. 19,0. Geländesit.: flache Anhöhe.
+5. FA: EvG. Altfund. KA mit Hals-Schulter-Kehle; am Hals Winkelst.dreiecke und auf Schulter unter einer Winkelst.reihe eingeritzte Fr.gruppen mit Winkelst.abschluß; schwarz; H. 18,2; Wdg. 0,5; HBI 1,02 (Taf. 12,10).
+6. Mus. Haldensleben Inv.-Nr. 889. Kossinna 1902, S. 168; Kupka 1920, S. 342; Kossinna 1922, S. 251; 1925, Abb. 473; 1936, Abb. 56; Priebe 1938, S. 71; Koch 1968, S. 36; Behrens 1973, S. 302 (von Kossinna und Kupka unter Brumby" publiziert).
+60. Haldensleben II (ehemals Althaldensleben). Fdpl. u. Mbl. 2031 (3734).
+8. FA: EvG. Altfund. KA mit Hals-Schulter-Kehle; am Hals ausgespartes Rautenmuster aus Kreuzst. und auf Schulter unter Kreuzst.reihen eingeritzte Fr.gruppen mit Kreuzst.abschluß; grau-schwarz; H. 15,0; Wdg. 0,7/0,8; HBI 1,09 (Taf. 84,13). 2. Dazugehörig ein 12,5 cm langes, beiderseits zugespitztes Gerät von fast quadratischem Querschnitte aus Hirschhorn" (Kupka 1922 b, S.424; Priebe 1938, Taf. XXXII c).
+
+<!-- FREE:PAGE 6 -->
+1. Germanisches Nationalmuseum Nürnberg Inv.-Nr. VA 1538; 2. verschollen. Götze 1900 a, S. 158; Kupka 1922 b; S. 424; Kossinna 1922, S. 250; Priebe 1938, S. 71, Taf. VI a; XXXII c; Koch 1968, S. 36; Behrens 1973, S. 302.
+61. Haldensleben/Stadtforst. Fdpl. 4. Am Benitz (Sandgrube Ackermann). Mbl. 1964 (3634), S 4,15; 0 18,2. Geländesit.: eben.
+3. FA: G. 1,35 m tief ovales Pflaster, 1,50 × 1,00 m gr.; NNO bis SSW. Auf diesem: 1. KA mit leicht gesacktem Bauch, HalsSchulter-Kehle, Schwalbenschwanzhe.; am Hals Reihen und Dreiecke aus Winkelst. und auf Schulter unter gleichartigen Dreiecken eingeritzte Fr.gruppen mit imitiertem Kreuzst.abschluß; schwarz mit hellen Flecken; H. 22,0; Wdg. 0,5/0,6; HBI 1,16 (Taf. 13,3). 2. KA mit leicht gekehlten He.; am Hals unregelmäßige Reihen und kl. drei- bzw. viereckige Gruppen aus punkt-unförmigen Einst. und auf Schulter Furchenst.fr.; ockerfarben-dunkelgrau gefleckt; H. 16,4; Wdg. 0,5; HBI 1,09 (Taf. 13,4).
+
+Mus. Haldensleben Inv.-Nr. IV 28, 29. Hoffmann 1965 b, S. 238, Taf. 39; Koch 1968, S. 38; Behrens 1973, S. 303.
+
+62. Hillersleben (Paxförde 1934 devastiert und der Gemarkung Hillersleben einverleibt). Fdpl. 2. Feldmark Bärenberg. Mbl. 1964 (3634), 1965 (3635), 2031 (3734) oder 2032 (2735). Geländesit.: vermutlich kl. Anhöhe.
+2. FA: G. Steinkiste. Beigaben: 1. KA mit ovalem Bauch; am Hals senkr. Tannenzweigmuster aus Schnurlinien und auf Schulter Schnurfr.; H. ca. 13,5; HBI 1,09 (Taf. 14,2). 2. HaS einer KA mit eingeritzten, mit sich kreuzenden Linien gefüllten Rauten. 3. wT; am Hals Furchenst.winkelband und auf Schulter Furchenst.fr.gruppen; H. ca. 31,0; HBI 0,91 (Taf. 14,3). 4. Sch mit nebenständigem Osenhe.paar (?); am Hals 2 eingeritzte Gitterbänder und auf Umbug unter eingeritzter Winkellinie Furchenst.(?)fr.gruppen; H. ca. 13,5; HBI 0,69 (Taf. 14,1). Eventuell zugehörig: 5. Rest eines Gefäßes mit einem Mondhe. 6. Teil einer Streitaxt. Kriegsverlust (ehemals Mus. Haldensleben). Wieprecht 1928, S. 54; Priebe 1938, S. 70, Taf. XVI d, XX d, XXIV d; Fischer 1956, S. 150, 153 f., 295; Weber 1964, S. 156; Wetzel 1966, S. 44; Koch 1968, S. 36; Behrens 1973, S. 304.
+
+63. Hundisburg. Fdpl. 2. Ziegeleitongrube. Mbl. 2031 (3734), N ca. 19,8; W ca. 15,5. Geländesit.: Hang einer kl. Anhöhe. FA: EvG. Mehrperiodiger Fdpl. u. a. mit Resten der Trichterbecherkultur, Bernburger T mit 2 breiten gegenständigen Knubben und leicht abgesetztem Hals (Taf. 13,2), die zu den T,M" überleitet, sowie KAK. 1. In den 30er Jahren: Unverz. asymmetrische KA mit langovalem Bauch und leicht gekehlten He.; schwarz hell gefleckt: H. 29,5; Wdg. 0,7; HBI 1,42 (Taf. 13,1). 2. Im Winter 1940/41 vermutlich auf gleichem Fdpl.: KA mit gekehltem He., am Hals Punktst.dreiecke, auf Schulter unter Punktst.reihen eingeritzte Fr.gruppen mit Punktst.abschluß und unter den He. je ein eingeritztes Tannenzweigmuster; H. 19,3; HBI 1,14 (Taf. 14,4). 3. 1949: Gefäßrest mit Bandhe. und Dreieckszier. 4. 1961: WS mit Dreieckszier.
+
+Mus. Haldensleben Inv.-Nr. 2679, 49:223 a, IV 6 (3./4. nicht auffindbar). 2. u. Priebe 1938, S. 71, Taf. IX e; Koch 1968, S. 36, 41 f., Abb.; Behrens 1973, S. 303.
+
+64. Hundisburg. Fdpl. 3. Tannenberg. Mbl. 2031 (3734), W.15,0; N 19,9. Geländesit.: kl. Anhöhe.
+2. FA: EF. In spätkaiserzeitlicher Siedl.grube: RS mit Winkelst.dreieck unter Winkelst.reihe; braun; Wdg. 0,4 (Taf. 14,9). Mus. Haldensleben Inv.-Nr. IV 1057 a.
+
+## Kreis Wolmirstedt
+
+65. Barleben. Fdpl. 5. Kiesgrube bei der Schweinemästerei. Mbl. 2032 (3735), S 6,1; 0 9,3. Geländesit.: Uferterrasse am Rande der Elbniederung.
+2. FA: Siedl. der Bernburger Kultur. Auf mehrperiodigem neolithischem Fdpl., vermutlich mit Spitzgraben befestigt (Lies 1967, S. 9 ff.), auch Objekte der KAK.
+- a) Siedl.grube: An N-Seite der Kiesgrube eine 0,60 m in Löß getiefte Bernburger Grube (Lies 1976, Abb. 1). Ein Siedl.gefäß bis in Höhe der He. versenkt, später mit Abfällen verfüllt. Inhalt: 1. Erg. unverz. Gr.gefäß mit Lochreihe unter verdicktem Rand, Boden fehlt; H. 80,0; Wdg. 1,0 (am Rand 1,8) (Taf. 15,1). 2. Bauch einer KA mit gekehlten Osenhe.; auf Schulter unter Furchenst.linie eingeritztes Winkelband und Furchenst.fr.gruppen; begrenzt mit Furchenst.linie; bräunlich-schwarz; erh. H. 17,3; gr. Dm. 18,8; Wdg. 0,3/0,5 (Taf. 15,2). 3. Unterteil eines unverz. tonnenförmigen (?) Gefäßes (Taf. 15,6). 4. Rest einer schrägwandigen Sch mit gekerbtem Rand (Taf. 15,8). 5. Reste einer T mit ausgespartem Winkelband aus Furchenst.linien (Taf. 15,5). 6. Reste von 3 weiteren tassenartigen Gefäßen mit Mustern aus Ritz(Taf. 15,3,9) und Furchenst.linien (Taf. 15,7). 7. Ca. 50 unverz. neolithische Scherben, dickwandige Siedl.ware (darunter 3 Bandhe.) (Taf. 15,4). 8. Schleifstein, 12,0 × 20,0 gr. Feuersteinklinge und 31 Abschläge. 9. 5 Knochengeräte (Lies 1976, Abb. 6 a—e). 10. Knochen von Hund, Rind, Schwein, Schaf/ Ziege und eventuell von Luchs, viele Fischknochen (u. a. Hecht, Barsch und Blei) sowie Reste von Flußmuscheln.
+4. Mus. Magdeburg Inv.-Nr. 66:10 a und 73:148—156. Lies 1967, S. 9 ff.; 1974, S. 100; 1976, S. 205 ff., Abb. 1—6; Preuß 1980, S. 117.
+- b) Einzelfund aus Siedl.bereich. HaS einer KA mit eingeritzten Rauten; schwarz; Wdg. 0,3 (Taf. 15,16).
+6. Anm.: Weitere bei Lies (1974, S.100) angeführte Scherben (Mus. Magdeburg Inv.-Nr. 66:41 a, 50) gehören zur Rössener Kultur.
+66. Barleben. Fdpl. 20. Schweinemästerei. Mbl. 2032 (3735), S 5,5; O 10,2. Geländesit.: Uferterrasse am Rande der Elbniederung.
+8. FA: EvS. Auf mehrperiodigem Fdpl. mit Flachg.feld auch Reste der KAK: 1. Im Bereich der Störungszone von G 10 (Bernburger Kultur/Lies 1966, Abb. 9) kl. RS mit Bogenst.; dreieckig; dunkelgrau-braun; Wdg. 0,4/0,5 (Taf. 15,15). Ca. 25 m östl. der G. folg. Scherben: 2. HaS einer KA mit ausgespartem Winkelband aus Winkel-Bogenst.; braun; Wdg. 0,5 (Taf. 15,14). 3. SS mit eingeritzten Fr.; begrenzt von Einst.; grau; Wdg. 0,5 (Taf. 15,13).
+1. Mus. Wolmirstedt Inv.-Nr. 10150/2; 2. und 3. Mus. Magdeburg Inv.-Nr 64:8 c. Lies 1966, S. 71; 1974, S. 100.
+67. Colbitz, OT Lindhorst. Fdpl. 3. Schlagberg. Mbl. 1965 (3635), S 3,2; O 20,7. Geländesit.: kl. Anhöhe.
+
+FA: EvS. Altfund auf Fdpl. des Mesolithikums, der Tiefstichkeramik, der Schönf. und der Einzelgrabkultur. HaS mit ausgespartem Winkelband aus Winkel-Bogenst.; braun-ockerfarben; Wdg. 0,4 (Taf. 14,7).
+
+- Mus. Magdeburg Inv.-Nr. 70:81 b. Wetzel 1966, S. 44; Lies 1974, S.100.
+
+68. Farsleben. Fdpl. 6. Mbl. 2032 (3735), N 9,1; 0 3,4. Geländesit.: Düne am Rande eines alten Elbarmes.
+
+- FA: EF. RS einer napfartigen Schüssel (?) mit eingeritztem Punktst. gefüllten Dreieck; braun-grau; Wdg. 0,5 (Taf. 14,8). Mus. Wolmirstedt Inv.-Nr. 1050. Wetzel 1979, S. 129 (mit Lit.Zusammenstellung, hier unter Schönf. Kultur).
+- 69.Farsleben. Fdpl. 17. Mbl. 2032 (3735), N 8,7; 0 2,0. Geländesit.: Düne am Rande eines alten Elbarmes.
+- FA: EF. Lesefund auf mehrperiodigem Fdpl. RS mit zwei Reihen eingeritzter mit sich kreuzenden Linien gefüllter Rauten; schwärzlich.
+
+Anm.: H. Behrens (1973, S. 303) führt eine weitere RS der Kn    d der Ausgrabung 1958/59 auf Fdpl. 17!) stammt. RS mit Ösenhe. und Punktst.reihen (Mus. Wolmirstedt Inv.-Nr. 9890, nicht auffindbar). Von G. Wetzel (1979, S. 129) zur Schönf. Kultur gestellt, Uberprüfung nicht möglich.
+
+- Mus. Wolmirstedt Inv.-Nr. 10319/1 (nicht auffindbar; Beschreibung nach Foto). Wetzel 1966, S. 44; Behrens 1973, S. 303.
+70. Groβ Ammensleben. Fdpl. u. Mbl. 2032 (3735).
+- FA: EF. Altfund. 2 RS einer Sch mit eingeritzter Winkellinie unter Gitterband; braun; Wdg. 0,4 (Taf. 14,5).
+
+LM Halle HK 1712. Schultheiß 1875, Taf. IX,11,25; Lies 1974, S. 100.
+
+71. Hohenwarsleben. Fdpl. 14. Buhnenrauhen. Mbl. 2100 (3835), N 8,2; W 0,7. Geländesit.: Hang einer kl. Anhöhe. FA: EF. Lesefund auf Fdpl. der Tiefstichkeramik, kl. HaS mit eingeritzter Raute; schwarz; Wdg. 0,4 (Taf. 14,6). LM Halle o. Nr. Mitt. J. Beran, Halle.
+72. Meseberg. Fdpl. 2. Mbl. 2032 (3735), N 7,5; W 8,2. Geländesit.: eben.
+- b) EF. 1. 2 SS mit Winkelst.dreiecken (Taf. 84,7). 2. 2 RS mit Schulter von Sch (?) ; am Hals unter Winkelst.reihe 2 ausgesparte Winkelbänder aus Winkelst.; darunter häng. Winkelst.dreiecke und auf Schulter ein eingeritztes Dreieck (Taf. 84,6). 3. 2 unverz. WS (zu 1. oder 2. gehörig?).
+
+FA: G und EF. a) Flachgrab. In dunkel gefärbter Mulde, ca. 0,80 m tief, folg. Funde: 1. Erg. KA; am Hals Dreiecke und auf Schulter Fr. aus Furchenst.linien; braun mit dunklen Flecken; H. 19,2; Wdg. 0,5; HBI 1,04 (Taf. 15,12). 2. T,M" mit 2 gegenständigen Gruppen aus je 3 Griffzapfen in H. des He. und mit eingeritzten Punktst. gefüllten Dreiecken unter einer Fischgrätenreihe; braun dunkel gefleckt; H. 13,6; Wdg. 0,5; HBI 0,80 (Taf. 15,10). 3. Bei folg. KA mit Standboden ist unklar, ob sie mit zur selben Grabausstattung gehört oder aus einem zweiten in der Nähe gelegenen Grab stammt; unter Rand Schnurlinien, auf Schulter Dreiecke und unter den He. je ein Tannenzweigmuster aus Furchenst.linien; ockerfarben mit dunklen Flecken; H. 17,5; Wdg. 0,4/0,5; HBI1,03 (Taf. 15,11).
+
+Mus. Wolmirstedt Inv.-Nr. 4875, 4876, 8051 und 10614 (b. nicht auffindbar; Beschreibung nach Foto). Dunker 1937, S. 15; Priebe 1938, S. 70; Fischer 1956, S. 294; Wetzel 1966, S. 44; Koch 1968, S. 36; Behrens 1973, S. 304; Lies 1974,
+
+Anm.: Die unter a) 3. angeführte KA von G. Wetzel (1979,
+
+- S. 100; Wetzel 1976, Abb. 1 b; 1979, S. 162, Taf. 52,9.
+
+S. 162) zu Amphoren vom Typ Arneburg gestellt.
+
+73. Zielitz. Fdpl. u. Mbl. 2032 (3735) oder 2033 (3736). FA: EvG. Altfund einer KA; am Hals Dreiecke aus dreieckigen-unförmigen Einst. und auf Schulter unter Winkelst.reihe eingeritzte Fr.gruppen mit Winkelst.abschluß; H. 16,5; HBI 1,03 (Taf. 10,4).
+
+Kriegsverlust (ehemals Mus. Magdeburg; Beschreibung nach Kopie im Mus. Wolmirstedt/Inv.-Nr. 2188). Mötefindt 1915, S. 44, Abb. 3 a; Åberg 1918, S. 173; Kossinna 1922, S. 250; Engel 1930, S. 146, Abb. 88; Bogen 1937, Taf. 16; Priebe 1938, S. 70; Fischer 1956, S. 295; Dunker 1961, S. 23, 149, Abb. 28; Wetzel 1966, S. 44; Koch 1968, S. 35; Behrens 1973, S. 305.
+
+## Stadtkreis Magdeburg
+
+74. Magdeburg (Altstadt). Fdpl. 1. Am Domplatz. Mbl. 2100 (3835), S 11,5—12,0; 0 8,1—8,6. Geländesit.: überbaute Terrasse am Rande der Elbniederung.
+2. FA: G. Mehrperiodiger Fdpl., u. a. mit Resten der Bernburger, der Schönf. Kultur und abdruckgerauhter Keramik. In ca. 2,50 m Tiefe durch mittelalterlichen Graben gestörtes Flachg. Auf dem Rücken liegendes W(Schädel)-O-gerichtetes Individuum mit Blick nach O; Schädel und Brustkorb erh. Neben Schädel Beigaben. Funde: 1. An wT erinnerndes amphorenartiges Gefäß; am Hals unter 2 Reihen senkr. 7 Reihen waag. längl. Einst. und auf Schulter 2 Reihen senkr. Einst.; rötlich-grau; H. 15,2; Wdg. 0,4; HBI 1,06 (Taf. 16,1). 2. An Breitseiten überschliffener Feuersteinmeißel; dunkelgrau, hell gefleckt; L. 8,7; Schnbr. 1,6 (Taf. 16,3). 3. Knochenpfriem; L. 8,2 (Taf. 16,4). 4. Neben Schädel Muschelschale und unter den Skelettresten ein Rinderzehenknochen. 5. In Füllerde 0,13 m über der Bestattung ein Klingenkratzer; hellgrau; L. 5,8 (Taf. 16,2), wohl zugehörig. 6. Neben Schädel rotbraune frühgeschichtl. RS (Gringmuth-Dallmer 1969, Abb. 1 d) ; wohl in Zusammenhang mit Störung. 7. Skelettreste eines Individuums; juvenil; weiblich (Br.).
+
+Mus. Magdeburg Inv.-Nr. D. N. 81/0/1,50 und D. N. -1-5 53,70
+
+81/32/0/3,13 Gringmuth-Dallmer 1969, S. 12 ff., Abb. 1; 53,83 1 Lies 1974, S. 100.
+
+- Anm.: Domplatz durch mittelalterliche bis neuzeitliche Bautätigkeit um fast 2,00 m aufgehöht; ursprüngliche G.tiefe wohl bei 0,50—1,00 m.
+75. Magdeburg (Neue Neustadt). Fdpl. 11. Kieswerk Neustadt. Mbl. 2100 (3835), N 9,7—10,5; 0 4,5—6,0. Geländesit.: Elbniederung; Funde unter heutigem Grundwasserspiegel.
+
+Mus. Magdeburg Inv.-Nr. 68:4 und 74:129 (Dauerleihgabe an das Werksmuseum des Kieswerkes). Hoffmann 1971, S. 311; Lies 1974, S. 100; Nitzschke/Stahlhofen 1977, S. 109; Lies/ Lange 1978, S. 93 und Taf. 8 a.
+
+- FA: EF auf mehrperiodigem Fdpl. 1. Nackenkammaxt (Taf. 82,6). 2. Hals einer KA; am Hals unter Einst. eingeritzte Rauten, am Ubergang zur Schulter auf der einen Seite senkr. längl. Einst. und auf der anderen Seite unter waag. längl. Einst. Fischgrätenlinie; braun; Wdg. 0,5 (Taf. 16,5). 3. Gr. BS einer KA mit tunnelartigem Ösenhe.; auf Schulter unter Punktst.reihe eingeritzte Fr.gruppen mit Punktst.abschluß und unter He. dreifache Punktst.reihe; braun-grau und schwarz gefleckt; Wdg. 0,6/0,7 (Taf. 16,6).
+
+<!-- FREE:PAGE 7 -->
+## Kreis Wanzleben
+
+76. Ampfurth, OT Schermcke. Fdpl. zwischen Sauren Holz und Schermcker Park. Mbl. 2165 (3933), N 13,5; O 16,0 (Mitte des Fundgebietes). Geländesit.: nach SO fallender spornartiger Hang.
+
+FA: G. Angaben zum Bau unklar; eventuell Steinkiste, denn nach einem Gutachten von W. Schulz (OA Schermcke des LM Halle) wird die Bergung von zu dem G gehörigen Steinplatten angeregt. Neben nicht aufbewahrten Skelettresten (,,der Geschiebeführer Adomheit in Schermcke, .. ., spricht von großen, starken Knochen"; Schimmel 1932, S. 15). Folg. Funde: 1. KA mit gekehltem He.; am Hals, netzartiges Muster aus durch kl. längl. Einst. imitierten Schnurlinien und auf Schulter unter Einst.reihe Fr.gruppen aus imitierten Schnurlinien; begrenzt von imitierter Winkelschnurlinie; dunkelgrau; H. 18,2; Wdg. 0,5/0,6; HBI 1,10 (Taf. 16,25). 2. Gefäß u. Form (zerschlagen). 3. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; dunkelgrau mit hellen Flecken; L. 13,2; Schnbr. 6,4 (Taf. 16,27). 4. dickn. dünnbl. Feuersteinbeil mit spitz zulaufendem Nacken; Breitseiten überschliffen; grau mit hellen Flecken; L. 11,8; Schnbr. 3,4 (Taf. 16,26).
+
+1. Mus. Magdeburg Inv.-Nr. 79:43 b; 3. und 4. Mus. Ummendorf Inv.-Nr. IV 199 c, d. 2. u. Schimmel 1932, S. 15 f., Abb. 10; Priebe 1938, S. 72, Taf. VII a; Fischer 1956, S. 295; Behrens 1973, S. 304.
+77. Bahrendorf, OT Stemmern. Fdpl. 2. Gemeindesandgrube. Mbl. 2167 (3935), S 0,7; W 20,3—20,7. Geländesit.: eben. FA: Brandg. 45 (Abb. 7,2). Am Rand eines Baalberger und frühbronzezeitl. G.feldes langovale Grube, 2,20  0,93 0,80 m Gr.; NW—SO. Inhalt: Brandschüttung mit Beigaben. 1. An der westl. Längswand fast in der Mitte T mit leicht abgeplattetem Boden und drei Winkel-Bodenst.reihen auf der Schulter; dunkelgrau-rötlich-gelb gefleckt; H. 12,4; Wdg. 0,5; HBI 0,83 (Taf. 16,18). Folg. Funde teils mit LBR vermischt regellos in Grube: 2. 3 graue Feuersteinklingen; L. 4,3-7,4 (Taf. 16,19-21). und weißer Feuersteinabschlag; L. 2,7 (Taf. 16,22). 3. Ovale Bernsteinperle mit y-Bohrung; L. 2,0 (Taf. 16,16), 2 röhrenförmige Bernsteinperlen; L. 1,6 und 1,4 (Taf. 16,14,15) sowie Fragmente von 7 weiteren. 4.Stark korrodiertes Kalkröhrchen; L. 1,0 (Nowak 1963, Abb. 3). 3 durchb. Muschelscheiben; Dm. 0,7 (Taf. 16,11-13) und durch Hitze deformierte Reste einer Muschelplatte mit eingeritzten Winkellinien (Taf. 16,17). 5. 4 durchb. Tierzähne (Taf. 16,7—10). 6. Durch Hitze deformiertes Knochenfragment mit abgerundeter Spitze (Nowak 1963, Abb. 3) und verwitterter Röhrenknochen eines Tieres. 7. Im SO vom G 0,40 m über Sohle 0,35 m langer Muschelkalkblock (primär?). 8. Uber Grube verteilt mit Konzentration im SO nahe der Grabmitte 1237,3 g LBR eines Individuums; erwachsen; zwischen 20 und 50 Jahre; eher weiblich als männlich(Br.).
+
+Mus. Ummendorf Inv.-Nr. IV 2200 a—m. Nowak 1963, S. 28 ff., Abb. 1—3; Voigt 1963, S. 229 (unter Glockenbecherkultur) ; Behrens 1973, S. 121, Abb. 48 e—k; Müller 1976, S. 219.
+
+78. Druxberge. Fdpl. 4. Heinrichsberg. Mbl. 2098 (3833), N 14,7; 0 7,7. Geländesit.: flache Anhöhe.
+
+FA: Zerstörtes Brand(?)grab. Innerhalb von früheisenzeitl. G.feld und kaiserzeitlicher Siedl. folg. Funde zusammenliegend: 1. Halb erh. Sch; am Hals ausgespartes Rautenband aus Bogenst. und auf Umbug unter Kerbreihe eingeritzte Dreiecke; dunkelgrau hell gefleckt; H. 9,5; Wdg. 0,5; HBI 0,63 (Taf. 16,23). 2. Dickn. dünnbl. Feuersteinbeil; nur Schneide überschliffen; grau gefleckt; L. 10,8; Schnbr. 4,5 (Taf. 16,24). 3. 5,3 g LBR; unbestimmbar (Br.).
+
+Mus. Ummendorf Inv.-Nr. IV 1476 a-c.
+
+79. Eilsleben. Fdpl. 1. Vosswelle. Mbl. 2098 (3833), S 14,8; W 19,5. Geländesit.: nach S leicht fallendes Gelände.
+
+FA: Siedl. Bernburger Kultur. Im Bereich der befestigten linienbandkeramischen Siedl. in 2 Bernburger Gruben Scherben der KAK. a) Grube 1/80. Aus Deckschicht über der Grube neben Siedl.abfällen, bandkeramischen und Bernburger Scherben: 1. HaS mit Dreiecken oder Rauten aus punkt-unförmigen Einst.; graubraun; Wdg. 0,5 (Taf. 17,9). 2. Unverz. Umbruchsch. eines wT oder TmhU; schwarz; Wdg. 0,5/0,6 (Taf. 17,7).
+
+b) Grube 5/80. Ovale muldenförmige Grube, 2,60 × 1,90 × 0,25 m; von Bernburger Grube 6/80 überlagert. Inhalt: 1. Wenige bandkeramische und zahlr. Scherben der Bernburger Kultur. 2. RS mit einer Reihe eingeritzter gekreuzter Linien (imitierte Kreuzst.?); schwärzlich; Wdg. 0,6 (Taf. 17,8). 3. Feuersteintrümmer. 4. Gebrannter Lehm. 5. Zahlr. Tierknochen.
+
+LM Halle HK 81:710 i, k und 728 c (für die Genehmigung zur Bekanntgabe sei Dr. D. Kaufmann, Halle, an dieser Stelle herzlichst gedankt).
+
+80. Eilsleben. Fdpl. 3. Am Rande des Kalkberges. Mbl. 2098 (3833), S 17,7; W 20,3. Geländesit.: nach O leicht fallendes Gelände.
+
+FA: G. Versenkte Steinkiste mit Sandsteinplattenpflaster, 1,70 × 1,00 m; Orientierung u. Inhalt: Ca. 30 sehr kl. Scherben von mind. 2 verschiedenen Gefäßen: 1. 7 unverz. Scherben eines nicht näher bestimmbaren Gefäßes; braun. 2. Uber 20 Scherben eines zweiten Gefäßes, auf 2 Scherben parallele Ritzlinien (Schulterfr. ?) (Taf. 17,6) und auf 3 Scherben Schnurwinkel(?)-linien (Taf. 17,4,5) ; dunkelgrau. Auf der Brust des Toten angeblich drei Beile bzw. Meißel, zwei erh. 3. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; hellgrau; L. 7,5; Schnbr. 3,2 (Taf. 17,1). 4. Dickn. Feuersteinmieißel; Breitseiten überschliffen; hellgrau dunkel gefleckt; L. 8,5; Schnbr. 2,0 (Taf. 17,2). 5. Fragment von Schweinezahn (Taf. 17,3). 6. In einer Ecke der Kiste wenige Skelettreste eines Individuums; erwachsen (Br.).
+
+- Mus. Ummendorf Inv.-Nr. IV 660 a-e. Fischer 1956, S. 150, 294; Behrens 1973, S. 302.
+- Anm.: Steinkiste heute als Schauobjekt auf Parkfriedhof von Eilsleben.
+81. Hadmersleben. Fdpl. u. Mbl. 2235 (4033) oder 2236 (4034). Geländesit.: am Rande der nach N zur Bode steil abfallenden Hochfläche auf Areal mit geringer Neigung.
+- FA: EvS. Lesefunde auf Fdpl. der Bernburger und anderer neolithischer Kulturen: 1. RS eines wT mit eingeritzten Rauten; schwarz-grau; Wdg. 0,6/0,7 (Taf. 17,11). 2. HaS eines wT mit Rauten aus Schnurlinien; ockerfarben-braun; Wdg. 0,6/ 0,7 (Taf. 17,12). 3. HaS eines wT mit eingeritzten Rauten; grau; Wdg. 0,8 (Taf. 17,10).
+
+Mus. Egeln Inv.-Nr. 2367 und 2418.
+
+Kreis Schönebeck
+
+82. Barby. Fdpl. 2. Kiesgrube am Weinberg. Mbl. 2239 (4037), N ca. 12,0; W ca. 6,0. Geländesit.: Bereich einer flachen An- chenem Nacken; erh. L. 6,9; Schnbr. 4,3 (Taf. 18,5). 4. 4 Feuhöhe. ersteinklingen; grau; L. 8,5—3,8 (Taf. 18,7-9). 5. QuerschneiFA: G. Flachgr.feld der Bernburger und der KAK. Mehrpeder; grau (Taf. 18,10); Fragment eines Querschneiders; grau. riodiger Fdpl. mit zahlr. mittelneolithischen Funden. Auf6. 10 klingenartige Feuersteinabschläge; grau-dunkelgrau; zeichnungen des Ausgräbers W. Wanckel aus den 30er Jahren L. 4,5—9,8 und 6 atypische -abschläge; grau-dunkelgrau. verschollen; Verhältnis der einzelnen Funde zueinander teil7. 2 längl. an einer Seite zugespitzte Knocheninstrumente weise u. Wahrscheinlich spiegeln die Inv.-Nr. der Funde im (Ahlen?) ; Metatarsus von Reh (Dö.); L. 13,4 (Taf. 18,3) und Mus. Schönebeck indirekt die Reihenfolge ihrer Auffindung 1 Vogelknochen (Dö.); L. 10,3 (Taf. 18,4). 8. Fragment eines bzw. Ausgrabung wider, so daß man unter der Voraussetzung nadelartigen Gerätes (?) mit doppelter Durchb. an einem des ständig fortschreitenden Kiesabbaues eine horizontal-straEnde und Punktreihen auf der leicht gewölbten Oberseite; tigraphische Abfolge vermuten kann. L. 9,6 (Taf. 18,6) ; wahrscheinlich Geweih (Dö.). 9. Großer a) 2 Flachg. 1934 2 N-S-gerichtete extreme Hocker mit Blick Eberhauer; Abstand zwischen den Enden 12,5 (Taf. 18,11) ; nach O, einer bereits zerstört. Keine Beigaben. Wildschwein (Dö.) und Unterkiefer eines größeren SäugetieVerschollen (ehemals Mus. Schönebeck). res.
+
+b) Bernburger Flachg. mit Doppel(?)bestattung. Im Januar 1936 aus zerstörtem G geborgen: 1. T mit großem Bandhe. und ausgespartem Winkelband aus Furchenstichlinien; schwarzgrau; H. 7,2; Wdg. 0,2/0,4 (Taf. 17,13). 2. Feuersteinartefakte. 3. 2 Mahlsteine. 4. Tierknochen. 5. Menschliche Skelettreste, u. a. 2 Schädel.
+
+1. Mus. Schönebeck o. Nr.; 2.—5. verschollen.
+
+Fundkomplexe c—h vermutlich im März 1936 geborgen.
+
+c) Flachg. der Bernburger Kultur (,G 1"). NW(Schädel)-SOgerichteter Hocker mit Blick nach N. Beigaben: 1. T mit eingeritztem Winkelband unter waag. Linien; hellbraun-grau; H. 7,5; Wdg. 0,3/0,4 (Taf. 17,20). 2. Dunkelgraue RS. 3. Zwei kl. Tonsäulen" (Standbeine ?) ; grau. 4. Dickn. Beil aus Wiedaer Schiefer; L. 10,4; Schnbr. 4,5 (Taf. 17,19). 5. Feuersteinabschlag.
+
+Mus. Schönebeck Inv.-Nr. 1966 a—d; 2., 3., 5. u. Skelettreste verschollen.
+
+d) Flachg. der Bernburger Kultur (G 2"). NW(Schädel)-SOgerichteter Hocker mit Blick nach N. Beigaben: 1. Unverz. T; graubraun; H. 9,3; Wdg. 0,4/0,5 (Taf. 17,17). 2. Unverz. Sch mit eingezogenem Boden und zweifach senkr. durchb. Grifflappen; rötlich-braun; H. 8,5; Wdg. 0,6 (Taf. 17,18). 3. Dickn. Beil aus Wiedaer Schiefer; L. 10,5; Schnbr. 4,7 (Taf. 17,16). 4. Querschneider (Taf. 17,15). 5. 3 Feuersteinabschläge. 6. Geweihspitze Typ Ostorf; L. 17,7 (Taf. 17,30) ; Rothirsch (Dö.). 7. In der Mitte durchb. Knebel mit Punktreihen auf der Oberseite; L. 10,3 (Taf. 17,14); wahrscheinlich Geweih (Dö.). 8. Stück Pech.
+
+Mus. Schönebeck Inv.-Nr. 1967 a—f (Skelettreste verschollen). e) Flachg. der Bernburger Kultur (?) (,G 3"). Unklarer Befund; NW-SO-gerichtete Bestattung; Hocker ?; Keramik ?; Beigaben: 1. Dickn. Beil aus Wiedaer Schiefer; L. 10,9; Schnbr. 5,6 (Taf. 17,27). 2. 2 Feuersteinklingen; grau; L. 7,1 und4,6 (Taf. 17,21,28). 3. Klingenartiger und 4 sonstige Feuersteinabschläge. 4. 5 Querschneider; grau (Taf. 17,22—26). 5. Ovale Kieselscheibe, 5,8 × 4,8 cm und gebogenes fingerdickes Feuersteinstück; L. 10,2 (Behrens 1981 a, Abb. 1,3 — Feuersteinschlagbesteck ?). 6. Ausgebrochene Geweihspitze Typ Ostorf; erh. L. 18,2 (Taf. 17,29) ; Rothirsch (Dö.).
+
+f) Flachg. der Bernburger Kultur (G 4"). NW(Schädel)-SOgerichteter Hocker, Blick N, Beigaben: 1. Tonnengefäß mit Tannenzweigmuster; braun-grau; H. 6,8; Wdg. 0,4/0,5 (Taf. 18,1). 2. Unverz. Sch mit Rest von zweifach durchb. Grifflappen; rötlich-braun-grau; H. 7,4; Wdg. 0,6/0,7 (Taf. 18,2). 3. Dickn. Beil aus Wiedaer Schiefer mit abgebro-
+
+Mus. Schönebeck Inv.-Nr. 1968 a—e (Skelettreste verschollen). Anm.: W. Wanckel erwähnt (OA Barby im LM Halle), daß in einem G eine gestreckte Bestattung lag; Angabe könnte sich auf dieses G beziehen.
+
+Mus. Schönebeck Inv.-Nr. 1969 b—g und 2208 = 1969 a; Skelettreste und der tierische Unterkiefer. verschollen.
+
+g) Flachg. der Bernburger Kultur (?) (,G 5"). NW(Schädel)SO-gerichteter Hocker, Blick N. Beigaben: 1. RS mit Winkelband; rötlich-braun-grau. 2. Dickn. Beil aus Wiedaer Schiefer; L. 8,4; Schnbr. 4,6 (Taf. 18,13). 3. Feuersteinklingenfragment; dunkelgrau; L. 5,0 (Taf. 18,12). 4. 5 klingenartige Feuersteinabschläge; L. 2,8—4,5; 2 atypische Feuersteinabschläge und 2 längl. unbearbeitete Feuersteinstücke; grau; L. 7,4 und 6,0. 5. 9 durchb. Tierzähne. 6. Stück Pech.
+
+Mus. Schönebeck Inv.-Nr. 1972 a—d; 1., 5. u. Skelettreste verschollen.
+
+h) Flachg. der Bernburger Kultur (G 6"). NW(Schädel)-SOgerichteter Hocker, Blick N. Beigaben: 1. Unverz. Sch mit 3 nebenst. knubbenartigen  Fortsätzen; hellbraun-rötlich; H. 10,5; Wdg. 0,7/0,8 (Taf. 17,33). 2. Unverz. Sch; hellbraunrötlich-grau; H. 8,0; Wdg. 0,7 (Taf. 17,34). 3. Kl. dickn. Beil aus Sandstein; dechselartiger Längsschnitt; gelblich mit braunen Einlagen; L. 5,1; Schnbr. 3,2 (Taf. 17,32). 4. In der Mitte durchb. Knebel mit Punkten auf der Oberseite; L. 13,0 (Taf. 17,31) ; wahrscheinlich Geweih (Dö.).
+
+Mus. Schönebeck Inv.-Nr. 1973 a, c—e und 2005 = 1973 b; Skelettreste verschollen.
+
+Anm.: Ob in der unter 2. beschriebenen Schale sich befindende Lehmbewurfreste primär zugehörig sind, ist unklar.
+
+Die Fundkomplexe i und j im April und Mai 1936 geborgen. i) Flachg. der Bernburger Kultur (?) (,G 7"). Teilbestattung. Becken auf den unteren Extremitätenknochen, in diesem ruhte der Schädel. Wirbelsäule und obere Extremitäten fehlten. Einige kl. Scherben der Bernburger Kultur und unter dem Grab im Sand ,,einige Brandreste von Knochen (Mensch?)" (Wanckel, OA Barby im LM Halle). Keine weiteren Beigaben.
+
+Verschollen (ehemals Mus. Schönebeck).
+
+j) Flachg. der KAK (,G 8"). Bestattung in Bauchlage mit abnorm nach links verdrehtem Schädel; im Bereich der unteren Extremitäten gestört. Beigaben: 1. Neben dem Grab" eine KA; am Hals gestempelte Rauten, auf Schulter punktförmige längl. Einst.; grau-braun; H. 33,5; Wdg. 0,5/0,6; HBI 0,97 (Taf. 19,6). Rechts hinter Schädel: 2. Zerscherbt niedergelegte (?) unverz. KA; dunkelbraun; H. 15,4; Wdg. 0,6; HBI 1,11 (Taf. 19,2). 3. Zerscherbt niedergelegter (?) wT; am Hals unter Einst.reihe eingeritzte Rauten und auf Schulter Fr. aus Meißelst.; rötlich-braun; H. 24,5; Wdg. 0,6; HBI 1,02 (Taf. 19,1). 4. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; dunkelgrau; L. 10,2; Schnbr. 5,3 (Taf. 19,5). 5. Zwischen dem Schädel und den Gefäßen ein auf der rechten Seite liegender Schweineunterkiefer sowie ein längsgespaltener Eberzahn; Abstand zwischen den Enden: 10,0 (Taf. 19,3);
+
+<!-- FREE:PAGE 8 -->
+Wildschwein (Dö.). 6. Unmittelbar daneben aufrecht in der Erde stehend Fragmente einer Knochenplatte mit zwei Durchbohrungen an der erh. Schmalseite; Verz.: parallel zur Schmalseite neben Durchb. eingeritztes Winkelleiterband und parallel der Längsseiten eingeritzte Zahnreihen, die drei schmale, unverz. Flächen aussparen; erh. L. 10,7 (Taf. 19,4) ;
+
+vermutlich Schulterblatt eines großen Säugers (Dö.).
+
+Mus. Schönebeck Inv.-Nr. 1976 a—f, 2007; Skelettreste und Unterkiefer verschollen.
+
+Anm.: Entgegen U. Fischer (1956, S. 293) ist Orientierung u. Die Fundkomplexe k-m wurden von W. Wanckel von Juni 1936 bis 1938 geborgen.
+
+k) Flachg. der KAK (,G 9"). Eventuell Doppelbestattung, da 2 Schädel; vermutlich Hocker. Beigaben: 1. KA; am Hals unter längl. Einst. Rauten aus längl.-unförmigen Einst. und auf Schulter längl.-unförmige Einst.; rötlich-gelb und rot gefleckt; H. 14,0; Wdg. 0,6; HBI 0,95 (Taf. 18,16). 2. Kl. unverz. KA; rötlich-braun; H. 7,8; Wdg. 0,5; HBI 0,87 (Taf. 18,15). 3. Schädel eines Kindes; infans I (Br.).
+
+Mus. Schönebeck Inv.-Nr. 1977 a—d; 1 Schädel verschollen. 1) Flachg. der KAK (,G 10"). Uber Bestattung keine Angaben. Von Beigaben erh.: Unverz. kumpfartiger wT mit deformiertem Rand und 4 Fingertupfleisten; hellrot-grau; H. 19,9; Wdg. 0,8/0,9; HBI 0,83 (Taf. 18,17).
+
+Mus. Schönebeck Inv.-Nr. 1978.
+
+m) EF aus Bereich des G.feldes. Wohl meist Beigaben aus zerstörten Flachg. 1. Erg. KA; am Hals eingeritzte Rauten und auf Schulter zwischen Furchenst.linien eingeritzte Fr.; braun; H. 19,0; Wdg. 0,5; HBI 0,93 (Taf. 20,3).
+
+Mus. Schönebeck Inv.-Nr. 1983.
+
+2. wT; auf Schulter Band aus punktförmigen Einst. und auf Gefäßunterteil breite abdruckgerauhte Zone; dunkelbraunrötlich; H. 21,9; Wdg. 0,6; HBI 0,93 (Taf. 20,6).
+
+Mus. Schönebeck Inv.-Nr. 1984.
+
+3. Erg. unverz. wT mit ursprünglich 4 senkr. durchb. He.ösen; rötlich-braun-grau; H. 20,7; Wdg. 0,5/0,7; HBI 0,84 (Taf. 20,1).
+
+Mus. Schönebeck Inv.-Nr. 1986.
+
+4. Unverz. hoher becherartiger Napf (endneolithisch-frühbronzezeitlich?) mit 4 Gruppen aus je 3 Knubben; graubraunrötlich; H. 15,7; Wdg. 0,7 (Taf. 20,4).
+
+Mus. Schönebeck Inv.-Nr. 1987.
+
+5. Verz. Bernburger T mit Ritzlinien und Einst.; dunkelrotbraun; H. 9,4; Wdg. 0,6/0,7 (Taf. 20,2).
+
+Mus. Schönebeck Inv.-Nr. 1989.
+
+6. Bernburger Hängegefäß mit ovaler Mdg., eingeritztem Tannenzweigmuster, senkr. Strichgruppen; grau-rötlich-braun; H. 9,5; Wdg. 0,5 (Taf. 18,14).
+
+Mus. Schönebeck Inv.-Nr. 1990.
+
+7. KI. Amphore der Elb-Havel-Kultur mit eingeritzten Gitterbändern und Furchenst.fr.gruppen; grau-braun; H. 11,2; Wdg. 0,4/0,5 (Taf. 20,5).
+
+Mus. Schönebeck Inv.-Nr. 1991.
+
+8. Erg. Amphore der Elb-Havel-Kultur mit Schwalbenschwanzhe. und 3 Bändern aus Bogen-Winkelst., an denen dreireihige Fr.gruppen aus gleichartigen Einst. hängen; ockerfarben; H. 15,5; Wdg. 0,5/0,6 (Taf. 21,1). Mus. Schönebeck Inv.Nr. 1992.
+
+Anm.: Im Gefäß einige uncharakt. Scherben, gebrannte Lehmbrocken und der Rest eines Kernsteines aus Feuerstein.
+
+9. Unverz. wT" mit Fingerkniff-Tupfenleiste auf Umbruch; keine He.; hellbraun-rötlich; H. 13,0; Wdg. 0,6; HBI 0,83 (Taf. 21,2).
+
+Mus. Schönebeck Inv.-Nr. 1993.
+
+Anm.: Im Gefäß uncharakt. Scherben und ein abgerollter Kiesel.
+
+10. wT mit Warzen auf Umbruch, zwischen denen eine Kerbreihe verläuft; keine He.; hellbraun-rötlich; H. 11,5; Wdg. 0,6/ 0,8; HBI 0,74 (Taf. 21,4).
+
+Mus. Schönebeck Inv.-Nr. 1994.
+
+Anm.: Im Gefäß uncharakt. Scherben und einige Knochen.
+
+11. Erg. unverz. Napf mit geschwungenem Profil (Kultur ?) ; braun-dunkelgrau; H. 7,3; Wdg. 0,6/0,8 (Taf. 21,5) ; zu dem Napf gehören: 6 einheimische Flußmuschelschalen, Wirbel und Backenzahn vom Rind, Schneidezahn vom Schwein, Hornzapfen vom Schaf, Backenzahn von Schaf/Ziege, dabeiliegender Hamsterschädel ist rezent (Dö.).
+
+Mus. Schönebeck Inv.-Nr. 1995 a—g.
+
+12. Unverz. flacher schalenartiger Napf (endnëolithisch-frühbronzezeitlich ?); grau-rötlich-braun; H. 5,4; Wdg. 1,0 (Taf. 21,3).
+
+Mus. Schönebeck Inv.-Nr. 1996.
+
+13. Unverz. Napf mit gewölbter Wandung (endneolithischfrühbronzezeitlich?); hellrot-dunkelgrau; H. 6,0; Wdg. 0,9 bis 1,1 (Taf. 21,6).
+
+Mus. Schönebeck Inv.-Nr. 1997.
+
+Anm.: Im Gefäß einige atypische Feuersteinabschläge und Kernsteine.
+
+14. Unter zahlr. bandkeramischen und jungbronze-früheisenzeitlichen Scherben (ca. 5—10 m südl. der G. in einer höher liegenden Schicht gefunden) auch Scherbe einer Bernburger T(?) mit einem breiten Grifflappen; dunkelbraun; Wdg. 0,7 (Taf. 21,7).
+
+Mus. Schönebeck Inv.-Nr. 2017.
+
+15. Steingeräte, die in den gleichen Zeithorizont gehören: dickn. Meißel aus Wiedaer Schiefer; L. 8,4; Schnbr. 1,7 (Taf. 21,8). Dickn. Feuersteinbeil; Breitseiten überschliffen; dunkelgrau gefleckt; L. 8,4; Schnbr. 5,0 (Taf. 21,11). Dickn. Feuersteinmeißel; Breitseiten überschliffen; grau; L. 8,0; Schnbr. 1,7 (Taf. 21,10). 2 Feuersteinklingen; grau gefleckt; L. 8,9 und 6,5 (Taf. 21,9). 5 klingenartige Abschläge; meist grau; L. 4,6—7,1; dreikantiges Feuersteinstück; L. 7,0. 10 atypische Abschläge.
+
+Mus. Schönebeck Inv.-Nr. 2008, 2012, 2014 und 2015.
+
+16. Vermutlich neolithische Knochengeräte und Tierreste: Schlittknochen; L. 21,0 (Taf. 21,13), Radius vom Pferd. Schlittknochenfragment; erh. L. 13,5 (Taf. 21,15), unbestimmt. Uberschliffener Glättknochen (für Keramikherstellung ?); L. 14,2 (Taf. 21,16), Rippe von Rind oder Pferd. Uberschliffener und zugespitzter Knochendolch (?) mit Schnittmarken; L. 16,2 (Taf. 21,14), Rippe eines Jungtieres, Rind oder Pferd. 2 Geweihspitzen; unbearbeitet; L. 15,0 (Taf. 21,12), Rothirsch. 5 Flußmuschelschalen (Dö.).
+
+Mus. Schönebeck Inv.-Nr. 2000, 2009, 2015 und o. Nr. Wanckel 1936, S. 30; Priebe 1938, S. 73; Grimm 1940 a, S. 402; Fischer 1956, S. 97 ff., 104, 106, 152, 155 f., 270, 293; Behrens 1973, S. 302; 1981 a, S. 12, Abb. 1; Beier 1984, S. 93 f.
+
+Anm.: Zusammen mit den mittelneolithischen Funden auch bandkeramische, jungbronze-früheisenzeitliche und unbestimmbare Komplexe sowie ritzverz. polierter Knochen (Völkerwanderungszeit ?) geborgen.
+
+83. Barby. Fdpl. 4. Feldmark Mukrene. Mbl. 2239 (4037), N 13,0; W 2,0. Geländesit.: flache Anhöhe.
+
+FA: G (Abb. 4,6). Versenkte, annähernd rechteckige, an der S-Seite leicht abgewinkelte Steinkiste. Lichte Größe 2,00
+
+1,00 × 0,70 m; NO-SW. Sohle bei 1,30 m Tiefe. Ungefähr in Kammermitte Reste eines ursprünglich wohl O(Schädel)W-gerichteten rechtsseitigen Hockers, Blick NW. Um den Toten zahlr. Beigaben; lagen teilweise in einer 0,25 m starken Erdschicht über der Kammsohle. In der S-Ecke Reste von mind. 6 Gefäßen: 1. KA mit Hals-Schulter-Kehle; am Hals Bogenst.bänder und Dreiecke, auf Schulter unter 2 Bogenst.reihen Furchenst.fr.gruppen mit Bogenst.abschluß; braunschwarz gefleckt; H. 20,0; Wdg. 0,5/0,6; HBI 0,93 (Taf. 22,18). 2. KA; am Hals Dreiecke aus Schnurlinien und auf Schulter unter Einst.reihen gleichartige Dreiecke, begrenzt von Punktst.winkellinie; braun-schwarz gefleckt; H. 18,2; Wdg. 0,5; HBI 1,07 (Taf. 22,16). 3. KA mit verwitterter Oberfläche; am Hals Reste eines ausgésparten Rautenmusters aus Bogen-Winkelst. und auf Schulter Bogen-Winkelst.(?)dreiecke; braun; H. 15,4; Wdg. 0,5; HBI 1,00 (Taf. 22,13). 4. Unverz. KA mit ovalem Bauch; braun; H. 15,5; Wdg. 0,5/0,6; HBI 1,19 (Taf. 22,1). 5. Hals einer KA mit Reihen von Rauten aus Bogenst. und anderen Einst.; Wdg. 0,5 (Priebe 1938, Taf. II c). 6. wT; unter dem Rand Dreiecke und Trapeze aus Schnurlinien; darunter mehrreihige Schnurfr. und grobe Kerbreihe; dunkelbraun; H. 18,2; Wdg. 0,6; HBI 0,98 (Taf. 22,19). Weitere aus der Kiste stammende Scherben (Lage u.) : 7. HaS einer KA (?) mit Gitterband aus Schnurlinien; braun; Wdg. 0,3/ 0,4 (Taf. 22,3). 8. 2 SS und 1 BS einer KA mit eingeritzten Fr.gruppen zwischen Einst.reihen (zu 5 gehörig?) ; rot-braun; Wdg. 0,4/0,5 (Taf. 22,4,5). 9. SS eines wT mit Schnurfr.gruppen; braun; Wdg. 0,4 (Taf. 22,2). 10. Unverz. RS; dunkelgrau; Wdg. 0,5 (Taf. 22,6). In W.ecke des Grabes Beil und Abschlag, an der NW-Seite in der Mitte 2 Beile und 1 Meißel, am Oberkörper weiteres Beil. 11. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; dunkel- bis hellgrau; L. 8,0; Schnbr. 4,5 (Taf. 22,14). 12. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; hellgrau; L. 9,2; Schnbr. 3,6 (Taf. 22,17). 13. Dickn. Feuersteinbeil mit schräger Schneide; Breitseiten überschliffen; hellgrau; L. 9,6; Schnbr. 4,2. 14. Dickn. Feuersteinbeil; Breitseiten überschliffen; hellgrau gefleckt; L. 9,5; Schnbr. 5,0. 15. Dickn. Feuersteinmeißel; Breitseiten überschliffen; hell- bis dunkelgrau; L. 7,5; Schnbr. 1,4 (Taf. 22,15). 16. Feuersteinabschlag; hellgrau; L. 5,0 (Taf.22,7). 17. Zwischen den menschlichen Schädelresten und der SO-Wand Reste einer durchb. Bernsteinscheibe mit zentraler und noch 2 erh. kl. peripheren Bohrungen (Taf. 22,8). 18. Fragment einer röhrenförmigen Bernsteinperle (Lage u.). 19. Nördl. des Schädels gespaltener Eberhauer; Abstand zwischen den Enden: 10,0 (Taf. 22,9) und südl. des Schädels 3 weitere Eberhauerfragmente (Taf. 22,10--12). 20. Zahlr. Reste tierischer Beigaben, vor allem an der O-Ecke und bei den Beilen an der NW-Wand; einige mit Brandspuren; bestimmbar waren: Schweineunterkiefer, Fragment eines Rinderzehenknochens, Fragment eines Beckenknochens eines Kalbes (?), Hornrest von Schaf/Ziege oder Rind und Rippenfragmente (Dö.). 21. 11 kl. Steinchen (Lage u.). 22. SW des Schädels zwischen Eberhauerfragmenten und Gefäßen geringe Holzreste (bei Bergung zerfallen).
+
+LM Halle HK 14:490—494, 497-523 (Dauerleihgabe Mus. für Deutsche Geschichte Berlin) ; 5., 13., 14. und Teile von 17. verschollen. Aberg 1918, S. 173; Kossinna 1922, S. 251 ; Priebe 1938, S. 73, Abb. 1, Taf. II c—f, III a, XXI c; Schrickel 1966 b, S. 393, Taf. 20,4; Behrens 1973, S. 302.
+
+84. Biere. Fdpl. 4. Kirchhof. Mbl. 2237 (4035), N 13,0; 0 3,5. Geländesit.: nach O leicht fallender Hang.
+
+FA: EF. Altfunde, zusammengehörig (?) 1. Halb erh. KA mit ovalem Bauch (?) und Hals-Schulter-Kehle; am Hals unregelmäßige Schnurliniengruppen, auf Schulter Schnurfr. im Wechsel mit waag. und schrägen sich kreuzenden Linien; schwarzrötlich gefleckt; Wdg. 0,5 (Taf. 24,3). 2. HaS und SS einer KA; am Hals eingeritzte Rauten und auf Schulter punktartige Einst.; graubraun gefleckt; Wdg. 0,4 (Taf. 24,2,5). 3. Reste eines wT; am Hals unregelmäßig angeordn. Bogen-Winkelst. und kommaartiger Einst. und auf Schulter unter groben längl. Einst. unförmige Einst.; graubraun mit schwarzen Flecken; Wdg. 0,5/0,8 (Taf. 24,1,3). 4. Unverz. HaS mit He.ansatz von
+
+wT; schwarz; Wdg. 0,5.
+
+LM Halle HK 2073, 2075, 2076, 2077, 2078, 4675. Götze 1900 a, S. 158; Kossinna 1922, S. 251 (,,entartete Kugelamphore") ; Priebe 1938, S. 73, Taf. VI b, XXVII c; Fischer 1958 b, S. 6; Behrens 1973, S. 302.
+
+85. Calbe/S. Fdpl. 5. Wartenberg. Mbl. 2238 (4036), S 7,5; W 13,7. Geländesit.: Anhöhe.
+
+FA: EvG. Altfund. wT; am Hals Dreiecke aus Schnurlinien und auf Schulter Schnurfr.gruppen; braun; H. 26,3; Wdg. 0,7; HBI 0,98 (Taf. 24,13).
+
+Mus. Schönebeck Inv.-Nr. 1276. Fischer 1958 b, S. 6.
+
+Anm.: Von hier stammt beigabenlose, vermutlich neolithische Rinderdoppelbestattung, über der eine (zugehörige?) menschliche Hockerbestattung peripher ruhte (Behrens 1964 a, S. 97).
+
+86. Klein Mühlingen. Fdpl. 1. Mühlen- oder Kirchberg. höhe.
+
+FA: EvG. Altfund: HaS einer KA (?) mit eingeritzten Rauten; rötlich-braun; Wdg. 0,6 (Taf. 24,11).
+
+Mus. Dessau Inv.-Nr. II 23. Priebe 1938, S. 90; Fischer 1958 b,
+
+S. 6; Behrens 1973, S. 303.
+
+Anm.: Fundplatzangaben nach H. Priebe (1938, S. 90). Uberprüfung nicht mehr möglich.
+
+87. Schönebeck. Fdpl. 22. Mbl. 2168 (3936), S 11,3; W 17,3. Geländesit.: Uferterrasse in Elbnähe.
+
+FA: G (Abb. 5,1). Versenkte, annähernd rechteckige, aus Quarzitplatten gebaute Steinkiste von 2,00 1,25×1,15 m im Lichten; NO—SW. Mit Kalksteinplattenpflaster ausgelegte Sohle in 1,47 m Tiefe. An SW-Schmalseite Eingangskonstruktion aus vier gr. Steinplatten, die durch kleinere Steine abgedichtet und fixiert wurden. Fugen der Kiste mit Ton verstrichen. In der Mitte der zur Hälfte mit feiner Erde angefüllten Kammer ein SSO(Schädel)-NNW-gerichteter linksseitiger Hocker eines männlichen Individuums mit Blick nach SW, halbangezogenen Beinen und Händen vor dem Gesicht. In der W.ecke zu Füßen des Toten: 1. Erg. KA mit einer HalsSchulter-Kehle; am Hals trapezförmige Flächen aus Schnurlinien, auf Schulter unter Punktst.reihe eingeritzte Fr.gruppen, begrenzt von längl. Einst. und unter dem He. 3 Reihen Punktst.; braun-dunkel gefleckt; erh. H. 22,2; Wdg. 0,5/0,6; HBI 0,94 (?) (Taf. 23,3). 2. Unverz. KA mit gesacktem Bauch ; schwarz gefleckt; H. 19,0; Wdg. 0,6/0,8; HBI 1,09 (Taf. 23,4). 3. Auf Mdg. gestülpte Bernburger Sch mit kl. Bandhe.; graubraun; H. 11,6; Wdg. 0,6 (Taf. 23,2). 4. Zwischen den KA Reste eines Unterkiefers mit beiden Hauern und ein Extremitätenknochen vom Schwein. Hinter dem Rücken des Toten: 5. wT mit leicht ovaler Mdg.; unter eingestochener Fischgrätenlinie ausgespartes Winkelband aus eingeritzten mit imitierten Furchenst.linien gefüllten Dreiecken; dunkelbraun gefleckt;
+
+<!-- FREE:PAGE 9 -->
+H. 25,0; Wdg. 0,5; HBI 0,86 (Taf. 23,5). 6. Daneben dickn. Feuersteinbeil; Breitseiten überschliffen; hellgrau gefleckt; L. 11,0; Schnbr. 5,5 (Taf. 23,8). In Höhe des Brustkorbes nahe der SW-Wand: 7. Knochendolch mit zahlr. Schnittspuren; L. 21,6 (Taf. 23,7) ; Metatarsus vom Hirsch. 8. Fragment eines zweiten Dolches oder eines Pfriemes (?) ; L. 12,0 (Taf. 23,6) ; Extremitätenknochen vom Rind oder Hirsch. 9. Eberhauer; Abstand zwischen den Enden: 10,0 (Taf. 23,1). 10. 4 Extremitätenknochen von Schaf/Ziege (Dö.).
+
+Mus. Schönebeck Inv.-Nr. 2020 a—h (in Schauslg.). Otto 1949,
+
+S. 132, Taf. 24; 25,1; Fischer 1956, S. 150 ff., 295, Taf. 36; 1958 b, S. 6; Wanckel 1958, S. 243 ff., Taf. 13; Behrens 1964 a, S. 102; 1973, S. 304; Lies. 1974, S. 100; Beier 1984, S. 85 f. Anm.: 4,5 m NW der Steinkiste in 1,4 m Tiefe Skelettreste von 5 jungen Rindern; lagen teilweise durcheinander; alle Schädel aber im SO. Lageverhältnisse und Erhaltungszustand der Knochen sprechen für Zusammenhang von Tierbestattung" und Steinkiste (vgl. Wanckel 1958, S. 243 ff.; Behrens 1964 a, S. 102).
+
+## Kreis Staßfurt
+
+88. Hohenerxleben. Fdpl. Steinbruch am Kalkwerk. Mbl. 2311. (4136), N ca. 22,1; W ca. 0,2. Geländesit.: nach NO fallender Hang.
+
+FA: EF. Altfunde. 1. 2 HaS einer gr. Schale; am Hals zwi-
+
+schen Bogenst.bändern Dreiecke aus spitzovalen Einst. und auf Umbug Reihen aneinandergesetzter ovaler Einst.; graubraun-schwarz gefleckt; Wdg. 0,5/0,6 (Taf. 83,1). 2. WS mit Fingertupfenleiste und schlickgerauhter Oberfläche; rötlichgrau; Wdg. 1,0 (Taf. 83,2).
+
+Mus. Dessau Inv.-Nr. IV 74/3 a—c (Mitt. H.-P. Hinze, Dessau).
+
+89. Egeln. Fdpl. 25 Eisenbahnbrücke. Mbl. 2236 (4034), N 22,0; 0 25,8. Geländesit.: flacher Hang in Nähe der Bode. FA: EF (vermutlich Siedl. Bernburger Kultur). Lesefunde: Schiefermesser, Bernburger Scherben und RS der KAK. Mus. Egeln Inv,-Nr. 2823.
+90. Egeln. Fdpl. 30. Mbl. 2236 (4034), S 20,0; W 21,6. Geländesit.: eben.
+
+FA: EF. Lesefund auf mehrperiodigem Fdpl. RS; mit punktförmigen Einst. gefülltes Dreieck aus einer eingeritzten Doppellinie; Wdg. 0,6 (Taf. 24,9). Mus. Egeln Inv.-Nr. 2330.
+
+91. Egeln. Fdpl. Aufbauschule/Oberschule. Mbl. 2236 (4034). Geländesit.: ursprünglich wohl eben.
+2. FA: EF. Hals einer KA; am Hals eingestempelte Rauten und auf Schulter eingeritzte Fr.gruppen; dunkelgrau; Wdg. 0,5 (Taf. 24,7).
+
+Mus. Egeln Inv.-Nr. 174. Fromme 1937, S. 10; Priebe 1938, S. 72; Kaufmann 1967, S. 101; Behrens 1973, S. 302. Anm.: Von den bei H. Priebe angegebenen zwei KA nur eine
+
+nachweisbar. Eine zweite hier aufgefundene Amphore gehört zur Baalberger Kultur (vgl. Preuß 1966, S. 117).
+
+92. Egeln, OT Bleckendorf. Fdpl. u. (Sandgrube). Mbl. 2236
+2. (4034).
+
+H. 10,2; Wdg.0,5/0,6; HBI 0,77 (Taf. 24,12).
+
+FA: EvG. Napfartige Schüssel mit 2 umlauf. Reihen aus Schnurlinien gebildeter Vierecke oder mehr oder weniger unförmigen Gebilden; gefüllt mit Punktst.; grau-rötlich gefleckt;
+
+Mus. Magdeburg Inv.-Nr. 77:349 (alte Nr. 8998). Kossinna 1922, S. 251; Kupka 1927, S. 118 f.; Engel 1930, Abb. 89; Priebe 1938, S. 73; Kaufmann 1967, S. 101, Abb. 5 h; Behrens 1973, S. 302.
+
+Anm.: Nach P. Kupka (1927, S. 118) Schüssel zusammen mit einer Baalberger Amphore gefunden; Angabe nicht überprüfbar.
+
+93. Westeregeln. Fdpl. 2. Sandgrube. Mbl. 2236 (4034), N 20,4; W 16,3. Geländesit.: nach O fallender Hang.
+2. FA: EF. Auf der bereits abgetragenen Oberfläche in einer gestörten, dunkel verfärbten Schicht: Reste von Hals und Schulter eines wT mit Hals-Schulter-Kehle; am Hals unter sich kreuzenden Winkellinien Meißelst.rauten und auf Schulter imitierte Fr.gruppen aus Bändern dicht nebeneinander gestellter Meißelst.; grau-gelb und schwarz gefleckt; gr. Dm. (err.) ca. 45,0; Wdg. 0,7/0,8 (Taf. 24,6). LM Halle HK 74:270 b.
+94. Westeregeln. Fdpl. 13. Mbl. 2236 (4034), N 10,5; W 12,0.
+4. Geländesit.: eben.
+5. FA: EF. Lesefund auf mehrperiodigem Fdpl. HaS eines wT mit eingeritzten Rauten; grau; Wdg. 0,7 (Taf. 24,8). Mus. Egeln Inv.-Nr. 2402.
+95. Wolmirsleben. Fdpl. 7. Saueranger. Mbl. 2236 (4034), S 20,5; O 9,5. Geländesit.: trockener Horst in Bodenniederung. FA: EF. Lesefund auf mehrperiodigem Fdpl. HaS eines wT (?) mit eingeritzten Rauten oder Dreiecken; graubraun; Wdg. 0,6 (Taf. 24,10).
+
+Mus. Magdeburg o. Nr.
+
+Kreis Oschersleben
+
+96. Beckendorf-Neindorf. Fdpl. 3. Blocksberg. Mbl. 2165 (3933), N 2,2; W 5,0. Geländesit.: Anhöhe.
+2. 1., 2., 5. und 8. LM Halle HK 2291—2293, 4712; 6. und 7. ausgesondert (ehemals HK 2364—2369) ; 3. und 4. verschollen. Schmidt 1894, S. 34 ff., Abb. 21-27; Brunner 1898, S. 10 f.; Götze 1900 a, S. 158; Åberg 1918, S. 173; Kossinna
+
+FA: G (Abb. 4,10). Angeblich mehrere Steinkisten geborgen; über eine nähere Angaben bekannt (Schmidt 1894, S. 34 ff.). Versenkte, annähernd rechteckige, im NO Bereich abgewinkelte Kiste aus Sandsteinplatten von ca. 1,80  1,00 × 0,50 m Größe im Lichten; NNO—SSW. Auf Sandsteinplattenpflaster NNO (Schädel)-SSW gerichteter rechter Hocker mit Blick nach NW und Händen im Becken. Funde: 1. Hinter Schädel an NNO-Schmalseite Reste einer KA mit Hals-Schulter-Kehle; am Hals unter eingeritzten Dreiecken Rauten und auf Schulter zwischen Winkel-Bogenst.reihen eingeritzte Fr.; schwarz; Wdg. 0,5 (Taf. 25,6). 2. Im Winkel zwischen Ober- und Unterschenkel nahe der O.wand Reste eines wT; am Hals ausgespartes Winkelband aus feinen Schnurlinien und auf Schulter vermutlich ein gleichartiges Winkelband; dunkelgraurötlich gefleckt; H. 28,5; Wdg. 0,7/0,8; HBI 0,84 (Taf. 25,7). 3. Neben dem Schädel Feuersteinbeil; überschliffen; weiß. 4. Auf dem Schädel Feuersteinmeißel; überschliffen; weiß. 5. In der Nähe des Beckens eine durchb. Bernsteinscheibe; Dm. 4,8 (Taf. 25,5). 6. Aus der Kammer noch mindestens 4 Feuersteinabschläge. 7. Südl. unmittelbar vor dem G. Knochen eines Schweines (zugehörig?) (Unterkiefer und gr. längsgespaltener Eberhauer). 8. Von Skelettresten nur Schädel aufbewahrt; männlich; spätadult (Br.).
+
+1922, S. 251; Priebe 1938, S. 72, Taf. XXXII f.; Fischer 1956, S. 150 ff., 293; Weber 1964, S. 166; Behrens 1973, S. 302. Anm.: Bei Bearbeitung der Schädelreste im Anthropologischen Institut der Friedrich-Schiller-Universität Jena festgestellt, daß einige Schädelbruchstücke mit Sicherheit zu einem weiteren Individuum gehören. Ob diese allerdings primär aus dem oben beschriebenen Steinkistengrab stammen oder ob hier eine sekundäre Vermengung vorliegt (bei Schmidt 1894, S. 34, von Auffindung mehrerer Gräber die Rede), läßt sich nicht entscheiden.
+
+97. Völpke, OT Badeleben. Fdpl. 5. SKET-BT Badeleben. Mbl. 2097 (3832), N ca. 22,1; 0 ca. 8,5. Geländesit.: nach SO leicht fallender Hang.
+
+FA: G (Abb. 3,5). Unter Ascheschicht in 0,40 m Tiefe gestörtes Flachg. mit annähernd O(Schädel)-W-gerichtetem linkem Hokker mit Blick nach S. Funde: 1. Nördl. hinter dem Schädel Reste einer KA; am Hals senkr. Reihen punktartiger-unförmiger Einst. und auf der Schulter punktartige Einst.; schwarz-rötlich gefleckt; H. 16,4; Wdg. 0,5/0,6; HBI 1,09 (Taf. 25,1). 2. Vermutlich in Nähe der KA Reste eines wT; am Hals ausgespartes Winkelband und Dreiecke aus Schnurlinien sowie auf Schulter Schnurfr.gruppen; braun-ockerfarben; Wdg. 0,7 (Taf. 25,4). Lage folg. Beigaben u.: 3. Klingenartiger Feuersteinabschlag; grau; L. 5,4 (Taf. 25,3). 4. Eberzahnfragment; Abstand zwischen den Enden: 9,5 (Taf. 25,2). 5. Skelettreste eines Individuums; weiblich; erwachsen (wahrscheinlich adult) (Br.).
+
+LM Halle HK 84:734 a—e. Nitzschke/Stahlhofen 1982, S. 270.
+
+Kreis Halberstadt
+
+98. Dardesheim. Fdpl. u. Mbl. 2232 (4030) oder 2233 (4031). FA:Vermutlich zerstörtes Flachg. Folg. Beigaben: Angeblich bei einem Skelett: 1. gr. HaS einer KA mit He. und Schulter; am Hals 3 umlauf. Reihen jeweils auf Lücke angeordn. häng. Bogen-Winkelst.dreiecke, am Ubergang zur Schulter eine Bogen-Winkelst.reihe und auf Schulter unter 2 vermutlich gleichartigen Einst. eingeritzte Fr.gruppen. 2. wT mit abgesetztem Standboden, kräftig profilierter Schulter und im HalsSchulter-Knick sitzenden He.; am Hals unter umlauf. Ritzoder Furchenst.linie gr. häng. mit eingeritzten (?) sich kreuzenden Linien gefüllte Dreiecke, darunter in Höhe der Handh. unter einer Ritz- oder Furchenst.linie kl. häng. mit schrägen Ritzlinien gefüllte Dreiecke und auf Schulter eingeritzte (?) Fr.gruppen; grauschwarz; H. 37,0; HBI 1,23 (Priebe 1938, Taf. XVIII d).
+
+Verschollen (ehemals Mus. Berlin). Kossinna 1922, S. 251; Priebe 1938, S. 74; Fischer 1956, S. 293; Behrens 1973, S. 302.
+
+99. Deersheim. Fdpl. Am Holzweg. Mbl. 2232 (4030), N 4,5 bis4,7; 0 15,5-15,8. Geländesit.: nach S0 leicht fallend. FA: EF. Auf mehrperiodigem Fdpl. neben ·2 Bernburger Scherben mit Grifflappen auch HaS eines wT (?) mit Schnurlinien; dunkelgrau; Wdg. 0,5 (Taf. 28,4).
+
+LM Halle HK 84:128 t.
+
+100. Deesdorf. Fdpl. Am Rande des Pfingstberges. Mbl. 2235 (4033), S 11,5; W 8,1. Geländesit.: Hang in 30 m Entfernung zum Bodeprallhang.
+
+FA: G. Versenkte Steinkiste, 1,85 × 1,10 × vermutlich 1,00 m;
+
+0—W; Sohle in 1,40 m Tiefe. An der N-Seite ein ,vermutlich' sitzender Hocker beigesetzt, der nachher unter dem Druck der eingedrungenen Erdmassen aber umgefallen war, ,wenigstens mußte.dies nach der Lage des Skeletts angenommen werden" (Mötefindt 1910, S. 349). In der südl. Kammerhälfte folg. Beigaben: 1. KA mit leicht asymmetrischen He.; am Hals senkr. Fischgrätenmuster aus Meißelst. und auf der Schulter zwischen eingeritzten Linien Fr.; bräunlich-rot gefleckt; H. 14,2; Wdg. 0,5; HBI 0,95 (Taf. 26,6). 2. Unverz. KA mit gesacktem Bauch; braun-grau; H. 25,9; Wdg. 0,6/0,8; HBI 1,14 (Taf. 26,7). 3. Sch mit senkr. Fischgrätenmuster aus Meißelst.; grau gefleckt; H. 11,0; Wdg. 0,5/0,7; HBI 0,59 (Taf. 26,5). 4. Reste eines wT oder TmhU mit Kerbreihenverz., die, man muß es annehmen, als Scherben beigegeben sind" (Mötefindt 1910, S. 349). 5. Ein längl., vermutlich dreikantiges Steingerät ohne Bearbeitungsspuren (Wetzstein ?) ; L. ca. 12,0 (Mötefindt 1910, Abb. 2). 6. Ein längl. Steingerät mit leicht abgerundeter Oberseite (?) ohne Bearbeitungsspuren; geformt, wie ein noch nicht fertiges Steinbeil" (Mötefindt 1910, S. 349, Abb. 2). 7. Von Skelettresten nur Schädel erh.; erwachsen (frühadult) ; eher weiblich als. männlich; 3 Schlagmarken, die keine Heilungsreaktion erkennen lassen (Br.).
+
+- 1.—3., 7. Mus. Halberstadt Inv.-Nr. 633 a—d; 4.—6. verschollen. Mötefindt 1910, S. 348 ff., Abb 1—6; Schliz 1912, S. 380 f.; Åberg 1918, S. 173; Kossinna 1922, S. 251; Priebe 1938, S. 72; Fischer 1956, S. 150 ff., 293; Behrens 1973, S. 302.
+101. Dingelstedt. . Fdpl. 6. Wilmkeberg. Mbl. 2233 (4031), N 7,2; 0 9,3. Geländesit.: Anhöhe.
+
+FA: G (Abb. 4,2). Versenkte Kiste aus Sandsteinplatten, im Lichten 1,40 × 0,70; 0—W; Oberkante in 0,70 m Tiefe; Sandsteinplattenpflaster. Unteres Drittel der Kiste mit dunkler Erde gefüllt, darin wirr durcheinanderliegende Skelettreste sowie folg. Beigaben: 1. Am Schädel Reste einer Bernsteinscheibe mit zentraler Durchbohrung und 2 gegenständigen, peripheren kl. Bohrungen; Dm. 2,4 (Taf. 25,10). 2. Längsgespaltener Eberhauer; überschliffen mit Schnittspuren; Abstand zwischen den Enden: 9,5. (Taf. 25,19). 3. 8 durchb. Zahnanhänger (Taf. 25,11—18) ; 6 sichere und 2 wahrscheinliche Grandeln vom Hirsch (Dö.). 4. Pfriem; L. 6,2 (Taf. 25,9). 5. Skelettreste eines Individuums; gemäß Fundbericht ein Kind von ca. 5 Jahren (infans II).
+
+Mus. Halberstadt o. Nr.; Kiste an gesicherter Stelle in Kiesgrube aufgebaut.
+
+- Anm.:Befund spricht für alte Störung.
+102. Groβ-Quenstedt. Fdpl. 1. Wirbecke Feld. Mbl. 2234 (4032), S 16,3; 0 22,5. Geländesit. : flacher Hang einer kleinen spornartigen Anhöhe.
+
+FA: G (Abb. 4,3). Versenkte Steinkiste" von 1,25 m L. und vermutl. 1,00 m Breite im Lichten; O—W; in ca. 1,00 m Tiefe Fußboden aus einer Steinplatte. Südl. Längsseite von Steinplatte gebildet, die auf einer Steinpackung stand und teilweise durch diese gestützt wurde; nördl. Längsseite fehlte; Deckplatte von 1,50  1,00 m lag schräg. Profil ein Dreieck. Angaben über die O- und W-Seite fehlen. Im G.raum Reste eines Skelettes; meiner Vermutung nach ein liegender Hokker — denn für ein gestrecktes Skelett würde der Raum mit 1,25 m nicht lang genug sein — und am Fußende rechts von ihm standen drei Gefäße" (Mötefindt 1910, S. 352). Nach Skizze (Abb. 4,3) W (Schädel)-O-gerichtete (?) Bestattung; Gefäße evtl. in SO-Ecke. 1. KA; am Hals Reihen aus dreieckig
+
+abgerundeten Einst. und auf Schulter unter gleichartigen Einst. Furchenst.fr.gruppen; grau-rötlich gefleckt; H. 14,6; Wdg. 0,5; HBI 1,04 (Taf. 26,3). 2. Unverz. KA; graurötlich und braun gefleckt; erh. H. 12,7; Wdg. 0,7/0,9; HBI 1,01 (?) (Taf. 26,1). 3. Erg. wT mit unförmigen groben Einst. bzw. Kerben in Höhe der He.; grau-rötlich und braun gefleckt;
+
+<!-- FREE:PAGE 10 -->
+H. 19,0; Wdg. 0,6/0,7; HBI 1,03 (Taf. 26,2).
+
+Mus. Halberstadt Inv.-Nr. 268—270 (Skelettreste verschollen). Mötefindt 1910, S. 352 f., Abb. 7-11; Aberg 1918, S. 173; Kossinna 1922, S. 252; Priebe 1938, S. 72; Fischer 1956, S. 150, 294; Behrens 1973, S. 303.
+
+Anm.: Entgegen U. Fischer (1956, S. 150) hatte die Kiste kein Pflaster!
+
+103. Halberstadt. Fdpl. 8. Bullerberg. Mbl. 2234 (4032), S 3,0 bis 4,0; W 16,2-17,2. Geländesit.: nach SO abfallende Hochfläche.
+
+FA: G. Altfund im Bereich eines Bernburger Fdpl. Beigaben: 1. Mehrere Gefäße; erh. nur KA mit Hals-Schulter-Kehle, leicht asymmetrisch angeordn. gekehlten Osenhe. und Kerbreihe auf der Schulter; grau-rötlich und braun gefleckt; H. 20,0; Wdg. 0,6; HBI 1,06 (Taf. 28,12). 2. Feuersteinbeil;
+
+grau; L. 8,0; Schnbr. 3,8.
+
+1. Mus. Halberstadt Inv.-Nr. 2030 (alte Nr. 68) ; 2. verschollen. Mötefindt 1910, S. 353 f., Abb. 12; Åberg 1918, S. 173; Kossinna 1922, S. 252; Priebe 1938, S. 75; Behrens 1973, S. 303.
+
+104. Halberstadt. Fdpl. u. Mbl. 2233 (4031), 2234 (4032) oder 2307 (4132).
+
+FA: EF. Hals mit Schulter einer KA mit Hals-Schulter-Kehle; am Hals unter Winkelschnurlinien Punktst.dreiecke und auf Schulter ausgespartes Winkelband aus Schnurlinien und Punktst.; dunkelgrau-rötlich gefleckt; Wdg. 0,5 (Taf. 25,8). LM Halle HK 2297. Götze 1900 a, S. 158; Mötefindt 1910, S. 354; Kossinna 1922, S. 252; Priebe 1938, S. 75, Taf. IV e; Behrens 1973, S. 303.
+
+Anm.: Die Annahme von H. Mötefindt (1910, S. 354), dieser Gefäßrest könnte aus dem Grab vom Bullerberg stammen, ist
+
+nicht belegbar.
+
+## 105. Harsleben. Fdpl. u. Mbl. 2307 (4132).
+
+FA: vG. TmhU mit Fingertupfenreihe und ovaler Mdg.; graurötlich und braun gefleckt; H. 22,9; Wdg. 0,8; HBI 1,17 (Taf. 28,10). Ob allerdings ein Feuersteindolch mit linsenförmigem Querschnitt und einer L. von 15,4 (Taf. 28,11) zum gleichen Grab gehört, wie K. Schirwitz (1932, S. 549) angibt, erscheint fraglich.
+
+Mus. Halberstadt Inv.-Nr. 2056, 2266. Schirwitz 1932, S. 549.
+
+106. Sargstedt. Fdpl. Holz- oder Thieberg. Mbl. 2233 (4031), S ca. 20,0; O ca. 3,5. Geländesit. : kl. Anhöhe.
+
+FA: G. Gehockte Kinderbestattung. Beigaben: 1. Hals mit Schulter einer KA; am Hals eingeritzte Rauten und auf Schulter senkr. Einst.; hellbraun-grau gefleckt; Wdg. 0,5 (Taf. 28,8). 2. Erg. TmhU mit kreisförmigen Einst. auf der Schulter und abdruckgerauhtem Bauch; hellbraun-grau gefleckt; H. 20,2; Wdg. 0,8/1,0; HBI 1,22 (Taf. 28,9). 3. Reste einer flachen Sch. 4. Weitmundige Sch. 5. Feuersteinbeil. 6. Verbrannte Getrei-
+
+dekörner.
+
+1. und 2. Mus. Halberstadt Inv.-Nr. 2501, 2222; Rest verschollen. Priebe 1938, S. 74; Fischer 1956, S. 159, 295; Behrens 1973, S.304.
+
+Anm.: Vom gleichen Fdpl. kl. unverz. Tontrommel mit 4
+
+kreuzständigen Zapfen (Hemprich 1938, Taf. 23,1) ; angeblich ebenfalls aus Kindergrab. Auf Grund fehlender Unterlagen nicht zu prüfen, ob es sich um ein- und dasselbe Grab handelt, dessen Beigaben nur getrennt publiziert wurden (KAK: Priebe 1938, S. 74; Bernburger Trommel: Hemprich 1938, S. 37), so daß der Eindruck entstanden ist, es seien 2 verschiedene Gräber (Fischer 1956, S. 273, 295; Beier 1984, S. 101).
+
+107. Sargstedt. Fdpl. Hohe Mark. Mbl. 2234 (4032) ; W ca. 0,5; S ca. 7,0. Geländesit.: flach ansteigende Anhöhe.
+
+FA: vG. In einer schwarzen Verfärbung folg. Funde: 1. Un2. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; L. 12,0; Schnbr. 4,5 (Taf. 28,2). 3. Nackenkammaxt mit gerieftem Kamm und Mittelwulst; L. 15,5; Schnbr. 2,5
+
+Verschollen (zuletzt Mus. für Völkerkunde Leipzig). Brandt 1955, S. 70, Abb. 8 a—c; 1967, S. 41 (Anm. 316) ; Ebbesen 1975, S. 185 (Anm. 67) ; Brandt 1980, S. 2 ff., Abb. 1,3 a—c.
+
+verz. napfartige Schüssel; H. 10,4; HBI 0,71 (Taf. 28,1). (Taf. 28,3).
+
+108. Sargstedt. Fdpl. u. Mbl. 2233 (4031) oder 2234 (4032). FA: vG. Beigaben: 1. KA mit Hals-Schulter-Kehle und Schwalbenschwanzhe.; am Hals unter ausgespartem Winkelband, Dreiecke aus Furchenst.linien, auf Schulter unter 2 Reihen punktartiger Einst. Furchenst.fr.gruppen mit doppeltem Punktst.abschluß und unter den He. Gitter aus Furchenst.linien und punktartige Einst.; braun-dunkelgrau gefleckt; H. 24,9; Wdg. 0,5/0,7; HBI 1,09 (Taf. 27,1). 2. KA; am Hals dreiecksartige Muster aus Schnurlinien, teilweise ausgespartes Winkelband bildend, auf Schulter unter punktartigen Einst. Furchenst.fr.gruppen mit Punktst.abschluß, unterbrochen von senkr. Reihen kurzer waag. Einst.; grau-gelb gefleckt; H. 16,5; Wdg. 0,4/0,6; HBI 0,97 (Taf. 27,2). 3. Erg. wT; am Hals Bogen-Winkelst.dreiecke und auf Schulter unter gleichartigen Dreiecken eingeritzte Fr.gruppen mit Winkelst.abschluß; graurötlich gefleckt; H. 25,5; Wdg. 0,7/0,9; HBI 0,97 (Taf. 27,3). Mus. Deutsche Geschichte Berlin Inv.-Nr. 73/220—222. Mötefindt 1911, S. 274 (Anm. 2) ; Priebe 1938, S. 74, Taf. V a, b,
+
+XVII a; Behrens 1973, S. 304.
+
+109. Veltheim (bisher unter Osterode a. Fallstein publiziert). Fdpl. 1. Am Fallstein. Mbl. 2162 (3930), S 17,9; W 10,3. Geländesit.: nach N fallendes Gelände.
+
+FA: G. In ca. 1,00 m Tiefe vermutlich W(Schädel)-O-gerichteter rechter Hocker mit Blick nach S. Funde: 1. Oberteil einer KA; am Hals ausgespartes Rautenband aus Bogen-Winkelst. und auf Schulter Furchenst.fr.gruppen; rötlich-grau; Wdg. 0,6 (Taf. 26,4). 2. Unverz. KA; bräunlich-grau; H. 15,4; Wdg. 0,2; HBI 0,96 (Taf. 84,1). 3. Napfartige Schüssel mit gekerbtem Wulst; grau-gelb; H. 8,4; Wdg. 0,3/0,6; HBI 0,81 (Taf. 84,14). 4. Fragment eines unverz. wT mit Hals, Schulter und He. 5. Dickn. Feuersteinbeil; Breitseiten überschliffen; L. ca. 12,0; Schnbr. ca. 5,0. 6. Eberhauer; Abstand zwischen den Enden ca. 8,0. 7. Schweinekiefer. 8. Skelettreste eines älteren menschlichen Individuums; männlich (nach einer Mitteilung von
+
+Knoop an Böhm 1924).
+
+1. Mus. Halberstadt Inv.-Nr. 2949; 4.—7. verschollen; Beschreibung nach einem Foto; 2., 3. Ludwig-Roselius-Mus. Worpswede Inv.-Nr. 3300, 3347. Priebe 1938, S. 73; Sprockhoff 1938, Taf. 61,6; Fischer 1956, S. 156, 295; Behrens 1973, S. 304.
+
+Anm.: Aus einem Zeitungsbericht des Ausgräbers Böhm vom
+
+30. 8. 1924, der sich abschriftlich im Archiv des LM Halle be-
+
+115. Derenburg. Fdpl. u. Mbl. 2306 (4131).
+
+met t H    s          r s  ls Schulter-Kehle; am Hals ausgespartes Rautenband, aus runden—eckigen, aneinandergereihten Einst., auf Schulter unter 110. Zilly. Fdpl. u. Mbl. 2232 (4030) oder 2233 (4031). kl. senkr. Einst. imitierte Fr.gruppen aus Fischgrätenreihen; FA: EvG. Altfund. Erg. wT; am Hals sich teilweise überlapbraun; H. 18,0; Wdg. 0,5/0,6; HBI 0,95 (Taf. 29,2). 2. Unverz. pende Dreiecke aus Schnurlinien und auf Schulter eine WinKA mit ovalem Bauch und leicht asymmetrisch angeordn. kelschnurlinie; dunkelbraun gefleckt; H. 22,0; Wdg. 0,7; He.; braun-grau gefleckt; H. 25,5; Wdg. 0,6/0,7; HBI 1,25 HBI 0,80 (Taf. 29,4). (Taf. 29,1). 3. Schädelkalotte eines erwachsenen Individuums; älter als 40 Jahre (Br.).
+
+findet, geht hervor, daß alle hier aufgeführten Objekte zusamSprockhoff 1938, Taf. 61,6) getrennt publiziert wurden.
+
+LM Halle HK 31:473. Höfer 1900, S. 52, Abb.; 1911 a, S. 29, Taf. III,8; Mötefindt 1911, S. 274 (Anm. 2) ; Kossinna 1922, S. 252; Priebe 1938, S. 74, Taf. XIX c; Behrens 1973, S. 305.
+
+## Kreis Wernigerode
+
+111. Benzingerode. Fdpl. Talgrund. Mbl. 2306 (4131), N 16,0 bis 16,7, W 11,2—12,3. Geländesit.: nach NO fallender Hang. Wdg. 0,4. 2. Reste eines wT; am Hals unter Schnurlinien Bo-
+
+FA: G. Alt gestörte, versenkte rechteckige Steinkiste aus Kalksteinplatten mit abgewinkelter NO-Seite von ca. 2,00 ×1,00 m; O—W. In Kammer vermutlich O(Schädel)-W-gerichteter Hokker. Funde: Reste von 3 Gefäßen, vor allem in W-Hälfte der Kiste. 1. Reste einer KA; auf Schulter unter kantigen Einst. eingeritzte Fr.gruppen mit Bogenst.(?) abschluß; dunkelbraun; genst.rauten; graubraun; Wdg. 0,6. 3. Umbugscherbe einer Sch (?) mit eingeritztem Fischgrätenband; graubraun; Wdg. 0,4 (härter als die anderen Scherben gebrannt und kaum gemagert). 4. Nähe der SO-Ecke Nackenkammaxt; L. 11,5; Schnbr. 3,1. 5. In Kammer verstreut: Schweinekiefer, Rest eines gespaltenen Eberhauers und ein Eckzahn vom Dachs. 6.Skelettreste eines menschlichen Individuums, vermutlich frühadult; männlich (Br.).
+
+LM Halle HK 85:542. Stolle 1986, S. 152 ff., Abb. 1, 2.
+
+112. Derenburg/Mahndorf. Fdpl. 1. Steinkuhlenberg. Mbl. 2306 (4131), N 6,2; O 14,6. Geländesit.: nach SO abfallende spornartige Anhöhe.
+
+FA: Siedl. Bernburger Kultur. 1. In Siedl.grube HaS eines wT mit Reihen kl. unförmiger Einst.; gelblich-braun; Wdg. 0,5. 2. Lesefund. Unverz. HeS einer KA mit kl. eckigem Ösenhe.; graubraun-rötlich; Wdg. 0,7/0,8 (Taf. 28,6).
+
+LM Halle o. Nr.; Slg. Klatt, Minsleben.
+
+113. Derenburg. Fdpl. 11. Fuchsberg mit anschließendem Fuchsplan. Mbl. 2306 (4131), N 12,2—12,4; W 8,6—10,9. Geländesit.: nach S und O abfallende Hochfläche.
+
+funde: 1. HeS einer KA mit eingeritzten Rauten; schwarz; Wdg. 0,5 (Taf. 29,5). 2. RS eines wT (?) mit eingeritzten Rauten; graubraun; Wdg. 0,8 (Taf. 29,7). 3. HaS eines wT mit eingeritzten Dreiecken oder Rauten; schwarz; Wdg. 0,6 (Taf. 29,6). 4. Wohl ebenfalls KAK: Bernsteinperle; Dm. 1,8. 1. Slg. Klatt, Minsleben; 2.—4. LM Halle HK 75:236 c, f. Sieblist 1977, S. 16, 66, Taf. 13,4—6.
+
+FA: EF (vermutlich aus Siedl. der Bernburger Kultur). Lese-
+
+Anm.: Funde irrtümlicherweise von B. Sieblist (1977, S. 66) unter Minsleben aufgeführt und so inventarisiert.
+
+114. Derenburg. Fdpl. 12. Donnersberg. Mbl. 2306 (4131), N 12,0; W 12,7. Geländesit.: nach S abfallende Hochfläche. FA: EF (vermutlich aus Siedl. der Bernburger Kultur). Lesefund: SS eines wT (?) mit Schnurlinie in Hals-Schulter-Kehle und auf der Schulter unter einer zweiten Schnurlinie Schnurfr.; grau-rötlich; Wdg. 0,6/0,8 (Taf. 28,5).
+
+Slg. Klatt, Minsleben.
+
+Mus. Halberstadt Inv.-Nr. 2133 a—c. Hemprich 1934, S. 7; Priebe 1938, S. 74, Taf. IV e; Fischer 1956, S. 150, 293; Weber 1964, S. 151; Behrens 1973, S. 302; Sieblist 1977, S. 15 f., 65 f., Taf. 13,1—2.
+
+116. Langeln. Fdpl. 2. Hasselberg. Mbl. 2232 (4030), S 7,5;
+
+0 7,4. Geländesit.: Anhöhe.
+
+FA: G. Versenkte Steinkiste von ca. 2,80 × 0,80 × 0,50 m; vermutlich O—W. Sohle in 0,80 m Tiefe. Aus dem G.raum folg. Objekte (Lage zueinander u.): 1. Reste einer KA; am Hals eingeritzte Rauten und auf Schulter unter 2 Reihen punktartiger Einst. eingeritzte Fr.gruppen mit Punktst.abschluß; dunkelgrau; H. ca. 22,0; Wdg. 0,5; HBI 0,96 (?) (Taf. 30,5). 2. Erg. wT; am Hals unter eingeritzter Winkellinie Rauten und auf Schulter Fr. aus sich teilweise verzahnenden eingeritzten Strichen; schwarz-hell gefleckt; H. 21,5; Wdg. 0,6/0,7; HBI 0,87 (Taf. 30,6). 3. Zeichnerisch erg. unverz. wT; ohne He (?); braun-schwarz gefleckt; H. ca. 18,7; Wdg. 0,5/0,6; HBI 0,91 (Taf. 29,3). 4. Zeichnerisch erg. unverz. wT (?) ohne He. (?); braun-dunkelgrau gefleckt; H. ca. 22,2; Wdg. 0,5/0,6; HBI 0,91 (?) (Taf. 30,1). 5. Dickn. dünnbl. Feuersteinbeil mit abgerundetem Nacken; Breitseiten überschliffen; dunkelgrau; L. 9,5; Schnbr. 4,4 (Taf. 30,3). 6. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; dunkelgrau mit hellen Flecken; L. 11,5; Schnbr. 5,1 (Taf. 30,8). 7. Dickn. Feuersteinmeißel (?) mit rechteckigem Querschnitt; Breitseiten überschliffen; Schneide fehlt; dunkelgrau; L. 5,8; Br. 2,0 (Taf. 30,7). 8. Längsgespaltener Eberhauer mit abgerundetem Basisende; Abstand zwischen den Enden: 13,5 (Taf. 30,2). 9. Eberhauer; Abstand zwischen den Enden: 14,5. 10. Rechteckiger Geweihanhänger mit Durchb. am schmalen Ende; L. 6,5 (Taf. 30,4). 11. Knochen vom Schwein; ein Unterkiefer, ein Radius, eine Ulna, eine lose Ulnaepiphyse, eine lose Humerusepiphyse und ein Carpalknochen (Dö.). 12. Skelettreste eines Individuums; erwachsen (frühadult) ; männlich
+
+(Br.).
+
+LM Halle HK 72:63 a — 1. Schmidt/Schneider 1974, S. 324, Abb. 1, 2.
+
+Anm.: Nur ca. 100 m südl. der Steinkiste eine Bernburger Siedl.grube, darin z. B. WS mit Grifflappen (LM Halle HK 72:62).
+
+117. Minsleben. Fdpl. 2. Kniggel. Mbl. 2306 (4131), N ca. 13,3; 0 ca. 0,5. Geländesit.: eben.
+
+FA: EvG. Auf linienbandkeramischer Siedl. errichteter G.hügel mit vermutlich in den Boden versenkter Zentralbestattung, weiter 46 völkerwanderungszeitliche Gräber. Genaue Lage u.: Napfartige Sch mit einem Osenhe.; unter Punktst.reihen Dreiecke aus Schnurlinien; begrenzt von Punktst.(?)reihe; H. ca. 10,0; HBI 0,67 (?) (Taf. 28,7).
+
+Verschollen (ehemals Slg. Wernigerode). Friedrich 1868, S. 1 ff.; Höfer 1911 a, S. 29, Taf. III,9; Niklasson 1925 c, S. 37, Abb. 38; Butschkow 1935, S. 79, Taf. LIII,2; Priebe 1938, Si         i           i. Sieblist 1977, S. 16, 66, Taf. 13,3; Beier 1984, S. 159.
+
+<!-- FREE:PAGE 11 -->
+eindeutig KAK.
+
+Anm.: Entgegen anderen kulturellen Bestimmungen (Niklasson 1925 c, S. 37; Fischer 1956, S. 273; Butschkow 1935, S. 79)
+
+Bezirk Halle (Saale) Bezirk Halle (Saale)
+
+Kreis Quedlinburg
+
+118. Badeborn. Fdpl. 2. Ruhmberg. Mbl. 2382 (4233), N ca. 15,2; 0 ca. 21,5. Geländesit.: langovale Anhöhe.
+
+FA: EvS. Auf jungbronzezeitlicher Siedl. verz. Scherben der KAK. Verschollen (ehemals Slg. Keil, Quedlinburg). Priebe 1938, S. 76; Behrens 1973, S. 302.
+
+Anm. Nach Mitt. C. Rienäcker, Mus. Quedlinburg, gelangten
+
+die Funde entgegen H. Priebe (1938, S. 76) nicht in das dortige Mus.
+
+119. Ditfurt. Fdpl. 1. Dieckberg. Mbl. 2308 (4133), W 4,0; S 9,1. Geländesit.: Randbereich einer nach S und SO abfallenden Hochfläche.
+2. FA: EvS. Lesefund auf Fdpl. mit Bernburger und Schönf. Keramik. RS einer KA mit eingeritzten Rauten; dunkelgrau; Wdg. 0,4 (Taf. 31,1). 2. Vermutl. weitere Scherben der KAK. 1. Mus. Quedlinburg Inv.-Nr. III/51/109 B (alte Nr. 702 E). 2. u. Schirwitz 1928, S. 57; Priebe 1938, S. 75; Behrens 1973, S. 302.
+
+Anm.: Fundortangabe (Priebe 1938, S. 75) Siedlung bei geplündertem Hügelgrab" ist zu korrigieren.
+
+120. Quedlinburg. Fdpl. 10. Bockshornschanze. Mbl. 2381 (4232), N ca. 5,8; 0 ca. 0,5. Geländesit.: kl. Anhöhe.
+2. FA: vG. Keine sicheren Angaben. Funde: 1. Unverz. KA mit leicht gesacktem Bauch; dunkelgrau-schwarz; H. 13,8; Wdg. 0,5; HBI 1,09 (Taf. 31,2). 2. wT; am Hals Dreiecke und Rauten aus unförmigen Einst. und auf Schulter eingeritzte Fr. gruppen mit Punktst.abschluß; schwarz; H. 18,7; Wdg. 0,7; HBI 0,93 (Taf. 31,3). 3. Napfartige Schüssel mit gekerbtem Boden; auf Umbruch Fingertupfen und Warzen; graubraundunkel gefleckt; H. 10,8; Wdg. 0,5; HBI 0,87 (Taf. 31,4). 4. Hohe unverz. T mit 2 gegenständigen hochgezogenen Knubben auf der Schulter (ähnelt stilistisch den T,,M") ; grau-rötlich und schwarz gefleckt; H. 15,2; Wdg. 0,6; HBI 1,06 (Taf. 31,5). Mus. Quedlinburg Inv.-Nr. III/51/914 A-C uņd III/51/1574 (alte Nr. 18 a—d). Kossinna 1922, S. 252; Niklasson 1925 c, S. 20, Abb. 18; Schirwitz 1932, S. 547 ff.; Priebe 1938, S. 75, Taf. V d, XXI b, XXIX b, XXXI d; Grimm 1940 a, S. 402; Schirwitz 1940, S. 52 ff.; Mildenberger 1953, S. 40; Fischer 1953 b, S. 168; 1956, S. 285, 295; Matthias 1968, S. 60; Behrens 1973, S. 304; Rienäcker 1978, S. 120; Beier 1984, S. 116 f. Anm.: K. Schirwitz (1932, S. 547 ff.) untersuchte G.hügel mit Zentralg. der Gruppe Kalbsrieth. Unter den Nachbestattungen eine gestörte Steinkiste mit Skelettresten. Beigaben fehlten. Er vermutete, daß diese Gefäße aus diesem G. stammen, was aber nicht beweisbar ist.
+121. Quedlinburg(-Quarmbeck). Fdpl. 14. Flugplatz. Mbl. 2381 (4232), N 21,5; 0 8,5. Geländesit.: nach NW leicht fallend.
+
+FA: G. Auf mehrperiodigem Fdpl. ein oder mehrere (?) G. In U. Fischer :(1956, S. 295) spricht von Steinpackungsgräbern. Funde: 1. Erg. KA mit Hals-Schulter-Kehle und Schwalbenschwanzhe.; am Hals unter Bogen-Winkelst.dreiecken Rauten aus unförmigen Einst. und auf Schulter unter Bogen-Winkelst.dreiecken mehrreihige eingeritzte Fr.gruppen mit Punktst.abschluß; grau-schwarz gefleckt; H. 15,1; Wdg. 0,4/0,6; HBI 1,12 (Taf. 32,13). 2. Reste einer KA mit ausschwingendem Hals und gekehltem He.; am Hals Rauten (?) und auf Schulter unter Dreiecken Fr.gruppen aus Schnurlinien; grauschwarz-rot gefleckt; Wdg. 0,4 (Taf. 32,12). 3. Gr. HaS mit Schulter und BS einer unverz. KA; schwarz-braun gefleckt; Wdg. 0,5/0,8 (Taf. 32,15). 4. RS einer Bernburger Sch; schwarz; Wdg. 0,9 (Taf. 32,11). 5. Erg. napfartige Schüssel mit gekerbtem Umbug und Warzen; grau; H. 10,0; Wdg. 0,5; HBI 0,74 (Taf. 32,10). 6. Unterteil eines wT oder TmhU; braun-schwarz gefleckt; Wdg. 0,8/0,9 (Taf. 32,14). 7. K1. unverz. RS; graubraun; Wdg. 0,6. 8. Kl. unverz. WS; grauschwarz; Wdg. 0,3. 9. Dickn. Feuersteinbeil; nur an Schneiden überschliffen; grau; L. 8,9; Schnbr. 3,7 (Taf. 32,8). 10. Dickn. Feuersteinbeil; nur an Schneiden überschliffen; hellgrau; L. 8,7; Schnbr. 3,7
+
+Mus. Quedlinburg Inv.-Nr. III/51/945, III/51/1528, III/51/ 1560 und III/51/1568. Priebe 1938, S. 75, Taf. V c; XXX d; Fischer 1956, S. 151, 160, 295; Rienäcker 1978, S. 120.
+
+(Taf. 32,9).
+
+122. Quedlinburg. Fdpl. 29. Radelberg. Mbl. 2382 (4233), N 11,6; W 6,6. Geländesit.: langovale Anhöhe.
+
+FA: EF (vermutlich aus Siedl. Bernburger Kultur). Lesefunde. Neben zahlr. Bernburger und wenigen Schönf. Scherben: 1. HeS einer KA mit kl. Bogenst. auf Schulter; braun-ockerfarben; Wdg. 0,3 (Taf. 32,4). 2. HeS einer Sch oder eines kl. wT mit gekehltem He. und punktartigen Einst.; grau; Wdg. 0,3 (Taf. 32,6). 3. WS mit rechteckigen, langovalen Einst.; braun; Wdg. 0,8 (Taf. 32,5).
+
+Mus. Quedlinburg Inv.-Nr. 5 BB, y, z. Rienäcker 1978, S. 122.
+
+123. Quedlinburg. Fdpl. u. Mbl. 2307 (4132), 2308 (4133), 2381 (4243) oder 2382 (4233).
+
+FA: EvG. Altfund. Erg. wT; am Hals ausgespartes Winkelband aus Punktst.dreiecken und Schnurlinien sowie auf der Schulter eine Schnurwinkellinie; grau-braun und rötlich gefleckt; H. 16,7; Wdg. 0,5; HBI 0,92 (Taf. 32,7).
+
+LM Halle HK 14:495. Priebe 1938, S. 75; Fischer 1956, S. 295; Behrens 1973, S. 304.
+
+Anm.: Das Gefäß wurde mit solchen von der Bockshornschanze in Verbindung gebracht (Priebe 1938, S. 75). Annahme nicht belegbar.
+
+Kreis Aschersleben
+
+124. Ermsleben, OT Sinsleben. Fdpl. Städtische Kiesgrube. Mbl. 2383 (4234), S 18,2; W 3,8. Geländesit.: am Rande einer nach SO leicht fallenden Hochfläche.
+2. FA: G. Doppelbestattung in Holzkammer ? (Abb. 3,4). NOSW-gerichtete Grube von ca. 1,00 m Tiefe. In der Grabfüllung lagen einige kantige Sandsteinplatten von einer Länge von 20—30 cm ohne erkennbare Bauaufgabe, so daß sie wohl als Auflage auf einen jetzt vergangenen Holzbau aufzufassen sind" (Grimm, OA Sinsleben im LM Halle, S. 63). Oberhalb des Beckens gestörter NO(Schädel)-SW-gerichteter Hocker in Rückenlage (?) mit nach rechts gekippten Beinen. Skelettreste eines zweiten Individuums. Kl. Knochen von Wühlern (?) ver-
+
+schleppt. Funde: 1. Vermutlich westl. der Skelettreste KA mit 129. Hausneindorf. Fdpl. 4. Kirschberg. Mbl. 2308 (4133),
+
+Hals-Schulter-Kehle; am Hals eingeritzte Rauten und auf Schulter zwischen kommaförmigen Einst. eingeritzte Fr.gruppen; schwarz-braun und rot gefleckt; H. 18,8; Wdg. 0,5; HBI 1,01 (Taf. 31,6). 2. Ca. 0,40 m östl. der Skelettreste Reste eines zeichnerisch erg. wT; am Hals ein ausgespartes Winkelband aus Schnurlinien und auf Schulter Dreiecke aus längl. Einst. und Schnurlinien; dunkelgrau-hell gefleckt; err. H. ca. 20,0; Wdg. 0,6/0,7; HBI 1,00 ? (Taf. 31,9). Zu Füßen der Bestattung 3. kl. unverz. KA; graurötlich-braun gefleckt; H. 8,9; Wdg. 0,4/0,5; HBI 0,99 (Taf. 31,7). 4. Fragment eines längsgespaltenen Eberhauers; Abstand zwischen den Enden: 9,5 (Taf. 31,8); Reste eines Unterkiefers und ein Humerusfragment von einem ca. einjährigen Schwein (Dö.). 5. Skelettreste eines Individuums (infans II — juvenil) und nicht genauer bestimmbare Reste eines weiteren Individuums (Br.).
+
+LM Halle HK 40:94 a—e. Fischer 1956, S. 152, 155 f., 294; Behrens 1973, S. 302.
+
+Anm.: Doppelbestattung erst bei Aufarbeitung des Skelettmaterials erkannt.
+
+125. Friedrichsaue. Fdpl. 7. Chausseestr. 19. Mbl. 2309 (4134), S 16,4; O 0,4. Geländesit.: eben.
+
+FA: Siedl. Wohngrube" auf Fdpl. mit EF der Bernburger und der Schönf. Kultur. Inhalt: 1. HeS eines wT; am Hals eingeritzte Rauten und auf Schulter teilweise gefüllte Winkellinie; grau; Wdg. 1,0 (Taf. 32,1). 2. Einige unverz. WS. 3. Nackenbruchstück eines Felsgesteingerätes (Hacke ?); erh. L. 8,0 (Taf. 32,2). 4. Am breiteren Ende durchb. Schie-
+
+fermesser; L. 10,8 (Taf. 32,3). 5. Aufgespaltene Knochen und Zähne gr. Wiederkäuer.
+
+Mus. Quedlinburg Inv.-Nr. III/51/170 (alte Nr. 1648 a—c) ; 2., 5. nicht aufbewahrt. Fleischhauer 1957, S. 8; Trunkval-
+
+ter 1975, S. 37 f.
+
+126. Gatersleben. Fdpl. u. Mbl. 2308 (4133).
+
+FA: EvG. KA; am Hals unter senkr. Str. eingeritzte Rautenund auf Schulter unterbrochene Reihen aus winkelst.artigen groben Einst.; braun gefleckt; H. 14,0; Wdg. 0,3; HBI 0,95 (Taf. 84,12).
+
+Ludwig-Roselius-Mus. Worpswede Inv.-Nr. 3062. Priebe 1938, S. 75, Taf. VI e; Trunkvalter 1975, S. 54 f. (unter Hausneindorf).
+
+Anm.: In der OA Hausneindorf im LM Halle auf S. 27 Vermerk, Gefäß soll aus der an der Flurgrenze nach Gatersleben liegenden Kiesgrube (Hausneindorf Fdpl. 1 und 6) stammen. Angabe nicht überprüfbar. Gleiches gilt analog für die Funde unter Kat.-Nr. 127 und 128.
+
+127. Gatersleben. Fdpl. u. Mbl. 2308 (4133).
+
+Verschollen (ehemals Mus. Halberstadt). Priebe 1938, S. 75, Taf. XXIV f.
+
+FA: EF. Rest einer Sch oder eines wT; am Hals unter gr. Raute aus sich kreuzenden Schnurlinien eine Reihe eingeritzter mit sich kreuzenden Linien gefüllter Rauten.
+
+128. Gatersleben oder Hausneindorf. Fdpl. Kiesgrube zwischen Hausneindorf und Gatersleben. Mbl. 2308 (4133).
+
+Mus. Halberstadt o. Nr.
+
+- FA: EvG. Napfartige Schüssel; unter dem Rand 3 Reihen senkr. Kerben; dunkelgrau gefleckt; H. 6,8; Wdg. 0,6; HBI 0,56 (Taf. 33,1).
+
+S 16,5; 0 14,8. Geländesit.: kl. Anhöhe.
+
+FA: Siedl. Bernburger Kultur. a) 1963 geborgene Grube. Inhalt: 1. RS eines wT mit unregelmäßigen, bogenst.artigen, nach oben ausgezogenen Einst.; dunkelbraun; Wdg. 0,5 (Taf. 33,4). 2. Unverz. Napf mit 2 kl. gegenständigen Ösenhe.; H. 5,6 (Taf. 33,3). 3. Fragment einer unverz. schrägwandigen T mit senkr. durchb. Osenhe.; H. 6,0 (Taf. 33,6). 4. Scherben einer Bernburger T mit eingeritztem Linienband; err. gr. Dm. 29,7 (Taf. 33,11). 5. Scherben von gr. unverz. Siedl.gefäß mit Lochreihe unterhalb des Randes; err. Mdg. 22,0 (Taf. 33,5). 6. Scherben einer Bernburger T mit Grifflappen und eingeritztem Linienband (Taf. 33,13, 14). 7. Fragment einer Bernburger T mit ausgespartem Winkelband aus Furchenst.linien (Taf. 33,12). 8. Umbugscherbe einer Bernburger T mit bogenförmiger plastischer Leiste, eingeritzten Linien und Winkellinien (Taf. 33,9). 9. HaS einer T (?) mit Fischgrätenmuster und Furchenst.winkelband (Taf. 33,10). 10. RS einer unverz. Sch mit doppelter Lochreihe (Taf. 33,7). 11. Scherben eines Siedl.gefäßes mit breiter durchlochter Riefe (Taf. 33,8). 12. Zahlr. unverz. Scherben.
+
+LM Halle HK 65:31 a—c.
+
+- b) EF. Lesefunde. 1. HaS eines wT mit ausgespartem Winkelband aus Winkel-Bogenst.; schwarz; Wdg. 0,7 (Taf. 33,2).
+2. Eventuell zur KAK gehörig: WS mit 2 umlauf. Reihen schräger längl. Einst.; braun; Wdg. 0,6.
+3. LM Halle HK 76:524 b, c. Hoffmann 1967, S. 339; Behrens 1973, S. 303; Trunkvalter 1975, S. 56 f.
+130. Mehringen. Fdpl. Am Roten Teich bei der Welle. Mbl. 2383 (4234), S ca. 9,0; 0 ca. 5,0 (Mitte des Gebietes). Geländesit.: nach O. fallender Hang.
+5. FA: Siedl. Wohngrube?" (Priebe 1938, S. 90). Keine weiteren Angaben. Funde (wohl zusammengehörig): 1. Reste eines zeichnerisch teilweise erg. wT; am Hals eingeritzte Rauten und auf Schulter ein Gitterband; rotbraun; gr. Dm. 24,5; Wdg. 0,7 (Taf. 34,12). 2. SS einer KA; mit Hals-SchulterKehle; unter 2 Winkelst.reihen eingeritzte Fr.gruppen mit Winkelst.abschluß; grau; Wdg. 0,5 (Taf. 34,8). 3. RS eines wT mit Dreiecken und Rauten aus Schnurlinien; rotbraun; Wdg. 0,7 (Taf. 34,6). 4. Unverz. WS mit kl. Osenhe.; grau; Wdg. 0,7/0,8 (Taf. 34,7). 5. BdS und WS eines schrägwandigen Gefäßes mit eingeritzten senkr. Linien (wT oder TmhU ?); rotbraun; Wdg. 1,4-1,5 ! (Taf. 33,9,11). 6. Umbugscherbe eines tonnenförmigen Gefäßes der Bernburger Kultur mit zweifach senkr. durchb. Griffleiste und punktartig unförmigen Einst.; dunkelgrau; Wdg. 0,4 (Taf. 34,10). Mus. Bernburg o. Nr. Becker 1925, S. 25; Grimm 1930, S. 22; Priebe 1938; S. 90; Behrens 1973, S. 304.
+131. Schadeleben (bisher meist unter Königsaue). Fdpl. Pflaumenbreite. Mbl. 2309 (4134), S. 14,5; W 16,0 (Mitte des Areals). Geländesit.: nach SW leicht fallend am ehemaligen Seeufer.
+7. FA: G. Versenkte wohl rechteckige Steinkiste von 1,00 0,75  0,40 m Gr. im Lichten. Nur eine Deckplatte. Im Grabraum ,ein Schädel, der mit dem Scheitel nach oben gestellt war und vor sich gekreuzte Bein-(Arm-?)Knochen hatte" (Becker 1884, S. 145). Funde: 1. Erg. KA; am Hals ausgespartes Winkelband aus punktartig-unförmigen Einst. und auf Schulter eingeritzte Fr.gruppen mit Punktst.abschluß; braun; H. 17,3; Wdg. 0,4/0,5; HBI 1,07 (Taf. 34,1). 2. Reste
+
+<!-- FREE:PAGE 12 -->
+von mindestens einem zweiten Gefäß mit geradlinigen Ornamenten" (Becker 1884, S. 145). 3. Ein ,,meißelförmiges Feuersteinmesser mit sehr scharfer Schneide" (Becker 1884, S. 145); vermutlich Feuersteinbeil oder -meißel. 4. Nadel oder Pfriem; angeblich aus Schenkelknochen eines Sumpfvogels; L. 12,0.
+
+1. Mus. Berlin Inv.-Nr. Ig 444; 2.—4. verschollen. Becker 1884, S. 145, Abb. 5; Becker 1886, S. 591, Abb. 8; Götze 1900 a, S. 158; Åberg 1918, S. 173; Kossinna 1922, S. 252; Priebe 1938, S. 76; Fischer 1956, S. 150, 156, 294; Behrens 1973, S. 303; Trunkvalter 1975, S. 92.
+
+## 132. Westdorf. Fdpl. u. Mbl. 2383 (4234).
+
+FA: G. Keine weiteren Angaben. Beigaben: 1. Kl. Gefäß mit zylindrischem Halse, an dem zwei kleine Henkel sitzen" (Götze 1900 a, S. 169) ; KA ? 2. Wohl wT; am Hals vermutlich ein unregelmäßiges ausgespartes Winkelband aus punktartigen-unförmigen Einst. Verschollen. Götze 1900 a, S. 169; Priebe 1938, S. 76; Behrens 1973, S. 305.
+
+## Kreis Hettstedt
+
+133. Groβörner. Fdpl. 8. Mbl. 2457 (4335), S 14,8; W 0,05. Geländesit.: nach S leicht fallendes Gelände oberhalb des Wippersteilhanges.
+
+FA: G (Abb. 3,1). Auf bandkeramischer Siedl. im SO bereits gestörte annähernd rechteckige Grube von 1,50  0,95 × 1,15 m; OSO-WNW. Darin OSO (Schädel)-WNW-gerichteter linker Hocker. Funde: 1. Hinter dem Schädel eine KA mit Hals-Schulter-Kehle; am Hals eingeritzte Rauten, auf Schulter zwischen Punktst. eingeritzte Fr.gruppen und unter den sich erweiternden He. je eine Doppelreihe längl. senkr. Einst.; schwarz-braun gefleckt; H. 14,0; Wdg. 0,5; HBI 0,92 (Taf. 37,4). 2. Im Winkel zwischen Ober- und Unterschenkel unverz. wT mit ovaler Mdg.; braun gefleckt; H. 24,5; Wdg. 0,6/0,7; HBI 0,89 (Taf. 37,2). 3. Bei den menschlichen Skelettresten Tierknochen: eine lose Epiphyse einer Tibia und ein Talus vom Schwein sowie ein Metacarpusfragment von Schaf/Ziege (Dö.). 4. Skelettreste eines Individuums; frühadult (um 20 Jahre) ; männlich (Br.).
+
+LM Halle HK 66:281 a—d. Hoffmann 1967, S. 340 f.; Schröter 1967, S. 13 ff.; Schmidt/Schneider 1973, S. 214; Behrens 1973, S.303.
+
+Anm.: Tierische Knochenreste erst bei Aufarbeitung des Skelettmaterials erkannt. Außerdem 2 Humerusköpfe eines zweiten, bereits erwachsenen, menschlichen Individuums festge-
+
+stellt. Primär zugehörig?
+
+134. Quenstedt. Fdpl. 4. Schalkenburg. Mbl. 2456 (4334), N 4,0; 0 15,6. Geländesit.: nach S und W steil abfallender Bergsporn.
+
+FA: Siedl. der Bernburger Kultur (Behrens/Schröter 1980, Beil. IV). In einigen der über 200 Bernburger Gruben auch Reste der KAK, so daß im Siedl.bereich auftretende EF von Scherben der KAK mit dem Bernburger Horizont verknüpft
+
+werden können.
+
+a) Grube 74. Inhalt: u. a. 1. Reste vom Umbruch und vom Hals eines wT (?) ; anstatt der He. 4 wohl kreuzständig angeordn. kl. Griffzapfen; auf Umbruch ausgespartes Winkelband aus Schnurlinien; schwarz; err. gr. Dm. 24,0; Wdg. 0,5 (Taf. 35,10). 2. Unterteil eines gr. Vorratsgefäßes; erh. H. 46,0 (Taf. 35,1). 3. Zu ca. 2/3 erh. gr. Vorratsgefäß mit
+
+durchlochtem Rand und 2 gegenständigen Grifflappen in Höhe b) Grube 293. Inhalt: u. a. 1. Oberteil einer KA mit seichter Hals-Schulter-Kehle; am Hals unter Schnurlinien Schnurdreiecke, in der Hals-Schulter-Kehle Winkelschnurlinie und auf Schulter Schnurdreiecke; braun gefleckt; err. H. 20,0; Wdg. 0,5; HBI 1,05 ? (Taf. 36,4). 2. Topf mit verdicktem Rand und Griffzapfen in Höhe des Umbruches; H. 25,5 (Taf. 36,3). 3. Oberteil eines Pokalgefäßes; gr. Dm. (Mdg.) 12,5 (Taf. 36,6). 4. Unterteil einer gr. bauchigen T mit ausgespartem Winkelband aus Ritzlinien; gr. Dm. ca. 22,5 (Taf. 36,7). 5. Bruchstücke eines kl. Topfes mit Grifflappen in Höhe des Umbuges; H. 10,2 (Taf. 36,5). 6. Reste einer schrägwandigen Sch mit durchb. Rand und Bandhe. 7. Fragment eines Knochenmeißels; erh. L. 6,0 (Taf. 36,2). 8. Zu ca. 1/3 erh. Knochenscheibe mit gr. zentraler Durchb.; am Rand eine Punktreihe und auf der Innenfläche mehrere radial angeordn. Punktreihen; Dm. ca. 7,0 (Taf. 36,1).
+
+der He.; H. 51,5 (Taf. 35,9). 4. Topf mit leicht geschwungenem Profil und 3 Zapfen in Höhe des Umbuges; H. 14,0 (Taf. 35,2). 5. Fragment eines gr. schüsselartigen Gefäßes mit abgesetztem steilem Hals und ursprünglich 4 kreuzständig angeordneten He. unterhalb des Umbruches; erh. H. 15,0 (Behrens/Schröter 1980, Abb. 51 m). 6. Fragmente einer bauchigen T mit ausgespartem Winkelband aus Furchenst.linien; H. ca. 13,5 (Taf. 35,8). 7. Rest eines Gefäßes mit abgesetztem Hals; H. 10,0 (Taf. 35,12). 8. Oberteil einer unverz. Sch mit Griffknubbe; Boden fehlt; erh. H. 10,5 (Taf. 35,13). 9. Kl. napfartige T; H. 4,5 (Taf. 35,11). 10. Feuersteinklingenfragment; L. 4,5 (Taf. 35,3). 11. 2 Knochenpfrieme; L. 8,5 (Taf. 35,6,7). 12. Rechteckiges (Taf. 35,4) und trapezförmiges (Taf. 35,5) Fragment dünner unverz. (?) Knochenplatten. LM Halle HK 72:340 a—t, 74:65 a—z.
+
+LM Halle HK 79:231 a—q.
+
+- c) Grube 308. Inhalt: u. a. 1. Reste von 4 gr. Vorratsgefäßen. 2. Leicht erg. unverz. KA mit extrem kurzem, leicht geschwungenem Hals; schwarz-grau; H. 16,5; HBI 1,03. 3. Am Hals erg. unverz. KA mit extrem kurzem, leicht abgesetztem Hals und etwas ovalem Bauch; schwarz-grau; H. 14,5; HBI 1,07. 4. Schrägwandige T mit überrandständigem He. 5. Kl. Kragenflasche. 6. Fragmente einer bauchigen Sch mit abgesetztem Hals und einer He.öse; in Höhe des Umbruches unter 2 Einst.reihen häng. gefüllte Dreiecke; erh. H. 7,5. 7. Wellenrandscherbe. 8. 2 Schiefermesserfragmente. 9. Knochenscheibe mit 2 Durchb.
+
+LM Halle HK 81:775 a—ao.
+
+- d) Grube 339. Inhalt: u. a. 1. Reste von 2 gr. Vorratsgefäßen. 2. Bruchstück einer schrägwandigen Schüssel mit Wellenrand und einem He. 3. Hals einer Kragenflasche. 4. RS eines wT; unterhalb des Randes und am Ubergang zur Schulter Schnurdreiecke; grau-rötlich-dunkelgrau gefleckt; Wdg. 0,5/0,6 (Taf. 83,7). 5. Fragment einer längl. Knochenscheibe mit konzentrischen Punkten.
+
+LM Halle HK 81:797 a—x.
+
+- e) EF. 1. RS eines wT mit Schnurdreiecken; rötlich gefleckt; Wdg. 0,5 (vermutlich zu dem unter d. 4. beschriebenen Gefäß gehörig). 2. HaS eines wT; unter Schnurlinien Schnurdreiecke; schwarz; Wdg. 0,5 (Taf. 83,6). 3. RS eines wT (?) ; unter dem Rand sich teilweise überlappende Schnurdreiecke; rötlich; Wdg. 0,5 (Taf. 83,9). 4. RS; unter dem Rand umlauf. Schnurlinien, unterbrochen von Schnurfr.gruppe; schwarz; Wdg. 0,4 (Taf. 83,8). 5. Dickn. Feuersteinbeil und ein Nakkenbruchstück eines fast spitznackigen Feuersteinbeiles (Behrens/Schröter 1980, Abb. 77 al und am), wohl auch in Zusammenhang mit der KAK.
+
+LM Halle HK 72:506 m; 74:68; 74:108; 77:231; 81:803; 82:621. Behrens/Schröter 1980, S. 93 ff., Abb. 51 a—q, 63 c bis k, 77 al, am.
+
+Anm.: Für die Genehmigung der Bekanntgabe der unter c., d. und e. 1.—4. beschriebenen Funde sei E. Schröter, Halle, herzlichst gedankt.
+
+135. Welbsleben. Fdpl. Am Fuße des Osterberges. Mbl. 2383 (4234), S ca. 3,2; O ca. 22,0. Geländesit.: nach NO fallende. spornartige Anhöhe.
+
+FA: EvG. Unter 5 Gefäßen, die angeblich halbkreisförmig um den Osterberg gestanden haben sollen, auch ein wT; am Hals umlauf. Reihen halbkreisartiger, teilweise mit Einst. gefüllter Muster und auf Schulter 2 umlauf. Reihen eingeritzter (?) Fr.gruppen; schwarz; HBI 1,00? (Taf. 34,5). Bei jedem Gefäß soll ein ,Streitkeil" (Beil oder Meißel?) von einer Art Serpenthinstein, und einige von Feuerstein, zwar von verschiedenen Größen, sonst aber von einerlei Form" (Lehmann 1789, S. 63) gelegen haben.
+
+Verschollen. Lehmann 1789, S. 63, Tab. 1,3; Götze 1900 a, S. 159; Götze/Höfer/Zschiesche 1909, S. 54; Kossinna 1922, S. 253; Grimm 1930, S. 22; Priebe 1938, S. 76; Fischer 1956, S.154, 295; Behrens 1973, S. 305.
+
+Anm.: wT in der Lit. bisher meist zusammen mit den beiden KA aus Welbsleben (136) veröffentlicht. Nach den Angaben (Lehmann 1789, S. 63 f.) sind es getrennte Fdpl. Die übrigen 4 Gefäße (Lehmann 1789, Tab. 1,2,4—6) sind kulturell nicht exakt bestimmbar. Der auf Tab. 1,2 abgebildete Topf ähnelt den TmhU.
+
+## 136. Welbsleben. Fdpl. u. Mbl. 2383 (4234).
+
+FA: vG. Wohl zusammengehörig. 1. KA; am Hals vermutlich kreisförmige Einst. (Lehmann 1789, S. 64: ,,eingedruckte Riefen") ; HBI 0,92 (Taf. 34,2). 2. KA; am Hals und auf Schulter kreisförmige Einst. (Lehmann 1789, S. 64: ,,die eingedruckten Vertiefungen auch um die Hälfte des Bauches des Gefäßes"); HBI 1,09 (Taf. 34,3). 3. Uber dem zweiten Gefäß ,lag einStreithammer von Serpenthinstein, der an der einen Seite abgeschliffen war und ein drei Zoll langes Loch hatte, das aber nicht ganz durchging; von der anderen Seite aber war er nicht angeschliffen" (Lehmann 1789, S. 64) (Taf. 34,4). Verschollen. Lehmann 1789, S. 64, Tab. 1,9 a, b; 2,10; sonst wie bei Kat.-Nr. 135.
+
+137. Wiederstedt, OT Oberwiederstedt. Fdpl. u. Mbl. 2457 (4335). FA: vG, wohl zusammengehörig. 1. Erg. KA mit ovalem Bauch und schwacher Hals-Schulter-Kehle; am Hals ausgespartes Rautenband aus Winkel-Bogenst. und auf Schulter ns  s  is st abschluß; dunkelgrau-schwarz; H. 20,9; Wdg. 0,5; HBI 1,15 (Taf. 37,3). 2. Scherben von verschiedenen kleineren GefäBen, zum Teil mit derselben fransenartigen Verzierung" (Grössler 1902, S. 236). 3. An der Spitze ausgesplitterte Hirschgeweihaxt; erh. L. 17,2 (Taf. 37,6). Mus. Eisleben Inv.Nr. 742, 743; 2. Verschollen. Grössler 1902, S. 235 f., Taf. XXV Pl. 20, 128; Götze/Höfer/Zschiesche 1909, S. 50; Aberg 1918, S. 174; Kossinna 1922, S. 253; Grimm 1930, S. 22; Rühlemann 1934, S. 19; Priebe 1938, S. 76, Taf. XVI b, XXXII g; Fischer 1956, S. 154, 295; 1958 b, S. 6; Behrens 1973, S. 304.
+
+Anm.: Scherben und Axt in KA aufbewahrt, vielleicht alles
+
+zusammengehörig (vgl. Grössler 1902, S. 236).
+
+8 Beier, Kugelamphoren
+
+Kreis Bernburg
+
+138. Alsleben. Fdpl. 6. Hangbereich des Wiesenberges. Mbl. 2384 (4235), S 4,4; O 1,3. Geländesit.: nach NO fallend.
+
+FA: G. An einer Seite glatt zugeschlagene Sandsteine, eventuell zum G gehörig (zerstörte Steinkiste?). Bei der Nachgrabung hatte es den Anschein, als sei das Grab bereits vor längerer Zeit durch Hangrutsch (?) auseinandergerissen worden" (Voigt, OA Alsleben im LM Halle). Funde: 1. Einige WS und 1 SS von gr. unverz. (?) KA; schwarz; Wdg. 0,5/ 0,6 (Taf. 37,1). 2. wT; am Hals unter eingeritzten, mit punktartigen Einst. gefüllten Dreiecken kurze senkr. Einst. und auf Schulter gleichartige Einst.; dunkelgrau hell gefleckt; H. 23,8; Wdg. 0,5/0,6; HBI 0,93 (Taf. 37,5). 3. Tierknochen: Radiusfragment vom Schaf, Phalange und Metatarsus II von Schaf/Ziege. 4. Skelettreste eines Individuums; adult (zwischen 20 und 40 Jahre) ; weiblich (Br.).
+
+LM Halle HK 41:12 a—d. von Brunn 1941, S. 34; Fischer 1956, S. 293; 1958 b, S. 6; Behrens 1973, S. 302.
+
+Anm.: Funde bei Auffindung wahrscheinlich bereits in sekundärer Lage. Angabe des Finders, der Kopf habe im N gelegen, kann somit nicht unbedingt auf die ursprüngliche Ausrichtung der Toten bezogen werden. Tierknochen erst bei der Aufarbeitung des Skelettmaterials ausgesondert.
+
+139. Baalberge. Fdpl. 1. Schneiderberg. Mbl. 2385 (4236), N 13,7; 0 9,9. Geländesit.: flache Anhöhe in ebenem Gelände. FA: G (Abb. 10). Mehrfach erweiterter Baalberger Primärhügel mit Nachbestattungen der Schnurkeramik, der jüngeren Bronzezeit und einer neolithischen Steinkiste (B). Aus letzterer Keramik der Walternienburg-Bernburger und der KAK. OSO der Baalberger Zentralbestattung im abfallenden Hügelbereich ebenerdig angelegte, teilweise von kl. Steinen abgestützte Steinkiste aus Sandsteinplatten von 2,10  0,70 × 0,75 m Gr. im Lichten; NNO—SSW. Deckplatte von über 2,60 m L. und eine Bodenplatte. An N-Schmalseite angelehnte gr. Steine und an S-Schmalseite 2 hintereinander gestellte, mit Ton abgedichtete dünne Steinplatten. Einige Wandsteine mit Falzung. Grabraum durch Platte mit halbrunder Türöffnung (Dm. 0,50 m) zweigeteilt. Funde aus der nördl. 0,75 m langen Kammerhälfte: 1. In SO-Ecke T (Stufe Walternienburg II/Bernburg I nach Niklasson) ; am Hals breite Riefen, oberhalb des Umbruches unter Fingernagelkerbreihe Winkelband aus schmalen Riefen und unterhalb des Umbruches breite seichte Riefen; dunkelbraun-grau und rötlich gefleckt; H. 15,7; Wdg. 0,4/0,5 (Taf. 38,3). 2. Einige leicht zerreibbare Knochenstücke ..., am deutlichsten zu erkennen waren zwei nebeneinanderliegende Röhrenknochen eines menschlichen Unterschenkels, ..., vom Schädel fand sich nichts mehr vor" (Höfer 1902 a, S. 24). 3. Nackenbruchstück eines Feuersteinmeißels; erh. L. 4,6; Br. 2,0; Di. 1,2. Funde aus der südl. 1,35 m langen Kammerhälfte: 4. KA mit seichter Hals-Schulter-Kehle; gekehlter He.; am Hals Dreiecke aus Schnurlinien, in der Kehle grobe punktartige Einst. und auf Schulter unter Schnurlinie Schnurfr.gruppen; dunkelgrau; H. 19,7; Wdg. 0,6/0,7; HBI 0,94 (Taf. 38,2). 5. Daneben KA mit Hals-Schulter-Kehle und gekehlten He.; am Hals ausgespartes Winkelund Rautenband aus Bogenst. und auf Schulter unter dreireihigem Bogenst.band zwischen Bogen-Winkelst. eingeritzte Fr.gruppen; dunkelbraun, dunkel und hell gefleckt; H. 34,2 cm; Wdg. 0,6/0,7; HBI 1,06 (Taf. 38,1). 6. Einige wenige Knochenreste, meist Teile von Röhrenknochen in porös weichem Zustande" (Höfer 1902 a, S. 25).
+
+<!-- FREE:PAGE 13 -->
+Mus. Bernburg Inv.-Nr. 55/4—6; 2., 3., 6. verschollen bzw. nicht aufbewahrt. Höfer 1902 a, S. 16 ff., Taf. II,6—8; Mötefindt 1915, S. 48 f.; Åberg 1918, S. 173, Abb. 273; 274; Kossinna 1922, S. 258; Niklasson 1925 a, S. 46 ff. ; 1925 c, S. 55 f.; Schulze 1930, S. 52, 110, Taf. 42,1,2; Priebe 1938, S. 90; Grimm 1940 a, S. 403; Mildenberger 1953, S. 23 ff.; Fischer 1956, S. 150 ff., 199, 209 f., 293; 1958 b, S. 6; Schrickel 1966 b, S. 391 f.; Behrens 1973, S. 302; Beier 1984, S. 102.
+
+Anm.: Walternienburg-II/Bernburg-I-Tasse und größere der beiden KA in Ton und Machart identisch!
+
+140. Belleben. Fdpl. Horningscher Acker. Mbl. 2457 (4335), N 8,8; 0 8,5. Geländesit.: nach SO leicht fallend.
+
+FA: G (Abb. 4,1). Teilweise gestörte versenkte, annähernd rechteckige Steinkiste, 1,80 × 1,00 × 0,60 m; 0—W. Sohle ca. 1,00 m tief. Eine Deckplatte. In Grabkammer auf Sandschicht Reste eines Hockers, dessen Angesicht nach Osten, der aufgehenden Sonne zugerichtet" (OA Belleben im LM Halle, S. 18) war. 1. Zu Füßen des Toten erg. Sch; am Hals zwischen Schnurlinien gleichartige Dreiecke; darunter unter einer Schnurlinie Fr.gruppen; dunkelgrau, hell und dunkel gefleckt; H. 9,1; Wdg. 0,5; HBI 0,59 (Taf. 39,2). 2. Links daneben Unterteil eines gr. Gefäßes (wT?) mit gekerbtem Boden; braun; Bdm. 14,2; Wdg. 1,1 (Taf. 39,1). 3. Skelettreste eines Individuums; adult; männlich (Br.).
+
+LM Halle HK 33:263 a—c. Priebe 1938, S. 76, Taf. XXIV g; Fischer 1956, S. 150, 293; 1958 b, S. 6; Weber 1964, S. 156; Behrens 1973, S. 302.
+
+141. Bernburg. Fdpl. 17. Rößeberg. Mbl. 2311 (4136), S ca. 0,2; W ca. 16,5. Geländesit.: spornartige Anhöhe.
+2. FA: EF. Mehrperiodiger Fdpl. mit Schönf. und Bernburger Kultur. SS eines wT; am Hals Reste einer Verz. (verschliffene Schnurlinien?) und auf Schulter unter keilartigen Einst. Dreiecke; grau-ockerfarben gefleckt; Wdg. 0,6/0,7 (Taf. 39,5). Mus. Bernburg Inv.-Nr. III/56/14.
+142. Gröna. Fdpl. 2. Stockhof. Mbl. 2385 (4236), N 15,3; W 11,3. Geländesit.: flache Anhöhe.
+4. FA: vG. Altfund. Aus einer am Stockhof gelegenen Steinkiste angeblich HaS mit Dreiecken aus punktartigen Einst. (?). Mus.Dessau Inv.-Nr. II 62 (nicht auffindbar). Götze 1900 a, S. 160; Kossinna 1922, S. 258; Priebe 1938, S. 90; Fischer 1958 b, S. 6; Behrens 1973, S. 303.
+
+Anm.: Unbekannt, ob Steinkiste noch im Hügelbereich des gr. Bernburger Kollektivgrabes (Beier 1984, S. 103) oder in dessen Nähe lag.
+
+143. Latdorf. Fdpl. 1. Pohlsberg. Mbl. 2311 (4136), S 2,0; 0 5,9. Geländesit.: flache Anhöhe.
+
+FA: G (Abb. 11). Mehrfach erweiterter Baalberger Primärhügel mit Nachbestattungen der Walternienburger Kultur, der Schnurkeramik, der Jungbronzezeit und der KAK (Befund B). Zerstörte Steinkiste? OSO der Baalberger Zentralbestattung im abfallenden Hügelbereich ungefähr in Höhe der ursprünglichen Oberfläche aufgestellte Steinplatte von 1,55 × 1,00 × 0,50 m; N—S; nach 0 in einem Winkel von 45° abgekippt. An SW-Ecke kl. Steinpackung. Auf der Steinplatte und an derem Fuß Reste von 3 Gefäßen: 1. SS einer KA mit Hals-Schulter-Kehle und imitierten Fr.gruppen aus bogenst.artigen Einst.; dunkelgrau; Wdg. 0,5 (Taf. 39,3). 2. Erg. wT; auf Schulter ausgespartes Winkelband aus Punktst.
+
+und am Gefäßunterteil Abdruckrauhung; dunkelgrau, hell gefleckt; H. 21,5; Wdg. 0,6/0,7; HBI 0,75 (Taf. 39,23). 3. Teile eines rotbraunen, kräftigen hohen Topfes mit abgesetztem senkrechten Halse" (Höfer 1905, S. 67). 4. Aus der Steinpackung neben einigen zu dem wT gehörigen Scherben auch RS von wT oder Sch; auf ihr ,,zwei horizontale Reihen viereckiger Grübchen, unter denen eine schräge Schraffierung mit imitierten Schnurlinien beginnt" (Höfer 1905, S. 67, Taf. VIII,3). Befund B bildet mit dem unmittelbar NO angrenzenden Befund A vermutlich eine Einheit: Auf dünner Sandsteinplatte fand man ,,einen Haufen verbrannter Menschenknochen und einige tierische Knochen" (Höfer 1905, S. 66). Daneben eine senkr. aufgestellte dünne Platte.
+
+1., 2. Mus. Bernburg Inv.-Nr. 54/2 und 8 c; 3., 4. verschollen. Höfer 1905, S. 63 ff., Taf. VIII,1—3; Kossinna 1922, S. 258; Niklasson 1925 a, S. 46 ff.; Priebe 1938, S. 91; Grimm 1940 a, S. 403; Mildenberger 1953, S. 38 f.; Fischer 1956, S. 150, 294; 1958 b, S. 6; Behrens 1964 b; Schrickel 1966 b, S. 409 f.; Behrens 1973, S. 303; Beier 1984, S. 104.
+
+Anm.: 3,00 m nördl. in Hügelaufschüttung eine gr. Steinplatte (zum G gehörig?). Mögliche Rekonstruktion: Steinkiste; N—S; Längswände je 1 Steinplatte, südl. Schmalseite mit Steinpackung und nördl. Schmalseite mit 2 dünnen Steinplatten verschlossen.
+
+## Kreis Köthen
+
+144. Aken. Fdpl. in der Nähe von 3. Mbl. 2313 (4138), N ca. 19,7; 0 ca. 21,8. Geländesit.: dünenartige Anhöhe am Südrand der Elbniederung.
+
+FA: Siedl. des Mittelneolithikums. 1934 von F. K. Bicker eine Fläche von über 1 000 m2 untersucht. Im Hangbereich der flachen Anhöhe unter heller Sandschicht 3 bräunlich gefärbte Kulturschichten, die auf Höhe eine einzige Schicht bildeten. In den oberen beiden Straten meist mittelalterliche und kaiserzeitliche Scherben, während die untere Schicht mit Gruben, Herdstellen und Pfostenlöchern, von geringfügigen Störungen abgesehen, mittelneolithische Scherben und zahlr. Feuersteinartefakte erbrachte. Einige aufgefundene Mikrolithen stammen vermutlich von einer mesolithischen Vorbelegung. Der vorhandene Grabungsplan (Taf. 86) erlaubt keine eindeutige Rekonstruktion von Hüttengrundrissen. Gruppierungen von Pfostenlöchern um die Gruben 3 a, 4 a, 10 und 14 deuten auf kl., meist rundliche Bauten. Wegen des geringen Dm. von ca. 2,00 m waren es wohl Speicher. Eine detaillierte Auswertung der Fundverteilung ist wenig ergiebig, da insgesamt im Verhältnis zur untersuchten Fläche nur relativ wenige Objekte geborgen. Es überwiegen uncharakt. Feuersteinartefakte und unverz. WS. Funde über Gesamtfläche relativ gleichmäßig verteilt. Größere Fundkonzentrationen, die auf Hütten oder Werkplätze weisen, fehlen. Gruben erbrachten keine charakt. Gegenstände.
+
+Funde: u. a. 1. Hals einer Kragenflasche (Taf. 39,12). 2. Verz. WS von Amphoren der Walternienburger Kultur (Taf. 39,15, 20,21). 3. Zahlr. Reste von Gefäßen, die in ihrer Zierweise (Kerben, punktartig-unförmige Einst.) (Taf.39,16) an Kammund Grübchenkeramik erinnern; der Form nach weitmundige Gefäße mit konisch geschwungenem Hals (Taf. 39,11), kalottenförmige Sch (Taf. 39,9) und Gefäße mit trichterförmiger Mdg. (Taf. 39,14) unterscheidbar. 4. WS mit Grifflappen. Zur KAK gehören: 5. HeS einer unverz. KA; graugelb; Wdg. 0,6/ 0,7 (Taf. 39,10). 6. RS zweier WB; graugelb; Wdg. 0,5 (Taf.
+
+39,8). 7. WS eines TmhU mit Tupfen; graugelb; Wdg. 0,5 (Taf. 39,22). 8. Kl. RS mit doppelter Winkelschnurlinie unter einer umlauf. Linie; graubraun; Wdg. 0,4 (Taf. 39,13). 9. Kl. HaS mit ausgespartem Winkelband aus winkelst.artigen Einst.; grau; Wdg. 0,4 (Taf. 39,18). 10. Kl. SS mit eingeritzten Fr.; graubraun; Wdg. 0,4 (Taf. 39,19). 11. Kl. Osenhe. einer KA (?) ; gelbbraun; Wdg. 0,5.
+
+LM Halle HK 34:872—1150.
+
+Nur ca. 220 m SW dieses Fdpl. bei kl. Sondage (Mbl. 2313/ 4138, N 20,2; W 22,2) Scherben zweier Gefäße. Rest eines zerstörten Grabes? 1. wT mit Dreiecken aus Furchenst.linien auf der Schulter; grau-gelb gefleckt; Wdg. 0,5/0,6 (Taf. 39,17). 2. Unverz. Gefäß mit Doppelhe. von Hals bis Schulter (Rhinower Krug?) ; gelbbraun; Wdg. 0,6/0,7.
+
+LM Halle HK 34:1161 a, b.
+
+Wohl ebenfalls in der Nähe der Siedl. Untersuchung einer ca. 100 m² gr. Fläche (Flurbezeichnung Weltfrieden"). Funde: 1. Unverz. urgeschichtliche Scherben und uncharakt. Feuersteinartefakte. 2. Reste eines gr. WB mit Kerbreihe in Höhe der Warzen; graugelb gefleckt; Wdg. 0,5 (Taf. 83,5). 2. 4 HaS einer KA (?) mit Gitterband aus Schnurlinien; grau; Wdg. 0,4 (Taf. 83,3,4).
+
+LM Halle HK 34:1156—1160. Bicker 1934, S. 106; Schlette 1958, S. 58.
+
+Anm.: Vollständige Auswertung dieses Komplexes unmöglich, da Teil der Grabungsunterlagen verschollen.
+
+145. Aken. Fdpl. 24. Ratsheide. Mbl. 2313 (4138), S 15,9; W 9,4. Geländesit.: eben.
+2. FA: G.Funde in ca. 1,00 m Tiefe (zerstörtes Flach(?)gr.). 1. KA mit Hals-Schulter-Kehle und gekehlten He.; am Hals Reihen, Dreiecke und ein ausgespartes Winkelband aus Punktst., auf Schulter unter Punktst.reihen Dreiecke aus gleichartigen Einst.; dunkelbraun gefleckt; H. 20,5; Wdg. 0,5; HBI 1,05 (Taf. 39,7). 2. Zerscherbte KA. 3. Feuersteinbeil oder -meißel. 1. Mus. Aken Inv.-Nr. III/53/108; Rest verschollen. Hoffmann/Schmidt 1955, S. 214, Taf. 62,2; Fischer 1958 b, S. 6; Behrens 1973, S. 302.
+
+Anm.: Bei W. Hoffmann und B. Schmidt (1956, S. 285 und Taf. LXIV,1) publizierte unverz. KA tatsächlich früheisenzeitliches Gefäß. Im Mus. Aken noch 4 gleichartige Gefäße vom gleichen Fdpl.
+
+146. Aken oder Kleinzerbst. Fdpl. Kiesgrube zwischen Aken und Kleinzerbst. Mbl. 2313 (4138). Geländesit.: vermutlich flache Anhöhe.
+
+FA: EvS. Altfunde. Keine weiteren Angaben. 1. RS einer KA; zwischen 2 Reihen Dreiecke aus Winkel-Bogenst.; braun; Wdg. 0,4 (Abb. 14,4). 2. RS und HaS eines wT oder einer Sch; unter Schnurlinie vermutlich breites ausgespartes Winkelband aus Winkelschnurlinien; braun gefleckt; Wdg. 0,5 (Abb. 14,1,2). 3. RS; unter 2 Reihen verzahnter Winkelst. Dreiecke aus Winkelst.; graubraun; Wdg. 0,5 (Abb. 14,3). 4. Unverz. gewölbte WS; braungrau gefleckt; Wdg. 0,6. 5. Kl. WS der Rössener Kultur.
+
+Anm.: Eventuell stammen die Funde aus der gleichen Kiesgrube wie die unter Nr. 151 beschriebenen Reste.
+
+Mus. Köthen (Slg. Götze).
+
+147. Cosa. Fdpl. u. Mbl. 2387 (4238) oder 2460 (4338). FA: EvG. KA. Keine weiteren Angaben.
+
+Kriegsverlust (ehemals Mus. Zerbst).
+
+Abb. 14. Einzelfunde, vermutlich aus einer Siedlung bei Aken (146)
+
+<!-- image -->
+
+148. Diebzig. Fdpl. 4. Haderberge. Mbl. 2312 (4137), N 16,1 ; O 19,5. Geländesit.: flache Anhöhe.
+
+FA: vG. Auf Baalberger Siedl. innerhalb des noch teilweise erkennbaren Hausgrundrisses I (Sohle in 0,50 m Tiefe) neben 3 zerscherbten vierhenkligen und 2 zerscherbten zweihenkligen Baalberger Amphoren (Preuß 1966, Taf. 39,1—4), Hüttenlehm, Feuersteinabschlägen sowie Mahl- und Schleifsteinbruchstücken auch folg. 2 ganze Gefäße (vermutlich Beigaben eines nicht erkannten Flachg.). 1. KA mit ovalem Bauch; am Hals zwischen 2 Reihen kurzer Einst. unregelmäßig verteilte dreieckig-unförmige Einst. und auf Schulter angedeutete eingeritzte Fr.; dunkelbraun; H. 14,6; Wdg. 0,7/0,8; HBI 1,18 (Taf. 44,7). 2. Unverz. napfartige Schüssel; rötlich-dunkelbraun; H. 9,3; Wdg. 0,5; HBI 0,79 (Taf. 44,6). Mus. Köthen EK 27/164 (A 126-132). Schulze 1930, S. 52; Grimm 1937, S. 178; Nowothnig 1936, S. 436 f., Abb. 31 a—g; Priebe 1938, S. 95, Taf. III f; Grimm 1940 a, S. 403; Mildenberger 1953, S. 70; Fischer 1958 b, S. 6; Preuß 1966, S. 142; Behrens 1973, S. 302.
+
+Anm.: Das Verhältnis der Gefäße der KAK zu den Baalberger Resten ist umstritten (vgl. Mildenberger 1953, S. 70, und Preuß 1966, S. 56).
+
+149. Elsnigk. Fdpl. am NO-Ende des Dorfes (Garten von Müller, Kniestedt). Mbl. 2387 (4238), N ca. 2,5; W ca. 17,2. Geländesit.: eben.
+
+FA: EvG. In ca. 0,75—0,90 m Tiefe KA mit gekehlten He.; am Hals unter punktartigen Einst. Dreiecke und auf Schulter imitierte Fr.gruppen aus gleichartigen Einst.; schwarz-dunkelbraun, rötlich gefleckt; H. 21,7; Wdg. 0,6; HBI 1,00 (Taf. 40,1).
+
+Mus. Dessau Inv.-Nr. II 8 (A 16). Seelmann 1904, S. 74 f., Taf. VII,25; Aberg 1918, S. 174; Kossinna 1922, S. 259; Schulze 1930, Taf. 42,10; Priebe 1938, S. 92, Taf. VII b; Voigt 1942, S. 34 f.; Behrens 1973, S. 302.
+
+150. Elsnigk. Fdpl. am Nordrand des Dorfes bei Bauer Busch. Mbl. 2387 (4238).
+2. FA: EvG. Napfartiges Gefäß. Keine weiteren Angaben. Kriegsverlust (ehemals Mus. Dessau). Priebe 1938, S. 93; Voigt 1942, S. 35; Behrens 1973, S. 302.
+151. Elsnigk. Fdpl. Kiesgrube am Weg nach Kleinzerbst. Mbl. 2313 (4138) oder 2387 (4238).
+
+FA: vG. 1. Halb erh. Sch; am Hals und auf Schulter Dreiecke aus Schnurlinien; braun-dunkelgrau; H. 14,3; Wdg. 0,5/0,7; H          sesetzter Schulter und tiefsitzendem He., das dem Bernburger Formenkreis angehören soll.
+
+<!-- FREE:PAGE 14 -->
+1. Mus. Dessau Inv.-Nr. II 1466 (A 17) ; 2. Kriegsverlust. Götze 1938 a, S. 119 f.; Priebe 1938, S. 93; Voigt 1942, S. 34; Behrens 1973, S. 298; Beier 1984, S. 108.
+
+Anm.: Beschreibung der Sch durch W. Götze (1938a, S. 119 f.) weicht vom Original ab. Weder senkrecht durchb. Osen noch Streifen dicht untereinander gereihtęr kl., mit Federposen tief eingestochener Kreise" sind an der Sch Unklar, ob hier Irrtum Götzes vorliegt oder ob ein anderes Gefäß beschrieben wurde.
+
+152. Elsnigk. Fdpl. am Nordrand des Dorfes bei der Mühle Hildebrandt. Mbl. 2387 (4238).
+
+FA: vG. Aus ca. 0,50 m Tiefe: 1. Reste von 1 oder 2 verz. KA. 2. Reste eines wT mit Schnurverz. 3. Unverz. Sch mit nur einer He.öse; dunkelgrau gefleckt; H. 8,6; Wdg. 0,5; HBI 0,61 (Taf. 40,3).
+
+- 1., 2. Kriegsverlust; 3. Mus. Dessau Inv.-Nr. II 1388 (A 18). Seelmann 1935, S. 194; Priebe 1938, S. 92 f.; Voigt 1942, S. 35; Fischer 1956, S. 153, 293; Behrens 1973, S. 302.
+153. Frenz. Fdpl. u. Mbl. 2386 (4237).
+
+FA: EvG. Keine weiteren Angaben. KA mit leicht asymmetrisch steh. He.; am Hals unter Dreiecken aus  Bogen-Winkelst. Rauten aus unförmigen Einst. und auf Schulter eingeritzte Fr.gruppen mit Winkelst.abschluß; dunkelbraunschwarz gefleckt; H. 14,9; Wdg. 0,5; HBI 1,01 (Taf. 40,2). Mus. Bernburg o. Nr. Götze 1900 a, S. 161 (unter unbekannt") ; Höfer 1902, S. 27 (Anm. 1) ; Kossinna 1902, S. 168 (Anm. 1) ; Åberg 1918, S. 173; Kossinna 1922, S. 259; Schulze 1930, S. 110, Taf. 42,4; Priebe 1938, S. .94 f.; Fischer 1958 b, S. 6; Behrens 1973, S. 303.
+
+154. Görzig, OT Reinsdorf. Fdpl. 2. Gemeindekiesgrube. Mbl. 2459 (4337), N 9,0—9,2; 0 0,5. Geländesit.: Hang einer flachen Anhöhe.
+
+FA: G. Grube 1,40 × 0,80 × 0,75 m; N—S. Auf Sohle menschliche Skelettreste; nach Grubenmaßen wohl Hocker mit gleicher Achsenrichtung. Funde (teilweise aus Abraum): 1. Reste von KA mit Hals-Schulter-Kehle; am Hals Rauten aus feinen Furchenst.linien und auf Schulter Furchenst.fr.gruppen; dunkelgrau-hell gefleckt; Wdg. 0,4/0,5 (Taf. 40,5). 2. Dickn. dünnbl. Feuersteinbeil; Breitseiten teilweise überschliffen; dunkelgrau-hell gefleckt; L. 6,7; Schnbr. 3,4 (Taf. 40,6). 3. Humerus- und Wirbelfragment vom Schwein (Dö.). 4. Skelettreste eines Individuums; frühadult; männlich (Br.). Mus. Köthen EK 57/9. Hoffmann/Schmidt 1961, S. 285; Behrens 1973, S. 304.
+
+155. Kleinzerbst. Fdpl. 1. Schwabenheide. Mbl. 2313 (4138), S 7,0—7,3; W 10,8. Geländesit.: eben.
+
+FA: Siedl. Mehrperiodiger Fdpl. Unter 0,25 m starker Humusschicht ovale Wohngrube von 4,00 ×1,90 × 0,85 m; im Querschnitt muldenförmig, keine Pfostenspuren. Am S.rand 0,40 m tiefe Verfärbung von 0,10 m Dm. (Pfahl?). Funde: 1. Erg. hohe unverz. Amphore mit 4 gekehlten He.; ockerfarben-braun-grau gefleckt; H. 56,0; Wdg. 0,8—1,0; HBI 1,55 (Taf. 41,13). 2. Erg. unverz. WB; grau; H. 17,9; Wdg. 0,5; HBI 0,83 (Taf. 41,10). 3. Reste eines wT; am Hals Bogenst.dreiecke und auf Schulter imitierte Fr. aus kl. Einst.; braun, dunkel gefleckt; Wdg. 0,5/0,6 (Taf. 41,9). 4. RS von wT oder Sch mit Rauten aus Schnurlinien; braun; Wdg. 0,5 (Taf.
+
+41,5). 5. RS von wT oder Sch mit Spuren senkr. und schräger Schnurlinien; Wdg. 0,4 (Taf. 41,8). 6. Reste eines wT; am Hals Schnurgitterbänder und auf Schulter Schnurfr.; braun; Wdg. 0,5 (Taf. 41,12). 7. 2 WS mit Dreiecken aus Schnurlinien und Einst.; braun; Wdg. 0,5/0,6 (Taf. 41,11). 8. BS einer KA; auf Schulter Fr. mit Bogenst.abschluß; braun; Wdg. 0,4 (Taf. 41,4). 9. Reste eines. unverz. Napfes mit Trichterrand; braun, dunkel gefleckt; Bdm. 7,2; Wdg. 0,4/0,5 (Taf. 41,6). 10. WS mit Fingertupfenleiste; braun-rötlich; Wdg. 0,5 (Taf. 41,7). 11. Uber 100 meist unverz. WS. 12. Unterkiefer mit Zähnen, Beckenreste, ein Metatarsus und ein Radius eines drei- bis fünfjährigen Rindes (Dö.).
+
+Mus. Köthen EK 27/130 (A 137 a—c, 138). Götze 1928, S. 13 f., Taf. IV,10,11; Schulze .1930, S. 112, Taf. 45,1—3; Priebe 1938, S. 95; Voigt 1942, S. 35; Fischer 1958 b, S. 6; Behrens 1973, S. 303.
+
+Anm.: Die von H. Priebe (1938, S. 95) erwähnte He.T, und die Tierreste von Schwein und Hirsch nicht nachweisbar. Nur ca. 200 m westl. des Fdpl. 1979/80 Reste einer Bernburger Siedl. untersucht (Schmidt-Thielbeer 1981, S. 178 f.).
+
+156. Kleinzerbst. Fdpl. 4. Mbl. 2313 (4138), S 7,2—7,3; W 10,0—10,2. Geländesit.: eben.
+2. FA: G. a) Flachg. 1 (1949). Aus 0,60 m Tiefe. Funde: 1. Halb erh. KA mit Hals-Schulter-Kehle; am Hals unter Dreiecken aus Einst. eingestempelte Rauten und auf Schulter eingeritzte Fr.gruppen mit punktst.artigem Abschluß; graubraun; H. 16,3; Wdg. 0,5; HBI 0,93 (Taf. 40,9). 2. Zeichnerisch erg. wT; am Hals unter gestempelten Quadraten aus je 4 Punktst. unregelmäßig angeordn. gestempelte Gruppen aus Punktst. und auf Schulter unter einer gleichartig gestempelten Reihe eingeritzte Fransen mit Punktst.abschluß; dunkelgrau, hell gefleckt; err. H. 20,9; Wdg. 0,5/0,6; HBI 0,91? (Taf. 40,7). 3. SS einer KA; unter Winkelst.reihe Furchenst.fr.gruppen; graubraun; Wdg. 0,4 (Taf. 40,8).
+
+Mus. Köthen EK 49:24 (A 392).
+
+b) Flachg. 2 (1949). Keine Angaben. Funde: 1. Unverz. KA mit ovalem Bauch; ockerfarben-dunkelbraun; H, 20,2; Wdg. 0,4/0,5; HBI 1,17 (Taf. 42,2). 2. Unverz. hoher Napf; dunkelgrau, hell gefleckt; H. 15,5; Wdg. 0,5; HBI 1,03 (Taf. 42,1). Mus. Köthen EK 49/23 (A 390 und 391).
+
+c) Flachg. 3 (1966). Im NO gestörte rechteckige Grube mit abgerundeten Ecken; erh. L. 1,40 m; Br. 1,00 m; SW—NO. Sohle bei ca. 0,45 m Tiefe. In der SW-Hälfte 0,10 m über der Sohle folgende Funde: 1. Sch; am Hals Dreiecke aus Schnurlinien unterhalb des Umbruches grobe Furchenst.fr.gruppen; dunkelbraun, hell und rötlich gefleckt; H. 12,5; Wdg. 0,6/0,7; HBI 0,51 (Taf. 41,1). 2. Daneben Kieferreste von Pferd oder Rind und 0,30 m westl. davon ein weiterer Tierzahn. LM Halle HK 67:175 a, b (2. nicht auffindbar).
+
+Anm.: Tierreste konnten nicht zoologisch begutachtet werden. Schwarz 1950, S. 213; Fischer 1956, S. 294; Hoffmann 1971 a, S. 300; Behrens 1973, S. 303.
+
+157. Köthen. Fdpl. 10. Mbl. 2386 (4237), N 19,4; 0 2,7. Geländesit.: eben.
+
+FA: vG. Aus 0,75 m Tiefe folgende Gefäße: 1. KA mit HalsSchulter-Kehle und gekehlten He.; am Hals unter rundenunförmigen Einst. Dreiecke und Rauten aus rundlichen Einst. und auf Schulter sowie unterhalb der He. imitierte Fr.gruppen aus senkr. längl. Einst.; dunkelgrau-schwarz; H.
+
+16,8; Wdg. 0,4/0,5; HBI 1,02 (Taf. 42,4). 2. Erg. KA mit Hals-Schulter-Kehle und leicht gekehlten He.; am Hals unter Schweines (Dö.). 7. Skelettreste eines Individuums; adult; männlich (Br.).
+
+Mus. Köthen EK 33/133 (A 253); 5. nicht auffindbar. Götze 1934 a, S. 120; 1935, S. 210.
+
+- Anm.: Tierknochen erst bei Aufarbeitung der Skelettreste ausgesondert. Dabei auch noch Knochen eines zweiten menschlichen Individuums. Letztere scheinen in direktem Zusammėnhang (?) mit Bestattung zu stehen.
+
+b) EvG. Vermutlich vom gleichen Fdpl. Aus einem zweiten zerstörten Flachg. (?): Erg. unverz. asymmetrischer WB mit 4 ·erh, Warzen; rötlichgelb-grau; H. 16,3; Wdg. 0,7; HBI 0,86 (Taf. 43,1).
+
+Mus. Köthen o. Nr.
+
+161. Radegast. Fdpl. 1. Mbl. 2460 (4338), S 26,1; 0 16,8. Geländesit.: nach SO fallender Hangbereich einer Anhöhe. FA: EF. Auf mehrperiodigem Fdpl. neben Baalberger und Schönf. Keramik HaS mit Knubbe, Rauten aus Bogen-Winkelst. und kurzen Schnurlinien; schwarz-grau; Wdg. 0,4 (Taf. 39,6).
+
+Mus. Köthen EK 36/356.
+
+162. Reppichau. Fdpl. Breite Bruchstücke. Mbl. 2313 (4138). Geländesit.: gr. ebene Fläche nördl. der heutigen Dorflage. FA: G mit Steinpackung. In 1,00 m Tiefe unter einer Steinlage von drei bis vier Schichten (1,5 m lang, 1 m breit) in Branderde stehend (Seelmann 1903, S. 89), die soweit reichte wie die Steinlage" (Seelmann 1900, S. 79). wT; darin unbearbeiteter dreieckiger blauschwarzer Stein. Halb erh. wT; am Hals Dreiecke aus Schnurlinien und auf Schulter 2 Kerbreihen; rötlichgelb-braun; H. 21,0; HBI 0,93? (Taf. 44,1). Kriegsverlust (ehemals Mus. Dessau). Seelmann 1900, S. 79 f., Abb.; 1903, S. 89, Fig. 4; Höfer 1904, S. 131; Åberg 1918, S. 173; Kossinna 1922, S. 259; Schulze 1930, Taf. 42,12; Priebe 1938, S. 93; Voigt 1942, S. 35; Fischer 1956, S. 151, 295; Behrens 1973, S. 304.
+
+163. Reppichau. Fdpl. 1. Mbl. 2387 (4238), N 0,2; 0 19,6. Geländesit.: eben.
+
+FA: G. In 0,60—0,80 m Tiefe 4 KA, Bauch einer KA, 4 wT und mindestens 2 Feuersteinbeile. Nach Archivunterlagen des Mus. Köthen angeblich Beigaben aus mehreren Hockergräbern. Fundberichte nicht vorhanden, daher EF-Charakter: 1. KA mit Hals-Schulter-Kehle und gekehlten He.ösen; am Hals ausgespartes Rautenband aus von Furchenst. umsäumten punktartigen Einst. und auf Schulter unter Band aus punktartigen Einst. Furchenst.fr. mit Punktst.abschluß; bräünlichgelb, dunkel gefleckt; H. 19,1; Wdg. 0,6; HBI 0,98 (Taf. 44,4). 2. 2/3 erh. KA mit Hals-Schulter-Kehle und gekehlten He.; am Hals unter gr. Dreiecken mehrere Reihen kl. Dreiëcke aus Bogen-Winkelst. und auf Schulter unter Bogen-Winkelst.reihe je eine Reihe kl. und gr. Dreiecke aus gleichartigen Einst.; schwärzlich-ockerfarben gefleckt; H. 22,0; Wdg. 0,4/0,5; HBI 1,07 (Taf. 45,2). 3. 2/3 erh. KA; am Hals eingeritzte Rauten und auf Schulter vermutlich eingeritzte Fr.; H. ca. 15,0; HBI 1,07? (Taf. 44,3). 4. Am Hals erg. KA; am Hals vermutlich ausgespartes Rautenband aus Schnurlinien und auf Schulter unter Winkel-Bogenst.reihen vermutlich schräg gestellte Schnurfr.gruppen; H. ca. 21,5; HBI 1,13? (Taf. 45,1). 5. wT mit angedeuteter Hals-Schulter-Kehle; am Hals eingeritzte Rauten, am Ubergang zur Schulter in Höhe der Handh. grober winkelst.artige Einst. und auf Schulter eingeritzte Fr.gruppen mit Winkelst.abschluß; rötlich-braun-
+
+runden-unförmigen Einst. Dreiecke und Rauten aus rundlichen Einst., auf Schulter sowie unterhalb der He. imitierte Fr.gruppen aus kl. unförmigen Einst.; dunkelbraun-schwärz H. 13,3; Wdg. 0,4; HBI 0,95 (Taf. 42,3).
+
+Mus. Köthen Inv.-Nr. A 42 und 43. Kupka 1920, S. 343, 348; Kossinna 1922, S. 260; Bethge 1925, S. 39 f.; Schulze 1930, S. 111 f., Taf. 43,3,4; Priebe 1938, S. 94, Taf. X a, b; Fischer 1956, S. 294; 1958 b, S. 6; Behrens 1973, S. 303.
+
+158. Meilendorf, OT Körnitz. Fdpl. in der Nähe der Reddigerchen Windmühle. Mbi. 2387 (4238).
+
+- FA: vG. Keine Angaben. Funde: 1. KA mit Hals-SchulterKehle; am Hals unter eingeritzten verschachtelten Dreiecken Rauten aus unförmigen Einst., auf Schulter zwischen imitierten Winkelst.linien eingeritzte Fr.gruppen; rötlich-braunschwarz gefleckt; H. 14,3; Wdg. 0,5; HBI 0,91 (Taf. 43,8). 2. Erg. Schüssel mit 2 nebenständigen, senkr. durchb. Osenhe.; in Höhe der Handh. punktartige Einst.; rötlich-dunkelgrau; H. 10,2; Wdg. 0,4/0,5; HBI 0,68 (Taf. 43,7). 3. Unverz. grob gearbeiteter WB; rötlich-braun, schwarz gefleckt; H. 16,0; HBI 0,84 (Taf. 43,6).
+- 1., 2. Mus. Köthen EK 21:31 (A 64, 70); 3. verschollen. Kupka 1920, S. 343, 348; Kossinna 1922, S. 259; Bethge 1925, S. 40; Schulze 1930, S. 111, Taf. 43,5—7; Priebe 1938, S. 92, Taf. X e, XXVIII c, XXIX f; Fischer 1958 b, S. 6; Behrens 1973, S. 303.
+
+Anm.: Ob das am Bauch der KA befindliche runde Loch von 1,5 Dm. als Seelenloch" (z. B. Schulze 1930, S. 111) interpretiert werden kann, ist nicht beweisbar.
+
+159. Osternienburg. Fdpl. 2. Mbl. 2313 (4138), S 2,5; W 10,0. Geländesit.: flach nach N fallend.
+
+FA: EF. Auf mehrperiodigem neolithischem Fdpl. RS eines wT; ausgespartes Winkel- und ausgespartes Rautenband aus kl. sich überlagernden Einst.; schwarzgrau; Wdg. 0,7 (Taf. 39,4).
+
+Mus. Dessau Inv.-Nr. III/53/22.
+
+160. Prosigk, OT Fernsdorf. Fdpl. Kiesgrube am Vorwerk Gahrendorf. Mbl. 2460 (4338), N 4,3; W 8,5. Geländesit.: flache Anhöhe. FA: G. a) Flachg. (1933): Am SSW-Ende gestörte Grube; erh. L. 1,53 m; Br. 1,50 m; SSW—NNO. Sohle in 1,20 m Tiefe aus festgestampfter (?), mit Asche vermengter 0,05 m starker Lehmschicht. Darauf linker SSW(Schädel)NNO gerichteter Hocker; Schädel bereits abgestürzt. Uber dem Skelett 2 gr: und 2 kl. Feldsteine. Funde: 1. Ostl. des Beckens Reste eines TmhU mit gekerbtem Umbruch und verockerfarben gefleckt; H. 25,5; Wdg. 0,8; HBI 1,09 (Taf. 42,5). In Füllerde über 120 meist dickwandige unverz. Scherben, darunter: 2. RS und BdS einer schrägwandigen Bernburger
+
+dickter Randlippe; àuf Umbruch 3 Warzen erh.; dunkelgrau(?) Sch; graubraun-schwarz; Wdg. 0,5/0,6 (Taf. 42,9,10). 3. WS mit Warze auf Umbruch; schwarz; Wdg. 0,9 (Taf. 42,11). 4. WS eines Napfes mit fingerkniffmodellierter Leiste auf Umbug; schwarz; Wdg. 0,7 (Taf. 42,12). 5. In 0,55 m Tiefe 3 Feuersteinklingen (wohl mit Grabbrauch in Verbindung); L. 11,3—9,8 (Taf. 42,6—8) sowie einige Feuersteinabschläge. 6. Bei Skelett folg. Tierknochen: lose Tibiaepiphyse, Calcaneus, Ulnafragment, 2 Phalangen, Halswirbelfragment, Lendenwirbelepiphyse und Molarfragment eines ca. zweijährigen Rindes sowie Radius und Schädelreste eines ca: einjährigen grau; H. 28,2; Wdg. 0,5/0,7; HBI 0,96 (Taf. 45,3). 6. Reste eines wT mit angedeuteter Hals-Schulter-Kehle; am Hals Dreiecke aus Schnurlinien und auf der Schulter unter 2 Reihen kantiger Einst. imitierte Fr.gruppen aus gleichartigen Einst.; ockerfarben; H. ca. 30,0; Wdg. 0,6/0,7; HBI 1,11? (Taf. 44,2; Priebe 1938, Taf. XVIII a). 7. Erg. wT; am Hals Dreiecke aus Schnurlinien und auf Schulter kurze Schnurfr.; rötiich-grau; H. 18,5; Wdg. 0,6/0,7; HBI 0,89 (Taf. 44,5). 1., 2., 5., 6. Mus. Dessau Inv.-Nr. II 1031 (A 15), II 1033 (A 14), II 1461 (A 11), o. Nr.; 7. Mus. Köthen EK 36/495 (A 276) , 3., 4. Kriegsverlust (ehemals Mus. Dessau). Seelmann 1935, S. 194; Voigt 1942, S. 35; Priebe 1938, S. 93, Taf. IX c, d, X d, XVII b, XVIII a; Fischer 1956, S. 160, 295;
+
+<!-- FREE:PAGE 15 -->
+1958 b, S. 6; Behrens 1973, S. 304.
+
+Anm.: Der Verbleib der anderen Funde u., davon Abbildungen bzw. Beschreibungen nicht vorhanden. Der bei H. Behrens (1973, S. 304) genannte Fdpl. Rosefeld ist zu streichen. Es liegt eine Verwechslung mit den hier beschriebenen Funden vor, da Fdpl. 1 von Reppichau an Gemarkungsgrenze zu
+
+Rosefeld gelegen!
+
+164. Reupzig oder Groβbadegast. Fdpl. Sandgrube zwischen Reupzig und Großbadegast. vermutlich Mbl. 2387 (4238), S 16,7; W 12,1. Geländesit.: flache Anhöhe, fast eben.
+
+Mus. Dessau Inv.-Nr. II 6 (A 19). Götze 1900 a, S. 160; SeelFischer 1956, S. 150, 295; 1958 b, S. 6; Weber 1964, S. 151;
+
+FA: G. Brandg. (?) In Steinkiste angeblich eine mit Knochenresten, Asche und' Sand gefüllte KA mit Hals-Schulter-Kehle; am Hals Gitterband aus Schnurlinien, in Hals-Schulter-Kehle Winkelschnurlinie und auf Schulter Schnurfr.gruppen mit Bogenst.əbschluß; rötlichbraun, dunkel gefleckt; H. 17,9; Wdg. 0,4/0,5; HBI 1,01 (Taf. 43,9).
+
+mann 1903, S. 89, Abb. 3; Aberg 1918, S. 173; Kossinna 1922, S. 259; Schulze 1930, Taf. 42,9; Priebe 1938, S. 92, Taf. VII g; Behrens 1973, S. 304.
+
+165. Weiβandt-Gölzau. Fdpl. 3. Mbl. 2460 (4338), N 12,4; W 19,0. Geländesit.: eben, flach nach O fallend.
+
+eines mindestens zweijährigen Schweines sowie Calcaneus eines Schweines, dieses jünger als 2 Jahre (Dö.). 5. Skelettreste eines Individuums; über 40 Jahre; weiblich (Br.).
+
+FA: G (Abb. 3,2). In 1,20 m Tiefe SO (Schädel)-NW-gerichteter Hocker. Funde: 1. Hinter dem Schädel teilweise erg. KA mit gesacktem Bauch; am Hals und auf Schulter je 2 Reihen unregelmäßiger Schnurfr.; graubraun gefleckt; H. 17,5; Wdg. 0,8; HBI 1,06 (Taf. 41,2). 2. Daneben am Rand beschädigter Becher; am Hals Schnurlinien und auf Schulter Schnurkerben; rötlichbraun-schwarz und braun gefleckt; erh. H. 12,6; Wdg. 0,7 (Taf. 41,3). 3. Uber dem Skelett Unterkieferhälfte eines Schweines. 4. Sonstige Tierknochen: Tibia und Fibula
+
+Mus. Köthen EK 68/4. Bär 1969, S. 17 f., Taf. 3 a, b; Hoffmann 1971 b, S. 310, Taf. 1 c, d; Behrens 1973, S. 124, 311, Abb. 47 d, e.
+
+Anm.: Die postcranialen Tierknochen erst bei Aufarbeitung des Skelettmaterials entdeckt.
+
+166. Wulfen. Fdpl. u. Mbl. 2312 (4137).
+
+(Taf. 43,10).
+
+FA: EvG. Keine Angaben. Kl. wT; am Hals eingeritzte Rauten und auf Schulter imitierte Fr.gruppen aus senkr. längl. Einst.; braun-dunkelgrau; H. 15,8; Wdg. 0,5/0,6; HBI 0,93
+
+Mus. Köthen EK 60/7. Behrens 1973, S. 305.
+
+167. Zabitz. Fdpl. Kiesgrube am Bahnwärterhaus. Mbl.
+
+FA: G. In 0,75 m Tiefe Feuersteinbeil. Darüber im Humus zwischen Sandsteinplatten weitere Funde. Annahme einer zerstörten Steinkiste sehr wahrscheinlich. Funde: 1. Reste einer Sch mit Ösenhe.; am Hals ausgespartes Winkelband aus Schnurlinien und unterhalb des Umbruches kurze eingeritzte Fr.; braun, dunkel gefleckt; Wdg. 0,3/0,4 (Taf. 43,2). 2. Reste eines unverz. TmhU mit Reihe unregelmäßiger Fingertupfen; schwarz, hell gefleckt; Wdg. 0,5/0,6 (Taf. 43,5). 3. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; hellgrau, dunkel gefleckt; L. 8,2; Schnbr. 3,9 (Taf. 43,4). 4. Fragment einer röhrenförmigen Bernsteinperle; erh. L. 2,3 (Taf. 43,3) sowie kl. Bernsteinbrocken. 5. 4 kl. Tonbrocken mit rötlichen Farbspuren (?) zugehörig?.
+
+2386 (4237), N 3,7; Q 13,9. Geländesit.: flache Anhöhe.
+
+Mus. Köthen EK 32/163. Götze 1934 a, S. 117; 1935, S. 205;
+
+Fischer 1956, S. 150, 295; 1958, S. 6; Behrens 1973, S. 305.
+
+Stadtkreis Dessau
+
+168. Dessau. Fdpl. Sandgrube am ehemaligen Armenstift im S der Stadt. Mbl. 2314 (4139), S ca. 7,6; W ca. 23,2. Geländesit.: Hochufer am Rande der Muldeniederung.
+
+FA: EF. Unter Humusschicht in 0,20 m Tiefe: 1. RS mit Bogenst. (Taf. 49,1). 2. Reste von Sch oder wT mit senkr. durchb. Osenhe.; auf Schulter unter Bogenst.reihen Furchenst.fr.gruppen mit Bogenst.abschluß (Taf. 49,2).
+
+Kriegsverlust (ehemals Mus. Dessau). Seelmann 1902, S. 259; Priebe 1938, S. 91; Voigt 1942, S. 35; Fischer 1958 b,
+
+S. 309 f., Fig. 9—11; 1903, S. 90 f., Abb. 5—7; Kossinna 1922, S. 6; Behrens 1973, S. 302.
+
+169. Dessau, OT Kleinkühnau. Fdpl. 4; 12. Bergens Busch. MbI. 2314 (4139), S 16,5-16,8; W 2,5-2,8. Geländesit.: flache Anhöhe (Düne) in feuchter Niederung.
+
+FA: Siedl. Einphasig, angelegt auf älterem mesolithischem Siedl.platz. Wenige Scherben, eine Grube der Latènezeit sowie latène- und kaiserzeitliche EF weisen auch auf spätere Nutzung des Fdpl. a) Fdpl. 12: 1933 von G. Lattauschke und C. Niemann geborgen; wahrscheinlich unmittelbar NO der 1934 untersuchten Fläche. Angaben über Fundzusammenhänge nicht bekannt. 1. Zahlr. Feuersteinartefakte; darunter über 100 wohl mesolithische mikrolithische Abschläge (Taf. 46,1 bis 9), 18 Klingenfragmente bzw. klingenartige Abschläge (Taf. 46,11--13), 15 atypische Abschläge (Taf. 46,14), 2 Kernsteine, Schleifsteinfragment sowie Klopfstein, mehrere Brokken Hüttenlehm. Uber 100 keramische Reste: u. a. 2. Erg. leicht ovaler Backteller mit Fingertupfenrand; auf Ober- und Unterseite zahlr. Abdrücke von Halmen und Gräsern; rotbraun; gr. Dm. 21,0; Di. 1,4 (Taf. 46,19); ein Abdruck bestimmt: Einkorn (Dr. Schultze-Motel). 3. 8 Scherben eines zweiten Backtellers mit glattem Rand; braun-grau. 4. HaS einer KA; unter Bogen-Winkelst.reihe Dreieck aus gleichartigen verscbachtelten Einst.; dunkelgrau; Wdg. 0,4 (Taf. 46,10). 5. HeS ciner KA; am Hals Reste von Schnurverz. und auf Schulter Schnurfr.; braun; Wdg. 0,5/0,6 (Taf. 46,15). 6. SS einer KA mit feinen Schnurfr.gruppen; dunkelgrau; Wdg. 0,5 (Taf. 46,16). 7. SS einer KA mit eingeritzten Fr.; ockerfarben; Wdg. 0,5 (Taf. 46,17). 8. Reste eines unverz. wT mit Knubben auf Umbruch; grau-ockerfarben gefleckt; gr. Dm. über 50,0; Wdg. 0,7/0,9 (Taf. 46,18,23). 9. Umbruchscherbe eines wT; am Hals unförmige punktartige Einst. und auf Schulter eingeritzte Fr.; hellgrau; Wdg. 0,6/0,7 (Taf. 46,22).
+
+10. Reste einer Sch mit 2 senkr. durchb. He.ösen; unter kl. allem metallzeitliche EF auftraten. Verteilung der Pfosten Einst. Schnurfr.; braun gefleckt; Wdg. 0,6/0,7 (Taf. 46,20). und Gruben (Taf. 85) deutet auf Zweiteilung der Siedl. in 11. Umbruchscherbe einer Sch; am Hals unter Schnurfr. Wineinen kl. O- und in einen etwas gr. W-Bereich; dazwischen ca. kel-Schnurlinie und auf Umbruch eingeritzte Fr.; grau; Wdg. 5,00 m breiter Streifen mit nur wenigen Gruben und Pfosten0,4/0,5 (Taf. 46,24). 12. Reste einer unverz. Bernburger (?) spuren aber mit zahlr. Scherben und Feuersteinartefakten. Sch; dunkelgrau-schwarz; Wdg. 0,5/0,6 (Taf. 46,21). 13. RS Eindeutige Rekonstruktion sicherer Hüttengrundrisse nicht eines TmbU mit Fingertupfen; braun; Wdg. 0,6 (Taf. 46,27). möglich. An einigen Stellen könnten Pfostenkombinationen 14. RS eines TmhU mit Fingerkerbleiste unterhalb des Ranzu kl. oder gr. Rechteckbauten zusammengefaßt werden. Indes; grau; Wdg. 0,4/0,5 (Taf. 46,26). 15. RS eines WB; braunteressant ist kreisförmige Anordnung mehrerer Pfosten in der grau; Wdg. 0,5/0,7 (Taf. 46,28). 16. RS eines Napfes mit geMitte der Siedl. von ca. 7,00 m Dm.; im Innenraum an O.pekerbtem Umbug; graubraun; Wdg. 0,4/0,5 (Taf. 46,25). 17. ripherie eine Feuerstelle, die von 2 ca. 2,00 m entfernten RS von wT oder Sch mit Dreiecken aus Schnurlinien; braun; Steinsetzungen flankiert wird; an der gegenüberliegenden WWdg. 0,5 (Taf. 46,31). 18. RS von wT oder Sch; unter feinen Seite 2 parallele Pfostenreihen (Zugang? zu dieser henge"Schnurlinien ausgespartes Winkelband aus Schnurlinien; artigen Anlage). Rekonstruktion der Fundverteilung: dunkelgrau; Wdg. 0,6 (Taf. 46,29). 19. 2 RS von wT oder b) a. O-Bereich der Siedl.: Gruben 15—23 ohne datierbare Sch mit ausgespartem Rautenband aus Bogen-Winkelst.; Funde. Insgesamt wohl hier weniger keramische Funde als in braun gefleckt; Wdg. 0,4/0,5 (Taf. 46,32). 20. RS von wT oder den anderen Bereichen. Noch ca. 60 Scherben (meist unverz. TmhU mit Spitzknubbe auf Umbruch; grau; Wdg. 0,5/0,6 RS und WS) konnten zugeordnet werden, sie lagen wahllos (Taf. 46,39). 21. RS von wT oder TmhU mit Knubbe auf Umüber die Fläche verteilt. 1. HeS einer KA mit gekehltem bruch; rötlichbraun; Wdg. 0,5 (Taf. 46,40). 22. Umbruch- und Osenhe.; am Hals unter eingeritztem Dreieck punktartige HaS von wT oder Sch; am Hals unter Dreieck aus SchnurEinst. und unter dem He. imitierte Kreuzst.; graubraun; linien eine Winkelschnurlinie und auf Schulter punktartige Einst.; grau; Wdg. 0,4 (Taf. 46,30). 23. 2 HaS mit Dreiecken aus Schnurlinien; hellgrau; Wdg. 0,6 (Taf. 46,35). 24. HaS satz und Bogen-Winkelst.dreieck; braun; Wdg. 0,4/0,5 mit Winkelst.reihen; braun; Wdg. 0,5 (Taf. 46,36). 25. 2 HaS mit punktartigen Einst.; rötlichbraun-grau; Wdg. 0,7 gruppen; graubraun; Wdg. 0,5. 5. Umbruchscherbe eines gr. (Taf. 46,37). 26. HaS; zwischen Doppelreihen punktartiger Einst., gleichartige Einst.gruppen; graubraun; Wdg. 0,5/0,6 (Taf. 46,38). 27. WS mit punktartigen Einst.; dunkelbraun gefleckt; Wdg. 0,5 (Taf. 46,41). 28. Bernburger (?) WS mit Fr.bündel aus längl. Einst.; braun; Wdg. 0,6 (Taf. 46,33). 29. Umbruchscherbe mit senkr. längl. Einst.; braungrau; Wdg. 0,5 (Taf. 46,34). 30. Bernburger (?) WS mit einem Grifflappen; grau, hell gefleckt; Wdg. 0,6 (Taf. 46,42). 31. Mehrere abdruckgerauhte WS (Taf. 46,43). 32. Zahlr. verz. und unverz. RS, HeS, WS und BdS verschiedener Gefäße.
+
+Mus. Köthen EK 35:162 (A 333), 171, 177, 178 und 179.
+
+b) Fdpl. 4. Vorbemerkung: Auswertung der 1934 von F. K. Bicker durchgeführten Grabung nicht in vollem Umfang möglich. Grabungsunterlagen nahezu vollständig, aber Masse der Funde bei Depotneuordnung vernichtet; die aufbewahrten Funde wie EF behandelt, so daß ursprünglicher Zusammenhang meist u. Nur Bruchteil der keramischen Reste und der Feuersteinartefakte konnte noch den Quadranten der Grabungsfläche zugeordnet werden.
+
+SW der 1933 geborgenen Funde insgesamt eine Fläche von ca. 2 500 m² freigelegt. Untersuchung einer nahezu vollständigen Siedl. von ca. 1 200 m2; 0—W über 40 m (westl. Begrenzung nicht voll erfaßt) und N-S-Ausdehnung nahezu 30 m. Lag auf höchstem Bereich einer dünenartigen Anhöhe. Mesolithische Vorbelegung. Funde: 2 Stichel (Taf. 47,1), einige mikrolithische Abschläge mit kl. Retuschen (Taf. 47,2 bis 5), Rundkratzer (Taf. 47,6—9) sowie zahlr. kl. Kernsteine. Die gr. Menge kl. unbearbeiteter Abschläge wohl auch noch zugehörig. 2 kI. retuschierte Bohrer dagegen wohl neolithisch. Uncharakt. Abschläge sowie die gr. Kernsteine können zu beiden Horizonten gehören. Stratigraphische Untergliederung der in den Profilen deutlich erkennbaren dunkelbraunen Schicht" nicht möglich. Im Siedl.areal fast 300 Pfostenlöcher und 23 Siedlungsgruben (nur Grube 4 war latènezeitlich). Wohl ebenfalls metallzeitlich 16 Scherben von Siebgefäßen (Taf. 47,10), denn nur 4 an der N.peripherie und die übrigen 12 Scherben sogar nördl. der Siedl. in einem Gebiet, wo vor Wdg. 0,5 (Taf. 47,12). 2. RS mit umlauf. Riefen; ockerfarben; Wdg. 0,5 (Taf. 47,19). 3. SS von KA oder wT mit He.an(Taf. 47,20). 4. SS eines wT mit schräg stehenden Schnurfr.unverz. wT mit senkr. durchb. He.ösen; graubraun gefleckt; Wdg. 0,8 (Taf. 47,13). 6. Bernburger (?) WS mit Grifflappen; dunkelgrau; Wdg. 0,5 (Taf. 47,11). 7. RS (neolithisch?); unter außen gekerbter Randlippe eine plastische Wellenlinie; graubraun; Wdg. 0,7/0,8 (Taf. 47,21). Feuersteinartefakte, zumeist Abschläge, hier häufiger als im übrigen Areal. Auffällig ist Konzentration von Feuersteinklingen und -kratzern ohne Arbeitsspuren in der NW-Ecke (u. a. Taf. 47,14—16). Unweit dickn. Feuersteinbeil, an den Breitseiten überschliffen; hellgrau; L. 7,2; Schnbr. 3,2 (Taf. 47,17). An der S.peripherie ein bohrerartiges Gerät (Taf. 47,18). b) b. Mittlerer Bereich der Siedl.: In dieser nahezu N-S-verlaufenden ca. 5,00 m br. Zone nur einige Pfostenlöcher und Grube 12 mit einer kl. braunen unverz. uncharakt. RS. Ungefähr in der Mitte dieses Bereiches auf einer Fläche von ca. 20 m² Anhäufung von über 100 Scherben, dazu gehören: 1. HaS einer KA mit Dreiecken, Rauten und Winkelschnurlinien; dunkelgrau gefleckt; Wdg. 0,3 (Taf. 47,26). 2. Mehrere Scherben von wT oder Sch (bis zu 10 m verstreut) ; am Hals unter 2 Bändern aus eng gestellten, sich teilweise überlappenden Bogenst. jeweils Dreiecke aus gleichartigen Einst. und auf Schulter gleichartige Dreiecke; rotbraun; Wdg. 0,4/0,5 (Taf. 47,28,29). 3. Reste von wT oder Sch (3 Scherben weiter westl. aufgefunden) mit Dreiecken aus Schnurlinien; gelbbraun; Wdg. 0,4 (Taf. 47, 23,24). 4. Umbugscherbe mit He.ansatz von wT oder Sch (dazugehörige Scherben weit verstreut) mit Dreiecken aus eng gestellten Bogenst.; dunkelbraun gefleckt; Wdg. 0,5 (Taf. 47,25). 5. Umbruchscherbe von wT oder Sch mit eingeritzten Dreiecken; braun; Wdg. 0,5 (Taf. 47,22). 6. SS eines wT; unter Fingernagelkerben Dreiecke aus Schnurlinien; graubraun gefleckt; Wdg. 0,7 (Taf. 47,27). 7. HaS mit Schnurfr.; grau; Wdg. 0,5 (Taf. 47,33). 8. SS mit Schnurfr. und Ringelst.abschluß; grau; Wdg. 0,4 (Taf. 47,41). 9. WS mit Ringelst.; braun; Wdg. 0,6 (Taf. 47,43). 10. Bernburger (?) WS (zugehörige Scherben weiter westl. geborgen) mit kurzen längl. Einst.; grau gefleckt; Wdg. 0,3 (Taf. 47,44). 11. WS eines unverz. wT mit senkr, durchb, He.ösen; grau; Wdg. 0,6 (Taf. 47,32). 12. Umbugscherbe eines TmhU mit Kerben; braun; Wdg. 0,6 reihen; rotbraun; Wdg. 0,5 (Taf. 47,57). 18. Ha(?)S; unter (Taf. 47,31). 13. RS mit Durchlochung und 2 breiten Riefen; unregelmäßigen Bogenst.reihen eingeritzte Fr.; dunkelgrau; dunkelgrau; Wdg. 0,6 (Taf. 47,30). 14. Umbugscherbe mit tieWdg. 0,5 (Taf. 47,67). 19. WS mit Tupfen; braun; Wdg. 0,7 fen ovalen Eindrücken; dunkelgrau; Wdg. 0,5 (Taf. 47,40).. (Taf. 47,63). 20. Schönf. (?) WS mit eingeritztem Leiterband; 15. Umbruchscherbe mit Kerben und Warze; graubraun; graubraun; Wdg. 0,4 (Taf. 47,38). 21. Scherben mit getupfWdg. 0,5 (Taf. 47,39). Unter den übrigen in diesem Bereich tem oder gekerbtem Umbruch. liegenden Scherben nur noch HaS mit ausgespartem Winkelband (?) aus Schnurlinien; braun; Wdg. 0,5 (Taf. 47,42) erwähnenswert. An Feuersteinartefakten meist atypische Abschläge sowie einige kl. Klingen und gr. Flintklingenfragment (Taf. 47,35). Letzteres bei der Scherbenkonzentration gefunden.
+
+<!-- FREE:PAGE 16 -->
+b) c. Ringförmige Anlage" am Rande des westl. Siedl.bereiches: Das zu dieser Anlage" gehörige Pfostenloch 86 erbrachte eine RS und eine SS eines TmhU mit Kerben. Hierher gehören einige Feuersteinabschläge, ein -klingenfragment und ca. 40 Scherben: 1. 5 Scherben des unter b) b. 2. genannten Gefäßes. 2. 2 Scherben des unter b) b. 3. genannten Gefäßes. 3. SS einer KA mit Bogenst.dreiecken und Furchenst.fr.gruppen; grau; Wdg. 0,5 (Taf. 47,49). 4. HeS einer unverz. KA; braun; Wdg. 0,5. 5. RS; unter Schnurlinie häng. Dreieck aus senkr. Schnurlinien; braungrau; Wdg. 0,4. 6. RS; unter Winkel-Schnurlinie steh. Dreieck aus schrägen Schnurlinien;
+
+b) d. W-Bereich der Siedl.: 13 Gruben. Grube 4 latènezeitl. Grube 2 mit WS aus imitierten Furchenst.linien. Grube 7 mit WS mit Dreieck aus schrägen Schnurlinien und Grube 13 mit RS mit Bogen-Winkelst.dreieck, wohl zur KAK gehörig. Pfostenloch 87 mit WS mit Warze und Pfostenloch 75 mit WS mit He.ansatz liegen unmittelbar NW der Ringanlage". Unter den zuzuordnenden Feuersteinartefakten, die gleichmäßig verteilt sind, überwiegen uncharakt. Abschläge. Außerdem 2 Pfeilspitzen mit eingezogener Basis (Taf. 47, 36,37) und 1 (neolithischer?) Kratzer (Taf. 47,34). Feuersteinklingen sehr selten.
+
+braungrau; Wdg. 0,4. 7. RS eines Backtellers mit glattem beidseitig verdicktem Rand; Di. 0,7.
+
+200 Scherben einer ca. 40 m² gr. Fläche westl. der ringförmigen Anlage zuzuordnen; dazu gehören: 1. RS des unter 6) b. 3. genannten Gefäßes. 2. HaS des unter b) b. 4. genannten Gefäßes. 3. HaS einer KA mit Bogenst.rauten; braun; Wdg. 0,4 (Taf. 47,47). 4. HaS mit Schulter einer KA mit Bogenst.dreiecken; schwarzgrau; Wdg. 0,6 (Taf. 47,46). 5. HeS einer unverz. KA; braun, dunkel gefleckt; Wdg. 0,5 (Taf. 47,48). 6. SS einer KA mit Furchenst.fr. und doppeltem Bogenst.abschluß; grau-rötlichbraun; Wdg. 0,4 (Taf. 47,45). 7. Teilweise weit verstreute Reste eines wT; am Hals ausgespartes Rautenband aus Bogen-Winkelst. und auf Schulter Furchenst.fr.; braungrau; Wdg. 0,7 (Taf. 47,50). 8. Umbruchscherbe eines wT mit Fingernagelkerben und Fingertupfen; braun; Wdg. 0,7/0,8 (Taf. 47,51). 9. Umbugscherbe einer Sch; unter punktartigen Einst. eingeritzte Dreiecke; graubraun; Wdg. 0,4 (Taf. 47,60). 10. Reste von wT oder Sch mit ausgespartem Winkelband aus Schnurlinien; dunkelbraun; Wdg. 0,5 (Taf. 47,52,53). 11. 2 RS eines wT oder einer Sch mit Dreiecken aus Schnurlinien; graubraun; Wdg. 0,5 (Taf. 47,54). 12. Umbugscherbe von wT oder Sch mit Bogen-Winkelst.dreiecken; braun; Wdg. 0,5 (Taf. 47,55). 13. RS von wT oder Sch mit Schnurgitter; graubraun; Wdg. 0,5. 14. RS eines gr. unverz. wT oder TmhU; ockerfarben-rotbraun; Wdg. 0,5. 15. Umbugscherbe mit Warzen, begleitet von Reihen kurzer senkr. Einst.; gelbbraun; Wdg. 0,5 (Taf. 47,56). 16. WS mit Dreieck aus Schnurlinien; schwarzgrau; Wdg. 0,5 (Taf. 47,58). 17. 2 WS (zugehörige Scherben weit verstreut) mit Bogenst.- Eine zweite, bedeutend kl. Anhäufung von ca. 25 Scherben am NO-Rand des westl. Siedl.bereiches; dazu gehören: 1. SS einer KA mit Schnurfr.; grau; Wdg. 0,4 (Taf. 47,64). 2. 2 Umbruch- und 1 SS mit He.ansatz eines wT; am Hals unter undeutlichen Einritzungen Bogenst.reihe und unterhalb des He. auf Schulter Bogenst.dreiecke; grau; Wdg. 0,5 (Taf. 47,65,66). 3. SS eines wT mit Furchenst.fr.gruppen unter Bogenst.; grau; Wdg. 0,4/0,5 (Taf. 47,59). 4. 3 HaS mit Dreiecken aus Schnurlinien; dunkelgrau; Wdg. 0,4/0,5 (Taf. 47,61).
+
+Alle übrigen keramischen Funde waren mehr oder weniger gleichmäßig über westl. Siedl.bereich verteilt. Zu den ca. 300 Scherben gehören: 1. Einige Scherben des unter b) b. 2. genannten Gefäßes. 2. HaS des unter b) b. 4. genannten Gefäßes. 3. WS des unter b) b. 10. genannten Gefäßes. 4. Scherben des unter b) d. 7. genannten Gefäßes. 5. WS des unter b) d. 17. genannten Gefäßes. 6. HeS einer KA; dunkelgrau; Wdg. 0,4 (Taf. 47,62). 7. HaS einer KA mit mindestens einem ausgesparten Winkelband aus Bogen-Winkelst.; dunkelgrau; Wdg. 0,4 (Taf. 47,68). 8. HaS einer KA mit mindestens 2 ausgesparten Winkelbändern aus Bogen-Winkelst.; dunkelbraun; Wdg. 0,5 (Taf. 47,69). 9. SS einer KA; unter Punktst.reihe Furchenst.(?)fr. und längl. Einst.; grau; Wdg. 0,4 (Taf. 48,6). 10. HaS und SS mit abgebrochenem He. eines wT; am Hals vermutlich ausgespartes Winkelband aus unregelmäßigen längl. Einst. und unterhalb des He. Reihen senkr. kurzer Einst.; graubraun; Wdg. 0,7 (Taf. 48,1). 11. HaS von wT oder Sch; unter Dreiecken aus Schnurlinien durch Schnurbögen imitierte Bogenst.; braun; Wdg. 0,5 (Taf. 48,2). 12. Umbruchscherbe von Sch oder wT; am Hals Winkel-Schnurlinie und auf Schulter Schnurfr.gruppen; dunkelgrau; Wdg. 0,5 (Taf. 48,3). 13. RS mit kl. Bogen-Winkelst.; braun; Wdg. 0,4 (Taf. 48,4). 14. RS mit Winkelst.; dunkelbraun; Wdg. 0,4 (Taf. 48,5). 15. WS mit 2 Ringelst.reihen; braun; Wdg. 0,4 (Taf. 48,10). 16. WS mit Schnurgitter; grau; Wdg. 0,5 (Taf. 48,7). 17. Scherben mit gekerbten oder getupften Umbrüchen. 18. 2 abdruckgerauhte WS. 19. Wohl ebenfalls zugehörig: Spinnwirtelfragment (Taf. 48,17).
+
+b) f. Nicht mehr zuweisbare Funde: Uber 1 000 Feuersteinartefakte (darunter zahlr. Klingen — Taf. 48,15 - sowie viele Kernsteine) und ca. 500 meist unverz. RS, WS und BdS. Ursprünglicher Fundzusammenhang nicht mehr zu ermitteln. Zu den wenigen verz. WS gehören: 1. He.ansatzscherbe; unterhalb des He. Bogen-Winkel-st.; braun; Wdg. 0,4 (Taf. 48,9). 2. SS einer KA mit Schnurfr.; unter grobem Bogen-Winkel-st.; graubraun; Wdg. 0,4 (Taf. 48,8). 3. WS mit Winkel-Schnurlinien; braun; Wdg. 0,4 (Taf. 48,16). LM Halle HK 34:1162. Bicker 1934, S. 106 ff.; 1936, S. 418; 1937, S. 82;
+
+b) e. Neolithische Funde aus dem Streubereich der Siedl.: Ca. 30 Scherben, mehrere Klingen (Taf. 48,12—14) und zahlr. Abschläge aus Quadranten außerhalb der eigentlichen Siedl. Dazu gehören neben unverz. RS, WS und BdS: 1.6 WS mit Resten von Schnurverz. 2. RS mit Durchlochung; braun; Wdg. 0,4 (Taf. 48,11). 3. HeS einer KA mit gekehltem He. 4. Umbugscherbe eines wT mit abgebrochenem, senkr. durchbohrtem He.; braun; Wdg. 0,5.
+
+Priebe 1938, S. 91; Voigt 1942, S. 33, 35; Fischer 1958 b, S. 6;
+
+Schlette 1958, S. 58, Anm. 30; Behrens 1963, S. 131; 1973,
+
+S. 303.
+
+170. Kleinkühnau. Fdpl. 38. Sandgrube. Mbl. 2314 (4139) S 17,5; W 0,4. Geländesit.: eben.
+
+FA: G. Teilweise gestörte, noch 0,40 m tiefe Grube; NW—SO. Funde: 1. Zeichnerisch erg. unverz. KA; ockerfarben-grau gefleckt; H. 25,1; Wdg. 0,5/0,6; HBI 1,08 (Taf. 48,29). 2. Zeichnerisch erg. unverz. KA mit ausladendem Hals, ovalem Bauch und abgeplattetem Boden; ockerfarben, dunkel gefleckt; erh. H. 21,5; Wdg. 0,5/0,7; HBI 1,14? (Taf. 49,4). 3. Reste eines wT; am Hals unter Einst.reihen eingeritzte, mit längl. Einst. gefüllte Dreiecke und auf Schulter Fr. aus längl. Einst.; braun, dunkel gefleckt; gr. Dm. 29,7; Wdg. 0,6 (Taf. 49,3). 4. T,M" mit 2 gegenständigen Knubbenpaaren; am Hals unter einer Schnurlinie ausgespartes Winkelband aus rundlichen unförmigen Einst. und Schnurlinien, auf Um13,5; Wdg. 0,5; HBI 0,82 (Taf. 48,30). 5. TmhU; braun-okkerfarben; H. 24,5; Wdg. 0,6/0,7; HBI 1,11 (Taf. 48,28). 6. 10,0; Schnbr. 3,8 (Taf. 48,27). 8. Bruchstück einer Feuerstein-
+
+Mus. Dessau Inv.-Nr. III/54/44—46. Behrens 1973, S. 303.
+
+bug Einst.band; grau, dunkel und ockerfarben gefleckt; H. Napf mit Fingertupfenreihe auf Umbug; braun, dunkel gefleckt; H. 7,9; Wdg. 0,5/0,6; HBI 0,63 (Taf. 48,26). 7. Dickn. Feuersteinbeil; Breitseiten überschliffen; grau gefleckt; L. klinge; dunkelgrau gefleckt; L. 5,5 (Taf. 48,23). 9. Kernstein und 5 Feuersteinabschläge (Taf. 48,24). 10. Rundlicher Bernsteinanhänger mit zentraler Durchb. und 6 kl. peripheren Bohrungen; gr. Dm. 3,0 (Taf. 48,25).
+
+171. Mildensee. Fdpl. Zwickmatel. Mbl. 2314 (4139), S 6,4;
+
+FA: EvS. Auf mehrperiodigem Fdpl. Lesefunde von über 100 meist unverz. neolithischen RS, WS und BdS; dazu gehören: 1. RS und SS einer KA; am Hals Winkelschnurlinien und auf Schulter eingeritzte Fr.; ockerfarben; Wdg. 0,3/0,4 (Taf. 48,19,20). 2. HaS eines wT mit ausgespartem Winkelband aus eingeritzten mit längl. Einst. gefüllten Dreiecken; gelbbraun; Wdg. 0,7/0,8 (Taf. 48,21). 3. Unverz. RS von wT oder TmhU; braun; Wdg. 0,6 (Taf. 48,18). 4. 2 WS eines TmhU mit Fingertupfenleiste; rötlichbraun; Wdg. 0,6 (Taf. 48,22). Mus. Köthen EK 39/48.
+
+- O 6,2. Geländesit.: eben, in der Nähe eines Teiches.
+
+172. Mosigkau. Fdpl. 4. Kiesgrube Heinrich. Mbl. 2387 (4238), N 0,6; 0 9,9. Geländesit.: nach SO leicht fallend. FA: G. Noch 0,25 m tiefe Grube von 2,15 m L. und einer erh. Br. von 1,25 m; 0—W. In der Mitte eine 0,25 m starke und 0,40 m lange Brandschicht. Funde: 1. Westl. der Brandschicht KA mit Hals-Schulter-Kehle; am Hals schachbrettartig angeordn. Rauten aus Bogenst., auf Schulter unter Winkelst.band Furchenst.fr.gruppen mit Winkelst.abschluß; gelb-bräunlich; H. 17,5; Wdg. 0,4; HBI 0,91 (Taf. 49,9). 2. Südl. der KA Reste eines erg. wT (einzelne Scherben aus der östl. Grabhälfte zugehörig); am Hals Dreiecke aus Schnurlinien, am Ubergang zur Schulter unter punktartigen Einst. Reihe grober Kerben und auf Schulter Dreiecke aus Schnurlinien; braun, dunkel gefleckt; H. 17,1; Wdg. 0,7; HBI 0,87 (Taf. 49,10). 3. Daneben Reste einer Sch mit gekehlten He. (Scherben aus der Füllerde zugehörig) ; am Hals ausgespartes Rautenband aus eingeritzten Dreiecken und Winkelst.rauten und auf Umbug unter eingeritzten Fr. Winkelst.dreiecke; braun gefleckt; H. 11,4; Wdg. 0,4; HBI 0,56 (Taf. 49,5). 4. NW der KA ein Rinderzahn. 5. Östl. der Brandschicht zerscherbter WB; braun-grau; H. 16,5; Wdg. 0,5; HBI 0,85 (Taf. 49,11). 6. Dabei auch RS eines Napfes mit Fingertupfenreihe auf Umbug; braun gefleckt; Wdg. 0,4 (Taf. 49,7) sowie einige WS des wT. 7. Aus Füllerde: Feuersteinabschlag, kl. Stein, 2 unverz. WS sowie RS und einige WS der Sch (Taf. 49,6). 8. In unmittelbarer Nähe des Grabes Feuersteinklinge; grau; L. 7,0 (Taf. 49,8); zugehörig? Mus. Köthen EK 37/196 (A 321, 323, 331, 332) ; 38/237. Götze 1938 b, S. 153; Fischer 1956, S. 153, 294.
+
+173. Mosigkau. Fdpl. Kiesgrube an der Straße nach Quellen-
+
+dorf. Mbl. 2387 (4238), N 5,6; 0 3,8. Geländesit.: Bereich einer flachen Anhöhe.
+
+FA: Siedl. Mit dunkelbraunem Sand gefüllte Grube von
+
+1,00 m Br. und 1,00 m Tiefe (L.?). Funde aus dem unteren Bereich der Grube: 1. Bauch einer KA mit Hals-SchulterKehle; ám Hals unregelmäßige Einst.gruppen und auf Schulter zwischen punktartigen unförmigen Einst. eingeritzte Fr.gruppen; erh. H. 13,5; gr. Dm. 14,5 (Taf. 50,10). 2. Erg. wT mit Hals-Schulter-Kehle; am Hals ausgespartes Rautenband aus Winkēl-Bogenst. und auf Schulter Schnurfr.gruppen; schwarz-braun-ockerfarben gefleckt; H. 20,4; Wdg. 0,5/0,6 HBI 0,91 (Taf. 50,12). 3. Kl. TmhU; dunkelbraun; H. 12,5; HBI 1,09 (Taf. 50,7). 4. Teilweise erh. dem WB ähnelndes Gefäß mit Fingertupfen unterhalb des Randes; gelbbraun; H. 19,5; HBI 0,78 (Taf. 50,9). 5. 2 HaS einer KA mit Dreiekken aus Schnurlinien; braun; Wdg. 0,5 (Taf. 50,5). 6. HaS und SS einer KA; am Hals Bogenst.dreiecke und auf Schulter unter Bogenst.reihen eingeritzte Fr.gruppen; grau; Wdg. 0,5 (Taf. 50,6). 7. Reste eines kl. wT mit kurzem Hals; am Hals unter Punktst.reihe Dreiecke aus Schnurlinien und Bogenst.reihen und auf Schulter ebenfalls Bogenst.reihen; dunkelgrau gefleckt; Wdg. 0,4 (Taf. 50,8). 8. HaS mit eingeritztem ausgespartem Rautenband (?) ; braun; Wdg. 0,5 (Taf. 50,4). 9. 2 WS eines TmhU mit Kerben; dunkelgrau gefleckt; Wdg. 0,4/ 0,5 (Taf. 50,11). 10. WS mit Fingertupfen; graubraun; Wdg. 0,7. 11. Feuersteinklinge.
+
+Mus. Dessau Inv.-Nr. II/27 (A 20), 31, 32, 34, 36—38 u. 41
+
+bis 44. 1., 3., 4. Kriegsverlust. Seelmann 1925, S. 25, Taf. 4; 5; Schulze 1930, S. 52, Taf. 43,1,2; 44,3–6; Priebe 1938, S. 92; Voigt 1942, S. 35; Fischer 1958 b, S. 6; Behrens 1973, S. 304.
+
+174. Mosigkau (bisher unter Dessau-Kochstedt oder Dessau/ Alten). Fdpl. 7. Zoberberg. Mbl. 2314 (4139), S 1,7—2,3; W 3,0. Geländesit.: Hangbereich einer Anhöhe.
+
+Mus. Zerbst Inv.-Nr. Jst. 94.
+
+FA: Vermutlich 2 G. a) EvG (1868 geborgen). KA mit leicht asymmetrischer He.stellung und Hals-Schulter-Kehle; am Hals zwischen Bogenst.dreiecken 2 Winkellinien aus Bogenst. und auf Schulter unter Winkelst.dreiecken Bogenst.dreiecke und eingeritzte Fr.gruppen mit Bogenst.abschluß; ockerfarben-rot-schwarz gefleckt; H. 19,2; Wdg. 0,5; HBI 0,98 (Taf. 50,2).
+
+b) vG (um 1900 geborgen). 1. Erg. KA mit Hals-SchulterKehle und gekehlten He.; am Hals zwischen eingestochenen Fischgrätenlinien gr. imitierter Kreuzst. und auf Schulter unter imitierter Winkelst.reihe eingeritzte Fr.gruppen; braundunkelgrau gefleckt; H. 13,2; Wdg. 0,3/0,4; HBI 0,93 (Taf. 50,3). 2. Erg. unverz. Sch mit einem (?) senkr. durchb. He.; H. 8,5; HBI 0,58 (Taf. 50,1).
+
+S. 160; Seelmann 1903, S. 88, Fig. 1; Kossinna 1922, S. 259;
+
+1. Mus. Zerbst Inv.-Nr. 27; 2. Kriegsverlust. Götze 1900 a, Kupka 1920, S. 343, 348; Schulze 1930, S. 52, 110, Taf. 42,3,5; Kupka 1927, S. 137, Abb. 26; 27; Priebe 1938, S. 93, Taf. X e, f; Voigt 1942, S. 35; Fischer 1956, S. 294; 1958 b, S. 6; Behrens 1973, S. 303.
+
+<!-- FREE:PAGE 17 -->
+175. Törten. Fdpl. 7. Am Schenkenbusch. Mbl. 2388 (4239), N 3,6; W 23,5. Geländesit.: flache Anhöhe am Landgraben. FA: EF. Zusammen mit 2 klingenartigen Feuersteinabschlägen RS von wT oder Sch mit ausgespartem Winkelband aus dreieckigen unförmigen Einst.; braun gefleckt; Wdg. 0,6 (Taf. 51,1).
+
+Mus. Dessau Inv.-Nr. VS-51/13.
+
+176. Törten. Fdpl. 9. Sieben Stücke. Mbl. 2388 (4239), N 6,6; O 16,6. Geländesit.: flache Anhöhe.
+
+FA: vS. Funde bis in 0,80 m Tiefe verstreut im Gelände: 1. HaS und SS einer KA; am Hals Dreiecke aus punktartigenunförmigen Einst. und Reihen kl. eckiger Einst., auf Schulter eingeritzte Fr.; grau-braun; Wdg. 0,5 (Taf. 51,5). 2. RS eines Napfes mit gekerbtem Umbug; gelb; Wdg. 0,6 (Taf. 51,6). 3. HaS; unter Fr. aus feinen Schnurlinien Bogenst.reihen; rötlich; Wdg. 0,4 (Taf. 51,7). 4. Osenhe.; gelbgrau; Wdg. 0,5 (Taf. 51,8). 5. Gekehlter Ösenhe.
+
+Mus. Dessau Inv.-Nr. IV/79/4.
+
+177. Törten. Fdpl. Kiesgrube bei Gasthof Haideburg. Mbl. 2388 (4239), N 2,0; O. 20,2. Geländesit.: W-Hang einer k1. Anhöhe. FA: G. In 0,75-1,00 m Tiefe mit Knochenstückchen und Holzkohle gefunden: 1. Unter rechteckiger Steinplatte, auf Schulter unter Bogenst.reihen eingeritzte Fr.gruppen mit Bogenst.abschluß; dunkelgrau, hell gefleckt; H. 25,8; Wdg. 0,9/1,0; HBI 0,87 (Taf. 51,4). 2. Unter dem wT dickn. Feuersteinbeil; Breitseiten überschliffen; L. 11,3; Schnbr. 5,2 (Seelmann 1903, Fig. 15). Um diesen Befund in kreisförmiger AnHals Bänder aus groben imitierten Winkelst. und auf Schultiertem Winkelst.abschluß; rötlich, dunkel gefleckt; err. gr.
+
+0,50 × 0,30 × 0,15 m gr., zerscherbter wT mit Hals-SchulterKehle; am Hals ausgespartes Rautenband aus Bogenst. und ordnung: 3. Reste einer KA mit Hals-Schulter-Kehle; am ter unter gleichartigem Band eingeritzte Fr.gruppen mit imiDm. ca. 20,0; Wdg. 0,6/0,7 (Taf. 51,2). 4. Oberteil einer KA mit Hals-Schulter-Kehle; am Hals unter Bogen-Winkelst. Dreiecke und Rauten aus Schnurlinien, auf Schulter unter Bogen-Winkelst. Furchenst.fr.gruppen mit Bogen-Winkelst.abschluß; graubraun; gr. Dm. 24,0; Wdg. 0,5 (Taf. 52,12). 5. Fragment eines unverz. wT mit wulstartiger Verdickung auf Schulter in Höhe der 2 erh. He.ösen; dunkelgrau; Wdg. 0,5 (Seelmann 1903, Fig. 13). 6. Zu ca. 2/3 erh. TmhU mit Fingernagelkerben; hellbraun-rot und dunkel gefleckt; H. 23,0; HBI 1,10 (Taf. 52,13). 7. Reste eines TmhU mit Fingertupfenreihe; ockerfarben; H. ca. 23,0 (Taf. 52,14). 8. Ca. 1,00 m nördl. der Gefäßgruppe Sch (wohl zum gleichen Komplex gehörig) ; am Hals ausgespartes Rautenband aus Bogenst. und auf Schulter Bogenst.dreiecke; H. ca. 18,0; HBI 0,67 (Taf. 52,3).
+
+1., 3.—5. Mus. Dessau Inv.-Nr. II/15 (A 8), 16 (A 9), 17 (A 10), Höfer 1904, S. 131 f.; Kossinna 1922, S. 259; Schulze 1930, Geländesit.: trockene Hochfläche in der Elbe-Mulde-Niederung.
+
+FA: EF. Wohl Lesefunde: 1. HaS einer KA mit eingeritzten Rauten; dunkelgrau; Wdg. 0,5 (Taf. 52,10). 2. SS einer KA; gefleckt; Wdg. 0,4 (Taf. 52,6). 3. WS eines WB; rötlich;
+
+unter Bogenst. eingeritzte Fr. mit Bogenst.abschluß; braun Wdg. 1,0 (Taf. 52,5). 4. Feuersteinklinge; grau; L. 5,6 (Taf. 52,11).
+
+Mus. Dessau Inv.-Nr. II/1501, 1503, 1504 (A 26 a—c) Priebe 1938, S. 91; Voigt 1942, S. 35; Fischer 1958 b, S. 6; Behrens 1973, S. 304.
+
+Kreis Roßlau
+
+179. Brambach, OT Rietzmeck. Fdpl. 2. Thieleburger Heide. Mbl. 2313 (4138), N 10,8—11,1; 0 13,3—13,7. Geländesit.: Rand des nördl. zur Elbniederung steil abfallenden Hochufers. FA: Siedl.Fläche: ca. 15  250 m; O-W. Geringe Breite resultiert aus Erosionsvorgängen an Hochuferkante. Uber 0,50 m starke Hauptfundschicht stratigraphisch nicht zu gliedern. Unklar, ob ein- oder mehrphasige neolithische Siedl. Zahlr. jungbronze-früheisenzeitliche G und EF erschweren Fundcharakteristik. Gr. eindeutig neolithische Siedl.strukturen nicht festgestellt. Unter der Keramik stilistische Elemente der KAK, der Bernburger, der Řivnáč-Kultur und der Schnurkeramik. Gleichzeitigkeit der Funde nicht gesichert. Da aber bisher nur wenige Funde vorgelegt wurden (Weber 1966, Abb. 1, 2), soll ein repräsentativer Querschnitt des Gesamtmaterials vorgestellt werden.
+
+a) Grube mit Feuersteinartefakten und Scherben der ElbHavel-Kultur. Geborgen von G. Lattauschke 1930. Verschollen (ehemals LM Halle).
+
+b) EF (1938 von G. Lattauschke geborgen). 1. SS mit Dreiekken aus Doppellinien unter eingeritzten Linien; braun; Wdg. 0,7 (Taf. 53,3). 2. Umbugscherbe eines Napfes (?) mit ovalen Eindrücken; graubraun; Wdg. 0,7 (Taf. 53,4). 3. 2 Bernburger (?) WS mit breiten Grifflappen. 4. Abdruckgerauhte Scherbe. 5. Uber 100 meist unverz. WS. 6. Einige Brokken gebrannter Lehm. 7. Zahlr. unbearbeitete Feuersteinabschläge.
+
+Mus. Köthen EK 38/149.
+
+c) Grabungen von G. Lattauschke 1951—1953. 70 m² untersucht. Uber der Fundschicht eine bis zu 0,70 m starke angewehte Flugsandschicht (Düne); Bildung erst seit dem 13./ 14. Jh. u. Z., da unmittelbar darunter mittelalterliche Keramik lag. Bis zu 0,60 m starke zweigeteilte Kulturschicht, die auf Geschiebemergel lagert. Im oberen ca. 0,20 m mächtigen Teil dieser Schicht aus bräunlich-gelbem Sand neolithische, jungbronze-/früheisenzeitliche und mittelalterliche Scherben sowie Reste von LBR. In unterer bis zu 0,40 m mächtiger Strate aus dunkelbraunem Sand metallzeitliche und vor allem neolithische Scherben; Störungen durch metallzeitliche G. Abgesehen von 5 ovalen grauen, nicht untersuchten Verfärbungen am Nordrand der Grabungsfläche keine Siedl.strukturen. Zu den neolithischen Funden zählen über 1000 Scherben, zahlr. Feuersteinartefakte sowie einige Steingeräte. Dazu gehören: 1. Erg. Amphore mit abgeflachtem Boden (?) ; in Höhe der Handh. 3 eingeritzte Linien und auf Bauch Zonen abgerollter Schnüre; dunkelgrau-braun gefleckt; H. ca. 40,0;
+
+Wdg. 0,6/0,7; HBI 1,08 (Taf. 53,10). 2. Zeichnerisch erg. Topf mit 4 breiten Knubben auf Umbruch; Bauch abdruckgerauht; graubraun, hell gefleckt; H. ca. 44,0; Wdg. 1,1/1,2; HBI 1,13 . (Taf. 54,25). 3. Erg. TmhU mit Fingernagelkerbreihe und
+
+20; Rest Kriegsverlust. Seelmann 1903, S. 91 ff., Fig. 8—15; Taf. 42,6—8,13,14,16; Priebe 1938, S. 91, Taf. XXVII a; Voigt 1942, S. 35; Fischer 1956, S. 153, 295; 1958 b, S. 6; Behrens 1973, S. 305.
+
+178. Waldersee (bisher unter Naundorf-Waldersee publiziert). Fdpl. Hügelbreite. Mbl. 2314 (4139), S ca. 19,5; O ca. 13,0.
+
+mindestens einer breiten Warze; Bauch abdruckgerauht; H. 28,5; Wdg. 0,6/0,7; HBI 1,19 (Taf. 54,31). 4. Erg. unverz. T mit überrandständigem gekehltem He.; braun; H. 11,0; Wdg. 0,5; HBI 0,92 (Taf. 53,2). 5. HaS einer KA mit eingeritzten Rauten; graubraun; Wdg. 0,5 (Taf. 55,6). 6. HaS einer KA mit eingeritzten Rauten; dunkelgrau; Wdg. 0,6 (Taf. 55,12). 7. SS einer KA mit eingeritzten Fr.gruppen und mehrreihigem Punktst.abschluß; graubraun; Wdg. 0,5 (Taf. 55,15). 8. 2 RS und 1 HaS eines wT (?) ; unter Punktst.reihe senkr. Bänder aus längl. Einst.; dunkelgrau-dunkelbraun; Wdg. 0,6 (Taf. 55,2). 9. RS eines wT mit Fr. unter umlauf. Schnurlinien; grau; Wdg. 0,5 (Taf. 55,5). 10. SS eines wT; unter dreikantigen Einst. eingeritzte Dreiecke aus gleichartigen Einst.; braun gefleckt; Wdg. 0,7/0,8 (Taf. 55,8). 11. HeS eines wT mit dreikantigem Einst. unter He.; dunkelgrau; Wdg. 0,8 (Taf. 55,28). 12. HeS eines wT mit umlauf. Schnurlinien; graubraun; Wdg. 0,5 (Taf. 55,25). 13. HeS eines wT mit grober Oberfläche; graubraun; Wdg. 1,0/1,2 (Taf. 55,35). 14. HeS eines gr. unverz. wT mit extrem breiten He.; rötlichbraun; Wdg. 0,7 (Taf. 55,32).
+
+Zahlr. Reste amphorenartiger Gefäße, die den wT oder der auf Taf. 53,10 abgebildeten Amphore ähneln: 15. Weitmundiges Gefäß mit abgesetztem konischen Hals; auf Schulter unter Schnurlinien doppelte Schnurwinkellinie; graubraun gefleckt; Wdg. 0,5 (Taf. 53,1). 16. SS eines gleichartigen Gefäßes; auf Schulter Dreiecke aus Schnurlinien; dunkelgrau; Wdg. 0,6 (Taf. 55,7). 17. 2 SS eines gleichartigen Gefäßes; auf Schulter unter Furchenst.linien Dreiecke aus Punktst.reihen; braundunkelgrau; Wdg. 0,4/0,5 (Taf. 55,21). 18. HeS; unter punktartigen Einst. eingeritzte Dreiecke; braun; Wdg. 0,5 (Taf. 55,23). 19. Scherbe mit Schwalbenschwanzhe. und eingeritzten Linien; graubraun; Wdg. 0,4 (Taf. 55,24). 20. 3 unverz. HeS verschiedener Gefäße (Taf. 55,29—31). 21. SS; unter groben Einst. Schnurlinien und Furchenst.girlanden; braun; Wdg. 0,4 (Taf. 55,14). 22. SS; zwischen punktartigen unförmigen Einst. ein eingeritztes ausgespartes Winkelband; braun; Wdg. 0,7 (Taf. 55,10). 23. SS; zwischen mit Punktst. gefüllten Dreiecken aus Furchenst.linien 2 weitere Furchenst.linien; braun; Wdg. 0,4 (Taf. 55,9). 24. SS mit kreisförmiger Knubbe und eingeritzten, teilweise mit längl. Einst. gefüllten Winkellinien; dunkelbraun; Wdg. 0,4/0,5 (Taf. 55,33). 25. SS mit abgebrochener breiter Knubbe oder He.ansatz; unter Furchenst.linien eingeritzte Winkellinien; dunkelgrau; Wdg. 0,4 (Taf. 55,34). 26. SS mit eingeritzten Dreiecken unter kl. Winkelst.; grau; Wdg. 0,4 (Taf. 55,18). 27. SS mit eingeritzter Winkellinie unter Furchenst.linien; grau; Wdg. 0,3 (Taf. 55,19). 28. SS mit plastisch abgehobenen Dreiecken; dunkelbraun; Wdg. 0,5 (Taf. 55,22).
+
+(Taf. 55,4).
+
+Profil und randständigem He.; rötlich-braun; Wdg. 0,4/0,5
+
+rauhtem Bauch; graubraun; Wdg. 0,7/0,8 (Taf. 54,26). 39. RS Profil und Fingertupfenreihe unter Rand; graubraun; Wdg. 0,5 (Taf. 54,2). 41. RS eines Topfes mit geschweiftem Profil und plastischer Wellenlinie unter verdicktem Rand; rötlichbraun; Wdg. 0,7 (Taf. 54,1). 42. Bruchstück eines steilwandigen Topfes mit glattem Oberteil, Fingertupfengruppen und abdruckgerauhtem Unterteil; graubraun; err. gr. Dm. der Knubbe und gr. punktartigen Einst. ; graubraun; Wdg. 0,5 46. Zahlr. WS mit hochgezogenen breiten Knubben eines extrem gr., gerieften Bandhe. oder Grifflappens; braun; Wdg. über 1,0 (Taf. 53,6). 48. Bodenfragment eines kl. Napfes mit gekerbtem Boden; braun; Wdg. 0,4 (Taf. 54,32). nen Enden und Einst. (Taf. 54,16–18,21,22). 53. Fragment
+
+(Taf. 53,7). 36. Umbruchscherbe eines TmhU mit Kerben; graubraun; Wdg. 0,6 (Taf. 55,11). 37. Umbruchscherbe eines TmhU mit Tupfen und abdruckgerauhtem Bauch; braun; Wdg. 0,6 (Taf. 55,13). 38. WS eines TmhU mit abdruckgeeiner T mit breitem Bandhe. (vgl. Taf. 53,2); graubraun; Wdg. 0,5 (Taf. 54,30). 40. RS eines Topfes mit geschweiftem über 50,0; Wdg. 0,8 (Taf. 54,23). 43. Umbugscherbe mit run(Taf. 55,16). 44. He. mit senkr. Riefen; rötlichbraun; Wdg. 0,5 (Taf. 54,29). 45. Mehrere Mondhe.fragmente (Taf. 55,26,27). (Taf. 54,27,28) und Grifflappen (Taf. 55,17). 47. Fragment
+
+Sonstige keramische Funde: 49. Mehrere Spinnwirtel oder Netzsenker (Weber 1966, Abb. 2,8,9). 50. Reste mehrerer flacher durchb. Tonscheiben (Taf. 53,9). 51. 2 Tonlöffelfragmente (Taf. 53,11). 52. Mehrere Bruchstücke zylindrischer Tongebilde; in Höhe der Durchb. abgebrochen; eines mit Punktst.reihe (Taf. 54,14,15) verziert, eines mit punktartigen Einst. auf Kopfplatte (Taf. 54,19,20) und 2 mit zusammengekniffeeiner Tondüse, einer Ausgußtülle oder eines durchb. Füßchens; neolithisch (?) (Taf. 53,8). 54. Reste gebrannten Lehms.
+
+Feuersteingeräte: 55. 22 Kratzer (Taf. 54,4,5) sowie 1 Doppelkratzer (Taf. 54,7). 56. Schaber und Bohrer. 57. 6 Klingen mit Retuschen (Taf. 54,3,6,8,9). 58. 5 Querschneider (Taf. 54,10—13). 59. 33 Kernsteine. 60. Uber 250 Abschläge. Sonstige Steingeräte: 61. Geschliffenes dickn. Felsgesteinbeil mit abgebrochenem Nacken. 62. Rohstück (?) eines Felsgesteinbeiles; L. 12,0 (Taf. 54,24). 63. Fragment eines Felsgesteinbeiles. 64. Reibstein und Reibplatte. 65. 5 Klopfsteine. LM Halle HK 79:205—216; außerdem im Mus. Dessau noch zahlr., meist unverz. WS.
+
+RS und HaS von mindestens 3 becherartigen schnurkeramischen (?) Gefäßen: 29. RS mit umlauf. Schnurlinien; braun; Wdg. 0,4 (Taf. 55,1). 30. RS und HaS eines Bechers (?) mit groben Schnurlinien; braun gefleckt; Wdg. 0,6/0,7 (Taf. 55,3). 31. RS; zwischen Schnurlinien eine ausgesparte, von kl. vierkantigen Einst. umsäumte Zone; braun-grau gefleckt; Wdg. 0,5
+
+Reste anderer Gefäßformen: 32. Reste einer kl. Trichterrandschüssel; auf Umbruch eingeritzte Linien und unterhalb der Handh. 3 eingeritzte Dreiecke; dunkelbraun; Wdg. 0,3 (Taf. 54,33). 33. RS einer Trichterrandschüssel (?) ; unterhalb des Umbuges längl. Einst.; braun, dunkel gefleckt; Wdg. 0,4 (Taf. 53,5). 34. Umbugscherbe einer Sch mit unverz. Hals; auf Umbug Reihen kl. längl. Einst.; braun; Wdg. 0,4 (Taf.55,20). 35. RS einer unverz. Sch mit geschwungenem
+
+c) Grabung von V. Weber 1964. Fläche einige Meter westl. der alten Grabung, 4 Schnitte (ca. 90 m2). Außerdem Kontrollprofile an der alten Grabungskante. Bis zu 0,70 m starke Hauptfundschicht unter fundleerer Düne. Nach N in Richtung Hochfläche dünnten beide Ablagerungen aus. Kulturschicht ebenfalls zweigeteilt. Im Gegensatz zu Lattauschke die obere dunkler als die untere Strate. Im Profil einige kl. grubenartige Vertiefungen; erbrachten keine nennenswerten Funde. Abgesehen von einer nicht datierbaren grabenartigen Vertiefung 5'mit danebenliegender kreisförmiger Grube am N-ende von Schnitt 1 keine Siedlungsstrukturen beobachtet. Früheisenzeitliche Gräber und zahlr. EF störten wiederum den neolithischen Befund; während frühgeschichtliche Keramikreste diesmal fehlten. Neolithische und metallzeitliche Funde stratigraphisch nicht zu trennen. Dazu gehören: 1. Ca. 300 unverz. RS, WS und BdS verschiedener Gefäße; teilweise wohl früheisenzeitlich. 2. Uber 50 abdruckgerauhte WS. 3. Unter den ca. 50 verz. WS einige mit eingeritzten Linien, umlauf. Schnurlinien, Kerbreihen, Linien aus längl. kl. Einst. und mit eingeritzten, stichgefüllten Dreiecken. 4. Reste gebrannten Lehms (neolithisch?). 5. Uber 50 Feuersteinabschläge, 1 Klinge und 1 Kratzer.
+
+<!-- FREE:PAGE 18 -->
+- LM Halle HK 78:1311—1314, 1318. Weber 1966, S. 17 ff., Abb. 12; 2; Behrens 1973, S. 119; Wetzel 1979, S. 173; Spennemann 1982, Anm. 1530.
+
+Anm.: Die unter c) 21. und 32. beschriebenen Scherben von G. Wetzel (1979, S. 173) zur Schönf. Kultur gestellt. Die unter c) 21. und 30. beschriebenen sowie weitere bei V. Weber (1966, Abb. 1,10; 2,4) abgebildete RS mit umlaufenden Riefen von diesem zur Becherkultur gestellt. Andere Scherben (wie c) 9.) bestimmt er als bernburgisch oder stellt sie zur Řivnáč-Kultur (u. a. c) 20 und 45).
+
+180. Brambach, OT Rietzmeck. Fdpl. Kiesheger an der Elbe. Mbl. 2313 (4138). Geländesit.: Elbniederung.
+2. FA: EF. Verwitterte HaS eines wT; ursprünglich Dreiecke und Rauten aus punktartigen Einst.; graublau; Wdg. 0,5 (Taf. 52,15).
+
+Mus. Köthen EK 32/229.
+
+Anm.: Eventuell von Fdpl. 2 (Katalog Nr. 179) umgelagerter Scherben.
+
+181. Klieken (bisher immer unter Roßlau publiziert). Fdpl. 4.
+2. Wolfsgrube. Mbl. 2314 (4139), N 6,1; 0 1,3. Geländesit.: Rand des nördl. zur Elbniederung steil abfallenden Hochufers. FA: EvS. Vermutlich aus einer bronzezeitlich gestörten neolithischen Siedl. (Verhältnis wohl ähnlich wie in Rietzmeck/ 179). Neben schnurkeramischen Scherben: 1. RS eines wT; zwischen Schnurlinien eine von Winkelschnurlinien umsäumte ausgesparte Zone; braun; Wdg. 0,4 (Taf. 52,7). 2. HaS mit kurzer senkr. plastischer Verdickung; unter Winkelschnurlinie umlauf. Schnurlinien; braun; Wdg. 0,4 (Taf. 52,8). Mus. Dessau Inv.-Nr. II 1363, III/53/169. König 1934, S. 144; Priebe 1938, S. 94; Voigt 1942, S. 36; Behrens 1973, S. 304.
+182. Roßlau (bisher unter Luko publiziert). Fdpl. am Olpfuhlweg. Mbi. 2241 (4039), S ca. 1,9; 0 ca. 15,6. Geländesit. : leicht hügliges Gebiet.
+
+FA: vG. In einer Grube von 0,50 m Dm. mit quadratischem Querschnitt und teilweise im darunterliegenden Sand folg. Funde: 1. KA; am Hals unter Furchenst.linie Fr.gruppen; darunter kl. unförmiger Einst. auf Schulter zwischen Einst. Furchenst.fr.gruppen; HBI 1,11 (Taf. 56,3). 2. Sch, zwischen . st  s. t )( st s. HBİ 0,57 (Taf. 56,2). 3. WB mit Fingernagelkerben unter dem Rand (ähnelt in Form Sch und Schüsseln); HBI 0,55 (Taf. 56,1). 4. Bruchstück vom Bauch eines unverz. Bernburger Hängegefäßes (?) mit senkr. durchb. Grifflappen (Taf. 56,7).
+
+Kriegsverlust (ehemals Mus. Zerbst). Hinze 1938, S. 131; Priebe 1938, S. 93, Taf: IX b; König 1940, S. 483, Abb. 6; Voigt 1942, S. 34; Fischer 1956, S. 294; 1958 b, S. 6; Behrens 1973, S. 304.
+
+183. Roβlau. Fdpl. 1. Streetzer Brücke. Mbl. 2314 (4139), N 1,5; W 20,9. Geländesit.: nach O leicht fallend.
+2. FA: Siedl. Aus ca. 2,00 m langer muldenförmiger Grube eine unverz. KA mit ausladendem Hals und sekundären Brandspuren; HBI 1,14 (Taf. 52,9).
+
+Kriegsverlust (ehemals Mus. Zerbst). König 1935, S. 199; Priebe 1938, S. 94, Taf. IX f; König 1940, S. 484, Abb. 7; Grimm 1940 a, S. 402; Voigt 1942, S. 35; Fischer 1958 b, S. 6; Behrens 1973, S. 304.
+
+184. Roβlau. Fdpl. 2. Petroleumlager. Mbl. 2314 (4139),
+
+N 7,0; W 16,0. Geländesit.: Rand des nördl. Hochufers der Elbe.
+
+FA: EvS. 1. WS; unter Dreiecken aus Bogen-Winkelst. ein-
+
+geritzte Fr. (Taf. 52,3). 2. 2 SS; unter punktartigen Einst. Furchenst.fr.gruppen (Taf. 52,4). 3. Ob ein in der Nähe gefundener Spinnwirtel mit Hakenkreuzdarstellung (Grimm 1938 b, Taf XXXVII,1) dazugehört, ist unklar.
+
+Kriegsverlust (ehemals Mus. Zerbst). König 1930, S. 168; Grimm 1935, S. 42, Abb.; 1938 b, Taf. XXXVII,1; Priebe 1938, S. 94, Taf. XXVII e; Voigt 1942, S. 35; Fischer 1958 b, S. 6; Behrens 1973, S. 304.
+
+185. Roβlau. Fdpl. am Weinberg. Mbl. 2314 (4139), N 4,2; 0 16,0. Geländesit.: Rand des nördl. Hochufers der Elbe.
+2. FA: vG. Bei Straßenbau gefunden. 1. Erg. Sch mit abgeplattetem Boden; am Hals unter Schnurlinien senkr. Kerben und in Höhe der Handh. kurze eingeritzte Fr.; grau, hell gefleckt; H. 9,8; Wdg. 0,4/0,5; HBI 0,51 (Taf. 52,2). 2. An gleicher Stelle etwas später gefunden, wohl zugehörig, dickn. Feuersteinbeil; Breitseiten überschliffen; hellgrau gefleckt; L. 10,6; Schnbr. 4,7 (Taf. 52,1).
+1. Mus. Köthen EK 37/198 (A 326) ; 2. Mus. Dessau Inv.-Nr. IV/65/12. Götze 1938 b, S. 153; König 1940, S. 483, Abb. 5.
+186. Roβlau. Fdpl. u. Mbl. 2314 (4139).
+5. FA: EF. Scherben eines wT. Keine weiteren Angaben.
+
+Kriegsverlust (ehemals Mus. Zerbst). Priebe 1938, S. 93; Voigt 1942, S.36.
+
+Kreis Wittenberg
+
+187. Mochau. Fdpl. 3. Mbl. 2244 (4042), S 14,1; W 6,0. Geländesit.: flache Anhöhe.
+2. FA: EvG. Altfund. Erg. wT; am Hals unter 2 Schnurlinien und auf Schulter Dreiecke aus Schnurlinien; ockerfarben-rötlich und schwarz gefleckt; H. 24,8; Wdg. 0,5/0,6; HBI 0,95 (Taf. 57,11).
+
+Mus. Wittenberg Inv.-Nr. 436. Priebe 1938, S. 80, Taf. XVIII f; Voigt 1942, S. 36; Behrens 1973, S. 304.
+
+188. Pretzsch, OT Merschwitz. Fdpl. 1. Mbl. 2391 (4242), S 12,6; O 14,6. Geländesit.: nach NO fallend.
+
+FA: vG. Im Bereich eines frühslawischen G.feldes vérmutlich 1 oder 2 zerstörte Flachg. der KAK.
+
+- a) Stelle 14 im Gebiet des G.feldes. 1. Bauch einer KA; am Halsansatz Rauten und Dreiecke aus Schnurlinien und auf Schulter unter kurzen senkr. Einst. eingeritzte Fr.gruppen mit kl. Einst. als Abschluß; dunkelbraun-hell und rötlich gefleckt; erh. H. 18,0; gr. Dm: 19,5; Wdg. 0,5/0,6 (Taf. 56,4).
+2. Feuersteinbeil.
+1. LM Halle HK 66:369; 2. verschollen.
+- b) Stelle 12 (ca. 15 m nördl. von Stelle 14). Aus Humusschicht RS von wT oder Sch; unter imitierten Winkelst. (?) Rauten aus Schnurlinien; rötlich-braun; Wdg. 0,5 (Taf. 56,6).
+5. LM Hallé HK 54:30.
+- c) EF, genaue Lage u., wohl zu a) oder b) gehörig: Zeichnerisch erg. wT; am Hals unter Dreiecken aus Schnurlinien breite Zone paralleler schräg verlauf. Schnurlinien; bilden teilweise rautenartige Formen; auf Schulter Dreiecke aus Schnurlinien; rötlich-braun, dunkel gefleckt; H. ca. 23,5; Wdg. 0,6/0,7; HBI 0,76 (?) (Taf. 56,5).
+
+LM Halle HK 66:375. Hoffmann/Schmidt 1955, S. 222; Fischer 1958 b, S. 6; Hoffmann/Schmidt 1965, S. 221 f.; Beh- Mus. Bitterfeld Inv.-Nr. B 806 b, 806 c, 952. Behrens 1952, rens 1973, S. 304. S. 285; Fischer 1956, S. 296; 1958 b, S. 6; Behrens 1973, Kreis Gräfenhainichen
+
+189. Oranienbaum. Fdpl. Gemeindesandgrube. Mbl. 2315 (4140), S 2,2; W 14,2. Geländesit.: flache Anhöhe.
+2. FA: G. Auf Anstehendem nebeneinander in 1,50 m Tiefe 3 mit dunklem Sand gefüllte Gefäße: 1. Unverz. KA mit ausladendem Hals, ovalem Bauch und abgeplattetem Boden; braun, dunkel und ockerfarben gefleckt; H. 30,5; Wdg. 0,7/ 0,8; HBI 1,34 (Taf. 58,1). 2. wT; am Hals eingeritztes ausgespartes Winkelband; gefüllt mit kl. längl. Einst. und auf Schulter unter Ritzlinie 3 Reihen alternierend gerichteter kurzer Einst.; braun, dunkel gefleckt; H. 26,5; Wdg. 0,6/0,7; HBI 0,95 (Taf. 58,3). 3. TmhU mit plastischer Fingertupfenleiste und -nagelkerben; H. 27,5; HBI 1,67 (Taf. 58,2).
+3. 1., 2. Mus. Dessau Inv.-Nr. IV/22 (II 1450, 1451) ; 3. Kriegsverlust. Seelmann 1935, S. 194; Priebe 1938, S. 91, Taf. IX a, XVIII e, XXXI f; Voigt 1942, S. 35; Fischer 1956, S. 295; 1958 b, S. 6; Behrens 1973, S. 304.
+190. Söllichau. Fdpl. 1. Mbl. 2463 (4341), S 13,3; 0 6,3. Geländesit.: kl. Anhöhe.
+
+FA: G. Ursprünglich rechteckige Grube; NW-SO, erh. nur SOEnde von 1,00 × 1,00 m; Sohle bei 0,90 m. Funde: 1. KA mit Hals-Schulter-Kehle und gekehltem He.; am Hals Winkelst.dreiecke und auf Schulter Schnurfr.gruppen mit Winkelst.abschluß; dunkelgrau gefleckt; H. 25,5; Wdg. 0,5; HBI 0,98 (Taf. 59,2). 2. Neben KA auf der Mdg. stehende Sch; am Hals ausgespartes Rautenband aus Winkel-Bogenst. und auf Umbruch Winkel-Bogenst.dreiecke; ockerfarben, dunkel gefleckt; H. 10,0; Wdg. 0,5; HBI 0,47 (Taf. 59,1). 3. Im SO bei Sch unverz. wT; graubraun gefleckt; H. 28,0; Wdg. 0,7; HBI 1,02 (Taf. 59,5). 4. Dahinter schräg liegend KA mit Hals-SchulterKehle; am Hals ausgespartes Rautenband aus Schnurlinien und auf Schulter Schnurfr.gruppen mit punktstichartigem Abschluß; braun; dunkel gefleckt; H. 15,0; HBI 1,00 (Taf. 59,6). 5. Daneben 4 Feuersteinabschläge; 2 noch vorhanden (Taf. 59,3,4) und 2 Rohstücke. 6. Unter der Sch Reste verkohlten Holzes.
+
+LM Halle HK 19:655 a—1. Gandert 1922, S. 14 ff., Taf. II; Kossinna 1922, S. 260; Priebe 1938, S. 81, Taf. XXIV e; Fi-
+
+scher 1956, S. 153, 295; 1958 b, S. 6; Behrens 1973, S. 304.
+
+191. Zschornewitz. Fdpl. 1. Burgkemnitzer Forst. Mbl. 2389 (4240), S 2,8; O 24,0. Geländesit.: flache Anhöhe.
+
+FA: vG. Wohl Beigaben: 1. KA mit Hals-Schulter-Kehle; am Hals unter eng und schräg gestellter Winkelst. zwischen gleichartigen Dreiecken 2 plastisch hervorgehobene Winkelst.reihen und auf Schulter Winkelst.dreiecke; braun-grau und ockerfarben gefleckt; H. 15,2; Wdg. 0,5; HBI 1,01 (Taf. 57,1). 2. Am Bauch beschädigte KA mit Hals-Schulter-Kehle; am Hals ausgespartes Rautenband aus Winkelst., auf Schulter unter dreikantigen Einst. eingeritzte Fr.gruppen; begrenzt von dreikantigen Einst. und unter den He. eingeritzte Fr. mit gleichartigen Einst.; braungrau und ockerfarben gefleckt; H. 20,4; Wdg. 0,5; HBI 0,97 (Taf. 57,3). 3. wT mit angedeuteter Hals-Schulter-Kehle und zahlreichen Glättstreifen auf dem Bauch: am Hals teilweise eingeritzte, mit punktartigen, längl. Einst. gefüllte Dreiecke, auf Schulter eingeritzte Dreiecke; braun-grau und ockerfarben gefleckt; H. 22,3; Wdg. 0,6; HBI 1,06 (Taf. 57,2).
+
+S.305.
+
+## Kreis Bitterfeld
+
+192. Greppin. Fdpl. o. Bezeichnung. Mbl. 2461 (4339), S 18,8; 0 12,3. Geländesit.: spornartige Anhöhe.
+2. FA: EF. Zeichnerisch erg. KA mit Hals-Schulter-Kehle und ausladendem Hals; am Hals mehrreihiges Rautenband aus sehr kl. Winkelst. und auf Schulter zwischen jeweils 2 Winkelst.reihen Fr.gruppen aus gleichartigen Einst.; dunkelbraun, hell gefleckt; H. ca. 20,0; Wdg. 0,4; HBI 1,05 (?) (Taf. 61,4). Mus. Bitterfeld Inv.-Nr. B 449. Priebe 1938, S. 81; Fischer 1958 b, S. 6; Behrens 1973, S. 303.
+193. Holzweiβig. Fdpl. 1. Grube Leopold. Mbl. 2461 (4339), S ca. 4,6; 0 ca. 5,2. Geländesit.: Niederung.
+
+FA: Siedl. Auf mehrperiodigem Fdpl. (u. a. G der Schnurkeramik) Fläche von ca. 2000 m2 untersucht. Dabei auch Grube der KAK (Stelle 8). Inhalt: 1. RS von wT oder Sch; unter 2 Reihen ineinander verzahnter imitierter Winkelst.reihen Dreiecksgruppen aus imitierten Winkelst.; dunkelbraun; Wdg. 0,4 (Taf. 57,9). 2. WS und RS eines unverz. wT mit wulstartiger Verdickung unter Rand; grau, dunkel gefleckt; Wdg. 0,5/0,7 (Taf. 57,8). 3. Umbugscherbe unverz. Sch mit kl. Osenhe.; graubraun; Wdg. 0,5 (Taf. 57,10). 4. Einige unverz. WS von mindestens 2 grobwandigen Siedl.gefäßen. 5. Wohl ebenfalls zugehörig, da im LM Halle unter der gleichen Inv.-Nr. abgestellt: kl. dickn. Beil aus Sandstein; allseitig geschliffen; L. 6,5; Schnbr. 2,9 (Taf. 57,7).
+
+LM Halle HK 35:230 a—e. Behrens 1973, S. 303.
+
+194. Reuden. Fdpl. 2. Mbl. 2461 (4339), N 7,0; W 10,0. Geländesit.: Spitze einer spornartigen Geländezunge zwischen Fuhne und Brödelgraben.
+
+FA: EF. Verwitterte RS von wT oder Sch mit Resten von Dreiecken aus Schnur(?)linien; rötlich; Wdg. 0,5 (Taf. 57,6). Mus. Zörbig Inv.-Nr. 56:155.
+
+195. Schierau, OT Möst. Fdpl. 4. Mbl. 2388 (4239), N 13,5; O 17,5. Geländesit.: flache sandige Anhöhe (Düne).
+2. FA: EF. 6 unverz. WS und 1 RS von wT oder Sch (?) ; am Hals Dreiecke und Rauten aus Bogenst. und auf Schulter vermutlich Bogenst.dreicke; braun, hell gefleckt; Wdg. 0,5 (Taf. 57,4).
+
+Mus. Dessau Inv.-Nr. VS 51/2. Fischer 1958 b, S. 6.
+
+196. Spören. Fdpl. 2. Kiesgrube. Mbl. 2460 (4338), O 9,0—9,1; S 3,2—3,1. Geländesit.: Hangbereich einer flachen Anhöhe. FA: EF. Auf mehrperiodigem Fdpl. RS von wT oder Sch; unter waag. längl. Einst. Dreiecke aus Schnurlinien; dunkelgrau; Wdg. 0,5 (Taf. 57,5).
+
+LM Halle HK 1075. Behrens 1973, S. 305.
+
+197. Wolfen. Fdpl. am Weg nach Reuden. Mbl. 2461 (4339), N 15,0; O 20,65. Geländesit.: nach NO leicht fallend, Rand von Hochfläche.
+
+FA: Ein oder mehrere (?) zerstörte Flachg. Bei Gefäßen angeblich geringe Aschereste und einige kl. Knochensplitter. Grabungsbericht nicht mehr vorhanden, so daß Lage der Fundstücke u. 1. Erg. KA mit Hals-Schulter-Kehle; in dieser Fingertupfenreihe; dunkelgrau, braun gefleckt; H. 23,4;
+
+<!-- FREE:PAGE 19 -->
+Wdg. 0,6/0,7; HBI 0,98 (Taf. 61,9). 2. Reste einer KA mit gekehltem He.; am Hals ausgespartes Rautenband aus Bogenst. und auf Schulter unter Bogenst.reihe eingeritzte schräge Fr.gruppen mit Winkelst.abschluß; dunkelbraun gefleckt; Wdg. 0,5 (Taf. 62,8). 3. Abgeplatteter KA-Bauch braun gefleckt; Wdg. 0,6 (Taf. 62,9). 4. SS einer KA mit eingeritzten Fr. und Winkel-Bogenst.abschluß; braun; Wdg. 0,3 (Taf. 61,8). 5. Reste eines unverz. wT; dunkelgrau, braun gefleckt; Wdg. 0,5/0,6 (Taf. 62,10). 6. HaS von wT oder Sch; unter senkr. Meißelst. Winkellinie aus gleichartigen Einst.; dunkelgrau; Wdg. 0,5 (Taf. 62,7). 7. Erg. Sch mit grifflappenartigem, eingedelltem, senkr. durchb. He.paar; am Hals und auf Umbruch jeweils unter einer Winkelschnurlinie Dreiecke aus Schnurlinien; grau-braun gefleckt; H. 9,5; Wdg. 0,5; HBI 0,57 (Taf. 61,10). 8. 3/4 erh. Sch mit bogenartig plastisch erweitertem He.ösenpaar; am Hals ausgespartes Rautenband aus Bogenst. und auf Umbruch Bogenst.dreiecke; braun, dunkel gefleckt; H. 9,0; Wdg. 0,5; HBI 0,53 (Taf. 62,1) ; in Ton und Machart mit den Resten der auf Taf. 62,8 abgebildeten KA übereinstimmend. 9. Zeichnerisch erg. Sch; unter dem Rand Dreiecke aus Schnurlinien und auf Umbruch unter Ringelst.reihen Dreiecke aus Schnurlinien; dunkelgrau gefleckt; H. 10,4; Wdg. 0,5; HBI 0,55 (Taf. 62,6). 10. Unverz. WB mit 8 Warzenpaaren; braun, dunkel gefleckt; H. 17,4; Wdg. 0,5; HBI 0,89 (Taf. 62,5). 11. Unverz. Napf; braundunkelgrau; H. 8,0; Wdg. 0,4; HBI 0,73 (Taf. 61,6). 12. Umbruchscherbe; unter 2 Reihen grober punktartiger Einst. sich kreuzende Schnurlinien; dunkelbraun; Wdg. 0,5 (Taf. 61,7). 13. Gewölbte WS; innerhalb eines plastischen Bogens Reste eines Dreieckes aus Schnurlinien; dunkelgrau-braun; Wdg. 0,4/0,5 (Taf. 61,5). 14. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; Schneide ausgesplittert; hellgrau gefleckt; L. 10,9; Schnbr. 4,5 (Taf. 62,2). 15. Dickn. Feuersteinbeil; Breitseiten kaum überschliffen; hellgrau gefleckt; L. 10,0; Schnbr. 5,4 (Taf. 62,3). 16. Dickn. Felsgesteinbeil; vollständig geschliffen; L 11,0; erh. Schnbr. 2,5 (Taf. 62,4). 17. Feuersteinrohstücke und -abschläge. 18. Angeblich zugehörig: 3 Molaren vom Pferd und Molarenfragmente vom Rind (Dö.). LM Halle HK 33:164 a-1. Priebe 1938, S. 81, Taf. VII c, e, f, XXII a, c, e, XXVIII b, XXX c; Fischer 1956, S. 152 ff., 295; 1958 b, S. 6; Behrens 1973, S. 305, Abb. 47 f—k.
+
+198. Wolfen (bisher fälschlicherweise zu Reudener Weg gezählt). Fdpl. Am Feuerweg. Mbl. 2461 (4339), N 15,0; 0 20,0. Geländesit.: nach N leicht fallend; Rand einer Hochfläche. FA: vG. 1. Ca. 1,00 m tief Sch; um diese angeblich Steine geordnet und von gr. Stein bedeckt. Erg. Sch mit grifflappenartigem He.paar; am Hals ausgespartes Winkelband aus Schnurlinien und auf Umbug Schnurwinkellinien; dunkelgrau gefleckt; H. 15,0; Wdg. 0,6; HBI 0,55 (Taf. 61,3) ; ein bestimmbarerGetreidekornabdruck:Grasfrucht/RoggenTrespe ? (n. Schultze-Motel). 2. Bei Nachgrabungen ca. 1,00 m tief Scherben von 2 unverz, wT oder TmhU; grau-braun bzw. dunkelgrau; Wdg. 0,6/0,7. 3. Ob einige Meter entfernt in 1,00 m Tiefe gefundene Molarenfragmente von Rind und Pferd (?) zugehörig sind, ist nicht gesichert.
+
+LM Halle HK 33:310, 447. Priebe 1938, S. 81, Taf. XXII c; Fischer 1956, S. 151, 154, 156 ?, 295; Hummel 1968, S. 62; Behrens 1973, S. 305, Abb. 47 1.
+
+199. Wolfen. Fdpl. Siedlung am Krondorfer Weg. Mbl. 2461 (4339). Nähe der Fdpl. 197 und 198. Geländesit.: nach N leicht fallend; Rand einer Hochfläche.
+
+FA: vG. Keine weiteren Angaben. 1. Bruchstücke einer KA mit Hals-Schulter-Kehle; am Hals Band aus eingeritzten senkr. und schrägen Linien; bilden teilweise Dreiecke, auf Schulter eingeritzte alternierend angeordn. Fr.gruppen; dunkelgrau gefleckt; err. H. ca. 13,0; Wdg. 0,4; HBI 0,96 ? (Taf. 61,1). 2. Bauch einer KA; auf Schulter unter punktartigen groben Einst. Schnurfr.gruppen; begrenzt durch kurze Schnureindrücke; dunkelgrau, schwarz-braun gefleckt; gr. Dm. 20,5; Wdg. 0,5 (Taf. 61,2). LM Halle HK 39:194 a, b.
+
+200. Wolfen. Fdpl. am Kahlen Berg. Mbl. 2461 (4339), S 18,7;
+
+O 12,4. Geländesit.: leicht fallender Hangbereich einer Anhöhe.
+
+FA: vG. Ca. 1,50 m tief im Sand stehend: 1. KA mit ovalem Bauch; auf Schulter Fingernagelkerben; ockerfarben gefleckt; H. 28,1; HBI 1,20; Wdg. 0,7 (Taf. 63,2). 2. Unverz. KA mit gesacktem Bauch; ockerfarben gefleckt; H. 16,0; Wdg. 0,6; HBI 1,15 (Taf. 63,6). 3. wT; am Hals ausgespartes Rautenband aus Bogen-Winkelst. und auf Schulter Dreiecke aus Bogen-Winkelst.; braun-dunkelgrau; H. 23,6; Wdg. 0,5; HBI 0,90 (Taf. 64,20). 4. Unverz. WB mit gekerbtem Boden; in Form ähnlich den TmhU; ockerfarben gefleckt; H. 24,5; Wdg. 0,6/0,8; HBI 0,96 (Taf. 63,5). 5. Gr. unverz. Napf; braun; H. 14,8; Wdg. 0,7/0,8; HBI 0,78 (Taf. 63,1). 6. 14 Scherben von wT; auf Schulter Furchenst.gruppen; okkerfarben, grau gefleckt; Wdg. 0,5 (Taf. 63,3,4). 7. SS einer KA mit eingeritzten Fr. und Winkelst.abschluß; ockerfarben gefleckt; Wdg. 0,4. 8. Unverz. RS eines Napfes (?); braun; Wdg. 0,5.
+
+Mus. Bitterfeld Inv.-Nr. B 380—384. Dietze 1938, S. 15; Fi-
+
+scher 1956, S. 295; Behrens 1973, S. 305.
+
+201. Zörbig. Fdpl. 1. Galgenberg. Mbl. 2460 (4338), S 11,5;
+
+O 7,4. Geländesit.: Anhöhe.
+
+FA: G. KA(nach?)bestattung in Großsteing.; Grabkammer ... aus erratischen Steinblöcken von teilweise sehr bedeutender Grösse .. . Von Nord nach Süd waren zwei parallele Reihen Steine aufrecht gestellt, darüber waren andere Steine als Decke gelegt, die Zugänge waren ebenfalls mit Steinen verschlossen und das Ganze mit einem hohen Erdhügel überschüttet. In der geschilderten Weise waren 20—30 grosse Steinblöcke nebst vielen kleinen verwendet und eine nordsüdlich gerichtete stollenartige Grabkammer von 5—6 m Länge, 80—100 cm innerer Breite und ebensoviel innerer Höhe zu Stande gekommen, deren Boden nach Aussage eines bei der Freilegung beschäftigten Arbeiters mit einer Art festen, rötlichen Lehmschlags bedeckt gewesen ist. .. . Die Grabkammer wurde an der Südseite geöffnet und es wurden ihr einige Steingeräte und verschiedene Urnen entnommen" (Schmidt 1896, S. 168 f.) : 1. KA; am Hals unter eckigen, unförmigen Einst. unregelmäßige Gruppen punkt- bis unförmiger Einst. und auf Schulter unter dreikantigen Einst. zwischen punktartigen Einst. eingeritzte Fr.gruppen; dunkelbraun-grau gefleckt; H. 19,4; Wdg. 0,6/0,8; HBI 1,04 (Taf. 60,2). 2. Erg. KA mit Hals-Schulter-Kehle; am Hals unter Winkellinie aus Meißelst. eingeritzte Rauten und auf Schulter imitierte Fr.gruppen aus Meißelst. (?); schwarzgrau, hell und braun gefleckt; H. 21,8; Wdg. 0,5/0,6; HBI 1,07 (Taf. 60,3). 3. K1. KA mit gekehlten He.; am Hals ein ausgespartes Winkelband aus Bogenst. und auf Schulter Bogenst.dreiecke; schwarzgrau, rötliche Abplatzungen; H. 8,0; Wdg. 0,5; HBI 0,94 (Taf. 60,1). 4. Unverz. KA mit Hals-Schulter-Kehle; dunkelgrau gefleckt;
+
+H. 13,8; Wdg. 0,5/0,6; HBI 1,03 (Taf. 60,7). 5. Unterteil eines wT mit Schwalbenschwanzhe.; am Hals und auf Schulter Punktst.dreieeke; schwarzgrau gefleckt; H. ca. 25,0; Wdg. 0,5/ 0,7; HBI 0,83 ? (Taf. 60,9). 6. Sch; unter Rand Dreiecke aus Schnurlinien und oberhalb des Umbuges 2 Kerbreihen; schwarz; H. 8,8; Wdg. 0,5; HBI 0,65 (Taf. 60,10). 7. Sch ohne He.; auf Umbug Fingernagelkerben; schwarzgrau gefleckt; H. 8,4; Wdg. 0,5/0,6; HBI 0,65 (Taf. 60,8). 8. Dickn. Feuersteinbeil; überschliffene leicht gewölbte Breitseiten; hellgrau; L. 10,6; Schnbr. 4,9 (Taf. 60,5). 9. Dickn. Feuersteinbeil; Breitseiten überschliffen; schwarz; L. 6,4; Schnbr. 3,8 (Taf. 60,6). 10. Knochenaxt; an einer Breitseite leicht ausgesplittert; L. 11,1; Schnbr. 2,4 (Taf. 60,4) ; distales Metatarsusfragment vom Rind (Dö.).
+
+LM Halle HK 4235—4238, 4254–4259, 27:96. J. Schmidt 1894, S. 36; R. Schmidt 1896, S. 168 ff.; Götze 1900 a, S. 159 f.; Åberg 1918, S. 174; Kossinna 1922, S. 260; Schulz 1927, S. 107; Priebe 1938, S. 81, Taf. III e, d, XXII b, d, XXXII a; Fischer 1956, S. 152 ff., 275, 296; 1958'b, S. 6; Behrens 1973,
+
+S. 305; Beier 1984, S. 121 f.
+
+Anm.: G.bau im Mittelelbe-Saale-Gebiet nur mit Megalithbauten der Walternienburger und der Bernburger Kultur vergleichbar; für KAK fremd, daher Annahme einer Nachbestat-
+
+tung, aber unbeweisbar (vgl. hierzu Beier 1984, S. 53).
+
+## Saalkreis
+
+202. Morl. Fdpl. 3. Franzigmark. Mbl. 2532 (4437), S 15,5; W 21,3. Geländesit.: spornartige Anhöhe am Saalehochufer. FA: Siedl. der Bernburger Kultur. Auf mehrperiodigem Fdpl. folg. Grube geborgen: Unter fundleerer, hügelartig aufgeschütteter und 1,00 m mächtiger Kuppe eine im S-Teil gestörte ovale, 0,38 m im Anstehenden eingetiefte Grube. Umriß erst in 0,80 m Tiefe erkennbar; bei 1,00 m Tiefe ca. 1,40 ×1,00 m. In oberen Schichten verstreute Scherben; Hauptmasse der Funde erst ab 1,00 m: 1. Gr. unverz. Siedl.gefäß mit gelochtem Rand und breiten Grifflappen; H. 48,0 (Taf. 64,9—11). 2. Erg. bauchige T mit breitem Bandhe. und Ritzlinienband auf Umbug; H. 15,2 (Taf. 64,5). 3. HaS einer KA; am Hals jeweils unter 2 Schnurlinien 2 bzw. 3 Reihen dreikantiger-unförmiger Einst. und auf Schulter Schnurfr.gruppen; schwarz; Wdg. 0,5 (Taf. 64,2). 4. Reste eines gr. bauchigen Gefäßes mit Ritzlinienband (Taf. 64,4). 5. Ca. 60 unverz. WS und BdS. 6. 9 Brocken gebrannten Lehms. 7. Konischer Spinnwirtel (Taf. 64,3). 8. Kl. Feuersteinpfeilspitze mit eingezogener Basis; grau; L. 2,5 (Taf. 64,7). Deckschichten über der Grube bis in 0,80 m Tiefe erbrachten: 9. RS eines WB (?) mit Spitzknubbe; schwarz; Wdg. 0,6 (Taf. 64,8). 10. WS mit kl. senkr. Kerben; braun gefleckt; Wdg. 0,6 (Taf. 64,6). 11. Uber 90 unverz. RS, WS und BdS; gehören teilweise zu den Gefäßen aus der Grube. LM Halle HK 59:120 a—i. Matthias/Schmidt 1962, S. 359; Ebbęsen 1975, S. 243 f., Fig. 178.
+
+203. Oppin. Fdpl. o. Bezeichnung. Mbl. 2533 (4438), N 21,7; W 11,0. Geländesit.: Hangbereich einer flachen Anhöhe. FA: EF. Auf mehrperiodigem Fdpl. eine HaS einer KA mit ausgespartem Winkelband (?) aus Bogenst.; schwarz, leicht verwittert; Wdg. 0,5/0,6 (Taf. 64,1). LM Halle HK 83:1452 a.
+
+Stadtkreis Halle (Saale)
+
+204. Dölauer Heide. Fdpl. 1. Nördl. Teil des Langen Berges. Mbl. 2532 (4437), S 2,7—4,5; W 20,0—21,4. Geländesit.: nach O, W und N Steilabfall; Spornlage.
+
+FA: Siedl. der Bernburger Kultur; auf ca. 1,5 ha, befestigt
+
+mit Palisade (Behrens/Schröter 1980, Beilage IV). Innerhalb der Siedl. Baalberger Flachg. und 3 schnurkeramische G.hügel. Insgesamt über 240 Gruben und ca. 120 Pfosten nachgewiesen. Unter schnurkeramischem Hügel 1 Grundriß eines Pfostenhauses. Im Haus und in 7 Gruben auch Reste der KAK neben Bernburger Keramik, weitere EF der KAK in der Siedl. a) Haus am N-Ende: Rechteckiges Pfostenhaus von 6,60 5,50 m mit abgerundeten Ecken, NNW—SSO. Wohnfläche von ca. 36 m2 in Sand getieft und nach SO geneigt (Behrens/Schröter 1980, Abb. 14). In SO-Ecke um eine Sandsteinplatte: 1. Reste eines wT mit Hals-Schulter-Kehle; am Hals unter Winkellinie Meißelst.rauten und auf Schulter durch Meißelst. imitierte Winkelst.reihen; graubraun gefleckt; Wdg. 0,5/0,6 (Taf. 65,6). 2. Bauchige T mit breitem Bandhe.; Band alternierend wechselnder Gruppen aus senkr. Fischgrätenreihen und waag. Furchenst.linien (Taf. 65,3). 3. Gr. unverz. Topf mit durchlochtem Rand und 3 Grifflappen (Taf. 65,15). 4. Unverz. bauchiger Topf mit 2 gegenständigen He. auf Umbruch (Taf. 65,17). 5. Unterteil eines dickwandigen gr. Topfes. 6. Ungefähr in Hausmitte neben Sandsteinplatte Topf mit 3 Knubben und senkr. Einst. (Taf. 65,11). An der NO-Längsseite: 7. Unverz. T mit Grifflappen (Taf. 65,16). 8. Bauchiger Topf mit 2 gegenständigen He. und ausgespartem Winkelband (Taf. 65,1). 9. Schüsselartige T mit Trichterrand und senkr. Einst. (Taf. 65,13). 10. Fragment eines unverz. steilwandigen Gefäßes mit 2 erh. Grifflappen (Taf. 65,9). Weitere Funde: 11. Scherben von ca. 10—15 Gefäßen; einige abdruckgerauht. 12. Mehrere Spinnwirtel unterschiedlicher Form (u. a. Taf. 65,4,12). 13. Felsgesteinbeil mit abgerundetem Nacken (Taf. 65,14). 14. Schleifsteinfragment und Rest eines angeschliffenen Sandsteines. 15. 2 Schiefermesserfragmente. 16. Zahlr. Feuersteinartefakte (u. a. Taf. 65,7,8). 17. Knochenpfriem (Taf. 65,2) und 2 Knochenpfriemspitzen. 18. Tierknochen.
+
+LM Halle HK 73:206 a—ai.
+
+b) Grube 51: 1. RS einer KA (?) ; unter Winkelst. gleichartige Dreiecke; rötlich-braun gefleckt; Wdg. 0,4 (Taf. 65,5). 2. Unverz. T mit leichtem Trichterrand. 3. Zahlr. WS mit horizontal eingeritzten Linien, Einst., Tupfen und Abdruckrauhung. 4. Wellen-RS, durchlochte RS und mehrere WS mit Grifflappen. 5. Gebrannte Lehmbrocken. 6. Zerglühtes Feuersteinfragment. 7. Einige kl. Knochenfragmente.
+
+LM Halle HK 71:659 a—n.
+
+c) Grube 57: 1. Gekehlte HeS einer KA; dunkelbraun; Wdg. 0,5 (Taf. 83,17). 2. Kl. RS von Siebgefäß. 3. Zahlr. WS, u. a. mit ausgesparten Winkelbändern, gefüllten Dreiecken, Fischgrätenmuster und Abdruckrauhung. 4. Durchlochte RS und WS mit Grifflappen.
+
+LM Halle HK 71:665 a—k.
+
+d) Grube 58: 1. Erg. KA mit Hals-Schulter-Kehle; am Hals Rauten und Dreiecke aus Bogenst. und auf Schulter zwischen Bogenst. eingeritzte Fr.gruppen; dunkelgrau; H. 13,7; Wdg. 0,5; HBI 0,93 (Taf. 64,19). 2. Bauchiges Gefäß mit gegenständigen He. und unvollständigem, ausgespartem Winkelband (Taf. 64,17). 3. Unverz. Trichterrandgefäß mit 3 Grifflappen (Taf. 64,15). 4. Kl. schrägwandige T mit extrem gr. He. (Taf. 64,18). 5. Zahlr. WS mit Einst. und Abdruckrauhung.
+
+<!-- FREE:PAGE 20 -->
+6. Wellen-RS (Taf. 64,14), durchlochte RS und WS mit Griff- 61 g; Schnitt 46; 5. nicht auffindbar. Behrens/Schröter 1980, S. 13 ff., Abb. 2, 13 A, B, 14, 15, 16 m−u, 20 k, r, 29 c−f..
+
+Kreis Eisleben
+
+205. Augsdorf. Fdpl. 3. Kiesgrube. Mbl. 2457 (4335), S 1,1; W 17,0. Geländesit.: kl. spornartige Anhöhe.
+
+FA: EF; vermutlich aus Siedl. der Bernburger Kultur; in der Nähe vermutlich Bernburger Kollektivg. (Beier 1984, S. 126). Funde der KAK: 1. Rest eines wT; am Hals Winkel-Bogenst.dreiecke und auf Schulter gleichartiger Einst. und eingeritzte Fr.; schwarz-grau; err. gr. Dm. ca. 30,0; Wdg. 0,6/0,8 (Taf. 66,1). 2. Wohl gleicher Fdpl.: HaS einer KA mit Dreiecken aus kl. Bogenst.; rötlich-dunkelgrau; Wdg. 0,4 (Taf. 66,2).
+
+LM Halle HK 26:126 und 263 b.
+
+206. Augsdorf. Fdpl. 7. Bröddelberg. Mbl. 2457 (4335), S 3,3; W·18,1. Geländesit.: flach nach S fallender Hang.
+
+FA: G (Abb. 5,3). Mehrperiodiger Fdpl. mit Bernburger EF. Versenkte, ungefähr rechteckige, konisch schrägwandige Kiste aus Rogensteinen; L. 1,90 m; O—W; Sohle mit Br. von 0,50 m in 0,90 m Tiefe hatte Kalkseinplattenpflaster. Oberkante 0,80 m breit. Eine Braunkohlenquarzitdeckplatte in 0,55 m Tiefe, die zweite fehlte. In Kammer O(Schädel)-W gerichteter linker Hocker mit Blick nach S. Beigaben: 1. An Stirn des Toten KA mit Hals-Schulter-Kehle und gekehlten He.; am Hals Punktst.dreiecke und auf Schulter zwischen kl. schrägen Einst. eingeritzte Fr.; grau-rötlich und hell gefleckt; H. 15,0; Wdg. 0,5; HBI 0,91 (Taf. 66,5). 2. Zwischen Ober- und Unterschenkeln 2 zerscherbte auf die Mdg. gestülpte bräunlich-rote Sch; bei Bergung zerfallen; nach Angaben O. Marschalls hatte man sie schon beim Einlegen zerbrochen" (Bericht in OA Augsdorf im LM Halle); vermutlich mit gebauchter Wdg. (ähnlich Niklasson 1925 c, Taf. XI,9; XX,9). 3. In Füllerde unter 10 WS, von denen 2 mittelalterlich, 2 bronzezeitlich und 5 urgeschichtlich sind, auch unverz. Umbruchscherbe von wT oder TmhU; dunkelgrau; Wdg. 0,5 (Taf. 66,3). 4. Zwischen rechtem Oberarm und Schulter ein hochkant gestelltes dickn. Feuersteinbeil mit relativ spitzem Nacken; allseitig überschliffen; grau, hell gefleckt; L. 10,8; Schnbr. 5,7 (Taf. 66,4). 5. Bei Skelett Tierknochen: Humerusfragment vom Wild(?)schwein und linker Metacarpus vom Wolf (Dö.). 6. Skelettreste eines Individuums; adult (wahrscheinlich Anfang 20); männlich (Br.).
+
+Mus. Eisleben Inv.-Nr. 60:1—4. Hoffmann/Schmidt 1965, S. 220, Taf. 32; Behrens 1973, S. 302.
+
+Anm.: Bei Aufarbeitung des Skelettmaterials neben den Tierknochen auch Skelettreste eines zweiten menschlichen Individuums. Knochen aber bedeutend schlechter erhalten. Vielleicht von älterer Bestattung, die beim Bau der Steinkiste zerstört wurde.
+
+207. Bösenburg. Fdpl. 14. Mbl. 2530 (4435), N 5,7—6,6; O 1,5 bis 2,5. Geländesit.: nach NNO fallender, spornartiger Hang. FA: EF. Auf mehrperiodigem Fdpl. HeS einer KA; auf Schulter unter 2 Winkelst.reihen eingeritzte Fr.; dunkelgrau gefleckt; Wdg. 0,5 (Taf. 66,6). LM Halle HK 72:562 c.
+
+208. Eisleben, OT Helfta. Fdpl. Röhrenbreite. Mbl. 2603 (4535), N 5,0; W 19,5. Geländesit.: nach NO fallender Hang. FA: EF. HaS einer KA; am Hals Winkel-Bogenst.dreiecke
+
+lappen. 7. Spinnwirtel (Taf. 64,13). 8. Feuersteinklingen, -kratzer und -abschläge (Taf. 64,12,16). 9. Fragment einer Porphyrreibeplatte.
+
+LM Halle HK 71:666 a—p.
+
+e) Grube 129: 1. 2 RS und HaS einer KA mit ausgespartem Rautenband aus Schnurlinien; grau; Wdg. 0,4 (Taf. 83,10). 2. Zahlr. verz. und unverz. WS; dabei 8 durchlochte RS und einige WS mit Grifflappen. 3. Feuersteinklinge. 4. 2 Rinderzähne.
+
+LM Halle HK 73:137 a—1.
+
+f) Grube 136: 1. SS einer KA; zwischen punktartigen Einst. Schnurfr.; schwarz; Wdg. 0,4 (Taf. 83,13). 2. Zahlr. verz. und unverz. WS; dabei durchlochte RS und WS mit Grifflappen, eingeritzten Linien, Abdruckrauhung.
+
+LM Halle HK 73:144 a—1.
+
+g) Grube 202: 1. HeS einer KA; am Hals Reste von Winkelst. erkennbar, auf Schulter schräge Einst.; braun; Wdg. 0,5 (Taf. 83,18). 2. 5 WS mit Ritzlinien und Einst. sowie 27 Scherben mit Abdruckrauhung. 3. Zahlr. unverz. WS; dabei 7 durchlochte RS und 2 WS mit Schulterabsatz. 4. Rötelähnliches Gestein. 5. Stück kalzinierter Knochen.
+
+LM Halle HK 73:51 a—k.
+
+h) Grube 222: 1. HeS eines unverz. wT (?) ; rötlich-braun gefleckt; Wdg. 0,5 (Taf. 83,15). 2. Oberteil eines gr. unverz. Siedl.gefäßes mit durchlochtem, verdicktem Rand und 2 gegenständigen He. (auch zum folg. Behrens/Schröter 1980, Abb. 13 B). 3. Fragment einer schrägwandigen Sch mit Bandhe. und durchlochtem Rand. 4. Fragment eines gr. Siedl.gefäßes mit durchlochtem Rand; Band aus waag. eingeritzten Linien. 5. Reste von 2 T mit abgesetztem Hals und ausgesparten Winkelbändern.·6. Sehr viele verz. und unverz. WS; Grifflappen und Abdruckrauhung. 7. 15 Spinnwirtel. 8. Zahlr. Reste gebrannten Lehms. 9. Reibsteinfragment aus Porphyr. 10. Feuersteinklinge und Fragmente von Feuersteinartefakten. 11. Reste von 2 Pfriemen. 12. Oberteil eines Knochenmeißels. 13. Rest eines Angelhakens. 14. Rest einer durchb. Knochenschmuckscheibe. 15. Ca. 70 meist mit Brandspuren versehene Tierknochen.
+
+LM Halle HK 74:171 a−v.
+
+i) EF: 1. HaS einer KA; am Hals schräge Schnurlinien und auf Schulter Fr.gruppen aus längl. Einst.; rötlich-braun; Wdg. 0,4/0,5 (Taf. 65,10). 2. Dazugehörige (?) HaS einer KA mit Schnurgitter; rötlich-braun gefleckt; Wdg. 0,4 (Taf. 83,14). 3. RS mit kommaartigen Einst.; rötlich-braun; Wdg. 0,4 (Taf. 83,11). 4. HaS mit ausgespartem Rautenband aus kl. Bogenst. und senkr. Ritzlinien; dunkelgrau; Wdg. 0,4 (Taf. 83,12). 5. Kl. SS mit Schnur(?)fr. und Doppelpunktabschluß. Feuersteingeräte, die wohl ebenfalls zur KAK gehören: 6. Dickn. Feuersteinbeil; Breitseiten überschliffen; grau gefleckt; L. 10,4; Schnbr. 4,6 (auch folg. Behrens/Schröter 1980, Abb. 29). 7. Schneiden- und Nackenfragment eines dünnbl. Feuersteinbeiles mit relativ spitz zulaufendem Nacken; ursprünglich allseitig überschliffen; stark kalziniert; schwarzgrau gefleckt; err. L. 10,5; Schnbr. ca. 5,5. 8. Schneidenfragment eines Feuersteinbeiles; sekundär zu Kratzer umgearbeitet. 9. Nackenbruchstück eines dickn. Feuersteinmeißels; allseitig überschliffen; grau gefleckt; erh. L. 6,0. 10. Ca. 220 m SSW der Bernburger Siedl. in Suchschnitt 46 am SW-Rand des Langen Berges (vgl. Behrens/Schröter 1980, Abb. 2) Bernburger Scherben und unverz. HeS einer KA; dunkelgrau; Wdg. 0,6 (Taf. 83,16).
+
+LM Halle HK 69:54 q, 58 k, 60 c; 71 :346 k, 348 k, 1, p ; 73:21 c, und auf Schulter unter gleichartigen Dreiecken auf Lücke angeordn. Winkel-Bogenst.; schwarz; Wdg. 0,7 (Taf. 66,11). LM Halle HK 57:65. Hoffmann/Schmidt 1960, S. 329; Behrens 1973, S. 303.
+
+209. Eisleben, OT Helfta. Fdpl. Langenlochsbreite. Mbl. 2530 (4435), N ca. 3,5; W ca. 21,0. Geländesit.: nach NO fallender Hang.
+
+FA: EF. SS eines wT; zwischen kl. Winkelst. grobe Furchenst.fr.; schwarz; Wdg. 0,8 (Taf. 66,9). 2. SS eines wT; unter groben unförmigen Einst. grobe Furchenst.fr.; schwarz; Wdg. 0,6/0,7 (Taf. 66,10).
+
+LM Halle HK 56:938 a. Wetzel 1979, S. 145 (als Schönfeld).
+
+210. Wimmelburg. Fdpl. 10. Gemeindesandgrube. Mbl. 2530 (4435), S 10,9; W 0,1. Geländesit.: Rand einer nach O fallenden spornartigen Anhöhe.
+
+FA: Siedl. Auf mehrperiodigem Fdpl. gestörte wannenförmige Grube.
+
+Funde: 1. HeS einer KA mit Schwalbenschwanz(?)he.; unter He. enggestelltes eingeritztes (?) Winkelband; dunkelgrau; Wdg. 0,5 (Taf. 66,7). 2. Rest einer Feuersteinklinge mit retuschierten Längskanten; erh. L. 2,3 cm. LM Halle HK 46:88, 99.
+
+Kreis Sangerhausen
+
+211. Mittelhausen. Fdpl. 1. Warme Riese. Mbl. 2602 (4534), N ca. 22,5; 0 ca. 13,0. Geländesit.: flache Hanglage.
+
+FA: EvG. Von Fdpl. mit Bernburger G und Walternienburger (?) Tierbestattung (Beier 1984, S. 138 f.) folg. Altfunde: 1. KA mit Hals-Schulter-Kehle und gekehlten He.; auf Schulter unter schrägen Einst. eingeritzte, mit Punktst. gefüllte Dreiecke; dunkelgrau gefleckt; H. 18,3; Wdg. 0,5/0,7; HBI 1,14 (Taf. 66,13). 2. Bernburger Hängegefäß mit dreifach durchbohrten gezackten Grifflappen; auf Bauch 2 Bänder aus eingeritzten Winkellinien und unterhalb der Grifflappen je eine doppelte Winkellinie und Furchenst.fr.; rötlich-braun gefleckt; H. 7,8 (Taf. 66,8).
+
+Mus. Eisleben Inv.-Nr. 752 (238), 648 (239) ; KA Leihgabe im Mus. Sangerhausen. Götze/Höfer/Zschiesche 1909, S. 125; Kossinna 1922, S. 253; Niklasson 1925 c, S. 107 f.; Grimm 1930, S. 22; Rühlemann 1934, S. 19; Priebe 1938, S. 84, Taf. VIII b; Mildenberger 1953, S. 70; Behrens 1973, S. 304.
+
+Anm.: Ob beide Gefäße geschlossene Funde darstellen, ist nicht zu beweisen. Fundumstände u.
+
+212. Mittelhausen. Fdpl. u. Mbl. 2602 (4534).
+
+LM Halle HK 13941. Götze 1900 a, S. 169; Götze/Höfer/ Zschiesche 1909, S. 125, Taf. II,24; Kossinna 1922, S. 253; Grimm 1930, S. 22; Priebe 1938, S. 84, Taf. XVIII b; Behrens 1973, S. 304.
+
+FA: EvG. Altfund. wT; am Hals Reihen grober Winkelst. und auf Schulter Reihen aus Winkel- oder punktartig-unförmigen Einst.; dunkelgrau gefleckt; H. 29,0; Wdg. 0,5/0,6; HBI 0,98 (Taf. 66,12):
+
+213. Mittelhausen, OT Einsdorf. Fdpl. u. Mbl. 2602 (4534). FA: vG. Beim Pflügen gefunden: 1. KA mit Hals-SchulterKehle; am Hals unter 3 Bändern aus Reihen kl. unförmiger Einst. und Bogen-Winkelst.dreiecken 2 Bänder aus gr. dreikantigen Einst. und auf Schulter unter gleichartigem Einst.band Furchenst.fr.gruppen; schwarz-rötlich gefleckt; H. 21,6;
+
+9 Beier, Kugelamphoren
+
+Wdg. 0,5/0,6; HBI 1,17 (Taf. 68,14). 2. Erg. wT; am Hals unter 2 Bändern aus Reihen punktartig-ovaler bzw. kl. unförmiger Einst. und Winkel-Bogenst.dreiecke 2 Bänder aus imitierten Furchenst.linien und auf Schulter Furchenst.fr.gruppen; schwarz-rötlich gefleckt; H. 23,5; Wdg. 0,5/0,6; HBI 1,04 (Taf. 68,13). 3. Erg. unverz. WB mit leicht konischem Hals; Form ähnlich den TmhU; braun-rötlich und grau gefleckt; H. 16,8; Wdg. 0,7/0,8; HBI 1,12 (Taf. 69,6).
+
+Mus. Jena Inv.-Nr. 12131, 13440, 34827. Aberg 1918, S. 175; Kossinna 1922, S. 153; Grimm 1930, S. 22; Priebe 1938, S. 83, Taf. VIII c; Behrens 1973, S. 302.
+
+Anm.: Bei H. Priebe (1938, S. 83) KA und wT als getrennte Funde aufgeführt. Beide Gefäße in Ton, Verz. und Machart stark ähnlich, vielleicht geschlossener, in alter Zeit getrennter Komplex.
+
+Kreis Artern
+
+214. Kalbsrieth. Fdpl. 1. Derfflinger Hügel. Mbl. 2676 (4634), S 13,7; W 6,4. Geländesit.: Anhöhe in Nähe der Unstrut. FA: G (Abb. 4,9, 12). Peripher gestörter mehrfach erweiterter Hügel, ursprünglich über 4,00 m H. und zum Zeitpunkt der Untersuchung noch eine N-S-Ausdehnung von 17,20 m. Im Hügel neben postneolithischen 5 oder 6 neolithische G, deren zeitliches Verhältnis zueinander umstritten (vgl. Mildenber-
+
+ger 1953, S. 32 f.).
+
+Auf höchster Stelle der Anhöhe im W-teil des Hügels wohl älteste Bestattung, G der Kalbsriethgruppe; mit Steinschicht bedeckter Kernhügel; an dessen SO-Rand 3 wohl schnurkeramische Hocker; östl. außerhalb der Steindecke weiterer neolithischer Komplex: Steinbau der Baalberger Kultur und Steinkiste der KAK. Im östl. Hangbereich der Anhöhe ebenerdig angelegte, annähernd rechteckige Kiste aus Sandsteinplatten von 1,70 × ca. 1,00 × 1,00 m. Gr. im Lichten; 0—W. Sohle aus einer auf nach O leicht fallendem felsigem Untergrund liegenden Steinplatte gebildet. Teilweise gefugte Wandplatten, innen mit Gips verstrichen; von außen durch kleine Steinplatten gestützt. Abdeckung fehlte. A. Möller (1912b, S. 20 f.) vermutet eine zerstörte Steinplatte. In Kammer O(Schädel)-W gerichteter, linker Hocker mit Blick nach S; Hände zum Gesicht. Südöstl. vom Schädel und an Händen standen: 1. Unverz. KA mit abgeflachtem Boden und ovalem Bauch; grauschwarz, hell gefleckt; H. 29,3; Wdg. 0,6/0,7; HBI 1,16 (Taf. 67,1). 2. KA; am Hals eingeritzte Rauten und auf der Schulter Fr.gruppen aus längl. Einst.; schwärzlich, hell gefleckt; H. 16,8; Wdg. 0,5; HBI 1,03 (Taf. 67,6). 3. wT mit Hals-Schulter-Kehle und Spuren einer weißen Inkrustation; am Hals zwischen Schnurlinien 2 breite Schnurwinkellinien; Dreieckflächen mit kurzer senkr. Einst. bzw. Schnurlinien gefüllt und auf Schulter mit gleichartigen Einst. gefüllte Dreiecke aus Schnurlinien; dunkelgrau, hell gefleckt; H. 26,1; Wdg. 0,6; HBI 1,02(Taf. 67,7). 4. Kl. wT mit Spuren einer weißen Inkrustation; am Hals und auf Schulter eingeritzte, mit punktartigen-ovalen Einst. gefüllte Dreiecke; braun, hell gefleckt; H. 12,5; Wdg. 0,4; HBI 0,96 (Taf. 67,4). 5. Zu Füßen des Toten in SW-Ecke kl. unverz. Napf; gelblichbraun; H. 4,7; Wdg. 0,5; HBI 0,52 (Taf. 67,2). 6. 0,10 m über dem Brustkorb ein'dickn. Feuersteinbeil; allseitig überschliffen; L. 8,0; Schnbr. 4,1 (auch folg. Möller 1912 b, Taf. I). Ostl. der Knie: 7. Durchb. Eberzahnanhänger; L. 8,2. 8. Gespaltener Eberzahn; Abstand zwischen den Enden: 11;2. 9. 0,20 m über den anderen Funden (sekundär umgelagert ?) Knochenpfriem; L. 6,5. 10. Zwischen den Unterschenkeln ein beidseitig zugespitztes Knocheninstrument; L. 11,8. 11. An der linken Tibia ein einseitig zugespitztes Knocheninstrument; L. 10,5. 12. Auf dem linken Fuß ein an beiden Enden durchb. Eberhauer mit ausgebrochener Durchb. am schmalen Ende; L. 9,1. 13. In NW-Ecke der Kammer: Unterkiefer, linker Femur, linker Humerus und 3 Phalangen vom Schwein sowie Unterschenkel vom Kranich. 14. Skelettreste eines Individuums; spätadult; männlich. 15. Uber einer mit Gips verstrichenen Vertiefung in der S-Hälfte der Bodenplatte papierdünne Knochenplättchen" (Möller 1912 b, S. 29) ; angeblich von 1,5—2,5jährigem Kind.
+
+<!-- FREE:PAGE 21 -->
+1.—5., 14, 15. Mus. Weimar Inv.-Nr. 1995—1998, o. Nr.; Rest verschollen.
+
+An östl. Schmalseite der Kiste offener Vorraum" durch parallel in 0,60 m Entfernung aufgestellte Steinplatte, auf dessen Boden Aschereste, verbrannte Knochen und einige Scherben grober dickwandiger Siedl.gefäße. In 0,70 m Entfernung von der südl. Längsseite 0,60 m über dem Felsboden ein rundliches Feldsteinplattenpflaster von ca. 1,00 m Dm. (erster ,Altar"). Analoges, aber ovales und lehmverstrichenes Steinpflaster aus Sandsteinplatten (zweiter ,Altar"), ca. 0,50 m nördl. vom G. Brandspuren an den Platten beider Steinsetzungen und Aschereste weisen auf Feuereinwirkung. Im Bereich des vom Rind) und wenige Scherben grober dickwandiger Siedl.gefäße ohne Brandspuren. Ca. 1,50 m westl. der Kiste in H. des Anstehenden unter 0,90 m hoher kegelartiger Steinpakden Boden für kl. Kiste aus roten Sandsteinplatten mit offe-
+
+ovalen Pflasters Knochenreste (u. a. Unterkieferfragmente kung, ursprünglich von mit 5 Näpfchen verz. Kohlenquarzitplatte bekrönt, dolmenartiger Bau". Darin auf künstlich abgeflachter Terrasse 3 in O-W-Richtung nebeneinander gelegte Sandsteinplatten. Die westl. und die mittlere Platte bildeten ner N- und S-Seite. Funde: 1. Kl. unverz. Baalberger Amphore; braun-dunkelgrau gefleckt; H. 15,3; Wdg. 0,6 (Taf. 67,3). 2. Westl. davon schüsselartiger Napf mit nach unten gebogenem Griffzapfen; schwarzbraun, rötlich gefleckt; H. 8,7; Wdg. 0,9 (Taf. 67,5). 3. Uber der Baalberger Amphore 2 Menschenzähne. 4. Beim Bau des Kegels 35—40 Fragmente von Kornquetschern" verwendet.
+
+1., 2. Mus. Weimar Inv.-Nr. H 2038, o. Nr.; 3., 4. verschollen. Götze/Höfer/Zschiesche 1909, S. 123 f., 396 f.; Möller 1912 b; Mötefindt 1915, S. 46 ff.; Åberg 1918, S. 175; Kossinna 1922, S. 253; Niklasson 1925 a, S. 50 ff.; Grimm 1930, S. 22; Priebe 1938, S. 82 f., Taf. VIII e; Grimm 1940 a, S. 406; Mildenberger 1953, S. 32 f.; Fischer 1953 b, S. 168; 1956, S. 150 ff., 281, 294; Schrickel 1966 b, S. 407 f.; Preuß 1966, S. 171; Behrens 1973, S. 303; Matthias 1974, S. 150 ff., Abb. 19.
+
+215. Oberheldrungen. Fdpl. Kiesgrube am Kaliwerk. Mbl. 2745 (4733), N 9,1; W 18,7. Geländesit.: nach O fallender Hang einer Anhöhe.
+
+FA: G. Grube von 1,00 m Tiefe; ca. 0,50 m in anstehenden Kies und Lehm gesenkt. Funde: 1. BS einer unverz. (?) KA; dunkelgrau gefleckt; err. gr. Dm. über 20,0; Wdg. 0,7/0,8. 2. Erg. wT; am Hals eingeritzte Dreiecke, in Höhe der (Taf. 68,11). 3. Unverz. BS eines bauchigen Gefäßes (KA oder
+
+Handh. Fingernagelkerben und auf Schulter eingeritzte Fr.; dunkelgrau-rötlich gefleckt; H. 24,2; Wdg. 0,6/0,7; HBI 0,92 Sch); dunkelbraun; Wdg. 0,4 (Taf. 68,10) ; ein Getreidekornabdruck bestimmbar: Kümmerkorn von Gerste ? (n. Schwarze). 4. Feuersteinbeil mit dünner werdendem Nacken, nur Schneide überschliffen; hellgrau; L. 8,8; Schnbr. 3,7 (Taf. 68,12). 5. Fragmente vom Unter- und Oberkiefer eines Individuums;
+
+erwachsen/adult (Br.). 6. Nicht mehr eindeutig belegbar, ob zugehörig: Kieferreste, Wirbel und Rippen vom Rind. LM Halle HK 11400—11403, 11408; 6. verschollen. Götze/ Höfer, Zschiesche 1909, S. 112; Kossinna 1922, S. 255; Grimm 1930, S. 22; Priebe 1938, S. 78, Taf. XVIII c; Fischer 1956, S. 295; Mania 1966, S. 83, 120, Taf. IX,4,5; Behrens 1973, S. 304.
+
+Kreis Querfurt
+
+216. Langeneichstädt, OT Niedereichstädt. Fdpl. Zehnerhügel. Mbl. 2678 (4636). Geländesit.: u.
+
+FA: G. 1864 bereits von T. Scheppe ,ausgegraben". In ca. 5,00 m hohem, langovalem Hügel von ca. 9,00 m L. und 3,50 m Br. teilweise versenkte rechteckige Steinkiste von ca. 3,50 1,30 × 1,30 m; N—S. Steinplattenabdeckung. Im S ca. 1,30 m langer Vorraum. Zugang zu Vorraum mit Steinplatte verstellt. Hinter der Verschlussplatte fand sich eine Schicht flacher Kalksteine, .. ., dahinter wieder eine grosse Platte, dann wieder eine gleiche Schicht kleinerer Steine, begrenzt von 2 Platten, und endlich eine letzte Steinschicht." Der Ubergang zur Hauptkammer war durch eine letzte Platte abgeschlossen, welche zugleich als Träger der Decke diente. Die Platte war jedoch nicht breit genug, den Eingang allein zu decken und es war ihr zu diesem Zweck eine Eichenbohle von fast 4' Höhe, 1 1/2' Breite und 2" Dicke zur Seite gestellt" (Scheppe 1867 bis 1887, S. 42 f.). In Kammer Reste dreier Individuen. Am N- und am S-Ende sassen oder lagen" jeweils ein Mann und in der Mitte angeblich ein ca. 13—14jähriges Mädchen, letzteres auf Eichenbohle. Beigaben: 1. In beiden Ecken der NSeite und bei Bestattung des Mädchens 3 einander ähnliche" Gefäße; eine KA mit Hals-Schulter-Kehle erh.; am Hals unter eingeritzter Winkellinie eingeritzte Rauten und auf Schulter eingeritzte Fr.gruppen; H. 17,0; HBI 1,00 (Taf. 84,20). 2. Dickn. Feuersteinbeil mit Holzschäftung aus Birkenholz von ca. 50,0 cm L.; allseitig geschliffen; schwarz; L. 10,2; Schnbr. 4,1 (Taf. 84,2). 3. Dickn. Feuersteinbeil; weiß-gelb; etwas kl. als das unter 2. beschriebene Beil. 4. Feuersteinklinge; weiß (Taf. 84,19). 5. Reste von dünnen zusammengehefteten und mit Bast verbundenen Brettern; bei Bergung zerfallen (Schild ?). 6. Kleinfunde: vor allem in den Ecken der Kammer zahlr. durchb. Tierzähne einer Kette (Taf. 84,5), Eberhauer, nicht mehr bestimmbarer Gegenstand aus Bernstein (Perle ?), Steinperle und Kupferröllchen (Taf. 84,16 bis 18).
+
+1., 2., 4., Teile von 6. Römisch-Germanisches Zentralmus. Mainz Inv.-Nr. O. 355—361, 363; Rest verschollen. Scheppe 1867—1887, S. 42 ff.; Lindenschmit 1870, Heft 8, Teil 1, Abb. 7, 9; Götze 1900 a, S. 158 f.; Götze/Höfer/Zschiesche 1909, S. 73; Mötefindt 1910, S. 350; Aberg 1918, S. 175; Kossinna 1922, S. 254; Grimm 1930, S. 22; Priebe 1938, S. 77, Taf. VIII d; Fischer 1956, S. 151 ff., 294; Schrickel 1966 b, S. 409; Behrens 1973, S. 304; Beier 1984, S. 136.
+
+Anm.: Meine Angaben (1984, S. 136) der Sekundärlit. entnommen. Der Originalbericht (Scheppe 1867—1887, S. 42 ff.) gibt dafür keine Bestätigung, daher obige Korrektur vorgenommen.
+
+217. Osterhausen, OT Sittichenbach. Fdpl. Wallgebreith. Mbl. 2603 (4535), N ca. 16,0; W ca. 2,0. Geländesit.: flache Hanglage.
+
+FA: G. Bereits 1746 entdeckt und abgetragen, Versenkte, vermutlich rechteckige Steinkiste. Abdeckung fehlte. In ihr die Gerippe und Knochen von fünff Menschen, als 3 Köpfe gegen Abend und 2 Köpfe gegen Morgen" (J. D. Schäffer, zitiert bei Bierbaum 1929, S. 56) sowie 2 Gefäße. Eines beim Nachgraben zerscherbt. Knochen und Scherben sofort wieder eingegraben. Erh. blieb eine im südl. Bereich der Kammer stehende KA mit Hals-Schulter-Kehle; am Hals unter Winkelst. ausgespartes Rautenband aus Winkel-Bogenst. und auf Schulter unter Winkelst.(?)dreiecken eingeritzte Fr.gruppen mit Winkelst.abschluß; H. 15,0; HBI 1,00 (Taf. 69,7).
+
+Kriegsverlust (ehemals LM Dresden). Götze 1900 a, S. 159, 173 f.; Götze/Höfer/Zschiesche 1909, S. 84; Mötefindt 1915, S. 41, Abb. 1; Kossinna 1922, S. 255; Bierbaum 1929, S. 54 ff., Abb.; Grimm 1930, S. 22; Priebe 1938, S. 77; Fischer 1956, S. 150, 159 f., 259; Schrickel 1966 b, S. 419 f.; Behrens 1973,
+
+S. 304; Beier 1984, S. 137.
+
+218. Rothenschirmbach. Fdpl. Miethgraben. Mbl. 2603 (4535), N ca. 21,5; W ca. 12,0. Geländesit.: flache Anhöhe.
+
+FA: G. Versenkte rechteckige Kiste aus mehreren gr. und kl. Steinplatten von 2,70 × 0,75 × 0,56 m Größe im Lichten; O-W. Gepflasterter Boden in ca. 1,00 m Tiefe. In W-Hälfte der Kammer O(Schädel)-W-gerichteter linker Hocker mit Blick nach S und angewinkelten, zum Gesicht erhobenen Armen. In der O-Hälfte hinter dem Schädel standen: 1. KA mit Hals-Schulter-Kehle und gekehlten He.; am Hals unter aneinandergereihten groben imitierten Kreuzst. Winkelst.dreiecke und Dreiecke aus punktartigen Einst., auf Schulter unter 2 Punktst.reihen eingeritzte Fr.gruppen; begrenzt von längl. Einst.; grau, rötlich-schwarz gefleckt; H. 18,0; Wdg. 0,5/0,6; HBI 0,95 (Taf. 69,1). 2. Oberteil einer KA; am Hals eingeritzte Rauten und auf Schulter Winkelst.reihen; grau gefleckt; err. gr. Dm. 21,0; Wdg. 0,5 (Taf. 69,3). 3. wT; am Hals ausgespartes Rautenband aus Schnurlinien und auf Schulter unter punktartigen Einst. eingeritzte Fr.gruppen mit grobem imitiertem Winkelst.abschluß; dunkelgrau, rötlich und grau gefleckt; H. 21,8; Wdg. 0,8/0,9; HBI 0,82 (Taf. 69,4). Links neben den Unterarmknochen: 4. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; dunkelgrau gefleckt; L. 10,9; Schnbr. 6,4 (Taf. 69,2). 5. Feuersteinklinge; L. 5,0. 6. Schaber und Kratzer aus Feuerstein. 7. Hinter den Gefäßen (nahe der O-Wand?) Reste eines Schweineunterkiefers mit beiden Eckzähnen. 8. Skelettreste eines Individuums; matur-senil; männlich (Br.).
+
+Mus. Eisleben Inv.-Nr. 744-751; Schaber und Tierreste verschollen. Rühlemann 1934, S. 19 f.; Priebe 1938, S. 77, Taf. VIII a, f, XVI e; Fischer 1956, S. 150 ff., 295; Behrens 1973, S. 304.
+
+219. Schmon, OT Oberschmon. Fdpl. westl. beim Dorf an der Schlucht. Mbl. 2677 (4635). Geländesit.: am Rande einer Anhöhe oder abfallenden Hochfläche (?).
+
+FA: EvG. Aus zerstörten Skelettflachg. angeblich Steingeräte und Keramik. Ein Gefäß soll dem wT aus Mittelhausen (Taf. 66,12) ähnlich gewesen sein.
+
+Verbleib u.; angeblich in den Beständen des ehemaligen Mus. für Völkerkunde Berlin; dort aber nicht nachweisbar. Götze/ Höfer/Zschiesche 1909, S. 77; Kossinna 1922, S. 254; Grimm 1930, S. 22; Priebe 1938, S. 77; Behrens 1973, S. 304.
+
+## Kreis Merseburg
+
+220. Günthersdorf. Fdpl. 1. Kukelt'sche Sandgrube. Mbl. 2681 (4639), S 21,2: W 0,5. Geländesit.: hochwassergeschützte Anhöhe am Rande der Elster-Luppe-Aue.
+
+FA: Siedl. Mehrperiodiger Fdpl. a) Grube (Abb. 1,1). Unter dem Ackerhorizont eine 0,50--0,75 m starke Kulturschicht, darunter mehrere neolithische bis zu 1,00 m tiefe Gruben. Nur eine annähernd kreisförmige Grube von ca. 3,50 m Durchmesser mit flach schüsselförmigem Profil und einer annähernd senkrechten Vertiefung von ca. 0,50 m im Mittelpunkt (M. Näbe: Wohngrube mit in der Mitte liegender Herdgrube) genauer untersucht. Inhalt: 1. RS von KA oder wT; am Hals unter eingeritztem Zahnmuster Reihen eingeritzter Rauten; dunkelbraun; Wdg. 0,4/0,5 (Taf. 68,6). 2. RS eines wT mit wulstartiger Verdickung und Dreiecken aus Schnurlinien; schwarz; Wdg. 0,5 (Taf. 68,2). 3. RS eines wT mit Dreiecken aus Schnurlinien; dunkelbraun; Wdg. 0,5 (Taf. 68,3). 4. RS eines wT; unter kurzen senkr. Schnurfr. schachbrettartig angeordn., aus parallelen schräg verlaufenden Schnurlinien gebildete Rauten (Näbe 1908, Taf. II,5). 5. Gr. Bruchstück eines unyerz. wT (?) mit senkr. durchb. Ösenhe. (Näbe 1908, Taf. II,10). 6. RS einer Sch; unter Reihen aus kl. senkr. Einst. ausgespartes Winkelband aus gleichartigen Einst.; schwarz; Wdg. 0,5 (Taf. 68,4). 7. WS eines gr. TmhU (?) mit wulstartiger gekerbter Verdickung; dunkelgrau; Wdg. 0,6/0,7 (Taf. 68,8). 8. Bernburger WS mit von Dreiecken umsäumtem Schachbrettmuster (Näbe 1908, Taf. II,4). 9. Mehrere unverz. WS mit Osenhe., Knubben und gekerbten Rändern (Näbe 1908, Taf. II,9,12,15) ; kulturell nicht alle bestimmbar; einige eventuell postneolithisch. 10. Mehrere bandkeramische Scherben (Näbe 1908, Taf. II,8,11,13,14), wohl ältere Siedl.
+
+11. Zahlr. Reste gebrannten Lehms.
+
+Mus. Leipzig Inv.-Nr. V 2145, 2146, 2150, 2152, 2160; 4., 8. 11 sowie Teile von 9., 10. verschollen.
+
+b) EF. Für folg. Funde fehlen Angaben über ihre Lage. Einige eventuell zur Grube gehörig. Daher auf Vorlage der zahlr. Knochen- und Steingeräte verzichtet. 1. Größeres Bruchstück eines wT; am Hals und auf Schulter Dreiecke aus Schnurlinien sowie am Schulterübergang Fingernagelkerben; dunkelgrau gefleckt; err. H. ca. 25,0; Wdg. 0,5/0,6; HBI 1,00 ? (Taf. 68,1). 2. HaS einer KA mit Rauten aus unregelmäßigen längl. Einst.; dunkelbraun; Wdg. 0,5 (Taf. 68,7). 3. RS einer Sch mit Bogen-Winkelst.; schwarz; Wdg. 0,5 (Taf. 68,5). 4. Gewölbte Bernburger WS mit Schachbrettmuster aus Furchenst.linien; braun; Wdg. 0,5 (Taf. 68,9).
+
+Mus. Leipzig Inv.-Nr. V 2144, 2147, 2149, 2182. Näbe 1908, S. 12 ff., Fig. 25—44, Taf. II; Aberg 1918, S. 174; Kossinna 1922, S. 257; Niquet 1935 b, S. 127; Priebe 1938, S. 78; Behrens 1973, S. 303.
+
+221. Günthersdorf. Fdpl. an der Autobahn. Mbl. 2681 (4639). FA: vG. Keine weiteren Angaben. 1. Bruchstücke einer KA; am Hals Winkellinie aus Meißelst. und auf Schulter unter schrägstehenden, mit eingeritzten gegenständigen Linien verzahnte Meißelst. eingeritzte Dreiecke; dunkelgrau-bräunlich gefleckt; gr. Dm. 21,0; Wdg. 0,5 (Taf. 70,4). 2. Teilweise erg. wT; am Hals 2 Gitterbänder aus Schnurlinien und auf Schulter unter flachen runden-eckigen Einst. Schnurfr.gruppe, begrenzt von kurzen Schnureindrücken; graubraun gefleckt; H. 24,5; Wdg. 0,6/0,7; HBI 0,97 (Taf. 70,6). 3. Unverz. WS und ein gr. Bruchstück von Hals und Schulter eines wT; am Hals und Ubergang zur Schulter Dreiecke aus Schnurlinien; dunkelgrau-braun gefleckt; Wdg. 0,5/0,6 (Taf. 70,5) ; Kornabdruck von Roggen-Trespe (Schultze-Motel). 4. Ca. 12 Wochen später im Abraum gefunden, wohl zugehörig: dickn. Feuersteinbeil; Breitseiten überschliffen; grau, dunkel gefleckt; L. 8,5; Schnbr. 3,7 (Taf. 70,3).
+
+<!-- FREE:PAGE 22 -->
+LM Halle HK 36:213 a, b; 37:2. Priebe 1938, S. 78, Taf. XIX e; Hummel 1968, S. 62; Behrens 1973, S. 303.
+
+222. Merseburg. Fdpl. vor dem Gotthardtstor nahe dem Friedhof. Mbl. 2679 (4637).
+
+FA: EvG. 1736 beim Straßenbau. KA mit Hals-SchulterKehle; am Hals ausgespartes Rautenband aus Bogenst. und auf Schulter unter Bogenst.dreiecken eingeritzte Fr.gruppen mit bogenst.artigem Abschluß; H. 18,0; HBI 0,97 (Taf. 69,5). Verschollen (ehem. Slg. Caro; angeblich 1896 im Prähistorischen Mus. im Dresdener Zwinger).
+
+223. Zweimen, OT Dölkau. Fdpl. 1. Steinberg. Mbl. 2680 (4638), N 18,5; 0 2,3. Geländesit.: hochwassergeschützte Anhöhe am S-rand der Elster-Luppe-Aue.
+
+FA: G. Mehrperiodiger Fdpl. Teilweise gestörte Grube von 1,50 Dm. und 1,30 m Tiefe; vermutlich O—W. Befund: ein 4—5jähriges Rind zwischen bzw. westl. von 2 ca. 1,5jährigen Rindern, die einander zugewandt mit angehockten Extremitäten niedergelegt waren. Köpfe nach O. Zwischen den Rindern Skelettreste von 4 menschlichen Individuen, einzelne Tierknochen und Beigaben: 1. Erg. Bauch einer KA; auf Schulter zwischen kl. Einst. Furchenst.fr.gruppen; dunkelgrau-braun gefleckt; gr. Dm. 17,0; Wdg. 0,4 (Taf. 71,9). 2. Erg. Bauch einer KA; auf Schulter Dreiecke aus dreikantigen Einst.; schwarzgrau; gr. Dm. 16,0; Wdg. 0,5 (Taf. 71,6) ; kl. WS mit gleichartiger Dreieckszier wohl zugehörig (Taf. 71,2). 3. Reste vom Oberteil einer KA; am Hals und auf Schulter jeweils unter eingeritztem Gitterband Dreiecke aus dreikantigen Einst. bzw. eingeritzten Linien, Dreiecksreihen teilweise durch Schnurlinien voneinander getrennt; schwarzbraun; Wdg. 0,4 (Taf. 71,1); zugehörig zu dem auf Taf. 71,6 abgebildeten KA-Bauch (?). 4. wT; am Hals unter groben Bogenst.reihen gleichartige Dreiecke und auf Schulter Reihen senkr. Meißelst.; begrenzt von kommaartigen Einst.; grau, braunrötlich gefleckt; H. 13,8; Wdg. 0,6; HBI 0,95 (Taf. 71,4). 5. Erg. Sch; am Hals unter groben kommaartigen Einst. Dreiecke aus gr. Bogenst. und auf Umbug unter 2 Reihen senkr. Meißelst. grobe kommaartige Einst.; schwarzgrau gefleckt; H. 11,7; Wdg. 0,5; HBI 0,80 (Taf. 71,5) ; gleichartig verz. Umbruchscherbe wohl zugehörig (Taf. 71,7). 6. Erg. Sch; am Hals zwischen 2 eingeritzten Gitterbändern Dreiecke aus dreikantigen Einst. und im Bereich des Umbruches gleichartige Dreiecke; graubraun gefleckt; H. 10,3; Wdg. 0,5/0,6; HBI 0,53 (Taf. 71,8). 7. Erg. Sch mit leicht ausladendem Hals; am Hals zwischen groben kommaartigen Einst. Dreiecke aus gr. Bogenst. und auf Umbruch 2 Reihen grober kommaartiger Einst. ; dunkelgrau gefleckt; H. 9,3; Wdg. 0,5/0,6; HBI 0,74 (Taf. 71,15). 8. Trichterrandschüssel mit nebenständigen Osenhe. auf Umbruch; am Hals und auf Umbruch Dreiecke aus dreikantigen Einst.; am Hals durch feine Schnurlinie getrennt; schwarzbraun, hell gefleckt; H. 9,7; Wdg. 0,5/0,6; HBI 0,52 (Taf. 71,3). 9. Erg. kl. unverz. Napf mit 7 Füßchen; graubraun gefleckt; H. 5,2; Wdg. 0,3/0,4; HBI 0,78 (Taf. 71,11). 10. Erg. gleichartiger Napf; graubraun gefleckt; H. 4,6; Wdg. 0,3/0,4; HBI 0,74 (Taf. 74,12). 11. Pfriemartiges Gerät mit Gebrauchsglanz; oberes Ende ausgesplittert; L. 16,0 (Taf. 71,10), linke Tibia von Schaf/Ziege (Dö.). 12. Kl. vierkantiges, an beiden Enden zugespitztes Knochengerät (Doppelnadel ?, Knebel ?) ; L. 6,2 (Taf. 71,13). 13. Fragment eines zugespitzten Knochengerätes (Nadel ?); L. 7,7 (Taf. 71,14) ; Fibula vom Schwein (Dö.). 14. Skelettreste von 3 Rindern, ferner zahlr. postcraniale Knochen und Schädelreste eines sehr jungen (unter 1 Jahr)
+
+und eines älteren (über 2 Jahre) Schweines; linkes Beckenfragment eines Pferdes; Fragmente einer Scapula und eines Metatarsus von Schaf/Ziege; Fragmente von Radius und Ulna eines Schafes und einige kl. nicht bestimmbare Knochen (Dö.). 15. Skelettreste von 4 menschlichen Individuen; eines infans II (6—10 Jahre), 2 erwachsen (Br.).
+
+LM Halle HK 42:4 a-m, p, q. von Brunn 1942, S. 8f., Taf. 8,2; Otto 1949, S. 132; Fischer 1956, S. 157 f., 293; Weber 1964, S. 173; Behrens 1964 a, S. 98; 1973, S. 302, Abb. 49 a bis k.
+
+Anm.: Grabungsbericht von W. A. von Brunnyim Archiv des LM Halle verschollen.
+
+Kreis Weißenfels
+
+224. Goseck. Fdpl. u. Mbl. 2749 (4739) oder 2810. (4837). FA: EF. Altfund. Erg. unverz, wT mit 3 erh. He.; dunkelgraubraun gefleckt; H. 24,6; Wdg. 0,6/0,7; HBI 0,90 (Taf. 71,16). Mus. Naumburg o. Nr.
+
+225. Groβkorbetha. Fdpl. 4. SO des Fuchsberges. Mbl. 2750 (4738), N 13,5; W 3,0. Geländesit.: Rand des leicht abfallenden O-hanges einer kl. Hochfläche.
+
+FA: vG (Abb. 5,2). Am Rande des Plateaus längerer Abschnitt eines 1,00 m tiefen Spitzgrabens. Von W. A. von Brunn 1943 untersucht, enthielt keine datierbaren Funde, darüber im Humusbereich 2 verstürzte Stein-Schotter-Schichten. Deutung des Ausgräbers: Fundamentgraben einer verstürzten Holz-ErdeMauer. An einer Stelle Graben von trapezförmigem Plattenpflaster mit 1,50 m langen Seiten und Grundlinien von 1;00 und 1,50 m L. überdeckt; NW—SO; Pflaster unterbrach auch Stein-Schotter-Schichten. Nach Fundbericht in der OA Großkorbetha im LM Halle Reste einer zugehörigen Toranlage. Ebensogut möglich ist Annahme einer stratigraphisch jüngeren Position der Plattenschicht und ihre Deutung als Sohle eines zerstörten Steinkisten(?)gr.; frühgeschichtliche Skelettg. erschweren Interpretation der Fundverhältnisse. In einem G auch Scherben der KAK. Annahme: Zerstörung der neolithischen Befunde (befestigte Siedl. bzw. Steinkisteng. über älterer Siedl.) bereits in frühmittelalterlicher Zeit.
+
+a) Funde im Bereich des Pflasters: 1. Gr. Bruchstück eines unverz. Napfes mit trichterbecherartigem Rand und nebenständigem He.paar auf Umbug; dunkelgrau gefleckt; gr. Dm. 8,0; Wdg. 0,4 (Taf. 70,12). 2. HeS einer KA mit Schnurfr. auf Schulter; schwarzbraun gefleckt; Wdg. 0,3 (Taf. 70,9). 3. Reste von Hals und Umbruch einer Sch mit senkr. durchb. Ösenhe. auf Umbruch; am Hals unter Schnurlinien eingeritzte, mit kurzen Einst. gefüllte Dreiecke und Reihen gleichartiger Einst. sowie auf Umbruch gleichartige Dreiecke; dunkelgraurötlich gefleckt; Wdg. 0,3/0,4 (Taf. 70,8,10). 4. 4 unverz. WS und Rest eines breiten Bandhe. von Bernburger (?) Gefäß; schwarzbraun; Wdg. 0,5 (Taf. 70,11). 5. Kl. atypischer Feuersteinabschlag; grau. 6. Knochenpfriem; L. 11,2 (Taf. 70,13) ; distales Tibiafragment von Schaf/Ziege (Dö.). 7. 6 kl. unbestimmbare Knochenfragmente.
+
+LM Halle HK 43:74 a—e.
+
+- b) EF aus frühgeschichtlichem G. Zwischen den Skelettresten: 1. RS eines wT; unter aneinandergereihten Rauten eingeritzte Rauten; graubraun; Wdg. 0,5 (Taf. 70,7). 2. Dazugehörige unverz. WS.
+
+LM Halle HK 43:75 c. Otto 1949, S, 132, Taf. XXV,2—5; Fischer 1956, S. 151, 294; Behrens 1973, S. 303.
+
+226. Prittitz. Fdpl. u. Mbl. 2810 (4837).
+
+FA: G. Altfund. Bei einem Hocker, Schädel N, zahlr. Scherben; wohl Reste der Beigaben. 1. Reste wT (stilistisch mit den sog. kujawischen Amphoren der östl. Gruppen der KAK vergleichbar); 2 He. erh.; relativ enge Mdg.; am Hals unter Schnurlinien Reihen kl. senkr. rechteckiger Einst. und auf Schulter unter gleichartiger Einst.reihe eingeritzte mit Punktst. gefüllte Dreiecke; dunkelgrau, rötlich und braun gefleckt; Bdm. 7,2; Wdg. 0,6 (Taf. 70,1). 2. 3 unverz. WS und 1 WS mit Knubbe eines Gefäßes unbestimmter Form; braun; Wdg. 0,7. 3. Unverz., sekundär gebrannte WS; grau-gelb. 4. Kl., mit eingeritzten Linien verz. braune RS (bronzezeitlich ?).
+
+Mus. Berlin Inv.-Nr. Ig 2983. Götze/Höfer/Zschiesche 1909, S. 360; Kossinna 1922, S. 256; Priebe 1938, S. 79; Fischer 1956, S. 295; Behrens 1973, S. 304.
+
+227. Prittitz, OT Plotha. Fdpl. in Nähe des TP 18,1. Mbl. 2810 (4837), N 22,0; O 23,0. Geländesit.: flach nach N fallender Hang.
+
+von 3,60  1,50× 1,60 m Gr. im Lichten; 0—W. Seitenwände aus 0,60—0,80 m hohen und 0,30 m starken Trockenmauern Schädel an westl. Schmalseite.O-Hälfte des Gfundleer (ältere Störung ?). Annahme, daß hier eine menschliche Bestattung gelegen habe (Behrens 1964 a, S. 101), nicht beweisbar. Funde: 1. Einzige geborgene Beigabe in der Grabmitte Reste eines WB mit verdicktem Rand und Fingertupfen zwischen Rand und Warzen; braun; Wdg. 0,5 (Taf. 70,2). 2. Von den Rindern nur einige Zähne erh.; Molaren eines 2 1/2—31/2jährigen und eines 5—7jährigen Rindes (Dö.).
+
+FA: G (Abb., 7,3). Von einer Steinpackung bedeckte Grube gebildet. In W-Hälfte der Grube Reste zweier Rinder. Lage: mit angehockten Extremitäten einander zugewandt; W—O;
+
+LM Halle HK 28:4 a, b. Fischer 1956, S. 157 f., 295; Behrens 1964 a, S. 101, Abb. 39; 1973, S. 304.
+
+Kreis Nebra
+
+228. Gleina. Fdpl. 4, Gleinaer Berg. Mbl. 2748 (4736), N 20,2; W 4,6. Geländesit.: am Rande einer Hochfläche mit SW-Steilabfall zur Unstrut.
+
+FA: EF. Innerhalb eines frühbronzezeitlichen und latènezeit-lichen G.feldes neolithische EF: RS von wT oder Sch mit Dreiecken aus Schnurlinien; dunkelgrau; Wdg. 0,4 (Taf. 71,17).
+
+LM Halle HK 26:628.
+
+229. Memleben, OT Wendelstein. Fdpl. 4. Mbl. 2746 (4734), N 9,3; 0 9,5. Geländesit.: nach S fallendes Gelände in Unstrut-Nähe.
+
+FA: G. 1,30 m tief Reste einer zerstörten Steinkiste aus Sand-
+
+steinplatten. In ihr Reste des Oberkörpers einer auf dem Rükken liegenden Bestattung; Arme auf Bauch; Blick O (?). Funde: Zu Füßen der Bestattung 1. KA mit Hals-SchulterKehle; am Hals eingeritzte Rauten und auf Schulter zwischen eingeritzten imitierten Kreuzst. eingeritzte Fr.; dunkelgrau, hell gefleckt; H. 19,5; Wdg. 0,5; HBI 1,08 (Taf. 72,5). 2. Reste einer gr. unverz. KA; braun-grau und rötlich gefleckt; H. 29,5; Wdg. 0,6; HBI 1,02 (Taf. 72,3). 3. An rechter Hüfte ein dickn. Feuersteinbeil mit schmaler werdendem Nacken; Breitseiten überschliffen; dunkelgrau. gefleckt; L. 10,5; Schnbr. 5,0 (Taf. 72,4). 4. Menschliche Skelettreste.
+
+Mus. Freyburg Inv.-Nr. IV 139, 140; 4. nicht auffindbar. Hoffmann 1965 b, S. 242, Abb. 1 a-c; Behrens 1973, S. 305, Abb. 47 a-c.
+
+Kreis Naumburg
+
+230. Bad Kösen, OT Kukulau. Fdpl. u. Mbl. 2809 (4836).
+
+- FA: EF. Keine weiteren Angaben. Kl. unverz. ·napfärtiger WB mit kreuzständigen Knubbenpaaren; grau-schiwarz; H. 7,0; HBI 1,00 (Taf. 72,2).
+
+Verschollen (ehemals Slg. Kirsche, Thalwinkel).. Priebe 1938, S. 78; Behrens 1973, S. 303.
+
+231. Bad Kösen, OT Saaleck. Fdpl. u. Mbl. 2809 (4836).
+2. FA: EF. HaS einer Sch; am Hals Dreieck aus Schnurlinien und
+3. auf Umbruch durch längl. Einst. imitierte Kreuzst.; schwarz; Wdg. 0,5 (Taf. 72,1).
+
+Mus. Naumburg Inv.-Nr. 318.
+
+232. Görschen, OT Scheiplitz. Fdpl. Kiesgrube in den Kiefern. Mbl. 2810 (4837), S 9,8; W 21,2. Geländesit.: am W-rand einer Hochfläche.
+
+FA: Siedl. Unter Siedl.schicht ein rechteckiger, nur gering eingetiefter, bereits an der S-Seite teilweise abgestürzter Hausgrundriß von ca. 8,00 m L. Keramik gehört in das. frühe Mittelneolithikum (Salzmünde ?), zur KAK und in die frühe Bronzezeit; exakte kulturelle Zuweisung des Hauses, der gefundenen Feuersteinartefakte (Klingenfragmente, Abschläge) und Knochengeräte nicht möglich. Unter dem Haus eine runde Grube; beide können, aber müssen nicht gleichzeitig sein. Siedl.schicht von. einer endneolithischen Steinkiste gestört. Zur KAK gehören: 1. 3 RS eines wT; unter eingeritzten Winkellinien breite Zone aus schrägen Einst.; dunkelgrau gefleckt; Wdg. 0,4 (Taf. 72,12). 2. 4 HaS einer Sch; zwischen eingeritzten Winkellinien Bänder und Zonen aus kl. Einst.; dunkelgrau, rötlich-braun gefleckt; Wdg. 0,3 (Taf. 72,13). 3. HaS mit Schulteransatz von unverz. wT oder TmhU;·dunkelgrau gefleckt; Wdg. 0,4. 4. Unverz. HeS einer KA (?); dunkelgrau; Wdg. 0,5. Wohl ebenfalls zur KAK gehörig: 5. 2 RS eines gr. Gefäßes mit ausladendem Rand, randständiger Fingerkniffleiste und durch wechselseitige Fingertupfen herausgearbeiteter, plastischer Welle; grau; Spuren dunkler Bemalung; Wdg. 0,6 (Taf. 72,11). 6. WS mit kl. He,öse; darunter 3 kl. Kerben; rötlich-dunkelgrau; Wdg. 0,5. 7. Kl. dickn. poliertes Felsgesteinbeil; grau; L 6,0; Schnbr. 3,2. 8. KI. unverz. WS mit Knubbe; gelbbraun; Wdg. 0,5 (wohl Bernburger Kultur). 9. Reste eines unverz. Topfes mit umgelegtem, gekerbtem . Rand (wohl Salzmünder Kultur) ; Wdg. .0,5 (Taf. 72,10). 10. Aus der Grube unter dem Haus spatelähnliches bearbeitetes Knochengerät (Taf. 72,14) ; Metätarsus vom Reh (Dö.) und trapezförmiges dickn. Steinbeil. Letzteres deutet auf frühe Zeitstellung. LM Halle HK 73:228, 229, 231.
+
+233. Molau, OT Aue. Fdpl. am Schkölener Weg im linksseitigen Straßengraben. Mbl. 2872 (4936). Geländesit.: nach-SO fallend.
+
+FA: G. Keine weiteren Angaben. Beigaben: 1. Gefäß mit abgesetztem Boden; Verz.: quadratische Schnittverzierung" und Kreuz-Schnittverzierung" am Bauchrand; grau; H. 20,9; Bauchdm. 11,3; HBI 0,83. 2. Unverz. WB mit 8 Warzen und nebenständigen He.ösenpaar (Form ähnlich wT; Heistellung wie Sch); grau gefleckt; H. 15,4; Wdg. 0,7; HBI 0,83 (Taf. 72,9).
+
+<!-- FREE:PAGE 23 -->
+2. Mus. Jena o. Nr. (Slg. Heim Inv.-Nr. 6) ; 1. verschollen
+
+(Slg. Heim Inv.-Nr. 7). Eckardt 1958 (Katalog), S. 9 (Text), S. 37, Taf. XXIII,4; Behrens 1973, S. 302.
+
+## Kreis Hohenmölsen
+
+234. Hohenmölsen. Fdpl. u. Mbl. 2811 (4838).
+
+FA: EF. Altfunde. 1. RS einer KA mit Rauten und Dreiekken aus punktartigen Einst.; schwarz; Wdg. 0,5 (Taf. 72,7). 2. RS und HaS eines wT; zwischen 2 Reihen schräger Meißelst. Winkellinien aus gleichartigen Einst. und auf Schulter imitierte Fr.gruppen aus Meißelst.; schwarz und graubraun; Wdg. 0,6/0,7 (Taf. 72,8). 3. Wohl ebenfalls zugehörig RS eines Gefäßes mit umgelegtem, ausladendem Rand; von Fingertupfenreihe begrenzt; schwarz; Wdg. 0,5 (Taf. 72,6). LM Halle HK 49:410. Behrens 1973, S. 303.
+
+235. Kistritz. Fdpl. Alte Lehmgrube. Mbl. 2810 (4837), S 2,5; 0 10,1. Geländesit.: flache nach 0 fallende Geländezunge. FA: Siedl. 2 im Querschnitt beutelförmige Gruben; Sohlen bei 1,50 m (Grube 2) bzw. 1,80 m (Grube 1) Tiefe. Nur Grube 1 teilweise untersucht. Inhalt: 1. 3 HaS und 1 SS eines wT; am Hals unter 3 Reihen kl. dreieckiger Einst. mindestens 10 Reihen gr. dreieckiger Einst. und auf Schulter eingeritzte mit gleichartigen Einst. gefüllte Dreiecke; schwarzgrau; Wdg. 0,6 (Taf. 75,16,17). 2. RS und SS eines unverz. TmhU; schwarzgrau; Wdg. 0,6/0,7 (Taf. 75,18). 3. Feuersteinmeißel; Breitseiten vermutlich sekundär ausgesplittert; grob überschliffen; dunkelgrau gefleckt; L. 8,2; Schnbr. 1,5 (Taf. 75,19). 4. Kratzer aus Schneidenbruchstück eines Feuersteinbeiles; hellgrau; gr. Dm. 3,2 (Taf. 75,21). 5. Kl. Feuersteinklinge; dunkelgrau; L. 5,3 (Taf. 75,20). 6. Trapezförmiger Feuersteinabschlag; hellgrau; L. 2,4 (Taf. 75,22).
+
+LM Halle HK 84:1357 a—g.
+
+Anm.: In der Nähe der Gruben angeblich Grundrisse zweier
+
+eingetiefter Häuser, Untersuchung steht noch aus.
+
+236. Stöβen. Fdpl. im NW des Ortes. Mbl. 2810 (4837). Geländesit.: vermutlich Bereich einer Anhöhe.
+
+FA: G (Abb. 3,3). In der Nähe schnurkeramische G (Loewe 1959, S. 132). Nach Skizze in der OA Stößen im LM Halle N—S-gerichtetes G. Sohle in 1,25 m Tiefe. In Grube N(Schädel)-S-gerichteter, vermutlich rechter extremer Hocker mit Blick nach W. Nördl. hinter dem Kopf eine gr. und südl. des Beckens eine kl. KA. 1. KA mit gesacktem Bauch und leicht abgeplattetem Boden; am Hals unter Band aus kl. ovalen Einst. Rauten und auf Schulter imitierte Fr.gruppen aus gleichartigen Einst.; schwarzgrau, hell gefleckt; H. 26,7; Wdg. 0,6/0,7; HBI 1,12 (Taf. 73,9). 2. KA mit Hals-SchulterKehle und Schwalbenschwanzhe.; am Hals Bogenst.dreiecke; auf Schulter und unterhalb des He. zwischen Bogenst. eingeritzte Fr.gruppen; schwarz, grau gefleckt und am Bauch graubraun; H. 18,2; Wdg. 0,5; HBI 0,98 (Taf. 73,8). 3. Stark zer-
+
+gangene menschliche Skelettreste, Schädel erh.; eher weiblich als männlich; adult (Br.).
+
+LM Halle HK 13:1053-1055. Kossinna 1922, S. 256; Priebe 1938, S. 79, Taf. II a, b; Fischer 1956, S. 295; Behrens 1973,
+
+S. 305.
+
+237. Teuchern. Fdpl. u. Mbl. 2811 (4838).
+
+FA: EF. Altfund. RS eines wT; am Hals zwischen 2 Schnurlinien eingeritzte schräge Striche; darunter grobe dreikantige Einst.; schwarz; Wdg. 0,6 (Taf. 75,5).
+
+Studienslg. des Wiss.ber. Ur- und Frühgesch. Martin-LutherUniv. Halle-Wittenberg, Inv.-Nr. 183/51.
+
+238. Werschen, OT Oberwerschen. Fdpl. 1. Kiesgrube Stecher. Mbl. 2811 (4838), S 14,6—14,9; W 17,3—17,9. Geländesit.:
+
+Rand einer nach W leicht fallenden Anhöhe mit Steilabfall zum Rippachtal.
+
+- FA: mittelneolithische Siedl. Mehrperiodiger Fdpl.; stark Mittelneolithikum. Elemente der Salzmünder, der Bernburger und der KAK. Grabungsunterlagen teils verschollen. Gleichzeitigkeit zwischen den Bernburger und den Funden der KAK wahrscheinlich.
+- a) EF von 1929 (Mbl. 2811/4838, S 14,9; W 17,5). 1. ZahIr. Scherben der Bernburger Kultur; Bruchstück einer unverz. (?) bauchigen T mit breitem Bandhe. (Taf. 75,10). 2. HaS einer KA mit ausgespartem Rautenband aus Meißelst.; grau gefleckt; Wdg. 0,6 (Taf. 75,7). 3. Unverz. BS einer KA; grau, schwarz gefleckt; Wdg. 0,5. 4. WS eines Napfes mit gekerbtem Umbruch; braun; Wdg. 0,7 (Taf. 75,9). LM Halle HK 29:77.
+
+b) Ausgrabungen 1935-1937.
+
+- b) a. Mittelneolithischer Hausgrundriß (Abb. 2). Untersucht von W. Grimm 1935. Unter ca. 1,30 m mächtiger Humus- und Kulturschicht ein noch ca. 0,20 m in den anstehenden Lehm getiefter Grundriß; rechteckig mit abgerundeten Ecken; N—S. L. ca. 3,50 m; erh. Br. ca. 2,50 m. Im S Sohle weniger als im N eingetieft, Eingang (durch eine Vorhalle ?) eventuell an der S-Seite. Dunkel verfärbte Streifen längs der Seitenwände als Spuren einstiger Balkenlagen. Annahme eines Hauses in Blockbauweise. An der S-Schmalseite in 1,45 m Tiefe ovale Grube von ca. 1,25  1,00 m und noch 0,26 m Tiefe. Grube schneidet das Haus und scheint somit stratigraphisch jünger. Primärer Zusammenhang zwischen beiden Objekten nicht nachweisbar.
+
+b) a. 1. Grube: 1. 2 durchlochte RS. 2. Einige verz. WS, von LM Halle; nicht mehr identifizierbar, vermutlich mit ande-
+
+- denen eine zur KAK gehören soll. 3. Einige Tierknochen. ren Funden vermengt.
+- b) a. 2. Bereich des klar abgegrenzten Hausgrundrisses (1,35 bis 1,55 m Tiefe). 1. HaS eines wT (dazu WS aus Deckschicht) ; unter 2 Schnurlinien eingeritzte Rauten; graubraun gefleckt; Wdg. 0,5 (Taf. 74,1). 2. Umbruchscherbe eines TmhU (dazu WS aus Deckschicht) mit ovalen rechteckigen Einst.; dunkeleiner Salzmünder Sch (dazu Scherbe aus Deckschicht) ; beide passen an Sch, die aus ca. 15,00 m entferntem Salzmünder Grubenkomplex stammt. 4. 3 Bernburger WS mit Grifflappen. 5. Durchlochte WS. 6. Zahlr. unverz. neolithische Scherben; einige HeS, BdS und RS von Gefäßen mit konischen Hälsen. 7. Zahlr. Reste gebrannten Lehms. 8. 4 Bruchstücke
+- grau; Wdg. 0,6 (Taf. 74,2). 3. Kl. innenrandverz. Scherbe) einer Reibeplatte. 9. 13 Fragmente von Knochenpfriemen (u. a. Taf. 74,3). 10. Kl. Knochenmeißel; L. 5,7 (Taf. 74,4).
+
+11. 2 Eberhauerfragmente.
+
+LM Halle HK 60:74 a—g; 11. verschollen.
+
+- b) a. 3. Funde aus den Deckschichten über dem Haus. 1,35 m mächtige Kulturschicht wurde in 2 Etappen abgetragen nicht notwendig ist. 1. 5 RS eines wT (gehören zu unter b) a. 2. 1. aufgeführten wT — Taf. 74,1). 2. 3 Umbruchscherben eines TmhU (gehören zu unter b) a. 2. 2. aufgeführten TmhU
+2. (0—0,50 m und 0,50—1,35 m Tiefe). Keramische Reste aus beiden Schichten gehören teilweise zusammen, so daß Trennung -- Taf. 74,2). 3. HaS und RS einer KA mit Reihen langovaler Einst. unter 2 Schnurlinien; graugelb; Wdg. 0,5 (Taf. 74,17).
+4. HaS einer KA mit Winkelst.dreiecken; dunkelgrau gefleckt; Wdg. 0,3 (Taf. 74,5). 5. HaS einer KA mit eingeritzten Rauten; graubraun gefleckt; Wdg. 0,5 (Taf. 74,8). 6. SS einer KA mit 2 Punktst.reihen in der Hals-Schulter-Kehle; graubraun; Wdg. 0,5. 7. Reste eines wT; am Hals unter schrägen eingeritzten Strichen eingeritzte Rauten und auf Schulter eingeritzte Fr.gruppen; schwarzgrau-bräunlich gefleckt; Wdg. 0,7 (Taf. 74,7). 8. Reste eines wT; am Hals unter eingeritzter Winkellinie eingeritzte Rauten und auf Schulter zwischen schrägen Strichen eingeritzte Fr.gruppen; dunkelgrau-bräunlich gefleckt; Wdg. 0,7 (Taf. 74,10); ca. 10,00 m entfernte SS zugehörig! 9. 4 RS und WS eines wT mit eingeritzten Rauten unter Winkellinie; schwarz; Wdg. 0,6 (Taf. 74,14,15). 10. 2 HaS und 1 HeS eines wT; am Hals Reihen langovaler Einst. und auf Schulter Reihen gr. Punktst.; Wdg. 0,6/0,7 (Taf. 74,19,20). 11. HeS eines wT; mit senkr. Meißelst. und einer Winkellinie; dunkelgrau; Wdg. 0,6 (Taf. 74,21). 12. HaS mit He.ansatz eines wT mit eingeritzten Rauten; braun; Wdg. 0,5 (Taf. 74,6). 13. HaS eines wT mit ausgespartem, eingeritztem Rautenband; dunkelgrau; Wdg. 0,5 (Taf. 74,22). 14. Reste eines wT mit schrägen Kerben am Ubergang zur Schulter; schwarzgrau; Wdg. 0,7 (Taf. 74,16). 15. Reste eines wT mit plastischer Wulst unter dem Rand und flachen dellenartigen Eindrücken am Ubergang zur Schulter; schwarzgrau; Wdg. 0,7/0,8(Taf. 74,12). 16. Umbruchscherbe eines wT mit Meißelst.doppelwinkelreihe auf Schulter; Wdg. 0,6 (Taf. 74,32). 17. 3 Umbruchscherben eines wT (?) ; auf Schulter unter plastischer Fingertupfenleiste 2 Fingertupfenreihen; graubraun; Wdg. 0,6/0,8 (Taf. 74,18). 18. RS mit unförmigen Einst. unter eingeritztem Gitterband; rötlich-braun; Wdg. 0,5 (Taf. 74,29). 19. SS mit 2 Bändern aus eingeritzten, miteinander verzahnten Winkellinien; dunkelgrau; Wdg. 0,4 (Taf. 74,11). 20. 3 SS eines TmhU mit Fingertupfenreihe; dunkelgrau (Taf. 74,9). 21. Durchlochte RS eines Bernburger Siedl.gefäßes; schwarz; Wdg. 0,6 (Taf. 74,13). 22. Mehrere unverz. Bernburger Scherben mit breiten Bandhe., Warzen und Grifflappen. 23. Zahlr. RS von gr. unverz. Gefäßen mit konischen Hälsen. 24. Viele unverz. WS und BdS, größtenteils zu verz. Gefäßresten gehörig. 25. Wenige Scherben der Salzmünder Kultur; einige Scherben einer Opperschöner Kanne und einer innenrandverz. Sch (s. b) a. 2.3.). 26. Halber Spinnwirtel. 27. Zahlr. Reste gebrannten Lehms. 28. Zahlr. Feuersteinabschläge, einige Klingenfragmente und Kratzer sowie dreieckige Pfeilspitze. 29. Schneidenteil einer Felsgesteinaxt und eines -beiles. 30. Einige zerglühte Steine. 31. 2 durchb. Canidenzähne und 2 kl. durchb. Knochenplättchen. 32. Reste von 8 Knochenpfriemen, 3 Knochenmeißel und 3 spatelähnliche Glättinstrumente. 33. Geweihfragment. 34. Viele Tierknochen. 35. Postneolithische Scherben mit Schlickrauhung und Besenstrichverz. sowie bronzezeitliche Rollenkopfnadel; diese Funde vor allem im Bereich 0—0,50 m Tiefe.
+
+LM Halle HK 60:72,73.
+
+- b) a. 4. Fläche südl. des Hauses. 5,00 × 3,50 m gr. Fläche, in 1,30 m starker Kulturschicht vor allem Bernburger Scherben sowie wenige spätneolithische und mehrere postneolithische Scherben. Laut Bericht auch KAK-Scherben (verschollen). Mehrere Steingeräte, Feuersteinartefakte, Tierknochen-
+2. geräte, Tierknochen, Hüttenlehm und Bronzepfriem. LM Halle HK 60:70,71.
+- b) a. 5. EF des Jahres 1935. 1. Schneide eines dickn. Feuersteinbeiles; Breitseiten sorgfältig überschliffen; grau gefleckt. 2. SS eines wT (gehört zu unter b) a. 3.8. aufgeführten wT — (Taf. 74,10).
+
+LM Halle HK 60:67 g, 69 b.
+
+- b) b. Grabung G. Voigt 1936. Nördl. des Hausgrundrisses am Kiesgrubenrand 9 Sondagen (Flächen I—IX). Mehrere neolithische Gruben, von denen keine mit Sicherheit zur KAK gehört. Folg. EF KAK:
+- b) b. 1. Flächen IV/V. Ca. 7,00 × 2,00 m gr. Fläche, 30 m nördl. des Hauses. In 0,20 m starker Kulturschicht: 1. postneolithische Scherben, wenige Bernburger Scherben (Taf. 74,23), Reste einer Ammenslebener Sch (Taf. 74,24), einige Feuersteinabschläge, Kratzer, gr. Menge Lehmbewurf und viele Tierknochen. 2. Reste eines wT; am Hals Dreiecke und Rauten aus Bogen-Winkelst. und auf Schulter unter Winkel-Bogenst.reihen Fr.gruppen aus Meißelst.reihen mit Bogenst.abschluß; dunkelgrau; Wdg. 0,6 (Taf. 74,28). 3. SS mit einer Reihe dreikantiger Einst.; gelbgrau; Wdg. 0,4.
+
+LM Halle HK 60:107 b, 108 b.
+
+- b) b. 2. Fläche IX: Ca. 5,00 × 3,00 m gr. Fläche, ca. 1,00 m östl. Fläche V. Gekehlte HeS einer KA; oberhalb des He. kommaartige Einst. und darunter senkr. Meißelst.; dunkel-
+2. grau-braun; Wdg. 0,5 (Taf. 74,26).
+
+LMHalle HK 60:131 a.
+
+- b) b. 3. Fläche III: Ca. 60,0 m nördl. des Hauses. In einer 0,15 m starken Kulturschicht: 1. Bernburger Scherben. 2. Hakkenartig abgeflachtes Sandsteinbeilchen; L. 7,0. 3. Mehrere Feuersteinklingen, gebrannte Lehmbrocken und einige Tierknochen. 4. SS mit He. einer unverz. KA; schwarzgrau; Wdg. 0,4.
+
+LM Halle HK 60:106 a. .
+
+- b) b. 4. Fläche VIII: Innerhalb einer früheisenzeitlichen kreisförmigen Wohnanlage ca. 80,0 m nördl. des Hauses einige neolithische Gruben. Inhalt: meist unverz. WS, Feuersteinartefakte und Tierknochen. Neben der Grube 4 SS eines wT; unter Gitterband aus Furchenst.linien kurze Furchenst.fr.; begrenzt von dreikantigen Einst.; schwarz; Wdg. 0,7.
+
+LM Halle HK 60:115 f.
+
+- b) b. 5. EF von 1936: 1. HeS unverz. KA; schwarzgrau; Wdg. 0,5 (Taf. 74,25). 2. 2 senkr. durchb. Ösenhe. von gr. un-
+
+verz. (?) Sch (?) ; braun-grau gefleckt; Wdg. 0,5.
+
+LM Halle HK 60:133 a, d.
+
+- b) c. Grabung von F. Niquet 1936.
+- b) c. 1. Fläche ca. 25,0 m nördl. des Hauses; 1,50 × 10,00 m gr. Fläche. Lage unmittelbar südl. der Flächen V und IX. Dort gestörte, im Grundriß runde Grube von ca. 1,80 m Dm. und 0,50 m Tiefe untersucht. Inhalt: 1. Umbruchscherbe einer Sch; unter schmalem eingeritztem Gitterband kurze eingeritzte Fr.; grau; Wdg. 0,4 (Taf. 75,6). 2. Kl. RS mit parallelen Schnurlinien. 3. Mehrere unverz. WS. 4. Gebrannter Lehmbewurf. 5. Abgebrochene Spitze eines Knochenpfriemes.
+6. Einige Tierknochen.
+
+LM Halle HK 60:135 a—e.
+
+- b) c. 2. Gr. Fläche östl. der Grabungen von W. Grimm und G. Voigt: Ca. 30,0 m nordöstl. vom Haus und 5,0 m östl. der unter b) c. 1. beschriebenen Grube zusammen mit Funden anderer Perioden folg. Scherben der KAK als EF: 1. Kl. HaS mit eingeritzten Rauten; dunkelgrau Wdg. 0,7 (wie Taf. 74,14). 2. Fragment einer Sch; am Hals Reihen kl. aus jeweils 2 kommaartigen Einst. gebildeter Rauten und auf Schulter Fr.gruppen aus Doppelreihen eingeritzter Linien; grauschwarz; Wdg. 0,5 (Taf. 74,33). 3. RS einer Sch; unter punktartigen Einst. ausgespartes Rautenband aus mit unförmigen Einst. gefüllten Dreiecken und eingeritzten, mit Schnurlinien gefüllten Rauten; graubraun; Wdg. 0,5 (Taf. 74,34). 4. RS einer Sch mit konisch gewölbter Wandung (!); am Innenrand unter
+
+<!-- FREE:PAGE 24 -->
+Bogenst.reihen eingeritztes Gitterband; braun-rötlich gefleckt; Wdg. 0,5 (Taf. 74,27). 5. Eventuell auch KAK: RS eines bauchigen Gefäßes mit nach außen gebogener Randlippe und Abdruckrauhung; braun gefleckt; Wdg. 0,5 (Taf. 74,30). 6. Ca. 35,0 m im ONO des Hauses Umbruchscherbe einer Sch; am Hals Dreieck aus Schnurlinien und auf Schulter zwischen 2 Schnurlinien Schnurfr.gruppen; darunter eine Schnurwinkellinie; schwarz; Wdg. 0,5 (Taf. 74,31). 7. Ca. 25,0 m im ONO des Hauses RS; unter Schnurlinie Schnurfr.gruppe; dunkelgrau-gelblich gefleckt; Wdg. 0,4 (Taf. 74,35). 8. Ca. 5,0 m östl. des Hauses SS einer KA mit imitierten Fr.gruppen aus punktartigen-unförmigen Einst.; schwarz; Wdg 0,5 (Taf. 74,36).
+
+LM Halle HK 60:169 a, 171 a, 172 r, 173 f, o, 176 a, 180 o. b) d. Grabung von G. Mildenberger 1937: Im SO der unter b) c. 2. angeführten Fläche ca. 20,0 m im SO des Hauses kl. Sondage.
+
+Funde: 1. Salzmünder, Bernburger und postneolithische Scherben. 2. RS einer Sch; unter Rand Wickelschnurlinie (!) und am Hals Rauten aus Meißelst. (?); braun; Wdg. 0,5 (Taf. 74,37). 2 HaS; unter kl. auf Lücke angeordn. eingeritzten, mit sich kreuzenden Linien gefüllten Rauten Winkellinie aus Meißelst.; schwarz; Wdg. 0,5. LM Halle HK 60:361 b.
+
+- c) EF von 1958 (Mbi. 2811/4838, S 14,6; W 17,7) : Bei Untersuchung eines völkerwanderungszeitlichen Reihengr.feldes auch zahlr. Bernburger Scherben und in Quadrant 24 d in 0,35 m Tiefe eine HaS einer KA mit eingeritzten Rauten; dunkelbraun; Wdg. 0,5 (Taf. 75,8).
+
+Mus. Zeitz Inv.-Nr. III/64/100/IX. Niquet 1935 a, S. 125 f.; 1935 b, S. :126 f., Abb. ; Priebe 1938, S. 79; Grimm 1940 a, S. 408; Mildenberger 1953, S. 70; Schlette 1958, S. 112; Weber 1964, S. 168f.; Behrens 1973, S. 121, 304.
+
+## 239. Zembschen. Fdpl. u. Mbl. 2811 (4838).
+
+ste von: Beigefäßen: 1. 2 HaS mit He. einer .unverz. KA; schwarz; Wdg. 0,7 (Taf. 75,3). 2. HaS mit He. einer KA; am Hals unter schrägen längl. Einst. kl. rautenartige Muster aus gleichartigen Einst. (Taf. 75,2). 3. RS; unter schrägen Meißelst. (?): eingeritzte (?) Rauten (Taf. 75,1). 4. RS; unter 2 Reihen winkelst.artiger (?). Einst. eingeritzte, mit Stichen gefüllte Rauten (Taf. 75,4).
+
+FA: EvG. Nach.M. Wilcke (1921, S. 54) zerstörte Flachgr. Re-
+
+1. Mus. Zeitz Inv.-Nr. III/64/62 a, b (ehemals Slg. Wilcke) ; 2.—4. verschollen. Wilcke 1921, S. 54, Abb. 21 o; Kossinna
+
+1922, S. 256; Priebe 1938, S. 79; Behrens 1973, S. 305.
+
+## Kreis Zeitz
+
+240. Bornitz, OT Unterbornitz. Fdpl. u. Mbl. 2874 (4938) oder
+
+2875 (4939).
+
+FA: G. Vor 1867. Angeblich aus G.hügel. 1. Beschädigte unverz. KA; graubraun, schwarz und hell gefleckt; erh. H. 15,4; Wdg. 0,5/0,6; HBI 1,04 ? (Taf. 73,10). 2. Defektes, nicht weiter beschriebenes Gefäß. 3. Feuersteinwaffe. 4. Mehrere Knochen.
+
+S, 45; Priebe 1938, S. 79; Behrens 1973, S. 305.
+
+1. Mus. Altenburg. Inv.-Nr. 529; Rest verschollen. Kossinna 1922, S. 257; Amende 1922, S. 139, Taf. IX,2; Auerbach 1930,
+241. Langendorf. Fdpl. Weinberg. Mbl. 2875 (4939), N 3,7;
+
+FA: G. Vermutlich 2 zerstörte Flachg. a) Grab 1" (Funde
+
+- O 14,2. Geländesit.: Hangbereich einer Anhöhe.
+
+1939). Im Sandgeröll der Sandgrube auf dem Weinberg ein Gefäß mit einem Gebiß und Skelett (? Knochen)" (Haubner, OA Langendorf im LM Halle) : 1. Unverz. KA mit abgeplat tetem Boden; dunkelgrau gefleckt; H. 14,8; Wdg: 0,5/0,6; HBI 1,00 (Taf. 73,3). 2. Vermutlich menschliche Skelettreste. 1. LM Halle HK 43:67; 2. nicht geborgen.
+
+LM Halle HK 43:68 a—f. Otto 1949, S. 132; Fischer 1956, S. 160, 294; Behrens 1973, S. 303.
+
+b) Grab 2" (Funde 1943). Teilweise abgestürzte, noch 1,50 m lange, dunkel verfärbte Grube; O—W. Sohle in ca. 0,90 m Tiefe. In W-hälfte Reste eines Schädels. Bei diesem vermutlich Gefäß und Feuersteingerät; ein zweites Gefäß angeblich in O-hälfte. Lage der übrigen Feuersteinartefakte u. Funde: 1. Erg. Sch; am Hals unter Reihe miteinander verzahnter kl. dreikantiger Einst. Reihen ovaler punktartiger Einst. und auf Umbruch Schnurfr., begrenzt von ovalen punktartigen Einst.; dunkelgrau-braun gefleckt; H. 10,7; Wdg. 0,5/0,6; HBI 0,60 (Taf. 73,2). 2. Unverz. an einen Trichterbecher erinnernde T mit randständigem He.; braun gefleckt; H. 10,9; Wdg. 0,5; HBI 0,81 (Taf. 73,1). 3. Dickn. Feuersteinbeil; an Breitseiten überschliffen; grau gefleckt; L. 9,7; Schnbr. 4,7 (Taf. 73,5). 4. Rohstück eines Feuersteinmeißels; ungeschliffen; braun gefleckt; L. 10,6; Schnbr. 0,9 (Taf. 73,4). 5. Feuersteinklingenfragment mit kl. Seitenretuschen; dunkelgrau; erh. L. 4,2 (Taf. 73,6). 6. atypischer Feuersteinabschlag; dunkelgrau gefleckt; L. 6,7 (Taf. 73,7). 7. Geringe menschliche Skelettreste; anthropologisch nicht bestimmbar (Br.).
+
+Anm.: Nach Haubner Funde von 1943 ,an. derselben Selle"
+
+wie Funde von 1939. Angaben könnten darauf hindeuten, daß alle Funde zu einem Grab gehören dürften,
+
+Bezirk Erfurt
+
+## Kreis:Sondershausen
+
+242. Niederspier. Fdpl. südl. der Fasanerie. Mbl. 2743 (4731), N ca. 7,3; W ca. 2,6. Geländesit.: flacher nach NO fallender
+
+FA: G. Rechteckige Steinkiste von 1,50 × 1,00 × 0,70 m im Lichten; O—W; gepflasterter Boden in 1,50 m Tiefe, geneigt wie das Hangprofil; gr. Deckplatte. In O-Hälfe der Kammer angeblich schlecht erh. Hocker. In W-Hälfte 2 Gefäße: 1. Reste einer verz. KA; am Hals häng. Dreiecke aus Schnurlinien und auf Schulter imitierte Fr. aus senkr. meißelartigen Einst.; graubraun-schwarz gefleckt, Wdg. 0,5 (Taf. 75,11). 2. Reste eines verz. wT; am Hals häng. Dreiecke und rautenartige Gebilde aus Schnurlinien und auf Schulter Schnurfr. (?) ; dunkelgrau-rötlich gefleckt; Wdg. 0,6/0,7 (Taf. 75,12). 3. Bei Skelett ein bearbeiteter Eberhauer. 4. Nordisches" Feuersteinbeil; L. 13,0. 5. Skelettreste eines menschlichen Individuums. Mus. Sondershausen Inv.-Nr. II 404 VK 139; 4. verschollen. Götze/Höfer/Zschiesche 1909, S. 182; Caemmerer 1940, S. 15 f., Abb. 13; Fischer 1956, S. 150, 156, 294; Behrens 1973, S. 304; Müller 1976, S. 224, Abb. 2 a, b.
+
+Hang.
+
+243. Oberbösa. Fdpl. Ordensholz. Mbl. 2744 (4732), N 3,2; W 0,5. Geländesit.: flacher nach S fallender Hang.
+2. FA: EF. Zusammen mit linienbandkeramischer uņd Bernbur-
+3. ger Keramik eine mit 2 Bogenst.reihen verz. HaS (?) gefunden (Taf. 75,13).
+
+S. 224, Abb. 3 d.
+
+Mus. Weimar o. Nr. Müller 1975 a, S. 153, Abb, 6,11; 1976,
+
+244. Otterstedt. Fdpl. Müllersplan. Mbl. 2743 (4731), N 9,8; schwarz; H. 18,7; Wdg. 0,5; HBI 1,04 (Taf. 76,3). 2. Verz, gr. W 17,7. Geländesit.: flach nach W fallender Hang. HaS mit He. eines wT; zwischen Winkel-Bogenst.reihen häng.
+
+LM Halle HK 13886 a, b (Leihgabe an Mus. Mühlhausen). Schmidt 1894, Abb. 24; Götze 1900 a, S. 161; Götze/Höfer/ Zschiesche 1909, S. 172, Taf. II,23; Aberg 1918, S. 175; Kossinna 1922, S. 255; Priebe 1938, S. 83, Taf. XXVII d; Bach/ Barth 1966, S. 184, Taf. LXI,2; Behrens 1973, S. 303; Müller 1976, S. 224, Abb. 2 k.
+
+Dreiecke; braun; Wdg. 0,5/0,6 (Taf. 76,2).
+
+248. Niederdorla. Fdpl. bei der Grundmühle. Mbl. 2801 (4828), N 16,6; 0 16,8. Geländesit.: kl. spornartige Anhöhe. FA: EF. Auf mehrperiodigem Fdpl. kl. HaS mit schachbrettartig angeordn. Rauten aus meißelartigen Einst.; dunkelbraun; Wdg. 0,7 (Taf. 75,14).
+
+Mus. Mühlhausen Inv.-Nr. III/73/8. Müller 1976, S. 224,
+
+Abb. 3 e.
+
+249. Reiser. Fdpl. Lindeloh. Mbl. 2740 (4728), N 22,5; 0 7,7. Geländesit.: Hang einer kl. nach W fallenden Geländezunge. FA: EF. Lesefunde: 1. HaS einer KA mit eingeritzten Rauten; grau-braun; Wdg. 0,4 (Taf. 75,15). 2. RS eines wT mit Gruppen bzw. Reihen grober nach unten geöffneter Bogenst.; grau; stark verwittert; Wdg. 0,7. 3. RS mit wulstartiger Verdickung und darauf befindlicher Tupfenreihe (zur KAK gehörig ?) ; rot mit schwarzen Flecken; Wdg. 0,9/1,1. Mus. Mühlhausen Inv.-Nr. III/56/23. Bach/Barth 1966, S. 184, Abb. 1; Behrens 1973, S. 304; Müller 1976, S. 225.
+
+## Kreis Bad Langensalza
+
+250. Gräfentonna. Fdpl. Lohberg. Mbl. 2803 (4830), S 1,6 bis 4,5; W 15,0—25,0. Geländesit.: langgestreckter spornartiger Höhenrücken mit Steilabfall zur Unstrut im N und zur Tonna im W. FA: EF (vermutlich aus Siedl. der Bernburger Kultur). Lesefunde auf mehrperiodigem Fdpl.: 1. RS mit eingeritzten Rauten unter Gitterband; Wdg. 0,5 (Taf. 76,8). 2. HaS eines wT (?) mit eingeritzten Rauten; Wdg. 0,6 (Taf. 76,9). 3. SS mit eingeritzten häng. Dreiecken und Punktst.füllung (Taf. 76,7). 4. Mehrere abdruckgerauhte WS (gehören zumindest in den Bernburger Horizont).
+
+Mus. Weimar o. Nr. (ehemals Slg. Reich). Müller 1976, S. 221, Abb. 3 a, b; Lappe 1977, S. 164 f., Abb. 3 c.
+
+251. Nägelstädt. Fdpl. Bornhög. Mbl. 2803 (4830), S 2,3—2,8; W 13,1—13,7. Geländesit.: Anhöhe zwischen Tonna und Unstrut.
+
+FA: EF (vermutlich aus Siedl. der Bernburger Kultur). Lesefunde und Altfunde von unzureichend dokumentierten: Ausgrabungen: 1. RS mit häng. Dreiecken aus Furchenstichlinien; grau; Wdg. 0,4 (Taf. 76,16). 2. WS mit wulstartiger Verdikkung auf Umbug (?); am Hals Reste häng. Dreiecke und
+
+Einst.reihe und auf Wulst zwischen imitierten Kreuzst. Fr. aus Meißelst.; gelb-grau; Wdg. 0,6 (Taf. 76,15).
+
+Mus. Erfurt Inv.-Nr. V 957, 960. Bücke 1980 (Text), S. 56, (Katalog) S. 20, 32, Taf. 16,4; 26,7.
+
+## Kreis Sömmerda
+
+- 2  )      7: O 0,2. Geländesit.: flache Anhöhe.
+- FA: G (Bestattung in Bernburger Kollektivg. ?). Sichergestellte Funde aus einer Raubgrabung. Befund: Mit Lehm ab-
+
+FA: G (Abb, 4,4). Leicht ovale Kiste aus Muschelkalksteinplatten von 1,45 × 0,75 × 0,40 m im Lichten;0—W. Plattenfußboden in ca. 1,25 m Tiefe; gr. Deckplatte, auf der kl. Platten lagen. In Kammer angeblich O(Schädel)-W-gerichteter Hocker (?) ; Schädel mit Blick nach S ruhte auf Kalksteinplatte. Am Kopf 2 KA: 1. Verz. KA; am Hals Dreiecke und Rauten aus Schnurlinien und auf Schulter zwischen Einst. eingeritzte Fr.gruppen; grau-schwarz gefleckt; H. 19,9; Wdg. 0,5/0,6; HBI 1,04 (Taf. 75,26). 2. Etwas erg. verz. KA; am Hals rautenartige Gebilde aus Schnurlinien und auf Schulter zwischen Einst. eingeritzte Fr.gruppen; grau-schwarz gefleckt; H. 13,8; Wdg. 0,5/0,6; HBI 0,94 (Taf. 75,23). 3. In der Mitte" der Kammer etwas erg. unverz. wT; schwarz-grau gefleckt; H. 21,3; Wdg. 0,6/0,8; HBI 0,99 (Taf. 75,25). 4. Auf der Brust" dickn., an Breitseiten überschliffenes Feuerstein-
+
+beil; L. 11,2; Schnbr. 4,7 (Taf. 75,24).
+
+II 193 VK 162, II 34 Vw 79. Skelettreste nicht geborgen. Kahlke 1957, S. 250 ff., Abb. 1, 2; Müller 1976, S. 224 f.
+
+Mus. Sondershausen Inv.-Nr. II 35 VK 128; II 38 VK 45;
+
+## Kreis Mühlhausen
+
+245. Flarchheim. Fdpl. nördl. des Holzweges. Mbl. 2801 (4828), S 15,3; 0 3,5. Geländesit.: nach NO flach fallend. FA: G (Abb. 4,5). Rechteckige Steinkiste aus Muschelkalkplatten, ca. 1,50 × 0,75 ×0,40 m gr.; 0—W. Sohle in 0,90 m Tiefe; 2 Deckplatten. In Kammer O(Schädel)-W gerichtete rechtsseitige, teilweise auf dem Bauch liegende Hockerbestattung; Schädel blickte nach N. Linker Arm angewinkelt und Hand in Kinnhöhe; rechte Hand in Beckennähe. Funde: 1. In SW-Ecke im Winkel zwischen Ober- und Unterschenkeln verz. wT; am Hals Reihen meißelartiger Einst. und eingeritzte Rauten und auf Schulter imitierte Fr. aus meißelartigen Bi    09 (Taf. 76,13). 2. Skelettreste eines Individuums; frühadult; weiblich (n. Bach/Barth 1966, S. 188 f.). 3. Aus Füllerde Praemolar, Krone eines Molaren und Jochbein von zwei weiteren menschlichen Individuen (primär zugehörig?).
+
+Anm.: Beigabenarmut könnte auf in alter Zeit erfolgter Ausräumung beruhen.
+
+Mus. Mühlhausen Inv.-Nr. III/64/7. Bach/Barth 1966, S. 184 ff., Abb. 2, Taf. LXI,1,3; Müller 1976, S. 221.
+
+246. Körner. Fdpl. Ziegeleigrube. Mbl. 2741 (4729).
+
+Mus. Mühlhausen. Vorlage geplant von W. Walther, Mühl-
+
+FA: Siedl. Grubeninhalt: 1. 3 SS einer KA mit Hals-SchulterKehle; unter 2 umlaufenden unförmigen Einst.reihen eingeritzte schräge Fr. mit St.abschluß. 2. RS, HeS und WS von mindestens 3 unverz. wT. 3. Reste von 4 TmhU mit Tupfen bzw. Kerben auf Umbruch. 4. Reste von 4 weiteren Gefäßen (wT oder TmhU) : 2. Gefäße mit Tupfenleiste unterhalb des Randes. 5. Gekerbte Umbruchscherbe eines Napfes. 6. WS mit Knubbe. 7. Zahlr. unverz. WS. 8. 5 Feuersteinabschläge. 9. Einige Tierknochen und Pfriem.
+
+hausen, dem für die Erlaubnis zur Aufnahme herzlichst gedankt sei.
+
+247. Körner. Fdpl. 11. Mbl. 2741 (4729).
+
+FA: EvG. Altfunde (zusammengehörig?). 1. Etwas erg. verz. KA; am Hals unter Winkellinie eingeritzte Rauten und auf Schulter imitierte Fr.gruppen aus eingeritzten Winkellinien;
+
+<!-- FREE:PAGE 25 -->
+gedichtete Steinpackung mit Brandspuren; darunter Ecke einer Steinkiste (?) mit gepflastertem Boden freigelegt; O bis W?. Angeblich Deckplatte. Im Grabraum Skelettreste von einer ganzen Anzahl verschieden alter Individuen ..., die so durcheinander lagen, daß man fast von einer Knochenbreccie sprechen könnte" (Toepfer, OA Frohndorf im LM Halle). Aus der Kammer in situ geborgen: 1. 2 Feuersteinklingen. 2. 2 durchb. Hundezähne. 3. Hundeunterkiefer. Funde, deren Lage im Grabhügel u. ist (wahrscheinlich aus Kammer). 4. Reste einer KA mit ausladendem Hals und Schwalbenschwanz(?)he.; am Hals eingeritzte Rauten und auf Schulter Band aus punktartigen Einst.; graubraun; Wdg. 0,5 (Taf. 76,14). 5. 2 durchb. Schweineeckzähne und 7 durchb. Hundeeckzähne. 6. Kl. Kupfer"perle. 7. Kl. Facettenbeil (zugehörig ?).
+
+Mus. Kölleda Inv.-Nr. 212—218. Priebe 1938, S. 78; Fischer 1956, S. 154 ff., 206, 271, 294; 1968, S. 20; Behrens 1973, S. 303; Müller 1976, S. 221, Abb. 2 f; Beier 1984, S. 148.
+
+## Kreis Apolda
+
+253. Groβromstedt. Fdpl. u. Mbl. 2935 (5034) oder 2936
+
+(5035).
+
+FA: EF. HaS mit eingeritzten Rauten (Taf. 76,11). Mus. Weimar Inv.-Nr. 3911. Möller 1926, S. 64 (unter Kleinromstedt) ; Müller 1976, S. 223, Abb. 3 c.
+
+254. Kapellendorf. Fdpl. zwischen Kapellendorf und Umpferstedt in der Nähe des aufrecht stehenden Steines näher an Kapellendorf. Mbl. 2935 (5034). Geländesit.: nach O leicht
+
+fallend.
+
+FA: EF. RS einer KA mit eingeritzten kl. Rauten; dunkelgrau braun gefleckt; Wdg. 0,5 (Taf. 76,1).
+
+Mus. Jena Inv.-Nr. 373 (unter Umpferstedt). Götze 1900 a, S. 161; Götze/Höfer/Zschiesche 1909, S. 267 f.; Kossinna 1922, S. 255; Möller 1926, S. 64 (unter Umpferstedt) ; Priebe 1938, S. 84; Behrens 1973, S. 303; Müller 1976, S. 223 f., Abb. 2 e. Anm.: Zwei Kugelamphoren in Scherben", die von Kossinna (1922, S. 255) und Priebe (1938, S. '84) ebenfalls unter Kapellendorf angeführt werden, sind nicht nachweisbar (vgl. Müller 1976, S. 224).
+
+255. Ködderitzsch. Fdpl. An Walthers. Weg. Mbl. 2871 (4935), N 7,7; O 5,0. Geländesit.: Scheitel einer längl. Anhöhe; 0
+
+bis W.
+
+FA: G. Untersuchung eines in alter Zeit zerstörten Hügels. Im NW-Sektor nahe der angenommenen Hügelmitte 2 Steinsetzungen und Skelettreste zweier menschlicher Individuen; beigabenlos; Datierung ? Im SO-Sektor in 0,80 m Tiefe ein Brandgrab (wohl Nachbestattung). Urne mit dreieckiger kl. Kalksteinplatte abgedeckt. Funde: 1. Stark erg. wT; am Hals unter Gitterband eingeritzte Rauten in Schachbrettanordnung und auf Schulter imitierte Fr.gruppen aus Gitterbändern zwischen Winkellinien; Reste einer kalkhaltigen Inkrustierung; braunschwarz; H. 28,0; Wdg. 0,5/0,6; HBI 0,97 (Taf. 78,1). 2. Beckenfragment von Schaf/Ziege oder Schwein unter dem LBR (Dö.). 3. 760 g LBR eines menschlichen Individuums; adult (zwischen 30 und 40 Jahre); weiblich. 4. Wenige Reste eines zweiten Individuums; infans I/Neonatus (A. Bach).
+
+Mus. Weimar Inv.-Nr. 220/72. Müller 1976, S. 217 ff., Abb. 1.
+
+256. Sonnendorf. Fdpl. Ochleysche · Kiesgrube. Mbl. 2808 (4835), S ca. 3,2; O ca. 7,4. Geländesit.: Hang einer Anhöhe, ca. 5,0 m unterhalb des höchsten Punktes eines Höhenrükkens; 100 m im SW des Ortes.
+
+FA: G. Dunkel verfärbte in den gewachsenen Boden getiefte rechteckige Grube von 1,25 × 0,60 m; N—S. Sohle entsprach dem Hangniveau. In Grube N(Schädel)-S gerichteter linker extremer Hocker mit Blick nach O; Hände vermutlich vor Gesicht. Beigaben: 1. Am Schädel ein wT; am Hals unter verzahnten Winkelst.reihen Rauten und Dreiecke aus unförmigen Einst. und auf Schulter eingeritzte schräge Fr.gruppen mit Winkelst.abschluß; graubraun gefleckt; H. 26,2; Wdg. 0,6/0,7; HBI 0,96 (Taf. 78,14). 2. Am Oberkörper dickn., an Breitseiten überschliffenes Feuersteinbeil; hellgrau gefleckt; L. 13,5; Schnbr. 6,2 (Taf. 78,17). 3. Bei den Händen Fragment eines an Schneide abgebrochenen dickn. Feuersteinmeißels mit überschliffenen Breitseiten; dunkelgrau gefleckt; erh. L. 8,2 (Taf. 78,15). 4. Bei den Füßen Reste eines Unterkiefers und eines Unterschenkelknochens vom Schwein. 5. Genaue Lage u.: Rest eines längsgespaltenen Eberzahnhauers; erh. L. 6,4 (Taf. 78,16). 6. Von den menschlichen Skelettresten nur Schädel aufbewahrt; erwachsen/frühadult; männlich (Br.). LM Halle HK 41:1572 a—e. Unterschenkelknochen und Unterkiefer vom Schwein verschollen. Kossinna 1922, S. 256; Niklasson 1925 b, S. 55 ff., Abb. 1—3; Priebe 1938, S. 84; Fischer 1956, S. 151 ff., 295; Behrens 1973, S. 304; Müller 1976, S. 225.
+
+Anm.: Entgegen Fischer (1956, S. 151, 295) lag die Bestattung unter keinem Findling.
+
+257. Stobra. Fdpl. Der Große Hügel. Mbl. 2871 (4935), S 0,4; W 21,6. Geländesit.: flach nach O fallende Geländezunge.
+
+FA: G (Abb. 8). Ausgrabung eines überpflügten, teilweise abgetragenen Hügels; ursprünglich Dm. ca. 20,0 m; um 1900 noch ca. 1,00 m hoch. Im Hügel 2 Tierbestattungen der KAK (Gräber 1, 3) und schnurkeramische Bestattung (Grab 2). An SO-Flanke gr. bogenförmige wallartige Steinpackung; umschloß Grab 3 an S- und O-Seite; genaue Funktion unklar; eventuell Rest einer Steinumwallung des Hügels.
+
+a) Grab 1 (Abb. 9,1). 12,0 m im NNO der wallartigen Steinpackung unter NO—SW gerichteter Steinpackung aus Muschelkalkblöcken von 3,0 × 2,0 m eine nur 0,20 m eingetiefte Grube. In dieser Reste von 7 Rindern; 5 davon lagemäßig bestimmt: auf Becken bzw. auf Oberkörper zweier N(Schädel)-S gerichteter Rinder, die sich mit angehockten Beinen gegenüberlagen, 2 in gleicher Art und Weise bestattete Tiere; dazwischen Reste eines fünften Rindes. Außerdem Reste zweier weiterer Rinder und anderer Haustiere sowie Beigaben. Menschliche Skelettreste fehlten. SW-Ende der Steinpakkung und Hinterbeine zweier Rinder vermutlich bei Anlage von G 2 gestört, wodurch dieses jünger sein dürfte. Funde: 1. In Höhe der Steinpackung stark erg. Sch; am Hals zwischen Einst.reihen Rauten aus Schnurlinien und Winkelschnurlinie und in .der H. der Handh. Schnurfr.; dunkelbraun schwarz gefleckt; H. ca. 12,0; Wdg. 0,5; HBI 0,56 (?) (Taf. 77,8). 2. Ebenfalls in H. der Steinpackung Sch; am Hals unter Gitterband Dreiecke und rautenartige Gebilde aus Schnurlinięn und am Umbruch kommaartige Einst. und Schnurfr.; schwarz mit braunen Flecken; H. 13,3; Wdg. 0,5; HBI 0,56 (Taf. 77,2). 3. Skelettreste von 7 Rindern, davon 2 männlich und 3 weiblich; Alter: 2 = 1 Jahr, 2 = 21/2 Jahre und je 1 = 13/4, 2 und 31/2 Jahre. 4. Einige einzelne Rinderknochen und 2 Knochen vom Schwein.
+
+b) Grab 2. SW von G 1 rundliche unregelmäßige Steinpackung von ca. 2,50 m Dm.; überdeckte ovale Grube von 1,80 1,50 und 1,55 m Tiefe und reichte noch in diese hinein. In O-Ecke der G.sohle Reste einer schnurkeramischen Amphore. Alle anderen geborgenen Funde waren umgelagert. Im oberen Drittel der Grube aus G 1 stammende Steine, Rinderknochen und Scherben der KAK, dessen SW-Ende vermutlich bei Anlage von G 2 zerstört. In gleicher H. auch glatte unverz. Scherben und ménschliche Skelettreste; beides gehört wohl zu dem in späterer Zeit ausgeraubten schnurkeramischen G. Funde: 1. Reste einer unverz. Amphore der Schnurkeramik; rötlichgelb (Schirmer 1939, Abb. 7 b). 2. Reste eines unverz. kl. bauchigen Gefäßes; grau-gelb; Wdg. 0,3 (Taf. 77,6). 3. Schädelreste und Unterschenkelknochen eines menschlichen Individuums. Aus G 1 umgelagerte Funde: 4. Reste eines wT; am Hals Dreiecke und Rauten aus Winkelst. und auf Schulter eingeritzte teilweise schräge Fr. mit Winkelst.abschluß; dunkelgrau; Wdg. 0,6 (Taf. 78,3). 5. Mehrere Rinderknochen.
+
+c) Grab 3 (Abb. 9,2). Ca. 10 m SW G 1 unter Steinpackung Grube von ca. 2,50 × 1,50 × 0,50 m; NO—SW. In dieser 2 mit angehockten Beinen gegenüberliegende Rinder, Schädel im NO. An den Stirnen der Tiere je ein gr. Loch (wohl Hinweis auf gewaltsame Tötung).·Menschliche Skelettreste fehlten. Funde und Beigaben: 1. In Hornkrümmung des linken Tieres eine Schüssel mit häng. Dreiecken aus Schnurlinien zwischen je 2 umlauf. Schnurwinkellinien; schwarz-braun mit rötlichen Flecken; H. 9,1; Wdg. 0,5; HBI 0,52 (Taf. 77,9). 2. Zwischen Kopf und Vorderbeinen des rechten Tieres ein beidseitig zugespitztes Knocheninstrument; L. 16,0 (Taf. 78,2). 3. Zwischen den Schädeln Reste eines Schweineferkels. 4. Skelettreste zweier Jungrinder.
+
+d) Wallartige Steinpackung umschloß bogenförmig O- und SSeite von G 3. Funde: 1. Erg. unverz. T mit Bandhe.; graubraun; H. 17,8; Wdg. 0,5/0,6; HBI 0,77 (Taf. 77,4). 2. Reste eines wT; am Hals zwischen 2 umlauf. Bogenst.reihen breites Gitterband aus Schnurlinien und auf Schulter Schnurfr.gruppen und punktartige Einst.; ockerfarben gefleckt; err. H. 27,0; err. gr. Dm. 27,0; Wdg. 0,6/0,7; HBI 1,00 ? (Taf. 77,1).
+
+e) EF aus Hügelbereich und angrenzendem Gebiet; eventuell weitere zerst. G. Zur KAK gehören 1. einige HaS einer KA (?) mit senkr. durchb. He.; am Hals unter St.reihe breites netzartiges Quadratband aus Schnurlinien und auf Schulter schräge Schnurfr.; rötlich-gelb; Wdg. 0,3 (Taf. 78,8). 2. HaS einer KA mit gleichartiger Verzierung; rötlich-gelb; Wdg. 0,4 (Taf. 78,9). 3. HeS einer KA; am Hals Reste eines eingeritzten Gittermusters und unter He. Punktst.; Wdg. 0,5 (Taf. 78,11). 4. Gekehlter He. einer KA mit feinen Schnurfr.; Wdg. 0,5 (Taf. 78,13). 5. Gekehlter He. einer KA mit kreuzenden Schnurlinien; Wdg. 0,5 (Taf. 78,12). 6. RS mit kreuzenden Schnurlinien (zu e) 5. gehörig?) ; Wdg. 0,5 (Taf. 78,5). 7. RS mit eingeritztem Gitterband; Wdg, 0,5 (Taf. 78,7). 8. RS mit unregelmäßigem Schnurmuster; Wdg. 0,5 (Taf. 78,6). 9. RS mit punktartigen Einst.reihen und Kerben; Wdg. 0,6 (Taf. 78,4). 10. Weitere Scherben abgebildet bei E. Schirmer (1939, Abb. 8 a—c, f, j). 11. Reste von wT oder TmhU mit Tupfen (Taf. 77,3) und Kerben (Taf. 77,5), wohl auch zur KAK gehörig. 12. RS mit durch Fingertupfen plastisch modellierten Leisten (Taf. 77,7; 78,10), nicht sicher bestimmbar, da unter Gesamtfundgut auch zahlr. metallzeitliche Funde sind (Schirmer 1939, Abb. 8 e, k, n, o).
+
+Müller 1976, S. 225.
+
+Mus. Jena Inv.-Nr. 29921—29965. Priebe 1938, S. 84; Schirmer 1939, S. 17 ff., Abb. 1—8; Mildenberger 1953, S. 43; Fischer 1953 b, S. 167; 1956, S. 150 ff., 288, 295; Weber 1964, S. 173; Behrens 1964 a, S. 103, Abb. 34, 35; 1973, S. 305;
+
+Anm.: 1. Nach mündlicher Uberlięferung lag neben dem Großen Hügel" ein zweiter kleinerer, der bereits vor 1900 abgetragen wurde. 2. Zeitliches Verhältnis zwischen KAK-Gräbern und schnurkeramischen Gräbern umstritten (vgl. u. a. Schirmer 1939, S. 17 ff.; Fischer 1953 b, S. 167; Mildenberger 1953, S. 43). 3. Die Reste des bei E. Schirmer (1939, Abb. 6 e) abgebildeten verz. Trichterbechers gehören m. E. zu einem verz. wT (Taf. 78,3).
+
+KreisWeimar
+
+258. Groβobringen. Fdpl. Am Sportplatz. Mbl. 2870 (4934), S 15,6; W 0,5. Geländesit.: flach nach NO fallend.
+
+FA: Siedl. der Bernburger Kultur. Ausgegraben in den sechziger Jahren. Ahnelt den Anlagen der Windmill-Hill-Kultur. Neben zahlr. Scherben, die Beziehungen zur Rivnáč-Kultur in Böhmen andeuten, auch Reste der KAK geborgen: 1. SS einer KA mit eingeritzten Gitterbändern und umlauf. Furchenst.linien; Wdg. 0,5 (Taf. 76,5). 2. Reste eines wT; unter Winkelschnurlinie Rauten aus Schnurlinien und auf Schulter eingeritzte Fr.; Wdg. 0,5/0,6 (Taf. 76,6). 3. RS einer Sch oder eines wT mit 2 umlauf. Reihen imitierter Kreuzst. und mindestens 2 Reihen senkr. Meißelst.; Wdg. 0,6 (Taf. 76,4). Mus. Weimar Inv.-Nr. 1240/61; 230/62; 251/62; 255/62. Mül-
+
+ler 1976, S. 223, Abb. 3 f—h.
+
+259. Legefeld. Fdpl. beseitigtes Torfmoor östl. des Ortes. Mbl. 2934 (5033).
+
+FA: EF. Altfund. Reste eines wT; am Hals unter Meißelst.reihe unregelmäßige Rauten aus Meißelst. und auf Schulter senkr. Meißelst.; schwarz; Wdg. 0,6/0,7 ·(Taf. 76,10).
+
+Mus. Jena Inv.-Nr. 372. Götze 1900 a, S. 161; Götze/Höfer/ Zschiesche 1909, S. 269; Kossinna 1922, S. 255; Priebe 1938, S. 84; Behrens 1973, S. 303; Müller 1976, S. 224, Abb. 12 g.
+
+Anm.: 1. Die bisher übliche Angabe KA ist zu korrigieren. 2. D. W. Müller (1976, Anm. 12) weist hin, daß als möglicher Fundort auch die Gemarkung Possendorf in Betracht kommen könnte.
+
+260. Weimar. Fdpl. Im Brühl. Mbl. 2934 (5033), N 6,9; 0 0,6. Geländesit.: O-Rand einer Anhöhe.
+
+FA: EF. Auf mehrperiodigem Fdpl. RS mit eingeritzten Rauten unter 2 Punktst.reihen; Wdg. 0,5 (Taf. 76,12).
+
+Mus. Weimar Inv.-Nr. 3944/69. Müller 1976, S. 225, Abb. 2 h.
+
+261. Wohlsborn. Fdpl. Im Ort. Mbl. 2870 (4934), S 14,2; W 8,7. Geländesit.: nach NO leicht fallend.
+
+FA: SiedI. Bereich eines schnurkeramischen G.feldes. a) Gruben. Drei stark gestörte Gruben enthielten u. a. folgende Scherben: 1. HaS (?) einer KA mit Reihen kantiger bis rautenartiger Einst.; Wdg. 0,5 (Taf. 76,18). 2. 2 SS eines wT mit senkr. Meißelst. unterhalb der He.; Wdg. 0,5/0,7 (Taf. 76,19,
+
+20).
+
+b) EF. 1. Aus Füllerde eines schnurkeramischen G HaS eines wT; am Hals Rauten aus Furchenst.linien und auf Schulter
+
+Furchenst.winkellinie; Wdg. 0,7 (Taf. 76,17). 2. 2 Scherben mit eingeritzten Fr. (?), wohl auch noch zur KAK gehörig. Mus. Weimar o. Nr. Möller 1926, S. 64; Priebe 1938, S. 84; Behrens 1973, S. 305; Müller 1976, S. 225, Abb. 3 i—m.
+
+Kreis Erfurt
+
+262. Erfurt-Gispersleben. Fdpl. u. Mbl. 2867 (4931) oder 2868 (4932).
+
+FA: Siedl. Im Bereich einer Bernburger Siedl. Grube mit folgendem Inhalt geborgen: 1. HaS eines wT mit umlauf. Reihen kl. rechteckiger Einst. (ähnlich wie Taf. 79,9). 2. HeS, RS und WS eines unverz. wT mit plastischer Leiste unter dem Rand. 3. HeS und WS eines unverz. wT. 4. RS und WS eines TmhU. 5. Scherben eines gr. schlickgerauhten Gefäßes. 6. Zahlr. unverz. Scherben (ein Teil gehört sicher zu den aufgeführten Gefäßen). 7. Zahlr. Brocken Hüttenlehm.
+
+<!-- FREE:PAGE 26 -->
+Mus. Weimar Inv.-Nr. 169/78. Bekanntgabe geplant von S. Bücke und D. Walther, Weimar. Frau S. Bücke sei für die Erlaubnis zur Aufnahme herzlich gedankt.
+
+263. Erfurt-Melchendorf. Fdpl. Großer Herrenberg. Mbl. 2933 (5032), N ca. 19,0; W ca. 21,5. Geländesit.: kl. NW-SO-geştreckter Höhenrücken.
+
+FA: EF. Lesefunde auf mehrperiodigem Fdpl. 1. RS mit Schulter eines wT; unter schräger Meißelst.(?)reihe Winkellinie und Reihen bogenst.artiger Einst. und auf Schulter gleichartige Einst.; Wdg. 0,6 (Taf. 83,21). 2. HaS eines wT mit rautenähnlichen Einst.; Wdg. 0,7 (Taf. 83,20).
+
+Slg. Lippmann, Erfurt. Hinweis auf Neufund verdanke ich Dr. D. W. Müller, Halle.
+
+264. Apfelstädt. Fdpl. südl. der Str. nach Wandersleben. Mbl. 2995 (5131), N ca. 0,2; W ca. 12,2. Geländesit.: nach 0 flach fallend.
+
+FA: EF (vermutlich aus Siedl. der Bernburger Kultur). SS eines wT mit breitem gekehltem Osenhe.; am Halsansatz punktartige Einst. und unterhalb des He. mindestens 3 umlauf. Reihen kl. rechteckiger Einst.; schwarz; Wdg. 0,5.
+
+Slg. Walther, Mühlhausen. Hinweis auf Neufund verdanke ich Herrn W. Walther.
+
+Kreis Gotha
+
+265. Gotha. Fdpl. Wüstung Ostheim. Mbl: 2931 (5030), N 14,6; W 10,3. Geländesit.: flacher Hang.
+
+FA: G. (Nach)bestattung in Bernburger Mauerkammergrab (Beier 1984, Taf. 8,3). Skelettreste von über 27 Individuen. Unter dem zur Bernburger Kultur gehörigen Inventar auch Objekte der KAK: 1. In O-Ecke der Hauptkammer über den Skelettresten ein O-W-gerichteter rechtsseitiger Hocker mit Händen vor Gesicht und Blick nach NO (Spießbach 1932, Abb. 1). Wohl Nachbestattung. Zwischen Becken und Füßen eine KA; am Hals eingeritzte (?) Rauten und auf Schulter Fr.gruppen mit Punktst.abschluß (Taf. 79,2). Folgende Scherben waren in Kammer verstreut, so daß nicht sicher ist, ob sie ursprünglich auch zu der Hockerbestattung gehörten: 2. RS eines wT mit eingestochenen Rauten; dunkelgrau; stark verwittert; Wdg. 0,5 (Abb. 15,1). 3. RS eines wT(?). mit eingeritzten Winkelschnurlinien unter kurzen senkr. Schnureindrücken (Spießbach 1932, Abb. 5,37). 4. HaS eines wT mit Rauten aus Meißelst.; dunkelgrau-braun gefleckt; Wdg. 0,5 (Abb. 15,4). 5. SS mit schrägen Schnurfr.; dunkelgrau; Wdg. 0,4 (Abb. 15,2). KAK (?). 6. HaS mit Schulter eines wT mit eingeritzter (?) imitierter Winkelst.reihe; dunkelgrau; Wdg. 0,5 (Abb. 15,3). 7. SS mit imitierten Fr.gruppen unter Gitterband aus Schnurlinien; grau-gelb; Wdg. 0,7 (Abb. 15,5). Mus. Gotha Inv.-Nr. 1965. 1., 3. verschollen. Florschütz 1928, S. 150 f.; Spießbach 1932, S. 238 ff., Abb. 1—6; Priebe 1938, S. 83; Mildenberger 1953, S. 29; Fischer 1956, S. 151 ff., 271, 294; Schrickel 1966 b, S. 400 ff., Taf. 14; 15; Behrens 1973, S. 303; Müller 1975 b (Katalog), S. 79 f.; 1976, S. 221; 1980 b, S. 40; Beier 1984, S. 150 f., Taf. 8,3.
+
+Abb. 15. Keramik der Kugelamphorenkultur aus dem Bernburger Kollektivgrab von Gotha-Ostheim (265)
+
+<!-- image -->
+
+266. Gotha, OT Siebleben. Fdpl. Kleiner Seeberg. Mbl. 2931 (5030), S 13,8; W 20,4. Geländesit.: Anhöhe (345 m NN). FA: EF (vermutlich Siedl. der Bernburger Kultur). Notbergung: 1. RS eines wT mit eingeritzten Rauten; Wdg. 0,6 (Taf. 79,1). 2. HaS eines wT (?) mit flächendeckend auf Lücke angeordn. ovalen-rautenartigen Einst. (ähnlich Taf. 76,18). Mus. Gotha Inv.-Nr. 2811. Florschütz 1937, Abb. 13 oben rechts, links (unter falscher Ortsangabe) ; Behrens 1973, S. 303; Müller 1975 b (Katalog), S. 98 ff. ; 1976, S. 221 ; 1980 b, S.40 f., Abb.15,11.
+
+267. Wandersleben. Fdpl. nördl. Str. nach Apfelstädt. Mbl. 2932 (5031), S 0,3; W 7,6. Geländesit.: höchste Stelle eines relativ ebenen Areals.
+
+FA: G (Bestattung in Bernburger Mauerkammergrab — Gall u. a. 1983, Abb. 4). Skelettreste von mindestens 46 Individuen. Beigaben vor allem in O-Hälfte der Kammer. Wohl Mitbestattung durch die Träger der KAK, dazu: 1. Reste einer KA; am Hals unter Einst.reihe kl. senkr. Furchenst.kerben und auf Schulter Furchenst,fransen; grau mit rötlich-gelben und schwarzen Flecken; Wdg. 0,6 (Taf. 79,16; 84,3). 2. RS eines wT oder TmhU mit Kerbreihe; braun-dunkelgrau; Wdg. 0,6 (Taf. 79,24,26). 3. RS eines TmhU; Wdg. 0,5/0,6 (Taf. 79,14). 4. Durch Hitze ausgesplittertes dickn. Feuersteinbeil; an Breitseiten überschliffen; grau gefleckt; L. 13,3; Schnbr. 5,2 (Taf. 79,23). Bernburger Kultur: 5. RS mit Bandhe.ansatz (Taf. 79,25). 6. 2 RS von unverz. steilwandigen Gefäßen (Taf. 79,15,17). 7. RS eines unverz. kumpfartigen Gefäßen (Taf. 79,18); BdS, wohl zugehörig (Taf. 79,13). Restliche Beigaben nur als neolithisch bestimmbar; zahlr. Tierknochen vielleicht KAK-Einfluß: 8. Ca. 30 unverz. WS. 9. Klingenkratzer und 3 Abschläge aus Feuerstein (Taf. 79,19—22). 10. Reste von 4 Knochenmeißeln (Gall u. a. 1983, Abb. 2). 11. 360 Tierknochen bzw. -fragmente (179 Stücke vom Rind, dabei 2 Unterkiefer, 16 Phalangen; 67 Stücke vom Schwein, dabei 6 Unterkiefer, 10 Phalangen; 16 Stücke von Schaf/Ziege; 5 Stücke vom Hirsch).
+
+Mus. Weimar Inv.-Nr. 61-85/79. Gall/Bach/Barthel/Lange 1983, S. 7 ff., Abb. 1—4, Taf. I; II; Beier 1984, S, 151 f.
+
+268. Wandersleben. Fdpl. An der Waidmühle. Mbl. 2931 (5030), S 4,3; O 1,6. Geländesit.: Hochfläche mit östl. Steilabfall zur Apfelstädt.
+
+FA: EF (vermutlich Siedl. Bernburger Kultur). Lesefund: RS
+
+eines wT mit gr. ovalen Einst. unter Band aus kl. punktartig- Bezirk Leipzig ovalen Einst.; Wdg. 0,6 (Taf. 79,9).
+
+Mus. Gotha Inv.-Nr. 4127. Müller 1975 b (Katalog), S. 246 f. ; 1976, S. 225, Abb. 2 i; 1980 b, S. 41.
+
+Kreis Arnstadt
+
+269. Sülzenbrücken. Fdpl. Unter der Thöreyer Höhe. Mbl. 2995 (5131), N 1,9; W 19,0. Geländesit.: Rand einer nach O ansteigenden Hochfläche mit Steilabfall zum Weidbach.
+
+FA: EvS. Lesefunde. Zusammen mit zahlr. Steingeräteresten, schnurkeramischen und allgemein neolithischen Scherben geborgen: 1. RS eines wT mit eingeritztem Gitterband; Wdg. 0,6 (Taf. 79,3). 2. HaS (?) ; unter Band aus schräggestellten Meißelst.(?), zwischen denen punktartige Einst. liegen, 2 Gruppen senkr. Meißelst.; Wdg. 0,7 (Taf. 79,5). 3. SS mit He.ansatz und kurzen Schnurfr.; Wdg. 0,7 (Taf. 79,4). 4. SS mit He.ansatz und unregelmäßigen Schnureindrücken; Wdg. 0,6 (Taf. 79,6).
+
+Slg. Walther, Mühlhausen. Müller 1976, S. 225; 1980 a, S. 252 ff., Abb. 8,6,10,13,15.
+
+Anm.: Siedl.charakter durch weitere Neufunde bestätigt.
+
+Bezirk Gera Bezirk Gera
+
+Kreis Rudolstadt
+
+270. Bad Blankenburg. Fdpl. Westhang des Hausberges unterhalb der Burg Greifenstein. Mbl. 3122 (5333), N 3,4; 0 20,1. Geländesit.: Hang.
+
+FA: EF. Unter mittelalterlicher Keramik: HeS und SS einer KA(?) mit konischem Hals und ovalem (?) Bauch; am Hals unregelmäßige Rauten aus Meißelst.(?); Wdg. 0,5/0,6 (Taf. 79,7,8).
+
+Mus. Rudolstadt Inv.-Nr. MR 1377. Deubler 1966, S. 33 (Nr. 20) ; 1968, S. 203; Müller 1976, S. 221, Abb. 2 c, d. Anm.: Der Befund läßt die Annahme einer neolithischen Höhensiedl. noch nicht zu.
+
+271, Rudolstadt. Fdpl. unterer Debragraben oder Schnappsche Ziegelei. Mbl. 3061 (5234).
+
+FA: EvG. Unverz. Amphore mit 4 im Hals-Schulter-Knick kreuzständig angeordn. He.ösen, leichter Hals-Schulter-Kehle, abgesetztem Standboden sowie leicht ausladendem Hals; bräunlich; H. 37,0; gr. Dm. 28,0; Mdg. 14,5; Wdg. 0,6; HBI 1,32 (Deubler 1966, Abb. 30).
+
+Verschollen (ehemals Mus. Rudolstadt). Schönheid 1934, S. 29; Priebe 1938, S. 85; Deubler 1966, S. 243, Abb. 30; 1968, S. 203; Behrens 1973, S. 304; Müller 1976, S. 225.
+
+Kreis Gera
+
+272. Röpsen, OT Dorna. Fdpl. Eichberg. Mbl. 2939 (5038), S ca. 10,3; 0 ca. 10,9. Geländesit.: Anhöhe.
+
+FA: EvS. Aus einer neolithischen Höhensiedl. mit Salzmünder Kultur und Schnurkeramik eine RS; unter umlauf. Reihe punktartiger Einst. eingeritztes häng. Dreieck mit Punktst.füllung; dunkelbraun-schwarz; Wdg. 0,6.
+
+Mus. Gera o. Nr. (Mitt. V. Schimpff, Leipzig).
+
+Kreis Delitzsch
+
+273. Freiroda. Fdpl. am Kalten Born. Mbl. 1 (4539), S 5,1; 0 21,4. Geländesit.: flach hügelig.
+
+FA: vG. Beigaben: 1. Verz. KA. 2. Dickn. dünnbl. Feuersteinbeil. 3. Feuersteinklinge.
+
+Weber 1964, S. 106 ff., Abb. 21, 22.
+
+274. Löbnitz. Fdpl. ohne Bezeichnung. Mbl. 2 (4440), N 5,3; 0 8,4. Geländesit.: SW-Hochufer eines heute verlandeten Teiches.
+
+FA: EvG. Verz. KA.
+
+Mus. Leipzig Inv.-Nr. V-1/75. Jacob/Quietzsch 1980, S. 303, Abb. 5.
+
+275. Paupitzsch. Fdpli u. Mbl. 1 (4439) oder 2 (4440).
+
+FA: EF. 1. HaS einer KA (?) mit Bogenst.gruppen, die teilweise kl. Dreiecke bilden (Taf. 79,12). 2. Umbruchscherbe von Sch oder Napf mit Reihen ovaler Einst. (Taf. 79,10). 3. Umbruchscherbe von wT oder TmhU mit Reihe punktartiger Einst. und Kerbreihe (Taf. 79,11).
+
+LM Halle HK 23:147, 150, 151 (ehemals Slg. Richter, Paupitzsch).
+
+276. Schenkenberg. Fdpl. u. Mbl. 1 (4439). FA: EvG. Verz. wT. Priebe 1938, S. 80, Taf. XIX a; Weber 1964, S. 129 f.
+
+## Kreis Leipzig
+
+277. Cröbern. Fdpl. 1. Hopfenberg. Mbl. 26 (4740), N 20,6; W 18,4. Geländesit.: hochwasserfreie Anhöhe in Pleißenaue.
+
+FA: EF. Reste einer verz. KA.
+
+Weber 1964, S. 100 f., Abb. 16.
+
+278. Groβlehna, OT Altranstädt. Fdpl. an der Rinne. Mbl. 10 (4639), S 3,4; W 8,5. Geländesit.: eben.
+
+FA: vG. Beigaben 1. Stark erg. verz. KA. 2. Teilweise erg. verz. wT.
+
+Weber 1964, S. 78 ff., Abb. 2.
+
+279. Leipzig-Abtnaundorf. Fdpl. Kiesgrube östl. der Parthe. Mbl. 11 (4640), N ca. 11,0; O ca. 24,3. Geländesit.: eben, ·nur wenige Meter über Aue.
+
+FA: EvG. Verz. KA.
+
+Weber 1964, S. 116, Abb. 26.
+
+280. Rückmarsdorf. Fdpl. Sandgrube am Wachberg. Mbl. 10 (4639), S ca. 18,7; W ca. 21,5. Geländesit.: im Hangbereich (?) einer flachen Anhöhe an der Elster.
+
+FA: EF. RS eines wT; auf Schulter eingeritzte mit punktartigen St. gefüllte steh. Dreiecke (Abb. 16).
+
+Mus. Leipzig Inv.-Nr. V 4308 (S 199/58). Kaufmann/Quietzsch/ Spehr 1967, S. 539.
+
+281. Schkeuditz. Fdpl. westl. des Kalten Born. Mbl. 1 (4539), S 3,1; 0 24,5. Geländesit.: flache Anhöhe.
+
+FA: EF. HaS eines wT mit auf Lücke gesetzten aus schrägen Meißelst. gebildeten Rauten (Taf. 80,8).
+
+Z. Z. in Privathand.
+
+<!-- FREE:PAGE 27 -->
+Abb. 16. Einzelfund aus Rückmarsdorf (280)
+
+<!-- image -->
+
+282. Sehlis. Fdpl. am Fuße des Eckhardtsberges. Mbl. 12 (4641), N 10,5; W 11,5. Geländesit.: am Rande der Partheaue.
+
+FA: EF. Verz. He.scherbe eines wT (?). Weber 1964, S. 130, Abb. 37.
+
+283. Sehlis. Fdpl. Mühlberg. Mbl. 12 (4641), W 11,8; N 10,4. Geländesit.: Anhöhe.
+
+FA: EF. RS eines wT; unter Winkelband auf Lücke gesetzte eingeritzte mit kreuzenden Linien gefüllte Rauten (Taf. 80,3). Mus. Taucha o. Nr. (Mitt. R. Dunkel, Taucha).
+
+284. Taucha, OT Dewitz. Fdpl. Gordemitzer Straße. Mbl. 12 (4641), W 6,2; N 5,3. Geländesit.: nach S flach fallend.
+
+FA: EvS. Zusammen mit jungbronzezeitlicher Keramik und Feuersteinabschlägen in 0,45 m Tiefe: 1. RS Sch oder wT mit ausgespartem Winkelband aus punktst.gefüllten Dreiecken (Taf. 80,5). 2. Verwitterte RS eines Napfes mit punktartigen Einst. auf Umbruch (Taf. 80,6).
+
+Mus. Taucha o. Nr. (Mitt. R. Dunkel, Taucha).
+
+## Kreis Borna
+
+285. Berndorf, OT Klein-Hermsdorf. Fdpl. 1. Mbl. 42 (4840), S 3,5; W 3,5. Geländesit.: nach S leicht fallend.
+
+FA: vG. Von angeblich mehreren Gefäßen nur 2 erh.: 1. Verz.
+
+KA. 2. Unverz. Trichterrandschüssel.
+
+Weber 1964, S. 109 f., Abb. 24,2,4.
+
+286. Böhlen. Fdpl. Südteil der Harth (Hügel 5). Mbl. 26 (4740), S 8,8; W 8,7. Geländesit.: eben.
+
+FA: G. Mehrschichtiger Grabhügel mit Salzmünder Zentralbestattung und Nachbestattungen der Schnurkeramik sowie 2 nebeneinander liegenden Gräbern (V, VI) der KAK, vielleicht Doppelbestattung.
+
+a) Grab V: SO-Peripherie des Hügels in 0,75 m Tiefe. Spuren einer Holzabdeckung. Darunter linker Hocker; NO(Schädel) SW mit Blick SO (?); um Schädel bogenförmig 4 Gefäße: 1. 2 verz. KA. 2. Unverz. KA. 3. TmhU mit Kerben. 4. Zu Füßen der Bestattung: verz. KA, die auf unbearbeitetem Feuersteinabschlag stand. 5. Unmittelbar über den Holzresten (wohl zugehörig) : unverz. KA (Weber 1964, Abb. 4,1,2,4—7). 6. 0,35 m SO des Schädels: dickn. dünnbl. Feuersteinbeil (Mildenberger 1952, Taf. 10).
+
+b) Grab VI: unmittelbar östl. von V unter Resten einer Holzabdeckung Schädelreste. 1. 0,45 m südl. der Schädelreste verz. KA (Weber 1964, Abb. 4,3). 2. Nördl. des Schädels Reste eines WB und unbearbeiteter Feuersteinabschlag.
+
+c) EF. Aus oberen Schichten des SO-Quadranten ca. 2,00 m NW der KAK-Bestattungen: Schulterscherbe einer schnurkeramischen Amphore (Mildenberger 1952, Taf. 12).
+
+Mildenberger 1952, S. 7 ff., Taf. 8—12; Weber 1964, S. 81 ff.
+
+287. Rotha-Geschwvitz. FdpI. 2. Städtische Kiesgrube. Mbl. 26 (4740), S 6,3; W 21,2. Geländesit.: östl. Rand der Pleißeaue. FA: EvG. Verz. KA.
+
+Weber 1964, S. 128, Abb. 36, 36 a.
+
+288. Trachenau. Fdpl. 2. Sandgrube südl. der Ritschke. Mbl. 42 (4840), N 7,4; W 17,8. Geländesit.: westl. Rand der Pleißeaue.
+
+FA: vG. Beigaben eines oder mehrerer Gräber: 1. Verz. KA und 2 verz. HaS einer KA (Weber 1964, Abb. 40, 41,3). 2. Verz. KA mit ovalem Bauch (Priebe 1938, Taf. XIII f). 3. Reste von 3 verz. wT (Weber 1964, Abb. 41,1,2,7). 4. Verz. Sch mit nebenständigen He.ösenpaar (Priebe 1938, Taf. XXIII b). 5. Reste eines unverz. schalenartigen Gefäßes (Weber 1964, Abb. 41,5,6). 6. Rest eines verz. Gefäßes mit trichterförmigem Rand (Weber 1964, Abb. 41,4). Weber 1964, S. 133 f.
+
+289. Wiederau. Fdpl. 2. Kiesgrube auf dem Bad. Mbl. 41 (4839), N 1,5; 0 12,0. Geländesit.: hochwassergeschützte Anhöhe in Elsteraue.
+
+FA: EvG. Unverz. wT mit umlauf. (?) plastischer Leiste unterhalb des Randes, Hals-Schulter-Kehle und abgesetztem Standboden. Weber 1964, S. 136 f.
+
+290. Weideroda, OT Zauschwitz. Fdpl. Neue Grube". Mbl. 41 (4839), N 8,0; O 20,0. Geländesit.: westl. Rand der Elsteraue. FA: G mit dazugehöriger Tierbestattung (Coblenz/Fritzsche 1962, Abb. 1). a)· Menschliche Doppelbestattung: Grube 4,20 ×1,70 ×1,45 m gr.; 0-W; 2 mit Füßen aneinanderliegende Hocker. Ostl. Bestattung: linker Hocker eines männlichen, adult-frühmaturen Individuums mit Blick nach S; Hände fehlten; Arme vor Bauch. Westl. Bestattung: rechter Hocker eines wahrscheinlich männlichen, juvenil-frühadulten Individuums mit Blick nach S; Arme angewinkelt. Beigaben: 1. Am W-Rand der Grube verz. KA. 2. Hinter Schädel der westl. Bestattung 2 verz. KA. 3. An der Stirn der westl. Bestattung verz. Sch. 4. Im Winkel Bauch/Oberschenkel der östl. Bestattung verz. wT. 5. 0,20 m hinter Schulter der westl. Bestattung dickn. dünnbl. Feuersteinbeil. 6. Am O-Rand der Grube dickn. dünnbl. Feuersteinbeil, Knochenpfriem, 2 Knochen vom Schaf, Eberzahn. 7. Zwischen beiden Bestattungen südl. der Knie gespaltener Eberhauer mit Schleifspuren (alles Weber 1964, Abb. 49—52).
+
+b) Mehrfachtierbestattung. 1,50 m westl. der Doppelbestattung unregelmäßige birnenförmige Grube von 4,75  1,50/ 2,70 × 1,35 m; O—W. Skelette dreier junger Rinder. Im W rechtsseitige Bestattung mit angehockten Beinen und Schädel im W. Im O nebeneinander 2 sitzende Bestattungen mit Schädel im O. Hinterpartien der Rinder berührten sich. Beigaben: 1. An der Stirn des westl. liegenden Tieres zerscherbte verz. Schale. 2. Am O-Rand der Grube zwischen den Schädeln zweier Rinder 2 verz. KA, verz. Sch und verz. T mit geschwungenem Profil. 3. In der SO-Ecke des G unverz. wT und unverz. Becher mit trichterförmiger Mdg. (alles Weber 1964, Abb. 44—47).
+
+c) Einzelbestattung. 1,00 m nordöstl. der Tierbestattung ovale Grube von 1,50 × 1,20 × 0,70 m; NW—SO. Beigabenloser Hocker eines männlichen, frühmaturen Individuums in Rükkenlage mit angewinkelten Armen; NW(Schädel)-SO mit Blick nach SO. Eventuell KAK.
+
+d) Grube unbekannter Funktion. Tier- und Einzelbestattung von einer jüngeren Grube überschnitten. Aus dieser in 0,45 m Tiefe ein dickn. dünnbl. Feuersteinbeil hochkant stehend geborgen (Weber 1964, Abb. 48). Gehörte wohl ursprünglich zu einer der beiden Bestattungen.
+
+Coblenz/Fritzsche 1961, S. 62 ff.; 1962, S. 77 ff.; Weber 1964, S. 137 ff.
+
+291. Weideroda, OT Zauschwitz. Fdpl. Neue Grube". Mbl. 41 (4839), N 8,4; 0 20,1. Geländesit.: westl. Rand der Elsteraue.
+
+FA: Siedl. a) 2 Gruben 90 m im SSO des KAK-Grabkomplexes; kreisrund von 1,40 bzw. 1,60 m Dm. und 1,05 bzw. 1,30 m Tiefe; nebeneinanderliegend. Inhalt: 1. Rest einer verz. Sch (Weber 1974, Abb. 1,1). 2. Viele meist unverz. Scherben. 3. Mahlsteinreste. 4. Zerschlagene Tierknochen.
+
+b) Grube 122 m im SSO des KAK-Grabkomplexes; oval 2,10 × 1,80 m gr. und 0,95 m tief. Inhalt: 1. Reste einer verz. KA. 2. Reste eines unverz. wT. 3. Reste von 2 TmhU (Weber 1974, Abb. 1,2—5). 4. Zerschlagene Tierknochen. Weber 1974, S. 72 ff.
+
+Kreis Altenburg
+
+292. Altenburg. Fdpl. Verschiebebahnhof an Bahnstrecke nach Zeitz. Mbl. 58 (4940), S 4,5; 0 17,8. Geländesit.: nach 0 leicht fallender Hang zwischen Blauer Flut und Gerstenbach. FA: Siedl. a) Komplex I (b. Amende Fundstelle 12). Grube von 2,00 × 4,00 m. Inhalt: 1. Verz. HaS eines wT. 2. Verz. SS eines wT. 3. Verz. HaS eines Gefäßes mit Trichtermündung. 4. Kl. verz. RS (alles Weber 1964, Abb. 1,1,3,5,9). 5. Reste einer schnurkeramischen Amphore.
+
+b) Komplex II (b. Amende Fundstelle 13). Unmittelbar neben Komplex I; Grube von 2,00 × 4,00 m. Inhalt: 1. Verz. HaS einer KA. 2. Reste eines verz. wT. 3. Verz. RS. 4. Verz. Umbruchscherbe einer Sch. 5. 2 verz. HaS. 6. 2 verz. WS mit Punktst. bzw. Schnurfr. unter umlauf. Schnurlinien (Amende u. a. 1928, Taf. II,7). 7. Unverz. HeS, BdS und 3 WS (alles Weber 1964, Abb. 1,2,4,6,7,10,12,14).
+
+Amende u. a. 1928, S. 388 ff., Taf. II; Weber 1964, S. 76 ff.
+
+293. Altenburg. Fdpl. Verschiebebahnhof an der Bahnstrecke nach Zeitz. Mbl. 58 (4940), S ca. 4,5; O ca. 17,8. Geländesit.: s. 292.
+
+FA: EF. In SW-Ecke eines nur wenige Meter westl. der Siedl. reste gelegenen schnurkeramischen Grabes ein Scherbennest. Unter den meist schnurkeramischen Scherben auch (wohl sekundär vermengt) : 1. Verz. HaS. 2. Verz. HeS (Weber 1964, Abb. 1,8,13).
+
+Amende 1930, S. 24 ff., Abb. 1; Weber 1964, S. 78.
+
+294. Kotteritz. Fdpl. in Pleißeaue. Mbl. 74 (5040), N 9,3; 0 6,3. Geländesit.: in Flußaue 200 m östl. der Pleiße.
+
+FA: Siedl. In 2,40 m Tiefe unter einer 1,80 m starken Auelehmschicht und einer 0,30 m mächtigen Tonlage in Schotter eingetiefte Grube. Inhalt: neben schwarzer Erde und Holzkohleresten Reste einer verz. KA.
+
+Höckner 1936, S. 484 f., Taf. I,2; Weber 1964, S. 110, Abb. 24,1.
+
+295. Kriebitzsch. Fdpl. Bruchfeld. Mbl. 58 (4940), S 11,8; W 2,0. Geländesit.: Hangbereich einer Anhöhe am Erlenbach. FA: G. Grube von 1,30 m L. und 0,40-0,60 m Tiefe. 2 gehockte junge Mädchen. Eines mit Armen vor Brust. Beigaben: 1. Uber Brust einer Toten zerscherbter unverz. TmhU mit 2 He.ösen. 2. Nebeneinanderstehend (Lage zu Skelettresten u.) verz. KA und zerscherbte unverz. napfartige Schüssel (alles Weber 1964, Abb. 24,3,5,6).
+
+Amende/Höckner 1926 a, S. 321 ff.; Weber 1964, S. 112 f.
+
+296. Lohma a. d. Leina. Fdpl. Storchsecke. Mbl. 75 (5041), N ca. 10,2; W ca. 1,5. Geländesit.: eben.
+
+FA: EvG. Eventuell aus einem G.hügel eine verz. KA. Weber 1964, S. 117, Abb. 27, 27 a.
+
+297. Molbitz, OT Obermolbitz. Fdpl. nördl. des Erlenbaches. Mbl. 58 (4940), S ca. 7,0; W ca. 18,5. Geländesit.: Hangbereich einer Anhöhe.
+2. FA: G. Innerhalb einer bandkeramischen Siedl. Skelettreste eines erwachsenen (adulten) Individuums (Br.). Beigaben: 1. Reste von 2 verz. wT. 2. Erg. Sch mit 2 Reparaturstellen. Weber 1964, S. 122 ff., Abb. 31,4—6.
+
+298. Molbitz, OT Obermolbitz. Fdpl. s. 297.
+
+FA: EF. 1. Reste eines verz. wT. 2. Fragment einer verz. Sch (?). 3. Verz. SS.
+
+Weber 1964, S. 124, Abb. 31,1—3.
+
+299. Monstab, OT Krebitschen. Fdpl. vermutlich am Weg nach Monstab. Mbl. 74 (5040).
+
+FA: vG. 1. Verz. Sch. 2. Mehrere nicht erh. Gefäße, angeblich an der Luft zerfallen.
+
+Weber 1964, S. 112, Abb. 24,7.
+
+300. Rositz. Fdpl. Schulgarten. Mbl. 58 (4940), S 8,9; W 10,0. Geländesit.: flach nach S fallender Hang am Erlenbach. FA: Siedl. Rechteckige mit dunkler Erde gefüllte Grube von 8,00 × 4,90 × 1,50 m. In der Nähe ein Pfostenloch. Aus der Grube: 1. 2. Feuersteinklingen. 2. Gebrannte Lehmbrocken mit Rundholzabdrücken und Holzkohlereste. 3. Steine. 4. Verz. SS einer KA. 5. 4 verz. RS von Sch oder wT. 6. 2 verz. HaS. 7. Verz. HaS. 8. Verz. HaS (?). 9. Mehrere Umbruchscherben 10. 2 He.ösen. (alles Weber 1964, Abb. 35,1—11). 11. WS mit Buckel. 12. Gr. BdS und zahlr. unverz. uncharakt. Scherben. Amende u. a. 1928, S. 390 f., Taf. III,8; Weber 1964, S. 126 ff.
+
+301. Rositz, OT Gorma. Fdpl. Tagebau. Mbl. 58 (4940), S ca. 8,7; W ca. 12,5. Geländesit.: südexponierter Hangbereich am Erlebach.
+
+FA: EF. 1. Verz. RS eines Gefäßes mit Trichterrand. 2. Fragment einer verz. Sch.
+
+Weber 1964, S. 109, Abb. 1,11 ;23.
+
+302. Starkenberg, OT Dölzig. Fdpl. ohne Bezeichnung. Mbl. 2940 (5039), N 8,8; 0 6,2. Geländesit.: spornartige Anhöhe über Gerstenbach.
+2. FA: EvS. Innerhalb einer ältermittelneolithischen Siedl. (Auerbach 1932, S. 87 ff.) angeblich an O-Wand einer Wohngrube" 2 Scherben von Sch oder wT mit waag. durchb. Ösenhe.; in H. desselben unter kreuzförmig angeordn. Meißel(?) st. ausgespartes  Winkelband, gebildet von eingeritzten mit Punktst. gefüllten Dreiecken.
+
+Mus. Gera o. Nr.
+
+<!-- FREE:PAGE 28 -->
+303. Zetscha, OT Oberzetscha. Fdpl. westl. des Ortes. Mbl. 58 (4940), S 6,8; 0 22,8. Geländesit.: Ubergang von Talaue in Hangbereich.
+
+FA: EF. Aus einer latènezeitlichen Siedl.grube verz. WS mit eingeritzten mit sich kreuzenden Linien gefüllten Rauten. Weber 1964, S. 124.
+
+304. Zetscha, OT Unterzetscha. Fdpl. SW des Ortes. Mbl. 58 (4940), S 7,7; O 20,0. Geländesit.: Hang am Gerstenbach. FA: EF. 1. Reste eines verz. wT. 2. Kl., durch Feuer beschädigtes Feuersteinbeil.
+
+Höckner 1962, S. 283; Weber 1964, S. 136, Abb. 42.
+
+## Kreis Schmölln
+
+305. Ponitz. Fdpl. nördl. der Tongräben. Mbl. 93 (5140), N 21,0; 0 18,1. Geländesit.: Anhöhe, ca. 40 m über Pleiße. FA: EF. Verz. HaS.
+
+Weber 1964, S. 124 f., Abb. 32.
+
+Kreis Grimma
+
+306. Ballendorf. Fdpl. Sandgrube am Heidelberg. Mbl. 44 (4842), S 17,7; W 7,5. Geländesit.: flache Anhöhe.
+
+FA: EF. Z. Z. der Auffindung bereits sekundär verlagert. 1. 2 verz. HaS einer KA. 2. Verz. SS der gleichen (?) KA. 3. Reste eines unverz. wT.
+
+Weber 1964, S. 80, Abb. 3,1—4.
+
+307. Nerchau, OT Grottewitz. Fdpl. südl. der Deditzhöhe. Mbl. 28 (4742), S 19,0; 0 4,9. Geländesit.: Hang einer flachen Anhöhe.
+
+FA: EF. RS mit dreikantigen Einst. unter eingeritztem Winkelband.
+
+Mus. Grimma Inv.-Nr. S 251—252/76. Jacob/Quietzsch 1980, S. 297, Abb. 3.
+
+Kreis Wurzen
+
+308. Lüptitz. Fdpl. Sandberg. Mbl. 4 (4542) oder 13 (4642). Geländesit.: wohl kl. Anhöhe.
+
+FA: EF. 1. Reste von Hals und Schulter einer KA mit eingedrückten Rauten und eingeritzten Fr. 2. HeS und mehrere HaS einer KA mit dreikantigen (?) Einst. 3. Reste von Hals und Schulter eines wT mit punktst.gefüllten Dreiecken und imitierten Fr.gruppen. 4. Mehrere verz. WS anderer Gefäße, dabei st.gefüllte Rechtecke und Punktst.reihe. Weber 1964, S. 120, Abb. 28.
+
+309. Nemt. Fdpl. westl. des Läuseberges. Mbl. 13 (4642), S 14,9; 0 22,6. Geländesit.: eben am Hochufer der Mulde. FA: vG. Zerstörtes Brandg.(?). 1. Reste eines wT mit Reihen rechteckiger Einst. 2. 2 WS mit umlauf. Schnurlinien unter Schnur(?) winkelband, 3. Beil. 4. In der Nähe der Scherben LBR.
+
+Weber 1964, S. 120 ff., Abb. 30.
+
+Kreis Oschatz
+
+310. Börln. Fdpl. Kiesgrube. Mbl. 14 (4643), N 9,4; 0 22,5. Geländesit.: am Rande der Lossa nach N leicht fallend. FA: EF. Reste eines wT mit eingeritzten Quadraten und Reihen kl. Einst.; eine He.öse erh. Weber 1964, S. 84.
+
+311. Oschatz. Fdpl. Abt. 19 des Stadtwaldes. Mbl. 30 (4744), N ca. 2,2; W ca. 13,4. Geländesit.: nach S leicht fallend. FA: EF. Mit uncharakt. Scherben Feuersteinklinge und Kernstein eine SS mit 2 umlauf. Doppelreihen punktartiger Einst. LM Dresden Inv.-Nr. 1980/60 (D. 385/80). Jacob/Quietzsch 1982, S. 423.
+
+312. Oschatz. Fdpl. Abt. 25/26 des Stadtwaldes. Mbl. 30 (4744), N 3,5; W 17,0. Geländesit.: nach S leicht fallend. FA: EF. Mit zahlr. Scherben eine HaS von wT oder Sch mit Schnurfr. unter steh., mit schrägen Schnurlinien gefülltem Dreieck.
+
+LM Dresden 1980/59 (D. 391/80).
+
+313. Wermsdorf. Fdpl. Abt. 24 des Wermsdorfer Forstes. Mbl. 14 (4643), S 1,4; W 17,7. Geländesit.: O-Hang einer flachen Anhöhe.
+
+FA: EF. 1. Verz. SS. 2. Verz. HaS eines wT. Weber 1964, S. 136, Abb. 43,1,2.
+
+314. Wermsdorf. Fdpl. Abt. 50 des Wermsdorfer Forstes. Mbl. 29 (4743), N ca. 5,1; W ca. 23,1. Geländesit.: zwischen 2 Bächen nach SW leicht fallend.
+
+FA: vS. Mit Feuersteinabschlägen, einigen schnurkeramischen und zahlr. anderen Scherben mindestens 2 Scherben der KAK.
+
+LM Dresden Inv.-Nr. 1968/77, 1969/110. Quietzsch 1980, S. 242 f.
+
+Kreis Döbeln
+
+315. Börtewitz. Fdpl. westl. des Ortes. Mbl. 29 (4743), S 5,8; O 7,0. Geländesit.: nach S leicht fallender Hang.
+2. FA: G. Ovale Grube von 1,35 ×1,10×1,20 m; 0-W; Wände mit ca. 1,00 m hohen Bruchsteinmauern verkleidet, mit Steinen abgedeckt. Inhalt: 1. 2 verz. KA und eine zu 2/3 erh. verz. KA. 2. Reste von Hals und Schulter von 3 verz. KA. 3. Hals einer verz. KA. 4. Zahlr. Scherben von mindestens 7 weiteren verz. KA. 5. Verz. wT. 6. Hals und Schulter eines verz. wT. 7. Hals eines verz. wT. 8. Reste eines wT mit groben längl. Einst. unter eingeritztem Winkelband. 9. Zahlr. Scherben von mindestens 3 weiteren verz. wT. 10. Verz. napfartige Trichterrandschüssel. 11. Reste einer Schüsșel mit konischem Hals, konischem Unterteilund Knubben auf dem Umbug. 12. Reste einer unverz. napfartigen Schüssel mit Warzen. 13. Reste eines kl. unverz. gehenkelten(?) Trichterbechers. 14. Reste einer verz. T,,M" (Taf. 80,9). 14. Mehrere verschiedene WS. 15. 7 dickn. dünnbl. Feuersteinbeile, eines dechselartig. 16. Fragment einer kl. durchb. Bernsteinscheibe. 17. Wenige vermutlich tierische Skelettreste (u. a. Wirbelund Beckenfragment).
+
+Jacob 1913, S. 362ff., Taf. 14,15; Priebe 1938, S. 88, Taf. XII c, e—g, XIII d, g, XX e, XXVIII a; Weber 1964, S. .85 ff., Abb. 5; 6,1−7; 7,1-3; 8,1−4.
+
+Anm.: Die T,M" unterscheidet sich in Brand und Magerung von der übrigen Keramik.
+
+316. Kroptewitz. Fdpl. 1. Mbl. 29 (4743), S 7,5—8,3; O:10,2 bis 11,0. Geländesit.: nach S leicht fallender Hang (ca. 1 km vom Börtewitzer Grab).
+
+FA: Siedl. Auf bandkeramischer Siędl. ovale Grube von 2,90 × 2,30 × 0,80 m. Inhalt: 1. Regellos liegende Steine und Holzkohlereste. 2. Stark erg. verz. KA. 3. Stark erg. verz. wT.
+
+4. HeS und SS eines verz. wT. 5. Stark erg. unverz.. TmhU. Weber 1964, S. 113 ff., Abb. 25.
+
+Kreis Torgau
+
+317. Döbrichau. Fdpl. Hügel westl. der Str. nach Zwethau. Mbl. 6 (4444), N 0,4; O 12,2. Geländesit.: eben. FA: EvG. Angeblich aus einem Hügel verz. Sch (Taf. 79,27).
+
+Weber 1964, S. 103 f., Abb. 17, 18.
+
+Bezirk Dresden Bezirk Dresden
+
+Kreis Riesa
+
+318. Canitz. Fdpl. Bereich des Flugplatzes. Mbl. 16 (4645), S 1,2; W 18,0. Geländesit.: nach NW leicht fallender Hang. FA: EvG. Bronzezeitliches G.feld, Reste einer verz. KA. Weber 1964, S. 92 ff., Abb. 9.
+
+319. Paussnitz. Fdpl. Galgenberg. Mbl. 16 (4645), N 8,9; W 14,8. Geländesit.: flache Anhöhe.
+
+FA: EvS. 1. Feuersteinabschläge. 2. Uncharakt. WS 3. RS einer Sch mit häng., mit Schnurwinkellinien gefüllten Dreiecken zwischen 2 umlauf. Schnurlinien. 4. RS mit 3 umlauf. Reihen kl. senkr. Einst.
+
+LM Dresden 1971/41 (S. 341, 342/71). Quietzsch 1980, S. 237 (unter Schnurkeramik).
+
+320. Riesa-Göhlis. Fdpl. 23. Mbl. 17 (4646), S 0,8; W 2,8. Geländesit.: hochwasserfreie Anhöhe im Elbtal.
+
+FA: Siedl. Mit schwarzer Erde gefüllte Grube. 1,00 m tief. Oben birnenförmig (1,80 m L.) ; unten rund (0,85 m Dm.). Inhalt: 1. Erg. unverz. KA. 2. Erg. verz. wT. 3. Zerglühte Steine. 4. Tierknochen.
+
+Weber 1964, S. 125 f., Abb. 33, 34.
+
+321. Strehla. Fdpl. 3. Mbl. 16 (4645), S 19,3; 0 22,1. Geländesit.: Elbtal.
+
+FA: Siedl. Runde Grube von 1,00 m Tiefe und 1,00 m Dm. Inhalt: 1. Erg. verz. Sch. 2. Erg. TmhU mit Kerbreihe am Hals. 3. Reste eines wT (?) mit kurzem konischem Hals, bauchigem Unterteil und Standboden; am Halsansatz Fingertupfenreihe.
+
+Weber 1964, S. 130 ff., Abb. 38, 39.
+
+322. Zeithain. Fdpl. südl. der Windmühle. Mbl. 16 (4645), S 7,2; 0 0,2. Geländesit.: Elbaue.
+
+Weber 1964, S. 146 f.
+
+FA: EF. RS einer KA mit Bogenst.reihen.
+
+Kreis Meißen
+
+323. Dörschnitz, OT Paltzschen. Fdpl. 2 km westl. des Ortes. Mbl. 31 (4745), S 9,9; 0 9,7. Geländesit.: flacher Hang einer feuchten abflußlosen Senke.
+
+- a) Grube im SO-Quadranten. Inhalt: 1. Reste eines unverz. wT mit umlauf. plast. Leiste. 2. Unverz. HaS mit plast. Lei-
+2. FA: Siedl. Mehrere gr. Verfärbungen, eine von 9,50 × 7,70 m Größe untersucht, die 6 Gruben mit einem Dm. von 0,80 bis 1,80 m und einer Tiefe von 0,70—1,75 m überdeckte. 2 Gruben ohne Funde.
+
+10 Beier, Kugelamphoren
+
+- ste. 3. Unverz. WS mit kl. Henkelöse. 4. Zahlr. unverz. WS. 5. Zerglühte Steinbrocken.
+- b) Grube im NO-Quadranten. Inhalt: 1. Verz. HeS einer KA (Taf. 83,23). 2. Reste vom Hals eines verz. wT. 3. Reste vom Hals eines wT mit umlauf. Kerbreihe. 4. HaS einer Sch mit 2 umlauf. Reihen steh. Dreiecke. 5. 2 WS mit Schnurlinien.
+6. HaS mit plast. Leiste. 7. Zahlr. unverz. WS. 8. Reste gebrannten Lehmes.
+- c) Grube 1 im NW-Quadranten. Inhalt: 1. HaS mit He. einer unverz. KA. 2. HeS einer KA mit schrägen Schnurfr. 3. HaS mit Schulter eines unverz. wT. 4. HaS mit umlauf. plastischer Leiste. 5. HeS eines wT mit eingeritzten sich kreuzenden Linien in H. der Handh. 6. 2 kl. Osenhe. von Sch(?) mit horizontalen Schnurlinien (Taf. 83,24,26). 7. Zahlr. unverz. WS. 8. Rest eines Tonröhrchens; L. 3,5 (Taf. 83,25). 9. Reste gebrannten Lehms. 10. Einige Steine, u. a. Rest eines Klopfsteines.
+- d) Grube 2 im NW-Quadranten. Inhalt: 1. Gr. Rest einer unverz. KA (Taf. 83,27). 2. SS einer KA mit gr. häng. und mit Schnurlinien gefüllten Dreiecken unter Reihe grober punktartiger Einst. 3. Rest einer unverz. Sch (Taf. 83,22). 4. Reste eines verz. wT (unter Lesescherben zugehörig). 5. Reste eines unverz. wT mit gekehlter He.öse. 6. HaS einer verz. Sch. 7. Reste einer Sch mit 2 umlauf. Reihen mit Schnurlinien gefüllter häng. Dreiecke. 8. Zahlr. unverz. WS und BdS von teilweise sehr gr. Gefäßen. 9. Reste gebrannten Lehmes. 10. Einige uncharakt. Feuersteinabschläge.
+- e) Funde aus Deckschicht: 1. HeS einer unverz. KA. 2. Gr. BS einer KA. 3. HaS mit Schulter eines unverz. wT. 4. RS mit häng., mit Schnurlinien gefülltem Dreieck. 5. SS mit gr. häng., mit Schnurlinien gefülltem Dreieck. 6. Zahlr. unverz. WS.
+7. Reste gebrannten Lehmes. 8. Uncharakt. Feuersteinabschläge. 9. Einige zerglühte Steinbrocken, Klopfstein und Reste einer Reibeplatte.
+- f) Lesefunde vor Beginn der Untersuchung. 1. HaS eines wT (zu d) 4.). 2. SS mit gr. häng., mit schrägen Schnurlinien gefülltem Dreieck. 3. HaS mit 2 umlauf. Reihen senkr. Meißelst. 4. Rest von Hals und Schulter eines unverz. wT. 5. Zahlr. unverz. WS. 6. Reste gebrannten Lehmes.
+- g) Funde, die keinem der aufgeführten Komplexe mehr zugeordnet werden können: 1. Verz. HaS einer KA. 2. Verz. HaS eines wT. 3. Verz. RS eines wT. 4. Verz. SS eines wT. 5. Verz. HaS mit Schulter einer Sch. 6. 2 WS mit breiten He.ösen. 7. WS eines Napfes (?) mit Reihe kl. Warzen. 8. RS mit gr. häng., mit schrägen Schnurlinien gefülltem Dreieck. 9. HaS mit Schulter einer Sch mit Reihen kommaartiger Einst. am Hals. 10. Zahlr. unverz. WS. 11. Einige teilweise zerglühte Steine. 12. Einige Holzkohleproben und Tierknochen.
+
+LM Dresden Inv.-Nr. 1973/10, 1980/83. Weber 1974, S. 74 ff., Abb. 2,1,2,4—9; 3,1,3—5; Jacob/Quietzsch 1980, S. 380 f. Anm.: Die fehlende Dokumentation erschwerte die Aufnahme der Funde sowie die Auswertung des Befundes. Bei Komplex g handelt es sich um sekundär vermengte Objekte.
+
+324. Wachtnitz, OT Daubnitz. Fdpl. 3. Mbl. 47 (4845), N 0,0 bis 0,4; W 0,8—0,9. Geländesit.: kl. Anhöhe.
+2. FA: Siedl. Bisher 2 Gruben untersucht. Eine sicher KAK.
+- a) Grube 2. Inhalt: 1. RS und HeS einer kl. unverz. KA.
+
+2. Reste eines WB (Baumann/Quietzsch 1969, Abb. 3,6).
+
+3. Zahlr. unverz. WS. 4. Reste gebrannten Lehmes. 5. Holz-
+
+kohlereste. 6. Feuersteinklinge mit Kantenretuschen; L. 5,1.
+
+b) Grube 9. Inhalt: 1. Einige unverz. WS. 2. Reste gebrann-
+
+ten Lehmes. 3. Holzkohlereste.
+
+<!-- FREE:PAGE 29 -->
+LM Dresden Inv.-Nr. 1970/142, 1974/110. Baumann/Quietzsch 1969, S. 65 f.; Jacob/Quietzsch 1980, S. 292.
+
+325. Wachtnitz, OT Daubnitz. Fdpl. 4. Mbl. 47 (4845), N 2,0; 0 0,9. Geländesit.: kl. Anhöhe.
+
+- FA: Siedl. Grube: 1. Verz. RS (Baumann/Quietzsch 1969, Abb. 3,5). 2. RS und 2 WS eines TmhU mit Kerbreihe. 3. Zahlr. unverz. WS. 4. Reste gebrannten Lehmes. 5. 3 atypische Feuersteinabschläge.
+- LM Dresden Inv.-Nr. 1970/143. Baumann/Quietzsch 1969, S. 65 f.; Jacob/Quietzsch 1980, S. 292.
+326. Wachtnitz, OT Zöthain. Fdpl. 6. Galgenberg. Mbl. 47 (4845), N ca. 4,2; 0 ca. 2,5. Geländesit.: kl. Anhöhe.
+
+FA: Siedl. 7 Gruben geborgen. 3 zur KAK und 1 in jüngere Bronzezeit gehörig. Die restlichen 3 Gruben mit jeweils uncharakt. Scherben.
+
+a) Grube 4. Inhalt: 1. Verz. HaS einer KA. 2. Breiter Osenhe. einer gr. unverz. KA. 3. RS eines TmhU mit Fingertupfenreihe. 4. Reste eines Napfes mit gekerbtem Umbruch. 5. WS eines WB. 6. Zahlr. unverz. WS. 7. Reste gebrannten Lehmes. 8. Einige uncharakt. Feuersteinabschläge.
+
+b) Grube 5. Inhalt: 1. SS mit He. einer unverz. KA. 2. Verz. HaS mit Schulter eines wT. 3. Einige unverz. WS und eine BdS. 4. Reste gebrannten Lehmes. 5. 2 uncharakt. Feuersteinabschläge. 6. Kl. Kiesel.
+
+- c) Grube 6. Inhalt: 1. WS eines Napfes mit gekerbtem Umbug. 2. Einige unverz. WS. 3. Wenige Knochenfragmente. LM Dresden Inv.-Nr. 1970/139—141. Baumann/Quietzsch
+2. 1969, S. 65 f., Abb. 3,2—4; Jacob/Quietzsch 1980, S. 318.
+327. Weinböhla. Fdpl. Sandgrube Kreyern. Mbl. 49 (4847), N 20,0; O 14,2. Geländesit.: Hang einer flachen Anhöhe in Bachnähe.
+
+FA: Siedl. Funde über ein größeres Areal verteilt in 0,10 bis 0,40 m Tiefe. Außerdem eine Grube mit viel Holzkohle. In dieser Scherben nestartig angehäuft und einige Steingeräte. Funde: 1. Verz. RS (Quietzsch 1968, Abb. 5,2). 2. Gr. HaS eines unverz. wT mit umlauf. plastischer Wulst. 3. RS eines TmhU mit Tupfenreihe. 4. Einige SS von TmhU mit umlauf. Kerb- oder Knubbenreihe. 5. Verz. SS (bei Baumann 1964, Abb. 1,3 falsch orientiert). 6. WS mit Schnurlinien. 7. SS eines wT (?). 8. SS mit He.ansatz und plastischen umlauf. Leisten. 9. BdS. 10. Kl. Querschneider. 11. Schneidenfragment eines geschliffenen Feuersteinbeiles.
+
+- LM Dresden Inv.-Nr. 1963/95 (S. 2283—2291/63), 1965/46 und 1968/133. Kaufmann/Quietzsch/Spehr 1964, S. 366 f.; Baumann 1964, S. 74 ff., Abb. 1; Quietzsch 1968, S. 555; 1971, S. 380 f.
+
+## Kreis Dresden
+
+328. Cossebaude. Fdpl. 5. Grundstück Gartenstr. 2. Mbl. 65 (4947), N 4,6; 0 8,2. Geländesit.: hochwassergeschützte Terrasse im Elbtal.
+
+FA: G. 4 Gruppen von Fundobjekten frei im Sand. Wohl Beigaben aus 4 Flachg.
+
+a) ,Grab 1". 1. Verz. KA. 2. Am Hals erg. verz. KA. 3. Verz. Trichterrandschüssel. 4. Napfartige unverz. Trichterrandschüssel. 5. Dickn. dünnbl. Feuersteinbeil.
+
+- b) Grab 2". 1. Stark erg. verz. KA. 2. Stark erg. verz. KA. 3. Stark erg. verz. KA. 4. Stark erg. verz. KA. 5. Stark erg. verz. wT. 6. ,Trichterrandschüssel" mit gekerbtem Umbruch.
+7. Dickn., relativ dünnbl. Feuersteinbeil.
+- c) ,Grab 3". 1. Stark erg. unverz. KA mit Standboden und He. auf der Schulter. 2. Dickn. Feuersteinbeil.
+
+d) Grab 4". 1. Stark erg. verz. KA. 2. Feuersteinmeißel.
+
+Weber 1964, S. 94 ff., Abb. 10,1-5; 12,1—4; 13,1-3; 14,1-2; 15,1-2.
+
+329. Dresden-Altstadt. Fdpl. 22. Am Beutlerpark 8. Mbl. 66 (4948), S 14,0; W 21,7. Geländesit.: flacher Hang am W-Rand des Elbtales.
+
+- FA: G. Beigaben: 1. Stark erg. verz. KA. 2. Stark erg. verz. KA. 3. Bauch einer KA; auf Schulter unter Reihe eingeritzter kurzer, sich kreuzender Linien kurze schräge Fr.; abgeschlossen von eingeritzter Winkellinie. 4. Erg. verz. wT. 5. Unverz. Sch. 6. Unverz. T mit S-Profil. 7. Dickn., relativ dünnbl. Feuersteinbeil. 8. Dickn. dünnbl. Feuersteinbeil.
+
+Weber 1964, S. 104 ff., Abb. 19,1—5; 20,1—2.
+
+## Kreis Niesky
+
+649. See, OT Moholz. Fdpl. Düne im Moholzer Forst. Mbl. 25 (4654), S 5,2; 0 9,3. Geländesit.: Düne.
+
+FA: vG. In 0,10—0,35 m Tiefe frei im Sand liegend: 1. Verz. KA mit ovalem Bauch. 2. Stark erg. wT mit Kerbreihe auf der Schulter; ohne Handh.
+
+Rennebach 1963, S. 80 ff., Abb. 1; Weber 1964, S. 120 f., Abb. 29,1—2; Kaufmann/Quietzsch/Spehr 1967, S. 529.
+
+## Kreis Bautzen
+
+650. Niederkaina. Fdpl. Kiesgrube am Schafberg. Geländesit.: Hang.
+
+FA: EF. 1. RS und HaS einer Sch; unter Rand ein vierreihiges Band kl. längl. Einst. und darunter auf Lücke angeordn. 5 Reihen gr. längl. Einst. 2. 2 unverz. WS. 3. 2 klingenartige und 1 atypischer Abschlag.
+
+LM Dresden o. Nr. Mitt. M. Agthe, Cottbus.
+
+Gebiet der Schwarzen Elster im Bezirk Cottbus.
+
+## Kreis Jessen
+
+330. Jessen. Fdpl. 8. Mbl. 2392 (4243), N 3,9; 0 6,9. Geländesit.: nördl. Hochufer der Schwarzen Elster, eben.
+
+FA: EvS. 1. Verz. RS von Sch oder wT. 2. Umbruchscherbe einer Sch (?). 3. 2 verz. SS. 4. Zahlr. unverz. neolithische Scherben. 5. Feuersteinpfeilspitze, Feuersteinklingen, Kernstein und zahlr. Abschläge. 6. Hinterlassenschaften jüngerer Perioden.
+
+Mus. Cottbus Inv.-Nr. IV 1982:227. Wetzel 1981, S. 176, Taf. 1,12—13; 1982, S. 199, Abb. 1,68–71; 1983, S. 133, Abb. 2,39,41,47,52.
+
+331. Klossa. Fdpl. 18. Mbl. 2393 (4244), N 11,6; W 12,2. Geländesit.: eben, an einem Bach 1 km südwestl. der Schwarzen Elster.
+
+FA: EF. Verz. He.ansatzscherbe. Depot Jessen. Wetzel 1973 b, S. 184; Kirsch 1975, S. 143.
+
+332. Lebien. Fdpl. 10. Mbl. 2392 (4243), S 11,3—11,5; 0 23,2. Geländesit.: eben, an einem Bach.
+
+FA: EvS. 1. RS und WS von verz. wT oder Sch. 2. WS mit 2 Fingernagelkerbreihen. 3. Feuersteinartefakte. 4. Kaiserzeitliche Scherben.
+
+Depot Jessen Inv.-Nr. IV-72-147. Wetzel 1973 b, S. 185, Abb. 2,3; Kirsch 1975, S. 144 f., Abb. 1 m, n.
+
+333. Prettin. Fdpl. 6. Mbl. 2465 (4343), N 15,0; W 19,4. Geländesit.: hochwasserfreies Areal zwischen Elbe und ,Alter Elbe".
+
+FA: EF. Verz. HeS.
+
+Depot Jessen. Wetzel 1973 a, S. 118; 1973 b, S. 185; Kirsch 1975, S. 145, Abb. 1 1.
+
+334. Purzien. Fdpl. 17. Kettmanns Fichten. Mbl. 2393 (4244), N 16,5; W 2,3. Geländesit.: eben, an einem Bach.
+
+FA: EvS. 1. Verz. HaS einer KA mit He. und Schulter. 2. RS der Schnurkeramik. 3. Feuersteinartefakte. 4. Bronzezeitliche Scherben.
+
+Depot Jessen Inv.-Nr. IV-72-172. Wetzel 1973 b, S. 185, Abb. 2,1; Kirsch 1975, S. 145, Abb. 1 i.
+
+335. Purzien. Fdpl. u. Höhe am Teich". Mbl. 2393 (4244). Geländesit.: wohl kl. Anhöhe.
+
+FA: EF. Verz. RS von wT oder Sch.
+
+Depot Jessen (ehem. Slg. Wiele). Kirsch 1975, S. 145, Abb. 1 k.
+
+## Kreis Herzberg
+
+336. Borken. Fdpl. 1. Mbl. 2394 (4245), S ca. 14,5; W ca. 9,0. Geländesit.: eben, am NO-Hochufer der Schwarzen Elster. FA: Siedl. Einige Herdstellen und gr. Grube geborgen. Funde: 1. Verz. RS von Sch oder wT. 2. 3 schnurverz. WS des gleichen Gefäßes (?). 3. Unverz. WS des gleichen Gefäßes (?). 4. In der Grube angeblich Mikrolithen".
+
+Verschollen. Priebe 1938, S. 80, Taf. XXVI a; Behrens 1973, S. 302; Kirsch 1975, S. 133, Abb. 1 r.
+
+337. Friedrichsluga. Fdpl. kl. Bielschenberg. Mbl. 2467 (4345), N 16,3; 0 19,3. Geländesit.: hochwassergeschützte Anhöhe östl. der Schwarzen Elster.
+
+FA: EF. Verz. WS.
+
+Verschollen. Priebe 1938, S. 80, Taf. XXVI a; Behrens 1973, S.303; Kirsch 1975, S. 142, Abb. 1 o.
+
+## Kreis Bad Liebenwerda
+
+338. Neuburxdorf, OT Wendisch-Borschütz. Fdpl. ohne Bezeichnung. Mbl. 2613 (4545), S 20,4; O 13,9. Geländesit.: leicht wellig.
+
+LM Halle HK 39:208 a, b. Grimm 1940 b, S. 232, Taf. 54,2,3; Kirsch 1975, S. 145 f., Abb. 3 a, b.
+
+FA: vG. Beigaben: 1. Ovaler Bauch einer unverz. KA mit 4 kreuzständigen He.ösen (Taf. 80,2). 2. Reste eines TmhU mit Fingertupfenreihe auf Umbug (Taf. 80,1).
+
+## Kreis Luckau
+
+339. Dahme. Fdpl. 8. Am Körbaer Teich. Mbl. 2321 (4146), S8,5; W 20,4. Geländesit.: nach S leicht fallend am N-Ufer des Teiches.
+
+- a) Komplex A. In ca. 1,00 m Tiefe Schicht auf festgestampftem Lehm. Darauf: 1. Verz. KA 2. Unverz. dickwandiger WB
+2. FA: vermutlich G.feld.
+3. mit leicht eingezogenem Hals und 8 Warzen. 3. Dickwandige unverz. Scherben. 4. Beilartiges grobes Steingerät mit anscheinend zugeschliffener Schneide. 5. Bearbeitete (?) Steine und Holzkohlereste.
+1. Mus. Luckau o. Nr.; Rest verschollen.
+1. Verschollen. 2. Mus. Cottbus o. Nr.
+- b) Komplex B. In Nähe von A flache muldenförmige, 1,00 m tiefe Lehmwanne. Darin: 1. Unverz. KA. 2. Erg. verz. wT.
+- c) Funde aus ähnlichen Anlagen. In 1,00 m Tiefe angeblich noch 11 weitere Lehmkammern" mit quadratischer Grundfläche von ca. 0,50—1,00 m² aus festgestampftem Lehm mit abgerundeten Ecken. Einige Seitenwände auch aus Lehm. In jeder Kammer 1 Gefäß und außerhalb Knochenreste und Feuersteinbeile. Anzahl von vorhandenen 14 Gefäßen spricht für eine gewisse Ungenauigkeit der Angaben. Funde: 1. Erg. verz. KA. 2. Reste einer verz. KA. 3. Verz. KA. 4. Verz. KA. 5. Verz. KA. 6. Verz. KA. 7. Verz. KA. 8. Unverz. wT mit senkr. durchb. He.ösen. 9. Verz. Sch mit 3 nebenst. senkr. durchb. He.ösen. 10. Verz. Sch. 11. Verz. schalenartiges Gefäß (ohne He.?) mit gefüllten gr. Rechtecken aus Schnurlinien am Hals und mit gefüllten häng. Dreiecken aus Schnurlinien auf der Schulter. 12. Verz. kesselartiges Gefäß. 13. Verz. kesselartiges Gefäß. 14. Unverz. kesselartiges Gefäß. 15. Dickn. Feuersteinbeil; L. 14,1; Schnbr. 5,1. 16. Dickn. dünnbl. Feuersteinbeil; L. 12,6; Schnbr. 4,7. 17. Dickn. dechselartiges Feuersteinbeil; L. ca. 9,5; Schnbr. 3,3. 18. Dickn. dünnbl. Feuersteinbeil; L. 8,5; Schnbr. 3,7. 19. Feuersteinmeißel; L. 6,0; Schnbr. 1,0. 20. Einige Knochen und Zahnreste (Bos primigenius ?).
+8. 1., 8., 14. verschollen (Nachbildung im RGZM); 12. Mus. Cottbus o. Nr.; 15, 16, 18. Mus. Dahme Inv.-Nr. IV/84/61 a, b, e; Rest verschollen.
+- d) Nicht zuzuordnende EF.1. Bauch einer unverz. KA. 2. Neolithische Scherben. 3. Reste gebrannten Lehmes und jungbronzezeitliche Scherben. 4. Dickn. dünnbl. Feuersteinbeil; L. 10,8; Schnbr. 4,7. 5. Schneidenfragment eines Feuersteinbeiles.
+1. Vermutlich RGZM Inv.-Nr. O.21763. 2. Mus. Luckenwalde. 3.—5. Mus. Dahme Inv.-Nr. IV/84/61 c, d; o. Nr. Sprockhoff 1926, Taf. 41, 42; Kirsch 1975, S. 137 ff., Abb. 2.
+
+Südliche Randgebiete des Bezirkes Potsdam
+
+## Kreis Jüterbog
+
+340. Jüterbog, OT Damm. Fdpl. Flugplatz. Mbl. 2246 (4044), N ca. 7,0; W ca. 19,5. Geländesit.: relativ eben.
+
+FA: EF. Gefäßreste der KAK.
+
+Mus. Jüterbog (z. Z. nicht zugänglich). Uhl 1983, KatalogNr. 1439.
+
+341. Schönefeld. Fdpl. SO der Windmühle. Mbl. 2244 (4042), N ca. 11,0; 0 ca. 2,5. Geländesit.: Bereich einer flachen Anhöhe.
+
+- FA: G (Mauerkammer ?). In 0,35 m Tiefe halbkreisförmige Steinsetzung von 1,50 m Dm.; umgeben von Ascheschicht und Knochenresten. In der Steinsetzung angeblich an einer Stelle konzentriert 10—12 mit Asche gefüllte Gefäße und zwischen ihnen ein Feuersteinbeil, ein Fragment eines Feuersteinbeiles, eine Bernsteinscheibe und ein Rest eines kalzinierten Knochens. Einige Gefäße mit sekundären Brandspuren. Erh.:
+
+<!-- FREE:PAGE 30 -->
+1. Reste einer verz. KA mit abgeplattetem Boden (Taf. 79,28). a) In Kammermitte von Steinen umgeben: 1. Gesackte verz. KA. 2. Reste einer unverz. Trommel mit He.ösen. 3. Dickn. Feuersteinbeil.
+- b) In Nähe des Ganges bei Leichenschatten HaS einer verz. KA. Laux 1971, S. 195 ff.; Körner/Laux 1975, S. 206 ff. ; 1980, S. 161 ff., Abb. 44; Preuß 1980, S. 81 f.; Laux 1982, S. 73 f., 85, Taf. 6,2; 7,1–2; 8,4.
+
+Anm.: Die Annahme einer Doppelbestattung bei a (Körner/ Laux 1980, S. 167) ist nicht beweisbar.
+
+## 349. Rohstorf, Kr. Lüneburg.
+
+- FA: G (vermutlich Nachbestattung in Großsteing.). Aus gestörter Kammer von G I neben Funden der Tiefstichkeramik und der Einzelgrabkultur: 1. Reste einer verz. KA. 2. Reste einer verz. KA mit kaum abgesetztem Hals. 3. 2 verz. HaS einer KA. 4. Unterteil einer unverz. (?) KA mit ovalem Bauch. 5. Scherben eines unverz. wT (?).
+
+Priebe 1938, S. 96; Sprockhoff 1951, S. 113; Körner/Laux 1980, S. 192 ff., Abb. 61; Laux 1982, S. 77 f., 85, Taf. 8,5; 9,1; 10,2; 11,1; 12,1.
+
+## 350. Rohstorf, Kr. Lüneburg.
+
+- FA: G (Nachbestattung in Großsteing.). In Kammer von G III stratigraphische Abfolge Tiefstichkeramik, KAK, Einzelgrabkultur. Kammer durch abgebrochene Steinplatte zweigeteilt. a) Aus S-teil: 1. Verz. wT. 2. Dünnbl. Feuersteinbeil.
+- b) Aus N-teil: 1. Reste einer unverz. KA mit gedrücktem Bauch. 2. Einige verz. HaS einer KA. 3. Boden einer KA. 4. Einige unverz. HaS einer KA. 5. Reste eines unverz. wT. 6. Mehrere dickn. Feuersteinbeile.
+
+Körner/Laux 1980, S. 194 ff., Abb. 63—67; Laux 1982, S. 79 ff., Taf. 8,6; 11,2; 14,1-2; 15,2; 16,2,4,5; 20,1,7.
+
+351. Altenmedingen-Haaβel, Kr. Uelzen.
+
+FA: EvG. Aus Erdgrabhügel" zusammen mit einer tiefstichkeramischen RS verz. WS.
+
+Krüger 1926, S. 33, Abb. 22; Kupka 1928, S. 244; Priebe 1938, S. 95; Sprockhoff 1951, S. 113; Laux 1982, S. 86, Taf. 8,3.
+
+## 352. Masendorf, Kr. Uelzen.
+
+- FA: G (vermutlich Nachbestattung in Großsteing.). Zusammen mit Funden der Tiefstichkeramik und der Einzelgrabkultur: 1. Verz. ,wT". 2. 2 dickn. Feuersteinbeile. 3. Dickn. Feuersteinmeißel.
+
+Estorff 1846, S. 50, 71 f., 109, Taf. VI,3/4, 7/8, 11/12, XV,3; Priebe 1938, S. 95; Sprockhoff 1951, S. 113; Laux 1982, S. 86, Taf. 13.
+
+Anm.: Erh. Scherben für eindeutige Rekonstruktion zu gering, auch Sch möglich.
+
+353. Oetzen, OT Süttorf, Kr. Uelzen.
+
+FA: G (Nachbestattung in Großsteing.). Aus stark gestörter Kammer über dem Pflaster einige Scherben der KAK. Am Sende Pflaster durch eingetiefte Bestattung durchstoßen. Folg. Beigaben: 1. Leicht asymmetrischer verz. wT. 2. Feuersteinmeißel. 3. 2 dünnbl. auf die Schneide abgelegte Feuersteinbeile.
+
+Fansa 1983, S. 44 ff., Abb. 3—5; 1984, S. 77 ff., Abb. 7—10.
+
+354. Ostedt, Kr. Uelzen.
+
+FA: EvG. Verz. KA mit Schulterhe.
+
+Sprockhoff 1951, S. 113 f., Taf. 5,3; Laux 1982, S. 86, Taf. 5,3.
+
+2. Bauch einer unverz. KA mit gesacktem Bauch (Taf. 79,33). 3. Verz. Sch (Taf. 79,30). 4. Verz. WS einer Sch mit abgesetztem Hals und einer senkr. durchb. He.öse (Taf. 79,32). 5. Verz. RS. 6. Dickn. an Breitseiten überschliffenes Feuersteinbeil; Schneide schräg abgebrochen und Bruchkanten retuschiert (Säge ?) (Taf. 79,31). 7. An Breitseiten teilweise überschliffenes Feuersteinbeil. 8. Fragment einer ovalen Bernsteinscheibe mit 2 peripheren Durchb. (Taf. 79,29).
+2. 1.—4., 6., 8. LM Halle HK 10219—10225. 5. Slg. Universität Münster/Westfalen. 7. Verschollen. Förtsch 1902, S. 75 ff., Taf. I; Priebe 1938, S. 80, Taf. XXXII e; Fischer 1956, S. 150 ff., 295; Uhl 1983, Katalog-Nr. 1461.
+
+## Kreis Brandenburg
+
+342. Ziesar. Fdpl. u. Mbl. 2036 (3739).
+
+FA: EvG. Verz. KA.
+
+Vermutlich Kriegsverlust (ehemals Märkisches Mus. Berlin). Stimming 1925, S. 42, Abb. 44; Priebe 1938, S. 82; Voigt 1942, S. 34; Uhl 1983, Katalog-Nr. 1185.
+
+Funde der KAK auf dem heutigen Territorium der BRD mit Ausnahme der Funde aus Schleswig-Holstein.
+
+343. Gnarrenburg, Kr. Bremervörde.
+
+FA: G (vielleicht Nachbestattung in Großsteing.). Unter tiefstichkeramischen Funden Reste einer atypischen unverz. KA. Deichmüller 1972, S. 24 ff.; Abb. 5 b; Laux 1982, S. 85.
+
+## 344. Regesbostel, OT Rahmsdorf, Kr. Harburg.
+
+- FA: G (vermutlich Nachbestattung in Großsteing.). Aus gestörter Kammer neben Funden der Tiefstichkeramik und der Einzelgrabkultur: 1. BS einer verz. KA. 2. BS einer verz. KA mit ovalem Bauch. 3. Unverz. wT. 4. Verz. wT. 5. Verz. Sch. 6. Schrägwandige Sch. 7. Feuersteinmeißel.
+
+Wegewitz 1969, S 109 ff., Abb. 10—17; Laux 1982, S. 85, Taf. 10,1; 12,2; 14,3; 15,1,3; 16,1.
+
+## 345. Amelinghausen-Sottorf, Kr. Lüneburg.
+
+- FA: EF (vermutlich Nachbestattung in Großsteing.). Aus gestörter Kammer und aus Steinmantel verz. RS und verz. HaS. Körner 1959, S. 139 ff., Abb. 2 c, d; Körner/Laux 1980, S. 144 f., Abb. 27; Laux 1982, S. 85, Taf. 8,2.
+
+## 346. Diersbüttel, Kr. Lüneburg.
+
+- FA: G (Nachbestattung in Großsteing.). Aus Gangbereich einer gestörten Kammer mit Funden der Tiefstichkeramik und Einzelgrabkultur: 1. Reste einer verz. KA. 2. Fragmen-
+- tiertes dickn. Feuersteinbeil. Beides wohl umgelagert. Körner/Laux 1980, S. 142 ff., Abb. 26; Laux 1982, S. 85,
+
+Sprockhoff 1951, S. 105 ff., Abb. 3; Fischer 1958 a, S. 293; Taf. 9,2,3.
+
+## 347. Gienau, OT Siecke, Kr. Lüneburg.
+
+FA: EF (vermutlich Nachbestattung in Großsteing.). Aus Bereich des gestörten G IV. Reste einer verz. KA.
+
+Sprockhoff 1951, S. 111 f., Taf. 5,2; Laux 1982, S. 86, Taf. 5,2.
+
+## 348. Oldendorf, Kr. Lüneburg.
+
+- FA: G (Nachbestattung in Großsteing.). In Kammer von G IV stratigraphische Abfolge Tiefstichkeramik, KAK, Einzelgrabkultur. 2 Bestattungen der KAK.
+
+355. Rätzlingen, Kr. Uelzen. FA: EvG. Verz. KA mit leicht gedrücktem Bauch.
+
+Laux 1982, S. 86, Taf. 8,1.
+
+## 356. Königshorst, Kr. Lüchow-Dannenberg.
+
+FA: vG. 1. Verz. wT. 2. Verz. Sch mit asymmetrischen He.ösenpaar. 3. Reste eines weiteren verz., aber nicht genauer bestimmbaren Gefäßes.
+
+Kupka 1928, S. 243 f.; 1933, S. 175; Priebe 1938, S. 95, Taf. XXI a, XXV c, XXVII b; Jacob-Friesen 1939, S. 77, Abb. 75; Sprockhoff 1951, S. 113; Jacob-Friesen 1959, S. 188; Abb. 176; Voelkel 1962, S. 48.
+
+## 357. Pevestorf, Kr. Lüchow-Dannenberg.
+
+- FA: G, Flachg.feld auf mehrperiodigem Fundplatz (Voss 1965 b, Abb. 2). Auf alter neolithischer Oberfläche lagerte eine dünne Schicht mit keramischen Resten (u. a. Trommelfragmente) und kalzinierten Knochen von Schweinen und Vögeln (Schicht 13). Insgesamt 34 wohl meist O—W gerichtete bis zu 1,00 m tiefe G ohne Steinschutz untersucht. Weitere G erkannt. 5 G hatten beutelförmige sekundäre Eingrabungen mit Gefäßresten, Holzkohle und Asche. Ein auf dem G.feld festgestellter henge"-artiger Pfostenrundbau soll jünger sein. Die Beigaben stellen eine Mischung von Formen der Bernburger und der KAK dar. Folgende Befunde sind publiziert:
+- a) Wohl zerstörtes G (gefunden östl. ·der späteren Ausgrabung). Aus einer muldenförmigen dunklen Verfärbung mit einer vermutlich sekundär eingegrabenen Brandgrube folgende Objekte: 1. 2 Feuersteinflachbeile. 2. 2 Querschneider. 3. 15 unretuschierte Klingen. 4. Bernsteinperle. 5. Kl. atypische KA (?) mit ovalem Bauch und konischem Hals; um Hals Stichreihenverz. und auf Schulter Furchenst.fr. 6. Verz. wT. 7. T,M". 8. T,,M"; auf Umbruch ausgespartes Winkelband aus von flachen dellenartigen Eindrücken gebildeten Dreiecken. 9. Verz. trichterbecherartiges Gefäß. 10. Verz. Bernburger Amphore, die zu den wT bereits überleitet. 11. Verz. Bernburger T. 12. Verz. Bernburger Amphore. 13. Verz. T mit gekerbtem Rand und schrägem S-Profil. 14. Schwach bauchiger Topf mit kurzem geradem Hals; am Halsansatz Ritzlinien. 15. Scherben von 4 weiteren Gefäßen.
+- b) G K 1. WNW-OSO gerichtete rechteckige Grube von 2,00 × 1,00 m. In 0,90 m Tiefe folg. Beigaben: 1. Verz. BernburgerT. 2. Verz. Bernburger T.3. Längl. Feuersteinstück (Feuersteinschläger ?). 4. 3 Bernsteinperlen. 5.6 Querschneider. 6. Eiförmiger Klumpen einer organischen Substanz. 7.3 Feuersteinklingen. 8. Konzentration von 90 Feuersteinklingen am W-ende der Grube.9.In Füllerde Knochenbrand und Holzkohlesplitter. 10. Innerhalb der Grube eine beutelförmige, 0,50 m tiefe Eingrabung mit Holzkohle (14C: 4380 ± 100), Knochenbrand, einer verz. HaS einer KA, zu der Scherben aus Schicht 13 passen, sowie Resten einer verz. Trichterrandschüssel oder einer T,,M".
+- c) G K 2. Nur teilweise untersucht. Innerhalb der Grube sekundäre Eingrabung. Aus dieser Brandschutt und verz. Gefäßrest.
+- e) G K 4. Sehr flach, unmittelbar unter Schicht 13. Beigaben: 1. 2 zerscherbte Gefäße. 2. Feuersteinschläger". 3. 10 Querschneider.
+- d) G K 3. Innerhalb der Grube sekundäre Eingrabung mit einer halbierten T. Beigaben: 1. He.napf. 2. Langschmales Feuersteinrechteckbeil. 3. Feuersteinschläger". 4. Querschneider. 5. 7 Bernsteinperlen; eine als Doppelaxt.
+- f) G K 5. Auf Sohle der O—W gerichteten Grube Leichenschatten einer gestreckten Bestattung mit Schädel im O. Beigaben: 1. Hinter Kopf schrägliegende verz. KA mit abgeplattetem Boden. 2. Daneben schrägliegende verz. Bernburger T. 3. Neben rechter Schulter zerscherbte doppelkonische verz. Bernburger T. 4. Am rechten Oberarm mehrfach durchb. Bernsteinanhänger und Spuren eines Kupfer(?)bleches. 5. Am linken Unterarm Kette aus 20 scheiben- und röhrenförmigen Bernsteinperlen. 6. Am rechten Oberschenkel Kupfer(?)reste.
+7. Bei Unterschenkeln Feuersteinbeil und -klinge.
+- g) G K 7. Innerhalb der Grube sekundäre Eingrabung mit Trommelfragment und einer verz. Sch ohne Boden. Beigaben: 1. Verz. KA. 2. T. 3. Geschliffenes mittelgroßes Feuersteinbeil. 4. Feuersteinschläger". 5. 11 Querschneider. 6. Klingenartige Abschläge.
+
+Voss 1961, S. 70, Abb. 2; 1964, S. 76 ff.; 1965 a, S. 165, Abb. 8, 10 B 5, 11, 24,1; 1965 b, S. 361, Abb. 2, 4, 12; 1966, S. 284 ff. ; Behrens 1981 a, S. 12; Beier 1984, S. 153 f.
+
+- Anm.: Angaben in Fundberichten von K. L. Voss (1965 b; 1966) widersprüchlich. Das im ersten Bericht als K 3 bezeichnete G im zweiten als K 4 aufgeführt. Angaben über Beigaben der G K 3/4?, 5 und 7 nicht identisch.
+
+## 358. Rebenstorf, Kr. Lüchow-Dannenberg.
+
+- FA: G, vermutlich 2 zerstörte Flachg. 1. O—W gerichtete Grube von 1,60 m L. und 1,35 m Tiefe. 1,0 m nördl.: eine Brandstelle (zugehörig ?). Im O der Grube verz. KA. 2. 3,00 m östl. der KA Reste einer verz. Sch mit gekerbtem Rand und nebenständigem He.ösenpaar.
+
+Voelkel 1962, S. 48 ff., Abb. 1, Taf. 1.
+
+359. Braunschweig.
+2. FA: EvG. Unverz. KA mit gesacktem Bauch und leicht konischem Hals.
+
+Priebe 1938, S. 96, Taf. VI f; Niquet 1958, S. 22 f.; Rosenstock 1978, S. 271.
+
+Anm.: Die Ansprache des Gefäßes als Ösenkruke der Trichterbecherkultur (Niquet 1958, S. 22 f.) nicht akzeptabel.
+
+360. Achim, OT Seinstedt, Kr. Wolfenbüttel.
+2. FA: EF, vermutlich Nach- oder Mitbestattung. In eingesenktem Steinkammerg. Reste von mindestens 6 Bestattungen, einige Scherben der Bernburger Kultur und verz. Umbruchscherbe eines wT.
+
+Knoop 1913, S. 42 ff., Abb. 5; Kossinna 1922, S. 251; Niklasson 1925 c, S. 43, Abb. 48; Priebe 1938, S. 96; Fischer 1953 b, S. 167; 1956, S. 88, 96, 274, 295; Niquet 1958, S. 27; Schrickel 1966 b, S. 462, Taf. 58 B,2; Behrens 1973, S. 300, 304; Rosenstock 1978, S. 277 f.; Beier 1984, S. 155 f.
+
+361. Erkerode, OT Lucklum, Kr. Wolfenbüttel (meist unter Evessen).
+2. FA: EF, vermutlich Nach- oder Mitbestattung. In eingesenktem Steinkammerg. Reste von 11 Bestattungen, uncharakt. Scherben, Feuersteinabschläge, dickn. Feuersteinbeil und dickn. Feuersteinmeißel. Beide angeblich über den Skelettresten geborgen (Nachbestattung ?).
+
+Voges 1896, S. 196; 1906, S. 3; Krone 1931, S. 55 f.; Fischer 1956, S. 88, 96, 271; Schrickel 1966 b, S. 461, Taf. 57,1,2; Behrens 1973, S. 298; Beier 1984, S. 155.
+
+362. Hornburg, Kr. Wolfenbüttel (meist unter Börssum).
+
+FA: G. Steinkiste; 0-W; 2,76 × 0,70 × 0,84 m; Sohle bei
+
+<!-- FREE:PAGE 31 -->
+1,30 m; in W-Hälfte Skelettreste eines Individums; Schädel in Kammermitte. Beigaben: 1. Westl. des Schädels 2 Feuersteinbeile und 1 Feuersteinmeißel. Wohl auch noch zugehörig: 2. Einige verz. Scherben aus W-Hälfte. 3. 2 Feuersteinabschläge. 4. Extremitätenknochen eines Rindes.
+
+Knoop 1904, S. 6 f.; Voges 1906, S. 6; Tenner 1928, S. 81, Taf. 30 b; Fischer 1956, S. 150, 154, 293; Rosenstock 1973, S. 271 f.
+
+## 363. Remlingen, OT Broß-Biewende, Kr. Wolfenbüttel.
+
+FA: G. Steinkiste; N—S; ca. 2,17 × 1,09 × 0,84 m; Abdekkung ? Darin vermutlich liegender extremer Hocker eines jungen Mannes; Schädel im S; Beigaben in Schädelnähe: 1. Verz. KA mit leicht ovalem Bauch. 2. Verz. T,,M". 3. Dünnbl. Feuersteinbeil. 4. Dickn. Feuersteinmeißel. 5. Fragment eines längsgespaltenen Eberhauers und Reste eines Schweineoberkiefers.
+
+Voges 1896, S. 195 f.; 1906, S. 3 f.; Kossinna 1922, S. 251; Krone 1931, S. 65 f., Abb.; Priebe 1938, S. 96; Fischer 1956, S. 150, 152, 294; Niquet 1958, S. 27; Behrens 1973, S. 303; Rosenstock 1978, S. 265 ff., Abb. 1—4; May/Burkhardt 1978, S. 281 ff.
+
+364. Helmstedt.
+
+FA: EvG. Verz. KA.
+
+Priebe 1938, S. 96, Taf. IV d; Behrens 1973, S. 303; Rosenstock 1978, S. 271.
+
+365. Jerxheim, Kr. Helmstedt (meist unter Söllingen). FA: G. Steinkiste; ca. N—S; 2,00 × 1,00 × 0,60 m; Sohle bei 1,40 m. In Kammer eine Hockerbestattung mit Schädel im N. Beigaben: 1. Ostl. neben Kopf unverz. (?) KA. 2. Daneben am Brustkorb verz. wT. 3. Aus Scherben im Aushub verz. KA zusammengesetzt. 4. Reste eines weiteren nicht erhaltenen Gefäßes.
+
+Hofmeister 1934, S. 70 ff. ; Priebe 1938, S. 96, Taf. V e; Fischer 1956, S. 150, 295; Niquet 1958, S. 26; Behrens 1973, S. 304; Rosenstock 1978, S. 272.
+
+## 366. Schöningen, Kr. Helmstedt.
+
+FA: Siedl., vG. a) Siedl.grube: 1. Reste einer verz. KA mit gedrücktem Bauch. 2. Reste eines verz. TmhU.
+
+Anm.: Nach D. Rosenstock (1978, S. 274) mehrere derartige Komplexe.
+
+b) Folg. vermutlich aus G: 1. Verz. KA. 2. Größeres Fragment eines verz. wT. 3. Feuersteinmeißel.
+
+Niquet 1958, S. 27; Behrens 1973, S. 304; Rosenstock 1978, S. 271 ff., Abb. 6—9.
+
+## 367. Liebenburg, Kr. Goslar.
+
+FA: G. Nach- oder Mitbestattung (?) in Großsteing. In gestörter Kammer Reste von 10 Hockerbestattungen. Davon 3 Doppelbestattungen mit je 2 erwachsenen Individuen und 4 Kinder. Neben Keramik und Geräten der Walternienburger Kultur auch Reste der KAK geborgen: 1. Verz. HaS einer KA. 2. Verz. Schulterscherbe (?). 3. Dechselartiges dickn. Feuersteinbeil. 4. Dickn. Feuersteinmeißel. Doppelbestattung" III/ IV eines Mannes und einer Frau (?) wohl zur KAK gehörig. Hocker; O(Schädel) —W; Beigabe: dickn. Feuersteinbeil; darüber Reste eines weiteren Individuums; Beigabe: Feuersteinmeißel.
+
+Tode 1963 a, S. 116 f.; 1965; Abb. 2,1—2,5; 3,3—4; Thielemann 1964, S. 33, Nr. 6—11; S. 89 ff.; Rosenstock 1978, S. 272 f.; Beier 1984, S. 156 f.
+
+## 368. Werlaburgdorf, Kr. Goslar.
+
+FA: G. Innerhalb einer dunklen, von Steinen umstellten Verfärbung (eventuell zerstörte Steinkiste, auch Steinpackung möglich). 1. Verz. KA. 2. 2 Querschneider. 3. Längsgespaltener Eberhauer und Reste eines Schweines.
+
+Thielemann 1937, S. 208 ff., Taf. 40; Priebe 1938, S. 96; Jacob-Friesen 1939, S. 75 f., Abb. 74; Fischer 1956, S. 150, 156, 293; Niquet 1958, S. 26; Behrens 1973, S. 302; Rosenstock 1978, S. 278 f.
+
+## 369. Hiddingsen, Kr. Soest.
+
+FA: EvG, vermutlich Nach- oder Mitbestattung (?) in Galerieg. der westfälischen Steinkistenkultur. Reste von mindestens 50 Bestattungen, uncharakt. Scherben, Feuersteingeräte, Knochenperle, durchb. Tierzähne und verz. WS der KAK. Lange 1934, S. 149 ff., Abb. 1,2, Taf. 21,22; Fischer 1956, S. 160, 294; Knöll 1961, S. 25; Schrickel 1966 a, S. 127; 1966 b, S. 448 f., Taf. 45,27.
+
+## 370. Fritzlar, OT Lohne, Schwalm-Eder-Kreis.
+
+- FA: EF aus Höhensiedl. der Wartberggruppe. Aus 0,20 m starker Siedl.schicht: 1. Verz. WS einer Sch. 2. Verz. HaS eines wT (?). 3. Verz. WS. 4. Verz. WS.
+
+Gensen 1964, S. 57 ff., Taf. 25,5; Schwellnus 1979, S. 21 ff., 82, 84, Taf. 27,14–16,18.
+
+## 371. Gudensberg, Schwalm-Eder-Kreis.
+
+FA: EF aus Höhensiedl. (Bürgel) der Wartberggruppe. Reste der KAK bilden hier nach W. Schwellnus (1979, S. 82) einen integrierten Bestandteil des keramischen Inventars". 1. Gr. HaS einer verz. KA. 2. Verz. SS einer KA. 3. 2 kl. verz. WS. Eventuell auch KAK: 4. Rest einer verz. Sch (?). 5. Verz. SS von Sch oder wT. 6. Reste von Gefäßen (Topfform 2 a nach Schwellnus) mit verz. Zone in Höhe der Handh., die wT stark ähneln. 7. Reste einer Trichterrandschüssel. 8. Verz. WS. 9. 2 verz. WS mit geknicktem Profil.
+
+Schwellnus 1979, S. 24 ff., 82, 84, Taf. 32,6,7; 33,10; 35,14—18; 36,1-4,6-7,10—14.
+
+## 372. Gudensberg, Schwalm-Eder-Kreis.
+
+FA: EF auf Höhensiedl. (Günthersberg) der Wartberggruppe. Reste der KAK sind hier nach W. Schwellnus (1979, S. 84) Fremdkörper innerhalb der dortigen Keramik": 1. Mehrere BS einer verz. KA. 2. Verz. RS eines wT. Eventuell auch KAK: 3. Verz. WS.
+
+Gensen 1964, S. 57 ff., Taf. 22,6,11; Schwellnus 1979, S. 16 ff., 82, 84, Taf. 18,3; 39,2,4.
+
+## 373. Niedenstein, OT Kirchberg, Schwalm-Eder-Kreis.
+
+FA: EF auf Höhensiedl. der Wartberggruppe. Reste der KAK als integraler Bestandteil des Siedl.inventars: 1. Verz. RS einer KA. 2. Verz. RS und 2 WS eines wT. 3. WS mit ausge: spartem Winkelband zwischen schrägen Schnurlinien. 4. SS einer verz. KA. Eventuell auch KAK: 5. RS und 4. WS mit waag. Schnurverz. 6. WS mit schräger Schnurverz. 7. Reste von Gefäßen (Topfform 2 a nach Schwellnus) mit verz. Zonen in Höhe der Handh., die den wT stark ähneln. 8. 3 verz. WS. 9. WS mit Punktstichreihen. 10. Dickn. Feuersteinbeil. Schrickel 1969, S. 41, 52 ff., 114 ff., Taf. 10,3; 16,15—17, 23 bis 25; 17,1—3,9,10; 18,1,11,12; Schwellnus 1979, S. 8, 28 ff., 82, 84.
+
+374. Lohra, Kr. Marburg-Biedenkopf.
+
+FA: EF (?) aus Galerieg. der Wartberggruppe. Aus Kammer LBR von mindestens 20 Individuen. Beigaben: 20 Gefäße, zahlr. Scherben, Axt mit ovalem Schaftloch, Klinge aus Kieselschiefer, kl. Bronze(?)blech. Eventuell KAK: 1. WS mit Bändern sich kreuzender Linien. 2. WS mit imitierten Kreuzst. 3. WS mit Schnurverz.
+
+## u 2. Vermutlich Köthener Land.
+
+Uenze 1954, S. 27 ff. ; Schrickel 1966 b, S. 435 ff., Taf. 34,1,7,8, 17—19; Schwellnus 1979, S. 67 f., 70, 84.
+
+## 375. Gladbach, Kr. Neuwied.
+
+FA: EF. Fragment einer verz. KA.
+
+Kersten/Neuffer 1937, Bild 10; Stroh 1938, S. 220; Priebe
+
+1938, S. 114, Taf. XXVI c.
+
+## 376. Dannstadt, Kr. Ludwigshafen.
+
+FA: Siedl. Aus zerst. Siedl.grube: zahlr. Scherben, Lehmbrokken, bearbeitete Steinfragmente und Tierknochen. Darunter auch Reste einer verz. Sch (?) mit geknickter Wandung. Kilian 1975, S. 111 ff., Abb. 1.
+
+## 377. Goldburghausen/Pflaumloch, Kr. Aalen.
+
+FA: EF auf mehrperiodiger Höhensiedl. Aus Kulturschicht geborgen. Vermutlich zu der zur Chamer Gruppe zu stellenden Fazies Goldberg III gehörig: 1. Verz. HaS einer KA (?). 2. Verz. SS derselben (?). Eventuell auch KAK: 3. RS mit Schnurverz. 4. 2 SS mit Schnurverz.
+
+Bersu 1937, S. 149 ff., Taf. 30 b, 1,4,5; Stroh 1938, S. 219 f., Abb. 1; 2; Priebe 1938, S. 115, Taf. XXVI b; Driehaus 1960, S.106; Schröter 1975, S. 108, Abb. 11,7,9.
+
+Anm.: Nach Materialanalyse wurden die KAK-Scherben aus dem gleichen Ton wie die ,einheimische" Keramik hergestellt (Stroh 1938, S. 219 f.).
+
+## 378. Aub, OT Burgerroth, Landkr. Würzburg.
+
+FA: EF (?) auf mehrperiodiger Höhensiedl. Ohne Fundzusammenhang. Eventuell KAK: 1. WS mit waag. Schnurlinien. 2.WS mit doppelter Punktst.reihe. 3. 2 WS mit häng. Dreiecken. 4. WS mit ausgespartem Winkelband. 5. WS mit eingestochenem Fischgrätenmuster und einem punktst.gefüllten Dreieck. 6. 2 WS mit eingeritzten sich kreuzenden Linien. Spennemann 1982, S. 320 ff., Taf. 51,294,314; 53,336,339,340; 70,369.
+
+Anm.: Scherbe unter 1. könnte auch schnurkeramisch sein.
+
+Funde, deren Fundort sich nicht mehr sicher ermitteln ließ.
+
+## u 1. Köthener Land.
+
+FA: EvG. 1. wT mit abgesetztem Standboden und leicht gekehlten He.; am Hals 7 umlauf. Reihen auf Lücke angeordn., mit feinen Schnurlinien gefüllter Rauten und auf Schulter kurze Schnurfr.gruppen; graubraun; H. 23,4; Wdg. 0,7/0,8; HBI 0,94 (Taf. 81,1). 2. Unverz. T mit breitem Osenhe. auf Schulter und abgesetztem, steilem, leicht ausladendem Hals; rötlich-braun mit dunklen Flecken; H. 11,7; Wdg. 0,5; HBI 0,81 (Taf. 81,2).
+
+Funde bereits in Slg. des Fürsten Leopold von Anhalt-Köthen (1694-1728). Angaben zu FO u. FU u. Nicht sicher, ob beide zusammengehörig. Gleiches gilt für einen in der T liegenden Unterkiefer einer Frau. Mus. Köthen EK 11/30 (A 139, 140). Schulze 1930, S. 11, Taf. 44,1,2; Priebe 1938, S. 94, Taf. XIX f., XXIX g.
+
+FA: EvG. wT mit breiten leicht gekehlten He.ösen, kräftig profilierter Schulter und abgesetztem konischem Hals; am Hals unter 2 umlauf. Furchenst.(?)linien eine Reihe häng., mit Einst. gefüllter Dreiecke, darunter zweifaches ausgespartes Rautenband aus eingeritzten, mit sich kreuzenden Linien gefüllter Rauten und auf Schulter unter St.reihe umlauf. Reihe häng., mit Einst. gefüllter Dreiecke; im Bauchbereich größere Offnung (Seelenloch?); schwarz; H. 26,4; gr. Dm. 30,5; HBI 0,87.
+
+Gefäß bereits in Slg. der Anhaltischen Fürsten zu Großkühnau (Inv.-Nr. 708). Angaben zu FO u. FU u. Kriegsverlust (ehemals Mus. Zerbst). Kossinna 1922, S. 258; 1925, Abb. 474; Schulze 1930, S. 110, Taf. 43,8; Priebe 1938, S. 117.
+
+## u 3. Vermutlich Umgebung von Zerbst.
+
+FA: EF. Hals mit Schulteransatz einer KA; am Hals 5 umlauf., teilweise unregelmäßige Bänder aus meist doppelreihigen punktartigen Einst. und auf Schulter vermutlich eingeritzte Fr.gruppen.
+
+Angaben zu FO u. FU u. Kriegsverlust (ehemals Mus. Zerbst). Schulze 1930, Taf. 42,15; Priebe 1938, S. 117.
+
+## u 4. Vermutlich Mittelelbe-Saale-Gebiet.
+
+FA: EvG. KA mit Hals-Schulter-Kehle und leicht konischem Hals; am Hals unter umlauf. Reihe häng. Dreiecke aus Winkel-Bogenst. 5 teilweise unregelmäßige Reihen auf Lücke angeordn. Rauten aus gleichartigem Einst. und auf Schulter unter umlauf. Reihe längl. Einst. mit Bogen-Winkelst.abschluß eingeritzte Fr.gruppen aus Furchenst.(?)linien mit Winkel-Bogenst.abschluß; H. ca. 16,0; HBI 1,01 (Taf. 84,15). Gefäß stammt aus Slg. Oberst Gemming, die viele Funde aus dem Mittelelbe-Saale-Gebiet umfaßte. Weitere Angaben u. Markgrafenmus. Ansbach Inv.-Nr. 80. Götze 1900 a, S. 162; Reinecke 1900, S. 602; Priebe 1938, S. 117, Taf. VI d.
+
+## u 5. Mittelelbe-Saale-Gebiet.
+
+FA: EvG. 1. Unverz. KA mit geradem, steilem Hals; sehr grob gearbeitet; HBI ca. 1,10. 2. Am Hals beschädigte unverz. KA mit kurzem steilem Hals und seichter Hals-SchulterKehle; sehr grob gearbeitet; HBI ca. 0,95. 3. KA mit seichter Hals-Schulter-Kehle; am Hals 3 ausgesparte Winkelbänder aus Dreiecken und Rauten aus Bogen-Winkelst. und auf Schulter eingeritzte schräggestellte Fr.gruppen. H. ca. 17,0; gr. Dm. ca. 17,0; HBI 1,00(?). 4. KA mit leicht konischem Hals und seichter Hals-Schulter-Kehle; am Hals unter umlauf. Reihe eingeritzter imitierter Kreuzst. 4 Reihen meist auf Lücke angeordn. eingeritzter, mit sich kreuzenden Linien gefüllter Rauten und auf Schulter eingeritzte Fr.gruppen, durch kurze schräge Einst. abgeschlossen; grau-schwarz; H. 24,5; Wdg. 0,5/0,6; HBI 1,01 (Taf. 80,11). 5. wT; am Hals unter umlauf. Furchenst.linie 2 Reihen auf Lücke angeordn. steh., mit waag. Furchenst.linien gefüllter Dreiecke, darunter eine unregelmäßige Furchenst.winkellinie und auf Schulter häng., mit waag. Furchenst.linien gefüllte Dreiecke; rötlich-schwärzlich; H. 32,0; Wdg. 0,6/0,7; HBI 1,02 (Taf. 81,4).
+
+Gefäße stammen aus Slg. Nathusius, Hundisburg. Angaben zu FO u. FU u. Inwieweit die Objekte zusammengehören, ist nicht zu ermitteln. 1.—3. verschollen (Beschreibung nach Foto aus Archiv LM Halle) ; 4., 5. Mus. Magdeburg Inv.-Nr. 9847, o. Nr.
+
+## u 6. Mittelelbe-Saale-Gebiet.
+
+FA: EvG. Sch mit nebenst. senkr. durchb. He.ösenpaar auf der leicht abgesetzten Schulter; am Hals unter 2 umlauf. Schnurlinien unregelmäßiges ausgespartes Rautenband aus mit waag. bzw. schrägen Schnurlinien gefüllten Dreiecken und rautenartigen Formen und auf Umbruch umlauf. Reihe häng., mit Schnurlinien gefüllter Dreiecke; dunkelgrau-schwarz; H. 10,7; Wdg. 0,4/0,5; HBI 0,64 (Taf. 80,10).
+
+<!-- FREE:PAGE 32 -->
+Gefäß stammt eventuell auch aus Slg. Nathusius, Hundisburg. Sonstige Angaben u. Mus. Magdeburg Inv.-Nr. 78:276 (alt: 9795).
+
+## u 7. Wohl Mittelelbe-Saale-Gebiet.
+
+FA: EF. 1. Größere HaS einer KA mit konischem Hals; HalsSchulter-Kehle und leicht gekehltem He.; am Hals unter umlauf. Reihe häng. Dreiecke aus kl. punktartig-dreieckigen Einst. mehrere Reihen auf Lücke angeordn. mit Bogen- und unförmigen Einst. gefüllter rautenartiger Gebilde und unterhalb des He. eine Reihe unförmiger Einst.; grau mit braunen Flecken; stark verwittert; Wdg. 0,5 (Taf. 80,4). 2. HeS und HaS einer KA mit Hals-Schulter-Kehle; am Hals häng. Dreiecke aus Bogen-Winkelst. und auf Schulter unter einer groben Bogenst.reihe Reste von eingeritzten schräggestellten Fr.gruppen; dunkelbraun; Wdg. 0,5 (Taf. 80,7).
+
+Funde stammen aus den Beständen des LM Halle. Die unter 1. beschriebene HaS befand sich bereits vor 1900 im LM, bei A. Götze (1900 a, S. 160) ,,unbekannt". Sonstige Angaben u. Studienslg. des WB Ur- und Frühgeschichte der MLU Halle Inv.-Nr. 237/51, 86/49.
+
+## u 8. Gardelegen (Stadt oder Kreisgebiet?).
+
+FA: EvG. 1. KA mit seichter Hals-Schulter-Kehle; am Hals 4 umlauf. Reihen durch kurze Einst. imitierter Winkelst. und auf Schulter imitierte Fr.gruppen durch Doppelreihe gleichartiger Einst.; schwarz mit hellen Flecken; H. 14,5; Wdg. 0,5/ 0,6; HBI 0,98 (Taf. 81,3). 2. Eventuell zugehörig: ein Feuersteinbeil.
+
+Gefäß vor 1914 im Besitz eines Herrn Hasse, Gardelegen; galt lange Zeit als verschollen. Weitere Angaben u. 1. Mus. Haldensleben Inv.-Nr. 58:4. 2. Verschollen. Mötefindt 1915, S. 44 f., Abb. 4; Kossinna 1922, S. 250; Kupka 1933, S. 177; Priebe 1938, S. 68; Wetzel 1966, S. 44; Koch 1968, S. 41. Anm.: Die Lokalisierung dieses Fundes nach Haldensleben (Koch 1968, S. 41) ist nicht nachweisbar.
+
+## Ausgesonderte Befunde
+
+- a 1. Arneburg, Kr. Stendal, Bez. Magdeburg. FA: EvS. Unter KAK: Kupka 1906, S. 164 f., Abb. 1; 1909, S. 320, Abb. 7; Kossinna 1922, S. 249 (,entartet""). Nach G. Wetzel (1979, S. 112, Taf. 1,7,8) handelt es sich hier um eine Amphore der Schönf. Kultur.
+- a 2. Beesenlaublingen, OT Beesedau, Kr. Bernburg, Bez. Halle. FA: G (Rinderbestattung). Unter KAK: Nagel 1984 (Text), S. 280. Auf Grund fehlender Beigaben keine exakte Kulturbestimmung möglich. Ein mitgefundenes Feuersteinbeil ist verschollen.
+- a 3. Bernburg-Waldau, Bez. Halle. FA: EF. Unter KAK: Fischer 1958 b, S. 6 (wT der KAK ?). Das punktstichverz. doppelkonische Gefäß ist SO-Ursprungs (vgl. Hundt 1959, S. 133 f., Taf. 22 a).
+- a 4. Bottendorf, Kr. Artern, Bez. Halle.
+- FA: EvG. Unter KAK: Götze 1900 a, S. 158 (eventuell KA) ; Götze/Höfer/Zschiesche 1909, S. 58; Kossinna 1922, S. 254; Grimm 1930, S. 22. Gefäß der Schnurkeramik (Matthias 1974, S. 52, Taf. 18,15).
+- a 5. Bottmersdorf, Kr. Wanzleben, Bez. Magdeburg. FA: G ? (Rinderdoppelbestattung). Unter KAK: Fischer 1956, S. 158, 293; Behrens 1964 a, S. 121). Das Fehlen jeglicher Beigaben erlaubt keine kulturelle Bestimmung.
+- a 6. Dangenstorf, Kr. Lüchow-Dannenberg/BRD. FA: G. Unter KAK: Jacob-Friesen 1930, S. 31 f., Abb. 5; Takkenberg 1930, S. 82; Sprockhoff 1938, S. 128 f. Der Gesamtkomplex gehört zur Schönf. Kultur (Nowothnig 1937, S. 12, Taf. 5; Laux 1973, S. 90 f.).
+- a 7. Ellingen, Kr. Osterburg, Bez. Magdeburg. FA: G. Unter KAK: Kossinna 1922, S. 250 (,sehr entartete Kugelamphore"). Der Gesamtkomplex gehört zur Einzelgrabkultur (z. B. Behrens 1969 a, S. 98, Abb. 7 a).
+- a 8. Gröningen, Kr. Oschersleben, Bez. Magdeburg. FA: G ? Die von K. Schirwitz (1932, S. 549) erwähnten und zur KAK gestellten Gegenstände sind verschollen. Die spärlichen Angaben erlauben keine kulturelle Bestimmung.
+- a 9. Gutenswegen, Kr. Wolmirstedt, Bez. Magdeburg. FA: EF. Unter KAK: Priebe 1938, S. 70; Koch 1968, S. 96; Behrens 1973, S. 303; Lies 1974, S. 100. Der kl. Becher mit 4 Zapfen gehört m. E. in die frühe Bronzezeit.
+- a 10. Guthmannshausen, Kr. Sömmerda, Bez. Erfurt. Unter KAK: Koppe 1957, S. 58, Taf. 47,2. Das Gefäß ist früheisenzeitlich (Müller 1976, S. 221).
+- a 11. Haldensleben I, Bez. Magdeburg. FA: EvG. Unter KAK: Priebe 1938, S. 70; Wetzel 1966, S. 44; Koch 1968, S. 36; Behrens 1973, S. 303. Der kl. Becher mit Knubbe gehört m. E. zur Aunjetitzer Kultur.
+
+## a 12. Langendorf, Kr. Weißenfels, Bez. Halle.
+
+- FA: G (Tierbestattung). Unter KAK: Fischer 1956, S. 154, 157, 294; Behrens 1964 a, S. 100. Axt als einzige Beigabe ist verschollen, so daß eine kulturelle Bestimmung nicht mehr möglich ist.
+- a 13. Leissling, OT Rödgen, Kr. Weißenfels, Bez. Halle. FA: G (Plattenkiste). Unter KAK: Götze 1900 a, S. 159; Götze/Höfer/Zschiesche 1909, S. 360; Kossinna 1922, S. 256; Priebe 1938, S. 79; Behrens 1973, S. 304. Der von R. Virchow (1874, S. 230) vorgestellte Fund ist verschollen. Mitgeborgene Metallobjekte sprechen für bronzezeitliche Datierung.
+
+a 14. Löderburg, OT Athensleben, Kr. Staßfurt, Bez. Magdeburg.
+
+FA: G. Unter KAK: Fischer 1956, S. 150, 293; 1958 b, S. 6; Behrens 1973, S. 302. Bei den inzwischen verschollenen Funden handelt es sich wahrscheinlich um Reste aus einer Steinkiste der Baalberger Kultur (vgl. Wanckel 1939, S. 31; Preuß 1966, S. 116).
+
+- a 15. Lübeln, Kr. Lüchow-Dannenberg/BRD. FA: G. Unter KAK: Jakob-Friesen 1930, S. 30 ff., Abb. 4;
+
+:   :0 r        osgehört zur Schönf. Kultur (Nowothnig 1937, S. 12, Taf. 5,28; ; sinna 1922, S. 253. Die angebliche KA ist nicht nachweisbar Laux 1973, S. 87 f.). (vgl. Matthias 1982, S. 147).
+
+- a 16. Mahndorf, Kr. Halberstadt, Bez. Magdeburg. FA: unbekannt. Unter KAK: Mötefindt 1911, S. 274 (Anm. 2). Die angebliche KAK-Scherbe ist nicht mehr in den Beständen der ehemaligen Slg. Wernigerode nachweisbar.
+
+## a 17. Maua, Kr. Jena, Bez. Gera.
+
+- FA: G. Unter KAK: Götze/Höfer/Zschiesche 1909, S. 312; Mötefindt 1910, S. 350; Kossinna 1922, S. 256; Priebe 1938, S. 85; Behrens 1973, S. 304. D. W. Müller (1976, S. 221, Anm. 8) hat auf früheisenzeitliche Stellung hingewiesen.
+- a 18. Menz, Kr. Burg, Bez. Magdeburg. FA: EvS. Unter KAK: Matthias/Schmidt 1962, S. 359; Schmidt 1970, S. 117 f.; Behrens 1973, S. 304; Lies 1974, S. 100. Die angebliche KAK-Scherbe gehört zu einer Ostharzamphore der Schönf. Kultur (Wetzel 1979, S. 161).
+- a 19. Merseburg, Bez. Halle. FA: EF ? Unter KAK: Götze 1900 a, S. 170. Der inzwischen verschollene angebliche wT gehört zum Formenkreis der Bernburger Kultur.
+- a 20. Mittelhausen, Kr. Sangerhausen, Bez. Halle. FA: G (kombinierte Rinder-Menschenbestattung). Unter KAK: Schirmer 1939, S. 29 ff.; Fischer 1956, S. 157 f., 294; Behrens 1964 a, S. 46, 101. Der Komplex hat die besseren Vergleichsbefunde in der Walternienburger Kultur (vgl. Beier 1984, S. 102 f., Taf. 21,3).
+- a 21. Molbitz, OT Obermolbitz, Kr. Altenburg, Bez. Leipzig. FA: Siedl. ? Unter KAK: Priebe 1938, S. 86, Taf. XXIV a. Die inzwischen verschollene Sch ist eine Fälschung.
+- a 22. München ?/BRD. Unter KAK: Götze 1900 a, S. 162. Bereits P. Reinecke (1900, S. 602) hat festgestellt, daß aus München keine Funde der KAK bekannt sind.
+- a 23. Neunheiligen, Kr. Bad Langensalza, Bez. Erfurt. FA: EvS. Unter KAK: Grimm 1940 b, S. 387, 407; Mildenberger 1953, S. 70. Die betreffenden Scherben (Niquet 1937, Taf. XII,4,5) gehören zur Rössener Kultur (vgl. Müller 1976, S. 221, Anm. 8).
+- a 24. Obhausen, Kr. Querfurt, Bez. Halle. FA: EvS. Unter KAK: Hoffmann/Schmidt 1965, S. 222; Behrens 1973, S. 304. Eine Uberprüfung der Funde hat ergeben, daß sie zur Jungbronze-/Früheisenzeit gehören.
+- a 25. Osterburg, Bez. Magdeburg. FA: G (Rinderdoppelbestattung). Unter KAK: Fischer 1956, S. 158, 295; Behrens 1964 a, S. 101. Der Komplex hat die besseren Vergleichsbefunde in der Walternienburger Kultur (vgl. Beier 1984, S. 82 f.).
+- a 26. Salzmünde, Saalkreis, Bez. Halle.
+- a 27. Thale, Kr. Quedlinburg, Bez. Halle. Unter KAK: Priebe 1938, S. 76; Behrens 1973, S. 305. Bei der verschollenen angeblichen KA handelt es sich um die Nachbildung eines Fragmentes aus Halberstadt (Taf. 25,8).
+- a 28. Ubigau, Kr. Herzberg, Bez. Cottbus. Unter KAK: Kossinna 1922, S. 260; Priebe 1938, S. 80. Bereits E. Kirsch (1975, S. 146) hat festgestellt, daß die Scherben zu der KA aus Körner, Kr. Mühlhausen (Taf. 76,3), passen.
+- a 29. Wiederstedt, OT Oberwiederstedt, Kr. Hettstedt, Bez. Halle.
+
+FA: G. Unter KAK: Kossinna 1922, S. 252; Grimm 1930, S. 22, 25; Schröter 1967, S. 15. Der Gesamtkomplex gehört zur Schnurkeramik (Matthias 1968, S. 55, Taf. 30,5; 1974, S. 141).
+
+Katalognachtrag
+
+1. Aken, Kr. Köthen, Bez. Halle. Fdpl. 5/28. Kiefernschonung in den Ratsfichten. Mbl. 2313 (4138), S ca. 20,0; W ca. 5,0.
+2. Geländesit.: flache sandige Anhöhe.
+3. FA: EvS. Auf mehrperiodigem Fdpl.: 1. HeS eines wT mit gekehlten He.; am Hals Rauten aus Bogenst.; in Hals-Schulter-Kehle mehrere Bogenst.reihen und auf Schulter unter Fr. aus Meißelst.(?) kl. schräge Einst.; graubraun; Wdg. 0,7 (Abb. 17). 2. Unverz. RS; braun; Wdg. 0,5. 3. WS mit Reihen flacher länglicher Eindrücke; braun; Wdg. 0,5. Mus. Köthen EK 37/299.
+2. Benndorf, Kr. Delitzsch, Bez. Leipzig. Grundstück Nr. 56. FA: vG. 1. KA. 2. wT. Mus. Delitzsch Inv.-Nr. V/1267.
+3. Unseburg, Kr. Staßfurt, Bez. Halle. Z. Z. laufende Untersuchung eines mehrperiodigen Fdpl. mit einer Siedl. der Bernburger Kultur. In 3 Bernburger Gruben bisher Reste der KAK. 1. Hals einer unverz. KA. 2. Reste eines wT; am Hals Dreiecke aus Schnurlinien, auf Umbruch Kerben und auf Schulter eingeritzte bzw. Schnurfr. 3. RS eines verz. wT. LM Halle. Frdl. Mitt. T. Weber, T. Stolle, beide LM Halle.
+
+Abb. 17. Einzelfund, vermutlich aus einer Siedlung bei Aken (651)
+
+<!-- image -->
+
+<!-- FREE:PAGE 33 -->
+Fundliste 1: Tassen vom Typ Meseberg"
+
+Mittelelbe-Saale-Gebiet: 1. Ackendorf (51), 2. Meseberg (72), 3. Dessau-Kleinkühnau (170), 4. Börtewitz (251), 5. Remlingen/Groß Biewende (363), 6. Köthener Land (u 1), 7. Quedlinburg (120), 8. Stobra (257), 9. Zauschwitz (290 b) — (7.—9. verwandte Stücke).
+
+Altmärkisch-lüneburgisches Gebiet: 10. Hanum (16), 11. Tan-
+
+Kreis Havelberg: 13. Havelberg (1), 14. Schollene (5) (ver-
+
+germünde (29), 12. Pevestorf (357).
+
+wandtes Stück).
+
+Brandenburgisches Gebiet: 15. Brandenburg (553), 16. Brandenburg-Neuendorf (556), 17. Ketzin (527), 18. Ketzin (528), 19. Mützlitz (545), 20. Potsdam (582), 21. Neuendorf (588).
+
+Fundliste 2: Feuersteinbeile aus gesichertem
+
+Kugelamphorenzusammenhang
+
+Mittelelbe-Saale-Gebiet: 1. Ackendorf (51) (1 ), 2. Eimersleben (53) (1 ×), 3. Emden (55) (1 ×), 4. Ampfurth/ Schermcke (76) (2 ×), 5. Druxberge (78) (1 ×), 6. Eilsleben (80) (1 ×), 7. Barby (82 j) (1 ×), 8. Barby (82 m) (1×), 9. Barby (83) (4 ×), 10. Schönebeck (37) (1 ×), 11. Beckendorf-Neindorf (96) (1 ×), 12. Sargstedt (106) (1 ×), 13. Sargstedt (107) (1 ×), 14. Veltheim (109) (1 ×), 15. Langeln (116) (2 ×), 16. Quedlinburg (121) (2 ×), 17. Aken (145) (1 × ?), 18. Görzig/Reinsdorf (154) (1 ), 19. Reppichau (163) (mind. 2 ×), 20. Zabitz (167) (1 ×), 21. Dessau-Kleinkühnau (169) (1 ×), 22. Dessau-Kleinkühnau (170) (1 ×), 23. Dessau-Törten (177) (1 ×), 24. Roßlau (185) (1 ×), 25. Pretzsch-Merschwitz (188) (1 ×), 26. Wolfen (197) (2 ×), 27. Zörbig (201) (2 ×), 28. Augsdorf (206) (1 ×), 29. Kalbsrieth (214) (1 ×), 30. Oberheldrungen (215) (1 ×), 31. Langeneichstädt (216) (2 ×), 32. Rothenschirmbach (218) (1 ×), 33. Günthersdorf (221) (1 ×), 34. Memleben/Wendelstein (229) (1 ×), 35. Kistritz (235) (1 ×), 36. Bornitz/Unter- (240) (1 × ?), 37. Langendorf (241) (1 ×), 38. Niederspier (242) (1 × ?), 39. Otterstedt (244) (1 ×), 40. Sonnendorf (256) (1 ×), 41. Wandersleben (267) (1 ×), 42. Freiroda (273) (1 ×), 43. Böhlen (286) (1 ×), 44. Zauschwitz (290 b) (2 ×), 45. Zauschwitz (290 d) (1 ×), 46. Zetscha/Unter- (304) (1 × ?), 47. Börtewitz (315) (7 ×), 48. Weinböhla (327) (1 ×), 49. Cossebaude (328 a) (1 ×), 50. Cossebaude (328 b) (1 ×), 51. Cossebaude (328 c) (1 ×), 52. Dresden (329) (2 X), 53. Dahme (339 c) (mind. 4 ×), 54. Dahme (339 d) (2 ×), 55. Schönefeld (341) (2 ×), 56. Erkerode/Lucklum (361) (1 ×), 57. Hornburg (362) (2 ×), 58. Remlingen/Gr. Biewende (363) (1 ), 59. Liebenburg (367) (2 ×).
+
+Aus Bernburger Siedlungen: 60. Quenstedt (134) (2 ×), 61. Halle/Dölauer Heide (204) (3 ×), 62. Oberwerschen (238) (1 X).
+
+Altmärkisch-lüneburgisches Gebiet: 1. Bertkow/Plätz (327) (2 ×), 2. Schwarzholz/Polkritz (333) (3 ×), 3. Tangeln (335) (1 ×), 4. Thüritz (336) (1 ×), 5. Diersbüttel (346) (1 ×), 6. Oldendorf (348) (1 ×), 7. Rohstorf (350) (1 × und mehrere), 8. Masendorf (352) (2 ), 9. Oetzen/Süttorf (353) (2 ×), 10. Pevestorf (357 a) (2 ×), 11. Pevestorf (357 d) (1 ×), 12. Pevestorf (357 f) (1 ×), 13. Pevestorf (357 g) (1 ×).
+
+Fundliste 3: Feuersteinmeißel aus gesichertem Kugelamphorenzusammenhang (* diese Meißel wurden zusammen mit Beilen gefunden)
+
+1. Emden (55)* (1 ×), 2. Magdeburg (74) (1 ×), 3. Eilsleben
+
+Aus Bernburger Siedlung: 20. Halle/Dölauer Heide (204) (1 X).
+
+(80)* (1 ×), 4. Barby (82 m) (1 ×), 5. Barby (83)* (1 ×), 6. Beckendorf-Neindorf (96)* (1 ×), 7. Langeln (116)* (1 ×), 8. Schadeleben (131) (1 × ?), 9. Baalberge (139) (1 ×), 10. Kistritz (235)* (1 ×), 11. Langendorf (241)* roh (1 ×), 12. Sonnendorf (256)* (1 ×), 13. Cossebaude (328 d) (1 ×), 14. Dahme (339 c) (1 ×), 15. Erkerode/Lucklum (361)* (1 ×), 16. Hornburg (362)* (1 ×), 17. Remlingen/Gr. Biewende (363)* (1 ×), 18. Schöningen (366 b) (1 ×), 19. Liebenburg (367)* (2 ×).
+
+Altmärkisch-lüneburgisches Gebiet: 1. Schwarzholz/Polkritz gesbostel/Rahmstorf (344) (1 ×), 5. Masendorf (352)* (1 ×),
+
+(15)* (1 ×), 2. Sanne (26) (3 ×), 3. Estedt (30) (1 ×), 4. Re6. Oetzen/Süttorf (353)* (1 ×).
+
+Fundliste 4: Feuersteinkleingeräte aus Siedlungen
+
+1. Hohenlepte/Kämeritz (46) (Feuersteinschlagstätte), 2. Eimersleben (54) (ein Abschlag), 3. Dessau-Kleinkühnau (169) (Klingen, Kratzer, Pfeilspitzen, Abschläge, Kernsteine etc.), 4. Dessau-Törten (175) (zwei klingenartige Abschläge), 5. Dessau-Waldersee (178) (eine Klinge), 6. Rietzmeck (179) (Klingen, Kratzer, Querschneider, Abschläge, Kernsteine), 7. Wimmelburg (210) (ein Abschlag), 8. Kistritz (235) (eine Klinge, ein Abschlag, ein aus einer Beilschneide hergestellter Kratzer), 9. Werschen/Oberwerschen (238) (Abschläge, Klingenfrag: mente, Kratzer, dreieckige Pfeilspitze ?), 10. Körner/Ziegeleigrube (247) (fünf Abschläge), 11. Taucha/Dewitz (284) (Abschläge), 12. Oschatz (311) (eine Klinge, ein Kernstein ?), 13. Wermsdorf (314) (Abschläge), 14. Paußnitz (319) (Abschläge), 15. Dörschnitz/Paltzschen (323) (Abschläge), 16. Wachtnitz/Daubnitz (324) (eine Klinge), 17. Wachtnitz/ Daubnitz (325) (drei Klingen), 18. Wachtnitz/Zöthain (326) (drei Abschläge), 19. Weinböhla (327) (ein Querschneider), 20. Jessen (330) (eine Pfeilspitze), 21.. Lebien (332) (Artefakte), 22. Purzien (334) (Artefakte), 23. Borken (336) (,,Mikrolithen").
+
+Fundliste 4 a: Feuersteinkleingeräte aus Siedlungen der Alt- (verzierte Knochenplatte/Schulterblatt eines Säugers ?), mark 3. Dingelstedt (101) (acht durchbohrte Hirschgrandeln), 4. Langeln (116) (ein Geweihanhänger), 5. Langeneichstädt 1. Beelitz (19) (zwei Pfeilspitzen), 2. Hassel (23) (Abschläge), (216) (31 durchbohrte Tierzähne), 6. Frohndorf (252) (durch3. Tangermünde (29 c) (Abschläge). bohrte Zähne von Hund und Schwein), 7. Tangermünde (29 b) (17 Hundezähne, acht Hirschgrandeln).
+
+Fundliste 5: Feuersteinkleingeräte als Grabbeigaben
+
+Mittelelbe-Saale-Gebiet: 1. Dornburg (42) (ein Gerät), 2. Emden (55) (ein Querschneider, ein weiteres Gerät), 3. Magdeburg (74) (ein Klingenkratzer), 4. Bahrendorf/Stemmern (77) (drei Klingen), 5. Prosigk/Fernsdorf (160) (drei Klingen), 6. Dessau-Kleinkühnau (170) (ein Klingenfragment), 7. Langeneichstädt/Niedereichstädt (216) (eine Klinge), 8. Rothenschirmbach (218) (eine Klinge, ein Schaber, ein Kratzer), 9. Langendorf (241) (ein Klingenfragment), 10. Frohndorf (252) (zwei Klingen ?), 11. Wandersleben (267) (ein Klingenkratzer), 12. Freiroda (273) (eine Klinge), 13. Werla-
+
+burgdorf (368) (zwei Querschneider).
+
+Altmärkisch-lüneburgisches Gebiet: 1. Bierstedt (6) (14 Abschläge), 2. Heidberg/Leetze (8) (vier Klingen, ein Querschncider, eine dreieckige Pfeilspitze), 3. Thüritz (18) (ein klingenartiger Abschlag), 4. Tangermünde (29 b) (zwei Klingen, zwei Klingenfragmente, ein Rundschaber, ein Feuersteingerät, ein
+
+Querschneider, vier klingenartige Abschläge), 5. Pevestorf (357) (viele Geräte; nicht aufgelistet, da z. Z. unvollständig publiziert).
+
+Fundliste 6: Gräber mit unbearbeiteten Feuersteinabschlägen als Beigabe
+
+Mittelelbe-Saale-Gebiet: 1. Menz (40 a) (atypisches Gerät), 2. Bahrendorf/Stemmern (77) (ein Abschlag), 3. Barby (83) (ein Abschlag), 4. Beckendorf-Neindorf (96) (vier Abschläge), 5. Völpke/Badeleben (97) (ein Abschlag), 6. Prosigk/Fernsdorf (160) (einige Abschläge), 7. Dessau-Kleinkühnau (170) (5 Abschläge, ein Kernstein), 8. Dessau-Mosigkau (172) (ein Abschlag), 9. Söllichau (190) (vier Abschläge, zwei Rohstücke), 10. Wolfen (197) (Abschläge, Rohstücke), 11. Großkorbetha (225) (ein Abschlag), 12. Langendorf (241) (ein Abschlag), 13. Wandersleben (267) (drei Abschläge), 14. Böhlen (286) (ein Abschlag), 15. Erkerode/Lucklum (361) (Abschläge), 16. Hornburg (362) (zwei Abschläge).
+
+Altmärkisch-lüneburgisches Gebiet: 1. Thüritz (18) (ein klin-
+
+genartiger Abschlag), 2. Tangermünde (29 b) (Abschläge), 3. Pevestorf (357) (mehrere Gräber mit Abschlägen).
+
+Fundliste 7: Knochenschmuck" der Kugelamphorenkultur
+
+a) Gespaltene/bzw. bearbeitete Eberzähne: 1. Barby (82), 2. Barby (83), 3. Beckendorf-Neindorf (96), 4. Dingelstedt (101), 5. Benzingerode (111), 6. Langeln (116), 7. Ermsleben/ Sinsleben (124), 8. Kalbsrieth (214), 9. Langeneichstädt/Nieder- (216), 10. Niederspier (242), 11. Sonnendorf (256), 12. Zauschwitz (290), 13. Remlingen/Groß Biewende (363), 14. Werlaburgdorf (368).
+
+b) Unbearbeitete Eberhauer oder unbekannt, ob bearbeitet: 1. Eilsleben (80), 2. Barby (83), 3. Schönebeck (87), 4. Völpke/ Badeleben (97), 5. Veltheim (109), 6. Langeln (116), 7. Gotha (265), 8. Zauschwitz (290), 9. Schinne (28).
+
+c) Sonstige Knochenschmuckgegenstände: 1. Bahrendorf/Stemmern (77) (vier durchbohrte Tierzähne, drei durchbohrte
+
+Muschelscheiben, eine verzierte Muschelplatte), 2. Barby (82)
+
+Fundliste 8: Bernstein in Fundkomplexen der Kugelampho-
+
+renkultur
+
+a) Mittelelbe-Saale-Gebiet: 1. Dornburg (42) (eine Perle), 2. Bahrendorf/Stemmern (77) (eine ovale Perle mit y-Bohrung, Fragmente von sieben weiteren Perlen), 3. Barby (83) (eine Bernsteinscheibe, eine Röhrenperle), 4. BeckendorfNeindorf (96) (eine durchlochte Scheibe), 5. Dingelstedt (101) (eine durchlochte Scheibe), 6. Derenburg (113) (eine Perle), 7. Zabitz (167) (eine Röhrenperle, ein Fragment), 8. DessauKleinkühnau (170) (eine durchlochte Scheibe), 9. Langeneichstädt/Nieder- (216) (eine Perle ?), 10. Börtewitz (315) (eine durchlochte Scheibe), 11. Schönefeld (341) (ein durchlochter Anhänger).
+
+b) Altmärkisch-Lüneburgisches Gebiet: 1. Heidberg/Leetze (8) (eine röhrenförmige Perle), 2. Schinne (28) (eine durchlochte Scheibe), 3. Pevestorf (357) (mehrere Perlen und Anhänger).
+
+Fundliste 9: Tierreste aus Kugelamphorenzusammenhang
+
+a) Schweinsreste: 1. Eilsleben (80) (Fragment eines Eberhauers), 2. Barby (82 j) (Unterkiefer, ein gespaltener Eberhauer), 3. Barby (83) (vier Eberhauer, einer davon gespalten, ein Unterkiefer), 4. Schönebeck (87) (ein Eberhauer, ein Unterkiefer mit beiden Hauern, Extremitätenknochen), 5. Beckendorf-Neindorf (96) (vor dem Grab Kiefer, Zähne etc.), 6. Völpke/Badeleben (97) (Eberhauerfragment), 7. Dingelstedt (101) (längsgespaltener Eberhauer), 8. Veltheim (109) (Eberhauer, Kiefer), 9. Benzingerode (111) (längsgespaltenes Eberhauerfragment/Unterkieferfragment eines einjährigen Schweines), 10. Langeln (116) (ein gespaltener Eberhauer, ein Eberhauer, Unterkiefer, Radius, Ulna, Ulnaepiphyse, Humerusepiphyse, Carpalknochen), 11. Ermsleben/Sinsleben (124) (ein gespaltener Eberhauer, Unterkiefer und Humerusfragment eines einjährigen Schweines), 12. Großörner (133) (Tibiaepiphyse und Talus vom Schwein), 13. Reinsdorf/Görzig (154) (Humerus- und Wirbelfragment), 14. Kleinzerbst (155) (Reste ?), 15. Prosigk/Fernsdorf (160) (Radius- und Schädelreste eines einjährigen Schweines), 16. Weißandt/Gölzau (165) (Unterkieferhälfte, Tibia, Fibula eines zweijährigen Schweines; Calcaneus eines Schweines unter zwei Jahren), 17. Augsdorf (206) (Humerusfragment eines Wild(?) schweines), 18. Kalbsrieth (214) (zwei durchbohrte Eberhauer, ein gespaltener Eberhauer, Unterkiefer, linker Femur, linker Humerus, drei Phalangen), 19. Langeneichstädt (216) (ein durchbohrter Eberzahn), 20. Rothenschrimbach (218) (Unterkiefer mit beiden Eckzähnen), 21. Zweimen/Dölkau (223) (zugespitztes Gerät aus Fibula; postcraniale Knochen und Schädelreste zweier Schweine), 22. Niederspier (242) (ein gespaltener Eberhauer), 23. Frohndorf (252) (zwei durchbohrte Eckzähne), 24. Ködderitzsch (255) (Beckenfragment Schaf/Ziege oder Schwein), 25. Sonnendorf (256) (ein gespaltener Eberhauer, Unterkiefer, Unterschenkel), 26. Stobra (257 a) (zwei Knochen), 27. Stobra (257 c) (ein Ferkel), 28. Gotha (265) (ein Eberzahn), 29. Zauschwitz (290) (ein gespaltener Eberhauer, ein Eberhauer), 30. Remlingen/Groß Biewende (363) (längsgespaltener Eberhauer, Oberkiefer), 31. Werlaburgdorf (368)
+
+<!-- FREE:PAGE 34 -->
+b) Rinderreste: 1. Menz (40 b) (drei Kiefer), 2. Dornburg (42) (ein Rinderschneidezahn), 3. Magdeburg (74) (eine Rinderzehe), 4. Barby (83) (eine Rinderzehe, ein Beckenfragment/ Kalb ?), 5. Schönebeck (87) (ein Extremitätenknochen — Rind/Hirsch ?, Reste von fünf Jungrindern), 6. Kleinzerbst (155) (Unterkiefer mit Zähnen, Beckenreste, Metatarsus und Radius eines drei- bis fünfjährigen Rindes), 7. Kleinzerbst (lose Tibiaepiphyse; von einem zweijährigen Rind: Calcaneus, Ulnafragment, zwei Phalangen, ein Halswirbel, eine Lendenwirbelepiphyse, ein Molar), 9. Dessau-Mosigkau (172) (ein Rinderzahn), 10. Wolfen (197) (drei Molarenfragmente),
+
+(längsgespaltener Eberhauer, Knochen).
+
+(156) (Kieferreste— Pferd/Rind ?), 8. Prosigk/Fernsdorf (160) 11. Wolfen (198) (Molarenfragmente — zugehörig?), 12. Zörbig (201) (Knochenaxt aus Metatarsus eines Rindes), 13. Oberheldrungen (215) (Kieferreste, Wirbel, Rippen — zugehörig ?), 14. Zweimen/Dölkau (223) (ein vier- bis fünfjähriges Rind und zwei 1 1/2 jährige Rinder), 15. Prittitz/Plotha (227) (zwei Rinder, 2 1/2 bis 3 1/2 und 5 bis 7 Jahre alt), 16. Stobra (257 a) (sieben Rinder, davon zwei männlich und drei weiblich; Alter: zwei unter einem Jahr, zwei unter 21/2, eines 13/4 und zwei 31/2; einzelne Knochen), 17. Stobra (257 a) (zwei Jungtiere), 18. Zauschwitz (290) (drei Jungtiere), 19. Hornburg (362) (ein Extremitätenknochen).
+
+c) Sonstige Tierreste: 1. Menz (40 b) (drei Kiefer Schaf/Ziege), 2. Haldensleben II (60) (Doppelpfriem — n. Kupka aus Hirschgeweih), 3. Magdeburg (74) (eine Muschelschale), 4. Bahrendorf/Stemmern (77) (drei Muschelscheiben, eine Muschelplatte), 5. Barby (83) (ein Hornrest Schaf/Ziege), 6. Schönebeck (87) (Knochendolch aus Metatarsus vom Hirsch ?; Fragment eines Dolches ? aus Extremitätenknochen vom Rind/ Hirsch ?; vier Extremitätenknochen von Schaf/Ziege), 7. Dingelstedt (101) (acht durchbohrte Hirschgrandeln), 8. Langeln (116) (ein Anhänger aus Geweih), 9. Schadeleben (131) (Nadel/Pfriem ? aus Schenkelknochen eines Sumpfvogels), 10. Großörner (133) (Metacarpus von Schaf/Ziege), 11. Wiederstedt/Ober- (137) (Axt aus Hirschgeweih), 12. Alsleben (138) (Radiusfragment vom Schaf; Phalangen und Metacarpus-III von Schaf/Ziege), 13. Kleinzerbst (155) (Reste vom Hirsch ?), 14. Kleinzerbst (156) (Kieferreste von Pferd/Rind), 15. Benzingerode (111) (Eckzahnfragment eines Dachses), 16. Wolfen (197) (drei Molaren vom Pferd), 17. Wolfen (158) (Molarenfragmente vom Pferd — zugehörig ?), 18. Augsdorf (206) (linker Metacarpus vom Wolf), 19. Kalbsrieth (214) (Unterschenkelknochen eines Kranichs), 20. Zweimen/Dölkau (223) (Pfriem aus linker Tibia von Schaf/Ziege; linkes Becken eines Pferdes; Scabula und Metatarsus von Schaf/Ziege; Radius- und Ulnafragment von einem Schaf), 21. Großkorbetha (225) (Pfriem aus Tibia von Schaf/Ziege), 22. Görschen/Scheiplitz (232) (ein Spatel ? aus Metatarsus vom Reh — zugehörig ?), 23. Frohndorf (252) (zwei durchbohrte Hundeeckzähne, ein Hundeunterkiefer, sieben durchbohrte Hundezähne), 24. Ködderitzsch (255) (Beckenfragment von Schaf/Ziege oder Schwein), 25. Zauschwitz (290) (zwei Knochen vom Schaf). d) Unbestimmte/unbestimmbare Tierreste: 1. Menz (40 a) (kleines Knochenstück, Tier?), 2. Menz (40 b) (kleiner Knochen, Tier?), 3. Leps/Eichholz (47) (zwei Röhrenknochen, Tier?), 4. Emden (55) (mehrere Knochen, Tier?), 5. Magdeburg (74) (Knochenpfriem — unbestimmt), 6. Bahrendorf/ Stemmern (77) (vier durchbohrte Zähne, Röhrenknochenfragment), 7. Druxberge (78) (Leichenbrand, Tier?), 8. Barby (82 j) (verzierte Knochenplatte aus Schulterblatt eines Großsäugers), 9. Barby (83) (mehrere Knochen, u. a. Rippenfragmente), 10. Dingelstedt (101) (Pfriem — unbestimmt), 11. Friedrichsaue (125) (Zähne und Knochen eines großen Wiederkäuers), 12. Latdorf (143) (Knochen), 13. Kleinzerbst (155) (ein Tierzahn), 14. Dessau-Törten (177) (Knochenstückchen, Tier?), 15. Kalbsrieth (214) (Pfriem, Doppelpfriem, zugespitzter Knochen), 16. Langeneichstädt/Nieder- (216) (31 durchbohrte Tierzähne — Hund?, Schwein?), 17. Günthersdorf (220) (Knochen, Tier?), 18. Zweimen/Dölkau (223) (beidseitig zugespitztes Gerät, einige Knochen), 19. Görschen/ Scheiplitz (232) (Knochen — zugehörig?), 20. Bornitz/Unter(240) (Knochen, Tier?), 21. Körner, Ziegeleigrube (246) (ein Pfriem, Knochen — unbestimmt), 22. Stobra (257 c) (ein Doppelpfriem — unbestimmt), 23. Zauschwitz (250 a) (ein Pfriem — unbestimmt), 24. Zauschwitz (291) (Knochen), 25. Börtewitz (315) (ein Wirbel- und ein Beckenfragment, Tier?), 26. Riesa-Göhlis (320) (verkohlte Knochen), 27. Dörschnitz/ Paltzschen (323) (einige Tierknochen), 28. Wachtnitz/Zöthain (326) (wenige Knochenfragmente), 29. Dahme (339) (Knochenrest, Tier?), 30. Schönefeld (341) (ein kalzinierter Knochen, Tier?).
+
+Fundliste 10: Flachgräber der Kugelamphorenkultur im Mittelelbe-Saale-Gebiet
+
+1. Ackendorf (51), 2. Eimersleben (53), 3. Erxleben (56), 4. Haldensleben I (58), 5. Meseberg (72), 6. Magdeburg (74), 7. Bahrendorf/Stemmern (77), 8. Druxberge (78), 9. Barby (82), 10. Völpke/Badeleben (97), 11. Sargstedt (107), 12. Veltheim (109), 13. Großörner (133), 14. Aken (145), 15. Diebzig (148) ?, 16. Elsnigk (149), 17. Elsnigk (152), 18. Reinsdorf/ Görzig (154), 19. Kleinzerbst (156), 20. Köthen (157), 21. Reppichau (163), 22. Weißandt-Gölzau (165), 23. Dessau-Kleinkühnau (170), 24. Dessau-Mosigkau (172), 25. Roßlau, Olpfuhlweg (182), 26. Pretzsch/Merschwitz (188), 27. Oranienbaum (189), 28. Söllichau (190), 29. Wolfen (197), 30. Oberheldrungen (215), 31. Schmon/Oberschmon (219), 32. Zweimen/Dölkau (223), 33. Prittitz (226), 34. Stößen (236), 35. Zembschen (239), 36. Langendorf (241), 37. Sonnendorf (256), 38. Zauschwitz (290), 39. Kriebitzsch (295), 40. Cossebaude (328), 41. Neuburxdorf/Wendischborschütz (338), 42. Schöningen (366).
+
+Fundliste 11: Steinkisten der Kugelamphorenkultur im Mittelelbe-Saale-Gebiet (* vermutlich zerstörte Steinkisten; ** Sonderstellung im Grabbau)
+
+1. Menz (40 a), 2. Dornburg (42), 3. Emden (55), 4. Hillersleben (62), 5. Ampfurth/Schermcke (76) *, 6. Eilsleben (80), 7. Barby (83), 8. Schönebeck (87), 9. Beckendorf-Neindorf (96), 10. Deesdorf (100), 11. Dingelstedt (101), 12. Groß Quenstedt (102), 13. Benzingerode (111), 14. Derenburg (115), 15. Langeln (116), 16. Schadeleben (131), 17. Alsleben (138)*, 18. Baalberge (139), 19. Belleben (140), 20. Gröna (142) ?, 21. Latdorf (143) *, 22. Reupzig (164), 23. Zabitz (167), 24. Zörbig (201) **, 25. Augsdorf (206), 26. Kalbsrieth (214), 27. Langeneichstädt (216)**, 28. Osterhausen/Sittichenbach (217), 29. Rothenschirmbach (218), 30. Memleben/Wendelstein (229), 31. Niederspier (242), 32. Otterstedt (244), 33. Flarchheim (245), 34. Hornburg (362), 35. Remlingen/Groß Biewende
+
+(363), 36. Jerxheim (365), 37. Werlaburgdorf (368) *.
+
+Fundliste 12: Bestattungen der Kugelamphorenkultur des Mittelelbe-Saale-Gebietes in Megalith- oder anderen Kollektivgräbern (*vermutete Bestattung; ** kulturelle Stellung der Grabanlage nicht eindeutig)
+
+1. Möckern/Lütznitz (41)*, 2. Gehrden (43)*, 3. Lübs (48)*, 4. Zörbig (201)**, 5. Langeneichstädt (216) **, 6. Frohndorf (252)**, 7. Gotha (265), 8. Wandersleben (267), 9. Achim/ Seinstedt (360)*, 10. Erkerode/Lucklum (361)*, 11. Liebenburg (367) ; peripher gelegen ; 12. Hiddingsen (369) *, 13. Lohra (374)*。
+
+Fundliste 13: vermutete Gräber der Kugelamphorenkultur im Mittelelbe-Saale-Gebiet oder Gräber, deren Typ nicht
+
+mehr exakt ermittelt werden konnte
+
+1. Steutz (50), 2. Alleringersleben (52), 3. Flechtingen (57), 4. Haldensleben II (59), 5. Haldensleben II (60), 6. Hundisburg (63), 7. Zielitz (73), 8. Calbe (85), 9. Klein-Mühlingen (86), 10. Egeln/Bleckendorf (92), 11. Dardesheim (98), 12. Halberstadt (103), 13. Harsleben (105), 14. Sargstedt (107), 15. Sargstedt (108), 16. Zilly (110), 17. Minsleben (117), 18. Quedlinburg (120), 19. Quedlinburg (123), 20. Gatersleben (126), 21. Gatersleben/Hausneindorf (127), 22. Westdorf (132), 23. Welbsleben (135), 24. Welbsleben (136), 25. Wiederstedt/ Ober- (137), 26. Cosa (147), 27. Elsnigk (150), 28. Elsnigk (151), 29. Frenz (153), 30. Meilendorf/Körnitz (158), 31. Wulfen (166), 32. Dessau-Mosigkau (174), 33. Roßlau (185), 34. Mochau (187), 35. Zschornewitz (191), 36. Wolfen (199), 37. Wolfen (200), 38. Mittelhausen (211), 39. Mittelhausen (212), 40. Mittelhausen/Einsdorf (213), 41. Günthersdorf (221), 42. Merseburg (222), 43. Goseck (224), 44. Molau/Aue (233), 45. Bornitz/Unter- (240), 46. Körner (246), 47. Rudolstadt (271), 48. Freiroda (273), 49. Löbnitz (274), 50. Schenkenberg (276), 51. Großlehna/Altranstädt (278), 52. Leipzig-Abtnaundorf (279), 53. Trachenau (288), 54. Kleinhermsdorf (285), 55. Rötha-Geschwitz (287), 56. Wiederau (289), 57. Lohma (296), 58. Molbitz/Ober- (297), 59. Monstab/Krebitschen (299), 60. Nemt (309), 61. Döbrichau (317), 62. Canitz (318), 63. Dresden (329), 64. Ziesar (342), 65. Braunschweig (359), 66. Helmstedt (364), 67. Köthener Land ? (u 1), 68. Köthener Land ? (u 2), 69. Mus. Zerbst ? (u 3), 70. Mus. Ansbach ? (u 4), 71. Slg. Nathusius ? (u 5), 72. Mus. Magdeburg ? (u 6).
+
+Fundliste 14: verwendete Steinmaterialien im Grabbau
+
+1. Steinkisten aus Quarzit: 1. Menz (40 a) (aus 6 bis 8 km Entfernung), 2. Dornburg (42), 3. Schönebeck (87) ; aus Granit: 1. Emden (55); aus Sandstein: 1. Beckendorf-Neindorf (56), 2. Dingelstedt (101), 3. Alsleben (138), 4. Baalberge (139), 5. Zabitz (167), 6. Kalbsrieth (214), 7. Memleben/Wendelstein (229), 8. Eilsleben (80) (Pflasterung) ; aus Kalk-/Rogenstein: 1. Benzingerode (111) (Kalkstein), 2. Augsdorf (206) (Rogenstein), 3. Otterstedt (244) (Muschelkalk), 4. Flarchheim (245) (Muschelkalk), 5. Hornburg (362) (Rogenstein), 6. Remlingen/Groß Biewende (363) (Rogenstein), 7. Werlaburgdorf (368) (Rogenstein), 8. Schönebeck (87) (Kalksteinpflaster), 9. Augsdorf (206) (Kalksteinpflaster) ; Sonstiges: 1. Augsdorf (206) (Decke aus Braunkohlenquarzit), 2. Kalbsrieth (214) (Feldstein und Braunkohlenquarzit), 3. Zörbig (201) (Findlinge).
+
+2. Sonstige Gräber: 1. Bahrendorf/Stemmern (77) (ein Muschelkalkblock — zugehörig ?), 2. Ermsleben/Sinsleben (124)
+
+(kantige Sandsteinplatten), 3. Prosigk/Fernsdorf (160) (vier Feldsteine), 4. Ködderitzsch (255) (eine Kalksteinplatte),
+
+5. Stobra (257) (Muschelkalkblöcke).
+
+Fundliste 15: Flachgräber der altmärkisch-lüneburgischen Gruppe der Kugelamphorenkultur
+
+1. Bertkow/Plätz (9), 2. Bertkow/Plätz (10), 3. Hindenburg (14), 4. Schwarzholz/Polkritz (15), 5. Hanum (16), 6. Thüritz (18), 7. Hassel (22), 8. Peulingen (25) ?, 9. Schinne (28), 10. Tangermünde (29), 11. Estedt (30), 12. Pevestorf (357), 14. Rebenstorf (358), 15. Dequede/Polkern (11) ?, 16. Hindenburg (13), 17. Döbbelin (20), 18. Königshorst (356), 19. Gardelegen ? (u 8) — (15.—19. vermutete Flachgräber).
+
+Fundliste 16: Bestattungen der altmärkisch-lüneburgischen
+
+Gruppe der Kugelamphorenkultur in Megalithgräbern (* vermutete Bestattungen)
+
+1. Bierstedt (6)*, 2. Heidberg/Leetze (8), 3. Tangeln (17), 4. Grassau (21)*, 5. Gnarrenburg (343)*, 6. Regesbostel/ Rahmstorf (344)*, 7. Amelinghausen-Sottorf (345) *, 8. Diersbüttel (346), 9. Gienau/Siecke (347)*, 10. Oldendorf (348), 11. Rohstorf I (349)*, 12. Rohstorf III (350), 13. Masendorf (252) *, 14. Oetzen/Süttorf (353) ; wohl ebenfalls aus Steingräbern stammen: 15. Ostedt (354), 16. Rätzlingen (355).
+
+Fundliste 17: Gräber der Kugelamphorenkultur des Mittelelbe-Saale-Gebietes mit Bernburger Elementen (*Zusammengehörigkeit der Gefäße ist nicht gesichert, bzw. die kulturelle Stellung der Bernburger Keramik" ist nicht
+
+eindeutig)
+
+a) Keramik: 1. Eimersleben (53), 2. Schönebeck (87), 3. Benzingerode (111)*, 4. Quedlinburg (120), 5. Quedlinburg (121) *, 6. Baalberge (139), 7. Elsnigk (151), 8. Prosigk/Fernsdorf (160) *, 9. Roßlau (184)*, 10. Augsdorf (206), 11. Mittelhausen (211) *, 12. Großkorbetha (225)*, 13. Börtewitz (315). b) Grabbau: 1. Zörbig (201), 2. Langeneichstädt/Niedereichstädt (216), 3. Prittitz/Plotha (227), 4. Börtewitz (315),
+
+5. Schönefeld (341).
+
+Fundliste 18: Siedlungen der Kugelamphorenkultur des Mittelelbe-Saale-Gebietes mit Bernburger Keramik
+
+1. Gerwisch 1 (34), 2. Gerwisch 7 (35), 3. Gerwisch 9 (36), 4. Gerwisch 11 (38), 5. Friedrichsaue (125), 6. Mehringen (130), 7. Dessau-Kleinkühnau 4 (169), 8. Günthersdorf (220), 9. Ditfurt (119), 10. Görschen/Scheiplitz (232), 11. Schöningen (366) — (9.—11. ähnliche Befunde).
+
+Fundliste 19: Gräber der Bernburger Kultur mit Kugelamphorenelementen
+
+1. Barby (82) (gemeinsames Gräberfeld), 2. Gotha (265), 3. Wandersleben (267), 4. Achim/Seinstedt (360), 5. Erkerode/ Lucklum (361), 6. Frohndorf (252) ?.
+
+Fundliste 20: Auftreten von keramischen Resten der Kugel-
+
+amphorenkultur auf Siedlungen der Bernburger Kultur
+
+a) Gesicherter Fundzusammenhang: 1. Barleben (65), 2. Eils-
+
+leben (79), 3. Derenburg/Mahndorf (112), 4. Hausneindorf
+
+<!-- FREE:PAGE 35 -->
+(129), 5. Quenstedt (134), 6. Morl (202), 7. Halle/Dölauer Heide (204), 8. Werschen/Ober- (238), 9. Großobringen (258). b) Ahnliche Deutung möglich: 1. Barleben 20 (66), 2. Hadmersleben (81), 3. Egeln (89), 4. Derenburg 11 (113), 5. Derenburg 12 (114), 6. Quedlinburg (122), 7. Augsdorf (205), 8. Gräfentonna (250), 9. Nägelstädt (251), 10. Erfurt-Gispersleben (262), 11. Apfelstädt (264), 12. Gotha/Siebleben (266), 13. Wandersleben (268).
+
+Nachtrag: Bei der Untersuchung einer Bernburger Siedlung in Unseburg, Kr. Staßfurt, wurden drei Gruben geborgen, die auch Reste der KAK erbrachten (frdl. Mitt. von Dr. T. Weber, Halle).
+
+Verzeichnis der Museen, in denen die Funde der Kugelamphorenkultur des Arbeitsgebietes verwahrt werden
+
+1. Auf dem Territorium der Deutschen Demokratischen Republik
+
+Heimatmuseum Aken (Mus. Aken)* Schloß- und Spielkartenmuseum Altenburg (Mus. Alten-
+
+Museum für Deutsche Geschichte Berlin*
+
+burg)*
+
+Museum für Ur- und Frühgeschichte Berlin (Mus. Berlin) * Märkisches Museum Berlin**.
+
+Museum Schloß Bernburg (Mus. Bernburg)
+
+Museum Schloß Blankenhain (Mus. Blankenhain)
+
+Kreismuseum Bitterfeld (Mus. Bitterfeld)*
+
+Museum der Stadt Borna (Mus. Borna)
+
+Heimatmuseum Dahme/Mark (Mus. Dahme)
+
+Bezirksmuseum Cottbus (Mus. Cottbus) **
+
+Museum für Naturkunde und Vorgeschichte Dessau (Mus. Dessau) *
+
+Landesmuseum für Vorgeschichte Dresden (LM Dresden)* Museum für Vor- und Frühgeschichte des Kreises Staßfurt in Egeln (Mus. Egeln)*
+
+Museen der Lutherstadt Eisleben (Mus. Eisleben)* Angermuseum Erfurt (Mus. Erfurt)
+
+Städtische Kunstsammlungen, Museum Haus Neisstraße, Görlitz
+
+Museum Schloß Neuenburg, Freyburg/U. (Mus. Freyburg) Museum für Geschichte Gera (Mus. Gera)*
+
+Schloßmuseum Friedenstein Gotha (Mus. Gotha)*
+
+Kreismuseum Grimma (Mus. Grimma) Städtisches Museum Halberstadt (Mus. Halberstadt)* Kreismuseum Haldensleben (Mus. Haldensleben)* Landesmuseum für Vorgeschichte Halle (LM Halle)* Studiensammlung des Wissenschaftsbereiches Ur- und
+
+Frühgeschichte der Martin-Luther-Universität Halle— Wittenberg*
+
+Prignitz-Museum Havelberg (Mus. Havelberg)* Vorgeschichtliches Museum der Friedrich-Schiller-Universität Jena (Mus. Jena)*
+
+Depot Jessen des Bezirksmuseums Cottbus (Depot Jessen) Heimatmuseum Jüterbog (Mus. Jüterbog)
+
+Sammlung Klatt, Minsleben*
+
+Heimatmuseum Kölleda (Mus. Kölleda)*
+
+Heimatmuseum Köthen (Mus. Köthen)*
+
+Kulturhistorisches Museum Magdeburg (Mus. Magdeburg)*
+
+Naturwissenschaftliches Museum Leipzig (Mus. Leipzig) Heimatmuseum Luckau (Mus. Luckau)
+
+Werksmuseum des Kieswerkes Neustadt, Magdeburg* Heimatmuseum Markranstädt (Mus. Markranstädt) Heimatmuseum Mügeln (Mus. Mügeln) Zentrale Gedenkstätte Deutscher Bauernkrieg", Heimatmuseum Mühlhausen (Mus. Mühlhausen) * Heimatmuseum Naumburg (Mus. Naumburg)* Kreis-Heimatmuseum Osterburg (Mus. Osterburg) Schloßmuseum Quedlinburg (Mus. Quedlinburg)* Heimatmuseum Riesa (Mus. Riesa)
+
+Staatliches Museum Heidecksburg, Rudolstadt (Mus. Rudolstadt)
+
+Johann-Friedrich-Danneil-Museum Salzwedel (Mus. Salzwedel) *
+
+Spengler-Museum Sangerhausen (Mus. Sangerhausen)* Kreismuseum Schönebeck (Mus. Schönebeck)*
+
+Staatliches Heimat- und Schloßmuseum Sondershausen
+
+(Mus. Sondershausen)* Altmärkisches Museum Stendal (Mus. Stendal)* Städtisches Heimatmuseum Taucha (Mus. Taucha)* Agrarmuseum der Magdeburger Börde, Ummendorf (Mus. Ummendorf) *
+
+Sammlung Walther, Mühlhausen*
+
+Museum für Ur- und Frühgeschichte Thüringens, Weimar (Mus. Weimar)*
+
+Stadtgeschichtliches Museum Wittenberg-Lutherstadt (Mus. Wittenberg)*
+
+Kreis-Heimatmuseum Wolmirstedt (Mus. Wolmirstedt) * Museum Schloß Moritzburg, Zeitz (Mus. Zeitz)*
+
+Heimatmuseum Zerbst (Mus. Zerbst)*
+
+Heimatmuseum Zörbig (Mus. Zörbig)*
+
+2. Auf dem Territorium der Bundesrepublik Deutschland und Berlin (West)
+
+Markgrafenmuseum Ansbach/Bayern**
+
+Museum Fritzlar
+
+Staatliche Museen, Stiftung Preußischer Kulturbesitz, Museum für Vor- und Frühgeschichte Berlin (West) **
+
+Goslarer Museum (Mus. Goslar)
+
+Helms-Museum, Hamburgisches Museum für Vor- und Frühgeschichte
+
+Niedersächsisches Landesmuseum, Urgeschichts-Abteilung, Hannover (LM Hannover)
+
+Niedersächsisches Landesverwaltungsamt, Institut für Denkmalpflege (Bdmpfl. Hannover)
+
+Staatliche Kunstsammlung, Landesmuseum Kassel
+
+Heimatmuseum Lüchow (Mus. Lüchow)
+
+Museum für das Fürstentum Lüneburg
+
+Römisch-Germanisches Zentralmuseum Mainz, Forschungs-
+
+institut für Vor- und Frühgeschichte**
+
+Landesamt für Denkmalpflege, Außenstelle Marburg
+
+Landesmuseum für Vorgeschichte Münster
+
+Sammlung der Universität Münster
+
+Kreismuseum Neuwied/Rheinland-Pfalz (Mus. Neuwied) Germanisches Nationalmuseum Nürnberg ★☆
+
+Heimatmuseum Schöningen/Niedersachsen (Mus. Schönin-
+
+gen)
+
+Staatliches Amt für Vor- und Frühgeschichte Speyer
+
+Württembergisches Landesmuseum Stuttgart
+
+Braunschweigisches Landesmuseum für Geschichte und Volkstum, Abteilung Vor- und Frühgeschichte, Wolfenbüttel (LM Braunschweig)
+
+Stadt- und Kreisheimatmuseum Wolfenbüttel Ludwig-Roselius-Museum für Frühgeschichte Worpswede** Mainfränkjsches Museum Würzburg
+
+- Museen, die zur Materialaufnahme aufgesucht wurden.
+- Museen, die Unterlagen und Abbildungen zur Verfügung stellten.
+
+Die Fundplätze der Kugelamphorenkultur im Gebiet westlich von Oder und Neiße außerhalb des Arbeitsgebietes
+
+BRD — Bundesland Schleswig-Holstein
+
+- Kr. Süderdithmarschen: 379. Frestedt, Kugelamphorenbestattung in Großsteingrab, 380. Gönnebeck, dito, 381. Negernbötel, dito. Kr. Oldenburg: 382. Grammdorf, Kugelamphorenbestattung in Großsteingrab, 383. Heiligenhafen, EF, 384. Lütjenbrode, vermutlich Kugelamphorenbestattung in Großsteingrab, 385. Meischenstorf, Kugelamphorenbestattung in Großsteingrab, 386. Neu-Testorf, dito.
+
+## Dänemark
+
+Insel Alsen: 387. Kirchspiel Havnbjerg, Bundsø, EF. Insel Aerø: 388. Borgnaes/Lille Rise, EF, vermutlich Kugelamphorenbestattung in Großsteingrab.
+
+Insel Seeland: 392. Kirchspiel Herslev, Herslev, dito. Festland/Amt Haderslev: 393. Kirchspiel Øsby, Tonneshøj, EF, vermutlich Kugelamphorenbestattung in Großsteingrab, 394. Kirchspiel Starup, Lønt, dito.
+
+Insel Lolland: 389. Kirchspiel Tårs, Killerup, vermutlich Kugelamphorenbestattung in Großsteingrab, 390. Kirchspiel Tårs, Splittorf's Høj, dito, 391. Kirchspiel Kappel, Langø Skafteshøj, dito.
+
+DDR - Bezirk Rostock
+
+- Kr. Grevesmühlen: 395. Prieschendorf, EF, 396. Prieschendorf, Kugelamphorenbestattung in Großsteingrab.
+- Kr. Rostock: 401. Gnewitz 1, dito, 402. Gnewitz 2, dito,
+- Kr. Bad Doberan: 397. Gaarzerhof, dito, 398. Gaarzerhof, dito, 399. Mechelsdorf, dito, 400. Neu Gaarz, dito.
+403. Gnewitz 3, dito, 404. Gnewitz 4, dito, 405. Liepen 2, dito,
+- Kr. Ribnitz-Damgarten: 408. Marlow, vG.
+406. Liepen, dito, 407. Ziesendorf, dito.
+- Kr. Stralsund: 409. Müggenhall, Kugelamphorenbestattung in Großsteingrab, 410. Müggenhall, dito, 411. Pöglitz, dito.
+414. Forst Dwasiden, dito, 415. Göhren, dito, 416. LanckenGranitz, vermutlich Kugelamphorenbestattung in Großsteingrab, 417. Forst Mönchgut, Kugelamphorenbestattung in Großsteingrab, 418. Nadelitz vermutlich Kugelamphorenbestattung in Großsteingrab.
+- Kr. Rügen: 412. Burtewitz, dito, 413. Dummertewitz, dito,
+- Kr. Grimmen: 419. Forst Poggendorf 1, Kugelamphorenbestattung in Großsteingrab, 420. Forst Poggendorf 3, dito. Kr. Greifswald: 421. Dambeck, dito, 422. Klein Zastrow, dito. Kr. Wolgast: 423. Labömitz, G.
+
+## Bezirk Schwerin
+
+Kr. Güstrow: 424. Alt Sammit, Kugelamphorenbestattung in Großsteingrab, 425. Dobbin, dito, 426. Klein Schwiesow, EF, 427. Klein Upahl, Kugelamphorenbestattung in Großstein-
+
+- grab, 428. Serrahn 1, dito, 429. Serrahn 2, dito, 430. Serrahn 3, dito, 431. Serrahn, dito.
+- Kr. Sternberg: 440. Groß Labenz, dito, 441. Klein Gölnow, vermutlich Kugelamphorenbestattung in Großsteingrab, 442. Mankmos, Kugelamphorenbestattung in Großsteingrab.
+- Kr. Bützow: 432. Bernitt, EVG, 433. Katelbogen, Kugelamphorenbestattung in Großsteingrab, 434. Qualitz, dito, 435. Forst Tarnow, dito, 436. Forst Tarnow, dito, 437. Zernin, dito, 438. Zernin, dito, 439. Zernin, dito.
+- Kr. Schwerin: 443. Ostorf, EF, 444. Radepohl, Kugelamphorenbestattung in Großsteingrab, 445. Stralendorf, dito. Kr. Lübz: 446. Damerow, dito, 447. Plau, S, 448. Twietfurt, Kugelamphorenbestattung in Großsteingrab, 449. Wilsen 1, dito, 450. Wilsen 2, dito, 451. Wilsen, dito.
+- Kr. Ludwigslust: 457. Kolbow, EF, 458. Lanz, S, 459. Wustrow, EF.
+- Kr. Parchim: 452. Domsühl, dito, 453. Domsühl, dito, 454. Frauenmark, dito, 455. Nestlin, dito, 456. Neuburg, S.
+- Kr. Hagenow: 460. Wittenburg, Kugelamphorenbestattung in Großsteingrab.
+
+## Bezirk Neubrandenburg
+
+- Kr. Teterow: 461. Gehmkendorf, dito, 462. Remlin, dito, 463. Schlutow, dito.
+- Kr. Demmin: 465. Damerow 1, dito, 466. Damerow 2, dito,
+- Kr. Malchin: 464. Basedow, dito.
+467. Groß Zastrow 1, dito, 468. Groß Zastrow 2, dito,
+472. Sassen 3, dito, 473. Sassen 4, dito, 474. Upost, dito, 475. Wüstenfelde, dito.
+469. Kruckow, dito, 470. Pustow, dito, 471. Sassen 1, dito,
+- Kr. Anklam: 476. Anklam, EF, 477. Wegezin, EF.
+- Kr. Neubrandenburg: 479. Dishley, vermutlich Kugelamphorenbestattung in Großsteingrab.
+- Kr. Ueckermünde: 478. Hintersee, EF.
+- Kr. Waren: 480. Cramon, Kugelamphorenbestattung in Großsteingrab, 481. Sparow, dito, 482. Waren/Stinthorst, EF.
+- Kr. Pasewalk: 485. Bagemühl, G, 486. Bagemühl, G, 487. Bagemühl, S, 488. Brüssow 32, EF, 489. Lebehn, G, 490. Lebehn, G, 491. Retzin, vG, 492. Schwennenz, S, 493. Woddow, S, 494. Wollschow, S, 495. Wollschow, G.
+- Kr. Röbel: 483. Stuer 1, Kugelamphorenbestattung in Großsteingrab, 484. Stuer 2, dito.
+- Kr. Prenzlau: 496. Carmzow, Kugelamphorenbestattung in Großsteingrab (?), 497. Falkenwalde, G, 498. Kleptow, vG, 499. Klinkow, S, 500. Klinkow, S, 501. Schönfeld 13 vG, 502. Schönfeld 15, S.
+505. Schwaneberg, G, 506. Temmen, OT Alt-Temmen, EF, 507. Warnitz 19, EF, 508. Zernickow 4, EF.
+
+Kr. Templin: 503. Forst Boitzenburg, G, 504. Hindenburg, G,
+
+## Bezirk Potsdam
+
+- Kr. Kyritz: 509. Bantikow, S, 510. Barenthin, G, 511. Dreetz, EvG, 512. Kyritz, G, 513. Kyritz 23, vG, 514. Rehfeld, G, 515. Wilhelmsgrille, G.
+- Kr. Gransee: 518. Burgwall, vS, 519. Löwenberg, G.
+- Kr. Neuruppin: 516. Altfriesack, S, 517. Zechlin Dorf, G.
+- Kr. Oranienburg: 520. Glienecke, G.
+523. Friesack, S, 524. Friesack, EF, 525. Hoppenrade, G,
+- Kr. Nauen: 521. Brädikow, vS, 522. Buchow-Karpzow, EF,
+526. Ketzin/Weinberg, G, 527. Ketzin/Kiekelberg, G, 528.
+
+<!-- FREE:PAGE 36 -->
+Ketzin/Stadt, G, 529. Lietzow, vS, 530. Nauen, S, 531. Wachow 5, S, 532. Wachow/u., EvG, 533. Wachow/u., EvG, 534. Warsow, G.
+
+Kr. Rathenow: 535. Buschow, G, 536. Gülpe, EF, 537. Hohennauen, EF, 538. Jerchel 2, EvG, 539. Jerchel 4, G, 540. Kietz 1, EF, 541. Kietz 3 b, EF, 542. Klessen, S, 543. Möthlitz, OT Bahnitz, S, 544. Mützlitz/Str. n. Garlitz, G, 545. Mützlitz/Sandgrube, G, 546. Parey, vS, 547. Premnitz, G, 548. Rathenow, EF, 549. Rathenow/u., EF, 550. Rathenow/ West, EF, 551. Rhinow 8, EF, 552. Strodehne, EF.
+
+Kr. Brandenburg: 553. Brandenburg/Altstadt 13, G, 554. Brandenburg/Neustadt 17, G, 555. Brandenburg/Kirchmöser, vG, 556. Brandenburg/Neuendorf 6, G, 557. Brandenburg/Neuendorf 4, EvG, 558. Brielow, S, 559. Butzow, G, 560. Deetz (Groß Kreutz), G, 561. Göhrden, EvG, 562. Götz, EF, 563. Gollwitz, S, 564. Hohenferchesar, EF, 565. Pritzerbe, S, 566. Schmerzke, G, 567. Wusterwitz/u., G, 568. Wusterwitz/u., EvG.
+
+- Kr. Potsdam: 569. Alt-Töplitz 14, vG, 570. Alt-Töplitz 13, G, 571. Alt-Töplitz 16, S, 572. Alt-Töplitz 17, G, 573. Alt-Töplitz/u., EvG, 574. Bergholz-Rehbrücke, vG, 575. Caputh, vS, 576. Derwitz, vG, 577. Golm, G, 578. Groß-Glienicke, G, 579. Krielow 7, G, 580. Neu-Töplitz (Leest), G, 581. Phöben, EF, 582. Potsdam, G, 583. Potsdam/Babelsberg, EF, 584. Potsdam/Bornim, vG, 585. Schmergow, S, 586. Stahnsdorf, EF. Kr. Belzig: 587. Kuhlowitz, EF, 588. Neuendorf, EvG.
+- Kr. Zossen: 589. Jütchendorf, EF, 590. Jütchendorf/u., vS, 591. Löwenbruch 1, G, 592. Löwenbruch 2, G.
+- Kr. Königswusterhausen: 593. Groß Ziethen, G, 594. Kablow, S, 595. Königswusterhausen, EvG, 596. Prieros, EF, 597. Ragow, S, 598. Schulzendorf, vS, 599. Wildau, vG.
+
+## Berlin (West)
+
+Bez. Neukölln: 600. Rudow, G, 601. Rudow, G. Bez. Reinickendorf: 602. Lübars, EvG, 603. Lübars II, G. Bez. Schöneberg: 604. Schöneberg, vG. Bez. Spandau: 605. Pichelsberg, EF, 606. Weinmeisterhöhe, vG.
+
+Bez. Steglitz: 607. Lichterfelde, vG.
+
+Bez. Tempelhof: 608. Holzmannstr., G.
+
+Bez. Wilmersdorf: 609. Dachsberg, vG.
+
+Berlin (Hauptstadt der DDR)
+
+Friedrichsfelde: 610. Schloß, G.
+
+Rahnsdorf: 611. u., vS.
+
+Schmöckwitz: 612. u., vS.
+
+Bezirk Frankfurt/Oder
+
+- Kr. Angermünde: 613. Mürow, vermutlich Kugelamphorenbestattung in Großsteingrab, 614. Passow, G, 615. Schmiedeberg/Eichberg, G, 616. Schmiedeberg/Forst, G, 617. Schwedt, G, 618. Wartin, Kugelamphorenbestattung in Großstein-
+- grab.
+- Kr. Eberswalde: 619. Eberswalde, EF, 620. Oderberg/Bralitz, EvG.
+- Kr. Bernau: 621. Wandlitz, vG.
+- Kr. Bad Freienwalde: 622. Alt Reetz, EF, 623. Hohensaaten, G.
+- Kr. Strausberg: 624. Gielsdorf, G, 625. Hermersdorf (Neuhardenberg), EvG.
+- Kr. Seelow: 626. Jahnsfelde, G, 627. Platkow, EvG, 628. Sietzing, vG.
+- Kr. Fürstenwalde: 629. Colpin, vG, 630. Grünheide, OT NeuBuchhorst, EF, 631. Neuendorf i. Sande, vG, 632. Spreeau, EF, 633. Trebus, S.
+
+Kr. Beeskow: 634. Klein Rietz, G.
+
+Kr. Eisenhüttenstadt: 635. Goschen, vG.
+
+Bezirk Cottbus (ohne Gebiet der Schwarzen Elster)
+
+Kr. Lübben: 636. Freiwalde, vG, 637. Ressen-Zaue, EF.
+
+- Kr. Luckau: 638. Kaden, vG, 639. Zöllmersdorf, EF, 640. Zützen, EvG.
+
+- Kr. Finsterwalde: 641. Finsterwalde, OT Nehesdorf, EF. Kr. Calau: 642. Calau, G, 643. bei Calau, vG, 644. Werchow, OT Cabel, G.
+
+- Kr. Cottbus: 645. Gablenz, vG, 646. Kiekebusch, vG. Kr. Spremberg: 647. Bühlow 8, EF, 648. Bühlow 12, EF.
+
+Bezirk Dresden (Lausitz)
+
+Kr. Niesky: 649. See, OT Moholz; vG.
+
+Kr. Bautzen: 650. Niederkaina, EF.
+
+Fundort unbekannt:
+
+- u 1. Köthener Land, vG, u 2. vermutlich Köthener Land, EvG, u 3. vermutlich Umgebung von Zerbst, EF, u 4. vermutlich Mittelelbe-Saale-Gebiet, EvG, u 5. Mittelelbe-SaaleGebiet, EvG, u 6. Mittelelbe-Saale-Gebiet, EvG, u 7. wohl Mittelelbe-Saale-Gebiet, EF, u 8. Gardelegen (Stadt oder Kreisgebiet ?), EvG
+
+## Kreisverzeichnis für die im Katalog verzeichneten Fundplätze
+
+| Aalen           | 377     | Borna        | 285—291   |
+|-----------------|---------|--------------|-----------|
+| Altenburg       | 292-304 | Brandenburg  | 342       |
+| Apolda          | 253—257 | Braunschweig | 359       |
+| Arnstadt        | 269     | Bremervörde  | 343       |
+| Artern          | 214,215 | Burg         | 33-41     |
+| Aschersleben    | 124-132 | Delitzsch    | 273-276   |
+| Bad Langensalza | 250,251 | Dessau-Stadt | 168—178   |
+| Bad Liebenwerda | 338     | Döbeln       | 315,316   |
+| Bautzen         | 650     | Dresden      | 328,329   |
+| Bernburg        | 138-143 | Eisleben     | 205—210   |
+| Bitterfeld      | 192-201 | Brurt        | 262-264   |
+
+| Gardelegen         | 30,u 8   | Oschatz            | 310—314   |
+|--------------------|----------|--------------------|-----------|
+| Genthin            | 32       | Oschersleben       | 96,97     |
+| Gera               | 272      | Osterburg          | 9-15      |
+| Goslar             | 367,368  | Quedlinburg        | 118—123   |
+| Gotha              | 265—268  | Querfurt           | 216—219   |
+| Gräfenhainichen    | 189—191  | Riesa              | 318—322   |
+| Grimma             | 306,307  | Roßlau             | 179—186   |
+| Halberstadt        | 98—110   | Rudolstadt         | 270,271   |
+| Haldensleben       | 51-64    | Saalkreis          | 202,203   |
+| Halle-Stadt        | 204      | Salzwedel          | 68        |
+| Harburg            | 351      | Sangerhausen       | 211-213   |
+| Havelberg          | 1-5      | Schmölln           | 305       |
+| Helmstedt          | 364-366  | Schönebeck         | 82— 87    |
+| Herzberg           | 336,337  | Schwalm-Eder-Kreis | 370—373   |
+| Hettstedt          | 133-137  | Sömmerda           | 252       |
+| Hohenmölsen        | 234-239  | Soest              | 369       |
+| Jessen             | 330-335  | Sondershausen      | 242-244   |
+| Jüterbog           | 340,341  | Staßfurt           | 88—95     |
+| Kalbe/Milde        | 18       | Stendal            | 19- 29    |
+| Klötze             | 16,17    | Tangerhütte        | 31        |
+| Köthen             | 144-167  | Torgau             | 317       |
+| Leipzig            | 277-284  | Uelzen             | 351-355   |
+| Luckau             | 339      | Unterfranken       | 378       |
+| Lüchow-Dannenberg  | 356-358  | Wanzleben          | 76-81     |
+| Lüneburg           | 344-350  | Weimar             | 258—261   |
+| Ludwigshafen       | 376      | Weißenfels         | 224-227   |
+| Magdeburg-Stadt    | 74,75    | Wernigerode        | 111—117   |
+| Marburg-Biedenkopf | 374      | Wittenberg         | 187,188   |
+| Meißen             | 323-327  | Wolfenbüttel       | 360—363   |
+| Merseburg          | 220—223  | Wolmirstedt        | 65-73     |
+| Mühlhausen         | 245-249  | Wurzen             | 308,309   |
+| Naumburg           | 230-233  | Zeitz              | 240,241   |
+| Nebra              | 228,229  | Zerbst             | 42-50     |
+| Neuwied            | 375      | unbekannt          | u1—u7     |
+| Niesky             | 649      | ausgesondert       | a 1—a 29  |
+
+Ortsregister für die im Katalog verzeichneten Fundplätze
+
+Badeleben, s. Völpke Bad Kösen, OT Kukulau, Kr. Naumburg (230) Bad Kösen, OT Saaleck, Kr. Naumburg (231) Ballendorf, Kr. Grimma (306) Bahrendorf, OT Stemmern, Kr. Wanzleben (77) Barby, Kr. Schönebeck (82, 83) Barleben, Kr. Wolmirstedt (65, 66) Beckendorf-Neindorf, Kr. Oschersleben (96) Beelitz, Kr. Stendal (19) Beesenlaubingen, OT Beesedau, Kr. Bernburg (a 2) Belleben, Kr. Bernburg (140) Benzingerode, Kr. Wernigerode (111) Bernburg, Bez. Halle (141) Bernburg-Waldau, Bez. Halle (a 3) Berndorf, OT Kleinhermsdorf, Kr. Borna (285) Bertkow, OT Plätz, Kr. Osterburg (9, 10) Biere, Kr. Schönebeck (84) Bierstedt, Kr. Salzwedel (6) Bleckendorf, s. Egeln-Bleckendorf Böhlen, Kr. Borna (286) Börln, Kr. Oschatz (310) Börssum, s. Hornburg Börtewitz, Kr. Döbeln (315) Bösenburg, Kr. Eisleben (207) Borken, Kr. Herzberg (336) Bornitz, OT Unterbornitz, Kr. Zeitz (240)
+
+Abtnaundorf, s. Leipzig-Abtnaundorf Achim, OT Seinstedt, Kr. Wolfenbüttel (360) Ackendorf, Kr. Haldensleben (51) Aken, Kr. Köthen (144, 145) Aken/Kleinzerbst (146) Alleringersleben, Kr. Haldensleben (52) Alsleben, Kr. Bernburg (138) Altenburg, Bez. Leipzig (292, 293) Altenmedingen-Haassel, Kr. Uelzen (351) Althaldensleben, s. Haldensleben II Altranstädt, s. Großlehna Amelinghausen-Sottorf, Kr. Lüneburg (345) Ampfurth, OT Schermcke, Kr. Wanzleben (76) Anhalt (?) (u 4) Ansbach, Museum, s. Anhalt Apfelstädt, Kr. Erfurt (264) Arneburg, Kr. Stendal (a 1) Athensleben, s. Löderburg Aub b. Burgerroth, Regierungsbezirk Unterfranken (378) Aue, s. Molau Augsdorf, Kr. Eisleben (205, 206) Baalberge, Kr. Bernburg (139) Bad Blankenburg, Kr. Rudolstadt (270) Badeborn, Kr. Quedlinburg (118)
+
+11 Beier, Kugelamphoren
+
+<!-- FREE:PAGE 37 -->
+Bottendorf, Kr. Artern (a 4) Bottmersdorf, Kr. Wanzleben (a 5) Brambach, OT Rietzmeck, Kr. Roßlau (179, 180) Braunschweig, BRD-Bundesland Niedersachsen (359) Brumby, s. Erxleben Burgdorf, s. Werleburgdorf Calbe, Kr. Schönebeck (85) Canitz, Kr. Riesa (318) Cheine, Kr. Salzwedel (7) Colbitz, OT Lindhorst, Kr. Wolmirstedt (67) Cosa, Kr. Köthen (147) Cossebaude, Kr. Dresden (328) Cröbern, Kr. Leipzig (277) Dahme, Kr. Luckau (399) Damm, s. Jüterbog Dangensdorf, Kr. Lüchow-Dannenberg (a 6) Dannigkow, Kr. Burg (33) Dannstadt, Kr. Ludwigshafen (376) Dardesheim, Kr. Halberstadt (98) Daubnitz, s. Wachtnitz Deersheim, Kr. Halberstadt (99) Deesdorf, Kr. Halberstadt (100) Dequede, OT Polkern, Kr. Osterburg (11) Dessau, Bez. Halle (168) Dessau-Alten, s. Dessau-Mosigkau Dessau-Kleinkühnau, Bez. Halle (169, 170) Dessau-Kochstedt, s. Dessau-Mosigkau Dessau-Mildensee, Bez. Halle (171) Dessau-Mosigkau, Bez. Halle (172—174) Dessau-Törten, Bez. Halle (175—177) Dessau-Waldersee, Bez. Halle (178) Derenburg, Kr. Wernigerode (113-115) Derenburg/Mahndorf, Kr. Wernigerode (112) Dewitz, s. Taucha-Dewitz Diebzig, Kr. Köthen (148) Diersbüttel, Kr. Lüneburg (346) Dingelstedt, Kr. Halberstadt (101) Ditfurt, Kr. Quedlinburg (119) Döbbelin, Kr. Stendal (20) Döbrichau, Kr. Torgau (317) Dölauer Heide, s. Halle (Saale) Dölkau, s. Zweimen Dölzig, s. Starkenberg Dörschnitz, OT Paltzschen, Kr. Meißen (323) Dorna, s. Röpsen Dornburg, Kr. Zerbst (42) Dresden-Altstadt, Bez. Dresden (329) Druxberge, Kr. Wanzleben (78) Egeln, Kr. Staßfurt (89—91) Egeln, OT Bleckendorf, Kr. Staßfurt (92) Eichholz, s. Leps Eilsleben, Kr. Wanzleben (79, 80) Eimersleben, Kr. Haldensleben (53, 54) Einsdorf, s. Mittelhausen Eisleben, OT Helfta, Bez. Halle (208, 209) Ellingen, Kr. Osterburg (12, a 7) Elsnigk, Kr. Köthen (149—152) Emden, Kr. Haldensleben (55) Erfurt-Gispersleben, Bez. Erfurt (262) Erfurt-Melchendorf, Bez. Erfurt (263) Erkerode, OT Lucklum, Kr. Wolfenbüttel (361) Ermsleben, OT Sinsleben, Kr. Aschersleben (124) Erxleben, Kr. Haldensleben (56, s. auch Eimersleben)
+
+Estedt, Kr. Gardelegen (30) Evessen, s. Erkerode Farsleben, Kr. Wolmirstedt (68, 69) Fernsdorf, s. Prosigk Flarchheim, Kr. Mühlhausen (245) Flechtingen, Kr. Haldensleben (57) Freiroda, Kr. Delitzsch (273) Frenz, Kr. Köthen (153) Friedrichsaue, Kr. Aschersleben (125) Friedrichsluga, Kr. Herzberg (337) Fritzlar, OT Lohne, Schwalm-Eder-Kreis (370) Frohndorf, Kr. Sömmerda (252) Gahrendorf, Vorwerk, s. Prosigk Gardelegen, Kreis oder Stadt (?), Bez. Magdeburg (u 8) Gatersleben, Kr. Aschersleben (126, 127) Gatersleben/Hausneindorf, Kr. Aschersleben (128) Gehrden, Kr. Zerbst (53) Gerwisch, Kr. Burg (34—39) Gienau, OT Siecke, Kr. Lüneburg (347) Gispersleben, s. Erfurt-Gispersleben Gladbach, Kr. Neuwied (375) Gleina, Kr. Nebra (228) Gnarrenburg, Kr. Bremervörde (343) Gödnitz, Kr. Zerbst (44) Görschen, OT Scheiplitz, Kr. Naumburg (232) Görzig, OT Reinsdorf, Kr. Köthen (154) Goldburghausen, Kr. Aalen (377) Gorma, s. Rositz Goseck, Kr. Weißenfels (224) Gotha, Bez. Erfurt (265) Gotha, OT Siebleben, Bez. Erfurt (266) Gräfentonna, Kr. Bad Langensalza (250) Grassau, Kr. Stendal (21) Greppin, Kr. Bitterfeld (192) Gröna, Kr. Bernburg (142) Gröningen, Kr. Oschersleben (a 8) Groß-Ammensleben, Kr. Wolmirstedt (70) Groß-Badegast, s. Reupzig Groß-Biewende, s. Remlingen Groß-Ellingen, s. Ellingen Großkorbetha, Kr. Weißenfels (225) Großlehna, OT Altranstädt, Kr. Leipzig (278) Groß Lübz, s. Lübs Großobringen, Kr. Weimar (258) Großörner, Kr. Hettstedt (133) Groß Quenstedt, Kr. Halberstadt (102) Großromstedt, Kr. Apolda (253) Großweißandt, s. Weißandt-Gölzau Grottewitz, s. Nerchau Gudensberg, Schwalm-Eder-Kreis (371, 372) Günthersdorf, Kr. Merseburg (220, 221) Güsen, Kr. Genthin (32) Gutenswegen, Kr. Wolmirstedt (a 9) Guthmannshausen, Kr. Sömmerda (a 10) Haassel, s. Altenmedingen-Haassel Hadmersleben, Kr. Wanzleben (81) Halberstadt, Bez. Magdeburg (103, 104) Haldensleben I, Bez. Magdeburg (58, a 11) Haldensleben II, Bez. Magdeburg (59, 60) Haldensleben, Stadtforst, Bez. Magdeburg (61) Halle, Dölauer Heide, Bez. Halle (204) Halle (Saale), Museum (u 7) Hanum, Kr. Klötze (16)
+
+Harsleben, Kr. Halberstadt (105) Harth, Forst, s. Böhlen Hassel, Kr. Stendal (22, 23) Hausneindorf, Kr. Aschersleben (129, s. auch Gatersleben) Havelberg, Bez. Magdeburg (1—4) Heidberg, OT Leetze, Kr. Salzwedel (8) Helfta, s. Eisleben Helmstedt, BRD-Bundesland Niedersachsen (364) Hiddingsen, Kr. Soest (369) Hillersleben, OT Paxförde, Kr. Haldensleben (62) Hindenburg, Kr. Osterburg (13, 14) Hobeck, Kr. Zerbst (45) Hohenerxleben, Kr. Staßfurt (88) Hohenlepte, OT Kämeritz, Kr. Zerbst (46) Hohenmölsen, Bez. Halle (234) Hohenwarsleben, Kr. Wolmirstedt (71) Holzweißig, Kr. Bitterfeld (193) Hornburg, Kr. Helmstedt (362) Hundisburg, Kr. Haldensleben (63, 64) Jarchau, Kr. Stendal (24) Jerxheim, Kr. Helmstedt (365) Jessen, Bez. Cottbus (330) Jüterbog, OT Damm, Bez. Potsdam (340) Kämeritz, s. Hohenlepte Kalbsrieth, Kr. Artern (214) Kapellendorf, Kr. Apolda (254) Kirchberg, s. Niedenstein Kistritz, Kr. Hohenmölsen (235) Kleinhermsdorf, s. Berndorf Kleinkühnau, s. Dessau-Kleinkühnau Klein Mühlingen, Kr. Schönebeck (86) Kleinzerbst, Kr. Köthen (155, 156, s. auch Aken) Klieken, Kr. Roßlau (181) Klossa, Kr. Jessen (331) Kochstedt, s. Dessau-Mosigkau Ködderitzsch, Kr. Apolda (255) Königsaue, s. Schadeleben Königshorst, Kr. Lüchow-Dannenberg (356) Körner, Kr. Mühlhausen (246, 247) Körnitz, s. Meilendorf Köthen, Bez. Halle (157) Köthener Land (?) (u 1, u 2) Kotteritz, Kr. Altenburg (294) Krebitschen, s. Monstab Kriebitzsch, Kr. Altenburg (295) Kroptewitz, Kr. Döbeln (316) Kukulau, s. Bad Kösen Langeln, Kr. Wernigerode (116) Langendorf, Kr. Weißenfels (a 12) Langendorf, Kr. Zeitz (241) Langeneichstädt, OT Niedereichstädt, Kr. Querfurt (216) Latdorf, Kr. Bernburg (143) Lebien, Kr. Jessen (332) Leetze, s. Heidberg Legefeld, Kr. Weimar (259) Leipzig-Abtnaundorf, Bez. Leipzig (279) Leissling, OT Rödgen, Kr. Weißenfels (a 13) Leps, OT Eichholz, Kr. Zerbst (47) Liebenburg, Kr. Goslar (367) Lindhorst, s. Colbitz Löbnitz, Kr. Delitzsch (274) Löderburg, OT Athensleben, Kr. Staßfurt (a 14) Lohma a. d. Leina, Kr. Altenburg (296)
+
+Lohne, s. Fritzlar Lohra, Kr. Marburg-Biedenkopf (374) Lucklum, s. Erkerode Lübeln, Kr. Lüchow-Dannenberg (a 15) Lübs, Kr. Zerbst (48) Lüptitz, Kr. Wurzen (308) Lütnitz, s. Möckern Luko, s. Roßlau Magdeburg, Bez. Magdeburg (74) Magdeburg, Neue Neustadt, Bez. Magdeburg (75) Magdeburg, Museum (u 6) Mahndorf, Kr. Halberstadt (a 16, s. auch Derenburg) Masendorf, Kr. Uelzen (352) Maua, Kr. Jena (a 17) Mehringen, Kr. Aschersleben (130) Meilendorf, OT Körnitz, Kr. Köthen (158) Melchendorf, s. Erfurt-Melchendorf Memleben, OT Wendelstein, Kr. Nebra (229) Menz, Kr. Burg (40, a 18) Merschwitz, s. Pretzsch Merseburg, Bez. Halle (Saale) (222, a 19) Meseberg, Kr. Wolmirstedt (72) Mildensee, s. Dessau-Mildensee Minsleben, Kr. Wernigerode (117) Mittelelbe-Saale-Gebiet (?) (u 4—u 7) Mittelhausen, Kr. Sangerhausen (211, 212, a 20) Mittelhausen, OT Einsdorf, Kr. Sangerhausen (213) Mochau, Kr. Wittenberg (187) Möckern, OT Lütnitz, Kr. Burg (41) Möst, s. Schierau Moholz, s. See Molau, OT Aue, Kr. Naumburg (233) Molbitz, OT Obermolbitz, Kr. Altenburg (297, 298, a 21) Monstab, OT Krebitschen, Kr. Altenburg (299) Morl, Saalkreis (202) Mosigkau, s. Dessau-Mosigkau München, Museum (?) (a 22) Nägelstädt, Kr. Bad Langensalza (251) Nathusius, Sammlung (u 5) Naundorf-Waldersee, s. Dessau-Waldersee Nemt, Kr. Wurzen (309) Nerchau, OT Grottewitz, Kr. Grimma (307) Neuburxdorf, OT Wendisch-Borschütz, Kr. Bad Liebenwerda (338) Neuhaldensleben, s. Haldensleben I Neukönigsaue, s. Schadeleben Neunheiligen, Kr. Bad Langensalza (a 23) Niedenstein, OT Kirchberg, Schwalm-Eder-Kreis (373) Niederdorla, Kr. Mühlhausen (248) Niedereichstädt, s. Langeneichstädt Niederkaina, Kr. Bautzen (650) Niederlepte, s. Nutha Niederspier, Kr. Sondershausen (242) Oberbösa, Kr. Sondershausen (243) Oberheldrungen, Kr. Artern (215) Obermolbitz, s. Molbitz Oberschmon, s. Schmon Oberwerschen, s. Werschen Oberwiederstedt, s. Wiederstedt Oberzetscha, s. Zetscha Obhausen, Kr. Querfurt (a 24) Oetzen, OT Süttorf, Kr. Uelzen (353) Oldendorf, Kr. Lüneburg (358)
+
+<!-- FREE:PAGE 38 -->
+Oppin, Saalkreis (203)
+
+Scharnhop, s. Rostorf
+
+Oranienbaum, Kr. Gräfenhainichen (189) Oschatz, Bez. Leipzig (311, 312) Ostedt, Kr. Uelzen (354) Osterburg, Kr. Osterburg (a 25) Osterhausen, OT Sittichenbach, Kr. Querfurt (217) Osternienburg, Kr. Köthen (159) Osterode, s. Veltheim Ostingersleben, s. Eimersleben Otterstedt, Kr. Sondershausen (244) Paltzschen, s. Dörschnitz Paupitzsch, Kr. Delitzsch (275) Paußnitz, Kr. Riesa (319) Paxförde, s. Hillersleben Pegau, s. Kleinhermsdorf Peulingen, Kr. Stendal (25) Pevestorf, Kr. Lüchow-Dannenberg (357) Pflaumloch, s. Goldburghausen Plätz, s. Bertkow Plotha, s. Prittitz Polkern, s. Dequede Polkritz, s. Schwarzholz Ponitz, Kr. Schmölln (305) Prettin, Kr. Jessen (333) Pretzsch, OT Merschwitz, Kr. Wittenberg (188) Prittitz, Kr. Weißenfels (226) Prittitz, OT Plotha, Kr. Weißenfels (227) Prosigk, OT Fernsdorf, Kr. Köthen (160) Purzien, Kr. Jessen (334, 335) Quedlinburg, Bez. Halle (120—123) Quenstedt, Kr. Hettstedt (134) Radegast, Kr. Köthen (161) Rätzlingen, Kr. Uelzen (355) Rahmstorf, s. Regesbostel Rebenstorf, Kr. Lüchow-Dannenberg (358) Regesbostel, OT Rahmstorf, Kr. Harburg (344) Reinsdorf, s. Görzig Reiser, Kr. Mühlhausen (249) Remlingen, OT Groß Biewende, Kr. Wolfenbüttel (363) Reppichau, Kr. Köthen (162, 163) Reuden, Kr. Bitterfeld (194) Reupzig, Kr. Köthen (164) Riesa-Göhlis, Kr. Riesa (320) Rietzmeck, s. Brambach Ristedt, s. Tangeln Rödgen, s. Leissling Röpsen, OT Dorna, Kr. Gera (272) Rötha-Gaulis, s. Trachenau Rötha-Geschwitz, Kr. Borna (287) Rohstorf, Kr. Lüneburg (349, 350) Rosefeld, s. Reppichau Rositz, Kr. Altenburg (300) Rositz, OT Gorma, Kr. Altenburg (301) Roßlau, Bez. Halle (182—186, s. auch Klieken) Rothenschirmbach, Kr. Querfurt (218) Rudolstadt, Bez. Gera (271) Rückmarsdorf, Kr. Leipzig (280) Saaleck, s. Bad Kösen Salzmünde, Saalkreis (a 26) Sanne, Kr. Stendal (26) Sargstedt, Kr. Halberstadt (106—108) Schadeleben, Kr. Aschersleben (131)
+
+Scheiplitz, s. Görschen Schenkenberg, Kr. Delitzsch (276) Schermcke, s. Ampfurth Schierau, OT Möst, Kr. Bitterfeld (195) Schinne, Kr. Stendal (28) Schkeuditz, Kr. Leipzig (281, s. auch Freiroda) Schmon, OT Oberschmon, Kr. Querfurt (219) Schönebeck, Bez. Magdeburg (87) Schönefeld, Kr. Jüterbog (341) Schöningen, Kr. Helmstedt (366) Schollene, Kr. Havelberg (5) Schwarzholz, OT Polkritz, Kr. Osterburg (15) See, OT Moholz, Kr. Niesky (649) Sehlis, Kr. Leipzig (282, 283) Seinstedt, s. Achim Siebleben, s. Gotha Siecke, s. Gienau Sinsleben, s. Ermsleben Sittichenbach, s. Osterhausen Söllichau, Kr. Gräfenhainichen (190) Söllingen, s. Jerxheim Sonnendorf, Kr. Apolda (256) Sottorf, s. Amelinghausen-Sottorf Spören, Kr. Bitterfeld (196) Starkenberg, OT Dölzig, Kr. Altenburg (302) Stemmern, s. Bahrendorf Steutz, Kr. Zerbst (50) Stobra, Kr. Apolda (257) Stößen, Kr. Hohenmölsen (236) Strehla, Kr. Riesa (321) Sülzenbrücken, Kr. Arnstadt (269) Süttorf, s. Oetzen Tangeln, Kr. Klötze (17) Tangermünde, Kr. Stendal (29) Taucha, OT Dewitz, Kr. Leipzig (284) Teuchern, Kr. Hohenmölsen (237) Thale, Kr. Quedlinburg (a 27) Thüritz, Kr. Kalbe/M. (18) Törten, s. Dessau-Törten Trachenau, Kr. Borna (288) Ubigau, Kr. Herzberg (a 28) Umpferstedt, s. Kapellendorf Unterbornitz, s. Bornitz Unterzetscha, s. Zetscha Veltheim, Kr. Halberstadt (109) Völpke, OT Badeleben, Kr. Oschersleben (97) Wachtnitz, OT Daubnitz, Kr. Meißen (324, 325) Wachtnitz, OT Zöthain, Kr. Meißen (326). Wandersleben, Kr. Gotha (267, 268) Weimar, Bez. Erfurt (260) Weinböhla, Kr. Meißen (327) Weißandt-Gölzau, Kr. Köthen (165) Welbsleben, Kr. Hettstedt (135, 136) Wendelstein, s. Memleben Wendisch-Borschütz, s. Neuburxdorf Werlaburgdorf, Kr. Goslar (368) Wermsdorf, Kr. Oschatz (313, 314) Werschen, OT Oberwerschen, Kr. Hohenmölsen (238) Westeregeln, Kr. Staßfurt (93, 94) Westorf, Kr. Aschersleben (132) Weideroda, OT Zauschwitz, Kr. Borna (290, 291)
+
+Schäplitz, Kr. Stendal (27)
+
+Wiederau, Kr. Borna (289)
+
+Wiederstedt, OT Oberwiederstedt, Kr. Hettstedt (137, a 29) Wimmelburg, Kr. Eisleben (210) Windberge, Kr. Tangerhütte (31) Wötz, s. Heidberg Wohlsborn, Kr. Weimar (261) Wolfen, Kr. Bitterfeld (197—200) Wolmirsleben, Kr. Staßfurt (95) Wulfen, Kr. Köthen (166) Zabitz, Kr. Köthen (167) Zauschwitz, s. Weideroda Zeithain, Kr. Riesa (322) Zembschen, Kr. Hohenmölsen (239)
+
+Zerbst, Museum (u 3) Zetscha, OT Oberzetscha, Kr. Altenburg (303) Zetscha, OT Unterzetscha, Kr. Altenburg (304) Zielitz, Kr. Wolmirstedt (73) Ziesar, Kr. Brandenburg (342) Zilly, Kr. Halberstadt (110) Zörbig, Kr. Bitterfeld (201) Zöthain, s. Wachtnitz Zschornewitz, Kr. Gräfenhainichen (191) Zweimen, OT Dölkau, Kr. Merseburg (223) ausgesondert (a 1—a 29) unbekannt (u 1-u 8)
+
+<!-- FREE:PAGE 39 -->
+Åberg, N., Das nordische Kulturgebiet in Mitteleuropa während der jüngeren Steinzeit. Uppsala — Leipzig 1918. Agde, H., Landschaft der Steinzeit in Mitteldeutschland. Halle
+
+- 1935.
+- Amende, E., Die steinzeitlichen Siedelungen im altenburgischen Ostkreise. Mitt. Osterland 13, H. 1, 1919, S. 28—62.
+- Amende, E., Führer durch die vorgeschichtliche Sammlung des Altenburger Heimatmuseums, zugleich eine Vorgeschichte des Altenburger Landes. Mitt. Osterland 13, H. 2, 1922, S. 107—201.
+- Amende, E., Ein schnurkeramisches Flachgrab mit einem Geisterhüttchen vom Altenburger Verschiebebahnhof. Mitt. Osterland 14, H. 1, 1930, S. 24-27.
+- Amende, E. und H. Höckner, Funde auf dem Kohlenbruchfelde bei Kriebitzsch, Kr. Altenburg. Mitt. Osterland 13, H. 4, 1926 a, S. 321—325.
+- Amende, E. und H. Höckner, Eine Wohnstätte der Spätlatènezeit bei Oberzetscha (Kreis Altenburg). Mitt. Osterland 13, H. 4, 1926 b, S. 328—330.
+- Amende, E., H. Höckner und M. Reinhold, Vorgeschichtliche Funde vom Altenburger Verschiebebahnhof. Mitt. Osterland 13, H. 3, 1924, S. 225–252.
+- Amende, H., H. Höckner, Tisch und T. Wagner, Neue Funde vom Altenburger Verschiebebahnhof. Mitt. Osterland 13, H. 5, 1928, S. 387—395.
+- Antoniewicz, W., Z dziedziny archeologii ziem Polski (Notizen aus dem Gebiete der Archäologie Polens). Swiatowit 17, 1938, S. 341—422.
+- Auerbach, A., Die vor- und frühgeschichtlichen Altertümer Ostthüringens. Jena 1930.
+- Auerbach, A., Michelsberger Kultur in Ostthüringen. 91.—102. Jber. vogtländ.-altertumsforsch. Ver. Hohenleuben, 1932, S.87-94.
+- Bach, A., Neolithische Populationen im Mittelelbe-Saale-Gebiet. Zur Anthropologie des Neolithikums unter besonderer Berücksichtigung der Bandkeramiker. Weimar 1978.
+- Bach, H. und A. Barth, Prähistorischer und Anthropologischer Befund eines Steinkistengrabes mit Kugelamphoren-Keramik aus Flarchheim, Kr. Mühlhausen. Alt-Thüringen 8, 1966, S. 184—192.
+- Bakker, J. A., J. C. Vogel und T. Wiślański, TRB and other C 14 Dates from Poland (c. 4350—1350 BC and 800—900 AD). Helinium 9, 1969, S. 3—27 und 209—238.
+- Balcer, B., Bemerkungen zur Feuersteinbearbeitung in der Kugelamphorenkultur in Polen. Archeol. Polona 17, 1976 a, S. 195-209.
+- Balcer, B., Ein Beitrag zur Feuersteinbearbeitung in der Kugelamphorenkultur. Z. Archäol. 10, 1976 b, S. 13—15.
+- Balcer, B., Okonomische Aspekte der Feuersteinbearbeitung in der Trichterbecherkultur. Jschr. mitteldt. Vorgesch. 63, 1981, S.143-148.
+- Bär, E., Ein bemerkenswertes Grab der schnurkeramischen
+
+Kultur von Groß-Weißandt, Kr. Köthen. Ausgr. und Funde 14, 1969, S. 17–18.
+
+- Bastian, W., Zwei Großsteingräber von Müggenhall, Kr. Stralsund, und ihre Keramik. Bodendenkmalpfl. in Mecklenburg, Jb. 1953, 1954, S. 26—44.
+- Baumann, W., Schnurkeramische Siedlungsfunde im Forstrevier Kreyern, Gemarkung Weinböhla, Kr. Meißen. Ausgr. und Funde 9, 1964, S. 74—76.
+- Baumann, W. und H. Quietzsch, Zur ur- und frühgeschichtlichen Besiedlung der Lommatzscher Pflege. Beobachtungen an der Ferngasleitung. Ausgr. und Funde 14, 1969, S. 64 bis 69.
+- Becker, A., Die geologischen Verhältnisse und die Vorgeschichte von Mehringen. Sonderabdruck aus den Nummern 198, 199 und 200 der Staßfurter Zeitung", Tageszeitung für Leopoldshall. Staßfurt 1925.
+- Becker, C. J., Die Mittel-Neolithischen Kulturen in Südskandinavien. Acta Archaeol. 25 (København), 1954, S. 49—150.
+- Becker, C. J., Besprechung von Brjussow 1957. Antiquity 33, 1959, S. 138—140.
+- Becker, Pastor, Neue Grabfunde bei Wilsleben (Prov. Sachsen). Z. Ethnol. Anthropol. Urgesch. (Verh.) 16, 1884,
+- S. 142-145.
+- Becker, Pastor, Uber einige vorgeschichtliche Funde von der Osthälfte der Gatersleber See". Mitt. Verein Anhalt. Gesch. und Altertumskunde 4, 1886, S. 585—613.
+- Becker, Pastor, Uber einige vorgeschichtliche Funde von der Osthälfte der Aschersleber See. Z. Harzver. Gesch. und Altertumskunde 20, 1887, S. 240—255.
+- Behm-Blancke, G., Die schnurkeramische Totenhütte Thüringens, ihre Beziehungen zum Grabbau verwandter Kulturen und zum neolithischen Wohnbau. Alt-Thüringen 1, 1955, S. 63-83.
+- Behm-Blancke, G., Probleme des voll- und endneolithischen Siedlungswesens in Mitteldeutschland. Ausgr. u. Funde 5, 1960, S. 209—213.
+- Behrens, H., Die wichtigsten Neufunde des Jahres 1951 im Lande Sachsen-Anhalt. Jschr. mitteldt. Vorgesch. 36, 1952, S. 283-295.
+- Behrens, H., Zur Wesensdeutung und historischen Problematik der neolithisch-frühmetallzeitlichen Tierskelettfune. Forsch. und Fortschr. 36, 1962, S. 176—178.
+- Behrens, H., Tonscheiben (,Backteller") aus dem mitteldeutschen Neolithikum. Jschr. mitteldt. Vorgesch. 47, 1963, S. 127-144.
+- Behrens, H., Die neolithisch-frühmetallzeitlichen Tierskelettfunde der Alten Welt. Berlin 1964 a.
+- Behrens, H., Steinzeit -- Bronzezeit. Die Funde aus dem großen Grabhügel Pohlsberg" bei Latdorf, Kr. Bernburg. Inv. Archaeol. H. 13 (Bl. D 121—128). Berlin 1964 b.
+- Behrens, H., Berichtigtes und ergänztes Schema mitteldeutscher C14-Daten. Ausgr. und Funde 10, 1965, S. 1—2.
+- Behrens, H., Mitteldeutsche Einflüsse im nordwestdeutschen Neolithikum. Jschr. mitteldt. Vorgesch. 50, 1966 a, S. 21 bis 32.
+- Behrens, H., Grundlagen und Grundzüge der Geschichte der Jungsteinzeit (als Beispiel für historische Dynamik in urgeschichtlicher Zeit). Forsch. und Fortschr. 40, 1966 b, S. 51 bis 56.
+- Behrens, H., Das Neolithikum der DDR als Forschungsaufgabe. Jschr. mitteld. Vorgesch. 51, 1967, S. 65—88.
+
+Behrens, H., Die Einzelgrabkultur im nördlichen Mitteldeutschland und in der Altmark. Veröff. Landesmus. Vor-
+
+- gesch. Halle 24, 1969 a, S. 71—100.
+- Behrens, H., Westliche Einflüsse bzw. Einflüsse der Glokkenbecherkultur bei den Becherkulturen der DDR. Veröff. Landesmus. Vorgesch. Halle 24, 1969 b, S. 143-154.
+- Behrens, H., Die steinerne Axt mit Nackenkamm — Nachbildung einer Metallvorlage? Ausgr. und Funde 16, 1971 a, S. 13-14.
+
+Behrens, H., Zum Kontinuitätsproblem im mitteldeutschen Neolithikum. Ausgr. und Funde 16, 1971 b, S. 227—228.
+
+- Behrens, H., Die Jungsteinzeit im Mittelelbe-Saale-Gebiet. Unter Mitarbeit von D. Kaufmann und W. Matthias. Berlin 1973.
+- Behrens, H., Stand und Aufgaben der Steinzeitforschung in der DDR auf der Grundlage der Forschungen der letzten Jahre. Ein informatorischer Ubersichtsbericht. Jschr. mitteldt. Vorgesch. 61, 1977, S. 9—15.
+
+Behrens, H., Mensch und Umwelt im Neolithikum des Mittelelbe-Saale-Gebietes. In: Urgesch. Besiedlung in ihrer Beziehung zur natürlichen Umwelt. Halle 1980 a, S. 33—40.
+
+- Behrens, H., Neues und Altes zu den neolithischen Tontrommeln. Fundber. Hessen 19/20, 1980 b, S. 145—161.
+- Behrens, H., Der Walternienburger und der Bernburger Keramikstil und die Walternienburg-Bernburger Kultur. Jschr. mitteldt. Vorgesch. 63, 1981 a, S. 11—16.
+- Behrens, H., Radiokarbon-Daten für das Neolithikum des Mittelelbe-Saale-Gebietes. Jschr. mitteldt. Vorgesch. 63, 1981 b, S. 189—193.
+- Behrens, H. und B. Rüster, Kalibrierte C14-Daten für das Neolithikum des Mittelelbe-Saale-Gebietes. Archäol. Korr.-Bl. 11, 1981, S. 189—193.
+- Behrens, H. und E. Schröter, Siedlungen und Gräber der Trichterbecherkultur und Schnurkeramik bei Halle (Saale). Berlin 1980.
+- Beier, H.-J., Die Grab- und Bestattungssitten der Walternienburger und der Bernburger Kultur. Halle 1984.
+- Beier, H.-J., Die Kugelamphorenkultur im Mittelelbe-SaaleGebiet und in der Altmark. Ethnogr.-Archäol. Z. 27, 1986, S. 473-482.
+- Beier, H.-J., Die Kugelamphorenkultur im Mittelelbe-SaaleGebiet und in der Altmark. Diss. Halle 1985 (MS).
+- Berciu, D., Contribuții la problemele neoliticului in Romînia in lumina noilor cercetări. București 1961.
+- Bersu, G., Altheimer Wohnhäuser vom Goldberg, OA. Neres-
+- Bersu, G., Rössener Wohnhäuser vom Goldberg, OA. Neresheim, Württemberg. Germania 20, 1936, S. 229—243.
+- heim, Württemberg. Germania 21, 1937, S. 149—158. Bertsch, K., Geschichte des deutschen Waldes. Jena 1949.
+- Bicker, F. K., Mesolithisch-neolithische Kulturverbindungen
+- Bethge, W., Vorgeschichtliche Funde der letzten Jahre aus dem Kreise Cöthen. Mannus, IV. Erg.-Bd. 1925, S. 35—51.
+
+in Mitteldeutschland? Mannus 25, 1933, S. 249—270.
+
+- Bicker, F. K., Zwei Dünengrabungen der Landesanstalt für
+- Vorgeschichte in Aken a. d. Elbe und Kl.-Kühnau b. Dessau zur Klärung der mesolithisch-neolithischen Kulturverbindungen in Mitteldeutschland. Nachr.-Bl. dt. Vorz. 10, 1934, S. 106—108.
+- Bicker, F. K., Tierbestattung der jüngeren Steinzeit in Osterburg, Altmark. Nachr.-Bl. dt. Vorz. 11, 1935, S. 128.
+- Bicker, F. K., Von der mittleren Steinzeit zur Indogermanenzeit. Mannus 28, 1936, S. 410—422.
+- Bicker, F. K., Die Mittlere Steinzeit in Mitteldeutschland und ihre Beziehungen zum deutschen Osten. Mitteldt. Volkheit 4, 1937, S. 76—85.
+- Bierbaum, G., Ausgrabungen und Feststellungen neuer Funde im Freistaat Sachsen vom 1. April 1926 bis 31. März 1927. Nachr.-Bl. dt. Vorz. 3, 1927, S. 59—61.
+- Bierbaum, G., Zum Kugelflaschenfund von Sittichenbach, Kr. Querfurt. Jschr. Vorgesch. sächs.-thür. Länder 17, 1929, S.54-57.
+- Blasius, W., Führer zu den megalithischen Grabdenkmälern im westlichen Teile des Kreises Salzwedel. 31. Jber. Altmärk. Ver. f. vaterländische Gesch. und Industrie, 2. H., 1904, S.95-114.
+- Bock, F., Emmode. Geschichte des Dorfes Emden im Kreise Neuhaldensleben. Neuhaldensleben 1938.
+- Bogen, A., Die Vorgeschichte des Magdeburger Landes. Magdeburg 1937.
+- Bohm, W., Die Vorgeschichte des Kreises Westprignitz. Leipzig 1937.
+- Bohnstedt, F., Salzwedel. Johann-Friedrich-Danneil-Museum. Mitteldt. Vorz. 1, 1934, S. 12.
+- Bohnstedt, F., Ein Anhänger aus heimischem Bernstein von Brietz, Kr. Salzwedel. Jschr. mitteldt. Vorgesch. 24, 1936 a, S.116-117.
+- Bohnstedt, F., Museumsbericht. 50. Jber. Altmärk. Ver. vaterländische Gesch. Salzwedel, 1936 b, S. 124—130.
+- Bohnstedt, F., Einführung in die Vor- und Frühgeschichte der Altmark. Salzwedel 1937.
+- Brandt, K. H., Fremdformen unter den steinzeitlichen Doppeläxten Niedersachsen. Jb. Bremische Wiss. 1, 1955, S. 63 bis 74.
+- Brandt, K. H., Synchronistische Skizze zur Stratigraphie und Synchronisierung jungsteinzeitlicher und steinkupferzeitlicher Kulturen Mittel- und Nordeuropas. In: Analecta archaeol. Köln 1960, S. 99—106.
+- Brandt, K. H., Studien über steinerne Axte und Beile der jüngeren Steinzeit und der Stein-Kupferzeit Nordwestdeutschlands. Hildesheim 1967.
+- Brandt, K. H., Unbekannte Nackenkammäxte. Materialh. Urund Frühgesch. Niedersachsens 16, 1980, S. 1—14.
+- Bremer, W., Kugelamphore. In: Reallexikon der Vorgesch. 7. Berlin 1926, S. 111—114.
+- Brjussow, A. J., Geschichte der neolithischen Stämme im europäischen Teil der UdSSR. Berlin 1957.
+- Brunn, W. A. von, Neue Funde. Mitteldt. Volkheit 8, 1941, S. 34-38.
+- Brunn, W. A. von, Funde bei den Regulierungsarbeiten in der Elster-Luppeaue. Nachr.-Bl. dt. Vorz. 18, 1942, S. 11 bis 12.
+
+Brunn, W. A. von, Die Bernburger Grabhügel. Ihre Geschichte und ihre Bedeutung für die Vertikalstratigraphie des Spätneolithikums. Prähist. Z. 52, 1977, S. 4—27.
+
+- Brunner, K., Die steinzeitliche Keramik in der Mark Brandenburg. Archiv Anthropol. 25, H. 3, 1898.
+
+Brunner, K., Steinzeitliche und andere Funde aus der Pro-
+
+<!-- FREE:PAGE 40 -->
+- vinz Brandenburg. Nachr. dt. Altertumsfunde 1899 (1900), Driehaus, J., Die Altheimer Gruppe und das Jungneolithikum S. 40—45. in Mitteleuropa. Mainz 1960.
+- Butschkow, H., Die bandkeramischen Stilarten Mitteldeutschlands. Halle 1935.
+- Bücke, S., Zwei Siedlungen der Bernburger Kultur im Thüringer Becken (Der Bornhög bei Nägelstädt und der Lohberg bei Gräfentonna, beide Kreis Bad Langensalza). Dipl.Arb. Halle 1980 (MS).
+- Caemmerer, E., Ueberblick über die Vor- und Frühgeschichte des Sondershäuser Gebietes, besonders auf Grund der Funde im städtischen Museum. Mitt. Ver. dt. Gesch.- und Altertumskunde Sondershausen 10, 1940, S. 7-41.
+- Childe, V. G., The Danube in Prehistory. Oxford 1929. Childe, V. G., The Dawn of European Civilisation. London
+- 1947.
+
+Childe, V. G., Prehistoric Migrations in Europe. Oslo 1950.
+
+Coblenz, W., Neufunde aus Sachsen (1942—1952). Arb.- und
+
+Forsch.-Ber. sächs. Bodendenkmalpfl. 4, 1954, S. 439—474.
+
+- Coblenz, W., Steinzeit. Grabfunde der Schnurkeramik und Kugelamphoren aus Sachsen. Inv. Archaeol. H. 6 (Bl. D 51 bis 60). Berlin 1958.
+- Coblenz, W., Bemerkungen zum Neolithikum im Paßland Sachsen. Fundber. Hessen 19/20, 1980, S. 45—54.
+- Coblenz, W. und K. Fritsche, Dreifache Rinderbestattung aus Zauschwitz, Kr. Borna. Ausgr. und Funde 6, 1961, S. 62 bis 69.
+- Coblenz, W. und K. Fritsche, Doppelbestattung der Kugelamphorenkultur neben der rituellen Rinderbeisetzung von Zauschwitz. Ausgr. und Funde 7, 1962, S. 77—82.
+- Czerniak, L., Rozwój spałeczeństw kultury póżny ceramiki wstęgowej na Kujawach. Ser. Archaeol. 16, 1980.
+- David, N. und H. David-Hennig, Zur Herstellung von Keramik. Untersuchungen zu den sozialen, kulturellen und ökonomischen Strukturen am Beispiel der Ful aus der Sicht des Prähistorikers. Bayer. Vorgesch.-Bl. 36, 1971, S. 289 bis 317.
+- Davidsen, K., Valbykeramik und Kugelamphorenkultur. Offa 29, 1972, S. 133—137.
+- Deecke, W., Die mitteleuropäischen Silices nach Vorkommen, Eigenschaften und Verwendung in der Prähistorie. Jena 1933.
+- Dehn, W. und J. Röder, Hessische Steinkisten und frühes Metall. Fundber. Hessen 19/20, 1980, S. 163—176.
+- Dehn, W. und E. Sangmeister, Die Steinzeit im Ries. Katalog der steinzeitlichen Altertümer im Museum Nördlingen. Kallmünz/Opf. 1954.
+- Deichmüller, J., Das Steingrab im Eichholz bei Gnarrenburg, Kr. Bremervörde. Neue Ausgr. und Forsch. in Niedersachsen 7, 1972, S. 24—45.
+- Deubler, H., Die Besiedlung des Kreises Rudolstadt vom Paläolithikum bis zum Ende des Mittelalters im Lichte der Archäologie. Diss. Jena 1966 (MS).
+- Deubler, H., Beiträge zur Archäologie und Siedlungsgeschichte des Kreises Rudolstadt. 2. Jungsteinzeit (Neolithikum). Rudolstädter Heimath. 14, 1968, S. 199—207.
+- Dietze, M., Kreismuseum Bitterfeld. Mitteldt. Volkheit 5, 1938, S.15.
+- Dinu, M., Sondajul arheologic de la Dolheștii Mari. Mat. și cercetari arheol. 6, 1959, S. 213—220.
+- Dinu, M., K voprosu o kul'ture šarovidnych amfor na territorii Moldovy. Dacia N. S. 4, 1960, S. 89—106.
+- Dinu, M., Contribuții la problema culturii amferelor sferice pe teritoriul Moldavei. Arheol. Moldovei 1, 1961, S. 43—64.
+- Driehaus, J. und H. Behrens, Stand und Aufgaben der Erforschung des Jungneolithikums in Mitteleuropa. In: L'Europe à la fin de l'âge de la pierre. Praha 1961, S. 233—275.
+- Driehaus, J. und E. Pleslová, Aspekte zur Beurteilung des Aneolithikums in Böhmen und Mähren. In: L'Europe à la fin de l'âge de la pierre. Praha 1961, S. 361—387.
+- Dunker, H., Kreismuseum Wolmirstedt. Mitteldt. Volkheit 4, 1937, S. 15.
+- Dunker, H., Die vor- und frühgeschichtliche Besiedlung des Kreises Wolmirstedt (Kreisinv. Wolmirstedt). 1961 (MS). Dziekoński, T. und T. Wiślański, Untersuchung zweier der Kugelamphorenkultur entstammender áus Kupferlegierung bestehender Gegenstände. Archaeol. Polona 10, 1968, S. 118 bis 132.
+- Ebbesen, K., Die jüngere Trichterbecherkultur auf den dänischen Inseln. Copenhagen 1975.
+- Ebbesen, K., Enkeltgravskulturen 100 år efter opdagelsen. Aarbøger for Nordisk Oldkyndighed og Hist. 1980, 1982, S. 52-72.
+- Eckart, C., Wissenschaftlicher Katalog der SammlungL.Heim, Camburg: Neolithische und bronzezeitliche Funde aus der Grafschaft Camburg. Dipl.-Arb. Jena 1958 (MS).
+- Ehrlich, B., Succase. Eine Siedlung der jungsteinzeitlichen Schnurkeramiker im Kreise Elbing. Elbinger Jb. 12/13, 1936, S. 43-98.
+- Ehrich, R. W., Some Comments on the Řivnáč Complex with Reference to the Site of Homolka. In: L'Europe à la fin de l'âge de la pierre. Praha 1961, S. 349—352.
+- Ehrich, R. W. und E. Pleslová-Stiková, Homolka. An eneolithic Site in Bohemia. Praha — Camebridge/Mass. 1968.
+- Engel, C., Tätigkeitsbericht der vorgeschichtlichen Abteilung
+- des Magdeburger Museums für Natur- und Heimatkunde für die Zeit vom 1. 7. 1927 bis 30. 6. 1928. Nachr.-Bl. dt. Vorz. 4, 1928, S. 114—119.
+- Engel, C., Ubersicht der jungsteinzeitlichen Kulturen im mittleren Elbgebiet. Mannus VII. Erg.-Bd. 1929, S. 71—90.
+- Engel, C., Bilder aus der Vorzeit an der mittleren Elbe. Burg 1930.
+- Estorff, G. O. C. von, Heidnische Alterthümer der Gegend von Uelzen im ehemaligen Bardengaue (Königreich Hannover). Hannover 1846.
+- Fansa, M., Ein zerstörtes Großsteingrab aus Süttorf, Gemeinde Oetzen, Ldkr. Uelzen. Ber. Denkmalpfl. Niedersachsen 3, H. 2, 1983, S. 44—48.
+- Fansa, M., Wiederentdeckung und Untersuchung eines zerstörten Großsteingrabes aus Süttorf, Gemeinde Oetzen, Landkreis Uelzen. Die Kunde N. F. 34/35, 1984, S. 77—90. Faßhauer, P., Beiträge zum Herstellungsverfahren urgeschichtlicher Keramik. Die Wülstung im allgemeinen und die Herstellungsweise der Gefäßformen der Kugelamphorenkultur. Wiss. Z. Univ. Halle—Wittenberg, Ges.- und sprachwiss. R. 5, H. 3, 1956, S. 329—344.
+- Felsberg, O., Fundbericht aus dem Arbeitsgebiet des Heimatmuseums Brandenburg (Havel). Nachr.-Bl. dt. Vorz. 9, 1933, S. 72—75.
+- Felsberg, O., Fundbericht aus dem Ausgrabungsgebiet des Heimatmuseums Brandenburg (Havel). Nachr.-Bl. dt. Vorz. 11, 1935, S.204—207.
+- Fischer, U., Großsteingrabuntersuchungen in der Altmark. 53. Jber. Altmärk. Ver. vaterländische Gesch. Salzwedel, 1939, S. 3—8.
+- Fischer, U., Zu den mitteldeutschen Trommeln. In: Archaeologica geographica 2, 1951, S. 98—105.
+- Fischer, U., Die Orientierung der Toten in den neolithischen Kulturen des Saalegebietes. Jschr. mitteldt. Vorgesch. 37, 1953 a, S. 49—66.
+- Fischer, U., Uber Nachbestattungen im Neolithikum von Sachsen-Thüringen. In: Festschr. Röm.-Germ. Zentralmus. Mainz, Bd. III, Mainz 1953 b, S. 161—181.
+- Fischer, U., Die Gräber der Steinzeit im Saalegebiet. Berlin (West) 1956.
+- Fischer, U., Mitteldeutschland und die Schnurkeramik. Jschr. mitteldt. Vorgesch. 41/42, 1958 a, S. 254—298.
+- Fischer, U., Neolithische Siedlung in Anhalt. Archaeol. Geogr. 7, 1958 b, S. 1–7.
+- Fischer, U., Zum Problem der spätneolithischen Gruppenbildung an Saale und mittlerer Elbe. In: L'Europe à la fin de l'âge de la pierre. Praha 1961, S. 415—429.
+- Fischer, U., Zu den neolithischen Kollektivgräbern in Hessen und Thüringen. Nass. Annalen 79, 1968, S. 1—21.
+- Fischer, U., Ein Chronologiesystem im Neolithikum. Germania 54, 1976 a, S. 182—184.
+- Fischer, U., Die Dialektik der Becherkulturen. Jschr. mitteldt. Vorgesch. 60, 1976 b, S. 235—245.
+- Fleischhauer, J., Aus meiner Arbeit als Bodendenkmalpfleger in Friedrichsaue, Kr. Aschersleben. Vorgesch. Museumsarb. und Bodendenkmalpfl. 1957, S. 1-9.
+- Florschütz, G., Ein Massengrab der Kugelamphorenkultur. Nachr.-BI. dt. Vorz. 4, 1928, S. 150—151.
+- Florschütz, G., Vorgeschichte des Gothaischen Landes erläutert an den Fundstücken im Museum. Gotha 1937.
+- Forssander, J.-E., Die schwedische Bootaxtkultur und ihre kontinentaleuropäischen Voraussetzungen. Lund 1933.
+- Förtsch, O., Steinzeitlicher Fund von Schönefeld bei Blönsdorf. Jschr. Vorgesch. sächs.-thür. Länder 1, 1902, S. 75—79.
+- Friederich, A., Beschreibung und Abbildung der in und bei einem Opfer- und Todtenhügel bei Minsleben in der Grafschaft Wernigerode gefundenen Alterthümer. Beitr. zur Alterthumskunde der Grafschaft Wernigerode II. Wernigerode 1868.
+- Fromme, J., Aus Egelns Vorgeschichte. Montagsbl. Wissenschaftl. Beil. Magdeburg. Zeitung 79 (Nr. 2), 1937, S. 9 bis 12.
+- Fuhse, F., Der Galgenberg bei Klein Vahlberg. Jb. Gesch. Ver. Herzogtum Braunschweig 7, 1908, S. 1—21.
+- Gabałowna, L., Pochówki bydlęce kultury amfor kulistych ze stanowiska 4 w Brzešciu Kujawskim w świetle podobnych znalezisk kultur środkowoeuropejskich. Prace i Mater. 3, 1958 a, S. 63—108.
+- Gabałowna, L., Cattle burials of the Globular Amphorae Culture from site 4 at Brześé Kujawski in the light of similar finds of the central european Cultures. Prace i Mater. 3, 1958 b, S. 183—190.
+- Gandert, O. F., Kugelflaschenfund bei Söllichau (Kr. Bitterfeld). In: 25 Jahre Siedlungsarchäol. (Mannus-Bibl. 22). Leipzig 1922, S. 14—16.
+- Gall, W., A. Bach, H.-J. Barthel und P. Lange, Neolithische Totenhütte bei Wandersleben. Alt-Thüringen 18, 1983, S. 7 bis 31.
+- Gandert, O. F., Neolithische Gräber mit Rinderbeigaben und Rinderbestattungen in Mitteleuropa. In: Congrès Intern. des Sciences Préhist. et Protohist. Actes de la IIIe Session Zürich 1950. Zürich 1953, S. 201.
+- Gandert, O. F. und H. Behrens, Zwei Askoi aus Mittel-
+
+与
+
+- deutschland und ihre Bedeutung für die Datierung der sog. nordischen Kulturen der Jungsteinzeit. Jschr. mitteldt. Vorgesch. 36, 1952, S. 42—52.
+- Geisler, H., Neue Funde von Stichbandkeramik in Brandenburg. Ausgr. und Funde 7, 1962, S. 109—111.
+- Geisler, H., Ein Kugelamphorenfund von Gielsdorf, Kr. Strausberg. Ausgr. und Funde 8, 1963, S. 123—125.
+- Geisler, H. und M. Teske, Ein Brandgrab der Kugelamphorenkultur aus Rehfeld, Kr. Kyritz. Ausgr. und Funde 16, 1971, S. 128-131.
+- Gensen, R., Neue Siedlungen der westeuropäischen Steinkistenkultur in Nordhessen. Fundber. Hessen 4, 1964, S.57-61.
+- Gimbutas, M., The first wave of Eurasian Steppe Pastoralists into Copper Age Europe. The Jo. Indo-European Studies 5, Number 4, 1977, S. 277—338.
+- Gimbutas, M., The three waves of the Kurgan people into Old Europe, 4500—2500 B. C. Archiv. Suisses d'anthropol. Générale 43, 1979, S. 113-137.
+- Gimbutas, M., The Kurgan Wave — 2 (c. 3400—3200 B. C.) into Europe and the Following Transformition of Culture. Jo. Indo-European Stud. 8, Number 3 &amp; 4, 1980, S. 273 bis 315.
+- Götze, A., Neolithische Studien. Z. Ethnol. Anthropol. 32, 1900 a, S. 146-177.
+- Götze, A., Uber die Gliederung und Chronologie der jüngeren Steinzeit. Z. Ethnol. Anthropol. (Urgesch. Verh.), 32, 1900 b, S. 259-278.
+- Götze, A., Neolithische Gräber bei Poserna, Kr. Weissenfels. Prähist. Z. 1, 1909, S. 188—195.
+- Götze, A., P. Höfer und P. Zschiesche, Die vor- und frühgeschichtlichen Altertümer Thüringens. Würzburg 1909.
+- Götze, W., Steinzeitliche Funde aus dem Köthener Land. Anhalt. Gesch.-Bl. 3, 1928, S. 5—29.
+- Götze, W., Tätigkeitsbericht des Heimatmuseums in Köthen, Abteilung Vorgeschichte. Nachr.-Bl. dt. Vorz. 10, 1934 a, S. 116—124.
+- Götze, W., Fundberichte aus Anhalt 1930/31, Kr. Köthen. Anhalt. Gesch.-Bl. 8/9, 1934 b, S. 137—142.
+- Götze, W., Funde und Feststellungen im Kreise Köthen 1932 bis 1934. Anhalt. Gesch.-Bl. 10/11, 1935, S. 205—221.
+- Götze, W., Funde und Feststellungen im Kreise DessauKöthen 1935—1936. Anhalt. Gesch.-Bl. 13, 1938 a, S. 104 bis 131.
+- Götze, W., Funde und Feststellungen im Kreise DessauKöthen 1937. Anhalt. Gesch.-Bl. 14, 1938 b, S. 152—155.
+- Gomolka, H.-J., Vor- und frühgeschichtliche Neufunde in den Museen des Kreises Stendal. J.gabe 13. Altmärk. Mus. Stendal, 1959, S. 4—18.
+- Grahmann, R., Konnten die mitteldeutschen Flußauen in vorgeschichtlicher Zeit besiedelt werden? Mannus 26, 1934, S.37-41.
+- Gramsch, B., Das Mesolithikum im Flachland zwischen Elbe und Oder. Berlin 1973.
+- Grebe, K., Kugelamphorengräber aus Ketzin, Kr. Nauen. Ausgr. und Funde 5, 1960, S. 270—273.
+- Grebe, K., Gräber der Kugelamphorenkultur aus Ketzin, Kreis Nauen, und Brandenburg (Havel)-Neuendorf. Veröff. Mus. Potsdam 1, 1962, S. 16—35.
+- Grimm, H., Anthropologische Ergebnisse der Untersuchung von Leichenbrandresten der Schönfelder, Einzelgrab- und Kugelamphorenkultur. Jschr. mitteldt. Vorgesch. 58, 1974, S. 265-274.
+
+<!-- FREE:PAGE 41 -->
+Grimm, H., Anthropologische Bemerkungen zu den Skelettresten aus einigen Megalithgräbern in den mecklenburgischen Bezirken der DDR. Jb. Bodendenkmalpfl, Mecklenburg, 1983, 1984, S. 103—150.
+
+- Grimm, P., Die vor- und frühgeschichtliche Besiedlung des Unterharzes und seines Vorlandes auf Grund der Bodenfunde. Halle 1930.
+- Grimm, P., Neue Siedlungsforschungen der Landesanstalt für Vorgeschichte. Nachr.-Bl. dt. Vorz. 10, 1934, S. 113—114.
+- Grimm, P., Die älteste Hakenkreuzdarstellung aus Mitteldeutschland? Mitteldt. Volkheit 2, 1935, S. 42—44.
+- Grimm, P., Erwerbungen der Landesanstalt für Volkheitskunde 1935/36. Nachr.-Bl. dt. Vorz. 12, 1936, S. 269—271.
+- Grimm, P., Von den Museen der Provinz Sachsen. Nachr.-Bl. dt. Vorz. 14, 1938 a, S. 74—76.
+- Grimm, P., Die Salzmünder Kultur in Mitteldeutschland. Jschr. Vorgesch. sächs.-thür. Länder 29, 1938 b, S. 1—104.
+- Grimm, P., Erwerbungen der Landesanstalt für Volkheitskunde 1938/39. Nachr.-BI. dt. Vorz. 15, 1939, S. 86—88.
+- Grimm, P., Zur inneren Gliederung der mitteldeutschen Jungsteinzeit. Mannus 32, 1940 a, S. 379—408.
+- Grimm, P., Erwerbungen der Landesanstalt für Volkheitskunde 1939/40. Nachr.-Bl. dt. Vorz. 16, 1940 b, S. 232—234. Gringmuth-Dallmer, E., Die neolithischen Funde der Magdeburger Altstadt. Ausgr. und Funde 14, 1969, S. 12-17.
+- Grössler, H., Verzeichnis der ... vor- und frühgeschichtlichen Gesamtfunde im Besitze des Vereins für Geschichte und Altertümer der Grafschaft Mansfeld. Mansfelder Bl. 14, 1900, S. 187—195.
+- Grössler, H., Geschlossene vorgeschichtliche Funde aus den Kreisen Mansfeld (Gebirge und See), Querfurt und Sangerhausen. Jschr. Vorgesch. sächs.-thür. Länder 1, 1902, S. 125 bis 244.
+- Grössler, H., Geschlossene vorgeschichtliche Funde aus den Kreisen Mansfeld (Gebirge und See), Querfurt und Sangerhausen. Zweiter Teil. Jschr. Vorgesch. sächs.-thür. Länder 3, 1904, S.97—107.
+- Hagen, J. A. von der, Neuere Funde von Steinzeitgräbern in der Uckermark. Mannus 7, 1915, S. 33—60.
+- Hájek, L. und E. Vlček, Kostrové hroby z Předměřic. Památky Archeol. 47, 1956, S. 1—30.
+- Hansen, A., Ummendorf, Kreismuseum Neuhaldensleben, Abt. Alt-Ummendorf. Mitteldt. Volkheit 2, 1935, S. 112.
+- Häusler, A., Die Gräber der Kugelamphorenkultur in Wolhynien und Podolien und die Frage ihres Ursprungs. Jschr. mitteldt. Vorgesch. 50, 1966 a, S. 115-140.
+- Häusler, A., Zum Verhältnis von Männern, Frauen und Kindern in Gräbern der Steinzeit. Arb.- und Forsch.-Ber. sächs. Bodendenkmalpfl. 14/15, 1966 b, S. 25—73.
+- Häusler, A., Besprechung von T. Sulimirski 1968. Z. Ar-
+- chäol. 5, 1971, S. 317—324.
+- Häusler, A., Zur Problematik der Gräbersoziologie. In: Moderne Probleme der Archäologie. Berlin 1975 a, S. 83—102.
+- Häusler, A., Die Entstehung der Trichterbecherkultur nach Aussage ihrer Bestattungssitten. In: Symbolae Praehist. Berlin 1975 b, S. 91—122.
+- Häusler, A., Die Stellung der Złota-Kultur auf Grund ihrer Bestattungssitten. Z. Archäol. 10, 1976, S. 33—34.
+- Häusler, A., Zu den Grab- und Bestattungssitten der Walternienburg-Bernburger Kultur. Jschr. mitteldt. Vorgesch. 63, 1981 a, S. 75—87.
+- Häusler, A., Zur Frage der Beziehungen zwischen dem nord-
+- pontischen Raum und den neolithischen Kulturen Mittel-
+- europas. Jschr. mitteldt. Vorgesch. 64, 1981 b, S. 229—236. Hemprich, A., Halberstadt. Städtisches Museum. Mitteldt.
+- Vorz. 1, 1934, S. 5—8.
+- Hemprich, A., Der vorgeschichtliche Mensch, die vorgeschichtliche Besiedlung und Kulturentwicklung im Harzgau. B. Jüngere Steinzeit. Heimatkundl. Forsch.- und Sammelstelle für den Harzgau. Städt. Mus. Halberstadt 17/18, 1935.
+- Hemprich, A., Neue Funde aus dem Sammelgebiet des Halberstädter Heimatmuseums. Nachr.-Bl. dt. Vorz. 14, 1938, S. 87-89.
+- Herfert, P., Die Steinäxte des Mittel- und Spätneolithikums im Elb-Saalegebiet und ihre kulturelle Zuweisung. Dipl.Arb. Halle 1961 (MS).
+- Herfert, P., Die Steinäxte der Trichterbecherkultur im ElbSaale-Gebiet. Wiss. Z. Univ. Halle—Wittenberg, Ges.sprachwiss. R. 11, 1962, S. 1097—1140.
+- Herms, A., Die Megalithgräber des Kreises Jerichow I. Festschr. Magdeburger Mus. Natur- und Heimatkunde zur 10. Tagung für Vorgesch. 1928, S. 243—262.
+- Herrmann, J., Archäologische Kulturen und sozialökonomische Gebiete. Ethnogr.-Archäol. Z. 6, 1965, S. 97—128.
+- Hinze, G., Schloßmuseum Zerbst (Kreis Zerbst). Fundber. 1936. Anhalt. Gesch.-Bl. 13, 1938, S. 131—133.
+- Höckner, H., Vermehrung der vorgeschichtlichen Sammlung
+- in den Jahren 1934 bis 1936. Mitt. Osterland 14, H. 4, 1936, S. 483—495.
+- Höckner, H., Die wichtigsten Zugänge der Altenburger Amende-Sammlung für Vorgeschichtliche Altertümer 1936
+- bis 1959. Arb.- und Forsch.-Ber. sächs. Bodendenkmalpfl. 10, 1962, S. 259–302.
+- Höfer, P., Die erste Besiedlung der Provinz Sachsen. In: Die Provinz Sachsen in Wort und Bild I. Berlin 1900, S. 47—64. Höfer, P., Baalberge. Jschr. Vorgesch. sächs.-thür. Länder 1, 1902 a, S. 16—49.
+- Höfer, P., Ubersicht über vorgeschichtliche Veröffentlichungen des letzten Jahres im Gebiet der sächsischen und thüringischen Länder. Jschr. Vorgesch. sächs.-thür. Länder 1, 1902 b, S. 245—258.
+- Höfer, P., Ubersicht über vorgeschichtliche Veröffentlichungen
+- des letzten Jahres im Gebiet der sächsischen und thüringischen Länder. Jschr. Vorgesch. sächs.-thür. Länder 3, 1904, S. 130—147.
+- Höfer, P., Der Pohlsberg bei Latdorf, Kr. Bernburg. Jschr. Vorgesch. sächs.-thür. Länder 4, 1905, S. 63—101.
+- Höfer, P., Uber Kugelamphoren im Anschluß an einen Fund von Hindenburg (Kr. Osterburg) in der Altmark. Jschr. Vorgesch. sächs.-thür. Länder 10, 1911 a, S. 21—31.
+- Höfer, P., Die Fundstellen von Hindenburg (Kr. Osterburg) in der Altmark. Jschr. Vorgesch. sächs.-thür. Länder 10, 1911 b, S. 32—36.
+- Hoffmann, R., Eine Halle der ausgehenden Jungsteinzeit bei Alt-Töplitz, Kr. Zauch-Belzig. Mannus 32, 1940, S. 488 bis
+- 500.
+- Hoffmann, W., Vorgeschichtliche Neufunde im Lande Sachsen-Anhalt. Die wichtigsten Fundmeldungen des Jahres 1950. Jschr. mitteldt. Vorgesch. 35, 1951, S. 215—228.
+- Hoffmann, W., Eine jungsteinzeitliche Opferstätte (?) in
+- Düsedau, Kr. Osterburg. Ausgr. und Funde 8, 1965 a, S. 27 bis 28.
+- Hoffmann, W., Ausgewählte Fundmeldungen und Neu-
+- erwerbungen des Jahres 1962. Jschr. mitteldt. Vorgesch. 49, 1965 b, S. 235—258.
+- Hoffmann, W., Ausgewählte Fundmeldungen und Neuerwerbungen des Jahres 1965. Jschr. mitteldt. Vorgesch. 51, 1967, S. 337—351.
+- Hoffmann, W., Ausgewählte Neufunde aus dem Jahre 1966. Jschr. mitteldt. Vorgesch. 52, 1968, S. 337—355.
+- Hoffmann, W., Ein Grabfund der Kugelamphorenkultur aus Schinne, Kr. Stendal. Jschr. mitteldt. Vorgesch. 53, 1969, S.345-348.
+- Hoffmann, W., Ausgewählte Neufunde aus dem Jahre 1967. Jschr. mitteldt. Vorgesch. 55, 1971 a, S. 297—308.
+- Jacob-Friesen, K. H., Einführung in Niedersachsens Urgeschichte. Hildesheim 1959.
+- Jäger, K.-D., Mitteleuropäische Klimaschwankungen seit dem Neolithikum und ihre siedlungsgeschichtlichen Auswirkungen. In: Actes du VIIe Congrès Intern. des Sciences Préhist. et Protohist. Prague, 21—27 août 1966. Prague 1970, S. 669-673.
+- Jankowska, D., Die kulturellen Zusammenhänge zwischen der Trichterbecherkultur und Kugelamphorenkultur im Gebiet von Pommern. Z. Archäol. 10, 1976, S. 21—22.
+- Hoffmann, W., Ausgewählte Neufunde aus dem Jahre 1968. Jarman, M. R., A territorial model for archeology: a behaJschr. mitteldt. Vorgesch. 55, 1971 b, S. 309—324.
+- Hoffmann, W., Ausgewählte Neufunde aus dem Jahre 1969. Jschr. mitteldt. Vorgesch. 56, 1972, S. 237—248.
+- Hoffmann, W. und B. Schmidt, Die wichtigsten Neufunde des
+- Jahres 1954 aus dem Lande Sachsen-Anhalt. Jschr. mitteldt. Vorgesch. 39, 1955, S. 214—239.
+- Hoffmann, W. und B. Schmidt, Die wichtigsten Neufunde des Jahres 1955 aus dem Lande Sachsen-Anhalt. Jschr. mitteldt. Vorgesch. 40, 1956, S. 285—321.
+- Hoffmann, W. und B. Schmidt, Wichtige Fundmeldungen und Neuerwerbungen des Jahres 1957. Jschr. mitteldt. Vorgesch. 44, 1960, S. 328—338.
+- Hoffmann, W. und B. Schmidt, Wichtige Fundmeldungen und Neuerwerbungen des Jahres 1958. Jschr. mitteldt. Vorgesch. 45, 1961, S. 278—298.
+- Hoffmann, W. und B. Schmidt, Ausgewählte Fundmeldungen und Neuerwerbungen des Jahres 1961. Jschr. mitteldt. Vorgesch. 49, 1965, S. 219—234.
+- Hoffmann, W. und V. Toepfer, Eine mittelsteinzeitliche Siedlungsschicht in der Elbdüne bei Gerwisch, Kr. Burg. Jschr. mitteldt. Vorgesch. 47, 1963, S. 81—99.
+- Hofmeister, H., Heimatpflege nach Wunsch und Wirklichkeit. Braunschweiger Heimat 25, 1934, S. 70—72.
+- Hohmann, K., Ein Schachtgrab mit sitzendem Hocker vom Kolberg, Kr. Königswusterhausen. Ausgr. und Funde. 1,
+- 1956, S. 15-19.
+- Hoika, J., Mittelneolithische Trichterbecherkultur in Nordost-
+- holstein. Offa 28, 1972, S. 27—46.
+- Hrala, J. und J. Šimůnek, Dvojhrob s kulovitými amforami z Blšan. Archeol. rozhledy 16, 1964, S. 165—169.
+- vioural and geographical approach. In: Models in Archeol. London 1972, S. 705—733.
+- Jażdżewski, K., Cmentarzyska kultury ceramiki wstęgowej i związane z nimi ślady osadnictwa w Brześiu Kujawskim. Wiadomości Archeol. 15, 1938, S. 1—105.
+- Jażdżewski, K., Uber einige Probleme des Mittel- und Jungneolithikums in Polen. In: L'Europe à la fin de l'âge de la pierre. Praha 1961, S. 431—440.
+
+Jorns, W., Besprechung zu W. Schwellnus 1979. Arch. hess. Gesch. und Altertumskunde N. F. 39, 1981, S. 432—434.
+
+- Kahlke, H.-D., Zerstörte Bestattung mit Kugelamphoren von Otterstedt bei Sondershausen.: Alt-Thüringen 2, 1957, S. 250-252.
+
+Kaufmann, D., Die jungsteinzeitliche Besiedlung am unteren Bodetal unter Berücksichtigung siedlungskundlicher Probleme. Jschr. mitteldt. Vorgesch. 51, 1967, S. 89—110.
+
+- Kaufmann, H., H. Quietzsch, E. und R. Spehr, Neufunde des Jahres 1963 aus den Bezirken Dresden, Karl-Marx-Stadt und Leipzig. Arb.- und Forsch.-Ber. sächs. Bodendenkmalpfl. 13, 1964, S. 355—390.
+- Kaufmann, H., H. Quietzsch, E. und R. Spehr, Wichtige Neufunde des Jahres 1964 aus den Bezirken Dresden, KarlMarx-Stadt und Leipzig. Arb.- und Forsch.-Ber. sächs. Bodendenkmalpfl. 14/15, 1966, S. 303—338.
+- Kaufmann, H., H. Quietzsch, E. und R. Spehr, Wichtige Neu- . funde der Jahre 1953 bis 1962 aus den Bezirken Dresden, Karl-Marx-Stadt und Leipzig. Arb.- und Forsch.-Ber. sächs. Bodendenkmalpfl. 16/17, 1967, S. 495—660.
+- Kaufmann, Herm., Ur- und Frühgeschichte des Gothaer Landes. Gothaer Museumshefte (1), 1964, S. 19—80.
+- Hummel, H.-S., Pflanzenfunde aus der Urgeschichte des Kernd'l, A., Gräber der Kugelamphorenkultur in Berlin. mitteldeutschen Raumes. Jschr. mitteldt. Vorgesch. 52, Ausgr. Berlin 1, 1970, S. 7—15.
+- 1968, S. 39—66.
+- Hundt, H.-J., Eine neue jungneolithische Gruppe im östlichen Bayern (Chamer Gruppe). Germania 29, 1951, S. 5
+- bis 17.
+- Hundt, H.-J., Zwei jungneolithische Gefäße von Quedlinburg.
+- Jschr. mitteldt. Vorgesch. 43, 1959, S. 127—135.
+- Jacob, H. und H. Quietzsch, Wichtige Neufunde der Jahre 1970—1976. aus den Bezirken Dresden, Karl-Marx-Stadt und Leipzig. Arb.- und Forsch.-Ber. sächs. Bodendenkmalpfl. 23, 1980, S. 289—400.
+- Jacob, H. und H. Quietzsch, Wichtige Neufunde der Jahre 1977—1979 aus den Bezirken Dresden, Karl-Marx-Stadt und Leipzig. Arb.- und Forsch.-Ber. sächs. Bodendenkmalpfl. 24/25, 1982, S. 417—460.
+- Jacob, K. H., Der Kugelflaschenfund von Börtewitz, Kr. Mügeln (Königr. Sachsen). Prähist. Z. 5, 1913, S. 362—366. Jacob-Friesen, K. H., Schmuckketten aus dem Kreise der Kugelflaschen. Brandenburgia 39, 1930, S. 30—32.
+- Jacob-Friesen, K. H., Einführung in Niedersachsens Urgeschichte. Hildesheim 1939.
+- Kersten, W. und E. Neuffer, Bilder zur rheinischen Vorgeschichte. Frankfurt a. Main 1937.
+- Kiekebusch, A., Die Steinzeitsiedlung bei Trebus im Kreise Lebus (Provinz Brandenburg). Prähist. Z. 5, 1913, S. 340 bis 362.
+- Kiekebusch, A., Ein Blockkammerfriedhof bei Wollschow in der Uckermark. Nachr.-Bl. dt. Vorz. 5, 1929, S. 180—181.
+- Kilian, L., Haffküstenkultur und Ursprung der Balten. Bonn 1955.
+- Kilian, L., Ein Gefäß der Kugelamphorenkultur aus der Pfalz. Archäol. Korr.-Bl. 5, 1975, S. 111—113.
+- Kirsch, E., Die Elb-Havel-Kultur zwischen Elbe und unterer Spree und ihre Beziehungen zur Walternienburger, Bernburger und Kugelamphorenkultur. Dipl.-Arb. Halle 1971 (MS).
+- Kirsch, E., Die Funde der Kugelamphorenkultur im Bezirk Cottbus. In: Symbolae Praehist. Berlin 1975, S. 133—152.
+- Kirsch, E., Ein Grab der Kugelamphorenkultur von BerlinFriedrichsfelde. Ausgr. und Funde 25, 1980, S. 66—71.
+
+Kirsch, E., Die Havelländische Kultur und ihre kulturellen
+
+<!-- FREE:PAGE 42 -->
+- Beziehungen. Jschr. mitteldt. Vorgesch. 63, 1981, S. 99 bis Kossinna, G., Entwicklung und Verbreitung der steinzeit111.
+- Kirsch, E. und F. Plate, Ein Körpergräberfeld der Havelländischen Kultur bei Dreetz, Kr. Kyritz. Veröff. Mus. Urund Frühgesch. Potsdam 17, 1983, S. 7—40.
+- Kirsch, E. und G. Wetzel, Ur- und frühgeschichtliche Neufunde des Bezirkes Cottbus (1976). Gesch. und Gegenwart Bez. Cottbus 11, 1977, S. 171—196.
+- Knöll, H., Die Trichterbecherkultur und ihre Beziehungen zu einigen neolithischen Kulturen Mitteldeutschlands. Jschr. mitteldt. Vorgesch. 38, 1954, S. 40—73.
+- Knöll, H., Neolithisches aus Mittel- und Nordostdeutschland. Jschr. mitteldt. Vorgesch. 39, 1955, S. 36—69.
+- Knöll, H., Westfälisch-hessische Steinkisten und nordwestdeutsche Megalithgräber. Fundber. Hessen 1, 1961, S. 20 bis 34.
+- Knöll, H., Eine Scherbe der nordwestdeutschen Tiefstichkeramik aus Nordhessen (Zu den Kragenflaschen aus nordhessischen Steinkistengräbern). Jb. Röm.-Germ. Zentralmus. Mainz 15, 1970, S. 1—14.
+- Knöll, H., Kragenflaschen. Ihre Verbreitung und ihre Zeitstellung im europäischen Neolithikum. Neumünster 1981.
+- Knoop, L., Ein Kistengrab aus neolithischer Zeit. Corr.-Bl. dt. Ges. Anthropol., Ethnol. und Urgesch. 35, 1904, S. 6—7.
+- Knoop, L., Uber eine steinzeitliche Grabstelle bei Seinstedt im Kreise Wolfenbüttel. Korr.-Bl. dt. Ges. Anthropol., Ethnol. und Urgesch. 44, 1913, S. 42—44.
+- Koch, W., Die Kugelamphoren im Gebiet um Ohre und oberer Aller. Jschr. Kreismus. Haldensleben 9, 1968, S. 32—47.
+- König, M., Grabungen und Feststellungen des Schloßmuseums Zerbst von 1928—1930. Nachr.-Bl. dt. Vorz. 6, 1930, S. 168 bis 169.
+- König, M., Fundberichte aus Anhalt 1930/31. Kreis Zerbst. Anhaltische Gesch.-Bl. 8/9, 1934, S. 142—145.
+- König, M., Fundberichte 1932—1934 aus dem Schloßmuseum Zerbst. Anhaltische Gesch.-Bl. 10/11, 1935, S. 197—205.
+- König, M., Neufunde der Jungsteinzeit im Zerbster Land und die Wechselwirkung jungsteinzeitlicher Stile. Mannus 32, 1940, S. 479—488.
+- Körner, G., Ein Großsteingrab in der Feldmark Sottorf. Lüneburger Bl. 10, 1959, S. 139—142.
+- Körner, G. und F. Laux, Die Steingräber von Oldendorf an der Luhe, Kr. Lüneburg. In: Dokumentation zur Archäol. Niedersachsens in Denkmalpfl. und Forsch. Hannover 1975, S. 206—208.
+- Körner, G. und F. Laux, Ein Königreich an der Luhe. Lüne-
+- burg 1980.
+- Koppe, A., Die vor- und frühgeschichtlichen Sammlungen im Heimatmuseum Buttstädt und in den Schulen zu Eßleben und Hardisleben, Landkreis Sömmerda. Dipl.-Arb. Jena 1957 (MS).
+- Kossinna, G., Die indogermanische Frage archäologisch be-
+- antwortet. Z. Ethnol. 34, 1902, S. 161—222.
+- Kossinna, G., Der Ursprung der Urfinnen und Urindogermanen und ihre Ausbreitung nach Osten. In: Mannus 2, 1910, S. 59-108.
+- Kossinna, G., Die deutsche Vorgeschichte eine hervorragend nationale Wissenschaft.Würzburg 1914.
+- Kossinna, G., Meine Reise nach West- und Ostpreußen und meine Berufung zu Generalfeldmarschall von Hindenburg
+- im August 1915. Mannus 9, 1919, S. 119—195.
+- Kossinna, G., Erläuterungen zur Karte der Funde gebänderter Feuersteingeräte. Mannus 10, 1919, S. 202—206.
+- lichen Trichterbecher, Kragenfläschchen und Kugelflaschen. III. Kugelflaschen. Mannus 13, 1922, S. 239—268.
+- Kossinna, G., Die deutsche Vorgeschichte eine hervorragend nationale Wissenschaft. Leipzig 1925.
+- Kossinna, G., Die deutsche Vorgeschichte eine hervorragend nationale Wissenschaft. Leipzig 1936.
+- Kowalczyk, J., Zagadnienie grobów zbiorowych w neolicie Polski. Wiadomości Archeol. 18, 1962, S. 1—12.
+- Kowalczyk, J., The Funnel Beaker Culture. In: The Neolithic in Poland. Wrocław — Warszawa — Kraków 1970, S. 144-177.
+- Kowalczyk, J., Die Gliederungsprobleme des polnischen Neolithikums. Z. Archäol. 10, 1976, S. 3—6.
+- Krause, E. und O. Schoetensack, Die megalithischen Gräber (Steinkammergräber) Deutschlands. I. Altmark. Z. Ethnol. 25, 1893, S. 105—170.
+- Krone, O., Vorgeschichte des Landes Braunschweig. Braun-
+- schweig 1931.
+- Krüger, F., Steinzeitliche Keramik im Museum Lüneburg. Nachr.-Bl. Niedersachsens Vorgesch. N. F. 3, 1926, S. 24 bis 41.
+- Krzak, Z., The Złota Culture. In: The Neolithic in Poland. Wrocław — Warszawa - Kraków 1970, S. 333—355.
+- Krzak, Z., The Złota Culture. Wrocław — Warszawa — Kraków — Gdańsk 1976 a.
+- Krzak, Z., Złota Kultur und Kugelamphorenkultur. Z. Archäol. 10, 1976 b, S. 31—32.
+- Kühn, H. J., Das Spätneolithikum in Schleswig-Holstein. Neumünster 1979.
+- Kupka, P. L. B., Neolithische Funde von Arneburg. Z. Ethnol. 38, 1906, S. 164—165.
+- Kupka, P. L. B., Alte und neue neolithische Funde aus der Altmark. Beitr. Gesch., Landes- und Volkskunde Altmark 2,5, 1909, S. 316—324.
+- Kupka, P. L. B., Ein neolithisches Grab von Polkritz,
+- Kr. Osterburg. Prähist. Z. 3, 1911, S. 250—252.
+- Kupka, P. L. B., Ein neolithisches Grab von Polkritz, Kr. Osterburg. Beitr. Gesch., Landes- und Volkskunde Altmark 3,3, 1912, S. 234—236.
+- Kupka, P. L. B., Fundberichte. Beitr. Gesch., Landes- und Volkskunde Altmark 4,6, 1920, S. 334—348.
+- Kupka, P. L. B., Die Wurzeln der mitteldeutschen Steinzeittonware. Beitr. Gesch., Landes- und Volkskunde Altmark 4,7, 1922 a, S. 364-384.
+- Kupka, P. L. B., Kleine Mitteilungen. Beitr. Gesch., Landesund Volkskunde Altmark 4,7, 1922 b, S. 423—424.
+- Kupka, P. L. B., Die mitteldeutschen Ganggräber und die Tonware ihrer Zeit. Beitr. Gesch., Landes- und Volkskunde Altmark 4,8, 1924, S. 429—443.
+- Kupka, P. L. B., Vorgeschichtliche Altertümer aus der Altmark. Beitr. Gesch., Landes- und Volkskunde Altmark 5,1, 1925, S. 3-20.
+- Kupka, P. L. B., Bemerkungen zur Zeitbestimmung unserer jüngeren Steinzeitaltertümer. Beitr. Gesch., Landes- und Volkskunde Altmark 5,2, 1926 a, S. 61—81.
+- Kupka, P. L. B., Vorgeschichtliche Altertümer. Beitr. Gesch., Landes- und Volkskunde Altmark 5,2, 1926 b, S. 82—85.
+- Kupka, P. L. B., Die steinzeitliche Besiedlung Mitteldeutschlands. Chronologisches und Typologisches. Beitr. Gesch., Landes- und Volkskunde Altmark ·5,3, 1927, S. 108 bis 153.
+- Kupka, P. L. B., Alter, Wesen und Verbreitung der mittel-
+- deutschen Steinzeitkulturen. Nachträgliches und Ergänzendes. Beitr. Gesch., Landes- und Volkskunde Altmark 5,4, 1928, S. 201—262.
+- Kupka, P. L. B., Beiträge zur Kenntnis der Schönfelder Tonware. Jschr. Vorgesch. sächs.-thür. Länder 19, 1931, S. 17 bis 36.
+- Kupka, P. L. B., Neue vorgeschichtliche Funde aus der Altmark. Beitr. Gesch., Landes- und Volkskunde Altmark 6,3,
+- 1933, S. 168—187.
+- Kupka, P. L. B., Nachträgliches zum Kugelflaschenfund von Polkritz, Kr. Osterburg. Prähist. Z. 25, 1934, S. 155—156.
+- Kupka, P. L. B., Fundberichte. Beitr. Gesch., Landes- und Volkskunde Altmark 6,4, 1935, S. 243—252.
+- Kupka, P. L. B., Arisches und Germanisches aus der Altmark. Beitr. Gesch., Landes- und Volkskunde Altmark 6,5, 1936,
+- S. 333-350.
+- Kupka, P. L. B., Fundberichte. Altmärkisches Museum Stendal. J.-Gabe 6, 1952, S. 28—72.
+- La Baume, W., Kujawisches Grab. In: Reallexikon Vorgesch. 7. Berlin 1926, S. 114—115.
+- La Baume, W., Die jungsteinzeitliche Kugelamphoren-Kultur in Ost- und Westpreußen. Prussia 35, 1943, S. 13—80.
+- Lange, E., Wald und Offenland während des Neolithikums im herzynischen Raum auf Grund pollenanalytischer Untersuchungen. In: Urgeschichtliche Besiedlung in ihrer Beziehung zur natürlichen Umwelt. Halle 1980, S. 11—20.
+- Lange, W., Untersuchung einer neugefundenen großen westfälischen Steinkiste bei Hiddingsen, Kr. Soest. Westfalen 19, 1934, S. 149-159.
+- Langenheim, K., Die Tonware der Riesensteingräber in Schleswig-Holstein. Neumünster 1935.
+- Lappe, U., Die Besiedlung des Lohberges bei Gräfentonna vom Neolithikum bis zum frühen Mittelalter. Ausgr. und
+- Funde 22, 1977, S. 162—169.
+- Larsson, L., A causewayed Enclosure and a Site with Valby Pottery at Stävie, Western Scania. Medd. Lunds univ. hist. mus. 1981—1982, N. S. 4, 1982, S. 65—107.
+- Laux, F., Ein Steingrab bei Oldendorf im Landkreis Lüneburg. Archäol. Korr.-Bl. 1, 1971, S. 195—198.
+- Laux, F., Neolithische Brandbestattungen aus der Lüneburger Heide. Die Kunde N. F. 24, 1973, S. 75—96.
+- Laux, F., Nachbestattungen in Großsteingräbern. Die Kugelamphorenkultur. Veröff. urgesch. Samml. Landesmus. Han-
+- nover 24, 1979, S. 117—121.
+- Laux, F., Nachbestattungen der Kugelamphorenkultur in Steingräbern der Lüneburger Heide. Lüneburger Bl. 25/26, 1982, S. 71—86.
+- Laux, F., Bemerkungen zu jungsteinzeitlichen Grabanlagen im Allertal. Die Kunde N. F. 34/35, 1984, S. 37-76.
+- Lichardus, J., Zur Funktion der Geweihspitzen des Typus Ostorf. Uberlegungen zu einer vorbronzezeitlichen Pferdeschirrung. Germania 58, 1980, S. 1—24.
+- Lehmann, M. C. D. F., Beyträge zur Untersuchung der Alterthümer aus einigen bei Welbsleben vorgefundenen heidnischen Uberbleibseln. Halle 1789.
+- Lieberoth, I., Bodenkunde. Berlin 1982.
+- Lies, H., Ein Holzkammergrab der Kugelamphoren-Kulturgruppe in Menz, Kr. Burg. Ausgr. und Funde 10, 1965, S. 24-29.
+- Lies, H., Ein bronzezeitlicher Totenhügel bei Menz, Kr. Burg. Teil 1: Jüngere Steinzeit bis ältere Bronzezeit. Jschr. mitteldt. Vorgesch. 39, 1955, S. 115—162.
+- Lies, H., Spätneolithische und älterbronzezeitliche Gräber von
+- Barleben, Kr. Wolmirstedt. In: Jahresschr. f. mitteldt. Vorgesch. 50, 1966, S. 61—102.
+- Lies, H., Ein neolithischer Graben auf einer Elbterrasse bei Barleben, Kr. Wolmirstedt. Ausgr. und Funde 12, 1967, S.9-12.
+- Lies, H., Endneolithische Tonware mit Wickelschnurverzierung aus dem Mittelelbe-Saale-Gebiet. Jschr. mitteldt. Vorgesch. 53, 1969, S. 349—360.
+- Lies, H., Zur neolithischen Siedlungsintensität im Magdeburger Raum. Jschr. mitteldt. Vorgesch. 58, 1974, S. 57-111. Lies, H., Großgefäße der Bernburger Kultur im Mittelelbegebiet. Jschr. mitteldt. Vorgesch. 60, 1976, S. 205—215.
+- Lies, H. und B. Lange, Baggerfunde aus dem Elbekieswerk Magdeburg-Neustadt. Jschr. mitteldt. Vorgesch. 62, 1978, S.87-108.
+- Lindenschmit, L., Die Alterthümer unserer heidnischen Vor-
+- zeit II, H. VIII. Mainz 1870.
+- Loewe, G., Kataloge zur mitteldeutschen Schnurkeramik.
+- Teil I: Thüringen. Halle 1959.
+- Lucas, H. und U. Fischer, Kataloge zur mitteldeutschen Schnurkeramik. Teil II: Saalemündungsgebiet. Berlin 1965.
+
+Lüning, J., Zum Kulturbegriff im Neolithikum. Prähist. Z. 47,
+
+- 1972, S. 145—173.
+- Maier, R. A., Neolithische Tierknochen-Idole und Tierknochen-Anhänger Europas. 42. Ber. Röm.-Germ. Komm. 1962, S.171—306.
+- Maier, R. A., Eine Chamer Höhensiedlung im niederbayeri-
+- Malmer, M. P., Jungneolithische Studien. Bonn — Lund 1962.
+- schen Vilstal. Germania 41, 1963, S. 70—74.
+- Mania, D., Die Porta Thuringica — Besiedlungsablauf und Univ. Halle, Ges.- und sprachwiss. R. 15, 1, 1966, S. 75
+
+Bedeutung in ur- und frühgeschichtlicher Zeit. Wiss. Z. bis 175.
+
+- Mania, D., Eiszeitliche Landschaftsentwicklung im Kartenbild, dargestellt am Beispiel des mittleren Elbe-Saale-Gebietes. Jschr. mitteldt. Vorgesch. 57, 1973, S. 17—47.
+- Mania, D., Zur spät- und nacheiszeitlichen Landschaftsentwicklung des mittleren Elbe-Saale-Gebietes nach der ökologischen Aussage von Molluskenanalysen. In: Urgeschichtliche Besiedlung in ihrer Beziehung zur natürlichen Umwelt. Halle 1980, S. 29—32.
+- Mandera, H.-E., Zur Deutung neolithischer Kulturen. Probleme urgeschichtlicher Methodik. Nassauische Ann. 76, 1965, S.1-14.
+- Mašek, N., Přispěvek k poznáni hospodářských a společenských poměrů mladši fáze eneolitu v Čechách. Pamiatky Archaeol. 32, 1961 a, S. 124—131.
+- Mašek, N., Die Řivnáč-Gruppe in Böhmen und ihre chronologische Stellung, In: L'Europe à la fin de l'âge de la pierre. Praha 1961 b, S. 327—335.
+- Matthes, W., Urgeschichte des Kreises Ostprignitz. Leipzig
+- 1929.
+- Matthias, W., Kataloge zur mitteldeutschen Schnurkeramik. Teil 3: Nordharzgebiet. Halle 1968.
+- Matthias, W., Die Schnurkeramik im westlichen Mitteldeutsch-
+- land. Veröff. Landesmus. Vorgesch. Halle 24, 1969, S. 9—28.
+
+Matthias, W., Kataloge zur mitteldeutschen Schnurkeramik.
+
+Teil IV: Südharz-Unstrut-Gebiet. Berlin 1974.
+
+- Matthias, W., Kataloge zur mitteldeutschen Schnurkeramik. Teil V: Mittleres Saalegebiet. Berlin 1982.
+- Matthias, W. und B. Schmidt, Wichtige Fundmeldungen und Neuerwerbungen des Jahres 1959. Jschr. mitteldt. Vorgesch. 46, 1962, S. 351—377.
+
+<!-- FREE:PAGE 43 -->
+- Matz, B., Die ur- und frühgeschichtliche Besiedlung des Wohngebietes Biesdorf/Marzahn im Verhältnis zu benachbarten Abschnitten der Barnimhochfläche und des Berliner Urstromtales. Dipl.-Arb. Berlin 1979 (MS.).
+- May, E. und A. Burkhardt, Menschliche Skelettreste aus einem Kugelamphorengrab von Groß Biewende, Gemeinde Remlingen, Kr. Wolfenbüttel. Nachr. Niedersachsens Urgesch. 47, 1978, S. 281—287.
+- Merkel, O. und P. Höfer, Katalog des Altertumsmuseums der Stadt Bernburg. Ohne Ort und Jahr.
+- Müller, Die Aufdeckung eines Hünenbettes. 33. Jb. Altmärkischen Ver. vaterländische Gesch. Salzwedel, 1906, S. 127 bis 128.
+- Näbe, M., Die steinzeitliche Besiedlung der Leipziger Gegend. Leipzig 1908.
+- Nagel, E., Das Ganggrab von Wilsen, Kr. Lübz, im Rahmen der Kugelamphorenkultur in Mecklenburg. Bodendenkmalpfl. Mecklenburg, Jb. 1973, 1974, S. 89—97.
+- Nagel, E., Die Kugelamphorenkultur im Norden der DDR im Lichte der Megalithgrabuntersuchungen. Z. Archäol. 10, 1976, S. 11—12.
+- Leipzig. Arb.- und Forsch.-Ber. sächs. Bodendenkmalpfl. 2, Nagel, E., Die Erscheinungen der Kugelamphorenkultur im Norden der DDR. Diss. Berlin 1984 (MS).
+- Mildenberger, G., Ein steinerner Grabhügel in der Harth, Kr. 1952, S. 7—24.
+- Mildenberger, G., Studien zum mitteldeutschen Neolithikum. Leipzig 1953.
+- Milojčić, V., Zu dem Funde von Klein Rietz, Kr. BeeskowStorkow. Germania 33, 1955, S. 239—240.
+- Mirtschin, A., Der erste Fund jungsteinzeitlicher Kugelflaschen auf Riesaer Stadtflur. Unsere Heimat. Bl. Pfl. Heimatliebe, der Heimatforsch. und Heimatschutzes 7, 12, 24. 03. 1934.
+- Mirtschin, A., Ein zweiter Fund jungsteinzeitlicher Kugelflaschen in Strehla. Unsere Heimat. Bl. Pfl. Heimatliebe, Heimatforsch. und Heimatschutzes 8, 44, 19. 10. 1935.
+- Mirtschin, A., Neolithische Funde im nordsächsischen Elbgebiet um Riesa. Arb.- und Forsch.-Ber. sächs. Bodendenkmalpfl. 4, 1954, S. 151—162.
+- Möller, A., Illustrierter Führer durch die vorgeschichtliche Abteilung. Weimar 1912 a.
+- Möller, A., Der Derfflinger Hügel bei Kalbsrieth (Großherzogtum Sachsen). Jena 1912 b.
+- Möller, A., Neufunde aus Weimar und Umgebung. Nachbl. dt. Vorz. 2, 1926, S. 64—66.
+- Mötefindt, H., Neue Funde aus dem Kulturkreise der Kugelamphoren. Prähist. Z. 2, 1910, S. 347—355.
+
+Mötefindt, H., Das Gräberfeld am Windmühlenberge bei Klein
+
+Quenstedt, Kr. Halberstadt. Prähist. Z. 3, 1911, S. 274-280.
+
+- Mötefindt, H., Altes und Neues über die Kugelamphoren in den thür.-sächs. Ländern. Z. Ethnol. 47, 1915, S. 40—52.
+- Müller, D. W., Gefäßfund mit Zackenkragenflasche vom Kleinen Seeberg bei Gotha, Bezirk Erfurt. Ausgr. und Funde 17, 1972, S. 233—242.
+- Müller, D. W., Der ur- und frühgeschichtliche Besiedlungsablauf innerhalb der Gemarkung Oberbösa, Kreis Sondershausen. Alt-Thüringen 13, 1975 a, S. 132—195.
+- Müller, D. W., Die ur- und frühgeschichtliche Besiedlung des Gothaer Landes. Naturräumliche Voraussetzungen und Kulturenfolge. Diss. Jena 1975 b (MS).
+- Müller, D. W., Ein Urnengrab der Kugelamphorenkultur von Ködderitzsch, Kr. Apolda. Jschr. mitteldt. Vorgesch. 60, 1976, S. 217-234.
+- Müller, D. W., Uberlegungen zum Problem der schnurkeramischen Siedlungen (an westthüringischen Beispielen). Fundber. Hessen 19/20, 1980 a, S. 251—264.
+- Müller, D. W., Die ur- und frühgeschichtliche Besiedlung des Gothaer Landes. Alt-Thüringen 17, 1980 b, S. 19—180.
+- Müller, D. W., Besprechung von G. Schwellnus 1979. Bonner Jb. 182, 1982, S. 587—589.
+- Müller, D. W. und H. Stahlhofen, Zwei Kollektiygräber der Bernburger Kultur aus dem Nordharzvorland. Jschr. mitteldt. Vorgesch. 63, 1981, S. 27—65.
+- Müller, O., Die Vegetationsverhältnisse Mitteldeutschlands in der Nacheiszeit. Jschr. mitteldt. Vorgesch. 43, 1959, S. 35 bis 75.
+- Nagel, E., Die Erscheinungen der Kugelamphorenkultur im Norden der DDR. Berlin 1985.
+- Němejcová-Pavúková, V., Zur relativen Chronologie des Aneolithikums in Mittel- und Südosteuropa. Germania 44, 1966, S. 234—264.
+- Netolitzki, F., Die Tierblase, eine Vorlage für die prähistorische Keramik. Forsch. und Fortschr. 1, 1934, S. 230—231.
+- Neugebauer, A., Zwei vorgeschichtliche Tierskelette von Zauschwitz, Kr. Borna. Ausgr. und Funde 6, 1961, S. 61 bis 62.
+- Neustupný, E. F., Die chronologischen Beziehungen des Äneolithikums. In: Chronologie Préhist. de la Tchécoslovaquia. Prague 1956, S. 66—69.
+- Neustupný, E. F., Contributions to the Eneolithic Period in Poland. In: L'Europe à la fin de l'âge de la pierre. Praha 1961, S. 441—457.
+- Neustupný, E., Kugelamphorenkultur. In: Enzyklopädisches Handbuch zur Ur- und Frühgeschichte Europas I. Prag 1966, S. 651—655.
+- Neustupný, E., K počátkům patriarchatu ve střední Evropě. Praha 1967.
+- Neustupný, E., Absolute chronology of the neolithic and aeneolithic periodes in central and south-eastern Europe. Slovenská Archeol. XVI-1, 1968, S. 19—60.
+- Neustupný, E., Absolute Chronology of the Neolithic and Aeneolithic Periods in Central and South-east Europe II. Archeol. rozhledy 21, 1969, S. 783—810.
+- Neustupný, E., Das Aneolithikum Mitteleuropas. Jschr. mitteldt. Vorgesch. 63, 1981 a, S. 177—187.
+- Neustupný, E., Mobilität der äneolithischen Populationen. Slovenská Archeol. 29, 1981 b, S. 111—119.
+- Neustupný, J., Zum Stand der relativen Chronologie des Aneolithikums in der Tschechoslowakei. In: Komm. Aneolithikum und die ältere Bronzezeit, Nitra 1958. Bratislava 1961, S. 43-58.
+- Nickel, E., Besprechung von H. Priebe 1938. Mannus 32, 1940, S. 516—517.
+- Niemann, E., Ein Fund aus der Gruppe der Kugelamphoren. Altmärk. Mus. Stendal 13, 1959, S. 1—3.
+- Nietsch, H., Wald und Siedlung im vorgeschichtlichen Mitteleuropa unter besonderer Berücksichtigung der jüngeren Steinzeit. Leipzig 1939.
+- Niklasson, N., Der stratigraphische Aufbau des Baalberger Hügels, des Pohlsberges bei Latdorf und des Derfflinger Hügels bei Kalbsrieth. Mannus 16, 1925 a, S. 46—54.
+- Niklasson, N., Ein Grab der Kugelamphorenkultur aus Thüringen. Mannus 16, 1925 b, S. 55—57.
+- Niklasson, N., Studien über die Walternienburg-Bernburger Kultur I. Halle 1925 c.
+- Nilius, I., Das Neolithikum in Mecklenburg zur Zeit und
+- unter besonderer Berücksichtigung der Trichterbecherkultur. Schwerin 1971.
+- Niquet, F., Ein Haus der Kugelamphorenkultur bei Oberwerschen, Kr. Weißenfels. Nachr.-Bl. dt. Vorz. 11, 1935 a, S. 125 bis 126.
+- Niquet, F., Ein Hausgrundriß aus der jüngeren Steinzeit von Oberwerschen, Kr. Weißenfels. Mitteldt. Volkheit 2, 1935 b, S. 126—127.
+- Niquet, F., Die Rössener Kultur in Mitteldeutschland. Halle 1937.
+- Niquet, F., Die vor- und frühgeschichtliche Bodenforschung im Niedersächsischen Verwaltungsbezirk Braunschweig. Braunschweig. Jb. 39, 1958, S. 5—44.
+- Nitzschke, W. und H. Stahlhofen, Ausgewählte Neufunde aus den Jahren 1974/75. Jschr. mitteldt. Vorgesch. 61, 1977, S. 105—117.
+- Nitzschke, W. und H. Stahlhofen, Ausgewählte Neufunde aus den Jahren 1975/76. Jschr. mitteldt. Vorgesch. 62, 1978, S.221—233.
+- Nitzschke, W. und H. Stahlhofen, Ausgewählte Neufunde aus den Jahren 1978/79. Jschr. mitteldt. Vorgesch. 65, 1982, S.265—279.
+- Nortmann, H., Die Ornamentik der Kugelamphorenkultur. Prähist. Z. 60, 1985, S. 16—46.
+- Nosek, S., Civilisation des Amphores Sphériques. Inv. Archaeol. (PL 64—69). Lódź — Warszawa 1964.
+- und zur Glockenbecherkultur. In: Glockenbechersymposium Oberried 1974, Bussum — Haarlem 1976, S. 167—181.
+- Pleslová-Štiková, E., Chronologie und Siedlungsformen der Řivnáč-Kultur und Kugelamphorenkultur Böhmens. Jschr. mitteldt. Vorgesch. 63, 1981, S. 159—171.
+- Preidel, H., Ein Skelettgrab mit Kugelamphorenkultur aus Weschitz, Bezirk Kaaden. Mannus 29, 1937, S. 280—283.
+- Preuß, J., Das jungsteinzeitliche Körpergräberfeld von Tangermünde, Kr. Stendal. Wiss. Z. Univ. Halle, Ges.- und sprachwiss. R. 3, 2, 1954, S. 415—482.
+- Preuß, J., Die Baalberger Gruppe in Mitteldeutschland. Berlin 1966.
+- Preuß, J., Beziehungen zwischen Trichterbecherkultur und Kugelamphorenkultur. Z. Archäol. 10, 1976 a, S. 15—17.
+- Preuß, J., Uberlegungen zu stratigraphischen Befunden in neolithischen Grabhügeln des Saalegebietes. Jschr. mitteldt. Vorgesch. 60, 1976 b, S. 197—199.
+- Preuß, J., Archäologische Quellen zur sozialökonomischen Struktur im Neolithikum. In: Von der archäol. Quelle zur hist. Aussage. Berlin 1979, S. 123—155.
+- Preuß, J., Die altmärkische Gruppe der Tiefstichkeramik. Berlin 1980.
+- Priebe, H., Die Westgruppe der Kugelamphoren. Halle 1938. Priebe, H., Die Westgruppe der Kugelamphoren. Mitteldt. Volkheit 6, 1939, S. 7—11.
+- Nosek, S., Kultura amfor kulistych w Polsce. Wrocław — Warszawa — Kraków 1967.
+- Prinke, A. und T. Wiślański, Néolithique. Civilisátion des Amphores Sphériques. Inv. Archaeol. (PL 234—239). Warszawa 1977.
+- Nowak, H., Ein neolithisches Brandgrab von Stemmern, Kr. Wanzleben. Ausgr. und Funde 8, 1963, S. 28—31.
+- Nowothnig, W., Beiträge zur Herkunftsfrage der Schnurkeramik. Mannus28, 1936, S. 423—445.
+- Nowothnig, W., Die Schönfelder Gruppe. Halle 1937.
+- Otto, K.-H., Vorgeschichtliche Neufunde in Sachsen-Anhalt und Erwerbungen des Landesmuseums Halle in den Jahren 1942—1946. Jschr. mitteldt. Vorgesch. 33, 1949, S. 128—145.
+- Otto, K.-H., Wirtschaftliche und gesellschaftliche Fortschritte im Neolithikum. Ausgr. und Funde 3, 1958, S. 202—203.
+- Pape, W., Bemerkungen zur relativen Chronologie des Endneolithikums am Beispiel Südwestdeutschlands und der Schweiz. Tübingen 1978.
+- Pape, W., Histogramme neolithischer 14C-Daten. Germania 57, 1979, S.1—51.
+- Pape, W., Bemerkungen zur relativen Chronologie der Schnurkeramik. Jschr. mitteldt. Vorgesch. 64, 1981, S. 23 bis 50.
+- Paulus, F., Nochmals: Gräber der Kugelamphorenkultur in Berlin. Ausgr. Berlin 4, 1973, S. 31—35.
+- Petrescu-Dimbovița, M., Decoperiri arheologice în Raionul Piatra Neamț. Mat. și cercetári arheol. 5, 1959, S. 723—734.
+- Pleslová, E., Entstehung und Synchronisation des mitteleuropäischen Jungäneolithikums. In: Actes du VIIe Congrès Internat. Sciences Préhist. et Protohist. Prague, 21—27 acût 1966, Prague 1970, S. 552—554.
+- Pleslová-Štiková, E., Die Beziehungen zwischen Bayern und Westböhmen im Aneolithikum. Bayer. Vorgesch.-Bl. 34, 1969, S.1—29.
+- Pleslová-Štiková, E., Zu Fragen der Beziehungen zwischen Mitteldeutschland und Böhmen im jüngeren Aneolithikum. Arb.- und Forsch.-Ber. sächs. Bodendenkmalpfl. 16/17, 1967, S.27—58.
+- Pleslová-Štiková, E., Die Beziehungen des mitteleuropäischen mittleren und jüngeren Aneolithikum zur Schnurkeramik
+- Pudelko, A. und K. Voss, Eine Siedlungsstelle der Bernburger Kultur bei Kapern, Kr. Lüchow-Dannenberg. Nachr. Niedersachsens Urgesch. 35, 1966, S. 89—93.
+- Quietzsch, H., Wichtige Neufunde des Jahres 1965 aus den Bezirken Dresden, Karl-Marx-Stadt und Leipzig. Arb.und Forsch.-Ber. sächs. Bodendenkmalpfl. 18, 1968, S. 543 bis 583.
+- Quietzsch, H., Wichtige Neufunde der Jahre 1966—1967 aus den Bezirken Dresden, Karl-Marx-Stadt und Leipzig. Arb.und Forsch.-Ber. sächs. Bodendenkmalpfl. 19, 1971, S. 359 bis 420.
+- Quietzsch, H., Wichtige Neufunde der Jahre 1968—1969 aus den Bezirken Dresden, Karl-Marx-Stadt und Leipzig. Arb.und Forsch.-Ber. sächs. Bodendenkmalpfl. 23, 1980, S. 225 bis 288.
+- Radespiel, E., Das Kollektivgrab von Odagsen, Stadt Einbeck, Landkreis Northeim. Vorber. über die Ausgr. 1982-1983. Die Kunde N. F. 34/35, 1984, S. 123—138.
+- Radig, W., Der Wohnbau im jungsteinzeitlichen Deutschland. Leipzig 1930.
+- Reinecke, P., Bemerkungen zu Zeitschrift f. Ethnologie, 1900, S. 146 u. f., Verhandlungen 1900, S. 237 u. f.,
+- Z. Ethnol. und Anthropol. (Urgesch. Verh.), 1900, S. 600 bis 608.
+- Reinecke, P., Neolithische Streitfragen. Ein Beitrag zur Methodik der Prähistorie. Z. Ethnol. und Anthropol. 34, 1902, S. 223—272.
+- Rennebach, G., Ein Neufund der Kugelamphorenkultur der östlichen Oberlausitz. Ausgr. und Funde 8, 1963, S. 80—82. Richthofen, B. von, Neue Funde der Kugelflaschenkultur aus Ober- und Niederschlesien. Altschlesien 2, 1929 a, S. 181 bis 193.
+- Richthofen, B. von, Neue Funde der Kugelflaschenkultur aus Ober- und Niederschlesien. Aus Oberschlesiens Urz. 3, 1929 b, S. 3—15.
+
+<!-- FREE:PAGE 44 -->
+- Rienäcker, C., Die neolithische Besiedlung Quedlinburgs. Schmidt, J., Berichte über Ausgrabungen. 6. Steinkistengrab Jschr. mitteldt. Vorsch. 62, 1978, S. 109—133.
+- Roman, P., Das Problem der ,,schnurverzierten" Keramik in Südosteuropa. Jschr. mitteldt. Vorgesch. 58, 1974, S. 157 bis 174.
+- Rosenstock, D., Zum Kugelamphorengrab von Groß Biewende, Gemeinde Remlingen, Kr. Wolfenbüttel. Nachr. Niedersachsens Urgesch. 47, 1978, S. 265—280.
+- Rottländer, R. C. A., Der Bernstein und seine Bedeutung in der Ur- und Frühgeschichte. Acta Praehist. Archaeol. 4, 1975, S. 11—32.
+
+Rühlemann, C., Ein vorgeschichtliches Steinkistengrab aus dem Kulturkreis der Kugelflaschen in der Flur Rothenschirmbach bei Eisleben. Mitteldt. Vorz. 1, 1934, S. 19—20. Schacht, S., Ein verziertes Schädelrondell von Vanselow, Kr. Demmin. Ausgr. und Funde 27, 1982, S. 100—105.
+
+- Scheppe, T., Grabhügelfund bei Langen-Eichstädt unweit Halle. Z. Ver. Erforsch. Rheinischen Gesch. und Alterthümer Mainz 3, 1868—1887, S. 42—44.
+- Schimmel, A., Ein Gang durch die Vor- und Frühgeschichte im Hauptwirtschaftsgebiete der Zuckerfabrik Kleinwanzleben. Kleinwanzleben 1932.
+- Schirmer, E., Der Große Hügel von Stobra. Der Spatenforscher 4, 1939, S. 17—32.
+- Schirwitz, K., Quedlinburg. Erwerbungen der vorgeschichtlichen Abteilung des Museums seit 1914. Nachr.-Bl. dt. Vorz. 4, 1928, S. 55—57.
+- Schirwitz, K., Die Bockshornschanze bei Quedlinburg. Mannus 24, 1932, S. 547—558.
+- Schirwitz, K., Der Grabhügel auf der Bockshornschanze bei Quedlinburg. Mitteldt. Volkheit 7, 1940, S. 52—56.
+- Schlabow, K., Abdrücke von Textilien an Tongefäßen der Jungsteinzeit. Jschr. mitteldt. Vorgesch. 44, 1960, S. 51 bis 56.
+- Schlette, F., Die ältesten Haus- und Siedlungsformen des Menschen auf Grund des steinzeitlichen Fundmaterials Europas und ethnologischer Vergleiche. Berlin 1958.
+- Schlette, F., Die Aussagekraft neolithischer Siedlungen in sozialökonomischer Hinsicht. In: Aus Ur- und Frühgeschichte. Berlin 1964, S. 82—88.
+- Schlette, F., Dynamik archäologischer Kulturen. In: Moderne Probleme der Archäologie. Berlin 1975, S. 57—66.
+- Schlette, F., Zur Technologie neolithischer Keramik. Jschr. mitteldt. Vorgesch. 60, 1976 a, S. 343—352.
+- Schlette, F., Archäologisch-historische Probleme im Spätneolithikum des östlichen Mitteleuropa. Z. Archäol. 10, 1976 b, S. 2-3.
+- Schlette, F., Beziehungen zwischen Mensch und natürlicher Umwelt im nördlichen und östlichen Harzvorland. In: Urgeschichtliche Besiedlung in ihrer Beziehung zur natürlichen Umwelt. Halle 1980, S. 41—56.
+- Schliz, A., Untersuchungsbericht über drei Schädel aus dem Halberstädter Museum. Prähist. Z. 4, 1912, S. 377—381.
+- Schlüter, O. und O. August, Atlas des Saale- und mittleren Elbegebietes. Leipzig 1958—1961.
+- Schmidt, B. und J. Schneider, Ausgewählte Neufunde aus den Jahren 1969/70. Jschr. mitteldt. Vorgesch. 57, 1973, S. 211 bis 230.
+- Schmidt, B., Die Landschaft östlich von Magdeburg im Neolithikum. Jschr. mitteldt. Vorgesch. 54, 1970, S. 83—136.
+- Schmidt, B. und J. Schneider, Ausgewählte Neufunde aus den Jahren 1971/72. Jschr. mitteldt. Vorgesch. 58, 1974, S. 321 bis 342.
+- bei Beckendorf, Kreis Oschersleben. Mitt. Provinzial-Mus. Halle 1, 1894, S. 34—38.
+- Schmidt, R., Aus Zörbig und Umgegend. Neue Mitt. Gebiet hist.-antiquarischer Forsch. 19, H. 2, 1896, S. 166—199.
+- Schneider, J., Anmerkung. Mitt. Bez.-Fachausschüsse Ur- und Frühgesch. Bez. Halle und Magdeburg 1, 1964, S. 16.
+- Schmidt-Thielbeer, E., Eine Siedlung der Bernburger Kultur und eine schnurkeramische Totenhütte bei Kleinzerbst, Kr. Köthen. Ausgr. und Funde 26, 1981, S. 177—180.
+- Schneider, M., Die Binsen-Keramik, eine neue steinzeitliche Gattung. Prähist. Z. 15, 1924, S. 75—77.
+- Schrickel, W., Westeuropäische Elemente im neolithischen Grabbau Mitteldeutschlands und die Galeriegräber Westdeutschlands und ihre Inventare. Bonn 1966 a.
+
+Schönheid, K., Die Kugelamphore von Abtnaundorf, Ah. Leipzig. Die Fundpflege 2, H. 4, 1934, S. 28—30.
+
+- Schrickel, W., Katalog der mitteldeutschen Gräber mit westeuropäischen Elementen und der Galeriegräber Westdeutschlands. Bonn 1966 b.
+- Schrickel, W., Die Funde vom Wartberg in Hessen. Marburg 1969.
+- Schröter, E., Ein neuer neolithischer Grabhügel in der Dölauer Heide bei Halle (Saale). Ausgr. und Funde 11, 1966, S. 12-16.
+- Schröter, E., Ein Kugelamphorengrab von Großörner, Kr. Hettstedt. Ausgr. und Funde 12, 1967, S. 13—15.
+- Schübler, M., Ein jungsteinzeitliches Grab aus der Forst Boitzenburg in der Uckermark. Nachr.-Bl. dt. Vorz. 17, 1941, S. 190—193.
+- Schröter, P., Zur Besiedlung des Goldberges im Nördlinger Ries. In: Ausgr. Deutschland, Teil 1, Vorgesch.-Römerzeit. Mainz 1975, S. 98—114.
+- Schuchardt, C., Das technische Ornament in den Anfängen der Kunst. Prähist. Z. 1, 1909, S. 351—369.
+- Schuldt, E., Steinzeitliche Keramik aus Mecklenburg. Schwerin 1972 a.
+- Schuldt, E., Die mecklenburgischen Megalithgräber. Untersuchungen zu ihrer Architektur und Funktion. Berlin 1972 b.
+- Schultheiß, H.-W., Kurze Ubersicht und Nachricht der in der Wolmirstedter Gegend gefundenen Alterthümer. Wolmirstedt 1875.
+- Schultze, H., Die Naturbedingten Landschaften der Deutschen Demokratischen Republik. Gotha 1955.
+- Schulz, W., Untersuchungen und Erwerbungen der Landesanstalt für Vorgeschichte zu Halle vom 1. April—31. Juli 1927 (ein Auszug). Nachr.-Bl. dt. Vorz. 3, 1927, S. 107 bis 109.
+- Schulz, W., Erwerbungen der Landesanstalt für Vorgeschichte 1933/34. Nachr.-Bl. dt. Vorz. 10, 1934, S. 115—116.
+- Schulz, W., Bernstein in Mitteldeutschlands Vorzeit. Mitteldt. Volkheit 6, 1939 a, S. 1—6.
+- Schulz, W., Erhaltene Steingerätschäftungen aus Mitteldeutschland. Mitteldt. Volkheit 6, 1939 b, S. 73—75.
+- Schulze, R., Die jüngere Steinzeit im Köthener Lande. Anhalt. Gesch.-BI. 5, 1930.
+- Schumacher, P., Gardelegen. Kreisheimatmuseum. Mitteldt. Vorz. 1, 1934, S. 3—4.
+- Schumacher, P., Die Kugelflasche von Estedt, Kr. Gardelegen. Jschr. mitteldt. Vorgesch. 24, 1936, S. 112—115.
+- Schumann, H., Die Steinzeitgräber der Uckermark. Prenzlau 1904.
+- Schwarz, K., Bericht über die Bodendenkmalpflege in SachsenAnhalt für das Jahr 1947. Jschr. mitteldt. Vorgesch. 33, 1949 a, S. 41—57.
+- Schwarz, K., Zur vorgeschichtlichen Besiedlung des Landes an der Speckgrabenniederung im Kreise Stendal. Jschr. mitteldt. Vorgesch. 33, 1949 b, S. 58—85.
+- Schwarz, K., Die vorgeschichtlichen Neufunde im Lande Sachsen-Anhalt während des Jahres 1947. Jschr. mitteldt. Vorgesch. 33, 1949 c, S. 146—156.
+- Schwarz, K., Die vorgeschichtlichen Neufunde im Lande Sachsen-Anhalt während der Jahre 1948 und 1949. Jschr. mitteldt. Vorgesch. 34, 1950, S. 204—232.
+- Schwellnus, W., Wartberg-Gruppe und hessische Megalithik. Wiesbaden 1979.
+- Schwidetzky, I., Zur Anthropologie der Kugelamphorenkultur. Anthropol. Anzeiger 37, 1980, S. 245—250.
+- Seelmann, H., Uber einen neolithischen Fund bei dem Dorfe Reppichau (Kr. Dessau, Herzogthum Anhalt). Nachr. dt. Alterthumsfunde 10, 1900, S. 79—80.
+
+Seelmann, H., Uber die steinzeitliche Besiedlung Dessaus und seines Weichbildes. Unser Anhaltland 27, 1902, S. 309—310.
+
+- Seelmann, H., Steinzeitliche Gefäße aus dem Kreise Dessau. Nachr. dt. Alterthumsfunde 14, 1903, S. 87—95.
+- Seelmann, H., Einige vorgeschichtliche Funde aus Anhalt. Jschr. Vorgesch. sächs.-thür. Länder 3, 1904, S. 74—87.
+- Seelmann, H., Vorgeschichtliche Funde bei Dessau. Anhalt. Gesch.-Bl. 1, 1925, S. 24—30.
+- Seelmann, H., Fundberichte 1932—1934 aus dem Museum für Naturkunde und Vorgeschichte Dessau. Anhalt. Gesch.BI. 10/11, 1935, S. 193—197.
+- Seger, H., Die keramischen Stilarten der jüngeren Steinzeit Schlesiens. Schlesiens Vorz. Bild und Schrift N. F. 7, 1919, S. 1—89.
+- Seger, H., Aus der Steinzeit. 3. Keramische Neuheiten. Altschlesien 1, 1926, S. 209—217.
+- Sieblist, B., Die ur- und frühgeschichtliche Besiedlung an der oberen Holtemme (Nordharzvorland). Dipl.-Arb. Halle 1977 (MS).
+- Sielmann, B., Der Einfluß der geographischen Umwelt auf die linien- und stichbandkeramische Besiedlung des MittelelbeSaale-Gebietes. Jschr. mitteldt. Vorgesch. 60, 1976, S. 305 bis 329.
+- Siuchniński, K., Kurhan 60 z cmentarzyska z Wartin, pow. Angermünde (N.R.D.). Mat. zachodnio-pomorskie 2, 1956, S.7-40.
+- Spennemann, D. R., Die spätneolithische Höhensiedlung auf dem Altenberg bei Burgerroth, Gde Aub, Unterfranken. Mag.-Arb. Frankfurt/Main 1982 (MS).
+- Spießbach, E., Eine Grabanlage der Kugelamphorenkultur, Gotha, Flur Ostheim, Kiesgrube Wagner". Mannus 24, 1932, S. 238—244.
+- Spinei, V., Descoperiri de topoare din Silex în Moldova. Memoria Antiquitatis 3, 1971, S. 80—141.
+- Sprockhoff, E., Die Kulturen der jüngeren Steinzeit in der Mark Brandenburg. Berlin 1926.
+- Sprockhoff, E., Neuerwerbungen steinzeitlicher Keramik. Brandenburgia 33, 1924, S. 66—70.
+- Sprockhoff, E., Die nordische Megalithkultur. Berlin 1938.
+- Stahlhofen, H. und A. Kurzhals, Neolithische Rinderbestattungen bei Derenburg, Kr. Wernigerode. Ausgr. und Funde 28, 1938, S. 157—160.
+- Sprockhoff, E., Die ersten Funde der Kugelflaschenkultur im Lüneburgischen. Lüneburger Bl. 2, 1951, S. 105-114.
+
+12 Beier, Kugelamphoren
+
+Stimming, R., Einige Jungsteinzeitfunde meiner Privatsammlung aus den Provinzen Brandenburg und Sachsen. In: Studien vorgesch. Archäol. Leipzig 1925, S. 34—43.
+
+- Stocký, A., La Bohême Préhistorique I, L'âge de pierre. Prague 1929.
+
+Stolle, T., Ein Grab der Kugelamphorenkultur mit Nackenkammaxt aus Benzingerode, Kr. Wernigerode. Ausgr. und Funde 31, 1986, S. 151—154.
+
+- Strömberg, M., Die Siedlungsformen der jüngeren Trichterbecherkultur in Südschweden. Jschr. mitteldt. Vorgesch. 63, 1981, S. 113—119.
+- Stroh, A., Einheimische Scherben der Kugelamphorenkultur vom Goldberg, OA. Neresheim (Württemberg). Germania 22, 1938, S. 219—220.
+- Struve, K. W., Kugelamphoren aus Holstein. Offa 12, 1953, S.1-13.
+- Struve, K. W., Die Einzelgrabkultur in Schleswig-Holstein und ihre kontinentalen Beziehungen. Neumünster 1955.
+- Šturms, E., Zur Deutung einiger neolithischer Kulturen. Germania 30, 1952, S. 13—20.
+- Šturms, E., Der Bernsteinschmuck der östlichen Amphorenkultur. Rheinische Forschungen zur Vorgeschichte 5. Documenta Archaeol. 1956, S. 13—20.
+- Šturms, E., Die steinzeitlichen Kulturen des Baltikums. Bonn 1970.
+- Sulimirski, T., Remarks concerning the distribution of some varieties of Flint in Poland. Swiatowit 23, 1960, S. 281 bis 308.
+- Sulimirski, T., Corded Ware and Globular Amphorae NorthEast of the Carpathians. London 1968.
+- Svešnikov, I. K., Kul'tura šarovidnych amfor. Archeol. SSSR V 1—27, Moskva 1983.
+- Svešnikov, I. K., Nove pochovannja kul'turi kuljastich amfor u Rovens'kij oblasti. Archeol. 11 (Kiev), 1973, S. 63—69.
+- Swieżyński, K., Report on the analysis of skeletal remains from the neolithic animal burials at Brseść Kujawski. Prace i Mat. 3, 1958, S. 191—192.
+- Tackenberg, K., Bericht über die Tätigkeit des Vertrauensmannes für die kulturgeschichtlichen Bodenaltertümer der Provinz Hannover im Jahre 1929. Nachr.-Bl. dt. Vorz. 6, 1930, S. 81—83.
+- Tenner, F., Die ur- und frühgeschichtlichen Funde in der Umgebung von Bad Harzburg. Nachr. Niedersachsens Urgesch. 2, 1928, S. 72—94.
+
+Tesseraux, M., Die Felsgesteingeräte. Bonn 1981.
+
+- Thielemann, O., Das Kugelamphorengrab vom Calenberg bei Burgdorf, Kr. Goslar. Die Kunde 5, 1937, S. 208—211.
+- Thielemann, O., Jungsteinzeitliche Großgerätefunde im Nordharzvorland beiderseits der Oker. Die Kunde N. F. 15, 1964, S.28—87.
+- Tode, A., Grab der Walternienburg-Bernburger Kultur bei Liebenburg, Kr. Goslar. Nachr. Niedersachsens Urgesch. 32, 1963 a, S. 116-117.
+- Tode, A., Zwei jungbronzezeitliche Gräber bei Liebenburg, Kr. Goslar. Nachr. Niedersachsens Urgesch. 32, 1963 b, S. 117—119.
+- Tode, A., Neolithische Steingräber aus dem Kreis Goslar. Neue Ausgr. Forsch. Niedersachsen 2, 1965, S. 89—101.
+- Trunkvalter, C., Besiedlungsgeschichtliche Entwicklung in der Umgebung des ehemaligen Ascherslebener Sees. Dipl.-Arb. Halle 1975 (MS).
+- Uenze, O., Das Steinkammergrab von Lohra, Kr. Marburg. Kurhess. Bodenaltertümer 3, 1954, S. 27-48.
+
+<!-- FREE:PAGE 45 -->
+Uerpmann, M., Zur Technologie und Typologie neolithischer Feuersteingeräte. Tübingen 1976.
+
+Uhl, U., Der Stand der Jungsteinzeitforschung im Bezirk Potsdam. Dipl.-Arb. Halle 1983 (MS).
+
+Ullrich, H., Skelette und trepanierte Schädel der Kugelamphorenleute aus Ketzin, Kr. Nauen. In: Veröffentl. d. Mus. f. Ur- u. Frühgesch. Potsdam 6, 1971, S. 37—55.
+
+Umbreit, C., Neue Kugelflaschenfunde aus der Mark Brandenburg. Mannus 28, 1936, S. 3—18.
+
+Umbreit, C., Neue Forschungen zur ostdeutschen Steinzeit und frühen Bronzezeit. Leipzig 1937.
+
+Die Urheimat der Indogermanen. Wege der Forschung CLXVI. Darmstadt 1968.
+
+Virchow, R., Ausgrabungen bei Weissenfels. Z. Ethnol. und Anthropol. (Urgesch. Verh.) 6, 1874, S. 229—251.
+
+Virchow, R., Gräberfunde der jüngsten neolithischen Zeit aus Cujavien, den Provinzen Posen und Sachsen. Z. Ethnol. und Anthropol. (Urgesch. Verh.) 15, 1883, S. 430—453.
+
+- Virchow, R., Excursionen nach Belzig und Dessau. Z. Ethnol. und Anthropol. (Urgesch. Verh.) 26, 1894, S. 327—329.
+- Voelkel, G., Ein zweiter Fund aus der Gruppe der Kugelamphoren im Kreise Lüchow-Dannenberg. Die Kunde N. F. 13, 1962, S. 48—52.
+
+Voges, T., Beiträge zur Vorgeschichte des Landes Braunschweig. 6. Das Grab von Groß Biewende. 7. Das Grab auf :dem Adamshai im Elm. Braunschweig. Magazin 2, 1896, S. 195—196.
+
+- Voges, T., Ubersicht über die Vorgeschichte des Landes Braunschweig. Wolfenbüttel 1906.
+- Voigt, G., Die vorgeschichtliche. .Besiedelung des Flämings. Halle 1942.
+
+Voigt, T., Zur Problematik der spätneolithischen Brandbestattungen in Mitteleuropa. Jschr. mitteldt. Vorgesch. 47, 1963, S. 181—242.
+
+Voss, A. und G. Stimming, Vorgeschichtliche Alterthümer aus der Mark Brandenburg. Brandenburg — Berlin 1887.
+
+Voss, K. L., Jungsteinzeitliche Funde am Höhbeck, Gemarkung Pevestorf, Kr. Lüchow-Dannenberg. Nachr. Niedersachsens Urgesch. 30, 1961, S. 70—73.
+
+- Voss, K. L., Vier Fundschichten auf einer Höhbeck-Terrasse bei Pevestorf, Kr. Lüchow-Dannenberg. Nachr. Niedersachsens Urgesch. 33, 1964, S. 76—78.
+- Voss, K. L., Ein vierperiodiger Fundplatz auf dem Hasenberg" bei Pevestorf, Kreis Lüchow-Dannenberg. Neue Ausgr. Forsch. Niedersachsen 2, 1965 a, S. 165—182.
+
+Voss, K. L., Bronzezeitliche Ackerflur über einem Kult- und Begräbnisplatz der Bernburger- und Kugelamphoren-Kultur bei Pevestorf/Höhbeck, Kr. Lüchow-Dannenberg. Germania. 43, 1965 b, S. 361—368.
+
+- Voss, K. L., Funde der Bernburger- und der Kugelamphorenkultur von Pevestorf, Krs. Lüchow-Dannenberg (Höhbeck). Prähist. Z. 43/44, 1966, S. 284—289.
+
+Wäschke, H., Urnenfund bei Groß-Lübs 1766. Mitt. Ver. Anhalt. Gesch. und Altertumskunde 9, 3, 1902, S. 237—239.
+
+- Wanckel, W., Schönebeck, Kreismuseum des Kreises Kalbe. Mitteldt. Volkheit 3, 1936, S. 30.
+- Wanckel, W., Kreismuseum Schönebeck. Mitteldt. Volkheit 6, 1939, ·S. 31.
+- Wanckel, W., Ein Steinkistengrab der Kugelamphorenkultur von Schönebeck (Elbe). Jschr. mitteldt. Vorgesch. 41/42, 1958, S. 243-245.
+- Weber, V., Die Kugelamphorenkultur in Sachsen. Arb.- und Forsch.-Ber. sächs. Bodendenkmalpfl. 13, 1964, S. .73—192.
+
+Weber, V., Jungsteinzeitliche Siedlungsfunde von Rietzmeck, Kr. Roßlau. Ausgr. und Funde 11, 1966, S. 16—21.
+
+Weber, V., Neue Siedlungsfunde der Kugelamphorenkultur. Ausgr. und Funde 19, 1974, S. 72-78.
+
+Wegewitz, W., Untersuchung von vier jungsteinzeitlichen Grabhügeln in der Feldmark Rahmstorf, Gem. Regesbostel. Harburger Jb. 12, 1969, S. 103—116.
+
+Weisker, E., Die jungsteinzeitliche Siedlung von Altfriesack, Kr. Neuruppin. Jschr. mitteldt. Vorgesch. 44, 1960, S. 57
+
+bis 80.
+
+Wetzel, G., Die neolithische Besiedlung der Altmark. Jschr. mitteldt. Vorgesch. 50, 1966, S. 33—60.
+
+Wetzel, G., Ein Dünenwohnplatz bei Lanz, Kreis Ludwigslust. Bodendenkmalpfl. Mecklenburg. Jb. 1967, 1969, S. 129 bis 169.
+
+Wetzel, G., Eine Bernburger Bestattung von Milow, Kr. Rathenow. Ausgr. und Funde 17, 1972 a, S. 110—112.
+
+Wetzel, G., Ur- und frühgeschichtliche Neufunde aus dem Bezirk Cottbus 19681971. Gesch. und Gegenwart Bez. Cottbus 6, 1972 b, S. 152—162.
+
+Wetzel, G., Ein Becher der Stichreihenkeramik von Prettin, Kr. Jessen. Ausgr. und Funde 18, 1973 a, S. 117—120.
+
+- Wetzel, G., Ur- und frühgeschichtliche Neufunde aus dem Bezirk Cottbus im Jahre 1972. Gesch. und Gegenwart Bez. Cottbus 7, 1973 b, S. 182—206.
+- Wetzel, G., Steinzeitliche Funde von Polkern, Kr. Osterburg. Jschr. mitteldt. Vorgesch. 58, 1974, S. 175—248.
+- Wetzel, G., Beziehungen zwischen Kugelamphorenkultur, Saaleschnurkeramik und Schönfelder Kultur. Z. Archäol. 10, 1976, S. 28—31.
+- Wetzel, G., Die Schönfelder Kultur. Berlin 1979.
+- Wetzel, G., Ur- und frühgeschichtliche Neufunde im Bezirk Cottbus (Auswahl 1980). Gesch. und Gegenwart Bez. Cottbus 15, 1981, S. 172—188.
+- Wetzel, G. und I., Ur- und frühgeschichtliche Neufunde des Bezirkes Cottbus (1981). Gesch. und Gegenwart Bez. Cottbus 16, 1982, S. 195-213.
+
+Wetzel, G. und I., Ur- und frühgeschichtliche Neufunde des Bezirkes Cottbus (Auswahl 1982). Gesch. und Gegenwart Bez. Cottbus 17, 1983, S. 129—153.
+
+Wieprecht, H., Neuhaldensleben, Neuerwerbungen der vorgeschichtlichen Abteilung des Museums. Nachr.-Bl. dt. Vorz. 4, 1928, S. 54—55.
+
+- Wilcke, M., Die Bewohner Ostthüringens in vorgeschichtlicher Zeit. Zeitz 1921.
+
+Wilhelm, A., Protocoll über die am 14., 16. und 17. Mai auf dem Bottendorfer Berge angestellten Nachgrabungen. Dt. Alterthümer 1, H. 2, 1824, S. 27—35.
+
+- Wiślański, T., Research on Neolithic Barrows in Strzelce, district Mogilno. Archaeol. Polona 4, 1962, S. 88—97.
+- Wiślański, T., Aus den Studien über die Entstehung der Kugelamphorenkultur. Archaeol. Polona 7, 1964, S. 72—95.
+- Wiślański, T., Uber die territorialen und chronologischen Einteilungen der Kugelamphorenkultur. Archaeol. Polona 9, 1966 a, S. 7—26.
+- Wiślański, T., Kultura amfor kulistych w Polsce północnozachodniej. Polskie Badania Archeol. 13, 1966 b.
+
+Wiślański, T., The Globular Amphora Culture. In: The Neolithic in Poland. Wrocław — Warszawa - Kraków 1970, S. 178-231.
+
+Wiślański, T., Die Kugelamphorenkultur im Flußgebiet der Oder und der Weichsel. Z. Archäol. 10, 1976, S. 6—11.
+
+Wiślański, T., III. Dalszy rozwój ludów neolitycznych. Plemiona kultury Amfor Kulistych. In: Prahist. ziem polskich. Tom II: Neolit. Wroclaw -- Warszawa - Kraków - Gdańsk 1979, S.261-299.
+
+Wiślański, T., Die schnurverzierte Keramik in der Ostgruppe der Trichterbecherkultur. Jschr. mitteldt. Vorgesch. 64, 1981, S.211-216.
+
+Wojciechowski, W., Kultura Amfor Kulistych na Dolnym Slasku. Silesia Antiqua 9, 1967, S. 7—36.
+
+Wojciechowski, W., Zum Problem der Verbindungen zwischen Trichterbecherkultur und der Kugelamphorenkultur in Niederschlesien. Z. Archäol. 10, 1976, S. 17-20.
+
+Zápotocký, M., Einige Fragen des jüngeren böhmischen Aneolithikums. In: L'Europe á la fin de l'âge de la pierre, Praha 1961, S.337-347.
+
+Unbekannt: Nachrichten von einigen in der Umgegend bei Langendorf gehaltenen Nachgrabungen im Herbst 1826. Dt. Alterthümer II, H. II/III, 1827, S. 32—33.
+
+Unbekannt: Fundberichte 1937 aus dem Kreise Zerbst. Anhalt. Gesch.-Bl. 14, 1938, S. 158.

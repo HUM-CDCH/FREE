@@ -1,0 +1,37 @@
+{
+  "title": "string",
+  "author": "string",
+  "publication_year": "integer",
+  "records": [
+    {
+      "catalogue_id": "string",
+      "site": "string",
+      "district": "string",
+      "grave_id": "string",
+      "burial_type": "string",
+      "orientation": "string",
+      "body_position": "string",
+      "sex": "string",
+      "age_class": "string",
+      "individual_count": "integer",
+      "pit_length_value": "number",
+      "pit_length_unit": "string",
+      "pit_width_value": "number",
+      "pit_width_unit": "string",
+      "pit_depth_value": "number",
+      "pit_depth_unit": "string",
+      "grave_goods": [
+        {
+          "item_id": "string",
+          "item_type": "string",
+          "material": "string",
+          "item_count": "integer",
+          "height_value": "number",
+          "height_unit": "string",
+          "inventory_number": "string"
+        }
+      ],
+      "feature_number": "string"
+    }
+  ]
+}

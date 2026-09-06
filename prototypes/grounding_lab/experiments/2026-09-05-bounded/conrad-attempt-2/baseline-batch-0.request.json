@@ -1,0 +1,184 @@
+{
+  "model": "qwen3.8:27b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Extract document metadata and the first 20 eligible burial records in source reading order. Eligible records are definite, explicitly identified graves or burials. Exclude probable or conjectured graves (including EvG, vG, and \"vermutlich Grab\"), explicitly rejected burial interpretations, settlements, stray finds, bibliographic references, and unrelated find records. If fewer than 20 exist, return all eligible records. Use only explicitly stated information, preserve identifiers and suffixes, and never infer or compute values. Respect source legends for measurement units, emit each measurement in its declared unit using the schema value and unit fields, and perform no unit conversions. Return null for missing scalar information and [] for empty collections. Return exactly the schema keys and JSON types, without explanations. Extract EXACTLY these requested records in this order: R001, R002. sourceKey is a routing ID copied from REQUEST, never an extracted source identifier. Each record object must concern only that requested individual burial. Do not add neighbouring graves.  The sourceKey routing field remains a plain string.\n\nSCHEMA:\n{\"records\":[{\"sourceKey\":\"string\",\"record\":{\"site\":\"string\",\"site_code\":\"string\",\"grave_id\":\"string\",\"feature_number\":\"string\",\"excavation_year\":\"integer\",\"orientation\":\"string\",\"body_position\":\"string\",\"burial_type\":\"string\",\"grave_pit_length_m\":\"number\",\"grave_pit_width_m\":\"number\",\"grave_pit_depth_m\":\"number\",\"age_class\":\"string\",\"age_min_years\":\"number\",\"age_max_years\":\"number\",\"sex_estimate\":\"string\",\"cremated_bone_weight_g\":\"number\",\"grave_goods\":[\"string\"],\"figure_reference\":\"string\"}}]}\n\nSOURCE:\nREQUEST R001: Grab  1: Grabverband  nicht  gesichert.  N-S-ausgerichteter Hocker.\n## Page 1\n1. Altranstädt I, Lkr. Leipzig\nFundstelle/Jahr: 1901. Fundkomplex: Vier N-S-ausgerichtete Hockergräber, Grab 1 mit Beigaben. Nach Größler in 1,5 m Tiefe.\nGrab  1: Grabverband  nicht  gesichert.  N-S-ausgerichteter Hocker. Unverz. Glockenbecher, verz. Glockenbecher (nach Billig Tasse) (Abb. 37,1.2).\nLiteratur: Größler 1909, 61 ff. Taf. 4; 37a.b; Neumann 1929a, 55; Gerhardt 1953, 7; Billig 1958, 59; 183 Abb. 26,1.2.\n\nREQUEST R002: Grab 7: Erdgrab; L 2,34, B 1,42 m.\n## Page 1\n2. Altranstädt II, Lkr. Leipzig\nFundstelle/Jahr: Nördlich der Bahnstrecke Leipzig - Bad Dürrenberg und südöstlich von Altranstädt. Durch das LfA, Dresden, systematisch ausgegraben, 1993. Fundkomplex: Drei Gräber mit rechteckigen, NW-SO-ausgerichteten Grabgruben, dicht beieinander liegend, davon Grab 7 und 9 mit unverz. Glockenbechern. Am gleichen Fundort Gräber der Baalberger, Schnurkeramischen und Aunjetitzer Kultur sowie Gräber ohne datierendes Inventar (wohl spätneolithisch bis frühbronzezeitlich).\nGrab 7: Erdgrab; L 2,34, B 1,42 m. Reste von drei Individuen; Hauptbestattung: NW-SO-ausgerichteter, linker Hocker. Adult, männlich; zweites Individuum: Adult, männlich; drittes Individuum: Infans I, ca. 2-3 Jahre. Unverz. Glocken­ becher, drei Silexartefakte (Abb. 37,3.4).\nGrab 8: Erdgrab; L 1, B 0,8 m. S-N-ausgerichteter, rechter Hocker. Infans I, ca. 3 Jahre.\nGrab 9: Erdgrab; L 2,2, B 1,64 m. NW-SO-ausgerichteter, linker Hocker. Matur, männlich. Unverz. Glockenbecher, Knochenknebel (Abb. 37,5.6).\nLiteratur:\nSzédeli 1994, 59-64; Funke 2000."
+    }
+  ],
+  "format": {
+    "type": "object",
+    "properties": {
+      "records": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "sourceKey": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "record": {
+              "type": "object",
+              "properties": {
+                "site": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "site_code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "grave_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "feature_number": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "excavation_year": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "orientation": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "body_position": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "burial_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "grave_pit_length_m": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "grave_pit_width_m": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "grave_pit_depth_m": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "age_class": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "age_min_years": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "age_max_years": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "sex_estimate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "cremated_bone_weight_g": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "grave_goods": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "figure_reference": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "site",
+                "site_code",
+                "grave_id",
+                "feature_number",
+                "excavation_year",
+                "orientation",
+                "body_position",
+                "burial_type",
+                "grave_pit_length_m",
+                "grave_pit_width_m",
+                "grave_pit_depth_m",
+                "age_class",
+                "age_min_years",
+                "age_max_years",
+                "sex_estimate",
+                "cremated_bone_weight_g",
+                "grave_goods",
+                "figure_reference"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "sourceKey",
+            "record"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "records"
+    ],
+    "additionalProperties": false
+  },
+  "stream": false,
+  "think": false,
+  "truncate": false,
+  "shift": false,
+  "options": {
+    "temperature": 0,
+    "num_ctx": 262144,
+    "num_predict": 8192,
+    "seed": 0
+  }
+}

@@ -1,0 +1,3381 @@
+{
+  "perFamily": [
+    {
+      "arm": "conrad-attempt-2/baseline/E",
+      "family": "conrad",
+      "claims": 277,
+      "resolved": 277,
+      "unresolved": 0,
+      "diagnosticClaims": 277,
+      "supported": 239,
+      "supportedWithoutCanonicalEvidence": 0,
+      "correctEvidence": 182,
+      "unsupportedProposals": 38,
+      "wrongEvidenceSupported": 55,
+      "missingEvidenceSupported": 2,
+      "ambiguous": 0,
+      "review": {
+        "joint": {
+          "ranking": "reviewRiskScore",
+          "at1": {
+            "precision": 1,
+            "recall": 0.010526315789473684
+          },
+          "at3": {
+            "precision": 1,
+            "recall": 0.031578947368421054
+          },
+          "at5": {
+            "precision": 1,
+            "recall": 0.05263157894736842
+          }
+        },
+        "value": {
+          "ranking": "valueRiskScore",
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0.3333333333333333,
+            "recall": 0.02631578947368421
+          },
+          "at5": {
+            "precision": 0.2,
+            "recall": 0.02631578947368421
+          }
+        }
+      },
+      "routing": {}
+    },
+    {
+      "arm": "conrad-attempt-2/quote/E",
+      "family": "conrad",
+      "claims": 271,
+      "resolved": 271,
+      "unresolved": 0,
+      "diagnosticClaims": 271,
+      "supported": 239,
+      "supportedWithoutCanonicalEvidence": 0,
+      "correctEvidence": 184,
+      "unsupportedProposals": 31,
+      "wrongEvidenceSupported": 53,
+      "missingEvidenceSupported": 2,
+      "ambiguous": 0,
+      "review": {
+        "joint": {
+          "ranking": "reviewRiskScore",
+          "at1": {
+            "precision": 1,
+            "recall": 0.011494252873563218
+          },
+          "at3": {
+            "precision": 1,
+            "recall": 0.034482758620689655
+          },
+          "at5": {
+            "precision": 1,
+            "recall": 0.05747126436781609
+          }
+        },
+        "value": {
+          "ranking": "valueRiskScore",
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at5": {
+            "precision": 0,
+            "recall": 0.0
+          }
+        }
+      },
+      "routing": {}
+    },
+    {
+      "arm": "conrad-attempt-2/quote/quote-only",
+      "family": "conrad",
+      "claims": 271,
+      "resolved": 271,
+      "unresolved": 0,
+      "diagnosticClaims": 271,
+      "supported": 239,
+      "supportedWithoutCanonicalEvidence": 0,
+      "correctEvidence": 203,
+      "unsupportedProposals": 23,
+      "wrongEvidenceSupported": 1,
+      "missingEvidenceSupported": 35,
+      "ambiguous": 0,
+      "review": {
+        "joint": {
+          "ranking": "frozen quote status order",
+          "at1": {
+            "precision": 1,
+            "recall": 0.014705882352941176
+          },
+          "at3": {
+            "precision": 1,
+            "recall": 0.04411764705882353
+          },
+          "at5": {
+            "precision": 1,
+            "recall": 0.07352941176470588
+          }
+        },
+        "value": {
+          "ranking": "frozen quote status order",
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0.3333333333333333,
+            "recall": 0.03125
+          },
+          "at5": {
+            "precision": 0.6,
+            "recall": 0.09375
+          }
+        }
+      },
+      "routing": {}
+    },
+    {
+      "arm": "conrad-attempt-2/quote/hybrid",
+      "family": "conrad",
+      "claims": 271,
+      "resolved": 271,
+      "unresolved": 0,
+      "diagnosticClaims": 271,
+      "supported": 239,
+      "supportedWithoutCanonicalEvidence": 0,
+      "correctEvidence": 218,
+      "unsupportedProposals": 32,
+      "wrongEvidenceSupported": 21,
+      "missingEvidenceSupported": 0,
+      "ambiguous": 0,
+      "review": {
+        "joint": {
+          "ranking": "frozen quote status order",
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0.3333333333333333,
+            "recall": 0.018867924528301886
+          },
+          "at5": {
+            "precision": 0.6,
+            "recall": 0.05660377358490566
+          }
+        },
+        "value": {
+          "ranking": "frozen quote status order",
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0.3333333333333333,
+            "recall": 0.03125
+          },
+          "at5": {
+            "precision": 0.6,
+            "recall": 0.09375
+          }
+        }
+      },
+      "routing": {}
+    },
+    {
+      "arm": "conrad-attempt-3/baseline/E",
+      "family": "conrad",
+      "claims": 291,
+      "resolved": 291,
+      "unresolved": 0,
+      "diagnosticClaims": 0,
+      "supported": 265,
+      "supportedWithoutCanonicalEvidence": 0,
+      "correctEvidence": 183,
+      "unsupportedProposals": 26,
+      "wrongEvidenceSupported": 80,
+      "missingEvidenceSupported": 2,
+      "ambiguous": 0,
+      "review": {
+        "joint": {
+          "ranking": "reviewRiskScore",
+          "at1": {
+            "precision": 1,
+            "recall": 0.009259259259259259
+          },
+          "at3": {
+            "precision": 1,
+            "recall": 0.027777777777777776
+          },
+          "at5": {
+            "precision": 1,
+            "recall": 0.046296296296296294
+          }
+        },
+        "value": {
+          "ranking": "valueRiskScore",
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0.3333333333333333,
+            "recall": 0.038461538461538464
+          },
+          "at5": {
+            "precision": 0.2,
+            "recall": 0.038461538461538464
+          }
+        }
+      },
+      "routing": {}
+    },
+    {
+      "arm": "conrad-attempt-3/quote/E",
+      "family": "conrad",
+      "claims": 287,
+      "resolved": 286,
+      "unresolved": 1,
+      "diagnosticClaims": 0,
+      "supported": 268,
+      "supportedWithoutCanonicalEvidence": 0,
+      "correctEvidence": 185,
+      "unsupportedProposals": 17,
+      "wrongEvidenceSupported": 81,
+      "missingEvidenceSupported": 2,
+      "ambiguous": 0,
+      "review": {
+        "joint": {
+          "ranking": "reviewRiskScore",
+          "at1": {
+            "precision": 1,
+            "recall": 0.009900990099009901
+          },
+          "at3": {
+            "precision": 1,
+            "recall": 0.0297029702970297
+          },
+          "at5": {
+            "precision": 1,
+            "recall": 0.04950495049504951
+          }
+        },
+        "value": {
+          "ranking": "valueRiskScore",
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at5": {
+            "precision": 0,
+            "recall": 0.0
+          }
+        }
+      },
+      "routing": {}
+    },
+    {
+      "arm": "conrad-attempt-3/quote/quote-only",
+      "family": "conrad",
+      "claims": 287,
+      "resolved": 286,
+      "unresolved": 1,
+      "diagnosticClaims": 0,
+      "supported": 268,
+      "supportedWithoutCanonicalEvidence": 0,
+      "correctEvidence": 210,
+      "unsupportedProposals": 15,
+      "wrongEvidenceSupported": 18,
+      "missingEvidenceSupported": 40,
+      "ambiguous": 0,
+      "review": {
+        "joint": {
+          "ranking": "frozen quote status order",
+          "at1": {
+            "precision": 1,
+            "recall": 0.013157894736842105
+          },
+          "at3": {
+            "precision": 1,
+            "recall": 0.039473684210526314
+          },
+          "at5": {
+            "precision": 1,
+            "recall": 0.06578947368421052
+          }
+        },
+        "value": {
+          "ranking": "frozen quote status order",
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0.3333333333333333,
+            "recall": 0.05555555555555555
+          },
+          "at5": {
+            "precision": 0.4,
+            "recall": 0.1111111111111111
+          }
+        }
+      },
+      "routing": {}
+    },
+    {
+      "arm": "conrad-attempt-3/quote/hybrid",
+      "family": "conrad",
+      "claims": 287,
+      "resolved": 286,
+      "unresolved": 1,
+      "diagnosticClaims": 0,
+      "supported": 268,
+      "supportedWithoutCanonicalEvidence": 0,
+      "correctEvidence": 227,
+      "unsupportedProposals": 18,
+      "wrongEvidenceSupported": 41,
+      "missingEvidenceSupported": 0,
+      "ambiguous": 0,
+      "review": {
+        "joint": {
+          "ranking": "frozen quote status order",
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0.3333333333333333,
+            "recall": 0.01694915254237288
+          },
+          "at5": {
+            "precision": 0.4,
+            "recall": 0.03389830508474576
+          }
+        },
+        "value": {
+          "ranking": "frozen quote status order",
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0.3333333333333333,
+            "recall": 0.05555555555555555
+          },
+          "at5": {
+            "precision": 0.4,
+            "recall": 0.1111111111111111
+          }
+        }
+      },
+      "routing": {}
+    }
+  ],
+  "pooled": [
+    {
+      "arm": "conrad-attempt-2/baseline/E",
+      "claims": 277,
+      "resolved": 277,
+      "unresolved": 0,
+      "diagnosticClaims": 277,
+      "supported": 239,
+      "supportedWithoutCanonicalEvidence": 0,
+      "correctEvidence": 182,
+      "unsupportedProposals": 38,
+      "wrongEvidenceSupported": 55,
+      "missingEvidenceSupported": 2,
+      "ambiguous": 0,
+      "routing": {},
+      "diagnostics": {
+        "value": {
+          "n": 277,
+          "brier": 0.14138692565634875,
+          "reliability": [
+            {
+              "lower": 0,
+              "n": 1,
+              "predicted": 0.12308738437688138,
+              "observed": 1
+            },
+            {
+              "lower": 0.2,
+              "n": 0,
+              "predicted": null,
+              "observed": null
+            },
+            {
+              "lower": 0.4,
+              "n": 8,
+              "predicted": 0.5255854564610445,
+              "observed": 0.875
+            },
+            {
+              "lower": 0.6,
+              "n": 4,
+              "predicted": 0.7344837178111796,
+              "observed": 1
+            },
+            {
+              "lower": 0.8,
+              "n": 264,
+              "predicted": 0.9919954183489229,
+              "observed": 0.8598484848484849
+            }
+          ]
+        },
+        "evidence": {
+          "n": 237,
+          "brier": 0.17973221394923142,
+          "reliability": [
+            {
+              "lower": 0,
+              "n": 59,
+              "predicted": 0.10582467572761872,
+              "observed": 0.3728813559322034
+            },
+            {
+              "lower": 0.2,
+              "n": 46,
+              "predicted": 0.2866039495534772,
+              "observed": 0.6304347826086957
+            },
+            {
+              "lower": 0.4,
+              "n": 27,
+              "predicted": 0.4832137344938757,
+              "observed": 0.9629629629629629
+            },
+            {
+              "lower": 0.6,
+              "n": 15,
+              "predicted": 0.6900525352303258,
+              "observed": 1
+            },
+            {
+              "lower": 0.8,
+              "n": 90,
+              "predicted": 0.9677742116474989,
+              "observed": 1
+            }
+          ]
+        },
+        "joint": {
+          "n": 277,
+          "brier": 0.18087542502734374,
+          "reliability": [
+            {
+              "lower": 0,
+              "n": 87,
+              "predicted": 0.11328455093900397,
+              "observed": 0.26436781609195403
+            },
+            {
+              "lower": 0.2,
+              "n": 60,
+              "predicted": 0.2875714365075582,
+              "observed": 0.6
+            },
+            {
+              "lower": 0.4,
+              "n": 23,
+              "predicted": 0.4846203037912142,
+              "observed": 0.9130434782608695
+            },
+            {
+              "lower": 0.6,
+              "n": 15,
+              "predicted": 0.7067803626019238,
+              "observed": 0.8666666666666667
+            },
+            {
+              "lower": 0.8,
+              "n": 92,
+              "predicted": 0.9618639417711569,
+              "observed": 0.967391304347826
+            }
+          ]
+        }
+      },
+      "riskCoverage": [
+        {
+          "coverage": 0.10108303249097472,
+          "n": 28,
+          "observedJointRisk": 0.03571428571428571
+        },
+        {
+          "coverage": 0.2527075812274368,
+          "n": 70,
+          "observedJointRisk": 0.02857142857142857
+        },
+        {
+          "coverage": 0.5018050541516246,
+          "n": 139,
+          "observedJointRisk": 0.05755395683453238
+        },
+        {
+          "coverage": 0.7509025270758123,
+          "n": 208,
+          "observedJointRisk": 0.21153846153846154
+        },
+        {
+          "coverage": 1.0,
+          "n": 277,
+          "observedJointRisk": 0.34296028880866425
+        }
+      ],
+      "riskCoverageOrdering": "reviewRiskScore ascending",
+      "latencySeconds": {
+        "n": 1,
+        "p50": 297.7777184,
+        "p95": 297.7777184,
+        "p99": 297.7777184
+      }
+    },
+    {
+      "arm": "conrad-attempt-2/quote/E",
+      "claims": 271,
+      "resolved": 271,
+      "unresolved": 0,
+      "diagnosticClaims": 271,
+      "supported": 239,
+      "supportedWithoutCanonicalEvidence": 0,
+      "correctEvidence": 184,
+      "unsupportedProposals": 31,
+      "wrongEvidenceSupported": 53,
+      "missingEvidenceSupported": 2,
+      "ambiguous": 0,
+      "routing": {},
+      "diagnostics": {
+        "value": {
+          "n": 271,
+          "brier": 0.11644929053683019,
+          "reliability": [
+            {
+              "lower": 0,
+              "n": 0,
+              "predicted": null,
+              "observed": null
+            },
+            {
+              "lower": 0.2,
+              "n": 1,
+              "predicted": 0.32119149334316344,
+              "observed": 1
+            },
+            {
+              "lower": 0.4,
+              "n": 0,
+              "predicted": null,
+              "observed": null
+            },
+            {
+              "lower": 0.6,
+              "n": 5,
+              "predicted": 0.7343323044116591,
+              "observed": 0.8
+            },
+            {
+              "lower": 0.8,
+              "n": 265,
+              "predicted": 0.9889467845548793,
+              "observed": 0.8830188679245283
+            }
+          ]
+        },
+        "evidence": {
+          "n": 237,
+          "brier": 0.18950146736821896,
+          "reliability": [
+            {
+              "lower": 0,
+              "n": 63,
+              "predicted": 0.10806147491313396,
+              "observed": 0.4126984126984127
+            },
+            {
+              "lower": 0.2,
+              "n": 46,
+              "predicted": 0.27961402411895836,
+              "observed": 0.6739130434782609
+            },
+            {
+              "lower": 0.4,
+              "n": 24,
+              "predicted": 0.4864936622600063,
+              "observed": 0.9583333333333334
+            },
+            {
+              "lower": 0.6,
+              "n": 13,
+              "predicted": 0.7011920294415869,
+              "observed": 1
+            },
+            {
+              "lower": 0.8,
+              "n": 91,
+              "predicted": 0.9706888170329542,
+              "observed": 1
+            }
+          ]
+        },
+        "joint": {
+          "n": 271,
+          "brier": 0.18905773275996107,
+          "reliability": [
+            {
+              "lower": 0,
+              "n": 86,
+              "predicted": 0.11167608012154606,
+              "observed": 0.313953488372093
+            },
+            {
+              "lower": 0.2,
+              "n": 53,
+              "predicted": 0.2802155696120661,
+              "observed": 0.6037735849056604
+            },
+            {
+              "lower": 0.4,
+              "n": 23,
+              "predicted": 0.4904087360231439,
+              "observed": 0.9565217391304348
+            },
+            {
+              "lower": 0.6,
+              "n": 15,
+              "predicted": 0.7108119238896351,
+              "observed": 0.8666666666666667
+            },
+            {
+              "lower": 0.8,
+              "n": 94,
+              "predicted": 0.9636409492709375,
+              "observed": 0.9574468085106383
+            }
+          ]
+        }
+      },
+      "riskCoverage": [
+        {
+          "coverage": 0.1033210332103321,
+          "n": 28,
+          "observedJointRisk": 0.03571428571428571
+        },
+        {
+          "coverage": 0.25092250922509224,
+          "n": 68,
+          "observedJointRisk": 0.04411764705882353
+        },
+        {
+          "coverage": 0.5018450184501845,
+          "n": 136,
+          "observedJointRisk": 0.051470588235294115
+        },
+        {
+          "coverage": 0.7527675276752768,
+          "n": 204,
+          "observedJointRisk": 0.17647058823529413
+        },
+        {
+          "coverage": 1.0,
+          "n": 271,
+          "observedJointRisk": 0.3210332103321033
+        }
+      ],
+      "riskCoverageOrdering": "reviewRiskScore ascending",
+      "latencySeconds": {
+        "n": 1,
+        "p50": 573.3718478,
+        "p95": 573.3718478,
+        "p99": 573.3718478
+      }
+    },
+    {
+      "arm": "conrad-attempt-2/quote/hybrid",
+      "claims": 271,
+      "resolved": 271,
+      "unresolved": 0,
+      "diagnosticClaims": 271,
+      "supported": 239,
+      "supportedWithoutCanonicalEvidence": 0,
+      "correctEvidence": 218,
+      "unsupportedProposals": 32,
+      "wrongEvidenceSupported": 21,
+      "missingEvidenceSupported": 0,
+      "ambiguous": 0,
+      "routing": {},
+      "diagnostics": {},
+      "riskCoverage": [
+        {
+          "coverage": 0.1033210332103321,
+          "n": 28,
+          "observedJointRisk": 0
+        },
+        {
+          "coverage": 0.25092250922509224,
+          "n": 68,
+          "observedJointRisk": 0.04411764705882353
+        },
+        {
+          "coverage": 0.5018450184501845,
+          "n": 136,
+          "observedJointRisk": 0.08088235294117647
+        },
+        {
+          "coverage": 0.7527675276752768,
+          "n": 204,
+          "observedJointRisk": 0.10294117647058823
+        },
+        {
+          "coverage": 1.0,
+          "n": 271,
+          "observedJointRisk": 0.19557195571955718
+        }
+      ],
+      "riskCoverageOrdering": "reversed frozen quote status order",
+      "latencySeconds": {
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      }
+    },
+    {
+      "arm": "conrad-attempt-2/quote/quote-only",
+      "claims": 271,
+      "resolved": 271,
+      "unresolved": 0,
+      "diagnosticClaims": 271,
+      "supported": 239,
+      "supportedWithoutCanonicalEvidence": 0,
+      "correctEvidence": 203,
+      "unsupportedProposals": 23,
+      "wrongEvidenceSupported": 1,
+      "missingEvidenceSupported": 35,
+      "ambiguous": 0,
+      "routing": {},
+      "diagnostics": {},
+      "riskCoverage": [
+        {
+          "coverage": 0.1033210332103321,
+          "n": 28,
+          "observedJointRisk": 0
+        },
+        {
+          "coverage": 0.25092250922509224,
+          "n": 68,
+          "observedJointRisk": 0.04411764705882353
+        },
+        {
+          "coverage": 0.5018450184501845,
+          "n": 136,
+          "observedJointRisk": 0.08088235294117647
+        },
+        {
+          "coverage": 0.7527675276752768,
+          "n": 204,
+          "observedJointRisk": 0.10294117647058823
+        },
+        {
+          "coverage": 1.0,
+          "n": 271,
+          "observedJointRisk": 0.25092250922509224
+        }
+      ],
+      "riskCoverageOrdering": "reversed frozen quote status order",
+      "latencySeconds": {
+        "n": 1,
+        "p50": 533.4897367,
+        "p95": 533.4897367,
+        "p99": 533.4897367
+      }
+    },
+    {
+      "arm": "conrad-attempt-3/baseline/E",
+      "claims": 291,
+      "resolved": 291,
+      "unresolved": 0,
+      "diagnosticClaims": 0,
+      "supported": 265,
+      "supportedWithoutCanonicalEvidence": 0,
+      "correctEvidence": 183,
+      "unsupportedProposals": 26,
+      "wrongEvidenceSupported": 80,
+      "missingEvidenceSupported": 2,
+      "ambiguous": 0,
+      "routing": {},
+      "diagnostics": {
+        "value": {
+          "n": 291,
+          "brier": 0.09384149937895248,
+          "reliability": [
+            {
+              "lower": 0,
+              "n": 1,
+              "predicted": 0.12308738437688138,
+              "observed": 1
+            },
+            {
+              "lower": 0.2,
+              "n": 0,
+              "predicted": null,
+              "observed": null
+            },
+            {
+              "lower": 0.4,
+              "n": 8,
+              "predicted": 0.5255854564610445,
+              "observed": 0.875
+            },
+            {
+              "lower": 0.6,
+              "n": 4,
+              "predicted": 0.7686554000920208,
+              "observed": 1
+            },
+            {
+              "lower": 0.8,
+              "n": 278,
+              "predicted": 0.9926442932708422,
+              "observed": 0.9100719424460432
+            }
+          ]
+        },
+        "evidence": {
+          "n": 263,
+          "brier": 0.2311017710558583,
+          "reliability": [
+            {
+              "lower": 0,
+              "n": 88,
+              "predicted": 0.12034631542900567,
+              "observed": 0.36363636363636365
+            },
+            {
+              "lower": 0.2,
+              "n": 50,
+              "predicted": 0.2866751808302912,
+              "observed": 0.72
+            },
+            {
+              "lower": 0.4,
+              "n": 26,
+              "predicted": 0.5032922587678765,
+              "observed": 0.9615384615384616
+            },
+            {
+              "lower": 0.6,
+              "n": 14,
+              "predicted": 0.6960132769363894,
+              "observed": 1
+            },
+            {
+              "lower": 0.8,
+              "n": 85,
+              "predicted": 0.9655489968273565,
+              "observed": 0.8941176470588236
+            }
+          ]
+        },
+        "joint": {
+          "n": 291,
+          "brier": 0.23290494871936432,
+          "reliability": [
+            {
+              "lower": 0,
+              "n": 103,
+              "predicted": 0.11908070766769337,
+              "observed": 0.32038834951456313
+            },
+            {
+              "lower": 0.2,
+              "n": 64,
+              "predicted": 0.2808370954511507,
+              "observed": 0.65625
+            },
+            {
+              "lower": 0.4,
+              "n": 23,
+              "predicted": 0.5020377174662615,
+              "observed": 0.9130434782608695
+            },
+            {
+              "lower": 0.6,
+              "n": 15,
+              "predicted": 0.7219406375367893,
+              "observed": 0.8
+            },
+            {
+              "lower": 0.8,
+              "n": 86,
+              "predicted": 0.9615390379393552,
+              "observed": 0.872093023255814
+            }
+          ]
+        }
+      },
+      "riskCoverage": [
+        {
+          "coverage": 0.10309278350515463,
+          "n": 30,
+          "observedJointRisk": 0.3333333333333333
+        },
+        {
+          "coverage": 0.2508591065292096,
+          "n": 73,
+          "observedJointRisk": 0.1506849315068493
+        },
+        {
+          "coverage": 0.5017182130584192,
+          "n": 146,
+          "observedJointRisk": 0.1232876712328767
+        },
+        {
+          "coverage": 0.7525773195876289,
+          "n": 219,
+          "observedJointRisk": 0.2557077625570776
+        },
+        {
+          "coverage": 1.0,
+          "n": 291,
+          "observedJointRisk": 0.3711340206185567
+        }
+      ],
+      "riskCoverageOrdering": "reviewRiskScore ascending",
+      "latencySeconds": {
+        "n": 1,
+        "p50": 296.1845017,
+        "p95": 296.1845017,
+        "p99": 296.1845017
+      }
+    },
+    {
+      "arm": "conrad-attempt-3/quote/E",
+      "claims": 287,
+      "resolved": 286,
+      "unresolved": 1,
+      "diagnosticClaims": 0,
+      "supported": 268,
+      "supportedWithoutCanonicalEvidence": 0,
+      "correctEvidence": 185,
+      "unsupportedProposals": 17,
+      "wrongEvidenceSupported": 81,
+      "missingEvidenceSupported": 2,
+      "ambiguous": 0,
+      "routing": {},
+      "diagnostics": {
+        "value": {
+          "n": 286,
+          "brier": 0.06333166212619538,
+          "reliability": [
+            {
+              "lower": 0,
+              "n": 0,
+              "predicted": null,
+              "observed": null
+            },
+            {
+              "lower": 0.2,
+              "n": 1,
+              "predicted": 0.32119149334316344,
+              "observed": 1
+            },
+            {
+              "lower": 0.4,
+              "n": 0,
+              "predicted": null,
+              "observed": null
+            },
+            {
+              "lower": 0.6,
+              "n": 4,
+              "predicted": 0.7488948766490322,
+              "observed": 1
+            },
+            {
+              "lower": 0.8,
+              "n": 281,
+              "predicted": 0.9903171014566631,
+              "observed": 0.9359430604982206
+            }
+          ]
+        },
+        "evidence": {
+          "n": 266,
+          "brier": 0.224297222244816,
+          "reliability": [
+            {
+              "lower": 0,
+              "n": 83,
+              "predicted": 0.12177641516847855,
+              "observed": 0.3253012048192771
+            },
+            {
+              "lower": 0.2,
+              "n": 54,
+              "predicted": 0.27549895441185357,
+              "observed": 0.7407407407407407
+            },
+            {
+              "lower": 0.4,
+              "n": 22,
+              "predicted": 0.49213916350714476,
+              "observed": 0.9545454545454546
+            },
+            {
+              "lower": 0.6,
+              "n": 12,
+              "predicted": 0.7108196304193196,
+              "observed": 1
+            },
+            {
+              "lower": 0.8,
+              "n": 95,
+              "predicted": 0.9659704658339426,
+              "observed": 0.8947368421052632
+            }
+          ]
+        },
+        "joint": {
+          "n": 286,
+          "brier": 0.2221547629151529,
+          "reliability": [
+            {
+              "lower": 0,
+              "n": 94,
+              "predicted": 0.11849037821168285,
+              "observed": 0.2978723404255319
+            },
+            {
+              "lower": 0.2,
+              "n": 62,
+              "predicted": 0.27638134694455696,
+              "observed": 0.6774193548387096
+            },
+            {
+              "lower": 0.4,
+              "n": 21,
+              "predicted": 0.5010429624309647,
+              "observed": 0.9047619047619048
+            },
+            {
+              "lower": 0.6,
+              "n": 13,
+              "predicted": 0.7172180594219736,
+              "observed": 0.9230769230769231
+            },
+            {
+              "lower": 0.8,
+              "n": 96,
+              "predicted": 0.9609931279237176,
+              "observed": 0.875
+            }
+          ]
+        }
+      },
+      "riskCoverage": [
+        {
+          "coverage": 0.10139860139860139,
+          "n": 29,
+          "observedJointRisk": 0.3793103448275862
+        },
+        {
+          "coverage": 0.2517482517482518,
+          "n": 72,
+          "observedJointRisk": 0.16666666666666666
+        },
+        {
+          "coverage": 0.5,
+          "n": 143,
+          "observedJointRisk": 0.11888111888111888
+        },
+        {
+          "coverage": 0.7517482517482518,
+          "n": 215,
+          "observedJointRisk": 0.23255813953488372
+        },
+        {
+          "coverage": 1.0,
+          "n": 286,
+          "observedJointRisk": 0.3531468531468531
+        }
+      ],
+      "riskCoverageOrdering": "reviewRiskScore ascending",
+      "latencySeconds": {
+        "n": 1,
+        "p50": 623.9701514000001,
+        "p95": 623.9701514000001,
+        "p99": 623.9701514000001
+      }
+    },
+    {
+      "arm": "conrad-attempt-3/quote/hybrid",
+      "claims": 287,
+      "resolved": 286,
+      "unresolved": 1,
+      "diagnosticClaims": 0,
+      "supported": 268,
+      "supportedWithoutCanonicalEvidence": 0,
+      "correctEvidence": 227,
+      "unsupportedProposals": 18,
+      "wrongEvidenceSupported": 41,
+      "missingEvidenceSupported": 0,
+      "ambiguous": 0,
+      "routing": {},
+      "diagnostics": {},
+      "riskCoverage": [
+        {
+          "coverage": 0.10139860139860139,
+          "n": 29,
+          "observedJointRisk": 0
+        },
+        {
+          "coverage": 0.2517482517482518,
+          "n": 72,
+          "observedJointRisk": 0.013888888888888888
+        },
+        {
+          "coverage": 0.5,
+          "n": 143,
+          "observedJointRisk": 0.11888111888111888
+        },
+        {
+          "coverage": 0.7517482517482518,
+          "n": 215,
+          "observedJointRisk": 0.12558139534883722
+        },
+        {
+          "coverage": 1.0,
+          "n": 286,
+          "observedJointRisk": 0.2062937062937063
+        }
+      ],
+      "riskCoverageOrdering": "reversed frozen quote status order",
+      "latencySeconds": {
+        "n": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      }
+    },
+    {
+      "arm": "conrad-attempt-3/quote/quote-only",
+      "claims": 287,
+      "resolved": 286,
+      "unresolved": 1,
+      "diagnosticClaims": 0,
+      "supported": 268,
+      "supportedWithoutCanonicalEvidence": 0,
+      "correctEvidence": 210,
+      "unsupportedProposals": 15,
+      "wrongEvidenceSupported": 18,
+      "missingEvidenceSupported": 40,
+      "ambiguous": 0,
+      "routing": {},
+      "diagnostics": {},
+      "riskCoverage": [
+        {
+          "coverage": 0.10139860139860139,
+          "n": 29,
+          "observedJointRisk": 0
+        },
+        {
+          "coverage": 0.2517482517482518,
+          "n": 72,
+          "observedJointRisk": 0.013888888888888888
+        },
+        {
+          "coverage": 0.5,
+          "n": 143,
+          "observedJointRisk": 0.11888111888111888
+        },
+        {
+          "coverage": 0.7517482517482518,
+          "n": 215,
+          "observedJointRisk": 0.12558139534883722
+        },
+        {
+          "coverage": 1.0,
+          "n": 286,
+          "observedJointRisk": 0.26573426573426573
+        }
+      ],
+      "riskCoverageOrdering": "reversed frozen quote status order",
+      "latencySeconds": {
+        "n": 1,
+        "p50": 584.2068370999999,
+        "p95": 584.2068370999999,
+        "p99": 584.2068370999999
+      }
+    }
+  ],
+  "macro": [
+    {
+      "arm": "conrad-attempt-2/baseline/E",
+      "families": 1,
+      "valueSupportRate": 0.8628158844765343,
+      "correctEvidenceRate": 0.6570397111913358,
+      "review": {
+        "joint": {
+          "at1": {
+            "precision": 1,
+            "recall": 0.010526315789473684
+          },
+          "at3": {
+            "precision": 1,
+            "recall": 0.031578947368421054
+          },
+          "at5": {
+            "precision": 1,
+            "recall": 0.05263157894736842
+          }
+        },
+        "value": {
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0.3333333333333333,
+            "recall": 0.02631578947368421
+          },
+          "at5": {
+            "precision": 0.2,
+            "recall": 0.02631578947368421
+          }
+        }
+      }
+    },
+    {
+      "arm": "conrad-attempt-2/quote/E",
+      "families": 1,
+      "valueSupportRate": 0.8819188191881919,
+      "correctEvidenceRate": 0.6789667896678967,
+      "review": {
+        "joint": {
+          "at1": {
+            "precision": 1,
+            "recall": 0.011494252873563218
+          },
+          "at3": {
+            "precision": 1,
+            "recall": 0.034482758620689655
+          },
+          "at5": {
+            "precision": 1,
+            "recall": 0.05747126436781609
+          }
+        },
+        "value": {
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at5": {
+            "precision": 0,
+            "recall": 0.0
+          }
+        }
+      }
+    },
+    {
+      "arm": "conrad-attempt-2/quote/hybrid",
+      "families": 1,
+      "valueSupportRate": 0.8819188191881919,
+      "correctEvidenceRate": 0.8044280442804428,
+      "review": {
+        "joint": {
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0.3333333333333333,
+            "recall": 0.018867924528301886
+          },
+          "at5": {
+            "precision": 0.6,
+            "recall": 0.05660377358490566
+          }
+        },
+        "value": {
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0.3333333333333333,
+            "recall": 0.03125
+          },
+          "at5": {
+            "precision": 0.6,
+            "recall": 0.09375
+          }
+        }
+      }
+    },
+    {
+      "arm": "conrad-attempt-2/quote/quote-only",
+      "families": 1,
+      "valueSupportRate": 0.8819188191881919,
+      "correctEvidenceRate": 0.7490774907749077,
+      "review": {
+        "joint": {
+          "at1": {
+            "precision": 1,
+            "recall": 0.014705882352941176
+          },
+          "at3": {
+            "precision": 1,
+            "recall": 0.04411764705882353
+          },
+          "at5": {
+            "precision": 1,
+            "recall": 0.07352941176470588
+          }
+        },
+        "value": {
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0.3333333333333333,
+            "recall": 0.03125
+          },
+          "at5": {
+            "precision": 0.6,
+            "recall": 0.09375
+          }
+        }
+      }
+    },
+    {
+      "arm": "conrad-attempt-3/baseline/E",
+      "families": 1,
+      "valueSupportRate": 0.9106529209621993,
+      "correctEvidenceRate": 0.6288659793814433,
+      "review": {
+        "joint": {
+          "at1": {
+            "precision": 1,
+            "recall": 0.009259259259259259
+          },
+          "at3": {
+            "precision": 1,
+            "recall": 0.027777777777777776
+          },
+          "at5": {
+            "precision": 1,
+            "recall": 0.046296296296296294
+          }
+        },
+        "value": {
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0.3333333333333333,
+            "recall": 0.038461538461538464
+          },
+          "at5": {
+            "precision": 0.2,
+            "recall": 0.038461538461538464
+          }
+        }
+      }
+    },
+    {
+      "arm": "conrad-attempt-3/quote/E",
+      "families": 1,
+      "valueSupportRate": 0.9370629370629371,
+      "correctEvidenceRate": 0.6468531468531469,
+      "review": {
+        "joint": {
+          "at1": {
+            "precision": 1,
+            "recall": 0.009900990099009901
+          },
+          "at3": {
+            "precision": 1,
+            "recall": 0.0297029702970297
+          },
+          "at5": {
+            "precision": 1,
+            "recall": 0.04950495049504951
+          }
+        },
+        "value": {
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at5": {
+            "precision": 0,
+            "recall": 0.0
+          }
+        }
+      }
+    },
+    {
+      "arm": "conrad-attempt-3/quote/hybrid",
+      "families": 1,
+      "valueSupportRate": 0.9370629370629371,
+      "correctEvidenceRate": 0.7937062937062938,
+      "review": {
+        "joint": {
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0.3333333333333333,
+            "recall": 0.01694915254237288
+          },
+          "at5": {
+            "precision": 0.4,
+            "recall": 0.03389830508474576
+          }
+        },
+        "value": {
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0.3333333333333333,
+            "recall": 0.05555555555555555
+          },
+          "at5": {
+            "precision": 0.4,
+            "recall": 0.1111111111111111
+          }
+        }
+      }
+    },
+    {
+      "arm": "conrad-attempt-3/quote/quote-only",
+      "families": 1,
+      "valueSupportRate": 0.9370629370629371,
+      "correctEvidenceRate": 0.7342657342657343,
+      "review": {
+        "joint": {
+          "at1": {
+            "precision": 1,
+            "recall": 0.013157894736842105
+          },
+          "at3": {
+            "precision": 1,
+            "recall": 0.039473684210526314
+          },
+          "at5": {
+            "precision": 1,
+            "recall": 0.06578947368421052
+          }
+        },
+        "value": {
+          "at1": {
+            "precision": 0,
+            "recall": 0.0
+          },
+          "at3": {
+            "precision": 0.3333333333333333,
+            "recall": 0.05555555555555555
+          },
+          "at5": {
+            "precision": 0.4,
+            "recall": 0.1111111111111111
+          }
+        }
+      }
+    }
+  ],
+  "latency": [
+    {
+      "arm": "conrad-attempt-2/baseline/E",
+      "seconds": 297.7777184,
+      "scope": "arm including full E replay; shared discovery excluded",
+      "eClaimLatencyMs": {
+        "n": 277,
+        "p50": 43.56799999368377,
+        "p95": 430.88229998829775,
+        "p99": 1109.98500000278
+      }
+    },
+    {
+      "arm": "conrad-attempt-2/quote/E",
+      "seconds": 573.3718478,
+      "scope": "arm including full E replay; shared discovery excluded",
+      "eClaimLatencyMs": {
+        "n": 271,
+        "p50": 38.737499999115244,
+        "p95": 438.5193999914918,
+        "p99": 1111.3111000013305
+      }
+    },
+    {
+      "arm": "conrad-attempt-2/quote/quote-only",
+      "seconds": 533.4897367,
+      "scope": "arm through full-source quote mapping/output; shared discovery excluded"
+    },
+    {
+      "arm": "conrad-attempt-3/baseline/E",
+      "seconds": 296.1845017,
+      "scope": "arm including full E replay; shared discovery excluded",
+      "eClaimLatencyMs": {
+        "n": 291,
+        "p50": 43.05390000808984,
+        "p95": 527.288099998259,
+        "p99": 1114.003299997421
+      }
+    },
+    {
+      "arm": "conrad-attempt-3/quote/E",
+      "seconds": 623.9701514000001,
+      "scope": "arm including full E replay; shared discovery excluded",
+      "eClaimLatencyMs": {
+        "n": 287,
+        "p50": 38.45969999383669,
+        "p95": 358.5954000009224,
+        "p99": 1123.1991999957245
+      }
+    },
+    {
+      "arm": "conrad-attempt-3/quote/quote-only",
+      "seconds": 584.2068370999999,
+      "scope": "arm through full-source quote mapping/output; shared discovery excluded"
+    }
+  ],
+  "attempts": [
+    {
+      "attempt": "conrad-attempt-1",
+      "workflow": {
+        "startedAt": "2026-09-05T13:58:28.753Z",
+        "source": "D:\\progetti\\FREE\\prototypes\\grounding_lab\\final_dataset_3\\conrad-2011-bbc-graves-de",
+        "model": "qwen3.8:27b",
+        "modelDigest": "22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643",
+        "context": 262144,
+        "outputTokens": 8192,
+        "batchSize": 2,
+        "retries": 0,
+        "complete": false,
+        "calls": [
+          {
+            "name": "discovery",
+            "startedAt": "2026-09-05T13:58:28.839Z",
+            "requestHash": "e1cea15db8f4f57d0fd889ee11ab89b0d5e58963a760376a73cd5ad3a80b977d",
+            "complete": true,
+            "inputTokens": 41073,
+            "outputTokens": 980,
+            "finishReason": "stop",
+            "durationSeconds": 92.010575
+          },
+          {
+            "name": "baseline-metadata",
+            "startedAt": "2026-09-05T14:00:00.865Z",
+            "requestHash": "91d5a01b5d526987040210e8dfad108f58d725ce7d7f77296590ce4aa798c2bf",
+            "complete": true,
+            "inputTokens": 36159,
+            "outputTokens": 123,
+            "finishReason": "stop",
+            "durationSeconds": 53.54484479999999
+          },
+          {
+            "name": "baseline-batch-0",
+            "startedAt": "2026-09-05T14:00:54.419Z",
+            "requestHash": "7e7e2366ec9aba54f28c3c72517fe6b56b896207ea1326c8b354b8f463613052",
+            "complete": true,
+            "inputTokens": 1001,
+            "outputTokens": 519,
+            "finishReason": "stop",
+            "durationSeconds": 15.959123599999991
+          },
+          {
+            "name": "baseline-batch-2",
+            "startedAt": "2026-09-05T14:01:10.387Z",
+            "requestHash": "e23dc117a2214e184cea2ed18dd6402081d365415e716802b6a1c8574564e11b",
+            "complete": true,
+            "inputTokens": 780,
+            "outputTokens": 519,
+            "finishReason": "stop",
+            "durationSeconds": 14.758233500000003
+          },
+          {
+            "name": "baseline-batch-4",
+            "startedAt": "2026-09-05T14:01:25.148Z",
+            "requestHash": "1f54b70c6d22683f247d591103b7ef6658c9dc9790b9970eb5aff9f4c1d6aec7",
+            "complete": true,
+            "inputTokens": 1267,
+            "outputTokens": 515,
+            "finishReason": "stop",
+            "durationSeconds": 15.336397400000017
+          }
+        ],
+        "arms": {
+          "baseline": {
+            "complete": false,
+            "requestedRecords": 20,
+            "startedAt": "2026-09-05T14:00:00.860Z"
+          }
+        },
+        "autoAccept": false,
+        "sourceHash": "61e0e61bee27fddaf89d0ccd08e9674ad1acf4ac3f1815ab6222a576bcbc4429",
+        "schemaHash": "5d5de644739cc640c79479609cd421ad6f5d0d3399349b3a867cf8e627a179d0",
+        "discoverySeconds": 92.02369680000001
+      },
+      "recordedRequestCount": 6,
+      "recordedResponseCount": 5,
+      "requestsWithoutResponse": [
+        "baseline-batch-6.request.json"
+      ],
+      "aborted": true,
+      "sourceScope": {
+        "expectedRecords": 20,
+        "discoveredRecords": 20,
+        "checks": [
+          {
+            "sourceKey": "R001",
+            "expectedSite": "Altranstädt I",
+            "expectedGrave": "Grab 1",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R002",
+            "expectedSite": "Altranstädt II",
+            "expectedGrave": "Grab 7",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R003",
+            "expectedSite": "Altranstädt II",
+            "expectedGrave": "Grab 8",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": [
+              5,
+              6,
+              8
+            ]
+          },
+          {
+            "sourceKey": "R004",
+            "expectedSite": "Altranstädt II",
+            "expectedGrave": "Grab 9",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": [
+              5,
+              6,
+              9
+            ]
+          },
+          {
+            "sourceKey": "R005",
+            "expectedSite": "Bösdorf",
+            "expectedGrave": "Einzelgrab",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": [
+              12,
+              13
+            ]
+          },
+          {
+            "sourceKey": "R006",
+            "expectedSite": "Großlehna",
+            "expectedGrave": "Grab 1",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": [
+              16,
+              17,
+              18
+            ]
+          },
+          {
+            "sourceKey": "R007",
+            "expectedSite": "Großlehna",
+            "expectedGrave": "Grab 2",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": [
+              16,
+              17,
+              19
+            ]
+          },
+          {
+            "sourceKey": "R008",
+            "expectedSite": "Groitzsch",
+            "expectedGrave": "Grab 1",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": [
+              22,
+              23,
+              24
+            ]
+          },
+          {
+            "sourceKey": "R009",
+            "expectedSite": "Groitzsch",
+            "expectedGrave": "Grab 2",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": [
+              22,
+              23,
+              25
+            ]
+          },
+          {
+            "sourceKey": "R010",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 1",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": [
+              109,
+              110,
+              112,
+              127,
+              136,
+              137
+            ]
+          },
+          {
+            "sourceKey": "R011",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 2",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": [
+              109,
+              112,
+              127,
+              136,
+              137
+            ]
+          },
+          {
+            "sourceKey": "R012",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 3",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": [
+              109,
+              110,
+              112,
+              127,
+              136,
+              137
+            ]
+          },
+          {
+            "sourceKey": "R013",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 4",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": [
+              109,
+              110,
+              112,
+              127,
+              136,
+              137
+            ]
+          },
+          {
+            "sourceKey": "R014",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 5",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": [
+              109,
+              110,
+              112,
+              127,
+              136,
+              137
+            ]
+          },
+          {
+            "sourceKey": "R015",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 6",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": [
+              109,
+              112,
+              127,
+              136,
+              137
+            ]
+          },
+          {
+            "sourceKey": "R016",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 7",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": [
+              109,
+              110,
+              112,
+              127,
+              136,
+              137
+            ]
+          },
+          {
+            "sourceKey": "R017",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 8",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": [
+              109,
+              112,
+              127,
+              136,
+              137,
+              138,
+              190,
+              191,
+              192,
+              193,
+              194,
+              195,
+              196
+            ]
+          },
+          {
+            "sourceKey": "R018",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 9",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": [
+              109,
+              110,
+              112,
+              127,
+              136,
+              137,
+              138,
+              197,
+              198,
+              199,
+              200,
+              201,
+              202,
+              203,
+              204
+            ]
+          },
+          {
+            "sourceKey": "R019",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 10",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": [
+              109,
+              110,
+              112,
+              127,
+              136,
+              137,
+              138,
+              205,
+              206,
+              207,
+              208,
+              209
+            ]
+          },
+          {
+            "sourceKey": "R020",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 11",
+            "identityInExpectedRecord": false,
+            "missingIndependentContextBlocks": [
+              109,
+              127,
+              136,
+              137,
+              138,
+              210,
+              211,
+              212,
+              213,
+              214,
+              215
+            ]
+          }
+        ],
+        "allIdentitiesMatch": false,
+        "allIndependentContextRetained": false
+      },
+      "status": "aborted"
+    },
+    {
+      "attempt": "conrad-attempt-2",
+      "workflow": {
+        "startedAt": "2026-09-05T14:03:33.235Z",
+        "source": "D:\\progetti\\FREE\\prototypes\\grounding_lab\\final_dataset_3\\conrad-2011-bbc-graves-de",
+        "model": "qwen3.8:27b",
+        "modelDigest": "22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643",
+        "context": 262144,
+        "outputTokens": 8192,
+        "batchSize": 2,
+        "retries": 0,
+        "complete": true,
+        "calls": [
+          {
+            "name": "discovery",
+            "startedAt": "2026-09-05T14:03:33.309Z",
+            "requestHash": "7d9e5195c4e688d7e2d3cad3256b62bc29bcc79e5fd709324a4d35a7f80ac8ec",
+            "complete": true,
+            "inputTokens": 41174,
+            "outputTokens": 1197,
+            "finishReason": "stop",
+            "durationSeconds": 91.2836358
+          },
+          {
+            "name": "baseline-metadata",
+            "startedAt": "2026-09-05T14:05:04.608Z",
+            "requestHash": "91d5a01b5d526987040210e8dfad108f58d725ce7d7f77296590ce4aa798c2bf",
+            "complete": true,
+            "inputTokens": 36159,
+            "outputTokens": 123,
+            "finishReason": "stop",
+            "durationSeconds": 53.85039499999999
+          },
+          {
+            "name": "baseline-batch-0",
+            "startedAt": "2026-09-05T14:05:58.468Z",
+            "requestHash": "7205fcac73399048a1d60599583c0f58d340d38d06639ed3ec7482e55c6f1dee",
+            "complete": true,
+            "inputTokens": 1020,
+            "outputTokens": 516,
+            "finishReason": "stop",
+            "durationSeconds": 15.865140600000013
+          },
+          {
+            "name": "baseline-batch-2",
+            "startedAt": "2026-09-05T14:06:14.343Z",
+            "requestHash": "22144e61cccfee11d26a88aa61fbb84c04e8decd0e3f66a4c56e5edc0254bade",
+            "complete": true,
+            "inputTokens": 1212,
+            "outputTokens": 482,
+            "finishReason": "stop",
+            "durationSeconds": 14.274486600000003
+          },
+          {
+            "name": "baseline-batch-4",
+            "startedAt": "2026-09-05T14:06:28.624Z",
+            "requestHash": "99b731172187b9867c54a70316041555a8028aac8a2f3d9734f53c9c01f3db8a",
+            "complete": true,
+            "inputTokens": 782,
+            "outputTokens": 519,
+            "finishReason": "stop",
+            "durationSeconds": 14.661528900000004
+          },
+          {
+            "name": "baseline-batch-6",
+            "startedAt": "2026-09-05T14:06:43.292Z",
+            "requestHash": "78ff580dc47610ffd893911db6f253e77bd8847a19cb3fb187d11ed02cb02b56",
+            "complete": true,
+            "inputTokens": 757,
+            "outputTokens": 484,
+            "finishReason": "stop",
+            "durationSeconds": 13.786960199999973
+          },
+          {
+            "name": "baseline-batch-8",
+            "startedAt": "2026-09-05T14:06:57.084Z",
+            "requestHash": "9193f912cfcb9879821a9ad876951af4a2a75c242427ae145c7fd14c07d37982",
+            "complete": true,
+            "inputTokens": 1266,
+            "outputTokens": 492,
+            "finishReason": "stop",
+            "durationSeconds": 15.2200564
+          },
+          {
+            "name": "baseline-batch-10",
+            "startedAt": "2026-09-05T14:07:12.310Z",
+            "requestHash": "a3f63cf439a06b312afbbb53606dc0371392790040a07d329f738279cfae971f",
+            "complete": true,
+            "inputTokens": 1440,
+            "outputTokens": 499,
+            "finishReason": "stop",
+            "durationSeconds": 15.1566403
+          },
+          {
+            "name": "baseline-batch-12",
+            "startedAt": "2026-09-05T14:07:27.474Z",
+            "requestHash": "96c6571d92a2139cf6ddbe8011201fb701ae91aafebff3c5fd920a22309c1d21",
+            "complete": true,
+            "inputTokens": 1829,
+            "outputTokens": 545,
+            "finishReason": "stop",
+            "durationSeconds": 16.833966000000014
+          },
+          {
+            "name": "baseline-batch-14",
+            "startedAt": "2026-09-05T14:07:44.314Z",
+            "requestHash": "86bc008db06498d81aaaee68a9a46d5e119e550590445ddb2098ea82c508a152",
+            "complete": true,
+            "inputTokens": 4770,
+            "outputTokens": 1043,
+            "finishReason": "stop",
+            "durationSeconds": 32.934691699999995
+          },
+          {
+            "name": "baseline-batch-16",
+            "startedAt": "2026-09-05T14:08:17.259Z",
+            "requestHash": "56b12655f232a3049268ac03b5b51c0a3522180dfc3b4754458f72e744ab953d",
+            "complete": true,
+            "inputTokens": 2571,
+            "outputTokens": 603,
+            "finishReason": "stop",
+            "durationSeconds": 19.3660196
+          },
+          {
+            "name": "baseline-batch-18",
+            "startedAt": "2026-09-05T14:08:36.629Z",
+            "requestHash": "cfcf4244c9290324203ead85c38964f4c2014e0fea06e619d54f202abb8e4daf",
+            "complete": true,
+            "inputTokens": 1280,
+            "outputTokens": 484,
+            "finishReason": "stop",
+            "durationSeconds": 15.015914300000004
+          },
+          {
+            "name": "quote-metadata",
+            "startedAt": "2026-09-05T14:10:02.391Z",
+            "requestHash": "d1f571b543b44fecd50545788bc12f5a0d36627405cc3e71ae56d438ccb6b1b4",
+            "complete": true,
+            "inputTokens": 36299,
+            "outputTokens": 580,
+            "finishReason": "stop",
+            "durationSeconds": 65.89505419999996
+          },
+          {
+            "name": "quote-batch-0",
+            "startedAt": "2026-09-05T14:11:08.293Z",
+            "requestHash": "137cc81e8384454ce7b176a3096817aa17e74b7989e77dd7f5333a280b7f1448",
+            "complete": true,
+            "inputTokens": 1248,
+            "outputTokens": 1551,
+            "finishReason": "stop",
+            "durationSeconds": 42.311204299999986
+          },
+          {
+            "name": "quote-batch-2",
+            "startedAt": "2026-09-05T14:11:50.608Z",
+            "requestHash": "2d540695a6fe187db690edd770e3a417b311aa87c075eb200bc62a816bdba415",
+            "complete": true,
+            "inputTokens": 1440,
+            "outputTokens": 1470,
+            "finishReason": "stop",
+            "durationSeconds": 39.376327900000035
+          },
+          {
+            "name": "quote-batch-4",
+            "startedAt": "2026-09-05T14:12:29.987Z",
+            "requestHash": "479e698f2843852431afb18ee0e4b8f0741766848bd627a5ead5bdeec95a4004",
+            "complete": true,
+            "inputTokens": 1010,
+            "outputTokens": 1691,
+            "finishReason": "stop",
+            "durationSeconds": 44.494288300000015
+          },
+          {
+            "name": "quote-batch-6",
+            "startedAt": "2026-09-05T14:13:14.491Z",
+            "requestHash": "354f562c9720124bd8ce21eecdc8afaa328eb4bf5aba104b1bc51a0ea0b74add",
+            "complete": true,
+            "inputTokens": 985,
+            "outputTokens": 1282,
+            "finishReason": "stop",
+            "durationSeconds": 34.094048500000035
+          },
+          {
+            "name": "quote-batch-8",
+            "startedAt": "2026-09-05T14:13:48.595Z",
+            "requestHash": "47f2b24051f4d819f481bff04df49b41eda22f6462d8a6779397c24493ec2b14",
+            "complete": true,
+            "inputTokens": 1494,
+            "outputTokens": 1426,
+            "finishReason": "stop",
+            "durationSeconds": 38.49277529999998
+          },
+          {
+            "name": "quote-batch-10",
+            "startedAt": "2026-09-05T14:14:27.093Z",
+            "requestHash": "c71d0fc1880657c7c4c44fa97c5b288026b757f7f03c1cb4ed46e190323757d8",
+            "complete": true,
+            "inputTokens": 1668,
+            "outputTokens": 1702,
+            "finishReason": "stop",
+            "durationSeconds": 45.32705829999992
+          },
+          {
+            "name": "quote-batch-12",
+            "startedAt": "2026-09-05T14:15:12.429Z",
+            "requestHash": "5f2ef90d0c3b192b8cecc06e5bacc72a2640b6edb996b7fb34799c81537e3f8d",
+            "complete": true,
+            "inputTokens": 2057,
+            "outputTokens": 1614,
+            "finishReason": "stop",
+            "durationSeconds": 43.72490690000006
+          },
+          {
+            "name": "quote-batch-14",
+            "startedAt": "2026-09-05T14:15:56.159Z",
+            "requestHash": "3caf186bc787023d32ab9ba32ffb8dae3ce27265b03c7059d1dc0547d7a47425",
+            "complete": true,
+            "inputTokens": 4998,
+            "outputTokens": 2617,
+            "finishReason": "stop",
+            "durationSeconds": 73.90523380000005
+          },
+          {
+            "name": "quote-batch-16",
+            "startedAt": "2026-09-05T14:17:10.072Z",
+            "requestHash": "64e636d28479df5be56e85a48fa0ac2413f72ad2a2ae8a58edfc9edf88afe149",
+            "complete": true,
+            "inputTokens": 2799,
+            "outputTokens": 2321,
+            "finishReason": "stop",
+            "durationSeconds": 62.7565414000001
+          },
+          {
+            "name": "quote-batch-18",
+            "startedAt": "2026-09-05T14:18:12.836Z",
+            "requestHash": "4228d633ad8c333a464ed314ee4543f28c5360f505c91cc07ad4b99a4a942c83",
+            "complete": true,
+            "inputTokens": 1508,
+            "outputTokens": 1614,
+            "finishReason": "stop",
+            "durationSeconds": 42.992768399999946
+          }
+        ],
+        "arms": {
+          "baseline": {
+            "complete": true,
+            "requestedRecords": 20,
+            "startedAt": "2026-09-05T14:05:04.601Z",
+            "extractionAndMappingSeconds": 227.0548901,
+            "returnedRecords": 20,
+            "durationSeconds": 297.7777184
+          },
+          "quote": {
+            "complete": true,
+            "requestedRecords": 20,
+            "startedAt": "2026-09-05T14:10:02.382Z",
+            "extractionAndMappingSeconds": 533.4897367,
+            "returnedRecords": 20,
+            "durationSeconds": 573.3718478
+          }
+        },
+        "autoAccept": false,
+        "sourceHash": "61e0e61bee27fddaf89d0ccd08e9674ad1acf4ac3f1815ab6222a576bcbc4429",
+        "schemaHash": "5d5de644739cc640c79479609cd421ad6f5d0d3399349b3a867cf8e627a179d0",
+        "discoverySeconds": 91.2932325,
+        "durationThroughOutputWriteSeconds": 962.5203852999999,
+        "finishedAt": "2026-09-05T14:19:35.756Z"
+      },
+      "recordedRequestCount": 23,
+      "recordedResponseCount": 23,
+      "requestsWithoutResponse": [],
+      "aborted": false,
+      "sourceScope": {
+        "expectedRecords": 20,
+        "discoveredRecords": 20,
+        "checks": [
+          {
+            "sourceKey": "R001",
+            "expectedSite": "Altranstädt I",
+            "expectedGrave": "Grab 1",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R002",
+            "expectedSite": "Altranstädt II",
+            "expectedGrave": "Grab 7",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R003",
+            "expectedSite": "Altranstädt II",
+            "expectedGrave": "Grab 8",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R004",
+            "expectedSite": "Altranstädt II",
+            "expectedGrave": "Grab 9",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R005",
+            "expectedSite": "Bösdorf",
+            "expectedGrave": "Einzelgrab",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R006",
+            "expectedSite": "Großlehna",
+            "expectedGrave": "Grab 1",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R007",
+            "expectedSite": "Großlehna",
+            "expectedGrave": "Grab 2",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R008",
+            "expectedSite": "Groitzsch",
+            "expectedGrave": "Grab 1",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R009",
+            "expectedSite": "Groitzsch",
+            "expectedGrave": "Grab 2",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R010",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 1",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": [
+              109,
+              110,
+              112,
+              127,
+              136,
+              137
+            ]
+          },
+          {
+            "sourceKey": "R011",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 2",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": [
+              109,
+              112,
+              127,
+              136,
+              137,
+              138
+            ]
+          },
+          {
+            "sourceKey": "R012",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 3",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": [
+              109,
+              110,
+              112,
+              127,
+              136,
+              137,
+              138
+            ]
+          },
+          {
+            "sourceKey": "R013",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 4",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": [
+              109,
+              110,
+              112,
+              127,
+              136,
+              137,
+              138
+            ]
+          },
+          {
+            "sourceKey": "R014",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 5",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": [
+              109,
+              110,
+              112,
+              127,
+              136,
+              137,
+              138
+            ]
+          },
+          {
+            "sourceKey": "R015",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 6",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": [
+              109,
+              112,
+              127,
+              136,
+              137,
+              138
+            ]
+          },
+          {
+            "sourceKey": "R016",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 7",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": [
+              109,
+              110,
+              112,
+              127,
+              136,
+              137,
+              138
+            ]
+          },
+          {
+            "sourceKey": "R017",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 8",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": [
+              109,
+              112,
+              127,
+              136,
+              137,
+              138
+            ]
+          },
+          {
+            "sourceKey": "R018",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 9",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": [
+              109,
+              110,
+              112,
+              127,
+              136,
+              137,
+              138
+            ]
+          },
+          {
+            "sourceKey": "R019",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 10",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": [
+              109,
+              110,
+              112,
+              127,
+              136,
+              137,
+              138
+            ]
+          },
+          {
+            "sourceKey": "R020",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 11",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": [
+              109,
+              127,
+              136,
+              137,
+              138
+            ]
+          }
+        ],
+        "allIdentitiesMatch": true,
+        "allIndependentContextRetained": false
+      },
+      "status": "scope_failed",
+      "returnedRecordIdentityChecks": {
+        "baseline": [
+          {
+            "ordinal": 1,
+            "site": "Altranstädt I",
+            "graveId": "Grab 1",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 2,
+            "site": "Altranstädt II",
+            "graveId": "Grab 7",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 3,
+            "site": "Altranstädt II",
+            "graveId": "Grab 8",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 4,
+            "site": "Altranstädt II",
+            "graveId": "Grab 9",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 5,
+            "site": "Bösdorf, Lkr. Leipzig",
+            "graveId": null,
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 6,
+            "site": "Großlehna, Lkr. Leipzig",
+            "graveId": "Grab 1",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 7,
+            "site": "Großlehna, Lkr. Leipzig",
+            "graveId": "Grab 2",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 8,
+            "site": "Groitzsch, Lkr. Leipzig",
+            "graveId": "Grab 1",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 9,
+            "site": "Groitzsch, Lkr. Leipzig",
+            "graveId": "Grab 2",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 10,
+            "site": "Kölsa, Lkr. Nordsachsen",
+            "graveId": "Grab 1",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 11,
+            "site": null,
+            "graveId": "Grab 2",
+            "matchesIndependentIdentity": false
+          },
+          {
+            "ordinal": 12,
+            "site": null,
+            "graveId": "Grab 3",
+            "matchesIndependentIdentity": false
+          },
+          {
+            "ordinal": 13,
+            "site": null,
+            "graveId": "Grab 4",
+            "matchesIndependentIdentity": false
+          },
+          {
+            "ordinal": 14,
+            "site": null,
+            "graveId": "Grab 5",
+            "matchesIndependentIdentity": false
+          },
+          {
+            "ordinal": 15,
+            "site": null,
+            "graveId": "Grab 6",
+            "matchesIndependentIdentity": false
+          },
+          {
+            "ordinal": 16,
+            "site": null,
+            "graveId": "Grab 7",
+            "matchesIndependentIdentity": false
+          },
+          {
+            "ordinal": 17,
+            "site": null,
+            "graveId": "Grab 8",
+            "matchesIndependentIdentity": false
+          },
+          {
+            "ordinal": 18,
+            "site": null,
+            "graveId": "Grab 9",
+            "matchesIndependentIdentity": false
+          },
+          {
+            "ordinal": 19,
+            "site": null,
+            "graveId": "Grab 10",
+            "matchesIndependentIdentity": false
+          },
+          {
+            "ordinal": 20,
+            "site": null,
+            "graveId": "Grab 11",
+            "matchesIndependentIdentity": false
+          }
+        ],
+        "quote": [
+          {
+            "ordinal": 1,
+            "site": "Altranstädt I",
+            "graveId": "Grab 1",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 2,
+            "site": "Altranstädt II",
+            "graveId": "Grab 7",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 3,
+            "site": "Altranstädt II",
+            "graveId": "Grab 8",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 4,
+            "site": "Altranstädt II",
+            "graveId": "Grab 9",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 5,
+            "site": "Bösdorf, Lkr. Leipzig",
+            "graveId": null,
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 6,
+            "site": "Großlehna, Lkr. Leipzig",
+            "graveId": "Grab 1",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 7,
+            "site": "Großlehna, Lkr. Leipzig",
+            "graveId": "Grab 2",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 8,
+            "site": "Groitzsch, Lkr. Leipzig",
+            "graveId": "Grab 1",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 9,
+            "site": "Groitzsch, Lkr. Leipzig",
+            "graveId": "Grab 2",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 10,
+            "site": "Kölsa, Lkr. Nordsachsen",
+            "graveId": "Grab 1",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 11,
+            "site": null,
+            "graveId": "Grab 2",
+            "matchesIndependentIdentity": false
+          },
+          {
+            "ordinal": 12,
+            "site": null,
+            "graveId": "Grab 3",
+            "matchesIndependentIdentity": false
+          },
+          {
+            "ordinal": 13,
+            "site": null,
+            "graveId": "Grab 4",
+            "matchesIndependentIdentity": false
+          },
+          {
+            "ordinal": 14,
+            "site": null,
+            "graveId": "Grab 5",
+            "matchesIndependentIdentity": false
+          },
+          {
+            "ordinal": 15,
+            "site": null,
+            "graveId": "Grab 6",
+            "matchesIndependentIdentity": false
+          },
+          {
+            "ordinal": 16,
+            "site": null,
+            "graveId": "Grab 7",
+            "matchesIndependentIdentity": false
+          },
+          {
+            "ordinal": 17,
+            "site": null,
+            "graveId": "Grab 8",
+            "matchesIndependentIdentity": false
+          },
+          {
+            "ordinal": 18,
+            "site": null,
+            "graveId": "Grab 9",
+            "matchesIndependentIdentity": false
+          },
+          {
+            "ordinal": 19,
+            "site": null,
+            "graveId": "Grab 10",
+            "matchesIndependentIdentity": false
+          },
+          {
+            "ordinal": 20,
+            "site": null,
+            "graveId": "Grab 11",
+            "matchesIndependentIdentity": false
+          }
+        ]
+      }
+    },
+    {
+      "attempt": "conrad-attempt-3",
+      "workflow": {
+        "startedAt": "2026-09-05T14:19:00.136Z",
+        "source": "D:\\progetti\\FREE\\prototypes\\grounding_lab\\final_dataset_3\\conrad-2011-bbc-graves-de",
+        "model": "qwen3.8:27b",
+        "modelDigest": "22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643",
+        "context": 262144,
+        "outputTokens": 8192,
+        "batchSize": 2,
+        "retries": 0,
+        "complete": true,
+        "calls": [
+          {
+            "name": "discovery",
+            "startedAt": "2026-09-05T14:19:00.201Z",
+            "requestHash": "fb00e4806109a9e1efca621b3c5e234be87e3b9879f15a277da3135c66aa2caa",
+            "complete": true,
+            "inputTokens": 41229,
+            "outputTokens": 3824,
+            "finishReason": "stop",
+            "durationSeconds": 166.6971011
+          },
+          {
+            "name": "baseline-metadata",
+            "startedAt": "2026-09-05T14:21:46.919Z",
+            "requestHash": "91d5a01b5d526987040210e8dfad108f58d725ce7d7f77296590ce4aa798c2bf",
+            "complete": true,
+            "inputTokens": 36159,
+            "outputTokens": 123,
+            "finishReason": "stop",
+            "durationSeconds": 53.722580699999995
+          },
+          {
+            "name": "baseline-batch-0",
+            "startedAt": "2026-09-05T14:22:40.646Z",
+            "requestHash": "4d9f47ee8dfa42aa765c1e8ed501cafb5066561cacd52abdce494b252d78fe12",
+            "complete": true,
+            "inputTokens": 870,
+            "outputTokens": 514,
+            "finishReason": "stop",
+            "durationSeconds": 15.83115789999999
+          },
+          {
+            "name": "baseline-batch-2",
+            "startedAt": "2026-09-05T14:22:56.481Z",
+            "requestHash": "1230e68b4955221e165d2bdfcc26e6e4205239c04b0103b12f65f75150b8db16",
+            "complete": true,
+            "inputTokens": 901,
+            "outputTokens": 492,
+            "finishReason": "stop",
+            "durationSeconds": 13.991690199999983
+          },
+          {
+            "name": "baseline-batch-4",
+            "startedAt": "2026-09-05T14:23:10.478Z",
+            "requestHash": "bd655af7f039823d0ac9778362938d76a6724577c7d9280a0b87e8c683380e18",
+            "complete": true,
+            "inputTokens": 751,
+            "outputTokens": 519,
+            "finishReason": "stop",
+            "durationSeconds": 14.774870999999985
+          },
+          {
+            "name": "baseline-batch-6",
+            "startedAt": "2026-09-05T14:23:25.259Z",
+            "requestHash": "3ba8b1c5c1c2c3587267f94f230dd63f7e7cae69605ddcd5a2e3e9990be2fa81",
+            "complete": true,
+            "inputTokens": 687,
+            "outputTokens": 484,
+            "finishReason": "stop",
+            "durationSeconds": 13.63247689999995
+          },
+          {
+            "name": "baseline-batch-8",
+            "startedAt": "2026-09-05T14:23:38.897Z",
+            "requestHash": "91a553a1adaa4c7557100a8c5491b01e7c977703659d99d31a8a71a50ba0c512",
+            "complete": true,
+            "inputTokens": 2731,
+            "outputTokens": 476,
+            "finishReason": "stop",
+            "durationSeconds": 16.59848099999997
+          },
+          {
+            "name": "baseline-batch-10",
+            "startedAt": "2026-09-05T14:23:55.501Z",
+            "requestHash": "f8f298c091809a9f0f3cc5650afba2cc9765607d2ac86199a459740791b94f08",
+            "complete": true,
+            "inputTokens": 4732,
+            "outputTokens": 515,
+            "finishReason": "stop",
+            "durationSeconds": 19.455748499999988
+          },
+          {
+            "name": "baseline-batch-12",
+            "startedAt": "2026-09-05T14:24:14.969Z",
+            "requestHash": "9ef1d609251a5d22d78ac7bce287113393d9a7fff2f80cf7a889b2683ec8c806",
+            "complete": true,
+            "inputTokens": 5121,
+            "outputTokens": 556,
+            "finishReason": "stop",
+            "durationSeconds": 21.146850199999985
+          },
+          {
+            "name": "baseline-batch-14",
+            "startedAt": "2026-09-05T14:24:36.121Z",
+            "requestHash": "ee34fe0bb8b4c31ce0e4cb457b447ded20f99a4dfd6435e8987aafd9455ec055",
+            "complete": true,
+            "inputTokens": 8062,
+            "outputTokens": 1081,
+            "finishReason": "stop",
+            "durationSeconds": 38.353403399999955
+          },
+          {
+            "name": "baseline-batch-16",
+            "startedAt": "2026-09-05T14:25:14.480Z",
+            "requestHash": "17820be22129f16e7789349bbec14717bca53d9b34b29c50ad30a0c5786ceb6d",
+            "complete": true,
+            "inputTokens": 5863,
+            "outputTokens": 573,
+            "finishReason": "stop",
+            "durationSeconds": 22.585892200000004
+          },
+          {
+            "name": "baseline-batch-18",
+            "startedAt": "2026-09-05T14:25:37.070Z",
+            "requestHash": "03ae3a7667e3720cccab167a47073f46fe214346c164a180af463d166a824388",
+            "complete": true,
+            "inputTokens": 4572,
+            "outputTokens": 492,
+            "finishReason": "stop",
+            "durationSeconds": 19.147791000000026
+          },
+          {
+            "name": "quote-metadata",
+            "startedAt": "2026-09-05T14:26:43.100Z",
+            "requestHash": "d1f571b543b44fecd50545788bc12f5a0d36627405cc3e71ae56d438ccb6b1b4",
+            "complete": true,
+            "inputTokens": 36299,
+            "outputTokens": 580,
+            "finishReason": "stop",
+            "durationSeconds": 65.91167499999993
+          },
+          {
+            "name": "quote-batch-0",
+            "startedAt": "2026-09-05T14:27:49.016Z",
+            "requestHash": "f7479b89f78daf5d53a21417c30db802ab099f39e837702617df09c7e80a2684",
+            "complete": true,
+            "inputTokens": 1098,
+            "outputTokens": 1482,
+            "finishReason": "stop",
+            "durationSeconds": 40.48184490000003
+          },
+          {
+            "name": "quote-batch-2",
+            "startedAt": "2026-09-05T14:28:29.504Z",
+            "requestHash": "980c9bf2b5c4543d09706cf1a539b9ce5119c38a70d34b0fca9443b2f635995b",
+            "complete": true,
+            "inputTokens": 1129,
+            "outputTokens": 1458,
+            "finishReason": "stop",
+            "durationSeconds": 38.7094706
+          },
+          {
+            "name": "quote-batch-4",
+            "startedAt": "2026-09-05T14:29:08.222Z",
+            "requestHash": "e0d2258515db0f09746dac0b05b0eb56ee2e6959ec81ac1f5eeb5ccc93079c4b",
+            "complete": true,
+            "inputTokens": 979,
+            "outputTokens": 1691,
+            "finishReason": "stop",
+            "durationSeconds": 44.27410640000005
+          },
+          {
+            "name": "quote-batch-6",
+            "startedAt": "2026-09-05T14:29:52.504Z",
+            "requestHash": "5122cc8cd4f236d726532ca6b4c1ec8d9278038d57b1f0059106268b625a8a91",
+            "complete": true,
+            "inputTokens": 915,
+            "outputTokens": 1282,
+            "finishReason": "stop",
+            "durationSeconds": 33.89579799999995
+          },
+          {
+            "name": "quote-batch-8",
+            "startedAt": "2026-09-05T14:30:26.405Z",
+            "requestHash": "af378c9164d9fead629b52b496a75f76158f193f62d431d96b89f3c360b00187",
+            "complete": true,
+            "inputTokens": 2959,
+            "outputTokens": 1415,
+            "finishReason": "stop",
+            "durationSeconds": 40.04807960000006
+          },
+          {
+            "name": "quote-batch-10",
+            "startedAt": "2026-09-05T14:31:06.468Z",
+            "requestHash": "1a704fcade2bf20283f76342dacc63adff141f843419237c61a9a63624b4acf2",
+            "complete": true,
+            "inputTokens": 4960,
+            "outputTokens": 1909,
+            "finishReason": "stop",
+            "durationSeconds": 55.54030359999999
+          },
+          {
+            "name": "quote-batch-12",
+            "startedAt": "2026-09-05T14:32:02.016Z",
+            "requestHash": "4f22e8015bc2e7a329d69dcfec73eae010728abb8b5d9a97c37e9cbff3bc40bb",
+            "complete": true,
+            "inputTokens": 5349,
+            "outputTokens": 1617,
+            "finishReason": "stop",
+            "durationSeconds": 49.26500600000005
+          },
+          {
+            "name": "quote-batch-14",
+            "startedAt": "2026-09-05T14:32:51.287Z",
+            "requestHash": "b04de7636db89ead64f49ea859c62de8f9fcc69f28fde7b7b21f45e63484f0a9",
+            "complete": true,
+            "inputTokens": 8290,
+            "outputTokens": 3585,
+            "finishReason": "stop",
+            "durationSeconds": 104.53093510000001
+          },
+          {
+            "name": "quote-batch-16",
+            "startedAt": "2026-09-05T14:34:35.827Z",
+            "requestHash": "5b383e16e79e53c96344e2775b54763af44794a03e44773f495c03b6571a95f5",
+            "complete": true,
+            "inputTokens": 6091,
+            "outputTokens": 2074,
+            "finishReason": "stop",
+            "durationSeconds": 61.38170319999999
+          },
+          {
+            "name": "quote-batch-18",
+            "startedAt": "2026-09-05T14:35:37.215Z",
+            "requestHash": "8db57999595b14d8c821fbbaf85fc28049f5869fb1789b5cb1a4087de5e4e13c",
+            "complete": true,
+            "inputTokens": 4800,
+            "outputTokens": 1698,
+            "finishReason": "stop",
+            "durationSeconds": 50.024502399999996
+          }
+        ],
+        "arms": {
+          "baseline": {
+            "complete": true,
+            "requestedRecords": 20,
+            "startedAt": "2026-09-05T14:21:46.910Z",
+            "extractionAndMappingSeconds": 249.3173277,
+            "returnedRecords": 20,
+            "durationSeconds": 296.1845017
+          },
+          "quote": {
+            "complete": true,
+            "requestedRecords": 20,
+            "startedAt": "2026-09-05T14:26:43.095Z",
+            "extractionAndMappingSeconds": 584.2068370999999,
+            "returnedRecords": 20,
+            "durationSeconds": 623.9701514000001
+          }
+        },
+        "autoAccept": false,
+        "sourceHash": "61e0e61bee27fddaf89d0ccd08e9674ad1acf4ac3f1815ab6222a576bcbc4429",
+        "schemaHash": "5d5de644739cc640c79479609cd421ad6f5d0d3399349b3a867cf8e627a179d0",
+        "discoverySeconds": 166.7106298,
+        "durationThroughOutputWriteSeconds": 1086.9312268,
+        "finishedAt": "2026-09-05T14:37:07.068Z"
+      },
+      "recordedRequestCount": 23,
+      "recordedResponseCount": 23,
+      "requestsWithoutResponse": [],
+      "aborted": false,
+      "sourceScope": {
+        "expectedRecords": 20,
+        "discoveredRecords": 20,
+        "checks": [
+          {
+            "sourceKey": "R001",
+            "expectedSite": "Altranstädt I",
+            "expectedGrave": "Grab 1",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R002",
+            "expectedSite": "Altranstädt II",
+            "expectedGrave": "Grab 7",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R003",
+            "expectedSite": "Altranstädt II",
+            "expectedGrave": "Grab 8",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R004",
+            "expectedSite": "Altranstädt II",
+            "expectedGrave": "Grab 9",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R005",
+            "expectedSite": "Bösdorf",
+            "expectedGrave": "Einzelgrab",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R006",
+            "expectedSite": "Großlehna",
+            "expectedGrave": "Grab 1",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R007",
+            "expectedSite": "Großlehna",
+            "expectedGrave": "Grab 2",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R008",
+            "expectedSite": "Groitzsch",
+            "expectedGrave": "Grab 1",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R009",
+            "expectedSite": "Groitzsch",
+            "expectedGrave": "Grab 2",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R010",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 1",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R011",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 2",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R012",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 3",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R013",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 4",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R014",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 5",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R015",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 6",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R016",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 7",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R017",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 8",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R018",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 9",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R019",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 10",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          },
+          {
+            "sourceKey": "R020",
+            "expectedSite": "Kölsa",
+            "expectedGrave": "Grab 11",
+            "identityInExpectedRecord": true,
+            "missingIndependentContextBlocks": []
+          }
+        ],
+        "allIdentitiesMatch": true,
+        "allIndependentContextRetained": true
+      },
+      "status": "complete",
+      "returnedRecordIdentityChecks": {
+        "baseline": [
+          {
+            "ordinal": 1,
+            "site": "Altranstädt I",
+            "graveId": "Grab 1",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 2,
+            "site": "Altranstädt II",
+            "graveId": "Grab 7",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 3,
+            "site": "Altranstädt II, Lkr. Leipzig",
+            "graveId": "Grab 8",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 4,
+            "site": "Altranstädt II, Lkr. Leipzig",
+            "graveId": "Grab 9",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 5,
+            "site": "Bösdorf, Lkr. Leipzig",
+            "graveId": null,
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 6,
+            "site": "Großlehna, Lkr. Leipzig",
+            "graveId": "Grab 1",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 7,
+            "site": "Großlehna, Lkr. Leipzig",
+            "graveId": "Grab 2",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 8,
+            "site": "Groitzsch, Lkr. Leipzig",
+            "graveId": "Grab 1",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 9,
+            "site": "Groitzsch, Lkr. Leipzig",
+            "graveId": "Grab 2",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 10,
+            "site": "Kölsa, Lkr. Nordsachsen",
+            "graveId": "Grab 1",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 11,
+            "site": "Kölsa",
+            "graveId": "Grab 2",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 12,
+            "site": "Kölsa",
+            "graveId": "Grab 3",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 13,
+            "site": "Kölsa",
+            "graveId": "4",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 14,
+            "site": "Kölsa",
+            "graveId": "5",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 15,
+            "site": "Kölsa",
+            "graveId": "Grab 6",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 16,
+            "site": "Kölsa",
+            "graveId": "Grab 7",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 17,
+            "site": "Kölsa",
+            "graveId": "8",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 18,
+            "site": "Kölsa",
+            "graveId": "9",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 19,
+            "site": "Kölsa",
+            "graveId": "10",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 20,
+            "site": "Kölsa",
+            "graveId": "11",
+            "matchesIndependentIdentity": true
+          }
+        ],
+        "quote": [
+          {
+            "ordinal": 1,
+            "site": "Altranstädt I",
+            "graveId": "Grab 1",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 2,
+            "site": "Altranstädt II",
+            "graveId": "Grab 7",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 3,
+            "site": "Altranstädt II, Lkr. Leipzig",
+            "graveId": "Grab 8",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 4,
+            "site": "Altranstädt II, Lkr. Leipzig",
+            "graveId": "Grab 9",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 5,
+            "site": "Bösdorf, Lkr. Leipzig",
+            "graveId": null,
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 6,
+            "site": "Großlehna, Lkr. Leipzig",
+            "graveId": "Grab 1",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 7,
+            "site": "Großlehna, Lkr. Leipzig",
+            "graveId": "Grab 2",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 8,
+            "site": "Groitzsch, Lkr. Leipzig",
+            "graveId": "Grab 1",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 9,
+            "site": "Groitzsch, Lkr. Leipzig",
+            "graveId": "Grab 2",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 10,
+            "site": "Kölsa, Lkr. Nordsachsen",
+            "graveId": "Grab 1",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 11,
+            "site": "Kölsa",
+            "graveId": "Grab 2",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 12,
+            "site": "Kölsa",
+            "graveId": "Grab 3",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 13,
+            "site": "Kölsa",
+            "graveId": "Grab 4",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 14,
+            "site": "Kölsa",
+            "graveId": "Grab 5",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 15,
+            "site": "Kölsa",
+            "graveId": "Grab 6",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 16,
+            "site": "Kölsa",
+            "graveId": "Grab 7",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 17,
+            "site": "Kölsa",
+            "graveId": "Grab 8",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 18,
+            "site": "Kölsa",
+            "graveId": "Grab 9",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 19,
+            "site": "Kölsa, Lkr. Nordsachsen",
+            "graveId": "Grab 10",
+            "matchesIndependentIdentity": true
+          },
+          {
+            "ordinal": 20,
+            "site": "Kölsa, Lkr. Nordsachsen",
+            "graveId": "Grab 11",
+            "matchesIndependentIdentity": true
+          }
+        ]
+      }
+    }
+  ],
+  "attemptStatusCounts": {
+    "complete": 1,
+    "scope_failed": 1,
+    "generation_failed": 0,
+    "aborted": 1
+  },
+  "observedWorkflowSeconds": {
+    "n": 2,
+    "p50": 962.5203852999999,
+    "p95": 1086.9312268,
+    "p99": 1086.9312268
+  },
+  "physicalCalls": {
+    "requests": 52,
+    "responses": 51,
+    "reportedInputTokens": 414593,
+    "reportedOutputTokens": 55951,
+    "usageIncomplete": true
+  },
+  "labelCounts": {
+    "distinct": 1053,
+    "emitted": 1203,
+    "unresolved": 1
+  },
+  "unscoredEmittedValues": 77,
+  "limitations": "One development source, which belongs to the frozen risk model training families; risk diagnostics are descriptive development results. All attempts retained, including partial completed batches. No fitted holdout parameters, automatic acceptance, standalone hybrid timing, or production calibration claim."
+}

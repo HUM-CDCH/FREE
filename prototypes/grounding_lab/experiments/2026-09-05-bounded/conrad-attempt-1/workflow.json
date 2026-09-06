@@ -1,0 +1,74 @@
+{
+  "startedAt": "2026-09-05T13:58:28.753Z",
+  "source": "D:\\progetti\\FREE\\prototypes\\grounding_lab\\final_dataset_3\\conrad-2011-bbc-graves-de",
+  "model": "qwen3.8:27b",
+  "modelDigest": "22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643",
+  "context": 262144,
+  "outputTokens": 8192,
+  "batchSize": 2,
+  "retries": 0,
+  "complete": false,
+  "calls": [
+    {
+      "name": "discovery",
+      "startedAt": "2026-09-05T13:58:28.839Z",
+      "requestHash": "e1cea15db8f4f57d0fd889ee11ab89b0d5e58963a760376a73cd5ad3a80b977d",
+      "complete": true,
+      "inputTokens": 41073,
+      "outputTokens": 980,
+      "finishReason": "stop",
+      "durationSeconds": 92.010575
+    },
+    {
+      "name": "baseline-metadata",
+      "startedAt": "2026-09-05T14:00:00.865Z",
+      "requestHash": "91d5a01b5d526987040210e8dfad108f58d725ce7d7f77296590ce4aa798c2bf",
+      "complete": true,
+      "inputTokens": 36159,
+      "outputTokens": 123,
+      "finishReason": "stop",
+      "durationSeconds": 53.54484479999999
+    },
+    {
+      "name": "baseline-batch-0",
+      "startedAt": "2026-09-05T14:00:54.419Z",
+      "requestHash": "7e7e2366ec9aba54f28c3c72517fe6b56b896207ea1326c8b354b8f463613052",
+      "complete": true,
+      "inputTokens": 1001,
+      "outputTokens": 519,
+      "finishReason": "stop",
+      "durationSeconds": 15.959123599999991
+    },
+    {
+      "name": "baseline-batch-2",
+      "startedAt": "2026-09-05T14:01:10.387Z",
+      "requestHash": "e23dc117a2214e184cea2ed18dd6402081d365415e716802b6a1c8574564e11b",
+      "complete": true,
+      "inputTokens": 780,
+      "outputTokens": 519,
+      "finishReason": "stop",
+      "durationSeconds": 14.758233500000003
+    },
+    {
+      "name": "baseline-batch-4",
+      "startedAt": "2026-09-05T14:01:25.148Z",
+      "requestHash": "1f54b70c6d22683f247d591103b7ef6658c9dc9790b9970eb5aff9f4c1d6aec7",
+      "complete": true,
+      "inputTokens": 1267,
+      "outputTokens": 515,
+      "finishReason": "stop",
+      "durationSeconds": 15.336397400000017
+    }
+  ],
+  "arms": {
+    "baseline": {
+      "complete": false,
+      "requestedRecords": 20,
+      "startedAt": "2026-09-05T14:00:00.860Z"
+    }
+  },
+  "autoAccept": false,
+  "sourceHash": "61e0e61bee27fddaf89d0ccd08e9674ad1acf4ac3f1815ab6222a576bcbc4429",
+  "schemaHash": "5d5de644739cc640c79479609cd421ad6f5d0d3399349b3a867cf8e627a179d0",
+  "discoverySeconds": 92.02369680000001
+}

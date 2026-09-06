@@ -1,0 +1,16 @@
+{
+  "pythonTests": 98,
+  "nodeTests": 12,
+  "finalFocusedReportTests": 3,
+  "candidateFreezeVerified": true,
+  "finalRecordIdentitiesPerArm": 20,
+  "allMandatoryContextRetained": true,
+  "labelCoverage": {
+    "distinct": 1053,
+    "emitted": 1203,
+    "unresolved": 1
+  },
+  "policyLabelsUsed": false,
+  "holdoutOpened": false,
+  "resultsHash": "ff0939fd657985ed3e205e1a1b71037b87066f5aa0944d32bd4594b775c67371"
+}

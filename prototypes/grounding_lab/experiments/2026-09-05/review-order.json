@@ -1,0 +1,20 @@
+{
+  "status": "frozen",
+  "frozenAt": "2026-09-05T09:24:41Z",
+  "purpose": "Lab-only quote-only review-order addendum, defined after the extraction/policy freeze and before any holdout labels exist.",
+  "basis": "Development quote-mapping workflow and explicit experiment requirement; no holdout predictions or labels were inspected to define this order.",
+  "priorityByStatus": {
+    "missing": 0,
+    "not_found": 0,
+    "mapping_failure": 0,
+    "ambiguous": 1,
+    "mapped": 2
+  },
+  "reviewOrder": "Ascending ordinal priority: missing, altered or unmappable quotes first; ambiguous occurrences second; mapped quotes last. The first three statuses share one priority.",
+  "tieBreak": "Result-path segments ascending, numeric segments numerically and string segments lexically; numeric segments sort before strings if types differ. Family name breaks identical paths only in pooled summaries.",
+  "reviewMetrics": "Use the same deterministic queue for joint-evidence error and unsupported-value precision/recall at 1, 3 and 5 reviews per Extraction. Exclude unresolved labels from scored metrics.",
+  "coverageOrder": "Descending ordinal priority retains mapped quotes first, ambiguous quotes second, and missing/altered/unmappable quotes last; keep the same ascending path tie-break.",
+  "probability": false,
+  "calibration": "Quote-only Brier scores and reliability remain unavailable; ordinal priorities are not probabilities.",
+  "unchanged": "No extraction, quote matching, model, threshold, candidate-selection, or E routing changes."
+}

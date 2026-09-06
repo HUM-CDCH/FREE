@@ -4,7 +4,7 @@ import io
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import patch
@@ -351,6 +351,37 @@ class SiblingGateTest(unittest.TestCase):
         self.assertEqual((link, len(hits)), (None, 2))
 
 
+class BareNumberPruningTest(unittest.TestCase):
+    def test_keeps_row_supported_matches(self):
+        from grounding_lab.pipeline import narrow_bare_number_hits
+
+        hits = [
+            Anchor("wrong", "40", 1, "grave: Grave 7 | material: Copper | 40"),
+            Anchor("right", "40", 1, "grave: Grave 8 | material: Bronze | 40"),
+            Anchor("tie", "40", 1, "grave: Grave 8 | material: Copper | 40"),
+        ]
+        item = Claim(40, ("records", 0, "weight"), ("right",), "grave: Grave 8, material: Bronze")
+        self.assertEqual(
+            [anchor.anchor_id for anchor in narrow_bare_number_hits(item, hits)],
+            ["right", "tie"],
+        )
+
+    def test_no_row_signal_and_non_bare_values_pass_through(self):
+        from grounding_lab.pipeline import narrow_bare_number_hits
+
+        hits = [Anchor("a", "40", 1), Anchor("b", "40", 1)]
+        item = Claim(40, ("records", 0, "weight"), (), "grave: Grave 8")
+        self.assertIs(narrow_bare_number_hits(item, hits), hits)
+        self.assertIs(narrow_bare_number_hits(claim("forty", "grave: 8"), hits), hits)
+
+    def test_letter_suffix_ambiguity_is_exposed_for_instrumentation(self):
+        from grounding_lab.pipeline import letter_suffix_ambiguous
+
+        hits = [Anchor("a", "grave 1117A", 1)]
+        self.assertTrue(letter_suffix_ambiguous(1117, hits))
+        self.assertFalse(letter_suffix_ambiguous("1117A", hits))
+
+
 class UnknownConfigTest(unittest.TestCase):
     def test_unknown_config_raises(self):
         from grounding_lab.pipeline import ground
@@ -428,6 +459,24 @@ class LlmLabelTest(unittest.TestCase):
 
 
 class DatasetLoadingTest(unittest.TestCase):
+    def test_anchor_structure_is_loaded(self):
+        from grounding_lab.harness import load_dataset
+
+        with tempfile.TemporaryDirectory() as directory:
+            doc = Path(directory) / "document"
+            doc.mkdir()
+            (doc / "anchors.json").write_text(
+                '[{"anchorId":"a","text":"40","page":2,"kind":"table_cell",'
+                '"context":"row","afterBibliography":false,"logicalTableId":"t","row":3}]',
+                encoding="utf-8",
+            )
+            (doc / "claims.json").write_text("[]", encoding="utf-8")
+            anchor = load_dataset(Path(directory))[0][1].anchors[0]
+            self.assertEqual(
+                (anchor.kind, anchor.after_bibliography, anchor.logical_table_id, anchor.row),
+                ("table_cell", False, "t", 3),
+            )
+
     def test_fixture_directories_are_excluded(self):
         from grounding_lab.harness import load_dataset
 
@@ -484,6 +533,60 @@ class LabelReviewTest(unittest.TestCase):
         ):
             self.assertEqual(main(), 0)
         self.assertIn("OK: 10 doc(s) validated, 26 warning(s)", output.getvalue())
+
+    def test_incomplete_extraction_fails_before_it_can_be_a_benchmark_set(self):
+        from grounding_lab.label_review import main
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            doc = root / "truncated"
+            doc.mkdir()
+            (doc / "anchors.json").write_text(
+                '[{"anchorId":"a","text":"invented","page":1}]', encoding="utf-8"
+            )
+            (doc / "claims_extracted.json").write_text(
+                '[{"value":"invented","goldAnchorIds":[],"expectedLexicalHitIds":["a"]}]',
+                encoding="utf-8",
+            )
+            (doc / "extracted_meta.json").write_text(
+                '{"metadata":{"finishReason":"length"},"error":null}', encoding="utf-8"
+            )
+            errors = io.StringIO()
+            with (
+                patch("sys.argv", ["label-review", str(root), "--claims", "claims_extracted.json"]),
+                redirect_stdout(io.StringIO()),
+                redirect_stderr(errors),
+            ):
+                self.assertEqual(main(), 1)
+            self.assertIn("extraction incomplete", errors.getvalue())
+
+    def test_extraction_metadata_is_required_and_null_safe(self):
+        from grounding_lab.label_review import main
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            doc = root / "failed"
+            doc.mkdir()
+            (doc / "anchors.json").write_text("[]", encoding="utf-8")
+            (doc / "claims_extracted.json").write_text("[]", encoding="utf-8")
+            meta = doc / "extracted_meta.json"
+
+            for payload, message in (
+                ('{"metadata":null,"error":"boom"}', "error 'boom'"),
+                (None, "extracted_meta.json missing"),
+            ):
+                if payload is None:
+                    meta.unlink()
+                else:
+                    meta.write_text(payload, encoding="utf-8")
+                errors = io.StringIO()
+                with (
+                    patch("sys.argv", ["label-review", str(root), "--claims", "claims_extracted.json"]),
+                    redirect_stdout(io.StringIO()),
+                    redirect_stderr(errors),
+                ):
+                    self.assertEqual(main(), 1)
+                self.assertIn(message, errors.getvalue())
 
 
 class DateGuardTest(unittest.TestCase):
