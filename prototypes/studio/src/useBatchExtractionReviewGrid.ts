@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import { finalizeExtractionReview, readExtraction, resetExtractionReview, saveExtractionReviewDraft } from './api'
 import { leafFields } from './fieldCoverage'
-import { applyReviewDecisions, resultPathKey } from './reviewDecisions'
+import { applyReviewDecisions, resultPathKey, toReviewDecisionInput } from './reviewDecisions'
 import { isRecord } from '../shared/template'
 import { forgetReviewDraft, recoverReviewDraft, rememberReviewDraft, REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import type { BatchExtraction } from '../shared/batchExtraction.contract'
@@ -192,7 +192,7 @@ export function useBatchExtractionReviewGrid(
         if (recovered.conflict) draftConflicts.current.add(extraction.extractionId)
         else draftConflicts.current.delete(extraction.extractionId)
         const decisions = extraction.reviewedAt
-          ? extraction.reviewDecisions
+          ? extraction.reviewDecisions.map(toReviewDecisionInput)
           : recovered.decisions
         const state: Extract<MemberReviewState, { status: 'ready' }> = {
           status: 'ready',
@@ -480,7 +480,7 @@ export function useBatchExtractionReviewGrid(
         new Map(current).set(sourceDocumentId, {
           status: 'ready',
           attempt: updated,
-          decisions: updated.reviewDecisions,
+          decisions: updated.reviewDecisions.map(toReviewDecisionInput),
           // Now finalized — every field was explicitly decided, not
           // defaulted, so every field reads as "touched" from here on.
           touched: new Set(

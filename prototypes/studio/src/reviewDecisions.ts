@@ -24,6 +24,17 @@ export function resultPathKey(path: readonly (string | number)[]): string {
   return JSON.stringify(path)
 }
 
+/** Strips the server-only `createdAt` so a stored ReviewDecision can be sent back as draft input. */
+export function toReviewDecisionInput(decision: ReviewDecision): ReviewDecisionInput {
+  return {
+    resultPath: decision.resultPath,
+    evidenceAnchorId: decision.evidenceAnchorId,
+    reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
+    action: decision.action,
+    reviewedValue: decision.reviewedValue,
+  }
+}
+
 export function applyReviewDecisions(
   result: unknown,
   decisions: readonly Decision[],
