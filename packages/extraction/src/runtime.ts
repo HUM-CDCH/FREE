@@ -4,18 +4,17 @@ import {
   type CanonicalPackageStore,
   type Database,
 } from 'db'
-import type { ExtractionModuleDependencies } from './dependencies.js'
-import { createExtractionModule } from './module.js'
+import type { ExtractionJobExecutorDependencies } from './dependencies.js'
+import { createExtractionJobExecutor, createExtractionModule } from './module.js'
 import { ExtractionJobWorker } from './job-worker.js'
 import {
   createInternalExtractionJobStore,
-  createInternalExtractionPersistence,
   createResearcherExtractionPersistence,
 } from './postgres-persistence.js'
 import type { ExtractionModule, ExtractionRuntime } from './types.js'
 
 export type CreateExtractionRuntimeDependencies = Readonly<
-  Pick<ExtractionModuleDependencies, 'models' | 'now'>
+  Pick<ExtractionJobExecutorDependencies, 'models' | 'now'>
 >
 
 export function createExtractionRuntime(
@@ -35,20 +34,13 @@ export function createExtractionRuntimeWithInfrastructure(
     packages: CanonicalPackageStore
   }>,
 ): ExtractionRuntime {
-  const workerStore = createInternalExtractionJobStore(
+  const store = createInternalExtractionJobStore(
     infrastructure.database,
     infrastructure.packages,
   )
-  const workerExtractions = createExtractionModule({
-    ...dependencies,
-    persistence: createInternalExtractionPersistence(
-      infrastructure.database,
-      infrastructure.packages,
-    ),
-  })
   const worker = new ExtractionJobWorker(
-    workerStore,
-    workerExtractions.executeJob,
+    store,
+    createExtractionJobExecutor({ ...dependencies, inputs: store }),
   )
 
   const wakeAfter = <T>(operation: () => Promise<T>): Promise<T> =>
@@ -60,14 +52,11 @@ export function createExtractionRuntimeWithInfrastructure(
   return {
     forResearcher(researcherAccountId) {
       const module = createExtractionModule(
-        {
-          ...dependencies,
-          persistence: createResearcherExtractionPersistence(
-            researcherAccountId,
-            infrastructure.database,
-            infrastructure.packages,
-          ),
-        },
+        createResearcherExtractionPersistence(
+          researcherAccountId,
+          infrastructure.database,
+          infrastructure.packages,
+        ),
       )
       const extractions: ExtractionModule = {
         ...module,

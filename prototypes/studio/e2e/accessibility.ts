@@ -20,6 +20,9 @@ export async function activateWithKeyboard(
   control: Locator,
   key: 'Enter' | 'Space' = 'Enter',
 ): Promise<void> {
+  // `focus()` has no actionability wait, so focusing a control that is still
+  // disabled silently does nothing and the key press goes nowhere.
+  await expect(control).toBeEnabled()
   await control.focus()
   await expect(control).toBeFocused()
   await page.keyboard.press(key)

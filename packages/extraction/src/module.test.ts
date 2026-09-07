@@ -4,13 +4,14 @@ import { describe, it } from 'node:test'
 import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
 import { CATALOG_NOT_ATTEMPTED_LIMIT, CATALOG_RECORD_LIMIT } from './catalog.js'
 import type {
+  ExtractionJobInput,
+  ExtractionInputReader,
   ExtractionModelSession,
-  ExtractionPersistence,
   ExtractionValueCheckpoint,
   TerminalExtraction,
 } from './dependencies.js'
 import { ExtractionError } from './errors.js'
-import { createExtractionModule } from './module.js'
+import { createExtractionJobExecutor } from './module.js'
 import type { ExtractionSnapshot } from './types.js'
 
 const metadata = {
@@ -73,8 +74,8 @@ function harness(
       },
     },
   }
-  const persistence = {
-    async readExtraction() {
+  const inputs: ExtractionInputReader = {
+    async readExtractionAttempt() {
       return null
     },
     async loadExtractionInputs(
@@ -90,9 +91,9 @@ function harness(
         parsedDocument,
       }
     },
-  } as unknown as ExtractionPersistence
-  const execution = createExtractionModule({
-    persistence,
+  }
+  const executeJob = createExtractionJobExecutor({
+    inputs,
     models: {
       async open() {
         opened += 1
@@ -102,9 +103,9 @@ function harness(
     now: () => 10,
   })
   const module = {
-    ...execution,
-    async runSingle(runInput: Parameters<typeof execution.executeJob>[0]) {
-      const terminal = await execution.executeJob(
+    executeJob,
+    async runSingle(runInput: ExtractionJobInput) {
+      const terminal = await executeJob(
         runInput,
         null,
         async () => {},
@@ -293,10 +294,7 @@ function catalogHarness(options: {
       },
     },
   }
-  const persistence = {
-    async readExtraction(extractionId: string) {
-      return store.get(extractionId) ?? null
-    },
+  const inputs: ExtractionInputReader = {
     async readExtractionAttempt(extractionId: string) {
       const extraction = store.get(extractionId)
       return extraction
@@ -316,9 +314,9 @@ function catalogHarness(options: {
         parsedDocument: document,
       }
     },
-  } as unknown as ExtractionPersistence
-  const execution = createExtractionModule({
-    persistence,
+  }
+  const executeJob = createExtractionJobExecutor({
+    inputs,
     models: {
       async open() {
         return session
@@ -327,9 +325,9 @@ function catalogHarness(options: {
     now: () => 10,
   })
   const module = {
-    ...execution,
-    async runSingle(runInput: Parameters<typeof execution.executeJob>[0]) {
-      const terminal = await execution.executeJob(
+    executeJob,
+    async runSingle(runInput: ExtractionJobInput) {
+      const terminal = await executeJob(
         runInput,
         null,
         async () => {},

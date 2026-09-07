@@ -18,7 +18,18 @@ function temporaryDirectory(): string {
   return directory
 }
 
+// The composition consults process.env before any .env file, so a shell that
+// exported the repository .env would otherwise steer these tests.
+const AMBIENT_STUDIO_ENVIRONMENT = [
+  'STUDIO_ORIGIN',
+  'STUDIO_BASE_PATH',
+  'FREE_SESSION_SECRET',
+  'FREE_ENTRA_REAL',
+  'FREE_ENTRA_MOCK_BROWSER_ISSUER',
+]
+
 beforeEach(() => {
+  for (const name of AMBIENT_STUDIO_ENVIRONMENT) vi.stubEnv(name, undefined)
   vi.stubEnv('FREE_ENTRA_MOCK_ISSUER', 'http://mock-oidc:8080/dev')
 })
 

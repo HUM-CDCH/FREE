@@ -61,15 +61,20 @@ export type PersistedReviewResult =
   | Readonly<{ status: 'reviewed' | 'replayed'; extraction: ExtractionSnapshot }>
   | Readonly<{ status: 'conflict' | 'invalid' | 'not-found' }>
 
-export interface ExtractionPersistence {
+/** The pinned inputs one Extraction Job reads while it executes. */
+export interface ExtractionInputReader {
   loadExtractionInputs(
     sourceRepresentationRevisionId: string,
     schemaRevisionId: string,
   ): Promise<LoadedExtractionInputs | null>
+  readExtractionAttempt(extractionId: string): Promise<ExtractionAttemptSnapshot | null>
+}
+
+/** Researcher-scoped persistence: every read and write is owned by one Researcher Account. */
+export interface ExtractionPersistence extends ExtractionInputReader {
   readCanonicalParsedDocument(sourceRepresentationRevisionId: string): Promise<unknown | null>
   readExtraction(extractionId: string): Promise<ExtractionSnapshot | null>
   scheduleExtraction(input: RunSingleInput): Promise<RunSingleResult | null>
-  readExtractionAttempt(extractionId: string): Promise<ExtractionAttemptSnapshot | null>
   cancelExtraction(extractionId: string): Promise<CancellationResult>
   finalizeReview(extractionId: string, authority: ReviewAuthority): Promise<PersistedReviewResult>
   readReviewDraft(extractionId: string): Promise<ReviewDraft | null>
@@ -177,8 +182,8 @@ export type ExtractionJobExecutor = (
   signal: AbortSignal,
 ) => Promise<TerminalExtraction>
 
-export type ExtractionModuleDependencies = Readonly<{
-  persistence: ExtractionPersistence
+export type ExtractionJobExecutorDependencies = Readonly<{
+  inputs: ExtractionInputReader
   models: ExtractionModelSessions
   now?: () => number
 }>

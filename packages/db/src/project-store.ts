@@ -162,7 +162,7 @@ async function ownedSourceRepresentationDescriptor(
   return await transaction.execute(query.build()).first()
 }
 
-function uniqueConstraint(error: unknown): boolean {
+export function uniqueConstraint(error: unknown): boolean {
   return (
     typeof error === 'object' &&
     error !== null &&
@@ -389,7 +389,7 @@ function canonicalSourceDocumentIds(ids: readonly string[]): string[] {
   return [...new Set(ids)].sort((left, right) => left.localeCompare(right))
 }
 
-function stableJson(value: unknown): string {
+export function stableJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`
   if (value && typeof value === 'object') {
     return `{${Object.entries(value as Record<string, unknown>)
@@ -400,7 +400,7 @@ function stableJson(value: unknown): string {
   return JSON.stringify(value) ?? 'undefined'
 }
 
-function stableUuid(namespace: string, value: string): string {
+export function stableUuid(namespace: string, value: string): string {
   const hash = createHash('sha256')
     .update(`${namespace}:${value}`)
     .digest('hex')

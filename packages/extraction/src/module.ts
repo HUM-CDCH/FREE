@@ -1,9 +1,10 @@
 import type {
   ExtractionJobInput,
   ExtractionJobExecutor,
+  ExtractionJobExecutorDependencies,
   ExtractionModel,
   ExtractionModelResponse,
-  ExtractionModuleDependencies,
+  ExtractionPersistence,
   TerminalExtraction,
   ExtractionValueCheckpoint,
 } from './dependencies.js'
@@ -84,25 +85,22 @@ type ResolvedRun = Readonly<{
   retry: CatalogRetryContext | null
 }>
 
-export function createExtractionModule(
-  dependencies: ExtractionModuleDependencies,
-): ExtractionModule & Readonly<{ executeJob: ExtractionJobExecutor }> {
-  const now = dependencies.now ?? performance.now.bind(performance)
+export function createExtractionModule(persistence: ExtractionPersistence): ExtractionModule {
   const runSingle = async (input: RunSingleInput) => {
-    const result = await dependencies.persistence.scheduleExtraction(input)
+    const result = await persistence.scheduleExtraction(input)
     if (!result) throw new ExtractionError('not_found', 'That Extraction was not found.')
     return result
   }
 
   const cancelSingle = (extractionId: string): Promise<CancellationResult> =>
-    dependencies.persistence.cancelExtraction(extractionId)
+    persistence.cancelExtraction(extractionId)
 
   const prepareReview = async (extractionId: string) => {
-    const extraction = await dependencies.persistence.readExtraction(extractionId)
+    const extraction = await persistence.readExtraction(extractionId)
     if (!extraction) throw new ExtractionError('not_found', 'That Extraction was not found.')
     if (extraction.outcome !== 'SUCCEEDED' || !extraction.reviewable || !extraction.evidence)
       return { extraction, reviewDecisions: [] }
-    const raw = await dependencies.persistence.readCanonicalParsedDocument(extraction.sourceRepresentationRevisionId)
+    const raw = await persistence.readCanonicalParsedDocument(extraction.sourceRepresentationRevisionId)
     if (!raw) throw new ExtractionError('invalid_source_representation', 'The pinned Source Representation is unavailable.')
     const document = decodeCanonical(raw)
     const occurrenceIdsByAnchor = occurrenceOwnership(document)
@@ -122,14 +120,14 @@ export function createExtractionModule(
   }
 
   const finalizeReview = async (extractionId: string, decisions: readonly ReviewDecisionInput[], expectedDraftVersion = 0): Promise<FinalizeReviewResult> => {
-    const extraction = await dependencies.persistence.readExtraction(extractionId)
+    const extraction = await persistence.readExtraction(extractionId)
     if (!extraction) throw new ExtractionError('not_found', 'That Extraction was not found.')
     if (extraction.outcome !== 'SUCCEEDED' || !extraction.reviewable || !extraction.result || !extraction.evidence)
       throw new ExtractionError('invalid_review', 'The Extraction has no reviewable Extraction Result.')
-    const raw = await dependencies.persistence.readCanonicalParsedDocument(extraction.sourceRepresentationRevisionId)
+    const raw = await persistence.readCanonicalParsedDocument(extraction.sourceRepresentationRevisionId)
     if (!raw) throw new ExtractionError('invalid_source_representation', 'The pinned Source Representation is unavailable.')
     const document = decodeCanonical(raw)
-    const inputs = await dependencies.persistence.loadExtractionInputs(extraction.sourceRepresentationRevisionId, extraction.schemaRevisionId)
+    const inputs = await persistence.loadExtractionInputs(extraction.sourceRepresentationRevisionId, extraction.schemaRevisionId)
     if (!inputs) throw new ExtractionError('invalid_review', 'The Extraction has no valid pinned Schema Revision.')
     const definition = parsePinnedSchema(inputs.schemaTree)
     const reviewRecords = extractionRecords(extraction.result)
@@ -179,7 +177,7 @@ export function createExtractionModule(
         'invalid_review',
         'The Review Decisions do not match the pinned Extraction Result.',
       )
-    const finalized = await dependencies.persistence.finalizeReview(extractionId, {
+    const finalized = await persistence.finalizeReview(extractionId, {
       expectedDraftVersion,
       reviewDecisions: decisions.map((decision) => ({
         resultPath: [...decision.resultPath],
@@ -201,22 +199,20 @@ export function createExtractionModule(
 
   return {
     runSingle,
-    executeJob,
     cancelSingle,
-    readExtractionAttempt: (extractionId) =>
-      dependencies.persistence.readExtractionAttempt(extractionId),
+    readExtractionAttempt: (extractionId) => persistence.readExtractionAttempt(extractionId),
     prepareReview,
     finalizeReview,
     resetReview: async (extractionId, expectedDraftVersion) => {
       if (!Number.isSafeInteger(expectedDraftVersion) || expectedDraftVersion < 0)
         throw new ExtractionError('invalid_review', 'The review version is invalid.')
-      const extraction = await dependencies.persistence.readExtraction(extractionId)
+      const extraction = await persistence.readExtraction(extractionId)
       if (!extraction) throw new ExtractionError('not_found', 'That Extraction was not found.')
       if (!extraction.reviewable) throw new ExtractionError('invalid_review', 'This Extraction cannot be reviewed.')
-      return dependencies.persistence.resetReview(extractionId, expectedDraftVersion)
+      return persistence.resetReview(extractionId, expectedDraftVersion)
     },
     readReviewDraft: async (extractionId) => {
-      const draft = await dependencies.persistence.readReviewDraft(extractionId)
+      const draft = await persistence.readReviewDraft(extractionId)
       if (!draft) throw new ExtractionError('not_found', 'That Extraction was not found.')
       return draft
     },
@@ -224,7 +220,7 @@ export function createExtractionModule(
       const { extraction, reviewDecisions } = await prepareReview(extractionId)
       if (extraction.reviewedAt) throw new ExtractionError('review_conflict', 'This review is already finalized. Reload to see the saved review.')
       if (!extraction.reviewable) throw new ExtractionError('invalid_review', 'This Extraction cannot be reviewed.')
-      const inputs = await dependencies.persistence.loadExtractionInputs(extraction.sourceRepresentationRevisionId, extraction.schemaRevisionId)
+      const inputs = await persistence.loadExtractionInputs(extraction.sourceRepresentationRevisionId, extraction.schemaRevisionId)
       if (!inputs) throw new ExtractionError('invalid_review', 'The pinned schema is unavailable.')
       const nodes = parsePinnedSchema(inputs.schemaTree).schemaNodes
       const prepared = new Map(reviewDecisions.map((decision) => [resultPathKey(decision.resultPath), decision]))
@@ -236,41 +232,50 @@ export function createExtractionModule(
           !expected.reviewedOccurrenceIds.every((id) => decision.reviewedOccurrenceIds.includes(id)) ||
           !reviewDecisionMatchesSchema(nodes, decision)
       })) throw new ExtractionError('invalid_review', 'Draft decisions do not match the pinned Extraction Result and Evidence.')
-      return dependencies.persistence.saveReviewDraft(extractionId, draft)
+      return persistence.saveReviewDraft(extractionId, draft)
     },
     readDocumentExtractions: (input) =>
-      dependencies.persistence.readDocumentExtractions(input),
+      persistence.readDocumentExtractions(input),
     async scheduleBatch(input) {
-      const result = await dependencies.persistence.scheduleBatch(input)
+      const result = await persistence.scheduleBatch(input)
       if (!result) throw new ExtractionError('not_found', 'That Project Context was not found.')
       return result
     },
     async scheduleSuggestedBatch(input) {
-      const result = await dependencies.persistence.scheduleSuggestedBatch(input)
+      const result = await persistence.scheduleSuggestedBatch(input)
       if (!result) throw new ExtractionError('not_found', 'That Schema Suggestion was not found.')
       return result
     },
     async listBatches({ projectContextId, limit = DEFAULT_LIMIT }) {
       if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new ExtractionError('invalid_request', 'The Batch Extraction limit must be between 1 and 100.')
-      const batches = await dependencies.persistence.listBatches(projectContextId, limit)
+      const batches = await persistence.listBatches(projectContextId, limit)
       if (!batches) throw new ExtractionError('not_found', 'That Project Context was not found.')
       return batches
     },
     async readBatch(input) {
-      const batch = await dependencies.persistence.readBatch(input)
+      const batch = await persistence.readBatch(input)
       if (!batch) throw new ExtractionError('not_found', 'That Batch Extraction was not found.')
       return batch
     },
     async readBatchResults(input) {
-      const results = await dependencies.persistence.readBatchResults(input)
+      const results = await persistence.readBatchResults(input)
       if (!results) throw new ExtractionError('not_found', 'That Batch Extraction was not found.')
       return results
     },
   }
+}
+
+/** The worker's side of an Extraction: run one claimed job to its terminal state. */
+export function createExtractionJobExecutor({
+  inputs: reader,
+  models,
+  now = performance.now.bind(performance),
+}: ExtractionJobExecutorDependencies): ExtractionJobExecutor {
+  return executeJob
 
   async function resolveRun(input: ExtractionJobInput): Promise<ResolvedRun> {
     if (input.kind === 'retry') {
-      const parent = await dependencies.persistence.readExtractionAttempt(input.retryOfId)
+      const parent = await reader.readExtractionAttempt(input.retryOfId)
       const retry = validateCatalogRetry(parent, input)
       return {
         input,
@@ -301,7 +306,7 @@ export function createExtractionModule(
     signal: AbortSignal,
   ): Promise<TerminalExtraction> {
     const resolved = await resolveRun(input)
-    const inputs = await dependencies.persistence.loadExtractionInputs(
+    const inputs = await reader.loadExtractionInputs(
       resolved.sourceRepresentationRevisionId,
       resolved.schemaRevisionId,
     )
@@ -316,7 +321,7 @@ export function createExtractionModule(
       retry: checkpoint?.diagnostics.retry ?? resolved.retry?.selection ?? null,
       checkpointDiagnostics: checkpoint?.diagnostics ?? null,
     }
-    const models = await dependencies.models.open()
+    const session = await models.open()
     const document = decodeCanonical(inputs.parsedDocument)
     const definition = parsePinnedSchema(inputs.schemaTree)
     let result: Readonly<Record<string, unknown>>
@@ -325,12 +330,12 @@ export function createExtractionModule(
       result = checkpoint.result
       complete = checkpoint.complete
     } else {
-      state.valuesAttribution = models.attribution
+      state.valuesAttribution = session.attribution
       const generated = resolved.strategy === 'CATALOG'
         ? await executeCatalog(
             document,
             definition,
-            models.model,
+            session.model,
             signal,
             state,
             resolved.retry,
@@ -338,7 +343,7 @@ export function createExtractionModule(
         : await executeArticle(
             document,
             definition,
-            models.model,
+            session.model,
             signal,
             state,
           )
@@ -347,7 +352,7 @@ export function createExtractionModule(
       state.phase = 'grounding'
       const valueCheckpoint: ExtractionValueCheckpoint = {
         complete,
-        modelAttribution: models.attribution,
+        modelAttribution: session.attribution,
         diagnostics: diagnostics(state, 'grounding'),
         result,
       }
@@ -359,7 +364,7 @@ export function createExtractionModule(
     }
     signal.throwIfAborted()
     const packageFields = new Set(partitionSchemaNodes(definition.schemaNodes).packageNodes.map((node) => node.name))
-    const grounding = await groundExtraction(document, result, models.groundingModel, signal, {
+    const grounding = await groundExtraction(document, result, session.groundingModel, signal, {
       excludedRootFields: packageFields,
       now,
     })
