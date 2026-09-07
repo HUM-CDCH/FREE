@@ -21,8 +21,7 @@ services:
 
   parsing_service:
     restart: unless-stopped
-    # DGX Spark's preconfigured NVIDIA Container Toolkit exposes the GPU.
-    runtime: nvidia
+    # Request GPU access through Docker's NVIDIA device driver.
     environment:
       DOCLING_DEVICE: cuda
     deploy:

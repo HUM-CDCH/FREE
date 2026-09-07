@@ -27,8 +27,8 @@ touches the host nginx configuration outside the one include described below.
 Install Docker with Docker Compose v2.40.0 or later. The launcher checks this
 before starting because the production network selection uses `gw_priority`.
 
-Production requires an NVIDIA GPU: `compose.prod.yaml` selects the `nvidia`
-runtime, reserves the GPU, and sets `DOCLING_DEVICE=cuda`. Local development
+Production requires an NVIDIA GPU: `compose.prod.yaml` requests NVIDIA GPU
+devices and sets `DOCLING_DEVICE=cuda`. Local development
 keeps the CPU default. See [NVIDIA DGX Spark GPU](#nvidia-dgx-spark-gpu)
 for host validation and image compatibility checks.
 The initial image build and the first start's Docling layout and table model
@@ -95,7 +95,7 @@ docker run --rm --gpus=all \
 
 Do not continue if that fails. Fix the host runtime before changing FREE.
 
-FREE's production overlay already contains the NVIDIA runtime, CUDA selector,
+FREE's production overlay already contains the CUDA selector
 and GPU reservation below. No `.env` GPU setting or manual uncommenting is
 needed; production selects CUDA even if the host environment sets
 `DOCLING_DEVICE=cpu`.
@@ -103,7 +103,6 @@ needed; production selects CUDA even if the host environment sets
 ```yaml
 services:
   parsing_service:
-    runtime: nvidia
     environment:
       DOCLING_DEVICE: cuda
     deploy:
@@ -115,11 +114,18 @@ services:
               capabilities: [gpu]
 ```
 
-`runtime: nvidia` selects the registered NVIDIA container runtime, not a runtime
-named `cuda`. `capabilities` is required by Docker Compose; `count: all` exposes
-Spark's integrated GPU. This uses the standard
+The overlay uses Docker's NVIDIA device request without requiring a runtime
+registered under the name `nvidia`. `capabilities` is required by Docker
+Compose; `count: all` exposes Spark's integrated GPU. This uses the standard
 [Compose GPU reservation](https://docs.docker.com/compose/how-tos/gpu-support/).
 The reservation does not give FREE exclusive GPU access.
+
+If Docker reports `unknown or invalid runtime name: nvidia`, remove any older
+`runtime: nvidia` setting; it is not required by this overlay. If the GPU
+validation command above instead reports that Docker cannot select the
+`nvidia` device driver with GPU capabilities, the daemon's NVIDIA Container
+Toolkit integration still needs repair. Removing the runtime setting does not
+install that integration or make a CPU-only host GPU-capable.
 
 #### Spark image compatibility
 

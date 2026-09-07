@@ -57,7 +57,7 @@ The container runs a single Uvicorn process for the same reason the host command
 does: the FIFO queue and the reusable `DocumentConverter` are in-process state.
 The root Compose service defaults to `DOCLING_DEVICE=cpu` so the local stack
 works without GPU passthrough. The production overlay selects
-`DOCLING_DEVICE=cuda`, the `nvidia` runtime, and an all-GPU reservation for DGX
+`DOCLING_DEVICE=cuda` and an all-GPU NVIDIA device reservation for DGX
 Spark. Follow the production
 [DGX Spark GPU procedure](../../docs/operations/deployment.md#nvidia-dgx-spark-gpu)
 to verify host GPU access and ARM64/PyTorch kernel compatibility.
