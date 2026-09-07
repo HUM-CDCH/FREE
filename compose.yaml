@@ -32,8 +32,8 @@ services:
   parsing_service:
     build:
       context: prototypes/parsing_service
-    # Keep the default stack portable. GPU deployments must explicitly provide
-    # their NVIDIA runtime/device configuration and select CUDA.
+    # Keep local development portable; compose.prod.yaml selects CUDA and
+    # configures the NVIDIA runtime/device reservation for DGX Spark.
     environment:
       DOCLING_DEVICE: "${DOCLING_DEVICE:-cpu}"
     # Host loopback publish for the operator's own web app. Port 8000 is

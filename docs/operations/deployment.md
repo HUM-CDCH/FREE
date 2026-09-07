@@ -17,8 +17,8 @@ package dependencies and installs nothing.
 
 `compose.yaml` builds the production Studio client and Node server;
 `compose.prod.yaml` adds only the production deltas: restart policies, required
-(never defaulted) secrets, real Entra authentication, and Studio's
-`127.0.0.1:5173` loopback publish for the host nginx. TLS terminates in the
+(never defaulted) secrets, real Entra authentication, CUDA parsing on DGX Spark,
+and Studio's `127.0.0.1:5173` loopback publish for the host nginx. TLS terminates in the
 host nginx — there is no nginx container in production and this stack never
 touches the host nginx configuration outside the one include described below.
 
@@ -27,10 +27,10 @@ touches the host nginx configuration outside the one include described below.
 Install Docker with Docker Compose v2.40.0 or later. The launcher checks this
 before starting because the production network selection uses `gw_priority`.
 
-The Parsing Service defaults to `DOCLING_DEVICE=cpu` so the stack stays
-portable. A GPU deployment must explicitly provide its NVIDIA runtime/device
-configuration and select CUDA. See [NVIDIA DGX Spark GPU](#nvidia-dgx-spark-gpu)
-for the deployment host's exact setup.
+Production requires an NVIDIA GPU: `compose.prod.yaml` selects the `nvidia`
+runtime, reserves the GPU, and sets `DOCLING_DEVICE=cuda`. Local development
+keeps the CPU default. See [NVIDIA DGX Spark GPU](#nvidia-dgx-spark-gpu)
+for host validation and image compatibility checks.
 The initial image build and the first start's Docling layout and table model
 download can take several minutes and substantial disk space. Later builds and
 starts reuse the named model cache.
@@ -95,18 +95,17 @@ docker run --rm --gpus=all \
 
 Do not continue if that fails. Fix the host runtime before changing FREE.
 
-For FREE, add this line to the root `.env`:
-
-```dotenv
-DOCLING_DEVICE=cuda
-```
-
-Then uncomment the `parsing_service.deploy` block already present in
-`compose.prod.yaml`, leaving it as:
+FREE's production overlay already contains the NVIDIA runtime, CUDA selector,
+and GPU reservation below. No `.env` GPU setting or manual uncommenting is
+needed; production selects CUDA even if the host environment sets
+`DOCLING_DEVICE=cpu`.
 
 ```yaml
 services:
   parsing_service:
+    runtime: nvidia
+    environment:
+      DOCLING_DEVICE: cuda
     deploy:
       resources:
         reservations:
@@ -116,26 +115,63 @@ services:
               capabilities: [gpu]
 ```
 
-`capabilities` is required by Docker Compose; `count: all` is appropriate for
-Spark's integrated GPU. This is the standard
+`runtime: nvidia` selects the registered NVIDIA container runtime, not a runtime
+named `cuda`. `capabilities` is required by Docker Compose; `count: all` exposes
+Spark's integrated GPU. This uses the standard
 [Compose GPU reservation](https://docs.docker.com/compose/how-tos/gpu-support/).
-Start production normally:
+The reservation does not give FREE exclusive GPU access.
+
+#### Spark image compatibility
+
+- **Native ARM64:** Spark has an Arm CPU. Build on the Spark, or supply a native
+  `linux/arm64` image; do not force `linux/amd64` emulation for GPU inference.
+  See NVIDIA's [hardware overview](https://docs.nvidia.com/dgx/dgx-spark/hardware.html).
+- **GPU access is not kernel compatibility:** GB10 (`sm_121`) needs compatible
+  PyTorch, torchvision, and CUDA kernels inside the image. `nvidia-smi` alone
+  does not prove they work. A
+  [Docling/GB10 report](https://forums.developer.nvidia.com/t/gb10-and-docling/360665)
+  documents `no kernel image` and NVRTC `invalid architecture` failures with
+  older builds; its author resolved them with NVIDIA's `26.01-py3` image.
+  That is a historical report, not a required FREE base image: it uses Python
+  3.12, whereas FREE requires Python 3.13+. The current lock includes Torch
+  2.13.0, ARM64 wheels, and CUDA 13 dependencies; validate the built image below
+  rather than downgrading it or replacing the base image alone.
+- **Do not force architecture workarounds:** setting `TORCH_CUDA_ARCH_LIST`
+  at runtime cannot rebuild installed wheels. Do not permanently enable
+  `CUDA_FORCE_PTX_JIT`; NVIDIA documents it as a
+  [compatibility diagnostic](https://docs.nvidia.com/cuda/blackwell-compatibility-guide/index.html),
+  to be unset afterward. Kernel/NVRTC failures require a compatible image and
+  host driver, not additional Compose GPU flags.
+- **Shared memory budget:** Spark's 128 GB is unified CPU/GPU system memory,
+  not a separate 128 GB VRAM pool. Leave room for the OS, FREE's other services,
+  and any model server sharing the machine.
+
+Before starting production, build the Parsing Service image and exercise a CUDA
+operation without starting the queue, downloading Docling models, or touching
+the database:
+
+```bash
+docker compose -f compose.yaml -f compose.prod.yaml run --rm --no-deps --build \
+  parsing_service uv run --no-sync python -c \
+  "import os, platform, torch; assert os.environ['DOCLING_DEVICE'] == 'cuda'; assert platform.machine() == 'aarch64'; assert torch.cuda.is_available(); print('torch', torch.__version__, 'CUDA', torch.version.cuda, 'GPU', torch.cuda.get_device_name(0), 'capability', torch.cuda.get_device_capability(0)); x = torch.ones((32, 32), device='cuda'); y = x @ x; torch.cuda.synchronize(); assert y.sum().item() == 32768; print('CUDA matmul OK')"
+```
+
+The command must print the GPU details and `CUDA matmul OK`, then exit
+successfully. If it fails, resolve runtime, driver, or image compatibility
+before starting production. Then start normally:
 
 ```bash
 node scripts/free.mjs production
 ```
 
-After the service is healthy, verify both the selected Docling device and
-PyTorch CUDA access inside the actual Parsing Service container:
+For an already-running deployment, the same Python check can be run with
+`docker compose -f compose.yaml -f compose.prod.yaml exec parsing_service`
+instead of `run --rm --no-deps --build parsing_service`.
+Finally, parse a representative PDF through Studio and check Parsing Service
+logs for CUDA/kernel errors; the small CUDA check does not exercise every
+Docling model kernel.
 
-```bash
-docker compose -f compose.yaml -f compose.prod.yaml exec parsing_service \
-  uv run --no-sync python -c \
-  "import os, torch; assert os.environ['DOCLING_DEVICE'] == 'cuda'; assert torch.cuda.is_available(); print(torch.ones(1, device='cuda'), torch.cuda.get_device_name(0))"
-```
-
-The command must print the GPU name and exit successfully. Docling documents
-`DOCLING_DEVICE=cuda` as its NVIDIA inference selector in its
+Docling documents `DOCLING_DEVICE=cuda` as its NVIDIA inference selector in its
 [accelerator options](https://docling-project.github.io/docling/reference/pipeline_options/#docling.datamodel.accelerator_options.AcceleratorOptions).
 Do not use `/status` as GPU proof: its GPU fields are currently static service
 metadata rather than runtime probes.
