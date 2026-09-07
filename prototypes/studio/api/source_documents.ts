@@ -25,7 +25,7 @@ const CONTRACT_VERSION = 'parsed_document.v2'
 const DEFAULT_PARSING_SERVICE = 'http://127.0.0.1:8055'
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000
 const DEFAULT_POLL_INTERVAL_MS = 1000
-const MAX_PDF_BYTES = 50 * 1024 * 1024
+const MAX_PDF_BYTES = 100 * 1024 * 1024
 
 type CanonicalPackage = {
   artifactReference: string
@@ -367,7 +367,7 @@ export function createSourceDocumentIngestion(
         throw new ApiError(
           413,
           'invalid_request',
-          'The uploaded PDF exceeds 50 MiB.',
+          'The uploaded PDF exceeds 100 MiB.',
         )
 
       const originalName = sanitizedFilename(file.name)

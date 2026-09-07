@@ -159,7 +159,7 @@ institution's or VPN's trust procedure.
 ## Host nginx (one-time include)
 
 The application-facing proxy behavior — base-path routing and redirects,
-forwarded headers, security headers, the 60m body limit, and timeouts — is
+forwarded headers, security headers, the 110m body limit, and timeouts — is
 version-controlled once in
 [`docker/nginx/free-studio-locations.inc.template`](../../docker/nginx/free-studio-locations.inc.template)
 and consumed identically by the development nginx container and the host

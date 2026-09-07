@@ -89,7 +89,7 @@ deployment paths, and speculative extensibility.
 - `packages/db` enforces the reset and disposable-test target restrictions
   before opening an administrative connection.
 - Session cookies are signed; API writes are origin-checked; uploads are
-  validated (`application/pdf`, magic bytes, 50 MiB cap).
+  validated (`application/pdf`, magic bytes, 100 MiB cap).
 
 ## Verification
 

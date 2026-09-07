@@ -187,7 +187,7 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
       request(ids.project, [
         [
           'file',
-          new File([new Uint8Array(50 * 1024 * 1024 + 1)], 'large.pdf', {
+          new File([new Uint8Array(100 * 1024 * 1024 + 1)], 'large.pdf', {
             type: 'application/pdf',
           }),
         ],

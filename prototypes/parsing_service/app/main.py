@@ -32,7 +32,7 @@ from .tasks import (
 )
 
 
-TASK_REQUEST_LIMIT_BYTES = 51 * 1024 * 1024
+TASK_REQUEST_LIMIT_BYTES = MAX_UPLOAD_BYTES + 1024 * 1024
 RETRY_AFTER_SECONDS = 5
 
 
@@ -59,7 +59,7 @@ class TaskRequestLimitMiddleware:
                     pass
         if length is not None and length > self.max_bytes:
             await JSONResponse(
-                {"detail": "Request body exceeds the 51 MiB limit."},
+                {"detail": "Request body exceeds the 101 MiB limit."},
                 status_code=413,
             )(scope, receive, send)
             return

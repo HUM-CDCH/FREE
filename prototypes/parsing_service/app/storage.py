@@ -21,7 +21,7 @@ MARKDOWN_FILENAME = "artifacts/document.llm.md"
 MANIFEST_FILENAME = "manifest.json"
 PACKAGE_VERSION = "canonical-ingestion-package.v1"
 PARSED_DOCUMENT_VERSION = "parsed_document.v2"
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 
 _PACKAGE_ENTRIES = (
     (SOURCE_FILENAME, "application/pdf"),
