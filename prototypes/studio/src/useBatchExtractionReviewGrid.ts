@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { enumerateFieldPaths, type SchemaNode } from 'extraction/schema'
-import { finalizeExtractionReview, readExtraction, saveExtractionReviewDraft } from './api'
+import { finalizeExtractionReview, readExtraction, resetExtractionReview, saveExtractionReviewDraft } from './api'
 import { applyReviewDecisions, resultPathKey } from './reviewDecisions'
 import { isRecord } from '../shared/template'
 import { forgetReviewDraft, recoverReviewDraft, rememberReviewDraft, REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
@@ -123,7 +123,7 @@ export function useBatchExtractionReviewGrid(
     membersRef.current = update(previous)
     for (const [id, state] of membersRef.current) {
       const old = previous.get(id)
-      if (state.status !== 'ready' || !state.editable || old?.status !== 'ready' ||
+      if (state.status !== 'ready' || !state.editable || old?.status !== 'ready' || !old.editable ||
         old.attempt.extractionId !== state.attempt.extractionId ||
         (old.decisions === state.decisions && old.touched === state.touched)) continue
       persistDraft(state)
@@ -381,7 +381,36 @@ export function useBatchExtractionReviewGrid(
 
   /** Reverses every field of one member back to its unreviewed default — the
    *  inverse of `approveAllForMember`. */
-  function revertMember(sourceDocumentId: string) {
+  async function revertMember(sourceDocumentId: string) {
+    const state = membersRef.current.get(sourceDocumentId)
+    if (!state || state.status !== 'ready' || state.saving || !state.attempt.reviewable) return
+    if (!state.editable) {
+      const id = state.attempt.extractionId
+      const scope = scopeRef.current
+      setMembers((current) => new Map(current).set(sourceDocumentId, { ...state, saving: true, saveError: null }))
+      try {
+        const reset = await resetExtractionReview(id, draftVersions.current.get(id) ?? 0)
+        const latest = membersRef.current.get(sourceDocumentId)
+        if (scopeRef.current !== scope || latest?.status !== 'ready' || latest.attempt.extractionId !== id) return
+        draftVersions.current.set(id, reset.version)
+        forgetReviewDraft(id)
+        setMembers((current) => new Map(current).set(sourceDocumentId, {
+          ...state,
+          attempt: { ...state.attempt, reviewedAt: null, reviewDecisions: [] },
+          decisions: state.decisions.map((decision) => ({ ...decision, action: 'APPROVED', reviewedValue: null })),
+          touched: new Set(), editable: true, saving: false, saveError: null,
+        }))
+        onMemberSaved?.()
+      } catch (error) {
+        if (scopeRef.current !== scope) return
+        setMembers((current) => {
+          const latest = current.get(sourceDocumentId)
+          if (latest?.status !== 'ready' || latest.attempt.extractionId !== id) return current
+          return new Map(current).set(sourceDocumentId, { ...latest, saving: false, saveError: failureText(error, 'Reverting this review failed.') })
+        })
+      }
+      return
+    }
     setMembers((current) => {
       const state = current.get(sourceDocumentId)
       if (!state || state.status !== 'ready' || !state.editable || state.saving) return current
@@ -400,7 +429,7 @@ export function useBatchExtractionReviewGrid(
   }
 
   function revertAll() {
-    for (const sourceDocumentId of membersRef.current.keys()) revertMember(sourceDocumentId)
+    for (const id of membersRef.current.keys()) void revertMember(id)
   }
 
   /** Reverses every field of one displayed grid row back to its unreviewed
@@ -451,8 +480,10 @@ export function useBatchExtractionReviewGrid(
     })
     try {
       await draftWrites.current.get(state.attempt.extractionId)
-      const updated = await finalizeExtractionReview(state.attempt.extractionId, state.decisions, draftVersions.current.get(state.attempt.extractionId) ?? 0)
+      const version = draftVersions.current.get(state.attempt.extractionId) ?? 0
+      const updated = await finalizeExtractionReview(state.attempt.extractionId, state.decisions, version)
       if (!isCurrent()) return
+      draftVersions.current.set(state.attempt.extractionId, version + 1)
       forgetReviewDraft(state.attempt.extractionId)
       setMembers((current) =>
         new Map(current).set(sourceDocumentId, {
@@ -491,6 +522,7 @@ export function useBatchExtractionReviewGrid(
     columns,
     members,
     dirtyCount,
+    canRevert: [...members.values()].some((state) => state.status === 'ready' && state.attempt.reviewable && state.touched.size > 0),
     draftError: draftConflicts.current.size > 0 ? REVIEW_DRAFT_CONFLICT : draftError,
     draftSaving: draftSaving > 0,
     retryDrafts,

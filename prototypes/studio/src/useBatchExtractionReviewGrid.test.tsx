@@ -23,6 +23,7 @@ vi.mock('./api', () => ({
   readExtraction: vi.fn(),
   finalizeExtractionReview: vi.fn(),
   saveExtractionReviewDraft: vi.fn(),
+  resetExtractionReview: vi.fn(),
 }))
 
 const schemaNodes = [
@@ -124,6 +125,8 @@ function batch(overrides: Partial<BatchExtraction> = {}): BatchExtraction {
 const savedDrafts = new Map<string, { version: number; decisions: ReviewDecisionInput[] }>()
 
 beforeEach(() => {
+  vi.mocked(api.resetExtractionReview).mockReset()
+  vi.mocked(api.resetExtractionReview).mockImplementation(async (_id, version) => ({ version: version + 1, decisions: [] }))
   savedDrafts.clear()
   vi.mocked(api.saveExtractionReviewDraft).mockReset()
   vi.mocked(api.saveExtractionReviewDraft).mockImplementation(async (id, decisions, version) => {
@@ -141,6 +144,55 @@ beforeEach(() => {
 })
 
 afterEach(() => { cleanup(); forgetReviewDraft(extractionId) })
+
+it('Revert all returns a finalized review to pending', async () => {
+  const reviewedAt = '2026-09-07T00:00:00Z'
+  vi.mocked(api.readExtraction).mockResolvedValue({
+    extraction: attempt({ reviewedAt, reviewDecisions: pendingDecisions.map(decision => ({
+      ...decision, action: 'EDITED', reviewedValue: 'Reviewed title', createdAt: reviewedAt,
+    })) }),
+    pendingReviewDecisions: pendingDecisions,
+    reviewDraft: { version: 2, decisions: [] },
+  })
+  const { result } = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
+  await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
+  expect(result.current.canRevert).toBe(true)
+  await act(async () => { await result.current.revertAll() })
+  expect(api.resetExtractionReview).toHaveBeenCalledWith(extractionId, 2)
+  expect(api.saveExtractionReviewDraft).not.toHaveBeenCalled()
+  await waitFor(() => {
+    const state = result.current.members.get(reviewableDocumentId)
+    expect(state?.status === 'ready' && state.editable).toBe(true)
+    expect(state?.status === 'ready' && state.touched.size).toBe(0)
+    expect(state?.status === 'ready' && state.attempt.reviewedAt).toBeNull()
+    expect(state?.status === 'ready' && projectedRecords(state.attempt, state.decisions)).toEqual([{ title: 'Grounded', year: 2020 }])
+  })
+  vi.mocked(api.finalizeExtractionReview).mockResolvedValue(attempt({
+    reviewedAt, reviewDecisions: pendingDecisions.map((decision) => ({ ...decision, createdAt: reviewedAt })),
+  }))
+  act(() => result.current.approveAll())
+  await act(async () => { await result.current.saveMember(reviewableDocumentId) })
+  expect(api.finalizeExtractionReview).toHaveBeenCalledWith(extractionId, expect.any(Array), 4)
+  await act(async () => { result.current.revertAll() })
+  expect(api.resetExtractionReview).toHaveBeenLastCalledWith(extractionId, 5)
+})
+
+it('keeps a saved review visible when reset fails and allows retry', async () => {
+  const reviewedAt = '2026-09-07T00:00:00Z'
+  vi.mocked(api.readExtraction).mockResolvedValue({
+    extraction: attempt({ reviewedAt, reviewDecisions: pendingDecisions.map((decision) => ({ ...decision, createdAt: reviewedAt })) }),
+    pendingReviewDecisions: pendingDecisions, reviewDraft: { version: 2, decisions: [] },
+  })
+  vi.mocked(api.resetExtractionReview).mockRejectedValueOnce(new Error('Connection failed'))
+  render(<Grid batch={batch()} schemaNodes={schemaNodes} documentName={() => 'Source'} onBack={() => {}} onOpenMember={() => {}} />)
+  await screen.findByText('100% approved unchanged')
+  fireEvent.click(screen.getByRole('button', { name: 'Revert all' }))
+  await screen.findByText('Connection failed')
+  expect(screen.getByText('100% approved unchanged')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+  await waitFor(() => expect(screen.queryByText('100% approved unchanged')).toBeNull())
+  expect(api.resetExtractionReview).toHaveBeenCalledTimes(2)
+})
 
 describe('useBatchExtractionReviewGrid', () => {
   it.each(['grid', 'document'] as const)('retains recovered conflicts in %s until explicitly reloading server state', async (view) => {

@@ -76,6 +76,7 @@ function moduleForSuggestedBatch() {
     readExtractionAttempt: vi.fn<ExtractionModule['readExtractionAttempt']>(),
     cancelSingle: vi.fn<ExtractionModule['cancelSingle']>(),
     prepareReview: vi.fn<ExtractionModule['prepareReview']>(),
+    resetReview: vi.fn(async (_id, version) => ({ version: version + 1, decisions: [] })),
     readReviewDraft: vi.fn(async () => ({ version: 0, decisions: [] })),
     saveReviewDraft: vi.fn(async (_id, draft) => ({ ...draft, version: draft.version + 1 })),
     finalizeReview: vi.fn<ExtractionModule['finalizeReview']>(),

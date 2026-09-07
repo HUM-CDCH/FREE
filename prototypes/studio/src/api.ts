@@ -157,6 +157,11 @@ export async function finalizeExtractionReview(
 }
 
 type SavedReviewDraft = { version: number; decisions: ReviewDecisionInput[] }
+export async function resetExtractionReview(extractionId: string, expectedDraftVersion: number): Promise<SavedReviewDraft> {
+  return extractionReviewDraftSchema.parse(
+    await extractionJson(`/extractions/${extractionId}/review/reset`, 'POST', { expectedDraftVersion }),
+  )
+}
 // Only in-flight writes live here. PostgreSQL owns all persisted review state.
 const draftWrites = new Map<string, Promise<SavedReviewDraft>>()
 export function saveExtractionReviewDraft(extractionId: string, decisions: readonly ReviewDecisionInput[], version: number): Promise<SavedReviewDraft> {

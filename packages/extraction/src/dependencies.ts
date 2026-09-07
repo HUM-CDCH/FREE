@@ -74,6 +74,7 @@ export interface ExtractionPersistence {
   finalizeReview(extractionId: string, authority: ReviewAuthority): Promise<PersistedReviewResult>
   readReviewDraft(extractionId: string): Promise<ReviewDraft | null>
   saveReviewDraft(extractionId: string, draft: ReviewDraft): Promise<ReviewDraft>
+  resetReview(extractionId: string, expectedDraftVersion: number): Promise<ReviewDraft>
   readDocumentExtractions(input: ReadDocumentExtractionsInput): Promise<DocumentExtractionsSnapshot | null>
   scheduleBatch(input: ScheduleBatchInput): Promise<ScheduleBatchResult | null>
   scheduleSuggestedBatch(input: ScheduleSuggestedBatchInput): Promise<ScheduleBatchResult | null>
