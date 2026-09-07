@@ -24,7 +24,7 @@ location = ${STUDIO_BASE_PATH} {
 }
 
 location ^~ ${STUDIO_BASE_PATH}/ {
-    client_max_body_size 60m;
+    client_max_body_size 101m;
 
     add_header X-Frame-Options "DENY" always;
     add_header X-Content-Type-Options "nosniff" always;

@@ -198,8 +198,8 @@ describe('eager API dispatcher', () => {
     expect(production.status).toBe(404)
   })
 
-  it('keeps the existing multipart ingestion admission bound', () => {
-    expect(SOURCE_DOCUMENT_INGESTION_REQUEST_LIMIT).toBe(51 * 1024 * 1024)
+  it('bounds a 100 MiB PDF plus its multipart envelope', () => {
+    expect(SOURCE_DOCUMENT_INGESTION_REQUEST_LIMIT).toBe(101 * 1024 * 1024)
     expect(
       isSourceDocumentIngestionPath(
         '/api/project-contexts/project/source-documents',

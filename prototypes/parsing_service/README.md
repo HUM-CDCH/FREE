@@ -12,6 +12,13 @@ The implementation has four main modules:
 - `app.docling_parser` owns one reusable `DocumentConverter` and publishes the
   canonical `parsed_document.v2` document and Markdown.
 
+For image-only landscape spreads with four columns and three clear vertical
+gutters, the adapter parses lossless column crops and maps every observation
+back to its original PDF page and coordinates. Other layouts use Docling
+directly. The uploaded PDF bytes remain unchanged, and the page/file limits
+apply to that original PDF. Column order and original list numbers are preserved
+in both canonical text and evidence spans.
+
 There is one in-process worker and at most two admitted tasks. Task metadata and
 completed artifacts survive restarts; work interrupted by a restart is marked
 failed instead of being recovered through a second durable queue. Cancellation

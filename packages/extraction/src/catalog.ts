@@ -11,7 +11,7 @@ import type {
 } from './types.js'
 
 /** Hard bound on attempted Catalog records per run; not a user setting. */
-export const CATALOG_RECORD_LIMIT = 100
+export const CATALOG_RECORD_LIMIT = 500
 
 /** Durable failure code for Catalog records skipped by the record limit. */
 export const CATALOG_NOT_ATTEMPTED_LIMIT = 'not_attempted_limit'

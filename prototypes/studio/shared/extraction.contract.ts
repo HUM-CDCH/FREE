@@ -191,7 +191,7 @@ const catalogBoundarySchema = z
     startContentIndex: z.number().int().nonnegative(),
     endContentIndex: z.number().int().nonnegative(),
     headingText: z.string(),
-    headingLevel: z.number().int().positive(),
+    headingLevel: z.number().int().positive().nullable(),
   })
   .strict()
 

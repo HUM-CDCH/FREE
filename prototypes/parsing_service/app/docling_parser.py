@@ -12,10 +12,12 @@ import math
 import re
 import time
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 from .contracts import ParseResult
@@ -156,7 +158,13 @@ class DoclingParser:
             convert_options["max_file_size"] = task.max_file_size
 
         started = time.perf_counter()
-        result = self._converter.convert(source, **convert_options)
+        with TemporaryDirectory(prefix="free-docling-") as temporary:
+            prepared, slices = _prepare_scanned_columns(source, Path(temporary), task)
+            if slices:
+                # Admission limits apply to physical pages and original bytes.
+                convert_options["max_num_pages"] = len(slices)
+                convert_options["max_file_size"] = prepared.stat().st_size
+            result = self._converter.convert(prepared, **convert_options)
         duration_ms = max(0, round((time.perf_counter() - started) * 1000))
         status = _conversion_status(result)
         error_messages = _conversion_errors(result)
@@ -170,6 +178,8 @@ class DoclingParser:
                 "docling_conversion_failed", "Docling returned no document"
             )
 
+        if slices:
+            _restore_physical_pages(document, slices)
         parser_version = _docling_version(result)
         conversion_warnings = (
             [f"Docling partial conversion: {message}" for message in error_messages]
@@ -184,6 +194,14 @@ class DoclingParser:
             )
             for message in error_messages
         ]
+        if slices:
+            split_pages = [number for number in document.pages
+                           if sum(page.page_number == number for page, _ in slices) > 1]
+            conversion_diagnostics.extend(_diagnostic(
+                "scanned_columns_separated", page_number=number,
+                reason="clear_vertical_gutters",
+                detail="Parsed four columns separately and restored original PDF coordinates.",
+            ) for number in split_pages)
         publisher = _Publisher(
             document=document,
             context=task,
@@ -250,9 +268,10 @@ class _Publisher:
         finished_at: str,
     ) -> tuple[dict[str, Any], str, list[str]]:
         pages = self._physical_pages()
+        items = self._ordered_items(pages)
         serializer = self.serializer_factory(self.document)
-        markdown = self._render_markdown(serializer, pages)
-        blocks, tables, anchors, ordered = self._content(pages, markdown)
+        markdown = self._render_markdown(serializer, pages, items)
+        blocks, tables, anchors, ordered = self._content(pages, markdown, items)
 
         warnings = list(conversion_warnings)
         if self.diagnostics:
@@ -377,10 +396,43 @@ class _Publisher:
             )
         return dict(sorted(pages.items()))
 
+    def _ordered_items(self, pages: Mapping[int, _PageGeometry]) -> list[Any]:
+        iterator = getattr(self.document, "iterate_items", None)
+        if not callable(iterator):
+            raise DoclingParseError(
+                "docling_document_invalid",
+                "DoclingDocument does not expose reading-order iteration",
+            )
+        by_page: dict[int, list[tuple[Any, dict[str, float]]]] = {n: [] for n in pages}
+        unplaced: list[Any] = []
+        for pair in iterator(with_groups=False):
+            item = pair[0] if isinstance(pair, tuple) else pair
+            if not self._is_body_item(item):
+                continue
+            prov = next(iter(getattr(item, "prov", ()) or ()), None)
+            page = pages.get(getattr(prov, "page_no", None))
+            bbox = _top_left_bbox(getattr(prov, "bbox", None), page) if page else None
+            if page and bbox:
+                by_page[page.page_number].append((item, bbox))
+            else:
+                unplaced.append(item)
+        ordered: list[Any] = []
+        for number, entries in by_page.items():
+            corrected, has_columns = _column_order(entries, pages[number].width)
+            if has_columns and [id(item) for item, _ in corrected] != [id(item) for item, _ in entries]:
+                self.diagnostics.append(_diagnostic(
+                    "column_reading_order_corrected", page_number=number,
+                    reason="separated_columns", detail="Read each column from top to bottom, left to right.",
+                ))
+                entries = corrected
+            ordered.extend(item for item, _ in entries)
+        return ordered + unplaced
+
     def _render_markdown(
         self,
         serializer: Any,
         pages: Mapping[int, _PageGeometry],
+        items: Sequence[Any],
     ) -> _Markdown:
         chunks: list[bytes] = []
         page_spans: dict[int, dict[str, int]] = {}
@@ -400,7 +452,7 @@ class _Publisher:
                 append("\n\n")
             append(PAGE_MARKER.format(page=page_number) + "\n")
             page_start = cursor
-            parts = self._serializer_parts(serializer, page_number)
+            parts = self._serializer_parts(serializer, page_number, items)
             rendered_count = 0
             for part in parts:
                 text = _normalise_lf(str(getattr(part, "text", "")))
@@ -423,21 +475,29 @@ class _Publisher:
         return _Markdown(b"".join(chunks).decode("utf-8"), page_spans, ref_spans)
 
     @staticmethod
-    def _serializer_parts(serializer: Any, page_number: int) -> Sequence[Any]:
-        # Docling's page-aware serializer keeps its own reading-order and visited
-        # state, and injected fakes use the same compact seam.
-        get_parts = getattr(serializer, "get_parts", None)
-        if callable(get_parts):
-            return list(get_parts(pages={page_number}))
+    def _serializer_parts(serializer: Any, page_number: int, items: Sequence[Any]) -> Sequence[Any]:
+        # Serialize each ordered item separately: a list group may span columns,
+        # and its combined span cannot serve as exact evidence for each entry.
+        serialize = getattr(serializer, "serialize", None)
+        if callable(serialize):
+            visited: set[str] = set()
+            parts = []
+            for item in items:
+                prov = next(iter(getattr(item, "prov", ()) or ()), None)
+                if getattr(prov, "page_no", None) != page_number or _self_ref(item) in visited:
+                    continue
+                parts.append(serialize(item=item, pages={page_number}, visited=visited))
+            return parts
         raise DoclingParseError(
             "markdown_serialization_failed",
-            "Markdown serializer does not expose get_parts",
+            "Markdown serializer does not expose serialize",
         )
 
     def _content(
         self,
         pages: Mapping[int, _PageGeometry],
         markdown: _Markdown,
+        items: Sequence[Any],
     ) -> tuple[
         list[dict[str, Any]],
         list[dict[str, Any]],
@@ -448,17 +508,7 @@ class _Publisher:
         tables: list[dict[str, Any]] = []
         anchors: list[dict[str, Any]] = []
         ordered = {page_number: [] for page_number in pages}
-        iterator = getattr(self.document, "iterate_items", None)
-        if not callable(iterator):
-            raise DoclingParseError(
-                "docling_document_invalid",
-                "DoclingDocument does not expose reading-order iteration",
-            )
-
-        for ordinal, pair in enumerate(iterator(with_groups=False)):
-            item = pair[0] if isinstance(pair, tuple) else pair
-            if not self._is_body_item(item):
-                continue
+        for ordinal, item in enumerate(items):
             ref = _self_ref(item) or f"reading-order:{ordinal}"
             provenance = self._item_provenance(item, ref, pages)
             if not provenance:
@@ -494,6 +544,9 @@ class _Publisher:
                 continue
 
             text = str(getattr(item, "text", ""))
+            marker = str(getattr(item, "marker", "") or "").strip()
+            if marker and not text.startswith(marker + " "):
+                text = f"{marker} {text}"
             if not text.strip():
                 if label not in {"picture", "form", "key_value_region"}:
                     self.diagnostics.append(
@@ -821,10 +874,139 @@ class _Publisher:
         return default_page, _top_left_bbox(getattr(cell, "bbox", None), page)
 
 
-def _new_markdown_serializer(document: Any) -> Any:
-    from docling_core.transforms.serializer.markdown import MarkdownDocSerializer
+def _prepare_scanned_columns(
+    source: Path, directory: Path, task: _Context,
+) -> tuple[Path, list[tuple[_PageGeometry, float]]]:
+    import pypdfium2 as pdfium
 
-    return MarkdownDocSerializer(doc=document)
+    if task.max_file_size is not None and source.stat().st_size > task.max_file_size:
+        raise DoclingParseError("docling_conversion_failed", "PDF exceeds the file size limit")
+    with pdfium.PdfDocument(source) as pdf:
+        if task.max_num_pages is not None and len(pdf) > task.max_num_pages:
+            raise DoclingParseError("docling_conversion_failed", "PDF exceeds the physical page limit")
+        page_cuts = []
+        for index in range(len(pdf)):
+            with closing(pdf[index]) as page:
+                width, height = page.get_size()
+                cuts = []
+                if width >= height * 1.25 and page.get_rotation() == 0:
+                    with closing(page.get_textpage()) as text:
+                        scanned = text.count_chars() == 0
+                    if scanned:
+                        with closing(page.render(scale=min(1, 1600 / width))) as bitmap:
+                            cuts = _scanned_column_cuts(bitmap.to_pil(), width)
+                page_cuts.append((_PageGeometry(index + 1, width, height), cuts))
+        if not any(cuts for _, cuts in page_cuts):
+            return source, []
+        slices = []
+        prepared = directory / "columns.pdf"
+        with pdfium.PdfDocument.new() as output:
+            for geometry, cuts in page_cuts:
+                bounds = [0, *cuts, geometry.width]
+                for left, right in zip(bounds, bounds[1:]):
+                    output.import_pages(pdf, [geometry.page_number - 1])
+                    if cuts:
+                        with closing(output[len(output) - 1]) as page:
+                            page.set_mediabox(left, 0, right, geometry.height)
+                            page.set_cropbox(left, 0, right, geometry.height)
+                    slices.append((geometry, left))
+            output.save(prepared)
+    return prepared, slices
+
+
+def _scanned_column_cuts(image: Any, page_width: float) -> list[float]:
+    import numpy as np
+
+    # ponytail: only four-column scanned spreads with clear gutters; mixed layouts
+    # stay with Docling. Use region segmentation if that wider need is demonstrated.
+    pixels = np.asarray(image.convert("L"))
+    height, width = pixels.shape
+    ink = (pixels[round(height * .1):round(height * .9)] < 160).mean(axis=0)
+    cuts = []
+    for start, end in ((.2, .35), (.45, .55), (.7, .8)):
+        first, last = round(start * width), round(end * width)
+        runs = []
+        left = None
+        for x in range(first, last + 1):
+            if x < last and ink[x] < .005:
+                if left is None:
+                    left = x
+            elif left is not None:
+                runs.append((left, x))
+                left = None
+        gap = max(runs, key=lambda run: run[1] - run[0], default=None)
+        if gap is None or (gap[1] - gap[0]) * page_width / width < 4:
+            return []
+        cuts.append((gap[0] + gap[1]) / 2 * page_width / width)
+    return cuts
+
+
+def _restore_physical_pages(document: Any, slices: Sequence[tuple[_PageGeometry, float]]) -> None:
+    from docling_core.types.doc import ContentLayer, DocItemLabel, PageItem, Size
+
+    if set(document.pages) != set(range(1, len(slices) + 1)):
+        raise DoclingParseError("v2_physical_page_mapping_unavailable", "Docling omitted a prepared PDF page")
+    for item, _ in document.iterate_items(with_groups=False, included_content_layers=set(ContentLayer)):
+        # Cropping can make a numbered entry look like a running page header.
+        # Preserve its OCR text; plain page numbers remain furniture.
+        if _label(item) in {"page_header", "page_footer"} and re.match(
+            r"^[a-z]?\s*\d+[.,)]\s*[^\W\d_]", getattr(item, "text", ""), re.IGNORECASE,
+        ):
+            item.content_layer = ContentLayer.BODY
+            item.label = DocItemLabel.TEXT
+        provenance = list(getattr(item, "prov", ()))
+        if provenance:
+            _, offset = slices[provenance[0].page_no - 1]
+            for cell in getattr(getattr(item, "data", None), "table_cells", ()):
+                if cell.bbox is not None:
+                    cell.bbox.l += offset
+                    cell.bbox.r += offset
+        for prov in provenance:
+            geometry, offset = slices[prov.page_no - 1]
+            prov.page_no = geometry.page_number
+            prov.bbox.l += offset
+            prov.bbox.r += offset
+    document.pages = {geometry.page_number: PageItem(
+        page_no=geometry.page_number, size=Size(width=geometry.width, height=geometry.height),
+    ) for geometry, _ in slices}
+
+
+def _column_order(
+    entries: list[tuple[Any, dict[str, float]]], page_width: float,
+) -> tuple[list[tuple[Any, dict[str, float]]], bool]:
+    # ponytail: whitespace cuts handle separated columns; overlapping/irregular
+    # layouts keep Docling's order unless a clear column split can be found.
+    for axis in ("x", "y"):
+        groups: list[list[tuple[Any, dict[str, float]]]] = []
+        end = -math.inf
+        for entry in sorted(entries, key=lambda pair: pair[1][axis + "0"]):
+            bbox = entry[1]
+            # Small OCR overhangs must not join otherwise separate columns.
+            margin = min(page_width * 0.005, (bbox[axis + "1"] - bbox[axis + "0"]) / 4) if axis == "x" else 0
+            if bbox[axis + "0"] + margin > end:
+                groups.append([])
+            groups[-1].append(entry)
+            end = max(end, bbox[axis + "1"] - margin)
+        if len(groups) > 1:
+            ordered: list[tuple[Any, dict[str, float]]] = []
+            has_columns = axis == "x"
+            for group in groups:
+                children, child_columns = _column_order(group, page_width)
+                ordered.extend(children)
+                has_columns |= child_columns
+            return ordered, has_columns
+    return sorted(entries, key=lambda pair: (pair[1]["y0"], pair[1]["x0"])), False
+
+
+def _new_markdown_serializer(document: Any) -> Any:
+    from docling_core.transforms.serializer.markdown import (
+        MarkdownDocSerializer, MarkdownParams, OrigListItemMarkerMode,
+    )
+
+    return MarkdownDocSerializer(doc=document, params=MarkdownParams(
+        orig_list_item_marker_mode=OrigListItemMarkerMode.ALWAYS,
+        ensure_valid_list_item_marker=False,
+    ))
 
 
 def _context_value(

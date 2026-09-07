@@ -12,6 +12,8 @@ import type {
 } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import { createExtractionJobExecutor } from './module.js'
+import { catalogDiscoveryChunks } from './source-context.js'
+import { decodeParsedDocument } from './parsed-document.js'
 import type { ExtractionSnapshot } from './types.js'
 
 const metadata = {
@@ -194,10 +196,10 @@ describe('ExtractionModule Article contract', () => {
 })
 
 /** A one-page parsed_document.v2 where each label is a level-2 heading with one body paragraph. */
-function catalogDocument(labels: readonly string[]) {
+function catalogDocument(labels: readonly string[], startKind: 'heading' | 'paragraph' | 'list' = 'heading') {
   const blocks: Record<string, unknown>[] = []
   const anchors: Record<string, unknown>[] = []
-  const push = (blockId: string, kind: 'heading' | 'paragraph', text: string) => {
+  const push = (blockId: string, kind: 'heading' | 'paragraph' | 'list', text: string) => {
     const span = { start: blocks.length * 10, end: blocks.length * 10 + 5 }
     const bbox = { x0: 36, y0: 36, x1: 100, y1: 54 }
     blocks.push({
@@ -207,7 +209,7 @@ function catalogDocument(labels: readonly string[]) {
       parser: 'bundled-fixture',
       bbox,
       markdown_span: span,
-      text,
+      ...(kind === 'list' ? { ordered: true, items: [text] } : { text }),
       ...(kind === 'heading' ? { level: 2 } : {}),
     })
     anchors.push({
@@ -226,7 +228,7 @@ function catalogDocument(labels: readonly string[]) {
     })
   }
   labels.forEach((label, index) => {
-    push(`h${index}`, 'heading', label)
+    push(`h${index}`, startKind, label)
     push(`p${index}`, 'paragraph', `${label} body`)
   })
   return {
@@ -249,17 +251,20 @@ type ScriptedCall =
   | { error: Error }
 
 function catalogHarness(options: {
+  startKind?: 'heading' | 'paragraph' | 'list'
   labels?: readonly string[]
   starts?: readonly string[]
   discoveryResult?: Record<string, unknown>
+  discoveryScript?: readonly Record<string, unknown>[]
   schemaTree?: unknown
   script?: readonly ScriptedCall[]
 } = {}) {
   const labels = options.labels ?? ['First', 'Second']
-  const document = catalogDocument(labels)
+  const document = catalogDocument(labels, options.startKind)
   const store = new Map<string, ExtractionSnapshot>()
   let starts: readonly string[] =
-    options.starts ?? labels.map((_, index) => `H${index + 1}`)
+    options.starts ?? labels.map((_, index) => `B${index * 2 + 1}`)
+  const discoveryScript = [...options.discoveryScript ?? []]
   let script: ScriptedCall[] = [...(options.script ?? [])]
   const calls: { markdown: string; template: Record<string, unknown> }[] = []
   const session: ExtractionModelSession = {
@@ -272,11 +277,16 @@ function catalogHarness(options: {
         })
         if ('starts' in request.template)
           return {
-            result: options.discoveryResult ?? { starts: [...starts] },
+            result: options.discoveryResult ?? discoveryScript.shift() ?? { starts: options.starts ? [...starts] : starts.filter(
+              (label) => request.document.markdown.includes(`[[block:${label}]]`),
+            ) },
             metadata,
           }
         const next = script.shift()
-        if (!next) return { result: { records: [{ title: 'X', year: 1900 }] }, metadata }
+        if (!next) {
+          const record = { title: 'X', year: 1900 }
+          return { result: 'record' in request.template ? { record } : { records: [record] }, metadata }
+        }
         if ('error' in next) throw next.error
         return { result: next.result, metadata }
       },
@@ -367,11 +377,23 @@ function retryInput(retryOfId: string, selection: Partial<{
 }
 
 describe('ExtractionModule Catalog contract', () => {
+  for (const startKind of ['paragraph', 'list'] as const) {
+    it(`discovers catalogue entries parsed as ${startKind} blocks`, async () => {
+      const harness = catalogHarness({ startKind, labels: ['29. Tangermünde', '30. Estedt'], starts: ['B1', 'B3'] })
+      const { extraction } = await harness.module.runSingle(catalogInput())
+      assert.equal(extraction.diagnostics.catalog?.records.length, 2)
+      assert.ok(harness.calls[0].markdown.includes('[[block:B1]] 29. Tangermünde'))
+      assert.ok(harness.calls[1].markdown.includes('29. Tangermünde body'))
+      assert.ok(!harness.calls[1].markdown.includes('30. Estedt'))
+      assert.ok(harness.calls[2].markdown.includes('30. Estedt body'))
+    })
+  }
+
   it('schedules one discovery call and one values call per canonical record slice', async () => {
     const harness = catalogHarness({
       script: [
-        { result: { records: [{ title: 'Alpha', year: 1901 }] } },
-        { result: { records: [{ title: 'Beta', year: 1902 }] } },
+        { result: { record: { title: 'Alpha', year: 1901 } } },
+        { result: { record: { title: 'Beta', year: 1902 } } },
       ],
     })
     const { extraction } = await harness.module.runSingle(catalogInput())
@@ -387,12 +409,14 @@ describe('ExtractionModule Catalog contract', () => {
     // One discovery call plus one bounded call per canonical slice.
     assert.equal(harness.calls.length, 3)
     assert.ok('starts' in harness.calls[0].template)
-    assert.ok(harness.calls[0].markdown.includes('[[heading:H1]] First'))
-    assert.ok(harness.calls[0].markdown.includes('[[heading:H2]] Second'))
-    assert.ok(!harness.calls[0].markdown.includes('[[heading:H3]]'))
+    assert.deepEqual(harness.calls[1].template, { record: { title: 'string', year: 'integer' } })
+    assert.ok(harness.calls[0].markdown.includes('[[block:B1]] First'))
+    assert.ok(harness.calls[0].markdown.includes('[[block:B3]] Second'))
+    assert.ok(!harness.calls[0].markdown.includes('[[block:B5]]'))
     assert.ok(harness.calls[1].markdown.includes('First body'))
     assert.ok(!harness.calls[1].markdown.includes('Second body'))
     assert.ok(harness.calls[2].markdown.includes('Second body'))
+    assert.deepEqual(extraction.diagnostics.groundingBatches.map(batch => batch.candidateCount), [2, 2])
     const catalog = extraction.diagnostics.catalog
     assert.ok(catalog)
     assert.deepEqual(
@@ -414,9 +438,9 @@ describe('ExtractionModule Catalog contract', () => {
     const harness = catalogHarness({
       labels: ['First', 'Second', 'Third'],
       script: [
-        { result: { records: [{ title: 'Alpha', year: 1901 }] } },
+        { result: { record: { title: 'Alpha', year: 1901 } } },
         { error: new Error('record exploded') },
-        { result: { records: [{ title: 'Gamma', year: 1903 }] } },
+        { result: { record: { title: 'Gamma', year: 1903 } } },
       ],
     })
     const { extraction } = await harness.module.runSingle(catalogInput())
@@ -434,15 +458,26 @@ describe('ExtractionModule Catalog contract', () => {
     )
   })
 
+  it('rejects multiple objects for one catalogue entry without dropping its successful sibling', async () => {
+    const harness = catalogHarness({ script: [
+      { result: { record: [{ title: 'Parent' }, { title: 'Subentry' }] } },
+      { result: { record: { title: 'Second', year: 1902 } } },
+    ] })
+    const { extraction } = await harness.module.runSingle(catalogInput())
+    assert.equal(extraction.complete, false)
+    assert.deepEqual(extraction.result, { records: [{ title: 'Second', year: 1902 }] })
+    assert.equal(extraction.diagnostics.catalog?.records[0].failureCode, 'invalid_model_output')
+  })
+
   it('requires exact unique short heading IDs before record extraction', async () => {
     const cases: ReadonlyArray<
       readonly [readonly string[], 'unknown_start' | 'duplicate_start']
     > = [
-      [['H999'], 'unknown_start'],
+      [['B999'], 'unknown_start'],
       [['h1'], 'unknown_start'],
-      [[' H1'], 'unknown_start'],
-      [['H1 '], 'unknown_start'],
-      [['H1', 'H1'], 'duplicate_start'],
+      [[' B1'], 'unknown_start'],
+      [['B1 '], 'unknown_start'],
+      [['B1', 'B1'], 'duplicate_start'],
     ]
     for (const [starts, failureCode] of cases) {
       const harness = catalogHarness({ starts })
@@ -465,8 +500,7 @@ describe('ExtractionModule Catalog contract', () => {
     const { extraction } = await harness.module.runSingle(catalogInput())
     assert.equal(extraction.outcome, 'SUCCEEDED')
     assert.equal(extraction.complete, false)
-    // One discovery call and exactly the first 100 record calls.
-    assert.equal(harness.calls.length, 1 + CATALOG_RECORD_LIMIT)
+    assert.equal(harness.calls.filter(call => !('starts' in call.template)).length, CATALOG_RECORD_LIMIT)
     const records = extraction.diagnostics.catalog?.records ?? []
     assert.equal(records.length, labels.length)
     for (const skipped of records.slice(CATALOG_RECORD_LIMIT)) {
@@ -474,6 +508,70 @@ describe('ExtractionModule Catalog contract', () => {
       assert.equal(skipped.failureCode, CATALOG_NOT_ATTEMPTED_LIMIT)
       assert.equal(skipped.calls, 0)
     }
+  })
+
+  it('covers a 420-entry catalogue in one run', async () => {
+    const harness = catalogHarness({
+      labels: Array.from({ length: 420 }, (_, index) => `Entry ${index + 1}`),
+      schemaTree: { recordDescription: 'One catalogue entry.', schemaNodes: [
+        { id: 'filename', name: 'filename', type: 'string', valueSource: 'source-filename' },
+      ] },
+    })
+    const { extraction } = await harness.module.runSingle(catalogInput())
+    assert.equal(extraction.complete, true)
+    assert.equal((extraction.result?.records as unknown[]).length, 420)
+  })
+
+  it('discovers every block once in bounded chunks and sums discovery diagnostics', async () => {
+    const labels = ['First', 'Middle', 'Last'].map(label => `${label} ${'content '.repeat(1800)}`)
+    const chunks = catalogDiscoveryChunks(decodeParsedDocument(catalogDocument(labels, 'paragraph')))
+    assert.ok(chunks.length > 1)
+    assert.deepEqual(chunks.flatMap(chunk => [...chunk.startBlockIdByLabel.keys()]),
+      ['B1', 'B2', 'B3', 'B4', 'B5', 'B6'])
+    for (const chunk of chunks) assert.ok(chunk.text.length < 19_000)
+    assert.ok(chunks[0].text.includes('Following context (not selectable):\n## Page 1\nFirst'))
+    assert.ok(!chunks[0].startBlockIdByLabel.has('B2'))
+    assert.ok(!chunks.at(-1)!.text.includes('Following context (not selectable)'))
+    const harness = catalogHarness({ labels, startKind: 'paragraph' })
+    const { extraction } = await harness.module.runSingle(catalogInput())
+    assert.equal((extraction.result?.records as unknown[]).length, 3)
+    assert.equal(extraction.diagnostics.catalog?.stages.find(stage => stage.stage === 'discovery')?.calls, chunks.length)
+    assert.equal(extraction.diagnostics.catalog?.stages.find(stage => stage.stage === 'discovery')?.inputTokens, chunks.length * metadata.inputTokens)
+    const discoveryCalls = harness.calls.filter(call => 'starts' in call.template)
+    assert.ok(discoveryCalls[1].markdown.includes('Previous catalog record start (context only, never select again):\nFirst'))
+  })
+
+  it('keeps normal physical pages together and their block labels separate', () => {
+    const source = catalogDocument(['First', 'Second'], 'paragraph')
+    source.page_count = source.document.page_count = 2
+    source.content_stream.slice(2).forEach(block => { block.page_number = 2 })
+    source.evidence_index.anchors.slice(2).forEach(anchor => {
+      (anchor.producer_observations as { page_number: number }[])[0].page_number = 2
+    })
+    source.pages = [1, 2].map(page => ({ ...source.pages[0], page_number: page,
+      ordered_content: source.content_stream.filter(block => block.page_number === page).map(block => block.block_id),
+    }))
+    const chunks = catalogDiscoveryChunks(decodeParsedDocument(source))
+    assert.deepEqual(chunks.map(chunk => [...chunk.startBlockIdByLabel.keys()]), [['B1', 'B2'], ['B3', 'B4']])
+  })
+
+  it('carries an ended section into later excerpts until a new matching record starts', async () => {
+    const labels = ['First', 'Index', 'Second'].map(label => `${label} ${'content '.repeat(1800)}`)
+    const harness = catalogHarness({ labels, discoveryScript: [
+      { starts: ['B1'] }, { starts: [] }, { starts: [], end: 'B3' },
+      { starts: [] }, { starts: ['B5'] }, { starts: [] },
+    ] })
+    await harness.module.runSingle(catalogInput())
+    const calls = harness.calls.filter(call => 'starts' in call.template)
+    assert.ok(calls[3].markdown.includes('Previous catalog section ended before this block (context only, not selectable):\n## Page 1\nIndex'))
+    assert.ok(!calls[5].markdown.includes('Previous catalog section ended'))
+  })
+
+  it('excludes a discovered trailing index from the final record values', async () => {
+    const harness = catalogHarness({ startKind: 'paragraph', discoveryResult: { starts: ['B1'], end: 'B3' } })
+    await harness.module.runSingle(catalogInput())
+    assert.ok(harness.calls[1].markdown.includes('First body'))
+    assert.ok(!harness.calls[1].markdown.includes('Second'))
   })
 
   it('extracts document-scoped fields once and overlays package values without model calls', async () => {
@@ -485,7 +583,7 @@ describe('ExtractionModule Catalog contract', () => {
           { id: 'file', name: 'file', type: 'string', valueSource: 'source-filename' },
         ],
       },
-      script: [{ result: { records: [{ archive: 'Copenhagen' }] } }],
+      script: [{ result: { record: { archive: 'Copenhagen' } } }],
     })
     const { extraction } = await harness.module.runSingle(catalogInput())
     assert.equal(extraction.outcome, 'SUCCEEDED')
@@ -509,15 +607,15 @@ describe('ExtractionModule Catalog contract', () => {
     const harness = catalogHarness({
       labels: ['First', 'Second', 'Third'],
       script: [
-        { result: { records: [{ title: 'Alpha', year: 1901 }] } },
+        { result: { record: { title: 'Alpha', year: 1901 } } },
         { error: new Error('record exploded') },
-        { result: { records: [{ title: 'Gamma', year: 1903 }] } },
+        { result: { record: { title: 'Gamma', year: 1903 } } },
       ],
     })
     const parent = (await harness.module.runSingle(catalogInput())).extraction
 
     harness.calls.length = 0
-    harness.setScript([{ result: { records: [{ title: 'Beta', year: 1902 }] } }])
+    harness.setScript([{ result: { record: { title: 'Beta', year: 1902 } } }])
     const child = (
       await harness.module.runSingle(
         retryInput(parent.extractionId, { retryRecordStartBlockIds: ['h1'] }),
@@ -554,8 +652,8 @@ describe('ExtractionModule Catalog contract', () => {
   it('performs a grounding-only retry without values or discovery calls', async () => {
     const harness = catalogHarness({
       script: [
-        { result: { records: [{ title: 'Alpha', year: 1901 }] } },
-        { result: { records: [{ title: 'Beta', year: 1902 }] } },
+        { result: { record: { title: 'Alpha', year: 1901 } } },
+        { result: { record: { title: 'Beta', year: 1902 } } },
       ],
     })
     const parent = (await harness.module.runSingle(catalogInput())).extraction

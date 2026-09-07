@@ -258,6 +258,15 @@ describe('extractWithModel', () => {
     expect(result).not.toHaveProperty('evidence')
   })
 
+  it('defaults supported structured generation to temperature zero', async () => {
+    generateTextMock.mockResolvedValue({ text: '{"starts":["B1","B2"]}' })
+    await extractWithModel(
+      { document, template: { starts: ['string'] } },
+      { ...generalTarget, temperatureSupported: true },
+    )
+    expect(generateTextMock.mock.calls[0][0]).toHaveProperty('temperature', 0)
+  })
+
   it('uses native JSON output without changing the Extraction Schema', async () => {
     const { generateText } = await vi.importActual<typeof import('ai')>('ai')
     generateTextMock.mockImplementation(generateText)
@@ -526,6 +535,21 @@ describe('generateSchemaWithModel', () => {
     )
     expect(generateTextMock).toHaveBeenCalledOnce()
     expect(result.template).toEqual({ _description: 'One grave record.', grave: [{ name: 'verbatim-string' }] })
+  })
+
+  it('bounds schema context while retaining excerpts from every physical page', async () => {
+    generateTextMock.mockResolvedValue({ text: '{"_description":"One entry.","label":"string"}' })
+    const markdown = Array.from({ length: 45 }, (_, i) =>
+      `<!-- FREE:PAGE ${i + 1} -->\nStart ${i + 1}\n${'Source '.repeat(1700)}\nEnd ${i + 1}\n`,
+    ).join('\n')
+    await generateSchemaWithModel({ document: { ...document, markdown }, instruction: '' }, generalTarget)
+    const sent = JSON.stringify(generateTextMock.mock.calls[0][0].messages)
+    expect(sent.length).toBeLessThan(55_000)
+    for (let i = 1; i <= 45; i += 1) {
+      expect(sent).toContain(`Start ${i}`)
+      expect(sent).toContain(`End ${i}`)
+    }
+    expect(sent).toContain('excerpts')
   })
 
   it('passes cancellation to the generic model call', async () => {

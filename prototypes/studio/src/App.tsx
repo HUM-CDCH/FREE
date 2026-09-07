@@ -311,7 +311,10 @@ export function DocumentWorkspace({
 
     async function loadPdf() {
       try {
-        loadingTask = pdfjsLib.getDocument({ url: browserStudioPath(pdfUrl) })
+        loadingTask = pdfjsLib.getDocument({
+          url: browserStudioPath(pdfUrl),
+          wasmUrl: browserStudioPath('/assets/pdfjs-wasm/'),
+        })
         const pdf = await loadingTask.promise
         if (abortController.signal.aborted) {
           return
@@ -612,7 +615,6 @@ export function DocumentWorkspace({
       if (!revision)
         throw new Error('Save the Current Schema Revision before extraction.')
       const strategy = nextExtractionStrategy
-      setNextExtractionStrategy('ARTICLE')
       // The researcher asked for this run, so it is what they now inspect;
       // its schema is known before the server acknowledges the attempt.
       setSelectedInspectionId(null)
@@ -632,6 +634,7 @@ export function DocumentWorkspace({
         },
         strategy,
       )
+      setNextExtractionStrategy('ARTICLE')
     } catch (error) {
       showToast(
         error instanceof Error
@@ -660,7 +663,9 @@ export function DocumentWorkspace({
       : '▶ Run extraction'
 
   const hintText =
-    extraction.hasResults
+    running
+      ? 'Extraction is running. Follow its status in the Results tab'
+      : extraction.hasResults
       ? 'View the extracted JSON in the Results tab'
       : schemaReady
         ? 'Press Run extraction to apply the schema across the whole document'
@@ -746,7 +751,7 @@ export function DocumentWorkspace({
             Strategy
             <select
               aria-label="Extraction strategy"
-              value={nextExtractionStrategy}
+              value={running ? latestAttempt.strategy : nextExtractionStrategy}
               disabled={running || savingForRun}
               onChange={(event) =>
                 setNextExtractionStrategy(event.target.value as ExtractionStrategy)
@@ -771,7 +776,9 @@ export function DocumentWorkspace({
                   ? 'Waiting for the Extraction to stop'
                   : 'Cancel the active Extraction'
                 : schemaReady
-                  ? 'Run one values extraction across the whole Source Document'
+                  ? nextExtractionStrategy === 'CATALOG'
+                    ? 'Find catalogue entries and extract one record per entry'
+                    : 'Run one values extraction across the whole Source Document'
                   : 'Generate a schema in the Schema tab first'
             }
             onClick={() =>

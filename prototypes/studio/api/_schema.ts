@@ -35,5 +35,19 @@ export function schemaPrompt(instruction: string): string {
   
   Its first member must be "_description": one concise, explicit sentence defining what constitutes ONE root record in the source document. This record description must distinguish record boundaries (for example, one grave beginning at a "Grav N" heading or one top-level numbered article section); field names alone are not a record definition. Field values should be simple type labels such as "verbatim-string", "string", "date", "number", "integer", "boolean", nested objects, or arrays.
 
+Represent repeating values as a JSON array containing their item type, for example "references": ["verbatim-string"], and repeating objects as [{"name":"string"}]. Do not use the bare type labels "array" or "object"; specify their contents.
+
+Place the actual requested field names directly inside "template", for example {"template":{"_description":"One numbered grave entry, including its finds.","grave_number":"verbatim-string","finds":["verbatim-string"]}}. Never return a "fields" list of name/type/description descriptors. Use the researcher's requested fields and record scope when supplied.
+
 When a field can only take one of a small closed set of values, give that field a literal array of the allowed values instead of a type label, for example "sex": ["mand", "kvinde", "ukendt"].`
+}
+
+/** Schema design needs examples; extraction still receives the complete source. */
+export function schemaSourceExcerpts(markdown: string): string {
+  if (markdown.length <= 48_000) return markdown
+  const pages = markdown.split(/(?=<!-- FREE:PAGE \d+ -->)/).filter(Boolean)
+  const half = Math.max(1, Math.floor(46_000 / pages.length / 2))
+  return 'Source excerpts from every physical page for schema design:\n' + pages.map((page) =>
+    page.length <= half * 2 ? page : `${page.slice(0, half)}\n[... omitted for schema design ...]\n${page.slice(-half)}`,
+  ).join('\n\n')
 }

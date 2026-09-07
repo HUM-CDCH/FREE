@@ -2,7 +2,7 @@ import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { randomBytes } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { cpSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import {
   canonicalEntraCertificateThumbprint,
@@ -166,6 +166,12 @@ export function apiFunctions(configuredBasePath: string): Plugin {
 // Keep Studio on IPv4 loopback so dev-container port forwarding reaches the
 // same address on every host without exposing the server on the container LAN.
 export default defineConfig(({ command, mode }) => {
+  // PDF.js loads its image decoders by filename in both development and builds.
+  cpSync(
+    resolve(import.meta.dirname, 'node_modules/pdfjs-dist/wasm'),
+    resolve(import.meta.dirname, 'public/assets/pdfjs-wasm'),
+    { recursive: true },
+  )
   const environment = loadEnv(mode, import.meta.dirname, '')
   const basePath = canonicalStudioBasePath(
     process.env.STUDIO_BASE_PATH ?? environment.STUDIO_BASE_PATH ?? '/',

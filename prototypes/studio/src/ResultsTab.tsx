@@ -198,16 +198,17 @@ function ExtractionDiagnostics({ attempt }: { attempt: ExtractionAttempt }) {
                       Record {record.ordinal + 1} · {outcomeLabel(record.outcome)} · {record.provenance} · {record.boundary.headingText}
                     </p>
                     <p className="text-[11px] text-ink-muted">
-                      Canonical {record.boundary.startContentIndex}–{record.boundary.endContentIndex} · heading level {record.boundary.headingLevel}
+                      Canonical {record.boundary.startContentIndex}–{record.boundary.endContentIndex}
+                      {record.boundary.headingLevel !== null && ` · heading level ${record.boundary.headingLevel}`}
                     </p>
                     <DiagnosticDetails
                       diagnostic={record}
                       identity={[
                         ['Record identity', record.boundary.startBlockId],
-                        ['Heading', record.boundary.headingText],
+                        ['Record start', record.boundary.headingText],
                         ['Canonical start', record.boundary.startContentIndex],
                         ['Canonical end', record.boundary.endContentIndex],
-                        ['Heading level', record.boundary.headingLevel],
+                        ['Heading level', record.boundary.headingLevel ?? 'Not a heading'],
                       ]}
                     />
                   </div>

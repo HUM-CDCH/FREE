@@ -219,6 +219,8 @@ export function templateToNodes(value: unknown): SchemaNode[] {
   return Object.entries(value)
     .filter(([name]) => name !== '_description')
     .map(([name, child]) => {
+      if (child === 'array')
+        return { id: mkId(), name, type: 'array', itemType: 'string' }
       if (Array.isArray(child)) {
         const first = child[0]
         if (isRecord(first)) {

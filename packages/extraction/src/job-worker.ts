@@ -11,9 +11,8 @@ const LEASE_MS = 2 * 60 * 1000
 const LEASE_RENEW_MS = 30 * 1000
 const IDLE_POLL_MS = 5 * 1000
 const MEMBER_TIMEOUT_MS = 10 * 60 * 1000
-// ponytail: Catalog jobs can make ~102 bounded model calls; split the budget
-// only after one limit is measurably too coarse.
-const CATALOG_MEMBER_TIMEOUT_MS = 30 * 60 * 1000
+// Large catalogues make a values call and a grounding call per entry.
+const CATALOG_MEMBER_TIMEOUT_MS = 3 * 60 * 60 * 1000
 
 function durableFailure(
   error: unknown,
