@@ -362,6 +362,13 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
   ).toHaveCount(0)
   // Completion announces itself but never switches the rail tab.
   await expect(page.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'false')
+  const completionDialog = page.getByRole('dialog', { name: 'Extraction finished', exact: true })
+  await expect(completionDialog).toBeVisible()
+  await activateWithKeyboard(
+    page,
+    completionDialog.getByRole('button', { name: 'Dismiss', exact: true }),
+  )
+  await expect(completionDialog).toBeHidden()
   await activateWithKeyboard(page, page.getByRole('tab', { name: /Results/ }))
   await expect(
     page.getByRole('button', { name: 'View Evidence for title' }),
@@ -645,6 +652,13 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
   await expect(freshPage.getByText('Incomplete Extraction', { exact: true })).toBeVisible()
   await expect(freshPage.getByRole('button', { name: 'Export' })).toBeEnabled()
   await expect(freshPage.getByRole('button', { name: 'Save Review' })).toHaveCount(0)
+  const retryCompletionDialog = freshPage.getByRole('dialog', { name: 'Extraction finished', exact: true })
+  await expect(retryCompletionDialog).toBeVisible()
+  await activateWithKeyboard(
+    freshPage,
+    retryCompletionDialog.getByRole('button', { name: 'Dismiss', exact: true }),
+  )
+  await expect(retryCompletionDialog).toBeHidden()
   await freshPage.getByRole('tab', { name: 'Raw JSON' }).click()
   await expect(freshPage.locator('pre').filter({ hasText: 'Résumé, source' })).toBeVisible()
 
@@ -1048,6 +1062,13 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     await page.getByLabel('Extraction strategy').selectOption('CATALOG')
     await page.getByRole('button', { name: '▶ Run extraction' }).click()
     await expect(page.getByRole('button', { name: '↻ Re-run extraction' })).toBeVisible({ timeout: 30_000 })
+    const completionDialog = page.getByRole('dialog', { name: 'Extraction finished', exact: true })
+    await expect(completionDialog).toBeVisible()
+    await activateWithKeyboard(
+      page,
+      completionDialog.getByRole('button', { name: 'Dismiss', exact: true }),
+    )
+    await expect(completionDialog).toBeHidden()
     await page.getByRole('tab', { name: /Results/ }).click()
     await expect(page.getByText('catalog', { exact: true })).toBeVisible()
     // The one-shot selector defaults the next run back to Article.

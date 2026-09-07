@@ -518,8 +518,8 @@ export function DocumentWorkspace({
           schemaRevisionId: schemaSnap.extractableSchemaRevisionId,
         }
       : null,
-    // Completion only announces itself: the rail tab, the inspected snapshot
-    // and focus stay where the researcher left them.
+    // Completion preserves the rail tab and inspected snapshot; a completion
+    // report temporarily takes focus until dismissed or Review now is chosen.
     onTerminal: (attempt, isRerun) => {
       if (pendingReportRef.current?.extractionId === attempt.extractionId) {
         const { schemaNodes } = pendingReportRef.current
