@@ -728,7 +728,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
   }, [displayResult, navPath])
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="scrollbar-subtle flex h-full min-h-0 flex-col overflow-y-auto">
       <div className="flex items-center justify-between px-4 py-2.5">
         <Overline as="h2">Extraction results</Overline>
         {attempt && (
@@ -889,10 +889,12 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
               id="results-panel-review"
               role="tabpanel"
               aria-labelledby="results-tab-review"
-              className="flex min-h-0 flex-1 flex-col"
+              className="flex flex-col"
             >
-              {/* Breadcrumb bar — always visible */}
-              <nav aria-label="Result navigation" className="flex shrink-0 items-center gap-0.5 border-b border-line bg-surface px-2 py-1">
+              {/* Breadcrumb bar — scrolls with Extraction status until it
+                  reaches the top, then sticks there (root is the scroll
+                  container: overflow-y-auto above). */}
+              <nav aria-label="Result navigation" className="sticky top-0 z-10 flex shrink-0 items-center gap-0.5 border-b border-line bg-surface px-2 py-1">
                 <button
                   className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[13px] font-bold leading-none text-ink-muted hover:bg-accent-ghost/40 hover:text-ink disabled:cursor-default disabled:opacity-30"
                   type="button"
@@ -948,7 +950,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                 )}
               </nav>
               {/* Content */}
-              <div className="scrollbar-subtle min-h-0 flex-1 overflow-auto bg-canvas px-3 py-2">
+              <div className="bg-canvas px-3 py-2">
                 {controller.review.loading && !readOnly && (
                   <p role="status" className="py-2 text-[11.5px] text-ink-muted">Loading Review Decisions…</p>
                 )}
