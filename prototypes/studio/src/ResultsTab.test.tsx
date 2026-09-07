@@ -32,12 +32,13 @@ function controller(
     attempt,
     canRun: true,
     hasResults: state.status === 'ready',
-    stale: false,
-    runExtraction: async () => {},
+    runExtraction: async () => null,
     retryExtraction: async () => null,
     requestCancellation: async () => {},
     cancellationRequested: false,
     cancellationError: null,
+    monitorError: null,
+    reconnect: () => {},
     review: {
       available: false,
       canAccept: false,
@@ -1116,11 +1117,13 @@ describe('ResultsTab grounded values', () => {
     expect(screen.queryByRole('button', { name: 'Edit place' })).not.toBeInTheDocument()
   })
 
-  it('exports reviewed edits and shows the exact pinned Schema Revision read-only', () => {
+  it('exports reviewed edits and expands the exact used Schema Revision read-only', () => {
     const setDecision = vi.fn()
-    const schema: SchemaDefinition = {
+    const schema = {
+      schemaRevisionId: articleAttempt.schemaRevisionId,
+      revisionNumber: 3,
       recordDescription: 'Pinned result.',
-      schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+      schemaNodes: [{ id: 'place', name: 'place', type: 'string' as const }],
     }
     const attempt: ExtractionAttempt = {
       ...articleAttempt,
@@ -1168,8 +1171,216 @@ describe('ResultsTab grounded values', () => {
       { place: 'Reviewed' },
       expect.objectContaining({ format: 'csv', schemaNodes: schema.schemaNodes }),
     )
-    fireEvent.click(screen.getByRole('tab', { name: 'Pinned schema' }))
+    expect(screen.getByText('Using Schema Revision 3')).toBeInTheDocument()
+    const disclosure = screen.getByRole('button', { name: 'View used schema' })
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(disclosure)
+    expect(screen.getByRole('button', { name: 'Hide used schema' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText(new RegExp(articleAttempt.schemaRevisionId)).closest('p')).toHaveTextContent('Schema Revision 3 · ')
     expect(screen.getByText(new RegExp(articleAttempt.schemaRevisionId)).closest('p')).toHaveTextContent('read-only')
     expect(screen.getByText(/"place": "string"/)).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Pinned schema' })).not.toBeInTheDocument()
+  })
+})
+
+describe('ResultsTab extraction status', () => {
+  const currentRevision = { schemaRevisionId: '99999999-9999-4999-8999-999999999999', revisionNumber: 4 }
+  const usedSchema = {
+    schemaRevisionId: articleAttempt.schemaRevisionId,
+    revisionNumber: 3,
+    recordDescription: 'Used result.',
+    schemaNodes: [{ id: 'place', name: 'place', type: 'string' as const }],
+  }
+  const queuedAttempt: ExtractionAttempt = {
+    ...articleAttempt,
+    executionStatus: 'QUEUED',
+    outcome: null,
+    complete: null,
+    modelAttribution: null,
+    diagnostics: null,
+    resultPayload: null,
+    evidenceLinks: null,
+    reviewable: false,
+  }
+
+  it('keeps status, revision comparison and used schema readable while queued', () => {
+    const requestCancellation = vi.fn(async () => {})
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={{ ...controller({ status: 'running', step: 'extraction' }, queuedAttempt), requestCancellation }}
+        schemaReady
+        pinnedSchema={usedSchema}
+        currentSchemaRevision={currentRevision}
+        documentMarkdown="# Source"
+        sourceDocumentName="queued.pdf"
+      />,
+    )
+
+    expect(screen.getByText('Queued')).toBeInTheDocument()
+    expect(screen.getByText('Previous schema')).toBeInTheDocument()
+    expect(screen.getByText('Using Schema Revision 3 · Current revision: 4')).toBeInTheDocument()
+    expect(screen.getByText('You can continue working on other documents.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'View used schema' }))
+    expect(screen.getByText(/"place": "string"/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel extraction' }))
+    expect(requestCancellation).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('button', { name: 'Run with current schema' })).not.toBeInTheDocument()
+  })
+
+  it('disables both cancellation controls once requested and shows a cancellation failure apart', () => {
+    const { rerender } = render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={{ ...controller({ status: 'running', step: 'extraction' }, { ...queuedAttempt, executionStatus: 'RUNNING' }), cancellationRequested: true }}
+        schemaReady
+        documentMarkdown="# Source"
+        sourceDocumentName="running.pdf"
+      />,
+    )
+    expect(screen.getByText('Running')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancellation requested…' })).toBeDisabled()
+
+    rerender(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={{ ...controller({ status: 'running', step: 'extraction' }, { ...queuedAttempt, executionStatus: 'RUNNING' }), cancellationError: 'Cancellation failed (HTTP 500)' }}
+        schemaReady
+        documentMarkdown="# Source"
+        sourceDocumentName="running.pdf"
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Cancel extraction' })).toBeEnabled()
+    expect(screen.getByRole('alert')).toHaveTextContent('Cancellation failed: Cancellation failed (HTTP 500)')
+  })
+
+  it('avoids inventing a revision while the used schema is still loading', () => {
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller({ status: 'running', step: 'extraction' }, { ...queuedAttempt, executionStatus: 'RUNNING' })}
+        schemaReady
+        currentSchemaRevision={{ ...currentRevision, schemaRevisionId: articleAttempt.schemaRevisionId }}
+        documentMarkdown="# Source"
+        sourceDocumentName="running.pdf"
+      />,
+    )
+    expect(screen.getByText('Using Schema Revision (loading…) · Current revision: 4')).toBeInTheDocument()
+    expect(screen.queryByText('Previous schema')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'View used schema' })).toBeDisabled()
+  })
+
+  it('keeps the last known status and offers Reconnect after a lost connection', () => {
+    const reconnect = vi.fn()
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={{
+          ...controller({ status: 'ready', result: { records: [{ place: 'Rome' }] }, evidenceLinks: [], ungroundedCount: 0 }, { ...articleAttempt, executionStatus: 'RUNNING', outcome: null, resultPayload: { records: [{ place: 'Rome' }] }, evidenceLinks: null, reviewable: false }),
+          monitorError: 'Unable to update status. The extraction may still be running.',
+          reconnect,
+        }}
+        schemaReady
+        documentMarkdown="# Source"
+        sourceDocumentName="provisional.pdf"
+      />,
+    )
+
+    expect(screen.getByText('Running · provisional results')).toBeInTheDocument()
+    expect(screen.getByText('Values extracted · linking Evidence…')).toBeInTheDocument()
+    expect(screen.getByText('Unable to update status. The extraction may still be running.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Reconnect' }))
+    expect(reconnect).toHaveBeenCalledOnce()
+  })
+
+  it('offers one Run with current schema action for a completed previous-schema result and keeps review open', () => {
+    const onRunExtraction = vi.fn()
+    const setDecision = vi.fn()
+    const attempt: ExtractionAttempt = {
+      ...articleAttempt,
+      complete: true,
+      resultPayload: { records: [{ place: 'Original' }] },
+      evidenceLinks: [{ resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-place' }],
+    }
+    render(
+      <ResultsTab
+        onRunExtraction={onRunExtraction}
+        runExtractionDisabled={false}
+        controller={controller(
+          { status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 0 },
+          attempt,
+          {
+            available: true,
+            decisions: [{ resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-place', reviewedOccurrenceIds: ['occurrence-place'], action: 'APPROVED', reviewedValue: null }],
+            reviewedCount: 1,
+            untouchedCount: 1,
+            isTouched: () => false,
+            setDecision,
+          },
+        )}
+        schemaReady
+        pinnedSchema={usedSchema}
+        currentSchemaRevision={currentRevision}
+        documentMarkdown="# Source"
+        sourceDocumentName="previous.pdf"
+      />,
+    )
+
+    expect(screen.getByText('Completed')).toBeInTheDocument()
+    expect(screen.getByText('Previous schema')).toBeInTheDocument()
+    expect(screen.getByText('Review applies to Schema Revision 3')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /rerun|run with|re-run/i })).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Run with current schema' }))
+    expect(onRunExtraction).toHaveBeenCalledOnce()
+    expect(screen.queryByText('Extraction Schema updated')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Reject place' }))
+    expect(setDecision).toHaveBeenCalledWith(['records', 0, 'place'], 'REJECTED', null)
+  })
+
+  it('labels a finalized previous-schema review without offering new decisions', () => {
+    const reviewed: ExtractionAttempt = {
+      ...articleAttempt,
+      complete: true,
+      resultPayload: { records: [{ place: 'Original' }] },
+      evidenceLinks: [{ resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-place' }],
+      reviewedAt: '2026-09-06T00:00:00Z',
+      reviewDecisions: [{ resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-place', reviewedOccurrenceIds: [], action: 'APPROVED', reviewedValue: null, createdAt: '2026-09-06T00:00:00Z' }],
+    }
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller({ status: 'ready', result: reviewed.resultPayload!, evidenceLinks: reviewed.evidenceLinks!, ungroundedCount: 0 }, reviewed)}
+        inspectedAttempt={reviewed}
+        readOnly
+        schemaReady
+        pinnedSchema={usedSchema}
+        currentSchemaRevision={currentRevision}
+        documentMarkdown="# Source"
+        sourceDocumentName="finalized.pdf"
+      />,
+    )
+
+    expect(screen.getByText('Previous schema')).toBeInTheDocument()
+    expect(screen.getByText('Review applies to Schema Revision 3')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Run with current schema' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Reject / })).not.toBeInTheDocument()
+  })
+
+  it('marks a same-revision result as current and keeps the plain Rerun', () => {
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller({ status: 'ready', result: { records: [{ place: 'Rome' }] }, evidenceLinks: [], ungroundedCount: 0 }, { ...articleAttempt, complete: true })}
+        schemaReady
+        pinnedSchema={usedSchema}
+        currentSchemaRevision={{ ...currentRevision, schemaRevisionId: articleAttempt.schemaRevisionId, revisionNumber: 3 }}
+        documentMarkdown="# Source"
+        sourceDocumentName="current.pdf"
+      />,
+    )
+    expect(screen.queryByText('Previous schema')).not.toBeInTheDocument()
+    expect(screen.getByText('Using Schema Revision 3 · Current revision: 3')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Rerun' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Run with current schema' })).not.toBeInTheDocument()
   })
 })

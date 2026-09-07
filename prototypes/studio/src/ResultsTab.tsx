@@ -2,11 +2,12 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { exportExtractionResult } from 'extraction-result-export'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
 import ResultValue, { singularItemLabel } from './ui/ResultValue'
-import { Overline, Spinner, Button, ModalDialog } from './ui'
+import { Overline, Spinner, Button, ModalDialog, Pill } from './ui'
 import { isRecord } from '../shared/template'
 import { schemaDefinitionToTemplate, type SchemaDefinition } from 'extraction/schema'
 import { resultStats } from './resultStats'
 import { extractionStateFromAttempt, type ExtractionController, type ExtractionRetryInput } from './useExtraction'
+import type { ExtractionState } from './extraction'
 import type { ExtractionAttempt, ReviewDecisionAction } from '../shared/extraction.contract'
 import { REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import {
@@ -15,6 +16,11 @@ import {
   resultPathKey,
   schemaNodeAtResultPath,
 } from './reviewDecisions'
+
+type PinnedSchema = SchemaDefinition & {
+  revisionNumber?: number
+  schemaRevisionId?: string
+}
 
 type ResultsTabProps = {
   controller: ExtractionController
@@ -25,20 +31,26 @@ type ResultsTabProps = {
   sourceDocumentName: string
   onSelectEvidence?: (anchorId: string) => void
   onResultPathChange?: (path: string[] | null) => void
-  pinnedSchema?: (SchemaDefinition & {
-    revisionNumber?: number
-    schemaRevisionId?: string
-  }) | null
+  /** Extraction Schema the displayed attempt ran with; also the used-schema preview. */
+  pinnedSchema?: PinnedSchema | null
   /** Extraction Schema of the displayed Extraction Result; leads the export columns. */
   exportSchema?: SchemaDefinition | null
+  /** Acknowledged Current Schema Revision; null before the first durable save. */
+  currentSchemaRevision?: { schemaRevisionId: string; revisionNumber: number } | null
   inspectedAttempt?: ExtractionAttempt
   readOnly?: boolean
 }
 
-type View = 'review' | 'json' | 'markdown' | 'schema'
+type View = 'review' | 'json' | 'markdown'
 
 const preClasses =
   'scrollbar-subtle m-0 min-h-0 flex-1 overflow-auto whitespace-pre bg-canvas px-4 py-3.5 font-mono text-[11px] leading-relaxed text-ink'
+
+/** Tactile press for the panel's own actions; still only opt-in per button. */
+const pressable = 'active:scale-96 motion-reduce:active:scale-100'
+
+const noticeClasses =
+  'mt-2 rounded-md border border-stale bg-stale-soft px-2.5 py-2 text-[11.5px] leading-snug text-stale-ink'
 
 function outcomeLabel(outcome: string) {
   return outcome.replaceAll('_', ' ')
@@ -403,6 +415,156 @@ function AttemptDetails({
   )
 }
 
+function statusLabel(state: ExtractionState, attempt: ExtractionAttempt | null): string | null {
+  switch (state.status) {
+    case 'idle':
+      return null
+    case 'error':
+      return 'Failed'
+    case 'cancelled':
+      return 'Cancelled'
+    case 'running':
+      return attempt?.executionStatus === 'QUEUED'
+        ? 'Queued'
+        : attempt?.executionStatus === 'RUNNING'
+          ? 'Running'
+          : 'Starting'
+    case 'ready':
+      if (attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING')
+        return 'Running · provisional results'
+      if (attempt?.executionStatus === 'FAILED') return 'Failed · partial results'
+      if (attempt?.outcome === 'CANCELLED') return 'Cancelled · partial results'
+      return attempt?.complete === false ? 'Completed · incomplete' : 'Completed'
+  }
+}
+
+/**
+ * Progress, Schema Revision comparison and connection state, each readable on
+ * its own: the status never hides behind the revision badge, and a lost
+ * connection keeps the last known status on screen.
+ */
+function ExtractionStatus({
+  controller,
+  state,
+  attempt,
+  usedSchema,
+  currentSchemaRevision,
+  readOnly,
+  runExtractionDisabled,
+  onRunExtraction,
+}: {
+  controller: ExtractionController
+  state: ExtractionState
+  attempt: ExtractionAttempt | null
+  usedSchema: PinnedSchema | null
+  currentSchemaRevision: { schemaRevisionId: string; revisionNumber: number } | null
+  readOnly: boolean
+  runExtractionDisabled: boolean
+  onRunExtraction: () => void | Promise<void>
+}) {
+  const [schemaOpen, setSchemaOpen] = useState(false)
+  const label = statusLabel(state, attempt)
+  if (label === null) return null
+  const active = attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
+  // While a request is in flight the previous attempt is still mounted; its
+  // revision must not be read as the new run's.
+  const known = state.status === 'running' && !active ? null : attempt
+  // The caller pins the displayed attempt's schema; an id on it only guards
+  // against a stale pin while the attempt changes underneath.
+  const usedSchemaShown =
+    known && usedSchema && (usedSchema.schemaRevisionId ?? known.schemaRevisionId) === known.schemaRevisionId
+      ? usedSchema
+      : null
+  const usedRevisionNumber = usedSchemaShown?.revisionNumber ?? null
+  const previousSchema =
+    known !== null &&
+    currentSchemaRevision !== null &&
+    known.schemaRevisionId !== currentSchemaRevision.schemaRevisionId
+  const running = state.status === 'running' || active
+  const completed = state.status === 'ready' && !active && known !== null
+  const usedRevisionLabel = usedRevisionNumber === null
+    ? 'the Extraction’s Schema Revision'
+    : `Schema Revision ${usedRevisionNumber}`
+  return (
+    <section aria-label="Extraction status" className="shrink-0 border-b border-line bg-surface px-3 py-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <p role="status" className="text-[11.5px] font-semibold text-ink">{label}</p>
+        {previousSchema && <Pill tone="stale" outline>Previous schema</Pill>}
+      </div>
+      <p className="mt-0.5 text-[11px] text-ink-muted">
+        {known === null
+          ? 'Schema Revision loading…'
+          : usedRevisionNumber === null
+            ? 'Using Schema Revision (loading…)'
+            : `Using Schema Revision ${usedRevisionNumber}`}
+        {currentSchemaRevision && ` · Current revision: ${currentSchemaRevision.revisionNumber}`}
+      </p>
+      {controller.monitorError && !readOnly && (
+        <div role="alert" className={noticeClasses}>
+          <p>{controller.monitorError}</p>
+          <Button variant="secondary" size="sm" className={`mt-1.5 ${pressable}`} onClick={controller.reconnect}>
+            Reconnect
+          </Button>
+        </div>
+      )}
+      {running && !readOnly && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <p className="text-[11.5px] text-ink-muted">You can continue working on other documents.</p>
+          <Button
+            variant="secondary"
+            size="sm"
+            className={pressable}
+            disabled={controller.cancellationRequested}
+            onClick={() => void controller.requestCancellation()}
+          >
+            {controller.cancellationRequested ? 'Cancellation requested…' : 'Cancel extraction'}
+          </Button>
+          {controller.cancellationError && (
+            <p role="alert" className="basis-full text-[11.5px] text-danger">
+              Cancellation failed: {controller.cancellationError}
+            </p>
+          )}
+        </div>
+      )}
+      {completed && previousSchema && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <p className="text-[11.5px] text-ink-muted">Review applies to {usedRevisionLabel}</p>
+          {!readOnly && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className={pressable}
+              disabled={runExtractionDisabled}
+              onClick={() => void onRunExtraction()}
+            >
+              Run with current schema
+            </Button>
+          )}
+        </div>
+      )}
+      <button
+        type="button"
+        aria-expanded={schemaOpen}
+        aria-controls="results-used-schema"
+        disabled={usedSchemaShown === null}
+        title={usedSchemaShown === null ? 'The used Schema Revision is still loading' : undefined}
+        className={`mt-1.5 cursor-pointer rounded px-1 py-0.5 text-[11px] font-semibold text-accent outline-none hover:bg-accent-ghost/40 disabled:cursor-default disabled:text-ink-muted ${pressable}`}
+        onClick={() => setSchemaOpen((open) => !open)}
+      >
+        {schemaOpen ? 'Hide used schema' : 'View used schema'}
+      </button>
+      {schemaOpen && usedSchemaShown && (
+        <div id="results-used-schema" className="mt-1.5 flex max-h-56 flex-col rounded-md border border-line">
+          <p className="shrink-0 border-b border-line bg-surface-muted px-3 py-1.5 text-[11px] text-ink-muted">
+            {usedRevisionLabel} · <span className="font-mono text-ink">{usedSchemaShown.schemaRevisionId ?? known?.schemaRevisionId ?? 'unknown'}</span> · read-only
+          </p>
+          <pre className={`${preClasses} rounded-b-md px-3 py-2`}>{JSON.stringify(schemaDefinitionToTemplate({ recordDescription: usedSchemaShown.recordDescription, schemaNodes: usedSchemaShown.schemaNodes }), null, 2)}</pre>
+        </div>
+      )}
+    </section>
+  )
+}
+
 function getAtPath(obj: unknown, path: string[]): unknown {
   return path.reduce(
     (cur, key) =>
@@ -413,8 +575,14 @@ function getAtPath(obj: unknown, path: string[]): unknown {
   )
 }
 
-function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, inspectedAttempt, readOnly = false, onSelectEvidence, onResultPathChange }: ResultsTabProps) {
+function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence, onResultPathChange }: ResultsTabProps) {
   const attempt = inspectedAttempt ?? controller.attempt
+  // The header's single "Run with current schema" action replaces the
+  // toolbar's Rerun whenever the result predates the Current Schema Revision.
+  const previousSchema =
+    attempt !== null &&
+    currentSchemaRevision !== null &&
+    attempt.schemaRevisionId !== currentSchemaRevision.schemaRevisionId
   const state = useMemo(
     () => inspectedAttempt
       ? extractionStateFromAttempt(inspectedAttempt)
@@ -550,7 +718,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
     { value: 'review', label: 'Review' },
     { value: 'json', label: 'Raw JSON' },
     { value: 'markdown', label: 'Markdown' },
-    ...(pinnedSchema ? [{ value: 'schema' as const, label: 'Pinned schema' }] : []),
   ]
 
   const currentEntries = useMemo((): Array<{ pathKey: string; displayName: string; value: unknown }> => {
@@ -562,9 +729,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* <header className="flex min-h-9.5 shrink-0 items-center gap-2 border-b border-line px-4">
-        <Overline as="h2">Extraction results</Overline>
-      </header> */}
       <div className="flex items-center justify-between px-4 py-2.5">
         <Overline as="h2">Extraction results</Overline>
         {attempt && (
@@ -575,6 +739,16 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
           />
         )}
       </div>
+      <ExtractionStatus
+        controller={controller}
+        state={state}
+        attempt={attempt}
+        usedSchema={pinnedSchema}
+        currentSchemaRevision={currentSchemaRevision}
+        readOnly={readOnly || Boolean(inspectedAttempt)}
+        runExtractionDisabled={runExtractionDisabled}
+        onRunExtraction={onRunExtraction}
+      />
 
       {state.status === 'ready' && stats && (
         <>
@@ -607,7 +781,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
               {/* {stats.arrayItems > 0 && summaryItem('Array items', stats.arrayItems)} */}
             </div>
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex gap-1.5">
+              <div className="flex min-w-0 flex-wrap gap-1.5">
                 <ExtractionResultExportControl
                   schema={exportSchema}
                   disabled={displayResult === null || provisional}
@@ -647,7 +821,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                     )}
                   </>
                 )}
-                {!readOnly && attempt?.strategy !== 'CATALOG' && (
+                {!readOnly && !previousSchema && attempt?.strategy !== 'CATALOG' && (
                   <Button variant="secondary" size="sm" disabled={runExtractionDisabled || activeAttempt} onClick={() => void onRunExtraction()}>
                     Rerun
                   </Button>
@@ -675,24 +849,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                 })}
               </div>
             </div>
-            {!readOnly && !inspectedAttempt && controller.stale && (
-              <div
-                className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-[11.5px] leading-snug text-amber-900"
-                role="status"
-              >
-                <p className="font-semibold">Extraction Schema updated</p>
-                <p>This Extraction Result was produced with a previous Extraction Schema.</p>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="mt-1.5"
-                  disabled={runExtractionDisabled || activeAttempt}
-                  onClick={() => void onRunExtraction()}
-                >
-                  Re-run extraction
-                </Button>
-              </div>
-            )}
             {controller.review.draftError && !readOnly && !inspectedAttempt && (
               <div role="alert" className="text-xs text-danger">
                 Draft not saved: {controller.review.draftError}
@@ -710,10 +866,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
               </p>
             )}
             {attempt?.complete === false && (
-              <div
-                className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-[11.5px] leading-snug text-amber-900"
-                role="status"
-              >
+              <div className={noticeClasses} role="status">
                 <p className="font-semibold">Incomplete Extraction</p>
                 <p>Successful values remain visible. See the persisted stage diagnostics for details.</p>
               </div>
@@ -845,20 +998,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
               aria-labelledby="results-tab-json"
               className={preClasses}
             >{JSON.stringify(displayResult, null, 2)}</pre>
-          )}
-
-          {view === 'schema' && pinnedSchema && (
-            <div
-              id="results-panel-schema"
-              role="tabpanel"
-              aria-labelledby="results-tab-schema"
-              className="flex min-h-0 flex-1 flex-col"
-            >
-              <p className="shrink-0 border-b border-line bg-surface-muted px-4 py-2 text-[11.5px] text-ink-muted">
-                Schema Revision{pinnedSchema.revisionNumber ? ` ${pinnedSchema.revisionNumber}` : ''} · <span className="font-mono text-ink">{pinnedSchema.schemaRevisionId ?? attempt?.schemaRevisionId ?? 'unknown'}</span> · read-only
-              </p>
-              <pre className={preClasses}>{JSON.stringify(schemaDefinitionToTemplate({ recordDescription: pinnedSchema.recordDescription, schemaNodes: pinnedSchema.schemaNodes }), null, 2)}</pre>
-            </div>
           )}
 
           {view === 'markdown' && (

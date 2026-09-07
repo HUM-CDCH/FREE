@@ -92,6 +92,17 @@ export async function requestSchema(
   return done.template
 }
 
+/** Thrown when an Extraction endpoint answers with an HTTP error status. */
+export class ExtractionRequestError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ExtractionRequestError'
+    this.status = status
+  }
+}
+
 async function extractionJson(
   path: string,
   method: 'GET' | 'POST' | 'DELETE',
@@ -106,7 +117,10 @@ async function extractionJson(
   })
   if (!response.ok) {
     const detail = await readErrorDetail(response)
-    throw new Error(detail || `Extraction failed (HTTP ${response.status})`)
+    throw new ExtractionRequestError(
+      detail || `Extraction failed (HTTP ${response.status})`,
+      response.status,
+    )
   }
   return response.json()
 }

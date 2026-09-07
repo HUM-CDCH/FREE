@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { forgetReviewDraft, recoverReviewDraft, rememberReviewDraft, REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import {
   cancelExtraction,
+  ExtractionRequestError,
   finalizeExtractionReview,
   saveExtractionReviewDraft,
   readExtraction,
@@ -17,6 +18,13 @@ import {
 } from '../shared/extraction.contract'
 import { resultPathKey } from '../shared/groundedExtraction'
 
+/** Shown when a status read fails; the last known state stays on screen. */
+export const MONITOR_DISCONNECTED =
+  'Unable to update status. The extraction may still be running.'
+/** Shown when the server denies or cannot find the monitored Extraction. */
+export const EXTRACTION_UNAVAILABLE =
+  'Extraction status is unavailable: it was not found or access was denied.'
+
 
 export type ExtractionRetryInput = Omit<ExtractionRetrySelection, 'retryOfId'>
 
@@ -30,7 +38,12 @@ type ExtractionRunRequest =
 
 export type ReviewTarget = {
   sourceRepresentationId: string
-  schemaRevisionId: string
+  /**
+   * Current Schema Revision safe to extract with, or null while the editor
+   * draft differs from the acknowledged revision. Review Decisions never
+   * depend on it: they always apply to the Extraction's own revision.
+   */
+  schemaRevisionId: string | null
 }
 
 type UseExtractionOptions = {
@@ -50,11 +63,32 @@ type UseExtractionOptions = {
   documentKey?: string
 }
 
+/**
+ * One in-flight or paused watch over a single Extraction. Every status read,
+ * callback, and cancellation is bound to the monitor that started it, so a
+ * late response for a previous Source Document or Extraction is ignored.
+ */
+type Monitor = {
+  extractionId: string
+  isRerun: boolean
+  /** A read failed; polling resumes only through `reconnect()`. */
+  paused: boolean
+  controller: AbortController
+}
+
+function isActive(attempt: ExtractionAttempt | null): boolean {
+  return attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
+}
+
+function definiteRejection(error: unknown): error is ExtractionRequestError {
+  return error instanceof ExtractionRequestError && error.status >= 400 && error.status < 500
+}
+
 export type ExtractionController = ReturnType<typeof useExtraction>
 
 export function extractionStateFromAttempt(attempt: ExtractionAttempt | null): ExtractionState {
   if (!attempt) return { status: 'idle' }
-  const active = attempt.executionStatus === 'QUEUED' || attempt.executionStatus === 'RUNNING'
+  const active = isActive(attempt)
   if (!attempt.resultPayload) {
     if (active) return { status: 'running', step: 'extraction' }
     if (attempt.failure?.code === 'cancelled' || attempt.outcome === 'CANCELLED')
@@ -83,17 +117,6 @@ function pendingDecision(
     action: decision.action,
     reviewedValue: decision.reviewedValue,
   }
-}
-
-function sameTarget(
-  attempt: ExtractionAttempt | null,
-  target: ReviewTarget | null,
-) {
-  return (
-    attempt?.sourceRepresentationRevisionId ===
-      target?.sourceRepresentationId &&
-    attempt?.schemaRevisionId === target?.schemaRevisionId
-  )
 }
 
 function pollingDelay(signal: AbortSignal): Promise<void> {
@@ -145,117 +168,122 @@ export function useExtraction({
   const [draftError, setDraftError] = useState<string | null>(null)
   const [cancellationRequested, setCancellationRequested] = useState(false)
   const [cancellationError, setCancellationError] = useState<string | null>(null)
-  const abortRef = useRef<AbortController | null>(null)
-  const activeIdRef = useRef<string | null>(null)
-  const runInputsKey = `${reviewTarget?.sourceRepresentationId ?? ''}\n${reviewTarget?.schemaRevisionId ?? ''}`
-  const previousInputsRef = useRef(runInputsKey)
+  const [monitorError, setMonitorError] = useState<string | null>(null)
+  const monitorRef = useRef<Monitor | null>(null)
   const reviewLoadRef = useRef(0)
   const saveScopeRef = useRef({ saving: false })
-  useEffect(() => {
+
+  function stopMonitor() {
+    monitorRef.current?.controller.abort()
+    monitorRef.current = null
+  }
+
+  // Reset during render (not in an effect) when the document or attempt
+  // change, so no frame renders the previous document's state. A change of
+  // the Current Schema Revision alone touches nothing here: polling, drafts
+  // and decisions stay bound to the Extraction's own revision.
+  const [rendered, setRendered] = useState({ documentKey, extractionId: attempt?.extractionId })
+  const documentChanged = rendered.documentKey !== documentKey
+  const nextAttempt = documentChanged ? initialAttempt : attempt
+  if (documentChanged || rendered.extractionId !== nextAttempt?.extractionId) {
+    setRendered({ documentKey, extractionId: nextAttempt?.extractionId })
+    // In-flight saves and draft writes belong to the previous document or attempt.
     saveScopeRef.current = { saving: false }
     draftSaveRef.current = { version: 0, pending: Promise.resolve(), writes: 0, conflict: false }
     setDraftSaving(false)
     setSaving(false)
-    return () => { saveScopeRef.current = { saving: false } }
-  }, [documentKey, attempt?.extractionId])
-  const [renderedDocumentKey, setRenderedDocumentKey] = useState(documentKey)
-
-  if (renderedDocumentKey !== documentKey) {
-    activeIdRef.current = null
-    setRenderedDocumentKey(documentKey)
-    setAttempt(initialAttempt)
-    setState(extractionStateFromAttempt(initialAttempt))
-    setReviewDecisions([])
-    setTouchedPaths(new Set())
-    setReviewError(null)
-    setDraftError(null)
-    setCancellationRequested(false)
-    setCancellationError(null)
+    if (documentChanged) {
+      // Orphaned reads notice the missing monitor and drop their response.
+      monitorRef.current = null
+      setAttempt(initialAttempt)
+      setState(extractionStateFromAttempt(initialAttempt))
+      setReviewDecisions([])
+      setTouchedPaths(new Set())
+      setReviewError(null)
+      setDraftError(null)
+      setCancellationRequested(false)
+      setCancellationError(null)
+      setMonitorError(null)
+    }
   }
 
-  function abandonRunning() {
-    activeIdRef.current = null
-    abortRef.current?.abort()
-    abortRef.current = null
-  }
-
-  useEffect(() => () => abandonRunning(), [])
-  useEffect(() => {
-    if (!initialAttempt ||
-        (initialAttempt.executionStatus !== 'QUEUED' &&
-          initialAttempt.executionStatus !== 'RUNNING')) return
-    const controller = new AbortController()
-    abortRef.current = controller
-    activeIdRef.current = initialAttempt.extractionId
-    void (async () => {
-      let current = initialAttempt
-      try {
-        while (current.executionStatus === 'QUEUED' || current.executionStatus === 'RUNNING') {
-          await pollingDelay(controller.signal)
-          if (controller.signal.aborted) return
-          current = (await readExtraction(
-            initialAttempt.extractionId,
-            controller.signal,
-          )).extraction
-          if (
-            controller.signal.aborted ||
-            activeIdRef.current !== initialAttempt.extractionId
-          )
-            return
-          setAttempt(current)
-          setState(extractionStateFromAttempt(current))
-        }
-        if (
-          controller.signal.aborted ||
-          activeIdRef.current !== initialAttempt.extractionId
-        )
-          return
-        onTerminal(current, true)
-      } catch (error) {
-        if (
-          !controller.signal.aborted &&
-          activeIdRef.current === initialAttempt.extractionId
-        )
-          onError(error instanceof Error ? error.message : 'Extraction polling failed.')
-      } finally {
-        if (
-          activeIdRef.current === initialAttempt.extractionId &&
-          abortRef.current === controller
-        )
-          activeIdRef.current = null
-        if (abortRef.current === controller) abortRef.current = null
+  /**
+   * The only polling loop. `seed` is the last attempt read for this monitor
+   * (null when nothing has been read yet, e.g. after an uncertain POST);
+   * `immediate` skips the first delay. A read failure pauses the monitor and
+   * keeps the last known state; `reconnect()` resumes it.
+   */
+  async function watch(monitor: Monitor, seed: ExtractionAttempt | null, immediate: boolean) {
+    const { signal } = monitor.controller
+    const live = () => monitorRef.current === monitor && !signal.aborted
+    let latest = seed
+    try {
+      while (latest === null || isActive(latest)) {
+        if (!immediate) await pollingDelay(signal)
+        immediate = false
+        if (!live()) return
+        latest = (await readExtraction(monitor.extractionId, signal)).extraction
+        if (!live()) return
+        setAttempt(latest)
+        setState(extractionStateFromAttempt(latest))
       }
-    })()
-    return () => controller.abort()
-  }, [documentKey, initialAttempt?.extractionId])
+      monitorRef.current = null
+      onTerminal(latest, monitor.isRerun)
+    } catch (error) {
+      if (!live()) return
+      monitor.paused = true
+      setMonitorError(
+        error instanceof ExtractionRequestError && (error.status === 403 || error.status === 404)
+          ? EXTRACTION_UNAVAILABLE
+          : MONITOR_DISCONNECTED,
+      )
+    }
+  }
+
+  useEffect(() => () => stopMonitor(), [])
   useEffect(() => {
-    if (previousInputsRef.current === runInputsKey) return
-    previousInputsRef.current = runInputsKey
-    if (reviewTarget === null || sameTarget(attempt, reviewTarget)) return
-    abandonRunning()
-    setState((current) =>
-      current.status === 'running' ? { status: 'idle' } : current,
-    )
-    setReviewDecisions([])
-    setTouchedPaths(new Set())
-    setReviewError(null)
-  }, [runInputsKey])
+    if (!isActive(initialAttempt)) return
+    stopMonitor()
+    const monitor: Monitor = {
+      extractionId: initialAttempt!.extractionId,
+      isRerun: true,
+      paused: false,
+      controller: new AbortController(),
+    }
+    monitorRef.current = monitor
+    // Deferred so the effect body itself schedules no state update; an
+    // aborted monitor (StrictMode re-run, unmount) exits on its first check.
+    void Promise.resolve().then(() => watch(monitor, initialAttempt, false))
+    return () => {
+      monitor.controller.abort()
+      if (monitorRef.current === monitor) monitorRef.current = null
+    }
+  }, [documentKey, initialAttempt?.extractionId])
+
+  function reconnect() {
+    const monitor = monitorRef.current
+    if (!monitor?.paused) return
+    monitor.paused = false
+    setMonitorError(null)
+    void watch(monitor, attempt?.extractionId === monitor.extractionId ? attempt : null, true)
+  }
 
   const hasResults = state.status === 'ready'
-  const stale = attempt !== null && !sameTarget(attempt, reviewTarget)
-  const activeAttempt = attempt?.executionStatus === 'QUEUED' ||
-    attempt?.executionStatus === 'RUNNING'
+  const activeAttempt = isActive(attempt)
   const canRun =
-    reviewTarget !== null &&
+    reviewTarget?.schemaRevisionId != null &&
     schemaReady &&
     !activeAttempt &&
     !indexing
+  // A different Source Representation still blocks new decisions; a newer
+  // Current Schema Revision does not, because the backend validates decisions
+  // against the revision pinned by the Extraction itself.
   const reviewAvailable = Boolean(
     attempt?.outcome === 'SUCCEEDED' &&
     attempt.executionStatus === 'COMPLETED' &&
     attempt.reviewable &&
     (attempt.evidenceLinks?.length ?? 0) > 0 &&
-    sameTarget(attempt, reviewTarget),
+    attempt.sourceRepresentationRevisionId === reviewTarget?.sourceRepresentationId,
   )
   const canAccept = Boolean(
     !saving &&
@@ -345,7 +373,7 @@ export function useExtraction({
   }, [attempt, reviewAvailable, documentKey, reviewReload])
 
   async function requestCancellation() {
-    const id = attempt?.extractionId ?? activeIdRef.current
+    const id = monitorRef.current?.extractionId ?? attempt?.extractionId
     if ((!activeAttempt && state.status !== 'running') || !id || cancellationRequested) return
     setCancellationRequested(true)
     setCancellationError(null)
@@ -357,66 +385,62 @@ export function useExtraction({
     }
   }
 
+  /**
+   * Posts the Extraction, then hands the generated identity to the monitor.
+   * Resolves with the persisted attempt once the server has acknowledged it,
+   * or null when the request was definitely rejected. An uncertain outcome
+   * (network failure, gateway error) is reconciled by reading the same
+   * identity rather than by posting again.
+   */
   async function runRequest(isRerun: boolean, request: ExtractionRunRequest) {
-    if (
-      !schemaReady ||
-      activeAttempt ||
-      activeIdRef.current !== null ||
-      indexing
-    )
+    const running = monitorRef.current
+    if (!schemaReady || activeAttempt || (running !== null && !running.paused) || indexing)
       return null
-    abandonRunning()
-    const controller = new AbortController()
-    const extractionId = crypto.randomUUID()
-    abortRef.current = controller
-    activeIdRef.current = extractionId
+    stopMonitor()
+    const monitor: Monitor = {
+      extractionId: crypto.randomUUID(),
+      isRerun,
+      paused: false,
+      controller: new AbortController(),
+    }
+    monitorRef.current = monitor
     setReviewError(null)
     setDraftError(null)
     setCancellationRequested(false)
     setCancellationError(null)
+    setMonitorError(null)
     setState({ status: 'running', step: 'extraction' })
+    let seed: ExtractionAttempt | null = null
     try {
-      let current = await requestExtraction(
-        { id: extractionId, ...request },
-        controller.signal,
+      seed = await requestExtraction(
+        { id: monitor.extractionId, ...request },
+        monitor.controller.signal,
       )
-      if (controller.signal.aborted || activeIdRef.current !== extractionId) return
-      setAttempt(current)
-      setState(extractionStateFromAttempt(current))
+    } catch (error) {
+      if (monitorRef.current !== monitor || monitor.controller.signal.aborted) return null
+      if (definiteRejection(error)) {
+        monitorRef.current = null
+        setState({ status: 'error', message: error.message })
+        onError(error.message)
+        return null
+      }
+    }
+    if (monitorRef.current !== monitor || monitor.controller.signal.aborted) return null
+    if (seed) {
+      setAttempt(seed)
+      setState(extractionStateFromAttempt(seed))
       setReviewDecisions([])
       setTouchedPaths(new Set())
-      while (
-        current.executionStatus === 'QUEUED' ||
-        current.executionStatus === 'RUNNING'
-      ) {
-        await pollingDelay(controller.signal)
-        if (controller.signal.aborted) return
-        current = (await readExtraction(extractionId, controller.signal)).extraction
-        if (controller.signal.aborted || activeIdRef.current !== extractionId) return
-        setAttempt(current)
-        setState(extractionStateFromAttempt(current))
-      }
-      if (controller.signal.aborted || activeIdRef.current !== extractionId) return
-      onTerminal(current, isRerun)
-      return current
-    } catch (error) {
-      if (controller.signal.aborted) return
-      const message =
-        error instanceof Error ? error.message : 'Extraction failed.'
-      setState({ status: 'error', message })
-      onError(message)
-      return null
-    } finally {
-      if (activeIdRef.current === extractionId) activeIdRef.current = null
-      if (abortRef.current === controller) abortRef.current = null
     }
+    void watch(monitor, seed, seed === null)
+    return seed
   }
 
   async function runExtraction(
     target: ReviewTarget | null = reviewTarget,
     strategy: ExtractionStrategy = 'ARTICLE',
   ) {
-    if (!target) return null
+    if (!target?.schemaRevisionId) return null
     return runRequest(attempt !== null, {
       sourceRepresentationRevisionId: target.sourceRepresentationId,
       schemaRevisionId: target.schemaRevisionId,
@@ -518,12 +542,15 @@ export function useExtraction({
     attempt,
     canRun,
     hasResults,
-    stale,
     runExtraction,
     retryExtraction,
     requestCancellation,
     cancellationRequested,
     cancellationError,
+    /** Last status read failed; the last known attempt stays on screen. */
+    monitorError,
+    /** Reads the same Extraction again and resumes polling; never posts. */
+    reconnect,
     review: {
       available: reviewAvailable,
       canAccept,

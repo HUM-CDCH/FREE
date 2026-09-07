@@ -22,7 +22,7 @@ import type { ExtractionStrategy } from '../shared/extraction.contract'
 import { Button, Spinner } from './ui'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { DocumentSnapshot } from './projectContexts/transport'
-import { renameExtractionSchema } from './schemaRevisions'
+import { getSchemaRevision, renameExtractionSchema } from './schemaRevisions'
 import type { SchemaDefinition } from 'extraction/schema'
 import { browserStudioPath } from './studioUrl.js'
 
@@ -168,17 +168,21 @@ export function DocumentWorkspace({
   const [resultPath, setResultPath] = useState<string[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
-  const persistedAttemptSchema: PinnedAttemptSchema | null =
-    persistedExtraction
-      ? {
-          schemaRevisionId: persistedExtraction.schemaRevisionId,
-          revisionNumber: persistedExtraction.extractionSchema.revisionNumber,
-          recordDescription: persistedExtraction.extractionSchema.recordDescription,
-          schemaNodes: persistedExtraction.extractionSchema.schemaNodes,
+  // Extraction Schemas keyed by Schema Revision id, so any attempt — active,
+  // restored, or historical — resolves the exact revision it ran with.
+  const reopenedSchemas = useMemo(() => {
+    const known: Record<string, PinnedAttemptSchema> = {}
+    for (const reopenedAttempt of [persistedExtraction, latestReviewedExtraction])
+      if (reopenedAttempt)
+        known[reopenedAttempt.schemaRevisionId] = {
+          schemaRevisionId: reopenedAttempt.schemaRevisionId,
+          revisionNumber: reopenedAttempt.extractionSchema.revisionNumber,
+          recordDescription: reopenedAttempt.extractionSchema.recordDescription,
+          schemaNodes: reopenedAttempt.extractionSchema.schemaNodes,
         }
-      : null
-  const [latestAttemptSchema, setLatestAttemptSchema] =
-    useState(persistedAttemptSchema)
+    return known
+  }, [persistedExtraction, latestReviewedExtraction])
+  const [knownSchemas, setKnownSchemas] = useState(reopenedSchemas)
   const [docIndex, setDocIndex] = useState<DocIndex>({ status: 'parsing' })
   const resizeControllerRef = useRef<AbortController | null>(null)
 
@@ -198,7 +202,7 @@ export function DocumentWorkspace({
     setZoomPercent(100)
     setNextExtractionStrategy('ARTICLE')
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
-    setLatestAttemptSchema(persistedAttemptSchema)
+    setKnownSchemas(reopenedSchemas)
     setResultPath(null)
     setToast(null)
     setDocIndex({ status: 'parsing' })
@@ -500,16 +504,15 @@ export function DocumentWorkspace({
     indexing,
     initialAttempt: persistedExtraction,
     documentKey: sourceRepresentationId,
-    reviewTarget:
-      sourceRepresentationId && schemaSnap.extractableSchemaRevisionId
-        ? {
-            sourceRepresentationId,
-            schemaRevisionId: schemaSnap.extractableSchemaRevisionId,
-          }
-        : null,
+    reviewTarget: sourceRepresentationId
+      ? {
+          sourceRepresentationId,
+          schemaRevisionId: schemaSnap.extractableSchemaRevisionId,
+        }
+      : null,
+    // Completion only announces itself: the rail tab, the inspected snapshot
+    // and focus stay where the researcher left them.
     onTerminal: (attempt, isRerun) => {
-      setSelectedInspectionId(attempt.extractionId)
-      setRailTab('results')
       if (attempt.executionStatus === 'FAILED')
         showToast('Extraction failed — see details in Results')
       else if (attempt.outcome === 'CANCELLED')
@@ -521,11 +524,21 @@ export function DocumentWorkspace({
             : '✓ Extraction complete — view the JSON in the Results tab',
         )
     },
-    onError: () => {
-      setRailTab('results')
-      showToast('Extraction failed — see details in Results')
-    },
+    onError: () => showToast('Extraction failed — see details in Results'),
   })
+
+  // The Current Schema Revision is the acknowledged durable revision; unsaved
+  // editor changes never move it, so they cannot mark a result as previous.
+  const acknowledgedRevision = schemaSnap.save?.acknowledged ?? extractionSchema
+  const currentSchemaRevision = useMemo(
+    () => acknowledgedRevision
+      ? {
+          schemaRevisionId: acknowledgedRevision.schemaRevisionId,
+          revisionNumber: acknowledgedRevision.revisionNumber,
+        }
+      : null,
+    [acknowledgedRevision],
+  )
 
   const latestAttempt = extraction.attempt
   const running =
@@ -542,17 +555,33 @@ export function DocumentWorkspace({
     : null
   const inspectedAttempt = pinnedAttempt ?? latestAttempt
   const inspectionReadOnly = Boolean(inspectedAttempt && latestAttempt && inspectedAttempt.extractionId !== latestAttempt.extractionId)
-  const inspectedAttemptSchema = useMemo(() => pinnedAttempt
-    ? {
-        schemaRevisionId: pinnedAttempt.schemaRevisionId,
-        revisionNumber: pinnedAttempt.extractionSchema.revisionNumber,
-        recordDescription: pinnedAttempt.extractionSchema.recordDescription,
-        schemaNodes: pinnedAttempt.extractionSchema.schemaNodes,
-      }
-    : latestAttemptSchema?.schemaRevisionId === latestAttempt?.schemaRevisionId
-      ? latestAttemptSchema
-      : null,
-  [latestAttempt?.schemaRevisionId, latestAttemptSchema, pinnedAttempt])
+  const inspectedAttemptSchema =
+    inspectedAttempt ? knownSchemas[inspectedAttempt.schemaRevisionId] ?? null : null
+
+  // Any attempt whose revision is not yet known (e.g. one reconciled from a
+  // generated identity) reads it from the persisted revision chain.
+  const missingSchemaRevisionId =
+    inspectedAttempt && !inspectedAttemptSchema ? inspectedAttempt.schemaRevisionId : null
+  const extractionSchemaId = schemaSnap.extractionSchemaId
+  useEffect(() => {
+    if (!missingSchemaRevisionId || !extractionSchemaId) return
+    const controller = new AbortController()
+    getSchemaRevision(projectContextId, extractionSchemaId, missingSchemaRevisionId, controller.signal)
+      .then((revision) => {
+        if (controller.signal.aborted) return
+        setKnownSchemas((known) => ({
+          ...known,
+          [revision.schemaRevisionId]: {
+            schemaRevisionId: revision.schemaRevisionId,
+            revisionNumber: revision.revisionNumber,
+            recordDescription: revision.recordDescription,
+            schemaNodes: revision.schemaNodes,
+          },
+        }))
+      })
+      .catch(() => {})
+    return () => controller.abort()
+  }, [projectContextId, extractionSchemaId, missingSchemaRevisionId])
 
   const evidenceFieldNames = useMemo(
     () =>
@@ -584,20 +613,25 @@ export function DocumentWorkspace({
         throw new Error('Save the Current Schema Revision before extraction.')
       const strategy = nextExtractionStrategy
       setNextExtractionStrategy('ARTICLE')
-      const terminal = await extraction.runExtraction(
+      // The researcher asked for this run, so it is what they now inspect;
+      // its schema is known before the server acknowledges the attempt.
+      setSelectedInspectionId(null)
+      setKnownSchemas((known) => ({
+        ...known,
+        [revision.schemaRevisionId]: {
+          schemaRevisionId: revision.schemaRevisionId,
+          revisionNumber: revision.revisionNumber,
+          recordDescription: revision.recordDescription,
+          schemaNodes: revision.schemaNodes,
+        },
+      }))
+      await extraction.runExtraction(
         {
           sourceRepresentationId: targetSourceRepresentationId,
           schemaRevisionId: revision.schemaRevisionId,
         },
         strategy,
       )
-      if (terminal)
-        setLatestAttemptSchema({
-          schemaRevisionId: revision.schemaRevisionId,
-          revisionNumber: revision.revisionNumber,
-          recordDescription: revision.recordDescription,
-          schemaNodes: revision.schemaNodes,
-        })
     } catch (error) {
       showToast(
         error instanceof Error
@@ -618,7 +652,9 @@ export function DocumentWorkspace({
     schemaSnap.save?.status === 'conflict' ||
     schemaSnap.save?.status === 'error'
   const runLabel = running
-    ? 'Cancel extraction'
+    ? extraction.cancellationRequested
+      ? 'Cancellation requested…'
+      : 'Cancel extraction'
     : extraction.hasResults
       ? '↻ Re-run extraction'
       : '▶ Run extraction'
@@ -725,19 +761,22 @@ export function DocumentWorkspace({
             variant="primary"
             size="md"
             disabled={
-              !running &&
-              runExtractionUnavailable
+              running
+                ? extraction.cancellationRequested
+                : runExtractionUnavailable
             }
             title={
               running
-                ? 'Cancel the active Extraction'
+                ? extraction.cancellationRequested
+                  ? 'Waiting for the Extraction to stop'
+                  : 'Cancel the active Extraction'
                 : schemaReady
                   ? 'Run one values extraction across the whole Source Document'
                   : 'Generate a schema in the Schema tab first'
             }
             onClick={() =>
               running
-                ? extraction.requestCancellation()
+                ? void extraction.requestCancellation()
                 : void runExtraction()
             }
           >
@@ -808,6 +847,7 @@ export function DocumentWorkspace({
                 pinnedSchema: inspectedAttemptSchema,
                 exportSchema: inspectedAttemptSchema,
               }}
+              currentSchemaRevision={currentSchemaRevision}
               sourceDocumentName={filename}
               schemaName={schemaName}
               onRenameSchema={async (name) => {

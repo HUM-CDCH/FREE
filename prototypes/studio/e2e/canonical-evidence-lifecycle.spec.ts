@@ -356,9 +356,13 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
     page,
     page.getByRole('button', { name: '▶ Run extraction' }),
   )
+  await expect(page.getByRole('button', { name: '↻ Re-run extraction' })).toBeVisible()
   await expect(
     page.getByText('Unexpected model key: surprise', { exact: true }),
   ).toHaveCount(0)
+  // Completion announces itself but never switches the rail tab.
+  await expect(page.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'false')
+  await activateWithKeyboard(page, page.getByRole('tab', { name: /Results/ }))
   await expect(
     page.getByRole('button', { name: 'View Evidence for title' }),
   ).toBeVisible()
@@ -599,9 +603,12 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
   await freshPage.getByLabel('Extraction snapshot').selectOption(String(reviewed?.id))
   await expect(freshPage.locator('iframe[title="Pinned Source Document"]')).toHaveCount(0)
   await expect(freshPage.locator('.pdfViewer .page')).toHaveCount(6)
-  await freshPage.getByRole('tab', { name: 'Pinned schema' }).click()
+  await freshPage.getByRole('button', { name: 'View used schema' }).click()
   await expect(freshPage.locator('pre').filter({ hasText: 'One lifecycle fixture record.' })).toBeVisible()
   await expect(freshPage.getByText(firstSchemaRevisionId, { exact: true })).toBeVisible()
+  await expect(freshPage.getByText('Previous schema')).toBeVisible()
+  await expect(freshPage.getByText('Review applies to Schema Revision 1')).toBeVisible()
+  await expect(freshPage.getByRole('button', { name: 'Run with current schema' })).toHaveCount(0)
   await freshPage.getByRole('tab', { name: 'Review' }).click()
   await expect(
     freshPage.getByRole('tabpanel', { name: /Results/ }),
@@ -621,7 +628,7 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
   await freshPage.goto(url)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
   await expect(freshPage.getByText('Values extracted · linking Evidence…')).toBeVisible()
-  await freshPage.getByRole('button', { name: 'Cancel extraction' }).click()
+  await freshPage.getByRole('region', { name: 'Extraction status' }).getByRole('button', { name: 'Cancel extraction' }).click()
   await expect(freshPage.getByText('Evidence linking stopped: Extraction cancelled.')).toBeVisible()
   await freshPage.getByRole('tab', { name: 'Raw JSON' }).click()
   await expect(freshPage.locator('pre').filter({ hasText: 'Résumé, source' })).toBeVisible()
@@ -655,7 +662,7 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
   await expect.poll(() => valuesGate.release !== null).toBe(true)
   await freshPage.getByRole('button', { name: '↻ Re-run extraction' }).click()
   await expect(freshPage.getByText('Queued extraction…')).toBeVisible()
-  await freshPage.getByRole('button', { name: 'Cancel extraction' }).click()
+  await freshPage.getByTitle('Cancel the active Extraction').click()
   await expect(freshPage.getByText('Extraction cancelled', { exact: true })).toBeVisible()
   valuesGate.release?.()
   await waitForExtraction(freshPage.request, blockerId)
@@ -707,11 +714,82 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
     headers: { Origin: E2E_ORIGIN },
   })).status()).toBe(404)
 
+  // Previous-schema regression: start with Schema Revision 3, save Revision 4
+  // from the editor while the run is still linking Evidence, leave and come
+  // back, then complete and validate the Revision 3 result.
+  const thirdSchemaRevisionId = randomUUID()
+  await db.orm.public.SchemaRevision.create({
+    id: thirdSchemaRevisionId,
+    extractionSchemaId,
+    revisionNumber: 3,
+    origin: 'RESEARCHER_EDIT',
+    schemaTree: {
+      recordDescription: 'One lifecycle fixture record.',
+      schemaNodes: lifecycleSchemaNodes,
+    },
+  })
+  await freshPage.goto(url)
+  await freshPage.getByRole('tab', { name: /Results/ }).click()
+  blockNextGrounding = true
+  await freshPage.getByRole('button', { name: /▶ Run extraction|↻ Re-run extraction/ }).click()
+  await expect(freshPage.getByText('Values extracted · linking Evidence…')).toBeVisible()
+  const status = freshPage.getByRole('region', { name: 'Extraction status' })
+  await expect(status).toContainText('Using Schema Revision 3 · Current revision: 3')
+  await expect(status.getByText('Previous schema')).toHaveCount(0)
+  await status.getByRole('button', { name: 'View used schema' }).click()
+  await expect(status.locator('pre').filter({ hasText: 'One lifecycle fixture record.' })).toBeVisible()
+  await expect(status.getByText(thirdSchemaRevisionId, { exact: true })).toBeVisible()
+
+  await freshPage.getByRole('tab', { name: /^Schema/ }).click()
+  await freshPage.getByTitle('Edit year').click()
+  await freshPage.getByPlaceholder('field_name').fill('year_of_record')
+  await freshPage.getByRole('button', { name: 'Save', exact: true }).click()
+  await freshPage.getByRole('tab', { name: /Results/ }).click()
+  await expect(status).toContainText('Using Schema Revision 3 · Current revision: 4', { timeout: 10_000 })
+  await expect(status.getByText('Previous schema')).toBeVisible()
+  await expect(freshPage.getByText('Values extracted · linking Evidence…')).toBeVisible()
+  await expect(status.getByRole('button', { name: 'Cancel extraction' })).toBeEnabled()
+  await expect(freshPage.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
+
+  await freshPage.goto(e2eStudioPath(`/projects/${projectContextId}/documents/${otherSourceDocumentId}`))
+  await expect(freshPage.getByRole('button', { name: /Run extraction|Re-run extraction/ })).toBeVisible()
+  await freshPage.goto(url)
+  await freshPage.getByRole('tab', { name: /Results/ }).click()
+  await expect(freshPage.getByText('Values extracted · linking Evidence…')).toBeVisible()
+  await expect(status).toContainText('Using Schema Revision 3 · Current revision: 4')
+  await expect(status.getByText('Previous schema')).toBeVisible()
+  if (!groundingGate.release) throw new Error('Grounding was not blocked.')
+  groundingGate.release()
+  await expect(freshPage.getByText('Values extracted · linking Evidence…')).toBeHidden({ timeout: 30_000 })
+  await expect(status).toContainText('Completed')
+  await expect(status).toContainText('Review applies to Schema Revision 3')
+  await expect(status.getByRole('button', { name: 'Run with current schema' })).toBeEnabled()
+  await expect(freshPage.getByRole('button', { name: 'Rerun' })).toHaveCount(0)
+  await expect(freshPage.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
+  await activateWithKeyboard(freshPage, freshPage.getByRole('button', { name: /Approve remaining/ }))
+  await expect(freshPage.getByText('Review saved', { exact: true })).toBeVisible()
+  await expect(status.getByText('Previous schema')).toBeVisible()
+  const previousSchemaReview = await db.orm.public.Extraction.where({ sourceDocumentId })
+    .select('id', 'schemaRevisionId', 'reviewedAt')
+    .orderBy((attempt) => attempt.createdAt.desc())
+    .first()
+  expect(previousSchemaReview).toMatchObject({
+    schemaRevisionId: thirdSchemaRevisionId,
+    reviewedAt: expect.any(Date),
+  })
+  // Revision 4 was saved from the editor above and is now the Current Schema
+  // Revision that a Batch Extraction must use.
+  const currentSchemaRevision = await db.orm.public.SchemaRevision.where({ extractionSchemaId })
+    .select('id', 'revisionNumber')
+    .orderBy((revision) => revision.revisionNumber.desc())
+    .first()
+  expect(currentSchemaRevision?.revisionNumber).toBe(4)
+
   const batchResponse = await freshPage.request.post(e2eStudioPath('/api/batch-extractions'), {
     headers: { Origin: E2E_ORIGIN },
     data: {
       projectContextId,
-      schemaRevisionId: secondSchemaRevisionId,
+      schemaRevisionId: currentSchemaRevision!.id,
       strategy: 'ARTICLE',
       sourceDocumentIds: [otherSourceDocumentId],
       force: true,
