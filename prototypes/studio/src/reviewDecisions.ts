@@ -66,7 +66,9 @@ export function parseReviewedValue(
     return { value: raw, error: 'The pinned schema does not define this value.' }
   if (node.allowedValues && !node.allowedValues.includes(raw))
     return { value: raw, error: 'Choose a value allowed by the pinned schema.' }
-  switch (node.type) {
+  // A decision on one array item resolves to the array node, so edit against
+  // its item type. Same rule as `reviewDecisionMatchesSchema` on the server.
+  switch (node.type === 'array' && node.itemType ? node.itemType : node.type) {
     case 'boolean':
       if (raw === 'true') return { value: true, error: null }
       if (raw === 'false') return { value: false, error: null }

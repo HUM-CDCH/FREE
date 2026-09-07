@@ -65,8 +65,13 @@ async function installArtifactRoutes(page: Page) {
   )
 }
 
+/** The same disposable-stack gate `canonical-evidence-lifecycle.spec.ts` uses. */
+const withoutDatabase =
+  !process.env.EXTRACTION_TEST_DATABASE_URL ||
+  process.env.DATABASE_URL !== process.env.EXTRACTION_TEST_DATABASE_URL
+
 test.beforeAll(async () => {
-  if (!process.env.SCHEMA_ORDER_E2E) return
+  if (withoutDatabase) return
   const { db } = await import('../../../packages/db/src/prisma/db.js')
   await db.orm.public.ResearcherAccount.create({
     id: id.account,
@@ -130,7 +135,7 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
   page,
 }) => {
   test.setTimeout(60_000)
-  test.skip(!process.env.SCHEMA_ORDER_E2E, 'Requires the disposable PostgreSQL stack.')
+  test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
   await loginResearcher(page, id.object)
 
   const reopened = await page.request.get(

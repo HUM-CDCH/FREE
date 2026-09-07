@@ -1,4 +1,5 @@
 import { db, type Database } from './prisma/db.js'
+import { uniqueConstraint } from './project-store.js'
 
 export type ResearcherAccountRecord = {
   id: string
@@ -27,15 +28,6 @@ const ACCOUNT_FIELDS = [
   'createdAt',
   'updatedAt',
 ] as const
-
-function uniqueConstraint(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'sqlState' in error &&
-    error.sqlState === '23505'
-  )
-}
 
 export function createResearcherAccountStore(
   database: Database = db,

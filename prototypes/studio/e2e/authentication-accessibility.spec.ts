@@ -40,9 +40,9 @@ test('reduced motion, focus, and mobile form text honor accessibility preference
   await page.goto('/auth/signed-out')
   const authCard = page.locator('.animate-fadeup')
   await expect(authCard).toBeVisible()
-  expect(await authCard.evaluate((element) => getComputedStyle(element).animationName)).toBe(
-    'none',
-  )
+  // Retrying assertion: a one-shot `evaluate` can read a handle the page has
+  // already detached, and computed style is then empty rather than `none`.
+  await expect(authCard).toHaveCSS('animation-name', 'none')
 
   await page.route('**/api/project-contexts**', (route) =>
     route.fulfill({

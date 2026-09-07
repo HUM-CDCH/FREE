@@ -64,7 +64,10 @@ export async function groundExtraction(
     }
   const claims: Claim[] = paths.map((path, index) => ({ label: `C${index + 1}`, path, value: valueAtPath(result, path) as string | number | boolean }))
   const context = sourceContext(document, options?.allowedAnchorIds)
-  const anchors = Object.fromEntries([...context.anchorIdByLabel].map(([label, anchorId]) => [label, anchorText(context.text, label, anchorId)]))
+  // Read the anchor's own text, not the rendered line: re-parsing the render
+  // cut every anchor at its first ` | ` (the table-cell join) or newline, so
+  // the model saw less than the lexical check below verifies against.
+  const anchors = Object.fromEntries([...context.anchorIdByLabel].map(([label, anchorId]) => [label, context.textByAnchorId.get(anchorId) ?? '']))
   const lexicalTextByAnchorId = new Map([...context.textByAnchorId].map(([anchorId, text]) => [anchorId, lexicalText(text)]))
   const claimByLabel = new Map(claims.map((claim) => [claim.label, claim]))
   const selectedClaims = new Set<string>()
@@ -174,10 +177,4 @@ function valueAtPath(root: unknown, path: ResultPath): unknown {
     }
   }
   return value
-}
-
-function anchorText(rendered: string, label: string, fallback: string): string {
-  const prefix = `[${label}] `
-  const line = rendered.split('\n').find((candidate) => candidate.includes(prefix))
-  return line?.slice(line.indexOf(prefix) + prefix.length).split(' | ')[0] ?? fallback
 }

@@ -1,4 +1,4 @@
-import type { Database } from 'db'
+import { stableJson, stableUuid, uniqueConstraint, type Database } from 'db'
 import { ExtractionError } from './errors.js'
 import type { DurableBatchExtraction } from './postgres-persistence.js'
 import { parseBatchSuggestionDefinition } from './schema.js'
@@ -11,7 +11,7 @@ import type {
 /** Owns the atomic Schema Suggestion → Extraction Schema → Batch handoff. */
 export async function persistSuggestedBatch(
   database: Database,
-  researcherAccountId: string | null,
+  researcherAccountId: string,
   input: ScheduleSuggestedBatchInput,
   helpers: Readonly<{
     loadBatch: (
@@ -21,25 +21,15 @@ export async function persistSuggestedBatch(
     ) => Promise<DurableBatchExtraction | null>
     semanticSuggestionTree: (tree: unknown) => unknown
     snapshot: (batch: DurableBatchExtraction) => ScheduleBatchResult['batch']
-    stableJson: (value: unknown) => string
-    stableUuid: (namespace: string, value: string) => string
-    uniqueConstraint: (error: unknown) => boolean
   }>,
 ): Promise<ScheduleBatchResult | null> {
-  const {
-    loadBatch,
-    semanticSuggestionTree,
-    snapshot,
-    stableJson,
-    stableUuid,
-    uniqueConstraint,
-  } = helpers
+  const { loadBatch, semanticSuggestionTree, snapshot } = helpers
   let status: 'created' | 'replayed' | 'missing' | 'not-ready' | 'invalid'
   try {
     status = await database.transaction(async ({ orm }) => {
       const project = await orm.public.ProjectContext.select('id').first({
         id: input.projectContextId,
-        ...(researcherAccountId ? { researcherAccountId } : {}),
+        researcherAccountId,
       })
       if (!project) return 'missing' as const
       const suggestion = await orm.public.BatchSchemaSuggestion.select(
@@ -157,7 +147,7 @@ export async function persistSuggestedBatch(
   const batch = await database.transaction(async ({ orm }) => {
     const project = await orm.public.ProjectContext.select('id').first({
       id: input.projectContextId,
-      ...(researcherAccountId ? { researcherAccountId } : {}),
+      researcherAccountId,
     })
     if (!project) return null
     const suggestion =

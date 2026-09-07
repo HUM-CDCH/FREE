@@ -26,7 +26,6 @@ import { systemCredentialStore, type CredentialStore } from './_keyring.js'
 
 /** Internal adapter capability; routes always select output formatting automatically. */
 export type JsonOutputCapability = 'prompt' | 'schema' | 'native'
-type ExecutionCapability = 'general' | 'nuextract-raw'
 type Fetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 type CodexModel = { id: string; displayName?: string; name?: string | null; hidden?: boolean }
 
@@ -46,7 +45,6 @@ type ModelFactory = (connection: ModelConnection, modelId: string, credential: s
 
 type ProviderEntry = ProviderDescriptor & {
   temperatureSupported: boolean
-  execution: readonly ExecutionCapability[]
   discover(connection: ModelConnection, credential: string | null, context: DiscoveryContext): Promise<DiscoveryObservation>
   createModel: ModelFactory
 }
@@ -56,6 +54,10 @@ const MAX_DISCOVERY_BYTES = 1024 * 1024
 const MAX_MODELS = 10_000
 const MAX_MODEL_TEXT = 512
 const MAX_MESSAGE_TEXT = 512
+
+/** Truncate to `limit` code points, so a surrogate pair is never split. */
+const boundText = (value: string, limit: number) => [...value].slice(0, limit).join('')
+
 const PROBE_TIMEOUT_MS = 15_000
 const execFile = promisify(execFileCallback)
 
@@ -251,30 +253,6 @@ function observation(
   }
 }
 
-function boundText(value: string, limit: number): string {
-  let codePoints = 0
-  let end = 0
-  for (const character of value) {
-    if (codePoints === limit) break
-    codePoints += 1
-    end += character.length
-  }
-  return end === value.length ? value : value.slice(0, end)
-}
-
-function codePointLength(value: string): number {
-  let count = 0
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index)
-    if (code >= 0xd800 && code <= 0xdbff && index + 1 < value.length) {
-      const next = value.charCodeAt(index + 1)
-      if (next >= 0xdc00 && next <= 0xdfff) index += 1
-    }
-    count += 1
-  }
-  return count
-}
-
 function boundedCatalog(models: readonly ModelDescriptor[]): ModelDescriptor[] {
   const seen = new Set<string>()
   const catalog: ModelDescriptor[] = []
@@ -284,8 +262,8 @@ function boundedCatalog(models: readonly ModelDescriptor[]): ModelDescriptor[] {
       typeof model.label !== 'string' ||
       model.id.length === 0 ||
       model.label.length === 0 ||
-      codePointLength(model.id) > MAX_MODEL_TEXT ||
-      codePointLength(model.label) > MAX_MODEL_TEXT
+      [...model.id].length > MAX_MODEL_TEXT ||
+      [...model.label].length > MAX_MODEL_TEXT
     ) {
       throw new Error('invalid model')
     }
@@ -403,7 +381,6 @@ export const providerTable = {
     authentication: 'optional',
     supportsNuextractRaw: true,
     temperatureSupported: true,
-    execution: ['general', 'nuextract-raw'],
     discover: httpDiscovery('api/tags', commonHttpHeaders, ollamaCatalog),
     createModel: (connection, modelId, credential) =>
       createOllama({ baseURL: connection.baseUrl!, ...(credential ? { apiKey: credential } : {}) })(modelId),
@@ -416,7 +393,6 @@ export const providerTable = {
     authentication: 'managed',
     supportsNuextractRaw: false,
     temperatureSupported: true,
-    execution: ['general'],
     discover: httpDiscovery('models', commonHttpHeaders, openAiCatalog),
     createModel: (connection, modelId, credential) =>
       createOpenAI({ baseURL: connection.baseUrl!, apiKey: credential! }).responses(modelId),
@@ -429,7 +405,6 @@ export const providerTable = {
     authentication: 'managed',
     supportsNuextractRaw: false,
     temperatureSupported: true,
-    execution: ['general'],
     discover: httpDiscovery(
       'models',
       (credential) => ({ accept: 'application/json', 'anthropic-version': '2023-06-01', 'x-api-key': credential! }),
@@ -446,7 +421,6 @@ export const providerTable = {
     authentication: 'managed',
     supportsNuextractRaw: false,
     temperatureSupported: true,
-    execution: ['general'],
     discover: httpDiscovery(
       'models',
       (credential) => ({ accept: 'application/json', 'x-goog-api-key': credential! }),
@@ -463,7 +437,6 @@ export const providerTable = {
     authentication: 'external',
     supportsNuextractRaw: false,
     temperatureSupported: false,
-    execution: ['general'],
     discover: discoverCodex,
     createModel: (_connection, modelId) => codexProvider()(modelId),
   },
@@ -475,7 +448,6 @@ export const providerTable = {
     authentication: 'external',
     supportsNuextractRaw: false,
     temperatureSupported: false,
-    execution: ['general'],
     discover: discoverClaude,
     createModel: (_connection, modelId) => claudeCode(modelId, { tools: [], settingSources: [] }),
   },
@@ -487,7 +459,6 @@ export const providerTable = {
     authentication: 'optional',
     supportsNuextractRaw: false,
     temperatureSupported: true,
-    execution: ['general'],
     discover: httpDiscovery('models', commonHttpHeaders, openAiCatalog),
     createModel: (connection, modelId, credential) =>
       createOpenAICompatible({

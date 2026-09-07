@@ -148,4 +148,25 @@ describe('groundExtraction lexical checks', () => {
     assert.deepEqual(byPath.get('adult'), { resultPath: ['adult'], evidenceAnchorId: 'a-b0' })
     assert.deepEqual(outcome.ungroundedPaths, [])
   })
+
+  it('shows the grounder each anchor whole, including pipes and newlines', async () => {
+    const pinched = 'Table 3 | Grain prices, 1750\nSecond line.'
+    const document = documentWith([pinched])
+    let shown: Record<string, string> = {}
+    await groundExtraction(
+      document,
+      { caption: 'Grain prices, 1750' },
+      {
+        async ground(request) {
+          shown = request.anchors
+          return {
+            selections: [{ claimLabel: 'C1', anchorLabel: Object.keys(request.anchors)[0]! }],
+            metadata: { finishReason: 'stop', inputTokens: 1, outputTokens: 1, durationMs: 1 },
+          }
+        },
+      },
+      new AbortController().signal,
+    )
+    assert.deepEqual(Object.values(shown), [pinched])
+  })
 })

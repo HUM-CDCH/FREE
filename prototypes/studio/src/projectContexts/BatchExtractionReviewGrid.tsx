@@ -769,9 +769,6 @@ export default function BatchExtractionReviewGrid({
                     {nameCell}
                     {grid.columns.map((column) => {
                       const values = valuesAtColumn(record, column)
-                      const scalarNode: SchemaNode = column.node.type === 'array' && column.node.itemType
-                        ? { id: column.node.id, name: column.node.name, type: column.node.itemType }
-                        : column.node
                       return <td key={column.key} className="max-w-[16rem] align-top">
                         {values.length === 0 && <span className="px-3 py-2 text-ink-faint">Empty</span>}
                         {values.map(({ path, value }) => {
@@ -796,7 +793,7 @@ export default function BatchExtractionReviewGrid({
                               onReject={() => { grid.setDecision(row.sourceDocumentId, resultPath, 'REJECTED'); setActiveCell(null) }}
                               onStartEdit={() => setEditingCell(cellKey)}
                               onCommitEdit={(raw) => {
-                                const parsed = parseReviewedValue(scalarNode, raw)
+                                const parsed = parseReviewedValue(column.node, raw)
                                 if (parsed.error) return parsed.error
                                 grid.setDecision(row.sourceDocumentId, resultPath, 'EDITED', parsed.value)
                                 return null
