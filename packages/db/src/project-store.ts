@@ -1621,14 +1621,18 @@ export function createResearcherProjectStore(
           suggestion.confirmedSchemaRevisionId !== null
         )
           return 'invalid' as const
+        // updateAll retains these guards in the UPDATE; update selects an id first.
         const updated = await orm.public.BatchSchemaSuggestion.where({
           id: batchSchemaSuggestionId,
           draftVersion: expectedDraftVersion,
-        }).update({
+          executionStatus: 'COMPLETED',
+          phase: 'READY',
+          confirmedSchemaRevisionId: null,
+        }).updateAll({
           draft,
           draftVersion: expectedDraftVersion + 1,
         })
-        return updated ? ('updated' as const) : ('conflict' as const)
+        return updated.length === 1 ? ('updated' as const) : ('conflict' as const)
       })
       if (result === 'missing') return null
       const suggestion = await loadBatchSchemaSuggestion(
@@ -1650,9 +1654,11 @@ export function createResearcherProjectStore(
           ))
         )
           return 'missing' as const
-        const suggestion = await orm.public.BatchSchemaSuggestion.select(
-          'id',
-        ).first({ id: batchSchemaSuggestionId, projectContextId })
+        // Lock the parent before touching sources, as the worker does.
+        const [suggestion] = await orm.public.BatchSchemaSuggestion.where({
+          id: batchSchemaSuggestionId,
+          projectContextId,
+        }).updateAll({ id: batchSchemaSuggestionId })
         if (!suggestion) return 'missing' as const
         const sources = await orm.public.BatchSchemaSuggestionSource.where({
           batchSchemaSuggestionId,
@@ -1961,10 +1967,12 @@ export function createInternalProjectWorkerStore(
       const candidate = queued ?? running
       if (!candidate) return null
       const version = candidate.leaseVersion + 1
-      const claimed = await database.orm.public.BatchSchemaSuggestion.where({
+      const [claimed] = await database.orm.public.BatchSchemaSuggestion.where({
         id: candidate.id,
         leaseVersion: candidate.leaseVersion,
-      }).update({
+        executionStatus: queued ? 'QUEUED' : 'RUNNING',
+        ...(running ? { leaseExpiresAt: running.leaseExpiresAt } : {}),
+      }).updateAll({
         executionStatus: 'RUNNING',
         failure: null,
         startedAt: candidate.startedAt ?? now,
@@ -1990,13 +1998,13 @@ export function createInternalProjectWorkerStore(
       lease,
       leaseExpiresAt,
     ) {
-      return Boolean(
-        await database.orm.public.BatchSchemaSuggestion.where({
-          id: batchSchemaSuggestionId,
-          leaseOwner: lease.owner,
-          leaseVersion: lease.version,
-        }).update({ leaseExpiresAt }),
-      )
+      const updated = await database.orm.public.BatchSchemaSuggestion.where({
+        id: batchSchemaSuggestionId,
+        leaseOwner: lease.owner,
+        leaseVersion: lease.version,
+        executionStatus: 'RUNNING',
+      }).updateAll({ leaseExpiresAt })
+      return updated.length === 1
     },
     async startBatchSchemaSuggestionSource(
       batchSchemaSuggestionId,
@@ -2005,13 +2013,14 @@ export function createInternalProjectWorkerStore(
       startedAt,
     ) {
       return database.transaction(async ({ orm }) => {
-        const owned = await orm.public.BatchSchemaSuggestion.select('id').first({
+        // Keep ownership locked until the source write commits.
+        const owned = await orm.public.BatchSchemaSuggestion.where({
           id: batchSchemaSuggestionId,
           leaseOwner: lease.owner,
           leaseVersion: lease.version,
           executionStatus: 'RUNNING',
-        })
-        if (!owned) return false
+        }).updateAll({ leaseVersion: lease.version })
+        if (owned.length !== 1) return false
         return Boolean(
           await orm.public.BatchSchemaSuggestionSource.where({
             batchSchemaSuggestionId,
@@ -2033,13 +2042,13 @@ export function createInternalProjectWorkerStore(
       finishedAt,
     ) {
       return database.transaction(async ({ orm }) => {
-        const owned = await orm.public.BatchSchemaSuggestion.select('id').first({
+        const owned = await orm.public.BatchSchemaSuggestion.where({
           id: batchSchemaSuggestionId,
           leaseOwner: lease.owner,
           leaseVersion: lease.version,
           executionStatus: 'RUNNING',
-        })
-        if (!owned) return false
+        }).updateAll({ leaseVersion: lease.version })
+        if (owned.length !== 1) return false
         return Boolean(
           await orm.public.BatchSchemaSuggestionSource.where({
             batchSchemaSuggestionId,
@@ -2063,14 +2072,13 @@ export function createInternalProjectWorkerStore(
       })
     },
     async startBatchSchemaSuggestionMerge(batchSchemaSuggestionId, lease) {
-      return Boolean(
-        await database.orm.public.BatchSchemaSuggestion.where({
-          id: batchSchemaSuggestionId,
-          leaseOwner: lease.owner,
-          leaseVersion: lease.version,
-          executionStatus: 'RUNNING',
-        }).update({ phase: 'MERGING' }),
-      )
+      const updated = await database.orm.public.BatchSchemaSuggestion.where({
+        id: batchSchemaSuggestionId,
+        leaseOwner: lease.owner,
+        leaseVersion: lease.version,
+        executionStatus: 'RUNNING',
+      }).updateAll({ phase: 'MERGING' })
+      return updated.length === 1
     },
     async completeBatchSchemaSuggestionMerge(
       batchSchemaSuggestionId,
@@ -2078,39 +2086,38 @@ export function createInternalProjectWorkerStore(
       result,
       finishedAt,
     ) {
-      return Boolean(
-        await database.orm.public.BatchSchemaSuggestion.where({
-          id: batchSchemaSuggestionId,
-          leaseOwner: lease.owner,
-          leaseVersion: lease.version,
-          executionStatus: 'RUNNING',
-        }).update(
-          'heterogeneous' in result
-            ? {
-                executionStatus: 'COMPLETED',
-                phase: 'HETEROGENEOUS',
-                proposal: null,
-                coverage: null,
-                draft: null,
-                failure: null,
-                finishedAt,
-                leaseOwner: null,
-                leaseExpiresAt: null,
-              }
-            : {
-                executionStatus: 'COMPLETED',
-                phase: 'READY',
-                proposal: result.proposal,
-                coverage: result.coverage,
-                draft: result.draft,
-                draftVersion: 1,
-                failure: null,
-                finishedAt,
-                leaseOwner: null,
-                leaseExpiresAt: null,
-              },
-        ),
+      const updated = await database.orm.public.BatchSchemaSuggestion.where({
+        id: batchSchemaSuggestionId,
+        leaseOwner: lease.owner,
+        leaseVersion: lease.version,
+        executionStatus: 'RUNNING',
+      }).updateAll(
+        'heterogeneous' in result
+          ? {
+              executionStatus: 'COMPLETED',
+              phase: 'HETEROGENEOUS',
+              proposal: null,
+              coverage: null,
+              draft: null,
+              failure: null,
+              finishedAt,
+              leaseOwner: null,
+              leaseExpiresAt: null,
+            }
+          : {
+              executionStatus: 'COMPLETED',
+              phase: 'READY',
+              proposal: result.proposal,
+              coverage: result.coverage,
+              draft: result.draft,
+              draftVersion: 1,
+              failure: null,
+              finishedAt,
+              leaseOwner: null,
+              leaseExpiresAt: null,
+            },
       )
+      return updated.length === 1
     },
     async failBatchSchemaSuggestion(
       batchSchemaSuggestionId,
@@ -2118,19 +2125,19 @@ export function createInternalProjectWorkerStore(
       failure,
       finishedAt,
     ) {
-      return Boolean(
-        await database.orm.public.BatchSchemaSuggestion.where({
-          id: batchSchemaSuggestionId,
-          leaseOwner: lease.owner,
-          leaseVersion: lease.version,
-        }).update({
-          executionStatus: 'FAILED',
-          failure,
-          finishedAt,
-          leaseOwner: null,
-          leaseExpiresAt: null,
-        }),
-      )
+      const updated = await database.orm.public.BatchSchemaSuggestion.where({
+        id: batchSchemaSuggestionId,
+        leaseOwner: lease.owner,
+        leaseVersion: lease.version,
+        executionStatus: 'RUNNING',
+      }).updateAll({
+        executionStatus: 'FAILED',
+        failure,
+        finishedAt,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+      })
+      return updated.length === 1
     },
   }
 }
