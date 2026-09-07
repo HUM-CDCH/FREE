@@ -305,6 +305,7 @@ export interface ExtractionModule {
   finalizeReview(extractionId: string, decisions: readonly ReviewDecisionInput[], expectedDraftVersion?: number): Promise<FinalizeReviewResult>
   readReviewDraft(extractionId: string): Promise<ReviewDraft>
   saveReviewDraft(extractionId: string, draft: ReviewDraft): Promise<ReviewDraft>
+  resetReview(extractionId: string, expectedDraftVersion: number): Promise<ReviewDraft>
   readDocumentExtractions(input: ReadDocumentExtractionsInput): Promise<DocumentExtractionsSnapshot | null>
   scheduleBatch(input: ScheduleBatchInput): Promise<ScheduleBatchResult>
   scheduleSuggestedBatch(input: ScheduleSuggestedBatchInput): Promise<ScheduleBatchResult>

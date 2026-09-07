@@ -194,7 +194,7 @@ async function loadExtraction(orm: DatabaseOrm, extractionId: string): Promise<E
     .select('id')
     .orderBy((candidate) => candidate.revisionNumber.desc())
     .first()
-  const decisions = review
+  const decisions = row.reviewedAt && review
     ? await orm.public.ReviewDecision.where({ extractionReviewId: review.id })
       .select(
         'resultPath',
@@ -665,18 +665,20 @@ function setAtPath(root: unknown, path: readonly (string | number)[], value: unk
     (parent as Record<string | number, unknown>)[path[path.length - 1]] = value
 }
 
-/** Batch-loads the finalized Review Decisions for several Extractions at once, keyed
- *  by extractionId. `finalizeReview` only ever writes one `ExtractionReview` revision
- *  per Extraction — a second submission is rejected as 'conflict'/'replayed' before a
- *  second revision is created — so there is at most one review per id here. */
+/** Batch-loads only the latest finalized revision for each Extraction. */
 async function loadFinalizedDecisions(
   orm: DatabaseOrm,
   extractionIds: readonly string[],
 ): Promise<Map<string, readonly ResultDecision[]>> {
-  const reviews = await orm.public.ExtractionReview
+  const revisions = await orm.public.ExtractionReview
     .where((review) => review.extractionId.in([...extractionIds]))
     .select('id', 'extractionId')
+    .orderBy((review) => review.revisionNumber.desc())
     .all()
+  const latest = new Map<string, (typeof revisions)[number]>()
+  for (const review of revisions)
+    if (!latest.has(review.extractionId)) latest.set(review.extractionId, review)
+  const reviews = [...latest.values()]
   const byExtractionId = new Map<string, ResultDecision[]>()
   if (reviews.length === 0) return byExtractionId
   const extractionIdByReviewId = new Map(reviews.map((review) => [review.id, review.extractionId]))
@@ -834,6 +836,8 @@ function reviewAuthorityMatchesExtraction(
   )
 }
 async function reviewDigest(orm: DatabaseOrm, extractionId: string): Promise<string | null> {
+  const extraction = await orm.public.Extraction.select('reviewedAt').first({ id: extractionId })
+  if (!extraction?.reviewedAt) return null
   return (await orm.public.ExtractionReview.where({ extractionId })
     .select('decisionDigest')
     .orderBy((review) => review.revisionNumber.desc())
@@ -1006,6 +1010,18 @@ async function saveStoredReviewDraft(database: Database, accountId: string | nul
     })
   }
 
+async function resetStoredReview(database: Database, accountId: string | null, extractionId: string, version: number): Promise<ReviewDraft> {
+  return database.transaction(async (transaction) => {
+    if (accountId && !await ownsResearcherJob(transaction, accountId, extractionId))
+      throw new ExtractionError('not_found', 'That Extraction was not found.')
+    const updated = await transaction.orm.public.Extraction.where({
+      id: extractionId, reviewable: true, reviewDraftVersion: version,
+    }).updateAll({ reviewedAt: null, reviewDraft: [], reviewDraftVersion: version + 1 })
+    if (updated.length !== 1) throw new ExtractionError('review_conflict', 'The review changed elsewhere. Reload before continuing.')
+    return { decisions: [], version: version + 1 }
+  })
+}
+
 class PostgresExtractionPersistence implements ExtractionPersistence {
   protected readonly database: Database
   protected readonly packages: CanonicalPackageStore
@@ -1065,6 +1081,7 @@ class PostgresExtractionPersistence implements ExtractionPersistence {
   }
 
   readReviewDraft(extractionId: string) { return readStoredReviewDraft(this.database, null, extractionId) }
+  resetReview(extractionId: string, version: number) { return resetStoredReview(this.database, null, extractionId, version) }
   saveReviewDraft(extractionId: string, draft: ReviewDraft) { return saveStoredReviewDraft(this.database, null, extractionId, draft) }
 
   scheduleExtraction(input: RunSingleInput): Promise<RunSingleResult | null> {
@@ -1104,9 +1121,11 @@ class PostgresExtractionPersistence implements ExtractionPersistence {
           id: extractionId, reviewedAt: null, reviewDraftVersion: authority.expectedDraftVersion ?? 0,
         }).updateAll({ reviewedAt: new Date(), reviewDraft: null, reviewDraftVersion: (authority.expectedDraftVersion ?? 0) + 1 })
         if (claimed.length !== 1) return (await reviewDigest(orm, extractionId)) === digest ? 'replayed' as const : 'conflict' as const
+        const previous = await orm.public.ExtractionReview.where({ extractionId })
+          .select('revisionNumber').orderBy((review) => review.revisionNumber.desc()).first()
         const review = await orm.public.ExtractionReview.create({
           extractionId,
-          revisionNumber: 1,
+          revisionNumber: (previous?.revisionNumber ?? 0) + 1,
           decisionDigest: digest,
         })
         for (const decision of submitted)
@@ -1717,6 +1736,7 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
   }
 
   readReviewDraft(extractionId: string) { return readStoredReviewDraft(this.database, this.researcherAccountId, extractionId) }
+  resetReview(extractionId: string, version: number) { return resetStoredReview(this.database, this.researcherAccountId, extractionId, version) }
   saveReviewDraft(extractionId: string, draft: ReviewDraft) { return saveStoredReviewDraft(this.database, this.researcherAccountId, extractionId, draft) }
 
   async finalizeReview(
@@ -1758,9 +1778,11 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
           id: extractionId, reviewedAt: null, reviewDraftVersion: authority.expectedDraftVersion ?? 0,
         }).updateAll({ reviewedAt: new Date(), reviewDraft: null, reviewDraftVersion: (authority.expectedDraftVersion ?? 0) + 1 })
         if (claimed.length !== 1) return (await reviewDigest(orm, extractionId)) === digest ? 'replayed' as const : 'conflict' as const
+        const previous = await orm.public.ExtractionReview.where({ extractionId })
+          .select('revisionNumber').orderBy((review) => review.revisionNumber.desc()).first()
         const review = await orm.public.ExtractionReview.create({
           extractionId,
-          revisionNumber: 1,
+          revisionNumber: (previous?.revisionNumber ?? 0) + 1,
           decisionDigest: digest,
         })
         for (const decision of submitted)

@@ -7,6 +7,7 @@ import {
   extractionRequestSchema,
   finalizeExtractionReviewSchema,
   extractionReviewDraftSchema,
+  resetExtractionReviewSchema,
 } from '../shared/extraction.contract.js'
 import {
   ApiError,
@@ -24,6 +25,7 @@ const COLLECTION_ROUTE = '/api/extractions'
 const ITEM_ROUTE = /^\/api\/extractions\/([0-9a-f-]+)$/
 const REVIEW_ROUTE = /^\/api\/extractions\/([0-9a-f-]+)\/review$/
 const DRAFT_ROUTE = /^\/api\/extractions\/([0-9a-f-]+)\/review\/draft$/
+const RESET_ROUTE = /^\/api\/extractions\/([0-9a-f-]+)\/review\/reset$/
 
 
 function asTransportError(error: unknown): unknown {
@@ -157,6 +159,12 @@ export function createResearcherApiHandlers(
         return await create(request)
       const reviewMatch = REVIEW_ROUTE.exec(pathname)
       const draftMatch = DRAFT_ROUTE.exec(pathname)
+      const resetMatch = RESET_ROUTE.exec(pathname)
+      if (request.method === 'POST' && resetMatch) {
+        const parsed = resetExtractionReviewSchema.safeParse(await parseJsonRequest(request))
+        if (!parsed.success) throw new ApiError(422, 'invalid_request', 'The review reset is invalid.')
+        return json(await module.resetReview(resetMatch[1], parsed.data.expectedDraftVersion), { headers: noStore })
+      }
       if (request.method === 'POST' && draftMatch) {
         const parsed = extractionReviewDraftSchema.safeParse(await parseJsonRequest(request))
         if (!parsed.success) throw new ApiError(422, 'invalid_request', 'The review draft is invalid.')

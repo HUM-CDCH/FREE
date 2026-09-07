@@ -92,6 +92,17 @@ export async function requestSchema(
   return done.template
 }
 
+/** Thrown when an Extraction endpoint answers with an HTTP error status. */
+export class ExtractionRequestError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ExtractionRequestError'
+    this.status = status
+  }
+}
+
 async function extractionJson(
   path: string,
   method: 'GET' | 'POST' | 'DELETE',
@@ -106,7 +117,10 @@ async function extractionJson(
   })
   if (!response.ok) {
     const detail = await readErrorDetail(response)
-    throw new Error(detail || `Extraction failed (HTTP ${response.status})`)
+    throw new ExtractionRequestError(
+      detail || `Extraction failed (HTTP ${response.status})`,
+      response.status,
+    )
   }
   return response.json()
 }
@@ -157,6 +171,11 @@ export async function finalizeExtractionReview(
 }
 
 type SavedReviewDraft = { version: number; decisions: ReviewDecisionInput[] }
+export async function resetExtractionReview(extractionId: string, expectedDraftVersion: number): Promise<SavedReviewDraft> {
+  return extractionReviewDraftSchema.parse(
+    await extractionJson(`/extractions/${extractionId}/review/reset`, 'POST', { expectedDraftVersion }),
+  )
+}
 // Only in-flight writes live here. PostgreSQL owns all persisted review state.
 const draftWrites = new Map<string, Promise<SavedReviewDraft>>()
 export function saveExtractionReviewDraft(extractionId: string, decisions: readonly ReviewDecisionInput[], version: number): Promise<SavedReviewDraft> {

@@ -22,12 +22,13 @@ const defaultController: ExtractionController = {
   attempt: null,
   canRun: true,
   hasResults: false,
-  stale: false,
-  runExtraction: async () => {},
+  runExtraction: async () => null,
   retryExtraction: async () => null,
   requestCancellation: async () => {},
   cancellationRequested: false,
   cancellationError: null,
+  monitorError: null,
+  reconnect: () => {},
   review: {
     available: false,
     canAccept: false,
@@ -91,6 +92,7 @@ function renderRail({
       onRunExtraction={vi.fn()}
       runExtractionDisabled={false}
       inspection={defaultInspection}
+      currentSchemaRevision={null}
       sourceDocumentName="test.pdf"
       onSelectEvidence={vi.fn()}
       onResultPathChange={vi.fn()}

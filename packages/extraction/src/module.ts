@@ -207,6 +207,14 @@ export function createExtractionModule(
       dependencies.persistence.readExtractionAttempt(extractionId),
     prepareReview,
     finalizeReview,
+    resetReview: async (extractionId, expectedDraftVersion) => {
+      if (!Number.isSafeInteger(expectedDraftVersion) || expectedDraftVersion < 0)
+        throw new ExtractionError('invalid_review', 'The review version is invalid.')
+      const extraction = await dependencies.persistence.readExtraction(extractionId)
+      if (!extraction) throw new ExtractionError('not_found', 'That Extraction was not found.')
+      if (!extraction.reviewable) throw new ExtractionError('invalid_review', 'This Extraction cannot be reviewed.')
+      return dependencies.persistence.resetReview(extractionId, expectedDraftVersion)
+    },
     readReviewDraft: async (extractionId) => {
       const draft = await dependencies.persistence.readReviewDraft(extractionId)
       if (!draft) throw new ExtractionError('not_found', 'That Extraction was not found.')

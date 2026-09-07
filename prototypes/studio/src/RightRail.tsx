@@ -44,6 +44,8 @@ type RightRailProps = {
   onRunExtraction: () => void | Promise<void>
   runExtractionDisabled: boolean
   inspection: ExtractionInspection
+  /** Acknowledged Current Schema Revision, for the Results panel's comparison. */
+  currentSchemaRevision: { schemaRevisionId: string; revisionNumber: number } | null
   sourceDocumentName: string
   schemaName?: string | null
   onRenameSchema?: (name: string) => Promise<string | null>
@@ -76,6 +78,7 @@ function RightRail({
   onRunExtraction,
   runExtractionDisabled,
   inspection,
+  currentSchemaRevision,
   sourceDocumentName,
   schemaName,
   onRenameSchema,
@@ -210,6 +213,7 @@ function RightRail({
           documentMarkdown={documentMarkdown}
           pinnedSchema={inspection.pinnedSchema}
           exportSchema={inspection.exportSchema}
+          currentSchemaRevision={currentSchemaRevision}
           sourceDocumentName={sourceDocumentName}
           onResultPathChange={onResultPathChange}
           onSelectEvidence={(anchorId) => {

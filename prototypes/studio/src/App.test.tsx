@@ -1075,6 +1075,95 @@ describe('reopened Source Document workspace', () => {
     },
   )
 
+  it('marks the result as previous only once a new Schema Revision is saved, then runs and cancels with the current one', async () => {
+    const savedSchemaRevisionId = '51000000-0000-4000-8005-000000000099'
+    const extractionResponse = Promise.withResolvers<Response>()
+    const extractionRequests: Array<{ id: string; schemaRevisionId?: string }> = []
+    const cancellationRequests: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+        if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+        if (url.startsWith('/api/schema-revisions?'))
+          return Promise.resolve(Response.json({ revisions: [] }))
+        if (url === '/api/schema-revisions' && init?.method === 'POST') {
+          const request = JSON.parse(String(init.body)) as { recordDescription: string; schemaNodes: SchemaNode[] }
+          return Promise.resolve(Response.json({
+            revision: {
+              schemaRevisionId: savedSchemaRevisionId,
+              extractionSchemaId: reopened.extractionSchema!.extractionSchemaId,
+              revisionNumber: 2,
+              origin: 'researcher-edit',
+              createdAt: '2026-08-12T00:00:00.000Z',
+              recordDescription: request.recordDescription,
+              schemaNodes: request.schemaNodes,
+            },
+          }, { status: 201 }))
+        }
+        if (url.startsWith('/api/extractions/') && init?.method === 'DELETE') {
+          cancellationRequests.push(url)
+          return Promise.resolve(Response.json({ extractionId: url.split('/').at(-1) }, { status: 202 }))
+        }
+        if (url.endsWith('/api/extractions')) {
+          extractionRequests.push(JSON.parse(String(init?.body)) as { id: string; schemaRevisionId?: string })
+          return extractionResponse.promise
+        }
+        return Promise.resolve(new Response('# Beretning'))
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} />)
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(screen.getByText('Using Schema Revision 1 · Current revision: 1')).toBeInTheDocument()
+    expect(screen.queryByText('Previous schema')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    fireEvent.click(screen.getByTitle('Edit place'))
+    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    // Unsaved edits are not a new revision: no false "previous schema" yet.
+    expect(screen.queryByText('Previous schema')).not.toBeInTheDocument()
+    expect(screen.getByText('Using Schema Revision 1 · Current revision: 1')).toBeInTheDocument()
+
+    // The debounced durable save acknowledges Revision 2.
+    await waitFor(
+      () => expect(screen.getByText('Using Schema Revision 1 · Current revision: 2')).toBeInTheDocument(),
+      { timeout: 4_000 },
+    )
+    expect(screen.getByText('Previous schema')).toBeInTheDocument()
+    expect(screen.getByText('Review applies to Schema Revision 1')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Rerun' })).not.toBeInTheDocument()
+    expect(screen.getByText('Ellekilde')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run with current schema' }))
+    await waitFor(() => expect(extractionRequests).toHaveLength(1))
+    expect(extractionRequests[0]!.schemaRevisionId).toBe(savedSchemaRevisionId)
+    extractionResponse.resolve(Response.json({
+      extractionId: extractionRequests[0]!.id,
+      sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+      sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+      schemaRevisionId: savedSchemaRevisionId,
+      strategy: 'ARTICLE', executionStatus: 'RUNNING', outcome: null, complete: null,
+      modelAttribution: null, diagnostics: null, failure: null, resultPayload: null,
+      evidenceLinks: null, reviewable: false, retryOfId: null, batchExtractionId: null,
+      createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+    }, { status: 201 }))
+    expect(await screen.findByText('Using Schema Revision 2 · Current revision: 2', undefined, { timeout: 4_000 })).toBeInTheDocument()
+    expect(screen.queryByText('Previous schema')).not.toBeInTheDocument()
+    expect(screen.getByText('You can continue working on other documents.')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Cancel extraction' })).toHaveLength(2)
+    fireEvent.click(screen.getByTitle('Cancel the active Extraction'))
+    await waitFor(() => expect(cancellationRequests).toHaveLength(1))
+    expect(screen.getAllByRole('button', { name: 'Cancellation requested…' })).toHaveLength(2)
+    for (const control of screen.getAllByRole('button', { name: 'Cancellation requested…' }))
+      expect(control).toBeDisabled()
+  })
+
   it('submits the selected Catalog strategy once, then defaults back to Article', async () => {
     const extractionRequests: Array<{ strategy?: string }> = []
     vi.stubGlobal(
@@ -1411,10 +1500,19 @@ describe('reopened Source Document workspace', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    // Completion never switches the rail tab; it reports through the finished
+    // dialog and the researcher opens Results themselves.
+    expect(await screen.findByText('✓ Extraction complete — view the JSON in the Results tab')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Extraction finished' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(screen.getByRole('tab', { name: /^Schema/ })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     const approve = await screen.findByRole('button', { name: /Approve remaining/ })
     await waitFor(() => expect(approve).toBeEnabled())
     fireEvent.click(approve)
-    fireEvent.click(screen.getByRole('tab', { name: 'Pinned schema' }))
+    expect(screen.getByText('Using Schema Revision 1 · Current revision: 1')).toBeInTheDocument()
+    expect(screen.queryByText('Previous schema')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'View used schema' }))
     expect(screen.getByText(reopened.extractionSchema!.schemaRevisionId)).toBeInTheDocument()
     expect(screen.getByText(/"place": "string"/)).toBeInTheDocument()
     expect(screen.queryByText(/"number": "string"/)).not.toBeInTheDocument()

@@ -693,6 +693,7 @@ async function recoverPriorStack(
       throw new AggregateError(
         [error, ...releaseErrors],
         'Playwright startup recovery and lease release failed.',
+        { cause: error },
       )
     throw error
   }
@@ -889,6 +890,7 @@ async function setupPlaywrightStack(): Promise<{
       throw new AggregateError(
         [setupError, ...cleanupErrors],
         'Playwright stack setup failed and its cleanup also failed.',
+        { cause: setupError },
       )
     throw setupError
   }

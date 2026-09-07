@@ -342,6 +342,7 @@ function batchFixture(nested = false): {
     readExtractionAttempt: unsupported,
     cancelSingle: unsupported,
     prepareReview: unsupported,
+    resetReview: async (_id, version) => ({ version: version + 1, decisions: [] }),
     readReviewDraft: async () => ({ version: 0, decisions: [] }),
     saveReviewDraft: async (_id, draft) => ({ ...draft, version: draft.version + 1 }),
     finalizeReview: unsupported,

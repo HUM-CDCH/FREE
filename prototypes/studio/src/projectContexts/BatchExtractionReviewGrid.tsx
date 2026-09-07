@@ -473,17 +473,13 @@ export default function BatchExtractionReviewGrid({
   const [activeCell, setActiveCell] = useState<string | null>(null)
   const [editingCell, setEditingCell] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'needs-review'>('all')
-  useEffect(() => {
-    setActiveCell(null)
-    setEditingCell(null)
-  }, [batch.batchExtractionId])
-  useEffect(() => {
-    const isCurrent = (cell: string | null) => cell === null || [...grid.members.values()].some(
-      (state) => state.status === 'ready' && cell.startsWith(state.attempt.extractionId + '#'),
-    )
-    setActiveCell((cell) => isCurrent(cell) ? cell : null)
-    setEditingCell((cell) => isCurrent(cell) ? cell : null)
-  }, [grid.members])
+  // Cells key on their extraction id, so a cell from a previous batch or a
+  // reloaded member is dropped during render rather than one frame later.
+  const isCurrent = (cell: string | null) => cell === null || [...grid.members.values()].some(
+    (state) => state.status === 'ready' && cell.startsWith(state.attempt.extractionId + '#'),
+  )
+  if (!isCurrent(activeCell)) setActiveCell(null)
+  if (!isCurrent(editingCell)) setEditingCell(null)
   useEffect(() => {
     if (editingCell !== null) return
     for (const [id, state] of grid.members)
@@ -655,7 +651,7 @@ export default function BatchExtractionReviewGrid({
             <Button
               size="sm"
               variant="secondary"
-              disabled={grid.dirtyCount === 0 || savingAny || editingCell !== null}
+              disabled={!grid.canRevert || savingAny || editingCell !== null}
               onClick={grid.revertAll}
             >
               Revert all
@@ -835,7 +831,7 @@ export default function BatchExtractionReviewGrid({
                         {state.saveError}
                         {' '}<button type="button" className="font-semibold underline"
                           disabled={state.saving || editingCell !== null || pendingReviewCount(state) > 0}
-                          onClick={() => void grid.saveMember(row.sourceDocumentId)}>Retry</button>
+                          onClick={() => void (state.editable ? grid.saveMember : grid.revertMember)(row.sourceDocumentId)}>Retry</button>
                       </p>
                     )}
                   </td>

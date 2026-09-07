@@ -38,6 +38,9 @@ FREE's normative product and safety contract is:
    Partial review decisions are saved as versioned drafts in PostgreSQL;
    only a complete, validated review is finalized. Concurrent draft edits
    report conflicts instead of silently overwriting another view's changes.
+   Revert all resets saved reviews to pending and restores extraction values;
+   previous review revisions remain in history, and results use only the latest
+   active review.
 5. **Durable, versioned state.** Project Contexts, source documents and their
    representation revisions, schema and prompt revisions, extractions, and
    review decisions survive ordinary restarts. An extraction remains pinned to
@@ -99,11 +102,12 @@ mutating checks:
 | `pnpm test:safety` | Safety/configuration checks; no running FREE stack, but Docker is required for Compose rendering and a throwaway nginx config check; no database mutation |
 | `pnpm test:postgres` | PostgreSQL integration checks against caller-provisioned, migrated, disposable loopback `free_test_*` databases; they mutate those databases |
 | `pnpm test:e2e` | Playwright browser tests; creates and removes its own Docker PostgreSQL and mock-OIDC stack, migrates it, and starts Studio locally |
-| `pnpm test:all` | All deterministic tiers: typecheck, unit, safety, caller-provisioned PostgreSQL integration, and E2E |
+| `pnpm test:all` | All deterministic tiers: typecheck, lint, unit, safety, caller-provisioned PostgreSQL integration, and E2E |
 | `pnpm test:ci` | CI-only aggregate; verifies the fixed disposable CI targets, migrates them, and runs `test:all` |
 | `pnpm test:live-model` | Real Ollama and Docling smoke checks; requires the configured Ollama model and may download Docling models |
 | `pnpm test:system` | Mutating black-box contract check against the default local Compose stack and a reachable Ollama model; may start and restart the stack, changes its development database/model configuration, and leaves the stack running |
 | `pnpm typecheck` | TypeScript checks only; no services or data mutation |
+| `pnpm lint` | ESLint over Studio (React hooks rules included); no services or data mutation |
 
 `test:live-model` and `test:system` remain deliberately outside `test:all`
 and `test:ci`: they depend on a live model or mutate the default development

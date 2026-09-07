@@ -4,15 +4,17 @@ import type { ReviewDecisionInput } from '../shared/extraction.contract'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useExtraction, type ReviewTarget } from './useExtraction'
+import { EXTRACTION_UNAVAILABLE, MONITOR_DISCONNECTED, useExtraction, type ReviewTarget } from './useExtraction'
 import * as api from './api'
+import { ExtractionRequestError } from './api'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import {
   clearSessionRecovery,
   setSessionRecoveryAccount,
 } from './auth/sessionRecovery'
 
-vi.mock('./api', () => ({
+vi.mock('./api', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./api')>(),
   requestExtraction: vi.fn(),
   readExtraction: vi.fn(),
   cancelExtraction: vi.fn(),
@@ -438,30 +440,236 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(api.requestExtraction).toHaveBeenCalledOnce()
   })
 
-  it('returns to idle when changed pins stop local polling', () => {
-    vi.mocked(api.requestExtraction).mockImplementation(
-      () => new Promise(() => {}),
-    )
+  it('keeps polling and the Extraction state when the Current Schema Revision changes', async () => {
+    vi.useFakeTimers()
+    const running = attempt({ executionStatus: 'RUNNING', outcome: null, complete: null, modelAttribution: null, diagnostics: null, resultPayload: null, evidenceLinks: null, reviewable: false })
+    vi.mocked(api.requestExtraction).mockResolvedValue(running)
+    vi.mocked(api.readExtraction)
+      .mockResolvedValueOnce({ extraction: running, pendingReviewDecisions: null })
+      .mockResolvedValueOnce({ extraction: attempt(), pendingReviewDecisions: [] })
     vi.mocked(api.cancelExtraction).mockResolvedValue(undefined)
+    const onTerminal = vi.fn()
     const { result, rerender } = renderHook(
       ({ revision }) =>
         useExtraction({
           ...options(),
+          onTerminal,
           reviewTarget: {
             sourceRepresentationId: representationId,
             schemaRevisionId: revision,
           },
         }),
-      { initialProps: { revision: schemaRevisionId } },
+      { initialProps: { revision: schemaRevisionId as string | null } },
     )
 
-    act(() => void result.current.runExtraction())
+    await act(() => result.current.runExtraction())
     expect(result.current.state.status).toBe('running')
 
+    // Unsaved edits (null) and a newer saved revision both leave the run alone.
+    rerender({ revision: null })
     rerender({ revision: '55555555-5555-4555-8555-555555555555' })
+    expect(result.current.state.status).toBe('running')
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(result.current.attempt?.executionStatus).toBe('RUNNING')
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
 
-    expect(result.current.state.status).toBe('idle')
+    expect(result.current.attempt?.executionStatus).toBe('COMPLETED')
+    expect(onTerminal).toHaveBeenCalledOnce()
+    expect(api.requestExtraction).toHaveBeenCalledOnce()
     expect(api.cancelExtraction).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('monitors a restored previous-schema run after a document switch and offers its review', async () => {
+    vi.useFakeTimers()
+    const previousRevisionId = '66666666-6666-4666-8666-666666666666'
+    const restored = attempt({
+      extractionId: '77777777-7777-4777-8777-777777777777',
+      schemaRevisionId: previousRevisionId,
+      executionStatus: 'RUNNING',
+      outcome: null,
+      evidenceLinks: null,
+      reviewable: false,
+    })
+    const finished = attempt({
+      ...restored,
+      executionStatus: 'COMPLETED',
+      outcome: 'SUCCEEDED',
+      resultPayload: { records: [{ title: 'Grounded' }] },
+      evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' }],
+      reviewable: true,
+    })
+    const pending = [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1', reviewedOccurrenceIds: ['occurrence-1'], action: 'APPROVED' as const, reviewedValue: null }]
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: finished, pendingReviewDecisions: pending })
+    const onTerminal = vi.fn()
+    const hook = renderHook(
+      ({ initialAttempt, documentKey }) =>
+        useExtraction({ ...options(initialAttempt), documentKey, onTerminal }),
+      { initialProps: { initialAttempt: attempt(), documentKey: 'first' } },
+    )
+
+    hook.rerender({ initialAttempt: restored, documentKey: 'second' })
+    expect(hook.result.current.state.status).toBe('ready')
+    expect(hook.result.current.attempt?.extractionId).toBe(restored.extractionId)
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+
+    expect(onTerminal).toHaveBeenCalledWith(expect.objectContaining({ extractionId: restored.extractionId }), true)
+    // The current revision differs, but the source matches: review stays open.
+    expect(hook.result.current.review.available).toBe(true)
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(hook.result.current.review.decisions).toHaveLength(1)
+    vi.useRealTimers()
+  })
+
+  it('keeps draft decisions while the Current Schema Revision is temporarily unsaved', async () => {
+    const pending = [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1', reviewedOccurrenceIds: ['occurrence-1'], action: 'APPROVED' as const, reviewedValue: null }]
+    const original = attempt({ evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' }] })
+    vi.mocked(api.readExtraction).mockImplementation(async () => ({ extraction: original, pendingReviewDecisions: pending, reviewDraft: savedDrafts.get(original.extractionId) }))
+    const hook = renderHook(
+      ({ revision }) =>
+        useExtraction({
+          ...options(original),
+          reviewTarget: { sourceRepresentationId: representationId, schemaRevisionId: revision },
+        }),
+      { initialProps: { revision: schemaRevisionId as string | null } },
+    )
+    await waitFor(() => expect(hook.result.current.review.decisions).toHaveLength(1))
+    act(() => hook.result.current.review.setDecision(pending[0].resultPath, 'REJECTED'))
+    const readsBefore = vi.mocked(api.readExtraction).mock.calls.length
+
+    hook.rerender({ revision: null })
+    hook.rerender({ revision: '55555555-5555-4555-8555-555555555555' })
+
+    expect(hook.result.current.review.available).toBe(true)
+    expect(hook.result.current.review.decisions[0]?.action).toBe('REJECTED')
+    expect(hook.result.current.review.isTouched(pending[0].resultPath)).toBe(true)
+    expect(vi.mocked(api.readExtraction).mock.calls).toHaveLength(readsBefore)
+  })
+
+  it('blocks review for a different Source Representation regardless of the schema', () => {
+    const otherSource = attempt({
+      sourceRepresentationRevisionId: '55555555-5555-4555-8555-555555555555',
+      evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' }],
+    })
+    const { result } = renderHook(() => useExtraction(options(otherSource)))
+    expect(result.current.review.available).toBe(false)
+  })
+
+  it('pauses on a failed status read and reconnects by reading the same Extraction', async () => {
+    vi.useFakeTimers()
+    const running = attempt({ executionStatus: 'RUNNING', outcome: null, complete: null, modelAttribution: null, diagnostics: null, resultPayload: null, evidenceLinks: null, reviewable: false })
+    vi.mocked(api.readExtraction)
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce({ extraction: running, pendingReviewDecisions: null })
+      .mockResolvedValueOnce({ extraction: attempt(), pendingReviewDecisions: [] })
+    const input = options(running)
+    const { result } = renderHook(() => useExtraction(input))
+
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(result.current.monitorError).toBe(MONITOR_DISCONNECTED)
+    expect(result.current.state.status).toBe('running')
+    expect(result.current.attempt?.extractionId).toBe(running.extractionId)
+    // Paused: no further reads until the researcher reconnects.
+    await act(() => vi.advanceTimersByTimeAsync(4_000))
+    expect(api.readExtraction).toHaveBeenCalledTimes(1)
+
+    act(() => result.current.reconnect())
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(api.readExtraction).toHaveBeenCalledTimes(2)
+    expect(api.readExtraction).toHaveBeenLastCalledWith(running.extractionId, expect.any(AbortSignal))
+    expect(result.current.monitorError).toBeNull()
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(result.current.attempt?.executionStatus).toBe('COMPLETED')
+    expect(input.onTerminal).toHaveBeenCalledOnce()
+    expect(api.requestExtraction).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('reconciles an uncertain POST through its generated identity instead of posting again', async () => {
+    vi.useFakeTimers()
+    vi.mocked(api.requestExtraction).mockRejectedValue(new TypeError('Failed to fetch'))
+    const queued = attempt({ executionStatus: 'QUEUED', outcome: null, complete: null, modelAttribution: null, diagnostics: null, resultPayload: null, evidenceLinks: null, reviewable: false })
+    vi.mocked(api.readExtraction)
+      .mockResolvedValueOnce({ extraction: queued, pendingReviewDecisions: null })
+      .mockResolvedValueOnce({ extraction: attempt(), pendingReviewDecisions: [] })
+    const input = options()
+    const { result } = renderHook(() => useExtraction(input))
+
+    await act(() => result.current.runExtraction())
+    const posted = vi.mocked(api.requestExtraction).mock.calls[0]![0].id
+    expect(api.readExtraction).toHaveBeenCalledWith(posted, expect.any(AbortSignal))
+    expect(result.current.attempt?.executionStatus).toBe('QUEUED')
+    expect(result.current.monitorError).toBeNull()
+    expect(input.onError).not.toHaveBeenCalled()
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(result.current.attempt?.executionStatus).toBe('COMPLETED')
+    expect(api.requestExtraction).toHaveBeenCalledOnce()
+    vi.useRealTimers()
+  })
+
+  it('reports an unavailable Extraction after an uncertain POST without inventing a failure', async () => {
+    vi.mocked(api.requestExtraction).mockRejectedValue(new TypeError('Failed to fetch'))
+    vi.mocked(api.readExtraction).mockRejectedValue(new ExtractionRequestError('not found', 404))
+    const input = options()
+    const { result } = renderHook(() => useExtraction(input))
+
+    await act(() => result.current.runExtraction())
+
+    expect(result.current.monitorError).toBe(EXTRACTION_UNAVAILABLE)
+    expect(result.current.state.status).toBe('running')
+    expect(input.onError).not.toHaveBeenCalled()
+    expect(api.requestExtraction).toHaveBeenCalledOnce()
+  })
+
+  it('fails immediately when the server definitely rejects the POST', async () => {
+    vi.mocked(api.requestExtraction).mockRejectedValue(new ExtractionRequestError('conflict', 409))
+    const input = options()
+    const { result } = renderHook(() => useExtraction(input))
+
+    await act(() => result.current.runExtraction())
+
+    expect(result.current.state).toEqual({ status: 'error', message: 'conflict' })
+    expect(input.onError).toHaveBeenCalledWith('conflict')
+    expect(api.readExtraction).not.toHaveBeenCalled()
+  })
+
+  it('keeps a failed cancellation separate from the connection and re-enables the request', async () => {
+    vi.useFakeTimers()
+    const running = attempt({ executionStatus: 'RUNNING', outcome: null, complete: null, modelAttribution: null, diagnostics: null, resultPayload: null, evidenceLinks: null, reviewable: false })
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: running, pendingReviewDecisions: null })
+    vi.mocked(api.cancelExtraction).mockRejectedValueOnce(new Error('Cancellation failed (HTTP 500)'))
+    const { result } = renderHook(() => useExtraction(options(running)))
+
+    await act(() => result.current.requestCancellation())
+
+    expect(result.current.cancellationRequested).toBe(false)
+    expect(result.current.cancellationError).toBe('Cancellation failed (HTTP 500)')
+    expect(result.current.monitorError).toBeNull()
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(api.readExtraction).toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('shows the actual outcome when the Extraction completes before the cancellation lands', async () => {
+    vi.useFakeTimers()
+    const running = attempt({ executionStatus: 'RUNNING', outcome: null, complete: null, modelAttribution: null, diagnostics: null, resultPayload: null, evidenceLinks: null, reviewable: false })
+    const cancel = Promise.withResolvers<void>()
+    vi.mocked(api.cancelExtraction).mockReturnValue(cancel.promise)
+    vi.mocked(api.readExtraction).mockResolvedValue({ extraction: attempt(), pendingReviewDecisions: [] })
+    const input = options(running)
+    const { result } = renderHook(() => useExtraction(input))
+
+    act(() => void result.current.requestCancellation())
+    expect(result.current.cancellationRequested).toBe(true)
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(result.current.attempt?.outcome).toBe('SUCCEEDED')
+    expect(result.current.state.status).toBe('ready')
+    expect(input.onTerminal).toHaveBeenCalledOnce()
+
+    await act(async () => { cancel.reject(new Error('Extraction failed (HTTP 404)')); await Promise.resolve() })
+    expect(result.current.state.status).toBe('ready')
+    expect(result.current.monitorError).toBeNull()
+    vi.useRealTimers()
   })
 
   it('keeps the POST live until persisted cancellation returns', async () => {

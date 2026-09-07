@@ -101,6 +101,7 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
         },
       ],
     })),
+    resetReview: vi.fn(async (_id, version) => ({ version: version + 1, decisions: [] })),
     readReviewDraft: vi.fn(async () => ({ version: 0, decisions: [] })),
     saveReviewDraft: vi.fn(async (_id, draft) => ({ ...draft, version: draft.version + 1 })),
     finalizeReview: vi.fn<ExtractionModule['finalizeReview']>(async () => ({
@@ -154,6 +155,21 @@ const fresh = {
 }
 
 describe('/api/extractions transport', () => {
+  it('routes versioned resets and rejects malformed versions', async () => {
+    const module = extractionModule()
+    const handle = handlerFor(module)
+    const post = (body: unknown) => handle(new Request(`http://test/api/extractions/${EXTRACTION}/review/reset`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    }))
+    const response = await post({ expectedDraftVersion: 2 })
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(await response.json()).toEqual({ version: 3, decisions: [] })
+    expect(module.resetReview).toHaveBeenCalledWith(EXTRACTION, 2)
+    for (const body of [{}, { expectedDraftVersion: -1 }, { expectedDraftVersion: 1.5 }])
+      expect((await post(body)).status).toBe(422)
+    expect(module.resetReview).toHaveBeenCalledTimes(1)
+  })
   it('routes versioned draft writes and rejects malformed drafts before the module', async () => {
     const module = extractionModule()
     const handle = handlerFor(module)

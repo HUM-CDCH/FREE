@@ -156,6 +156,7 @@ deliberately according to their infrastructure and mutation boundaries:
 | `pnpm test:live-model` | Requires Ollama at `FREE_LIVE_OLLAMA_URL` (default `http://127.0.0.1:11434`) with `FREE_LIVE_OLLAMA_MODEL` (default `qwen3.8:latest`). It also runs the real Docling conversion smoke check, which may download models into the local cache. |
 | `pnpm test:system` | Requires Docker, `mkcert`, the default local Compose topology, and an Ollama endpoint reachable from its containers (`FREE_TEST_OLLAMA_BASE_URL`, default `http://host.docker.internal:11434`; model `FREE_TEST_OLLAMA_MODEL`, default `qwen3.8:latest`). It starts the stack if needed, creates an authenticated account and research workflow, replaces shared model configuration, restarts the stack to prove durability, deletes its Project Context, and leaves the stack running. Use only against disposable local development data. |
 | `pnpm typecheck` | Runs the workspace TypeScript checks without services or data mutation. |
+| `pnpm lint` | Runs ESLint over Studio without services or data mutation. |
 
 `test:live-model` and `test:system` are intentionally excluded from the two
 aggregates because they require an external model or mutate the default local

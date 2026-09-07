@@ -657,6 +657,7 @@ if (!disposableDatabaseUrl) {
       )
       await assert.rejects(module.readReviewDraft(foreignExtractionId), rejectsWithCode('not_found'))
       await assert.rejects(module.saveReviewDraft(foreignExtractionId, { version: 0, decisions: [] }), rejectsWithCode('not_found'))
+      await assert.rejects(module.resetReview(foreignExtractionId, 0), rejectsWithCode('not_found'))
       await assert.rejects(
         module.finalizeReview(foreignExtractionId, []),
         rejectsWithCode('not_found'),
@@ -969,6 +970,49 @@ if (!disposableDatabaseUrl) {
       assert.ok(finalized.extraction.reviewedAt)
       assert.deepEqual((await module.readReviewDraft(id)).decisions, [])
       await assert.rejects(module.saveReviewDraft(id, { version: 4, decisions: [] }), rejectsWithCode('review_conflict'))
+      for (const version of [-1, 1.5, Number.NaN])
+        await assert.rejects(module.resetReview(id, version), rejectsWithCode('invalid_review'))
+      await assert.rejects(module.resetReview(id, 4), rejectsWithCode('review_conflict'))
+      const resets = await Promise.allSettled([module.resetReview(id, 5), module.resetReview(id, 5)])
+      assert.equal(resets.filter((result) => result.status === 'fulfilled').length, 1)
+      assert.deepEqual(await module.readReviewDraft(id), { version: 6, decisions: [] })
+      const reopened = await module.prepareReview(id)
+      assert.equal(reopened.extraction.reviewedAt, null)
+      assert.deepEqual(reopened.extraction.reviewDecisions, [])
+      assert.deepEqual(reopened.extraction.result, prepared.extraction.result)
+      await assert.rejects(module.finalizeReview(id, edited, 4), rejectsWithCode('review_conflict'))
+      const revised = await module.finalizeReview(id, prepared.reviewDecisions, 6)
+      assert.equal(revised.disposition, 'reviewed')
+      assert.equal(revised.extraction.reviewDecisions[0]!.action, 'APPROVED')
+      const history = await db.orm.public.ExtractionReview.where({ extractionId: id })
+        .select('id', 'revisionNumber').orderBy((review) => review.revisionNumber.asc()).all()
+      assert.deepEqual(history.map((review) => review.revisionNumber), [1, 2])
+      const previousDecision = await db.orm.public.ReviewDecision.where({ extractionReviewId: history[0]!.id }).select('action').first()
+      assert.equal(previousDecision?.action, 'EDITED')
+    })
+
+    it('projects only the active review revision into batch results after reset', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const { runtime, module } = createRuntime(project.researcherAccountId)
+      const scheduled = await module.scheduleBatch({
+        projectContextId: project.projectContextId, schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE', sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId),
+        repetition: 'create-new',
+      })
+      const batch = await runWorkerUntil(runtime, module, project.projectContextId, scheduled.batch.batchExtractionId,
+        (batch) => batch.executionStatus === 'COMPLETED')
+      const id = batch.members[0]!.latestExtraction!.extractionId
+      const input = { projectContextId: project.projectContextId, batchExtractionId: batch.batchExtractionId }
+      const original = await module.readBatchResults(input)
+      const prepared = await module.prepareReview(id)
+      const edited = prepared.reviewDecisions.map((decision) => ({ ...decision, action: 'EDITED' as const, reviewedValue: 'Old title' }))
+      await module.finalizeReview(id, edited, 0)
+      assert.notDeepEqual(await module.readBatchResults(input), original)
+      await module.resetReview(id, 1)
+      assert.deepEqual(await module.readBatchResults(input), original)
+      await module.finalizeReview(id, prepared.reviewDecisions, 2)
+      assert.deepEqual(await module.readBatchResults(input), original)
     })
 
     it('uses the canonical package as review authority and enforces replay and conflict', async (t) => {

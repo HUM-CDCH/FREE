@@ -369,3 +369,7 @@ export const extractionReviewDraftSchema = z.object({
   version: z.number().int().nonnegative(),
   decisions: z.array(reviewDecisionInputSchema),
 }).strict()
+
+export const resetExtractionReviewSchema = z.object({
+  expectedDraftVersion: z.number().int().nonnegative(),
+}).strict()
