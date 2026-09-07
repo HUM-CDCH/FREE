@@ -806,7 +806,7 @@ export default function BatchExtractionsPanel({
       id="project-extractions-panel"
       role="tabpanel"
       aria-labelledby="project-extractions-tab"
-      className="flex h-full min-h-0 flex-col pt-1"
+      className="flex flex-col pt-1"
       tabIndex={0}
     >
       <div
@@ -878,7 +878,7 @@ export default function BatchExtractionsPanel({
 
       <div
         className={
-          screen === 'grid' ? 'flex min-h-0 flex-1 flex-col' : 'min-h-[430px]'
+          screen === 'grid' ? 'flex flex-col' : 'min-h-[430px]'
         }
       >
         {screen === 'history' ? (

@@ -562,7 +562,7 @@ export default function BatchExtractionReviewGrid({
     )
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <div className="flex flex-col gap-4">
       {grid.draftError && <div role="alert" className="text-xs text-danger">
         Draft not saved: {grid.draftError}
         <Button onClick={grid.retryDrafts} disabled={grid.draftSaving}>{grid.draftError === REVIEW_DRAFT_CONFLICT ? 'Reload server review' : 'Retry draft'}</Button>
@@ -686,7 +686,7 @@ export default function BatchExtractionReviewGrid({
       </div>
 
       {grid.columns.length > 0 && (
-        <div className="flex shrink-0 flex-col gap-1 px-1 text-[11px] text-ink-faint">
+        <div className="flex shrink-0 flex-wrap items-center gap-3.5 px-1 text-[11px] text-ink-faint">
           <div className="flex flex-wrap items-center gap-3.5" aria-hidden="true">
             <span className="flex items-center gap-1.5">
               <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
@@ -713,18 +713,26 @@ export default function BatchExtractionReviewGrid({
               Rejected
             </span>
           </div>
-          <p>
-            Hover a column header, or a row marked &ldquo;Needs review,&rdquo; for a bulk Approve
-            action — it only ever touches values still pending, never one you already edited or
-            rejected.
-          </p>
+          <button
+            type="button"
+            aria-label={
+              'Bulk Approve tip: hover a column header, or a row marked “Needs review,” for a bulk Approve action — it only ever touches values still pending, never one you already edited or rejected.'
+            }
+            title="Hover a column header, or a row marked “Needs review,” for a bulk Approve action — it only ever touches values still pending, never one you already edited or rejected."
+            className="flex size-3.5 shrink-0 items-center justify-center rounded-full border border-line-strong text-[9px] font-bold leading-none text-ink-faint outline-none transition-colors hover:border-ink-muted hover:text-ink-muted focus-visible:border-accent"
+          >
+            ?
+          </button>
         </div>
       )}
 
       {grid.columns.length === 0 ? (
         <EmptyState title="This Extraction Schema has no fields to review." />
       ) : (
-        <div ref={gridContainerRef} className="min-h-0 flex-1 overflow-auto rounded-card border border-line">
+        <div
+          ref={gridContainerRef}
+          className="sticky top-0 max-h-[80vh] overflow-auto rounded-card border border-line bg-surface"
+        >
           <table
             className="w-full border-collapse text-[11.5px]"
             style={{ zoom: appliedZoom(zoom.percent) }}
