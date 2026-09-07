@@ -28,7 +28,7 @@ written in the editable Record description.
 
 | Observed problem | Correction and evidence |
 | --- | --- |
-| The original PDF exceeded the 50 MiB limit and received HTTP 413. | All upload layers now accept PDFs up to 100 MiB, with a 101 MiB multipart envelope. The unchanged original passed the browser upload. HTTP regressions cover a 65 MiB PDF and an oversized request. |
+| The original PDF exceeded the checkout's 50 MiB limit and received HTTP 413. | The merged development branch provides the 100 MiB file limit, 101 MiB application envelope and 110 MiB proxy limit. The unchanged original passed the browser upload; additional HTTP regressions retain and verify a 65 MiB PDF. |
 | Docling joined adjacent columns and reordered entries. Increasing OCR resolution or changing its layout model did not resolve this. | Detect clear gutters in image-only landscape spreads, parse lossless column crops, and restore physical PDF page coordinates. Preserve original list markers and publish separate, exact UTF-8 evidence spans. Geometry/publication regressions use a synthetic scanned spread. |
 | A numbered entry was classified as page furniture and omitted. | Retain numbered entry text mislabeled as a header/footer after cropping. All 420 expected opening labels are present in the final canonical source. |
 | The actual parse exceeded the previous ten-minute ingestion deadline. | Allow a bounded thirty-minute ingestion wait. The final full parse completed in 796,971 ms (13 min 17 sec). |
@@ -83,19 +83,18 @@ navigation and traceability, not approval of the values.
 
 Run these from the repository root. PostgreSQL integration tests require fresh,
 migrated disposable databases under the README's safety restrictions.
+The checks include development-branch changes through `ef878809`, including
+atomic lease/draft guards and the completion/review UI.
 
 | Command | Observed result |
 | --- | --- |
-| `pnpm test` | Passed: Studio 999, database 54, extraction 48, export 33, configuration 4, launcher 37 plus one Windows skip; Python 19 plus one opt-in live-model skip. |
-| Focused workspace/evidence/rail component checks after UI changes | 32 passed. |
-| Focused PDF workspace, image fallback and Vite configuration checks | 44 passed; the missing browser decoder options failed before the fix. |
-| Focused evidence scrolling, geometry and workspace checks | 30 passed; two horizontal-scrolling regressions failed before the fix. |
-| `pnpm typecheck` | Passed after the final schema/extraction and evidence-inspector changes. |
+| `pnpm test` | Passed: Studio 1,014, database 54, extraction 48, export 33, configuration 4, launcher 37 plus one Windows skip; Python 19 plus one opt-in live-model skip. |
+| `pnpm typecheck` | Passed after resolving the development-branch merge. |
 | `pnpm lint` | No errors; three existing React hook warnings. |
 | `pnpm build` | Passed with the PDF decoder assets present in the production output; existing bundle-size warnings remain. |
 | `pnpm test:safety` | 14 passed. |
-| `pnpm test:postgres` | One project-store and 19 extraction integration checks passed, using newly created `free_test_beier_store_20260907` and `free_test_beier_extraction_20260907`. |
-| `pnpm test:e2e` | 50 passed, one developer-inspector skip, after the PDF decoder change; the subsequent horizontal-scrolling change has the focused checks above. |
+| `pnpm test:postgres` | Three project-store and 21 extraction integration checks passed, using newly created `free_test_beier_store_final_20260907` and `free_test_beier_extraction_final_20260907`. |
+| `pnpm test:e2e` | 50 passed, one developer-inspector skip, after the development-branch merge and all PDF/evidence changes. |
 
 No reset or deletion of the development database was used. The PostgreSQL and
 browser integration tests used their disposable databases/stacks.

@@ -27,5 +27,7 @@ export type {
 } from './PhaseProgress'
 export { default as Panel } from './Panel'
 export type { PanelProps } from './Panel'
+export { default as ProgressBar } from './ProgressBar'
+export type { ProgressBarProps } from './ProgressBar'
 export { default as ResultValue } from './ResultValue'
 export { CheckIcon, PencilIcon, XIcon, StatusDot, UndoIcon } from './ResultValue'

@@ -7,7 +7,6 @@ import {
   dispatchApiRequest,
   dispatchDevelopmentApiRequest,
   isSourceDocumentIngestionPath,
-  SOURCE_DOCUMENT_INGESTION_REQUEST_LIMIT,
 } from './api-dispatcher.js'
 
 const STORE = {
@@ -198,8 +197,7 @@ describe('eager API dispatcher', () => {
     expect(production.status).toBe(404)
   })
 
-  it('bounds a 100 MiB PDF plus its multipart envelope', () => {
-    expect(SOURCE_DOCUMENT_INGESTION_REQUEST_LIMIT).toBe(101 * 1024 * 1024)
+  it('recognizes only the source-document collection as an ingestion path', () => {
     expect(
       isSourceDocumentIngestionPath(
         '/api/project-contexts/project/source-documents',

@@ -137,6 +137,73 @@ describe('deriveSchemaProposal', () => {
     expect(result.changes[0]).toMatchObject({ outcome: 'conflict', reason: expect.any(String) })
   })
 
+  it('sets a closed set proposed for a plain string field', () => {
+    const original: SchemaNode[] = [{ id: 'm', name: 'model_type', type: 'string' }]
+    const result = deriveSchemaProposal(original, proposed({
+      m: { name: 'model_type', type: 'string', removed: false, allowedValues: ['encoder', 'decoder', 'both'] },
+    }))
+
+    expect(result.nodes[0]).toEqual({ ...original[0], allowedValues: ['encoder', 'decoder', 'both'] })
+    expect(result.changes[0]).toMatchObject({ outcome: 'applied' })
+  })
+
+  it('clears an existing closed set back to free text', () => {
+    const original: SchemaNode[] = [{ id: 'e', name: 'gender', type: 'string', allowedValues: ['woman', 'man'] }]
+    const result = deriveSchemaProposal(original, proposed({
+      e: { name: 'gender', type: 'string', removed: false, allowedValues: [] },
+    }))
+
+    expect(result.nodes[0]).toEqual({ id: 'e', name: 'gender', type: 'string' })
+  })
+
+  it('sets and clears a field description from an edit', () => {
+    const original: SchemaNode[] = [{ id: 'a', name: 'title', type: 'string' }]
+
+    const described = deriveSchemaProposal(original, proposed({
+      a: { name: 'title', type: 'string', removed: false, description: 'Original document title' },
+    }))
+    expect(described.nodes[0]).toEqual({ ...original[0], description: 'Original document title' })
+
+    const cleared = deriveSchemaProposal(described.nodes, proposed({
+      a: { name: 'title', type: 'string', removed: false, description: '' },
+    }))
+    expect(cleared.nodes[0]).toEqual(original[0])
+  })
+
+  it('leaves an untouched allowed set and description when an edit omits them', () => {
+    const original: SchemaNode[] = [
+      { id: 'e', name: 'gender', type: 'string', allowedValues: ['woman', 'man'], description: 'Recorded sex' },
+    ]
+    const result = deriveSchemaProposal(original, proposed({
+      e: { name: 'sex', type: 'string', removed: false },
+    }))
+
+    expect(result.nodes[0]).toEqual({ ...original[0], name: 'sex' })
+  })
+
+  it('treats an explicit null the same as an omitted allowed set and description', () => {
+    const original: SchemaNode[] = [
+      { id: 'e', name: 'gender', type: 'string', allowedValues: ['woman', 'man'], description: 'Recorded sex' },
+    ]
+    const result = deriveSchemaProposal(original, proposed({
+      e: { name: 'sex', type: 'string', removed: false, description: null, allowedValues: null },
+    }))
+
+    expect(result.nodes[0]).toEqual({ ...original[0], name: 'sex' })
+  })
+
+  it('carries allowed values and a description on a new string field', () => {
+    const result = deriveSchemaProposal([], proposed({}, [
+      { path: ['model_type'], type: 'string', allowedValues: ['encoder', 'decoder', 'both'], description: 'Architecture family' },
+    ]))
+
+    expect(result.nodes).toEqual([expect.objectContaining({
+      name: 'model_type',
+      allowedValues: ['encoder', 'decoder', 'both'],
+      description: 'Architecture family',
+    })])
+  })
+
   it('rejects a rename that would duplicate a sibling field', () => {
     const original: SchemaNode[] = [
       { id: 'a', name: 'first', type: 'string' },

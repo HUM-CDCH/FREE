@@ -30,16 +30,16 @@ The parsing service SHALL require an uploaded PDF Source Document for `POST /tas
 
 ### Requirement: Upload validation preserves the PDF trust boundary
 
-The parsing service SHALL stream uploaded bytes with an exact 50 MiB cap, require a sanitized display filename ending in `.pdf`, validate allowed PDF MIME hints when present, and require `%PDF-` magic bytes. Empty MIME hints and the currently allowed PDF and octet-stream hints SHALL remain accepted.
+The parsing service SHALL stream uploaded bytes with an exact 100 MiB cap, require a sanitized display filename ending in `.pdf`, validate allowed PDF MIME hints when present, and require `%PDF-` magic bytes. Empty MIME hints and the currently allowed PDF and octet-stream hints SHALL remain accepted.
 
-#### Scenario: Upload is exactly 50 MiB
+#### Scenario: Upload is exactly 100 MiB
 
-- **WHEN** the Source Document contains exactly 50 MiB
+- **WHEN** the Source Document contains exactly 100 MiB
 - **THEN** upload persistence accepts all bytes
 
-#### Scenario: Upload exceeds 50 MiB
+#### Scenario: Upload exceeds 100 MiB
 
-- **WHEN** streaming reads any byte beyond 50 MiB
+- **WHEN** streaming reads any byte beyond 100 MiB
 - **THEN** upload persistence stops, removes temporary content, and returns 413
 
 #### Scenario: Filename is unsafe or has an invalid extension
@@ -61,22 +61,22 @@ The parsing service SHALL stream uploaded bytes with an exact 50 MiB cap, requir
 
 ### Requirement: Declared oversized task requests are rejected before multipart parsing
 
-The parsing service SHALL reject `POST /tasks` when one valid declared `Content-Length` exceeds 51 MiB. The declaration check SHALL be route-aware, SHALL preserve outermost CORS behavior, and SHALL NOT replace the exact streamed 50 MiB Source Document limit.
+The parsing service SHALL reject `POST /tasks` when one valid declared `Content-Length` exceeds 101 MiB. The declaration check SHALL be route-aware, SHALL preserve outermost CORS behavior, and SHALL NOT replace the exact streamed 100 MiB Source Document limit.
 
 #### Scenario: Declared request is at the envelope boundary
 
-- **WHEN** `POST /tasks` declares a `Content-Length` of exactly 51 MiB
+- **WHEN** `POST /tasks` declares a `Content-Length` of exactly 101 MiB
 - **THEN** the request proceeds to multipart handling
 
 #### Scenario: Declared request exceeds the envelope boundary
 
-- **WHEN** `POST /tasks` declares a `Content-Length` greater than 51 MiB
+- **WHEN** `POST /tasks` declares a `Content-Length` greater than 101 MiB
 - **THEN** the service returns 413 before task creation
 - **AND** an allowed Origin receives the configured CORS response header
 
 #### Scenario: Another route declares an oversized body
 
-- **WHEN** a route other than `POST /tasks` declares a body above 51 MiB
+- **WHEN** a route other than `POST /tasks` declares a body above 101 MiB
 - **THEN** this task-specific middleware does not reject it
 
 ### Requirement: Source Documents are published by verified content hash

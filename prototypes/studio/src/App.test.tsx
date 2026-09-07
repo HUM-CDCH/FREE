@@ -1184,15 +1184,9 @@ describe('reopened Source Document workspace', () => {
             sourceDocumentId: '51000000-0000-4000-8001-000000000001',
             sourceRepresentationRevisionId: reopened.sourceRepresentationId,
             schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-            strategy: 'CATALOG', outcome: 'FAILED', complete: null,
+            strategy: 'CATALOG', executionStatus: 'FAILED', outcome: null, complete: null,
             modelAttribution: null,
-            diagnostics: {
-              phase: 'extracting', durationMs: 1, modelCalls: 1,
-              finishReason: null, inputTokens: null, outputTokens: null,
-              grounding: null,
-              catalog: { stages: [], records: [] },
-              retry: null,
-            },
+            diagnostics: null,
             failure: { code: 'catalog_discovery_failed', message: 'Discovery failed.' },
             resultPayload: null, evidenceLinks: null, reviewable: false,
             retryOfId: null, batchExtractionId: null,
@@ -1503,8 +1497,11 @@ describe('reopened Source Document workspace', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
-    // Completion never switches the rail tab; the researcher opens Results.
+    // Completion never switches the rail tab; it reports through the finished
+    // dialog and the researcher opens Results themselves.
     expect(await screen.findByText('✓ Extraction complete — view the JSON in the Results tab')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Extraction finished' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
     expect(screen.getByRole('tab', { name: /^Schema/ })).toHaveAttribute('aria-selected', 'true')
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     const approve = await screen.findByRole('button', { name: /Approve remaining/ })

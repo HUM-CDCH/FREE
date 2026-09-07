@@ -428,23 +428,34 @@ function mergeReviewNodes(
 }
 
 function addedSchemaNode(id: string, name: string, addition: SchemaAddition): SchemaNode {
-  if (addition.type === 'object') return { id, name, type: addition.type, children: [] }
+  const description = addition.description?.trim() || undefined
+  const base = { id, name, ...(description && { description }) }
+  if (addition.type === 'object') return { ...base, type: addition.type, children: [] }
   if (addition.type === 'array') {
     return addition.itemType === null
-      ? { id, name, type: addition.type, children: [] }
-      : { id, name, type: addition.type, itemType: addition.itemType }
+      ? { ...base, type: addition.type, children: [] }
+      : { ...base, type: addition.type, itemType: addition.itemType }
   }
-  return { id, name, type: addition.type }
+  if (addition.type === 'string') {
+    const allowedValues = addition.allowedValues && addition.allowedValues.length > 0 ? addition.allowedValues : undefined
+    return { ...base, type: addition.type, ...(allowedValues && { allowedValues }) }
+  }
+  return { ...base, type: addition.type }
 }
 
 function changeNodeType(node: SchemaNode, edit: FieldEdit): SchemaNode {
   const existingContainer = node.children !== undefined
   const requestedContainer = edit.type === 'object' || (edit.type === 'array' && edit.itemType === null)
   const crossesContainerBoundary = requestedContainer !== existingContainer
+  const description = edit.description != null
+    ? edit.description.trim() || undefined
+    : !crossesContainerBoundary
+      ? node.description
+      : undefined
   const base = {
     id: node.id,
     name: edit.name,
-    ...(!crossesContainerBoundary && node.description && { description: node.description }),
+    ...(description && { description }),
   }
 
   if (edit.type === 'object') {
@@ -457,10 +468,13 @@ function changeNodeType(node: SchemaNode, edit: FieldEdit): SchemaNode {
     return { ...base, type: edit.type, itemType: edit.itemType }
   }
   if (edit.type === 'string') {
+    const allowedValues = edit.allowedValues != null
+      ? (edit.allowedValues.length > 0 ? edit.allowedValues : undefined)
+      : node.type === 'string' ? node.allowedValues : undefined
     return {
       ...base,
       type: edit.type,
-      ...(node.type === 'string' && node.allowedValues && { allowedValues: node.allowedValues }),
+      ...(allowedValues && { allowedValues }),
     }
   }
   return { ...base, type: edit.type }

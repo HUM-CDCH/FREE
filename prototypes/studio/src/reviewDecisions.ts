@@ -58,17 +58,14 @@ export function schemaNodeAtResultPath(
   return current
 }
 
-export function parseReviewedValue(
-  node: SchemaNode | null,
+type ReviewedScalar = string | number | boolean
+type ReviewedValue = ReviewedScalar | ReviewedScalar[]
+
+function parseReviewedScalar(
+  itemType: Exclude<SchemaNode['type'], 'array' | 'object'>,
   raw: string,
-): { value: string | number | boolean; error: string | null } {
-  if (!node)
-    return { value: raw, error: 'The pinned schema does not define this value.' }
-  if (node.allowedValues && !node.allowedValues.includes(raw))
-    return { value: raw, error: 'Choose a value allowed by the pinned schema.' }
-  // A decision on one array item resolves to the array node, so edit against
-  // its item type. Same rule as `reviewDecisionMatchesSchema` on the server.
-  switch (node.type === 'array' && node.itemType ? node.itemType : node.type) {
+): { value: ReviewedScalar; error: string | null } {
+  switch (itemType) {
     case 'boolean':
       if (raw === 'true') return { value: true, error: null }
       if (raw === 'false') return { value: false, error: null }
@@ -91,9 +88,34 @@ export function parseReviewedValue(
       return raw.trim() === ''
         ? { value: raw, error: 'Enter a value.' }
         : { value: raw, error: null }
-    default:
-      return { value: raw, error: 'Only scalar values can be edited.' }
   }
+}
+
+export function parseReviewedValue(
+  node: SchemaNode | null,
+  raw: string,
+): { value: ReviewedValue; error: string | null } {
+  if (!node)
+    return { value: raw, error: 'The pinned schema does not define this value.' }
+  if (node.type === 'array') {
+    if (node.children) return { value: raw, error: 'Only scalar values can be edited.' }
+    const items = raw
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item !== '')
+    if (items.length === 0) return { value: [], error: 'Enter at least one value, separated by commas.' }
+    const values: ReviewedScalar[] = []
+    for (const item of items) {
+      const parsed = parseReviewedScalar(node.itemType, item)
+      if (parsed.error) return { value: raw, error: parsed.error }
+      values.push(parsed.value)
+    }
+    return { value: values, error: null }
+  }
+  if (node.allowedValues && !node.allowedValues.includes(raw))
+    return { value: raw, error: 'Choose a value allowed by the pinned schema.' }
+  if (node.type === 'object') return { value: raw, error: 'Only scalar values can be edited.' }
+  return parseReviewedScalar(node.type, raw)
 }
 
 function setAtPath(

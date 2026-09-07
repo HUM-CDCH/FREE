@@ -873,19 +873,19 @@ async function cancelInteractiveExtraction(
         id: extractionId,
         kind: 'INTERACTIVE',
         executionStatus: 'QUEUED',
-      }).update({
+      }).updateAll({
         executionStatus: 'FAILED',
         failure: { code: 'cancelled', message: 'Extraction cancelled.', phase: 'loading' },
         finishedAt: now,
       })
-      if (cancelled) return 'cancellation-requested'
+      if (cancelled.length === 1) return 'cancellation-requested'
     }
     const requested = await transaction.orm.public.ExtractionJob.where({
       id: extractionId,
       kind: 'INTERACTIVE',
       executionStatus: 'RUNNING',
-    }).update({ cancelRequestedAt: now })
-    return requested ? 'cancellation-requested' : 'not-found'
+    }).updateAll({ cancelRequestedAt: now })
+    return requested.length === 1 ? 'cancellation-requested' : 'not-found'
   })
 }
 
@@ -1092,7 +1092,7 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
           id: candidate.id,
           leaseVersion: candidate.leaseVersion,
           executionStatus: 'RUNNING',
-        }).update({
+        }).updateAll({
           executionStatus: 'FAILED',
           failure: {
             code: 'cancelled',
@@ -1120,19 +1120,20 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
         leaseVersion: version,
         leaseExpiresAt,
       } as const
-      let claimed = queued?.id === candidate.id
+      // updateAll keeps lease predicates in the UPDATE after waiting for a row lock.
+      let [claimed] = queued?.id === candidate.id
         ? await this.database.orm.public.ExtractionJob.where(claimIdentity)
-          .update(claimUpdate)
+          .updateAll(claimUpdate)
         : await this.database.orm.public.ExtractionJob.where({
             ...claimIdentity,
             executionStatus: 'RUNNING',
-          }).where((job) => job.leaseExpiresAt.lte(now)).update(claimUpdate)
+          }).where((job) => job.leaseExpiresAt.lte(now)).updateAll(claimUpdate)
       if (!claimed && queued?.id !== candidate.id)
-        claimed = await this.database.orm.public.ExtractionJob.where({
+        [claimed] = await this.database.orm.public.ExtractionJob.where({
           ...claimIdentity,
           executionStatus: 'RUNNING',
           leaseExpiresAt: null,
-        }).update(claimUpdate)
+        }).updateAll(claimUpdate)
       if (!claimed) return this.claim(owner, now, leaseExpiresAt)
       const retryRecordStartBlockIds = candidate.retryRecordStartBlockIds
       const input = candidate.retryOfId
@@ -1197,12 +1198,13 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
     })
     if (!row) return 'lost'
     if (row.cancelRequestedAt !== null) return 'cancelled'
-    return await this.database.orm.public.ExtractionJob.where({
+    const updated = await this.database.orm.public.ExtractionJob.where({
       id,
       executionStatus: 'RUNNING',
       leaseOwner: lease.owner,
       leaseVersion: lease.version,
-    }).update({ leaseExpiresAt: expiresAt }) ? 'owned' : 'lost'
+    }).updateAll({ leaseExpiresAt: expiresAt })
+    return updated.length === 1 ? 'owned' : 'lost'
   }
 
   async checkpoint(
@@ -1210,18 +1212,19 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
     lease: ClaimedExtractionJob['lease'],
     checkpoint: ExtractionValueCheckpoint,
   ): Promise<boolean> {
-    return Boolean(await this.database.orm.public.ExtractionJob.where({
+    const updated = await this.database.orm.public.ExtractionJob.where({
       id,
       executionStatus: 'RUNNING',
       leaseOwner: lease.owner,
       leaseVersion: lease.version,
       cancelRequestedAt: null,
-    }).update({
+    }).updateAll({
       complete: checkpoint.complete,
       modelAttribution: checkpoint.modelAttribution,
       diagnostics: checkpoint.diagnostics,
       resultPayload: checkpoint.result,
-    }))
+    })
+    return updated.length === 1
   }
 
   async complete(
@@ -1262,7 +1265,7 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
         leaseOwner: lease.owner,
         leaseVersion: lease.version,
         cancelRequestedAt: null,
-      }).update({
+      }).updateAll({
         executionStatus: 'COMPLETED',
         complete: null,
         modelAttribution: null,
@@ -1273,7 +1276,7 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
         leaseOwner: null,
         leaseExpiresAt: null,
       })
-      if (!updated)
+      if (updated.length !== 1)
         throw new Error('Extraction Job lease was lost during terminal promotion.')
       return true
     })
@@ -1294,22 +1297,22 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
     const failed = await this.database.orm.public.ExtractionJob.where({
       ...active,
       cancelRequestedAt: null,
-    }).update({
+    }).updateAll({
       executionStatus: 'FAILED',
       failure,
       finishedAt,
       leaseOwner: null,
       leaseExpiresAt: null,
     })
-    if (failed) return true
-    return Boolean(await this.database.orm.public.ExtractionJob.where({
+    if (failed.length === 1) return true
+    const cancelled = await this.database.orm.public.ExtractionJob.where({
       id,
       executionStatus: 'RUNNING',
       leaseOwner: lease.owner,
       leaseVersion: lease.version,
     })
       .where((job) => job.cancelRequestedAt.isNotNull())
-      .update({
+      .updateAll({
         executionStatus: 'FAILED',
         failure: {
           code: 'cancelled',
@@ -1319,7 +1322,8 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
         finishedAt,
         leaseOwner: null,
         leaseExpiresAt: null,
-      }))
+      })
+    return cancelled.length === 1
   }
 }
 class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {

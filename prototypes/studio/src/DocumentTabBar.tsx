@@ -10,6 +10,9 @@ export type DocumentTabBarProps = {
   onActivate: (sourceDocumentId: string) => void
   onClose: (sourceDocumentId: string) => void
   onNavigateProject: () => void
+  /** Present only when this document was opened from a Batch Extraction's
+   *  review grid — offers a direct way back to it. */
+  onBackToReviewGrid?: () => void
   /** DocumentWorkspace (App.tsx) portals its PDF/Extraction controls into
       this node, so they share the tab-strip row instead of costing a
       second one. */
@@ -29,6 +32,7 @@ function DocumentTabBar({
   onActivate,
   onClose,
   onNavigateProject,
+  onBackToReviewGrid,
   slotRef,
   navigationToggle,
 }: DocumentTabBarProps) {
@@ -111,6 +115,20 @@ function DocumentTabBar({
             <span className="min-w-0 truncate font-medium text-ink">
               {documentName}
             </span>
+          </>
+        )}
+        {onBackToReviewGrid && (
+          <>
+            <span aria-hidden="true" className="text-ink-faint">
+              ·
+            </span>
+            <button
+              type="button"
+              className="shrink-0 cursor-pointer font-semibold text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
+              onClick={onBackToReviewGrid}
+            >
+              <span aria-hidden="true">← </span>Back to review grid
+            </button>
           </>
         )}
       </nav>

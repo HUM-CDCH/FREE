@@ -574,6 +574,10 @@ test('a Batch Extraction runs over selected Source Documents and exports one spr
   await expect(historyRow).toContainText('2 Source Documents · Article')
   await expect(historyRow).toContainText(/Queued|Running/)
   await expect(historyRow).toContainText('2 need review', { timeout: 15_000 })
+  const completionDialog = page.getByRole('dialog', { name: 'Batch Extraction finished' })
+  await expect(completionDialog).toBeVisible()
+  await completionDialog.getByRole('button', { name: 'Dismiss', exact: true }).click()
+  await expect(completionDialog).toBeHidden()
 
   // Every member is listed with what its own Extraction says.
   await historyRow.click()

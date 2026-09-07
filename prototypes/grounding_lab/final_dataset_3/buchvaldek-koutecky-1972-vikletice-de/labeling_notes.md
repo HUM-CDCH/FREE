@@ -1,9 +1,0 @@
-# Labeling notes — Buchvaldek & Koutecký 1972, Vikletice (DE)
-
-- Document: 39-page journal article (Památky archeologické LXIII/1). Records are Corded Ware graves listed in the Anhang (p35-37, "Gr. n/year: L x B cm; area m2. type codes"), grouped by series 1a/1b/2a/2b/3/4. Ceramic-type totals are one table on p6 (A-Amphoren 156 Stück 39,6% ... 13 rows, "insgesamt 396 Stück"). Authors on the p2 byline and footnote 1 (p2).
-- Sample used: p2 (authors), p6 (type table), p7 (Abb. 3 amphora types), p15 (fn. 8), p35-37 (Anhang) for the A24b tally.
-- Systematic problem 1: 59 of the 60 sampled entries are `ceramic_types` items. From index 34 on the extractor emitted a runaway enumeration A26a, A26b ... A49z, each with count 2 (index arithmetic confirms: A27a=60, A28a=86, ..., A49a=632). None of these codes exists in the document (regex A2[6-9]/A[34]\d finds nothing in document.md or anchors.json); the real amphora typology ends at A25a-A25i/A25x. All name values are (a); all count=2 values of these invented records are (b) because "2x<type>" counts occur for real types in the Anhang.
-- Systematic problem 2: ceramic_types[10] = A24b with count 5. The document never gives per-type counts below the gattung level (p6 table has A/B/C... only); the Anhang mentions of A24b are 3 certain + 4 slashed/queried ("J?/A24b", "2xJ3/A24b", "J3/A24b?", "A7?/24b"), so 5 is not even derivable. Labeled (b) against "inkl. 5 E3a und 5 E6".
-- OCR: Anhang lines have l/1 and I/l confusions (Dl, Nl, SL for SI, "170 x HO cm"); the Serie 1a right-hocker block on p35 is a single 2-cell table row rather than one anchor per grave; Abb. 10/11 continuation tables (p17, p19) have header-less cells. None affected this sample.
-- Author entry: byline gives "DRAHOMÍR KOUTECKÝ", footnote 1 gives "D. Koutecký"; both anchored on p2. The p39 bibliography entry "Koutecký, D. 1970" is a cited work and was not used.
-- DOUBT: none.

@@ -7,6 +7,7 @@ import { after, describe, it, test } from 'node:test'
 import { strToU8, zipSync } from 'fflate'
 import type { CanonicalPackageStore, Database } from 'db'
 import { validateDisposableTestDatabaseTarget } from 'db/database-url'
+import { withBlockedUpdates } from '../../db/src/postgres-test-helpers.js'
 import type {
   ExtractionModel,
   ExtractionModelRequest,
@@ -1305,6 +1306,51 @@ if (!disposableDatabaseUrl) {
       await store.fail(second.input.extractionId, second.lease, failure, now)
       const batchMember = await store.claim(owner, now, expiresAt)
       assert.equal(batchMember?.input.kind, 'batch-member')
+    })
+
+    it('claims a queued job only once when workers compete', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const scheduler = createRuntime(project.researcherAccountId).runtime
+        .forResearcher(project.researcherAccountId)
+      const extractionId = randomUUID()
+      await scheduler.runSingle(freshInput(project, extractionId))
+      const store = createInternalExtractionJobStore(db, packages)
+      const now = new Date('2026-08-31T10:00:00.000Z')
+      const expiresAt = new Date('2026-08-31T10:03:00.000Z')
+      const claims = await withBlockedUpdates(disposableDatabaseUrl, 'ExtractionJob', extractionId, 2,
+        () => Promise.all([
+          store.claim(randomUUID(), now, expiresAt),
+          store.claim(randomUUID(), now, expiresAt),
+        ]))
+      assert.equal(claims.filter((claim) => claim !== null).length, 1)
+    })
+
+    it('honors cancellation when it races a worker failure', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const scheduler = createRuntime(project.researcherAccountId).runtime
+        .forResearcher(project.researcherAccountId)
+      const extractionId = randomUUID()
+      await scheduler.runSingle(freshInput(project, extractionId))
+      const store = createInternalExtractionJobStore(db, packages)
+      const now = new Date('2026-08-31T10:00:00.000Z')
+      const claimed = await store.claim(randomUUID(), now, new Date(now.getTime() + 60_000))
+      assert.ok(claimed)
+      const [cancellation, failed] = await withBlockedUpdates(
+        disposableDatabaseUrl, 'ExtractionJob', extractionId, 2,
+        () => Promise.all([
+          scheduler.cancelSingle(extractionId),
+          store.fail(extractionId, claimed.lease, {
+            code: 'extraction_failed', message: 'Model failed.', phase: 'extracting',
+          }, now),
+        ]))
+      assert.equal(failed, true)
+      const job = await db.orm.public.ExtractionJob.select('failure', 'executionStatus')
+        .first({ id: extractionId })
+      assert.equal(job?.executionStatus, 'FAILED')
+      assert.equal((job?.failure as { code: string }).code,
+        cancellation === 'cancellation-requested' ? 'cancelled' : 'extraction_failed')
     })
 
     it('does not reclaim a renewed lease and lets committed cancellation win failure', async (t) => {

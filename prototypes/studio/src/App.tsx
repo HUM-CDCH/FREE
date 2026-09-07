@@ -18,7 +18,8 @@ import {
 } from 'extraction/parsed-document'
 import { useEvidenceOverlays } from './useEvidenceOverlays'
 import { useExtraction } from './useExtraction'
-import type { ExtractionStrategy } from '../shared/extraction.contract'
+import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
+import ExtractionFinishedDialog from './ExtractionFinishedDialog'
 import { Button, Spinner } from './ui'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { DocumentSnapshot } from './projectContexts/transport'
@@ -183,6 +184,13 @@ export function DocumentWorkspace({
     return known
   }, [persistedExtraction, latestReviewedExtraction])
   const [knownSchemas, setKnownSchemas] = useState(reopenedSchemas)
+  const [finishedExtractionReport, setFinishedExtractionReport] = useState<{
+    attempt: ExtractionAttempt
+    schemaNodes: SchemaDefinition['schemaNodes']
+  } | null>(null)
+  // A run started here reports once it terminates; restored or reconnected
+  // runs never open the dialog.
+  const pendingReportRef = useRef<{ extractionId: string; schemaNodes: SchemaDefinition['schemaNodes'] } | null>(null)
   const [docIndex, setDocIndex] = useState<DocIndex>({ status: 'parsing' })
   const resizeControllerRef = useRef<AbortController | null>(null)
 
@@ -513,9 +521,15 @@ export function DocumentWorkspace({
           schemaRevisionId: schemaSnap.extractableSchemaRevisionId,
         }
       : null,
-    // Completion only announces itself: the rail tab, the inspected snapshot
-    // and focus stay where the researcher left them.
+    // Completion preserves the rail tab and inspected snapshot; a completion
+    // report temporarily takes focus until dismissed or Review now is chosen.
     onTerminal: (attempt, isRerun) => {
+      if (pendingReportRef.current?.extractionId === attempt.extractionId) {
+        const { schemaNodes } = pendingReportRef.current
+        pendingReportRef.current = null
+        if (attempt.outcome === 'SUCCEEDED')
+          setFinishedExtractionReport({ attempt, schemaNodes })
+      }
       if (attempt.executionStatus === 'FAILED')
         showToast('Extraction failed — see details in Results')
       else if (attempt.outcome === 'CANCELLED')
@@ -627,14 +641,20 @@ export function DocumentWorkspace({
           schemaNodes: revision.schemaNodes,
         },
       }))
-      await extraction.runExtraction(
+      const acknowledged = await extraction.runExtraction(
         {
           sourceRepresentationId: targetSourceRepresentationId,
           schemaRevisionId: revision.schemaRevisionId,
         },
         strategy,
       )
+      if (!acknowledged) return
       setNextExtractionStrategy('ARTICLE')
+      if (acknowledged.executionStatus === 'COMPLETED' || acknowledged.executionStatus === 'FAILED') {
+        if (acknowledged.outcome === 'SUCCEEDED')
+          setFinishedExtractionReport({ attempt: acknowledged, schemaNodes: revision.schemaNodes })
+      } else
+        pendingReportRef.current = { extractionId: acknowledged.extractionId, schemaNodes: revision.schemaNodes }
     } catch (error) {
       showToast(
         error instanceof Error
@@ -881,6 +901,19 @@ export function DocumentWorkspace({
           </aside>
         </div>
       </div>
+      {finishedExtractionReport && (
+        <ExtractionFinishedDialog
+          key={finishedExtractionReport.attempt.extractionId}
+          attempt={finishedExtractionReport.attempt}
+          documentName={filename}
+          schemaNodes={finishedExtractionReport.schemaNodes}
+          onReviewNow={() => {
+            setRailTab('results')
+            setFinishedExtractionReport(null)
+          }}
+          onDismiss={() => setFinishedExtractionReport(null)}
+        />
+      )}
     </div>
   )
 }

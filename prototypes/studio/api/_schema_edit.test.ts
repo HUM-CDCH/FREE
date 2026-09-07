@@ -68,6 +68,103 @@ describe('proposeSchemaEdit', () => {
     })
   })
 
+  it('accepts a model-proposed closed set and description for a string field', async () => {
+    const response = await proposeSchemaEdit(
+      [{ id: 'm', name: 'model_type', type: 'string' }],
+      'model_type should be encoder, decoder, or both, in detail',
+      null,
+      {
+        generate: vi.fn().mockResolvedValue(JSON.stringify({
+          fields: {
+            m: {
+              name: 'model_type',
+              type: 'string',
+              removed: false,
+              allowedValues: ['encoder', 'decoder', 'both'],
+              description: 'Architecture family of the model',
+            },
+          },
+          additions: [],
+        })),
+      },
+    )
+
+    expect(response).toEqual({
+      status: 'proposed',
+      fields: {
+        m: {
+          name: 'model_type',
+          type: 'string',
+          removed: false,
+          allowedValues: ['encoder', 'decoder', 'both'],
+          description: 'Architecture family of the model',
+        },
+      },
+      additions: [],
+      issues: [],
+    })
+  })
+
+  it('accepts null for unchanged description and allowed values, not just omission', async () => {
+    const response = await proposeSchemaEdit(
+      [
+        { id: 'm', name: 'model_type', type: 'string' },
+        { id: 'g', name: 'gender', type: 'string', allowedValues: ['woman', 'man'] },
+      ],
+      'model type should be detailed, rather than just "transformer model"',
+      null,
+      {
+        generate: vi.fn().mockResolvedValue(JSON.stringify({
+          fields: {
+            m: {
+              name: 'model_type',
+              type: 'string',
+              removed: false,
+              description: 'The architecture family, e.g. encoder, decoder, or both',
+              allowedValues: null,
+            },
+            g: { name: 'gender', type: 'string', removed: false, description: null, allowedValues: null },
+          },
+          additions: [],
+        })),
+      },
+    )
+
+    expect(response).toEqual({
+      status: 'proposed',
+      fields: {
+        m: {
+          name: 'model_type',
+          type: 'string',
+          removed: false,
+          description: 'The architecture family, e.g. encoder, decoder, or both',
+          allowedValues: null,
+        },
+        g: { name: 'gender', type: 'string', removed: false, description: null, allowedValues: null },
+      },
+      additions: [],
+      issues: [],
+    })
+  })
+
+  it('rejects a single-value closed set as invalid', async () => {
+    const response = await proposeSchemaEdit(
+      [{ id: 'm', name: 'model_type', type: 'string' }],
+      'model_type should only ever be "encoder"',
+      null,
+      {
+        generate: vi.fn()
+          .mockResolvedValueOnce(JSON.stringify({
+            fields: { m: { name: 'model_type', type: 'string', removed: false, allowedValues: ['encoder'] } },
+            additions: [],
+          }))
+          .mockResolvedValueOnce(JSON.stringify({ fields: {}, additions: [] })),
+      },
+    )
+
+    expect(response).toMatchObject({ status: 'failed' })
+  })
+
   it('retries missing and invalid keys once and keeps a validated partial result', async () => {
     const generate = vi.fn()
       .mockResolvedValueOnce(JSON.stringify({

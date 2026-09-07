@@ -110,6 +110,39 @@ async function signIn(
   }
 }
 
+describe('Source Document request admission', () => {
+  it('admits a 100 MiB PDF multipart upload under /free and rejects an oversized envelope', async () => {
+    const test = await fixture({ basePath: '/free' })
+    const { sessionCookie } = await signIn(test, '/free', '/free')
+    const url = `${ORIGIN}/free/api/project-contexts/${ACCOUNT_ID}/source-documents`
+    const form = new FormData()
+    form.append('file', new File(
+      ['%PDF-', new Uint8Array(100 * 1024 * 1024 - 5)],
+      'boundary.pdf',
+      { type: 'application/pdf' },
+    ))
+    const accepted = await test.app.request(url, {
+      method: 'POST',
+      headers: { cookie: sessionCookie!, origin: ORIGIN },
+      body: form,
+    })
+    expect(accepted.status).toBe(200)
+    await expect(accepted.json()).resolves.toEqual({ researcherAccountId: ACCOUNT_ID })
+
+    const rejected = await test.app.request(url, {
+      method: 'POST',
+      headers: {
+        cookie: sessionCookie!,
+        origin: ORIGIN,
+        'content-length': String(101 * 1024 * 1024 + 1),
+        'content-type': 'multipart/form-data; boundary=test',
+      },
+      body: '',
+    })
+    expect(rejected.status).toBe(413)
+  })
+})
+
 describe('Microsoft Entra authentication routes', () => {
   it('completes state/PKCE/nonce sign-in, JIT provisions, and creates a fixed session', async () => {
     const test = await fixture()

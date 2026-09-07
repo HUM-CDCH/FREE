@@ -335,6 +335,8 @@ export default function AppFrame({
         )?.name ??
         null)
       : null
+  const backToReviewGridBatchExtractionId =
+    route.kind === 'document' ? (route.fromBatchExtractionId ?? null) : null
   const hasOpenDocumentTabs = Boolean(
     routedProjectContextId && openProjectTabs.length > 0,
   )
@@ -512,6 +514,18 @@ export default function AppFrame({
                 projectContextId: routedProjectContextId,
                 tab: 'sources',
               })
+            }
+            onBackToReviewGrid={
+              backToReviewGridBatchExtractionId
+                ? () =>
+                    onNavigate({
+                      kind: 'project',
+                      projectContextId: routedProjectContextId,
+                      tab: 'extractions',
+                      batchExtractionId: backToReviewGridBatchExtractionId,
+                      view: 'grid',
+                    })
+                : undefined
             }
             slotRef={setTabBarSlot}
             navigationToggle={narrowNavToggle}

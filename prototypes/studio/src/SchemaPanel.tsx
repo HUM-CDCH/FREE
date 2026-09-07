@@ -16,6 +16,7 @@ import {
 } from 'extraction/allowed-values'
 import {
   type SchemaNode,
+  enumerateFieldPaths,
   mkId,
   nodesToTemplate,
   schemaDefinitionToTemplate,
@@ -276,6 +277,14 @@ function subtreeIdsOf(node: SchemaNode): string[] {
   return ids
 }
 
+/** Per-field notes set via the "i" description button, so Regenerate carries them into the instruction. */
+function fieldDescriptionsInstruction(nodes: readonly SchemaNode[]): string {
+  const notes = enumerateFieldPaths(nodes)
+    .filter(({ node }) => node.description)
+    .map(({ path, node }) => `- ${path.join('.')}: ${node.description}`)
+  return notes.length ? `Field notes from the current schema:\n${notes.join('\n')}` : ''
+}
+
 
 // ────────────────────────────────────────────────────────────────────────────
 // Shared UI sub-components
@@ -293,7 +302,7 @@ function WorkingIndicator({ onStop }: { onStop: () => void }) {
 }
 
 const genBtnCls =
-  'inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-semibold text-ink-muted outline-none transition-colors hover:border-accent/50 hover:bg-accent-soft hover:text-accent focus-visible:border-accent disabled:cursor-default disabled:opacity-60 disabled:hover:border-line disabled:hover:bg-surface disabled:hover:text-ink-muted'
+  'inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-accent bg-accent px-3 py-1.5 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108 focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-50 disabled:hover:brightness-100'
 
 // Superseded by the pre-generation doc chat (see below) — schema generation no
 // longer takes a highlights hints/fields mode. Left in place, commented out,
@@ -413,45 +422,66 @@ function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
   )
 }
 
-function DescriptionEditForm({ value, onChange, onSave, onDelete, onCancel }: {
+/** Notes accumulate: each Add appends a new line rather than replacing what's there. */
+function DescriptionEditForm({ existing, value, onChange, onAdd, onDelete, onCancel }: {
+  existing: string
   value: string
   onChange: (value: string) => void
-  onSave: () => void
+  onAdd: () => void
   onDelete: () => void
   onCancel: () => void
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const notes = existing.split('\n').filter((line) => line.trim())
 
   if (confirmingDelete) {
     return (
       <div className="mt-0.5 mb-0.5 flex items-center justify-between gap-1.5 rounded-md border border-danger/30 bg-danger-soft px-2 py-1">
-        <span className="text-[12px] font-semibold text-danger">Delete this description?</span>
+        <span className="text-[12px] font-semibold text-danger">Clear all notes on this field?</span>
         <div className="flex shrink-0 gap-1.5">
           <button className="cursor-pointer rounded-md px-2 py-0.5 text-[11px] font-semibold text-ink-muted outline-none hover:text-ink" type="button" onClick={() => setConfirmingDelete(false)}>Cancel</button>
-          <button className="cursor-pointer rounded-md bg-danger px-2 py-0.5 text-[11px] font-semibold text-white outline-none hover:brightness-110" type="button" onClick={onDelete}>Delete</button>
+          <button className="cursor-pointer rounded-md bg-danger px-2 py-0.5 text-[11px] font-semibold text-white outline-none hover:brightness-110" type="button" onClick={onDelete}>Clear</button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="mt-0.5 mb-0.5 flex items-center gap-1.5 rounded-md border border-accent/50 bg-accent-ghost px-2 py-1">
-      <input
-        className="min-w-0 flex-1 bg-transparent font-sans text-[12px] text-ink outline-none placeholder:text-ink-faint"
-        placeholder="Describe this field for the extraction model…"
-        value={value}
-        autoFocus
-        onChange={e => onChange(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
-      />
-      <button className="shrink-0 cursor-pointer rounded-md border border-accent bg-accent px-2 py-0.5 text-[11px] font-bold text-white outline-none transition-[filter] hover:brightness-108" type="button" onClick={onSave}>Save</button>
-      <button
-        className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted outline-none hover:text-danger"
-        type="button"
-        title="Delete description"
-        onClick={() => setConfirmingDelete(true)}
-      >🗑</button>
-      <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" title="Cancel" onClick={onCancel}>✗</button>
+    <div className="mt-0.5 mb-0.5 flex flex-col gap-1 rounded-md border border-accent/50 bg-accent-ghost px-2 py-1.5">
+      {notes.length > 0 && (
+        <ul className="flex flex-col gap-0.5">
+          {notes.map((note, i) => (
+            <li key={i} className="text-[11.5px] leading-snug text-ink">{note}</li>
+          ))}
+        </ul>
+      )}
+      <div className="flex items-center gap-1.5">
+        <input
+          className="min-w-0 flex-1 bg-transparent font-sans text-[12px] text-ink outline-none placeholder:text-ink-faint"
+          placeholder={notes.length > 0 ? 'Add another note…' : 'Describe this field for the extraction model…'}
+          value={value}
+          autoFocus
+          onChange={e => onChange(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') onAdd(); if (e.key === 'Escape') onCancel() }}
+        />
+        <button
+          className="shrink-0 cursor-pointer rounded-md border border-accent bg-accent px-2 py-0.5 text-[11px] font-bold text-white outline-none transition-[filter] hover:brightness-108 disabled:cursor-default disabled:opacity-50"
+          type="button"
+          disabled={!value.trim()}
+          onClick={onAdd}
+        >
+          Add
+        </button>
+        {notes.length > 0 && (
+          <button
+            className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted outline-none hover:text-danger"
+            type="button"
+            title="Clear all notes"
+            onClick={() => setConfirmingDelete(true)}
+          >🗑</button>
+        )}
+        <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" title="Close" onClick={onCancel}>✗</button>
+      </div>
     </div>
   )
 }
@@ -873,6 +903,14 @@ function SchemaPanel({
     )
   }
 
+  /** Each "i" note appends as a new line rather than replacing the field's existing notes. */
+  function addNodeDescriptionNote(id: string, existing: string | undefined, draft: string) {
+    const note = draft.trim()
+    if (!note) return
+    updateNodeDescription(id, existing ? `${existing}\n${note}` : note)
+    setDescDraft('')
+  }
+
   function addField() {
     if (editing) return
     const cur = schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES
@@ -1070,14 +1108,14 @@ function SchemaPanel({
             )}
             <span className="min-w-0 flex-1" />
             {change && <AcceptanceControl id={change.id} name={change.after?.name ?? node.name} accepted={acceptedChangeIds.has(change.id)} onChange={proposalReview.toggle} />}
-            {!isDiff && !editorReadOnly && isGroup && (
+            {!isDiff && !editorReadOnly && (
               <button
                 className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${node.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
                 type="button"
                 title="Add description"
                 onClick={() => {
                   const next = openDescId === node.id ? null : node.id
-                  if (next) setDescDraft(node.description ?? '')
+                  if (next) setDescDraft('')
                   setOpenDescId(next)
                 }}
               >
@@ -1107,11 +1145,12 @@ function SchemaPanel({
           </div>
         )}
 
-        {isGroup && openDescId === node.id && (
+        {openDescId === node.id && (
           <DescriptionEditForm
+            existing={node.description ?? ''}
             value={descDraft}
             onChange={setDescDraft}
-            onSave={() => { updateNodeDescription(node.id, descDraft.trim() || undefined); setOpenDescId(null) }}
+            onAdd={() => addNodeDescriptionNote(node.id, node.description, descDraft)}
             onDelete={() => { updateNodeDescription(node.id, undefined); setOpenDescId(null) }}
             onCancel={() => setOpenDescId(null)}
           />
@@ -1210,14 +1249,14 @@ function SchemaPanel({
             )}
             <span className="min-w-0 flex-1" />
             {change && <AcceptanceControl id={change.id} name={change.after?.name ?? child.name} accepted={acceptedChangeIds.has(change.id)} onChange={proposalReview.toggle} />}
-            {!isDiff && !editorReadOnly && isGroup && (
+            {!isDiff && !editorReadOnly && (
               <button
                 className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${child.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
                 type="button"
                 title="Add description"
                 onClick={() => {
                   const next = openDescId === child.id ? null : child.id
-                  if (next) setDescDraft(child.description ?? '')
+                  if (next) setDescDraft('')
                   setOpenDescId(next)
                 }}
               >
@@ -1247,11 +1286,12 @@ function SchemaPanel({
           </div>
         )}
 
-        {isGroup && openDescId === child.id && (
+        {openDescId === child.id && (
           <DescriptionEditForm
+            existing={child.description ?? ''}
             value={descDraft}
             onChange={setDescDraft}
-            onSave={() => { updateNodeDescription(child.id, descDraft.trim() || undefined); setOpenDescId(null) }}
+            onAdd={() => addNodeDescriptionNote(child.id, child.description, descDraft)}
             onDelete={() => { updateNodeDescription(child.id, undefined); setOpenDescId(null) }}
             onCancel={() => setOpenDescId(null)}
           />
@@ -1609,7 +1649,7 @@ function SchemaPanel({
               {showRegenerate && (
                 <div className="relative shrink-0">
                   <button
-                    className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-line bg-surface px-2 py-1 text-[11px] font-semibold text-ink-muted outline-none transition-colors hover:border-accent/50 hover:text-accent"
+                    className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-accent/60 bg-accent-soft px-2.5 py-1 text-[11px] font-bold text-accent outline-none transition-colors hover:border-accent hover:brightness-105 disabled:cursor-default disabled:opacity-50 disabled:hover:border-accent/60 disabled:hover:brightness-100"
                     type="button"
                     aria-expanded={instructions.open}
                     title="Start over: regenerate the whole schema from the document and instructions"
@@ -1629,7 +1669,11 @@ function SchemaPanel({
                           type="button"
                           onClick={() => {
                             instructions.toggle()
-                            onGenerateInstructions?.(instructions.text)
+                            onGenerateInstructions?.(
+                              [instructions.text, fieldDescriptionsInstruction(nodes)]
+                                .filter(Boolean)
+                                .join('\n\n'),
+                            )
                           }}
                         >
                           Regenerate schema{instructions.countLabel}
