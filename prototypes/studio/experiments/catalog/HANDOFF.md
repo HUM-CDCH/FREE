@@ -85,6 +85,7 @@ The original local CLI error was reproduced with a table at
 worked after the saved config changed outside this experiment. See
 `probe-cli-config.ts` and RESULTS; do not copy that incompatible config. Prior
 verification passed 7 Python tests, 4 Vitest tests, strict TypeScript, ESLint and
-interactive Chromium checks. The unrelated local Studio dependency-manifest edit
-was excluded from this experiment commit; measured installed versions are in
-`runtime-versions.json`.
+interactive Chromium checks. These measurements predate the subsequent Studio
+dependency update, committed separately with its synchronized lockfile. Measured
+installed versions are in `runtime-versions.json`; record desktop versions again
+when continuing the experiment.
