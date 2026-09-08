@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MockLanguageModelV4 } from 'ai/test'
+import { z } from 'zod'
 import {
   generateSchemaEditJson,
   extractWithModel,
@@ -419,6 +420,43 @@ describe('extractWithModel', () => {
     const graveItemProperties = (graveField?.items as { properties?: Record<string, unknown> } | undefined)?.properties ?? {}
     expect(Object.keys(graveItemProperties)).toEqual(['name'])
     expect(graveItemProperties).not.toHaveProperty('description')
+  })
+
+  it.each(['native', 'prompt'] as const)('preserves discovery constraints on a %s provider', async (jsonOutput) => {
+    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
+    generateTextMock.mockImplementation(generateText)
+    const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
+      async () => mockGeneration('{"starts":["B1"],"end":null}'),
+    )
+    const label = z.enum(['B1', 'B3'])
+    const result = await extractWithModel({
+      document,
+      template: { starts: ['string'], end: 'string' },
+      outputSchema: z.object({ starts: z.array(label), end: label.nullable() }).strict(),
+    }, { ...generalTarget, jsonOutput, model: new MockLanguageModelV4({ doGenerate }) })
+    const format = schemaRecord(doGenerate.mock.calls[0][0]).responseFormat as {
+      schema: { properties: { starts: { items: { enum: string[] } }; end: JsonSchemaLike } }
+    } | undefined
+    if (jsonOutput === 'prompt') expect(format).toBeUndefined()
+    else {
+      expect(format?.schema.properties.starts.items.enum).toEqual(['B1', 'B3'])
+      expect(unwrapNullable(format?.schema.properties.end)?.enum).toEqual(['B1', 'B3'])
+    }
+    expect(result.result).toEqual({ starts: ['B1'], end: null })
+  })
+
+  it('retains invalid discovery labels for local normalization or corrective feedback', async () => {
+    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
+    generateTextMock.mockImplementation(generateText)
+    const doGenerate = vi.fn(async () => mockGeneration('{"starts":["215. Oberheldrungen"],"end":"[[block:B3]]"}'))
+    const label = z.enum(['B1', 'B3'])
+    const result = await extractWithModel({
+      document,
+      template: { starts: ['string'], end: 'string' },
+      outputSchema: z.object({ starts: z.array(label), end: label.nullable() }).strict(),
+    }, { ...generalTarget, jsonOutput: 'native', model: new MockLanguageModelV4({ doGenerate }) })
+    expect(result.result).toEqual({ starts: ['215. Oberheldrungen'], end: '[[block:B3]]' })
+    expect(doGenerate).toHaveBeenCalledOnce()
   })
 
   it('derives and sends a response schema for the grounding call template shape', async () => {

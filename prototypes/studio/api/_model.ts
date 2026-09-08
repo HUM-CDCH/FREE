@@ -45,6 +45,7 @@ const EXTRACTION_SCOPE_GUARDRAIL =
 export type ExtractModelInput = {
   readonly document: DocumentInput
   readonly template: unknown
+  readonly outputSchema?: z.ZodType
   readonly instruction?: string
   readonly temperature?: number
   readonly signal?: AbortSignal
@@ -187,7 +188,7 @@ function structuredOutputSchema(schema: z.ZodType) {
 }
 
 export async function extractWithModel(
-  { document, template, instruction, temperature, signal }: ExtractModelInput,
+  { document, template, outputSchema, instruction, temperature, signal }: ExtractModelInput,
   target?: ExecutionTarget,
   dependencies: ModelDependencies = {},
 ): Promise<{
@@ -210,7 +211,7 @@ export async function extractWithModel(
         ? [`Additional extraction instruction:\n${callerInstruction}`]
         : []),
     ].join('\n\n')
-    const schema = deriveExtractionSchema(extractionTemplate)
+    const schema = outputSchema ?? deriveExtractionSchema(extractionTemplate)
     generated = await generateWithGenericJsonPrompt(resolved, {
       instructions:
         'Produce a FREE Extraction Result. Follow the supplied Extraction Schema exactly. ' +

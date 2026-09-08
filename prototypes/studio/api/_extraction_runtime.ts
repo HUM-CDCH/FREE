@@ -141,6 +141,7 @@ function modelFor(target: ExecutionTarget): ExtractionModel {
             pages: request.document.pages,
           },
           template: request.template,
+          outputSchema: request.outputSchema,
           instruction: request.instruction,
           signal: request.signal,
         },
