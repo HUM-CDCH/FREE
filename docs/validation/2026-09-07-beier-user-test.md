@@ -1,8 +1,10 @@
-# Beier catalogue rehearsal — 7 September 2026
+# Beier catalogue rehearsal — 7–8 September 2026
 
-Status: in progress. Ingestion, schema generation, revision persistence and the
-deterministic checks below have been exercised. The full extraction and review
-using the final code remain to be verified; this document does not yet certify them.
+Status: live rehearsal finished. The workflow was exercised locally through
+ingestion, schema generation, extraction, evidence navigation, review drafts,
+CSV/Excel export, and reopen. The final Extraction contains all 420 expected
+entries but is marked incomplete because one populated field is ungrounded.
+Model values still require researcher review, as detailed below.
 
 ## Source and prepared project
 
@@ -69,6 +71,32 @@ revision 6's final Record description also returned all 420 expected starts,
 with no extras or duplicates, in 45 calls and 1,401,357 ms (23 min 21 sec) while
 sharing the model with the ongoing full extraction.
 
+The final full Studio run, `5c2e6fbc-6c32-4603-b97c-48f1a5975fb5`, started at
+21:54:23 UTC on 7 September using Schema Revision 6
+(`32860369-2d89-4031-93bd-af016cda089d`). Discovery took 546,528 ms (9 min 7 sec)
+and returned the exact 420 expected starts, without extras or duplicates.
+All 420 stored start/end boundaries match the final-schema discovery probe,
+including entry 233's continuation onto the following page and the final
+supplement's exclusion of subsequent captions and indexes. Values extraction
+took 3,462,294 ms (57 min 42 sec); all 420 per-entry requests succeeded, all
+six-field shapes are valid, and every identifier matches its expected parent.
+
+The run finished at 23:40 UTC on 7 September. Total execution time was
+6,346,918 ms (**1 hr 45 min 47 sec**), including 2,333,195 ms (38 min 53 sec)
+for 420 grounding calls. All 45 discovery, 420 values and 420 grounding calls
+completed successfully. The persisted outcome is `SUCCEEDED`, with
+`reviewable: true` and `complete: false`: **3,513 of 3,514 populated values**
+have Evidence links. The single ungrounded path is entry 356's `fa_code`.
+All retained links reference valid anchors inside their own parent entry;
+there are no links into adjacent entries or the later indexes.
+
+The result has 363 non-verbatim flags: 96 FA values, 93 literature references,
+71 descriptions, 58 museum references, 43 locality/findspot values and two
+catalogue labels. A further 1,287 links have the separate repeated-passage
+warning, producing Studio's total **1,650 To check**. Repeated short labels
+and classification codes can occur in many passages; this count is not a count
+of missing records or failed model requests. Neither warning is an approval.
+
 Real-model value checks covered main entries 1, 3, 29, 40, 62, 226, 649 and 650,
 plus u1, a1 and the first supplement entry across schema refinements. The final
 schema sample retains the collection references from all parts of 29 and 40;
@@ -99,12 +127,98 @@ atomic lease/draft guards and the completion/review UI.
 No reset or deletion of the development database was used. The PostgreSQL and
 browser integration tests used their disposable databases/stacks.
 
-## Remaining live verification
+## Live review, export and persistence verification
 
-- Complete extraction and evidence grounding using the final schema and code.
-- Inspect representative multi-part entries, follow evidence to the original
-  PDF, save review decisions, export, and reopen the reviewed result.
-- Verify a fresh `pnpm dev` start with the final changes and retained state.
+Studio displayed the completion dialog with 3,513 grounded values and one
+ungrounded value. **Review now** opened the complete record collection and
+its visible incomplete-result warning. The used and Current Schema Revisions
+both remained revision 6.
+
+The browser checks inspected entries 3, 18, 29, 40, 226, 649, u1, a1 and the last
+supplement entry. Entry 29 retains all four museum references, and entry 40
+retains both, within one parent record each. Selecting their later subentries'
+Evidence navigated to the corresponding original passages. Entry 226's label
+was present and highlighted on the right-hand printed page. Scanned pages
+rendered after navigation; no browser warning or error was reported.
+
+For entry 18, an approval of the printed label and an edit from the original
+632-character description to a verified 316-character source quotation saved
+as draft version 2. Both decisions, including the shortened visible value,
+survived a full browser reload. A rejection of the last supplement entry's
+incorrect FA value then saved as draft version 3. The underlying Extraction
+values remained unchanged throughout.
+
+Both actual **Export** buttons were exercised after reopening draft version 2,
+using **Rows represent: Root result**. The CSV (163,872 bytes) and Excel
+(66,430 bytes) each contain **420 data rows and six columns**. Every cell was
+compared with the stored values plus the saved edit: zero mismatches in either
+file, including repeated museum and literature text joined within their cells.
+The Excel workbook has one `Results` sheet, a frozen header, filters covering
+`A1:F421`, and no formulas. These are rehearsal exports of a partial review,
+not finalized research data.
+
+The three rehearsal decisions were restored to pending through the existing
+version-checked review reset API, after confirming that no other decisions had
+been added. A fresh API read returned draft version 4 with zero decisions;
+reopening Studio showed all 3,513 eligible values pending and the original
+632-character description. The prepared result is left for the researcher's
+own review. Finalization of an entire review is covered by the deterministic
+tests; no bulk approval of this catalogue was performed.
+
+The unedited complete review request measures 1,031,036 UTF-8 bytes, within the
+existing 1 MiB API body limit. The live partial draft writes also passed.
+
+A fresh `pnpm dev` start with the final merged code completed at 21:50 UTC on
+7 September. The image build and health checks passed, migrations reported
+already up to date, and the prepared Project Context, Source Representation,
+Schema Revision 6, previous Extraction, and unchanged source PDF were retained.
+The final full Extraction above was started through the newly loaded Studio.
+
+## Researcher review priorities
+
+The final values contain 21 descriptions longer than the Record description's
+400-character guidance: main entries 18, 26, 53, 57, 61, 72, 102, 115, 157,
+171, 173, 179, 182, 189, 191, 211, 213, 269 and 373, plus u1 and u7. These are
+model-output review items; the recorded source quotations were not silently
+truncated to make the check pass.
+
+Entries 356 and 364 illustrate semantic review items. Entry 356's `fa_code`
+contains the find description as well as `vG`; the grounding model returned
+`NONE` for that field even though the text is in the canonical passage. Entry
+364's model output put
+`EvG. Verz. KA.` into `fa_code` and left `find_description` empty. The source
+line is `FA: EvG. Verz. KA.`; the classification and find description require
+separation during review. The empty FA fields for a10 and a27 correspond to
+entries with no printed `FA:` marker.
+
+The third supplement entry has no printed `FA:` marker. Its model output
+nevertheless places `KAK` in `fa_code`, using a word from the passage in the
+wrong field. This was the verified rejection example above and is restored
+to pending with the other rehearsal decisions. A locatable passage alone does
+not establish that a value fits the field's meaning.
+
+## Steps for the test
+
+1. Leave the prepared development stack running, or start it from this branch
+   with `pnpm dev`. Open the prepared Source Document linked above and sign in
+   through the local development sign-in if requested.
+2. In **Schema**, inspect the saved **Beier catalogue entries** schema and its
+   Record description. Confirm that complete parent entries are the research
+   unit and that the six fields answer the research question.
+3. In **Results**, inspect the prepared full Extraction. Start with entries
+   3, 18, 29, 40 and 226; also inspect an inserted, u-prefixed, a-prefixed and
+   supplement entry. Select Evidence to check the original scan. Check linked
+   passages even when a value has an Evidence link.
+4. Approve, reject or edit individual values. Partial decisions save as a
+   draft; FREE finalizes only after all eligible values have explicit decisions.
+   Do not use **Approve remaining** merely to dismiss review work.
+5. Use **Export** and keep **Rows represent: Root result** to retain one catalogue
+   entry per spreadsheet row. CSV and Excel contain the visible values,
+   including saved draft edits; an export does not imply that review is complete.
+6. To test a new full Extraction, choose **Catalog** in the Extraction strategy
+   selector and run with the Current Schema Revision. Keep the prepared result
+   available for the review portion of the session: this full run took about
+   1 hr 46 min after ingestion, and ingestion itself took 13 minutes.
 
 OCR still contains some damaged words and line joins. A successful run establishes
 coverage and operational readiness, not scholarly accuracy. Extracted values and
