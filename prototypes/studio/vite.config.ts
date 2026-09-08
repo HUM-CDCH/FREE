@@ -2,7 +2,7 @@ import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { randomBytes } from 'node:crypto'
-import { cpSync, readFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import {
   canonicalEntraCertificateThumbprint,
@@ -163,15 +163,39 @@ export function apiFunctions(configuredBasePath: string): Plugin {
   }
 }
 
+export function pdfjsWasmAssets(command: 'serve' | 'build', root = import.meta.dirname): Plugin {
+  const prepare = () => {
+    const source = resolve(root, 'node_modules/pdfjs-dist/wasm')
+    const parent = resolve(root, 'public/assets')
+    const destination = join(parent, 'pdfjs-wasm')
+    if (existsSync(destination) || !existsSync(source)) return
+
+    mkdirSync(parent, { recursive: true })
+    const temporary = mkdtempSync(join(parent, '.pdfjs-wasm-'))
+    try {
+      cpSync(source, temporary, { recursive: true })
+      try {
+        // Publish only a complete directory; another process may publish first.
+        renameSync(temporary, destination)
+      } catch (error) {
+        if (!existsSync(destination)) throw error
+      }
+    } finally {
+      rmSync(temporary, { recursive: true, force: true })
+    }
+  }
+  return {
+    name: 'free-pdfjs-wasm',
+    configureServer: prepare,
+    buildStart() {
+      if (command === 'build') prepare()
+    },
+  }
+}
+
 // Keep Studio on IPv4 loopback so dev-container port forwarding reaches the
 // same address on every host without exposing the server on the container LAN.
 export default defineConfig(({ command, mode }) => {
-  // PDF.js loads its image decoders by filename in both development and builds.
-  cpSync(
-    resolve(import.meta.dirname, 'node_modules/pdfjs-dist/wasm'),
-    resolve(import.meta.dirname, 'public/assets/pdfjs-wasm'),
-    { recursive: true },
-  )
   const environment = loadEnv(mode, import.meta.dirname, '')
   const basePath = canonicalStudioBasePath(
     process.env.STUDIO_BASE_PATH ?? environment.STUDIO_BASE_PATH ?? '/',
@@ -186,6 +210,7 @@ export default defineConfig(({ command, mode }) => {
   return {
     base: command === 'build' ? './' : studioBaseHref(basePath),
     plugins: [
+      ...(process.env.VITEST ? [] : [pdfjsWasmAssets(command)]),
       ...(command === 'serve' ? [studioBaseHtml(basePath)] : []),
       react(),
       tailwindcss(),
