@@ -14,7 +14,7 @@ import {
 import { z } from 'zod'
 import type { DocumentInput } from './_document.js'
 import { documentFileParts, type DocumentFilePart } from './_pdf.js'
-import { schemaPrompt } from './_schema.js'
+import { schemaPrompt, schemaSourceExcerpts } from './_schema.js'
 import {
   ApiError,
   asModelOperationError,
@@ -268,7 +268,10 @@ export async function generateSchemaWithModel(
   readonly pages: number | null
 }> {
   const resolved = await operationTarget('schema-suggestion', temperature, target, dependencies)
-  const documentParts = await documentContentParts(document)
+  const documentParts = await documentContentParts({
+    ...document,
+    markdown: document.markdown ? schemaSourceExcerpts(document.markdown) : document.markdown,
+  })
   const guidance = schemaPrompt(instruction)
   const generated =
     resolved.profile === 'general'
@@ -357,7 +360,7 @@ async function generateWithGenericJsonPrompt(
       ],
       reasoning: 'none',
       abortSignal: input.signal,
-      ...(input.temperature === undefined ? {} : { temperature: input.temperature }),
+      ...(target.temperatureSupported ? { temperature: input.temperature ?? 0 } : {}),
     })
     return {
       response: generated.text,

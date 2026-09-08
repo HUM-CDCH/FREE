@@ -9,6 +9,8 @@ import { db } from '../../../packages/db/src/prisma/db.js'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
 import { extractionAttemptSchema, type ExtractionAttempt } from '../shared/extraction.contract.js'
 import type { ParsedContentBlock, ParsedDocument } from 'extraction/parsed-document'
+import { CATALOG_RECORD_LIMIT } from 'extraction'
+import { catalogDiscoveryChunks } from 'extraction/source-context'
 import { DEVELOPMENT_ENTRA_TENANT_ID } from '../server/entraIdentityProvider.js'
 import {
   E2E_ORIGIN,
@@ -362,6 +364,13 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
   ).toHaveCount(0)
   // Completion announces itself but never switches the rail tab.
   await expect(page.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'false')
+  const completionDialog = page.getByRole('dialog', { name: 'Extraction finished', exact: true })
+  await expect(completionDialog).toBeVisible()
+  await activateWithKeyboard(
+    page,
+    completionDialog.getByRole('button', { name: 'Dismiss', exact: true }),
+  )
+  await expect(completionDialog).toBeHidden()
   await activateWithKeyboard(page, page.getByRole('tab', { name: /Results/ }))
   await expect(
     page.getByRole('button', { name: 'View Evidence for title' }),
@@ -645,6 +654,13 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
   await expect(freshPage.getByText('Incomplete Extraction', { exact: true })).toBeVisible()
   await expect(freshPage.getByRole('button', { name: 'Export' })).toBeEnabled()
   await expect(freshPage.getByRole('button', { name: 'Save Review' })).toHaveCount(0)
+  const retryCompletionDialog = freshPage.getByRole('dialog', { name: 'Extraction finished', exact: true })
+  await expect(retryCompletionDialog).toBeVisible()
+  await activateWithKeyboard(
+    freshPage,
+    retryCompletionDialog.getByRole('button', { name: 'Dismiss', exact: true }),
+  )
+  await expect(retryCompletionDialog).toBeHidden()
   await freshPage.getByRole('tab', { name: 'Raw JSON' }).click()
   await expect(freshPage.locator('pre').filter({ hasText: 'Résumé, source' })).toBeVisible()
 
@@ -974,10 +990,9 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
   const packageSchemaRevisionId = randomUUID()
   const packageStore = createCanonicalPackageStore()
   const firstPackage = await canonicalPackage('catalog.pdf', catalogDocument(['First', 'Second', 'Third']))
-  const truncationPackage = await canonicalPackage(
-    'catalog-truncation.pdf',
-    catalogDocument(Array.from({ length: 101 }, (_, index) => `Record ${index + 1}`)),
-  )
+  const truncationDocument = catalogDocument(Array.from({ length: CATALOG_RECORD_LIMIT + 1 }, (_, index) => `Record ${index + 1}`))
+  const truncationChunks = catalogDiscoveryChunks(truncationDocument).map(chunk => [...chunk.startBlockIdByLabel.keys()])
+  const truncationPackage = await canonicalPackage('catalog-truncation.pdf', truncationDocument)
   const cancellationPackage = await canonicalPackage('catalog-cancellation.pdf', catalogDocument(['First', 'Second', 'Third']))
   const firstDescriptor = await packageStore.save(firstPackage.bytes)
   const truncationDescriptor = await packageStore.save(truncationPackage.bytes)
@@ -1039,15 +1054,22 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     await expect(page.getByText('6 pages', { exact: true })).toBeVisible({ timeout: 20_000 })
 
     resetQueues()
-    enqueue('document', { result: { records: [{ year: 2026 }] } })
+    enqueue('document', { result: { record: { year: 2026 } } })
     enqueue('discovery', {
-      result: { starts: ['H1', 'H2'] },
+      result: { starts: ['B2', 'B3'] },
     })
-    enqueue('record', { result: { records: [{ title: 'A' }] } }, { result: { records: [{ title: 'B' }] } })
+    enqueue('record', { result: { record: { title: 'A' } } }, { result: { record: { title: 'B' } } })
     enqueue('grounding', { grounding: true }, { grounding: true })
     await page.getByLabel('Extraction strategy').selectOption('CATALOG')
     await page.getByRole('button', { name: '▶ Run extraction' }).click()
     await expect(page.getByRole('button', { name: '↻ Re-run extraction' })).toBeVisible({ timeout: 30_000 })
+    const completionDialog = page.getByRole('dialog', { name: 'Extraction finished', exact: true })
+    await expect(completionDialog).toBeVisible()
+    await activateWithKeyboard(
+      page,
+      completionDialog.getByRole('button', { name: 'Dismiss', exact: true }),
+    )
+    await expect(completionDialog).toBeHidden()
     await page.getByRole('tab', { name: /Results/ }).click()
     await expect(page.getByText('catalog', { exact: true })).toBeVisible()
     // The one-shot selector defaults the next run back to Article.
@@ -1060,13 +1082,13 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     expect(complete?.complete).toBe(true)
 
     resetQueues()
-    enqueue('document', { result: { records: [{ year: 2026 }] } })
+    enqueue('document', { result: { record: { year: 2026 } } })
     enqueue('discovery', {
       result: {
-        starts: ['H1', 'H2', 'H3'],
+        starts: ['B2', 'B3', 'B4'],
       },
     })
-    enqueue('record', { result: { records: [{ title: 'A' }] } }, { status: 500 }, { result: { records: [{ title: 'C' }] } })
+    enqueue('record', { result: { record: { title: 'A' } } }, { status: 500 }, { result: { record: { title: 'C' } } })
     enqueue('grounding', { grounding: true }, { grounding: true })
     const partialId = randomUUID()
     const partialResponse = await page.request.post(e2eStudioPath('/api/extractions'), {
@@ -1091,7 +1113,7 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     const failedRecordStart = partialCatalog.records[1].boundary.startBlockId
 
     resetQueues()
-    enqueue('record', { result: { records: [{ title: 'B' }] } })
+    enqueue('record', { result: { record: { title: 'B' } } })
     enqueue('grounding', { grounding: true }, { grounding: true }, { grounding: true })
     await expect.poll(async () =>
       (await page.request.get(e2eStudioPath(
@@ -1122,8 +1144,8 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
 
     resetQueues()
     enqueue('document', { status: 500 })
-    enqueue('discovery', { result: { starts: ['H1'] } })
-    enqueue('record', { result: { records: [{ title: 'A' }] } })
+    enqueue('discovery', { result: { starts: ['B2'] } })
+    enqueue('record', { result: { record: { title: 'A' } } })
     enqueue('grounding', { grounding: true })
     const documentFailureId = randomUUID()
     expect((await page.request.post(e2eStudioPath('/api/extractions'), {
@@ -1133,7 +1155,7 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     const documentFailure = await waitForExtraction(page.request, documentFailureId)
     expect(documentFailure.diagnostics?.catalog?.stages.find((stage) => stage.stage === 'document-values')?.outcome).toBe('failed')
     resetQueues()
-    enqueue('document', { result: { records: [{ year: 2026 }] } })
+    enqueue('document', { result: { record: { year: 2026 } } })
     enqueue('grounding', { grounding: true })
     await page.goto(url)
     await page.getByRole('tab', { name: /Results/ }).click()
@@ -1146,8 +1168,8 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     ).not.toBe('')
 
     resetQueues()
-    enqueue('document', { result: { records: [{ year: 2026 }] } })
-    enqueue('discovery', { result: { starts: ['H999'] } })
+    enqueue('document', { result: { record: { year: 2026 } } })
+    enqueue('discovery', { result: { starts: ['B999'] } })
     const discoveryFailureId = randomUUID()
     const discoveryFailureResponse = await page.request.post(e2eStudioPath('/api/extractions'), {
       headers: { Origin: E2E_ORIGIN },
@@ -1164,7 +1186,7 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     })
 
     resetQueues()
-    enqueue('record', { result: { records: [{ title: 'B' }] } })
+    enqueue('record', { result: { record: { title: 'B' } } })
     enqueue('grounding', { grounding: true }, { grounding: true }, { grounding: true })
     const retryId = randomUUID()
     const retryResponse = await page.request.post(e2eStudioPath('/api/extractions'), {
@@ -1226,12 +1248,12 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     })
 
     resetQueues()
-    enqueue('discovery', {
+    enqueue('discovery', ...truncationChunks.map(labels => ({
       result: {
-        starts: Array.from({ length: 101 }, (_, index) => `H${index + 1}`),
+        starts: labels.filter(label => label !== 'B1'),
       },
-      finishReason: 'length',
-    })
+      finishReason: 'length' as const,
+    })))
     const truncationId = randomUUID()
     const truncationResponse = await page.request.post(e2eStudioPath('/api/extractions'), {
       headers: { Origin: E2E_ORIGIN },
@@ -1240,12 +1262,12 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     expect(truncationResponse.status()).toBe(201)
     const truncation = await waitForExtraction(page.request, truncationId)
     expect(truncation).toMatchObject({ outcome: 'SUCCEEDED', complete: false })
-    expect(truncation.resultPayload!.records).toHaveLength(100)
-    expect(truncation.diagnostics!.catalog!.records).toHaveLength(101)
-    expect(truncation.diagnostics!.catalog!.records[100]).toMatchObject({ outcome: 'not_attempted', failureCode: 'not_attempted_limit', calls: 0 })
+    expect(truncation.resultPayload!.records).toHaveLength(CATALOG_RECORD_LIMIT)
+    expect(truncation.diagnostics!.catalog!.records).toHaveLength(CATALOG_RECORD_LIMIT + 1)
+    expect(truncation.diagnostics!.catalog!.records[CATALOG_RECORD_LIMIT]).toMatchObject({ outcome: 'not_attempted', failureCode: 'not_attempted_limit', calls: 0 })
 
     resetQueues()
-    enqueue('discovery', { result: { starts: ['H1'] } })
+    enqueue('discovery', ...truncationChunks.map(labels => ({ result: { starts: labels.filter(label => label === 'B2') } })))
     await page.goto(url)
     await page.getByRole('tab', { name: /Results/ }).click()
     await page.getByRole('button', { name: 'Run details' }).click()
@@ -1259,13 +1281,13 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     const cancellationId = randomUUID()
     const callsBeforeCancellation = callCount
     resetQueues()
-    enqueue('document', { result: { records: [{ year: 2026 }] } })
+    enqueue('document', { result: { record: { year: 2026 } } })
     enqueue('discovery', {
       result: {
-        starts: ['H1', 'H2', 'H3'],
+        starts: ['B2', 'B3', 'B4'],
       },
     })
-    enqueue('record', { result: { records: [{ title: 'A' }] } }, { result: { records: [{ title: 'B' }] }, delayMs: 10_000 })
+    enqueue('record', { result: { record: { title: 'A' } } }, { result: { record: { title: 'B' } }, delayMs: 10_000 })
     const cancellationPost = page.request.post(e2eStudioPath('/api/extractions'), {
       headers: { Origin: E2E_ORIGIN },
       data: { id: cancellationId, sourceRepresentationRevisionId: cancellationRepresentationId, schemaRevisionId: firstSchemaRevisionId, strategy: 'CATALOG' },

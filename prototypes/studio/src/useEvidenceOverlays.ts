@@ -90,11 +90,13 @@ function removeOverlays(container: HTMLElement | null, className: string) {
 function scrollOverlayIntoView(container: HTMLElement, overlay: HTMLElement) {
   const view = container.getBoundingClientRect()
   const target = overlay.getBoundingClientRect()
-  const delta = target.top - view.top - (view.height - target.height) / 2
-  if (Math.abs(delta) < 2) return
+  const deltaY = target.top - view.top - (view.height - target.height) / 2
+  const deltaX = target.left - view.left - (view.width - target.width) / 2
+  if (Math.abs(deltaY) < 2 && Math.abs(deltaX) < 2) return
   container.scrollTo({
-    top: container.scrollTop + delta,
-    behavior: Math.abs(delta) > view.height ? 'auto' : 'smooth',
+    top: container.scrollTop + deltaY,
+    left: container.scrollLeft + deltaX,
+    behavior: Math.abs(deltaY) > view.height || Math.abs(deltaX) > view.width ? 'auto' : 'smooth',
   })
 }
 

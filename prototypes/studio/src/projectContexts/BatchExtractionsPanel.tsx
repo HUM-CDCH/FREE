@@ -45,6 +45,7 @@ import {
   BatchExtractionMembers,
 } from './BatchExtractionScreens'
 import BatchExtractionReviewGrid from './BatchExtractionReviewGrid'
+import BatchExtractionFinishedDialog from './BatchExtractionFinishedDialog'
 
 type Screen = 'history' | 'prepare' | 'members' | 'grid'
 
@@ -217,6 +218,12 @@ export default function BatchExtractionsPanel({
     failure: null,
   })
   const [reload, setReload] = useState(0)
+  // The last execution status observed for each Batch Extraction, so a
+  // RUNNING/QUEUED -> terminal transition can be reported exactly once per
+  // mount — a reload or reopened panel starts this fresh and never re-fires.
+  const previousExecutionStatus = useRef<Map<string, string>>(new Map())
+  const [finishedBatchReport, setFinishedBatchReport] =
+    useState<BatchExtraction | null>(null)
   const [openingBatch, setOpeningBatch] = useState(false)
   const [runFailure, setRunFailure] = useState<string | null>(null)
   // A replayed selection reopens a Batch Extraction the researcher already has,
@@ -446,6 +453,23 @@ export default function BatchExtractionsPanel({
     const interval = window.setInterval(refresh, 2_000)
     return () => window.clearInterval(interval)
   }, [batches.value, suggestions.value])
+
+  // Reports a Batch Extraction the moment it finishes running. Skipped
+  // whenever its own review grid is already open — the grid's header already
+  // shows this live, so a popup on top would just be noise.
+  useEffect(() => {
+    for (const batch of batches.value ?? []) {
+      const previous = previousExecutionStatus.current.get(batch.batchExtractionId)
+      const current = batch.executionStatus ?? 'COMPLETED'
+      previousExecutionStatus.current.set(batch.batchExtractionId, current)
+      const wasRunning = previous === 'RUNNING' || previous === 'QUEUED'
+      const nowTerminal = current === 'COMPLETED' || current === 'FAILED'
+      const gridAlreadyOpenForThisBatch =
+        screen === 'grid' && openBatchExtractionId === batch.batchExtractionId
+      if (wasRunning && nowTerminal && !gridAlreadyOpenForThisBatch)
+        setFinishedBatchReport(batch)
+    }
+  }, [batches.value, screen, openBatchExtractionId])
 
   useEffect(() => {
     const refresh = () => {
@@ -782,7 +806,7 @@ export default function BatchExtractionsPanel({
       id="project-extractions-panel"
       role="tabpanel"
       aria-labelledby="project-extractions-tab"
-      className="flex h-full min-h-0 flex-col pt-1"
+      className="flex flex-col pt-1"
       tabIndex={0}
     >
       <div
@@ -854,7 +878,7 @@ export default function BatchExtractionsPanel({
 
       <div
         className={
-          screen === 'grid' ? 'flex min-h-0 flex-1 flex-col' : 'min-h-[430px]'
+          screen === 'grid' ? 'flex flex-col' : 'min-h-[430px]'
         }
       >
         {screen === 'history' ? (
@@ -1171,6 +1195,7 @@ export default function BatchExtractionsPanel({
                 projectContextId,
                 sourceDocumentId,
                 extractionId,
+                fromBatchExtractionId: openBatch.batchExtractionId,
               })
             }
             onMemberSaved={() => setReload((value) => value + 1)}
@@ -1213,6 +1238,19 @@ export default function BatchExtractionsPanel({
           />
         )}
       </div>
+      {finishedBatchReport && (
+        <BatchExtractionFinishedDialog
+          key={finishedBatchReport.batchExtractionId}
+          batch={finishedBatchReport}
+          projectContextId={projectContextId}
+          documentName={documentName}
+          onReviewNow={() => {
+            openGridReview(finishedBatchReport)
+            setFinishedBatchReport(null)
+          }}
+          onDismiss={() => setFinishedBatchReport(null)}
+        />
+      )}
     </div>
   )
 }

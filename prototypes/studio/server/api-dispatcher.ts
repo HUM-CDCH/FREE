@@ -4,7 +4,7 @@ import { ApiError, apiErrorResponse } from '../api/_http.js'
 import type { ResearcherProjectStore } from 'db'
 import * as llmInspector from '../api/llm_inspector.js'
 
-export const SOURCE_DOCUMENT_INGESTION_REQUEST_LIMIT = 51 * 1024 * 1024
+export const SOURCE_DOCUMENT_INGESTION_REQUEST_LIMIT = 101 * 1024 * 1024
 
 const API_ROUTE = /^\/api\/([a-z][a-z_]*)$/
 const SOURCE_DOCUMENT_INGESTION_ROUTE =

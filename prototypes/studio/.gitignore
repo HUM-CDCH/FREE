@@ -13,6 +13,7 @@ dist-lib
 dist-ssr
 .vite/
 .certs/
+public/assets/pdfjs-wasm/
 *.local
 
 # design-sync (staged scripts, build output, machine state — durable inputs under .design-sync/ stay tracked)

@@ -12,6 +12,13 @@ The implementation has four main modules:
 - `app.docling_parser` owns one reusable `DocumentConverter` and publishes the
   canonical `parsed_document.v2` document and Markdown.
 
+For image-only landscape spreads with four columns and three clear vertical
+gutters, the adapter parses lossless column crops and maps every observation
+back to its original PDF page and coordinates. Other layouts use Docling
+directly. The uploaded PDF bytes remain unchanged, and the page/file limits
+apply to that original PDF. Column order and original list numbers are preserved
+in both canonical text and evidence spans.
+
 There is one in-process worker and at most two admitted tasks. Task metadata and
 completed artifacts survive restarts; work interrupted by a restart is marked
 failed instead of being recovered through a second durable queue. Cancellation
@@ -55,10 +62,12 @@ either volume is safe.
 
 The container runs a single Uvicorn process for the same reason the host command
 does: the FIFO queue and the reusable `DocumentConverter` are in-process state.
-The root Compose service selects `DOCLING_DEVICE=cpu` so the default local stack
-works without GPU passthrough. GPU deployments must explicitly provide their
-NVIDIA runtime/device configuration and select `DOCLING_DEVICE=cuda`; follow
-the production [DGX Spark GPU procedure](../../docs/operations/deployment.md#nvidia-dgx-spark-gpu).
+The root Compose service defaults to `DOCLING_DEVICE=cpu` so the local stack
+works without GPU passthrough. The production overlay selects
+`DOCLING_DEVICE=cuda` and an all-GPU NVIDIA device reservation for DGX
+Spark. Follow the production
+[DGX Spark GPU procedure](../../docs/operations/deployment.md#nvidia-dgx-spark-gpu)
+to verify host GPU access and ARM64/PyTorch kernel compatibility.
 
 The first build is long and the image is large because `uv.lock` resolves the
 CUDA build of torch: `uv sync --frozen` downloads the whole `nvidia-*` wheel set.

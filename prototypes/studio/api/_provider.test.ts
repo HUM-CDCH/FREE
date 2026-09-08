@@ -40,6 +40,25 @@ function routed(overrides: Partial<ModelConfig> = {}): ModelConfig {
 }
 
 describe('provider table', () => {
+  it('passes each Ollama request cancellation through to its HTTP transport', async () => {
+    const controller = new AbortController()
+    let requestSignal: AbortSignal | null | undefined
+    vi.stubGlobal('fetch', vi.fn(async (_input, init: RequestInit | undefined) => {
+      requestSignal = init?.signal
+      controller.abort()
+      if (requestSignal?.aborted) throw requestSignal.reason
+      return Response.json({ model: 'manual/model', created_at: new Date().toISOString(),
+        message: { role: 'assistant', content: 'unexpected completion' }, done: true,
+        done_reason: 'stop', prompt_eval_count: 1, eval_count: 1 })
+    }))
+    const model = providerTable.ollama.createModel(
+      { ...connection, provider: 'ollama', baseUrl: 'http://ollama.example' }, 'manual/model', null,
+    )
+    await expect(generateText({ model, prompt: 'test cancellation', abortSignal: controller.signal, maxRetries: 0 }))
+      .rejects.toThrow()
+    expect(requestSignal?.aborted).toBe(true)
+  })
+
   it('creates Codex with every local tool surface disabled', () => {
     const provider = vi.fn() as never
     const create = vi.fn(() => provider)

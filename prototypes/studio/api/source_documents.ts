@@ -23,9 +23,9 @@ import { sourceDocumentFilenameFailure } from '../shared/sourceDocumentFilename.
 
 const CONTRACT_VERSION = 'parsed_document.v2'
 const DEFAULT_PARSING_SERVICE = 'http://127.0.0.1:8055'
-const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000
+const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000
 const DEFAULT_POLL_INTERVAL_MS = 1000
-const MAX_PDF_BYTES = 50 * 1024 * 1024
+const MAX_PDF_BYTES = 100 * 1024 * 1024
 
 type CanonicalPackage = {
   artifactReference: string
@@ -213,7 +213,7 @@ async function parsingRequest<T>(
       throw new ApiError(
         504,
         'source_ingestion_timeout',
-        'Source Document parsing did not finish within ten minutes.',
+        'Source Document parsing did not finish within thirty minutes.',
         { cause: error },
       )
     if (error instanceof ApiError) throw error
@@ -274,7 +274,7 @@ async function completedTask(
       throw new ApiError(
         504,
         'source_ingestion_timeout',
-        'Source Document parsing did not finish within ten minutes.',
+        'Source Document parsing did not finish within thirty minutes.',
       )
     await sleep(Math.min(pollIntervalMs, remaining))
   }
@@ -367,7 +367,7 @@ export function createSourceDocumentIngestion(
         throw new ApiError(
           413,
           'invalid_request',
-          'The uploaded PDF exceeds 50 MiB.',
+          'The uploaded PDF exceeds 100 MiB.',
         )
 
       const originalName = sanitizedFilename(file.name)

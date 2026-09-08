@@ -1,5 +1,6 @@
 import { authenticatedFetch } from './auth/authenticatedFetch.ts'
 import { acknowledgeReviewDraft, forgetReviewDraft, rememberReviewDraft, REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
+import { resultPathKey } from './reviewDecisions'
 import { isRecord } from '../shared/template'
 import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/schemaEdit.contract'
 import {
@@ -8,6 +9,7 @@ import {
   extractionReadResponseSchema,
   finalizeExtractionReviewSchema,
   extractionReviewDraftSchema,
+  reviewDecisionInputSchema,
   type ExtractionRequestInput,
   type ExtractionAttempt,
   type ReviewDecisionInput,
@@ -179,6 +181,18 @@ export async function resetExtractionReview(extractionId: string, expectedDraftV
 // Only in-flight writes live here. PostgreSQL owns all persisted review state.
 const draftWrites = new Map<string, Promise<SavedReviewDraft>>()
 export function saveExtractionReviewDraft(extractionId: string, decisions: readonly ReviewDecisionInput[], version: number): Promise<SavedReviewDraft> {
+  const invalid = decisions
+    .map((decision) => reviewDecisionInputSchema.safeParse(decision))
+    .flatMap((result, index) => (result.success ? [] : [{ decision: decisions[index], error: result.error }]))
+  if (invalid.length > 0) {
+    const detail = invalid
+      .map(
+        ({ decision, error }) =>
+          `${resultPathKey(decision.resultPath)}: ${error.issues.map((issue) => issue.message).join('; ')}`,
+      )
+      .join(' | ')
+    return Promise.reject(new Error(`invalid_draft: ${detail}`))
+  }
   const previous = draftWrites.get(extractionId) ?? Promise.resolve({ version, decisions: [] })
   rememberReviewDraft(extractionId, { version, decisions })
   const write = previous.then(async (saved) => {

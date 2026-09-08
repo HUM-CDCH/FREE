@@ -1,7 +1,13 @@
+// @vitest-environment jsdom
+
+import '@testing-library/jest-dom/vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import EvidenceTab from './EvidenceTab'
 import { decodeParsedDocument } from 'extraction/parsed-document'
+
+afterEach(cleanup)
 
 const document = decodeParsedDocument({
   schema_version: 'parsed_document.v2',
@@ -11,6 +17,24 @@ const document = decodeParsedDocument({
 })
 
 describe('EvidenceTab', () => {
+  it('renders one physical page at a time and selects evidence on another page', () => {
+    const laterAnchor = { ...document.evidence_index.anchors[0], anchor_id: 'text-2', block_id: 'b2', markdown_span: { start: 38, end: 48 }, producer_observations: [{ ...document.evidence_index.anchors[0].producer_observations[0], occurrence_id: 'occurrence-2', page_number: 2 }] }
+    const twoPages = decodeParsedDocument({ ...document,
+      document: { ...document.document, page_count: 2 }, page_count: 2,
+      pages: [...document.pages, { ...document.pages[0], page_number: 2, ordered_content: ['b2'] }],
+      content_stream: [...document.content_stream, { ...document.content_stream[0], block_id: 'b2', page_number: 2, markdown_span: { start: 38, end: 48 }, text: 'Later page' }],
+      evidence_index: { anchors: [...document.evidence_index.anchors, laterAnchor] },
+    })
+    const select = vi.fn()
+    render(<EvidenceTab document={twoPages} onSelectAnchor={select} />)
+    expect(screen.getAllByRole('button', { name: /^Evidence anchor / })).toHaveLength(1)
+    expect(screen.queryByText('Later page')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Evidence page' }), { target: { value: '2' } })
+    expect(screen.queryByText('Source paragraph')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Evidence anchor text-2 on page 2' }))
+    expect(select).toHaveBeenCalledWith(twoPages.evidence_index.anchors[1])
+  })
+
   it('groups source anchors and displays diagnostics separately from extraction Evidence', () => {
     const html = renderToStaticMarkup(<EvidenceTab document={document} onSelectAnchor={() => undefined} />)
     expect(html).toContain('Physical page 1')

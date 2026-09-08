@@ -3,6 +3,7 @@ export type { GroundingModel } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import { lexicalCheck, lexicalText } from './lexical.js'
 import type { ParsedDocument } from './parsed-document.js'
+import type { CatalogBoundary } from './catalog-boundaries.js'
 import { sourceContext } from './source-context.js'
 import type {
   EvidenceLink,
@@ -47,6 +48,7 @@ export async function groundExtraction(
   options?: {
     excludedRootFields?: ReadonlySet<string>
     allowedAnchorIds?: ReadonlySet<string>
+    recordBoundaries?: readonly CatalogBoundary[]
     now?: () => number
   },
 ): Promise<GroundingOutcome> {
@@ -68,6 +70,15 @@ export async function groundExtraction(
   // cut every anchor at its first ` | ` (the table-cell join) or newline, so
   // the model saw less than the lexical check below verifies against.
   const anchors = Object.fromEntries([...context.anchorIdByLabel].map(([label, anchorId]) => [label, context.textByAnchorId.get(anchorId) ?? '']))
+  const recordAnchors = options?.recordBoundaries?.map(boundary => {
+    const blocks = document.content_stream.slice(boundary.startContentIndex, boundary.endContentIndex)
+    const blockIds = new Set(blocks.map(block => block.block_id))
+    const tableIds = new Set(blocks.flatMap(block => block.kind === 'table' ? [block.table_id] : []))
+    const anchorIds = new Set(document.evidence_index.anchors.filter(anchor =>
+      anchor.kind === 'text' ? blockIds.has(anchor.block_id) : tableIds.has(anchor.logical_table_id),
+    ).map(anchor => anchor.anchor_id))
+    return Object.fromEntries(Object.entries(anchors).filter(([label]) => anchorIds.has(context.anchorIdByLabel.get(label)!)))
+  })
   const lexicalTextByAnchorId = new Map([...context.textByAnchorId].map(([anchorId, text]) => [anchorId, lexicalText(text)]))
   const claimByLabel = new Map(claims.map((claim) => [claim.label, claim]))
   const selectedClaims = new Set<string>()
@@ -78,12 +89,22 @@ export async function groundExtraction(
   const now = options?.now ?? performance.now.bind(performance)
   for (const batch of claimBatches(result, claims)) {
     signal.throwIfAborted()
+    const recordIndex = batch.resultPath?.[1]
+    const batchAnchors = typeof recordIndex === 'number' ? recordAnchors?.[recordIndex] ?? anchors : anchors
+    // Ambiguity counts only the candidates the grounder was shown: a value
+    // repeated in other catalogue entries was never a candidate for this one.
+    const batchLexical = batchAnchors === anchors
+      ? lexicalTextByAnchorId
+      : new Map(Object.keys(batchAnchors).map((label) => {
+          const anchorId = context.anchorIdByLabel.get(label)!
+          return [anchorId, lexicalTextByAnchorId.get(anchorId)!] as const
+        }))
     const startedAt = now()
     let generated: GroundingModelResponse
     try {
       generated = await model.ground({
         claims: Object.fromEntries(batch.claims.map((claim) => [claim.label, claim.value])),
-        anchors,
+        anchors: batchAnchors,
         signal,
       })
     } catch (error) {
@@ -92,7 +113,7 @@ export async function groundExtraction(
       issues.push({ code: 'grounding_failed', resultPath: batch.resultPath })
       batches.push({
         resultPath: batch.resultPath,
-        candidateCount: Object.keys(anchors).length,
+        candidateCount: Object.keys(batchAnchors).length,
         fallback: true,
         outcome: 'failed',
         finishReason: null,
@@ -106,7 +127,7 @@ export async function groundExtraction(
     metadata.push(generated.metadata)
     batches.push({
       resultPath: batch.resultPath,
-      candidateCount: Object.keys(anchors).length,
+      candidateCount: Object.keys(batchAnchors).length,
       fallback: true,
       outcome: 'succeeded',
       finishReason: generated.metadata.finishReason,
@@ -129,9 +150,9 @@ export async function groundExtraction(
       selectedClaims.add(selection.claimLabel)
       if (selection.anchorLabel === null) continue
       const evidenceAnchorId = context.anchorIdByLabel.get(selection.anchorLabel)
-      if (!evidenceAnchorId)
+      if (!evidenceAnchorId || !Object.hasOwn(batchAnchors, selection.anchorLabel))
         issues.push({ code: 'unknown_anchor_label', claimLabel: claim.label, anchorLabel: selection.anchorLabel, resultPath: claim.path })
-      else evidence.push({ resultPath: claim.path, evidenceAnchorId, ...lexicalCheck(claim.value, evidenceAnchorId, lexicalTextByAnchorId) })
+      else evidence.push({ resultPath: claim.path, evidenceAnchorId, ...lexicalCheck(claim.value, evidenceAnchorId, batchLexical) })
     }
   }
   const grounded = new Set(evidence.map((link) => resultPathKey(link.resultPath)))

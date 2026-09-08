@@ -452,7 +452,7 @@ export default function ProjectContextPage({
       <div
         className={
           isGridScreen
-            ? 'flex min-h-0 flex-1 flex-col px-4 pb-6 sm:px-8 sm:pb-8'
+            ? 'flex flex-col px-4 pb-6 sm:px-8 sm:pb-8'
             : 'mx-auto w-full max-w-3xl flex-1 px-4 pb-28 sm:p-8 sm:pb-28'
         }
       >

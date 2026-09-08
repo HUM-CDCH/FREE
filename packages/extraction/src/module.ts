@@ -10,6 +10,7 @@ import type {
 } from './dependencies.js'
 import {
   CatalogBoundaryResolutionError,
+  catalogStartText,
   resolveCatalogBoundaries,
   type CatalogBoundary,
 } from './catalog-boundaries.js'
@@ -39,7 +40,7 @@ import type { ExtractionSchemaDefinition } from './schema.js'
 import {
   canonicalSource,
   canonicalSourceSlice,
-  catalogDiscoveryContext,
+  catalogDiscoveryChunks,
 } from './source-context.js'
 import type {
   CatalogStageDiagnostics,
@@ -363,9 +364,14 @@ export function createExtractionJobExecutor({
       state.metadata = []
     }
     signal.throwIfAborted()
-    const packageFields = new Set(partitionSchemaNodes(definition.schemaNodes).packageNodes.map((node) => node.name))
+    const { packageNodes, documentNodes } = partitionSchemaNodes(definition.schemaNodes)
+    const packageFields = new Set(packageNodes.map((node) => node.name))
     const grounding = await groundExtraction(document, result, session.groundingModel, signal, {
       excludedRootFields: packageFields,
+      // Document-scoped values still need access to the whole source.
+      recordBoundaries: documentNodes.length === 0
+        ? state.catalog?.records.filter(record => record.outcome === 'succeeded').map(record => record.boundary)
+        : undefined,
       now,
     })
     state.ungroundedPaths = grounding.ungroundedPaths
@@ -512,15 +518,15 @@ export function createExtractionJobExecutor({
     }
     if (documentNodes.length > 0 && retryDocument) {
       const documentStartedAt = now()
-      const described = { records: [{ _description: definition.recordDescription, ...nodesToTemplate(documentNodes) }] }
+      const described = { record: { _description: definition.recordDescription, ...nodesToTemplate(documentNodes) } }
       let documentMetadata: ModelGenerationMetadata | null = null
       try {
         const generated = await invoke(model, canonicalSource(document), document.page_count, stripDescriptions(described) as Record<string, unknown>, compileInstructions(described), signal, state)
         documentMetadata = generated.metadata
-        const extracted = extractionRecords(generated.result)
-        if (!extracted || extracted.length !== 1)
+        const extracted = extractionRecord(generated.result)
+        if (!extracted)
           throw new ExtractionError('invalid_model_output', 'Catalog document extraction must return one record.')
-        documentValues = restoreSchemaNodeOrder(extracted[0], documentNodes, {
+        documentValues = restoreSchemaNodeOrder(extracted, documentNodes, {
           ignoreUnknownKeys: true,
         })
         catalog.documentValues = documentValues
@@ -553,47 +559,66 @@ export function createExtractionJobExecutor({
       setCatalogStage(catalog, 'discovery', reuseCall(previousDiscoveryStage))
     if (rediscover) {
       const discoveryStartedAt = now()
-      let discoveryMetadata: ModelGenerationMetadata | null = null
+      let discoveryMetadata: ModelGenerationMetadata = {
+        finishReason: null, inputTokens: null, outputTokens: null, durationMs: null,
+      }
+      let discoveryCalls = 0
       try {
-        const discoveryContext = catalogDiscoveryContext(document)
-        const generated = await invoke(
-          model,
-          discoveryContext.text,
-          document.page_count,
-          { starts: ['string'] },
-          'Identify every catalog record start. Canonical headings are marked as [[heading:H<number>]]. Return exactly {"starts":[string]} with each item equal to the short heading ID copied from a marked heading, in source order.',
-          signal,
-          state,
-        )
-        discoveryMetadata = generated.metadata
-        const discovery = generated.result
-        if (
-          !isRecord(discovery) ||
-          Object.keys(discovery).length !== 1 ||
-          !Array.isArray(discovery.starts) ||
-          !discovery.starts.every((headingId) => typeof headingId === 'string')
-        )
-          throw new ExtractionError('invalid_model_output', 'Catalog discovery must return exactly { starts: string[] }.')
-        const startBlockIds = (discovery.starts as string[]).map(
-          (headingId) => {
-            const startBlockId =
-              discoveryContext.startBlockIdByHeadingId.get(headingId)
+        const startBlockIds: string[] = []
+        let terminalEndBlockId: string | undefined
+        for (const discoveryContext of catalogDiscoveryChunks(document)) {
+          const previousEnd = document.content_stream.find(block => block.block_id === terminalEndBlockId)
+          const previousStart = document.content_stream.find(block => block.block_id === startBlockIds.at(-1))
+          const previousRecord = previousStart ? catalogStartText(previousStart)?.slice(0, 800) : null
+          discoveryCalls += 1
+          const generated = await invoke(
+            model,
+            (previousEnd ? `Previous catalog section ended before this block (context only, not selectable):\n## Page ${previousEnd.page_number}\n${catalogStartText(previousEnd)?.slice(0, 800)}\n\n` : '')
+              + (previousRecord ? `Previous catalog record start (context only, never select again):\n${previousRecord}\n\n` : '') + discoveryContext.text,
+            document.page_count,
+            { starts: ['string'], end: 'string' },
+            `Identify every catalog record start matching this record definition: ${definition.recordDescription}\nThis is one consecutive excerpt of the source. Canonical text blocks are marked as [[block:B<number>]]. Entries can start in headings, paragraphs or numbered lists. Select only NEW parent records with the identifier required by the record definition. A continued sentence, description, sub-item or reference must never become a new parent record. The previous record continues until a new parent record begins. Check every selectable block; include short entries and separate entries describing the same entity or locality. Return {"starts":[string],"end":string|null}. Copy the short IDs of matching starts in source order, only from selectable blocks. Return an empty starts array when none match. Also identify the first block AFTER the last matching record as end (for example the start of a later index or bibliography), or null if that record continues beyond this excerpt. A continued record may end here even when this excerpt has no new start. Previous context is only for understanding continuations; its blocks cannot be selected. Select the opening block even when the record continues into the following excerpt. Following context is not selectable. Respect all page and section restrictions in the record definition: return no starts for an excerpt outside that scope. If a previous catalogue section ended, only select a new section when it also matches the definition.`,
+            signal,
+            state,
+          )
+          discoveryMetadata = {
+            finishReason: discoveryMetadata?.finishReason === 'length' ? 'length' : generated.metadata.finishReason,
+            inputTokens: sumNullable([discoveryMetadata?.inputTokens ?? null, generated.metadata.inputTokens]),
+            outputTokens: sumNullable([discoveryMetadata?.outputTokens ?? null, generated.metadata.outputTokens]),
+            durationMs: sumNullable([discoveryMetadata?.durationMs ?? null, generated.metadata.durationMs]),
+          }
+          const discovery = generated.result
+          if (
+            !isRecord(discovery) ||
+            Object.keys(discovery).some(key => key !== 'starts' && key !== 'end') ||
+            !Array.isArray(discovery.starts) ||
+            !discovery.starts.every((label) => typeof label === 'string') ||
+            (discovery.end != null && typeof discovery.end !== 'string')
+          )
+            throw new ExtractionError('invalid_model_output', 'Catalog discovery must return starts: string[] and an optional end block ID.')
+          const chunkStarts = (discovery.starts as string[]).map((label) => {
+            const startBlockId = discoveryContext.startBlockIdByLabel.get(label)
             if (!startBlockId)
-              throw new CatalogBoundaryResolutionError(
-                'unknown_start',
-                `Catalog discovery heading ID ${JSON.stringify(headingId)} is unknown.`,
-              )
+              throw new CatalogBoundaryResolutionError('unknown_start', `Catalog discovery block ID ${JSON.stringify(label)} is unknown.`)
             return startBlockId
-          },
-        )
-        boundaries = resolveCatalogBoundaries(document, startBlockIds)
+          })
+          if (chunkStarts.length > 0) terminalEndBlockId = undefined
+          startBlockIds.push(...chunkStarts)
+          if (discovery.end != null && startBlockIds.length > 0 && terminalEndBlockId === undefined) {
+            terminalEndBlockId = discoveryContext.startBlockIdByLabel.get(discovery.end as string)
+            if (!terminalEndBlockId)
+              throw new CatalogBoundaryResolutionError('invalid_end', 'Catalog discovery end block ID is unknown.')
+            resolveCatalogBoundaries(document, startBlockIds, terminalEndBlockId)
+          }
+        }
+        boundaries = resolveCatalogBoundaries(document, startBlockIds, terminalEndBlockId)
         if (boundaries.length === 0)
           throw new ExtractionError(
             'catalog_no_records',
             'Catalog discovery returned no records.',
           )
-        setCatalogStage(catalog, 'discovery', callDiagnostic('succeeded', discoveryStartedAt, generated.metadata))
-        if (generated.metadata.finishReason === 'length') complete = false
+        setCatalogStage(catalog, 'discovery', callDiagnostic('succeeded', discoveryStartedAt, discoveryMetadata, null, discoveryCalls))
+        if (discoveryMetadata?.finishReason === 'length') complete = false
       } catch (error) {
         const failureCode =
           error instanceof CatalogBoundaryResolutionError
@@ -609,6 +634,7 @@ export function createExtractionJobExecutor({
             discoveryStartedAt,
             discoveryMetadata,
             diagnosticCode,
+            discoveryCalls,
           ),
         )
         if (diagnosticCode === 'cancelled' || failureCode === 'catalog_no_records')
@@ -667,7 +693,7 @@ export function createExtractionJobExecutor({
       const callStartedAt = now()
       let recordMetadata: ModelGenerationMetadata | null = null
       try {
-        const described = { records: [{ _description: definition.recordDescription, ...nodesToTemplate(recordNodes) }] }
+        const described = { record: { _description: definition.recordDescription, ...nodesToTemplate(recordNodes) } }
         const generated = await invoke(
           model,
           canonicalSourceSlice(document, boundary.startContentIndex, boundary.endContentIndex),
@@ -678,11 +704,11 @@ export function createExtractionJobExecutor({
           state,
         )
         recordMetadata = generated.metadata
-        const extracted = extractionRecords(generated.result)
-        if (!extracted || extracted.length !== 1)
+        const extracted = extractionRecord(generated.result)
+        if (!extracted)
           throw new ExtractionError('invalid_model_output', 'Catalog record extraction must return one record.')
         successfulRecords.push(
-          restoreSchemaNodeOrder(extracted[0], recordNodes, {
+          restoreSchemaNodeOrder(extracted, recordNodes, {
             ignoreUnknownKeys: true,
           }),
         )
@@ -809,6 +835,10 @@ function parsePinnedSchema(raw: unknown) {
 
 function extractionRecords(result: Readonly<Record<string, unknown>>): Record<string, unknown>[] | null {
   return Object.keys(result).every((key) => key === 'records') && Array.isArray(result.records) && result.records.every(isRecord) ? result.records : null
+}
+
+function extractionRecord(result: Readonly<Record<string, unknown>>): Record<string, unknown> | null {
+  return Object.keys(result).length === 1 && isRecord(result.record) ? result.record : null
 }
 
 function occurrenceOwnership(document: ParsedDocument): ReadonlyMap<string, ReadonlySet<string>> {

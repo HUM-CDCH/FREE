@@ -456,7 +456,7 @@ test.describe('rail navigation', () => {
           json: {
             error: {
               code: 'source_ingestion_timeout',
-              message: 'Source Document parsing did not finish within ten minutes.',
+              message: 'Source Document parsing did not finish within thirty minutes.',
             },
           },
         })
@@ -487,7 +487,7 @@ test.describe('rail navigation', () => {
 
     await expect(
       projectPage(page).getByText(
-        'Source Document parsing did not finish within ten minutes.',
+        'Source Document parsing did not finish within thirty minutes.',
         { exact: true },
       ),
     ).toBeVisible()

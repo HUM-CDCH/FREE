@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { enumerateFieldPaths, type SchemaNode } from 'extraction/schema'
+import type { SchemaNode } from 'extraction/schema'
 import { finalizeExtractionReview, readExtraction, resetExtractionReview, saveExtractionReviewDraft } from './api'
-import { applyReviewDecisions, resultPathKey } from './reviewDecisions'
+import { leafFields } from './fieldCoverage'
+import { applyReviewDecisions, resultPathKey, toReviewDecisionInput } from './reviewDecisions'
 import { isRecord } from '../shared/template'
 import { forgetReviewDraft, recoverReviewDraft, rememberReviewDraft, REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import type { BatchExtraction } from '../shared/batchExtraction.contract'
@@ -31,22 +32,12 @@ export type MemberReviewState =
       saveError: string | null
     }
 
-function isInternalFieldName(name: string): boolean {
-  const normalized = name.toLowerCase()
-  return name.startsWith('_') || normalized === 'evidence' || normalized === 'internal'
-}
-
 function buildColumns(schemaNodes: readonly SchemaNode[] | null): GridColumn[] {
-  if (!schemaNodes) return []
-  return enumerateFieldPaths(schemaNodes)
-    .filter(
-      (field) => !field.node.children && !field.path.some(isInternalFieldName),
-    )
-    .map((field) => ({
-      key: field.key,
-      path: field.path,
-      node: field.node,
-    }))
+  return leafFields(schemaNodes).map((field) => ({
+    key: field.key,
+    path: field.path,
+    node: field.node,
+  }))
 }
 
 /** Expand one schema column into actual indexed scalar paths, without joining sibling arrays. */
@@ -201,7 +192,7 @@ export function useBatchExtractionReviewGrid(
         if (recovered.conflict) draftConflicts.current.add(extraction.extractionId)
         else draftConflicts.current.delete(extraction.extractionId)
         const decisions = extraction.reviewedAt
-          ? extraction.reviewDecisions
+          ? extraction.reviewDecisions.map(toReviewDecisionInput)
           : recovered.decisions
         const state: Extract<MemberReviewState, { status: 'ready' }> = {
           status: 'ready',
@@ -489,7 +480,7 @@ export function useBatchExtractionReviewGrid(
         new Map(current).set(sourceDocumentId, {
           status: 'ready',
           attempt: updated,
-          decisions: updated.reviewDecisions,
+          decisions: updated.reviewDecisions.map(toReviewDecisionInput),
           // Now finalized — every field was explicitly decided, not
           // defaulted, so every field reads as "touched" from here on.
           touched: new Set(

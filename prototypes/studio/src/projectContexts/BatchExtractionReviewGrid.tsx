@@ -5,7 +5,7 @@ import { batchExtractionProgress } from '../../shared/batchExtraction.contract'
 import type { ReviewDecisionInput } from '../../shared/extraction.contract'
 import { parseReviewedValue, resultPathKey } from '../reviewDecisions'
 import { REVIEW_DRAFT_CONFLICT } from '../reviewDrafts'
-import { Button, CheckIcon, EmptyState, Pill, PencilIcon, SegmentedControl, Spinner, StatusDot, UndoIcon, XIcon } from '../ui'
+import { Button, CheckIcon, EmptyState, Pill, PencilIcon, ProgressBar, SegmentedControl, Spinner, StatusDot, UndoIcon, XIcon } from '../ui'
 import { memberStatus } from './batchExtractionStatus'
 import { StatusPill } from './BatchExtractionScreens'
 import {
@@ -149,17 +149,40 @@ function buildRows(
   return rows
 }
 
+/** Live share of every loaded member's Review Decisions the researcher has
+ *  touched so far — approvals/rejects/edits made locally count immediately,
+ *  and a saved member (fully touched by definition) keeps counting as done.
+ *  This is what actually moves as the researcher works the grid, unlike the
+ *  batch's own persisted "reviewed" document count, which only advances on
+ *  Save. Null while nothing has loaded yet. */
+function aggregateReviewFraction(gridMembers: ReadonlyMap<string, MemberReviewState>): number | null {
+  let totalDecisions = 0
+  let totalTouched = 0
+  for (const state of gridMembers.values()) {
+    if (state.status !== 'ready') continue
+    totalDecisions += state.decisions.length
+    totalTouched += state.touched.size
+  }
+  if (totalDecisions === 0) return null
+  return totalTouched / totalDecisions
+}
+
 function formatScalarValue(value: unknown): { text: string; missing: boolean } {
   if (value === null || value === undefined || value === '')
     return { text: 'Missing', missing: true }
+  if (Array.isArray(value))
+    return value.length > 0
+      ? { text: value.map(String).join(', '), missing: false }
+      : { text: 'Missing', missing: true }
   if (typeof value === 'boolean') return { text: value ? 'Yes' : 'No', missing: false }
   return { text: String(value), missing: false }
 }
 
-const qualityToneClass: Record<'success' | 'accent' | 'danger', string> = {
+const qualityToneClass: Record<'success' | 'accent' | 'danger' | 'neutral', string> = {
   success: 'text-green',
   accent: 'text-accent',
   danger: 'text-danger',
+  neutral: 'text-ink-muted',
 }
 
 /** A compact, always-visible bulk-approve affordance for one row or column
@@ -214,14 +237,23 @@ function RevertRowBadge({
   )
 }
 
-/** Share of one member's Review Decisions still at their grounded APPROVED
- *  default — i.e. the researcher didn't need to touch them. A per-document
- *  extraction-quality signal, not a correctness guarantee: an untouched
- *  value can still be wrong if the researcher hasn't looked at it yet. */
-function unchangedShare(decisions: readonly ReviewDecisionInput[]): number | null {
-  if (decisions.length === 0) return null
-  const approved = decisions.filter((decision) => decision.action === 'APPROVED').length
-  return approved / decisions.length
+/** Share of this document's *reviewable* fields (every field with a Review
+ *  Decision — i.e. grounded to Evidence — not just the ones touched so far)
+ *  that the researcher has confirmed unchanged. Ungrounded/missing fields
+ *  have no Review Decision and no Approve/Reject affordance in the grid, so
+ *  they're excluded from the total: this reaches 100% exactly when every
+ *  field the researcher *can* act on has been confirmed. Returns null while
+ *  nothing has been touched. */
+function confirmedNoChangeShare(
+  decisions: readonly ReviewDecisionInput[],
+  touched: ReadonlySet<string>,
+): number | null {
+  if (touched.size === 0 || decisions.length === 0) return null
+  const confirmed = decisions.filter(
+    (decision) =>
+      touched.has(resultPathKey(decision.resultPath)) && decision.action === 'APPROVED',
+  ).length
+  return confirmed / decisions.length
 }
 
 function qualityTone(share: number): 'success' | 'accent' | 'danger' {
@@ -230,17 +262,40 @@ function qualityTone(share: number): 'success' | 'accent' | 'danger' {
   return 'danger'
 }
 
-/** Finalized review outcomes only; pending defaults are not researcher approvals. */
-function QualityScoreBadge({ decisions }: { decisions: readonly ReviewDecisionInput[] }) {
-  const share = unchangedShare(decisions)
-  if (share === null) return null
+/** A compact quality signal for one document's Extraction: "Not yet
+ *  reviewed" while untouched, then "N% approved unchanged" (scoped to
+ *  "so far" until every reviewable field has been acted on) once the
+ *  researcher starts making Review Decisions. Scoped to fields with a
+ *  Review Decision — ungrounded/missing fields have no Approve/Reject
+ *  affordance in the grid, so they're excluded from both the percentage and
+ *  the completion check. Not a correctness guarantee: a confirmed value can
+ *  still be wrong if the researcher approved it without close reading. */
+function QualityScoreBadge({
+  decisions,
+  touched,
+}: {
+  decisions: readonly ReviewDecisionInput[]
+  touched: ReadonlySet<string>
+}) {
+  const share = confirmedNoChangeShare(decisions, touched)
+  if (share === null)
+    return (
+      <span className={`text-[10.5px] font-semibold ${qualityToneClass.neutral}`}>
+        Not yet reviewed
+      </span>
+    )
   const percent = Math.round(share * 100)
+  const complete = touched.size >= decisions.length
   return (
     <span
       className={`text-[10.5px] font-semibold ${qualityToneClass[qualityTone(share)]}`}
-      title={`${percent}% of reviewed fields were approved unchanged`}
+      title={
+        complete
+          ? `${percent}% of reviewed fields were approved unchanged`
+          : `${percent}% of the fields reviewed so far were approved unchanged`
+      }
     >
-      {percent}% approved unchanged
+      {percent}% approved unchanged{complete ? '' : ' so far'}
     </span>
   )
 }
@@ -298,7 +353,7 @@ function GridCell({
       <div className="max-w-[16rem] px-3 py-2">
         <div className="flex items-center gap-1.5">
           <StatusDot decision={decision} touched={touched} label={label} tone={tone} />
-          <span className={`min-w-0 flex-1 truncate ${missing ? 'text-ink-faint italic' : 'text-ink'}`}>
+          <span className={`min-w-0 flex-1 truncate text-ink-faint ${missing ? 'italic' : ''}`}>
             {text}
           </span>
         </div>
@@ -340,7 +395,9 @@ function GridCell({
         onClick={active ? onClose : onActivate}
       >
         <StatusDot decision={decision} touched={touched} label={label} tone={tone} />
-        <span className="min-w-0 flex-1 truncate">{text}</span>
+        <span className={`min-w-0 flex-1 truncate text-ink ${missing ? 'italic text-ink-faint' : ''}`}>
+          {text}
+        </span>
       </button>
       {active && (
         <div className="mt-1.5 flex gap-1">
@@ -361,6 +418,37 @@ function GridCell({
         </div>
       )}
     </div>
+  )
+}
+
+/** A small decorative page-and-pencil mark for the validation progress row —
+ *  purely cosmetic, no semantic weight beyond the adjacent progress bar. */
+function PencilAndPaperIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      className={className}
+    >
+      {/* Opaque page fill so the progress track underneath doesn't show
+          through the middle of the icon as it slides along the bar. */}
+      <path
+        d="M5 3h6l3 3v10.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5V3.5A.5.5 0 0 1 5 3Z"
+        fill="var(--color-surface)"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      <path d="M11 3v3h3" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M6.5 9.5h4M6.5 12h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+      <path
+        d="m13.4 12.1 2 2-.9 2.4-2.4.9-2-2 2.4-.9z"
+        fill="currentColor"
+      />
+    </svg>
   )
 }
 
@@ -398,6 +486,7 @@ export default function BatchExtractionReviewGrid({
       if (state.status === 'ready' && !state.saveError) void grid.saveMember(id)
   })
   const progress = batchExtractionProgress(batch)
+  const reviewFraction = aggregateReviewFraction(grid.members)
   const allRows = buildRows(batch, grid.members)
   const rows =
     filter === 'needs-review'
@@ -473,107 +562,131 @@ export default function BatchExtractionReviewGrid({
     )
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <div className="flex flex-col gap-4">
       {grid.draftError && <div role="alert" className="text-xs text-danger">
         Draft not saved: {grid.draftError}
         <Button onClick={grid.retryDrafts} disabled={grid.draftSaving}>{grid.draftError === REVIEW_DRAFT_CONFLICT ? 'Reload server review' : 'Retry draft'}</Button>
       </div>}
       {!grid.draftError && <p role="status" className="text-xs text-ink-muted">{grid.draftSaving ? 'Saving draft…' : grid.dirtyCount > 0 ? 'Draft saved' : ''}</p>}
-      <div className="flex shrink-0 flex-col gap-3 rounded-card border border-line bg-surface px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div className="flex shrink-0 items-center gap-3">
-          <button
-            type="button"
-            className="shrink-0 rounded-md text-xs font-semibold text-ink-muted outline-none hover:text-ink"
-            onClick={onBack}
-          >
-            <span aria-hidden="true">← </span>Back to results
-          </button>
-          <div
-            className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-ink-faint"
-            aria-label={`${progress.total} Source Document${progress.total === 1 ? '' : 's'}, ${progress.reviewed} reviewed, ${needsReviewCount} need review${progress.unreviewable ? `, ${progress.unreviewable} with no reviewable result` : ''}${progress.failed ? `, ${progress.failed} failed` : ''}`}
-          >
-            <span className="min-w-0 shrink-0 truncate">
-              {progress.total} Source Document{progress.total === 1 ? '' : 's'}
-            </span>
-            <span className="flex shrink-0 flex-wrap items-center gap-1.5" aria-hidden="true">
-              {progress.reviewed > 0 && <Pill tone="success">{progress.reviewed} reviewed</Pill>}
-              {needsReviewCount > 0 && <Pill tone="accent">{needsReviewCount} need review</Pill>}
-              {progress.unreviewable > 0 && (
-                <span className="text-ink-faint">{progress.unreviewable} no reviewable result</span>
-              )}
-              {progress.failed > 0 && <Pill tone="danger">{progress.failed} failed</Pill>}
+      <div className="flex shrink-0 flex-col gap-2.5 rounded-card border border-line bg-surface px-4 py-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              className="shrink-0 rounded-md text-xs font-semibold text-ink-muted outline-none hover:text-ink"
+              onClick={onBack}
+            >
+              <span aria-hidden="true">← </span>Back to results
+            </button>
+            <div
+              className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-ink-faint"
+              aria-label={`${progress.total} Source Document${progress.total === 1 ? '' : 's'}, ${progress.reviewed} reviewed, ${needsReviewCount} need review${progress.unreviewable ? `, ${progress.unreviewable} with no reviewable result` : ''}${progress.failed ? `, ${progress.failed} failed` : ''}`}
+            >
+              <span className="min-w-0 shrink-0 truncate">
+                {progress.total} Source Document{progress.total === 1 ? '' : 's'}
+              </span>
+              <span className="flex shrink-0 flex-wrap items-center gap-1.5" aria-hidden="true">
+                {progress.reviewed > 0 && <Pill tone="success">{progress.reviewed} reviewed</Pill>}
+                {needsReviewCount > 0 && <Pill tone="accent">{needsReviewCount} need review</Pill>}
+                {progress.unreviewable > 0 && (
+                  <span className="text-ink-faint">{progress.unreviewable} no reviewable result</span>
+                )}
+                {progress.failed > 0 && <Pill tone="danger">{progress.failed} failed</Pill>}
+              </span>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <SegmentedControl
+              aria-label="Filter Source Documents"
+              value={filter}
+              onChange={setFilter}
+              options={[
+                { value: 'all', label: `All (${progress.total})` },
+                {
+                  value: 'needs-review',
+                  label: `Needs review (${needsReviewCount})`,
+                  title: 'Show only Source Documents that still need review',
+                },
+              ]}
+            />
+            <div
+              role="group"
+              aria-label="Grid zoom"
+              className="flex shrink-0 items-center rounded-full border border-line bg-surface-muted p-0.5"
+            >
+              <button
+                type="button"
+                aria-label="Zoom out"
+                title="Zoom out (-)"
+                disabled={zoom.percent <= ZOOM_MIN}
+                onClick={zoom.zoomOut}
+                className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+              >
+                −
+              </button>
+              <button
+                type="button"
+                aria-label="Fit columns to screen width"
+                title="Fit columns to screen width"
+                onClick={zoom.reset}
+                disabled={zoom.fit}
+                className="min-w-11 rounded-full px-1.5 text-center text-xs font-medium text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:hover:bg-transparent"
+              >
+                {zoom.fit ? 'Fit' : `${zoom.percent}%`}
+              </button>
+              <button
+                type="button"
+                aria-label="Zoom in"
+                title="Zoom in (+)"
+                disabled={zoom.percent >= ZOOM_MAX}
+                onClick={zoom.zoomIn}
+                className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+              >
+                +
+              </button>
+            </div>
+            <Button size="sm" variant="secondary" disabled={savingAny || editingCell !== null} onClick={grid.approveAll}>
+              Approve remaining
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={!grid.canRevert || savingAny || editingCell !== null}
+              onClick={grid.revertAll}
+            >
+              Revert all
+            </Button>
+            <span role="status" className="text-[11px] text-ink-muted">
+              {savingAny ? 'Saving…' : 'Completed reviews save automatically'}
             </span>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <SegmentedControl
-            aria-label="Filter Source Documents"
-            value={filter}
-            onChange={setFilter}
-            options={[
-              { value: 'all', label: `All (${progress.total})` },
-              {
-                value: 'needs-review',
-                label: `Needs review (${needsReviewCount})`,
-                title: 'Show only Source Documents that still need review',
-              },
-            ]}
-          />
-          <div
-            role="group"
-            aria-label="Grid zoom"
-            className="flex shrink-0 items-center rounded-full border border-line bg-surface-muted p-0.5"
-          >
-            <button
-              type="button"
-              aria-label="Zoom out"
-              title="Zoom out (-)"
-              disabled={zoom.percent <= ZOOM_MIN}
-              onClick={zoom.zoomOut}
-              className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
-            >
-              −
-            </button>
-            <button
-              type="button"
-              aria-label="Fit columns to screen width"
-              title="Fit columns to screen width"
-              onClick={zoom.reset}
-              disabled={zoom.fit}
-              className="min-w-11 rounded-full px-1.5 text-center text-xs font-medium text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:hover:bg-transparent"
-            >
-              {zoom.fit ? 'Fit' : `${zoom.percent}%`}
-            </button>
-            <button
-              type="button"
-              aria-label="Zoom in"
-              title="Zoom in (+)"
-              disabled={zoom.percent >= ZOOM_MAX}
-              onClick={zoom.zoomIn}
-              className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
-            >
-              +
-            </button>
+        {reviewFraction !== null && (
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="relative h-5 min-w-0 flex-1">
+              <ProgressBar
+                fraction={reviewFraction}
+                tone={reviewFraction >= 1 ? 'success' : 'accent'}
+                aria-label="Validation progress"
+                className="absolute top-1/2 -translate-y-1/2"
+              />
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 text-ink-faint transition-[left] duration-300 ease-out"
+                style={{ left: `${Math.min(1, Math.max(0, reviewFraction)) * 100}%` }}
+              >
+                <PencilAndPaperIcon />
+              </span>
+            </div>
+            <span className="shrink-0 text-[10.5px] font-semibold text-ink-faint">
+              {Math.round(reviewFraction * 100)}%
+            </span>
           </div>
-          <Button size="sm" variant="secondary" disabled={savingAny || editingCell !== null} onClick={grid.approveAll}>
-            Approve remaining
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={!grid.canRevert || savingAny || editingCell !== null}
-            onClick={grid.revertAll}
-          >
-            Revert all
-          </Button>
-          <span role="status" className="text-[11px] text-ink-muted">
-            {savingAny ? 'Saving…' : 'Completed reviews save automatically'}
-          </span>
-        </div>
+        )}
       </div>
 
       {grid.columns.length > 0 && (
-        <div className="flex shrink-0 flex-col gap-1 px-1 text-[11px] text-ink-faint">
+        <div className="flex shrink-0 flex-wrap items-center gap-3.5 px-1 text-[11px] text-ink-faint">
           <div className="flex flex-wrap items-center gap-3.5" aria-hidden="true">
             <span className="flex items-center gap-1.5">
               <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
@@ -600,18 +713,26 @@ export default function BatchExtractionReviewGrid({
               Rejected
             </span>
           </div>
-          <p>
-            Hover a column header, or a row marked &ldquo;Needs review,&rdquo; for a bulk Approve
-            action — it only ever touches values still pending, never one you already edited or
-            rejected.
-          </p>
+          <button
+            type="button"
+            aria-label={
+              'Bulk Approve tip: hover a column header, or a row marked “Needs review,” for a bulk Approve action — it only ever touches values still pending, never one you already edited or rejected.'
+            }
+            title="Hover a column header, or a row marked “Needs review,” for a bulk Approve action — it only ever touches values still pending, never one you already edited or rejected."
+            className="flex size-3.5 shrink-0 items-center justify-center rounded-full border border-line-strong text-[9px] font-bold leading-none text-ink-faint outline-none transition-colors hover:border-ink-muted hover:text-ink-muted focus-visible:border-accent"
+          >
+            ?
+          </button>
         </div>
       )}
 
       {grid.columns.length === 0 ? (
         <EmptyState title="This Extraction Schema has no fields to review." />
       ) : (
-        <div ref={gridContainerRef} className="min-h-0 flex-1 overflow-auto rounded-card border border-line">
+        <div
+          ref={gridContainerRef}
+          className="sticky top-0 max-h-[80vh] overflow-auto rounded-card border border-line bg-surface"
+        >
           <table
             className="w-full border-collapse text-[11.5px]"
             style={{ zoom: appliedZoom(zoom.percent) }}
@@ -701,8 +822,8 @@ export default function BatchExtractionReviewGrid({
                         {(status.label !== 'Needs review' || needsReviewLocally(member)) && (
                           <StatusPill tone={status.tone} label={status.label} />
                         )}
-                        {state?.status === 'ready' && state.attempt.reviewedAt && (
-                          <QualityScoreBadge decisions={state.decisions} />
+                        {state?.status === 'ready' && (
+                          <QualityScoreBadge decisions={state.decisions} touched={state.touched} />
                         )}
                         {state?.status === 'ready' && (
                           <span role="status" className="text-[10.5px] text-ink-muted">
@@ -769,6 +890,9 @@ export default function BatchExtractionReviewGrid({
                     {nameCell}
                     {grid.columns.map((column) => {
                       const values = valuesAtColumn(record, column)
+                      const scalarNode: SchemaNode = column.node.type === 'array' && column.node.itemType
+                        ? { id: column.node.id, name: column.node.name, type: column.node.itemType }
+                        : column.node
                       return <td key={column.key} className="max-w-[16rem] align-top">
                         {values.length === 0 && <span className="px-3 py-2 text-ink-faint">Empty</span>}
                         {values.map(({ path, value }) => {
@@ -793,7 +917,7 @@ export default function BatchExtractionReviewGrid({
                               onReject={() => { grid.setDecision(row.sourceDocumentId, resultPath, 'REJECTED'); setActiveCell(null) }}
                               onStartEdit={() => setEditingCell(cellKey)}
                               onCommitEdit={(raw) => {
-                                const parsed = parseReviewedValue(column.node, raw)
+                                const parsed = parseReviewedValue(scalarNode, raw)
                                 if (parsed.error) return parsed.error
                                 grid.setDecision(row.sourceDocumentId, resultPath, 'EDITED', parsed.value)
                                 return null

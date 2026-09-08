@@ -283,7 +283,9 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     fireEvent.keyDown(instruction, { key: 'Enter' })
     fireEvent.click(screen.getByRole('button', { name: /Regenerate schema/ }))
 
-    expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
+    expect(onGenerateInstructions).toHaveBeenCalledWith(
+      'Focus on dates\n\nField notes from the current schema:\n- title: Research rule',
+    )
     expect(regenerate).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByPlaceholderText(/Add a generation instruction/)).not.toBeInTheDocument()
   })
@@ -393,6 +395,40 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(screen.queryByRole('button', { name: '+ Add field' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Close preview' }))
     expect(screen.getByText('title')).toBeInTheDocument()
+  })
+
+  it('shows the description button for a leaf field and accumulates its notes', () => {
+    const setup = renderPanel()
+    const row = screen.getByText('title').parentElement!
+    fireEvent.click(within(row).getByTitle('Add description'))
+
+    expect(screen.getByText('Research rule')).toBeInTheDocument()
+    const input = screen.getByPlaceholderText('Add another note…')
+    expect(input).toHaveValue('')
+
+    fireEvent.change(input, { target: { value: 'Second note' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    expect(setup.schema.snapshot().draft?.schemaNodes[0]).toMatchObject({
+      id: 'title',
+      description: 'Research rule\nSecond note',
+    })
+    // The popover stays open with a cleared input, ready for another note.
+    expect(screen.getByPlaceholderText('Add another note…')).toHaveValue('')
+    expect(screen.getByText('Second note')).toBeInTheDocument()
+  })
+
+  it('clears every accumulated note on a field in one action', () => {
+    const setup = renderPanel()
+    const row = screen.getByText('title').parentElement!
+    fireEvent.click(within(row).getByTitle('Add description'))
+    fireEvent.click(screen.getByTitle('Clear all notes'))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+
+    expect(setup.schema.snapshot().draft?.schemaNodes[0]).toMatchObject({
+      id: 'title',
+      description: undefined,
+    })
   })
 
   it('applies an inline edit at arbitrary nesting depth', () => {

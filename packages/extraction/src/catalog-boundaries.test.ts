@@ -40,6 +40,34 @@ function expectCode(action: () => unknown, code: CatalogBoundaryErrorCode) {
 }
 
 describe('resolveCatalogBoundaries', () => {
+  it('closes a final paragraph record before a discovered non-heading index', () => {
+    const source = document([
+      paragraph('entry', '3. Final supplement entry'),
+      paragraph('body', 'Finds and museum reference'),
+      paragraph('index', 'Findspot index'),
+      paragraph('index-body', 'Repeated entry references'),
+    ])
+    assert.equal(resolveCatalogBoundaries(source, ['entry'], 'index')[0].endContentIndex, 2)
+    expectCode(() => resolveCatalogBoundaries(source, ['entry'], 'missing'), 'invalid_end')
+    expectCode(() => resolveCatalogBoundaries(source, ['entry'], 'entry'), 'invalid_end')
+  })
+  it('accepts numbered paragraphs and lists while keeping subentries in their record', () => {
+    const source = document([
+      paragraph('first', '29. Tangermünde'),
+      paragraph('first-a', 'a) Grave'),
+      paragraph('first-b', 'b) Grave'),
+      { block_id: 'second', page_number: 1, parser: 'test', bbox: null, markdown_span: null,
+        kind: 'list', ordered: true, items: ['30. Estedt'] },
+      paragraph('second-body', 'Finds'),
+    ])
+    assert.deepEqual(resolveCatalogBoundaries(source, ['first', 'second']), [
+      { startBlockId: 'first', startContentIndex: 0, endContentIndex: 3,
+        headingText: '29. Tangermünde', headingLevel: null },
+      { startBlockId: 'second', startContentIndex: 3, endContentIndex: 5,
+        headingText: '30. Estedt', headingLevel: null },
+    ])
+  })
+
   it('resolves heading block IDs in source order and closes non-terminal records at the next start', () => {
     const source = document([
       paragraph('intro', 'Introduction'),
@@ -85,7 +113,7 @@ describe('resolveCatalogBoundaries', () => {
   > = [
     ['unknown', ['missing'], 'unknown_start'],
     ['duplicate', ['first', 'first'], 'duplicate_start'],
-    ['non-heading', ['intro'], 'non_heading_start'],
+    ['non-text', ['page-break'], 'non_text_start'],
     ['non-monotonic', ['second', 'first'], 'non_monotonic_order'],
   ]
   for (const [name, startBlockIds, code] of rejections) {
@@ -94,6 +122,8 @@ describe('resolveCatalogBoundaries', () => {
         paragraph('intro', 'Introduction'),
         heading('first', 'First', 1),
         heading('second', 'Second', 1),
+        { block_id: 'page-break', page_number: 1, parser: 'test', bbox: null,
+          markdown_span: null, kind: 'page_break', next_page: 2 },
       ])
       expectCode(() => resolveCatalogBoundaries(source, startBlockIds), code)
     })
