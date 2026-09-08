@@ -110,6 +110,22 @@ describe('groundExtraction lexical checks', () => {
     assert.equal(outcome.issues[0].code, 'unknown_anchor_label')
   })
 
+  it('counts lexical hits only among the record slice the grounder was shown', async () => {
+    const document = documentWith(['1. First place', 'Iron', '2. Second place', 'Iron'])
+    const outcome = await groundExtraction(document, { records: [{ find: 'Iron' }, { find: 'Iron' }] }, {
+      async ground(request) {
+        return {
+          selections: [{ claimLabel: Object.keys(request.claims)[0], anchorLabel: Object.keys(request.anchors)[1] }],
+          metadata: { finishReason: 'stop', inputTokens: 1, outputTokens: 1, durationMs: 1 },
+        }
+      },
+    }, new AbortController().signal, { recordBoundaries: resolveCatalogBoundaries(document, ['b0', 'b2']) })
+    assert.deepEqual(outcome.evidence, [
+      { resultPath: ['records', 0, 'find'], evidenceAnchorId: 'a-b1', verbatim: true, lexicalHits: 1 },
+      { resultPath: ['records', 1, 'find'], evidenceAnchorId: 'a-b3', verbatim: true, lexicalHits: 1 },
+    ])
+  })
+
   it('flags partial decimal and sign matches as absent from the evidence', async () => {
     const outcome = await groundExtraction(
       documentWith(['12.5', '-50', '0.5']),

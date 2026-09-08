@@ -91,6 +91,14 @@ export async function groundExtraction(
     signal.throwIfAborted()
     const recordIndex = batch.resultPath?.[1]
     const batchAnchors = typeof recordIndex === 'number' ? recordAnchors?.[recordIndex] ?? anchors : anchors
+    // Ambiguity counts only the candidates the grounder was shown: a value
+    // repeated in other catalogue entries was never a candidate for this one.
+    const batchLexical = batchAnchors === anchors
+      ? lexicalTextByAnchorId
+      : new Map(Object.keys(batchAnchors).map((label) => {
+          const anchorId = context.anchorIdByLabel.get(label)!
+          return [anchorId, lexicalTextByAnchorId.get(anchorId)!] as const
+        }))
     const startedAt = now()
     let generated: GroundingModelResponse
     try {
@@ -144,7 +152,7 @@ export async function groundExtraction(
       const evidenceAnchorId = context.anchorIdByLabel.get(selection.anchorLabel)
       if (!evidenceAnchorId || !Object.hasOwn(batchAnchors, selection.anchorLabel))
         issues.push({ code: 'unknown_anchor_label', claimLabel: claim.label, anchorLabel: selection.anchorLabel, resultPath: claim.path })
-      else evidence.push({ resultPath: claim.path, evidenceAnchorId, ...lexicalCheck(claim.value, evidenceAnchorId, lexicalTextByAnchorId) })
+      else evidence.push({ resultPath: claim.path, evidenceAnchorId, ...lexicalCheck(claim.value, evidenceAnchorId, batchLexical) })
     }
   }
   const grounded = new Set(evidence.map((link) => resultPathKey(link.resultPath)))
