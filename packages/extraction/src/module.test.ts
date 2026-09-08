@@ -7,6 +7,7 @@ import type {
   ExtractionJobInput,
   ExtractionInputReader,
   ExtractionModelSession,
+  ExtractionModelRequest,
   ExtractionValueCheckpoint,
   TerminalExtraction,
 } from './dependencies.js'
@@ -256,6 +257,7 @@ function catalogHarness(options: {
   starts?: readonly string[]
   discoveryResult?: Record<string, unknown>
   discoveryScript?: readonly Record<string, unknown>[]
+  beforeDiscovery?: (signal: AbortSignal) => void
   schemaTree?: unknown
   script?: readonly ScriptedCall[]
 } = {}) {
@@ -266,7 +268,7 @@ function catalogHarness(options: {
     options.starts ?? labels.map((_, index) => `B${index * 2 + 1}`)
   const discoveryScript = [...options.discoveryScript ?? []]
   let script: ScriptedCall[] = [...(options.script ?? [])]
-  const calls: { markdown: string; template: Record<string, unknown> }[] = []
+  const calls: { markdown: string; template: Record<string, unknown>; instruction?: string; outputSchema?: ExtractionModelRequest['outputSchema'] }[] = []
   const session: ExtractionModelSession = {
     attribution,
     model: {
@@ -274,14 +276,18 @@ function catalogHarness(options: {
         calls.push({
           markdown: request.document.markdown,
           template: request.template as Record<string, unknown>,
+          instruction: request.instruction,
+          outputSchema: request.outputSchema,
         })
-        if ('starts' in request.template)
+        if ('starts' in request.template) {
+          options.beforeDiscovery?.(request.signal)
           return {
             result: options.discoveryResult ?? discoveryScript.shift() ?? { starts: options.starts ? [...starts] : starts.filter(
               (label) => request.document.markdown.includes(`[[block:${label}]]`),
             ) },
             metadata,
           }
+        }
         const next = script.shift()
         if (!next) {
           const record = { title: 'X', year: 1900 }
@@ -469,15 +475,14 @@ describe('ExtractionModule Catalog contract', () => {
     assert.equal(extraction.diagnostics.catalog?.records[0].failureCode, 'invalid_model_output')
   })
 
-  it('requires exact unique short heading IDs before record extraction', async () => {
+  it('requires selectable unique block IDs before record extraction', async () => {
     const cases: ReadonlyArray<
       readonly [readonly string[], 'unknown_start' | 'duplicate_start']
     > = [
       [['B999'], 'unknown_start'],
       [['h1'], 'unknown_start'],
-      [[' B1'], 'unknown_start'],
-      [['B1 '], 'unknown_start'],
       [['B1', 'B1'], 'duplicate_start'],
+      [['B1', '[[block:B1]]'], 'duplicate_start'],
     ]
     for (const [starts, failureCode] of cases) {
       const harness = catalogHarness({ starts })
@@ -490,8 +495,80 @@ describe('ExtractionModule Catalog contract', () => {
           'code' in error.cause &&
           error.cause.code === failureCode,
       )
-      assert.equal(harness.calls.length, 1)
+      assert.equal(harness.calls.length, 2)
     }
+  })
+
+  it('corrects the captured title-instead-of-ID failure and counts both attempts', async () => {
+    const harness = catalogHarness({ labels: ['215. Oberheldrungen', '216. Langeneichstädt'], discoveryScript: [
+      { starts: ['215. Oberheldrungen'], end: '[[block:B3]]' },
+      { starts: ['B1'], end: 'B3' },
+    ] })
+    const { extraction } = await harness.module.runSingle(catalogInput())
+    const calls = harness.calls.filter(call => 'starts' in call.template)
+    assert.equal(calls.length, 2)
+    assert.equal(calls[0].markdown, calls[1].markdown)
+    assert.match(calls[1].instruction!, /215\. Oberheldrungen/)
+    assert.match(calls[1].instruction!, /not entry titles/)
+    assert.equal(extraction.diagnostics.catalog?.stages.find(stage => stage.stage === 'discovery')?.calls, 2)
+    assert.equal(extraction.diagnostics.catalog?.stages.find(stage => stage.stage === 'discovery')?.inputTokens, 20)
+    assert.equal(extraction.diagnostics.modelCalls, 3)
+    assert.equal((extraction.result?.records as unknown[]).length, 1)
+    assert.equal(calls[0].outputSchema?.safeParse({ starts: ['B1'], end: null }).success, true)
+    assert.equal(calls[0].outputSchema?.safeParse({ starts: ['215. Oberheldrungen'], end: null }).success, false)
+    assert.equal(calls[0].outputSchema?.safeParse({ starts: ['B1'], end: 'B999' }).success, false)
+  })
+
+  it('normalizes whitespace and block wrappers without a correction call', async () => {
+    const harness = catalogHarness({ discoveryResult: { starts: [' [[block:B1]] '], end: ' [[block:B3]] ' } })
+    const { extraction } = await harness.module.runSingle(catalogInput())
+    assert.equal(harness.calls.filter(call => 'starts' in call.template).length, 1)
+    assert.equal((extraction.result?.records as unknown[]).length, 1)
+  })
+
+  it('retries only the failed later chunk without committing its invalid boundaries', async () => {
+    const labels = ['First', 'Second'].map(label => `${label} ${'content '.repeat(1800)}`)
+    const harness = catalogHarness({ labels, discoveryScript: [
+      { starts: ['B1'], end: null }, { starts: [], end: null },
+      { starts: ['B3'], end: '[[block:B999]]' },
+      { starts: ['B3'], end: null }, { starts: [], end: null },
+    ] })
+    const { extraction } = await harness.module.runSingle(catalogInput())
+    const calls = harness.calls.filter(call => 'starts' in call.template)
+    assert.equal(calls.length, 5)
+    assert.equal(calls[2].markdown, calls[3].markdown)
+    assert.equal(calls[2].outputSchema?.safeParse({ starts: ['B1'], end: null }).success, false)
+    assert.equal((extraction.result?.records as unknown[]).length, 2)
+  })
+
+  it('fails after one correction for a title, foreign ID, or invalid end', async () => {
+    for (const discoveryResult of [
+      { starts: ['215. Oberheldrungen'], end: null },
+      { starts: ['[[block:B999]]'], end: null },
+      { starts: ['B1'], end: '[[block:B999]]' },
+      { starts: ['B1'], end: 'B1' },
+      { starts: ['B1'], end: null, explanation: 'extra key' },
+      { starts: null, end: null },
+    ]) {
+      const harness = catalogHarness({ discoveryResult })
+      await assert.rejects(harness.module.runSingle(catalogInput()), /Catalog discovery chunk 1 failed after one correction/)
+      assert.equal(harness.calls.length, 2)
+    }
+  })
+
+  it('does not retry transport failures or cancellation during discovery', async () => {
+    const unavailable = new ExtractionError('model_unavailable', 'offline')
+    const harness = catalogHarness({ beforeDiscovery: () => { throw unavailable } })
+    await assert.rejects(harness.module.runSingle(catalogInput()), /offline/)
+    assert.equal(harness.calls.length, 1)
+
+    const controller = new AbortController()
+    const cancelled = catalogHarness({
+      beforeDiscovery: () => controller.abort(),
+      discoveryResult: { starts: ['215. Oberheldrungen'], end: null },
+    })
+    await assert.rejects(cancelled.module.executeJob(catalogInput(), null, async () => {}, controller.signal), { name: 'AbortError' })
+    assert.equal(cancelled.calls.length, 1)
   })
 
   it('caps Catalog boundaries at the record limit with ordered skip diagnostics', async () => {

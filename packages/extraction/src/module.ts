@@ -1,9 +1,11 @@
+import { discoverCatalogChunk } from './catalog-discovery.js'
 import type {
   ExtractionJobInput,
   ExtractionJobExecutor,
   ExtractionJobExecutorDependencies,
   ExtractionModel,
   ExtractionModelResponse,
+  ExtractionModelRequest,
   ExtractionPersistence,
   TerminalExtraction,
   ExtractionValueCheckpoint,
@@ -445,10 +447,11 @@ export function createExtractionJobExecutor({
     })
   }
 
-  async function invoke(model: ExtractionModel, document: string, pages: number, template: Record<string, unknown>, instruction: string, signal: AbortSignal, state: ExecutionState): Promise<ExtractionModelResponse> {
+  async function invoke(model: ExtractionModel, document: string, pages: number, template: Record<string, unknown>, instruction: string, signal: AbortSignal, state: ExecutionState, outputSchema?: ExtractionModelRequest['outputSchema']): Promise<ExtractionModelResponse> {
+    signal.throwIfAborted()
     state.phase = 'extracting'
     state.modelCalls += 1
-    const generated = await model.extract({ document: { markdown: document, pages }, template, ...(instruction && { instruction }), signal })
+    const generated = await model.extract({ document: { markdown: document, pages }, template, ...(outputSchema && { outputSchema }), ...(instruction && { instruction }), signal })
     state.metadata.push(generated.metadata)
     return generated
   }
@@ -564,52 +567,40 @@ export function createExtractionJobExecutor({
       }
       let discoveryCalls = 0
       try {
-        const startBlockIds: string[] = []
+        let startBlockIds: readonly string[] = []
         let terminalEndBlockId: string | undefined
-        for (const discoveryContext of catalogDiscoveryChunks(document)) {
+        for (const [chunkIndex, discoveryContext] of catalogDiscoveryChunks(document).entries()) {
+          if (discoveryContext.startBlockIdByLabel.size === 0) continue
           const previousEnd = document.content_stream.find(block => block.block_id === terminalEndBlockId)
           const previousStart = document.content_stream.find(block => block.block_id === startBlockIds.at(-1))
           const previousRecord = previousStart ? catalogStartText(previousStart)?.slice(0, 800) : null
-          discoveryCalls += 1
-          const generated = await invoke(
-            model,
-            (previousEnd ? `Previous catalog section ended before this block (context only, not selectable):\n## Page ${previousEnd.page_number}\n${catalogStartText(previousEnd)?.slice(0, 800)}\n\n` : '')
-              + (previousRecord ? `Previous catalog record start (context only, never select again):\n${previousRecord}\n\n` : '') + discoveryContext.text,
-            document.page_count,
-            { starts: ['string'], end: 'string' },
-            `Identify every catalog record start matching this record definition: ${definition.recordDescription}\nThis is one consecutive excerpt of the source. Canonical text blocks are marked as [[block:B<number>]]. Entries can start in headings, paragraphs or numbered lists. Select only NEW parent records with the identifier required by the record definition. A continued sentence, description, sub-item or reference must never become a new parent record. The previous record continues until a new parent record begins. Check every selectable block; include short entries and separate entries describing the same entity or locality. Return {"starts":[string],"end":string|null}. Copy the short IDs of matching starts in source order, only from selectable blocks. Return an empty starts array when none match. Also identify the first block AFTER the last matching record as end (for example the start of a later index or bibliography), or null if that record continues beyond this excerpt. A continued record may end here even when this excerpt has no new start. Previous context is only for understanding continuations; its blocks cannot be selected. Select the opening block even when the record continues into the following excerpt. Following context is not selectable. Respect all page and section restrictions in the record definition: return no starts for an excerpt outside that scope. If a previous catalogue section ended, only select a new section when it also matches the definition.`,
-            signal,
-            state,
+          const selection = await discoverCatalogChunk(
+            document, discoveryContext, { startBlockIds, terminalEndBlockId }, chunkIndex + 1,
+            async (outputSchema, correction) => {
+              discoveryCalls += 1
+              const generated = await invoke(
+                model,
+                (previousEnd ? `Previous catalog section ended before this block (context only, not selectable):\n## Page ${previousEnd.page_number}\n${catalogStartText(previousEnd)?.slice(0, 800)}\n\n` : '')
+                  + (previousRecord ? `Previous catalog record start (context only, never select again):\n${previousRecord}\n\n` : '') + discoveryContext.text,
+                document.page_count,
+                { starts: ['string'], end: 'string' },
+                `Identify every catalog record start matching this record definition: ${definition.recordDescription}\nThis is one consecutive excerpt of the source. Canonical text blocks are marked as [[block:B<number>]]. Entries can start in headings, paragraphs or numbered lists. Select only NEW parent records with the identifier required by the record definition. A continued sentence, description, sub-item or reference must never become a new parent record. The previous record continues until a new parent record begins. Check every selectable block; include short entries and separate entries describing the same entity or locality. Return {"starts":[string],"end":string|null}. Copy the short IDs of matching starts in source order, only from selectable blocks. Return an empty starts array when none match. Also identify the first block AFTER the last matching record as end (for example the start of a later index or bibliography), or null if that record continues beyond this excerpt. A continued record may end here even when this excerpt has no new start. Previous context is only for understanding continuations; its blocks cannot be selected. Select the opening block even when the record continues into the following excerpt. Following context is not selectable. Respect all page and section restrictions in the record definition: return no starts for an excerpt outside that scope. If a previous catalogue section ended, only select a new section when it also matches the definition.` + '\nReturn bare block IDs (for example "B60"), not entry titles or [[block:B60]] wrappers.\nSelectable block IDs: ' + [...discoveryContext.startBlockIdByLabel.keys()].join(', ') + correction,
+                signal,
+                state,
+                outputSchema,
+              )
+              discoveryMetadata = {
+                finishReason: discoveryMetadata?.finishReason === 'length' ? 'length' : generated.metadata.finishReason,
+                inputTokens: sumNullable([discoveryMetadata?.inputTokens ?? null, generated.metadata.inputTokens]),
+                outputTokens: sumNullable([discoveryMetadata?.outputTokens ?? null, generated.metadata.outputTokens]),
+                durationMs: sumNullable([discoveryMetadata?.durationMs ?? null, generated.metadata.durationMs]),
+              }
+              signal.throwIfAborted()
+              return generated.result
+            },
           )
-          discoveryMetadata = {
-            finishReason: discoveryMetadata?.finishReason === 'length' ? 'length' : generated.metadata.finishReason,
-            inputTokens: sumNullable([discoveryMetadata?.inputTokens ?? null, generated.metadata.inputTokens]),
-            outputTokens: sumNullable([discoveryMetadata?.outputTokens ?? null, generated.metadata.outputTokens]),
-            durationMs: sumNullable([discoveryMetadata?.durationMs ?? null, generated.metadata.durationMs]),
-          }
-          const discovery = generated.result
-          if (
-            !isRecord(discovery) ||
-            Object.keys(discovery).some(key => key !== 'starts' && key !== 'end') ||
-            !Array.isArray(discovery.starts) ||
-            !discovery.starts.every((label) => typeof label === 'string') ||
-            (discovery.end != null && typeof discovery.end !== 'string')
-          )
-            throw new ExtractionError('invalid_model_output', 'Catalog discovery must return starts: string[] and an optional end block ID.')
-          const chunkStarts = (discovery.starts as string[]).map((label) => {
-            const startBlockId = discoveryContext.startBlockIdByLabel.get(label)
-            if (!startBlockId)
-              throw new CatalogBoundaryResolutionError('unknown_start', `Catalog discovery block ID ${JSON.stringify(label)} is unknown.`)
-            return startBlockId
-          })
-          if (chunkStarts.length > 0) terminalEndBlockId = undefined
-          startBlockIds.push(...chunkStarts)
-          if (discovery.end != null && startBlockIds.length > 0 && terminalEndBlockId === undefined) {
-            terminalEndBlockId = discoveryContext.startBlockIdByLabel.get(discovery.end as string)
-            if (!terminalEndBlockId)
-              throw new CatalogBoundaryResolutionError('invalid_end', 'Catalog discovery end block ID is unknown.')
-            resolveCatalogBoundaries(document, startBlockIds, terminalEndBlockId)
-          }
+          startBlockIds = selection.startBlockIds
+          terminalEndBlockId = selection.terminalEndBlockId
         }
         boundaries = resolveCatalogBoundaries(document, startBlockIds, terminalEndBlockId)
         if (boundaries.length === 0)

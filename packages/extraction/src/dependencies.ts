@@ -1,3 +1,4 @@
+import type { ZodType } from 'zod'
 import type {
   BatchExtractionResults,
   BatchExtractionSnapshot,
@@ -94,6 +95,8 @@ export type ExtractionModelRequest = Readonly<{
     pages: number
   }>
   template: Readonly<Record<string, unknown>>
+  /** A stricter output contract for model work such as canonical ID selection. */
+  outputSchema?: ZodType
   instruction?: string
   signal: AbortSignal
 }>
