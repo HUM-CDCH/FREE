@@ -16,7 +16,7 @@
 .pnpm-store
 .omo
 .worktrees
-.codegraph
+**/.codegraph
 .dev
 .devcontainer
 .scratch
