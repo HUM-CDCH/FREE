@@ -146,6 +146,22 @@ class PublicHttpContractTests(unittest.TestCase):
         self.assertEqual(missing.status_code, 404, missing.text)
         self.assertEqual(set(missing.json()), {"detail"})
 
+    def test_scanned_catalogue_upload_and_bounded_multipart_envelope(self) -> None:
+        app = create_app(parser=ImmediateParser(), data_root=self.data_root)
+        pdf = PDF_BYTES + b" " * (65 * 1024 * 1024)
+        with TestClient(app) as client:
+            accepted = client.post(
+                "/tasks", files={"file": ("catalogue.pdf", pdf, "application/pdf")}
+            )
+            self.assertEqual(accepted.status_code, 202, accepted.text)
+            task_id = accepted.json()["task_id"]
+            self.assertEqual(app.state.storage.source_path(task_id).stat().st_size, len(pdf))
+            wait_for_status(client, task_id, "completed")
+            rejected = client.post(
+                "/tasks", content=b"", headers={"Content-Length": str(101 * 1024 * 1024 + 1)}
+            )
+            self.assertEqual(rejected.status_code, 413, rejected.text)
+
 
 if __name__ == "__main__":
     unittest.main()

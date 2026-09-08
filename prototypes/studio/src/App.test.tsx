@@ -315,6 +315,7 @@ describe('reopened Source Document workspace', () => {
     expect(destroyLoadingTask).toHaveBeenCalledOnce()
     expect(getDocument).toHaveBeenNthCalledWith(2, {
       url: `/sources/${nextSourceRepresentationId}/pdf`,
+      wasmUrl: '/assets/pdfjs-wasm/',
     })
     expect(
       screen.getByRole('status', { name: 'Loading Source Document' }),
@@ -352,6 +353,7 @@ describe('reopened Source Document workspace', () => {
       await waitFor(() =>
         expect(getDocument).toHaveBeenCalledWith({
           url: `/free${reopened.pdfUrl}`,
+          wasmUrl: '/free/assets/pdfjs-wasm/',
         }),
       )
       expect(
@@ -1182,15 +1184,9 @@ describe('reopened Source Document workspace', () => {
             sourceDocumentId: '51000000-0000-4000-8001-000000000001',
             sourceRepresentationRevisionId: reopened.sourceRepresentationId,
             schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-            strategy: 'CATALOG', outcome: 'FAILED', complete: null,
+            strategy: 'CATALOG', executionStatus: 'FAILED', outcome: null, complete: null,
             modelAttribution: null,
-            diagnostics: {
-              phase: 'extracting', durationMs: 1, modelCalls: 1,
-              finishReason: null, inputTokens: null, outputTokens: null,
-              grounding: null,
-              catalog: { stages: [], records: [] },
-              retry: null,
-            },
+            diagnostics: null,
             failure: { code: 'catalog_discovery_failed', message: 'Discovery failed.' },
             resultPayload: null, evidenceLinks: null, reviewable: false,
             retryOfId: null, batchExtractionId: null,
@@ -1313,7 +1309,7 @@ describe('reopened Source Document workspace', () => {
       sourceDocumentId: nextSourceDocumentId,
       sourceRepresentationRevisionId: nextSourceRepresentationId,
       schemaRevisionId: reopened.persistedExtraction!.schemaRevisionId,
-      strategy: 'ARTICLE' as const,
+      strategy: 'CATALOG' as const,
       executionStatus: 'RUNNING' as const,
       outcome: null,
       complete: null,
@@ -1388,6 +1384,7 @@ describe('reopened Source Document workspace', () => {
     expect(
       screen.getByRole('button', { name: 'Cancel extraction' }),
     ).toBeInTheDocument()
+    expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
 
     mounted.rerender(
       <StrictMode>

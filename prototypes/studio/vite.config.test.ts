@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -8,9 +8,83 @@ import studioConfig, {
   apiFunctions,
   developmentStudioOrigin,
   localHttps,
+  pdfjsWasmAssets,
 } from './vite.config.js'
 
 const temporaryDirectories: string[] = []
+
+vi.mock('node:fs', async (importOriginal) => {
+  const fs = await importOriginal<typeof import('node:fs')>()
+  return { ...fs, cpSync: vi.fn(fs.cpSync), renameSync: vi.fn(fs.renameSync) }
+})
+
+it.each(['serve', 'build'] as const)('resolves %s config without copying assets', async (command) => {
+  vi.stubEnv('VITEST', undefined)
+  vi.mocked(cpSync).mockClear()
+  await studioConfig({ command, mode: 'development' })
+  expect(cpSync).not.toHaveBeenCalled()
+})
+
+describe('PDF.js assets', () => {
+  function fixture() {
+    const root = temporaryDirectory()
+    const source = join(root, 'node_modules/pdfjs-dist/wasm')
+    const destination = join(root, 'public/assets/pdfjs-wasm')
+    mkdirSync(source, { recursive: true })
+    writeFileSync(join(source, 'decoder.wasm'), 'decoder')
+    return { root, source, destination }
+  }
+
+  it('copies at server startup and leaves existing assets untouched', () => {
+    const { root, destination } = fixture()
+    const prepare = configureServerHook(pdfjsWasmAssets('serve', root))
+    expect(existsSync(destination)).toBe(false)
+    prepare({} as never)
+    expect(readFileSync(join(destination, 'decoder.wasm'), 'utf8')).toBe('decoder')
+    vi.mocked(cpSync).mockClear()
+    prepare({} as never)
+    expect(cpSync).not.toHaveBeenCalled()
+  })
+
+  it('copies at build start', async () => {
+    const { root, destination } = fixture()
+    const hook = pdfjsWasmAssets('build', root).buildStart
+    if (typeof hook !== 'function') throw new Error('Expected buildStart hook')
+    await hook.call({} as never, {} as never)
+    expect(readFileSync(join(destination, 'decoder.wasm'), 'utf8')).toBe('decoder')
+  })
+
+  it('does not write when the install is missing', () => {
+    const root = temporaryDirectory()
+    configureServerHook(pdfjsWasmAssets('serve', root))({} as never)
+    expect(readdirSync(root)).toEqual([])
+  })
+
+  it('accepts another process publishing first and removes its temporary copy', () => {
+    const { root, source, destination } = fixture()
+    vi.mocked(renameSync).mockImplementationOnce(() => {
+      cpSync(source, destination, { recursive: true })
+      throw Object.assign(new Error('Already published'), { code: 'EEXIST' })
+    })
+    configureServerHook(pdfjsWasmAssets('serve', root))({} as never)
+    expect(readdirSync(join(root, 'public/assets'))).toEqual(['pdfjs-wasm'])
+    expect(readFileSync(join(destination, 'decoder.wasm'), 'utf8')).toBe('decoder')
+  })
+
+  it('propagates copy failures without publishing partial assets', () => {
+    const { root, destination } = fixture()
+    vi.mocked(cpSync).mockImplementationOnce(() => { throw new Error('Copy failed') })
+    expect(() => configureServerHook(pdfjsWasmAssets('serve', root))({} as never)).toThrow('Copy failed')
+    expect(existsSync(destination)).toBe(false)
+    expect(readdirSync(join(root, 'public/assets'))).toEqual([])
+  })
+
+  it('omits asset preparation under Vitest', async () => {
+    vi.stubEnv('VITEST', 'true')
+    const config = await studioConfig({ command: 'serve', mode: 'test' })
+    expect(config.plugins).not.toContainEqual(expect.objectContaining({ name: 'free-pdfjs-wasm' }))
+  })
+})
 
 function temporaryDirectory(): string {
   const directory = mkdtempSync(join(tmpdir(), 'free-studio-vite-'))

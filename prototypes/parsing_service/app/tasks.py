@@ -39,9 +39,9 @@ def task_parameters(source_name: str) -> dict[str, int | str]:
 
     return {
         "pipeline": "docling_standard_pdf",
-        "policy_revision": 1,
+        "policy_revision": 3,
         "doctags_converter_revision": 0,
-        "v2_renderer_revision": 1,
+        "v2_renderer_revision": 2,
         "parsed_document_schema_revision": "parsed_document.v2",
         "docling_version": _package_version("docling"),
         "ocr_fallback_dpi": 0,

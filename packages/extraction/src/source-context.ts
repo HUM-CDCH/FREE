@@ -1,4 +1,5 @@
 import type { ParsedDocument, ParsedLogicalTable } from './parsed-document.js'
+import { catalogStartText } from './catalog-boundaries.js'
 
 export type SourceContext = Readonly<{
   text: string
@@ -57,7 +58,7 @@ export function canonicalAnchorInventory(document: ParsedDocument): readonly Can
 function projectCanonicalSource(
   document: ParsedDocument,
   selectedBlockIds?: ReadonlySet<string>,
-  headingIdByBlockId?: ReadonlyMap<string, string>,
+  labelByBlockId?: ReadonlyMap<string, string>,
 ): string {
   const tables = new Map(document.tables.map((table) => [table.table_id, table]))
   const renderedTableIds = new Set<string>()
@@ -97,8 +98,8 @@ function projectCanonicalSource(
       const text = 'text' in block ? block.text : block.kind === 'list' ? block.items.join('; ') : ''
       if (text.trim())
         lines.push(
-          block.kind === 'heading' && headingIdByBlockId?.has(block.block_id)
-            ? `[[heading:${headingIdByBlockId.get(block.block_id)}]] ${text}`
+          labelByBlockId?.has(block.block_id)
+            ? `[[block:${labelByBlockId.get(block.block_id)}]] ${text}`
             : text,
         )
     }
@@ -113,25 +114,60 @@ export function canonicalSource(document: ParsedDocument): string {
 
 export type CatalogDiscoveryContext = Readonly<{
   text: string
-  startBlockIdByHeadingId: ReadonlyMap<string, string>
+  startBlockIdByLabel: ReadonlyMap<string, string>
 }>
 
-/** Full canonical source whose parser headings carry compact, copy-safe IDs. */
+/** Canonical text blocks with compact, copy-safe IDs, including numbered lists. */
 export function catalogDiscoveryContext(
   document: ParsedDocument,
+  selectedBlockIds?: ReadonlySet<string>,
 ): CatalogDiscoveryContext {
-  const startBlockIdByHeadingId = new Map<string, string>()
-  const headingIdByBlockId = new Map<string, string>()
+  const startBlockIdByLabel = new Map<string, string>()
+  const labelByBlockId = new Map<string, string>()
+  let ordinal = 0
   for (const block of document.content_stream) {
-    if (block.kind !== 'heading') continue
-    const headingId = `H${startBlockIdByHeadingId.size + 1}`
-    startBlockIdByHeadingId.set(headingId, block.block_id)
-    headingIdByBlockId.set(block.block_id, headingId)
+    if (!catalogStartText(block)?.trim()) continue
+    const label = `B${++ordinal}`
+    if (selectedBlockIds && !selectedBlockIds.has(block.block_id)) continue
+    startBlockIdByLabel.set(label, block.block_id)
+    labelByBlockId.set(block.block_id, label)
   }
   return {
-    text: projectCanonicalSource(document, undefined, headingIdByBlockId),
-    startBlockIdByHeadingId,
+    text: projectCanonicalSource(document, selectedBlockIds, labelByBlockId),
+    startBlockIdByLabel,
   }
+}
+
+/** Keep physical pages together, subdividing oversized pages at whole blocks. */
+export function catalogDiscoveryChunks(document: ParsedDocument): CatalogDiscoveryContext[] {
+  const chunks: CatalogDiscoveryContext[] = []
+  const tables = new Map(document.tables.map(table => [table.table_id, table]))
+  let start = 0
+  let size = 0
+  const append = (end: number) => {
+    const selected = new Set(document.content_stream.slice(start, end).map(block => block.block_id))
+    const context = catalogDiscoveryContext(document, selected)
+    const previous = start === 0 ? '' : canonicalSourceSlice(document, Math.max(0, start - 3), start).slice(-2000)
+    const following = canonicalSourceSlice(document, end, end + 3).slice(0, 2000)
+    chunks.push({ ...context, text: [
+      ...(previous ? [`Previous context (not selectable):\n${previous}\n\nSelectable source blocks:`] : []),
+      context.text,
+      ...(following ? [`Following context (not selectable):\n${following}`] : []),
+    ].join('\n\n') })
+    start = end
+    size = 0
+  }
+  for (const [index, block] of document.content_stream.entries()) {
+    const text = catalogStartText(block) ?? (block.kind === 'table'
+      ? tables.get(block.table_id)?.cells.map(cell => cell.text).join(' | ') ?? '' : '')
+    // ponytail: an exceptionally large single block stays intact; split within
+    // blocks only if a source demonstrates that need.
+    if (size > 0 && (block.page_number !== document.content_stream[start].page_number
+      || size + text.length + 32 > 24_000)) append(index)
+    size += text.length + 32
+  }
+  if (start < document.content_stream.length) append(document.content_stream.length)
+  return chunks
 }
 
 /** Canonical parser content for one end-exclusive content-stream slice. */

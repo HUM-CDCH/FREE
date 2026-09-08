@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { IngestionKeyConflictError } from '../../../packages/db/src/project-store.js'
 import {
@@ -196,6 +197,28 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     )
     expect(oversized.status).toBe(413)
     expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('ingests a scanned catalogue larger than 50 MiB without truncating it', async () => {
+    const { handler, fetcher, packageStore, store } = dependencies()
+    const bytes = new Uint8Array(65 * 1024 * 1024)
+    bytes.set(new TextEncoder().encode('%PDF-1.7\n'))
+    const contentSha256 = createHash('sha256').update(bytes).digest('hex')
+    packageStore.save.mockResolvedValueOnce({
+      artifactReference: 'a'.repeat(64),
+      artifactSha256: 'a'.repeat(64),
+      document: { ...packageDocument, document: { content_sha256: contentSha256 } },
+      published: true,
+    })
+    const response = await handler(request(ids.project, [
+      ['file', new File([bytes], 'catalogue.pdf', { type: 'application/pdf' })],
+      ['ingestionKey', ids.ingestion],
+    ]))
+    expect(response.status).toBe(201)
+    const uploaded = (fetcher.mock.calls[0][1].body as FormData).get('file') as File
+    expect(uploaded.size).toBe(bytes.length)
+    expect(store.ingestSourceDocument).toHaveBeenCalledWith(ids.project,
+      expect.objectContaining({ contentSha256 }))
   })
 
   it('parses, validates provenance, and persists one sanitized PDF', async () => {
@@ -428,6 +451,9 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
       .mockResolvedValueOnce(Response.json({ status: 'pending' }))
     const timeoutResponse = await timeout.handler(request())
     expect(timeoutResponse.status).toBe(504)
+    expect(await timeoutResponse.json()).toMatchObject({
+      error: { message: 'Source Document parsing did not finish within thirty minutes.' },
+    })
     expect(timeout.packageStore.save).not.toHaveBeenCalled()
 
     const stalled = dependencies({ timeoutMs: 1 })

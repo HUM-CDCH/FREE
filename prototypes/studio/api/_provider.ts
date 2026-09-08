@@ -7,7 +7,7 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import type { LanguageModel } from 'ai'
+import { wrapLanguageModel, type LanguageModel } from 'ai'
 import { createOllama } from 'ai-sdk-ollama'
 import { claudeCode } from 'ai-sdk-provider-claude-code'
 import { createCodexAppServer, type CodexAppServerProvider } from 'ai-sdk-provider-codex-cli'
@@ -382,8 +382,25 @@ export const providerTable = {
     supportsNuextractRaw: true,
     temperatureSupported: true,
     discover: httpDiscovery('api/tags', commonHttpHeaders, ollamaCatalog),
-    createModel: (connection, modelId, credential) =>
-      createOllama({ baseURL: connection.baseUrl!, ...(credential ? { apiKey: credential } : {}) })(modelId),
+    createModel: (connection, modelId, credential) => {
+      // ai-sdk-ollama does not forward call abort signals to client.chat.
+      // Scope the HTTP signal to this call so cancellation also stops Ollama.
+      const create = (signal?: AbortSignal) => createOllama({
+        baseURL: connection.baseUrl!,
+        ...(credential ? { apiKey: credential } : {}),
+        fetch: (input, init) => fetch(input, { ...init, ...(signal ? {
+          signal: init?.signal ? AbortSignal.any([signal, init.signal]) : signal,
+        } : {}) }),
+      })(modelId)
+      return wrapLanguageModel({
+        model: create(),
+        middleware: {
+          specificationVersion: 'v4',
+          wrapGenerate: ({ params }) => create(params.abortSignal).doGenerate(params),
+          wrapStream: ({ params }) => create(params.abortSignal).doStream(params),
+        },
+      })
+    },
   },
   openai: {
     kind: 'openai',

@@ -20,6 +20,12 @@ const invalidClosedSetNode: SchemaNode = { id: 'count', name: 'count', type: 'nu
 void invalidClosedSetNode
 
 describe('SchemaNode conversion', () => {
+  it('retains a generated bare array label as a repeating string field', () => {
+    const nodes = templateToNodes({ literature_references: 'array' })
+    expect(nodes[0]).toMatchObject({ name: 'literature_references', type: 'array', itemType: 'string' })
+    expect(nodesToTemplate(nodes)).toEqual({ literature_references: ['string'] })
+  })
+
   it('does not reuse generated node ids after a module reload', async () => {
     vi.resetModules()
     const firstModule = await import('extraction/schema')

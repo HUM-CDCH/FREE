@@ -1,6 +1,7 @@
 /// <reference types="node" />
 
 import { createRequire } from 'node:module'
+import { dirname } from 'node:path'
 
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs'
 
@@ -69,7 +70,10 @@ export async function pdfFileParts(file: File): Promise<PreparedFileParts> {
 
 async function pdfFromLocalPdfJs(file: File): Promise<ConvertedPdf | null> {
   const data = new Uint8Array(await file.arrayBuffer())
-  const loadingTask = pdfjsLib.getDocument({ data })
+  const loadingTask = pdfjsLib.getDocument({
+    data,
+    wasmUrl: `${dirname(require.resolve('pdfjs-dist/package.json'))}/wasm/`,
+  })
   const doc = await loadingTask.promise
   const images: Array<{ filename: string; media_type: 'image/png'; data_url: string }> = []
 

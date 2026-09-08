@@ -433,7 +433,7 @@ if (!disposableDatabaseUrl) {
           throw new DOMException('Aborted', 'AbortError')
         if ('starts' in request.template)
           return {
-            result: { starts: ['H1', 'H2'] },
+            result: { starts: ['B1', 'B3'] },
             metadata,
           }
         if (request.document.markdown.includes('Beta')) {
@@ -441,9 +441,9 @@ if (!disposableDatabaseUrl) {
             betaFailures -= 1
             throw new Error('controlled record failure')
           }
-          return { result: { records: [{ title: 'Beta' }] }, metadata }
+          return { result: { record: { title: 'Beta' } }, metadata }
         }
-        return { result: { records: [{ title: 'Alpha' }] }, metadata }
+        return { result: { record: { title: 'Alpha' } }, metadata }
       },
     }
     return { ...base, model }

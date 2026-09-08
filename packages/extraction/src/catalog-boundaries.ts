@@ -5,14 +5,15 @@ export type CatalogBoundary = {
   startContentIndex: number
   endContentIndex: number
   headingText: string
-  headingLevel: number
+  headingLevel: number | null
 }
 
 export type CatalogBoundaryErrorCode =
   | 'unknown_start'
   | 'duplicate_start'
-  | 'non_heading_start'
+  | 'non_text_start'
   | 'non_monotonic_order'
+  | 'invalid_end'
 
 export class CatalogBoundaryResolutionError extends Error {
   readonly code: CatalogBoundaryErrorCode
@@ -25,10 +26,15 @@ export class CatalogBoundaryResolutionError extends Error {
 }
 
 
-/** Resolve stable heading block IDs to canonical, end-exclusive content slices. */
+export function catalogStartText(block: ParsedContentBlock): string | null {
+  return block.kind === 'list' ? block.items.join('; ') : 'text' in block ? block.text : null
+}
+
+/** Resolve stable text block IDs to canonical, end-exclusive content slices. */
 export function resolveCatalogBoundaries(
   document: Pick<ParsedDocument, 'content_stream'>,
   startBlockIds: readonly string[],
+  terminalEndBlockId?: string,
 ): CatalogBoundary[] {
   const seen = new Set<string>()
   for (const startBlockId of startBlockIds) {
@@ -54,12 +60,13 @@ export function resolveCatalogBoundaries(
         'unknown_start',
         `Catalog discovery start block ${JSON.stringify(startBlockId)} is unknown.`,
       )
-    if (match.block.kind !== 'heading')
+    const text = catalogStartText(match.block)
+    if (!text?.trim())
       throw new CatalogBoundaryResolutionError(
-        'non_heading_start',
-        `Catalog discovery start block ${JSON.stringify(startBlockId)} is not a heading.`,
+        'non_text_start',
+        `Catalog discovery start block ${JSON.stringify(startBlockId)} has no text.`,
       )
-    return { index: match.index, block: match.block }
+    return { index: match.index, block: match.block, text }
   })
 
   for (let index = 1; index < resolved.length; index += 1) {
@@ -71,18 +78,27 @@ export function resolveCatalogBoundaries(
     }
   }
 
-  return resolved.map(({ index, block }, ordinal) => {
+  const terminalEnd = terminalEndBlockId === undefined ? undefined : blocks.get(terminalEndBlockId)?.index
+  if (terminalEndBlockId !== undefined &&
+    (terminalEnd === undefined || terminalEnd <= (resolved.at(-1)?.index ?? -1)))
+    throw new CatalogBoundaryResolutionError('invalid_end', 'Catalog end must identify a source block after its last record start.')
+
+  return resolved.map(({ index, block, text }, ordinal) => {
     const endContentIndex =
       ordinal + 1 < resolved.length
         ? resolved[ordinal + 1].index
-        : nextPeerOrShallowerHeading(document.content_stream, index, block.level)
+        : terminalEnd !== undefined
+          ? terminalEnd
+          : block.kind === 'heading'
+          ? nextPeerOrShallowerHeading(document.content_stream, index, block.level)
+          : document.content_stream.length
 
     return {
       startBlockId: block.block_id,
       startContentIndex: index,
       endContentIndex,
-      headingText: block.text,
-      headingLevel: block.level,
+      headingText: text,
+      headingLevel: block.kind === 'heading' ? block.level : null,
     }
   })
 }
