@@ -8,3 +8,5 @@ __pycache__
 .gitignore
 Dockerfile
 .dockerignore
+# Host-local code index; also excluded from Compose Watch initial sync.
+**/.codegraph
