@@ -226,3 +226,27 @@ their source evidence need researcher review, especially long descriptions and
 abbreviations. The complete scan is expensive to parse and the full catalogue
 requires hundreds of model calls; retain the prepared Source Representation for
 the rehearsal rather than estimating its runtime from a small sample.
+
+## Article comparison — 2026-09-08
+
+At the user's request, Article was run through Studio with the same Source
+Representation, Schema Revision 6 and Ollama `qwen3.8:27b` model as the completed
+Catalog run. Extraction `8a34327d-d8ff-4c95-8b5f-1b85d7a6ba0d` started at
+05:56:43 UTC. Its single values request included the whole document and the
+`records` array schema. The request ended at 06:06:43 UTC with
+`OllamaError: The operation was aborted due to timeout`, matching Article's
+existing ten-minute job limit. No values response or reviewable records were
+produced, and grounding never started. Studio displayed **Failed** and
+**The model operation failed.**
+
+| Strategy | Elapsed time | Result |
+| --- | --- | --- |
+| Catalog | 1 hr 45 min 47 sec | 420 entries; 3,513 grounded values and one ungrounded value |
+| Article | 10 min | Timed out during the initial values request; no records |
+
+This establishes that Article did not complete under the current configuration;
+it does not establish what it would return with a longer timeout or another model.
+The Catalog extraction remains stored separately. The document's latest attempt
+is now the failed Article comparison, so reopening it shows that attempt rather
+than the earlier Catalog result. No schema, source or model configuration was
+changed for this comparison.
