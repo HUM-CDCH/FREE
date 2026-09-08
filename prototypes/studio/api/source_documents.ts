@@ -213,7 +213,7 @@ async function parsingRequest<T>(
       throw new ApiError(
         504,
         'source_ingestion_timeout',
-        'Source Document parsing did not finish within ten minutes.',
+        'Source Document parsing did not finish within thirty minutes.',
         { cause: error },
       )
     if (error instanceof ApiError) throw error
@@ -274,7 +274,7 @@ async function completedTask(
       throw new ApiError(
         504,
         'source_ingestion_timeout',
-        'Source Document parsing did not finish within ten minutes.',
+        'Source Document parsing did not finish within thirty minutes.',
       )
     await sleep(Math.min(pollIntervalMs, remaining))
   }

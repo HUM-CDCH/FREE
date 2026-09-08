@@ -451,6 +451,9 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
       .mockResolvedValueOnce(Response.json({ status: 'pending' }))
     const timeoutResponse = await timeout.handler(request())
     expect(timeoutResponse.status).toBe(504)
+    expect(await timeoutResponse.json()).toMatchObject({
+      error: { message: 'Source Document parsing did not finish within thirty minutes.' },
+    })
     expect(timeout.packageStore.save).not.toHaveBeenCalled()
 
     const stalled = dependencies({ timeoutMs: 1 })
