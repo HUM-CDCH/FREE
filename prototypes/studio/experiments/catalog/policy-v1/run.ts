@@ -38,8 +38,11 @@ const { values: args } = parseArgs({ options: {
   'job-timeout': { type: 'string', default: '10800000' },
 } })
 if (!args.input || !args.out) throw new Error('--input parsed_document.json and --out directory are required')
-if (!['beier', 'danish'].includes(args.schema!)) throw new Error('--schema must be beier or danish')
-const definition = args.schema === 'danish' ? danish : schemaDefinition
+if (!['beier', 'danish'].includes(args.schema!) && !args.schema!.endsWith('.json')) throw new Error('--schema must be beier, danish or a .json schema definition')
+/** A saved Studio schema revision ({ recordDescription, schemaNodes }) for acceptance runs on the real schema. */
+const loaded = args.schema!.endsWith('.json') ? JSON.parse(await readFile(args.schema!, 'utf8')) : null
+const definition: typeof schemaDefinition = args.schema === 'danish' ? danish as unknown as typeof schemaDefinition : args.schema === 'beier' ? schemaDefinition : { recordDescription: loaded.recordDescription, schemaNodes: loaded.schemaNodes }
+if (typeof definition.recordDescription !== 'string' || !Array.isArray(definition.schemaNodes)) throw new Error('--schema file must hold recordDescription and schemaNodes')
 const fields = definition.schemaNodes.map((node) => node.name)
 for (const key of ['values-model', 'ground-model'] as const)
   if (!['qwen', 'nuextract'].includes(args[key]!)) throw new Error(`--${key} must be qwen or nuextract`)
@@ -118,7 +121,7 @@ type Call = { index: number; phase: 'discovery' | 'extraction' | 'grounding'; mo
 /** Slices already sent inside a batch; a later single call for one of them is a rejected batch's fallback. */
 const batchedSlices = new Set<string>()
 const calls: Call[] = []
-await save('manifest.json', { arm: args.arm, schema: args.schema, policy, model: args.model, valuesModel: args['values-model'], groundModel: args['ground-model'], fewShot: args['few-shot'], ollamaUrl: args['ollama-url'], inputSha256, hashes, schemaDefinition: definition, startedAt: new Date().toISOString() })
+await save('manifest.json', { arm: args.arm, schema: args.schema, schemaSha256: args.schema!.endsWith('.json') ? createHash('sha256').update(await readFile(args.schema!)).digest('hex') : null, policy, model: args.model, valuesModel: args['values-model'], groundModel: args['ground-model'], fewShot: args['few-shot'], ollamaUrl: args['ollama-url'], inputSha256, hashes, schemaDefinition: definition, startedAt: new Date().toISOString() })
 
 async function invoke(phase: Call['phase'], input: Omit<ExtractModelInput, 'signal'>, target: ExecutionTarget, extra: Partial<Call> = {}) {
   const index = calls.length + 1

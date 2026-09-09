@@ -1,0 +1,40 @@
+{
+  "schemaRevisionId": "32860369-2d89-4031-93bd-af016cda089d",
+  "revisionNumber": 6,
+  "name": "Beier catalogue entries",
+  "recordDescription": "One full numbered catalogue entry and its locality on physical PDF pages 2–32. Include main, u-prefixed, a-prefixed entries and the three Katalognachtrag entries. Keep lettered subentries and finds inside their parent. Exclude section headings, continuations, numbered finds, references, figure captions and all later Fundlisten/Fundortverzeichnis. Preserve German text and abbreviations; never infer missing facts. catalogue_label: only the printed number/prefix (e.g. 29., u 1., a 1.), never locality/body. locality_and_findspot: opening locality plus findspot. fa_code: only the short classification immediately after FA. find_description: quote the first one or two sentences of the find context, at most 400 characters. museum_inventory: all collection/inventory references (Mus., LM, HK, Inv.-Nr.) from all subentries, one per item; ignore Mbl. map references; empty if absent. literature_references: one cited reference per item, from all subentries.",
+  "schemaNodes": [
+    {
+      "id": "96a713ad-9fa5-4377-b708-9307fe5982da",
+      "name": "catalogue_label",
+      "type": "verbatim-string"
+    },
+    {
+      "id": "84ec0f7f-70ea-4032-8f66-20bbc9831a39",
+      "name": "locality_and_findspot",
+      "type": "string"
+    },
+    {
+      "id": "a8b2b995-63f6-457e-bf59-bb64f320bee1",
+      "name": "fa_code",
+      "type": "string"
+    },
+    {
+      "id": "9a6484fe-bb47-4753-81dc-60fb5354fd0e",
+      "name": "find_description",
+      "type": "verbatim-string"
+    },
+    {
+      "id": "8a6cb162-e287-4f31-80ff-286e8116c916",
+      "name": "museum_inventory",
+      "type": "array",
+      "itemType": "verbatim-string"
+    },
+    {
+      "id": "b2c70fda-10de-4bec-9d51-374c7809e915",
+      "name": "literature_references",
+      "type": "array",
+      "itemType": "verbatim-string"
+    }
+  ]
+}

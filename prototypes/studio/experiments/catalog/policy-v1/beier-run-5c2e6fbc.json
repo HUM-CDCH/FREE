@@ -1,0 +1,53 @@
+{
+  "extractionId": "5c2e6fbc-6c32-4603-b97c-48f1a5975fb5",
+  "startedUtc": "2026-09-07T21:54:23Z",
+  "model": {
+    "provider": "ollama",
+    "modelId": "qwen3.8:27b"
+  },
+  "durationMs": 6346918,
+  "inputTokens": 1093497,
+  "outputTokens": 172809,
+  "stages": [
+    {
+      "stage": "document-values",
+      "calls": 0,
+      "durationMs": 0,
+      "inputTokens": null,
+      "outputTokens": null
+    },
+    {
+      "stage": "discovery",
+      "calls": 45,
+      "durationMs": 546528,
+      "inputTokens": 313845,
+      "outputTokens": 4427
+    },
+    {
+      "stage": "record-values",
+      "calls": 420,
+      "durationMs": 3462294,
+      "inputTokens": 351351,
+      "outputTokens": 109447
+    },
+    {
+      "stage": "grounding",
+      "calls": 420,
+      "durationMs": 2333195,
+      "inputTokens": 428301,
+      "outputTokens": 58935
+    }
+  ],
+  "records": 420,
+  "evidenceLinks": 3513,
+  "nonVerbatimLinks": 363,
+  "repeatedPassageLinks": 1313,
+  "ungroundedPaths": [
+    [
+      "records",
+      357,
+      "fa_code"
+    ]
+  ],
+  "source": "docs/validation/2026-09-07-beier-user-test.md; figures read from the saved Studio state"
+}

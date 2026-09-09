@@ -2,7 +2,9 @@
 
 Status: measured on 2026-09-09 with the production executor on local models.
 **Default since 2026-09-09**, by the user's acceptance decision after the
-review below; the deployment acceptance run (section 7) verifies it.
+review below, verified the same day on the full Beier catalogue over the
+Spark model route: 213 calls instead of 885, 420 records, complete, no link
+into another entry (section 7, `docs/validation/2026-09-09-catalog-policy-v1-acceptance.md`).
 The candidate passed every Beier gate; on the
 Danish reports it failed two transfer gates under the Beier schema (section
 4.2) and, re-measured under a schema that fits those reports (section 4.2,
@@ -340,13 +342,17 @@ now guard with regression tests in `module.test.ts`:
 
 ## 7. Acceptance on the deployment
 
-Run a new Catalog extraction in Studio on the prepared Beier Source
-Document (Schema Revision 6) with the new default and compare with run
-`5c2e6fbc`: expected about 45 discovery + 84 values + 84 grounding calls
-instead of 885, 420 records, zero links into other entries, and a "To
-check" count near the rehearsal's 1,650. Record the outcome in
-`docs/validation/`. The Spark route was unreachable when this policy was
-measured, so the deployment timing is still open.
+Done on 2026-09-09 with the production executor driven by the harness on
+the same prepared source, Schema Revision 6 and the Spark `qwen3.8:27b`
+route, against run `5c2e6fbc`: 45 + 84 + 84 = 213 calls instead of 885,
+420 records with identical boundaries and no rejected batch, complete
+(0 ungrounded paths against 1), no link into another entry, 92 minutes
+against 106 (output tokens are the floor), and 324 "To check" links
+against 1,650, of which the repeated-passage part is mostly PR #132's
+candidate scoping rather than the policy. Full record:
+`docs/validation/2026-09-09-catalog-policy-v1-acceptance.md`. Still to
+observe: the first Studio UI Catalog run under the new default, which
+exercises the job worker and persistence the harness bypasses.
 
 ## 8. What the Danish runs showed about discovery
 

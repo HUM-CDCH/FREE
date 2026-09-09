@@ -287,3 +287,13 @@ CATALOG_POLICY_V1`) on the evidence above, with the three caveats stated in
 the study, the tier-1 review was delegated to an agent, and the deployment
 acceptance run on the full Beier catalogue is the verification still to be
 done. The per-record policy remains reachable through `FREE_CATALOG_POLICY`.
+
+## Acceptance run (2026-09-09)
+
+`run.ts --schema beier-schema-revision-6.json --arm acceptance-v1` on the
+full prepared Beier catalogue over the Spark route, compared with the
+production run `5c2e6fbc` by `acceptance_compare.py` (`ACCEPTANCE.md`,
+`docs/validation/2026-09-09-catalog-policy-v1-acceptance.md`): 213 calls
+against 885, 420 records, complete, no cross-entry link, 92 against 106
+minutes. The `--schema` flag now also accepts a saved Studio schema
+revision file, so this file's hash and the run's are in its manifest.
