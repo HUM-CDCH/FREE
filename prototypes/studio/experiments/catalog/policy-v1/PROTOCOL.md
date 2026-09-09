@@ -558,3 +558,45 @@ belongs to the one-line-per-anchor rendering.
   the labels are free; if it populates as B (20 to 21, 59 and 70 to 73
   values; 16, 55 and 38 units) the label prefix itself costs the recall;
   in between, both do.
+
+### Revision 3 outcome: rendering decomposition (2026-09-09)
+
+Six runs (`labels-only` twice on each report), 26 new items reviewed by
+Claude under the recorded rules (`adjudications-review-labels.json`: hocker
+depositions are rites, brandgrav is a cremation rite, flotation grain and
+burnt bone are not grave goods, the boat of Grav 3 is its structure, the
+loose-remains record is unbound). Both repetitions of labels-only
+extracted the same values on every report.
+
+| report | policy v1 values / units | B values / units | labels-only values / units |
+|---|---|---|---|
+| Herredsvejen | 24 / 17 | 20, 21 / 16, 17 | 26, 26 / 19, 19 |
+| Hojbakkegaard | 66 / 61 | 59, 59 / 55, 55 | 58, 58 / 56, 56 |
+| Hvissinge | 91 / 39 | 70, 73 / 38, 38 | 93, 93 / 39, 39 |
+
+No wrong link in any arm; unsupported 7, 3 and 24 for labels-only
+against 7, 6 and 21 for policy v1 (the A225 flotation items and the
+Grav 3 boat).
+
+The answer splits by report. On Herredsvejen and Hvissinge the labels are
+free and the citation request is the whole loss: with the labels kept and
+the `_citations` field dropped, recall returns to and passes policy v1
+(19 against 17 units; 39 against 39, with the Grav 6 `båd` type that
+neither B nor policy v1 gave). On Hojbakkegaard the label prefix alone
+reproduces B's loss exactly: the same five `burial_rite` scalars
+(`Jordfæstegrav` on Grav 1, 2, 6 and 56, `Urne` on Grav 11) are absent in
+all four labelled extractions, and the citation request adds nothing
+further (55 against 56 units). Two of the five stand at the head of their
+block, directly after the `[E2] ` label; two are not in the slice at all
+and policy v1 supplied them from elsewhere in the report; the mechanism is
+not pinned down.
+
+Consequence for cite-and-verify: the `_citations` request, not the
+rendering, costs the recall on two of three reports, and the recall it
+costs is not recoverable by a rendering change because the citations need
+the labels and the labels cost Hojbakkegaard's rites. The hypothesis is
+refuted as phrased (there is no rendering to restore) and, in its testable
+form, half-confirmed: labels-only would meet the transfer recall
+criterion on two reports and fail it on the third (56 against 61). Not
+advanced; the keys stay off by default. `labelledSlices` stays as the
+recorded ablation.
