@@ -790,19 +790,19 @@ describe('Catalog policy', () => {
       labels: ['First', 'Second'],
       policy: { ...CATALOG_POLICY_V1, citations: true, citationLinks: true },
       script: [{ result: { records: [
-        // E1 is the "First" heading block, E3 the "Second" heading block; the years are cited nowhere.
+        // Labels restart per record: E1 is each record's heading block; the years are cited nowhere.
         { record_id: 'R1', title: 'First', year: 1901, _citations: 'E1 -' },
-        { record_id: 'R2', title: 'Second', year: 1902, _citations: '[E1] -' },
+        { record_id: 'R2', title: 'Second', year: 1902, _citations: '[E9] -' },
       ] } }],
     })
     const { extraction } = await harness.module.runSingle(catalogInput())
     const values = harness.calls[1]!
-    assert.match(values.markdown, /### Record R1\n## Page 1\n\[E1\] First\n\[E2\] First body\n\n### Record R2\n## Page 1\n\[E3\] Second/)
+    assert.match(values.markdown, /### Record R1\n## Page 1\n\[E1\] First\n\[E2\] First body\n\n### Record R2\n## Page 1\n\[E1\] Second/)
     assert.equal((values.template.records as Record<string, unknown>[])[0]!._citations, 'string')
-    assert.match(values.instruction ?? '', /_citations give one \[E<n>\] label per field, in this order: title year/)
+    assert.match(values.instruction ?? '', /_citations give, per field and in this order: title year, the \[E<n>\] label/)
     assert.deepEqual(extraction.result, { records: [{ title: 'First', year: 1901 }, { title: 'Second', year: 1902 }] })
     // R1's title is verified in code ("First" also occurs in its body block, hence two hits, still linked without groundMultiHit);
-    // R2 cited another record's block, so it and both years went to the grounder.
+    // R2 cited a label its slice does not have, so it and both years went to the grounder.
     const byPath = new Map(extraction.evidence!.map((link) => [JSON.stringify(link.resultPath), link]))
     assert.deepEqual(byPath.get(JSON.stringify(['records', 0, 'title'])), { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-h0', verbatim: true, lexicalHits: 2, linkedBy: 'citation_lexical' })
     assert.equal(byPath.get(JSON.stringify(['records', 1, 'title']))?.linkedBy, undefined)

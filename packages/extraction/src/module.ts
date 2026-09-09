@@ -497,27 +497,34 @@ export function createExtractionJobExecutor({
     // Cite and verify (policy.citations): slices are rendered as the grounder's
     // labelled blocks and the values call cites, per value, the block it was
     // taken from; grounding verifies the citation in code before linking.
-    const labelled = policy.citations ? sourceContext(document) : null
-    const renderSlice = (boundary: CatalogBoundary) => labelled
-      ? sourceContext(document, recordAnchorIds(document, boundary), labelled.labelByAnchorId).text
-      : canonicalSourceSlice(document, boundary.startContentIndex, boundary.endContentIndex)
+    // Labels restart at E1 in every record slice: short to cite, and resolved
+    // through that record's own label map, so a label never reaches another record.
+    const labelled = policy.citations
+    const recordLabels = new Map<number, ReadonlyMap<string, string>>()
+    const renderSlice = (boundary: CatalogBoundary, recordIndex: number) => {
+      if (!labelled) return canonicalSourceSlice(document, boundary.startContentIndex, boundary.endContentIndex)
+      const context = sourceContext(document, recordAnchorIds(document, boundary))
+      recordLabels.set(recordIndex, context.anchorIdByLabel)
+      return context.text
+    }
     // One compact string per record: a label per field in template order, so a
     // citation costs about two output tokens instead of a repeated field name.
     const citationTemplate = labelled ? { _citations: 'string' } : {}
     const citationInstruction = labelled
-      ? `In _citations give one [E<n>] label per field, in this order: ${recordNodes.map((node) => node.name).join(' ')}; separate fields with spaces, write - when no block states the value, and for list fields give one label per item separated by commas.`
+      ? `In _citations give, per field and in this order: ${recordNodes.map((node) => node.name).join(' ')}, the [E<n>] label of the block in that record's own text the value was taken from; separate fields with spaces, write - when no block states the value, and for list fields give one label per item separated by commas.`
       : ''
     /** Strip `_citations` from a model record and resolve its labels to anchors for the record at `recordIndex`.
      *  An unparseable or misaligned citation is dropped: the claim then goes to the grounder. */
     const takeCitations = (record: Record<string, unknown>, recordIndex: number, into: Map<string, string>) => {
       const { _citations, ...values } = record
-      if (labelled && typeof _citations === 'string') {
+      const anchorIdByLabel = recordLabels.get(recordIndex)
+      if (anchorIdByLabel && typeof _citations === 'string') {
         const tokens = _citations.trim().split(/\s+/)
         if (tokens.length === recordNodes.length)
           recordNodes.forEach((node, position) => {
             const labels = node.type === 'array' ? tokens[position]!.split(',') : [tokens[position]!]
             labels.forEach((label, index) => {
-              const anchorId = labelled.anchorIdByLabel.get(label.trim().replace(/^\[|\]$/g, ''))
+              const anchorId = anchorIdByLabel.get(label.trim().replace(/^\[|\]$/g, ''))
               if (anchorId) into.set(resultPathKey(node.type === 'array' ? ['records', recordIndex, node.name, index] : ['records', recordIndex, node.name]), anchorId)
             })
           })
@@ -686,7 +693,7 @@ export function createExtractionJobExecutor({
         const described = { record: { _description: definition.recordDescription, ...nodesToTemplate(recordNodes), ...citationTemplate } }
         const generated = await invoke(
           model,
-          renderSlice(boundary),
+          renderSlice(boundary, successfulRecords.length),
           document.page_count,
           stripDescriptions(described) as Record<string, unknown>,
           [compileInstructions(described), citationInstruction].filter(Boolean).join('\n'),
@@ -733,7 +740,7 @@ export function createExtractionJobExecutor({
       const key = routingKey(recordNodes)
       const described = { records: [{ _description: definition.recordDescription, [key]: 'string', ...nodesToTemplate(recordNodes), ...citationTemplate }] }
       const markdown = batch
-        .map(({ boundary }, index) => `### Record ${identities[index]}\n${renderSlice(boundary)}`)
+        .map(({ boundary }, index) => `### Record ${identities[index]}\n${renderSlice(boundary, successfulRecords.length + index)}`)
         .join('\n\n')
       const instruction = [
         compileInstructions(described),

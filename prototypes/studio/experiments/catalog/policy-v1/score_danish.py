@@ -19,7 +19,7 @@ REPO = HERE.parents[4]
 V2 = REPO / 'artifacts/catalog-lab/models-policy-v2'
 DOCS = ['Herredsvejen_SBM1694', 'Hojbakkegaard_TAK_1177', 'Hvissinge_Ost_TAK_1728', 'Katrinesminde_SBM1116', 'Brondbylund_3_TAK_1506']
 GATED = DOCS[:3]
-ARMS = ['baseline', 'batch-group-field']
+ARMS = ['baseline', 'batch-group-field']  # overridable with --arms; gates compare each other arm against --against
 
 
 def read(path):
@@ -45,6 +45,8 @@ def main():
     parser.add_argument('--decisions', type=Path, nargs='*', default=[V2 / 'adjudications-final.json'])
     parser.add_argument('--pending', type=Path, help='write undecided items here')
     parser.add_argument('--reviewed', action='store_true', help='the decisions include the human review; G4 is no longer provisional')
+    parser.add_argument('--arms', nargs='*', default=ARMS)
+    parser.add_argument('--against', default='baseline', help='the arm the gates compare every other arm with')
     args = parser.parse_args()
     decisions, extensions = {}, []
     for path in args.decisions:
@@ -64,7 +66,7 @@ def main():
     for doc in DOCS:
         reference = references_for(refs, doc, 'danish')
         document = read(V2 / 'inputs' / doc / 'baseline/parsed_document.json')
-        for arm in ARMS:
+        for arm in args.arms:
             run = args.root / doc / f'{arm}-r1'
             if not (run / 'result.json').exists():
                 lines.append(f'| {doc} | {arm} | NOT_RUN |' + ' – |' * (len(header) - 3))
@@ -82,10 +84,10 @@ def main():
                 metrics.get('wrongRecordLinks', 0), metrics.get('wrongPassageLinks', 0), c['crossRecord'], metrics.get('pendingValues', 0) + metrics.get('pendingLinks', 0)]) + ' |')
     gates = []
     wrong_rate = lambda s: (s['wrongRecordLinks'] + s['wrongPassageLinks']) / max(1, s['supportedLinkUnits'] + s['wrongRecordLinks'] + s['wrongPassageLinks'])
-    for doc in DOCS:
-        b, a = scores.get((doc, 'baseline')), scores.get((doc, 'batch-group-field'))
+    for doc, arm_name in [(doc, arm) for doc in DOCS for arm in args.arms if arm != args.against]:
+        b, a = scores.get((doc, args.against)), scores.get((doc, arm_name))
         if not a or not b or a['outcome'] != 'SUCCEEDED' or b['outcome'] != 'SUCCEEDED':
-            gates.append(f'- **{doc}**: not gated (a run did not succeed)'); continue
+            gates.append(f'- **{doc} / {arm_name}**: not gated (a run did not succeed)'); continue
         tolerance = 0.05 * a['supportedUnits']
         g1 = a['records'] == a['boundaries'] and a['fallback'] <= 0.05 * max(1, a['batches'])
         base_calls, arm_calls = b['policy'], a['policy']
@@ -98,7 +100,7 @@ def main():
         g4_text = (f"G4 {'pass' if g4 else 'FAIL'}{'' if args.reviewed else ', provisional until the human review is applied'} (units {a['correctUnits']} vs {b['correctUnits']}, links {a['supportedLinkUnits']} vs {b['supportedLinkUnits']} of {a['supportedUnits']}, "
                    f"wrong-link rate {wrong_rate(a):.3f} vs {wrong_rate(b):.3f}, unsupported {a['unsupportedClaims']} vs {b['unsupportedClaims']})"
                    if doc in GATED else 'G4 not gated (the reference credits graves the schema excludes)')
-        gates.append(f"- **{doc}**: G1 {'pass' if g1 else 'FAIL'} (fallbacks {a['fallback']} of {a['batches']} batches); "
+        gates.append(f"- **{doc} / {arm_name} vs {args.against}**: G1 {'pass' if g1 else 'FAIL'} (fallbacks {a['fallback']} of {a['batches']} batches); "
                      f"G2 {'not evaluated' if g2 is None else 'pass' if g2 else 'FAIL'} ({arm_calls} policy-sensitive calls vs {base_calls}; all non-discovery calls {a['total'] - a['discovery']} vs {b['total'] - b['discovery']}); "
                      + g4_text + ('' if not undecided else f'; {undecided} pending decisions'))
     report = '\n'.join(['# Catalog policy v1 — revision 2: per-record vs candidate, Danish schema', '',

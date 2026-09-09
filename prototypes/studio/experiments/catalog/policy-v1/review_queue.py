@@ -37,15 +37,18 @@ def main():
     parser.add_argument('--all', action='store_true', help='queue the mechanical decisions too')
     parser.add_argument('--tier', type=int, default=1, choices=[1, 2], help='1: negative decisions and disagreements; 2: also judgment-accepted')
     parser.add_argument('--documents', nargs='*', default=['Herredsvejen_SBM1694', 'Hojbakkegaard_TAK_1177', 'Hvissinge_Ost_TAK_1728', 'Katrinesminde_SBM1116'])
+    parser.add_argument('--pending', type=Path, nargs='*', default=[DANISH / 'review-pending.json'], help='pending files from score_danish.py --pending')
+    parser.add_argument('--decisions', type=Path, nargs='*', default=[], help='further decision files (after Astra\'s and revision 2)')
     args = parser.parse_args()
     items = {}
     for path in glob.glob(str(V2 / 'report-*/blind-review.json')):
         for item in read(path)['items']:
             items.setdefault(item['key'], {**item, 'source': 'candidate'})
-    for item in read(DANISH / 'review-pending.json')['items'] if (DANISH / 'review-pending.json').exists() else []:
-        items.setdefault(item['key'], {**item, 'source': 'per-record'})
+    for path in args.pending:
+        for item in read(path)['items'] if path.exists() else []:
+            items.setdefault(item['key'], {**item, 'source': path.stem})
     decisions = {}
-    for path, who in [(V2 / 'adjudications-final.json', 'astra'), (DANISH / 'adjudications-rev2.json', 'claude')]:
+    for path, who in [(V2 / 'adjudications-final.json', 'astra'), (DANISH / 'adjudications-rev2.json', 'claude'), *[(p, p.stem) for p in args.decisions]]:
         for key, decision in read(path)['decisions'].items():
             decisions.setdefault(key, {}).update({who: decision})
     schema = read(V2 / 'schemas.json')['schemas']['danish']
