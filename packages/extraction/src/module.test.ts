@@ -769,8 +769,8 @@ describe('Catalog policy', () => {
 
   it('defaults to policy v1 and keeps the per-record policy reachable', () => {
     assert.deepEqual(DEFAULT_CATALOG_POLICY, CATALOG_POLICY_V1)
-    assert.deepEqual(CATALOG_POLICY_V1, { recordBatchSize: 5, lexicalLinks: false, groundingGroupSize: 5, fieldAwareGrounding: true })
-    assert.deepEqual(PER_RECORD_CATALOG_POLICY, { recordBatchSize: 1, lexicalLinks: false, groundingGroupSize: 1, fieldAwareGrounding: false })
+    assert.deepEqual(CATALOG_POLICY_V1, { recordBatchSize: 5, lexicalLinks: false, groundingGroupSize: 5, fieldAwareGrounding: true, citations: false, citationLinks: false, groundAlways: [], groundMultiHit: false })
+    assert.deepEqual(PER_RECORD_CATALOG_POLICY, { recordBatchSize: 1, lexicalLinks: false, groundingGroupSize: 1, fieldAwareGrounding: false, citations: false, citationLinks: false, groundAlways: [], groundMultiHit: false })
   })
 
   it('runs policy v1 as one batch and one grouped grounding call', async () => {
@@ -782,6 +782,30 @@ describe('Catalog policy', () => {
     const { extraction } = await harness.module.runSingle(catalogInput())
     assert.deepEqual(extraction.result, { records: [{ title: 'Alpha', year: 1901 }, { title: 'Beta', year: 1902 }] })
     assert.equal(harness.calls.length, 2)
+    assert.equal(extraction.diagnostics.groundingBatches.length, 1)
+  })
+
+  it('renders labelled blocks, asks for citations and links a verified one without the grounder', async () => {
+    const harness = catalogHarness({
+      labels: ['First', 'Second'],
+      policy: { ...CATALOG_POLICY_V1, citations: true, citationLinks: true },
+      script: [{ result: { records: [
+        // E1 is the "First" heading block, E3 the "Second" heading block; the years are cited nowhere.
+        { record_id: 'R1', title: 'First', year: 1901, _citations: { title: 'E1', year: null } },
+        { record_id: 'R2', title: 'Second', year: 1902, _citations: { title: '[E1]', year: null } },
+      ] } }],
+    })
+    const { extraction } = await harness.module.runSingle(catalogInput())
+    const values = harness.calls[1]!
+    assert.match(values.markdown, /### Record R1\n## Page 1\n\[E1\] First\n\[E2\] First body\n\n### Record R2\n## Page 1\n\[E3\] Second/)
+    assert.deepEqual((values.template.records as Record<string, unknown>[])[0]!._citations, { title: 'string', year: 'string' })
+    assert.match(values.instruction ?? '', /_citations/)
+    assert.deepEqual(extraction.result, { records: [{ title: 'First', year: 1901 }, { title: 'Second', year: 1902 }] })
+    // R1's title is verified in code ("First" also occurs in its body block, hence two hits, still linked without groundMultiHit);
+    // R2 cited another record's block, so it and both years went to the grounder.
+    const byPath = new Map(extraction.evidence!.map((link) => [JSON.stringify(link.resultPath), link]))
+    assert.deepEqual(byPath.get(JSON.stringify(['records', 0, 'title'])), { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-h0', verbatim: true, lexicalHits: 2, linkedBy: 'citation_lexical' })
+    assert.equal(byPath.get(JSON.stringify(['records', 1, 'title']))?.linkedBy, undefined)
     assert.equal(extraction.diagnostics.groundingBatches.length, 1)
   })
 

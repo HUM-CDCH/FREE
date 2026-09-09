@@ -29,6 +29,16 @@ export type CatalogPolicy = Readonly<{
   groundingGroupSize: number
   /** Send each claim's record, field name and description to the grounder. */
   fieldAwareGrounding: boolean
+  /** Render record slices as the grounder's labelled blocks and ask the values
+   *  call to cite, per value, the block it was taken from. */
+  citations: boolean
+  /** Link a cited block in code when the value occurs in it as a bounded token
+   *  inside the claim's own record; every other claim goes to the grounder. */
+  citationLinks: boolean
+  /** Field names whose claims always go to the grounder, cited or not. */
+  groundAlways: readonly string[]
+  /** Send cited values that occur in several candidate blocks to the grounder. */
+  groundMultiHit: boolean
 }>
 
 /** One values-only call per record: the behaviour before policy v1. Studio
@@ -39,6 +49,10 @@ export const PER_RECORD_CATALOG_POLICY: CatalogPolicy = {
   lexicalLinks: false,
   groundingGroupSize: 1,
   fieldAwareGrounding: false,
+  citations: false,
+  citationLinks: false,
+  groundAlways: [],
+  groundMultiHit: false,
 }
 
 /** Policy v1: five records per values call and per grounding call, each claim
@@ -51,6 +65,10 @@ export const CATALOG_POLICY_V1: CatalogPolicy = {
   lexicalLinks: false,
   groundingGroupSize: 5,
   fieldAwareGrounding: true,
+  citations: false,
+  citationLinks: false,
+  groundAlways: [],
+  groundMultiHit: false,
 }
 
 /** Default since 2026-09-09 by explicit acceptance decision; the deployment
@@ -70,8 +88,10 @@ export function parseCatalogPolicy(value: unknown): CatalogPolicy {
     if (!Number.isInteger(size) || (size as number) < 1 || (size as number) > CATALOG_POLICY_MAX_GROUP)
       throw new Error(`Catalog policy ${key} must be an integer from 1 to ${CATALOG_POLICY_MAX_GROUP}.`)
   }
-  for (const key of ['lexicalLinks', 'fieldAwareGrounding'] as const)
+  for (const key of ['lexicalLinks', 'fieldAwareGrounding', 'citations', 'citationLinks', 'groundMultiHit'] as const)
     if (typeof policy[key] !== 'boolean') throw new Error(`Catalog policy ${key} must be a boolean.`)
+  if (!Array.isArray(policy.groundAlways) || !policy.groundAlways.every((field) => typeof field === 'string'))
+    throw new Error('Catalog policy groundAlways must be an array of field names.')
   for (const key of Object.keys(policy))
     if (!(key in DEFAULT_CATALOG_POLICY)) throw new Error(`Unknown Catalog policy key: ${key}`)
   return policy as CatalogPolicy

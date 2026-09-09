@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
-import { groundExtraction } from './grounding.js'
+import { groundExtraction, resultPathKey } from './grounding.js'
 import { PER_RECORD_CATALOG_POLICY } from './catalog.js'
 import type { GroundingModelRequest } from './dependencies.js'
 import { resolveCatalogBoundaries } from './catalog-boundaries.js'
@@ -226,12 +226,56 @@ describe('groundExtraction lexical checks', () => {
       // and "Bronze" are bounded tokens of exactly one candidate: linked in code.
       assert.deepEqual(requests.map((request) => Object.values(request.claims)), [['Iron']])
       assert.deepEqual(outcome.evidence, [
-        { resultPath: ['records', 0, 'place'], evidenceAnchorId: 'a-b0', verbatim: true, lexicalHits: 1 },
+        { resultPath: ['records', 0, 'place'], evidenceAnchorId: 'a-b0', verbatim: true, lexicalHits: 1, linkedBy: 'lexical' },
         { resultPath: ['records', 0, 'find'], evidenceAnchorId: 'a-b1', verbatim: true, lexicalHits: 2 },
-        { resultPath: ['records', 1, 'find'], evidenceAnchorId: 'a-b3', verbatim: true, lexicalHits: 1 },
+        { resultPath: ['records', 1, 'find'], evidenceAnchorId: 'a-b3', verbatim: true, lexicalHits: 1, linkedBy: 'lexical' },
       ])
       assert.equal(outcome.batches.length, 1)
       assert.deepEqual(outcome.issues, [])
+    })
+
+    it('links a verified citation without the model and grounds every other claim', async () => {
+      const document = documentWith(['1. First place', 'Iron', '2. Second place', 'Bronze'])
+      const requests: GroundingModelRequest[] = []
+      const outcome = await groundExtraction(document, { records: [{ find: 'Iron', place: 'Elsewhere' }, { find: 'Bronze' }] }, {
+        async ground(request) {
+          requests.push(request)
+          return { selections: Object.keys(request.claims).map((claimLabel) => ({ claimLabel, anchorLabel: null })), metadata }
+        },
+      }, new AbortController().signal, {
+        recordBoundaries: resolveCatalogBoundaries(document, ['b0', 'b2']),
+        policy: { ...PER_RECORD_CATALOG_POLICY, citationLinks: true },
+        citations: new Map([
+          [resultPathKey(['records', 0, 'find']), 'a-b1'], // the value is in the cited block of its own record: linked in code
+          [resultPathKey(['records', 0, 'place']), 'a-b0'], // the value is not in the cited block: grounder
+          [resultPathKey(['records', 1, 'find']), 'a-b1'], // the cited block belongs to another record: grounder
+        ]),
+      })
+      assert.deepEqual(outcome.evidence, [{ resultPath: ['records', 0, 'find'], evidenceAnchorId: 'a-b1', verbatim: true, lexicalHits: 1, linkedBy: 'citation_lexical' }])
+      assert.deepEqual(requests.map((request) => Object.values(request.claims)), [['Elsewhere'], ['Bronze']])
+      assert.deepEqual(outcome.ungroundedPaths, [['records', 0, 'place'], ['records', 1, 'find']])
+    })
+
+    it('sends cited claims of routed fields and repeated values to the model', async () => {
+      const document = documentWith(['1. Iron place, axis N', 'Iron', '2. Second place', 'Bronze'])
+      const requests: GroundingModelRequest[] = []
+      const outcome = await groundExtraction(document, { records: [{ find: 'Iron', axis: 'N' }, { find: 'Bronze' }] }, {
+        async ground(request) {
+          requests.push(request)
+          return { selections: Object.keys(request.claims).map((claimLabel) => ({ claimLabel, anchorLabel: null })), metadata }
+        },
+      }, new AbortController().signal, {
+        recordBoundaries: resolveCatalogBoundaries(document, ['b0', 'b2']),
+        policy: { ...PER_RECORD_CATALOG_POLICY, citationLinks: true, groundAlways: ['axis'], groundMultiHit: true },
+        schemaNodes: [{ id: 'find', name: 'find', type: 'string' }, { id: 'axis', name: 'axis', type: 'string' }],
+        citations: new Map([
+          [resultPathKey(['records', 0, 'find']), 'a-b1'], // verbatim, but in two blocks of the record: grounder
+          [resultPathKey(['records', 0, 'axis']), 'a-b0'], // verbatim, but the field is always grounded
+          [resultPathKey(['records', 1, 'find']), 'a-b3'], // linked in code
+        ]),
+      })
+      assert.deepEqual(requests.map((request) => Object.values(request.claims)), [['Iron', 'N'], []].filter((claims) => claims.length))
+      assert.deepEqual(outcome.evidence, [{ resultPath: ['records', 1, 'find'], evidenceAnchorId: 'a-b3', verbatim: true, lexicalHits: 1, linkedBy: 'citation_lexical' }])
     })
 
     it('never links a value in code when two candidates contain it', async () => {

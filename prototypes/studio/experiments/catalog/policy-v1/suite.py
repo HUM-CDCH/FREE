@@ -29,6 +29,13 @@ ARMS = {
     'bgf-nuextract-values-fewshot': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--values-model', 'nuextract', '--few-shot'],
     'bgf-nuextract-grounding': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--ground-model', 'nuextract'],
     'bgf-nuextract-both-fewshot': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--values-model', 'nuextract', '--few-shot', '--ground-model', 'nuextract'],
+    # Revision 3 (cite and verify). B: labelled slices and citations, full grounding. C/D/E replay B's
+    # discovery and values and change only the linking; a token starting with @ names a run under the root.
+    'cite-full': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--citations'],
+    'cite-verify': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--citations', '--citation-links', '--replay', '@cite-full-r1'],
+    'cite-verify-routed': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--citations', '--citation-links', '--ground-always', 'burial_axis,find_type', '--ground-multi-hit', '--replay', '@cite-full-r1'],
+    'cite-verify-routed-danish': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--citations', '--citation-links', '--ground-always', 'burial_axis', '--ground-multi-hit', '--replay', '@cite-full-r1'],
+    'lexical-on-cite': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--citations', '--lexical-links', '--replay', '@cite-full-r1'],
 }
 
 
@@ -81,7 +88,7 @@ def main():
                 continue
             command = ['node', '--import', 'tsx', 'experiments/catalog/policy-v1/run.ts',
                        '--input', str(args.input.resolve()), '--out', str(destination), '--arm', arm, '--schema', args.schema,
-                       '--model', args.model, '--ollama-url', args.ollama_url, *ARMS[arm]]
+                       '--model', args.model, '--ollama-url', args.ollama_url, *[str(root / a[1:]) if a.startswith('@') else a for a in ARMS[arm]]]
             print('RUN', ' '.join(command))
             code = subprocess.call(command, cwd=STUDIO)
             print('EXIT', arm, repetition, code)

@@ -41,11 +41,7 @@ import {
   stripDescriptions,
 } from './schema.js'
 import type { ExtractionSchemaDefinition } from './schema.js'
-import {
-  canonicalSource,
-  canonicalSourceSlice,
-  catalogDiscoveryChunks,
-} from './source-context.js'
+import { canonicalSource, canonicalSourceSlice, catalogDiscoveryChunks, recordAnchorIds, sourceContext } from './source-context.js'
 import type {
   CatalogStageDiagnostics,
   ExtractionDiagnostics,
@@ -76,6 +72,9 @@ type ExecutionState = {
   catalog: MutableCatalogDiagnostics | null
   retry: ExtractionRetrySelection | null
   checkpointDiagnostics: ExtractionDiagnostics | null
+  /** Anchors the values calls cited, by result path key (policy.citations).
+   *  ponytail: in memory only; a run resumed from a checkpoint grounds every claim. */
+  citations: Map<string, string>
 }
 
 /** One run's durable identity after retry inputs are resolved against their parent. */
@@ -325,6 +324,7 @@ export function createExtractionJobExecutor({
         : resolved.strategy === 'CATALOG' ? seedCatalogDiagnostics() : null,
       retry: checkpoint?.diagnostics.retry ?? resolved.retry?.selection ?? null,
       checkpointDiagnostics: checkpoint?.diagnostics ?? null,
+      citations: new Map(),
     }
     const session = await models.open()
     const document = decodeCanonical(inputs.parsedDocument)
@@ -378,7 +378,7 @@ export function createExtractionJobExecutor({
         : undefined,
       now,
       // The policy governs Catalog runs only; Article keeps one call per record.
-      ...(resolved.strategy === 'CATALOG' && { policy, schemaNodes: definition.schemaNodes }),
+      ...(resolved.strategy === 'CATALOG' && { policy, schemaNodes: definition.schemaNodes, citations: state.citations }),
     })
     state.ungroundedPaths = grounding.ungroundedPaths
     state.groundingIssues = grounding.issues
@@ -494,6 +494,32 @@ export function createExtractionJobExecutor({
     if (!catalog) throw new ExtractionError('extraction_failed', 'Catalog diagnostics were not initialized.')
     const { documentNodes, recordNodes } = partitionSchemaNodes(definition.schemaNodes)
     const parentRecords = retry?.parent.result ? extractionRecords(retry.parent.result) : null
+    // Cite and verify (policy.citations): slices are rendered as the grounder's
+    // labelled blocks and the values call cites, per value, the block it was
+    // taken from; grounding verifies the citation in code before linking.
+    const labelled = policy.citations ? sourceContext(document) : null
+    const renderSlice = (boundary: CatalogBoundary) => labelled
+      ? sourceContext(document, recordAnchorIds(document, boundary), labelled.labelByAnchorId).text
+      : canonicalSourceSlice(document, boundary.startContentIndex, boundary.endContentIndex)
+    const citationTemplate = labelled
+      ? { _citations: Object.fromEntries(recordNodes.map((node) => [node.name, node.type === 'array' ? ['string'] : 'string'])) }
+      : {}
+    const citationInstruction = labelled
+      ? 'In _citations give, for each field, the [E<n>] label of the block the value was taken from, null when no block states it, and one label per item for list fields.'
+      : ''
+    /** Strip `_citations` from a model record and resolve its labels to anchors for the record at `recordIndex`. */
+    const takeCitations = (record: Record<string, unknown>, recordIndex: number, into: Map<string, string>) => {
+      const { _citations, ...values } = record
+      if (labelled && _citations && typeof _citations === 'object' && !Array.isArray(_citations))
+        for (const [field, cited] of Object.entries(_citations as Record<string, unknown>)) {
+          const labels = Array.isArray(cited) ? cited : [cited]
+          labels.forEach((label, index) => {
+            const anchorId = typeof label === 'string' ? labelled.anchorIdByLabel.get(label.trim().replace(/^\[|\]$/g, '')) : undefined
+            if (anchorId) into.set(resultPathKey(Array.isArray(cited) ? ['records', recordIndex, field, index] : ['records', recordIndex, field]), anchorId)
+          })
+        }
+      return values
+    }
     // Parent result records carry no identity; they align positionally with the
     // parent's succeeded record diagnostics, which do carry the start block ID.
     const parentValuesByStartBlockId = new Map<string, Record<string, unknown>>()
@@ -653,13 +679,13 @@ export function createExtractionJobExecutor({
       const callStartedAt = now()
       let recordMetadata: ModelGenerationMetadata | null = null
       try {
-        const described = { record: { _description: definition.recordDescription, ...nodesToTemplate(recordNodes) } }
+        const described = { record: { _description: definition.recordDescription, ...nodesToTemplate(recordNodes), ...citationTemplate } }
         const generated = await invoke(
           model,
-          canonicalSourceSlice(document, boundary.startContentIndex, boundary.endContentIndex),
+          renderSlice(boundary),
           document.page_count,
           stripDescriptions(described) as Record<string, unknown>,
-          compileInstructions(described),
+          [compileInstructions(described), citationInstruction].filter(Boolean).join('\n'),
           signal,
           state,
         )
@@ -667,11 +693,13 @@ export function createExtractionJobExecutor({
         const extracted = extractionRecord(generated.result)
         if (!extracted)
           throw new ExtractionError('invalid_model_output', 'Catalog record extraction must return one record.')
+        const cited = new Map<string, string>()
         successfulRecords.push(
-          restoreSchemaNodeOrder(extracted, recordNodes, {
+          restoreSchemaNodeOrder(takeCitations(extracted, successfulRecords.length, cited), recordNodes, {
             ignoreUnknownKeys: true,
           }),
         )
+        for (const [key, anchorId] of cited) state.citations.set(key, anchorId)
         catalog.records.push({ ordinal, boundary, ...callDiagnostic('succeeded', callStartedAt, generated.metadata) })
         if (generated.metadata.finishReason === 'length') complete = false
       } catch (error) {
@@ -699,13 +727,14 @@ export function createExtractionJobExecutor({
       const callStartedAt = now()
       const identities = batch.map((_, index) => `R${index + 1}`)
       const key = routingKey(recordNodes)
-      const described = { records: [{ _description: definition.recordDescription, [key]: 'string', ...nodesToTemplate(recordNodes) }] }
+      const described = { records: [{ _description: definition.recordDescription, [key]: 'string', ...nodesToTemplate(recordNodes), ...citationTemplate }] }
       const markdown = batch
-        .map(({ boundary }, index) => `### Record ${identities[index]}\n${canonicalSourceSlice(document, boundary.startContentIndex, boundary.endContentIndex)}`)
+        .map(({ boundary }, index) => `### Record ${identities[index]}\n${renderSlice(boundary)}`)
         .join('\n\n')
       const instruction = [
         compileInstructions(described),
         `Return exactly one record per "### Record" heading, in the same order, and copy that heading's identifier (${identities.join(', ')}) into ${key}.`,
+        citationInstruction,
       ].filter(Boolean).join('\n')
       try {
         const generated = await invoke(model, markdown, document.page_count, stripDescriptions(described) as Record<string, unknown>, instruction, signal, state)
@@ -719,10 +748,14 @@ export function createExtractionJobExecutor({
           throw new ExtractionError('invalid_model_output', 'Catalog batch extraction must return one identified record per source record.')
         // Every row is validated before any row is kept: a failure here re-runs
         // the whole batch one record per call, so nothing may already be appended.
-        const restored = records.map((record) => {
+        const cited = new Map<string, string>()
+        const restored = records.map((record, index) => {
           const { [key]: _identity, ...values } = record
-          return restoreSchemaNodeOrder(values, recordNodes, { ignoreUnknownKeys: true })
+          return restoreSchemaNodeOrder(takeCitations(values, successfulRecords.length + index, cited), recordNodes, { ignoreUnknownKeys: true })
         })
+        // Citations join the state only once every row is valid: a rejected
+        // batch re-runs one record per call and cites afresh.
+        for (const [pathKey, anchorId] of cited) state.citations.set(pathKey, anchorId)
         restored.forEach((record, index) => {
           successfulRecords.push(record)
           // The batch's one call is charged to its first record.

@@ -97,7 +97,7 @@ def label_scores(root, runs):
 
 def table(runs, scores=None):
     scores = scores or {}
-    header = ['arm', 'rep', 'outcome', 'records', 'calls', 'disc', 'values', 'batch', 'fallback', 'ground', 'seconds', 'values/203', 'supported/164', 'evidence precision', 'claims', 'to model', 'lexical', 'ungrounded', 'cross-record', 'issues', 'coverage', 'wrong anchor']
+    header = ['arm', 'rep', 'outcome', 'records', 'calls', 'disc', 'values', 'batch', 'fallback', 'ground', 'seconds', 'values/203', 'supported/164', 'evidence precision', 'claims', 'to model', 'lexical', 'cited', 'citation links', 'code links', 'grounder links', 'ungrounded', 'cross-record', 'issues', 'coverage', 'wrong anchor']
     lines = ['| ' + ' | '.join(header) + ' |', '|' + '---|' * len(header)]
     for run in runs:
         c = counts(run)
@@ -108,7 +108,7 @@ def table(runs, scores=None):
         lines.append('| ' + ' | '.join(str(x) for x in [
             run['arm'], run['rep'], run['outcome'], f"{c['records']}/{c['boundaries']}", c['calls'], c['discovery'], c['values'], c['batchValues'], c['fallbackValues'], c['grounding'], c['seconds'],
             m.get('correctFields', '–'), m.get('supportedCorrectFields', '–'), f"{m['evidencePrecision']:.3f}" if m else '–',
-            c.get('populated', '–'), c.get('sentToModel', '–'), c.get('lexicalLinks', '–'), c['ungrounded'], c['crossRecord'], c['issues'], cov, wrong,
+            c.get('populated', '–'), c.get('sentToModel', '–'), c.get('lexicalLinks', '–'), c.get('cited', '–'), c.get('citationLinks', '–'), c.get('codeLexicalLinks', '–'), c.get('grounderLinks', '–'), c['ungrounded'], c['crossRecord'], c['issues'], cov, wrong,
         ]) + ' |')
     return '\n'.join(lines)
 

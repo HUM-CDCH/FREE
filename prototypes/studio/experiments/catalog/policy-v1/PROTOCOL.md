@@ -297,3 +297,55 @@ production run `5c2e6fbc` by `acceptance_compare.py` (`ACCEPTANCE.md`,
 against 885, 420 records, complete, no cross-entry link, 92 against 106
 minutes. The `--schema` flag now also accepts a saved Studio schema
 revision file, so this file's hash and the run's are in its manifest.
+
+## Revision 3: cite and verify
+
+Pre-registered 2026-09-09 before the first run, after the brainstorm in
+`REVIEW-cite-verify-brainstorm.md`. The observation: after the values call
+the record slice a value came from is certain; the grounding call locates
+the block inside the slice and checks that the value is stated at all. On
+the acceptance run 91% of claims were found verbatim in exactly one block
+of their slice.
+
+Policy keys (`packages/extraction/src/catalog.ts`): `citations` renders each
+record slice as the grounder's labelled blocks (the document's E labels)
+and asks the values call for `_citations`, one label per scalar and one per
+list item; `citationLinks` links a cited block in code when the value occurs
+in it as a bounded token inside the claim's own record, with
+`linkedBy: citation_lexical`, and sends every other claim to the grounder;
+`groundAlways` names fields whose claims always go to the grounder;
+`groundMultiHit` sends cited values found in several candidate blocks to
+the grounder. A citation that resolves outside the record, or to a block
+that does not contain the value, is ignored and the claim is grounded.
+
+Arms on the 29-entry Beier excerpt, local `qwen3.8:latest`, one repetition
+(discovery and values of C, D and E are replayed from B request for
+request, so those arms differ from B only in linking):
+
+| Arm | extraction | linking |
+|---|---|---|
+| A `batch-group-field` (existing runs) | current prompt | full grounding |
+| B `cite-full` | labelled slices, citations requested | full grounding, citations ignored |
+| C `cite-verify` | B's outputs | verified citations linked in code, the rest grounded |
+| D `cite-verify-routed` | B's outputs | C plus the frozen routing: `burial_axis` and `find_type` always grounded, multi-hit values grounded |
+| E `lexical-on-cite` | B's outputs | unique lexical hit linked in code, the rest grounded |
+
+Frozen routing rule for D, chosen from the known traps before any run:
+Beier `groundAlways = [burial_axis, find_type]`; Danish
+`groundAlways = [burial_axis]`; `groundMultiHit` on. Comparisons: A to B
+measures the prompt change; B to C the skipped calls; C to D the
+mitigation; C to E whether choosing a block beats finding one.
+
+Gate for D (and C) to advance, per Astra's design: `evaluate.py` recovers
+203 of 203 values and 164 of 164 supported fields at precision 1.000 on
+the excerpt with no incorrectly accepted link; no regression against each
+Danish report's fixed-denominator reference; no missed known trap, no
+wrong-record link, no rise in incorrect NONE; and a predeclared efficiency
+gain: at least 20% fewer grounding input tokens and at least 20% lower
+grounding time on the excerpt, with total cost not higher. If C or D does
+not beat E on adjudicated support, citations have not earned their output
+tokens. Passing leads to a shadow run on the full catalogue, not to a
+default change.
+
+Roots: `artifacts/catalog-lab/policy-v2-cite/beier` and
+`policy-v2-cite/transfer/<doc>`, frozen per root.

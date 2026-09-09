@@ -6,7 +6,7 @@ import { lexicalCheck, lexicalText, lexicalUniqueHit } from './lexical.js'
 import type { ParsedDocument } from './parsed-document.js'
 import type { CatalogBoundary } from './catalog-boundaries.js'
 import { schemaNodeAtPath, type SchemaNode } from './schema.js'
-import { sourceContext } from './source-context.js'
+import { recordAnchorIds, sourceContext } from './source-context.js'
 import type {
   EvidenceLink,
   GroundingBatchSnapshot,
@@ -53,9 +53,11 @@ export async function groundExtraction(
     recordBoundaries?: readonly CatalogBoundary[]
     now?: () => number
     /** Call structure; absent means one values-only call per record. */
-    policy?: Pick<CatalogPolicy, 'lexicalLinks' | 'groundingGroupSize' | 'fieldAwareGrounding'>
+    policy?: Pick<CatalogPolicy, 'lexicalLinks' | 'groundingGroupSize' | 'fieldAwareGrounding' | 'citationLinks' | 'groundAlways' | 'groundMultiHit'>
     /** Schema nodes describing the claims' fields, for field-aware grounding. */
     schemaNodes?: readonly SchemaNode[]
+    /** Anchor the values call cited for a claim, by result path key. */
+    citations?: ReadonlyMap<string, string>
   },
 ): Promise<GroundingOutcome> {
   const paths = populatedContentPaths(result).filter((path) => {
@@ -77,12 +79,7 @@ export async function groundExtraction(
   // the model saw less than the lexical check below verifies against.
   const anchors = Object.fromEntries([...context.anchorIdByLabel].map(([label, anchorId]) => [label, context.textByAnchorId.get(anchorId) ?? '']))
   const recordAnchors = options?.recordBoundaries?.map(boundary => {
-    const blocks = document.content_stream.slice(boundary.startContentIndex, boundary.endContentIndex)
-    const blockIds = new Set(blocks.map(block => block.block_id))
-    const tableIds = new Set(blocks.flatMap(block => block.kind === 'table' ? [block.table_id] : []))
-    const anchorIds = new Set(document.evidence_index.anchors.filter(anchor =>
-      anchor.kind === 'text' ? blockIds.has(anchor.block_id) : tableIds.has(anchor.logical_table_id),
-    ).map(anchor => anchor.anchor_id))
+    const anchorIds = recordAnchorIds(document, boundary)
     return Object.fromEntries(Object.entries(anchors).filter(([label]) => anchorIds.has(context.anchorIdByLabel.get(label)!)))
   })
   const lexicalTextByAnchorId = new Map([...context.textByAnchorId].map(([anchorId, text]) => [anchorId, lexicalText(text)]))
@@ -112,6 +109,22 @@ export async function groundExtraction(
     const pending = new Map<string, { claim: Claim; member: (typeof members)[number] }>()
     for (const member of members)
       for (const claim of member.batch.claims) {
+        const cited = policy?.citationLinks ? options?.citations?.get(resultPathKey(claim.path)) : undefined
+        if (cited !== undefined) {
+          // A citation is accepted only where code can see the value in the
+          // cited block of the claim's own record; a match proves occurrence,
+          // not meaning, so routed fields and repeated values still go to the
+          // grounder. Still a suggestion; the reviewer decides.
+          const label = context.labelByAnchorId.get(cited)
+          const check = label !== undefined && Object.hasOwn(member.anchors, label) ? lexicalCheck(claim.value, cited, member.lexical) : null
+          const field = claimField(claim, options?.schemaNodes ?? []).field
+          const routed = (policy?.groundAlways ?? []).includes(field) || (policy?.groundMultiHit === true && (check?.lexicalHits ?? 0) > 1)
+          if (check?.verbatim && !routed) {
+            selectedClaims.add(claim.label)
+            evidence.push({ resultPath: claim.path, evidenceAnchorId: cited, ...check, linkedBy: 'citation_lexical' })
+            continue
+          }
+        }
         const hit = policy?.lexicalLinks ? lexicalUniqueHit(claim.value, member.lexical) : null
         if (hit === null) {
           pending.set(claim.label, { claim, member })
@@ -120,7 +133,7 @@ export async function groundExtraction(
         // The value is a bounded token of exactly one candidate: link it
         // without the model. Still a suggestion; the reviewer decides.
         selectedClaims.add(claim.label)
-        evidence.push({ resultPath: claim.path, evidenceAnchorId: hit, verbatim: true, lexicalHits: 1 })
+        evidence.push({ resultPath: claim.path, evidenceAnchorId: hit, verbatim: true, lexicalHits: 1, linkedBy: 'lexical' })
       }
     if (pending.size === 0) continue
     const callAnchors: Record<string, string> = members.length === 1 ? members[0].anchors : Object.assign({}, ...members.map((member) => member.anchors))

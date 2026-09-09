@@ -19,6 +19,10 @@ export type EvidenceLink = Readonly<{
   /** Candidate anchors containing the value; above one, the passage is
    *  ambiguous. A reviewer's doubt, not a probability; never auto-accept. */
   lexicalHits?: number
+  /** How the link was made when not by the grounder: the values call cited
+   *  the block and code found the value in it, or code found the value in
+   *  exactly one candidate. Absent means the grounder chose the anchor. */
+  linkedBy?: 'citation_lexical' | 'lexical'
 }>
 
 export type ReviewDecisionAction = 'APPROVED' | 'EDITED' | 'REJECTED'
