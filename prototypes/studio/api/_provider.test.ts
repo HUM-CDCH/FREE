@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { generateText } from 'ai'
 import type { ModelConfig, ModelConnection } from '../shared/modelConfig.contract.js'
@@ -59,6 +60,14 @@ describe('provider table', () => {
     expect(requestSignal?.aborted).toBe(true)
   })
 
+  it('points Codex at the installed native executable, never a Windows launcher script', () => {
+    const create = vi.fn<(options: { defaultSettings: { codexPath: string } }) => never>(() => ({}) as never)
+    createRestrictedCodexProvider('/tmp/free-codex-sandbox', create as never)
+    const { codexPath } = create.mock.calls[0]![0].defaultSettings
+    expect(codexPath).not.toMatch(/\.(?:cmd|bat|js)$/i)
+    expect(existsSync(codexPath)).toBe(true)
+  })
+
   it('creates Codex with every local tool surface disabled', () => {
     const provider = vi.fn() as never
     const create = vi.fn(() => provider)
@@ -69,7 +78,7 @@ describe('provider table', () => {
     expect(create).toHaveBeenCalledWith({
       defaultSettings: {
         approvalPolicy: 'never',
-        codexPath: expect.stringMatching(/node_modules[\\/]\.bin[\\/]codex/),
+        codexPath: expect.stringMatching(/[\\/]vendor[\\/][^\\/]+[\\/]bin[\\/]codex(?:\.exe)?$/),
         cwd: '/tmp/free-codex-sandbox',
         effort: 'none',
         sandboxPolicy: 'read-only',
@@ -85,6 +94,7 @@ describe('provider table', () => {
           'features.browser_use': false,
           'features.code_mode_host': false,
           'features.computer_use': false,
+          'features.context_management': false,
           'features.image_generation': false,
           'features.multi_agent': false,
           'features.shell_snapshot': false,
