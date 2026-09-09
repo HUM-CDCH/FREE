@@ -29,6 +29,10 @@ def populated_paths(value, path=()):
 
 
 def score(run, labels):
+    """`all`/`code`/`model` count the run's populated values; `coverage` counts
+    the sheet's supported claims (the same denominator for every arm) that
+    this run emitted with a correct link, so a field the arm left empty
+    still counts against it."""
     terminal = json.loads((run / 'terminal.json').read_text(encoding='utf8'))
     result = terminal.get('result') or {}
     records = [r for r in (terminal.get('diagnostics', {}).get('catalog') or {}).get('records', []) if r['outcome'] == 'succeeded']
@@ -43,6 +47,7 @@ def score(run, labels):
     model_paths = {paths[int(label[1:]) - 1] for label in model_labels if label.startswith('C') and int(label[1:]) <= len(paths)}
     by_route = {'code': Counter(), 'model': Counter(), 'all': Counter()}
     unlabelled = 0
+    covered = set()
     for index, (record, row) in enumerate(zip(records, rows)):
         for field, value in row.items():
             if value is None or value == '' or isinstance(value, (dict, list)):
@@ -57,12 +62,17 @@ def score(run, labels):
             route = 'model' if path in model_paths or not model_labels else 'code'
             if gold:
                 outcome = 'missing' if not linked else 'correct' if set(linked) <= gold else 'wrongAnchor'
+                if outcome == 'correct':
+                    covered.add((record['boundary']['startBlockId'], field, normalize(value)))
             else:
                 outcome = 'unsupportedLinked' if linked else 'correctAbstain'
             for bucket in (route, 'all'):
                 by_route[bucket][outcome] += 1
                 by_route[bucket]['values'] += 1
-    return {'run': run.name, 'unlabelled': unlabelled, **{route: dict(counter) for route, counter in by_route.items()}}
+    supported = {key for key, label in labels.items() if label.get('goldAnchorIds')}
+    return {'run': run.name, 'unlabelled': unlabelled,
+            'coverage': {'covered': len(covered & supported), 'supported': len(supported)},
+            **{route: dict(counter) for route, counter in by_route.items()}}
 
 
 def main():

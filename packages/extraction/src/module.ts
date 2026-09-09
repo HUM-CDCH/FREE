@@ -698,13 +698,14 @@ export function createExtractionJobExecutor({
     const executeRecordBatch = async (batch: readonly { ordinal: number; boundary: CatalogBoundary }[]): Promise<boolean> => {
       const callStartedAt = now()
       const identities = batch.map((_, index) => `R${index + 1}`)
-      const described = { records: [{ _description: definition.recordDescription, record_id: 'string', ...nodesToTemplate(recordNodes) }] }
+      const key = routingKey(recordNodes)
+      const described = { records: [{ _description: definition.recordDescription, [key]: 'string', ...nodesToTemplate(recordNodes) }] }
       const markdown = batch
         .map(({ boundary }, index) => `### Record ${identities[index]}\n${canonicalSourceSlice(document, boundary.startContentIndex, boundary.endContentIndex)}`)
         .join('\n\n')
       const instruction = [
         compileInstructions(described),
-        `Return exactly one record per "### Record" heading, in the same order, and copy that heading's identifier (${identities.join(', ')}) into record_id.`,
+        `Return exactly one record per "### Record" heading, in the same order, and copy that heading's identifier (${identities.join(', ')}) into ${key}.`,
       ].filter(Boolean).join('\n')
       try {
         const generated = await invoke(model, markdown, document.page_count, stripDescriptions(described) as Record<string, unknown>, instruction, signal, state)
@@ -712,12 +713,18 @@ export function createExtractionJobExecutor({
         if (
           !records ||
           records.length !== batch.length ||
-          records.some((record, index) => record.record_id !== identities[index]) ||
+          records.some((record, index) => record[key] !== identities[index]) ||
           generated.metadata.finishReason === 'length'
         )
           throw new ExtractionError('invalid_model_output', 'Catalog batch extraction must return one identified record per source record.')
-        records.forEach((record, index) => {
-          successfulRecords.push(restoreSchemaNodeOrder(record, recordNodes, { ignoreUnknownKeys: true }))
+        // Every row is validated before any row is kept: a failure here re-runs
+        // the whole batch one record per call, so nothing may already be appended.
+        const restored = records.map((record) => {
+          const { [key]: _identity, ...values } = record
+          return restoreSchemaNodeOrder(values, recordNodes, { ignoreUnknownKeys: true })
+        })
+        restored.forEach((record, index) => {
+          successfulRecords.push(record)
           // The batch's one call is charged to its first record.
           catalog.records.push({
             ...batch[index],
@@ -880,6 +887,15 @@ function decodeCanonical(raw: unknown): ParsedDocument {
 function parsePinnedSchema(raw: unknown) {
   try { return parseExtractionSchema(raw) }
   catch (error) { throw new ExtractionError('invalid_schema_revision', 'The pinned Schema Revision is invalid.', { cause: error }) }
+}
+
+/** A batch routing key no researcher field uses: `record_id` unless the
+ *  schema names it, then underscores until it is free. */
+export function routingKey(nodes: readonly ExtractionSchemaNode[]): string {
+  const taken = new Set(nodes.map((node) => node.name))
+  let key = 'record_id'
+  while (taken.has(key)) key = `_${key}`
+  return key
 }
 
 function extractionRecords(result: Readonly<Record<string, unknown>>): Record<string, unknown>[] | null {

@@ -1,8 +1,12 @@
 # Catalog policy v1: fewer model calls, same links
 
-Status: measured on 2026-09-09 with the production executor on local models;
-default flipped in `packages/extraction/src/catalog.ts`. Links stay reviewer
-suggestions: no score, no threshold, no automatic acceptance.
+Status: measured on 2026-09-09 with the production executor on local models.
+**Opt-in, not the default.** The candidate passed every Beier gate but failed
+two transfer gates (section 4.2), so `DEFAULT_CATALOG_POLICY` stays the
+per-record behaviour and `CATALOG_POLICY_V1` is enabled through
+`FREE_CATALOG_POLICY`. A review on 2026-09-09 also found two runtime defects
+in the first implementation, fixed with regression tests (section 6). Links
+stay reviewer suggestions: no score, no threshold, no automatic acceptance.
 
 Sources: the catalog experiments
 ([RESULTS](../../prototypes/studio/experiments/catalog/RESULTS.md),
@@ -46,17 +50,16 @@ per record and one grounding call per record. The full Beier catalogue
 `CatalogPolicy` (`packages/extraction/src/catalog.ts`), read by Studio from
 `FREE_CATALOG_POLICY` (JSON) in `api/_extraction_runtime.ts`:
 
-| Key | Production default | Meaning |
-|---|---|---|
-| `recordBatchSize` | 5 | Records per values call. Each slice sits under a `### Record R<n>` heading and the response must return every identity once, in order; otherwise the batch re-runs one record per call. |
-| `groundingGroupSize` | 5 | Records whose claims share one grounding call. Every link is validated against its own record's anchors; a link into a neighbouring record is rejected. |
-| `fieldAwareGrounding` | true | The grounder sees each claim's record, field name and schema description, and is told that the same string under another meaning is not evidence. |
-| `lexicalLinks` | false | Linking a single lexical hit in code without the model. Measured and rejected (section 5). |
+| Key | Default | `CATALOG_POLICY_V1` | Meaning |
+|---|---|---|---|
+| `recordBatchSize` | 1 | 5 | Records per values call. Each slice sits under a `### Record R<n>` heading and the response must return every identity once, in order, under a routing key no schema field uses; otherwise the whole batch re-runs one record per call, and no row of the rejected batch is kept. |
+| `groundingGroupSize` | 1 | 5 | Records whose claims share one grounding call. Every link is validated against its own record's anchors; a link into a neighbouring record is rejected. |
+| `fieldAwareGrounding` | false | true | The grounder sees each claim's record, field name and schema description, and is told that the same string under another meaning is not evidence. |
+| `lexicalLinks` | false | false | Linking a single lexical hit in code without the model. Measured and rejected (section 5). |
 
 Discovery is unchanged: its page chunking was fixed deliberately on
-2026-09-07 and costs 45 of 885 calls on Beier. `{"recordBatchSize":1,
-"groundingGroupSize":1,"fieldAwareGrounding":false}` reproduces the previous
-behaviour exactly.
+2026-09-07 and costs 45 of 885 calls on Beier. To run the candidate, set
+`FREE_CATALOG_POLICY` to `{"recordBatchSize":5,"groundingGroupSize":5,"fieldAwareGrounding":true}`.
 
 ## 4. Measurement
 
@@ -108,26 +111,37 @@ set tests identity, call structure and links on foreign headings, not
 recall. Two reports (Brondbylund, Katrinesminde) returned no records under
 every arm, as in the original transfer test. On the other three:
 
-| Report | Arm | records | calls (discovery) | values | correct links | wrong anchor | missing | links on unsupported values | cross-record |
-|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Herredsvejen | baseline | 2/2 | 28 (25) | 2 | 2 | 0 | 0 | 0 | 0 |
-| Herredsvejen | adopted | 2/2 | 26 (25) | 0 | – | – | – | – | 0 |
-| Hojbakkegaard | baseline | 7/7 | 33 (20) | 10 | 9 | 0 | 1 | 0 | 0 |
-| Hojbakkegaard | adopted | 7/7 | 24 (20) | 8 | 8 | 0 | 0 | 0 | 0 |
-| Hvissinge | baseline | 6/6 | 27 (21) | 0 | – | – | – | – | 0 |
-| Hvissinge | adopted | 6/6 | 24 (21) | 5 | 3 | 0 | 0 | 2 | 0 |
+| Report | Arm | records | non-discovery calls | values | coverage of the sheet's supported claims | wrong anchor | links on unsupported values | cross-record |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| Herredsvejen | baseline | 2/2 | 3 | 2 | 2/2 | 0 | 0 | 0 |
+| Herredsvejen | candidate | 2/2 | 1 | 0 | 0/2 | 0 | 0 | 0 |
+| Hojbakkegaard | baseline | 7/7 | 13 | 10 | 9/11 | 0 | 0 | 0 |
+| Hojbakkegaard | candidate | 7/7 | 4 | 8 | 8/11 | 0 | 0 | 0 |
+| Hvissinge | baseline | 6/6 | 6 | 0 | 0/3 | 0 | 0 | 0 |
+| Hvissinge | candidate | 6/6 | 3 | 5 | 3/3 | 0 | 2 | 0 |
 
 Labels came from one blind labeller per report who saw only the document
 text and an unlabelled sheet (18 distinct claims, 16 supported; the two
 unsupported are `burial_axis` values composed from "head in the north").
-Every boundary yielded exactly one record, no batch fell back, no link
-crossed into another record, and no link pointed at a wrong passage. On
-these reports discovery is 20 of 24 calls, so the policy changes little.
-Batching is not value-neutral when the schema does not fit the document:
-the five-record call left `catalog_number` empty on three Hojbakkegaard
-graves and both Herredsvejen records, and filled five axes on Hvissinge
-that the per-record calls had left empty. On Beier, where the schema
-fits, values were identical across every arm.
+Coverage uses one denominator for both arms: every supported claim on the
+sheet, whichever arm emitted it, so a field the candidate left empty counts
+against it. Every boundary yielded exactly one record, no batch was
+rejected, no link crossed into another record, and no link pointed at a
+wrong passage.
+
+**Two transfer gates fail.** G2 requires non-discovery calls at most 40% of
+the baseline on each document; Hvissinge has 3 against 6 (50%), because
+six records make batches of five and one. G4 requires coverage within five
+points of the baseline; Herredsvejen falls from 2/2 to 0/2 and Hojbakkegaard
+from 9/11 to 8/11 (9.1 points), because the five-record values call left
+`catalog_number` empty on three Hojbakkegaard graves and both Herredsvejen
+records, while it filled five axes on Hvissinge that the per-record calls
+had left empty. Batching is therefore not value-neutral when the schema
+does not fit the document. On Beier, where the schema fits, values were
+identical across every arm. Under the protocol a failed gate leaves the
+default unchanged; revising the gates for sparse documents, or accepting
+the candidate on Beier-like catalogues only, is an explicit decision that
+has not been taken.
 
 ### 4.3 Other models on the adopted call structure
 
@@ -151,9 +165,13 @@ On the Danish reports with blind labels, NuExtract values populated far
 more fields than Qwen, and the extra ones were mostly schema violations:
 Hojbakkegaard 20 values, 12 supported and 8 unsupported (grave-type words
 in `find_type`, an axis never stated) against Qwen's 8 of 8; Herredsvejen
-5 values, 3 supported, one unsupported linked. NuExtract as grounder made
-links into neighbouring records on Beier and on Hojbakkegaard linked one
-wrong passage and missed three of eight.
+5 values, 3 supported, one unsupported linked. Over the shared
+denominator NuExtract covers more supported claims (Hojbakkegaard 12/13
+against Qwen's 8/13, Herredsvejen 3/4 against 0/4) because it fills
+`catalog_number` where the batched Qwen call leaves it empty, at the price
+of those unsupported values. NuExtract as grounder made links into
+neighbouring records on Beier and on Hojbakkegaard linked one wrong
+passage and missed three of eight.
 
 Verdict: NuExtract halves the values time and is 3–4 seconds per call
 faster, but it needs schema-specific examples to come within two values of
@@ -191,20 +209,39 @@ the deployed route and is measured in the acceptance run (section 7).
 - **Rule boundaries, few-shot examples, hit-set-only candidates, sibling
   gate, thresholds, risk scores**: not measured here; rejected by the labs.
 
-## 6. Reviewer-facing behaviour
+## 6. Reviewer-facing behaviour, and the defects found in review
 
-Unchanged. Every populated value still gets a model-proposed link or none;
-`verbatim` and `lexicalHits` still flag doubts; nothing is accepted
-automatically. Per-record diagnostics now show the batch's call on its
-first record and zero calls on the others; the stage totals count each
-call once. A batch that fails identity validation re-runs its records one
-per call, which the diagnostics show as single-record calls.
+Unchanged for the reviewer. Every populated value still gets a
+model-proposed link or none; `verbatim` and `lexicalHits` still flag
+doubts; nothing is accepted automatically. Per-record diagnostics show the
+batch's call on its first record and zero calls on the others; the stage
+totals count each call once. A batch whose response fails validation
+re-runs its records one per call, which the diagnostics show as
+single-record calls.
+
+The 2026-09-09 review of the first implementation found, and the fixes
+now guard with regression tests in `module.test.ts`:
+
+- A batch appended rows before validating the remaining ones, so a later
+  malformed row re-ran the whole batch while the earlier rows stayed:
+  two records became three results with ordinals 0, 0, 1. Every row is now
+  restored before any row is kept.
+- The routing key `record_id` could collide with a researcher's own
+  `record_id` field and overwrite its value with `R1`. The key is now
+  `record_id` only when the schema does not use it, otherwise prefixed with
+  underscores until free, and it is stripped before the record is kept.
+- In the acceptance checks: coverage was never compared (fixed with the
+  shared denominator above); a normal final batch of one record counted as
+  a fallback (the harness now marks only single calls for a slice that a
+  rejected batch already carried, and the recorded runs were re-checked
+  from their saved requests: no fallback occurred); the frozen input hash
+  was recorded but not enforced (the suite now refuses a different input).
 
 ## 7. Acceptance on the deployment
 
 Run a new Catalog extraction in Studio on the prepared Beier Source
-Document (Schema Revision 6) with the flipped default and compare with run
-`5c2e6fbc`: expected about 45 discovery + 84 values + 84 grounding calls
+Document (Schema Revision 6) with `FREE_CATALOG_POLICY` set to the
+candidate and compare with run `5c2e6fbc`: expected about 45 discovery + 84 values + 84 grounding calls
 instead of 885, 420 records, zero links into other entries, and a "To
 check" count near the rehearsal's 1,650. Record the outcome in
 `docs/validation/`. The Spark route was unreachable when this policy was

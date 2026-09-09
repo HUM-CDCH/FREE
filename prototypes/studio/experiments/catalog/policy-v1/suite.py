@@ -64,8 +64,11 @@ def main():
             'inputSha256': hashlib.sha256(args.input.read_bytes()).hexdigest(),
             'note': 'Arms and gates are pre-registered in PROTOCOL.md before the first run.',
         }, indent=2))
-    if not freeze.exists() or json.loads(freeze.read_text())['codeHashes'] != hashes():
+    frozen = json.loads(freeze.read_text()) if freeze.exists() else None
+    if frozen is None or frozen['codeHashes'] != hashes():
         raise SystemExit('Freeze absent or code changed: create a new revision')
+    if frozen['inputSha256'] != hashlib.sha256(args.input.read_bytes()).hexdigest():
+        raise SystemExit('Input document differs from the frozen one: use a new root')
     for repetition in range(args.start_repetition, args.start_repetition + args.repetitions):
         offset = (repetition - args.start_repetition) % len(args.arms)
         for arm in args.arms[offset:] + args.arms[:offset]:

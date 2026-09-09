@@ -91,7 +91,17 @@ reused; failed runs stay. `report.py` generates `RESULTS.md` from
   `policy-v1-nofield`, `policy-v1-g1`, `policy-v1-g1-nofield`.
   `batch-group-field` passed every Beier gate and was confirmed with two
   further Beier repetitions and one run per Danish report before adoption.
-- `DEFAULT_CATALOG_POLICY` was flipped after the runs; the frozen hash of
-  `catalog.ts` no longer matches, so this root is closed. Every run passed
-  its policy explicitly, so the default did not influence any result.
+- `DEFAULT_CATALOG_POLICY` was flipped after the Beier runs and reverted
+  the same day: with coverage evaluated over a shared denominator, the
+  candidate fails G4 on Herredsvejen and Hojbakkegaard, and G2 on Hvissinge
+  (3 calls against 6). The candidate is `CATALOG_POLICY_V1`, opt-in through
+  `FREE_CATALOG_POLICY`. The frozen hashes of `catalog.ts` and `module.ts`
+  no longer match (default revert, batch validation and routing-key fixes),
+  so the roots are closed; every run passed its policy explicitly and the
+  fixes do not change a successful batch's prompt or result.
+- The review also corrected the checks: `report.py` evaluates coverage and
+  the wrong-anchor rate from the labelled sheet, counts only single calls
+  for a slice a rejected batch already carried as fallbacks (the recorded
+  runs have none), and `suite.py` refuses an input whose hash differs from
+  the frozen one.
 

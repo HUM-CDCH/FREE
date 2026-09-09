@@ -107,7 +107,9 @@ function exampleBlock(template: Record<string, unknown>): string {
   return `【examples_start】\n【example_input_start】${input}【example_input_end】\n【example_output_start】${JSON.stringify(output)}【example_output_end】\n【examples_end】\n`
 }
 
-type Call = { index: number; phase: 'discovery' | 'extraction' | 'grounding'; model: string; status: 'failed' | 'succeeded'; durationMs: number; providerInvocations: number; metadata?: unknown; error?: string; claims?: number; claimLabels?: string[]; candidates?: number; records?: number }
+type Call = { index: number; phase: 'discovery' | 'extraction' | 'grounding'; model: string; status: 'failed' | 'succeeded'; durationMs: number; providerInvocations: number; metadata?: unknown; error?: string; claims?: number; claimLabels?: string[]; candidates?: number; records?: number; fallback?: boolean }
+/** Slices already sent inside a batch; a later single call for one of them is a rejected batch's fallback. */
+const batchedSlices = new Set<string>()
 const calls: Call[] = []
 await save('manifest.json', { arm: args.arm, policy, model: args.model, valuesModel: args['values-model'], groundModel: args['ground-model'], fewShot: args['few-shot'], ollamaUrl: args['ollama-url'], inputSha256, hashes, schemaDefinition, startedAt: new Date().toISOString() })
 
@@ -154,7 +156,16 @@ const execute = createExtractionJobExecutor({
     model: { async extract(request: ExtractionModelRequest) {
       const discovery = 'starts' in request.template
       const batch = Array.isArray(request.template.records)
-      const response = await invoke(discovery ? 'discovery' : 'extraction', { document: { file: null, markdown: request.document.markdown, pages: request.document.pages }, template: request.template, instruction: request.instruction ?? '', outputSchema: request.outputSchema }, discovery ? general : valuesTarget, discovery ? {} : { records: batch ? (request.document.markdown.match(/^### Record R\d+$/gm) ?? []).length : 1 })
+      const markdown = request.document.markdown
+      let extra: Partial<Call> = {}
+      if (!discovery && batch) {
+        const slices = markdown.split(/^### Record R\d+\n/m).slice(1)
+        for (const slice of slices) batchedSlices.add(slice.trim())
+        extra = { records: slices.length }
+      } else if (!discovery) {
+        extra = { records: 1, fallback: batchedSlices.has(markdown.trim()) }
+      }
+      const response = await invoke(discovery ? 'discovery' : 'extraction', { document: { file: null, markdown, pages: request.document.pages }, template: request.template, instruction: request.instruction ?? '', outputSchema: request.outputSchema }, discovery ? general : valuesTarget, extra)
       return { result: response.result, metadata: response.metadata }
     } },
     groundingModel: { async ground(request) {

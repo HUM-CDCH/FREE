@@ -31,23 +31,28 @@ export type CatalogPolicy = Readonly<{
   fieldAwareGrounding: boolean
 }>
 
-/** Five records per values call and per grounding call, each claim named
- *  by record and field: on the Beier excerpt 15 calls instead of 61 with
- *  identical values and links (docs/research/catalog-policy-v1.md).
- *  Lexical auto-linking stays off: it linked the wrong passage on traps. */
-export const DEFAULT_CATALOG_POLICY: CatalogPolicy = {
-  recordBatchSize: 5,
-  lexicalLinks: false,
-  groundingGroupSize: 5,
-  fieldAwareGrounding: true,
-}
-
-/** The behaviour before policy v1: one values-only call per record. */
+/** One values-only call per record: the behaviour before policy v1. It stays
+ *  the default because the policy experiment's transfer gates did not pass
+ *  (docs/research/catalog-policy-v1.md); Studio opts in through
+ *  FREE_CATALOG_POLICY. */
 export const PER_RECORD_CATALOG_POLICY: CatalogPolicy = {
   recordBatchSize: 1,
   lexicalLinks: false,
   groundingGroupSize: 1,
   fieldAwareGrounding: false,
+}
+
+export const DEFAULT_CATALOG_POLICY: CatalogPolicy = PER_RECORD_CATALOG_POLICY
+
+/** The measured candidate: five records per values call and per grounding
+ *  call, each claim named by record and field. On the Beier excerpt 15 calls
+ *  instead of 61 with identical values and links; lexical auto-linking stays
+ *  off because it linked the wrong passage on traps. */
+export const CATALOG_POLICY_V1: CatalogPolicy = {
+  recordBatchSize: 5,
+  lexicalLinks: false,
+  groundingGroupSize: 5,
+  fieldAwareGrounding: true,
 }
 
 const CATALOG_POLICY_MAX_GROUP = 50
