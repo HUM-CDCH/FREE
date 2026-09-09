@@ -379,3 +379,24 @@ measures grounder variance on identical inputs):
   a correct link.
 
 The gate is unchanged.
+
+### Revision 3, third root (declared after the second root's results, before its runs)
+
+Second root: D' (`cite-verify-fields`) reproduced its input exactly in
+both repetitions (163 of 163 links, precision 1.000, no NONE) and, replayed
+on B's second extraction, met the quality gate: 203 values, 164 supported
+fields, precision 1.000, twice. B's extraction itself varied: one of two
+repetitions lost one findspot value, where A had been identical over three.
+The cost: the JSON-object `_citations` (a repeated field name per entry)
+cost 7.3 output tokens per citation, 2.5k on the excerpt, which is what
+grounding saved (2,159 to 573), so time was flat (59 against 58 s).
+Grounding input fell 17% under D', short of the 20% declared, because the
+routed fields keep nearly every record in the call; C, without routing,
+fell 41%.
+
+Change for the third root: `_citations` becomes one string per record, a
+label per field in template order (lists comma-separated, `-` for none),
+about two output tokens per citation; an unparseable or misaligned string
+drops the citations and the claims go to the grounder. Arms as in the
+second root; the gate is unchanged and the efficiency criterion is read on
+total values-plus-grounding output tokens and time against A.

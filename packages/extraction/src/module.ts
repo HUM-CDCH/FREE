@@ -501,23 +501,27 @@ export function createExtractionJobExecutor({
     const renderSlice = (boundary: CatalogBoundary) => labelled
       ? sourceContext(document, recordAnchorIds(document, boundary), labelled.labelByAnchorId).text
       : canonicalSourceSlice(document, boundary.startContentIndex, boundary.endContentIndex)
-    const citationTemplate = labelled
-      ? { _citations: Object.fromEntries(recordNodes.map((node) => [node.name, node.type === 'array' ? ['string'] : 'string'])) }
-      : {}
+    // One compact string per record: a label per field in template order, so a
+    // citation costs about two output tokens instead of a repeated field name.
+    const citationTemplate = labelled ? { _citations: 'string' } : {}
     const citationInstruction = labelled
-      ? 'In _citations give, for each field, the [E<n>] label of the block the value was taken from, null when no block states it, and one label per item for list fields.'
+      ? `In _citations give one [E<n>] label per field, in this order: ${recordNodes.map((node) => node.name).join(' ')}; separate fields with spaces, write - when no block states the value, and for list fields give one label per item separated by commas.`
       : ''
-    /** Strip `_citations` from a model record and resolve its labels to anchors for the record at `recordIndex`. */
+    /** Strip `_citations` from a model record and resolve its labels to anchors for the record at `recordIndex`.
+     *  An unparseable or misaligned citation is dropped: the claim then goes to the grounder. */
     const takeCitations = (record: Record<string, unknown>, recordIndex: number, into: Map<string, string>) => {
       const { _citations, ...values } = record
-      if (labelled && _citations && typeof _citations === 'object' && !Array.isArray(_citations))
-        for (const [field, cited] of Object.entries(_citations as Record<string, unknown>)) {
-          const labels = Array.isArray(cited) ? cited : [cited]
-          labels.forEach((label, index) => {
-            const anchorId = typeof label === 'string' ? labelled.anchorIdByLabel.get(label.trim().replace(/^\[|\]$/g, '')) : undefined
-            if (anchorId) into.set(resultPathKey(Array.isArray(cited) ? ['records', recordIndex, field, index] : ['records', recordIndex, field]), anchorId)
+      if (labelled && typeof _citations === 'string') {
+        const tokens = _citations.trim().split(/\s+/)
+        if (tokens.length === recordNodes.length)
+          recordNodes.forEach((node, position) => {
+            const labels = node.type === 'array' ? tokens[position]!.split(',') : [tokens[position]!]
+            labels.forEach((label, index) => {
+              const anchorId = labelled.anchorIdByLabel.get(label.trim().replace(/^\[|\]$/g, ''))
+              if (anchorId) into.set(resultPathKey(node.type === 'array' ? ['records', recordIndex, node.name, index] : ['records', recordIndex, node.name]), anchorId)
+            })
           })
-        }
+      }
       return values
     }
     // Parent result records carry no identity; they align positionally with the

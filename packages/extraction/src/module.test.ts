@@ -791,15 +791,15 @@ describe('Catalog policy', () => {
       policy: { ...CATALOG_POLICY_V1, citations: true, citationLinks: true },
       script: [{ result: { records: [
         // E1 is the "First" heading block, E3 the "Second" heading block; the years are cited nowhere.
-        { record_id: 'R1', title: 'First', year: 1901, _citations: { title: 'E1', year: null } },
-        { record_id: 'R2', title: 'Second', year: 1902, _citations: { title: '[E1]', year: null } },
+        { record_id: 'R1', title: 'First', year: 1901, _citations: 'E1 -' },
+        { record_id: 'R2', title: 'Second', year: 1902, _citations: '[E1] -' },
       ] } }],
     })
     const { extraction } = await harness.module.runSingle(catalogInput())
     const values = harness.calls[1]!
     assert.match(values.markdown, /### Record R1\n## Page 1\n\[E1\] First\n\[E2\] First body\n\n### Record R2\n## Page 1\n\[E3\] Second/)
-    assert.deepEqual((values.template.records as Record<string, unknown>[])[0]!._citations, { title: 'string', year: 'string' })
-    assert.match(values.instruction ?? '', /_citations/)
+    assert.equal((values.template.records as Record<string, unknown>[])[0]!._citations, 'string')
+    assert.match(values.instruction ?? '', /_citations give one \[E<n>\] label per field, in this order: title year/)
     assert.deepEqual(extraction.result, { records: [{ title: 'First', year: 1901 }, { title: 'Second', year: 1902 }] })
     // R1's title is verified in code ("First" also occurs in its body block, hence two hits, still linked without groundMultiHit);
     // R2 cited another record's block, so it and both years went to the grounder.

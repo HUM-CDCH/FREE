@@ -243,7 +243,7 @@ const populated = terminal.result ? populatedContentPaths(terminal.result).lengt
 const citationCount = calls.filter((call) => call.phase === 'extraction').length ? (await Promise.all(calls.filter((call) => call.phase === 'extraction').map(async (call) => {
   const response = JSON.parse(await readFile(join(out, `call-${String(call.index).padStart(3, '0')}-response.json`), 'utf8'))
   const rows = response.result?.records ?? (response.result?.record ? [response.result.record] : [])
-  return rows.reduce((n: number, row: Record<string, unknown>) => n + Object.values((row._citations as Record<string, unknown>) ?? {}).flat().filter((label) => typeof label === 'string').length, 0)
+  return rows.reduce((n: number, row: Record<string, unknown>) => n + (typeof row._citations === 'string' ? row._citations.split(/[\s,]+/).filter((label) => /^\[?E\d+\]?$/.test(label)).length : Object.values((row._citations as Record<string, unknown>) ?? {}).flat().filter((label) => typeof label === 'string').length), 0)
 }))).reduce((a, b) => a + b, 0) : 0
 const sentToModel = calls.filter((call) => call.phase === 'grounding').reduce((sum, call) => sum + (call.claims ?? 0), 0)
 await save('result.json', {

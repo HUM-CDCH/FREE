@@ -36,6 +36,7 @@ ARMS = {
     'cite-verify-routed': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--citations', '--citation-links', '--ground-always', 'burial_axis,find_type', '--ground-multi-hit', '--replay', '@cite-full-r1'],
     'cite-verify-routed-danish': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--citations', '--citation-links', '--ground-always', 'burial_axis', '--ground-multi-hit', '--replay', '@cite-full-r1'],
     'cite-verify-fields': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--citations', '--citation-links', '--ground-always', 'burial_axis,find_type', '--replay', '@cite-full-r1'],
+    'cite-verify-fields-b2': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--citations', '--citation-links', '--ground-always', 'burial_axis,find_type', '--replay', '@cite-full-r2'],
     'lexical-on-cite': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--citations', '--lexical-links', '--replay', '@cite-full-r1'],
 }
 
