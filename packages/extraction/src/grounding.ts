@@ -136,7 +136,10 @@ export async function groundExtraction(
         evidence.push({ resultPath: claim.path, evidenceAnchorId: hit, verbatim: true, lexicalHits: 1, linkedBy: 'lexical' })
       }
     if (pending.size === 0) continue
-    const callAnchors: Record<string, string> = members.length === 1 ? members[0].anchors : Object.assign({}, ...members.map((member) => member.anchors))
+    // Only records that still have a claim are shown: a record whose claims
+    // were all linked in code adds candidates without a question to answer.
+    const active = members.filter((member) => member.batch.claims.some((claim) => pending.has(claim.label)))
+    const callAnchors: Record<string, string> = active.length === 1 ? active[0].anchors : Object.assign({}, ...active.map((member) => member.anchors))
     const resultPath = group[0].resultPath
     const startedAt = now()
     let generated: GroundingModelResponse

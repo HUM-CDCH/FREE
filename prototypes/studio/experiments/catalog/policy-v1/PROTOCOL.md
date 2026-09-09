@@ -349,3 +349,33 @@ default change.
 
 Roots: `artifacts/catalog-lab/policy-v2-cite/beier` and
 `policy-v2-cite/transfer/<doc>`, frozen per root.
+
+### Revision 3, second root (declared after the first root's results, before its runs)
+
+First root (`policy-v2-cite/beier`, one repetition): A 203/164/1.000;
+B 202/163/1.000 (one findspot value lost under the labelled prompt);
+C 202/158, grounding output tokens down 84% but input down only 19% because
+every group still carried all five slices, and five NONE answers on claims
+B had linked, all short codes: `G` three times, `u`, and an axis whose
+block reads `0—W` in the OCR; D 202/162 with one loss, a locality routed
+to the grounder as a repeated value and then mislabelled; E 202/155 at
+precision 0.987 with the two known traps linked wrongly, which C and D
+avoided through the citations. All 163 values carried a citation and
+every inspected citation named the right block. The single-character rule
+of the lexical matcher (a one-letter value matches only an anchor that is
+exactly that letter) means `G` and `u` can never verify.
+
+Two changes, then a second root with two repetitions of every arm
+(C, D, D' and E replay B's first repetition; their second repetition
+measures grounder variance on identical inputs):
+
+- The grounding call shows only the records that still have a claim
+  (`grounding.ts`); a record whose claims were all linked in code added
+  candidates without a question. B is unaffected (every claim pending).
+- Arm D' `cite-verify-fields`: routed fields (`burial_axis`, `find_type`)
+  always grounded, multi-hit citations accepted. Rationale from the first
+  root: a citation chooses among repeated occurrences, which is the case
+  for citations over lexical search; routing repeats to the grounder cost
+  a correct link.
+
+The gate is unchanged.
