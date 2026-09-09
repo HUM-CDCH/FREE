@@ -192,9 +192,13 @@ grounder tied A240's `brandgrave` to a sentence in A240's own slice that
 compares the comb with brandgrave finds elsewhere, a wrong-link rate of
 1/14 against 0/12, and the per-record arm avoided it only because it
 extracted a different, unsupported value. That criterion is the
-pre-registered one and was not revised: one link in fourteen on a
-three-grave report is within noise, but calling it so is an acceptance
-decision, not a measurement. The candidate's batch of two on Katrinesminde
+pre-registered one and was not revised. A second opinion from GPT Astra
+(`experiments/catalog/policy-v1/REVIEW-g4-second-opinion.md`) holds that a
+small sample weakens the comparison without invalidating it, that the
+passage in fact supports a cremation burial and the link should be read as
+supported or at worst wrong-passage, and that the label should be corrected
+only through an arm-blind re-review applying one rule to both arms, never
+to pass a gate; that review has not been done. The candidate's batch of two on Katrinesminde
 was rejected because the model returned `R1` twice, and both records re-ran
 one per call with identical values; that is the first rejected batch in
 any recorded run and the fallback behaved as specified.

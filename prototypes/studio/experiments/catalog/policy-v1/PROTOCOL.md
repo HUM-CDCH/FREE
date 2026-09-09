@@ -165,3 +165,28 @@ non-discovery calls than the per-record arm. This revision was decided
 after seeing the revision 2 results and is recorded as such. G4 is
 unchanged: its wrong-link criterion is the pre-registered rate per
 document, wrong links over linked units.
+
+## Reconciliation after the second opinion (2026-09-09)
+
+A second opinion (`REVIEW-g4-second-opinion.md`) found three contradictions
+in this file and the scorer; they are recorded here rather than edited out.
+
+- The original G4 compares a wrong-anchor *rate*; the revision 2 text above
+  says "no more wrong-record or wrong-passage links", a *count*. The scorer
+  implemented the count first and the rate from commit `c0ff54f6`. Both
+  readings fail Herredsvejen (1 against 0; 0.067 against 0.000).
+- The gate-revision note says "wrong links over linked units"; the scorer
+  divides wrong links by supported-link units plus wrong links. The scorer's
+  definition stands; the note was imprecise.
+- The unsupported-values criterion was pre-registered in the revision 2
+  text, contrary to what the brief said, and stays.
+- G1 pooled over revision 2: one of seven batches was rejected
+  (Katrinesminde, `R1` returned twice), 14%, above the 5% threshold. The
+  gated reports had no rejection; Katrinesminde is outside the gates because
+  of its reference, which does not erase this observation.
+
+The second opinion also objects that the G2 floor creates a cliff at ten
+per-record calls and that a prospectively specified overhead allowance
+(candidate calls at most 40% of the per-record calls plus a fixed number for
+document-level calls and rounding) would have an operational rationale the
+floor lacks. No further gate change is made without an explicit decision.
