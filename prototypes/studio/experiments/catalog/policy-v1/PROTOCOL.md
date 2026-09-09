@@ -522,3 +522,39 @@ three reports (16 against 17, 55 against 61, 38 against 39 correct units).
 Not advanced. The keys stay off by default. The next hypothesis, untested:
 the recall loss belongs to the one-line-per-anchor rendering, and keeping
 the markdown slice with inline labels would remove it.
+
+### Revision 3, sixth step: rendering decomposition (declared before its runs)
+
+User decision of 2026-09-09: test the hypothesis that the recall loss
+belongs to the one-line-per-anchor rendering.
+
+- Inspection first. For all 24 record slices of Herredsvejen, Hojbakkegaard
+  and Hvissinge (the boundaries of `transfer-2/<doc>/cite-full-r1`), the
+  labelled rendering stripped of its `[E<n>] ` prefixes is byte-identical
+  to the canonical markdown slice: one line per block in both, no table
+  in any slice. The labelled prompt already is the markdown slice with
+  inline labels, so the hypothesis as phrased has nothing to remove. What
+  separates B's values prompt from policy v1's is the label prefix, the
+  `_citations` template field and the citation instruction, nothing else.
+- Field-level diff of B against policy v1 (`policy-v1-danish/<doc>/
+  batch-group-field-r1`): on Hojbakkegaard the same eight scalars are
+  absent in both B extractions, `grave_type` on Grav 1, 2 and 11 and
+  `burial_rite` on Grav 1, 2, 6, 11 and 56, values such as `Jordfæstegrav`
+  that open their block verbatim; on Herredsvejen the finds lists of A240
+  and A225 hold 3 items against 5; on Hvissinge Grav 3's finds hold 0 and
+  2 against 10, and Grav 3 and 5 lose an axis each.
+- `policy.labelledSlices`: B's labelled slices without the `_citations`
+  field and without the citation instruction; full grounding, no citation
+  links. Arm `labels-only` in `suite.py`.
+- Roots `policy-v2-cite/transfer-3/<doc>`, seeded with transfer-2's
+  `cite-full-r1` and `cite-full-r2` and policy-v1-danish's
+  `batch-group-field-r1` (unchanged by this code); `labels-only` twice on
+  each report, fresh. Scored by `score_danish.py --arms batch-group-field
+  cite-full labels-only --against cite-full`, repetition 2 through
+  `--repetition 2`; new items queued by `review_queue.py` and reviewed
+  under the recorded rules.
+- Reading: if labels-only populates as policy v1 (24, 66 and 91 values;
+  17, 61 and 39 correct units) the citation request causes the loss and
+  the labels are free; if it populates as B (20 to 21, 59 and 70 to 73
+  values; 16, 55 and 38 units) the label prefix itself costs the recall;
+  in between, both do.

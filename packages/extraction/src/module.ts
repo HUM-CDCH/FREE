@@ -499,7 +499,7 @@ export function createExtractionJobExecutor({
     // taken from; grounding verifies the citation in code before linking.
     // Labels restart at E1 in every record slice: short to cite, and resolved
     // through that record's own label map, so a label never reaches another record.
-    const labelled = policy.citations
+    const labelled = policy.citations || policy.labelledSlices
     const recordLabels = new Map<number, ReadonlyMap<string, string>>()
     const renderSlice = (boundary: CatalogBoundary, recordIndex: number) => {
       if (!labelled) return canonicalSourceSlice(document, boundary.startContentIndex, boundary.endContentIndex)
@@ -509,8 +509,8 @@ export function createExtractionJobExecutor({
     }
     // One compact string per record: a label per field in template order, so a
     // citation costs about two output tokens instead of a repeated field name.
-    const citationTemplate = labelled ? { _citations: 'string' } : {}
-    const citationInstruction = labelled
+    const citationTemplate = policy.citations ? { _citations: 'string' } : {}
+    const citationInstruction = policy.citations
       ? `In _citations give, per field and in this order: ${recordNodes.map((node) => node.name).join(' ')}, the [E<n>] label of the block in that record's own text the value was taken from; separate fields with spaces, write - when no block states the value, and for list fields give one label per item separated by commas.`
       : ''
     /** Strip `_citations` from a model record and resolve its labels to anchors for the record at `recordIndex`.

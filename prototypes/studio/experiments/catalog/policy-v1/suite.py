@@ -41,6 +41,8 @@ ARMS = {
     'cite-verify-context': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--citations', '--citation-links', '--grounded-context', '--replay', '@cite-full-r1'],
     'cite-verify-fields-context': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--citations', '--citation-links', '--ground-always', 'burial_axis,find_type', '--grounded-context', '--replay', '@cite-full-r1'],
     'cite-verify-fields-danish-context': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--citations', '--citation-links', '--ground-always', 'burial_axis', '--grounded-context', '--replay', '@cite-full-r1'],
+    # Rendering decomposition: the labelled slices of B without the citation request; full grounding.
+    'labels-only': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--labelled-slices'],
     'lexical-on-cite': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--citations', '--lexical-links', '--replay', '@cite-full-r1'],
 }
 

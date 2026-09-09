@@ -32,6 +32,9 @@ export type CatalogPolicy = Readonly<{
   /** Render record slices as the grounder's labelled blocks and ask the values
    *  call to cite, per value, the block it was taken from. */
   citations: boolean
+  /** Render record slices as the grounder's labelled blocks without asking for
+   *  citations: the ablation that separates the labels from the request. */
+  labelledSlices: boolean
   /** Link a cited block in code when the value occurs in it as a bounded token
    *  inside the claim's own record; every other claim goes to the grounder. */
   citationLinks: boolean
@@ -54,6 +57,7 @@ export const PER_RECORD_CATALOG_POLICY: CatalogPolicy = {
   groundingGroupSize: 1,
   fieldAwareGrounding: false,
   citations: false,
+  labelledSlices: false,
   citationLinks: false,
   groundAlways: [],
   groundMultiHit: false,
@@ -71,6 +75,7 @@ export const CATALOG_POLICY_V1: CatalogPolicy = {
   groundingGroupSize: 5,
   fieldAwareGrounding: true,
   citations: false,
+  labelledSlices: false,
   citationLinks: false,
   groundAlways: [],
   groundMultiHit: false,
@@ -94,7 +99,7 @@ export function parseCatalogPolicy(value: unknown): CatalogPolicy {
     if (!Number.isInteger(size) || (size as number) < 1 || (size as number) > CATALOG_POLICY_MAX_GROUP)
       throw new Error(`Catalog policy ${key} must be an integer from 1 to ${CATALOG_POLICY_MAX_GROUP}.`)
   }
-  for (const key of ['lexicalLinks', 'fieldAwareGrounding', 'citations', 'citationLinks', 'groundMultiHit', 'groundedContext'] as const)
+  for (const key of ['lexicalLinks', 'fieldAwareGrounding', 'citations', 'labelledSlices', 'citationLinks', 'groundMultiHit', 'groundedContext'] as const)
     if (typeof policy[key] !== 'boolean') throw new Error(`Catalog policy ${key} must be a boolean.`)
   if (!Array.isArray(policy.groundAlways) || !policy.groundAlways.every((field) => typeof field === 'string'))
     throw new Error('Catalog policy groundAlways must be an array of field names.')
