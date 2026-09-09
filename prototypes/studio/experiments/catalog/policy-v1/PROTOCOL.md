@@ -400,3 +400,22 @@ about two output tokens per citation; an unparseable or misaligned string
 drops the citations and the claims go to the grounder. Arms as in the
 second root; the gate is unchanged and the efficiency criterion is read on
 total values-plus-grounding output tokens and time against A.
+
+### Revision 3 outcome on the excerpt (2026-09-09)
+
+Third root, compact citations, two repetitions each (`RESULTS-cite.md`):
+B 203/164/1.000 in both extractions; C and D' 203/164/1.000 on B's first
+extraction in both repetitions, D' also on B's second; E 162 at 0.988 with
+the two traps linked wrongly in both repetitions. Cost against A on the
+excerpt (values plus grounding): C output tokens 4,214 against 4,916
+(-14%), time 50 against 59 s (-16%), grounding input -37%, grounding time
+-63%; D' 4,442 (-10%), 54 s (-8%), grounding input -17%, grounding time
+-49%. A citation costs about 6.6 output tokens in this format because
+document-wide E labels tokenise into several pieces; that cost, paid on
+every value, is what limits the gain. The quality gate is met on the
+excerpt by C and D'; the declared efficiency gate is met by C and missed
+by D' on grounding input (-17% against -20%). Over the three roots B lost
+one value in one of four extractions where A was identical over three,
+and C lost two short-code links to grounder abstention in one of four
+repetitions where D' lost none in six. The Danish transfer part of the
+gate has not been run.
