@@ -14,12 +14,15 @@ import type { ExtractionModelRequest, TerminalExtraction } from '../../../../../
 import { extractWithModel, type ExtractModelInput } from '../../../api/_model.js'
 import type { ExecutionTarget } from '../../../api/_provider.js'
 import { groundingModelInput, groundingSelections } from '../../../api/_grounding_prompt.js'
-import { fields, schemaDefinition } from '../schema.js'
+import { schemaDefinition } from '../schema.js'
+import { danish } from '../models-policy-v2/schemas.js'
 
 const { values: args } = parseArgs({ options: {
   input: { type: 'string' },
   out: { type: 'string' },
   arm: { type: 'string', default: 'run' },
+  /** beier: the frozen Beier schema; danish: the grave schema written for the Danish reports. */
+  schema: { type: 'string', default: 'beier' },
   'batch-size': { type: 'string', default: '1' },
   'lexical-links': { type: 'boolean', default: false },
   'grounding-group': { type: 'string', default: '1' },
@@ -35,6 +38,9 @@ const { values: args } = parseArgs({ options: {
   'job-timeout': { type: 'string', default: '10800000' },
 } })
 if (!args.input || !args.out) throw new Error('--input parsed_document.json and --out directory are required')
+if (!['beier', 'danish'].includes(args.schema!)) throw new Error('--schema must be beier or danish')
+const definition = args.schema === 'danish' ? danish : schemaDefinition
+const fields = definition.schemaNodes.map((node) => node.name)
 for (const key of ['values-model', 'ground-model'] as const)
   if (!['qwen', 'nuextract'].includes(args[key]!)) throw new Error(`--${key} must be qwen or nuextract`)
 
@@ -42,6 +48,7 @@ for (const key of ['values-model', 'ground-model'] as const)
 export const FROZEN_FILES = [
   'experiments/catalog/policy-v1/run.ts',
   'experiments/catalog/schema.ts',
+  'experiments/catalog/models-policy-v2/schemas.ts',
   'experiments/catalog/evaluate.py',
   'experiments/catalog/beier.reference.json',
   'api/_model.ts',
@@ -111,7 +118,7 @@ type Call = { index: number; phase: 'discovery' | 'extraction' | 'grounding'; mo
 /** Slices already sent inside a batch; a later single call for one of them is a rejected batch's fallback. */
 const batchedSlices = new Set<string>()
 const calls: Call[] = []
-await save('manifest.json', { arm: args.arm, policy, model: args.model, valuesModel: args['values-model'], groundModel: args['ground-model'], fewShot: args['few-shot'], ollamaUrl: args['ollama-url'], inputSha256, hashes, schemaDefinition, startedAt: new Date().toISOString() })
+await save('manifest.json', { arm: args.arm, schema: args.schema, policy, model: args.model, valuesModel: args['values-model'], groundModel: args['ground-model'], fewShot: args['few-shot'], ollamaUrl: args['ollama-url'], inputSha256, hashes, schemaDefinition: definition, startedAt: new Date().toISOString() })
 
 async function invoke(phase: Call['phase'], input: Omit<ExtractModelInput, 'signal'>, target: ExecutionTarget, extra: Partial<Call> = {}) {
   const index = calls.length + 1
@@ -148,7 +155,7 @@ async function invoke(phase: Call['phase'], input: Omit<ExtractModelInput, 'sign
 
 const execute = createExtractionJobExecutor({
   inputs: {
-    async loadExtractionInputs() { return { sourceDocumentId: 'prototype-source', projectContextId: 'prototype', sourceRepresentationRevisionId: 'prototype-source-revision', schemaRevisionId: 'prototype-schema', schemaTree: schemaDefinition, parsedDocument: document } },
+    async loadExtractionInputs() { return { sourceDocumentId: 'prototype-source', projectContextId: 'prototype', sourceRepresentationRevisionId: 'prototype-source-revision', schemaRevisionId: 'prototype-schema', schemaTree: definition, parsedDocument: document } },
     async readExtractionAttempt() { return null },
   },
   models: { async open() { return {
@@ -184,7 +191,7 @@ try {
   terminal = await execute({ kind: 'fresh', extractionId: 'prototype-run', sourceRepresentationRevisionId: 'prototype-source-revision', schemaRevisionId: 'prototype-schema', strategy: 'CATALOG' }, null,
     (checkpoint) => save('checkpoint.json', checkpoint), AbortSignal.timeout(Number(args['job-timeout'])))
 } catch (error) {
-  await save('result.json', { arm: args.arm, strategy: 'production', model: args.model, 'values-model': args['values-model'], 'ground-model': args['ground-model'], 'few-shot': args['few-shot'], 'batch-size': policy.recordBatchSize, policy, inputSha256, hashes, calls, boundaries: [], rows: [], failure: String(error), outcome: 'THREW', durationMs: Math.round(performance.now() - started) })
+  await save('result.json', { arm: args.arm, schema: args.schema, strategy: 'production', model: args.model, 'values-model': args['values-model'], 'ground-model': args['ground-model'], 'few-shot': args['few-shot'], 'batch-size': policy.recordBatchSize, policy, inputSha256, hashes, calls, boundaries: [], rows: [], failure: String(error), outcome: 'THREW', durationMs: Math.round(performance.now() - started) })
   console.log('THREW', String(error))
   process.exit(1)
 }
@@ -200,7 +207,7 @@ const rows = (terminal.result?.records as Record<string, unknown>[] ?? []).map((
 const populated = terminal.result ? populatedContentPaths(terminal.result).length : 0
 const sentToModel = calls.filter((call) => call.phase === 'grounding').reduce((sum, call) => sum + (call.claims ?? 0), 0)
 await save('result.json', {
-  arm: args.arm, strategy: 'production', model: args.model, 'values-model': args['values-model'], 'ground-model': args['ground-model'], 'few-shot': args['few-shot'], 'batch-size': policy.recordBatchSize, policy, inputSha256, hashes,
+  arm: args.arm, schema: args.schema, strategy: 'production', model: args.model, 'values-model': args['values-model'], 'ground-model': args['ground-model'], 'few-shot': args['few-shot'], 'batch-size': policy.recordBatchSize, policy, inputSha256, hashes,
   calls, boundaries, rows, failure: terminal.failure, outcome: terminal.outcome, complete: terminal.complete, durationMs: Math.round(performance.now() - started),
   claims: { populated, sentToModel, lexicalLinks: populated - sentToModel, links: evidence.length, verbatimLinks: evidence.filter((link) => link.verbatim).length, ambiguousLinks: evidence.filter((link) => (link.lexicalHits ?? 0) > 1).length },
   ungroundedPaths: terminal.diagnostics.ungroundedPaths,

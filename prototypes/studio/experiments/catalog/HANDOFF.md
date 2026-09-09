@@ -102,3 +102,13 @@ verification passed 7 Python tests, 4 Vitest tests, strict TypeScript, ESLint an
 interactive Chromium checks. The unrelated local Studio dependency-manifest edit
 was excluded from this experiment commit; measured installed versions are in
 `runtime-versions.json`.
+
+## Policy v1 follow-ups (2026-09-09)
+
+- `models-policy-v2/`: OCR, retrieval and GLiNER substitutes on the
+  candidate policy with hash-checked replay; no candidate qualifies. Its
+  `RESULTS.md` is a copy of the generated final report; the artifact root
+  is closed (see `policy-v1/PROTOCOL.md`, revision 2 deviations).
+- `policy-v1/` revision 2: per-record against the candidate on the Danish
+  schema (`run.ts --schema danish`, `score_danish.py`). Results in
+  `policy-v1/RESULTS.md` and `docs/research/catalog-policy-v1.md`, section 4.2.

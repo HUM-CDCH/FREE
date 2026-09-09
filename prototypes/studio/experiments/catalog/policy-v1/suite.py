@@ -50,6 +50,7 @@ def main():
     parser.add_argument('--repetitions', type=int, default=1)
     parser.add_argument('--start-repetition', type=int, default=1)
     parser.add_argument('--freeze', action='store_true')
+    parser.add_argument('--schema', choices=['beier', 'danish'], default='beier')
     parser.add_argument('--model', default='qwen3.8:latest')
     parser.add_argument('--ollama-url', default='http://127.0.0.1:11434')
     args = parser.parse_args()
@@ -60,7 +61,7 @@ def main():
         if freeze.exists():
             raise SystemExit('Already frozen: use a new root for a new revision')
         freeze.write_text(json.dumps({
-            'createdAt': datetime.now(timezone.utc).isoformat(), 'codeHashes': hashes(), 'arms': ARMS,
+            'createdAt': datetime.now(timezone.utc).isoformat(), 'codeHashes': hashes(), 'arms': ARMS, 'schema': args.schema,
             'inputSha256': hashlib.sha256(args.input.read_bytes()).hexdigest(),
             'note': 'Arms and gates are pre-registered in PROTOCOL.md before the first run.',
         }, indent=2))
@@ -69,6 +70,8 @@ def main():
         raise SystemExit('Freeze absent or code changed: create a new revision')
     if frozen['inputSha256'] != hashlib.sha256(args.input.read_bytes()).hexdigest():
         raise SystemExit('Input document differs from the frozen one: use a new root')
+    if frozen.get('schema', 'beier') != args.schema:
+        raise SystemExit('Schema differs from the frozen one: use a new root')
     for repetition in range(args.start_repetition, args.start_repetition + args.repetitions):
         offset = (repetition - args.start_repetition) % len(args.arms)
         for arm in args.arms[offset:] + args.arms[:offset]:
@@ -77,7 +80,7 @@ def main():
                 print('SKIP existing', destination)
                 continue
             command = ['node', '--import', 'tsx', 'experiments/catalog/policy-v1/run.ts',
-                       '--input', str(args.input.resolve()), '--out', str(destination), '--arm', arm,
+                       '--input', str(args.input.resolve()), '--out', str(destination), '--arm', arm, '--schema', args.schema,
                        '--model', args.model, '--ollama-url', args.ollama_url, *ARMS[arm]]
             print('RUN', ' '.join(command))
             code = subprocess.call(command, cwd=STUDIO)

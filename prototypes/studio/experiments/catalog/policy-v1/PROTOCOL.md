@@ -105,3 +105,49 @@ reused; failed runs stay. `report.py` generates `RESULTS.md` from
   runs have none), and `suite.py` refuses an input whose hash differs from
   the frozen one.
 
+
+## Revision 2: per-record against the candidate on the Danish schema
+
+Pre-registered 2026-09-09 before the first run. The failed transfer gates
+were measured with the Beier schema on Danish reports, a schema mismatch.
+Astra's `models-policy-v2` root ran the candidate under a Danish grave
+schema but never ran the per-record policy, so the gates stay unresolved.
+
+- Input: the five parsed Danish reports frozen in
+  `artifacts/catalog-lab/models-policy-v2/inputs/<doc>/baseline/`.
+- Schema: `danish` from `models-policy-v2/schemas.ts` (`run.ts --schema danish`,
+  now a frozen file).
+- Arms: `baseline` (per-record, today's default) and `batch-group-field`
+  (`CATALOG_POLICY_V1` exactly). One repetition: Qwen at temperature 0 gave
+  byte-identical outputs across repetitions in every recorded run.
+- Scoring: `score_danish.py` applies Astra's frozen `references-v1.json`
+  and `adjudications-final.json` through `models-policy-v2/score.py`
+  unchanged; values or links without a decision are listed as pending and
+  adjudicated against the source text in a new decisions file before the
+  gates are read. Katrinesminde is reported but excluded from the gates:
+  its reference credits eleven graves that the schema tells the model to
+  exclude.
+- Gates: G1 and G2 as before; G4 on the fixed denominator: correct units
+  and supported-link units of the candidate at least the baseline's minus
+  5% of the denominator, no more wrong-record or wrong-passage links, no
+  more unsupported values.
+- Roots: `artifacts/catalog-lab/policy-v1-danish/<doc>/`, frozen per document.
+
+### Revision 2 deviations, recorded after the runs
+
+- The candidate's values on the Danish schema differ from Astra's run of
+  the same policy, input and model by one unit on Herredsvejen and
+  Hvissinge; local Ollama is not bit-reproducible across processes, so a
+  second repetition would have measured that noise, not the policy.
+- The two-record batch on Katrinesminde was rejected (the model returned
+  `R1` for both records); both records re-ran one per call with the same
+  values. G1 would fail there (2 fallbacks of 1 batch), but Katrinesminde
+  is not gated.
+- The 66 decisions for the per-record arm were made by the agent that ran
+  the comparison, with arm labels visible, applying the rules recorded in
+  Astra's adjudications (body deposition counts as a stated rite; stones,
+  human remains and find inventory numbers are not grave goods; values on
+  an unbound record are unsupported).
+- `pnpm lint` failed on two unused bindings in `models-policy-v2/run.ts`;
+  fixing them changed a file frozen in that root, which was already
+  complete (88 of 88 runs, final report written), so that root is closed.
