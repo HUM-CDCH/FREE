@@ -9,7 +9,10 @@ export type {
 export {
   CATALOG_NOT_ATTEMPTED_LIMIT,
   CATALOG_RECORD_LIMIT,
+  DEFAULT_CATALOG_POLICY,
+  parseCatalogPolicy,
 } from './catalog.js'
+export type { CatalogPolicy } from './catalog.js'
 export { ExtractionError } from './errors.js'
 export { createExtractionRuntime } from './runtime.js'
 export { canonicalSourceSlice } from './source-context.js'
@@ -21,6 +24,7 @@ export type {
   ExtractionModelResponse,
   ExtractionModelSession,
   ExtractionModelSessions,
+  GroundingClaimField,
   GroundingModel,
   GroundingModelRequest,
   GroundingModelResponse,

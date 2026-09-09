@@ -161,6 +161,30 @@ export function partitionSchemaNodes(nodes: readonly SchemaNode[]): SchemaNodePa
   return partition
 }
 
+/** The schema node a result path names; `records[i]` prefixes and array
+ *  indexes are skipped. Null when the path leaves the schema. */
+export function schemaNodeAtPath(
+  nodes: readonly SchemaNode[],
+  resultPath: readonly (string | number)[],
+): SchemaNode | null {
+  const path =
+    resultPath[0] === 'records' && typeof resultPath[1] === 'number'
+      ? resultPath.slice(2)
+      : resultPath
+  let candidates = nodes
+  let current: SchemaNode | null = null
+  for (const segment of path) {
+    if (typeof segment === 'number') {
+      if (current?.type !== 'array') return null
+      continue
+    }
+    current = candidates.find((node) => node.name === segment) ?? null
+    if (!current) return null
+    candidates = current.children ?? []
+  }
+  return current
+}
+
 /** Restore model values to schema order while rejecting unknown keys by default. */
 export function restoreSchemaNodeOrder(
   value: unknown,

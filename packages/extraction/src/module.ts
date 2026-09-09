@@ -19,6 +19,7 @@ import {
 import {
   CATALOG_NOT_ATTEMPTED_LIMIT,
   CATALOG_RECORD_LIMIT,
+  DEFAULT_CATALOG_POLICY,
   reuseCall,
   seedCatalogDiagnostics,
   setCatalogStage,
@@ -36,6 +37,7 @@ import {
   parseExtractionSchema,
   partitionSchemaNodes,
   restoreSchemaNodeOrder,
+  schemaNodeAtPath,
   stripDescriptions,
 } from './schema.js'
 import type { ExtractionSchemaDefinition } from './schema.js'
@@ -273,6 +275,7 @@ export function createExtractionJobExecutor({
   inputs: reader,
   models,
   now = performance.now.bind(performance),
+  policy = DEFAULT_CATALOG_POLICY,
 }: ExtractionJobExecutorDependencies): ExtractionJobExecutor {
   return executeJob
 
@@ -375,6 +378,8 @@ export function createExtractionJobExecutor({
         ? state.catalog?.records.filter(record => record.outcome === 'succeeded').map(record => record.boundary)
         : undefined,
       now,
+      // The policy governs Catalog runs only; Article keeps one call per record.
+      ...(resolved.strategy === 'CATALOG' && { policy, schemaNodes: definition.schemaNodes }),
     })
     state.ungroundedPaths = grounding.ungroundedPaths
     state.groundingIssues = grounding.issues
@@ -645,42 +650,7 @@ export function createExtractionJobExecutor({
     const successfulRecords: Record<string, unknown>[] = []
     const recordsStartedAt = now()
     let executedRecordCount = 0
-    for (const [ordinal, boundary] of boundaries.entries()) {
-      signal.throwIfAborted()
-      const previous = retry?.parentCatalog.records.find(
-        (record) => record.boundary.startBlockId === boundary.startBlockId,
-      )
-      const shouldExecute = !retry || rediscover || selected.has(boundary.startBlockId)
-      if (!shouldExecute && previous?.outcome === 'succeeded') {
-        const reused = parentValuesByStartBlockId.get(boundary.startBlockId)
-        if (reused) successfulRecords.push(reused)
-        catalog.records.push(reuseCall(previous))
-        if (previous.finishReason === 'length') complete = false
-        continue
-      }
-      if (!shouldExecute) {
-        if (previous) {
-          catalog.records.push(reuseCall(previous))
-          if (previous.outcome !== 'succeeded' || previous.finishReason === 'length')
-            complete = false
-        }
-        continue
-      }
-      if (executedRecordCount >= CATALOG_RECORD_LIMIT) {
-        complete = false
-        catalog.records.push({
-          ordinal,
-          boundary,
-          ...callDiagnostic('not_attempted', now(), null, CATALOG_NOT_ATTEMPTED_LIMIT),
-        })
-        continue
-      }
-      executedRecordCount += 1
-      if (recordNodes.length === 0) {
-        successfulRecords.push({})
-        catalog.records.push({ ordinal, boundary, ...callDiagnostic('succeeded', now(), null, null, 0) })
-        continue
-      }
+    const executeRecord = async (ordinal: number, boundary: CatalogBoundary) => {
       const callStartedAt = now()
       let recordMetadata: ModelGenerationMetadata | null = null
       try {
@@ -722,6 +692,95 @@ export function createExtractionJobExecutor({
         complete = false
       }
     }
+    /** One values call for several records, each slice under a routing
+     *  heading the model copies back. False when the response does not
+     *  return every identity once, in order: the caller re-runs the
+     *  records one per call. */
+    const executeRecordBatch = async (batch: readonly { ordinal: number; boundary: CatalogBoundary }[]): Promise<boolean> => {
+      const callStartedAt = now()
+      const identities = batch.map((_, index) => `R${index + 1}`)
+      const described = { records: [{ _description: definition.recordDescription, record_id: 'string', ...nodesToTemplate(recordNodes) }] }
+      const markdown = batch
+        .map(({ boundary }, index) => `### Record ${identities[index]}\n${canonicalSourceSlice(document, boundary.startContentIndex, boundary.endContentIndex)}`)
+        .join('\n\n')
+      const instruction = [
+        compileInstructions(described),
+        `Return exactly one record per "### Record" heading, in the same order, and copy that heading's identifier (${identities.join(', ')}) into record_id.`,
+      ].filter(Boolean).join('\n')
+      try {
+        const generated = await invoke(model, markdown, document.page_count, stripDescriptions(described) as Record<string, unknown>, instruction, signal, state)
+        const records = extractionRecords(generated.result)
+        if (
+          !records ||
+          records.length !== batch.length ||
+          records.some((record, index) => record.record_id !== identities[index]) ||
+          generated.metadata.finishReason === 'length'
+        )
+          throw new ExtractionError('invalid_model_output', 'Catalog batch extraction must return one identified record per source record.')
+        records.forEach((record, index) => {
+          successfulRecords.push(restoreSchemaNodeOrder(record, recordNodes, { ignoreUnknownKeys: true }))
+          // The batch's one call is charged to its first record.
+          catalog.records.push({
+            ...batch[index],
+            ...callDiagnostic('succeeded', callStartedAt, index === 0 ? generated.metadata : null, null, index === 0 ? 1 : 0),
+          })
+        })
+        return true
+      } catch (error) {
+        if (signal.aborted || extractionError(error).code === 'cancelled') throw error
+        // ponytail: the failed batch call is counted in modelCalls only; its
+        // records are re-run one per call and carry their own diagnostics.
+        return false
+      }
+    }
+    const pending: { ordinal: number; boundary: CatalogBoundary }[] = []
+    const flush = async () => {
+      const batch = pending.splice(0)
+      if (batch.length > 1 && await executeRecordBatch(batch)) return
+      for (const { ordinal, boundary } of batch) await executeRecord(ordinal, boundary)
+    }
+    for (const [ordinal, boundary] of boundaries.entries()) {
+      signal.throwIfAborted()
+      const previous = retry?.parentCatalog.records.find(
+        (record) => record.boundary.startBlockId === boundary.startBlockId,
+      )
+      const shouldExecute = !retry || rediscover || selected.has(boundary.startBlockId)
+      // Record order is result order: nothing is pushed while a batch waits.
+      if (!(shouldExecute && executedRecordCount < CATALOG_RECORD_LIMIT && recordNodes.length > 0)) await flush()
+      if (!shouldExecute && previous?.outcome === 'succeeded') {
+        const reused = parentValuesByStartBlockId.get(boundary.startBlockId)
+        if (reused) successfulRecords.push(reused)
+        catalog.records.push(reuseCall(previous))
+        if (previous.finishReason === 'length') complete = false
+        continue
+      }
+      if (!shouldExecute) {
+        if (previous) {
+          catalog.records.push(reuseCall(previous))
+          if (previous.outcome !== 'succeeded' || previous.finishReason === 'length')
+            complete = false
+        }
+        continue
+      }
+      if (executedRecordCount >= CATALOG_RECORD_LIMIT) {
+        complete = false
+        catalog.records.push({
+          ordinal,
+          boundary,
+          ...callDiagnostic('not_attempted', now(), null, CATALOG_NOT_ATTEMPTED_LIMIT),
+        })
+        continue
+      }
+      executedRecordCount += 1
+      if (recordNodes.length === 0) {
+        successfulRecords.push({})
+        catalog.records.push({ ordinal, boundary, ...callDiagnostic('succeeded', now(), null, null, 0) })
+        continue
+      }
+      pending.push({ ordinal, boundary })
+      if (pending.length >= policy.recordBatchSize) await flush()
+    }
+    await flush()
 
     const attempted = catalog.records.filter(
       (record) => record.provenance === 'executed' && record.outcome !== 'not_attempted',
@@ -836,27 +895,7 @@ function occurrenceOwnership(document: ParsedDocument): ReadonlyMap<string, Read
   return new Map(document.evidence_index.anchors.map((anchor) => [anchor.anchor_id, new Set(anchor.producer_observations.map((observation) => observation.occurrence_id))]))
 }
 
-function reviewSchemaNode(
-  nodes: readonly ExtractionSchemaNode[],
-  resultPath: ResultPath,
-): ExtractionSchemaNode | null {
-  const path =
-    resultPath[0] === 'records' && typeof resultPath[1] === 'number'
-      ? resultPath.slice(2)
-      : resultPath
-  let candidates = nodes
-  let current: ExtractionSchemaNode | null = null
-  for (const segment of path) {
-    if (typeof segment === 'number') {
-      if (current?.type !== 'array') return null
-      continue
-    }
-    current = candidates.find((node) => node.name === segment) ?? null
-    if (!current) return null
-    candidates = current.children ?? []
-  }
-  return current
-}
+const reviewSchemaNode = schemaNodeAtPath
 
 function reviewDecisionMatchesSchema(
   nodes: readonly ExtractionSchemaNode[],

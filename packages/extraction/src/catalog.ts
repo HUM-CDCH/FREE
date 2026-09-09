@@ -16,6 +16,49 @@ export const CATALOG_RECORD_LIMIT = 500
 /** Durable failure code for Catalog records skipped by the record limit. */
 export const CATALOG_NOT_ATTEMPTED_LIMIT = 'not_attempted_limit'
 
+/** Call structure of a Catalog run. Links stay reviewer suggestions under
+ *  every setting: no threshold, no score, no auto-accept. */
+export type CatalogPolicy = Readonly<{
+  /** Records per values call. A batch carries routing identities and falls
+   *  back to one call per record when the response does not return them. */
+  recordBatchSize: number
+  /** Link a claim without the model when its value is a bounded token of
+   *  exactly one candidate anchor in its record slice. */
+  lexicalLinks: boolean
+  /** Records whose unresolved claims share one grounding call. */
+  groundingGroupSize: number
+  /** Send each claim's record, field name and description to the grounder. */
+  fieldAwareGrounding: boolean
+}>
+
+/** One values call and one grounding call per record, values only. */
+export const DEFAULT_CATALOG_POLICY: CatalogPolicy = {
+  recordBatchSize: 1,
+  lexicalLinks: false,
+  groundingGroupSize: 1,
+  fieldAwareGrounding: false,
+}
+
+const CATALOG_POLICY_MAX_GROUP = 50
+
+/** Parse a partial policy (for example the FREE_CATALOG_POLICY JSON); every
+ *  missing key takes its default and an invalid value throws. */
+export function parseCatalogPolicy(value: unknown): CatalogPolicy {
+  const raw = value === null || value === undefined ? {} : value
+  if (typeof raw !== 'object' || Array.isArray(raw)) throw new Error('A Catalog policy must be an object.')
+  const policy = { ...DEFAULT_CATALOG_POLICY, ...(raw as Record<string, unknown>) }
+  for (const key of ['recordBatchSize', 'groundingGroupSize'] as const) {
+    const size = policy[key]
+    if (!Number.isInteger(size) || (size as number) < 1 || (size as number) > CATALOG_POLICY_MAX_GROUP)
+      throw new Error(`Catalog policy ${key} must be an integer from 1 to ${CATALOG_POLICY_MAX_GROUP}.`)
+  }
+  for (const key of ['lexicalLinks', 'fieldAwareGrounding'] as const)
+    if (typeof policy[key] !== 'boolean') throw new Error(`Catalog policy ${key} must be a boolean.`)
+  for (const key of Object.keys(policy))
+    if (!(key in DEFAULT_CATALOG_POLICY)) throw new Error(`Unknown Catalog policy key: ${key}`)
+  return policy as CatalogPolicy
+}
+
 export const CATALOG_STAGES = [
   'document-values',
   'discovery',

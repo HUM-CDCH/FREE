@@ -1,10 +1,12 @@
 import {
   createExtractionRuntime,
   ExtractionError,
+  parseCatalogPolicy,
   type ExtractionAttemptSnapshot,
   type ExtractionModel,
   type ExtractionModelSessions,
   type ExtractionModule,
+  type GroundingClaimField,
   type GroundingModel,
   type ModelAttribution,
 } from 'extraction'
@@ -160,14 +162,26 @@ function modelFor(target: ExecutionTarget): ExtractionModel {
 
 function groundingInstruction(
   claims: Readonly<Record<string, string | number | boolean>>,
+  claimFields?: Readonly<Record<string, GroundingClaimField>>,
 ): string {
+  const described = new Map<string, string>()
+  for (const field of Object.values(claimFields ?? {}))
+    if (field.description && !described.has(field.field)) described.set(field.field, field.description)
   return [
     'Ground every claim listed after "### Claims". Return exactly the keys shown under "links". Each value must be one exact E label from "### Canonical Evidence", without brackets, or NONE when no candidate directly supports the claim. A translated or normalized claim may cite a passage expressing the same meaning. A claim value or source passage is never a link: do not copy either into the links map. Never cite a C label. Add no snippets, pages, coordinates, explanations, or extra keys.',
+    // Both labs found the same wrong link: a string located under another
+    // field. The field and record travel with the claim when the policy asks.
+    ...(claimFields
+      ? ['Each claim names its record and field. Evidence must come from the claim\'s own record and support the value in that field\'s meaning: the same string in an unrelated detail is not evidence.']
+      : []),
+    ...(described.size > 0 ? ['', '### Fields', ...[...described].map(([field, description]) => `- ${field}: ${description}`)] : []),
     '',
     '### Claims',
-    ...Object.entries(claims).map(
-      ([label, value]) => `[${label}] ${JSON.stringify(value)}`,
-    ),
+    ...Object.entries(claims).map(([label, value]) => {
+      const field = claimFields?.[label]
+      const name = field ? `${field.record ? `${field.record}.` : ''}${field.field}: ` : ''
+      return `[${label}] ${name}${JSON.stringify(value)}`
+    }),
   ].join('\n')
 }
 
@@ -224,7 +238,7 @@ function groundingModelFor(target: ExecutionTarget): GroundingModel {
               ]),
             ),
           },
-          instruction: groundingInstruction(request.claims),
+          instruction: groundingInstruction(request.claims, request.claimFields),
           signal: request.signal,
         },
         target,
@@ -253,8 +267,17 @@ const models: ExtractionModelSessions = {
   },
 }
 
+/** FREE_CATALOG_POLICY holds a JSON object with any of recordBatchSize,
+ *  lexicalLinks, groundingGroupSize and fieldAwareGrounding; an invalid value
+ *  stops startup rather than running an unintended call structure. */
+function catalogPolicyFromEnvironment() {
+  const raw = process.env.FREE_CATALOG_POLICY?.trim()
+  return parseCatalogPolicy(raw ? JSON.parse(raw) : undefined)
+}
+
 export const extractionRuntime = createExtractionRuntime({
   models,
+  policy: catalogPolicyFromEnvironment(),
 })
 export function createResearcherExtractions(
   researcherAccountId: string,

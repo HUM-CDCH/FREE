@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { describe, it } from 'node:test'
 import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
-import { CATALOG_NOT_ATTEMPTED_LIMIT, CATALOG_RECORD_LIMIT } from './catalog.js'
+import { CATALOG_NOT_ATTEMPTED_LIMIT, CATALOG_RECORD_LIMIT, DEFAULT_CATALOG_POLICY, parseCatalogPolicy, type CatalogPolicy } from './catalog.js'
 import type {
   ExtractionJobInput,
   ExtractionInputReader,
@@ -260,6 +260,7 @@ function catalogHarness(options: {
   beforeDiscovery?: (signal: AbortSignal) => void
   schemaTree?: unknown
   script?: readonly ScriptedCall[]
+  policy?: CatalogPolicy
 } = {}) {
   const labels = options.labels ?? ['First', 'Second']
   const document = catalogDocument(labels, options.startKind)
@@ -339,6 +340,7 @@ function catalogHarness(options: {
       },
     },
     now: () => 10,
+    ...(options.policy && { policy: options.policy }),
   })
   const module = {
     executeJob,
@@ -759,4 +761,99 @@ describe('ExtractionModule Catalog contract', () => {
     )
   })
 
+})
+
+describe('Catalog policy', () => {
+  const batched: CatalogPolicy = { ...DEFAULT_CATALOG_POLICY, recordBatchSize: 3 }
+
+  it('extracts a batch of records in one identified values call', async () => {
+    const harness = catalogHarness({
+      labels: ['First', 'Second', 'Third'],
+      policy: batched,
+      script: [{ result: { records: [
+        { record_id: 'R1', title: 'Alpha', year: 1901 },
+        { record_id: 'R2', title: 'Beta', year: 1902 },
+        { record_id: 'R3', title: 'Gamma', year: 1903 },
+      ] } }],
+    })
+    const { extraction } = await harness.module.runSingle(catalogInput())
+    assert.equal(extraction.outcome, 'SUCCEEDED')
+    assert.equal(extraction.complete, true)
+    assert.deepEqual(extraction.result, { records: [
+      { title: 'Alpha', year: 1901 },
+      { title: 'Beta', year: 1902 },
+      { title: 'Gamma', year: 1903 },
+    ] })
+    // One discovery call plus one values call for the whole batch.
+    assert.equal(harness.calls.length, 2)
+    const values = harness.calls[1]
+    assert.deepEqual(values.template, { records: [{ record_id: 'string', title: 'string', year: 'integer' }] })
+    assert.ok(values.markdown.includes('### Record R1\n'))
+    assert.ok(values.markdown.includes('### Record R3\n'))
+    assert.ok(values.markdown.indexOf('First body') < values.markdown.indexOf('Third body'))
+    assert.ok(values.instruction?.includes('copy that heading\'s identifier (R1, R2, R3) into record_id'))
+    const records = extraction.diagnostics.catalog!.records
+    assert.deepEqual(records.map((record) => [record.ordinal, record.outcome, record.calls]), [[0, 'succeeded', 1], [1, 'succeeded', 0], [2, 'succeeded', 0]])
+    assert.equal(extraction.diagnostics.catalog!.stages.find((stage) => stage.stage === 'record-values')?.calls, 1)
+    assert.equal(extraction.diagnostics.groundingBatches.length, 3)
+  })
+
+  it('falls back to one call per record when a batch loses an identity', async () => {
+    const harness = catalogHarness({
+      labels: ['First', 'Second'],
+      policy: batched,
+      script: [
+        { result: { records: [{ record_id: 'R2', title: 'Beta', year: 1902 }, { record_id: 'R1', title: 'Alpha', year: 1901 }] } },
+        { result: { record: { title: 'Alpha', year: 1901 } } },
+        { result: { record: { title: 'Beta', year: 1902 } } },
+      ],
+    })
+    const { extraction } = await harness.module.runSingle(catalogInput())
+    assert.equal(extraction.outcome, 'SUCCEEDED')
+    assert.deepEqual(extraction.result, { records: [{ title: 'Alpha', year: 1901 }, { title: 'Beta', year: 1902 }] })
+    // Discovery, the rejected batch, then one call per record.
+    assert.equal(harness.calls.length, 4)
+    assert.deepEqual(harness.calls[2].template, { record: { title: 'string', year: 'integer' } })
+    assert.ok(harness.calls[2].markdown.includes('First body') && !harness.calls[2].markdown.includes('Second body'))
+    assert.deepEqual(extraction.diagnostics.catalog!.records.map((record) => record.calls), [1, 1])
+  })
+
+  it('keeps reused retry records in result order around executed records', async () => {
+    const harness = catalogHarness({
+      labels: ['First', 'Second', 'Third'],
+      policy: batched,
+      script: [
+        { result: { records: [{ record_id: 'R1', title: 'Alpha', year: 1901 }] } },
+        { error: new Error('first failed') },
+        { result: { record: { title: 'Beta', year: 1902 } } },
+        { error: new Error('third failed') },
+      ],
+    })
+    const parent = (await harness.module.runSingle(catalogInput())).extraction
+    assert.deepEqual(parent.diagnostics.catalog!.records.map((record) => record.outcome), ['failed', 'succeeded', 'failed'])
+    harness.setScript([
+      { result: { record: { title: 'Alpha 2', year: 1911 } } },
+      { result: { record: { title: 'Gamma 2', year: 1913 } } },
+    ])
+    harness.calls.length = 0
+    const child = (await harness.module.runSingle(retryInput(parent.extractionId, { retryRecordStartBlockIds: ['h0', 'h2'] }))).extraction
+    // A reused record flushes the pending batch first, so each retried record runs alone.
+    assert.equal(harness.calls.length, 2)
+    assert.deepEqual(child.result, { records: [
+      { title: 'Alpha 2', year: 1911 },
+      { title: 'Beta', year: 1902 },
+      { title: 'Gamma 2', year: 1913 },
+    ] })
+    assert.deepEqual(child.diagnostics.catalog!.records.map((record) => record.provenance), ['executed', 'reused', 'executed'])
+  })
+
+  it('parses a partial policy and rejects invalid values', () => {
+    assert.deepEqual(parseCatalogPolicy(undefined), DEFAULT_CATALOG_POLICY)
+    assert.deepEqual(parseCatalogPolicy({ recordBatchSize: 5, lexicalLinks: true }), { ...DEFAULT_CATALOG_POLICY, recordBatchSize: 5, lexicalLinks: true })
+    assert.throws(() => parseCatalogPolicy({ recordBatchSize: 0 }))
+    assert.throws(() => parseCatalogPolicy({ groundingGroupSize: 1.5 }))
+    assert.throws(() => parseCatalogPolicy({ lexicalLinks: 'yes' }))
+    assert.throws(() => parseCatalogPolicy({ batchSize: 3 }))
+    assert.throws(() => parseCatalogPolicy([]))
+  })
 })

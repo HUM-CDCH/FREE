@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
 import { groundExtraction } from './grounding.js'
+import { DEFAULT_CATALOG_POLICY } from './catalog.js'
+import type { GroundingModelRequest } from './dependencies.js'
 import { resolveCatalogBoundaries } from './catalog-boundaries.js'
 import { boundedContains, normalizeLexical } from './lexical.js'
 import type { ParsedDocument } from './parsed-document.js'
@@ -203,5 +205,93 @@ describe('groundExtraction lexical checks', () => {
       new AbortController().signal,
     )
     assert.deepEqual(Object.values(shown), [pinched])
+  })
+
+  describe('Catalog policy', () => {
+    const metadata = { finishReason: 'stop', inputTokens: 1, outputTokens: 1, durationMs: 1 } as const
+
+    it('links a unique lexical hit without the model and sends the rest', async () => {
+      const document = documentWith(['1. First place, iron age', 'Iron', '2. Second place', 'Bronze'])
+      const requests: GroundingModelRequest[] = []
+      const outcome = await groundExtraction(document, { records: [{ find: 'Iron', place: 'First place' }, { find: 'Bronze' }] }, {
+        async ground(request) {
+          requests.push(request)
+          return { selections: [{ claimLabel: Object.keys(request.claims)[0]!, anchorLabel: Object.keys(request.anchors)[1]! }], metadata }
+        },
+      }, new AbortController().signal, {
+        recordBoundaries: resolveCatalogBoundaries(document, ['b0', 'b2']),
+        policy: { ...DEFAULT_CATALOG_POLICY, lexicalLinks: true },
+      })
+      // "Iron" is in two candidates of record 0: the model decides. "First place"
+      // and "Bronze" are bounded tokens of exactly one candidate: linked in code.
+      assert.deepEqual(requests.map((request) => Object.values(request.claims)), [['Iron']])
+      assert.deepEqual(outcome.evidence, [
+        { resultPath: ['records', 0, 'place'], evidenceAnchorId: 'a-b0', verbatim: true, lexicalHits: 1 },
+        { resultPath: ['records', 0, 'find'], evidenceAnchorId: 'a-b1', verbatim: true, lexicalHits: 2 },
+        { resultPath: ['records', 1, 'find'], evidenceAnchorId: 'a-b3', verbatim: true, lexicalHits: 1 },
+      ])
+      assert.equal(outcome.batches.length, 1)
+      assert.deepEqual(outcome.issues, [])
+    })
+
+    it('never links a value in code when two candidates contain it', async () => {
+      const document = documentWith(['1. Iron place', 'Iron'])
+      const shown: string[] = []
+      await groundExtraction(document, { records: [{ find: 'Iron' }] }, {
+        async ground(request) {
+          shown.push(...Object.values(request.claims).map(String))
+          return { selections: [{ claimLabel: 'C1', anchorLabel: null }], metadata }
+        },
+      }, new AbortController().signal, { recordBoundaries: resolveCatalogBoundaries(document, ['b0']), policy: { ...DEFAULT_CATALOG_POLICY, lexicalLinks: true } })
+      assert.deepEqual(shown, ['Iron'])
+    })
+
+    it('groups records into one call and keeps each link inside its own record', async () => {
+      const document = documentWith(['1. First place', 'Iron', '2. Second place', 'Bronze', '3. Third place', 'Gold'])
+      const requests: GroundingModelRequest[] = []
+      const outcome = await groundExtraction(document, { records: [{ find: 'Iron' }, { find: 'Bronze' }, { find: 'Gold' }] }, {
+        async ground(request) {
+          requests.push(request)
+          const labels = Object.keys(request.anchors)
+          // Second claim points at the first record's anchor: cross-record, rejected.
+          return {
+            selections: Object.keys(request.claims).map((claimLabel, index) => ({ claimLabel, anchorLabel: index === 1 ? labels[1]! : labels[index * 2 + 1]! })),
+            metadata,
+          }
+        },
+      }, new AbortController().signal, {
+        recordBoundaries: resolveCatalogBoundaries(document, ['b0', 'b2', 'b4']),
+        policy: { ...DEFAULT_CATALOG_POLICY, groundingGroupSize: 2 },
+      })
+      assert.deepEqual(requests.map((request) => Object.keys(request.anchors).length), [4, 2])
+      assert.deepEqual(outcome.batches.map((batch) => [batch.resultPath, batch.candidateCount]), [[['records', 0], 4], [['records', 2], 2]])
+      assert.deepEqual(outcome.evidence.map((link) => [link.resultPath, link.evidenceAnchorId]), [[['records', 0, 'find'], 'a-b1'], [['records', 2, 'find'], 'a-b5']])
+      assert.deepEqual(outcome.issues.map((issue) => [issue.code, issue.resultPath]), [['unknown_anchor_label', ['records', 1, 'find']]])
+      assert.deepEqual(outcome.ungroundedPaths, [['records', 1, 'find']])
+    })
+
+    it('describes each claim to the grounder when the policy is field-aware', async () => {
+      const document = documentWith(['1. First place', 'Iron'])
+      const fields: Record<string, unknown> = {}
+      await groundExtraction(document, { records: [{ find: 'Iron', tags: ['a'] }], site: 'First' }, {
+        async ground(request) {
+          Object.assign(fields, request.claimFields)
+          return { selections: [], metadata }
+        },
+      }, new AbortController().signal, {
+        recordBoundaries: resolveCatalogBoundaries(document, ['b0']),
+        policy: { ...DEFAULT_CATALOG_POLICY, fieldAwareGrounding: true, groundingGroupSize: 5 },
+        schemaNodes: [
+          { id: 'find', name: 'find', type: 'string', description: 'The main find material.' },
+          { id: 'tags', name: 'tags', type: 'array', itemType: 'string' },
+          { id: 'site', name: 'site', type: 'string', valueSource: 'document' },
+        ],
+      })
+      assert.deepEqual(fields, {
+        C1: { record: 'records[0]', field: 'find', description: 'The main find material.' },
+        C2: { record: 'records[0]', field: 'tags', description: null },
+        C3: { record: null, field: 'site', description: null },
+      })
+    })
   })
 })
