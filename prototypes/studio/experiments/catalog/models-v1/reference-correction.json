@@ -1,0 +1,13 @@
+{
+  "reviewedAt": "2026-09-08",
+  "status": "Post-hoc source review after all model inference; original reference and scores preserved.",
+  "catalog_number": 228,
+  "field": "findspot",
+  "before": "4. Gleinaer Berg",
+  "after": "1. Gleinaer Berg",
+  "sourcePage": 3,
+  "sourceColumn": "p3-c3",
+  "detailBboxPtFromTop": [640, 482, 884, 527],
+  "detailRenderScale": 6,
+  "reason": "The PDF heading reads Fdpl. 1. Gleinaer Berg. The digit is visibly distinct from the 4 in W 4,6 on the following line."
+}
