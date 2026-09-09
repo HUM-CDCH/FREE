@@ -58,7 +58,6 @@ import type {
   ModelAttribution,
   ModelGenerationMetadata,
   ReviewDecisionInput,
-  ResultPath,
   RunSingleInput,
 } from './types.js'
 

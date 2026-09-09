@@ -31,8 +31,19 @@ export type CatalogPolicy = Readonly<{
   fieldAwareGrounding: boolean
 }>
 
-/** One values call and one grounding call per record, values only. */
+/** Five records per values call and per grounding call, each claim named
+ *  by record and field: on the Beier excerpt 15 calls instead of 61 with
+ *  identical values and links (docs/research/catalog-policy-v1.md).
+ *  Lexical auto-linking stays off: it linked the wrong passage on traps. */
 export const DEFAULT_CATALOG_POLICY: CatalogPolicy = {
+  recordBatchSize: 5,
+  lexicalLinks: false,
+  groundingGroupSize: 5,
+  fieldAwareGrounding: true,
+}
+
+/** The behaviour before policy v1: one values-only call per record. */
+export const PER_RECORD_CATALOG_POLICY: CatalogPolicy = {
   recordBatchSize: 1,
   lexicalLinks: false,
   groundingGroupSize: 1,

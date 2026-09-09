@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { describe, it } from 'node:test'
 import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
-import { CATALOG_NOT_ATTEMPTED_LIMIT, CATALOG_RECORD_LIMIT, DEFAULT_CATALOG_POLICY, parseCatalogPolicy, type CatalogPolicy } from './catalog.js'
+import { CATALOG_NOT_ATTEMPTED_LIMIT, CATALOG_RECORD_LIMIT, DEFAULT_CATALOG_POLICY, PER_RECORD_CATALOG_POLICY, parseCatalogPolicy, type CatalogPolicy } from './catalog.js'
 import type {
   ExtractionJobInput,
   ExtractionInputReader,
@@ -340,7 +340,8 @@ function catalogHarness(options: {
       },
     },
     now: () => 10,
-    ...(options.policy && { policy: options.policy }),
+    // The Catalog contract below is written against one call per record.
+    policy: options.policy ?? PER_RECORD_CATALOG_POLICY,
   })
   const module = {
     executeJob,
@@ -764,7 +765,24 @@ describe('ExtractionModule Catalog contract', () => {
 })
 
 describe('Catalog policy', () => {
-  const batched: CatalogPolicy = { ...DEFAULT_CATALOG_POLICY, recordBatchSize: 3 }
+  const batched: CatalogPolicy = { ...PER_RECORD_CATALOG_POLICY, recordBatchSize: 3 }
+
+  it('defaults to five-record batches, grouped field-aware grounding and no lexical links', () => {
+    assert.deepEqual(DEFAULT_CATALOG_POLICY, { recordBatchSize: 5, lexicalLinks: false, groundingGroupSize: 5, fieldAwareGrounding: true })
+  })
+
+  it('runs the production default without a policy argument', async () => {
+    const harness = catalogHarness({
+      labels: ['First', 'Second'],
+      policy: DEFAULT_CATALOG_POLICY,
+      script: [{ result: { records: [{ record_id: 'R1', title: 'Alpha', year: 1901 }, { record_id: 'R2', title: 'Beta', year: 1902 }] } }],
+    })
+    const { extraction } = await harness.module.runSingle(catalogInput())
+    assert.deepEqual(extraction.result, { records: [{ title: 'Alpha', year: 1901 }, { title: 'Beta', year: 1902 }] })
+    // One discovery call, one batch, one grouped grounding call.
+    assert.equal(harness.calls.length, 2)
+    assert.equal(extraction.diagnostics.groundingBatches.length, 1)
+  })
 
   it('extracts a batch of records in one identified values call', async () => {
     const harness = catalogHarness({
@@ -849,7 +867,7 @@ describe('Catalog policy', () => {
 
   it('parses a partial policy and rejects invalid values', () => {
     assert.deepEqual(parseCatalogPolicy(undefined), DEFAULT_CATALOG_POLICY)
-    assert.deepEqual(parseCatalogPolicy({ recordBatchSize: 5, lexicalLinks: true }), { ...DEFAULT_CATALOG_POLICY, recordBatchSize: 5, lexicalLinks: true })
+    assert.deepEqual(parseCatalogPolicy({ recordBatchSize: 1, lexicalLinks: true }), { ...DEFAULT_CATALOG_POLICY, recordBatchSize: 1, lexicalLinks: true })
     assert.throws(() => parseCatalogPolicy({ recordBatchSize: 0 }))
     assert.throws(() => parseCatalogPolicy({ groundingGroupSize: 1.5 }))
     assert.throws(() => parseCatalogPolicy({ lexicalLinks: 'yes' }))

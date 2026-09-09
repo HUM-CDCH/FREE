@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
 import { groundExtraction } from './grounding.js'
-import { DEFAULT_CATALOG_POLICY } from './catalog.js'
+import { PER_RECORD_CATALOG_POLICY } from './catalog.js'
 import type { GroundingModelRequest } from './dependencies.js'
 import { resolveCatalogBoundaries } from './catalog-boundaries.js'
 import { boundedContains, normalizeLexical } from './lexical.js'
@@ -220,7 +220,7 @@ describe('groundExtraction lexical checks', () => {
         },
       }, new AbortController().signal, {
         recordBoundaries: resolveCatalogBoundaries(document, ['b0', 'b2']),
-        policy: { ...DEFAULT_CATALOG_POLICY, lexicalLinks: true },
+        policy: { ...PER_RECORD_CATALOG_POLICY, lexicalLinks: true },
       })
       // "Iron" is in two candidates of record 0: the model decides. "First place"
       // and "Bronze" are bounded tokens of exactly one candidate: linked in code.
@@ -242,7 +242,7 @@ describe('groundExtraction lexical checks', () => {
           shown.push(...Object.values(request.claims).map(String))
           return { selections: [{ claimLabel: 'C1', anchorLabel: null }], metadata }
         },
-      }, new AbortController().signal, { recordBoundaries: resolveCatalogBoundaries(document, ['b0']), policy: { ...DEFAULT_CATALOG_POLICY, lexicalLinks: true } })
+      }, new AbortController().signal, { recordBoundaries: resolveCatalogBoundaries(document, ['b0']), policy: { ...PER_RECORD_CATALOG_POLICY, lexicalLinks: true } })
       assert.deepEqual(shown, ['Iron'])
     })
 
@@ -261,7 +261,7 @@ describe('groundExtraction lexical checks', () => {
         },
       }, new AbortController().signal, {
         recordBoundaries: resolveCatalogBoundaries(document, ['b0', 'b2', 'b4']),
-        policy: { ...DEFAULT_CATALOG_POLICY, groundingGroupSize: 2 },
+        policy: { ...PER_RECORD_CATALOG_POLICY, groundingGroupSize: 2 },
       })
       assert.deepEqual(requests.map((request) => Object.keys(request.anchors).length), [4, 2])
       assert.deepEqual(outcome.batches.map((batch) => [batch.resultPath, batch.candidateCount]), [[['records', 0], 4], [['records', 2], 2]])
@@ -280,7 +280,7 @@ describe('groundExtraction lexical checks', () => {
         },
       }, new AbortController().signal, {
         recordBoundaries: resolveCatalogBoundaries(document, ['b0']),
-        policy: { ...DEFAULT_CATALOG_POLICY, fieldAwareGrounding: true, groundingGroupSize: 5 },
+        policy: { ...PER_RECORD_CATALOG_POLICY, fieldAwareGrounding: true, groundingGroupSize: 5 },
         schemaNodes: [
           { id: 'find', name: 'find', type: 'string', description: 'The main find material.' },
           { id: 'tags', name: 'tags', type: 'array', itemType: 'string' },

@@ -10,6 +10,7 @@ export {
   CATALOG_NOT_ATTEMPTED_LIMIT,
   CATALOG_RECORD_LIMIT,
   DEFAULT_CATALOG_POLICY,
+  PER_RECORD_CATALOG_POLICY,
   parseCatalogPolicy,
 } from './catalog.js'
 export type { CatalogPolicy } from './catalog.js'

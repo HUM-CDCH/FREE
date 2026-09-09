@@ -9,6 +9,13 @@ The reconnaissance section below records
 the earlier handoff state, not the current installation/inference status.
 Branch: `codex/catalog-strategy-prototype`. Production baseline: `3b7ad81`.
 
+Update 2026-09-09: the production executor now carries a `CatalogPolicy`
+(five records per values call, grouped field-aware grounding, no lexical
+auto-linking), measured with [policy-v1](policy-v1/PROTOCOL.md) on this
+excerpt and the Danish transfer set: 15 calls instead of 61 with identical
+values and links. Rationale and rejected variants:
+`docs/research/catalog-policy-v1.md`.
+
 Start with [RESULTS.md](RESULTS.md) and [README.md](README.md). The best measured
 compromise on this excerpt was code boundaries → NuExtract batches of three →
 code evidence selection → one selective Luna fallback: **11 calls, 40–51 seconds,

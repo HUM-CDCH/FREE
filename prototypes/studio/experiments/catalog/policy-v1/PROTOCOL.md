@@ -77,3 +77,21 @@ and the production files the executor imports (`FROZEN_FILES` in `run.ts`)
 and refuses to run when any of them changes. Run directories are never
 reused; failed runs stay. `report.py` generates `RESULTS.md` from
 `result.json` and `evaluate.py`; no number in it is typed by hand.
+
+## Deviations recorded after the runs
+
+- The Spark route was unreachable; every arm ran on the local RTX 4090
+  (`qwen3.8:latest`, NuExtract3 Q4_K_M). Seconds are therefore local
+  figures, and the ablation arms below shared the GPU with the transfer
+  suite, so their seconds are not comparable.
+- The pre-registered policy arms failed G3 on Beier (lexical links linked
+  the wrong passage on two traps and the remaining grouped claims drew a
+  NONE cascade). Five exploratory arms were added to `suite.py` after
+  inspecting those runs: `batch-group-field`, `batch-group`,
+  `policy-v1-nofield`, `policy-v1-g1`, `policy-v1-g1-nofield`.
+  `batch-group-field` passed every Beier gate and was confirmed with two
+  further Beier repetitions and one run per Danish report before adoption.
+- `DEFAULT_CATALOG_POLICY` was flipped after the runs; the frozen hash of
+  `catalog.ts` no longer matches, so this root is closed. Every run passed
+  its policy explicitly, so the default did not influence any result.
+

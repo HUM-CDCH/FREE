@@ -17,6 +17,13 @@ ARMS = {
     'policy-v1': ['--batch-size', '5', '--lexical-links', '--grounding-group', '5', '--field-aware'],
     'policy-v1-b3': ['--batch-size', '3', '--lexical-links', '--grounding-group', '5', '--field-aware'],
     'policy-v1-nuextract': ['--batch-size', '5', '--lexical-links', '--grounding-group', '5', '--field-aware', '--values-model', 'nuextract'],
+    # Exploratory arms added after the pre-registered Beier runs, to isolate the
+    # supported-field loss of policy-v1 (grouping, field-aware prompt, lexical links).
+    'policy-v1-nofield': ['--batch-size', '5', '--lexical-links', '--grounding-group', '5'],
+    'policy-v1-g1': ['--batch-size', '5', '--lexical-links', '--grounding-group', '1', '--field-aware'],
+    'policy-v1-g1-nofield': ['--batch-size', '5', '--lexical-links', '--grounding-group', '1'],
+    'batch-group': ['--batch-size', '5', '--grounding-group', '5'],
+    'batch-group-field': ['--batch-size', '5', '--grounding-group', '5', '--field-aware'],
 }
 
 

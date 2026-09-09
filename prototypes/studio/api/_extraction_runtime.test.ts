@@ -60,5 +60,5 @@ it("names each claim's record and field to the grounder when the request carries
   expect(plain).toContain('[C1] "NW-SO"')
   expect(plain).not.toContain('### Fields')
   expect(plain).not.toContain('own record')
-  expect(dependencies.policy).toEqual({ recordBatchSize: 1, lexicalLinks: false, groundingGroupSize: 1, fieldAwareGrounding: false })
+  expect(dependencies.policy).toEqual({ recordBatchSize: 5, lexicalLinks: false, groundingGroupSize: 5, fieldAwareGrounding: true })
 })

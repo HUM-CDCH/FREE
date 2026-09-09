@@ -4,7 +4,9 @@
 implemented production and local-development runtimes.
 [`grounding.c4`](./grounding.c4) extends it with the evidence-linking
 boundary and the grounding lab; its explanations are in
-[`docs/research/grounding-lab-design-notes.md`](../research/grounding-lab-design-notes.md). Production combines
+[`docs/research/grounding-lab-design-notes.md`](../research/grounding-lab-design-notes.md);
+the Catalog call structure that followed from it is measured in
+[`docs/research/catalog-policy-v1.md`](../research/catalog-policy-v1.md). Production combines
 [`compose.yaml`](../../compose.yaml) and
 [`compose.prod.yaml`](../../compose.prod.yaml) behind host nginx. Local Compose
 adds [`compose.override.yaml`](../../compose.override.yaml), optionally

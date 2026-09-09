@@ -10,6 +10,12 @@ general-purpose Catalog pipeline.
 [RTX 4090 desktop handoff](HANDOFF.md) ·
 [Interactive diagrams and PDF evidence report](../../../../artifacts/catalog-lab/beier/report.html)
 
+Follow-ups: [additional local models](models-v1/README.md),
+[transfer to Danish reports](examples-transfer-v1/README.md),
+[burial-axis verification](verification-v1/README.md), and the
+[production policy experiment](policy-v1/PROTOCOL.md), which runs the real
+Catalog executor under `CatalogPolicy` instead of this prototype's strategies.
+
 ## Run
 
 From the repository root, with Studio dependencies installed and the Parsing

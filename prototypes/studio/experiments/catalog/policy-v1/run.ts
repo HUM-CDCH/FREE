@@ -127,7 +127,8 @@ const execute = createExtractionJobExecutor({
       return { result: response.result, metadata: response.metadata }
     } },
     groundingModel: { async ground(request) {
-      const { signal: _signal, ...input } = groundingModelInput(request)
+      const { signal, ...input } = groundingModelInput(request)
+      void signal // invoke() attaches its own timeout signal
       const generated = await invoke('grounding', input, general, { claims: Object.keys(request.claims).length, claimLabels: Object.keys(request.claims), candidates: Object.keys(request.anchors).length })
       return { selections: groundingSelections(generated.result), metadata: generated.metadata }
     } },
