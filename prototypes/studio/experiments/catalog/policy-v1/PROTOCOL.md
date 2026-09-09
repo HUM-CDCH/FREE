@@ -467,3 +467,58 @@ block without the token. Under full grounding the same model, seeing every
 claim, linked them all correctly. The transfer gate therefore fails for C
 and D', on the residual grounder's judgment and on B's recall, not on the
 citations. Not advanced; the policy keys stay off by default.
+
+### Revision 3, fifth step: grounded context (declared before its runs)
+
+User decision of 2026-09-09: try keeping the code-linked claims in the
+grounder's call as context, and take a second extraction on the reports.
+
+- `policy.groundedContext`: the grounding call keeps every record's slice
+  and lists the claims already linked in code under "Already linked
+  (context only, return nothing for these)", each with its E label; only
+  the remaining claims are asked. Input tokens return to about B's level;
+  the saving is the output and the calls that empty.
+- Roots `policy-v2-cite/beier-5` and `policy-v2-cite/transfer-2/<doc>`,
+  seeded with the fourth root's and the transfer root's `cite-full-r1`
+  (unchanged by this code: B has every claim pending and no context). Arms
+  `cite-verify-context` (C plus context) and `cite-verify-fields-context`
+  or `-danish-context` (D' plus context), two repetitions on the excerpt,
+  one on the reports. `cite-full` repetition 2 on each report, fresh, to
+  see whether the labelled prompt's recall loss repeats.
+- Reading: the context arms must show no wrong-record link on the reports
+  where the plain residual grounder made 2 to 5, and keep 203/164/1.000
+  on the excerpt; if the second extraction repeats the recall loss, the
+  loss is systematic and belongs to the labelled prompt.
+
+### Revision 3 outcome: grounded context and the second extraction (2026-09-09)
+
+Grounded context removed every wrong link on the reports: C and D' with
+context match B exactly on Herredsvejen, Hojbakkegaard and Hvissinge
+(16, 55 and 38 linked units, no wrong link; two new links reviewed and
+accepted, `adjudications-review-context.json`). On the excerpt C with
+context keeps 203/164/1.000 in both repetitions; D' with context linked
+the pavement `O-W` trap for the one routed axis claim in both repetitions
+(163). The price is the input: with every slice back in the call, C's
+grounding input on the excerpt is 21.0k against 12.9k without context and
+21.9k under full grounding, and values-plus-grounding time is 55 s against
+46 s without context and 59 s under A.
+
+On the reports the saving is small either way, because most claims are
+not verifiable: 4 of 20, 11 of 59 and 52 of 70 claims still reached the
+grounder on Herredsvejen, Hojbakkegaard and Hvissinge (Danish values are
+inflected or paraphrased against the text), and the record slices
+dominate the input regardless of how many claims are asked.
+
+The second extraction of B on each report populated 21, 59 and 73 values
+against 20, 59 and 70 in the first and 24, 66 and 91 under policy v1's
+plain prompt, with 63 of 63 fields identical between the two B runs on
+Hojbakkegaard: the labelled prompt's recall loss on prose is systematic,
+not variance.
+
+Gate: the excerpt criteria are met by C with context; the transfer link
+criteria are met by C and D' with context; the transfer criterion that B
+must not regress against policy v1 on the fixed denominators fails on all
+three reports (16 against 17, 55 against 61, 38 against 39 correct units).
+Not advanced. The keys stay off by default. The next hypothesis, untested:
+the recall loss belongs to the one-line-per-anchor rendering, and keeping
+the markdown slice with inline labels would remove it.
