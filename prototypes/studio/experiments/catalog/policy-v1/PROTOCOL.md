@@ -419,3 +419,51 @@ one value in one of four extractions where A was identical over three,
 and C lost two short-code links to grounder abstention in one of four
 repetitions where D' lost none in six. The Danish transfer part of the
 gate has not been run.
+
+### Revision 3, fourth root and the transfer set (declared before their runs)
+
+User decisions of 2026-09-09: try record-local citation labels, and
+delegate the review of the new Danish adjudications to Claude again.
+
+- Labels now restart at E1 in every record slice and resolve through that
+  record's own label map (`module.ts`), so a citation is one or two tokens
+  and can never name another record's block. Fourth excerpt root
+  `policy-v2-cite/beier-4`: B twice, C, D', D' on B's second extraction,
+  E; gate and efficiency criterion unchanged.
+- Transfer: roots `policy-v2-cite/transfer/<doc>` for Herredsvejen,
+  Hojbakkegaard and Hvissinge under the Danish schema, one repetition:
+  `cite-full` (B), `cite-verify` (C), `cite-verify-fields-danish` (D' with
+  `groundAlways = [burial_axis]`, multi-hit accepted) and `lexical-on-cite`
+  (E), C, D' and E replaying B. Scored by `score_danish.py --arms ...
+  --against cite-full` on the frozen references with every recorded
+  decision; new items are queued by `review_queue.py` (tier 1, arm hidden)
+  and reviewed by Claude under the rules recorded in "Review outcome".
+  Gate: D' and C must not lose a correct or linked unit against B on the
+  same values, add no wrong link, and B must not regress against the
+  per-record and policy-v1 runs of revision 2 on the fixed denominators.
+
+### Revision 3 outcome: fourth root and transfer set (2026-09-09)
+
+Fourth root (record-local labels, `RESULTS-cite.md`): B 203/164/1.000 in
+both extractions; C 203/164/1.000 twice; D' 203/164/1.000 twice on B's
+first extraction and 203/163 on the second, where one routed claim drew a
+grounder label outside the record. A citation now costs about 3.8 output
+tokens; against A, C saves 24% of values-plus-grounding output tokens and
+22% of that time, D' 20% and 15%. The excerpt gate is met by C and D'.
+
+Transfer set, one repetition, 42 new items reviewed by Claude under the
+recorded rules (`adjudications-review-cite.json`): B extracted fewer values
+than policy v1 on every report (correct units 16, 55 and 38 against 17,
+61 and 39, unsupported 4, 3 and 13 against 7, 6 and 21), so the labelled
+prompt trades recall for precision on prose. On the same values, C and D'
+added wrong links where B had none: Hojbakkegaard 2 and 5, Hvissinge 5 and
+5. Every one of them was made by the residual grounder, none by a verified
+citation: with only the hard claims in front of it, the grounder tied Grav
+9's type and rite to Grav 6's paragraph, three routed axis values to
+neighbouring graves, and Grav 6's finds on Hvissinge to the loose-remains
+paragraph that its slice ends with. The claims reached the grounder because
+the model wrote lemmas the text inflects (`får` against `fåret`) or cited a
+block without the token. Under full grounding the same model, seeing every
+claim, linked them all correctly. The transfer gate therefore fails for C
+and D', on the residual grounder's judgment and on B's recall, not on the
+citations. Not advanced; the policy keys stay off by default.

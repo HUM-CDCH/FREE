@@ -39,6 +39,7 @@ def main():
     parser.add_argument('--documents', nargs='*', default=['Herredsvejen_SBM1694', 'Hojbakkegaard_TAK_1177', 'Hvissinge_Ost_TAK_1728', 'Katrinesminde_SBM1116'])
     parser.add_argument('--pending', type=Path, nargs='*', default=[DANISH / 'review-pending.json'], help='pending files from score_danish.py --pending')
     parser.add_argument('--decisions', type=Path, nargs='*', default=[], help='further decision files (after Astra\'s and revision 2)')
+    parser.add_argument('--only-pending', action='store_true', help='queue only the items of the given pending files')
     args = parser.parse_args()
     items = {}
     for path in glob.glob(str(V2 / 'report-*/blind-review.json')):
@@ -57,6 +58,8 @@ def main():
     queue, private = [], {}
     for key, item in items.items():
         if item.get('schema') != 'danish' or item['document'] not in args.documents:
+            continue
+        if args.only_pending and item['source'] == 'candidate':
             continue
         prior = decisions.get(key, {})
         reasons = ' '.join(d.get('reason', '') for d in prior.values())
