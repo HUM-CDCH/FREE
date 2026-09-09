@@ -767,9 +767,10 @@ describe('ExtractionModule Catalog contract', () => {
 describe('Catalog policy', () => {
   const batched: CatalogPolicy = { ...PER_RECORD_CATALOG_POLICY, recordBatchSize: 3 }
 
-  it('defaults to one call per record until the policy gates pass', () => {
-    assert.deepEqual(DEFAULT_CATALOG_POLICY, PER_RECORD_CATALOG_POLICY)
+  it('defaults to policy v1 and keeps the per-record policy reachable', () => {
+    assert.deepEqual(DEFAULT_CATALOG_POLICY, CATALOG_POLICY_V1)
     assert.deepEqual(CATALOG_POLICY_V1, { recordBatchSize: 5, lexicalLinks: false, groundingGroupSize: 5, fieldAwareGrounding: true })
+    assert.deepEqual(PER_RECORD_CATALOG_POLICY, { recordBatchSize: 1, lexicalLinks: false, groundingGroupSize: 1, fieldAwareGrounding: false })
   })
 
   it('runs policy v1 as one batch and one grouped grounding call', async () => {

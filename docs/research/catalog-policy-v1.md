@@ -1,7 +1,9 @@
 # Catalog policy v1: fewer model calls, same links
 
 Status: measured on 2026-09-09 with the production executor on local models.
-**Opt-in, not the default.** The candidate passed every Beier gate; on the
+**Default since 2026-09-09**, by the user's acceptance decision after the
+review below; the deployment acceptance run (section 7) verifies it.
+The candidate passed every Beier gate; on the
 Danish reports it failed two transfer gates under the Beier schema (section
 4.2) and, re-measured under a schema that fits those reports (section 4.2,
 revision 2), it beats the per-record policy on every count except one
@@ -11,10 +13,11 @@ fails on Katrinesminde, where a rejected batch cost the saving, and on
 Hvissinge under the Beier schema. After a review of every disputed
 adjudication, delegated by the user to Claude and made with the arm hidden,
 G4 passes on all three gated reports (section 4.2, revision 2).
-`DEFAULT_CATALOG_POLICY` stays the per-record behaviour and
-`CATALOG_POLICY_V1` is enabled through `FREE_CATALOG_POLICY`: the amended
-gate still needs confirmation on documents not used to choose it, the
-review was an agent's, and the deployment acceptance run is outstanding. A review on 2026-09-09 also found two runtime defects
+`DEFAULT_CATALOG_POLICY` is now `CATALOG_POLICY_V1`; the per-record
+behaviour stays reachable through `FREE_CATALOG_POLICY`. Accepted with three
+caveats on record: the call gate was amended after results and has not been
+confirmed on documents outside the study, the review was an agent's, and
+the deployment acceptance run is still to be done. A review on 2026-09-09 also found two runtime defects
 in the first implementation, fixed with regression tests (section 6). Links
 stay reviewer suggestions: no score, no threshold, no automatic acceptance.
 
@@ -60,7 +63,7 @@ per record and one grounding call per record. The full Beier catalogue
 `CatalogPolicy` (`packages/extraction/src/catalog.ts`), read by Studio from
 `FREE_CATALOG_POLICY` (JSON) in `api/_extraction_runtime.ts`:
 
-| Key | Default | `CATALOG_POLICY_V1` | Meaning |
+| Key | Previous default (per-record) | `CATALOG_POLICY_V1` (default) | Meaning |
 |---|---|---|---|
 | `recordBatchSize` | 1 | 5 | Records per values call. Each slice sits under a `### Record R<n>` heading and the response must return every identity once, in order, under a routing key no schema field uses; otherwise the whole batch re-runs one record per call, and no row of the rejected batch is kept. |
 | `groundingGroupSize` | 1 | 5 | Records whose claims share one grounding call. Every link is validated against its own record's anchors; a link into a neighbouring record is rejected. |
@@ -68,8 +71,9 @@ per record and one grounding call per record. The full Beier catalogue
 | `lexicalLinks` | false | false | Linking a single lexical hit in code without the model. Measured and rejected (section 5). |
 
 Discovery is unchanged: its page chunking was fixed deliberately on
-2026-09-07 and costs 45 of 885 calls on Beier. To run the candidate, set
-`FREE_CATALOG_POLICY` to `{"recordBatchSize":5,"groundingGroupSize":5,"fieldAwareGrounding":true}`.
+2026-09-07 and costs 45 of 885 calls on Beier. To restore the previous
+behaviour, set `FREE_CATALOG_POLICY` to
+`{"recordBatchSize":1,"groundingGroupSize":1,"fieldAwareGrounding":false}`.
 
 ## 4. Measurement
 
@@ -337,8 +341,8 @@ now guard with regression tests in `module.test.ts`:
 ## 7. Acceptance on the deployment
 
 Run a new Catalog extraction in Studio on the prepared Beier Source
-Document (Schema Revision 6) with `FREE_CATALOG_POLICY` set to the
-candidate and compare with run `5c2e6fbc`: expected about 45 discovery + 84 values + 84 grounding calls
+Document (Schema Revision 6) with the new default and compare with run
+`5c2e6fbc`: expected about 45 discovery + 84 values + 84 grounding calls
 instead of 885, 420 records, zero links into other entries, and a "To
 check" count near the rehearsal's 1,650. Record the outcome in
 `docs/validation/`. The Spark route was unreachable when this policy was

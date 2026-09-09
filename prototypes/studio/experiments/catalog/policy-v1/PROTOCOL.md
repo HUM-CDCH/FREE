@@ -278,3 +278,12 @@ Every gate passes on Beier, Herredsvejen, Hojbakkegaard and Hvissinge;
 Katrinesminde fails G1 and G2 on its rejected batch. The default policy is
 unchanged: G2 was amended twice after results and needs confirmation on
 documents not used to choose it, and the review was delegated to an agent.
+
+## Decision (2026-09-09)
+
+The user accepted the candidate as the default (`DEFAULT_CATALOG_POLICY =
+CATALOG_POLICY_V1`) on the evidence above, with the three caveats stated in
+`docs/research/catalog-policy-v1.md`: the amended G2 is unconfirmed outside
+the study, the tier-1 review was delegated to an agent, and the deployment
+acceptance run on the full Beier catalogue is the verification still to be
+done. The per-record policy remains reachable through `FREE_CATALOG_POLICY`.
