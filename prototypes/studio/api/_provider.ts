@@ -1,7 +1,9 @@
 import { execFile as execFileCallback, type ExecFileException } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { promisify } from 'node:util'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
@@ -74,6 +76,19 @@ function isolatedCodexWorkingDirectory(): string {
   }
 }
 
+/**
+ * The pinned native binary, resolved like @openai/codex's own launcher. Spawning it
+ * directly avoids Node refusing to spawn codex.CMD on Windows (EINVAL) and lets
+ * SIGTERM reach the server process instead of an orphaning wrapper.
+ */
+function nativeCodexExecutable(): string {
+  const launcher = createRequire(import.meta.url).resolve('@openai/codex/bin/codex.js')
+  const platformPackage = createRequire(launcher).resolve(`@openai/codex-${process.platform}-${process.arch}/package.json`)
+  const systems: Record<string, string> = { win32: 'pc-windows-msvc', darwin: 'apple-darwin' }
+  const target = `${process.arch === 'arm64' ? 'aarch64' : 'x86_64'}-${systems[process.platform] ?? 'unknown-linux-musl'}`
+  return join(dirname(platformPackage), 'vendor', target, 'bin', process.platform === 'win32' ? 'codex.exe' : 'codex')
+}
+
 export function createRestrictedCodexProvider(
   cwd: string,
   factory: typeof createCodexAppServer = createCodexAppServer,
@@ -81,12 +96,7 @@ export function createRestrictedCodexProvider(
   return factory({
     defaultSettings: {
       approvalPolicy: 'never',
-      codexPath: join(
-        process.cwd(),
-        'node_modules',
-        '.bin',
-        process.platform === 'win32' ? 'codex.CMD' : 'codex',
-      ),
+      codexPath: nativeCodexExecutable(),
       cwd,
       effort: 'none',
       sandboxPolicy: 'read-only',
@@ -102,6 +112,8 @@ export function createRestrictedCodexProvider(
         'features.browser_use': false,
         'features.code_mode_host': false,
         'features.computer_use': false,
+        // Newer CLIs save this as a table, which the pinned CLI cannot parse; force the boolean.
+        'features.context_management': false,
         'features.image_generation': false,
         'features.multi_agent': false,
         'features.shell_snapshot': false,
@@ -141,8 +153,20 @@ export async function closeProviderRuntime(): Promise<void> {
   try {
     await provider?.close()
   } finally {
-    if (workingDirectory)
-      rmSync(workingDirectory, { recursive: true, force: true })
+    if (workingDirectory) await removeSandboxDirectory(workingDirectory)
+  }
+}
+
+/** close() only signals the server; Windows keeps its cwd locked until the process exits. */
+async function removeSandboxDirectory(directory: string): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    try {
+      rmSync(directory, { recursive: true, force: true })
+      return
+    } catch (error) {
+      if (attempt === 19) console.warn('Could not remove the Codex sandbox directory.', directory, error)
+      else await sleep(250)
+    }
   }
 }
 
