@@ -129,7 +129,39 @@ graves and both Herredsvejen records, and filled five axes on Hvissinge
 that the per-record calls had left empty. On Beier, where the schema
 fits, values were identical across every arm.
 
-### 4.3 Where the time goes
+### 4.3 Other models on the adopted call structure
+
+Asked whether another model could take values or grounding while Qwen keeps
+discovery, the same harness ran NuExtract3 (Q4_K_M, the only other
+extraction model installed locally) in each role. Beier excerpt, two
+repetitions each, seconds split by phase:
+
+| Values model | Grounding model | few-shot | calls | values/203 | supported/164 | cross-record | values s | grounding s |
+|---|---|---|---:|---:|---:|---:|---:|---:|
+| Qwen | Qwen (adopted) | – | 15 | 203 | 164 | 0 | 31 | 28 |
+| NuExtract | Qwen | no | 15 | 185–186 | 148–149 | 0 | 16 | 33 |
+| NuExtract | Qwen | yes | 15 | 201 | 163 | 0 | 16 | 34 |
+| Qwen | NuExtract | – | 15 | 203 | 152–156 | 4–8 | 31 | 15 |
+| NuExtract | NuExtract | yes | 15 | 200–201 | 154 | 4–5 | 16 | 11 |
+
+The few-shot rows splice the prototype's two synthetic Beier-schema
+examples into the NuExtract prompt through the harness; the production
+adapter has no example slot, and the examples are specific to this schema.
+On the Danish reports with blind labels, NuExtract values populated far
+more fields than Qwen, and the extra ones were mostly schema violations:
+Hojbakkegaard 20 values, 12 supported and 8 unsupported (grave-type words
+in `find_type`, an axis never stated) against Qwen's 8 of 8; Herredsvejen
+5 values, 3 supported, one unsupported linked. NuExtract as grounder made
+links into neighbouring records on Beier and on Hojbakkegaard linked one
+wrong passage and missed three of eight.
+
+Verdict: NuExtract halves the values time and is 3–4 seconds per call
+faster, but it needs schema-specific examples to come within two values of
+Qwen and it invents values on schemas that do not fit; as a grounder it is
+worse in every count. The adopted route stays Qwen for all three stages.
+Generated tables: `experiments/catalog/policy-v1/RESULTS.md`.
+
+### 4.4 Where the time goes
 
 Batching does not shorten output: a five-record values call emits about
 470 tokens and takes 6–7 s where five single calls took about 1.5 s each; a

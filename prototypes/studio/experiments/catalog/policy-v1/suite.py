@@ -24,6 +24,11 @@ ARMS = {
     'policy-v1-g1-nofield': ['--batch-size', '5', '--lexical-links', '--grounding-group', '1'],
     'batch-group': ['--batch-size', '5', '--grounding-group', '5'],
     'batch-group-field': ['--batch-size', '5', '--grounding-group', '5', '--field-aware'],
+    # Model-route arms on the adopted call structure: Qwen keeps discovery.
+    'bgf-nuextract-values': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--values-model', 'nuextract'],
+    'bgf-nuextract-values-fewshot': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--values-model', 'nuextract', '--few-shot'],
+    'bgf-nuextract-grounding': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--ground-model', 'nuextract'],
+    'bgf-nuextract-both-fewshot': ['--batch-size', '5', '--grounding-group', '5', '--field-aware', '--values-model', 'nuextract', '--few-shot', '--ground-model', 'nuextract'],
 }
 
 

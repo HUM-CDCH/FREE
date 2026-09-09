@@ -25,6 +25,9 @@ const { values: args } = parseArgs({ options: {
   'grounding-group': { type: 'string', default: '1' },
   'field-aware': { type: 'boolean', default: false },
   'values-model': { type: 'string', default: 'qwen' },
+  'ground-model': { type: 'string', default: 'qwen' },
+  /** Splice the prototype's synthetic examples into NuExtract values calls (Beier schema only). */
+  'few-shot': { type: 'boolean', default: false },
   model: { type: 'string', default: 'qwen3.8:latest' },
   'nuextract-model': { type: 'string', default: 'hf.co/numind/NuExtract3-GGUF:Q4_K_M' },
   'ollama-url': { type: 'string', default: 'http://127.0.0.1:11434' },
@@ -32,7 +35,8 @@ const { values: args } = parseArgs({ options: {
   'job-timeout': { type: 'string', default: '10800000' },
 } })
 if (!args.input || !args.out) throw new Error('--input parsed_document.json and --out directory are required')
-if (!['qwen', 'nuextract'].includes(args['values-model']!)) throw new Error('--values-model must be qwen or nuextract')
+for (const key of ['values-model', 'ground-model'] as const)
+  if (!['qwen', 'nuextract'].includes(args[key]!)) throw new Error(`--${key} must be qwen or nuextract`)
 
 /** Frozen together: the harness, the scoring inputs, and the production code it runs. */
 export const FROZEN_FILES = [
@@ -83,10 +87,29 @@ const nuextract: ExecutionTarget = {
   attribution: { provider: 'ollama', modelId: args['nuextract-model']! },
 }
 const valuesTarget = args['values-model'] === 'nuextract' ? nuextract : general
+const groundTarget = args['ground-model'] === 'nuextract' ? nuextract : general
+
+/** The prototype's synthetic two-record example (experiments/catalog/examples.ts),
+ *  with routing identities when the batch template carries them. No Beier answers. */
+function exampleBlock(template: Record<string, unknown>): string {
+  const recordTemplate = (template.records as Record<string, unknown>[] | undefined)?.[0] ?? (template.record as Record<string, unknown> | undefined)
+  if (!recordTemplate || !('catalog_number' in recordTemplate)) return ''
+  const routed = 'record_id' in recordTemplate
+  const values = [
+    { catalog_number: 901, locality: 'Musterdorf', locality_part: null, findspot: '2. Sandgrube', map_sheet: 9999, find_type: 'G', burial_axis: 'N-S' },
+    { catalog_number: 902, locality: 'Nebenort', locality_part: 'Westdorf', findspot: 'u.', map_sheet: 9998, find_type: 'EF', burial_axis: null },
+  ]
+  const slices = ['901. Musterdorf. Fdpl. 2. Sandgrube. Mbl. 9999 (0000).\nFA: G. Rechteckige Steinkiste; N-S.', '902. Nebenort, OT Westdorf. Fdpl. u. Mbl. 9998 (0001). FA: EF.']
+  const input = routed ? slices.map((slice, i) => `### Record R${i + 1}\n${slice}`).join('\n\n') : slices.join('\n')
+  const output = template.records
+    ? { records: values.map((value, i) => routed ? { record_id: `R${i + 1}`, ...value } : value) }
+    : { record: values[0] }
+  return `【examples_start】\n【example_input_start】${input}【example_input_end】\n【example_output_start】${JSON.stringify(output)}【example_output_end】\n【examples_end】\n`
+}
 
 type Call = { index: number; phase: 'discovery' | 'extraction' | 'grounding'; model: string; status: 'failed' | 'succeeded'; durationMs: number; providerInvocations: number; metadata?: unknown; error?: string; claims?: number; claimLabels?: string[]; candidates?: number; records?: number }
 const calls: Call[] = []
-await save('manifest.json', { arm: args.arm, policy, model: args.model, valuesModel: args['values-model'], ollamaUrl: args['ollama-url'], inputSha256, hashes, schemaDefinition, startedAt: new Date().toISOString() })
+await save('manifest.json', { arm: args.arm, policy, model: args.model, valuesModel: args['values-model'], groundModel: args['ground-model'], fewShot: args['few-shot'], ollamaUrl: args['ollama-url'], inputSha256, hashes, schemaDefinition, startedAt: new Date().toISOString() })
 
 async function invoke(phase: Call['phase'], input: Omit<ExtractModelInput, 'signal'>, target: ExecutionTarget, extra: Partial<Call> = {}) {
   const index = calls.length + 1
@@ -97,7 +120,15 @@ async function invoke(phase: Call['phase'], input: Omit<ExtractModelInput, 'sign
   console.log(`START ${index} ${phase} ${call.model}`)
   const begin = performance.now()
   try {
-    const response = await extractWithModel({ ...input, signal: AbortSignal.timeout(Number(args.timeout)) }, target)
+    const fewShot = args['few-shot'] && phase === 'extraction' && target.profile === 'nuextract-raw'
+    const response = await extractWithModel({ ...input, signal: AbortSignal.timeout(Number(args.timeout)) }, target, fewShot ? {
+      fetch: async (url, init) => {
+        const body = JSON.parse(String(init?.body))
+        body.prompt = String(body.prompt).replace('【document_start】', exampleBlock(input.template as Record<string, unknown>) + '【document_start】')
+        await writeFile(`${prefix}-actual-request.json`, JSON.stringify(body, null, 2))
+        return fetch(url, { ...init, body: JSON.stringify(body) })
+      },
+    } : {})
     call.status = 'succeeded'
     call.metadata = response.metadata
     await writeFile(`${prefix}-response.json`, JSON.stringify({ result: response.result, metadata: response.metadata }, null, 2))
@@ -119,7 +150,7 @@ const execute = createExtractionJobExecutor({
     async readExtractionAttempt() { return null },
   },
   models: { async open() { return {
-    attribution: { provider: 'ollama', modelId: `${args.model} discovery/grounding + ${args['values-model'] === 'nuextract' ? args['nuextract-model'] : args.model} values` },
+    attribution: { provider: 'ollama', modelId: `${args.model} discovery + ${valuesTarget.attribution!.modelId} values + ${groundTarget.attribution!.modelId} grounding` },
     model: { async extract(request: ExtractionModelRequest) {
       const discovery = 'starts' in request.template
       const batch = Array.isArray(request.template.records)
@@ -129,7 +160,7 @@ const execute = createExtractionJobExecutor({
     groundingModel: { async ground(request) {
       const { signal, ...input } = groundingModelInput(request)
       void signal // invoke() attaches its own timeout signal
-      const generated = await invoke('grounding', input, general, { claims: Object.keys(request.claims).length, claimLabels: Object.keys(request.claims), candidates: Object.keys(request.anchors).length })
+      const generated = await invoke('grounding', input, groundTarget, { claims: Object.keys(request.claims).length, claimLabels: Object.keys(request.claims), candidates: Object.keys(request.anchors).length })
       return { selections: groundingSelections(generated.result), metadata: generated.metadata }
     } },
   } } },
@@ -142,7 +173,7 @@ try {
   terminal = await execute({ kind: 'fresh', extractionId: 'prototype-run', sourceRepresentationRevisionId: 'prototype-source-revision', schemaRevisionId: 'prototype-schema', strategy: 'CATALOG' }, null,
     (checkpoint) => save('checkpoint.json', checkpoint), AbortSignal.timeout(Number(args['job-timeout'])))
 } catch (error) {
-  await save('result.json', { arm: args.arm, strategy: 'production', model: args.model, 'values-model': args['values-model'], 'batch-size': policy.recordBatchSize, policy, inputSha256, hashes, calls, boundaries: [], rows: [], failure: String(error), outcome: 'THREW', durationMs: Math.round(performance.now() - started) })
+  await save('result.json', { arm: args.arm, strategy: 'production', model: args.model, 'values-model': args['values-model'], 'ground-model': args['ground-model'], 'few-shot': args['few-shot'], 'batch-size': policy.recordBatchSize, policy, inputSha256, hashes, calls, boundaries: [], rows: [], failure: String(error), outcome: 'THREW', durationMs: Math.round(performance.now() - started) })
   console.log('THREW', String(error))
   process.exit(1)
 }
@@ -158,7 +189,7 @@ const rows = (terminal.result?.records as Record<string, unknown>[] ?? []).map((
 const populated = terminal.result ? populatedContentPaths(terminal.result).length : 0
 const sentToModel = calls.filter((call) => call.phase === 'grounding').reduce((sum, call) => sum + (call.claims ?? 0), 0)
 await save('result.json', {
-  arm: args.arm, strategy: 'production', model: args.model, 'values-model': args['values-model'], 'batch-size': policy.recordBatchSize, policy, inputSha256, hashes,
+  arm: args.arm, strategy: 'production', model: args.model, 'values-model': args['values-model'], 'ground-model': args['ground-model'], 'few-shot': args['few-shot'], 'batch-size': policy.recordBatchSize, policy, inputSha256, hashes,
   calls, boundaries, rows, failure: terminal.failure, outcome: terminal.outcome, complete: terminal.complete, durationMs: Math.round(performance.now() - started),
   claims: { populated, sentToModel, lexicalLinks: populated - sentToModel, links: evidence.length, verbatimLinks: evidence.filter((link) => link.verbatim).length, ambiguousLinks: evidence.filter((link) => (link.lexicalHits ?? 0) > 1).length },
   ungroundedPaths: terminal.diagnostics.ungroundedPaths,
