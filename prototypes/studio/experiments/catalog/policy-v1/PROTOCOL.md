@@ -190,3 +190,51 @@ per-record calls and that a prospectively specified overhead allowance
 (candidate calls at most 40% of the per-record calls plus a fixed number for
 document-level calls and rounding) would have an operational rationale the
 floor lacks. No further gate change is made without an explicit decision.
+
+## G2 reformulated, and the human review queue (2026-09-09, after a brainstorm with GPT Astra)
+
+The floor above is superseded. The second opinion objected that it creates
+a cliff at ten calls with no operational rationale, and proposed a scope
+correction instead (`REVIEW-g2-brainstorm.md`), adopted as follows.
+
+- G2 compares only the calls the policy changes: record values calls and
+  grounding calls, every attempt counted (a rejected batch and its fallback
+  singles all count). Discovery and document-level values calls are
+  identical in both arms by construction and are excluded from both sides;
+  total non-discovery calls are reported next to the ratio, because scoped
+  savings are not runtime savings.
+- Per document, as pre-registered: candidate at most 40% of the per-record
+  arm. A document whose per-record arm made no such call is not evaluated;
+  a run that threw is not an efficiency pass.
+- 40% is a declared budget: with full five-record batches the ideal is 20%,
+  so 40% allows twice the ideal cost. Two-record documents can fail without
+  any fallback; that is the intended reading.
+- Outcomes: Beier 12 against 58, Herredsvejen 2 against 6, Hojbakkegaard 4
+  against 18, Hvissinge 6 against 24 pass. Katrinesminde fails, 4 against 4
+  (one batch, rejected, both records re-run), and fails G1 (one fallback of
+  one batch); its exclusion from G4 because of its reference does not
+  exclude it here. Hvissinge under the Beier schema fails, 3 against 6:
+  the per-record arm produced no values and so no grounding call, while
+  the candidate produced five values and one grounding call, a
+  claim-eligibility confound that a scoped ratio cannot remove.
+- This is the second post-hoc amendment of G2. A gate chosen after the
+  results needs fresh confirmation on documents not used to choose it
+  before it counts as passed; none has been run.
+
+Human review of uncertain adjudications, decided by the user: an
+adjudication is final without human review only when the value is an exact
+alias or a punctuation/inflection variant of a reviewed unit, the record
+binding is explicit, and the link was accepted as directly supporting that
+record. `review_queue.py` builds the sheet from every other decision of
+both agents, in tiers: tier 1 holds every negative decision (unsupported,
+wrong-record, wrong-passage, unbound record) and every disagreement between
+the agents, the decisions that penalise an arm and can move a gate; tier 2
+adds values and links accepted by judgment; `--all` adds the mechanical
+ones. Sizes on the Danish schema: tier 1, 134 items on the three gated
+reports and 158 with Katrinesminde; tier 2, 531; all, 569. The sheet shows
+the field rule, the value, the record identity, the reference units, and
+the linked passage with its pages; it hides the arm, the model and the
+prior decisions, which a private map keeps for rescoring. Decisions apply
+to both arms under one rule; `score_danish.py --reviewed` re-reads the
+gates. Until then G4 is reported as provisional, numerically established G2
+and G1 failures as failed, and the policy as not approved.

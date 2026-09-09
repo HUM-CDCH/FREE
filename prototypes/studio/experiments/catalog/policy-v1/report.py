@@ -49,6 +49,23 @@ def counts(run):
     }
 
 
+def policy_calls(run):
+    """Calls the policy changes: record values calls and grounding calls, every attempt counted.
+    Discovery and document-level values calls (templates holding only document-valued fields) are identical in both arms."""
+    manifest = json.loads((run['dir'] / 'manifest.json').read_text(encoding='utf8'))
+    document_fields = {node['name'] for node in manifest['schemaDefinition']['schemaNodes'] if node.get('valueSource') == 'document'}
+    n = 0
+    for call in run['calls']:
+        if call['phase'] == 'grounding':
+            n += 1
+        elif call['phase'] == 'extraction':
+            template = json.loads((run['dir'] / f"call-{call['index']:03d}-request.json").read_text(encoding='utf8')).get('template') or {}
+            record = template.get('record')
+            if template.get('records') is not None or record is None or not set(record) - {'_description'} <= document_fields:
+                n += 1
+    return n
+
+
 def score_beier(root, document, runs):
     beier = [run for run in runs if run['metrics'] is None and run['outcome'] != 'THREW']
     if not beier:
@@ -106,16 +123,18 @@ def gates(runs, scores=None):
     if not base:
         return ['No baseline arm: gates not evaluated.']
     mean = lambda rs, f: statistics.mean(f(r) for r in rs)
-    base_calls = mean(base, lambda r: counts(r)['calls'] - counts(r)['discovery'])
+    base_calls = mean(base, policy_calls)
+    base_total = mean(base, lambda r: counts(r)['calls'] - counts(r)['discovery'])
     out = []
     for arm, arm_runs in by_arm.items():
         if arm == 'baseline':
             continue
         c = [counts(r) for r in arm_runs]
         g1 = all(x['records'] == x['boundaries'] for x in c) and all(x['fallbackValues'] <= 0.05 * max(1, x['batchValues']) for x in c)
-        arm_calls = mean(arm_runs, lambda r: counts(r)['calls'] - counts(r)['discovery'])
-        # G2 (revised 2026-09-09): the 40% ratio applies from ten per-record calls; below that, no increase.
-        g2 = arm_calls <= 0.4 * base_calls if base_calls >= 10 else arm_calls <= base_calls
+        arm_calls = mean(arm_runs, policy_calls)
+        arm_total = mean(arm_runs, lambda r: counts(r)['calls'] - counts(r)['discovery'])
+        # G2 (reformulated 2026-09-09): policy-sensitive calls (record values + grounding, every attempt) at most 40% of the per-record arm's.
+        g2 = None if base_calls == 0 else arm_calls <= 0.4 * base_calls
         scored = [r for r in arm_runs if r['metrics']] and [r for r in base if r['metrics']]
         if scored:
             bm = lambda k: mean([r for r in base if r['metrics']], lambda r: r['metrics'][k])
@@ -135,7 +154,7 @@ def gates(runs, scores=None):
             g4_text = f"G4 {'pass' if g4_cross and g4_cov and g4_wrong else 'FAIL'} (cross-record {'0' if g4_cross else '>0'}; coverage {coverage(arm_scores):.3f} vs baseline {coverage(base_scores):.3f} over the sheet's supported claims; wrong-anchor rate {wrong_rate(arm_scores):.3f} vs {wrong_rate(base_scores):.3f})"
         else:
             g4_text = f"G4 cross-record links {'pass' if g4_cross else 'FAIL'}; coverage and wrong-anchor rate need a labelled sheet in this root"
-        out.append(f"- **{arm}** ({len(arm_runs)} runs): G1 {'pass' if g1 else 'FAIL'} (identity; fallbacks {sum(x['fallbackValues'] for x in c)} of {sum(x['batchValues'] for x in c)} batches); G2 {'pass' if g2 else 'FAIL'} ({arm_calls:.1f} non-discovery calls vs baseline {base_calls:.1f}{'' if base_calls >= 10 else ', floor: no increase below ten'}); {g3_text}; {g4_text}; G5 applies only to arms with lexical links.")
+        out.append(f"- **{arm}** ({len(arm_runs)} runs): G1 {'pass' if g1 else 'FAIL'} (identity; fallbacks {sum(x['fallbackValues'] for x in c)} of {sum(x['batchValues'] for x in c)} batches); G2 {'not evaluated (no policy-sensitive calls)' if g2 is None else 'pass' if g2 else 'FAIL'} ({arm_calls:.1f} policy-sensitive calls vs baseline {base_calls:.1f}; all non-discovery calls {arm_total:.1f} vs {base_total:.1f}); {g3_text}; {g4_text}; G5 applies only to arms with lexical links.")
     return out
 
 

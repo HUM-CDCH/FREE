@@ -12,6 +12,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / 'models-policy-v2'))
 from score import references_for, score_terminal  # noqa: E402
+sys.path.insert(0, str(HERE))
+from report import policy_calls  # noqa: E402
 
 REPO = HERE.parents[4]
 V2 = REPO / 'artifacts/catalog-lab/models-policy-v2'
@@ -33,7 +35,8 @@ def calls(run):
             'grounding': by_phase.get('grounding', 0), 'fallback': sum(1 for c in result['calls'] if c.get('fallback')),
             'batches': sum(1 for c in result['calls'] if (c.get('records') or 1) > 1), 'seconds': round(result['durationMs'] / 1000, 1),
             'outcome': result['outcome'], 'records': len(result['rows']), 'boundaries': len(result['boundaries']),
-            'crossRecord': sum(1 for i in result.get('groundingIssues', []) if i.get('code') == 'unknown_anchor_label')}
+            'crossRecord': sum(1 for i in result.get('groundingIssues', []) if i.get('code') == 'unknown_anchor_label'),
+            'policy': policy_calls({'calls': result['calls'], 'dir': run})}
 
 
 def main():
@@ -41,6 +44,7 @@ def main():
     parser.add_argument('--root', type=Path, default=REPO / 'artifacts/catalog-lab/policy-v1-danish')
     parser.add_argument('--decisions', type=Path, nargs='*', default=[V2 / 'adjudications-final.json'])
     parser.add_argument('--pending', type=Path, help='write undecided items here')
+    parser.add_argument('--reviewed', action='store_true', help='the decisions include the human review; G4 is no longer provisional')
     args = parser.parse_args()
     decisions, extensions = {}, []
     for path in args.decisions:
@@ -54,7 +58,7 @@ def main():
             row['fields'][extension['field']][extension['unit']]['aliases'].extend(extension['aliases'])
         else:
             row['fields'][extension['field']].append(extension['atom'])
-    header = ['document', 'arm', 'outcome', 'records', 'calls', 'disc', 'values', 'batch', 'fallback', 'ground', 'seconds', 'correct units', 'linked units', 'unsupported', 'wrong record', 'wrong passage', 'cross-record', 'pending']
+    header = ['document', 'arm', 'outcome', 'records', 'calls', 'disc', 'values', 'batch', 'fallback', 'ground', 'policy calls', 'seconds', 'correct units', 'linked units', 'unsupported', 'wrong record', 'wrong passage', 'cross-record', 'pending']
     lines = ['| ' + ' | '.join(header) + ' |', '|' + '---|' * len(header)]
     pending, scores = {}, {}
     for doc in DOCS:
@@ -73,29 +77,30 @@ def main():
             for key, item in undecided.items():
                 pending.setdefault(key, {**item, 'arms': []})['arms'].append(f'{doc}/{arm}')
             scores[(doc, arm)] = {**metrics, **c}
-            lines.append('| ' + ' | '.join(str(x) for x in [doc, arm, c['outcome'], f"{c['records']}/{c['boundaries']}", c['total'], c['discovery'], c['values'], c['batches'], c['fallback'], c['grounding'], c['seconds'],
+            lines.append('| ' + ' | '.join(str(x) for x in [doc, arm, c['outcome'], f"{c['records']}/{c['boundaries']}", c['total'], c['discovery'], c['values'], c['batches'], c['fallback'], c['grounding'], c['policy'], c['seconds'],
                 f"{metrics.get('correctUnits', 0)}/{metrics.get('supportedUnits', 0)}", f"{metrics.get('supportedLinkUnits', 0)}/{metrics.get('supportedUnits', 0)}", metrics.get('unsupportedClaims', 0),
                 metrics.get('wrongRecordLinks', 0), metrics.get('wrongPassageLinks', 0), c['crossRecord'], metrics.get('pendingValues', 0) + metrics.get('pendingLinks', 0)]) + ' |')
     gates = []
     wrong_rate = lambda s: (s['wrongRecordLinks'] + s['wrongPassageLinks']) / max(1, s['supportedLinkUnits'] + s['wrongRecordLinks'] + s['wrongPassageLinks'])
-    for doc in GATED:
+    for doc in DOCS:
         b, a = scores.get((doc, 'baseline')), scores.get((doc, 'batch-group-field'))
-        if not a or not b:
-            gates.append(f'- **{doc}**: not run'); continue
+        if not a or not b or a['outcome'] != 'SUCCEEDED' or b['outcome'] != 'SUCCEEDED':
+            gates.append(f'- **{doc}**: not gated (a run did not succeed)'); continue
         tolerance = 0.05 * a['supportedUnits']
         g1 = a['records'] == a['boundaries'] and a['fallback'] <= 0.05 * max(1, a['batches'])
-        base_calls, arm_calls = b['total'] - b['discovery'], a['total'] - a['discovery']
-        # G2 (revised 2026-09-09): the 40% ratio applies from ten per-record calls; below that, no increase.
-        g2 = arm_calls <= 0.4 * base_calls if base_calls >= 10 else arm_calls <= base_calls
+        base_calls, arm_calls = b['policy'], a['policy']
+        # G2 (reformulated 2026-09-09): policy-sensitive calls (record values + grounding, every attempt) at most 40% of the per-record arm's.
+        g2 = None if base_calls == 0 else arm_calls <= 0.4 * base_calls
         g4 = (a['correctUnits'] >= b['correctUnits'] - tolerance and a['supportedLinkUnits'] >= b['supportedLinkUnits'] - tolerance
               and wrong_rate(a) <= wrong_rate(b)
               and a['unsupportedClaims'] <= b['unsupportedClaims'] and a['crossRecord'] == 0)
         undecided = sum(s.get('pendingValues', 0) + s.get('pendingLinks', 0) for s in (a, b))
+        g4_text = (f"G4 {'pass' if g4 else 'FAIL'}{'' if args.reviewed else ', provisional until the human review is applied'} (units {a['correctUnits']} vs {b['correctUnits']}, links {a['supportedLinkUnits']} vs {b['supportedLinkUnits']} of {a['supportedUnits']}, "
+                   f"wrong-link rate {wrong_rate(a):.3f} vs {wrong_rate(b):.3f}, unsupported {a['unsupportedClaims']} vs {b['unsupportedClaims']})"
+                   if doc in GATED else 'G4 not gated (the reference credits graves the schema excludes)')
         gates.append(f"- **{doc}**: G1 {'pass' if g1 else 'FAIL'} (fallbacks {a['fallback']} of {a['batches']} batches); "
-                     f"G2 {'pass' if g2 else 'FAIL'} ({arm_calls} non-discovery calls vs {base_calls}{'' if base_calls >= 10 else ', floor: no increase below ten'}); "
-                     f"G4 {'pass' if g4 else 'FAIL'} (units {a['correctUnits']} vs {b['correctUnits']}, links {a['supportedLinkUnits']} vs {b['supportedLinkUnits']} of {a['supportedUnits']}, "
-                     f"wrong-link rate {wrong_rate(a):.3f} vs {wrong_rate(b):.3f}, unsupported {a['unsupportedClaims']} vs {b['unsupportedClaims']})"
-                     + ('' if not undecided else f'; {undecided} pending decisions, gates provisional'))
+                     f"G2 {'not evaluated' if g2 is None else 'pass' if g2 else 'FAIL'} ({arm_calls} policy-sensitive calls vs {base_calls}; all non-discovery calls {a['total'] - a['discovery']} vs {b['total'] - b['discovery']}); "
+                     + g4_text + ('' if not undecided else f'; {undecided} pending decisions'))
     report = '\n'.join(['# Catalog policy v1 — revision 2: per-record vs candidate, Danish schema', '',
                         'Generated by score_danish.py from result.json and terminal.json through models-policy-v2/score.py with Astra\'s references and adjudications; no number is typed by hand. Katrinesminde and Brondbylund are shown, not gated.', '',
                         *lines, '', '## Gates', '', *gates, ''])
