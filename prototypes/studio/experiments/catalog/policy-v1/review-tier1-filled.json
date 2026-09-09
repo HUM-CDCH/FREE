@@ -1,0 +1,3155 @@
+{
+  "items": [
+    {
+      "key": "9b839d7c2b2c593de2b868813a7ec6f56fa38099c8353efadb50fcf1d3e6c6e4",
+      "id": "R001",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 1",
+      "field": "finds",
+      "value": "8 tænder",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "dd7b1286532580e6fb3dbb1bcb01e098bf16eb0335f1d559e57d12d120ea3f0a",
+      "id": "R002",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 11",
+      "field": "grave_type",
+      "value": "nedgravning",
+      "heading": null,
+      "rule": "Explicit structural or archaeological grave type, such as baadgrav, urnegrav or jordfaestegrav. Preserve qualifications such as mulig or formentlig. Do not infer a type from dimensions or objects alone.",
+      "referenceUnits": [
+        "0: urnegrav | fragmenteret urne (p. 6, 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Generic grave or pit noun, body position, comparison site, object or other grave supplies no grave type."
+      }
+    },
+    {
+      "key": "5fa2f5f2b1a5a8e04c687ecdca767da3a959161b62fba23e783efd9d8e7d1398",
+      "id": "R003",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "value",
+      "record": "A225",
+      "field": "finds",
+      "value": "X122",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: mindre hankekop | hankekop | stærkt sintret lille kar (p. 11, 12)",
+        "1: rød, mat glasperle | glasperle (p. 11, 12)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "99155df8d6a3c74f439a7b2f6a7fd203920e2d07c4812018ef3b5a78f9ba4aee",
+      "id": "R004",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "burial_axis",
+      "value": "sydvest",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "4fb48d7a3f8fbaf37da54084da9b3805c90ce528564447ce49d40c7adfc1466f",
+      "id": "R005",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 6",
+      "field": "burial_rite",
+      "value": "høje stævne",
+      "heading": null,
+      "rule": "Explicitly stated burial rite or deposition: jordfaeste, ligbraending or a corresponding source phrase. A named jordfaestegrav, urnegrav or brandgrav is an explicit rite; the source type word may be copied. Do not infer a rite from an isolated bone or object.",
+      "referenceUnits": [
+        "0: jordfæstegrav | jordfæstegrave (p. 6)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Boat part, shroud conjecture, excavation term, construction term, remains or reconstructed sequence is not a stated rite or deposition."
+      }
+    },
+    {
+      "key": "4c16758167f1ed2354107d2015a273e95f74d0fa8b272f74a913736b8798e274",
+      "id": "R006",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 6",
+      "field": "burial_axis",
+      "value": "nord-syd",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "35a5cbca462a493880a71e4ef28c5fe0f53740629fe697707b7ef5841009febb",
+      "id": "R007",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 86",
+      "field": "finds",
+      "value": "spytsten",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "d74b94a3be3411cdc3ce0c9a5b8486501354e1aacaf6e095b9d04e04dc3a5a86",
+      "id": "R008",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": null,
+      "field": "finds",
+      "value": "guldfolieperler",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "No unique in-scope grave binding; the record is the loose-remains group."
+      }
+    },
+    {
+      "key": "5678a4a3848cf7ee6007e1fd7a12b7316cc49577825279283db69eaab74e528f",
+      "id": "R009",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 4",
+      "field": "finds",
+      "value": "12 sten, cirka 7 til 15 cm i diameter",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 10)",
+        "1: stor synål | synål (p. 10)",
+        "2: lille krumkniv i kobberlegering | krumkniv i kobberlegering (p. 10)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Construction, closing or intrusive stones are not grave goods (schema excludes construction stones)."
+      }
+    },
+    {
+      "key": "9bbe2df996a815695ce659878281f5d2834333fca1625cd02304a2a6ac746b0f",
+      "id": "R010",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 6",
+      "field": "grave_id",
+      "value": "grav 3",
+      "heading": null,
+      "rule": "Printed identifier of this grave, preserving any A prefix; for example Grav 9 or A240. Not a find, figure, house, site or report number.",
+      "referenceUnits": [
+        "0: Grav 6 | 6 (p. 12, 13)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Names another grave than the bound record."
+      }
+    },
+    {
+      "key": "9dda904a314d5216d1b6a1403314427da9c30ae41e71e0736d52446a2a889f26",
+      "id": "R011",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 6",
+      "field": "finds",
+      "value": "båd",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: får (p. 12)",
+        "1: fibler (dragtnåle) | fibler (p. 12)",
+        "2: lerkar (p. 12)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Boat, coffin, boat parts, soil traces, corrosion traces or an absent object are the burial structure or a trace, not a grave good."
+      }
+    },
+    {
+      "key": "70a2e5eb538202616cfcfcb835b1a66d0970f159a457a797ac681866955a2167",
+      "id": "R012",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "value",
+      "record": "A225",
+      "field": "dating",
+      "value": "yngre romersk jernalder/ældre germansk jernalder",
+      "heading": null,
+      "rule": "Explicit date or archaeological period assigned to this grave. Preserve uncertainty and the period wording. Do not silently repair contradictory dates or borrow a date from an unrelated grave or general period description.",
+      "referenceUnits": [
+        "0: forsigtigt til yngre romersk jernalder/ældre germansk jernalder (p. 12)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "correct",
+        "unit": 0,
+        "link": null,
+        "record": null,
+        "note": "The stated period is the one the source assigns to this grave; the dropped hedge is a precision loss, not a wrong value."
+      }
+    },
+    {
+      "key": "4c1a99ccbc9b0e99ee57559fabdf77e7be5f7f0128626c1c8770cba5347ab386",
+      "id": "R013",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "link",
+      "record": "Grav 2",
+      "field": "grave_id",
+      "value": "Grav 2",
+      "heading": null,
+      "rule": "Printed identifier of this grave, preserving any A prefix; for example Grav 9 or A240. Not a find, figure, house, site or report number.",
+      "referenceUnits": [
+        "0: Grav 2 | 2 (p. 8)"
+      ],
+      "passage": "Graven skal formentlig dateres til senneolitikum, og antages at være den sekundære grav i den overpløjede høj. Kun de nederste 10 cm af graven var bevaret. Sten og stenspor i gravens kant viste, at også denne grav var foret med sten. I ydre mål var graven 240 cm lang og 83 cm bred.",
+      "pages": [
+        8
+      ],
+      "decision": {
+        "value": null,
+        "unit": null,
+        "link": "wrong-passage",
+        "record": null,
+        "note": "The paragraph belongs to this grave but does not state the value; it is stated in the heading."
+      }
+    },
+    {
+      "key": "370c3f0f0cce5d51121064a87b7e045b4150124a49c0cd7a61f64089f299fc8c",
+      "id": "R014",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 5",
+      "field": "finds",
+      "value": "småsten",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 11)",
+        "1: atten guldfolieperler | 18 guldfolieperler | guldfolieperler (p. 11)",
+        "2: tynd nål af kobberlegering | nål af kobberlegering (p. 11)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Construction, closing or intrusive stones are not grave goods (schema excludes construction stones)."
+      }
+    },
+    {
+      "key": "5bcad80b2204fed095c7f3677b5e366bde85e2cf9873e3c93703a70bf35def60",
+      "id": "R015",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 1",
+      "field": "burial_rite",
+      "value": "liglagen",
+      "heading": null,
+      "rule": "Explicitly stated burial rite or deposition: jordfaeste, ligbraending or a corresponding source phrase. A named jordfaestegrav, urnegrav or brandgrav is an explicit rite; the source type word may be copied. Do not infer a rite from an isolated bone or object.",
+      "referenceUnits": [
+        "0: jordfæstegrav | jordfæstegrave (p. 6)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Boat part, shroud conjecture, excavation term, construction term, remains or reconstructed sequence is not a stated rite or deposition."
+      }
+    },
+    {
+      "key": "8ecc109e840405da2086d1b7e92714b752bfce2cfdd553245e4069e58326a1a0",
+      "id": "R016",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 87",
+      "field": "finds",
+      "value": "tænderne",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: fibula (p. 10)",
+        "1: sølvfingerring (p. 10)",
+        "2: glasskår (p. 10)",
+        "3: lerkar (p. 10)",
+        "4: benkam (p. 10)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "26859b6c2cb91063fe5a3d55ecdf57ec46c1577dd33318b328e880b00ccc7368",
+      "id": "R017",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": null,
+      "field": "dating",
+      "value": "ældre romersk jernalder",
+      "heading": null,
+      "rule": "Explicit date or archaeological period assigned to this grave. Preserve uncertainty and the period wording. Do not silently repair contradictory dates or borrow a date from an unrelated grave or general period description.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "No unique in-scope grave binding; the record is the loose-remains group."
+      }
+    },
+    {
+      "key": "112b9a3f6539d13bd76a2f0b9214265e810ccd20bd6b4859790235a1faeab348",
+      "id": "R018",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "finds",
+      "value": "haleknogler",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 7, 8)",
+        "1: to lange nåle | nåle (p. 8)",
+        "2: lille stykke blik med gennembrydninger | blik (p. 8)",
+        "3: mulig nagle af jern (p. 8)",
+        "4: tre fibler | fibler (p. 9)",
+        "5: bæltespænde (p. 9)",
+        "6: to halve får | får (p. 7)",
+        "7: hønsestor fugl | hønen (p. 7, 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "985edbcbd8ba9460e9a3383dd864238f024a540fecf30441327b66c9b8bf2d7f",
+      "id": "R019",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "value",
+      "record": "A225",
+      "field": "burial_axis",
+      "value": "SV-NØ-orienteret",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Orientation of another feature (the pyre structure K5), not of this grave."
+      }
+    },
+    {
+      "key": "74be64e1656bd1558d908e578d744840ef66ded02fbd8ddfba53f950aafefaac",
+      "id": "R020",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "finds",
+      "value": "levn af et menneske",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 7, 8)",
+        "1: to lange nåle | nåle (p. 8)",
+        "2: lille stykke blik med gennembrydninger | blik (p. 8)",
+        "3: mulig nagle af jern (p. 8)",
+        "4: tre fibler | fibler (p. 9)",
+        "5: bæltespænde (p. 9)",
+        "6: to halve får | får (p. 7)",
+        "7: hønsestor fugl | hønen (p. 7, 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "aa093bcbe68acc8326467c853be6de4720b099be006616c88ad8eff683dac49f",
+      "id": "R021",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": null,
+      "field": "burial_rite",
+      "value": "sideleje",
+      "heading": null,
+      "rule": "Explicitly stated burial rite or deposition: jordfaeste, ligbraending or a corresponding source phrase. A named jordfaestegrav, urnegrav or brandgrav is an explicit rite; the source type word may be copied. Do not infer a rite from an isolated bone or object.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "No unique in-scope grave binding; the record is the loose-remains group."
+      }
+    },
+    {
+      "key": "164dbec8c80711d707967e519073a7e33fc534b960d94dffeb70a5534b192e35",
+      "id": "R022",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "link",
+      "record": "Grav 6",
+      "field": "site_name",
+      "value": "HVISSINGE ØST",
+      "heading": null,
+      "rule": "The name of the excavated site that this report concerns, as printed in its title. Exclude the museum, municipality and other sites cited for comparison.",
+      "referenceUnits": [
+        "0: Hvissinge Øst (p. 1)"
+      ],
+      "passage": "tilhører tydeligt Crumlin-Pedersens type 5. I Hvissinge er der også samme variation i tværsnittet, som Crumlin-Pedersen beskriver på Bornholm: Y-formede tværsnit i de yderste ender af båden i grav 3, V-formede længere inde i denne, og yderst i båden i grav 6, og U-formede tværsnit mod bådens midte. De største forskelle på Hvissingebådene og Slusegårdmaterialet er, at Hvissingbådene er lidt kortere (240 cm, mod Slusegårds gennemsnitslængde på 3 meter), at Hvissingebådene tilsyneladende er næsten helt symmetriske, at den ene Hvissingebåd er så forkullet, og at denne båd har så høje stævne.",
+      "pages": [
+        16
+      ],
+      "decision": {
+        "value": null,
+        "unit": null,
+        "link": "wrong-passage",
+        "record": null,
+        "note": "Comparative or interpretive passage that does not state the value for this grave."
+      }
+    },
+    {
+      "key": "1bcb7491389387ff40208fa01323be78677493d3ccd47d17167e0dc3f81fc62e",
+      "id": "R023",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 6",
+      "field": "burial_axis",
+      "value": "hovedet i nord, ansigtet mod øst",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "20756332855afcc66b90c47d48e6740fba1a9677209ec5cf5762a1dabbe79546",
+      "id": "R024",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 56",
+      "field": "burial_axis",
+      "value": "nordøst",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [
+        "0: nordøst - sydvest | nordøst-sydvest (p. 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "One end of the axis only; the source states the full axis."
+      }
+    },
+    {
+      "key": "119d547b6a3daedaae5d4018298c15f6a71a587ca879bcdb9e558e5640f580b3",
+      "id": "R025",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 2",
+      "field": "finds",
+      "value": "7 tænder",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "922ce2c0f2f1a524dd26c3652247bc7f3b77e6c950e2a9ea8a55a249418eed07",
+      "id": "R026",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": null,
+      "field": "finds",
+      "value": "gipsgaze",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Names a comparison site, a recording method or an object from another grave, not a grave good of this grave."
+      }
+    },
+    {
+      "key": "05834fd52708d0cd7771549fa6ef60b6520b86108920de10fd8ed7d70fcfc4c5",
+      "id": "R027",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 5",
+      "field": "burial_axis",
+      "value": "hovedet i nord og ansigtet mod øst",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "a2cc8ecdaff7346ce507c9f9e1951628a872f91ab0ae0fb10fff6bf3e6bbac79",
+      "id": "R028",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "value",
+      "record": "A225",
+      "field": "finds",
+      "value": "havrekerner",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: mindre hankekop | hankekop | stærkt sintret lille kar (p. 11, 12)",
+        "1: rød, mat glasperle | glasperle (p. 11, 12)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Flotation grain and charcoal or an inventory or sample number are not source object phrases."
+      }
+    },
+    {
+      "key": "5df38e6274f86dbf3e6438c2b23c9f667e9f10c620b2ba97ff66f719144a88d7",
+      "id": "R029",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 5",
+      "field": "finds",
+      "value": "kraniefragmenter",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 11)",
+        "1: atten guldfolieperler | 18 guldfolieperler | guldfolieperler (p. 11)",
+        "2: tynd nål af kobberlegering | nål af kobberlegering (p. 11)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "214677660f4533b4dd6d1e7d0779eab1e80dfa690adf7cd2d780a9677c9c1c07",
+      "id": "R030",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 1",
+      "field": "finds",
+      "value": "tåknogler",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "4673602d3d12d74af7ad6fcf31c9542f813c5197cd24ba09de5352f0f2903ae0",
+      "id": "R031",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 5",
+      "field": "grave_type",
+      "value": "lerkar",
+      "heading": null,
+      "rule": "Explicit structural or archaeological grave type, such as baadgrav, urnegrav or jordfaestegrav. Preserve qualifications such as mulig or formentlig. Do not infer a type from dimensions or objects alone.",
+      "referenceUnits": [
+        "0: jordfæstegrav | jordfæstegrave (p. 6)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Generic grave or pit noun, body position, comparison site, object or other grave supplies no grave type."
+      }
+    },
+    {
+      "key": "0015954ccfbc82af33b549cbf1de5194572d60a8c7af76a058038947b27a6c05",
+      "id": "R032",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": null,
+      "field": "grave_id",
+      "value": "grav 3",
+      "heading": null,
+      "rule": "Printed identifier of this grave, preserving any A prefix; for example Grav 9 or A240. Not a find, figure, house, site or report number.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "No unique in-scope grave binding; the record is the loose-remains group."
+      }
+    },
+    {
+      "key": "94995033196a54b1f4ed55cd4328fd07cb0c589c4188d184a662b7d8edd555d3",
+      "id": "R033",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 4",
+      "field": "finds",
+      "value": "i alt 12 sten",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 10)",
+        "1: stor synål | synål (p. 10)",
+        "2: lille krumkniv i kobberlegering | krumkniv i kobberlegering (p. 10)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Construction, closing or intrusive stones are not grave goods (schema excludes construction stones)."
+      }
+    },
+    {
+      "key": "1095dd0b01c05abe7b40b83ed0c7e1bb5c7c121b58c10324fd0c90031baee21f",
+      "id": "R034",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 11",
+      "field": "grave_type",
+      "value": "jordfæstegrav",
+      "heading": null,
+      "rule": "Explicit structural or archaeological grave type, such as baadgrav, urnegrav or jordfaestegrav. Preserve qualifications such as mulig or formentlig. Do not infer a type from dimensions or objects alone.",
+      "referenceUnits": [
+        "0: urnegrav | fragmenteret urne (p. 6, 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "The source gives a different type for this grave."
+      }
+    },
+    {
+      "key": "a9b802799cafc6f468746137dec663731d4b2ce9e308f25880b5cbef089f884b",
+      "id": "R035",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": null,
+      "field": "grave_id",
+      "value": "Grav 5",
+      "heading": null,
+      "rule": "Printed identifier of this grave, preserving any A prefix; for example Grav 9 or A240. Not a find, figure, house, site or report number.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "No unique in-scope grave binding; the record is the loose-remains group."
+      }
+    },
+    {
+      "key": "3982b1857299bd1311c19f6b645eaec2da3c46ad966d87d221a2bde08b2f0be6",
+      "id": "R036",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 6",
+      "field": "finds",
+      "value": "knogler af et menneske",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: får (p. 12)",
+        "1: fibler (dragtnåle) | fibler (p. 12)",
+        "2: lerkar (p. 12)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "598a476d61c3284f30478020e90bdd013bc1800ddfe1df5d86109d8e7619ad77",
+      "id": "R037",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 2",
+      "field": "grave_type",
+      "value": "den sekundære grav i den overpløjede høj",
+      "heading": null,
+      "rule": "Explicit structural or archaeological grave type, such as baadgrav, urnegrav or jordfaestegrav. Preserve qualifications such as mulig or formentlig. Do not infer a type from dimensions or objects alone.",
+      "referenceUnits": [
+        "0: foret med sten | trækiste (p. 8)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Generic grave or pit noun, body position, comparison site, object or other grave supplies no grave type."
+      }
+    },
+    {
+      "key": "c0e51d9f823915bcfa270c8170a7b5b44eef4a3991f82e863a5d9c6f7c298b74",
+      "id": "R038",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 1",
+      "field": "finds",
+      "value": "kranieknogler",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "80b9d8aee526af354ae6296e9f3aa21c16d9350532eadf4731f01f2ca16988bf",
+      "id": "R039",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "burial_axis",
+      "value": "nord-syd",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "e8c730156abe747ed2b837d10703b7879c6888fd7e146f6a7ac36808a7c6c771",
+      "id": "R040",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "link",
+      "record": "Grav 11",
+      "field": "dating",
+      "value": "yngre bronzealder",
+      "heading": null,
+      "rule": "Explicit date or archaeological period assigned to this grave. Preserve uncertainty and the period wording. Do not silently repair contradictory dates or borrow a date from an unrelated grave or general period description.",
+      "referenceUnits": [
+        "0: yngre bronzealder (p. 9)"
+      ],
+      "passage": "Den næste hændelse, der foregik på feltet, skete ligeledes umiddelbart udenfor stolpekredsen og dermed klods op ad den østlige højfod. Der er tale om anlæggelsen af en jordfæstegrav i før romersk jernalder per III.",
+      "pages": [
+        9
+      ],
+      "decision": {
+        "value": null,
+        "unit": null,
+        "link": "wrong-record",
+        "record": null,
+        "note": "The passage introduces another grave."
+      }
+    },
+    {
+      "key": "30f5c7fabaa7a2c40d1cfe2f7d62733bc88ceb3f3fa2d17743d44f504237cd8f",
+      "id": "R041",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "finds",
+      "value": "en lille sten",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 7, 8)",
+        "1: to lange nåle | nåle (p. 8)",
+        "2: lille stykke blik med gennembrydninger | blik (p. 8)",
+        "3: mulig nagle af jern (p. 8)",
+        "4: tre fibler | fibler (p. 9)",
+        "5: bæltespænde (p. 9)",
+        "6: to halve får | får (p. 7)",
+        "7: hønsestor fugl | hønen (p. 7, 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Construction, closing or intrusive stones are not grave goods (schema excludes construction stones)."
+      }
+    },
+    {
+      "key": "211850b77b31530218813796a783638d98884007559724e544039bad0cf7a1c2",
+      "id": "R042",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 11",
+      "field": "burial_axis",
+      "value": "østlige højfod",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "1a3924d2cd5b2ce0d96bedf6b1c6230845f0a577605cb48a7db4816608f965b4",
+      "id": "R043",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 6",
+      "field": "burial_axis",
+      "value": "nord og ansigtet mod øst",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "f602952e1cc83c5ca217b73e1b4784ad798b0df0b98225fe71bfa4f807613932",
+      "id": "R044",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": null,
+      "field": "finds",
+      "value": "tandhjulsornamenterede kar",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "No unique in-scope grave binding; the record is the loose-remains group."
+      }
+    },
+    {
+      "key": "034cce6b111a28a39ad4848923accfd7c68fe48963d53420784bee01cffe1513",
+      "id": "R045",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 6",
+      "field": "burial_axis",
+      "value": "forstævn",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "b775b2e5599916e21a0e9ebd2295a8cfe5b1a13030a9e35e4f9fb2fbe2d7af50",
+      "id": "R046",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 2",
+      "field": "grave_type",
+      "value": "løs hockerstilling",
+      "heading": null,
+      "rule": "Explicit structural or archaeological grave type, such as baadgrav, urnegrav or jordfaestegrav. Preserve qualifications such as mulig or formentlig. Do not infer a type from dimensions or objects alone.",
+      "referenceUnits": [
+        "0: jordfæstegrav | jordfæstegrave (p. 6)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Generic grave or pit noun, body position, comparison site, object or other grave supplies no grave type."
+      }
+    },
+    {
+      "key": "81b41f175b867e425fd335b33c01a10544fb751c67aeb45728b68fc089351d56",
+      "id": "R047",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "grave_type",
+      "value": "Slusegård",
+      "heading": null,
+      "rule": "Explicit structural or archaeological grave type, such as baadgrav, urnegrav or jordfaestegrav. Preserve qualifications such as mulig or formentlig. Do not infer a type from dimensions or objects alone.",
+      "referenceUnits": [
+        "0: bådgrav (p. 7)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Names a comparison site, a recording method or an object from another grave, not a grave good of this grave."
+      }
+    },
+    {
+      "key": "e6d9f968bf079cc44dbd4c11fedee67241291e9a76023d5a52c5c227a91b7fcf",
+      "id": "R048",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "finds",
+      "value": "nagler",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 7, 8)",
+        "1: to lange nåle | nåle (p. 8)",
+        "2: lille stykke blik med gennembrydninger | blik (p. 8)",
+        "3: mulig nagle af jern (p. 8)",
+        "4: tre fibler | fibler (p. 9)",
+        "5: bæltespænde (p. 9)",
+        "6: to halve får | får (p. 7)",
+        "7: hønsestor fugl | hønen (p. 7, 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Boat, coffin, boat parts, soil traces, corrosion traces or an absent object are the burial structure or a trace, not a grave good."
+      }
+    },
+    {
+      "key": "a9d3f721f6826ccbb4e0029b75bba8ce7d2c730b5252f55166c02f8fe8911e63",
+      "id": "R049",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 4",
+      "field": "finds",
+      "value": "sten",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 10)",
+        "1: stor synål | synål (p. 10)",
+        "2: lille krumkniv i kobberlegering | krumkniv i kobberlegering (p. 10)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Construction, closing or intrusive stones are not grave goods (schema excludes construction stones)."
+      }
+    },
+    {
+      "key": "f03ad123faee0445be6f376e7e509c55a37eb45b236000157e972d53bbdfb5a7",
+      "id": "R050",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 6",
+      "field": "burial_axis",
+      "value": "hovedet i nord og ansigtet mod øst",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "6698d24f47700df9e77c65cf90715f5202d558f862b424b2a6887b510c8cfd10",
+      "id": "R051",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 6",
+      "field": "burial_axis",
+      "value": "hoved i nord og ansigtet mod øst",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "774f612c4abcc7de68e743f7420a8007ade8a8f3952c9259ae098090090d9755",
+      "id": "R052",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "value",
+      "record": "A225",
+      "field": "burial_rite",
+      "value": "ligbål",
+      "heading": null,
+      "rule": "Explicitly stated burial rite or deposition: jordfaeste, ligbraending or a corresponding source phrase. A named jordfaestegrav, urnegrav or brandgrav is an explicit rite; the source type word may be copied. Do not infer a rite from an isolated bone or object.",
+      "referenceUnits": [
+        "0: brandpletgrav | Brandpletgraven (p. 10)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Names the pyre structure, not the rite assigned to the grave (brandpletgrav)."
+      }
+    },
+    {
+      "key": "0ba67768ee44a05f88f038fb5096bb195b185612a677fcdb0c17c3bd427b1142",
+      "id": "R053",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 4",
+      "field": "finds",
+      "value": "metalsalte",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 10)",
+        "1: stor synål | synål (p. 10)",
+        "2: lille krumkniv i kobberlegering | krumkniv i kobberlegering (p. 10)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Boat, coffin, boat parts, soil traces, corrosion traces or an absent object are the burial structure or a trace, not a grave good."
+      }
+    },
+    {
+      "key": "c430c4b2856d80570c749c817a16f0d3441e25fe43ab79f24f2b8eb3edf27154",
+      "id": "R054",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "value",
+      "record": "A240",
+      "field": "finds",
+      "value": "spredte fragmenter",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: ornamenteret benkam | benkam (p. 10)",
+        "1: stort pattedyr | enten kvæg eller hest (p. 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "1e2d72391469c8292bd5cd0ac1fb0683bae77b8c0111ad143b33930630f89219",
+      "id": "R055",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 6",
+      "field": "finds",
+      "value": "knoglefragmenter",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 9)",
+        "1: dyretand (p. 9)",
+        "2: La Têne fibula | fibula (p. 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "e0fe7b54892c70e5d8a43ebe01ccbb1deac5b91f092ec4a0ef416ae5c4add044",
+      "id": "R056",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 1",
+      "field": "finds",
+      "value": "8 tænder (x1-3 til -12)",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "c22b9884badea58680c2e251261304c3c588ff6238133ed0b9bd9dfff2218918",
+      "id": "R057",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "value",
+      "record": "A225",
+      "field": "finds",
+      "value": "trækul",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: mindre hankekop | hankekop | stærkt sintret lille kar (p. 11, 12)",
+        "1: rød, mat glasperle | glasperle (p. 11, 12)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Flotation grain and charcoal or an inventory or sample number are not source object phrases."
+      }
+    },
+    {
+      "key": "8b471b8e0ac69487b9d9eb861b30cf292e01bd4b51aef0a2b44b8ab912cbb965",
+      "id": "R058",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "value",
+      "record": "A240",
+      "field": "burial_axis",
+      "value": "sydvest",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Orientation of another feature (the pyre structure K5), not of this grave."
+      }
+    },
+    {
+      "key": "83767d2b605bfa5e6b1b2ae4ef35289b97bc8b8ca2428cd6e50b31431b2c2dfc",
+      "id": "R059",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 6",
+      "field": "finds",
+      "value": "fotomosaik",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: får (p. 12)",
+        "1: fibler (dragtnåle) | fibler (p. 12)",
+        "2: lerkar (p. 12)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Names a comparison site, a recording method or an object from another grave, not a grave good of this grave."
+      }
+    },
+    {
+      "key": "a25811c22e828af94e00ee330d04a46276ad14096d06d9b8f0b51907576f257a",
+      "id": "R060",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 5",
+      "field": "grave_type",
+      "value": "nedgravning",
+      "heading": null,
+      "rule": "Explicit structural or archaeological grave type, such as baadgrav, urnegrav or jordfaestegrav. Preserve qualifications such as mulig or formentlig. Do not infer a type from dimensions or objects alone.",
+      "referenceUnits": [
+        "0: jordfæstegrav | jordfæstegrave (p. 6)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Generic grave or pit noun, body position, comparison site, object or other grave supplies no grave type."
+      }
+    },
+    {
+      "key": "4ed9e90cafefd139a52ec9872b412e92cd3e8fa916c1b3ce7afb413088b75bd5",
+      "id": "R061",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": null,
+      "field": "finds",
+      "value": "knogler af mindst to individer",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "No unique in-scope grave binding; the record is the loose-remains group."
+      }
+    },
+    {
+      "key": "7e562c1d628153d6b0ac88847e6e16f67e51cb834e2c9b594adfecf318cd27fb",
+      "id": "R062",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "burial_axis",
+      "value": "orienteret nord-syd",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "66a120433b789088af40f26e4490d736851d349f7fb9a7e6fd1a162027a6802e",
+      "id": "R063",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 5",
+      "field": "finds",
+      "value": "halskæde",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 11)",
+        "1: atten guldfolieperler | 18 guldfolieperler | guldfolieperler (p. 11)",
+        "2: tynd nål af kobberlegering | nål af kobberlegering (p. 11)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "The source offers this only as a hypothesis or an unnamed generic object, not an explicitly assigned grave good."
+      }
+    },
+    {
+      "key": "0bc53153ef7a8d86372e8168f91561adf3ad577edef8af635f5484e95d39c835",
+      "id": "R064",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "finds",
+      "value": "metalgenstand",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 7, 8)",
+        "1: to lange nåle | nåle (p. 8)",
+        "2: lille stykke blik med gennembrydninger | blik (p. 8)",
+        "3: mulig nagle af jern (p. 8)",
+        "4: tre fibler | fibler (p. 9)",
+        "5: bæltespænde (p. 9)",
+        "6: to halve får | får (p. 7)",
+        "7: hønsestor fugl | hønen (p. 7, 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "The source offers this only as a hypothesis or an unnamed generic object, not an explicitly assigned grave good."
+      }
+    },
+    {
+      "key": "2346d23f391c62f62764705713c17769cbde80ce82622a506cf4d319f25e0b85",
+      "id": "R065",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": null,
+      "field": "burial_axis",
+      "value": "nordsyd",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "No unique in-scope grave binding; the record is the loose-remains group."
+      }
+    },
+    {
+      "key": "08cb71ce0c4ee95b0968beb5ccfbfef791aff6f334798e8ec0d7637da1a54faf",
+      "id": "R066",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "value",
+      "record": "A225",
+      "field": "dating",
+      "value": "AAR 33273",
+      "heading": null,
+      "rule": "Explicit date or archaeological period assigned to this grave. Preserve uncertainty and the period wording. Do not silently repair contradictory dates or borrow a date from an unrelated grave or general period description.",
+      "referenceUnits": [
+        "0: forsigtigt til yngre romersk jernalder/ældre germansk jernalder (p. 12)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Flotation grain and charcoal or an inventory or sample number are not source object phrases."
+      }
+    },
+    {
+      "key": "ad6a1cff91ed7a19eab3d24bd1157f1bf0269d7d51a8bc6c553abd9329652f8a",
+      "id": "R067",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "value",
+      "record": "A240",
+      "field": "finds",
+      "value": "brændte knoglefragmenter",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: ornamenteret benkam | benkam (p. 10)",
+        "1: stort pattedyr | enten kvæg eller hest (p. 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "49680937bef4c22f680700688c697c3bc0db83cd004978cee7ba0627ac597b2d",
+      "id": "R068",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 1",
+      "field": "burial_axis",
+      "value": "orienteret nord-syd",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "9e16a2a4248020556b45ec424c6f76645f68a4793f75b09781ee2f2f83106586",
+      "id": "R069",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "finds",
+      "value": "Agiso",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 7, 8)",
+        "1: to lange nåle | nåle (p. 8)",
+        "2: lille stykke blik med gennembrydninger | blik (p. 8)",
+        "3: mulig nagle af jern (p. 8)",
+        "4: tre fibler | fibler (p. 9)",
+        "5: bæltespænde (p. 9)",
+        "6: to halve får | får (p. 7)",
+        "7: hønsestor fugl | hønen (p. 7, 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Names a comparison site, a recording method or an object from another grave, not a grave good of this grave."
+      }
+    },
+    {
+      "key": "eef38c3185fb808c8aa1851960028dafc9639206d678a75d158cc3c18f406768",
+      "id": "R070",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 5",
+      "field": "finds",
+      "value": "bronzeblik",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 11)",
+        "1: atten guldfolieperler | 18 guldfolieperler | guldfolieperler (p. 11)",
+        "2: tynd nål af kobberlegering | nål af kobberlegering (p. 11)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Names a comparison site, a recording method or an object from another grave, not a grave good of this grave."
+      }
+    },
+    {
+      "key": "d026b753849a6678007a0be9921080bee52069a39f991b995ef93069bc75acc2",
+      "id": "R071",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 6",
+      "field": "finds",
+      "value": "guldfolieperler",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: får (p. 12)",
+        "1: fibler (dragtnåle) | fibler (p. 12)",
+        "2: lerkar (p. 12)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Names a comparison site, a recording method or an object from another grave, not a grave good of this grave."
+      }
+    },
+    {
+      "key": "c1c3843ac7838e12cad834c98a167cd88a43312197a0db36e9a7495b76e6f8ab",
+      "id": "R072",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 5",
+      "field": "finds",
+      "value": "hårnet",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 11)",
+        "1: atten guldfolieperler | 18 guldfolieperler | guldfolieperler (p. 11)",
+        "2: tynd nål af kobberlegering | nål af kobberlegering (p. 11)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "The source offers this only as a hypothesis or an unnamed generic object, not an explicitly assigned grave good."
+      }
+    },
+    {
+      "key": "fa28b55737e0ade1b8cfae2905880d774ef2f4a461544baa11f18fc282923342",
+      "id": "R073",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "finds",
+      "value": "jernkniv",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 7, 8)",
+        "1: to lange nåle | nåle (p. 8)",
+        "2: lille stykke blik med gennembrydninger | blik (p. 8)",
+        "3: mulig nagle af jern (p. 8)",
+        "4: tre fibler | fibler (p. 9)",
+        "5: bæltespænde (p. 9)",
+        "6: to halve får | får (p. 7)",
+        "7: hønsestor fugl | hønen (p. 7, 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Names a comparison site, a recording method or an object from another grave, not a grave good of this grave."
+      }
+    },
+    {
+      "key": "62efe1c8677f2678e827e35917f5c3ea0a8449e9fdaadab95209e8fb2531e87d",
+      "id": "R074",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "finds",
+      "value": "én stor og tre mindre sten",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 7, 8)",
+        "1: to lange nåle | nåle (p. 8)",
+        "2: lille stykke blik med gennembrydninger | blik (p. 8)",
+        "3: mulig nagle af jern (p. 8)",
+        "4: tre fibler | fibler (p. 9)",
+        "5: bæltespænde (p. 9)",
+        "6: to halve får | får (p. 7)",
+        "7: hønsestor fugl | hønen (p. 7, 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Construction, closing or intrusive stones are not grave goods (schema excludes construction stones)."
+      }
+    },
+    {
+      "key": "09bd23fd36d15e2dab64425c3e772b856373b0b4c94c88f807002010438e73ba",
+      "id": "R075",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 5",
+      "field": "finds",
+      "value": "en mindre sten",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 11)",
+        "1: atten guldfolieperler | 18 guldfolieperler | guldfolieperler (p. 11)",
+        "2: tynd nål af kobberlegering | nål af kobberlegering (p. 11)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Construction, closing or intrusive stones are not grave goods (schema excludes construction stones)."
+      }
+    },
+    {
+      "key": "6a44b1e44578cf74a44c230a2b2d0e1efefe123e5e1946b20d35a54d15bc5cbf",
+      "id": "R076",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "finds",
+      "value": "sort, trækulsholdig misfarvning af jorden",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 7, 8)",
+        "1: to lange nåle | nåle (p. 8)",
+        "2: lille stykke blik med gennembrydninger | blik (p. 8)",
+        "3: mulig nagle af jern (p. 8)",
+        "4: tre fibler | fibler (p. 9)",
+        "5: bæltespænde (p. 9)",
+        "6: to halve får | får (p. 7)",
+        "7: hønsestor fugl | hønen (p. 7, 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Boat, coffin, boat parts, soil traces, corrosion traces or an absent object are the burial structure or a trace, not a grave good."
+      }
+    },
+    {
+      "key": "d7faf3dd496bb8dfd1058af596a85ca821b0b42fa054a240640704a2eaeeeb19",
+      "id": "R077",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "record",
+      "record": null,
+      "field": null,
+      "value": "Grav 5",
+      "heading": "'Grav' 7 og 8",
+      "rule": null,
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": null,
+        "unit": null,
+        "link": null,
+        "record": "none",
+        "note": "No unique in-scope grave binding; the record is the loose-remains group."
+      }
+    },
+    {
+      "key": "936c1df8e68bf7a450c54bc525fa6dce2b9b6c3893c1e0c8c2b447cb05ab2db8",
+      "id": "R078",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "value",
+      "record": "A225",
+      "field": "finds",
+      "value": "X233",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: mindre hankekop | hankekop | stærkt sintret lille kar (p. 11, 12)",
+        "1: rød, mat glasperle | glasperle (p. 11, 12)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Flotation grain and charcoal or an inventory or sample number are not source object phrases."
+      }
+    },
+    {
+      "key": "0f27981cac57ecd2e49fc38c802afe68b32c48caf26a8c348eabc79fbec90621",
+      "id": "R079",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 4",
+      "field": "burial_axis",
+      "value": "med hovedet i nord",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "48945dc2d2b3391d31770333c346f91a0aff5ba8f5fde98cc8f4db5db10a7654",
+      "id": "R080",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 1",
+      "field": "grave_type",
+      "value": "Grav",
+      "heading": null,
+      "rule": "Explicit structural or archaeological grave type, such as baadgrav, urnegrav or jordfaestegrav. Preserve qualifications such as mulig or formentlig. Do not infer a type from dimensions or objects alone.",
+      "referenceUnits": [
+        "0: foret med sten | jordfæstegrav (p. 7, 8)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Generic grave or pit noun, body position, comparison site, object or other grave supplies no grave type."
+      }
+    },
+    {
+      "key": "6c4a73e440ee9cf49dd280ee7262f70f503e7e634ffe48b88e0182c0b9f5a9d1",
+      "id": "R081",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "value",
+      "record": "A200",
+      "field": "burial_axis",
+      "value": "Ø-V",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [
+        "0: omtrentlig Ø-V | omtrentlig Ø-V-orienteret (p. 13)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "correct",
+        "unit": 0,
+        "link": null,
+        "record": null,
+        "note": "The source states this axis for the grave; the dropped qualifier is a precision loss, not a wrong value."
+      }
+    },
+    {
+      "key": "10dd666bb35376180c77d246a5ceb9bc006c9ad3bce4dca60c389165a6083856",
+      "id": "R082",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": null,
+      "field": "grave_id",
+      "value": "'Grav' 7 og 8",
+      "heading": null,
+      "rule": "Printed identifier of this grave, preserving any A prefix; for example Grav 9 or A240. Not a find, figure, house, site or report number.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "No unique in-scope grave binding; the record is the loose-remains group."
+      }
+    },
+    {
+      "key": "efb5d4bc308e3593a383df432cdee23dfa08b18c079c58b95c495db51122d768",
+      "id": "R083",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 6",
+      "field": "grave_type",
+      "value": "Grav 6",
+      "heading": null,
+      "rule": "Explicit structural or archaeological grave type, such as baadgrav, urnegrav or jordfaestegrav. Preserve qualifications such as mulig or formentlig. Do not infer a type from dimensions or objects alone.",
+      "referenceUnits": [
+        "0: bådgrav (p. 12)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Generic grave or pit noun, body position, comparison site, object or other grave supplies no grave type."
+      }
+    },
+    {
+      "key": "3ac28be5293fb621009beea9e19509f25eb73f0c8d6f7611b5c76f746da3b44c",
+      "id": "R084",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": null,
+      "field": "dating",
+      "value": "romersk jernalder",
+      "heading": null,
+      "rule": "Explicit date or archaeological period assigned to this grave. Preserve uncertainty and the period wording. Do not silently repair contradictory dates or borrow a date from an unrelated grave or general period description.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "No unique in-scope grave binding; the record is the loose-remains group."
+      }
+    },
+    {
+      "key": "5e420bc79567e6be3a0d20d123a40d47a5d3d1a14efe61d448bcc9af59d24923",
+      "id": "R085",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 2",
+      "field": "grave_type",
+      "value": "lerkar",
+      "heading": null,
+      "rule": "Explicit structural or archaeological grave type, such as baadgrav, urnegrav or jordfaestegrav. Preserve qualifications such as mulig or formentlig. Do not infer a type from dimensions or objects alone.",
+      "referenceUnits": [
+        "0: jordfæstegrav | jordfæstegrave (p. 6)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Generic grave or pit noun, body position, comparison site, object or other grave supplies no grave type."
+      }
+    },
+    {
+      "key": "823b67dbcc4caf0ac0709770e712597523e07528519f2e74ea498e27f24ee75e",
+      "id": "R086",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "finds",
+      "value": "fotomosaik",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 7, 8)",
+        "1: to lange nåle | nåle (p. 8)",
+        "2: lille stykke blik med gennembrydninger | blik (p. 8)",
+        "3: mulig nagle af jern (p. 8)",
+        "4: tre fibler | fibler (p. 9)",
+        "5: bæltespænde (p. 9)",
+        "6: to halve får | får (p. 7)",
+        "7: hønsestor fugl | hønen (p. 7, 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Names a comparison site, a recording method or an object from another grave, not a grave good of this grave."
+      }
+    },
+    {
+      "key": "8212e06545b7484dc2bfc83a7019a7f1d4e424aad43aacaca30f678f6191ff73",
+      "id": "R087",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 2",
+      "field": "finds",
+      "value": "Sten",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Construction, closing or intrusive stones are not grave goods (schema excludes construction stones)."
+      }
+    },
+    {
+      "key": "0612cdd265f0fe28c6b5f1420ffd23cfcbf9e306aa20d0802f15901ed3b1a914",
+      "id": "R088",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 1",
+      "field": "burial_axis",
+      "value": "nord-syd",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "34f2f63e4dc8b4e045414c2f84c4fb0e816d964f2a158de5e4dc0528f9173bfd",
+      "id": "R089",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "link",
+      "record": "Grav 5",
+      "field": "site_name",
+      "value": "HVISSINGE ØST",
+      "heading": null,
+      "rule": "The name of the excavated site that this report concerns, as printed in its title. Exclude the museum, municipality and other sites cited for comparison.",
+      "referenceUnits": [
+        "0: Hvissinge Øst (p. 1)"
+      ],
+      "passage": "-nr e   sr  e ne d læggergrav, her grav 3: den ligger på terrænets højeste punkt, den er rigere udstyret end nogen anden, og der er investeret i barrds  sa g qre r   et sig nedad den sydvestlige skråning, måske fordi bebyggelsen lå mo e    e e t s it at grav 6 repræsenterer den næste generation, og at kvinden her meget direkte blev set som arving til kvinden i grav 3. Hvis grav 3, 2 og 1 repræsenterer den ældre generation, kan grav 6, 5 og 4 repræsentere deres arvinger. Det er i hvert flad muligt, at kvinderne fra grav 3 og grav 6 er indgiftede udefra, og havde den eksotiske bådgravsskik med fra en hjemegn længere østpå, måske i Sverige. Gra o   d u     det i generationer. Grav 5 viser derimod måske kontakter sydpå. Guldfolieperlerne er fremstillet i Romerriget, men oplagt importeret via Centraleuropa, og det tandhjulsornamenterede kar har gode paralleller i Centraleuropa. Hvis kvinderne i bådgravene kom fra Sverige, kan kvinden i grav 5 stamme fra Nordtyskland. Gravpladsen i Hvissinge giver et indblik i to generationer af en elitefamilies liv i den senere Glostrup kommune omkring år 100, og pladsen er samtidigt en vigtigt brik i det puslespil, der er Sjællands ældre jernalder. Hvissingefamilien må være del af et magthierarki, der strakte sig opad gennem endnu mere magtfulde familier, fx i Vindinge, til autonome herskere som fyrsten fra Ishøj og Himlingøjedynastiet, og nedad til de lokale småbønder og jordløse arbejdere. Magten lå hos de store fyrstehuse, men den blev forvaltet lokalt af familier som Hvissingedynastiet.",
+      "pages": [
+        14
+      ],
+      "decision": {
+        "value": null,
+        "unit": null,
+        "link": "wrong-passage",
+        "record": null,
+        "note": "Comparative or interpretive passage that does not state the value for this grave."
+      }
+    },
+    {
+      "key": "a886c64caf4b77508fb711b222f7cbb6cd9797e9cdadc686493d4fa00826ffd7",
+      "id": "R090",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 86",
+      "field": "finds",
+      "value": "kraniefragmenter",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "800755508edd114163b3cce702e67969177689ca4b159d2910ea079c10197a84",
+      "id": "R091",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 4",
+      "field": "finds",
+      "value": "metalsalte af kobberlegering",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 10)",
+        "1: stor synål | synål (p. 10)",
+        "2: lille krumkniv i kobberlegering | krumkniv i kobberlegering (p. 10)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Boat, coffin, boat parts, soil traces, corrosion traces or an absent object are the burial structure or a trace, not a grave good."
+      }
+    },
+    {
+      "key": "2216b3481164f02de15c1d53905b7c69f4171631b81387906981263f6bd849c6",
+      "id": "R092",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 2",
+      "field": "burial_axis",
+      "value": "orienteret nord-syd",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "d40d28d6e2f35a3742b55bc1e12807efc1c8665bb06e6251064ca6265c7f6e60",
+      "id": "R093",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 6",
+      "field": "finds",
+      "value": "fedtet aftryk",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 9)",
+        "1: dyretand (p. 9)",
+        "2: La Têne fibula | fibula (p. 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Boat, coffin, boat parts, soil traces, corrosion traces or an absent object are the burial structure or a trace, not a grave good."
+      }
+    },
+    {
+      "key": "979f57648ad577ad0d9f56971245afc8087f122d4489e1478aa4112a40ad7561",
+      "id": "R094",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 9",
+      "field": "burial_axis",
+      "value": "venstre arm",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [
+        "0: nord - syd vendt | nord-syd (p. 11)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "f49defaefa22debcce9254c7bef0d89fdf650c73394b6ee095a37a73093c09c8",
+      "id": "R095",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "value",
+      "record": "A200",
+      "field": "burial_axis",
+      "value": "Ø-V-orienteret",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [
+        "0: omtrentlig Ø-V | omtrentlig Ø-V-orienteret (p. 13)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "correct",
+        "unit": 0,
+        "link": null,
+        "record": null,
+        "note": "The source states this axis for the grave; the dropped qualifier is a precision loss, not a wrong value."
+      }
+    },
+    {
+      "key": "3bff0fd6bec751e127dd945b650712319a8add10906fa525a645c836c1404080",
+      "id": "R096",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 5",
+      "field": "burial_axis",
+      "value": "syd",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "58b102c5572dfd32a4b61987e9062f76d7ff2395389a381c99ce185d7c85333b",
+      "id": "R097",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 87",
+      "field": "finds",
+      "value": "sten",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: fibula (p. 10)",
+        "1: sølvfingerring (p. 10)",
+        "2: glasskår (p. 10)",
+        "3: lerkar (p. 10)",
+        "4: benkam (p. 10)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Construction, closing or intrusive stones are not grave goods (schema excludes construction stones)."
+      }
+    },
+    {
+      "key": "5c5a85bc2d50294bbd1e4b32e0790521c1df6e86e3861ac5c52ece9267bdc40c",
+      "id": "R098",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "value",
+      "record": "A240",
+      "field": "burial_rite",
+      "value": "brændte knoglefragmenter",
+      "heading": null,
+      "rule": "Explicitly stated burial rite or deposition: jordfaeste, ligbraending or a corresponding source phrase. A named jordfaestegrav, urnegrav or brandgrav is an explicit rite; the source type word may be copied. Do not infer a rite from an isolated bone or object.",
+      "referenceUnits": [
+        "0: urnegrav | Urnegraven (p. 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Boat part, shroud conjecture, excavation term, construction term, remains or reconstructed sequence is not a stated rite or deposition."
+      }
+    },
+    {
+      "key": "cab025bc2fd4e24f47609ffbe00f015a0724e4c3c220567a41961ceb90875e4e",
+      "id": "R099",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "finds",
+      "value": "båd",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 7, 8)",
+        "1: to lange nåle | nåle (p. 8)",
+        "2: lille stykke blik med gennembrydninger | blik (p. 8)",
+        "3: mulig nagle af jern (p. 8)",
+        "4: tre fibler | fibler (p. 9)",
+        "5: bæltespænde (p. 9)",
+        "6: to halve får | får (p. 7)",
+        "7: hønsestor fugl | hønen (p. 7, 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Boat, coffin, boat parts, soil traces, corrosion traces or an absent object are the burial structure or a trace, not a grave good."
+      }
+    },
+    {
+      "key": "41e763f3d1972afd187c84eca3ea4d9499c736175a5ca40c5e6b51e3b0951bf9",
+      "id": "R100",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 1",
+      "field": "grave_type",
+      "value": "middelaldergrave",
+      "heading": null,
+      "rule": "Explicit structural or archaeological grave type, such as baadgrav, urnegrav or jordfaestegrav. Preserve qualifications such as mulig or formentlig. Do not infer a type from dimensions or objects alone.",
+      "referenceUnits": [
+        "0: jordfæstegrav | jordfæstegrave (p. 6)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Generic grave or pit noun, body position, comparison site, object or other grave supplies no grave type."
+      }
+    },
+    {
+      "key": "0a9c689ac7747dbb1b51bc5c8fae4b61cc4908c52e5a60cf23e1d08a7702f7f9",
+      "id": "R101",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "value",
+      "record": "A225",
+      "field": "finds",
+      "value": "X24",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: mindre hankekop | hankekop | stærkt sintret lille kar (p. 11, 12)",
+        "1: rød, mat glasperle | glasperle (p. 11, 12)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Flotation grain and charcoal or an inventory or sample number are not source object phrases."
+      }
+    },
+    {
+      "key": "806a94790b6c2dd50a77ee4c34e43e1fab1c7dc4afb884b4499e23d9bc5f74bc",
+      "id": "R102",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 2",
+      "field": "burial_rite",
+      "value": "foret med sten",
+      "heading": null,
+      "rule": "Explicitly stated burial rite or deposition: jordfaeste, ligbraending or a corresponding source phrase. A named jordfaestegrav, urnegrav or brandgrav is an explicit rite; the source type word may be copied. Do not infer a rite from an isolated bone or object.",
+      "referenceUnits": [
+        "0: jordfæstegrave | jordfæstegrav (p. 7)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Boat part, shroud conjecture, excavation term, construction term, remains or reconstructed sequence is not a stated rite or deposition."
+      }
+    },
+    {
+      "key": "6c830efe69b32a922034735213494d959b7b7d9fd9bd9080c791c3ceb4552b65",
+      "id": "R103",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 2",
+      "field": "burial_axis",
+      "value": "nord-syd",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "29c320c7117ca65e63f56afc06b99c78d8253b755c56012c583d66132e77c149",
+      "id": "R104",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 86",
+      "field": "finds",
+      "value": "bækken",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "3d4b2c0ee2930de4fcc3b590c475ae5a0168b238ce63932d305d6500dd36315a",
+      "id": "R105",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 4",
+      "field": "finds",
+      "value": "hårnåle",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 10)",
+        "1: stor synål | synål (p. 10)",
+        "2: lille krumkniv i kobberlegering | krumkniv i kobberlegering (p. 10)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Names a comparison site, a recording method or an object from another grave, not a grave good of this grave."
+      }
+    },
+    {
+      "key": "030427c8100cba7b683e598ef712d02862e6a4230b30ec0f1f52fb71687f5a66",
+      "id": "R106",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "value",
+      "record": "A240",
+      "field": "finds",
+      "value": "hvirvelfragmenter fra menneske",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: ornamenteret benkam | benkam (p. 10)",
+        "1: stort pattedyr | enten kvæg eller hest (p. 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "3a45648b4458051540a4d432f48a903aa7db22044779fb33635d9cb3a5f72433",
+      "id": "R107",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "burial_rite",
+      "value": "behandling af den døde, nedsættelse af båden, genopfyldning, stenplacering, dyreofre (høne, får), genopfyldning til overfladeniveau",
+      "heading": null,
+      "rule": "Explicitly stated burial rite or deposition: jordfaeste, ligbraending or a corresponding source phrase. A named jordfaestegrav, urnegrav or brandgrav is an explicit rite; the source type word may be copied. Do not infer a rite from an isolated bone or object.",
+      "referenceUnits": [
+        "0: jordfæstegrav | jordfæstegrave (p. 6)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Boat part, shroud conjecture, excavation term, construction term, remains or reconstructed sequence is not a stated rite or deposition."
+      }
+    },
+    {
+      "key": "2415fa6ed50e634d043967447eb3cb8be046144dbdab276b57666a1df9033b4f",
+      "id": "R108",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 9",
+      "field": "finds",
+      "value": "kiste",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: ornamenteret lerkar | lerkar (p. 11)",
+        "1: trelagskam med jernnitter | trelagskam (p. 11)",
+        "2: perlekæde | glas- og ravperler (p. 11)",
+        "3: fibler (p. 12)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Boat, coffin, boat parts, soil traces, corrosion traces or an absent object are the burial structure or a trace, not a grave good."
+      }
+    },
+    {
+      "key": "ceb79b15b00eb371d92c2dbb2dd9cfd4644b9d2193206f2547bb97440f371eff",
+      "id": "R109",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "finds",
+      "value": "Nydam",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 7, 8)",
+        "1: to lange nåle | nåle (p. 8)",
+        "2: lille stykke blik med gennembrydninger | blik (p. 8)",
+        "3: mulig nagle af jern (p. 8)",
+        "4: tre fibler | fibler (p. 9)",
+        "5: bæltespænde (p. 9)",
+        "6: to halve får | får (p. 7)",
+        "7: hønsestor fugl | hønen (p. 7, 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Names a comparison site, a recording method or an object from another grave, not a grave good of this grave."
+      }
+    },
+    {
+      "key": "b327cc51c1239e402effca1a096c48130ba2c83b4456f73fac87515564ee4502",
+      "id": "R110",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 4",
+      "field": "finds",
+      "value": "kobberlegering",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 10)",
+        "1: stor synål | synål (p. 10)",
+        "2: lille krumkniv i kobberlegering | krumkniv i kobberlegering (p. 10)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Boat, coffin, boat parts, soil traces, corrosion traces or an absent object are the burial structure or a trace, not a grave good."
+      }
+    },
+    {
+      "key": "118a2dad92a46ff9b35853ab1644f391acd878f9266d4b09d3c7727f4a0732a3",
+      "id": "R111",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 2",
+      "field": "burial_rite",
+      "value": "prøvegravningen",
+      "heading": null,
+      "rule": "Explicitly stated burial rite or deposition: jordfaeste, ligbraending or a corresponding source phrase. A named jordfaestegrav, urnegrav or brandgrav is an explicit rite; the source type word may be copied. Do not infer a rite from an isolated bone or object.",
+      "referenceUnits": [
+        "0: jordfæstet (p. 7)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Boat part, shroud conjecture, excavation term, construction term, remains or reconstructed sequence is not a stated rite or deposition."
+      }
+    },
+    {
+      "key": "f43d728e2d364646bf6b25e4eea6c701b4e75ea3e2abceb87551519f54095f90",
+      "id": "R112",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "value",
+      "record": "A240",
+      "field": "dating",
+      "value": "yngre romersk jernalder",
+      "heading": null,
+      "rule": "Explicit date or archaeological period assigned to this grave. Preserve uncertainty and the period wording. Do not silently repair contradictory dates or borrow a date from an unrelated grave or general period description.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "The date belongs to parallel finds elsewhere, not to this grave."
+      }
+    },
+    {
+      "key": "79b8e2de08fa489b2858968140e71f547422f1e6b482040616dedb6e78b92e54",
+      "id": "R113",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 2",
+      "field": "grave_type",
+      "value": "Grav",
+      "heading": null,
+      "rule": "Explicit structural or archaeological grave type, such as baadgrav, urnegrav or jordfaestegrav. Preserve qualifications such as mulig or formentlig. Do not infer a type from dimensions or objects alone.",
+      "referenceUnits": [
+        "0: foret med sten | trækiste (p. 8)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Generic grave or pit noun, body position, comparison site, object or other grave supplies no grave type."
+      }
+    },
+    {
+      "key": "9b72e9dc476f72ede88edf81feb0a7cdc42692a10c48c6cfea2edb499e63bef7",
+      "id": "R114",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 2",
+      "field": "finds",
+      "value": "7 tænder (x21 til -8)",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "396aa69a736172014fee0ebf6c37cf41674fc4cd27a50d4fe54ded025ac47d24",
+      "id": "R115",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "finds",
+      "value": "fem store sten",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 7, 8)",
+        "1: to lange nåle | nåle (p. 8)",
+        "2: lille stykke blik med gennembrydninger | blik (p. 8)",
+        "3: mulig nagle af jern (p. 8)",
+        "4: tre fibler | fibler (p. 9)",
+        "5: bæltespænde (p. 9)",
+        "6: to halve får | får (p. 7)",
+        "7: hønsestor fugl | hønen (p. 7, 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Construction, closing or intrusive stones are not grave goods (schema excludes construction stones)."
+      }
+    },
+    {
+      "key": "2b4f599a84158f3395e151065b2c5e366bed0682bb7fe6b14928894a75f74de0",
+      "id": "R116",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "finds",
+      "value": "Hjortspring",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 7, 8)",
+        "1: to lange nåle | nåle (p. 8)",
+        "2: lille stykke blik med gennembrydninger | blik (p. 8)",
+        "3: mulig nagle af jern (p. 8)",
+        "4: tre fibler | fibler (p. 9)",
+        "5: bæltespænde (p. 9)",
+        "6: to halve får | får (p. 7)",
+        "7: hønsestor fugl | hønen (p. 7, 9)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Names a comparison site, a recording method or an object from another grave, not a grave good of this grave."
+      }
+    },
+    {
+      "key": "18cb643010ea2c04436c50485779c93af43fe9fd581faaffd14d7a1c02a70168",
+      "id": "R117",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 6",
+      "field": "burial_axis",
+      "value": "sydvest",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "c6bb5ae7b807706f86c74fdb1e67599d367d61aa8865d637808160df00a05021",
+      "id": "R118",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 6",
+      "field": "dating",
+      "value": "jernalderen",
+      "heading": null,
+      "rule": "Explicit date or archaeological period assigned to this grave. Preserve uncertainty and the period wording. Do not silently repair contradictory dates or borrow a date from an unrelated grave or general period description.",
+      "referenceUnits": [
+        "0: 100 til 200 efter vor tidsregning | 100 til 200 (p. 13)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "A report-level or generic period, not a date assigned to this grave."
+      }
+    },
+    {
+      "key": "38423c36046d142f1150339c690dd0a5f481ea566b32263de2e510688e1ec86f",
+      "id": "R119",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 4",
+      "field": "burial_axis",
+      "value": "nord",
+      "heading": null,
+      "rule": "Explicit longitudinal orientation of this grave pit, chamber or coffin, using the source wording. A direction assigned only to the deceased, head, face, animal, slope or neighbouring structure is insufficient. Do not compute an axis from north and south endpoints. Null when the grave axis is not explicitly stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Direction of the deceased, head, face, limb, boat end or a landscape feature, not the explicit orientation of the grave (schema rule)."
+      }
+    },
+    {
+      "key": "774695a29e3162d03a1fa725c7e919a851f3623cc9f8d579b8c0fc31b5966072",
+      "id": "R120",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 4",
+      "field": "finds",
+      "value": "Sten",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: lerkar (p. 10)",
+        "1: stor synål | synål (p. 10)",
+        "2: lille krumkniv i kobberlegering | krumkniv i kobberlegering (p. 10)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Construction, closing or intrusive stones are not grave goods (schema excludes construction stones)."
+      }
+    },
+    {
+      "key": "c17de7d6d41435fc5ffd86ed397ffaea7f9901be3070dd19ad81eb0812d62314",
+      "id": "R121",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "dating",
+      "value": "jernalderens",
+      "heading": null,
+      "rule": "Explicit date or archaeological period assigned to this grave. Preserve uncertainty and the period wording. Do not silently repair contradictory dates or borrow a date from an unrelated grave or general period description.",
+      "referenceUnits": [
+        "0: 50 til 150 efter vor tidsregning | 50 til 150 (p. 13)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "A report-level or generic period, not a date assigned to this grave."
+      }
+    },
+    {
+      "key": "0931178c6ce65b85f5ddbe53d9fd098a76e201ba9eb848ed9611f4c4f294f7c6",
+      "id": "R122",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": null,
+      "field": "grave_type",
+      "value": "hocker",
+      "heading": null,
+      "rule": "Explicit structural or archaeological grave type, such as baadgrav, urnegrav or jordfaestegrav. Preserve qualifications such as mulig or formentlig. Do not infer a type from dimensions or objects alone.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "No unique in-scope grave binding; the record is the loose-remains group."
+      }
+    },
+    {
+      "key": "98c435d1587fe326cc8d34985f161cac323ff19f5537df5f23821f8f8d227b7f",
+      "id": "R123",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 86",
+      "field": "finds",
+      "value": "tænder",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "b2c50f8dddd47b695ae9b3d76ddc6e31690bc7dcf6c37511afdc6dba7ed5c56a",
+      "id": "R124",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": null,
+      "field": "site_name",
+      "value": "HVISSINGE ØST",
+      "heading": null,
+      "rule": "The name of the excavated site that this report concerns, as printed in its title. Exclude the museum, municipality and other sites cited for comparison.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "No unique in-scope grave binding; the record is the loose-remains group."
+      }
+    },
+    {
+      "key": "01c98c379666b732f6002369782ae065034b7f620669fb56493a25411d7ca461",
+      "id": "R125",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "record",
+      "record": null,
+      "field": null,
+      "value": "'Grav' 7 og 8",
+      "heading": "'Grav' 7 og 8",
+      "rule": null,
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": null,
+        "unit": null,
+        "link": null,
+        "record": "none",
+        "note": "No unique in-scope grave binding; the record is the loose-remains group."
+      }
+    },
+    {
+      "key": "9e16d384165376dc5ae191ebba4ad167fae60490ddfe611c8ef51818416106cf",
+      "id": "R126",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 86",
+      "field": "finds",
+      "value": "underben",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "999e25ad385dda252f102563569d653a893c7f2d804eab94b465a89734bd995c",
+      "id": "R127",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 9",
+      "field": "finds",
+      "value": "sten",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: ornamenteret lerkar | lerkar (p. 11)",
+        "1: trelagskam med jernnitter | trelagskam (p. 11)",
+        "2: perlekæde | glas- og ravperler (p. 11)",
+        "3: fibler (p. 12)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Construction, closing or intrusive stones are not grave goods (schema excludes construction stones)."
+      }
+    },
+    {
+      "key": "7117f1556bfb6e9c11a9da449f9eb14b5a17a0e862c5ea1c52ee44199af911d8",
+      "id": "R128",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "record",
+      "record": null,
+      "field": null,
+      "value": "grav 3",
+      "heading": "'Grav' 7 og 8",
+      "rule": null,
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": null,
+        "unit": null,
+        "link": null,
+        "record": "none",
+        "note": "No unique in-scope grave binding; the record is the loose-remains group."
+      }
+    },
+    {
+      "key": "0aa111c3d2357bddb44fc3feceb6154ee1b19ad2ced1d003a507b5fed0aa69d9",
+      "id": "R129",
+      "document": "Hojbakkegaard_TAK_1177",
+      "kind": "value",
+      "record": "Grav 2",
+      "field": "dating",
+      "value": "senneolitikum",
+      "heading": null,
+      "rule": "Explicit date or archaeological period assigned to this grave. Preserve uncertainty and the period wording. Do not silently repair contradictory dates or borrow a date from an unrelated grave or general period description.",
+      "referenceUnits": [
+        "0: formentlig dateres til senneolitikum | formentlig senneolitikum (p. 8)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "correct",
+        "unit": 0,
+        "link": null,
+        "record": null,
+        "note": "The stated period is the one the source assigns to this grave; the dropped hedge is a precision loss, not a wrong value."
+      }
+    },
+    {
+      "key": "5fcfbf92b2332368f5ace94a0c669006128d212abc1f547ea46427226a5783dd",
+      "id": "R130",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": null,
+      "field": "finds",
+      "value": "lerkar",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "No unique in-scope grave binding; the record is the loose-remains group."
+      }
+    },
+    {
+      "key": "b87eae7b04b50bfa46dfa8aab56485a6610912fa69b08c8d3969b79b9932903c",
+      "id": "R131",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "link",
+      "record": "A240",
+      "field": "dating",
+      "value": "yngre romersk jernalder",
+      "heading": null,
+      "rule": "Explicit date or archaeological period assigned to this grave. Preserve uncertainty and the period wording. Do not silently repair contradictory dates or borrow a date from an unrelated grave or general period description.",
+      "referenceUnits": [],
+      "passage": "Imellem de brændte knogler fra menneske og dyr, lå der også fem små fragmenter (største stykke: 8x10mm) fra en ornamenteret benkam, X235, som havde været med på ligbålet. Ornamentikken består af skråstregsudfyldte trekanter og koncentriske cirkler med en prik i midten. Denne type ornamentik kendes bl.a. fra benkamme der er fundet i våbenofringerne i Illerup Ådal og fra brandgrave ved Firgårde. Begge steder dateres disse kamme til yngre romersk jernalder.",
+      "pages": [
+        10
+      ],
+      "decision": {
+        "value": null,
+        "unit": null,
+        "link": "wrong-passage",
+        "record": null,
+        "note": "The date belongs to parallel finds elsewhere, not to this grave."
+      }
+    },
+    {
+      "key": "0a650c68b0c18fa6a3dd82eccc3b9061d1013f86b17303207ef74c5b4f4a8b98",
+      "id": "R132",
+      "document": "Hvissinge_Ost_TAK_1728",
+      "kind": "value",
+      "record": "Grav 3",
+      "field": "burial_rite",
+      "value": "stævne",
+      "heading": null,
+      "rule": "Explicitly stated burial rite or deposition: jordfaeste, ligbraending or a corresponding source phrase. A named jordfaestegrav, urnegrav or brandgrav is an explicit rite; the source type word may be copied. Do not infer a rite from an isolated bone or object.",
+      "referenceUnits": [
+        "0: jordfæstegrav | jordfæstegrave (p. 6)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Boat part, shroud conjecture, excavation term, construction term, remains or reconstructed sequence is not a stated rite or deposition."
+      }
+    },
+    {
+      "key": "6af58b07529118a7eb2624774f79409e7f2b03469bc35f28783f9374da3940f9",
+      "id": "R133",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "value",
+      "record": "A225",
+      "field": "finds",
+      "value": "brændt knoglemateriale",
+      "heading": null,
+      "rule": "Distinct grave goods explicitly assigned to this grave, copied as short source phrases. Include vessel types, ornaments, tools and animal offerings. Exclude human remains, construction stones, later intrusive objects and unassigned cemetery-level lists. Return [] when no grave goods are stated.",
+      "referenceUnits": [
+        "0: mindre hankekop | hankekop | stærkt sintret lille kar (p. 11, 12)",
+        "1: rød, mat glasperle | glasperle (p. 11, 12)"
+      ],
+      "passage": null,
+      "pages": [],
+      "decision": {
+        "value": "unsupported",
+        "unit": null,
+        "link": null,
+        "record": null,
+        "note": "Human or animal skeletal remains of the buried body are not grave goods (schema excludes human remains)."
+      }
+    },
+    {
+      "key": "82f2eef5040fd640734b0ea437aeaa8c4e7442da4588ecf16c3085421616454e",
+      "id": "R134",
+      "document": "Herredsvejen_SBM1694",
+      "kind": "link",
+      "record": "A240",
+      "field": "burial_rite",
+      "value": "brandgrave",
+      "heading": null,
+      "rule": "Explicitly stated burial rite or deposition: jordfaeste, ligbraending or a corresponding source phrase. A named jordfaestegrav, urnegrav or brandgrav is an explicit rite; the source type word may be copied. Do not infer a rite from an isolated bone or object.",
+      "referenceUnits": [
+        "0: urnegrav | Urnegraven (p. 9)"
+      ],
+      "passage": "Imellem de brændte knogler fra menneske og dyr, lå der også fem små fragmenter (største stykke: 8x10mm) fra en ornamenteret benkam, X235, som havde været med på ligbålet. Ornamentikken består af skråstregsudfyldte trekanter og koncentriske cirkler med en prik i midten. Denne type ornamentik kendes bl.a. fra benkamme der er fundet i våbenofringerne i Illerup Ådal og fra brandgrave ved Firgårde. Begge steder dateres disse kamme til yngre romersk jernalder.",
+      "pages": [
+        10
+      ],
+      "decision": {
+        "value": null,
+        "unit": null,
+        "link": "supported",
+        "record": null,
+        "note": "The passage states burnt human bones and a pyre-burnt comb in this grave: it evidences the cremation burial the value names."
+      }
+    }
+  ]
+}

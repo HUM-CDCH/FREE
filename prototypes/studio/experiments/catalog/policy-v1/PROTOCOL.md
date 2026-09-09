@@ -238,3 +238,43 @@ prior decisions, which a private map keeps for rescoring. Decisions apply
 to both arms under one rule; `score_danish.py --reviewed` re-reads the
 gates. Until then G4 is reported as provisional, numerically established G2
 and G1 failures as failed, and the policy as not approved.
+
+## Review outcome (2026-09-09)
+
+The user delegated the tier-1 review to Claude. It was made from the sheet
+and the source text only, with the arm, the model and the prior decisions
+hidden; it is an agent review, not independent human validation, and the
+reviewer had earlier made 66 of the decisions under review. One rule per
+class, applied to both arms (`review-sheet.filled.json`,
+`adjudications-review-tier1.json`): skeletal remains, stones, structure
+parts, traces, comparison sites, recording methods, objects of another
+grave, hypotheses, inventory numbers and flotation samples are not grave
+goods; a direction of the body, head, limb or a landscape feature is not a
+grave axis; a generic noun, body position or another grave's type is not a
+grave type; a boat part, shroud conjecture, construction term or
+reconstructed sequence is not a rite; a report-level period or a date of
+parallel finds is not this grave's date; values on the loose-remains
+record are unbound. Two readings differ from the earlier agent decisions
+and were applied to both arms: an axis or period stated for the grave with
+a dropped hedge word (omtrentlig, forsigtigt, formentlig) counts as
+correct, a precision loss rather than a wrong value (four values); and the
+A240 brandgrave link is supported, because the passage states burnt human
+bones and a pyre-burnt comb in that grave. Outcome, 134 items: 4 values
+correct, 121 unsupported, 6 links (1 supported, 4 wrong-passage, 1
+wrong-record), 3 record bindings none; three further links surfaced by the
+accepted values are supported. Sensitivities the user may wish to revisit:
+20 axis values were rejected under the body-direction rule and 4 values
+were accepted under the dropped-hedge reading; both arms carry them.
+
+Gates after the review (`score_danish.py --reviewed`):
+
+- **Herredsvejen_SBM1694**: G1 pass (fallbacks 0 of 1 batches); G2 pass (2 policy-sensitive calls vs 6; all non-discovery calls 3 vs 7); G4 pass (units 17 vs 14, links 17 vs 14 of 22, wrong-link rate 0.000 vs 0.000, unsupported 7 vs 9)
+- **Hojbakkegaard_TAK_1177**: G1 pass (fallbacks 0 of 2 batches); G2 pass (4 policy-sensitive calls vs 18; all non-discovery calls 5 vs 19); G4 pass (units 61 vs 55, links 61 vs 54 of 66, wrong-link rate 0.000 vs 0.018, unsupported 6 vs 9)
+- **Hvissinge_Ost_TAK_1728**: G1 pass (fallbacks 0 of 3 batches); G2 pass (6 policy-sensitive calls vs 24; all non-discovery calls 7 vs 25); G4 pass (units 39 vs 38, links 39 vs 38 of 49, wrong-link rate 0.000 vs 0.000, unsupported 21 vs 27)
+- **Katrinesminde_SBM1116**: G1 FAIL (fallbacks 2 of 1 batches); G2 FAIL (4 policy-sensitive calls vs 4; all non-discovery calls 5 vs 5); G4 not gated (the reference credits graves the schema excludes)
+- **Brondbylund_3_TAK_1506**: not gated (a run did not succeed)
+
+Every gate passes on Beier, Herredsvejen, Hojbakkegaard and Hvissinge;
+Katrinesminde fails G1 and G2 on its rejected batch. The default policy is
+unchanged: G2 was amended twice after results and needs confirmation on
+documents not used to choose it, and the review was delegated to an agent.
