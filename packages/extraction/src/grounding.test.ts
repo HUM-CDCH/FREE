@@ -256,6 +256,22 @@ describe('groundExtraction lexical checks', () => {
       assert.deepEqual(outcome.ungroundedPaths, [['records', 0, 'place'], ['records', 1, 'find']])
     })
 
+    it('passes the code-linked claims as context and keeps their slices when asked', async () => {
+      const document = documentWith(['1. First place', 'Iron', '2. Second place', 'Bronze'])
+      const requests: GroundingModelRequest[] = []
+      await groundExtraction(document, { records: [{ find: 'Iron' }, { find: 'Bronze' }] }, {
+        async ground(request) {
+          requests.push(request)
+          return { selections: Object.keys(request.claims).map((claimLabel) => ({ claimLabel, anchorLabel: null })), metadata }
+        },
+      }, new AbortController().signal, {
+        recordBoundaries: resolveCatalogBoundaries(document, ['b0', 'b2']),
+        policy: { ...PER_RECORD_CATALOG_POLICY, groundingGroupSize: 2, citationLinks: true, groundedContext: true },
+        citations: new Map([[resultPathKey(['records', 1, 'find']), 'a-b3']]),
+      })
+      assert.deepEqual(requests.map((request) => [Object.keys(request.claims), Object.keys(request.anchors).length, request.linkedClaims]), [[['C1'], 4, { C2: { value: 'Bronze', anchorLabel: 'E4', field: null } }]])
+    })
+
     it('shows the grounder only the records that still have a claim', async () => {
       const document = documentWith(['1. First place', 'Iron', '2. Second place', 'Bronze'])
       const requests: GroundingModelRequest[] = []

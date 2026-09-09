@@ -30,7 +30,7 @@ export function groundingModelInput(request: GroundingModelRequest): ExtractMode
         ]),
       ),
     },
-    instruction: groundingInstruction(request.claims, request.claimFields),
+    instruction: groundingInstruction(request.claims, request.claimFields, request.linkedClaims),
     signal: request.signal,
   }
 }
@@ -38,6 +38,7 @@ export function groundingModelInput(request: GroundingModelRequest): ExtractMode
 export function groundingInstruction(
   claims: Readonly<Record<string, string | number | boolean>>,
   claimFields?: Readonly<Record<string, GroundingClaimField>>,
+  linkedClaims?: GroundingModelRequest['linkedClaims'],
 ): string {
   const described = new Map<string, string>()
   for (const field of Object.values(claimFields ?? {}))
@@ -50,6 +51,12 @@ export function groundingInstruction(
       ? ['Each claim names its record and field. Evidence must come from the claim\'s own record and support the value in that field\'s meaning: the same string in an unrelated detail is not evidence.']
       : []),
     ...(described.size > 0 ? ['', '### Fields', ...[...described].map(([field, description]) => `- ${field}: ${description}`)] : []),
+    ...(linkedClaims && Object.keys(linkedClaims).length > 0
+      ? ['', '### Already linked (context only, return nothing for these)', ...Object.entries(linkedClaims).map(([label, linked]) => {
+          const name = linked.field ? `${linked.field.record ? `${linked.field.record}.` : ''}${linked.field.field}: ` : ''
+          return `[${label}] ${name}${JSON.stringify(linked.value)} -> ${linked.anchorLabel}`
+        })]
+      : []),
     '',
     '### Claims',
     ...Object.entries(claims).map(([label, value]) => {

@@ -53,7 +53,7 @@ export async function groundExtraction(
     recordBoundaries?: readonly CatalogBoundary[]
     now?: () => number
     /** Call structure; absent means one values-only call per record. */
-    policy?: Pick<CatalogPolicy, 'lexicalLinks' | 'groundingGroupSize' | 'fieldAwareGrounding' | 'citationLinks' | 'groundAlways' | 'groundMultiHit'>
+    policy?: Pick<CatalogPolicy, 'lexicalLinks' | 'groundingGroupSize' | 'fieldAwareGrounding' | 'citationLinks' | 'groundAlways' | 'groundMultiHit' | 'groundedContext'>
     /** Schema nodes describing the claims' fields, for field-aware grounding. */
     schemaNodes?: readonly SchemaNode[]
     /** Anchor the values call cited for a claim, by result path key. */
@@ -107,6 +107,7 @@ export async function groundExtraction(
       return { batch, anchors: batchAnchors, lexical }
     })
     const pending = new Map<string, { claim: Claim; member: (typeof members)[number] }>()
+    const linkedInCode = new Map<string, { claim: Claim; anchorId: string }>()
     for (const member of members)
       for (const claim of member.batch.claims) {
         const cited = policy?.citationLinks ? options?.citations?.get(resultPathKey(claim.path)) : undefined
@@ -122,6 +123,7 @@ export async function groundExtraction(
           if (check?.verbatim && !routed) {
             selectedClaims.add(claim.label)
             evidence.push({ resultPath: claim.path, evidenceAnchorId: cited, ...check, linkedBy: 'citation_lexical' })
+            linkedInCode.set(claim.label, { claim, anchorId: cited })
             continue
           }
         }
@@ -134,12 +136,17 @@ export async function groundExtraction(
         // without the model. Still a suggestion; the reviewer decides.
         selectedClaims.add(claim.label)
         evidence.push({ resultPath: claim.path, evidenceAnchorId: hit, verbatim: true, lexicalHits: 1, linkedBy: 'lexical' })
+        linkedInCode.set(claim.label, { claim, anchorId: hit })
       }
     if (pending.size === 0) continue
     // Only records that still have a claim are shown: a record whose claims
     // were all linked in code adds candidates without a question to answer.
-    const active = members.filter((member) => member.batch.claims.some((claim) => pending.has(claim.label)))
+    // With grounded context the call keeps every record's slice, so the shown links resolve.
+    const active = policy?.groundedContext ? members : members.filter((member) => member.batch.claims.some((claim) => pending.has(claim.label)))
     const callAnchors: Record<string, string> = active.length === 1 ? active[0].anchors : Object.assign({}, ...active.map((member) => member.anchors))
+    const linkedClaims = policy?.groundedContext && linkedInCode.size > 0
+      ? Object.fromEntries([...linkedInCode].map(([label, { claim, anchorId }]) => [label, { value: claim.value, anchorLabel: context.labelByAnchorId.get(anchorId)!, field: policy?.fieldAwareGrounding ? claimField(claim, options?.schemaNodes ?? []) : null }]))
+      : undefined
     const resultPath = group[0].resultPath
     const startedAt = now()
     let generated: GroundingModelResponse
@@ -150,6 +157,7 @@ export async function groundExtraction(
         ...(policy?.fieldAwareGrounding && {
           claimFields: Object.fromEntries([...pending.values()].map(({ claim }) => [claim.label, claimField(claim, options?.schemaNodes ?? [])])),
         }),
+        ...(linkedClaims && { linkedClaims }),
         signal,
       })
     } catch (error) {

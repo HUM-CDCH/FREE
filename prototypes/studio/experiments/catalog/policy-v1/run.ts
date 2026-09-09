@@ -31,6 +31,7 @@ const { values: args } = parseArgs({ options: {
   'citation-links': { type: 'boolean', default: false },
   'ground-always': { type: 'string', default: '' },
   'ground-multi-hit': { type: 'boolean', default: false },
+  'grounded-context': { type: 'boolean', default: false },
   /** Replay discovery and values responses from this run directory (by request hash); grounding runs fresh. */
   replay: { type: 'string' },
   'values-model': { type: 'string', default: 'qwen' },
@@ -82,6 +83,7 @@ const policy = parseCatalogPolicy({
   citationLinks: args['citation-links'],
   groundAlways: args['ground-always'] ? args['ground-always'].split(',').map((field) => field.trim()).filter(Boolean) : [],
   groundMultiHit: args['ground-multi-hit'],
+  groundedContext: args['grounded-context'],
 })
 const out = resolve(args.out)
 if (await access(out).then(() => true, () => false)) throw new Error(`Refusing to reuse ${out}`)

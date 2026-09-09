@@ -130,6 +130,9 @@ export type GroundingModelRequest = Readonly<{
   anchors: Readonly<Record<string, string>>
   /** Present when the policy asks for field-aware grounding. */
   claimFields?: Readonly<Record<string, GroundingClaimField>>
+  /** Claims of the same records already linked in code, shown as context
+   *  that needs no answer (policy.groundedContext). */
+  linkedClaims?: Readonly<Record<string, { value: string | number | boolean; anchorLabel: string; field: GroundingClaimField | null }>>
   signal: AbortSignal
 }>
 

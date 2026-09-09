@@ -39,6 +39,10 @@ export type CatalogPolicy = Readonly<{
   groundAlways: readonly string[]
   /** Send cited values that occur in several candidate blocks to the grounder. */
   groundMultiHit: boolean
+  /** Show the grounder the claims already linked in code, as context that
+   *  needs no answer, so its judgment on the remaining claims keeps the
+   *  calibration it has under full grounding. */
+  groundedContext: boolean
 }>
 
 /** One values-only call per record: the behaviour before policy v1. Studio
@@ -53,6 +57,7 @@ export const PER_RECORD_CATALOG_POLICY: CatalogPolicy = {
   citationLinks: false,
   groundAlways: [],
   groundMultiHit: false,
+  groundedContext: false,
 }
 
 /** Policy v1: five records per values call and per grounding call, each claim
@@ -69,6 +74,7 @@ export const CATALOG_POLICY_V1: CatalogPolicy = {
   citationLinks: false,
   groundAlways: [],
   groundMultiHit: false,
+  groundedContext: false,
 }
 
 /** Default since 2026-09-09 by explicit acceptance decision; the deployment
@@ -88,7 +94,7 @@ export function parseCatalogPolicy(value: unknown): CatalogPolicy {
     if (!Number.isInteger(size) || (size as number) < 1 || (size as number) > CATALOG_POLICY_MAX_GROUP)
       throw new Error(`Catalog policy ${key} must be an integer from 1 to ${CATALOG_POLICY_MAX_GROUP}.`)
   }
-  for (const key of ['lexicalLinks', 'fieldAwareGrounding', 'citations', 'citationLinks', 'groundMultiHit'] as const)
+  for (const key of ['lexicalLinks', 'fieldAwareGrounding', 'citations', 'citationLinks', 'groundMultiHit', 'groundedContext'] as const)
     if (typeof policy[key] !== 'boolean') throw new Error(`Catalog policy ${key} must be a boolean.`)
   if (!Array.isArray(policy.groundAlways) || !policy.groundAlways.every((field) => typeof field === 'string'))
     throw new Error('Catalog policy groundAlways must be an array of field names.')

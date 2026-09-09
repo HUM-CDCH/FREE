@@ -769,8 +769,8 @@ describe('Catalog policy', () => {
 
   it('defaults to policy v1 and keeps the per-record policy reachable', () => {
     assert.deepEqual(DEFAULT_CATALOG_POLICY, CATALOG_POLICY_V1)
-    assert.deepEqual(CATALOG_POLICY_V1, { recordBatchSize: 5, lexicalLinks: false, groundingGroupSize: 5, fieldAwareGrounding: true, citations: false, citationLinks: false, groundAlways: [], groundMultiHit: false })
-    assert.deepEqual(PER_RECORD_CATALOG_POLICY, { recordBatchSize: 1, lexicalLinks: false, groundingGroupSize: 1, fieldAwareGrounding: false, citations: false, citationLinks: false, groundAlways: [], groundMultiHit: false })
+    assert.deepEqual(CATALOG_POLICY_V1, { recordBatchSize: 5, lexicalLinks: false, groundingGroupSize: 5, fieldAwareGrounding: true, citations: false, citationLinks: false, groundAlways: [], groundMultiHit: false, groundedContext: false })
+    assert.deepEqual(PER_RECORD_CATALOG_POLICY, { recordBatchSize: 1, lexicalLinks: false, groundingGroupSize: 1, fieldAwareGrounding: false, citations: false, citationLinks: false, groundAlways: [], groundMultiHit: false, groundedContext: false })
   })
 
   it('runs policy v1 as one batch and one grouped grounding call', async () => {
