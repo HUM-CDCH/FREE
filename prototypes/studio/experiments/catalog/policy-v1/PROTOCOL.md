@@ -151,3 +151,17 @@ schema but never ran the per-record policy, so the gates stay unresolved.
 - `pnpm lint` failed on two unused bindings in `models-policy-v2/run.ts`;
   fixing them changed a file frozen in that root, which was already
   complete (88 of 88 runs, final report written), so that root is closed.
+
+## Gate revision (2026-09-09, after the revision 2 results)
+
+G2 as pre-registered (candidate non-discovery calls at most 40% of the
+per-record arm's, per document) cannot hold on small documents: with five
+records per batch and per group, three records cost one values call, one
+document-level values call and one grounding call, and three is more than
+40% of seven. Revised G2, applied to every root by `report.py` and
+`score_danish.py`: the 40% ratio applies where the per-record arm makes at
+least ten non-discovery calls; below that, the candidate must make no more
+non-discovery calls than the per-record arm. This revision was decided
+after seeing the revision 2 results and is recorded as such. G4 is
+unchanged: its wrong-link criterion is the pre-registered rate per
+document, wrong links over linked units.
