@@ -340,6 +340,22 @@ now guard with regression tests in `module.test.ts`:
   from their saved requests: no fallback occurred); the frozen input hash
   was recorded but not enforced (the suite now refuses a different input).
 
+The 2026-09-09 citation-loss probe found a third defect, fixed on 2026-09-10:
+
+- Every values prompt (Article, document fields, both Catalog paths) dropped
+  the descriptions of scalar and list fields: `nodesToTemplate` carries a
+  description only on object groups and `compileInstructions` read only
+  those, so the model saw the record description alone while the grounder
+  saw every field description. `compileInstructions` now compiles from the
+  schema nodes. Schema revision 6 has no field descriptions, so the Beier
+  acceptance run is unaffected. On the Danish schema, whose descriptions
+  carry ASCII example words, the first Højbakkegård values batch changed
+  10 fields in both repetitions (`artifacts/catalog-lab/field-descriptions-fix`):
+  human teeth left `finds` and the generic `Grav` types became null, but
+  `Jordfæstegrav` became `jordfaeste` on Grav 6 and 56 and the Grav 1 and 2
+  rites were lost. A schema with descriptions needs its own acceptance run
+  before the restored descriptions are relied on.
+
 ## 7. Acceptance on the deployment
 
 Done on 2026-09-09 with the production executor driven by the harness on

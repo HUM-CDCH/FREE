@@ -463,8 +463,8 @@ export function createExtractionJobExecutor({
   async function executeArticle(document: ParsedDocument, definition: ExtractionSchemaDefinition, model: ExtractionModel, signal: AbortSignal, state: ExecutionState) {
     const { packageNodes } = partitionSchemaNodes(definition.schemaNodes)
     const modelNodes = definition.schemaNodes.filter((node) => node.valueSource !== 'source-filename')
-    const described = { records: [{ _description: definition.recordDescription, ...nodesToTemplate(modelNodes) }] }
-    const generated = await invoke(model, canonicalSource(document), document.page_count, stripDescriptions(described) as Record<string, unknown>, compileInstructions(described), signal, state)
+    const template = stripDescriptions({ records: [nodesToTemplate(modelNodes)] }) as Record<string, unknown>
+    const generated = await invoke(model, canonicalSource(document), document.page_count, template, compileInstructions('records', definition.recordDescription, modelNodes), signal, state)
     const records = extractionRecords(generated.result)
     if (!records) throw new ExtractionError('invalid_model_output', 'Article Extraction Strategy records must be objects.')
     const packageValues = Object.fromEntries(packageNodes.map((node) => [node.name, document.document.source.original_filename]))
@@ -562,10 +562,10 @@ export function createExtractionJobExecutor({
     }
     if (documentNodes.length > 0 && retryDocument) {
       const documentStartedAt = now()
-      const described = { record: { _description: definition.recordDescription, ...nodesToTemplate(documentNodes) } }
+      const template = stripDescriptions({ record: nodesToTemplate(documentNodes) }) as Record<string, unknown>
       let documentMetadata: ModelGenerationMetadata | null = null
       try {
-        const generated = await invoke(model, canonicalSource(document), document.page_count, stripDescriptions(described) as Record<string, unknown>, compileInstructions(described), signal, state)
+        const generated = await invoke(model, canonicalSource(document), document.page_count, template, compileInstructions('record', definition.recordDescription, documentNodes), signal, state)
         documentMetadata = generated.metadata
         const extracted = extractionRecord(generated.result)
         if (!extracted)
@@ -690,13 +690,13 @@ export function createExtractionJobExecutor({
       const callStartedAt = now()
       let recordMetadata: ModelGenerationMetadata | null = null
       try {
-        const described = { record: { _description: definition.recordDescription, ...nodesToTemplate(recordNodes), ...citationTemplate } }
+        const template = stripDescriptions({ record: { ...nodesToTemplate(recordNodes), ...citationTemplate } }) as Record<string, unknown>
         const generated = await invoke(
           model,
           renderSlice(boundary, successfulRecords.length),
           document.page_count,
-          stripDescriptions(described) as Record<string, unknown>,
-          [compileInstructions(described), citationInstruction].filter(Boolean).join('\n'),
+          template,
+          [compileInstructions('record', definition.recordDescription, recordNodes), citationInstruction].filter(Boolean).join('\n'),
           signal,
           state,
         )
@@ -738,17 +738,17 @@ export function createExtractionJobExecutor({
       const callStartedAt = now()
       const identities = batch.map((_, index) => `R${index + 1}`)
       const key = routingKey(recordNodes)
-      const described = { records: [{ _description: definition.recordDescription, [key]: 'string', ...nodesToTemplate(recordNodes), ...citationTemplate }] }
+      const template = stripDescriptions({ records: [{ [key]: 'string', ...nodesToTemplate(recordNodes), ...citationTemplate }] }) as Record<string, unknown>
       const markdown = batch
         .map(({ boundary }, index) => `### Record ${identities[index]}\n${renderSlice(boundary, successfulRecords.length + index)}`)
         .join('\n\n')
       const instruction = [
-        compileInstructions(described),
+        compileInstructions('records', definition.recordDescription, recordNodes),
         `Return exactly one record per "### Record" heading, in the same order, and copy that heading's identifier (${identities.join(', ')}) into ${key}.`,
         citationInstruction,
       ].filter(Boolean).join('\n')
       try {
-        const generated = await invoke(model, markdown, document.page_count, stripDescriptions(described) as Record<string, unknown>, instruction, signal, state)
+        const generated = await invoke(model, markdown, document.page_count, template, instruction, signal, state)
         const records = extractionRecords(generated.result)
         if (
           !records ||

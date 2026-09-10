@@ -824,6 +824,30 @@ describe('Catalog policy', () => {
     assert.ok(extraction.evidence!.every((link) => link.linkedBy === undefined))
   })
 
+  it('gives the values call every field description, scalar fields included', async () => {
+    const harness = catalogHarness({
+      labels: ['First', 'Second'],
+      policy: CATALOG_POLICY_V1,
+      schemaTree: {
+        recordDescription: 'One catalogue entry.',
+        schemaNodes: [
+          { id: 'title', name: 'title', type: 'string', description: 'The entry heading as printed.' },
+          { id: 'finds', name: 'finds', type: 'array', description: 'Objects of the entry.', children: [{ id: 'item', name: 'item', type: 'string', description: 'One object, source wording.' }] },
+        ],
+      },
+      script: [{ result: { records: [{ record_id: 'R1', title: 'First', finds: [] }, { record_id: 'R2', title: 'Second', finds: [] }] } }],
+    })
+    await harness.module.runSingle(catalogInput())
+    const values = harness.calls[1]!
+    assert.equal(values.instruction!.split('\n').slice(0, 4).join('\n'), [
+      '- records: One catalogue entry.',
+      '- records.title: The entry heading as printed.',
+      '- records.finds: Objects of the entry.',
+      '- records.finds.item: One object, source wording.',
+    ].join('\n'))
+    assert.deepEqual(values.template, { records: [{ record_id: 'string', title: 'string', finds: [{ item: 'string' }] }] })
+  })
+
   it('keeps no row of a batch whose later row fails validation', async () => {
     const harness = catalogHarness({
       labels: ['First', 'Second'],

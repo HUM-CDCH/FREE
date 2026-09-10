@@ -392,19 +392,17 @@ export function stripDescriptions(value: unknown): unknown {
   return result
 }
 
-export function compileInstructions(value: unknown, prefix = ''): string {
-  if (!isRecord(value)) return ''
-  const lines: string[] = []
-  for (const [key, field] of Object.entries(value)) {
-    if (key === '_description') continue
-    const path = prefix ? `${prefix}.${key}` : key
-    const child = Array.isArray(field) ? field[0] : field
-    if (!isRecord(child)) continue
-    const description =
-      typeof child._description === 'string' ? child._description : null
-    if (description) lines.push(`- ${path}: ${description}`)
-    const nested = compileInstructions(child, path)
-    if (nested) lines.push(nested)
+/** The instruction lines of a values call: the record description, then every
+ *  described field on its path, scalar fields and nested groups alike. */
+export function compileInstructions(root: string, recordDescription: string, nodes: readonly SchemaNode[]): string {
+  const lines = [`- ${root}: ${recordDescription}`]
+  const visit = (level: readonly SchemaNode[], prefix: string) => {
+    for (const node of level) {
+      const path = `${prefix}.${node.name}`
+      if (node.description) lines.push(`- ${path}: ${node.description}`)
+      if (node.children) visit(node.children, path)
+    }
   }
+  visit(nodes, root)
   return lines.join('\n')
 }
