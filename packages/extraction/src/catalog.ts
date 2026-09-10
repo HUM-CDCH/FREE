@@ -46,6 +46,11 @@ export type CatalogPolicy = Readonly<{
    *  needs no answer, so its judgment on the remaining claims keeps the
    *  calibration it has under full grounding. */
   groundedContext: boolean
+  /** Discover records in one call over the complete source when its
+   *  discovery text has at most this many characters; 0 keeps page chunks.
+   *  Characters, not tokens: 48,000 is about 21,500 tokens at the densest
+   *  measured text, inside a 32,768-token context with the response. */
+  wholeSourceDiscoveryMaxChars: number
 }>
 
 /** One values-only call per record: the behaviour before policy v1. Studio
@@ -62,6 +67,7 @@ export const PER_RECORD_CATALOG_POLICY: CatalogPolicy = {
   groundAlways: [],
   groundMultiHit: false,
   groundedContext: false,
+  wholeSourceDiscoveryMaxChars: 0,
 }
 
 /** Policy v1: five records per values call and per grounding call, each claim
@@ -80,11 +86,19 @@ export const CATALOG_POLICY_V1: CatalogPolicy = {
   groundAlways: [],
   groundMultiHit: false,
   groundedContext: false,
+  wholeSourceDiscoveryMaxChars: 0,
 }
 
-/** Default since 2026-09-09 by explicit acceptance decision; the deployment
- *  acceptance run on the full Beier catalogue verifies it. */
-export const DEFAULT_CATALOG_POLICY: CatalogPolicy = CATALOG_POLICY_V1
+/** Policy v2: v1 plus one discovery call over the complete source when its
+ *  discovery text fits the budget. On four sources it ran in 0.70x the time
+ *  of v1 with identical or better values, links and record boundaries; page
+ *  chunking issued 20-25 discovery calls per Danish report where this issues
+ *  one (docs/research/catalog-policy-v1.md section 9). */
+export const CATALOG_POLICY_V2: CatalogPolicy = { ...CATALOG_POLICY_V1, wholeSourceDiscoveryMaxChars: 48_000 }
+
+/** Default since 2026-09-10; the deployment acceptance run for whole-source
+ *  discovery is still to be recorded in docs/validation/. */
+export const DEFAULT_CATALOG_POLICY: CatalogPolicy = CATALOG_POLICY_V2
 
 const CATALOG_POLICY_MAX_GROUP = 50
 
@@ -99,6 +113,8 @@ export function parseCatalogPolicy(value: unknown): CatalogPolicy {
     if (!Number.isInteger(size) || (size as number) < 1 || (size as number) > CATALOG_POLICY_MAX_GROUP)
       throw new Error(`Catalog policy ${key} must be an integer from 1 to ${CATALOG_POLICY_MAX_GROUP}.`)
   }
+  if (!Number.isInteger(policy.wholeSourceDiscoveryMaxChars) || (policy.wholeSourceDiscoveryMaxChars as number) < 0)
+    throw new Error('Catalog policy wholeSourceDiscoveryMaxChars must be a non-negative integer.')
   for (const key of ['lexicalLinks', 'fieldAwareGrounding', 'citations', 'labelledSlices', 'citationLinks', 'groundMultiHit', 'groundedContext'] as const)
     if (typeof policy[key] !== 'boolean') throw new Error(`Catalog policy ${key} must be a boolean.`)
   if (!Array.isArray(policy.groundAlways) || !policy.groundAlways.every((field) => typeof field === 'string'))

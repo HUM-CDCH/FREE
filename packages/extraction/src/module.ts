@@ -41,7 +41,7 @@ import {
   stripDescriptions,
 } from './schema.js'
 import type { ExtractionSchemaDefinition } from './schema.js'
-import { canonicalSource, canonicalSourceSlice, catalogDiscoveryChunks, recordAnchorIds, sourceContext } from './source-context.js'
+import { canonicalSource, canonicalSourceSlice, catalogDiscoveryChunks, catalogDiscoveryContext, recordAnchorIds, sourceContext } from './source-context.js'
 import type {
   CatalogStageDiagnostics,
   ExtractionDiagnostics,
@@ -610,7 +610,10 @@ export function createExtractionJobExecutor({
       try {
         let startBlockIds: readonly string[] = []
         let terminalEndBlockId: string | undefined
-        for (const [chunkIndex, discoveryContext] of catalogDiscoveryChunks(document).entries()) {
+        const source = catalogDiscoveryContext(document)
+        const wholeSource = source.text.length <= policy.wholeSourceDiscoveryMaxChars
+        const discoveryContexts = wholeSource ? [source] : catalogDiscoveryChunks(document)
+        for (const [chunkIndex, discoveryContext] of discoveryContexts.entries()) {
           if (discoveryContext.startBlockIdByLabel.size === 0) continue
           const previousEnd = document.content_stream.find(block => block.block_id === terminalEndBlockId)
           const previousStart = document.content_stream.find(block => block.block_id === startBlockIds.at(-1))
@@ -625,7 +628,10 @@ export function createExtractionJobExecutor({
                   + (previousRecord ? `Previous catalog record start (context only, never select again):\n${previousRecord}\n\n` : '') + discoveryContext.text,
                 document.page_count,
                 { starts: ['string'], end: 'string' },
-                `Identify every catalog record start matching this record definition: ${definition.recordDescription}\nThis is one consecutive excerpt of the source. Canonical text blocks are marked as [[block:B<number>]]. Entries can start in headings, paragraphs or numbered lists. Select only NEW parent records with the identifier required by the record definition. A continued sentence, description, sub-item or reference must never become a new parent record. The previous record continues until a new parent record begins. Check every selectable block; include short entries and separate entries describing the same entity or locality. Return {"starts":[string],"end":string|null}. Copy the short IDs of matching starts in source order, only from selectable blocks. Return an empty starts array when none match. Also identify the first block AFTER the last matching record as end (for example the start of a later index or bibliography), or null if that record continues beyond this excerpt. A continued record may end here even when this excerpt has no new start. Previous context is only for understanding continuations; its blocks cannot be selected. Select the opening block even when the record continues into the following excerpt. Following context is not selectable. Respect all page and section restrictions in the record definition: return no starts for an excerpt outside that scope. If a previous catalogue section ended, only select a new section when it also matches the definition.` + '\nReturn bare block IDs (for example "B60"), not entry titles or [[block:B60]] wrappers.\nSelectable block IDs: ' + [...discoveryContext.startBlockIdByLabel.keys()].join(', ') + correction,
+                (wholeSource
+                  ? `Identify every catalog record start matching this record definition: ${definition.recordDescription}\nThis request contains the complete canonical source. Canonical text blocks are marked as [[block:B<number>]]. Entries can start in headings, paragraphs or numbered lists. Select only parent records with the identifier required by the record definition. A continued sentence, description, sub-item or reference must never become a new parent record. Check every selectable block; include short entries and separate entries describing the same entity or locality. Return {"starts":[string],"end":string|null}. Copy the short IDs of matching starts in source order, only from selectable blocks, without duplicates. Return an empty starts array when none match. Identify the first block AFTER the last matching record as end, or null when the last record continues through the source end. Respect all page and section restrictions in the record definition.`
+                  : `Identify every catalog record start matching this record definition: ${definition.recordDescription}\nThis is one consecutive excerpt of the source. Canonical text blocks are marked as [[block:B<number>]]. Entries can start in headings, paragraphs or numbered lists. Select only NEW parent records with the identifier required by the record definition. A continued sentence, description, sub-item or reference must never become a new parent record. The previous record continues until a new parent record begins. Check every selectable block; include short entries and separate entries describing the same entity or locality. Return {"starts":[string],"end":string|null}. Copy the short IDs of matching starts in source order, only from selectable blocks. Return an empty starts array when none match. Also identify the first block AFTER the last matching record as end (for example the start of a later index or bibliography), or null if that record continues beyond this excerpt. A continued record may end here even when this excerpt has no new start. Previous context is only for understanding continuations; its blocks cannot be selected. Select the opening block even when the record continues into the following excerpt. Following context is not selectable. Respect all page and section restrictions in the record definition: return no starts for an excerpt outside that scope. If a previous catalogue section ended, only select a new section when it also matches the definition.`)
+                  + '\nReturn bare block IDs (for example "B60"), not entry titles or [[block:B60]] wrappers.\nSelectable block IDs: ' + [...discoveryContext.startBlockIdByLabel.keys()].join(', ') + correction,
                 signal,
                 state,
                 outputSchema,
