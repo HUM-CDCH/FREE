@@ -65,17 +65,18 @@ per record and one grounding call per record. The full Beier catalogue
 `CatalogPolicy` (`packages/extraction/src/catalog.ts`), read by Studio from
 `FREE_CATALOG_POLICY` (JSON) in `api/_extraction_runtime.ts`:
 
-| Key | Previous default (per-record) | `CATALOG_POLICY_V1` (default) | Meaning |
+| Key | Previous default (per-record) | `CATALOG_POLICY_V2` (default) | Meaning |
 |---|---|---|---|
 | `recordBatchSize` | 1 | 5 | Records per values call. Each slice sits under a `### Record R<n>` heading and the response must return every identity once, in order, under a routing key no schema field uses; otherwise the whole batch re-runs one record per call, and no row of the rejected batch is kept. |
 | `groundingGroupSize` | 1 | 5 | Records whose claims share one grounding call. Every link is validated against its own record's anchors; a link into a neighbouring record is rejected. |
 | `fieldAwareGrounding` | false | true | The grounder sees each claim's record, field name and schema description, and is told that the same string under another meaning is not evidence. |
 | `lexicalLinks` | false | false | Linking a single lexical hit in code without the model. Measured and rejected (section 5). |
+| `wholeSourceDiscoveryMaxChars` | 0 | 48000 | One discovery call over the complete source when its discovery text has at most this many characters; otherwise the page chunks below. Added 2026-09-10 (section 9). |
 
-Discovery is unchanged: its page chunking was fixed deliberately on
-2026-09-07 and costs 45 of 885 calls on Beier. To restore the previous
+Sources above the budget keep the page chunking fixed deliberately on
+2026-09-07, which costs 45 of 885 calls on Beier. To restore the previous
 behaviour, set `FREE_CATALOG_POLICY` to
-`{"recordBatchSize":1,"groundingGroupSize":1,"fieldAwareGrounding":false}`.
+`{"recordBatchSize":1,"groundingGroupSize":1,"fieldAwareGrounding":false,"wholeSourceDiscoveryMaxChars":0}`.
 
 ## 4. Measurement
 
@@ -390,3 +391,50 @@ changes, observed on every arm:
   the parsed text reads `4,`, and every arm copied the parsed text. The
   evidence link lets a reviewer see the scan, which is the only place the
   error can be caught.
+
+## 9. Whole-source discovery (2026-09-10)
+
+A four-arm benchmark on the production executor compared the baseline (B)
+with one discovery call over the complete canonical source (D), source
+quotations generated with the values in place of the grounding call (E),
+and both (DE): four sources, four counterbalanced repetitions each, one
+local `qwen3.8:latest` worker at temperature 0 in a 32,768-token context,
+frozen prompts and inputs, and arm-blind source review of every new value,
+link and quotation (`artifacts/catalog-lab/free-technical-ablation-v1`).
+Temperature 0 made the four repetitions of each arm identical, so the
+quality evidence is four documents; the timing evidence is sixteen runs
+per arm.
+
+| Case | Discovery text | B median | D median | D / B |
+|---|---:|---:|---:|---:|
+| Beier excerpt (3 pages, 29 records) | 40,888 chars | 72.4 s | 70.3 s | 0.97 |
+| Herredsvejen (25 pages, 3 records) | 40,082 chars | 46.4 s | 27.0 s | 0.58 |
+| Højbakkegård (20 pages, 9 records) | 34,471 chars | 53.0 s | 37.0 s | 0.70 |
+| Hvissinge (21 pages, 6 records) | 68,604 chars | 101.9 s | 61.7 s | 0.61 |
+
+D's gain is the discovery stage: page chunking issues 20–25 discovery
+calls on a Danish report (57% of Herredsvejen's run time) where D issues
+one. Values, links and evidence were byte-identical to B on Beier and
+Højbakkegård. On Herredsvejen D found A200's dating and two finds that B
+lost because chunking cut the last record short, dropped three unsupported
+values, and lost one `finds` item of A240. On Hvissinge D returned exactly
+Grav 1–6 where B still splits captions into five extra records (section
+8); both arms add the same spurious "'Grav' 7 og 8". D failed the
+benchmark's zero-regression gate on the single A240 item and is adopted on
+the balance above.
+
+E and DE were rejected: a values call that also returns quotations took
+3.5 times longer on Beier than the grounding call it replaced, quotations
+averaged 19–37 characters and were often ambiguous inside their record on
+the Danish reports, and every Danish E run finished partial. The sidecar
+and its code resolver are not in production code.
+
+`wholeSourceDiscoveryMaxChars` defaults to 48,000 characters: at the
+densest measured text (Beier, 2.23 characters per token) that is about
+21,500 prompt tokens plus the selectable-ID list, inside a 32,768-token
+context with room for the response. Hvissinge (23,265 tokens) fits that
+context but exceeds the character budget, so it keeps page chunking until
+a deployment with a larger context raises the budget through
+`FREE_CATALOG_POLICY`. The document-values call already sends the whole
+source without any budget. The deployment acceptance run for this default
+is still to be done and belongs in `docs/validation/`.

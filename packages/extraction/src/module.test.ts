@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { describe, it } from 'node:test'
 import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
-import { CATALOG_NOT_ATTEMPTED_LIMIT, CATALOG_POLICY_V1, CATALOG_RECORD_LIMIT, DEFAULT_CATALOG_POLICY, PER_RECORD_CATALOG_POLICY, parseCatalogPolicy, type CatalogPolicy } from './catalog.js'
+import { CATALOG_NOT_ATTEMPTED_LIMIT, CATALOG_POLICY_V1, CATALOG_POLICY_V2, CATALOG_RECORD_LIMIT, DEFAULT_CATALOG_POLICY, PER_RECORD_CATALOG_POLICY, parseCatalogPolicy, type CatalogPolicy } from './catalog.js'
 import type {
   ExtractionJobInput,
   ExtractionInputReader,
@@ -621,6 +621,22 @@ describe('ExtractionModule Catalog contract', () => {
     assert.ok(discoveryCalls[1].markdown.includes('Previous catalog record start (context only, never select again):\nFirst'))
   })
 
+  it('discovers the whole source in one call when it fits the policy budget', async () => {
+    const labels = ['First', 'Middle', 'Last'].map(label => `${label} ${'content '.repeat(1800)}`)
+    const chunked = catalogHarness({ labels, startKind: 'paragraph' })
+    const whole = catalogHarness({ labels, startKind: 'paragraph', policy: { ...PER_RECORD_CATALOG_POLICY, wholeSourceDiscoveryMaxChars: 100_000 } })
+    const left = await chunked.module.runSingle(catalogInput())
+    const right = await whole.module.runSingle(catalogInput())
+    const discovery = whole.calls.filter(call => 'starts' in call.template)
+    assert.equal(discovery.length, 1)
+    assert.ok(discovery[0]!.instruction!.includes('This request contains the complete canonical source.'))
+    assert.ok(discovery[0]!.instruction!.endsWith('Selectable block IDs: B1, B2, B3, B4, B5, B6'))
+    assert.ok(!discovery[0]!.markdown.includes('context (not selectable)'))
+    assert.equal(right.extraction.diagnostics.catalog?.stages.find(stage => stage.stage === 'discovery')?.calls, 1)
+    assert.deepEqual(right.extraction.result, left.extraction.result)
+    assert.deepEqual(right.extraction.evidence, left.extraction.evidence)
+  })
+
   it('keeps normal physical pages together and their block labels separate', () => {
     const source = catalogDocument(['First', 'Second'], 'paragraph')
     source.page_count = source.document.page_count = 2
@@ -767,10 +783,11 @@ describe('ExtractionModule Catalog contract', () => {
 describe('Catalog policy', () => {
   const batched: CatalogPolicy = { ...PER_RECORD_CATALOG_POLICY, recordBatchSize: 3 }
 
-  it('defaults to policy v1 and keeps the per-record policy reachable', () => {
-    assert.deepEqual(DEFAULT_CATALOG_POLICY, CATALOG_POLICY_V1)
-    assert.deepEqual(CATALOG_POLICY_V1, { recordBatchSize: 5, lexicalLinks: false, groundingGroupSize: 5, fieldAwareGrounding: true, citations: false, labelledSlices: false, citationLinks: false, groundAlways: [], groundMultiHit: false, groundedContext: false })
-    assert.deepEqual(PER_RECORD_CATALOG_POLICY, { recordBatchSize: 1, lexicalLinks: false, groundingGroupSize: 1, fieldAwareGrounding: false, citations: false, labelledSlices: false, citationLinks: false, groundAlways: [], groundMultiHit: false, groundedContext: false })
+  it('defaults to policy v2 and keeps v1 and the per-record policy reachable', () => {
+    assert.deepEqual(DEFAULT_CATALOG_POLICY, CATALOG_POLICY_V2)
+    assert.deepEqual(CATALOG_POLICY_V2, { ...CATALOG_POLICY_V1, wholeSourceDiscoveryMaxChars: 48_000 })
+    assert.deepEqual(CATALOG_POLICY_V1, { recordBatchSize: 5, lexicalLinks: false, groundingGroupSize: 5, fieldAwareGrounding: true, citations: false, labelledSlices: false, citationLinks: false, groundAlways: [], groundMultiHit: false, groundedContext: false, wholeSourceDiscoveryMaxChars: 0 })
+    assert.deepEqual(PER_RECORD_CATALOG_POLICY, { recordBatchSize: 1, lexicalLinks: false, groundingGroupSize: 1, fieldAwareGrounding: false, citations: false, labelledSlices: false, citationLinks: false, groundAlways: [], groundMultiHit: false, groundedContext: false, wholeSourceDiscoveryMaxChars: 0 })
   })
 
   it('runs policy v1 as one batch and one grouped grounding call', async () => {
@@ -977,6 +994,7 @@ describe('Catalog policy', () => {
     assert.deepEqual(parseCatalogPolicy({ recordBatchSize: 5, lexicalLinks: true }), { ...DEFAULT_CATALOG_POLICY, recordBatchSize: 5, lexicalLinks: true })
     assert.throws(() => parseCatalogPolicy({ recordBatchSize: 0 }))
     assert.throws(() => parseCatalogPolicy({ groundingGroupSize: 1.5 }))
+    assert.throws(() => parseCatalogPolicy({ wholeSourceDiscoveryMaxChars: -1 }))
     assert.throws(() => parseCatalogPolicy({ lexicalLinks: 'yes' }))
     assert.throws(() => parseCatalogPolicy({ batchSize: 3 }))
     assert.throws(() => parseCatalogPolicy([]))
