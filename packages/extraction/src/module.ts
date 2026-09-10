@@ -19,6 +19,7 @@ import {
 import {
   CATALOG_NOT_ATTEMPTED_LIMIT,
   CATALOG_RECORD_LIMIT,
+  DEFAULT_CATALOG_POLICY,
   reuseCall,
   seedCatalogDiagnostics,
   setCatalogStage,
@@ -36,14 +37,11 @@ import {
   parseExtractionSchema,
   partitionSchemaNodes,
   restoreSchemaNodeOrder,
+  schemaNodeAtPath,
   stripDescriptions,
 } from './schema.js'
 import type { ExtractionSchemaDefinition } from './schema.js'
-import {
-  canonicalSource,
-  canonicalSourceSlice,
-  catalogDiscoveryChunks,
-} from './source-context.js'
+import { canonicalSource, canonicalSourceSlice, catalogDiscoveryChunks, catalogDiscoveryContext, recordAnchorIds, sourceContext } from './source-context.js'
 import type {
   CatalogStageDiagnostics,
   ExtractionDiagnostics,
@@ -56,7 +54,6 @@ import type {
   ModelAttribution,
   ModelGenerationMetadata,
   ReviewDecisionInput,
-  ResultPath,
   RunSingleInput,
 } from './types.js'
 
@@ -75,6 +72,9 @@ type ExecutionState = {
   catalog: MutableCatalogDiagnostics | null
   retry: ExtractionRetrySelection | null
   checkpointDiagnostics: ExtractionDiagnostics | null
+  /** Anchors the values calls cited, by result path key (policy.citations).
+   *  ponytail: in memory only; a run resumed from a checkpoint grounds every claim. */
+  citations: Map<string, string>
 }
 
 /** One run's durable identity after retry inputs are resolved against their parent. */
@@ -273,6 +273,7 @@ export function createExtractionJobExecutor({
   inputs: reader,
   models,
   now = performance.now.bind(performance),
+  policy = DEFAULT_CATALOG_POLICY,
 }: ExtractionJobExecutorDependencies): ExtractionJobExecutor {
   return executeJob
 
@@ -323,6 +324,7 @@ export function createExtractionJobExecutor({
         : resolved.strategy === 'CATALOG' ? seedCatalogDiagnostics() : null,
       retry: checkpoint?.diagnostics.retry ?? resolved.retry?.selection ?? null,
       checkpointDiagnostics: checkpoint?.diagnostics ?? null,
+      citations: new Map(),
     }
     const session = await models.open()
     const document = decodeCanonical(inputs.parsedDocument)
@@ -375,6 +377,8 @@ export function createExtractionJobExecutor({
         ? state.catalog?.records.filter(record => record.outcome === 'succeeded').map(record => record.boundary)
         : undefined,
       now,
+      // The policy governs Catalog runs only; Article keeps one call per record.
+      ...(resolved.strategy === 'CATALOG' && { policy, schemaNodes: definition.schemaNodes, citations: state.citations }),
     })
     state.ungroundedPaths = grounding.ungroundedPaths
     state.groundingIssues = grounding.issues
@@ -459,8 +463,8 @@ export function createExtractionJobExecutor({
   async function executeArticle(document: ParsedDocument, definition: ExtractionSchemaDefinition, model: ExtractionModel, signal: AbortSignal, state: ExecutionState) {
     const { packageNodes } = partitionSchemaNodes(definition.schemaNodes)
     const modelNodes = definition.schemaNodes.filter((node) => node.valueSource !== 'source-filename')
-    const described = { records: [{ _description: definition.recordDescription, ...nodesToTemplate(modelNodes) }] }
-    const generated = await invoke(model, canonicalSource(document), document.page_count, stripDescriptions(described) as Record<string, unknown>, compileInstructions(described), signal, state)
+    const template = stripDescriptions({ records: [nodesToTemplate(modelNodes)] }) as Record<string, unknown>
+    const generated = await invoke(model, canonicalSource(document), document.page_count, template, compileInstructions('records', definition.recordDescription, modelNodes), signal, state)
     const records = extractionRecords(generated.result)
     if (!records) throw new ExtractionError('invalid_model_output', 'Article Extraction Strategy records must be objects.')
     const packageValues = Object.fromEntries(packageNodes.map((node) => [node.name, document.document.source.original_filename]))
@@ -490,6 +494,43 @@ export function createExtractionJobExecutor({
     if (!catalog) throw new ExtractionError('extraction_failed', 'Catalog diagnostics were not initialized.')
     const { documentNodes, recordNodes } = partitionSchemaNodes(definition.schemaNodes)
     const parentRecords = retry?.parent.result ? extractionRecords(retry.parent.result) : null
+    // Cite and verify (policy.citations): slices are rendered as the grounder's
+    // labelled blocks and the values call cites, per value, the block it was
+    // taken from; grounding verifies the citation in code before linking.
+    // Labels restart at E1 in every record slice: short to cite, and resolved
+    // through that record's own label map, so a label never reaches another record.
+    const labelled = policy.citations || policy.labelledSlices
+    const recordLabels = new Map<number, ReadonlyMap<string, string>>()
+    const renderSlice = (boundary: CatalogBoundary, recordIndex: number) => {
+      if (!labelled) return canonicalSourceSlice(document, boundary.startContentIndex, boundary.endContentIndex)
+      const context = sourceContext(document, recordAnchorIds(document, boundary))
+      recordLabels.set(recordIndex, context.anchorIdByLabel)
+      return context.text
+    }
+    // One compact string per record: a label per field in template order, so a
+    // citation costs about two output tokens instead of a repeated field name.
+    const citationTemplate = policy.citations ? { _citations: 'string' } : {}
+    const citationInstruction = policy.citations
+      ? `In _citations give, per field and in this order: ${recordNodes.map((node) => node.name).join(' ')}, the [E<n>] label of the block in that record's own text the value was taken from; separate fields with spaces, write - when no block states the value, and for list fields give one label per item separated by commas.`
+      : ''
+    /** Strip `_citations` from a model record and resolve its labels to anchors for the record at `recordIndex`.
+     *  An unparseable or misaligned citation is dropped: the claim then goes to the grounder. */
+    const takeCitations = (record: Record<string, unknown>, recordIndex: number, into: Map<string, string>) => {
+      const { _citations, ...values } = record
+      const anchorIdByLabel = recordLabels.get(recordIndex)
+      if (anchorIdByLabel && typeof _citations === 'string') {
+        const tokens = _citations.trim().split(/\s+/)
+        if (tokens.length === recordNodes.length)
+          recordNodes.forEach((node, position) => {
+            const labels = node.type === 'array' ? tokens[position]!.split(',') : [tokens[position]!]
+            labels.forEach((label, index) => {
+              const anchorId = anchorIdByLabel.get(label.trim().replace(/^\[|\]$/g, ''))
+              if (anchorId) into.set(resultPathKey(node.type === 'array' ? ['records', recordIndex, node.name, index] : ['records', recordIndex, node.name]), anchorId)
+            })
+          })
+      }
+      return values
+    }
     // Parent result records carry no identity; they align positionally with the
     // parent's succeeded record diagnostics, which do carry the start block ID.
     const parentValuesByStartBlockId = new Map<string, Record<string, unknown>>()
@@ -521,10 +562,10 @@ export function createExtractionJobExecutor({
     }
     if (documentNodes.length > 0 && retryDocument) {
       const documentStartedAt = now()
-      const described = { record: { _description: definition.recordDescription, ...nodesToTemplate(documentNodes) } }
+      const template = stripDescriptions({ record: nodesToTemplate(documentNodes) }) as Record<string, unknown>
       let documentMetadata: ModelGenerationMetadata | null = null
       try {
-        const generated = await invoke(model, canonicalSource(document), document.page_count, stripDescriptions(described) as Record<string, unknown>, compileInstructions(described), signal, state)
+        const generated = await invoke(model, canonicalSource(document), document.page_count, template, compileInstructions('record', definition.recordDescription, documentNodes), signal, state)
         documentMetadata = generated.metadata
         const extracted = extractionRecord(generated.result)
         if (!extracted)
@@ -569,7 +610,10 @@ export function createExtractionJobExecutor({
       try {
         let startBlockIds: readonly string[] = []
         let terminalEndBlockId: string | undefined
-        for (const [chunkIndex, discoveryContext] of catalogDiscoveryChunks(document).entries()) {
+        const source = catalogDiscoveryContext(document)
+        const wholeSource = source.text.length <= policy.wholeSourceDiscoveryMaxChars
+        const discoveryContexts = wholeSource ? [source] : catalogDiscoveryChunks(document)
+        for (const [chunkIndex, discoveryContext] of discoveryContexts.entries()) {
           if (discoveryContext.startBlockIdByLabel.size === 0) continue
           const previousEnd = document.content_stream.find(block => block.block_id === terminalEndBlockId)
           const previousStart = document.content_stream.find(block => block.block_id === startBlockIds.at(-1))
@@ -584,7 +628,10 @@ export function createExtractionJobExecutor({
                   + (previousRecord ? `Previous catalog record start (context only, never select again):\n${previousRecord}\n\n` : '') + discoveryContext.text,
                 document.page_count,
                 { starts: ['string'], end: 'string' },
-                `Identify every catalog record start matching this record definition: ${definition.recordDescription}\nThis is one consecutive excerpt of the source. Canonical text blocks are marked as [[block:B<number>]]. Entries can start in headings, paragraphs or numbered lists. Select only NEW parent records with the identifier required by the record definition. A continued sentence, description, sub-item or reference must never become a new parent record. The previous record continues until a new parent record begins. Check every selectable block; include short entries and separate entries describing the same entity or locality. Return {"starts":[string],"end":string|null}. Copy the short IDs of matching starts in source order, only from selectable blocks. Return an empty starts array when none match. Also identify the first block AFTER the last matching record as end (for example the start of a later index or bibliography), or null if that record continues beyond this excerpt. A continued record may end here even when this excerpt has no new start. Previous context is only for understanding continuations; its blocks cannot be selected. Select the opening block even when the record continues into the following excerpt. Following context is not selectable. Respect all page and section restrictions in the record definition: return no starts for an excerpt outside that scope. If a previous catalogue section ended, only select a new section when it also matches the definition.` + '\nReturn bare block IDs (for example "B60"), not entry titles or [[block:B60]] wrappers.\nSelectable block IDs: ' + [...discoveryContext.startBlockIdByLabel.keys()].join(', ') + correction,
+                (wholeSource
+                  ? `Identify every catalog record start matching this record definition: ${definition.recordDescription}\nThis request contains the complete canonical source. Canonical text blocks are marked as [[block:B<number>]]. Entries can start in headings, paragraphs or numbered lists. Select only parent records with the identifier required by the record definition. A continued sentence, description, sub-item or reference must never become a new parent record. Check every selectable block; include short entries and separate entries describing the same entity or locality. Return {"starts":[string],"end":string|null}. Copy the short IDs of matching starts in source order, only from selectable blocks, without duplicates. Return an empty starts array when none match. Identify the first block AFTER the last matching record as end, or null when the last record continues through the source end. Respect all page and section restrictions in the record definition.`
+                  : `Identify every catalog record start matching this record definition: ${definition.recordDescription}\nThis is one consecutive excerpt of the source. Canonical text blocks are marked as [[block:B<number>]]. Entries can start in headings, paragraphs or numbered lists. Select only NEW parent records with the identifier required by the record definition. A continued sentence, description, sub-item or reference must never become a new parent record. The previous record continues until a new parent record begins. Check every selectable block; include short entries and separate entries describing the same entity or locality. Return {"starts":[string],"end":string|null}. Copy the short IDs of matching starts in source order, only from selectable blocks. Return an empty starts array when none match. Also identify the first block AFTER the last matching record as end (for example the start of a later index or bibliography), or null if that record continues beyond this excerpt. A continued record may end here even when this excerpt has no new start. Previous context is only for understanding continuations; its blocks cannot be selected. Select the opening block even when the record continues into the following excerpt. Following context is not selectable. Respect all page and section restrictions in the record definition: return no starts for an excerpt outside that scope. If a previous catalogue section ended, only select a new section when it also matches the definition.`)
+                  + '\nReturn bare block IDs (for example "B60"), not entry titles or [[block:B60]] wrappers.\nSelectable block IDs: ' + [...discoveryContext.startBlockIdByLabel.keys()].join(', ') + correction,
                 signal,
                 state,
                 outputSchema,
@@ -645,12 +692,117 @@ export function createExtractionJobExecutor({
     const successfulRecords: Record<string, unknown>[] = []
     const recordsStartedAt = now()
     let executedRecordCount = 0
+    const executeRecord = async (ordinal: number, boundary: CatalogBoundary) => {
+      const callStartedAt = now()
+      let recordMetadata: ModelGenerationMetadata | null = null
+      try {
+        const template = stripDescriptions({ record: { ...nodesToTemplate(recordNodes), ...citationTemplate } }) as Record<string, unknown>
+        const generated = await invoke(
+          model,
+          renderSlice(boundary, successfulRecords.length),
+          document.page_count,
+          template,
+          [compileInstructions('record', definition.recordDescription, recordNodes), citationInstruction].filter(Boolean).join('\n'),
+          signal,
+          state,
+        )
+        recordMetadata = generated.metadata
+        const extracted = extractionRecord(generated.result)
+        if (!extracted)
+          throw new ExtractionError('invalid_model_output', 'Catalog record extraction must return one record.')
+        const cited = new Map<string, string>()
+        successfulRecords.push(
+          restoreSchemaNodeOrder(takeCitations(extracted, successfulRecords.length, cited), recordNodes, {
+            ignoreUnknownKeys: true,
+          }),
+        )
+        for (const [key, anchorId] of cited) state.citations.set(key, anchorId)
+        catalog.records.push({ ordinal, boundary, ...callDiagnostic('succeeded', callStartedAt, generated.metadata) })
+        if (generated.metadata.finishReason === 'length') complete = false
+      } catch (error) {
+        const code = extractionError(error).code
+        const failureCode = signal.aborted || code === 'cancelled' ? 'cancelled' : code
+        catalog.records.push({
+          ordinal,
+          boundary,
+          ...callDiagnostic(
+            'failed',
+            callStartedAt,
+            recordMetadata,
+            failureCode,
+          ),
+        })
+        if (failureCode === 'cancelled') throw error
+        complete = false
+      }
+    }
+    /** One values call for several records, each slice under a routing
+     *  heading the model copies back. False when the response does not
+     *  return every identity once, in order: the caller re-runs the
+     *  records one per call. */
+    const executeRecordBatch = async (batch: readonly { ordinal: number; boundary: CatalogBoundary }[]): Promise<boolean> => {
+      const callStartedAt = now()
+      const identities = batch.map((_, index) => `R${index + 1}`)
+      const key = routingKey(recordNodes)
+      const template = stripDescriptions({ records: [{ [key]: 'string', ...nodesToTemplate(recordNodes), ...citationTemplate }] }) as Record<string, unknown>
+      const markdown = batch
+        .map(({ boundary }, index) => `### Record ${identities[index]}\n${renderSlice(boundary, successfulRecords.length + index)}`)
+        .join('\n\n')
+      const instruction = [
+        compileInstructions('records', definition.recordDescription, recordNodes),
+        `Return exactly one record per "### Record" heading, in the same order, and copy that heading's identifier (${identities.join(', ')}) into ${key}.`,
+        citationInstruction,
+      ].filter(Boolean).join('\n')
+      try {
+        const generated = await invoke(model, markdown, document.page_count, template, instruction, signal, state)
+        const records = extractionRecords(generated.result)
+        if (
+          !records ||
+          records.length !== batch.length ||
+          records.some((record, index) => record[key] !== identities[index]) ||
+          generated.metadata.finishReason === 'length'
+        )
+          throw new ExtractionError('invalid_model_output', 'Catalog batch extraction must return one identified record per source record.')
+        // Every row is validated before any row is kept: a failure here re-runs
+        // the whole batch one record per call, so nothing may already be appended.
+        const cited = new Map<string, string>()
+        const restored = records.map((record, index) => {
+          const { [key]: _identity, ...values } = record
+          return restoreSchemaNodeOrder(takeCitations(values, successfulRecords.length + index, cited), recordNodes, { ignoreUnknownKeys: true })
+        })
+        // Citations join the state only once every row is valid: a rejected
+        // batch re-runs one record per call and cites afresh.
+        for (const [pathKey, anchorId] of cited) state.citations.set(pathKey, anchorId)
+        restored.forEach((record, index) => {
+          successfulRecords.push(record)
+          // The batch's one call is charged to its first record.
+          catalog.records.push({
+            ...batch[index],
+            ...callDiagnostic('succeeded', callStartedAt, index === 0 ? generated.metadata : null, null, index === 0 ? 1 : 0),
+          })
+        })
+        return true
+      } catch (error) {
+        if (signal.aborted || extractionError(error).code === 'cancelled') throw error
+        // ponytail: the failed batch call is counted in modelCalls only; its
+        // records are re-run one per call and carry their own diagnostics.
+        return false
+      }
+    }
+    const pending: { ordinal: number; boundary: CatalogBoundary }[] = []
+    const flush = async () => {
+      const batch = pending.splice(0)
+      if (batch.length > 1 && await executeRecordBatch(batch)) return
+      for (const { ordinal, boundary } of batch) await executeRecord(ordinal, boundary)
+    }
     for (const [ordinal, boundary] of boundaries.entries()) {
       signal.throwIfAborted()
       const previous = retry?.parentCatalog.records.find(
         (record) => record.boundary.startBlockId === boundary.startBlockId,
       )
       const shouldExecute = !retry || rediscover || selected.has(boundary.startBlockId)
+      // Record order is result order: nothing is pushed while a batch waits.
+      if (!(shouldExecute && executedRecordCount < CATALOG_RECORD_LIMIT && recordNodes.length > 0)) await flush()
       if (!shouldExecute && previous?.outcome === 'succeeded') {
         const reused = parentValuesByStartBlockId.get(boundary.startBlockId)
         if (reused) successfulRecords.push(reused)
@@ -681,47 +833,10 @@ export function createExtractionJobExecutor({
         catalog.records.push({ ordinal, boundary, ...callDiagnostic('succeeded', now(), null, null, 0) })
         continue
       }
-      const callStartedAt = now()
-      let recordMetadata: ModelGenerationMetadata | null = null
-      try {
-        const described = { record: { _description: definition.recordDescription, ...nodesToTemplate(recordNodes) } }
-        const generated = await invoke(
-          model,
-          canonicalSourceSlice(document, boundary.startContentIndex, boundary.endContentIndex),
-          document.page_count,
-          stripDescriptions(described) as Record<string, unknown>,
-          compileInstructions(described),
-          signal,
-          state,
-        )
-        recordMetadata = generated.metadata
-        const extracted = extractionRecord(generated.result)
-        if (!extracted)
-          throw new ExtractionError('invalid_model_output', 'Catalog record extraction must return one record.')
-        successfulRecords.push(
-          restoreSchemaNodeOrder(extracted, recordNodes, {
-            ignoreUnknownKeys: true,
-          }),
-        )
-        catalog.records.push({ ordinal, boundary, ...callDiagnostic('succeeded', callStartedAt, generated.metadata) })
-        if (generated.metadata.finishReason === 'length') complete = false
-      } catch (error) {
-        const code = extractionError(error).code
-        const failureCode = signal.aborted || code === 'cancelled' ? 'cancelled' : code
-        catalog.records.push({
-          ordinal,
-          boundary,
-          ...callDiagnostic(
-            'failed',
-            callStartedAt,
-            recordMetadata,
-            failureCode,
-          ),
-        })
-        if (failureCode === 'cancelled') throw error
-        complete = false
-      }
+      pending.push({ ordinal, boundary })
+      if (pending.length >= policy.recordBatchSize) await flush()
     }
+    await flush()
 
     const attempted = catalog.records.filter(
       (record) => record.provenance === 'executed' && record.outcome !== 'not_attempted',
@@ -824,6 +939,15 @@ function parsePinnedSchema(raw: unknown) {
   catch (error) { throw new ExtractionError('invalid_schema_revision', 'The pinned Schema Revision is invalid.', { cause: error }) }
 }
 
+/** A batch routing key no researcher field uses: `record_id` unless the
+ *  schema names it, then underscores until it is free. */
+export function routingKey(nodes: readonly ExtractionSchemaNode[]): string {
+  const taken = new Set(nodes.map((node) => node.name))
+  let key = 'record_id'
+  while (taken.has(key)) key = `_${key}`
+  return key
+}
+
 function extractionRecords(result: Readonly<Record<string, unknown>>): Record<string, unknown>[] | null {
   return Object.keys(result).every((key) => key === 'records') && Array.isArray(result.records) && result.records.every(isRecord) ? result.records : null
 }
@@ -836,27 +960,7 @@ function occurrenceOwnership(document: ParsedDocument): ReadonlyMap<string, Read
   return new Map(document.evidence_index.anchors.map((anchor) => [anchor.anchor_id, new Set(anchor.producer_observations.map((observation) => observation.occurrence_id))]))
 }
 
-function reviewSchemaNode(
-  nodes: readonly ExtractionSchemaNode[],
-  resultPath: ResultPath,
-): ExtractionSchemaNode | null {
-  const path =
-    resultPath[0] === 'records' && typeof resultPath[1] === 'number'
-      ? resultPath.slice(2)
-      : resultPath
-  let candidates = nodes
-  let current: ExtractionSchemaNode | null = null
-  for (const segment of path) {
-    if (typeof segment === 'number') {
-      if (current?.type !== 'array') return null
-      continue
-    }
-    current = candidates.find((node) => node.name === segment) ?? null
-    if (!current) return null
-    candidates = current.children ?? []
-  }
-  return current
-}
+const reviewSchemaNode = schemaNodeAtPath
 
 function reviewDecisionMatchesSchema(
   nodes: readonly ExtractionSchemaNode[],

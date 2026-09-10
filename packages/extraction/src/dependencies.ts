@@ -1,4 +1,5 @@
 import type { ZodType } from 'zod'
+import type { CatalogPolicy } from './catalog.js'
 import type {
   BatchExtractionResults,
   BatchExtractionSnapshot,
@@ -115,9 +116,23 @@ export type GroundingSelection = Readonly<{
   anchorLabel: string | null
 }>
 
+/** What a claim's value means: its record, its field path and the schema
+ *  description of that field. A string found under another field is not
+ *  evidence. */
+export type GroundingClaimField = Readonly<{
+  record: string | null
+  field: string
+  description: string | null
+}>
+
 export type GroundingModelRequest = Readonly<{
   claims: Readonly<Record<string, string | number | boolean>>
   anchors: Readonly<Record<string, string>>
+  /** Present when the policy asks for field-aware grounding. */
+  claimFields?: Readonly<Record<string, GroundingClaimField>>
+  /** Claims of the same records already linked in code, shown as context
+   *  that needs no answer (policy.groundedContext). */
+  linkedClaims?: Readonly<Record<string, { value: string | number | boolean; anchorLabel: string; field: GroundingClaimField | null }>>
   signal: AbortSignal
 }>
 
@@ -189,4 +204,6 @@ export type ExtractionJobExecutorDependencies = Readonly<{
   inputs: ExtractionInputReader
   models: ExtractionModelSessions
   now?: () => number
+  /** Catalog call structure; DEFAULT_CATALOG_POLICY when absent. */
+  policy?: CatalogPolicy
 }>

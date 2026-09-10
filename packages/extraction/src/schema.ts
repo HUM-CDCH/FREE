@@ -161,6 +161,30 @@ export function partitionSchemaNodes(nodes: readonly SchemaNode[]): SchemaNodePa
   return partition
 }
 
+/** The schema node a result path names; `records[i]` prefixes and array
+ *  indexes are skipped. Null when the path leaves the schema. */
+export function schemaNodeAtPath(
+  nodes: readonly SchemaNode[],
+  resultPath: readonly (string | number)[],
+): SchemaNode | null {
+  const path =
+    resultPath[0] === 'records' && typeof resultPath[1] === 'number'
+      ? resultPath.slice(2)
+      : resultPath
+  let candidates = nodes
+  let current: SchemaNode | null = null
+  for (const segment of path) {
+    if (typeof segment === 'number') {
+      if (current?.type !== 'array') return null
+      continue
+    }
+    current = candidates.find((node) => node.name === segment) ?? null
+    if (!current) return null
+    candidates = current.children ?? []
+  }
+  return current
+}
+
 /** Restore model values to schema order while rejecting unknown keys by default. */
 export function restoreSchemaNodeOrder(
   value: unknown,
@@ -368,19 +392,17 @@ export function stripDescriptions(value: unknown): unknown {
   return result
 }
 
-export function compileInstructions(value: unknown, prefix = ''): string {
-  if (!isRecord(value)) return ''
-  const lines: string[] = []
-  for (const [key, field] of Object.entries(value)) {
-    if (key === '_description') continue
-    const path = prefix ? `${prefix}.${key}` : key
-    const child = Array.isArray(field) ? field[0] : field
-    if (!isRecord(child)) continue
-    const description =
-      typeof child._description === 'string' ? child._description : null
-    if (description) lines.push(`- ${path}: ${description}`)
-    const nested = compileInstructions(child, path)
-    if (nested) lines.push(nested)
+/** The instruction lines of a values call: the record description, then every
+ *  described field on its path, scalar fields and nested groups alike. */
+export function compileInstructions(root: string, recordDescription: string, nodes: readonly SchemaNode[]): string {
+  const lines = [`- ${root}: ${recordDescription}`]
+  const visit = (level: readonly SchemaNode[], prefix: string) => {
+    for (const node of level) {
+      const path = `${prefix}.${node.name}`
+      if (node.description) lines.push(`- ${path}: ${node.description}`)
+      if (node.children) visit(node.children, path)
+    }
   }
+  visit(nodes, root)
   return lines.join('\n')
 }

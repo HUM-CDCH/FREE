@@ -1,6 +1,7 @@
 import {
   createExtractionRuntime,
   ExtractionError,
+  parseCatalogPolicy,
   type ExtractionAttemptSnapshot,
   type ExtractionModel,
   type ExtractionModelSessions,
@@ -10,6 +11,7 @@ import {
 } from 'extraction'
 import { extractionAttemptSchema } from '../shared/extraction.contract.js'
 import { ApiError } from './_http.js'
+import { groundingModelInput, groundingSelections } from './_grounding_prompt.js'
 import { extractWithModel } from './_model.js'
 import { readModelConfig } from './_model_config.js'
 import {
@@ -17,7 +19,6 @@ import {
   type ExecutionTarget,
 } from './_provider.js'
 
-const ABSTAIN = 'NONE'
 const GROUNDING_ISSUE_CODES: Readonly<Record<string, true>> = {
   missing_claim: true,
   unknown_claim_label: true,
@@ -158,77 +159,11 @@ function modelFor(target: ExecutionTarget): ExtractionModel {
   }
 }
 
-function groundingInstruction(
-  claims: Readonly<Record<string, string | number | boolean>>,
-): string {
-  return [
-    'Ground every claim listed after "### Claims". Return exactly the keys shown under "links". Each value must be one exact E label from "### Canonical Evidence", without brackets, or NONE when no candidate directly supports the claim. A translated or normalized claim may cite a passage expressing the same meaning. A claim value or source passage is never a link: do not copy either into the links map. Never cite a C label. Add no snippets, pages, coordinates, explanations, or extra keys.',
-    '',
-    '### Claims',
-    ...Object.entries(claims).map(
-      ([label, value]) => `[${label}] ${JSON.stringify(value)}`,
-    ),
-  ].join('\n')
-}
-
-function groundingSelections(
-  result: Readonly<Record<string, unknown>>,
-): { claimLabel: string; anchorLabel: string | null }[] {
-  if (
-    Object.keys(result).length !== 1 ||
-    !Object.hasOwn(result, 'links') ||
-    result.links === null ||
-    typeof result.links !== 'object' ||
-    Array.isArray(result.links)
-  )
-    throw new ExtractionError(
-      'grounding_failed',
-      'The grounding model returned an invalid response.',
-    )
-  const selections: { claimLabel: string; anchorLabel: string | null }[] = []
-  for (const [claimLabel, anchorLabel] of Object.entries(result.links)) {
-    if (typeof anchorLabel !== 'string' || anchorLabel.length === 0)
-      throw new ExtractionError(
-        'grounding_failed',
-        'The grounding model returned an invalid response.',
-      )
-    selections.push({
-      claimLabel,
-      anchorLabel: anchorLabel === ABSTAIN ? null : anchorLabel,
-    })
-  }
-  return selections
-}
-
 function groundingModelFor(target: ExecutionTarget): GroundingModel {
   return {
     async ground(request) {
     try {
-      const generated = await extractWithModel(
-        {
-          document: {
-            file: null,
-            markdown: [
-              '### Canonical Evidence',
-              ...Object.entries(request.anchors).map(
-                ([label, text]) => `[${label}] ${text}`,
-              ),
-            ].join('\n'),
-            pages: null,
-          },
-          template: {
-            links: Object.fromEntries(
-              Object.keys(request.claims).map((label) => [
-                label,
-                'verbatim-string',
-              ]),
-            ),
-          },
-          instruction: groundingInstruction(request.claims),
-          signal: request.signal,
-        },
-        target,
-      )
+      const generated = await extractWithModel(groundingModelInput(request), target)
       return {
         selections: groundingSelections(generated.result),
         metadata: generated.metadata,
@@ -253,8 +188,17 @@ const models: ExtractionModelSessions = {
   },
 }
 
+/** FREE_CATALOG_POLICY holds a JSON object with any of recordBatchSize,
+ *  lexicalLinks, groundingGroupSize and fieldAwareGrounding; an invalid value
+ *  stops startup rather than running an unintended call structure. */
+function catalogPolicyFromEnvironment() {
+  const raw = process.env.FREE_CATALOG_POLICY?.trim()
+  return parseCatalogPolicy(raw ? JSON.parse(raw) : undefined)
+}
+
 export const extractionRuntime = createExtractionRuntime({
   models,
+  policy: catalogPolicyFromEnvironment(),
 })
 export function createResearcherExtractions(
   researcherAccountId: string,

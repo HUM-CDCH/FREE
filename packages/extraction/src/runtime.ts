@@ -14,7 +14,7 @@ import {
 import type { ExtractionModule, ExtractionRuntime } from './types.js'
 
 export type CreateExtractionRuntimeDependencies = Readonly<
-  Pick<ExtractionJobExecutorDependencies, 'models' | 'now'>
+  Pick<ExtractionJobExecutorDependencies, 'models' | 'now' | 'policy'>
 >
 
 export function createExtractionRuntime(
