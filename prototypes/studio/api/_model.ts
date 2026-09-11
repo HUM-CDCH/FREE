@@ -41,7 +41,7 @@ export { json, parseTemperature, type FormValue } from './_http.js'
 const IMAGE_PLACEHOLDER = '<|vision_start|><|image_pad|><|vision_end|>'
 const NON_THINKING_TEMPERATURE = 0.2
 const EXTRACTION_SCOPE_GUARDRAIL =
-  'Only extract fields defined in the Extraction Schema above. Do not invent, infer, or include any field, key, or record that is not present in the schema.'
+  'Use only the requested output fields. Base values and selections on the supplied source; do not invent unsupported information.'
 export type ExtractModelInput = {
   readonly document: DocumentInput
   readonly template: unknown
@@ -129,7 +129,7 @@ export async function streamChatWithModel(
     const result = streamText({
       model: resolved.model,
       system:
-        'You help humanities researchers inspect source documents in FREE. Use the canonical Source Document Markdown below as the document context.\n\n' +
+        'Answer questions using the source document below. Say when the source does not support an answer.\n\n' +
         `SOURCE DOCUMENT MARKDOWN:\n${documentMarkdown}\nEND SOURCE DOCUMENT MARKDOWN`,
       messages: await convertToModelMessages([...messages]),
       ...(temperature === undefined ? {} : { temperature }),
@@ -205,18 +205,18 @@ export async function extractWithModel(
   let generated: GeneratedText
   if (resolved.profile === 'general') {
     const request = [
-      'Extract information from the Source Document using this Extraction Schema:',
-      JSON.stringify(extractionTemplate, null, 2),
+      ...(outputSchema
+        ? ['Output JSON Schema:\n' + JSON.stringify(await asSchema(outputSchema).jsonSchema, null, 2)]
+        : ['Extract information using this output template:', JSON.stringify(extractionTemplate, null, 2)]),
       ...(callerInstruction
-        ? [`Additional extraction instruction:\n${callerInstruction}`]
+        ? [`Task:\n${callerInstruction}`]
         : []),
     ].join('\n\n')
     const schema = outputSchema ?? deriveExtractionSchema(extractionTemplate)
     generated = await generateWithGenericJsonPrompt(resolved, {
       instructions:
-        'Produce a FREE Extraction Result. Follow the supplied Extraction Schema exactly. ' +
-        'Return only one JSON object with no Markdown or commentary. ' +
-        'Keep every repeated item inside its schema array; close the root object only after the final item. ' +
+        'Follow the task and output structure supplied in the request. ' +
+        'Return one complete JSON object with no Markdown or commentary. ' +
         EXTRACTION_SCOPE_GUARDRAIL,
       request,
       documentParts: documentParts.parts,
@@ -278,7 +278,7 @@ export async function generateSchemaWithModel(
     resolved.profile === 'general'
       ? await generateWithGenericJsonPrompt(resolved, {
           instructions:
-            'Propose a compact FREE Extraction Schema grounded in the supplied Source Document. ' +
+            'Propose a compact extraction schema grounded in the supplied source document. ' +
             'Return only one JSON object containing schema fields and type tokens, with no extracted values, Markdown, or commentary.',
           request: guidance,
           documentParts: documentParts.parts,

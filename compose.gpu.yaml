@@ -1,0 +1,10 @@
+# Added by the launcher after verifying Docker GPU access.
+services:
+  parsing_service:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

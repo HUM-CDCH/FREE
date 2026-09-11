@@ -253,7 +253,7 @@ describe('extractWithModel', () => {
     expect(instructions).not.toContain('_evidence')
     expect(instructions).not.toContain('source evidence')
     expect(instructions).toContain(
-      'Keep every repeated item inside its schema array; close the root object only after the final item.',
+      'Return one complete JSON object with no Markdown or commentary.',
     )
     expect(result.result).toEqual({ grave: [{ name: 'Grave 1' }] })
     expect(result).not.toHaveProperty('evidence')
@@ -443,6 +443,16 @@ describe('extractWithModel', () => {
       expect(unwrapNullable(format?.schema.properties.end)?.enum).toEqual(['B1', 'B3'])
     }
     expect(result.result).toEqual({ starts: ['B1'], end: null })
+    const prompt = JSON.stringify(schemaRecord(doGenerate.mock.calls[0][0]).prompt)
+    expect(prompt).not.toContain('FREE')
+    expect(prompt).not.toContain('not present in the schema')
+    expect(prompt).not.toContain('Extraction Schema:')
+    expect(prompt).toContain('Output JSON Schema:')
+    const messages = schemaRecord(doGenerate.mock.calls[0][0]).prompt as { role: string; content: { type: string; text: string }[] }[]
+    const requestText = messages.find(message => message.role === 'user')!.content[0].text
+    const displayedSchema = JSON.parse(requestText.split('Output JSON Schema:\n')[1].split('\n\n')[0])
+    expect(displayedSchema.properties.end.anyOf).toContainEqual({ type: 'null' })
+    expect(displayedSchema.properties.starts.items.enum).toEqual(['B1', 'B3'])
   })
 
   it('retains invalid discovery labels for local normalization or corrective feedback', async () => {

@@ -62,10 +62,13 @@ either volume is safe.
 
 The container runs a single Uvicorn process for the same reason the host command
 does: the FIFO queue and the reusable `DocumentConverter` are in-process state.
-The root Compose service defaults to `DOCLING_DEVICE=cpu` so the local stack
-works without GPU passthrough. The production overlay selects
-`DOCLING_DEVICE=cuda` and an all-GPU NVIDIA device reservation for DGX
-Spark. Follow the production
+The service defaults to Docling's `DOCLING_DEVICE=auto`: CUDA when available,
+otherwise another supported accelerator or CPU. Both launchers probe Docker
+GPU access with `ubuntu:24.04 nvidia-smi -L` (pulling that small image on first
+use), then add `compose.gpu.yaml` only if the probe succeeds. Without GPU
+access the stack starts on CPU. Set `DOCLING_DEVICE=cpu` to skip the probe,
+or `cuda` to require GPU access. Direct Compose invocations need
+`-f compose.gpu.yaml` to expose GPUs. Follow the production
 [DGX Spark GPU procedure](../../docs/operations/deployment.md#nvidia-dgx-spark-gpu)
 to verify host GPU access and ARM64/PyTorch kernel compatibility.
 

@@ -18,6 +18,7 @@ import {
   developmentComposeArguments,
   developmentComposeEnvironment,
   developmentComposeFiles,
+  parsingGpuComposeArguments,
   deriveDevProfile,
   effectiveLocalEnvironment,
   ensureDevelopmentSessionSecret,
@@ -31,6 +32,27 @@ import {
 } from './free.mjs'
 
 const temporaryDirectories = []
+
+it('uses optional Docker GPU access and preserves explicit device choices', () => {
+  const profile = deriveDevProfile(parseDevOptions([]), {})
+  assert.equal(developmentComposeEnvironment(profile, {}, 'test-secret').DOCLING_DEVICE, 'auto')
+  assert.deepEqual(parsingGpuComposeArguments({ DOCLING_DEVICE: 'cpu' }, () => {
+    assert.fail('CPU must skip the GPU probe')
+  }), [])
+  const gpu = parsingGpuComposeArguments({}, (command, args, options) => {
+    assert.equal(command, 'docker')
+    assert.ok(args.includes('--gpus'))
+    assert.equal(options.timeout, 60_000)
+    return { status: 0, stdout: 'GPU 0: NVIDIA (UUID: GPU-test)' }
+  })
+  assert.deepEqual(gpu, ['-f', 'compose.gpu.yaml'])
+  const args = developmentComposeArguments(profile, gpu)
+  assert.ok(args.indexOf('compose.gpu.yaml') < args.indexOf('up'))
+  for (const result of [{ status: 1 }, { status: null, error: new Error('timeout') }, { status: 0, stdout: '' }]) {
+    assert.deepEqual(parsingGpuComposeArguments({}, () => result), [])
+    assert.throws(() => parsingGpuComposeArguments({ DOCLING_DEVICE: 'cuda' }, () => result), /CUDA was requested/)
+  }
+})
 
 function temporarySecretFile() {
   const directory = mkdtempSync(join(tmpdir(), 'free-launcher-'))
@@ -205,7 +227,7 @@ describe('development launcher profiles', () => {
 
     assert.equal(environment.PATH, 'kept')
     assert.equal(environment.COMPOSE_DISABLE_ENV_FILE, '1')
-    assert.equal(environment.DOCLING_DEVICE, 'cpu')
+    assert.equal(environment.DOCLING_DEVICE, 'cuda')
     assert.equal(environment.FREE_NGINX_PORT, '8443')
     assert.equal(environment.FREE_POSTGRES_PASSWORD, 'postgres')
     assert.equal(environment.STUDIO_BASE_PATH, '/free')
@@ -254,7 +276,7 @@ describe('development launcher profiles', () => {
     )
 
     assert.equal(environment.PATH, 'kept')
-    assert.equal(environment.DOCLING_DEVICE, 'cpu')
+    assert.equal(environment.DOCLING_DEVICE, 'cuda')
     assert.equal(environment.FREE_NGINX_PORT, '8443')
     assert.equal(environment.FREE_NGINX_BIND, '127.0.0.1')
     assert.equal(environment.COMPOSE_PROFILES, undefined)

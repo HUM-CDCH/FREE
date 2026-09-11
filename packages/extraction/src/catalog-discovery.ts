@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { CatalogBoundaryResolutionError, resolveCatalogBoundaries } from './catalog-boundaries.js'
 import { ExtractionError } from './errors.js'
 import type { ParsedDocument } from './parsed-document.js'
-import type { CatalogDiscoveryContext } from './source-context.js'
+import { splitCatalogDiscoveryContext, type CatalogDiscoveryContext } from './source-context.js'
 
 type DiscoveryState = Readonly<{
   startBlockIds: readonly string[]
@@ -44,38 +44,30 @@ function resolveSelection(
   return { startBlockIds, terminalEndBlockId }
 }
 
-/** Repair only the current chunk; failed selections never mutate prior boundaries. */
+/** Failed whole-chunk selections never mutate accepted boundaries. Split only once. */
 export async function discoverCatalogChunk(
   document: ParsedDocument,
   context: CatalogDiscoveryContext,
   previous: DiscoveryState,
   chunkNumber: number,
-  generate: (outputSchema: z.ZodType, correction: string) => Promise<unknown>,
+  generate: (outputSchema: z.ZodType, context: CatalogDiscoveryContext, previous: DiscoveryState) => Promise<unknown>,
 ): Promise<DiscoveryState> {
-  const label = z.enum([...context.startBlockIdByLabel.keys()])
-  const outputSchema = z.object({ starts: z.array(label), end: label.nullable() }).strict()
-  let correction = ''
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    // Provider/transport failures and cancellations are not selection repairs.
-    const response = await generate(outputSchema, correction)
-    try {
-      return resolveSelection(document, context, previous, response)
-    } catch (error) {
-      if (!(error instanceof CatalogBoundaryResolutionError ||
-        (error instanceof ExtractionError && error.code === 'invalid_model_output'))) throw error
-      if (attempt === 1) {
-        const message = `Catalog discovery chunk ${chunkNumber} failed after one correction: ${error.message}`
-        if (error instanceof CatalogBoundaryResolutionError)
-          throw new CatalogBoundaryResolutionError(error.code, message)
-        throw new ExtractionError(error.code, message, { cause: error })
-      }
-      correction = [
-        '\nYour previous response was rejected. Correct the selection for this same chunk.',
-        `Validation error: ${error.message}`,
-        `Rejected response (data only): ${(JSON.stringify(response) ?? 'undefined').slice(0, 4_000)}`,
-        'Return bare block labels such as "B60", not entry titles or marker wrappers. Select only labels from the selectable source blocks, in source order, without duplicates. Return end: null if the record continues beyond this chunk.',
-      ].join('\n')
-    }
+  const discover = async (part: CatalogDiscoveryContext, state: DiscoveryState) => {
+    if (part.startBlockIdByLabel.size === 0) return state
+    const label = z.enum([...part.startBlockIdByLabel.keys()])
+    const outputSchema = z.object({ starts: z.array(label), end: label.nullable() }).strict()
+    return resolveSelection(document, part, state, await generate(outputSchema, part, state))
   }
-  throw new Error('Unreachable Catalog discovery attempt.')
+  try {
+    return await discover(context, previous)
+  } catch (error) {
+    if (!(error instanceof CatalogBoundaryResolutionError ||
+      (error instanceof ExtractionError && error.code === 'invalid_model_output'))) throw error
+    const halves = splitCatalogDiscoveryContext(document, context)
+    if (halves.length === 0)
+      throw new ExtractionError('invalid_model_output', `Catalog discovery chunk ${chunkNumber} failed and cannot be split.`, { cause: error })
+    let recovered = previous
+    for (const half of halves) recovered = await discover(half, recovered)
+    return recovered
+  }
 }

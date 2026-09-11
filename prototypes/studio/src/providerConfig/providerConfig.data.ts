@@ -72,7 +72,7 @@ async function responseJson(response: Response): Promise<unknown> {
   }
 }
 
-async function checkedJson(response: Response): Promise<unknown> {
+export async function checkedJson(response: Response): Promise<unknown> {
   const data = await responseJson(response)
   if (response.ok) return data
   const parsed = apiErrorBodySchema.safeParse(data)

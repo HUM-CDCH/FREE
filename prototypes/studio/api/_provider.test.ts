@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { generateText } from 'ai'
+import { generateText, NoObjectGeneratedError, Output } from 'ai'
+import { z } from 'zod'
 import type { ModelConfig, ModelConnection } from '../shared/modelConfig.contract.js'
 import {
   PROVIDERS,
@@ -41,6 +42,25 @@ function routed(overrides: Partial<ModelConfig> = {}): ModelConfig {
 }
 
 describe('provider table', () => {
+  it('validates Ollama output without hidden regeneration or fabricated fallback values', async () => {
+    const request = vi.fn(async () => Response.json({
+      model: 'manual/model', created_at: '2026-09-10T00:00:00Z',
+      message: { role: 'assistant', content: '' },
+      done: true, done_reason: 'stop', prompt_eval_count: 1, eval_count: 1,
+    }))
+    vi.stubGlobal('fetch', request)
+    const model = providerTable.ollama.createModel(
+      { ...connection, provider: 'ollama', baseUrl: 'http://ollama.example' }, 'manual/model', null,
+    )
+    const result = await generateText({
+      model, prompt: 'Extract records.', maxRetries: 0, reasoning: 'none',
+      output: Output.object({ schema: z.object({ records: z.array(z.object({ name: z.string() })).nullable() }) }),
+    }).catch((error: unknown) => error)
+
+    expect.soft(request).toHaveBeenCalledTimes(1)
+    expect(result).toBeInstanceOf(NoObjectGeneratedError)
+  })
+
   it('passes each Ollama request cancellation through to its HTTP transport', async () => {
     const controller = new AbortController()
     let requestSignal: AbortSignal | null | undefined

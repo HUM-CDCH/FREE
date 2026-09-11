@@ -140,6 +140,7 @@ function run(command, args, options = {}) {
     stdio: options.capture ? 'pipe' : 'inherit',
     encoding: options.capture ? 'utf8' : undefined,
     shell: false,
+    timeout: options.timeout,
   })
   if (result.error && !options.allowFailure) throw result.error
   if (result.status !== 0 && !options.allowFailure)
@@ -359,6 +360,23 @@ export function loadLocalEntraEnvironment(
   )
 }
 
+export function parsingGpuComposeArguments(environment = process.env, execute = run) {
+  if (environment.DOCLING_DEVICE === 'cpu') return []
+  const probe = execute('docker', [
+    'run', '--rm', '--gpus', 'all',
+    'ubuntu:24.04', 'nvidia-smi', '-L',
+  ], { capture: true, allowFailure: true, timeout: 60_000 })
+  if (probe.status === 0 && /GPU \d+:/.test(probe.stdout ?? '')) {
+    console.log('Parsing: NVIDIA GPU available to Docker; enabling GPU access.')
+    return ['-f', 'compose.gpu.yaml']
+  }
+  if (environment.DOCLING_DEVICE?.startsWith('cuda'))
+    throw new Error(`CUDA was requested but Docker GPU access failed: ${probe.stderr || probe.error || 'no GPU found'}`)
+  console.log('Parsing: Docker GPU unavailable; using CPU. ' +
+    (probe.stderr?.trim() || probe.error?.message || 'No NVIDIA GPU found.'))
+  return []
+}
+
 export function developmentComposeFiles(profile) {
   return [
     'compose.yaml',
@@ -367,11 +385,12 @@ export function developmentComposeFiles(profile) {
   ]
 }
 
-export function developmentComposeArguments(profile) {
+export function developmentComposeArguments(profile, gpuArguments = []) {
   return [
     'compose',
     ...(!profile.entra ? ['--profile', 'mock-oidc'] : []),
     ...developmentComposeFiles(profile).flatMap((file) => ['-f', file]),
+    ...gpuArguments,
     'up',
     '--build',
     '--watch',
@@ -402,7 +421,7 @@ export function developmentComposeEnvironment(
     // deliberately self-contained; only host-run tooling consumes its
     // DATABASE_URL.
     COMPOSE_DISABLE_ENV_FILE: '1',
-    DOCLING_DEVICE: 'cpu',
+    DOCLING_DEVICE: environment.DOCLING_DEVICE || 'auto',
     FREE_NGINX_PORT: String(NGINX_PORT),
     FREE_POSTGRES_PASSWORD: 'postgres',
     FREE_SESSION_SECRET: sessionSecret,
@@ -496,7 +515,7 @@ async function localMain(args) {
   printReady(profile)
 
   await awaitChild(
-    spawn('docker', developmentComposeArguments(profile), {
+    spawn('docker', developmentComposeArguments(profile, parsingGpuComposeArguments()), {
       cwd: ROOT,
       env: developmentComposeEnvironment(
         profile,
@@ -629,6 +648,7 @@ async function productionMain(args) {
         'compose.yaml',
         '-f',
         'compose.prod.yaml',
+        ...parsingGpuComposeArguments(environment),
         'up',
         '--build',
         '-d',

@@ -615,34 +615,41 @@ export function createExtractionJobExecutor({
         const discoveryContexts = wholeSource ? [source] : catalogDiscoveryChunks(document)
         for (const [chunkIndex, discoveryContext] of discoveryContexts.entries()) {
           if (discoveryContext.startBlockIdByLabel.size === 0) continue
-          const previousEnd = document.content_stream.find(block => block.block_id === terminalEndBlockId)
-          const previousStart = document.content_stream.find(block => block.block_id === startBlockIds.at(-1))
-          const previousRecord = previousStart ? catalogStartText(previousStart)?.slice(0, 800) : null
           const selection = await discoverCatalogChunk(
             document, discoveryContext, { startBlockIds, terminalEndBlockId }, chunkIndex + 1,
-            async (outputSchema, correction) => {
+            async (outputSchema, selectedContext, accepted) => {
+              const previousEnd = document.content_stream.find(block => block.block_id === accepted.terminalEndBlockId)
+              const previousStart = document.content_stream.find(block => block.block_id === accepted.startBlockIds.at(-1))
+              const previousRecord = previousStart ? catalogStartText(previousStart)?.slice(0, 800) : null
               discoveryCalls += 1
               const generated = await invoke(
                 model,
                 (previousEnd ? `Previous catalog section ended before this block (context only, not selectable):\n## Page ${previousEnd.page_number}\n${catalogStartText(previousEnd)?.slice(0, 800)}\n\n` : '')
-                  + (previousRecord ? `Previous catalog record start (context only, never select again):\n${previousRecord}\n\n` : '') + discoveryContext.text,
+                  + (previousRecord ? `Previous catalog record start (context only, never select again):\n${previousRecord}\n\n` : '') + selectedContext.text,
                 document.page_count,
                 { starts: ['string'], end: 'string' },
-                (wholeSource
-                  ? `Identify every catalog record start matching this record definition: ${definition.recordDescription}\nThis request contains the complete canonical source. Canonical text blocks are marked as [[block:B<number>]]. Entries can start in headings, paragraphs or numbered lists. Select only parent records with the identifier required by the record definition. A continued sentence, description, sub-item or reference must never become a new parent record. Check every selectable block; include short entries and separate entries describing the same entity or locality. Return {"starts":[string],"end":string|null}. Copy the short IDs of matching starts in source order, only from selectable blocks, without duplicates. Return an empty starts array when none match. Identify the first block AFTER the last matching record as end, or null when the last record continues through the source end. Respect all page and section restrictions in the record definition.`
-                  : `Identify every catalog record start matching this record definition: ${definition.recordDescription}\nThis is one consecutive excerpt of the source. Canonical text blocks are marked as [[block:B<number>]]. Entries can start in headings, paragraphs or numbered lists. Select only NEW parent records with the identifier required by the record definition. A continued sentence, description, sub-item or reference must never become a new parent record. The previous record continues until a new parent record begins. Check every selectable block; include short entries and separate entries describing the same entity or locality. Return {"starts":[string],"end":string|null}. Copy the short IDs of matching starts in source order, only from selectable blocks. Return an empty starts array when none match. Also identify the first block AFTER the last matching record as end (for example the start of a later index or bibliography), or null if that record continues beyond this excerpt. A continued record may end here even when this excerpt has no new start. Previous context is only for understanding continuations; its blocks cannot be selected. Select the opening block even when the record continues into the following excerpt. Following context is not selectable. Respect all page and section restrictions in the record definition: return no starts for an excerpt outside that scope. If a previous catalogue section ended, only select a new section when it also matches the definition.`)
-                  + '\nReturn bare block IDs (for example "B60"), not entry titles or [[block:B60]] wrappers.\nSelectable block IDs: ' + [...discoveryContext.startBlockIdByLabel.keys()].join(', ') + correction,
+                `Identify catalog record boundaries. Record definition: ${definition.recordDescription}\n`
+                  + (wholeSource && selectedContext === source
+                    ? 'This request contains the complete canonical source.\n'
+                    : 'This is one consecutive excerpt. Previous and following context are not selectable. Select a record opening here even if it continues beyond this excerpt. A previously started record may end here without any new start. If a previous section ended, select later records only when they match the definition.\n')
+                  + 'Blocks are marked [[block:B<number>]]. Block labels identify source locations, not record numbers. The selectable IDs are candidates, not a list to copy.\n'
+                  + 'starts: select only the opening block of each matching parent record, in source order, without duplicates. Openings may be headings, paragraphs or list items. Do not select continuation text, descriptions, finds within a record, references, or section headings unless they themselves open a matching record. Include short records and separate records about the same locality. Respect the page and section restrictions in the definition. Use [] when no new records match.\n'
+                  + 'end: select the first block outside and AFTER the final matching record, such as a later index or bibliography. It must occur strictly after every selected start and must not appear in starts. Never select the final block merely because the excerpt stops there. Use null when the record continues beyond the selectable text or reaches the source end.\n'
+                  + 'Example for numbered site entries: B1="Sites", B2="17. Hill", B3="Finds: pottery", B4="18. Valley", B5="Finds: flint" gives {"starts":["B2","B4"],"end":null}. If B6="Bibliography" follows and ends the catalog, end is "B6" instead. These example IDs are not selections for the actual source.\n'
+                  + 'Return {"starts":[...],"end":null or a block ID}. Use only selectable bare IDs, such as "B2", without titles or [[block:...]] wrappers.\nSelectable block IDs: ' + [...selectedContext.startBlockIdByLabel.keys()].join(', '),
                 signal,
                 state,
                 outputSchema,
               )
               discoveryMetadata = {
-                finishReason: discoveryMetadata?.finishReason === 'length' ? 'length' : generated.metadata.finishReason,
+                finishReason: generated.metadata.finishReason,
                 inputTokens: sumNullable([discoveryMetadata?.inputTokens ?? null, generated.metadata.inputTokens]),
                 outputTokens: sumNullable([discoveryMetadata?.outputTokens ?? null, generated.metadata.outputTokens]),
                 durationMs: sumNullable([discoveryMetadata?.durationMs ?? null, generated.metadata.durationMs]),
               }
               signal.throwIfAborted()
+              if (generated.metadata.finishReason === 'length')
+                throw new ExtractionError('invalid_model_output', 'Catalog discovery output was truncated.')
               return generated.result
             },
           )

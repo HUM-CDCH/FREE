@@ -1,7 +1,6 @@
 import {
   createExtractionRuntime,
   ExtractionError,
-  parseCatalogPolicy,
   type ExtractionAttemptSnapshot,
   type ExtractionModel,
   type ExtractionModelSessions,
@@ -14,6 +13,7 @@ import { ApiError } from './_http.js'
 import { groundingModelInput, groundingSelections } from './_grounding_prompt.js'
 import { extractWithModel } from './_model.js'
 import { readModelConfig } from './_model_config.js'
+import { readCatalogPolicy } from './_catalog_policy.js'
 import {
   resolveCapabilityRoute,
   type ExecutionTarget,
@@ -188,17 +188,9 @@ const models: ExtractionModelSessions = {
   },
 }
 
-/** FREE_CATALOG_POLICY holds a JSON object with any of recordBatchSize,
- *  lexicalLinks, groundingGroupSize and fieldAwareGrounding; an invalid value
- *  stops startup rather than running an unintended call structure. */
-function catalogPolicyFromEnvironment() {
-  const raw = process.env.FREE_CATALOG_POLICY?.trim()
-  return parseCatalogPolicy(raw ? JSON.parse(raw) : undefined)
-}
-
 export const extractionRuntime = createExtractionRuntime({
   models,
-  policy: catalogPolicyFromEnvironment(),
+  readPolicy: readCatalogPolicy,
 })
 export function createResearcherExtractions(
   researcherAccountId: string,
