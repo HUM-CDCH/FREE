@@ -354,6 +354,46 @@ whose commit finishes later becomes authoritative without a field-level merge.
 Credential values are write-only and are never returned; Studio shows only
 `present`, `absent`, or `unavailable` state plus preserve/remove controls.
 
+## Tune Catalog extraction
+
+Catalog mode batches its model calls under a policy. The default groups five
+records per values call and five per grounding call, names each claim's record
+and field to the grounder, and makes one discovery call over the complete
+source when its discovery text is at most 48,000 characters; larger sources
+keep per-page discovery. This needs no configuration.
+
+To override it, set `FREE_CATALOG_POLICY` on Studio to a JSON object holding
+only the keys you change:
+
+```dotenv
+FREE_CATALOG_POLICY={"wholeSourceDiscoveryMaxChars":72000}
+```
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `recordBatchSize` | 5 | Records per values call, 1 to 50. A batch that does not return every record once, in order, re-runs one record per call and keeps none of its rows. |
+| `groundingGroupSize` | 5 | Records per grounding call, 1 to 50. Every link is validated against its own record's anchors. |
+| `fieldAwareGrounding` | `true` | The grounder sees each claim's record, field name and description. |
+| `wholeSourceDiscoveryMaxChars` | 48000 | Character budget for whole-source discovery; `0` always chunks by page. |
+
+`CatalogPolicy` carries further keys (`citations`, `labelledSlices`,
+`citationLinks`, `groundAlways`, `groundMultiHit`, `groundedContext`,
+`lexicalLinks`). Each was measured against this corpus, rejected on quality or
+speed, and stays off; they are not deployment settings.
+
+The budget counts characters, not tokens: 48,000 is about 21,500 prompt tokens
+at the densest measured text, which fits a 32,768-token context. Raise it only
+when the deployment's Extraction model has the context to match.
+
+`FREE_CATALOG_POLICY` is read once at startup. An unknown key, a wrong type or
+an out-of-range size stops Studio with the offending key named, so a typo fails
+the deployment instead of silently extracting under the default. Omitting the
+variable keeps the default. To restore the pre-batching behaviour:
+
+```dotenv
+FREE_CATALOG_POLICY={"recordBatchSize":1,"groundingGroupSize":1,"fieldAwareGrounding":false,"wholeSourceDiscoveryMaxChars":0}
+```
+
 ## Network exposure and proxy trust
 
 The resolved production topology is:

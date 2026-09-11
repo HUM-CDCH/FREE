@@ -13,6 +13,8 @@ export const evidenceLinkSchema = z
     // Grounding's lexical checks; absent on booleans and on older links.
     verbatim: z.boolean().optional(),
     lexicalHits: z.number().int().nonnegative().optional(),
+    // Absent means the grounder chose the anchor.
+    linkedBy: z.enum(['citation_lexical', 'lexical']).optional(),
   })
   .strict()
 

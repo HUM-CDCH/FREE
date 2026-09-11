@@ -420,10 +420,13 @@ if (!disposableDatabaseUrl) {
 
   /**
    * A discovery-aware model over the seeded canonical package's two headings.
-   * The first values call against the Product B slice fails, so a fresh
-   * Catalog run persists a partial attempt whose failed record can be retried.
+   * Values calls against the Product B slice fail, so a fresh Catalog run
+   * persists a partial attempt whose failed record can be retried. Two
+   * failures is one run's worth under a batching policy: the batched call
+   * covers both slices and its rejection re-runs one record per call, so
+   * Product B must fail in the batch and again on its own to stay failed.
    */
-  function catalogAdapters(failures = 1): DeterministicAdapters {
+  function catalogAdapters(failures = 2): DeterministicAdapters {
     const base = deterministicAdapters()
     let betaFailures = failures
     const model: ExtractionModel = {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { describe, it } from 'node:test'
 import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
-import { CATALOG_NOT_ATTEMPTED_LIMIT, CATALOG_RECORD_LIMIT } from './catalog.js'
+import { CATALOG_NOT_ATTEMPTED_LIMIT, CATALOG_POLICY_V1, CATALOG_POLICY_V2, CATALOG_RECORD_LIMIT, DEFAULT_CATALOG_POLICY, PER_RECORD_CATALOG_POLICY, parseCatalogPolicy, type CatalogPolicy } from './catalog.js'
 import type {
   ExtractionJobInput,
   ExtractionInputReader,
@@ -260,6 +260,7 @@ function catalogHarness(options: {
   beforeDiscovery?: (signal: AbortSignal) => void
   schemaTree?: unknown
   script?: readonly ScriptedCall[]
+  policy?: CatalogPolicy
 } = {}) {
   const labels = options.labels ?? ['First', 'Second']
   const document = catalogDocument(labels, options.startKind)
@@ -339,6 +340,8 @@ function catalogHarness(options: {
       },
     },
     now: () => 10,
+    // The Catalog contract below is written against one call per record.
+    policy: options.policy ?? PER_RECORD_CATALOG_POLICY,
   })
   const module = {
     executeJob,
@@ -618,6 +621,22 @@ describe('ExtractionModule Catalog contract', () => {
     assert.ok(discoveryCalls[1].markdown.includes('Previous catalog record start (context only, never select again):\nFirst'))
   })
 
+  it('discovers the whole source in one call when it fits the policy budget', async () => {
+    const labels = ['First', 'Middle', 'Last'].map(label => `${label} ${'content '.repeat(1800)}`)
+    const chunked = catalogHarness({ labels, startKind: 'paragraph' })
+    const whole = catalogHarness({ labels, startKind: 'paragraph', policy: { ...PER_RECORD_CATALOG_POLICY, wholeSourceDiscoveryMaxChars: 100_000 } })
+    const left = await chunked.module.runSingle(catalogInput())
+    const right = await whole.module.runSingle(catalogInput())
+    const discovery = whole.calls.filter(call => 'starts' in call.template)
+    assert.equal(discovery.length, 1)
+    assert.ok(discovery[0]!.instruction!.includes('This request contains the complete canonical source.'))
+    assert.ok(discovery[0]!.instruction!.endsWith('Selectable block IDs: B1, B2, B3, B4, B5, B6'))
+    assert.ok(!discovery[0]!.markdown.includes('context (not selectable)'))
+    assert.equal(right.extraction.diagnostics.catalog?.stages.find(stage => stage.stage === 'discovery')?.calls, 1)
+    assert.deepEqual(right.extraction.result, left.extraction.result)
+    assert.deepEqual(right.extraction.evidence, left.extraction.evidence)
+  })
+
   it('keeps normal physical pages together and their block labels separate', () => {
     const source = catalogDocument(['First', 'Second'], 'paragraph')
     source.page_count = source.document.page_count = 2
@@ -759,4 +778,225 @@ describe('ExtractionModule Catalog contract', () => {
     )
   })
 
+})
+
+describe('Catalog policy', () => {
+  const batched: CatalogPolicy = { ...PER_RECORD_CATALOG_POLICY, recordBatchSize: 3 }
+
+  it('defaults to policy v2 and keeps v1 and the per-record policy reachable', () => {
+    assert.deepEqual(DEFAULT_CATALOG_POLICY, CATALOG_POLICY_V2)
+    assert.deepEqual(CATALOG_POLICY_V2, { ...CATALOG_POLICY_V1, wholeSourceDiscoveryMaxChars: 48_000 })
+    assert.deepEqual(CATALOG_POLICY_V1, { recordBatchSize: 5, lexicalLinks: false, groundingGroupSize: 5, fieldAwareGrounding: true, citations: false, labelledSlices: false, citationLinks: false, groundAlways: [], groundMultiHit: false, groundedContext: false, wholeSourceDiscoveryMaxChars: 0 })
+    assert.deepEqual(PER_RECORD_CATALOG_POLICY, { recordBatchSize: 1, lexicalLinks: false, groundingGroupSize: 1, fieldAwareGrounding: false, citations: false, labelledSlices: false, citationLinks: false, groundAlways: [], groundMultiHit: false, groundedContext: false, wholeSourceDiscoveryMaxChars: 0 })
+  })
+
+  it('runs policy v1 as one batch and one grouped grounding call', async () => {
+    const harness = catalogHarness({
+      labels: ['First', 'Second'],
+      policy: CATALOG_POLICY_V1,
+      script: [{ result: { records: [{ record_id: 'R1', title: 'Alpha', year: 1901 }, { record_id: 'R2', title: 'Beta', year: 1902 }] } }],
+    })
+    const { extraction } = await harness.module.runSingle(catalogInput())
+    assert.deepEqual(extraction.result, { records: [{ title: 'Alpha', year: 1901 }, { title: 'Beta', year: 1902 }] })
+    assert.equal(harness.calls.length, 2)
+    assert.equal(extraction.diagnostics.groundingBatches.length, 1)
+  })
+
+  it('renders labelled blocks, asks for citations and links a verified one without the grounder', async () => {
+    const harness = catalogHarness({
+      labels: ['First', 'Second'],
+      policy: { ...CATALOG_POLICY_V1, citations: true, citationLinks: true },
+      script: [{ result: { records: [
+        // Labels restart per record: E1 is each record's heading block; the years are cited nowhere.
+        { record_id: 'R1', title: 'First', year: 1901, _citations: 'E1 -' },
+        { record_id: 'R2', title: 'Second', year: 1902, _citations: '[E9] -' },
+      ] } }],
+    })
+    const { extraction } = await harness.module.runSingle(catalogInput())
+    const values = harness.calls[1]!
+    assert.match(values.markdown, /### Record R1\n## Page 1\n\[E1\] First\n\[E2\] First body\n\n### Record R2\n## Page 1\n\[E1\] Second/)
+    assert.equal((values.template.records as Record<string, unknown>[])[0]!._citations, 'string')
+    assert.match(values.instruction ?? '', /_citations give, per field and in this order: title year, the \[E<n>\] label/)
+    assert.deepEqual(extraction.result, { records: [{ title: 'First', year: 1901 }, { title: 'Second', year: 1902 }] })
+    // R1's title is verified in code ("First" also occurs in its body block, hence two hits, still linked without groundMultiHit);
+    // R2 cited a label its slice does not have, so it and both years went to the grounder.
+    const byPath = new Map(extraction.evidence!.map((link) => [JSON.stringify(link.resultPath), link]))
+    assert.deepEqual(byPath.get(JSON.stringify(['records', 0, 'title'])), { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-h0', verbatim: true, lexicalHits: 2, linkedBy: 'citation_lexical' })
+    assert.equal(byPath.get(JSON.stringify(['records', 1, 'title']))?.linkedBy, undefined)
+    assert.equal(extraction.diagnostics.groundingBatches.length, 1)
+  })
+
+  it('renders labelled blocks without asking for citations under labelledSlices', async () => {
+    const harness = catalogHarness({
+      labels: ['First', 'Second'],
+      policy: { ...CATALOG_POLICY_V1, labelledSlices: true },
+      script: [{ result: { records: [{ record_id: 'R1', title: 'First', year: 1901 }, { record_id: 'R2', title: 'Second', year: 1902 }] } }],
+    })
+    const { extraction } = await harness.module.runSingle(catalogInput())
+    const values = harness.calls[1]!
+    assert.match(values.markdown, /### Record R1\n## Page 1\n\[E1\] First\n\[E2\] First body\n\n### Record R2\n## Page 1\n\[E1\] Second/)
+    assert.equal((values.template.records as Record<string, unknown>[])[0]!._citations, undefined)
+    assert.doesNotMatch(values.instruction ?? '', /_citations/)
+    assert.deepEqual(extraction.result, { records: [{ title: 'First', year: 1901 }, { title: 'Second', year: 1902 }] })
+    assert.ok(extraction.evidence!.every((link) => link.linkedBy === undefined))
+  })
+
+  it('gives the values call every field description, scalar fields included', async () => {
+    const harness = catalogHarness({
+      labels: ['First', 'Second'],
+      policy: CATALOG_POLICY_V1,
+      schemaTree: {
+        recordDescription: 'One catalogue entry.',
+        schemaNodes: [
+          { id: 'title', name: 'title', type: 'string', description: 'The entry heading as printed.' },
+          { id: 'finds', name: 'finds', type: 'array', description: 'Objects of the entry.', children: [{ id: 'item', name: 'item', type: 'string', description: 'One object, source wording.' }] },
+        ],
+      },
+      script: [{ result: { records: [{ record_id: 'R1', title: 'First', finds: [] }, { record_id: 'R2', title: 'Second', finds: [] }] } }],
+    })
+    await harness.module.runSingle(catalogInput())
+    const values = harness.calls[1]!
+    assert.equal(values.instruction!.split('\n').slice(0, 4).join('\n'), [
+      '- records: One catalogue entry.',
+      '- records.title: The entry heading as printed.',
+      '- records.finds: Objects of the entry.',
+      '- records.finds.item: One object, source wording.',
+    ].join('\n'))
+    assert.deepEqual(values.template, { records: [{ record_id: 'string', title: 'string', finds: [{ item: 'string' }] }] })
+  })
+
+  it('keeps no row of a batch whose later row fails validation', async () => {
+    const harness = catalogHarness({
+      labels: ['First', 'Second'],
+      policy: batched,
+      schemaTree: {
+        recordDescription: 'Records with a list of finds.',
+        schemaNodes: [
+          { id: 'title', name: 'title', type: 'string' },
+          { id: 'finds', name: 'finds', type: 'array', children: [{ id: 'item', name: 'item', type: 'string' }] },
+        ],
+      },
+      script: [
+        // The second row's finds is a string: restoreSchemaNodeOrder rejects it after the first row was valid.
+        { result: { records: [{ record_id: 'R1', title: 'Alpha', finds: [{ item: 'axe' }] }, { record_id: 'R2', title: 'Beta', finds: 'none' }] } },
+        { result: { record: { title: 'Alpha', finds: [{ item: 'axe' }] } } },
+        { result: { record: { title: 'Beta', finds: [] } } },
+      ],
+    })
+    const { extraction } = await harness.module.runSingle(catalogInput())
+    assert.deepEqual(extraction.result, { records: [{ title: 'Alpha', finds: [{ item: 'axe' }] }, { title: 'Beta', finds: [] }] })
+    assert.deepEqual(extraction.diagnostics.catalog!.records.map((record) => record.ordinal), [0, 1])
+    assert.equal(harness.calls.length, 4)
+  })
+
+  it('routes a batch through a key the researcher schema does not use', async () => {
+    const harness = catalogHarness({
+      labels: ['First', 'Second'],
+      policy: batched,
+      schemaTree: {
+        recordDescription: 'Records with their own identifier.',
+        schemaNodes: [
+          { id: 'record_id', name: 'record_id', type: 'integer' },
+          { id: 'title', name: 'title', type: 'string' },
+        ],
+      },
+      script: [{ result: { records: [{ _record_id: 'R1', record_id: 29, title: 'Alpha' }, { _record_id: 'R2', record_id: 30, title: 'Beta' }] } }],
+    })
+    const { extraction } = await harness.module.runSingle(catalogInput())
+    assert.deepEqual(harness.calls[1].template, { records: [{ _record_id: 'string', record_id: 'integer', title: 'string' }] })
+    assert.ok(harness.calls[1].instruction?.includes('into _record_id'))
+    assert.deepEqual(extraction.result, { records: [{ record_id: 29, title: 'Alpha' }, { record_id: 30, title: 'Beta' }] })
+  })
+
+  it('extracts a batch of records in one identified values call', async () => {
+    const harness = catalogHarness({
+      labels: ['First', 'Second', 'Third'],
+      policy: batched,
+      script: [{ result: { records: [
+        { record_id: 'R1', title: 'Alpha', year: 1901 },
+        { record_id: 'R2', title: 'Beta', year: 1902 },
+        { record_id: 'R3', title: 'Gamma', year: 1903 },
+      ] } }],
+    })
+    const { extraction } = await harness.module.runSingle(catalogInput())
+    assert.equal(extraction.outcome, 'SUCCEEDED')
+    assert.equal(extraction.complete, true)
+    assert.deepEqual(extraction.result, { records: [
+      { title: 'Alpha', year: 1901 },
+      { title: 'Beta', year: 1902 },
+      { title: 'Gamma', year: 1903 },
+    ] })
+    // One discovery call plus one values call for the whole batch.
+    assert.equal(harness.calls.length, 2)
+    const values = harness.calls[1]
+    assert.deepEqual(values.template, { records: [{ record_id: 'string', title: 'string', year: 'integer' }] })
+    assert.ok(values.markdown.includes('### Record R1\n'))
+    assert.ok(values.markdown.includes('### Record R3\n'))
+    assert.ok(values.markdown.indexOf('First body') < values.markdown.indexOf('Third body'))
+    assert.ok(values.instruction?.includes('copy that heading\'s identifier (R1, R2, R3) into record_id'))
+    const records = extraction.diagnostics.catalog!.records
+    assert.deepEqual(records.map((record) => [record.ordinal, record.outcome, record.calls]), [[0, 'succeeded', 1], [1, 'succeeded', 0], [2, 'succeeded', 0]])
+    assert.equal(extraction.diagnostics.catalog!.stages.find((stage) => stage.stage === 'record-values')?.calls, 1)
+    assert.equal(extraction.diagnostics.groundingBatches.length, 3)
+  })
+
+  it('falls back to one call per record when a batch loses an identity', async () => {
+    const harness = catalogHarness({
+      labels: ['First', 'Second'],
+      policy: batched,
+      script: [
+        { result: { records: [{ record_id: 'R2', title: 'Beta', year: 1902 }, { record_id: 'R1', title: 'Alpha', year: 1901 }] } },
+        { result: { record: { title: 'Alpha', year: 1901 } } },
+        { result: { record: { title: 'Beta', year: 1902 } } },
+      ],
+    })
+    const { extraction } = await harness.module.runSingle(catalogInput())
+    assert.equal(extraction.outcome, 'SUCCEEDED')
+    assert.deepEqual(extraction.result, { records: [{ title: 'Alpha', year: 1901 }, { title: 'Beta', year: 1902 }] })
+    // Discovery, the rejected batch, then one call per record.
+    assert.equal(harness.calls.length, 4)
+    assert.deepEqual(harness.calls[2].template, { record: { title: 'string', year: 'integer' } })
+    assert.ok(harness.calls[2].markdown.includes('First body') && !harness.calls[2].markdown.includes('Second body'))
+    assert.deepEqual(extraction.diagnostics.catalog!.records.map((record) => record.calls), [1, 1])
+  })
+
+  it('keeps reused retry records in result order around executed records', async () => {
+    const harness = catalogHarness({
+      labels: ['First', 'Second', 'Third'],
+      policy: batched,
+      script: [
+        { result: { records: [{ record_id: 'R1', title: 'Alpha', year: 1901 }] } },
+        { error: new Error('first failed') },
+        { result: { record: { title: 'Beta', year: 1902 } } },
+        { error: new Error('third failed') },
+      ],
+    })
+    const parent = (await harness.module.runSingle(catalogInput())).extraction
+    assert.deepEqual(parent.diagnostics.catalog!.records.map((record) => record.outcome), ['failed', 'succeeded', 'failed'])
+    harness.setScript([
+      { result: { record: { title: 'Alpha 2', year: 1911 } } },
+      { result: { record: { title: 'Gamma 2', year: 1913 } } },
+    ])
+    harness.calls.length = 0
+    const child = (await harness.module.runSingle(retryInput(parent.extractionId, { retryRecordStartBlockIds: ['h0', 'h2'] }))).extraction
+    // A reused record flushes the pending batch first, so each retried record runs alone.
+    assert.equal(harness.calls.length, 2)
+    assert.deepEqual(child.result, { records: [
+      { title: 'Alpha 2', year: 1911 },
+      { title: 'Beta', year: 1902 },
+      { title: 'Gamma 2', year: 1913 },
+    ] })
+    assert.deepEqual(child.diagnostics.catalog!.records.map((record) => record.provenance), ['executed', 'reused', 'executed'])
+  })
+
+  it('parses a partial policy and rejects invalid values', () => {
+    assert.deepEqual(parseCatalogPolicy(undefined), DEFAULT_CATALOG_POLICY)
+    assert.deepEqual(parseCatalogPolicy({ recordBatchSize: 5, lexicalLinks: true }), { ...DEFAULT_CATALOG_POLICY, recordBatchSize: 5, lexicalLinks: true })
+    assert.throws(() => parseCatalogPolicy({ recordBatchSize: 0 }))
+    assert.throws(() => parseCatalogPolicy({ groundingGroupSize: 1.5 }))
+    assert.throws(() => parseCatalogPolicy({ wholeSourceDiscoveryMaxChars: -1 }))
+    assert.throws(() => parseCatalogPolicy({ lexicalLinks: 'yes' }))
+    assert.throws(() => parseCatalogPolicy({ batchSize: 3 }))
+    assert.throws(() => parseCatalogPolicy([]))
+  })
 })

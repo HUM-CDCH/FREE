@@ -4,6 +4,7 @@ import { catalogStartText } from './catalog-boundaries.js'
 export type SourceContext = Readonly<{
   text: string
   anchorIdByLabel: ReadonlyMap<string, string>
+  labelByAnchorId: ReadonlyMap<string, string>
   textByAnchorId: ReadonlyMap<string, string>
 }>
 export type AnchoredSource = SourceContext
@@ -186,13 +187,28 @@ export function canonicalSourceSlice(
   )
 }
 
-export function sourceContext(document: ParsedDocument, selectedAnchorIds?: ReadonlySet<string>): SourceContext {
+/** Anchors of the blocks inside one Catalog record boundary. */
+export function recordAnchorIds(document: ParsedDocument, boundary: { startContentIndex: number; endContentIndex: number }): Set<string> {
+  const blocks = document.content_stream.slice(boundary.startContentIndex, boundary.endContentIndex)
+  const blockIds = new Set(blocks.map((block) => block.block_id))
+  const tableIds = new Set(blocks.flatMap((block) => (block.kind === 'table' ? [block.table_id] : [])))
+  return new Set(
+    document.evidence_index.anchors
+      .filter((anchor) => (anchor.kind === 'text' ? blockIds.has(anchor.block_id) : tableIds.has(anchor.logical_table_id)))
+      .map((anchor) => anchor.anchor_id),
+  )
+}
+
+/** Render the selected anchors as labelled lines. `labels` pins the labels
+ *  (for example the whole document's) so a record slice cites the same
+ *  E labels the grounder will see; otherwise labels are numbered in order. */
+export function sourceContext(document: ParsedDocument, selectedAnchorIds?: ReadonlySet<string>, labels?: ReadonlyMap<string, string>): SourceContext {
   const anchorIdByLabel = new Map<string, string>()
   const labelByAnchorId = new Map<string, string>()
   const label = (anchorId: string) => {
     const existing = labelByAnchorId.get(anchorId)
     if (existing) return existing
-    const next = `E${anchorIdByLabel.size + 1}`
+    const next = labels?.get(anchorId) ?? `E${anchorIdByLabel.size + 1}`
     anchorIdByLabel.set(next, anchorId)
     labelByAnchorId.set(anchorId, next)
     return next
@@ -228,7 +244,7 @@ export function sourceContext(document: ParsedDocument, selectedAnchorIds?: Read
       lines.push(rendered)
     }
   }
-  return { text: lines.join('\n'), anchorIdByLabel, textByAnchorId }
+  return { text: lines.join('\n'), anchorIdByLabel, labelByAnchorId, textByAnchorId }
 }
 
 export const anchoredSource = sourceContext

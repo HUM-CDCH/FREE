@@ -128,6 +128,23 @@ export function boundedContains(value: string | number | boolean, text: string):
   return tokenMatcher(String(value))(lexicalText(text))
 }
 
+/** The one candidate anchor containing the value as a bounded token, or
+ *  null when none or several do. Booleans never match. */
+export function lexicalUniqueHit(
+  value: string | number | boolean,
+  textByAnchorId: ReadonlyMap<string, LexicalText>,
+): string | null {
+  if (typeof value === 'boolean') return null
+  const matches = tokenMatcher(String(value))
+  let hit: string | null = null
+  for (const [anchorId, text] of textByAnchorId) {
+    if (!matches(text)) continue
+    if (hit !== null) return null
+    hit = anchorId
+  }
+  return hit
+}
+
 export type LexicalCheck = Readonly<{ verbatim: boolean; lexicalHits: number }>
 
 /** The two doubts a reviewer can hold about one link: is the value in the

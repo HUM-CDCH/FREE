@@ -1058,7 +1058,8 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     enqueue('discovery', {
       result: { starts: ['B2', 'B3'] },
     })
-    enqueue('record', { result: { record: { title: 'A' } } }, { result: { record: { title: 'B' } } })
+    // Both records share one identified values call under the default policy.
+    enqueue('record', { result: { records: [{ record_id: 'R1', title: 'A' }, { record_id: 'R2', title: 'B' }] } })
     enqueue('grounding', { grounding: true }, { grounding: true })
     await page.getByLabel('Extraction strategy').selectOption('CATALOG')
     await page.getByRole('button', { name: '▶ Run extraction' }).click()
@@ -1088,7 +1089,9 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
         starts: ['B2', 'B3', 'B4'],
       },
     })
-    enqueue('record', { result: { record: { title: 'A' } } }, { status: 500 }, { result: { record: { title: 'C' } } })
+    // The batched call fails, so the policy re-runs one record per call: the
+    // middle record fails on its own and leaves the attempt partial.
+    enqueue('record', { status: 500 }, { result: { record: { title: 'A' } } }, { status: 500 }, { result: { record: { title: 'C' } } })
     enqueue('grounding', { grounding: true }, { grounding: true })
     const partialId = randomUUID()
     const partialResponse = await page.request.post(e2eStudioPath('/api/extractions'), {
@@ -1287,12 +1290,16 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
         starts: ['B2', 'B3', 'B4'],
       },
     })
-    enqueue('record', { result: { record: { title: 'A' } } }, { result: { record: { title: 'B' } }, delayMs: 10_000 })
+    // One batched values call for the three records, held open long enough to cancel.
+    enqueue('record', {
+      result: { records: [{ record_id: 'R1', title: 'A' }, { record_id: 'R2', title: 'B' }, { record_id: 'R3', title: 'C' }] },
+      delayMs: 10_000,
+    })
     const cancellationPost = page.request.post(e2eStudioPath('/api/extractions'), {
       headers: { Origin: E2E_ORIGIN },
       data: { id: cancellationId, sourceRepresentationRevisionId: cancellationRepresentationId, schemaRevisionId: firstSchemaRevisionId, strategy: 'CATALOG' },
     })
-    await waitForCalls(callsBeforeCancellation + 4)
+    await waitForCalls(callsBeforeCancellation + 3)
     const cancellationDelete = await page.request.delete(e2eStudioPath(`/api/extractions/${cancellationId}`), {
       headers: { Origin: E2E_ORIGIN },
     })
