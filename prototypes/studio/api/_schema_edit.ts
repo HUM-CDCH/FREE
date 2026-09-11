@@ -323,7 +323,7 @@ function promptFieldValue(field: PromptField): PromptFieldValue {
 
 function schemaEditPrompt(fields: readonly PromptField[], instruction: string, markdown: string | null): string {
   const source = markdown === null ? '' : `\n\nSOURCE DOCUMENT MARKDOWN:\n${markdown}\nEND SOURCE DOCUMENT MARKDOWN`
-  return `You edit FREE Extraction Schemas for humanities researchers.
+  return `Edit the extraction schema according to the researcher instruction.
 
 Researcher instruction: ${JSON.stringify(instruction)}
 Existing fields, keyed by opaque field ids that must be echoed exactly and never rewritten, even when the field's own "name" is being changed:
@@ -346,7 +346,7 @@ Rules:
 }
 
 function retryPrompt(fields: readonly PromptField[], instruction: string): string {
-  return `Repair only the missing or invalid field entries for this FREE schema edit.
+  return `Repair only the missing or invalid field entries for this schema edit.
 Researcher instruction: ${JSON.stringify(instruction)}
 Required opaque field ids and current values:
 ${JSON.stringify(Object.fromEntries(fields.map((field) => [field.id, promptFieldValue(field)])), null, 2)}

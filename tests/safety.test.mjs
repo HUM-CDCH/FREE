@@ -139,20 +139,22 @@ test('production: missing or weak values are rejected before startup', () => {
   assert.ok(errors.some((error) => error.includes('FREE_ENTRA_TENANT_ID')))
 })
 
-test('production: the compose overlay renders with a valid environment', (t) => {
+for (const gpu of [false, true]) test(`production: compose renders with GPU access ${gpu ? 'enabled' : 'disabled'}`, (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'free-prod-compose-'))
   t.after(() => rmSync(directory, { recursive: true, force: true }))
   const certificate = join(directory, 'client.pem')
   writeFileSync(certificate, 'not-a-real-key')
   const result = spawnSync(
     'docker',
-    ['compose', '-f', 'compose.yaml', '-f', 'compose.prod.yaml', 'config'],
+    ['compose', '-f', 'compose.yaml', '-f', 'compose.prod.yaml',
+      ...(gpu ? ['-f', 'compose.gpu.yaml'] : []), 'config'],
     {
       cwd: ROOT,
       env: {
         ...process.env,
         ...completeProductionEnvironment(certificate),
         COMPOSE_DISABLE_ENV_FILE: '1',
+        DOCLING_DEVICE: 'auto',
       },
       encoding: 'utf8',
       timeout: 120_000,
@@ -160,6 +162,8 @@ test('production: the compose overlay renders with a valid environment', (t) => 
   )
   assert.equal(result.status, 0, result.stderr)
   assert.match(result.stdout, /studio:/)
+  assert.match(result.stdout, /DOCLING_DEVICE: auto/)
+  assert.equal(result.stdout.includes('driver: nvidia'), gpu)
   // Production has no containerized nginx and no mock identity provider.
   assert.ok(!/^\s{2}nginx:/m.test(result.stdout), 'nginx stays on the host')
   assert.ok(!result.stdout.includes('mock-oidc'), 'the mock cannot reach production')

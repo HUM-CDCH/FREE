@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Extraction domain and runtime",
   "exports": {
+    "./catalog": "./src/catalog.ts",
     ".": "./src/index.ts",
     "./allowed-values": "./src/allowed-values.ts",
     "./batch": "./src/batch.ts",

@@ -27,9 +27,12 @@ touches the host nginx configuration outside the one include described below.
 Install Docker with Docker Compose v2.40.0 or later. The launcher checks this
 before starting because the production network selection uses `gw_priority`.
 
-Production requires an NVIDIA GPU: `compose.prod.yaml` requests NVIDIA GPU
-devices and sets `DOCLING_DEVICE=cuda`. Local development
-keeps the CPU default. See [NVIDIA DGX Spark GPU](#nvidia-dgx-spark-gpu)
+Both launchers use `DOCLING_DEVICE=auto` by default and probe Docker GPU access
+with `docker run --rm --gpus all ubuntu:24.04 nvidia-smi -L` (a first-use image
+pull may be needed). A successful probe adds `compose.gpu.yaml`; otherwise
+startup continues on CPU. Set `DOCLING_DEVICE=cpu` to skip probing or `cuda`
+to require a GPU. The probe has a 60-second timeout; a failed or timed-out
+probe prints its diagnostic. See [NVIDIA DGX Spark GPU](#nvidia-dgx-spark-gpu)
 for host validation and image compatibility checks.
 The initial image build and the first start's Docling layout and table model
 download can take several minutes and substantial disk space. Later builds and
@@ -95,16 +98,14 @@ docker run --rm --gpus=all \
 
 Do not continue if that fails. Fix the host runtime before changing FREE.
 
-FREE's production overlay already contains the CUDA selector
-and GPU reservation below. No `.env` GPU setting or manual uncommenting is
-needed; production selects CUDA even if the host environment sets
-`DOCLING_DEVICE=cpu`.
+The launcher automatically adds the GPU reservation below from
+`compose.gpu.yaml` when Docker exposes an NVIDIA GPU. Docling's `auto` mode
+selects CUDA when PyTorch can use it. When invoking Compose directly, include
+`-f compose.gpu.yaml` after the production overlay to enable GPU access.
 
 ```yaml
 services:
   parsing_service:
-    environment:
-      DOCLING_DEVICE: cuda
     deploy:
       resources:
         reservations:
@@ -157,9 +158,9 @@ operation without starting the queue, downloading Docling models, or touching
 the database:
 
 ```bash
-docker compose -f compose.yaml -f compose.prod.yaml run --rm --no-deps --build \
+docker compose -f compose.yaml -f compose.prod.yaml -f compose.gpu.yaml run --rm --no-deps --build \
   parsing_service uv run --no-sync python -c \
-  "import os, platform, torch; assert os.environ['DOCLING_DEVICE'] == 'cuda'; assert platform.machine() == 'aarch64'; assert torch.cuda.is_available(); print('torch', torch.__version__, 'CUDA', torch.version.cuda, 'GPU', torch.cuda.get_device_name(0), 'capability', torch.cuda.get_device_capability(0)); x = torch.ones((32, 32), device='cuda'); y = x @ x; torch.cuda.synchronize(); assert y.sum().item() == 32768; print('CUDA matmul OK')"
+  "import os, platform, torch; assert os.environ['DOCLING_DEVICE'] in ('auto', 'cuda'); assert platform.machine() == 'aarch64'; assert torch.cuda.is_available(); print('torch', torch.__version__, 'CUDA', torch.version.cuda, 'GPU', torch.cuda.get_device_name(0), 'capability', torch.cuda.get_device_capability(0)); x = torch.ones((32, 32), device='cuda'); y = x @ x; torch.cuda.synchronize(); assert y.sum().item() == 32768; print('CUDA matmul OK')"
 ```
 
 The command must print the GPU details and `CUDA matmul OK`, then exit
@@ -362,8 +363,14 @@ and field to the grounder, and makes one discovery call over the complete
 source when its discovery text is at most 48,000 characters; larger sources
 keep per-page discovery. This needs no configuration.
 
-To override it, set `FREE_CATALOG_POLICY` on Studio to a JSON object holding
-only the keys you change:
+Open **Model Connections → Catalog policy** to edit and save deployment-wide
+settings. They persist in `catalog-policy.json` alongside the model configuration.
+Each job reads the policy when it starts; running jobs retain their settings.
+**Use defaults** fills the editor; **Save Catalog policy** persists it.
+
+Saved settings take precedence over `FREE_CATALOG_POLICY`. Without a saved
+policy, Studio reads that environment variable as a JSON object holding only
+the keys you change:
 
 ```dotenv
 FREE_CATALOG_POLICY={"wholeSourceDiscoveryMaxChars":72000}
@@ -378,17 +385,18 @@ FREE_CATALOG_POLICY={"wholeSourceDiscoveryMaxChars":72000}
 
 `CatalogPolicy` carries further keys (`citations`, `labelledSlices`,
 `citationLinks`, `groundAlways`, `groundMultiHit`, `groundedContext`,
-`lexicalLinks`). Each was measured against this corpus, rejected on quality or
-speed, and stays off; they are not deployment settings.
+`lexicalLinks`). These controls are also available in the editor but remain
+off by default based on corpus measurements. Local citation/text checks verify
+occurrence, not semantic support; evidence links remain reviewable suggestions.
 
 The budget counts characters, not tokens: 48,000 is about 21,500 prompt tokens
 at the densest measured text, which fits a 32,768-token context. Raise it only
 when the deployment's Extraction model has the context to match.
 
-`FREE_CATALOG_POLICY` is read once at startup. An unknown key, a wrong type or
-an out-of-range size stops Studio with the offending key named, so a typo fails
-the deployment instead of silently extracting under the default. Omitting the
-variable keeps the default. To restore the pre-batching behaviour:
+Invalid settings are rejected on save. An unreadable or invalid policy fails
+the job instead of silently using defaults. With no saved policy or environment
+override, jobs use the built-in defaults. To restore pre-batching behaviour,
+save these values in the editor, or supply this fallback when no policy is saved:
 
 ```dotenv
 FREE_CATALOG_POLICY={"recordBatchSize":1,"groundingGroupSize":1,"fieldAwareGrounding":false,"wholeSourceDiscoveryMaxChars":0}

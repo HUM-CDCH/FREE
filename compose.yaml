@@ -32,10 +32,9 @@ services:
   parsing_service:
     build:
       context: prototypes/parsing_service
-    # Keep local development portable; compose.prod.yaml selects CUDA and
-    # configures the NVIDIA GPU device reservation for DGX Spark.
+    # The launcher adds compose.gpu.yaml when Docker can expose an NVIDIA GPU.
     environment:
-      DOCLING_DEVICE: "${DOCLING_DEVICE:-cpu}"
+      DOCLING_DEVICE: "${DOCLING_DEVICE:-auto}"
     # Host loopback publish for the operator's own web app. Port 8000 is
     # already taken on the deployment machine.
     ports:

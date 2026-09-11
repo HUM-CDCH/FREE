@@ -10,7 +10,7 @@
 # Same container topology as development minus the nginx container: the host
 # nginx terminates TLS and proxies to Studio's loopback-published port. This
 # overlay adds only the production deltas: restart policies, required (never
-# defaulted) secrets, real Entra authentication, CUDA parsing on DGX Spark,
+# defaulted) secrets, real Entra authentication,
 # and the loopback publish plus pinned proxy peer for the host nginx.
 # See docs/operations/deployment.md.
 services:
@@ -21,16 +21,6 @@ services:
 
   parsing_service:
     restart: unless-stopped
-    # Request GPU access through Docker's NVIDIA device driver.
-    environment:
-      DOCLING_DEVICE: cuda
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
 
   studio:
     restart: unless-stopped

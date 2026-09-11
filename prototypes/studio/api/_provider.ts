@@ -409,13 +409,14 @@ export const providerTable = {
     createModel: (connection, modelId, credential) => {
       // ai-sdk-ollama does not forward call abort signals to client.chat.
       // Scope the HTTP signal to this call so cancellation also stops Ollama.
+      // FREE validates output; the adapter must not regenerate or invent fallback values.
       const create = (signal?: AbortSignal) => createOllama({
         baseURL: connection.baseUrl!,
         ...(credential ? { apiKey: credential } : {}),
         fetch: (input, init) => fetch(input, { ...init, ...(signal ? {
           signal: init?.signal ? AbortSignal.any([signal, init.signal]) : signal,
         } : {}) }),
-      })(modelId)
+      })(modelId, { reliableObjectGeneration: false })
       return wrapLanguageModel({
         model: create(),
         middleware: {

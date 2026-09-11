@@ -115,6 +115,7 @@ export function canonicalSource(document: ParsedDocument): string {
 
 export type CatalogDiscoveryContext = Readonly<{
   text: string
+  blockIds: readonly string[]
   startBlockIdByLabel: ReadonlyMap<string, string>
 }>
 
@@ -134,9 +135,26 @@ export function catalogDiscoveryContext(
     labelByBlockId.set(block.block_id, label)
   }
   return {
+    blockIds: document.content_stream.filter(block => !selectedBlockIds || selectedBlockIds.has(block.block_id)).map(block => block.block_id),
     text: projectCanonicalSource(document, selectedBlockIds, labelByBlockId),
     startBlockIdByLabel,
   }
+}
+
+/** Disjoint selectable halves, with neighboring blocks visible only as context. */
+export function splitCatalogDiscoveryContext(document: ParsedDocument, context: CatalogDiscoveryContext): CatalogDiscoveryContext[] {
+  if (context.blockIds.length < 2) return []
+  const middle = Math.floor(context.blockIds.length / 2)
+  return [context.blockIds.slice(0, middle), context.blockIds.slice(middle)].map(ids => {
+    const start = document.content_stream.findIndex(block => block.block_id === ids[0])
+    const end = start + ids.length
+    const half = catalogDiscoveryContext(document, new Set(ids))
+    return { ...half, text: [
+      `Previous context (not selectable):\n${canonicalSourceSlice(document, Math.max(0, start - 3), start).slice(-2000)}`,
+      `Selectable source blocks:\n${half.text}`,
+      `Following context (not selectable):\n${canonicalSourceSlice(document, end, end + 3).slice(0, 2000)}`,
+    ].join('\n\n') }
+  })
 }
 
 /** Keep physical pages together, subdividing oversized pages at whole blocks. */

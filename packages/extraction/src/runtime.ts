@@ -12,9 +12,13 @@ import {
   createResearcherExtractionPersistence,
 } from './postgres-persistence.js'
 import type { ExtractionModule, ExtractionRuntime } from './types.js'
+import type { CatalogPolicy } from './catalog.js'
 
 export type CreateExtractionRuntimeDependencies = Readonly<
-  Pick<ExtractionJobExecutorDependencies, 'models' | 'now' | 'policy'>
+  Pick<ExtractionJobExecutorDependencies, 'models' | 'now' | 'policy'> & {
+    /** Read once when a job starts; running jobs retain their policy. */
+    readPolicy?: () => Promise<CatalogPolicy>
+  }
 >
 
 export function createExtractionRuntime(
@@ -40,7 +44,10 @@ export function createExtractionRuntimeWithInfrastructure(
   )
   const worker = new ExtractionJobWorker(
     store,
-    createExtractionJobExecutor({ ...dependencies, inputs: store }),
+    async (...args) => {
+      const policy = dependencies.readPolicy ? await dependencies.readPolicy() : dependencies.policy
+      return createExtractionJobExecutor({ ...dependencies, policy, inputs: store })(...args)
+    },
   )
 
   const wakeAfter = <T>(operation: () => Promise<T>): Promise<T> =>

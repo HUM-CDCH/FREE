@@ -172,6 +172,20 @@ and certificate rotation:
 registration and rotation:
 [docs/operations/entra-authentication.md](docs/operations/entra-authentication.md).
 
+## Catalog policy
+
+Open **Model Connections → Catalog policy** to edit and save Catalog extraction
+parameters without restarting Studio. Settings are deployment-wide and persist
+in `catalog-policy.json` alongside the model configuration. Each job reads the
+policy when it starts; running jobs keep their initial settings, while queued
+jobs use the settings available when they start.
+
+Saved settings take precedence over `FREE_CATALOG_POLICY`; when no saved policy
+exists, that environment variable (if supplied to the Studio process) overrides
+the built-in defaults. **Use defaults** fills the editor; **Save Catalog policy**
+commits it. Local citation/text checks verify occurrence, not semantic support;
+evidence links remain reviewable suggestions.
+
 ## More
 
 See [CONTEXT.md](CONTEXT.md) for domain language and [docs/](docs/) for current

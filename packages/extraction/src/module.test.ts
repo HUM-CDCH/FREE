@@ -257,6 +257,7 @@ function catalogHarness(options: {
   starts?: readonly string[]
   discoveryResult?: Record<string, unknown>
   discoveryScript?: readonly Record<string, unknown>[]
+  discoveryFinishReasons?: string[]
   beforeDiscovery?: (signal: AbortSignal) => void
   schemaTree?: unknown
   script?: readonly ScriptedCall[]
@@ -286,7 +287,7 @@ function catalogHarness(options: {
             result: options.discoveryResult ?? discoveryScript.shift() ?? { starts: options.starts ? [...starts] : starts.filter(
               (label) => request.document.markdown.includes(`[[block:${label}]]`),
             ) },
-            metadata,
+            metadata: { ...metadata, finishReason: options.discoveryFinishReasons?.shift() ?? 'stop' },
           }
         }
         const next = script.shift()
@@ -502,24 +503,37 @@ describe('ExtractionModule Catalog contract', () => {
     }
   })
 
-  it('corrects the captured title-instead-of-ID failure and counts both attempts', async () => {
-    const harness = catalogHarness({ labels: ['215. Oberheldrungen', '216. Langeneichstädt'], discoveryScript: [
-      { starts: ['215. Oberheldrungen'], end: '[[block:B3]]' },
-      { starts: ['B1'], end: 'B3' },
+  it('splits invalid or truncated discovery once, with disjoint ownership and accepted context', async () => {
+    for (const truncated of [false, true]) {
+      const harness = catalogHarness({ discoveryScript: [
+        { starts: truncated ? ['B1'] : ['invalid'], end: null },
+        { starts: ['B1'], end: null },
+        { starts: ['B3'], end: null },
+      ], discoveryFinishReasons: truncated ? ['length', 'stop', 'stop'] : undefined })
+      const { extraction } = await harness.module.runSingle(catalogInput())
+      const calls = harness.calls.filter(call => 'starts' in call.template)
+      assert.equal(calls.length, 3)
+      assert.notEqual(calls[0].markdown, calls[1].markdown)
+      assert.match(calls[1].markdown, /Following context \(not selectable\)/)
+      assert.match(calls[2].markdown, /Previous catalog record start/)
+      assert.equal(calls[1].outputSchema?.safeParse({ starts: ['B3'], end: null }).success, false)
+      assert.equal(calls[2].outputSchema?.safeParse({ starts: ['B1'], end: null }).success, false)
+      assert.equal(extraction.diagnostics.catalog?.stages.find(stage => stage.stage === 'discovery')?.calls, 3)
+      assert.equal(extraction.diagnostics.catalog?.stages.find(stage => stage.stage === 'discovery')?.inputTokens, 30)
+      assert.equal((extraction.result?.records as unknown[]).length, 2)
+      assert.equal(extraction.complete, true)
+    }
+  })
+
+  it('does not extract partial boundaries or recursively split a failed second half', async () => {
+    const harness = catalogHarness({ discoveryScript: [
+      { starts: ['invalid'], end: null },
+      { starts: ['B1'], end: null },
+      { starts: ['B1', 'B3'], end: null },
     ] })
-    const { extraction } = await harness.module.runSingle(catalogInput())
-    const calls = harness.calls.filter(call => 'starts' in call.template)
-    assert.equal(calls.length, 2)
-    assert.equal(calls[0].markdown, calls[1].markdown)
-    assert.match(calls[1].instruction!, /215\. Oberheldrungen/)
-    assert.match(calls[1].instruction!, /not entry titles/)
-    assert.equal(extraction.diagnostics.catalog?.stages.find(stage => stage.stage === 'discovery')?.calls, 2)
-    assert.equal(extraction.diagnostics.catalog?.stages.find(stage => stage.stage === 'discovery')?.inputTokens, 20)
-    assert.equal(extraction.diagnostics.modelCalls, 3)
-    assert.equal((extraction.result?.records as unknown[]).length, 1)
-    assert.equal(calls[0].outputSchema?.safeParse({ starts: ['B1'], end: null }).success, true)
-    assert.equal(calls[0].outputSchema?.safeParse({ starts: ['215. Oberheldrungen'], end: null }).success, false)
-    assert.equal(calls[0].outputSchema?.safeParse({ starts: ['B1'], end: 'B999' }).success, false)
+    await assert.rejects(harness.module.runSingle(catalogInput()), /not selectable/)
+    assert.equal(harness.calls.length, 3)
+    assert.ok(harness.calls.every(call => 'starts' in call.template))
   })
 
   it('normalizes whitespace and block wrappers without a correction call', async () => {
@@ -529,22 +543,17 @@ describe('ExtractionModule Catalog contract', () => {
     assert.equal((extraction.result?.records as unknown[]).length, 1)
   })
 
-  it('retries only the failed later chunk without committing its invalid boundaries', async () => {
+  it('cannot split a failed single-block chunk', async () => {
     const labels = ['First', 'Second'].map(label => `${label} ${'content '.repeat(1800)}`)
     const harness = catalogHarness({ labels, discoveryScript: [
       { starts: ['B1'], end: null }, { starts: [], end: null },
-      { starts: ['B3'], end: '[[block:B999]]' },
-      { starts: ['B3'], end: null }, { starts: [], end: null },
+      { starts: ['B3'], end: 'B999' },
     ] })
-    const { extraction } = await harness.module.runSingle(catalogInput())
-    const calls = harness.calls.filter(call => 'starts' in call.template)
-    assert.equal(calls.length, 5)
-    assert.equal(calls[2].markdown, calls[3].markdown)
-    assert.equal(calls[2].outputSchema?.safeParse({ starts: ['B1'], end: null }).success, false)
-    assert.equal((extraction.result?.records as unknown[]).length, 2)
+    await assert.rejects(harness.module.runSingle(catalogInput()), /cannot be split/)
+    assert.equal(harness.calls.length, 3)
   })
 
-  it('fails after one correction for a title, foreign ID, or invalid end', async () => {
+  it('fails when a split retry still returns a title, foreign ID, or invalid end', async () => {
     for (const discoveryResult of [
       { starts: ['215. Oberheldrungen'], end: null },
       { starts: ['[[block:B999]]'], end: null },
@@ -554,7 +563,7 @@ describe('ExtractionModule Catalog contract', () => {
       { starts: null, end: null },
     ]) {
       const harness = catalogHarness({ discoveryResult })
-      await assert.rejects(harness.module.runSingle(catalogInput()), /Catalog discovery chunk 1 failed after one correction/)
+      await assert.rejects(harness.module.runSingle(catalogInput()), (error: unknown) => error instanceof ExtractionError && error.code === 'catalog_discovery_failed')
       assert.equal(harness.calls.length, 2)
     }
   })
@@ -631,6 +640,12 @@ describe('ExtractionModule Catalog contract', () => {
     assert.equal(discovery.length, 1)
     assert.ok(discovery[0]!.instruction!.includes('This request contains the complete canonical source.'))
     assert.ok(discovery[0]!.instruction!.endsWith('Selectable block IDs: B1, B2, B3, B4, B5, B6'))
+    for (const call of [...discovery, ...chunked.calls.filter(call => 'starts' in call.template)]) {
+      assert.ok(call.instruction!.includes('candidates, not a list to copy'))
+      assert.ok(call.instruction!.includes('must not appear in starts'))
+      assert.ok(call.instruction!.includes('Use null when the record continues'))
+      assert.ok(call.instruction!.includes('{"starts":["B2","B4"],"end":null}'))
+    }
     assert.ok(!discovery[0]!.markdown.includes('context (not selectable)'))
     assert.equal(right.extraction.diagnostics.catalog?.stages.find(stage => stage.stage === 'discovery')?.calls, 1)
     assert.deepEqual(right.extraction.result, left.extraction.result)
