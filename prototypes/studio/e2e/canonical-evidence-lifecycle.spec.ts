@@ -10,7 +10,7 @@ import { documentReopenResponseSchema } from '../shared/projectContext.contract.
 import { extractionAttemptSchema, type ExtractionAttempt } from '../shared/extraction.contract.js'
 import type { ParsedContentBlock, ParsedDocument } from 'extraction/parsed-document'
 import { CATALOG_RECORD_LIMIT } from 'extraction'
-import { catalogDiscoveryChunks } from 'extraction/source-context'
+import { catalogDiscoveryContext, splitCatalogDiscoveryContext } from 'extraction/source-context'
 import { DEVELOPMENT_ENTRA_TENANT_ID } from '../server/entraIdentityProvider.js'
 import {
   E2E_ORIGIN,
@@ -886,6 +886,7 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
 
   type FixtureResponse = {
     result?: Record<string, unknown>
+    raw?: string
     status?: number
     delayMs?: number
     grounding?: boolean
@@ -952,7 +953,7 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
         response.writeHead(200, { 'content-type': 'application/json' })
         response.end(
           JSON.stringify({
-            response: JSON.stringify(result),
+            response: fixture.raw ?? JSON.stringify(result),
             done_reason: fixture.finishReason ?? 'stop',
             prompt_eval_count: 10,
             eval_count: 4,
@@ -991,7 +992,7 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
   const packageStore = createCanonicalPackageStore()
   const firstPackage = await canonicalPackage('catalog.pdf', catalogDocument(['First', 'Second', 'Third']))
   const truncationDocument = catalogDocument(Array.from({ length: CATALOG_RECORD_LIMIT + 1 }, (_, index) => `Record ${index + 1}`))
-  const truncationChunks = catalogDiscoveryChunks(truncationDocument).map(chunk => [...chunk.startBlockIdByLabel.keys()])
+  const truncationContext = catalogDiscoveryContext(truncationDocument)
   const truncationPackage = await canonicalPackage('catalog-truncation.pdf', truncationDocument)
   const cancellationPackage = await canonicalPackage('catalog-cancellation.pdf', catalogDocument(['First', 'Second', 'Third']))
   const firstDescriptor = await packageStore.save(firstPackage.bytes)
@@ -1251,12 +1252,30 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     })
 
     resetQueues()
-    enqueue('discovery', ...truncationChunks.map(labels => ({
-      result: {
-        starts: labels.filter(label => label !== 'B1'),
-      },
-      finishReason: 'length' as const,
-    })))
+    const callsBeforeInvalidOutput = callCount
+    enqueue('discovery',
+      { raw: '[]' },
+      { result: { starts: ['B2'], end: null } },
+      { result: { starts: ['B3', 'B4'], end: null } },
+    )
+    const invalidOutputId = randomUUID()
+    expect((await page.request.post(e2eStudioPath('/api/extractions'), {
+      headers: { Origin: E2E_ORIGIN },
+      data: { id: invalidOutputId, sourceRepresentationRevisionId: firstRepresentationId, schemaRevisionId: packageSchemaRevisionId, strategy: 'CATALOG' },
+    })).status()).toBe(201)
+    const recovered = await waitForExtraction(page.request, invalidOutputId)
+    expect(recovered).toMatchObject({ outcome: 'SUCCEEDED', complete: true })
+    expect(recovered.resultPayload!.records).toHaveLength(3)
+    expect(callCount - callsBeforeInvalidOutput).toBe(3)
+
+    resetQueues()
+    const callsBeforeTruncation = callCount
+    enqueue('discovery',
+      { result: { starts: ['B2'], end: null }, finishReason: 'length' },
+      ...splitCatalogDiscoveryContext(truncationDocument, truncationContext).map(half => ({
+        result: { starts: [...half.startBlockIdByLabel.keys()].filter(label => label !== 'B1'), end: null },
+      })),
+    )
     const truncationId = randomUUID()
     const truncationResponse = await page.request.post(e2eStudioPath('/api/extractions'), {
       headers: { Origin: E2E_ORIGIN },
@@ -1265,21 +1284,27 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     expect(truncationResponse.status()).toBe(201)
     const truncation = await waitForExtraction(page.request, truncationId)
     expect(truncation).toMatchObject({ outcome: 'SUCCEEDED', complete: false })
+    expect(callCount - callsBeforeTruncation).toBe(3)
+    expect(truncation.diagnostics!.catalog!.stages.find(stage => stage.stage === 'discovery')).toMatchObject({ outcome: 'succeeded', calls: 3, finishReason: 'stop' })
     expect(truncation.resultPayload!.records).toHaveLength(CATALOG_RECORD_LIMIT)
     expect(truncation.diagnostics!.catalog!.records).toHaveLength(CATALOG_RECORD_LIMIT + 1)
     expect(truncation.diagnostics!.catalog!.records[CATALOG_RECORD_LIMIT]).toMatchObject({ outcome: 'not_attempted', failureCode: 'not_attempted_limit', calls: 0 })
 
     resetQueues()
-    enqueue('discovery', ...truncationChunks.map(labels => ({ result: { starts: labels.filter(label => label === 'B2') } })))
     await page.goto(url)
     await page.getByRole('tab', { name: /Results/ }).click()
     await page.getByRole('button', { name: 'Run details' }).click()
-    await page.getByLabel('Rediscover Catalog record boundaries').check()
+    await expect(page.getByLabel('Rediscover Catalog record boundaries')).toHaveCount(0)
+    await page.getByLabel(`Retry record ${CATALOG_RECORD_LIMIT + 1}: Record ${CATALOG_RECORD_LIMIT + 1}`).check()
     await page.getByRole('button', { name: 'Retry selected components' }).click()
-    await expect.poll(async () =>
-      (await db.orm.public.Extraction.where({ sourceDocumentId, retryOfId: truncationId })
-        .select('id').orderBy((attempt) => attempt.createdAt.desc()).first())?.id ?? '',
-    ).not.toBe('')
+    let limitRetryId = ''
+    await expect.poll(async () => {
+      limitRetryId = (await db.orm.public.Extraction.where({ sourceDocumentId, retryOfId: truncationId })
+        .select('id').orderBy((attempt) => attempt.createdAt.desc()).first())?.id ?? ''
+      return limitRetryId
+    }).not.toBe('')
+    expect(await waitForExtraction(page.request, limitRetryId)).toMatchObject({ outcome: 'SUCCEEDED', complete: true })
+    expect(callCount - callsBeforeTruncation).toBe(3)
 
     const cancellationId = randomUUID()
     const callsBeforeCancellation = callCount

@@ -507,6 +507,17 @@ describe('extractWithModel', () => {
     expect(schemaRecord(doGenerate.mock.calls[0][0]).responseFormat).toBeUndefined()
   })
 
+  it('classifies empty structured output as invalid model output without regeneration', async () => {
+    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
+    generateTextMock.mockImplementation(generateText)
+    const doGenerate = vi.fn(async () => mockGeneration(''))
+    await expect(extractWithModel(
+      { document, template: { starts: ['string'], end: 'string' } },
+      { ...generalTarget, jsonOutput: 'schema', model: new MockLanguageModelV4({ doGenerate }) },
+    )).rejects.toMatchObject({ code: 'invalid_model_output' })
+    expect(doGenerate).toHaveBeenCalledTimes(1)
+  })
+
   it('repairs prompt-only text without requesting structured output', async () => {
     const { generateText } = await vi.importActual<typeof import('ai')>('ai')
     generateTextMock.mockImplementation(generateText)

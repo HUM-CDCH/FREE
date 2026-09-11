@@ -20,7 +20,9 @@ export async function readCatalogPolicy(options: ConfigStorageOptions = {}): Pro
     throw new ApiError(500, 'storage_failure', 'Catalog policy could not be read.', { cause: error })
   }
   try {
-    return parseCatalogPolicy(JSON.parse(contents))
+    const value: unknown = JSON.parse(contents)
+    if (value === null) throw new Error('A Catalog policy must be an object.')
+    return parseCatalogPolicy(value)
   } catch (error) {
     throw new ApiError(409, 'invalid_request', 'The saved Catalog policy is invalid.', { cause: error })
   }

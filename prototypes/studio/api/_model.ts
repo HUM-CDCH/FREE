@@ -373,9 +373,9 @@ async function generateWithGenericJsonPrompt(
       },
     }
   } catch (error) {
-    if (structuredOutput && NoObjectGeneratedError.isInstance(error) && error.text) {
+    if (structuredOutput && NoObjectGeneratedError.isInstance(error)) {
       return {
-        response: error.text,
+        response: error.text ?? '',
         metadata: {
           finishReason: error.finishReason ?? null,
           inputTokens: error.usage?.inputTokens ?? null,

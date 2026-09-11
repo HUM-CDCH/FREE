@@ -108,7 +108,7 @@ function modelError(error: unknown): never {
   if (error instanceof DOMException && error.name === 'AbortError') throw error
   if (error instanceof ExtractionError) throw error
   throw new ExtractionError(
-    'model_unavailable',
+    error instanceof ApiError && error.code === 'invalid_model_output' ? 'invalid_model_output' : 'model_unavailable',
     error instanceof ApiError ? error.message : 'The Extraction model is unavailable.',
     { cause: error },
   )

@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import type { CreateExtractionRuntimeDependencies } from 'extraction'
+import { ApiError } from './_http.js'
 
 const runtime = vi.hoisted(() => ({
   create: vi.fn(),
@@ -61,4 +62,18 @@ it("names each claim's record and field to the grounder when the request carries
   expect(plain).not.toContain('### Fields')
   expect(plain).not.toContain('own record')
   expect(dependencies.readPolicy).toBeTypeOf('function')
+})
+
+it('preserves invalid output for discovery recovery while keeping transport failures separate', async () => {
+  await import('./_extraction_runtime.js')
+  runtime.resolve.mockResolvedValue({ attribution: { provider: 'test', modelId: 'test' } })
+  const dependencies = runtime.create.mock.calls[0][0] as CreateExtractionRuntimeDependencies
+  const session = await dependencies.models.open()
+  for (const code of ['invalid_model_output', 'model_operation_failed'] as const) {
+    runtime.extract.mockRejectedValueOnce(new ApiError(502, code, 'Model failure'))
+    await expect(session.model.extract({
+      document: { markdown: '1. Site', pages: 1 }, template: { starts: ['string'], end: 'string' },
+      signal: new AbortController().signal,
+    })).rejects.toMatchObject({ code: code === 'invalid_model_output' ? code : 'model_unavailable' })
+  }
 })

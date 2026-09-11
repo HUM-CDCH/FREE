@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it, vi } from 'vitest'
@@ -22,6 +22,10 @@ it('persists runtime overrides, retains the previous snapshot, and rejects inval
       configRoot, fileSystem: { ...(await import('./_model_config.js')).nodeFileSystem, rename: async () => { throw new Error('disk failure') } },
     })).rejects.toMatchObject({ status: 500 })
     expect((await readCatalogPolicy(options)).citations).toBe(true)
+    for (const invalid of [null, [], 42, { citations: 'yes' }]) {
+      await writeFile(join(configRoot, 'catalog-policy.json'), JSON.stringify(invalid))
+      await expect(readCatalogPolicy(options)).rejects.toMatchObject({ status: 409 })
+    }
   } finally {
     vi.unstubAllEnvs()
     await rm(configRoot, { recursive: true, force: true })
