@@ -26,6 +26,7 @@ const DEFAULT_PARSING_SERVICE = 'http://127.0.0.1:8055'
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000
 const DEFAULT_POLL_INTERVAL_MS = 1000
 const MAX_PDF_BYTES = 100 * 1024 * 1024
+const CANCEL_TIMEOUT_MS = 5000
 
 type CanonicalPackage = {
   artifactReference: string
@@ -226,6 +227,23 @@ async function parsingRequest<T>(
   }
 }
 
+/** Best-effort: a Source Document upload has already failed with a timeout,
+ * so a failed or slow cancellation must not mask that error or hang the response. */
+async function cancelTask(
+  fetcher: typeof fetch,
+  base: string,
+  taskId: string,
+): Promise<void> {
+  try {
+    await fetcher(`${base.replace(/\/$/, '')}/tasks/${taskId}/cancel`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(CANCEL_TIMEOUT_MS),
+    })
+  } catch {
+    // Ignored: the Parsing Service may reap the orphaned task on its own.
+  }
+}
+
 function sameDescriptor(
   left: CanonicalPackageDescriptor,
   right: CanonicalPackageDescriptor,
@@ -317,6 +335,7 @@ export function createSourceDocumentIngestion(
     request: Request,
   ): Promise<Response> {
     let saved: CanonicalPackage | undefined
+    let taskId: string | undefined
     try {
       const id = projectContextId(new URL(request.url).pathname)
       const projectContext = await store
@@ -399,7 +418,6 @@ export function createSourceDocumentIngestion(
           signal: parsingDeadline,
         },
       )
-      let taskId: string
       try {
         taskId = required(created.task_id, 'a task identity')
       } catch (cause) {
@@ -500,6 +518,12 @@ export function createSourceDocumentIngestion(
         { status: 201, headers: noStore },
       )
     } catch (error) {
+      if (
+        taskId &&
+        error instanceof ApiError &&
+        error.code === 'source_ingestion_timeout'
+      )
+        await cancelTask(fetcher(dependencies), base, taskId)
       if (saved) await discardPublishedPackage(saved, store)
       return noStoreError(error)
     }

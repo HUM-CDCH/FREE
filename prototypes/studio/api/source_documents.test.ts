@@ -68,6 +68,14 @@ function stalledBody(signal: AbortSignal | null | undefined): Response {
   )
 }
 
+function calledCancel(fetcher: ReturnType<typeof vi.fn>, taskId: string) {
+  return fetcher.mock.calls.some(
+    ([url, init]: [string | URL, RequestInit?]) =>
+      String(url) === `http://parser.test/tasks/${taskId}/cancel` &&
+      init?.method === 'POST',
+  )
+}
+
 function dependencies(overrides: Record<string, unknown> = {}) {
   const fetcher = vi.fn()
   parser(fetcher)
@@ -455,6 +463,7 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
       error: { message: 'Source Document parsing did not finish within thirty minutes.' },
     })
     expect(timeout.packageStore.save).not.toHaveBeenCalled()
+    expect(calledCancel(timeout.fetcher, 'task-1')).toBe(true)
 
     const stalled = dependencies({ timeoutMs: 1 })
     stalled.fetcher.mockReset()
@@ -469,6 +478,11 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     const stalledResponse = await stalled.handler(request())
     expect(stalledResponse.status).toBe(504)
     expect(stalled.packageStore.save).not.toHaveBeenCalled()
+    expect(
+      stalled.fetcher.mock.calls.some(([url]) =>
+        String(url).endsWith('/cancel'),
+      ),
+    ).toBe(false)
 
     const stalledStatus = dependencies({ timeoutMs: 10 })
     stalledStatus.fetcher.mockReset()
@@ -480,6 +494,7 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     const stalledStatusResponse = await stalledStatus.handler(request())
     expect(stalledStatusResponse.status).toBe(504)
     expect(stalledStatus.packageStore.save).not.toHaveBeenCalled()
+    expect(calledCancel(stalledStatus.fetcher, 'task-1')).toBe(true)
 
     const stalledDownload = dependencies({ timeoutMs: 10 })
     stalledDownload.fetcher.mockReset()
@@ -492,6 +507,7 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     const stalledDownloadResponse = await stalledDownload.handler(request())
     expect(stalledDownloadResponse.status).toBe(504)
     expect(stalledDownload.packageStore.save).not.toHaveBeenCalled()
+    expect(calledCancel(stalledDownload.fetcher, 'task-1')).toBe(true)
   })
 
   it('maps rejected parser endpoints to stable public copy', async () => {
