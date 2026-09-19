@@ -54,6 +54,7 @@ function fakeDatabase(
     raceOnCreate?: boolean
     raceOnIngestion?: boolean
     raceOnContent?: boolean
+    raceOnName?: boolean
     failRepresentationCreate?: boolean
   } = {},
 ) {
@@ -246,7 +247,9 @@ function fakeDatabase(
             (row) =>
               row.projectContextId === input.projectContextId &&
               (row.ingestionKey === input.ingestionKey ||
-                row.contentSha256 === input.contentSha256),
+                row.contentSha256 === input.contentSha256 ||
+                (input.originalName !== null &&
+                  row.originalName === input.originalName)),
           )
         )
           throw Object.assign(new Error('unique constraint'), {
@@ -261,6 +264,17 @@ function fakeDatabase(
           throw Object.assign(new Error('unique constraint'), {
             sqlState: '23505',
             ingestionInput: input,
+          })
+        }
+        if (
+          table === 'SourceDocument' &&
+          options.raceOnName &&
+          !ingestionRaced
+        ) {
+          ingestionRaced = true
+          throw Object.assign(new Error('unique constraint'), {
+            sqlState: '23505',
+            nameRaceInput: input,
           })
         }
         if (
@@ -490,6 +504,25 @@ function fakeDatabase(
             artifactSha256: 'd'.repeat(64),
           })
         }
+        const nameRaceInput =
+          typeof error === 'object' &&
+          error !== null &&
+          'nameRaceInput' in error
+            ? (error.nameRaceInput as Row)
+            : null
+        if (nameRaceInput)
+          // A concurrent request committed a *different* document under the
+          // same display name — distinct content/key, so it's found only
+          // through the name lookup, never the ingestion-key/content ones.
+          tables.SourceDocument.push({
+            projectContextId: nameRaceInput.projectContextId,
+            ingestionKey: '51000000-0000-4000-9000-000000000098',
+            contentSha256: 'x'.repeat(64),
+            mediaType: nameRaceInput.mediaType,
+            originalName: nameRaceInput.originalName,
+            id: '51000000-0000-4000-8001-000000000098',
+            createdAt: new Date('2026-08-01T12:05:00Z'),
+          })
         throw error
       }
     },
@@ -1121,10 +1154,28 @@ describe('ResearcherProjectStore Source Document ingestion', () => {
     assert.equal(database.tables.SourceRepresentationRevision.length, 4)
   })
 
-  it('creates distinct documents for the same filename with different bytes', async () => {
+  it('rejects a second document reusing an existing name with different content', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)
-    const first = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
+    await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
+
+    await assert.rejects(
+      store.ingestSourceDocument(
+        EMPTY_PROJECT,
+        ingestion({
+          ingestionKey: '51000000-0000-4000-9000-000000000002',
+          contentSha256: 'f'.repeat(64),
+        }),
+      ),
+      /already exists in the project/,
+    )
+    assert.equal(database.tables.SourceDocument.length, 3)
+  })
+
+  it('allows the same filename across different projects', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const first = await store.ingestSourceDocument(PROJECT, ingestion())
     const second = await store.ingestSourceDocument(
       EMPTY_PROJECT,
       ingestion({
@@ -1135,7 +1186,17 @@ describe('ResearcherProjectStore Source Document ingestion', () => {
 
     assert.notEqual(second?.sourceDocumentId, first?.sourceDocumentId)
     assert.equal(second?.name, first?.name)
-    assert.equal(database.tables.SourceDocument.length, 4)
+  })
+
+  it('rejects when a concurrent request wins the same filename', async () => {
+    const racedDatabase = fakeDatabase({ raceOnName: true })
+    const race = createResearcherProjectStore(RESEARCHER_A, racedDatabase as never)
+
+    await assert.rejects(
+      race.ingestSourceDocument(EMPTY_PROJECT, ingestion()),
+      /already exists in the project/,
+    )
+    assert.equal(racedDatabase.tables.SourceDocument.length, 3)
   })
 
   it('scopes identical ingestion keys to each account-owned Project Context', async () => {
@@ -1391,6 +1452,237 @@ describe('ResearcherProjectStore Schema Revisions', () => {
     )
     assert.equal(
       await store.getSchemaRevision(OTHER_PROJECT, SCHEMA, REVISION_1),
+      null,
+    )
+  })
+})
+
+describe('ResearcherProjectStore Evaluation Corpus', () => {
+  /** A fresh document + its current representation, scoped to EMPTY_PROJECT
+   *  so gold-record tests don't ride the shared fixture's representation
+   *  rows (those lack a revisionNumber, making "current" ambiguous). */
+  function withGoldDocument(database: ReturnType<typeof fakeDatabase>) {
+    const sourceDocumentId = '51000000-0000-4000-8001-000000000010'
+    const representationId = '51000000-0000-4000-8002-000000000010'
+    database.tables.SourceDocument.push({
+      id: sourceDocumentId,
+      projectContextId: EMPTY_PROJECT,
+      originalName: 'gold.pdf',
+    })
+    database.tables.SourceRepresentationRevision.push({
+      id: representationId,
+      sourceDocumentId,
+      revisionNumber: 1,
+      artifactReference: 'g'.repeat(64),
+      artifactSha256: 'g'.repeat(64),
+    })
+    return { sourceDocumentId, representationId }
+  }
+
+  it('creates a named corpus scoped to its project, trimmed and bounded', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+
+    const created = await store.createEvaluationCorpus(
+      EMPTY_PROJECT,
+      '  Pilot benchmark  ',
+    )
+
+    assert.deepEqual(created, {
+      evaluationCorpusId: created?.evaluationCorpusId,
+      projectContextId: EMPTY_PROJECT,
+      name: 'Pilot benchmark',
+      createdAt: created?.createdAt,
+    })
+    assert.equal(
+      await store.createEvaluationCorpus(OTHER_PROJECT, 'Not owned'),
+      null,
+    )
+    await assert.rejects(
+      store.createEvaluationCorpus(EMPTY_PROJECT, '   '),
+      /1 to 512/,
+    )
+  })
+
+  it('appends the first version with gold records referencing existing documents, not duplicating them', async () => {
+    const database = fakeDatabase()
+    const { sourceDocumentId, representationId } = withGoldDocument(database)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const corpus = await store.createEvaluationCorpus(EMPTY_PROJECT, 'Pilot')
+
+    const result = await store.appendEvaluationCorpusVersion(
+      EMPTY_PROJECT,
+      corpus?.evaluationCorpusId ?? '',
+      0,
+      [
+        { sourceDocumentId, fields: { species: 'A' } },
+        { sourceDocumentId, fields: { species: 'B' } },
+      ],
+    )
+
+    assert.equal(result?.status, 'created')
+    if (result?.status !== 'created') throw new Error('expected created')
+    assert.equal(result.version.revisionNumber, 1)
+    assert.equal(result.version.goldRecords.length, 2)
+    assert.deepEqual(
+      result.version.goldRecords.map((record) => record.fields),
+      [{ species: 'A' }, { species: 'B' }],
+    )
+    for (const record of result.version.goldRecords) {
+      assert.equal(record.sourceDocumentId, sourceDocumentId)
+      assert.equal(record.sourceRepresentationRevisionId, representationId)
+    }
+    assert.equal(
+      database.tables.SourceDocument.filter(
+        (row) => row.id === sourceDocumentId,
+      ).length,
+      1,
+    )
+    assert.equal(
+      database.tables.SourceRepresentationRevision.filter(
+        (row) => row.sourceDocumentId === sourceDocumentId,
+      ).length,
+      1,
+    )
+  })
+
+  it('appending a corrected version never mutates a prior version', async () => {
+    const database = fakeDatabase()
+    const { sourceDocumentId } = withGoldDocument(database)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const corpus = await store.createEvaluationCorpus(EMPTY_PROJECT, 'Pilot')
+    await store.appendEvaluationCorpusVersion(
+      EMPTY_PROJECT,
+      corpus?.evaluationCorpusId ?? '',
+      0,
+      [{ sourceDocumentId, fields: { species: 'A (typo)' } }],
+    )
+
+    const corrected = await store.appendEvaluationCorpusVersion(
+      EMPTY_PROJECT,
+      corpus?.evaluationCorpusId ?? '',
+      1,
+      [{ sourceDocumentId, fields: { species: 'A' } }],
+    )
+
+    assert.equal(corrected?.status, 'created')
+    if (corrected?.status !== 'created') throw new Error('expected created')
+    assert.equal(corrected.version.revisionNumber, 2)
+
+    const versions = await store.listEvaluationCorpusVersions(
+      EMPTY_PROJECT,
+      corpus?.evaluationCorpusId ?? '',
+      10,
+    )
+    assert.equal(versions?.length, 2)
+    assert.deepEqual(
+      versions?.map((version) => version.revisionNumber),
+      [2, 1],
+    )
+    assert.deepEqual(
+      versions?.[1]?.goldRecords.map((record) => record.fields),
+      [{ species: 'A (typo)' }],
+    )
+    assert.deepEqual(
+      versions?.[0]?.goldRecords.map((record) => record.fields),
+      [{ species: 'A' }],
+    )
+  })
+
+  it('rejects a stale expected revision without writing', async () => {
+    const database = fakeDatabase()
+    const { sourceDocumentId } = withGoldDocument(database)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const corpus = await store.createEvaluationCorpus(EMPTY_PROJECT, 'Pilot')
+    await store.appendEvaluationCorpusVersion(
+      EMPTY_PROJECT,
+      corpus?.evaluationCorpusId ?? '',
+      0,
+      [{ sourceDocumentId, fields: { species: 'A' } }],
+    )
+
+    const result = await store.appendEvaluationCorpusVersion(
+      EMPTY_PROJECT,
+      corpus?.evaluationCorpusId ?? '',
+      0,
+      [{ sourceDocumentId, fields: { species: 'stale' } }],
+    )
+
+    assert.equal(result?.status, 'conflict')
+    if (result?.status !== 'conflict') throw new Error('expected conflict')
+    assert.equal(result.currentVersion.revisionNumber, 1)
+    assert.deepEqual(
+      result.currentVersion.goldRecords.map((record) => record.fields),
+      [{ species: 'A' }],
+    )
+    const versions = await store.listEvaluationCorpusVersions(
+      EMPTY_PROJECT,
+      corpus?.evaluationCorpusId ?? '',
+      10,
+    )
+    assert.equal(versions?.length, 1)
+  })
+
+  it('rejects an append referencing a document outside the project, writing no partial version', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const corpus = await store.createEvaluationCorpus(EMPTY_PROJECT, 'Pilot')
+
+    const result = await store.appendEvaluationCorpusVersion(
+      EMPTY_PROJECT,
+      corpus?.evaluationCorpusId ?? '',
+      0,
+      [{ sourceDocumentId: OTHER_DOCUMENT, fields: { species: 'A' } }],
+    )
+
+    assert.equal(result, null)
+    assert.equal(
+      await store.getCurrentEvaluationCorpusVersion(
+        EMPTY_PROJECT,
+        corpus?.evaluationCorpusId ?? '',
+      ),
+      null,
+    )
+  })
+
+  it('reads the current version, or null before any append, scoped to the owning project', async () => {
+    const database = fakeDatabase()
+    const { sourceDocumentId } = withGoldDocument(database)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const corpus = await store.createEvaluationCorpus(EMPTY_PROJECT, 'Pilot')
+
+    assert.equal(
+      await store.getCurrentEvaluationCorpusVersion(
+        EMPTY_PROJECT,
+        corpus?.evaluationCorpusId ?? '',
+      ),
+      null,
+    )
+
+    await store.appendEvaluationCorpusVersion(
+      EMPTY_PROJECT,
+      corpus?.evaluationCorpusId ?? '',
+      0,
+      [{ sourceDocumentId, fields: { species: 'A' } }],
+    )
+    const current = await store.getCurrentEvaluationCorpusVersion(
+      EMPTY_PROJECT,
+      corpus?.evaluationCorpusId ?? '',
+    )
+    assert.equal(current?.revisionNumber, 1)
+    assert.equal(
+      await store.getCurrentEvaluationCorpusVersion(
+        OTHER_PROJECT,
+        corpus?.evaluationCorpusId ?? '',
+      ),
+      null,
+    )
+    assert.equal(
+      await store.listEvaluationCorpusVersions(
+        OTHER_PROJECT,
+        corpus?.evaluationCorpusId ?? '',
+        10,
+      ),
       null,
     )
   })

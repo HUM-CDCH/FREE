@@ -14,19 +14,20 @@ import {
 } from '../../../packages/db/src/artifact-store.js'
 import {
   IngestionKeyConflictError,
+  OriginalNameConflictError,
   type IngestSourceDocumentInput,
   type IngestedSourceDocument,
   type ResearcherProjectStore,
 } from '../../../packages/db/src/project-store.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
 import { sourceDocumentFilenameFailure } from '../shared/sourceDocumentFilename.js'
+import { cancelParsingTask, resolveParsingServiceBase } from './_parsingService.js'
+import { trackParsingTask } from './_parsingTaskRegistry.js'
 
 const CONTRACT_VERSION = 'parsed_document.v2'
-const DEFAULT_PARSING_SERVICE = 'http://127.0.0.1:8055'
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000
 const DEFAULT_POLL_INTERVAL_MS = 1000
 const MAX_PDF_BYTES = 100 * 1024 * 1024
-const CANCEL_TIMEOUT_MS = 5000
 
 type CanonicalPackage = {
   artifactReference: string
@@ -227,23 +228,6 @@ async function parsingRequest<T>(
   }
 }
 
-/** Best-effort: a Source Document upload has already failed with a timeout,
- * so a failed or slow cancellation must not mask that error or hang the response. */
-async function cancelTask(
-  fetcher: typeof fetch,
-  base: string,
-  taskId: string,
-): Promise<void> {
-  try {
-    await fetcher(`${base.replace(/\/$/, '')}/tasks/${taskId}/cancel`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(CANCEL_TIMEOUT_MS),
-    })
-  } catch {
-    // Ignored: the Parsing Service may reap the orphaned task on its own.
-  }
-}
-
 function sameDescriptor(
   left: CanonicalPackageDescriptor,
   right: CanonicalPackageDescriptor,
@@ -317,12 +301,7 @@ export function createSourceDocumentIngestion(
   dependencies: Dependencies = {},
 ): (request: Request) => Promise<Response> {
   const packageStore = dependencies.packageStore ?? canonicalPackageStore
-  const base =
-    dependencies.parsingServiceBase ??
-    process.env.PARSING_SERVICE_URL ??
-    (import.meta as ImportMeta & { env?: Record<string, string | undefined> })
-      .env?.VITE_PARSING_SERVICE_URL ??
-    DEFAULT_PARSING_SERVICE
+  const base = resolveParsingServiceBase(dependencies.parsingServiceBase)
   const timeoutMs = dependencies.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const pollIntervalMs = dependencies.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS
   const sleep =
@@ -336,6 +315,7 @@ export function createSourceDocumentIngestion(
   ): Promise<Response> {
     let saved: CanonicalPackage | undefined
     let taskId: string | undefined
+    let untrackTask: (() => void) | undefined
     try {
       const id = projectContextId(new URL(request.url).pathname)
       const projectContext = await store
@@ -428,6 +408,7 @@ export function createSourceDocumentIngestion(
           { cause },
         )
       }
+      untrackTask = trackParsingTask(id, taskId)
       await completedTask(
         fetcher(dependencies),
         base,
@@ -499,7 +480,10 @@ export function createSourceDocumentIngestion(
       const persisted = await store
         .ingestSourceDocument(id, input)
         .catch((cause) => {
-          if (cause instanceof IngestionKeyConflictError)
+          if (
+            cause instanceof IngestionKeyConflictError ||
+            cause instanceof OriginalNameConflictError
+          )
             throw new ApiError(409, 'invalid_request', cause.message)
           throw persistenceUnavailable(
             cause,
@@ -523,9 +507,11 @@ export function createSourceDocumentIngestion(
         error instanceof ApiError &&
         error.code === 'source_ingestion_timeout'
       )
-        await cancelTask(fetcher(dependencies), base, taskId)
+        await cancelParsingTask(fetcher(dependencies), base, taskId)
       if (saved) await discardPublishedPackage(saved, store)
       return noStoreError(error)
+    } finally {
+      untrackTask?.()
     }
   }
 }

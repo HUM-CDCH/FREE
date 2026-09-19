@@ -5,6 +5,7 @@ import { batchExtractionProgress } from '../../shared/batchExtraction.contract'
 import type { ReviewDecisionInput } from '../../shared/extraction.contract'
 import { parseReviewedValue, resultPathKey } from '../reviewDecisions'
 import { REVIEW_DRAFT_CONFLICT } from '../reviewDrafts'
+import { selectPriorityReviewMembers } from '../reviewPriority'
 import { Button, CheckIcon, EmptyState, Pill, PencilIcon, ProgressBar, SegmentedControl, Spinner, StatusDot, UndoIcon, XIcon } from '../ui'
 import { memberStatus } from './batchExtractionStatus'
 import { StatusPill } from './BatchExtractionScreens'
@@ -14,6 +15,7 @@ import {
   valuesAtColumn,
   decisionMatchesColumn,
   pendingReviewCount,
+  sortRowsByIssueScore,
   type GridColumn,
   type MemberReviewState,
 } from '../useBatchExtractionReviewGrid'
@@ -487,7 +489,11 @@ export default function BatchExtractionReviewGrid({
   })
   const progress = batchExtractionProgress(batch)
   const reviewFraction = aggregateReviewFraction(grid.members)
-  const allRows = buildRows(batch, grid.members)
+  const allRows = sortRowsByIssueScore(buildRows(batch, grid.members), grid.issueScores)
+  const succeededSourceDocumentIds = batch.members
+    .filter((member) => member.latestExtraction?.outcome === 'SUCCEEDED')
+    .map((member) => member.sourceDocumentId)
+  const priorityReviewMembers = selectPriorityReviewMembers(succeededSourceDocumentIds, grid.issueScores)
   const rows =
     filter === 'needs-review'
       ? allRows.filter((row) => {
@@ -821,6 +827,11 @@ export default function BatchExtractionReviewGrid({
                       <div className="mt-1 flex flex-wrap items-center gap-1">
                         {(status.label !== 'Needs review' || needsReviewLocally(member)) && (
                           <StatusPill tone={status.tone} label={status.label} />
+                        )}
+                        {priorityReviewMembers.has(row.sourceDocumentId) && (
+                          <Pill tone="accent" title="Flagged for review: high issue count, or part of this batch's sampled review floor">
+                            Priority review
+                          </Pill>
                         )}
                         {state?.status === 'ready' && (
                           <QualityScoreBadge decisions={state.decisions} touched={state.touched} />

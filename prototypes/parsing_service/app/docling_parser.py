@@ -137,16 +137,55 @@ class DoclingParser:
             self._converter = converter
         return self
 
-    def parse(
+    def prepare(
         self,
         source_path: Path,
         context: Mapping[str, Any] | object,
-    ) -> ParseResult:
-        """Convert one PDF and publish its canonical package payloads."""
+    ) -> tuple[Path, list[tuple[_PageGeometry, float]], TemporaryDirectory[str]]:
+        """Run the scanned-column preparation pass once, ahead of dispatching
+        page-range partitions to independent worker processes. The caller
+        owns the returned ``TemporaryDirectory``'s lifetime and must keep it
+        open (and eventually clean it up) until every partition using the
+        returned path has finished converting.
+        """
 
         task = _Context.from_value(context)
         source = Path(source_path)
         if not source.is_file():
+            raise DoclingParseError("source_not_found", "Source PDF was not found")
+        directory = TemporaryDirectory(prefix="free-docling-")
+        try:
+            prepared, slices = _prepare_scanned_columns(source, Path(directory.name), task)
+        except BaseException:
+            directory.cleanup()
+            raise
+        return prepared, slices, directory
+
+    def parse(
+        self,
+        source_path: Path,
+        context: Mapping[str, Any] | object,
+        *,
+        page_range: tuple[int, int] | None = None,
+        ref_prefix: str = "",
+        prepared: tuple[Path, list[tuple[_PageGeometry, float]]] | None = None,
+    ) -> ParseResult:
+        """Convert one PDF, or one page-range partition of an already-
+        prepared PDF, and publish its canonical package payloads.
+
+        ``page_range`` restricts conversion to that inclusive 1-indexed page
+        range of the prepared document (see :meth:`prepare`). ``ref_prefix``
+        namespaces every published ID so independently converted partitions
+        never collide when merged. ``prepared`` supplies the output of a
+        prior :meth:`prepare` call so the (comparatively expensive)
+        scanned-column detection pass runs once per document, not once per
+        partition; when omitted, this method prepares the source itself,
+        exactly as it always has for a single, unpartitioned document.
+        """
+
+        task = _Context.from_value(context)
+        source = Path(source_path)
+        if prepared is None and not source.is_file():
             raise DoclingParseError("source_not_found", "Source PDF was not found")
 
         self.initialize()
@@ -158,13 +197,23 @@ class DoclingParser:
             convert_options["max_file_size"] = task.max_file_size
 
         started = time.perf_counter()
-        with TemporaryDirectory(prefix="free-docling-") as temporary:
-            prepared, slices = _prepare_scanned_columns(source, Path(temporary), task)
+        owned_directory: TemporaryDirectory[str] | None = None
+        try:
+            if prepared is not None:
+                prepared_path, slices = prepared
+            else:
+                owned_directory = TemporaryDirectory(prefix="free-docling-")
+                prepared_path, slices = _prepare_scanned_columns(source, Path(owned_directory.name), task)
             if slices:
                 # Admission limits apply to physical pages and original bytes.
                 convert_options["max_num_pages"] = len(slices)
-                convert_options["max_file_size"] = prepared.stat().st_size
-            result = self._converter.convert(prepared, **convert_options)
+                convert_options["max_file_size"] = prepared_path.stat().st_size
+            if page_range is not None:
+                convert_options["page_range"] = page_range
+            result = self._converter.convert(prepared_path, **convert_options)
+        finally:
+            if owned_directory is not None:
+                owned_directory.cleanup()
         duration_ms = max(0, round((time.perf_counter() - started) * 1000))
         status = _conversion_status(result)
         error_messages = _conversion_errors(result)
@@ -179,7 +228,7 @@ class DoclingParser:
             )
 
         if slices:
-            _restore_physical_pages(document, slices)
+            _restore_physical_pages(document, slices, page_range)
         parser_version = _docling_version(result)
         conversion_warnings = (
             [f"Docling partial conversion: {message}" for message in error_messages]
@@ -209,6 +258,8 @@ class DoclingParser:
             parser_version=parser_version,
             serializer_factory=self._serializer_factory,
             initial_diagnostics=conversion_diagnostics,
+            ref_prefix=ref_prefix,
+            page_range=page_range,
         )
         parsed_document, markdown, warnings = publisher.publish(
             conversion_warnings,
@@ -253,6 +304,8 @@ class _Publisher:
         parser_version: str | None,
         serializer_factory: Callable[[Any], Any],
         initial_diagnostics: Sequence[dict[str, Any]],
+        ref_prefix: str = "",
+        page_range: tuple[int, int] | None = None,
     ) -> None:
         self.document = document
         self.context = context
@@ -260,6 +313,8 @@ class _Publisher:
         self.parser_version = parser_version
         self.serializer_factory = serializer_factory
         self.diagnostics = list(initial_diagnostics)
+        self.ref_prefix = ref_prefix
+        self.page_range = page_range
 
     def publish(
         self,
@@ -388,7 +443,13 @@ class _Publisher:
                     f"Docling returned duplicate page {page_number}",
                 )
             pages[page_number] = _PageGeometry(page_number, width, height)
-        expected = list(range(1, max(pages) + 1))
+        # A partition-scoped document covers exactly its requested page
+        # range (e.g. 11..20); a whole-document conversion (no page_range)
+        # is the special case starting at page 1, matched against whatever
+        # Docling itself reported.
+        start = self.page_range[0] if self.page_range is not None else 1
+        end = self.page_range[1] if self.page_range is not None else max(pages)
+        expected = list(range(start, end + 1))
         if sorted(pages) != expected:
             raise DoclingParseError(
                 "v2_physical_page_mapping_unavailable",
@@ -509,7 +570,14 @@ class _Publisher:
         anchors: list[dict[str, Any]] = []
         ordered = {page_number: [] for page_number in pages}
         for ordinal, item in enumerate(items):
-            ref = _self_ref(item) or f"reading-order:{ordinal}"
+            # `raw_ref` matches Docling's own self_ref, the key `markdown`'s
+            # ref_spans is built from — it must stay unprefixed. `ref` adds
+            # this partition's namespace prefix so independently converted
+            # partitions' block_id/table_id/anchor_id hashes never collide
+            # once merged (each partition's own Docling self_ref restarts at
+            # zero); use it for ID identity strings, never for span lookups.
+            raw_ref = _self_ref(item) or f"reading-order:{ordinal}"
+            ref = self.ref_prefix + raw_ref
             provenance = self._item_provenance(item, ref, pages)
             if not provenance:
                 self.diagnostics.append(
@@ -535,7 +603,7 @@ class _Publisher:
                     "page_number": page_number,
                     "parser": PARSER_NAME,
                     "bbox": provenance[0].bbox,
-                    "markdown_span": markdown.ref_spans.get(ref),
+                    "markdown_span": markdown.ref_spans.get(raw_ref),
                     "kind": "table",
                     "table_id": table_id,
                 }
@@ -558,7 +626,7 @@ class _Publisher:
                         )
                     )
                 continue
-            span = markdown.ref_spans.get(ref)
+            span = markdown.ref_spans.get(raw_ref)
             if span is None:
                 self.diagnostics.append(
                     _diagnostic(
@@ -941,10 +1009,15 @@ def _scanned_column_cuts(image: Any, page_width: float) -> list[float]:
     return cuts
 
 
-def _restore_physical_pages(document: Any, slices: Sequence[tuple[_PageGeometry, float]]) -> None:
+def _restore_physical_pages(
+    document: Any,
+    slices: Sequence[tuple[_PageGeometry, float]],
+    page_range: tuple[int, int] | None = None,
+) -> None:
     from docling_core.types.doc import ContentLayer, DocItemLabel, PageItem, Size
 
-    if set(document.pages) != set(range(1, len(slices) + 1)):
+    start, end = page_range if page_range is not None else (1, len(slices))
+    if set(document.pages) != set(range(start, end + 1)):
         raise DoclingParseError("v2_physical_page_mapping_unavailable", "Docling omitted a prepared PDF page")
     for item, _ in document.iterate_items(with_groups=False, included_content_layers=set(ContentLayer)):
         # Cropping can make a numbered entry look like a running page header.
@@ -968,7 +1041,7 @@ def _restore_physical_pages(document: Any, slices: Sequence[tuple[_PageGeometry,
             prov.bbox.r += offset
     document.pages = {geometry.page_number: PageItem(
         page_no=geometry.page_number, size=Size(width=geometry.width, height=geometry.height),
-    ) for geometry, _ in slices}
+    ) for geometry, _ in slices[start - 1:end]}
 
 
 def _column_order(
@@ -1242,7 +1315,13 @@ def _validate_publication(document: Mapping[str, Any], markdown: str) -> None:
             anchor["anchor_id"]: anchor
             for anchor in document["evidence_index"]["anchors"]
         }
-        if len(pages) != page_count or set(pages) != set(range(1, page_count + 1)):
+        # A partition fragment's own pages need only be contiguous, not
+        # necessarily starting at 1 — `_physical_pages` already enforced the
+        # exact expected range (whole-document or a specific page_range)
+        # before this dict was built. The final merged document is checked
+        # by its caller for full 1..page_count coverage.
+        start = min(pages) if pages else 1
+        if len(pages) != page_count or set(pages) != set(range(start, start + page_count)):
             raise ValueError("physical pages are incomplete")
         if len(blocks) != len(document["content_stream"]):
             raise ValueError("content block IDs are not unique")

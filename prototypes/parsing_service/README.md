@@ -25,6 +25,32 @@ failed instead of being recovered through a second durable queue. Cancellation
 is cooperative because Docling conversion is a blocking native call: a running
 conversion finishes in its worker thread, but its result is discarded.
 
+## Large-document parallel parsing (opt-in)
+
+A single large PDF can be converted as several independent page-range
+partitions, run concurrently across a bounded pool of worker *processes*,
+then merged back into one `parsed_document.v2` document. This parallelizes
+the work behind *one* task — it does not change the one-worker, two-task
+admission model above. It is off by default and controlled by env vars:
+
+- `PARALLEL_PARSE_MIN_PAGES` — a document partitions only once its prepared
+  page count exceeds this. Defaults high enough that partitioning never
+  triggers until an operator explicitly lowers it.
+- `PARALLEL_PARSE_MAX_WORKERS` — bounds the worker-process pool. Each worker
+  process loads its own copy of Docling's layout/OCR/table models (and
+  competes for GPU memory when `DOCLING_DEVICE` uses a GPU), so memory and
+  GPU usage scale with this value — size it deliberately, not just for
+  parallelism.
+- `PARALLEL_PARSE_TARGET_PARTITION_PAGES` — target page count per partition.
+- `PARALLEL_PARSE_SPLIT_SEARCH_RADIUS` — how many pages a partition boundary
+  may shift to avoid landing inside a detected table.
+
+A table or paragraph that ends up split across a partition boundary anyway
+is either stitched back into one logical table (when the geometry lines up)
+or published as two separate items with a diagnostic marking the boundary —
+never silently dropped or guessed at. See the `parallelize-large-document-parsing`
+OpenSpec change for the full design and rationale.
+
 ## Run
 
 From the repository root:

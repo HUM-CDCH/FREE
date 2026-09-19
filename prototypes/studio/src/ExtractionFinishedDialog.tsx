@@ -1,7 +1,7 @@
 import { useId, useMemo, useRef } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
-import { countLeafFields } from './fieldCoverage'
+import { classifyExtractionFields, groundedPathKeySet } from './extractionClassification'
 import { Button, ModalDialog } from './ui'
 
 export type ExtractionFinishedDialogProps = {
@@ -28,10 +28,15 @@ export default function ExtractionFinishedDialog({
   const initialFocus = useRef<HTMLButtonElement>(null)
   const titleId = useId()
   const descriptionId = useId()
-  const fieldCount = useMemo(() => countLeafFields(schemaNodes), [schemaNodes])
-  const grounding = attempt.diagnostics?.grounding
-  const grounded = grounding?.groundedPaths.length ?? 0
-  const ungrounded = grounding?.ungroundedPaths.length ?? 0
+  const counts = useMemo(() => {
+    const grounding = attempt.diagnostics?.grounding
+    return classifyExtractionFields(
+      schemaNodes,
+      attempt.resultPayload,
+      groundedPathKeySet(grounding?.groundedPaths ?? []),
+    )
+  }, [schemaNodes, attempt.resultPayload, attempt.diagnostics])
+  const fieldCount = counts.grounded + counts.ungroundedWithValue + counts.missing
 
   return (
     <ModalDialog
@@ -47,8 +52,9 @@ export default function ExtractionFinishedDialog({
       <div id={descriptionId} className="mt-2 space-y-1 text-xs leading-relaxed text-ink-muted">
         <p className="font-medium text-ink">{documentName}</p>
         <p>
-          {fieldCount} field{fieldCount === 1 ? '' : 's'} · {grounded} grounded
-          {ungrounded > 0 ? ` · ${ungrounded} could not be grounded` : ''}.
+          {fieldCount} field{fieldCount === 1 ? '' : 's'} · {counts.grounded} grounded
+          {counts.ungroundedWithValue > 0 ? ` · ${counts.ungroundedWithValue} not grounded` : ''}
+          {counts.missing > 0 ? ` · ${counts.missing} missing` : ''}.
         </p>
       </div>
       <div className="mt-4 flex justify-end gap-2">

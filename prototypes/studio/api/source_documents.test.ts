@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
-import { IngestionKeyConflictError } from '../../../packages/db/src/project-store.js'
+import {
+  IngestionKeyConflictError,
+  OriginalNameConflictError,
+} from '../../../packages/db/src/project-store.js'
 import {
   createSourceDocumentDeletion,
   createSourceDocumentIngestion,
@@ -69,11 +72,13 @@ function stalledBody(signal: AbortSignal | null | undefined): Response {
 }
 
 function calledCancel(fetcher: ReturnType<typeof vi.fn>, taskId: string) {
-  return fetcher.mock.calls.some(
-    ([url, init]: [string | URL, RequestInit?]) =>
+  return fetcher.mock.calls.some((call) => {
+    const [url, init] = call as [string | URL, RequestInit?]
+    return (
       String(url) === `http://parser.test/tasks/${taskId}/cancel` &&
-      init?.method === 'POST',
-  )
+      init?.method === 'POST'
+    )
+  })
 }
 
 function dependencies(overrides: Record<string, unknown> = {}) {
@@ -420,6 +425,18 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     const { handler, store } = dependencies()
     store.ingestSourceDocument.mockRejectedValueOnce(
       new IngestionKeyConflictError(),
+    )
+
+    const response = await handler(request())
+
+    expect(response.status).toBe(409)
+    expect(store.discardCanonicalPackage).toHaveBeenCalledOnce()
+  })
+
+  it('rejects a filename already used by another document in the project and cleans its new package', async () => {
+    const { handler, store } = dependencies()
+    store.ingestSourceDocument.mockRejectedValueOnce(
+      new OriginalNameConflictError(),
     )
 
     const response = await handler(request())

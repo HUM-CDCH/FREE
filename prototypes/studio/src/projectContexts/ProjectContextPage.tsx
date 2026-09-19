@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import type { NavigableRoute, ProjectResource } from '../projectNavigation'
 import { projectContextNameSchema } from '../../shared/projectContext.contract'
+import type { ProjectSpreadsheetVersion } from '../../shared/projectSpreadsheet.contract'
 import { listExtractionSchemas, renameExtractionSchema } from '../schemaRevisions'
 import SchemaNameEditor from '../SchemaNameEditor'
 import { Button, DeleteDialog, EmptyState } from '../ui'
-import BatchExtractionsPanel from './BatchExtractionsPanel'
+import BatchExtractionsPanel, {
+  SuggestedSchemaEditor,
+} from './BatchExtractionsPanel'
+import {
+  getCurrentProjectSpreadsheet,
+  uploadProjectSpreadsheet,
+} from './batchExtractions'
+import { useSpreadsheetSchemaSuggestion } from './useSpreadsheetSchemaSuggestion'
 import { useSourceDocumentDownload } from './useSourceDocumentDownload'
 import { useProjectContexts } from './useProjectContexts'
 
@@ -216,6 +224,14 @@ export default function ProjectContextPage({
     useState<SchemaListState | null>(null)
   const [schemaRetry, setSchemaRetry] = useState(0)
   const schemaRequestKey = `${projectContextId}:${schemaRetry}`
+  const [spreadsheet, setSpreadsheet] = useState<
+    | { status: 'loading' }
+    | { status: 'ready'; version: ProjectSpreadsheetVersion | null }
+    | { status: 'error'; message: string }
+  >({ status: 'loading' })
+  const [spreadsheetUploading, setSpreadsheetUploading] = useState(false)
+  const [spreadsheetError, setSpreadsheetError] = useState<string | null>(null)
+  const [separator, setSeparator] = useState('')
   const schemaList =
     settledSchemaList?.requestKey === schemaRequestKey
       ? settledSchemaList
@@ -305,6 +321,49 @@ export default function ProjectContextPage({
     )
     return () => controller.abort()
   }, [projectContextId, schemaRequestKey, tab])
+
+  const [spreadsheetSuggestion, sendSpreadsheetSuggestion, createSchemaFromSpreadsheet] =
+    useSpreadsheetSchemaSuggestion({
+      projectContextId,
+      onSuggestion: () => {},
+      onRun: () => {
+        setSchemaRetry((attempt) => attempt + 1)
+        sendSpreadsheetSuggestion({ type: 'reset' })
+      },
+    })
+  const activeSpreadsheetSuggestion = spreadsheetSuggestion.context.suggestion
+  const spreadsheetDraftConflict = spreadsheetSuggestion.matches('conflict')
+  const spreadsheetSuggestionConfirmed =
+    activeSpreadsheetSuggestion?.confirmedSchemaRevisionId != null
+  const updateSpreadsheetSuggestedDefinition = (
+    update: (definition: NonNullable<typeof spreadsheetSuggestion.context.draft>) => NonNullable<typeof spreadsheetSuggestion.context.draft>,
+  ) => {
+    if (!spreadsheetSuggestion.context.draft) return
+    sendSpreadsheetSuggestion({
+      type: 'proposal.changed',
+      definition: update(spreadsheetSuggestion.context.draft),
+    })
+  }
+
+  useEffect(() => {
+    if (tab !== 'schemas') return
+    const controller = new AbortController()
+    setSpreadsheet({ status: 'loading' })
+    getCurrentProjectSpreadsheet(projectContextId, controller.signal).then(
+      (version) => {
+        if (controller.signal.aborted) return
+        setSpreadsheet({ status: 'ready', version })
+      },
+      (error: unknown) => {
+        if (controller.signal.aborted) return
+        setSpreadsheet({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Unknown error.',
+        })
+      },
+    )
+    return () => controller.abort()
+  }, [projectContextId, tab, schemaRequestKey])
 
   if (branch?.status === 'error')
     return (
@@ -483,6 +542,177 @@ export default function ProjectContextPage({
             className="py-4"
             tabIndex={0}
           >
+            <section
+              className="mb-6 space-y-3 border-b border-line pb-6"
+              aria-label="Create schema from spreadsheet"
+            >
+              <h2 className="text-xs font-bold text-ink">
+                Create schema from spreadsheet
+              </h2>
+              <p className="text-[11px] text-ink-faint">
+                Upload a spreadsheet (columns become field names) to seed a new
+                schema suggestion — review and edit it below, then confirm.
+              </p>
+
+              {spreadsheet.status === 'error' && (
+                <p className="text-[11px] text-danger" role="alert">
+                  Could not load this project's spreadsheet. {spreadsheet.message}
+                </p>
+              )}
+              {spreadsheet.status === 'ready' && spreadsheet.version && (
+                <p className="text-[11px] text-ink-faint">
+                  Current spreadsheet:{' '}
+                  <span className="font-semibold text-ink">
+                    {spreadsheet.version.originalFilename}
+                  </span>{' '}
+                  (revision {spreadsheet.version.revisionNumber}, uploaded{' '}
+                  {new Date(spreadsheet.version.createdAt).toLocaleDateString(
+                    undefined,
+                    { dateStyle: 'medium' },
+                  )}
+                  )
+                </p>
+              )}
+
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink outline-none transition-colors hover:border-accent focus-within:border-accent">
+                  {spreadsheetUploading
+                    ? 'Uploading…'
+                    : spreadsheet.status === 'ready' && spreadsheet.version
+                      ? 'Replace spreadsheet'
+                      : 'Upload spreadsheet'}
+                  <input
+                    className="sr-only"
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    disabled={spreadsheetUploading}
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0]
+                      event.target.value = ''
+                      if (!file) return
+                      setSpreadsheetUploading(true)
+                      setSpreadsheetError(null)
+                      try {
+                        const version = await uploadProjectSpreadsheet(
+                          projectContextId,
+                          file,
+                        )
+                        setSpreadsheet({ status: 'ready', version })
+                      } catch (error) {
+                        setSpreadsheetError(
+                          error instanceof Error
+                            ? error.message
+                            : 'The spreadsheet could not be uploaded.',
+                        )
+                      } finally {
+                        setSpreadsheetUploading(false)
+                      }
+                    }}
+                  />
+                </label>
+
+                <label className="inline-flex items-center gap-1.5 text-[11px] text-ink-muted">
+                  Hierarchy separator
+                  <input
+                    className="h-7 w-14 rounded-md border border-line bg-surface px-2 text-xs text-ink outline-none focus-visible:border-accent"
+                    type="text"
+                    maxLength={1}
+                    placeholder="none"
+                    aria-label="Hierarchy separator (optional)"
+                    value={separator}
+                    onChange={(event) => setSeparator(event.target.value)}
+                  />
+                </label>
+
+                <Button
+                  size="sm"
+                  disabled={
+                    spreadsheet.status !== 'ready' ||
+                    !spreadsheet.version ||
+                    !(
+                      spreadsheetSuggestion.matches('idle') ||
+                      spreadsheetSuggestion.matches('failed')
+                    )
+                  }
+                  onClick={() =>
+                    createSchemaFromSpreadsheet(separator.trim() || undefined)
+                  }
+                >
+                  Generate schema suggestion
+                </Button>
+              </div>
+
+              {spreadsheetError && (
+                <p className="text-[11px] text-danger" role="alert">
+                  {spreadsheetError}
+                </p>
+              )}
+              {spreadsheetSuggestion.matches('creating') && (
+                <p className="text-xs text-ink-muted" aria-busy="true">
+                  Building a schema suggestion from the spreadsheet…
+                </p>
+              )}
+              {spreadsheetSuggestion.context.error && (
+                <p className="text-[11px] text-danger" role="alert">
+                  {spreadsheetSuggestion.context.error}
+                </p>
+              )}
+              {spreadsheetDraftConflict && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[11px] text-danger" role="alert">
+                    This draft changed elsewhere. Reload before continuing.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() =>
+                      sendSpreadsheetSuggestion({ type: 'suggestion.retry' })
+                    }
+                  >
+                    Reload
+                  </Button>
+                </div>
+              )}
+
+              {spreadsheetSuggestion.context.draft && (
+                <>
+                  <div
+                    className="h-[28rem] overflow-hidden rounded-md border border-line bg-surface"
+                    aria-busy={spreadsheetSuggestion.matches('running')}
+                    inert={spreadsheetSuggestion.matches('running') ? true : undefined}
+                  >
+                    <SuggestedSchemaEditor
+                      key={activeSpreadsheetSuggestion?.batchSchemaSuggestionId}
+                      proposal={spreadsheetSuggestion.context.draft}
+                      proposalVersion={{
+                        draftVersion: activeSpreadsheetSuggestion?.draftVersion ?? 0,
+                        finishedAt: activeSpreadsheetSuggestion?.finishedAt ?? null,
+                      }}
+                      sourceDocumentName="Uploaded spreadsheet"
+                      readOnly={spreadsheetSuggestionConfirmed}
+                      showRegenerate={false}
+                      onProposalEdit={updateSpreadsheetSuggestedDefinition}
+                      onPendingLocalEditChange={() => {}}
+                    />
+                  </div>
+                  {!spreadsheetSuggestionConfirmed && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() =>
+                        sendSpreadsheetSuggestion({
+                          type: 'run.requested',
+                          strategy: 'ARTICLE',
+                        })
+                      }
+                    >
+                      Confirm schema
+                    </Button>
+                  )}
+                </>
+              )}
+            </section>
+
             {schemaList?.status === 'ready' ? (
               schemaList.schemas.length === 0 ? (
                 <p className="py-6 text-center text-xs text-ink-muted">

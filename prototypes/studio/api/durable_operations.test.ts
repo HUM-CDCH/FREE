@@ -31,6 +31,10 @@ const suggestion: BatchSchemaSuggestionRecord = {
   selectionKey: 'a'.repeat(64),
   executionStatus: 'COMPLETED',
   phase: 'READY',
+  sourceKind: 'DOCUMENTS',
+  purpose: null,
+  columnFieldMapping: null,
+  projectSpreadsheetVersionId: null,
   proposal: {
     recordDescription: 'One place.',
     schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
@@ -91,6 +95,8 @@ function moduleForSuggestedBatch() {
     listBatches: vi.fn<ExtractionModule['listBatches']>(),
     readBatch: vi.fn<ExtractionModule['readBatch']>(),
     readBatchResults: vi.fn<ExtractionModule['readBatchResults']>(),
+    validateExtraction: vi.fn<ExtractionModule['validateExtraction']>(),
+    listEvaluationRuns: vi.fn<ExtractionModule['listEvaluationRuns']>(),
   }
   return module
 }

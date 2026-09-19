@@ -428,6 +428,9 @@ function twoAccountStoreFixture(): TwoAccountStores {
       discardCanonicalPackage: vi.fn(async () => {}),
       ingestSourceDocument: vi.fn(async () => null),
       createBatchSchemaSuggestion: vi.fn(async () => null),
+      createSpreadsheetSchemaSuggestion: vi.fn(async () => null),
+      appendProjectSpreadsheetVersion: vi.fn(async () => null),
+      getCurrentProjectSpreadsheet: vi.fn(async () => null),
       getBatchSchemaSuggestion: vi.fn(async () => null),
       listBatchSchemaSuggestions: vi.fn(async () => null),
       updateBatchSchemaSuggestionDraft: vi.fn(async () => null),
@@ -502,6 +505,21 @@ function twoAccountStoreFixture(): TwoAccountStores {
             return null
           return storedRevision(relationship)
         },
+      ),
+      // No route exercises Evaluation Corpus ownership yet (§2+ of
+      // extraction-quality-evaluation) — these stubs only keep this mock a
+      // structurally complete ResearcherProjectStore.
+      createEvaluationCorpus: vi.fn(async (projectContextId) =>
+        owned(accountId, projectContextId) ? null : null,
+      ),
+      appendEvaluationCorpusVersion: vi.fn(async (projectContextId) =>
+        owned(accountId, projectContextId) ? null : null,
+      ),
+      getCurrentEvaluationCorpusVersion: vi.fn(async (projectContextId) =>
+        owned(accountId, projectContextId) ? null : null,
+      ),
+      listEvaluationCorpusVersions: vi.fn(async (projectContextId) =>
+        owned(accountId, projectContextId) ? null : null,
       ),
     }
     stores.set(accountId, store)
@@ -668,6 +686,11 @@ function twoAccountStoreFixture(): TwoAccountStores {
           throw notFound()
         throw new Error('Authorized Batch results are outside this test.')
       }),
+      // No route exercises Evaluation Run ownership yet (§4 of
+      // extraction-quality-evaluation) — these stubs only keep this mock a
+      // structurally complete ExtractionModule.
+      validateExtraction: vi.fn<ExtractionModule['validateExtraction']>(),
+      listEvaluationRuns: vi.fn<ExtractionModule['listEvaluationRuns']>(),
     }
   }
   extractionRuntimeMock.modules.clear()

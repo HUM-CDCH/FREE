@@ -1620,6 +1620,565 @@ if (!disposableDatabaseUrl) {
       )
     })
 
+    it('populates an Evaluation Corpus version from a confirmed SCHEMA_AND_VALIDATE spreadsheet suggestion', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['salmon.pdf', 'cod.pdf'])
+      const { module } = createRuntime(project.researcherAccountId)
+
+      const projectSpreadsheetVersionId = randomUUID()
+      await db.orm.public.ProjectSpreadsheetVersion.create({
+        id: projectSpreadsheetVersionId,
+        projectContextId: project.projectContextId,
+        revisionNumber: 1,
+        originalFilename: 'gold.xlsx',
+        columns: [
+          { columnName: 'filename', values: ['salmon.pdf', 'cod.pdf'] },
+          { columnName: 'species', values: ['Salmon', 'Cod'] },
+        ],
+      })
+      const draft = {
+        recordDescription: 'One species record.',
+        schemaNodes: [{ id: 'species-node', name: 'species', type: 'string' }],
+      }
+      const batchSchemaSuggestionId = randomUUID()
+      await db.orm.public.BatchSchemaSuggestion.create({
+        id: batchSchemaSuggestionId,
+        projectContextId: project.projectContextId,
+        selectionKey: sha256(strToU8(batchSchemaSuggestionId)),
+        sourceKind: 'SPREADSHEET',
+        purpose: 'SCHEMA_AND_VALIDATE',
+        columnFieldMapping: { species: 'species-node' },
+        projectSpreadsheetVersionId,
+      })
+      await db.orm.public.BatchSchemaSuggestion.where({
+        id: batchSchemaSuggestionId,
+      }).update({
+        executionStatus: 'COMPLETED',
+        phase: 'READY',
+        draft,
+        draftVersion: 1,
+        finishedAt: new Date(),
+      })
+
+      const handoff = await module.scheduleSuggestedBatch({
+        projectContextId: project.projectContextId,
+        batchSchemaSuggestionId,
+        strategy: 'ARTICLE',
+      })
+      assert.equal(handoff.disposition, 'created')
+
+      const evaluationCorpus = await db.orm.public.EvaluationCorpus.select(
+        'id',
+      ).first({ projectContextId: project.projectContextId })
+      assert.ok(evaluationCorpus)
+      const version = await db.orm.public.EvaluationCorpusVersion.where({
+        evaluationCorpusId: evaluationCorpus!.id,
+      })
+        .select('id', 'revisionNumber')
+        .first()
+      assert.equal(version?.revisionNumber, 1)
+      const records = await db.orm.public.GoldRecord.where({
+        evaluationCorpusVersionId: version!.id,
+      })
+        .select('sourceDocumentId', 'fields')
+        .all()
+      assert.deepEqual(
+        records
+          .map((record) => ({
+            sourceDocumentId: record.sourceDocumentId,
+            fields: record.fields,
+          }))
+          .sort((left, right) =>
+            left.sourceDocumentId.localeCompare(right.sourceDocumentId),
+          ),
+        [
+          {
+            sourceDocumentId: project.documents.find(
+              (document) => document.filename === 'cod.pdf',
+            )!.sourceDocumentId,
+            fields: { species: 'Cod' },
+          },
+          {
+            sourceDocumentId: project.documents.find(
+              (document) => document.filename === 'salmon.pdf',
+            )!.sourceDocumentId,
+            fields: { species: 'Salmon' },
+          },
+        ].sort((left, right) =>
+          left.sourceDocumentId.localeCompare(right.sourceDocumentId),
+        ),
+      )
+    })
+
+    it('rejects confirming a SCHEMA_AND_VALIDATE suggestion whose spreadsheet has an unmatched filename, writing nothing', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['salmon.pdf'])
+      const { module } = createRuntime(project.researcherAccountId)
+
+      const projectSpreadsheetVersionId = randomUUID()
+      await db.orm.public.ProjectSpreadsheetVersion.create({
+        id: projectSpreadsheetVersionId,
+        projectContextId: project.projectContextId,
+        revisionNumber: 1,
+        originalFilename: 'gold.xlsx',
+        columns: [
+          { columnName: 'filename', values: ['salmon.pdf', 'unknown.pdf'] },
+          { columnName: 'species', values: ['Salmon', 'Cod'] },
+        ],
+      })
+      const draft = {
+        recordDescription: 'One species record.',
+        schemaNodes: [{ id: 'species-node', name: 'species', type: 'string' }],
+      }
+      const batchSchemaSuggestionId = randomUUID()
+      await db.orm.public.BatchSchemaSuggestion.create({
+        id: batchSchemaSuggestionId,
+        projectContextId: project.projectContextId,
+        selectionKey: sha256(strToU8(batchSchemaSuggestionId)),
+        sourceKind: 'SPREADSHEET',
+        purpose: 'SCHEMA_AND_VALIDATE',
+        columnFieldMapping: { species: 'species-node' },
+        projectSpreadsheetVersionId,
+      })
+      await db.orm.public.BatchSchemaSuggestion.where({
+        id: batchSchemaSuggestionId,
+      }).update({
+        executionStatus: 'COMPLETED',
+        phase: 'READY',
+        draft,
+        draftVersion: 1,
+        finishedAt: new Date(),
+      })
+
+      await assert.rejects(
+        module.scheduleSuggestedBatch({
+          projectContextId: project.projectContextId,
+          batchSchemaSuggestionId,
+          strategy: 'ARTICLE',
+        }),
+        /unknown\.pdf.*does not match/,
+      )
+      const persisted = await db.orm.public.BatchSchemaSuggestion.select(
+        'confirmedSchemaRevisionId',
+        'batchExtractionId',
+      ).first({ id: batchSchemaSuggestionId })
+      assert.deepEqual(persisted, {
+        confirmedSchemaRevisionId: null,
+        batchExtractionId: null,
+      })
+      assert.equal(
+        await db.orm.public.EvaluationCorpus.select('id').first({
+          projectContextId: project.projectContextId,
+        }),
+        null,
+      )
+    })
+
+    it('creates no gold data confirming a SCHEMA-only spreadsheet suggestion, even with cells filled', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['salmon.pdf'])
+      const { module } = createRuntime(project.researcherAccountId)
+
+      const projectSpreadsheetVersionId = randomUUID()
+      await db.orm.public.ProjectSpreadsheetVersion.create({
+        id: projectSpreadsheetVersionId,
+        projectContextId: project.projectContextId,
+        revisionNumber: 1,
+        originalFilename: 'gold.xlsx',
+        columns: [
+          { columnName: 'filename', values: ['salmon.pdf'] },
+          { columnName: 'species', values: ['Salmon'] },
+        ],
+      })
+      const draft = {
+        recordDescription: 'One species record.',
+        schemaNodes: [{ id: 'species-node', name: 'species', type: 'string' }],
+      }
+      const batchSchemaSuggestionId = randomUUID()
+      await db.orm.public.BatchSchemaSuggestion.create({
+        id: batchSchemaSuggestionId,
+        projectContextId: project.projectContextId,
+        selectionKey: sha256(strToU8(batchSchemaSuggestionId)),
+        sourceKind: 'SPREADSHEET',
+        purpose: 'SCHEMA',
+        columnFieldMapping: { species: 'species-node' },
+        projectSpreadsheetVersionId,
+      })
+      await db.orm.public.BatchSchemaSuggestion.where({
+        id: batchSchemaSuggestionId,
+      }).update({
+        executionStatus: 'COMPLETED',
+        phase: 'READY',
+        draft,
+        draftVersion: 1,
+        finishedAt: new Date(),
+      })
+
+      const handoff = await module.scheduleSuggestedBatch({
+        projectContextId: project.projectContextId,
+        batchSchemaSuggestionId,
+        strategy: 'ARTICLE',
+      })
+      assert.equal(handoff.disposition, 'created')
+      assert.equal(
+        await db.orm.public.EvaluationCorpus.select('id').first({
+          projectContextId: project.projectContextId,
+        }),
+        null,
+      )
+    })
+
+    it('creates one GoldRecord per spreadsheet row, so multiple rows sharing a filename become multiple records under one document', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['salmon.pdf'])
+      const { module } = createRuntime(project.researcherAccountId)
+
+      const projectSpreadsheetVersionId = randomUUID()
+      await db.orm.public.ProjectSpreadsheetVersion.create({
+        id: projectSpreadsheetVersionId,
+        projectContextId: project.projectContextId,
+        revisionNumber: 1,
+        originalFilename: 'gold.xlsx',
+        columns: [
+          { columnName: 'filename', values: ['salmon.pdf', 'salmon.pdf'] },
+          { columnName: 'species', values: ['Salmon (juvenile)', 'Salmon (adult)'] },
+        ],
+      })
+      const draft = {
+        recordDescription: 'One species record.',
+        schemaNodes: [{ id: 'species-node', name: 'species', type: 'string' }],
+      }
+      const batchSchemaSuggestionId = randomUUID()
+      await db.orm.public.BatchSchemaSuggestion.create({
+        id: batchSchemaSuggestionId,
+        projectContextId: project.projectContextId,
+        selectionKey: sha256(strToU8(batchSchemaSuggestionId)),
+        sourceKind: 'SPREADSHEET',
+        purpose: 'SCHEMA_AND_VALIDATE',
+        columnFieldMapping: { species: 'species-node' },
+        projectSpreadsheetVersionId,
+      })
+      await db.orm.public.BatchSchemaSuggestion.where({
+        id: batchSchemaSuggestionId,
+      }).update({
+        executionStatus: 'COMPLETED',
+        phase: 'READY',
+        draft,
+        draftVersion: 1,
+        finishedAt: new Date(),
+      })
+
+      const handoff = await module.scheduleSuggestedBatch({
+        projectContextId: project.projectContextId,
+        batchSchemaSuggestionId,
+        strategy: 'ARTICLE',
+      })
+      assert.equal(handoff.disposition, 'created')
+
+      const evaluationCorpus = await db.orm.public.EvaluationCorpus.select(
+        'id',
+      ).first({ projectContextId: project.projectContextId })
+      const version = await db.orm.public.EvaluationCorpusVersion.where({
+        evaluationCorpusId: evaluationCorpus!.id,
+      })
+        .select('id')
+        .first()
+      const records = await db.orm.public.GoldRecord.where({
+        evaluationCorpusVersionId: version!.id,
+      })
+        .select('sourceDocumentId', 'fields')
+        .all()
+      assert.equal(records.length, 2)
+      assert.ok(
+        records.every(
+          (record) =>
+            record.sourceDocumentId === project.documents[0]!.sourceDocumentId,
+        ),
+      )
+      assert.deepEqual(
+        records.map((record) => record.fields).sort(),
+        [{ species: 'Salmon (adult)' }, { species: 'Salmon (juvenile)' }].sort(),
+      )
+    })
+
+    it('populates from the suggestion\'s pinned spreadsheet version, not the project\'s current one', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['salmon.pdf'])
+      const { module } = createRuntime(project.researcherAccountId)
+
+      const pinnedVersionId = randomUUID()
+      await db.orm.public.ProjectSpreadsheetVersion.create({
+        id: pinnedVersionId,
+        projectContextId: project.projectContextId,
+        revisionNumber: 1,
+        originalFilename: 'gold-v1.xlsx',
+        columns: [
+          { columnName: 'filename', values: ['salmon.pdf'] },
+          { columnName: 'species', values: ['Salmon (v1)'] },
+        ],
+      })
+      const draft = {
+        recordDescription: 'One species record.',
+        schemaNodes: [{ id: 'species-node', name: 'species', type: 'string' }],
+      }
+      const batchSchemaSuggestionId = randomUUID()
+      await db.orm.public.BatchSchemaSuggestion.create({
+        id: batchSchemaSuggestionId,
+        projectContextId: project.projectContextId,
+        selectionKey: sha256(strToU8(batchSchemaSuggestionId)),
+        sourceKind: 'SPREADSHEET',
+        purpose: 'SCHEMA_AND_VALIDATE',
+        columnFieldMapping: { species: 'species-node' },
+        projectSpreadsheetVersionId: pinnedVersionId,
+      })
+      await db.orm.public.BatchSchemaSuggestion.where({
+        id: batchSchemaSuggestionId,
+      }).update({
+        executionStatus: 'COMPLETED',
+        phase: 'READY',
+        draft,
+        draftVersion: 1,
+        finishedAt: new Date(),
+      })
+
+      // The project's spreadsheet moves on to a newer version before the
+      // suggestion is confirmed — population must still read the pinned one.
+      await db.orm.public.ProjectSpreadsheetVersion.create({
+        id: randomUUID(),
+        projectContextId: project.projectContextId,
+        revisionNumber: 2,
+        originalFilename: 'gold-v2.xlsx',
+        columns: [
+          { columnName: 'filename', values: ['salmon.pdf'] },
+          { columnName: 'species', values: ['Salmon (v2)'] },
+        ],
+      })
+
+      const handoff = await module.scheduleSuggestedBatch({
+        projectContextId: project.projectContextId,
+        batchSchemaSuggestionId,
+        strategy: 'ARTICLE',
+      })
+      assert.equal(handoff.disposition, 'created')
+
+      const evaluationCorpus = await db.orm.public.EvaluationCorpus.select(
+        'id',
+      ).first({ projectContextId: project.projectContextId })
+      const version = await db.orm.public.EvaluationCorpusVersion.where({
+        evaluationCorpusId: evaluationCorpus!.id,
+      })
+        .select('id')
+        .first()
+      const records = await db.orm.public.GoldRecord.where({
+        evaluationCorpusVersionId: version!.id,
+      })
+        .select('fields')
+        .all()
+      assert.deepEqual(
+        records.map((record) => record.fields),
+        [{ species: 'Salmon (v1)' }],
+      )
+    })
+
+    it('validates one document against its Evaluation Corpus, frozen against later gold corrections', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['salmon.pdf'])
+      const { module } = createRuntime(project.researcherAccountId)
+      const document = project.documents[0]!
+
+      const evaluationCorpusId = randomUUID()
+      await db.orm.public.EvaluationCorpus.create({
+        id: evaluationCorpusId,
+        projectContextId: project.projectContextId,
+        name: 'Pilot',
+      })
+      const versionOneId = randomUUID()
+      await db.orm.public.EvaluationCorpusVersion.create({
+        id: versionOneId,
+        evaluationCorpusId,
+        revisionNumber: 1,
+      })
+      await db.orm.public.GoldRecord.create({
+        evaluationCorpusVersionId: versionOneId,
+        sourceDocumentId: document.sourceDocumentId,
+        sourceRepresentationRevisionId: document.sourceRepresentationRevisionId,
+        fields: { title: 'Alpha', filename: 'salmon.pdf' },
+      })
+
+      const attempt = await module.runSingle({
+        kind: 'fresh' as const,
+        extractionId: randomUUID(),
+        sourceRepresentationRevisionId: document.sourceRepresentationRevisionId,
+        schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE' as const,
+      })
+      assert.equal(attempt.extraction.outcome, 'SUCCEEDED')
+
+      const run = await module.validateExtraction({
+        projectContextId: project.projectContextId,
+        evaluationCorpusId,
+        extractionId: attempt.extraction.extractionId,
+      })
+      assert.equal(run.extractionId, attempt.extraction.extractionId)
+      assert.equal(run.batchExtractionId, null)
+      assert.equal(run.evaluationCorpusVersionId, versionOneId)
+      assert.deepEqual(run.metrics, {
+        correctFields: 2,
+        totalGoldFields: 2,
+        totalExtractedFields: 2,
+        precision: 1,
+        recall: 1,
+        f1: 1,
+      })
+
+      // A later gold correction (a new corpus version with different data
+      // for the same document) must not retroactively change this run.
+      const versionTwoId = randomUUID()
+      await db.orm.public.EvaluationCorpusVersion.create({
+        id: versionTwoId,
+        evaluationCorpusId,
+        revisionNumber: 2,
+      })
+      await db.orm.public.GoldRecord.create({
+        evaluationCorpusVersionId: versionTwoId,
+        sourceDocumentId: document.sourceDocumentId,
+        sourceRepresentationRevisionId: document.sourceRepresentationRevisionId,
+        fields: { title: 'Beta', filename: 'salmon.pdf' },
+      })
+
+      const runs = await module.listEvaluationRuns({
+        projectContextId: project.projectContextId,
+        evaluationCorpusId,
+      })
+      assert.equal(runs.length, 1)
+      assert.equal(runs[0]!.evaluationRunId, run.evaluationRunId)
+      assert.deepEqual(runs[0]!.metrics, run.metrics)
+    })
+
+    it('keeps runs against different schema revisions independently readable, newest cycle first', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['salmon.pdf'])
+      const { module } = createRuntime(project.researcherAccountId)
+      const document = project.documents[0]!
+
+      const evaluationCorpusId = randomUUID()
+      await db.orm.public.EvaluationCorpus.create({
+        id: evaluationCorpusId,
+        projectContextId: project.projectContextId,
+        name: 'Pilot',
+      })
+      const versionId = randomUUID()
+      await db.orm.public.EvaluationCorpusVersion.create({
+        id: versionId,
+        evaluationCorpusId,
+        revisionNumber: 1,
+      })
+      await db.orm.public.GoldRecord.create({
+        evaluationCorpusVersionId: versionId,
+        sourceDocumentId: document.sourceDocumentId,
+        sourceRepresentationRevisionId: document.sourceRepresentationRevisionId,
+        fields: { title: 'Alpha', filename: 'salmon.pdf' },
+      })
+
+      const firstAttempt = await module.runSingle({
+        kind: 'fresh' as const,
+        extractionId: randomUUID(),
+        sourceRepresentationRevisionId: document.sourceRepresentationRevisionId,
+        schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE' as const,
+      })
+      const firstRun = await module.validateExtraction({
+        projectContextId: project.projectContextId,
+        evaluationCorpusId,
+        extractionId: firstAttempt.extraction.extractionId,
+      })
+
+      const secondRevisionId = randomUUID()
+      await db.orm.public.SchemaRevision.create({
+        id: secondRevisionId,
+        extractionSchemaId: project.extractionSchemaId,
+        revisionNumber: 2,
+        origin: 'RESEARCHER_EDIT',
+        schemaTree: ARTICLE_SCHEMA,
+      })
+      const secondAttempt = await module.runSingle({
+        kind: 'fresh' as const,
+        extractionId: randomUUID(),
+        sourceRepresentationRevisionId: document.sourceRepresentationRevisionId,
+        schemaRevisionId: secondRevisionId,
+        strategy: 'ARTICLE' as const,
+      })
+      const secondRun = await module.validateExtraction({
+        projectContextId: project.projectContextId,
+        evaluationCorpusId,
+        extractionId: secondAttempt.extraction.extractionId,
+      })
+
+      const runs = await module.listEvaluationRuns({
+        projectContextId: project.projectContextId,
+        evaluationCorpusId,
+      })
+      assert.deepEqual(
+        runs.map((run) => run.evaluationRunId),
+        [secondRun.evaluationRunId, firstRun.evaluationRunId],
+      )
+      assert.equal(runs[0]!.schemaRevisionId, secondRevisionId)
+      assert.equal(runs[1]!.schemaRevisionId, project.schemaRevisionId)
+    })
+
+    it('validating one document does not create or score a run for any other corpus document', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['salmon.pdf', 'cod.pdf'])
+      const { module } = createRuntime(project.researcherAccountId)
+      const [salmon, cod] = project.documents as [
+        SeededDocument,
+        SeededDocument,
+      ]
+
+      const evaluationCorpusId = randomUUID()
+      await db.orm.public.EvaluationCorpus.create({
+        id: evaluationCorpusId,
+        projectContextId: project.projectContextId,
+        name: 'Pilot',
+      })
+      const versionId = randomUUID()
+      await db.orm.public.EvaluationCorpusVersion.create({
+        id: versionId,
+        evaluationCorpusId,
+        revisionNumber: 1,
+      })
+      for (const [document, filename] of [
+        [salmon, 'salmon.pdf'],
+        [cod, 'cod.pdf'],
+      ] as const)
+        await db.orm.public.GoldRecord.create({
+          evaluationCorpusVersionId: versionId,
+          sourceDocumentId: document.sourceDocumentId,
+          sourceRepresentationRevisionId: document.sourceRepresentationRevisionId,
+          fields: { title: 'Alpha', filename },
+        })
+
+      const attempt = await module.runSingle({
+        kind: 'fresh' as const,
+        extractionId: randomUUID(),
+        sourceRepresentationRevisionId: salmon.sourceRepresentationRevisionId,
+        schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE' as const,
+      })
+      await module.validateExtraction({
+        projectContextId: project.projectContextId,
+        evaluationCorpusId,
+        extractionId: attempt.extraction.extractionId,
+      })
+
+      const runs = await module.listEvaluationRuns({
+        projectContextId: project.projectContextId,
+        evaluationCorpusId,
+      })
+      assert.equal(runs.length, 1)
+      assert.equal(runs[0]!.extractionId, attempt.extraction.extractionId)
+    })
+
     it('rejects invalid stored suggestion drafts inside the atomic batch transaction', async (t) => {
       t.after(cleanup)
       const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf'])

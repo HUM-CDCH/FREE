@@ -265,6 +265,20 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
       if (!results) throw new ExtractionError('not_found', 'That Batch Extraction was not found.')
       return results
     },
+    async validateExtraction(input) {
+      const run = await persistence.validateExtraction(input)
+      if (!run)
+        throw new ExtractionError(
+          'not_found',
+          'That Extraction, Evaluation Corpus, or its gold data for this document was not found.',
+        )
+      return run
+    },
+    async listEvaluationRuns(input) {
+      const runs = await persistence.listEvaluationRuns(input)
+      if (!runs) throw new ExtractionError('not_found', 'That Evaluation Corpus was not found.')
+      return runs
+    },
   }
 }
 

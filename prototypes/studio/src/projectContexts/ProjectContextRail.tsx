@@ -128,6 +128,7 @@ export function ProjectContextRail({
     retryList,
     createProject,
     addSources,
+    ingestingSources,
     deleteProject,
     deleteSourceDocument,
   } = useProjectContexts()
@@ -304,6 +305,9 @@ export function ProjectContextRail({
             const isExpanded = visibleExpanded.has(projectContextId)
             const active = projectContextId === activeProjectContextId
             const branch = branches[projectContextId]
+            const queued = ingestingSources.filter(
+              (source) => source.projectContextId === projectContextId,
+            )
             return (
               <li key={projectContextId} className="py-1.5">
                 {/* The chevron and the name are one control: either discloses
@@ -386,6 +390,35 @@ export function ProjectContextRail({
 
                 {isExpanded && (
                   <div className="ml-1.5">
+                    {/* In-flight first: an added Source Document is visible
+                        here, grayed out, before its parsing finishes. */}
+                    {queued.map((source) => (
+                      <div
+                        className={`flex items-center border-l pl-3 ${
+                          source.status === 'failed'
+                            ? 'border-danger/40'
+                            : 'border-line'
+                        }`}
+                        key={source.ingestionKey}
+                      >
+                        <span
+                          className={`min-w-0 flex-1 break-words py-1.5 pr-1 text-xs font-medium leading-snug ${
+                            source.status === 'failed'
+                              ? 'text-danger'
+                              : 'text-ink-faint'
+                          }`}
+                          aria-label={`${source.file.name} (${
+                            source.status === 'failed'
+                              ? 'failed to parse'
+                              : source.status === 'parsing'
+                                ? 'parsing'
+                                : 'queued'
+                          })`}
+                        >
+                          <WrappedName name={source.file.name} />
+                        </span>
+                      </div>
+                    ))}
                     {branch?.status === 'loading' && (
                       <p className={`py-1 text-[11px] text-ink-muted ${guide}`}>
                         Loading…
@@ -406,7 +439,8 @@ export function ProjectContextRail({
                       </p>
                     )}
                     {branch?.status === 'ready' &&
-                      branch.detail.sourceDocuments.length === 0 && (
+                      branch.detail.sourceDocuments.length === 0 &&
+                      queued.length === 0 && (
                         <p
                           className={`py-1 pr-1 text-[11px] leading-snug text-ink-muted ${guide}`}
                         >

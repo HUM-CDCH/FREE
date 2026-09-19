@@ -379,6 +379,12 @@ function batchFixture(nested = false): {
         results: produced,
       }
     },
+    async validateExtraction() {
+      throw new Error('validateExtraction is outside this test.')
+    },
+    async listEvaluationRuns() {
+      return []
+    },
   } as ExtractionModule
   return { store, extractions }
 }

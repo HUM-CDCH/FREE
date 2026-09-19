@@ -129,6 +129,8 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
     listBatches: vi.fn<ExtractionModule['listBatches']>(),
     readBatch: vi.fn<ExtractionModule['readBatch']>(),
     readBatchResults: vi.fn<ExtractionModule['readBatchResults']>(),
+    validateExtraction: vi.fn<ExtractionModule['validateExtraction']>(),
+    listEvaluationRuns: vi.fn<ExtractionModule['listEvaluationRuns']>(),
     ...overrides,
   }
   return module

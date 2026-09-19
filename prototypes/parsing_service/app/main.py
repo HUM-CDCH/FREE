@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import os
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -15,6 +16,7 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from . import parallel_parsing
 from .contracts import TaskCreatedResponse, TaskStatusResponse
 from .storage import (
     MAX_UPLOAD_BYTES,
@@ -30,10 +32,29 @@ from .tasks import (
     TaskManager,
     new_task_metadata,
 )
+from .worker_pool import PartitionWorkerPool
 
 
 TASK_REQUEST_LIMIT_BYTES = MAX_UPLOAD_BYTES + 1024 * 1024
 RETRY_AFTER_SECONDS = 5
+
+_UNSET = object()
+"""Distinguishes "no override, build the default pool" from an explicit
+`pool=None` (partitioning disabled) in `create_app`."""
+
+
+def _positive_int_env(name: str, default: int) -> int:
+    """Read a positive-integer env var, falling back to `default` when the
+    variable is unset, blank, non-numeric, or not positive."""
+
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
 
 
 class TaskRequestLimitMiddleware:
@@ -93,10 +114,49 @@ def create_app(
     parser: Any | None = None,
     data_root: str | Path | None = None,
     queue_capacity: int = DEFAULT_QUEUE_CAPACITY,
+    *,
+    parallel_min_pages: int | None = None,
+    parallel_target_partition_pages: int | None = None,
+    parallel_max_workers: int | None = None,
+    parallel_search_radius: int | None = None,
+    pool: Any | None = _UNSET,
 ) -> FastAPI:
     service_root = Path(__file__).resolve().parents[1]
     storage = TaskStorage(data_root or service_root / "data" / "tasks")
-    manager = TaskManager(storage, parser, capacity=queue_capacity)
+
+    # Large-document partitioning is opt-in: PARALLEL_PARSE_MIN_PAGES
+    # defaults high enough that no document partitions until an operator
+    # explicitly lowers it (see design.md's Migration Plan). A pool is only
+    # constructed when partitioning is actually possible; ProcessPoolExecutor
+    # spawns no OS processes until the first partition is dispatched, so
+    # building one costs nothing while every task stays under threshold.
+    # Each `parallel_*` keyword lets a caller (tests, mainly) override the
+    # corresponding env var explicitly instead of mutating process env.
+    if parallel_min_pages is None:
+        parallel_min_pages = _positive_int_env("PARALLEL_PARSE_MIN_PAGES", parallel_parsing.DEFAULT_MIN_PAGES)
+    if parallel_target_partition_pages is None:
+        parallel_target_partition_pages = _positive_int_env(
+            "PARALLEL_PARSE_TARGET_PARTITION_PAGES", parallel_parsing.DEFAULT_TARGET_PARTITION_PAGES
+        )
+    if parallel_max_workers is None:
+        parallel_max_workers = _positive_int_env("PARALLEL_PARSE_MAX_WORKERS", parallel_parsing.DEFAULT_MAX_WORKERS)
+    if parallel_search_radius is None:
+        parallel_search_radius = _positive_int_env(
+            "PARALLEL_PARSE_SPLIT_SEARCH_RADIUS", parallel_parsing.DEFAULT_SPLIT_SEARCH_RADIUS
+        )
+    if pool is _UNSET:
+        pool = PartitionWorkerPool(parallel_max_workers) if parallel_max_workers > 1 else None
+
+    manager = TaskManager(
+        storage,
+        parser,
+        capacity=queue_capacity,
+        pool=pool,
+        parallel_min_pages=parallel_min_pages,
+        parallel_target_partition_pages=parallel_target_partition_pages,
+        parallel_max_workers=parallel_max_workers,
+        parallel_search_radius=parallel_search_radius,
+    )
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -105,6 +165,9 @@ def create_app(
             yield
         finally:
             await manager.stop()
+            shutdown = getattr(pool, "shutdown", None)
+            if callable(shutdown):
+                shutdown()
 
     application = FastAPI(title="FREE Parsing Service", lifespan=lifespan)
     application.state.storage = storage

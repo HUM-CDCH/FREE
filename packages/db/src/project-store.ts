@@ -78,6 +78,63 @@ function schemaRevision(row: StoredSchemaRevision): SchemaRevisionRecord {
   }
 }
 
+export type GoldRecordEntry = {
+  goldRecordId: string
+  sourceDocumentId: string
+  /** Pinned by the store at append time to the document's current revision
+   *  — never caller-supplied, so a stale client can't pin an arbitrary or
+   *  foreign revision. */
+  sourceRepresentationRevisionId: string
+  /** Shaped like the target `SchemaRevision`'s fields; opaque here. */
+  fields: unknown
+  createdAt: Date
+}
+
+export type EvaluationCorpusVersionRecord = {
+  evaluationCorpusVersionId: string
+  evaluationCorpusId: string
+  revisionNumber: number
+  createdAt: Date
+  goldRecords: GoldRecordEntry[]
+}
+
+export type EvaluationCorpusRecord = {
+  evaluationCorpusId: string
+  projectContextId: string
+  name: string
+  createdAt: Date
+}
+
+export type AppendEvaluationCorpusVersionResult =
+  | { status: 'created'; version: EvaluationCorpusVersionRecord }
+  | { status: 'conflict'; currentVersion: EvaluationCorpusVersionRecord }
+
+type StoredGoldRecord = {
+  id: string
+  sourceDocumentId: string
+  sourceRepresentationRevisionId: string
+  fields: unknown
+  createdAt: Date
+}
+
+const goldRecordFields = [
+  'id',
+  'sourceDocumentId',
+  'sourceRepresentationRevisionId',
+  'fields',
+  'createdAt',
+] as const
+
+function goldRecordEntry(row: StoredGoldRecord): GoldRecordEntry {
+  return {
+    goldRecordId: row.id,
+    sourceDocumentId: row.sourceDocumentId,
+    sourceRepresentationRevisionId: row.sourceRepresentationRevisionId,
+    fields: row.fields,
+    createdAt: row.createdAt,
+  }
+}
+
 async function ownedSchemaRevision(
   transaction: DatabaseTransaction,
   researcherAccountId: string,
@@ -274,6 +331,15 @@ export class IngestionKeyConflictError extends Error {
   }
 }
 
+export class OriginalNameConflictError extends Error {
+  constructor() {
+    super(
+      'A Source Document with this filename already exists in the project.',
+    )
+    this.name = 'OriginalNameConflictError'
+  }
+}
+
 /** One Source Document's head plus its current annotation and Schema snapshots. */
 export type DocumentReopenSnapshot = {
   projectContext: ProjectContextSummary
@@ -310,6 +376,10 @@ async function loadBatchSchemaSuggestion(
     'selectionKey',
     'executionStatus',
     'phase',
+    'sourceKind',
+    'purpose',
+    'columnFieldMapping',
+    'projectSpreadsheetVersionId',
     'proposal',
     'coverage',
     'draft',
@@ -368,6 +438,10 @@ async function loadBatchSchemaSuggestion(
     selectionKey: suggestion.selectionKey,
     executionStatus: suggestion.executionStatus as ProjectOperationStatus,
     phase: suggestion.phase as BatchSchemaSuggestionPhase,
+    sourceKind: suggestion.sourceKind as BatchSchemaSuggestionSourceKind,
+    purpose: suggestion.purpose as BatchSchemaSuggestionPurpose | null,
+    columnFieldMapping: suggestion.columnFieldMapping as Record<string, string> | null,
+    projectSpreadsheetVersionId: suggestion.projectSpreadsheetVersionId,
     proposal: suggestion.proposal,
     coverage: suggestion.coverage,
     draft: suggestion.draft,
@@ -471,6 +545,24 @@ export type BatchSchemaSuggestionPhase =
   | 'READY'
   | 'HETEROGENEOUS'
 
+export type BatchSchemaSuggestionSourceKind = 'DOCUMENTS' | 'SPREADSHEET'
+
+/** Only meaningful for a `SPREADSHEET`-kind suggestion; null for
+ *  `DOCUMENTS`. `SCHEMA` seeds the schema and stops there;
+ *  `SCHEMA_AND_VALIDATE` also populates an `EvaluationCorpusVersion` from
+ *  the pinned spreadsheet version once confirmed. */
+export type BatchSchemaSuggestionPurpose = 'SCHEMA' | 'SCHEMA_AND_VALIDATE'
+
+export type ProjectSpreadsheetVersionRecord = {
+  projectSpreadsheetVersionId: string
+  projectContextId: string
+  revisionNumber: number
+  originalFilename: string
+  /** `SpreadsheetColumn[]`-shaped JSON: `{ columnName, values }[]`. */
+  columns: unknown
+  createdAt: Date
+}
+
 
 export type BatchSchemaSuggestionSourceRecord = {
   sourceDocumentId: string
@@ -489,6 +581,14 @@ export type BatchSchemaSuggestionRecord = {
   selectionKey: string
   executionStatus: ProjectOperationStatus
   phase: BatchSchemaSuggestionPhase
+  sourceKind: BatchSchemaSuggestionSourceKind
+  purpose: BatchSchemaSuggestionPurpose | null
+  /** Column-name -> SchemaNode id, captured at creation time for a
+   *  SPREADSHEET-kind suggestion; null for a DOCUMENTS-kind one. */
+  columnFieldMapping: Record<string, string> | null
+  /** Which version of the project's shared spreadsheet a SPREADSHEET-kind
+   *  suggestion was built from; null for a DOCUMENTS-kind one. */
+  projectSpreadsheetVersionId: string | null
   proposal: unknown | null
   coverage: unknown | null
   draft: unknown | null
@@ -580,6 +680,40 @@ export type ResearcherProjectStore = {
     | { status: 'invalid' }
     | null
   >
+  /**
+   * A spreadsheet-derived suggestion has no document sources to run a model
+   * against — it's ready immediately, with `sourceKind: 'SPREADSHEET'` and
+   * an empty `sources` list, skipping the SOURCES/MERGING phases entirely.
+   */
+  createSpreadsheetSchemaSuggestion(
+    projectContextId: string,
+    /** A `SchemaDefinition`-shaped JSON value; parsed/validated by the caller. */
+    definition: unknown,
+    /** Column name -> the definition's matching `SchemaNode.id`, computed
+     *  by the caller right after building `definition` (design.md D3). */
+    columnFieldMapping: Record<string, string>,
+    /** The project spreadsheet version this suggestion was built from. */
+    projectSpreadsheetVersionId: string,
+    /** `SCHEMA` seeds the schema and stops there; `SCHEMA_AND_VALIDATE`
+     *  also populates an `EvaluationCorpusVersion` once confirmed. */
+    purpose: BatchSchemaSuggestionPurpose,
+  ): Promise<
+    | { status: 'created'; suggestion: BatchSchemaSuggestionRecord }
+    | null
+  >
+  /** Appends a new version to the project's one shared spreadsheet slot —
+   *  never replaces a prior version (mirrors `appendSchemaRevision`). */
+  appendProjectSpreadsheetVersion(
+    projectContextId: string,
+    originalFilename: string,
+    /** `SpreadsheetColumn[]`-shaped JSON value. */
+    columns: unknown,
+  ): Promise<ProjectSpreadsheetVersionRecord | null>
+  /** The most recently appended spreadsheet version for this project, or
+   *  null if none has been uploaded yet. */
+  getCurrentProjectSpreadsheet(
+    projectContextId: string,
+  ): Promise<ProjectSpreadsheetVersionRecord | null>
   getBatchSchemaSuggestion(
     projectContextId: string,
     batchSchemaSuggestionId: string,
@@ -627,6 +761,30 @@ export type ResearcherProjectStore = {
     extractionSchemaId: string,
     schemaRevisionId: string,
   ): Promise<SchemaRevisionRecord | null>
+  createEvaluationCorpus(
+    projectContextId: string,
+    name: string,
+  ): Promise<EvaluationCorpusRecord | null>
+  /** Optimistic-concurrency append, mirroring `appendSchemaRevision`: each
+   *  record's document is pinned to its *current* Source Representation
+   *  Revision at append time, and every document must belong to this
+   *  project — an unknown/foreign document fails the whole append (no
+   *  partial version is created). */
+  appendEvaluationCorpusVersion(
+    projectContextId: string,
+    evaluationCorpusId: string,
+    expectedRevisionNumber: number,
+    records: readonly { sourceDocumentId: string; fields: unknown }[],
+  ): Promise<AppendEvaluationCorpusVersionResult | null>
+  getCurrentEvaluationCorpusVersion(
+    projectContextId: string,
+    evaluationCorpusId: string,
+  ): Promise<EvaluationCorpusVersionRecord | null>
+  listEvaluationCorpusVersions(
+    projectContextId: string,
+    evaluationCorpusId: string,
+    limit: number,
+  ): Promise<EvaluationCorpusVersionRecord[] | null>
 }
 
 export type InternalProjectWorkerStore = {
@@ -679,6 +837,7 @@ type StoredProjectContext = { id: string; name: string; createdAt: Date }
 
 export const PROJECT_CONTEXT_NAME_LIMIT = 512
 export const EXTRACTION_SCHEMA_NAME_LIMIT = 512
+export const EVALUATION_CORPUS_NAME_LIMIT = 512
 
 /**
  * The durable name contract, enforced where the write happens: no caller can
@@ -697,6 +856,8 @@ const projectContextName = (name: string) =>
   durableName('A Project Context', name, PROJECT_CONTEXT_NAME_LIMIT)
 const extractionSchemaName = (name: string) =>
   durableName('An Extraction Schema', name, EXTRACTION_SCHEMA_NAME_LIMIT)
+const evaluationCorpusName = (name: string) =>
+  durableName('An Evaluation Corpus', name, EVALUATION_CORPUS_NAME_LIMIT)
 
 function projectContextSummary(
   row: StoredProjectContext,
@@ -1420,6 +1581,18 @@ export function createResearcherProjectStore(
         ).first({ projectContextId, contentSha256: input.contentSha256 })
         return persistedDocument(document as StoredIngestedSourceDocument | null)
       }
+      // Unlike the two lookups above (which recognize "this exact upload
+      // already happened" and return the existing document as this
+      // request's result), a name collision means a *different* document
+      // already owns this display name — that's a rejection, not an
+      // idempotent replay.
+      const nameCollisionExists = async (): Promise<boolean> => {
+        if (input.originalName === null) return false
+        const document = await database.orm.public.SourceDocument.select(
+          'id',
+        ).first({ projectContextId, originalName: input.originalName })
+        return document !== null
+      }
 
       const persisted =
         (await existingByIngestionKey()) ?? (await existingByContent())
@@ -1427,6 +1600,7 @@ export function createResearcherProjectStore(
         await input.ensureRetained(persisted.descriptor)
         return persisted
       }
+      if (await nameCollisionExists()) throw new OriginalNameConflictError()
 
       let createdSourceDocumentId: string | null = null
       try {
@@ -1476,9 +1650,14 @@ export function createResearcherProjectStore(
         if (!uniqueConstraint(error)) throw error
         const winner =
           (await existingByIngestionKey()) ?? (await existingByContent())
-        if (winner) await input.ensureRetained(winner.descriptor)
-        if (!winner) throw new IngestionKeyConflictError()
-        return winner
+        if (winner) {
+          await input.ensureRetained(winner.descriptor)
+          return winner
+        }
+        // Neither idempotent lookup matched, so a concurrent request raced
+        // us onto the same display name instead.
+        if (await nameCollisionExists()) throw new OriginalNameConflictError()
+        throw new IngestionKeyConflictError()
       }
     },
     async createBatchSchemaSuggestion(projectContextId, sourceDocumentIds) {
@@ -1549,6 +1728,114 @@ export function createResearcherProjectStore(
         )
         if (!suggestion) throw error
         return { status: 'replayed' as const, suggestion }
+      }
+    },
+    async createSpreadsheetSchemaSuggestion(
+      projectContextId,
+      definition,
+      columnFieldMapping,
+      projectSpreadsheetVersionId,
+      purpose,
+    ) {
+      const batchSchemaSuggestionId = randomUUID()
+      const created = await database.transaction(async ({ orm }) => {
+        const project = await orm.public.ProjectContext.select('id').first({
+          id: projectContextId,
+          researcherAccountId,
+        })
+        if (!project) return 'missing' as const
+        const now = new Date()
+        await orm.public.BatchSchemaSuggestion.create({
+          id: batchSchemaSuggestionId,
+          projectContextId,
+          selectionKey: createHash('sha256')
+            .update(`spreadsheet:${batchSchemaSuggestionId}`)
+            .digest('hex'),
+          executionStatus: 'COMPLETED',
+          phase: 'READY',
+          sourceKind: 'SPREADSHEET',
+          purpose,
+          columnFieldMapping,
+          projectSpreadsheetVersionId,
+          proposal: definition,
+          draft: definition,
+          startedAt: now,
+          finishedAt: now,
+        })
+        return { batchSchemaSuggestionId } as const
+      })
+      if (created === 'missing') return null
+      const suggestion = await loadBatchSchemaSuggestion(
+        database.orm,
+        projectContextId,
+        created.batchSchemaSuggestionId,
+      )
+      if (!suggestion)
+        throw new Error('Persisted Batch Schema Suggestion could not be read.')
+      return { status: 'created' as const, suggestion }
+    },
+    async appendProjectSpreadsheetVersion(projectContextId, originalFilename, columns) {
+      if (
+        !(await ownsProjectContext(
+          database.orm,
+          researcherAccountId,
+          projectContextId,
+        ))
+      )
+        return null
+      return database.transaction(async ({ orm }) => {
+        const head = await orm.public.ProjectSpreadsheetVersion.where({
+          projectContextId,
+        })
+          .select('revisionNumber')
+          .orderBy((version) => version.revisionNumber.desc())
+          .first()
+        const revisionNumber = (head?.revisionNumber ?? 0) + 1
+        const created = await orm.public.ProjectSpreadsheetVersion.create({
+          projectContextId,
+          revisionNumber,
+          originalFilename,
+          columns,
+        })
+        return {
+          projectSpreadsheetVersionId: created.id,
+          projectContextId,
+          revisionNumber,
+          originalFilename,
+          columns,
+          createdAt: created.createdAt,
+        }
+      })
+    },
+    async getCurrentProjectSpreadsheet(projectContextId) {
+      if (
+        !(await ownsProjectContext(
+          database.orm,
+          researcherAccountId,
+          projectContextId,
+        ))
+      )
+        return null
+      const row = await database.orm.public.ProjectSpreadsheetVersion.where({
+        projectContextId,
+      })
+        .select(
+          'id',
+          'revisionNumber',
+          'originalFilename',
+          'columns',
+          'createdAt',
+        )
+        .orderBy((version) => version.revisionNumber.desc())
+        .first()
+      if (!row) return null
+      return {
+        projectSpreadsheetVersionId: row.id,
+        projectContextId,
+        revisionNumber: row.revisionNumber,
+        originalFilename: row.originalFilename,
+        columns: row.columns,
+        createdAt: row.createdAt,
       }
     },
     async getBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId) {
@@ -1934,6 +2221,221 @@ export function createResearcherProjectStore(
         ...revisionFields,
       ).first({ id: schemaRevisionId, extractionSchemaId })
       return row ? schemaRevision(row as StoredSchemaRevision) : null
+    },
+    async createEvaluationCorpus(projectContextId, name) {
+      if (
+        !(await ownsProjectContext(
+          database.orm,
+          researcherAccountId,
+          projectContextId,
+        ))
+      )
+        return null
+      const created = await database.orm.public.EvaluationCorpus.create({
+        projectContextId,
+        name: evaluationCorpusName(name),
+      })
+      return {
+        evaluationCorpusId: created.id,
+        projectContextId,
+        name: created.name,
+        createdAt: created.createdAt,
+      }
+    },
+    async appendEvaluationCorpusVersion(
+      projectContextId,
+      evaluationCorpusId,
+      expectedRevisionNumber,
+      records,
+    ) {
+      if (
+        !(await ownsProjectContext(
+          database.orm,
+          researcherAccountId,
+          projectContextId,
+        ))
+      )
+        return null
+      const owner = await database.orm.public.EvaluationCorpus.select(
+        'id',
+      ).first({ id: evaluationCorpusId, projectContextId })
+      if (!owner) return null
+
+      // Pin every record's document to its *current* representation now,
+      // ahead of the transaction — a caller-supplied revision would let a
+      // stale client pin an arbitrary/foreign one. Any document that isn't
+      // owned by this project fails the whole append.
+      const revisionByDocument = new Map<string, string>()
+      for (const record of records) {
+        if (revisionByDocument.has(record.sourceDocumentId)) continue
+        const document = await database.orm.public.SourceDocument.select(
+          'id',
+        ).first({ id: record.sourceDocumentId, projectContextId })
+        if (!document) return null
+        const representation =
+          await database.orm.public.SourceRepresentationRevision.where({
+            sourceDocumentId: record.sourceDocumentId,
+          })
+            .select('id')
+            .orderBy((revision) => revision.revisionNumber.desc())
+            .first()
+        if (!representation) return null
+        revisionByDocument.set(record.sourceDocumentId, representation.id)
+      }
+
+      const currentHead =
+        async (): Promise<EvaluationCorpusVersionRecord | null> => {
+          const row = await database.orm.public.EvaluationCorpusVersion.where(
+            { evaluationCorpusId },
+          )
+            .select('id', 'evaluationCorpusId', 'revisionNumber', 'createdAt')
+            .orderBy((version) => version.revisionNumber.desc())
+            .first()
+          if (!row) return null
+          const goldRecords = await database.orm.public.GoldRecord.where({
+            evaluationCorpusVersionId: row.id,
+          })
+            .select(...goldRecordFields)
+            .all()
+          return {
+            evaluationCorpusVersionId: row.id,
+            evaluationCorpusId: row.evaluationCorpusId,
+            revisionNumber: row.revisionNumber,
+            createdAt: row.createdAt,
+            goldRecords: goldRecords.map((row) =>
+              goldRecordEntry(row as StoredGoldRecord),
+            ),
+          }
+        }
+
+      try {
+        return await database.transaction(async ({ orm }) => {
+          const row = await orm.public.EvaluationCorpusVersion.where({
+            evaluationCorpusId,
+          })
+            .select('id', 'revisionNumber')
+            .orderBy((version) => version.revisionNumber.desc())
+            .first()
+          if ((row?.revisionNumber ?? 0) !== expectedRevisionNumber) {
+            const head = await currentHead()
+            return head
+              ? { status: 'conflict' as const, currentVersion: head }
+              : null
+          }
+          const createdVersion = await orm.public.EvaluationCorpusVersion.create({
+            evaluationCorpusId,
+            revisionNumber: expectedRevisionNumber + 1,
+          })
+          const createdRecords: StoredGoldRecord[] = []
+          for (const record of records) {
+            const created = await orm.public.GoldRecord.create({
+              evaluationCorpusVersionId: createdVersion.id,
+              sourceDocumentId: record.sourceDocumentId,
+              sourceRepresentationRevisionId: revisionByDocument.get(
+                record.sourceDocumentId,
+              ),
+              fields: record.fields,
+            })
+            createdRecords.push(created as StoredGoldRecord)
+          }
+          return {
+            status: 'created' as const,
+            version: {
+              evaluationCorpusVersionId: createdVersion.id,
+              evaluationCorpusId,
+              revisionNumber: expectedRevisionNumber + 1,
+              createdAt: createdVersion.createdAt,
+              goldRecords: createdRecords.map(goldRecordEntry),
+            },
+          }
+        })
+      } catch (error) {
+        if (!uniqueConstraint(error)) throw error
+        const head = await currentHead()
+        if (!head) throw error
+        return { status: 'conflict', currentVersion: head }
+      }
+    },
+    async getCurrentEvaluationCorpusVersion(
+      projectContextId,
+      evaluationCorpusId,
+    ) {
+      if (
+        !(await ownsProjectContext(
+          database.orm,
+          researcherAccountId,
+          projectContextId,
+        ))
+      )
+        return null
+      const owner = await database.orm.public.EvaluationCorpus.select(
+        'id',
+      ).first({ id: evaluationCorpusId, projectContextId })
+      if (!owner) return null
+      const row = await database.orm.public.EvaluationCorpusVersion.where({
+        evaluationCorpusId,
+      })
+        .select('id', 'evaluationCorpusId', 'revisionNumber', 'createdAt')
+        .orderBy((version) => version.revisionNumber.desc())
+        .first()
+      if (!row) return null
+      const goldRecords = await database.orm.public.GoldRecord.where({
+        evaluationCorpusVersionId: row.id,
+      })
+        .select(...goldRecordFields)
+        .all()
+      return {
+        evaluationCorpusVersionId: row.id,
+        evaluationCorpusId: row.evaluationCorpusId,
+        revisionNumber: row.revisionNumber,
+        createdAt: row.createdAt,
+        goldRecords: goldRecords.map((row) =>
+          goldRecordEntry(row as StoredGoldRecord),
+        ),
+      }
+    },
+    async listEvaluationCorpusVersions(
+      projectContextId,
+      evaluationCorpusId,
+      limit,
+    ) {
+      if (
+        !(await ownsProjectContext(
+          database.orm,
+          researcherAccountId,
+          projectContextId,
+        ))
+      )
+        return null
+      const owner = await database.orm.public.EvaluationCorpus.select(
+        'id',
+      ).first({ id: evaluationCorpusId, projectContextId })
+      if (!owner) return null
+      const rows = await database.orm.public.EvaluationCorpusVersion.where({
+        evaluationCorpusId,
+      })
+        .select('id', 'evaluationCorpusId', 'revisionNumber', 'createdAt')
+        .orderBy((version) => version.revisionNumber.desc())
+        .take(limit)
+        .all()
+      const versions: EvaluationCorpusVersionRecord[] = []
+      for (const row of rows) {
+        const goldRecords = await database.orm.public.GoldRecord.where({
+          evaluationCorpusVersionId: row.id,
+        })
+          .select(...goldRecordFields)
+          .all()
+        versions.push({
+          evaluationCorpusVersionId: row.id,
+          evaluationCorpusId: row.evaluationCorpusId,
+          revisionNumber: row.revisionNumber,
+          createdAt: row.createdAt,
+          goldRecords: goldRecords.map((row) =>
+            goldRecordEntry(row as StoredGoldRecord),
+          ),
+        })
+      }
+      return versions
     },
   }
 }

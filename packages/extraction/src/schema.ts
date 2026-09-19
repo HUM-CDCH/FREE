@@ -13,22 +13,54 @@ type SchemaNodeBase = {
   name: string
   description?: string
   valueSource?: ValueSource
+  /** Marks this field as a natural key for `record-alignment-scoring`: when
+   *  one or more fields in a record are `identifying`, extracted records
+   *  align to gold records by exact/normalized match on those fields
+   *  first, before falling back to minimum-cost assignment. */
+  identifying?: boolean
 }
 
 export type ValueSource = 'document' | 'source-filename'
 
+/** Only meaningful on `number`/`integer` fields — `record-alignment-
+ *  scoring` credits a value within tolerance of the gold value as correct.
+ *  Unset means exact match, which stays the default for every numeric
+ *  field unless its author opts in. */
+export type EvaluationTolerance =
+  | { kind: 'absolute'; amount: number }
+  | { kind: 'relative'; fraction: number }
+
+const TOLERANT_NUMERIC_FIELD_TYPES = ['number', 'integer'] as const
+// `NON_STRING_SCALAR_FIELD_TYPES` minus the two above — written out directly
+// (rather than filtered) so it stays a literal tuple `z.enum` can use.
+const NON_TOLERANT_NON_STRING_SCALAR_FIELD_TYPES = [
+  'verbatim-string',
+  'date',
+  'boolean',
+] as const satisfies readonly Exclude<
+  (typeof NON_STRING_SCALAR_FIELD_TYPES)[number],
+  'number' | 'integer'
+>[]
+
 export type SchemaNode =
-  | (SchemaNodeBase & { type: 'string'; allowedValues?: string[]; itemType?: never; children?: never })
-  | (SchemaNodeBase & { type: Exclude<ScalarFieldType, 'string'>; allowedValues?: never; itemType?: never; children?: never })
-  | (SchemaNodeBase & { type: 'array'; itemType: ScalarFieldType; allowedValues?: never; children?: never })
-  | (SchemaNodeBase & { type: 'object' | 'array'; children: SchemaNode[]; allowedValues?: never; itemType?: never })
+  | (SchemaNodeBase & { type: 'string'; allowedValues?: string[]; itemType?: never; children?: never; evaluationTolerance?: never })
+  | (SchemaNodeBase & { type: 'number' | 'integer'; allowedValues?: never; itemType?: never; children?: never; evaluationTolerance?: EvaluationTolerance })
+  | (SchemaNodeBase & { type: Exclude<ScalarFieldType, 'string' | 'number' | 'integer'>; allowedValues?: never; itemType?: never; children?: never; evaluationTolerance?: never })
+  | (SchemaNodeBase & { type: 'array'; itemType: ScalarFieldType; allowedValues?: never; children?: never; evaluationTolerance?: never })
+  | (SchemaNodeBase & { type: 'object' | 'array'; children: SchemaNode[]; allowedValues?: never; itemType?: never; evaluationTolerance?: never })
 
 const schemaNodeBaseShape = {
   id: z.string().min(1),
   name: z.string().trim().min(1),
   description: z.string().min(1).optional(),
   valueSource: z.enum(['document', 'source-filename']).optional(),
+  identifying: z.boolean().optional(),
 }
+
+const evaluationToleranceSchema = z.union([
+  z.object({ kind: z.literal('absolute'), amount: z.number().positive() }).strict(),
+  z.object({ kind: z.literal('relative'), fraction: z.number().positive() }).strict(),
+])
 
 export const schemaNodeSchema: z.ZodType<SchemaNode> = z.lazy(() =>
   z.union([
@@ -45,7 +77,14 @@ export const schemaNodeSchema: z.ZodType<SchemaNode> = z.lazy(() =>
     z
       .object({
         ...schemaNodeBaseShape,
-        type: z.enum(NON_STRING_SCALAR_FIELD_TYPES),
+        type: z.enum(TOLERANT_NUMERIC_FIELD_TYPES),
+        evaluationTolerance: evaluationToleranceSchema.optional(),
+      })
+      .strict(),
+    z
+      .object({
+        ...schemaNodeBaseShape,
+        type: z.enum(NON_TOLERANT_NON_STRING_SCALAR_FIELD_TYPES),
       })
       .strict(),
     z

@@ -29,6 +29,10 @@ function ready(
     selectionKey: 'a'.repeat(64),
     executionStatus: 'COMPLETED',
     phase: 'READY',
+    sourceKind: 'DOCUMENTS',
+    purpose: null,
+    columnFieldMapping: null,
+    projectSpreadsheetVersionId: null,
     proposal: definition,
     coverage: [],
     draft: definition,
@@ -251,5 +255,54 @@ describe('batchSchemaSuggestionMachine', () => {
     expect(actor.getSnapshot().matches({ drafting: 'clean' })).toBe(true)
     expect(actor.getSnapshot().context.draft).toEqual(firstDefinition)
     expect(actor.getSnapshot().context.suggestion?.draftVersion).toBe(2)
+  })
+
+  it('routes a spreadsheet-sourced suggestion straight to drafting.clean, skipping SOURCES/MERGING (design.md D2)', async () => {
+    const spreadsheetSuggestion: BatchSchemaSuggestion = {
+      ...ready(),
+      sourceKind: 'SPREADSHEET',
+      columnFieldMapping: { species: 'place' },
+      projectSpreadsheetVersionId: '51000000-0000-4000-8010-000000000001',
+      sources: [],
+    }
+    const create = vi.fn(async () => spreadsheetSuggestion)
+    const actor = createActor(batchSchemaSuggestionMachine, {
+      input: operations({ create }),
+    }).start()
+
+    // The machine has no notion of "spreadsheet" — this is the same
+    // sentinel-selection + suggestion.requested sequence
+    // useSpreadsheetSchemaSuggestion.ts sends; only `create`'s
+    // implementation differs from the document-grounded path.
+    actor.send({
+      type: 'selection.changed',
+      sourceDocumentIds: ['spreadsheet-upload'],
+      suggestion: null,
+    })
+    actor.send({ type: 'suggestion.requested' })
+
+    await vi.waitFor(() =>
+      expect(actor.getSnapshot().matches({ drafting: 'clean' })).toBe(true),
+    )
+    expect(actor.getSnapshot().context.suggestion?.sourceKind).toBe('SPREADSHEET')
+    expect(actor.getSnapshot().context.suggestion?.columnFieldMapping).toEqual({
+      species: 'place',
+    })
+    // Never visited the async model-polling state — it never needed to.
+    expect(actor.getSnapshot().matches('suggesting')).toBe(false)
+  })
+
+  it('leaves the document-grounded create path unaffected by the spreadsheet source existing', async () => {
+    const create = vi.fn(async () => ready())
+    const actor = createActor(batchSchemaSuggestionMachine, {
+      input: operations({ create }),
+    }).start()
+    selected(actor)
+    actor.send({ type: 'suggestion.requested' })
+    await vi.waitFor(() =>
+      expect(actor.getSnapshot().matches({ drafting: 'clean' })).toBe(true),
+    )
+    expect(create).toHaveBeenCalledWith(['51000000-0000-4000-8001-000000000001'])
+    expect(actor.getSnapshot().context.suggestion?.sourceKind).toBe('DOCUMENTS')
   })
 })

@@ -4,12 +4,14 @@ import type {
 } from 'db'
 import { ExtractionError } from 'extraction'
 import {
+  batchSchemaSuggestionCreateFromSpreadsheetRequestSchema,
   batchSchemaSuggestionCreateRequestSchema,
   batchSchemaSuggestionDraftRequestSchema,
   batchSchemaSuggestionListResponseSchema,
   batchSchemaSuggestionResponseSchema,
   batchSchemaSuggestionRunRequestSchema,
 } from '../shared/batchSchemaSuggestion.contract.js'
+import type { SpreadsheetColumn } from './_spreadsheet_schema.js'
 import { parseSchemaDefinition } from 'extraction/schema'
 import {
   ApiError,
@@ -19,11 +21,16 @@ import {
   parseJsonRequest,
   persistenceUnavailable,
 } from './_http.js'
-import { validateEditableSuggestion } from './_batch_schema_suggestions.js'
+import {
+  modelSuggestedDefinition,
+  validateEditableSuggestion,
+} from './_batch_schema_suggestions.js'
+import { buildSpreadsheetTemplate, columnFieldIds } from './_spreadsheet_schema.js'
 import { projectOperations } from './_project_operations.js'
 import { createResearcherExtractions } from './_extraction_runtime.js'
 
 const ROUTE = '/api/batch-schema-suggestions'
+const FROM_SPREADSHEET_ROUTE = '/api/batch-schema-suggestions/from-spreadsheet'
 const ITEM_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)$/
 const DRAFT_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/draft$/
 const RUN_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/run$/
@@ -52,6 +59,10 @@ function suggestionDto(suggestion: BatchSchemaSuggestionRecord) {
       selectionKey: suggestion.selectionKey,
       executionStatus: suggestion.executionStatus,
       phase: suggestion.phase,
+      sourceKind: suggestion.sourceKind,
+      purpose: suggestion.purpose,
+      columnFieldMapping: suggestion.columnFieldMapping,
+      projectSpreadsheetVersionId: suggestion.projectSpreadsheetVersionId,
       proposal:
         suggestion.proposal === null
           ? null
@@ -131,6 +142,77 @@ export function createResearcherApiHandlers(
       )
     operations.kick()
     return json(suggestionDto(opened.suggestion), { status: 202, headers: noStore })
+  }
+
+  /** A spreadsheet-derived suggestion has no document sources to run a
+   *  model against — it reads the project's already-uploaded spreadsheet
+   *  (`GET/POST /api/project-spreadsheets`, shared across every action
+   *  that wants it, not a one-off upload per suggestion) and is built
+   *  synchronously, immediately READY (design.md D1b/D4 in
+   *  openspec/changes/spreadsheet-schema-suggestion). */
+  const createFromSpreadsheet = async (request: Request) => {
+    const parsed = batchSchemaSuggestionCreateFromSpreadsheetRequestSchema.safeParse(
+      await parseJsonRequest(request),
+    )
+    if (!parsed.success)
+      throw new ApiError(422, 'invalid_request', 'The request is invalid.')
+    const { projectContextId, separator, purpose } = parsed.data
+
+    const current = await store
+      .getCurrentProjectSpreadsheet(projectContextId)
+      .catch((cause) => {
+        throw persistenceUnavailable(cause)
+      })
+    if (!current)
+      throw new ApiError(
+        404,
+        'not_found',
+        'This Project Context has no uploaded spreadsheet yet. Upload one first via /api/project-spreadsheets.',
+      )
+
+    const built = buildSpreadsheetTemplate(
+      current.columns as SpreadsheetColumn[],
+      separator ?? null,
+    )
+    if (!built.ok)
+      throw new ApiError(
+        422,
+        'invalid_request',
+        `Some columns can't be both a field and a group: ${built.conflicts
+          .map(([leaf, group]) => `"${leaf}" vs "${group}"`)
+          .join('; ')}.`,
+      )
+
+    let definition
+    try {
+      definition = modelSuggestedDefinition({
+        _description: 'Uploaded from a spreadsheet.',
+        ...built.template,
+      })
+    } catch (cause) {
+      throw new ApiError(
+        422,
+        'invalid_request',
+        cause instanceof Error ? cause.message : 'The spreadsheet columns are invalid.',
+        { cause },
+      )
+    }
+
+    const mapping = columnFieldIds(definition.schemaNodes, built.columnPaths)
+    const opened = await store
+      .createSpreadsheetSchemaSuggestion(
+        projectContextId,
+        definition,
+        mapping,
+        current.projectSpreadsheetVersionId,
+        purpose,
+      )
+      .catch((cause) => {
+        throw persistenceUnavailable(cause)
+      })
+    if (!opened)
+      throw new ApiError(404, 'not_found', 'Project Context was not found.')
+    return json(suggestionDto(opened.suggestion), { status: 201, headers: noStore })
   }
 
   const list = async (url: URL) => {
@@ -264,6 +346,8 @@ export function createResearcherApiHandlers(
   const handle = async (request: Request): Promise<Response> => {
     try {
       const url = new URL(request.url)
+      if (request.method === 'POST' && url.pathname === FROM_SPREADSHEET_ROUTE)
+        return await createFromSpreadsheet(request)
       if (request.method === 'POST' && url.pathname === ROUTE)
         return await create(request)
       if (request.method === 'GET' && url.pathname === ROUTE)

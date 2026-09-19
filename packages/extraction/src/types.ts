@@ -289,6 +289,41 @@ export type BatchExtractionResults = Readonly<{
   cancelled: number
   results: readonly BatchExtractionResultItem[]
 }>
+export type ValidateExtractionInput = Readonly<{
+  projectContextId: string
+  evaluationCorpusId: string
+  extractionId: string
+}>
+
+export type ListEvaluationRunsInput = Readonly<{
+  projectContextId: string
+  evaluationCorpusId: string
+  limit?: number
+}>
+
+/** A precision/recall/F1 snapshot, frozen at the schema revision + corpus
+ *  version it was computed against (design.md D4/D4b in
+ *  extraction-quality-evaluation). Exactly one of `batchExtractionId`/
+ *  `extractionId` is set — a batch run scores a whole corpus re-run, a
+ *  single-document run scores one existing Extraction attempt; both expose
+ *  the same `metrics` shape. */
+export type EvaluationRunSnapshot = Readonly<{
+  evaluationRunId: string
+  evaluationCorpusVersionId: string
+  schemaRevisionId: string
+  batchExtractionId: string | null
+  extractionId: string | null
+  computedAt: Date
+  metrics: Readonly<{
+    correctFields: number
+    totalGoldFields: number
+    totalExtractedFields: number
+    precision: number
+    recall: number
+    f1: number
+  }>
+}>
+
 export type ReadDocumentExtractionsInput = Readonly<{
   sourceDocumentId: string
   extractionId?: string
@@ -316,6 +351,12 @@ export interface ExtractionModule {
   listBatches(input: ListBatchesInput): Promise<readonly BatchExtractionSnapshot[]>
   readBatch(input: ReadBatchInput): Promise<BatchExtractionSnapshot>
   readBatchResults(input: ReadBatchInput): Promise<BatchExtractionResults>
+  /** Scores one existing Extraction attempt against its document's current
+   *  `GoldRecord`s (no batch/corpus re-run) — the single-document path of
+   *  extraction-quality-evaluation design.md D4b, `n=1` of what a batch
+   *  Evaluation Run scores. */
+  validateExtraction(input: ValidateExtractionInput): Promise<EvaluationRunSnapshot>
+  listEvaluationRuns(input: ListEvaluationRunsInput): Promise<readonly EvaluationRunSnapshot[]>
 }
 
 export interface ExtractionRuntime {

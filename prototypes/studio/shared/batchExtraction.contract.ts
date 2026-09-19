@@ -153,6 +153,7 @@ export function batchExtractionProgress(batch: BatchExtraction) {
   return {
     total: batch.members.length,
     extracted: extracted.length,
+    succeeded: succeeded.length,
     pending: batch.members.filter(
       (member) =>
         member.executionStatus === 'QUEUED' ||

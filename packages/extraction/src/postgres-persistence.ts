@@ -10,6 +10,10 @@ import {
   type DatabaseOrm,
 } from 'db'
 import { ExtractionError } from './errors.js'
+import {
+  listEvaluationRuns as readEvaluationRuns,
+  validateExtraction as persistExtractionValidation,
+} from './postgres-evaluation-runs.js'
 import { persistSuggestedBatch } from './postgres-suggested-batch.js'
 import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
 import { sameRetrySelection, validateCatalogRetry } from './catalog.js'
@@ -30,9 +34,11 @@ import type {
   BatchExtractionSnapshot,
   CancellationResult,
   DocumentExtractionsSnapshot,
+  EvaluationRunSnapshot,
   ExtractionAttemptSnapshot,
   ExtractionSnapshot,
   ExtractionStrategy,
+  ListEvaluationRunsInput,
   ReadBatchInput,
   ReadDocumentExtractionsInput,
   ResultPath,
@@ -43,6 +49,7 @@ import type {
   ScheduleBatchInput,
   ScheduleBatchResult,
   ScheduleSuggestedBatchInput,
+  ValidateExtractionInput,
 } from './types.js'
 
 type Status = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED'
@@ -1853,6 +1860,22 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
         return null
       return loadResults(transaction.orm, input)
     })
+  }
+
+  validateExtraction(
+    input: ValidateExtractionInput,
+  ): Promise<EvaluationRunSnapshot | null> {
+    return persistExtractionValidation(
+      this.database,
+      this.researcherAccountId,
+      input,
+    )
+  }
+
+  listEvaluationRuns(
+    input: ListEvaluationRunsInput,
+  ): Promise<readonly EvaluationRunSnapshot[] | null> {
+    return readEvaluationRuns(this.database, this.researcherAccountId, input)
   }
 }
 

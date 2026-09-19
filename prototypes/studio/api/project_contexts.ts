@@ -22,6 +22,8 @@ import {
   projectContextWriteRequestSchema,
 } from '../shared/projectContext.contract.js'
 import { decodeParsedDocument } from 'extraction/parsed-document'
+import { cancelParsingTask, resolveParsingServiceBase } from './_parsingService.js'
+import { takeActiveParsingTasks } from './_parsingTaskRegistry.js'
 
 type ProjectContextReadStore = Pick<
   ResearcherProjectStore,
@@ -163,6 +165,7 @@ export function createProjectContextWrites(
     ResearcherProjectStore,
     'createProjectContext' | 'renameProjectContext' | 'deleteProjectContext'
   >,
+  dependencies: { fetcher?: typeof fetch; parsingServiceBase?: string } = {},
 ) {
   const POST = async (request: Request): Promise<Response> => {
     try {
@@ -209,6 +212,16 @@ export function createProjectContextWrites(
       })
       if (!deleted)
         throw new ApiError(404, 'not_found', 'Project Context was not found.')
+      const pendingTasks = takeActiveParsingTasks(id)
+      if (pendingTasks.length) {
+        const base = resolveParsingServiceBase(dependencies.parsingServiceBase)
+        const activeFetch = dependencies.fetcher ?? fetch
+        await Promise.all(
+          pendingTasks.map((taskId) =>
+            cancelParsingTask(activeFetch, base, taskId),
+          ),
+        )
+      }
       return new Response(null, { status: 204, headers: noStore })
     } catch (error) {
       return noStoreError(error)

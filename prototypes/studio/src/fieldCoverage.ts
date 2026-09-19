@@ -1,6 +1,6 @@
 import { enumerateFieldPaths, type SchemaNode } from 'extraction/schema'
 
-function isInternalFieldName(name: string): boolean {
+export function isInternalFieldName(name: string): boolean {
   const normalized = name.toLowerCase()
   return name.startsWith('_') || normalized === 'evidence' || normalized === 'internal'
 }

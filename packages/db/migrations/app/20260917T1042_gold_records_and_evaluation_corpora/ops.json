@@ -1,0 +1,1042 @@
+[
+  {
+    "id": "table.evaluationCorpus",
+    "label": "Create table \"evaluationCorpus\"",
+    "summary": "Creates table \"evaluationCorpus\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "evaluationCorpus"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"evaluationCorpus\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationCorpus\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"evaluationCorpus\"",
+        "sql": "CREATE TABLE \"public\".\"evaluationCorpus\" (\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"name\" text NOT NULL,\n  \"projectContextId\" \"uuid\" NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"evaluationCorpus\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationCorpus\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.evaluationCorpusVersion",
+    "label": "Create table \"evaluationCorpusVersion\"",
+    "summary": "Creates table \"evaluationCorpusVersion\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "evaluationCorpusVersion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"evaluationCorpusVersion\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationCorpusVersion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"evaluationCorpusVersion\"",
+        "sql": "CREATE TABLE \"public\".\"evaluationCorpusVersion\" (\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"evaluationCorpusId\" \"uuid\" NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"revisionNumber\" int4 NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"evaluationCorpusVersion\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationCorpusVersion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.evaluationRun",
+    "label": "Create table \"evaluationRun\"",
+    "summary": "Creates table \"evaluationRun\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "evaluationRun"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"evaluationRun\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRun\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"evaluationRun\"",
+        "sql": "CREATE TABLE \"public\".\"evaluationRun\" (\n  \"batchExtractionId\" \"uuid\",\n  \"computedAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"evaluationCorpusVersionId\" \"uuid\" NOT NULL,\n  \"extractionId\" \"uuid\",\n  \"id\" \"uuid\" NOT NULL,\n  \"metrics\" jsonb NOT NULL,\n  \"schemaRevisionId\" \"uuid\" NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"evaluationRun\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRun\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.goldRecord",
+    "label": "Create table \"goldRecord\"",
+    "summary": "Creates table \"goldRecord\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "goldRecord"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"goldRecord\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"goldRecord\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"goldRecord\"",
+        "sql": "CREATE TABLE \"public\".\"goldRecord\" (\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"evaluationCorpusVersionId\" \"uuid\" NOT NULL,\n  \"fields\" jsonb NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"sourceDocumentId\" \"uuid\" NOT NULL,\n  \"sourceRepresentationRevisionId\" \"uuid\" NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"goldRecord\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"goldRecord\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.batchSchemaSuggestion.purpose",
+    "label": "Add column \"purpose\" to \"batchSchemaSuggestion\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "purpose",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"purpose\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchSchemaSuggestion",
+          "purpose"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"purpose\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD COLUMN \"purpose\" text"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"purpose\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchSchemaSuggestion",
+          "purpose"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.evaluationCorpusVersion.evaluationCorpusVersion_evaluationCorpusId_revisionNumber_key",
+    "label": "Add unique constraint on \"evaluationCorpusVersion\" (evaluationCorpusId, revisionNumber)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "evaluationCorpusVersion_evaluationCorpusId_revisionNumber_key",
+        "table": "evaluationCorpusVersion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"evaluationCorpusVersion_evaluationCorpusId_revisionNumber_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationCorpusVersion_evaluationCorpusId_revisionNumber_key",
+          "public",
+          "\"public\".\"evaluationCorpusVersion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"evaluationCorpusVersion_evaluationCorpusId_revisionNumber_key\"",
+        "sql": "ALTER TABLE \"public\".\"evaluationCorpusVersion\" ADD CONSTRAINT \"evaluationCorpusVersion_evaluationCorpusId_revisionNumber_key\" UNIQUE (\"evaluationCorpusId\", \"revisionNumber\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"evaluationCorpusVersion_evaluationCorpusId_revisionNumber_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationCorpusVersion_evaluationCorpusId_revisionNumber_key",
+          "public",
+          "\"public\".\"evaluationCorpusVersion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.batchSchemaSuggestion.batchSchemaSuggestion_purpose_check",
+    "label": "Add check constraint \"batchSchemaSuggestion_purpose_check\" on \"batchSchemaSuggestion\".\"purpose\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "batchSchemaSuggestion_purpose_check",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_purpose_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_purpose_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"batchSchemaSuggestion_purpose_check\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_purpose_check\" CHECK (\"purpose\" IN ('SCHEMA', 'SCHEMA_AND_VALIDATE'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_purpose_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_purpose_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.evaluationCorpus.evaluationCorpus_projectContextId_idx",
+    "label": "Create index \"evaluationCorpus_projectContextId_idx\" on \"evaluationCorpus\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "evaluationCorpus_projectContextId_idx",
+        "table": "evaluationCorpus"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"evaluationCorpus_projectContextId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationCorpus_projectContextId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"evaluationCorpus_projectContextId_idx\"",
+        "sql": "CREATE INDEX \"evaluationCorpus_projectContextId_idx\" ON \"public\".\"evaluationCorpus\" (\"projectContextId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"evaluationCorpus_projectContextId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationCorpus_projectContextId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.evaluationCorpusVersion.evaluationCorpusVersion_evaluationCorpusId_idx",
+    "label": "Create index \"evaluationCorpusVersion_evaluationCorpusId_idx\" on \"evaluationCorpusVersion\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "evaluationCorpusVersion_evaluationCorpusId_idx",
+        "table": "evaluationCorpusVersion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"evaluationCorpusVersion_evaluationCorpusId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationCorpusVersion_evaluationCorpusId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"evaluationCorpusVersion_evaluationCorpusId_idx\"",
+        "sql": "CREATE INDEX \"evaluationCorpusVersion_evaluationCorpusId_idx\" ON \"public\".\"evaluationCorpusVersion\" (\"evaluationCorpusId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"evaluationCorpusVersion_evaluationCorpusId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationCorpusVersion_evaluationCorpusId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.evaluationRun.evaluationRun_evaluationCorpusVersionId_computedAt_idx",
+    "label": "Create index \"evaluationRun_evaluationCorpusVersionId_computedAt_idx\" on \"evaluationRun\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "evaluationRun_evaluationCorpusVersionId_computedAt_idx",
+        "table": "evaluationRun"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"evaluationRun_evaluationCorpusVersionId_computedAt_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRun_evaluationCorpusVersionId_computedAt_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"evaluationRun_evaluationCorpusVersionId_computedAt_idx\"",
+        "sql": "CREATE INDEX \"evaluationRun_evaluationCorpusVersionId_computedAt_idx\" ON \"public\".\"evaluationRun\" (\"evaluationCorpusVersionId\", \"computedAt\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"evaluationRun_evaluationCorpusVersionId_computedAt_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRun_evaluationCorpusVersionId_computedAt_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.evaluationRun.evaluationRun_schemaRevisionId_idx",
+    "label": "Create index \"evaluationRun_schemaRevisionId_idx\" on \"evaluationRun\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "evaluationRun_schemaRevisionId_idx",
+        "table": "evaluationRun"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"evaluationRun_schemaRevisionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRun_schemaRevisionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"evaluationRun_schemaRevisionId_idx\"",
+        "sql": "CREATE INDEX \"evaluationRun_schemaRevisionId_idx\" ON \"public\".\"evaluationRun\" (\"schemaRevisionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"evaluationRun_schemaRevisionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRun_schemaRevisionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.evaluationRun.evaluationRun_batchExtractionId_idx",
+    "label": "Create index \"evaluationRun_batchExtractionId_idx\" on \"evaluationRun\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "evaluationRun_batchExtractionId_idx",
+        "table": "evaluationRun"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"evaluationRun_batchExtractionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRun_batchExtractionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"evaluationRun_batchExtractionId_idx\"",
+        "sql": "CREATE INDEX \"evaluationRun_batchExtractionId_idx\" ON \"public\".\"evaluationRun\" (\"batchExtractionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"evaluationRun_batchExtractionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRun_batchExtractionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.evaluationRun.evaluationRun_evaluationCorpusVersionId_idx",
+    "label": "Create index \"evaluationRun_evaluationCorpusVersionId_idx\" on \"evaluationRun\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "evaluationRun_evaluationCorpusVersionId_idx",
+        "table": "evaluationRun"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"evaluationRun_evaluationCorpusVersionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRun_evaluationCorpusVersionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"evaluationRun_evaluationCorpusVersionId_idx\"",
+        "sql": "CREATE INDEX \"evaluationRun_evaluationCorpusVersionId_idx\" ON \"public\".\"evaluationRun\" (\"evaluationCorpusVersionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"evaluationRun_evaluationCorpusVersionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRun_evaluationCorpusVersionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.evaluationRun.evaluationRun_extractionId_idx",
+    "label": "Create index \"evaluationRun_extractionId_idx\" on \"evaluationRun\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "evaluationRun_extractionId_idx",
+        "table": "evaluationRun"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"evaluationRun_extractionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRun_extractionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"evaluationRun_extractionId_idx\"",
+        "sql": "CREATE INDEX \"evaluationRun_extractionId_idx\" ON \"public\".\"evaluationRun\" (\"extractionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"evaluationRun_extractionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"evaluationRun_extractionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.goldRecord.goldRecord_evaluationCorpusVersionId_idx",
+    "label": "Create index \"goldRecord_evaluationCorpusVersionId_idx\" on \"goldRecord\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "goldRecord_evaluationCorpusVersionId_idx",
+        "table": "goldRecord"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"goldRecord_evaluationCorpusVersionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"goldRecord_evaluationCorpusVersionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"goldRecord_evaluationCorpusVersionId_idx\"",
+        "sql": "CREATE INDEX \"goldRecord_evaluationCorpusVersionId_idx\" ON \"public\".\"goldRecord\" (\"evaluationCorpusVersionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"goldRecord_evaluationCorpusVersionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"goldRecord_evaluationCorpusVersionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.goldRecord.goldRecord_sourceDocumentId_idx",
+    "label": "Create index \"goldRecord_sourceDocumentId_idx\" on \"goldRecord\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "goldRecord_sourceDocumentId_idx",
+        "table": "goldRecord"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"goldRecord_sourceDocumentId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"goldRecord_sourceDocumentId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"goldRecord_sourceDocumentId_idx\"",
+        "sql": "CREATE INDEX \"goldRecord_sourceDocumentId_idx\" ON \"public\".\"goldRecord\" (\"sourceDocumentId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"goldRecord_sourceDocumentId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"goldRecord_sourceDocumentId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.goldRecord.goldRecord_sourceRepresentationRevisionId_idx",
+    "label": "Create index \"goldRecord_sourceRepresentationRevisionId_idx\" on \"goldRecord\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "goldRecord_sourceRepresentationRevisionId_idx",
+        "table": "goldRecord"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"goldRecord_sourceRepresentationRevisionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"goldRecord_sourceRepresentationRevisionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"goldRecord_sourceRepresentationRevisionId_idx\"",
+        "sql": "CREATE INDEX \"goldRecord_sourceRepresentationRevisionId_idx\" ON \"public\".\"goldRecord\" (\"sourceRepresentationRevisionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"goldRecord_sourceRepresentationRevisionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"goldRecord_sourceRepresentationRevisionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.evaluationCorpus.evaluationCorpus_projectContextId_fkey",
+    "label": "Add foreign key \"evaluationCorpus_projectContextId_fkey\" on \"evaluationCorpus\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "evaluationCorpus_projectContextId_fkey",
+        "table": "evaluationCorpus"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"evaluationCorpus_projectContextId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationCorpus_projectContextId_fkey",
+          "public",
+          "\"public\".\"evaluationCorpus\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"evaluationCorpus_projectContextId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"evaluationCorpus\"\nADD CONSTRAINT \"evaluationCorpus_projectContextId_fkey\"\nFOREIGN KEY (\"projectContextId\")\nREFERENCES \"public\".\"projectContext\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"evaluationCorpus_projectContextId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationCorpus_projectContextId_fkey",
+          "public",
+          "\"public\".\"evaluationCorpus\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.evaluationCorpusVersion.evaluationCorpusVersion_evaluationCorpusId_fkey",
+    "label": "Add foreign key \"evaluationCorpusVersion_evaluationCorpusId_fkey\" on \"evaluationCorpusVersion\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "evaluationCorpusVersion_evaluationCorpusId_fkey",
+        "table": "evaluationCorpusVersion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"evaluationCorpusVersion_evaluationCorpusId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationCorpusVersion_evaluationCorpusId_fkey",
+          "public",
+          "\"public\".\"evaluationCorpusVersion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"evaluationCorpusVersion_evaluationCorpusId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"evaluationCorpusVersion\"\nADD CONSTRAINT \"evaluationCorpusVersion_evaluationCorpusId_fkey\"\nFOREIGN KEY (\"evaluationCorpusId\")\nREFERENCES \"public\".\"evaluationCorpus\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"evaluationCorpusVersion_evaluationCorpusId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationCorpusVersion_evaluationCorpusId_fkey",
+          "public",
+          "\"public\".\"evaluationCorpusVersion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.evaluationRun.evaluationRun_evaluationCorpusVersionId_fkey",
+    "label": "Add foreign key \"evaluationRun_evaluationCorpusVersionId_fkey\" on \"evaluationRun\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "evaluationRun_evaluationCorpusVersionId_fkey",
+        "table": "evaluationRun"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"evaluationRun_evaluationCorpusVersionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRun_evaluationCorpusVersionId_fkey",
+          "public",
+          "\"public\".\"evaluationRun\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"evaluationRun_evaluationCorpusVersionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"evaluationRun\"\nADD CONSTRAINT \"evaluationRun_evaluationCorpusVersionId_fkey\"\nFOREIGN KEY (\"evaluationCorpusVersionId\")\nREFERENCES \"public\".\"evaluationCorpusVersion\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"evaluationRun_evaluationCorpusVersionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRun_evaluationCorpusVersionId_fkey",
+          "public",
+          "\"public\".\"evaluationRun\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.evaluationRun.evaluationRun_schemaRevisionId_fkey",
+    "label": "Add foreign key \"evaluationRun_schemaRevisionId_fkey\" on \"evaluationRun\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "evaluationRun_schemaRevisionId_fkey",
+        "table": "evaluationRun"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"evaluationRun_schemaRevisionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRun_schemaRevisionId_fkey",
+          "public",
+          "\"public\".\"evaluationRun\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"evaluationRun_schemaRevisionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"evaluationRun\"\nADD CONSTRAINT \"evaluationRun_schemaRevisionId_fkey\"\nFOREIGN KEY (\"schemaRevisionId\")\nREFERENCES \"public\".\"schemaRevision\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"evaluationRun_schemaRevisionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRun_schemaRevisionId_fkey",
+          "public",
+          "\"public\".\"evaluationRun\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.evaluationRun.evaluationRun_batchExtractionId_fkey",
+    "label": "Add foreign key \"evaluationRun_batchExtractionId_fkey\" on \"evaluationRun\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "evaluationRun_batchExtractionId_fkey",
+        "table": "evaluationRun"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"evaluationRun_batchExtractionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRun_batchExtractionId_fkey",
+          "public",
+          "\"public\".\"evaluationRun\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"evaluationRun_batchExtractionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"evaluationRun\"\nADD CONSTRAINT \"evaluationRun_batchExtractionId_fkey\"\nFOREIGN KEY (\"batchExtractionId\")\nREFERENCES \"public\".\"batchExtraction\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"evaluationRun_batchExtractionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRun_batchExtractionId_fkey",
+          "public",
+          "\"public\".\"evaluationRun\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.evaluationRun.evaluationRun_extractionId_fkey",
+    "label": "Add foreign key \"evaluationRun_extractionId_fkey\" on \"evaluationRun\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "evaluationRun_extractionId_fkey",
+        "table": "evaluationRun"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"evaluationRun_extractionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRun_extractionId_fkey",
+          "public",
+          "\"public\".\"evaluationRun\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"evaluationRun_extractionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"evaluationRun\"\nADD CONSTRAINT \"evaluationRun_extractionId_fkey\"\nFOREIGN KEY (\"extractionId\")\nREFERENCES \"public\".\"extraction\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"evaluationRun_extractionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRun_extractionId_fkey",
+          "public",
+          "\"public\".\"evaluationRun\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.goldRecord.goldRecord_evaluationCorpusVersionId_fkey",
+    "label": "Add foreign key \"goldRecord_evaluationCorpusVersionId_fkey\" on \"goldRecord\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "goldRecord_evaluationCorpusVersionId_fkey",
+        "table": "goldRecord"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"goldRecord_evaluationCorpusVersionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "goldRecord_evaluationCorpusVersionId_fkey",
+          "public",
+          "\"public\".\"goldRecord\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"goldRecord_evaluationCorpusVersionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"goldRecord\"\nADD CONSTRAINT \"goldRecord_evaluationCorpusVersionId_fkey\"\nFOREIGN KEY (\"evaluationCorpusVersionId\")\nREFERENCES \"public\".\"evaluationCorpusVersion\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"goldRecord_evaluationCorpusVersionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "goldRecord_evaluationCorpusVersionId_fkey",
+          "public",
+          "\"public\".\"goldRecord\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.goldRecord.goldRecord_sourceDocumentId_fkey",
+    "label": "Add foreign key \"goldRecord_sourceDocumentId_fkey\" on \"goldRecord\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "goldRecord_sourceDocumentId_fkey",
+        "table": "goldRecord"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"goldRecord_sourceDocumentId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "goldRecord_sourceDocumentId_fkey",
+          "public",
+          "\"public\".\"goldRecord\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"goldRecord_sourceDocumentId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"goldRecord\"\nADD CONSTRAINT \"goldRecord_sourceDocumentId_fkey\"\nFOREIGN KEY (\"sourceDocumentId\")\nREFERENCES \"public\".\"sourceDocument\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"goldRecord_sourceDocumentId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "goldRecord_sourceDocumentId_fkey",
+          "public",
+          "\"public\".\"goldRecord\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.goldRecord.goldRecord_sourceRepresentationRevisionId_fkey",
+    "label": "Add foreign key \"goldRecord_sourceRepresentationRevisionId_fkey\" on \"goldRecord\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "goldRecord_sourceRepresentationRevisionId_fkey",
+        "table": "goldRecord"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"goldRecord_sourceRepresentationRevisionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "goldRecord_sourceRepresentationRevisionId_fkey",
+          "public",
+          "\"public\".\"goldRecord\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"goldRecord_sourceRepresentationRevisionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"goldRecord\"\nADD CONSTRAINT \"goldRecord_sourceRepresentationRevisionId_fkey\"\nFOREIGN KEY (\"sourceRepresentationRevisionId\")\nREFERENCES \"public\".\"sourceRepresentationRevision\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"goldRecord_sourceRepresentationRevisionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "goldRecord_sourceRepresentationRevisionId_fkey",
+          "public",
+          "\"public\".\"goldRecord\""
+        ]
+      }
+    ]
+  }
+]

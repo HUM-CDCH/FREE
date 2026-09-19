@@ -1,12 +1,147 @@
+import { randomUUID } from 'node:crypto'
 import { stableJson, stableUuid, uniqueConstraint, type Database } from 'db'
 import { ExtractionError } from './errors.js'
 import type { DurableBatchExtraction } from './postgres-persistence.js'
-import { parseBatchSuggestionDefinition } from './schema.js'
+import { parseBatchSuggestionDefinition, type SchemaNode } from './schema.js'
 import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
+import {
+  buildGoldRecordFields,
+  goldFilenameColumnValues,
+  goldSpreadsheetRowCount,
+  type GoldSpreadsheetColumn,
+} from './gold-spreadsheet.js'
 import type {
   ScheduleBatchResult,
   ScheduleSuggestedBatchInput,
 } from './types.js'
+
+function isBlankCell(value: unknown): boolean {
+  return value === null || value === undefined || String(value).trim() === ''
+}
+
+/** Populates a project-scoped `EvaluationCorpusVersion` from a confirmed
+ *  `SCHEMA_AND_VALIDATE` spreadsheet-derived suggestion's pinned spreadsheet
+ *  version, inside the caller's transaction so schema-seeding and
+ *  gold-population commit or fail together (extraction-quality-evaluation
+ *  design.md D1b/D9). Throws `ExtractionError('invalid_request', ...)` — not
+ *  a distinct status — on any row that can't be resolved, since a partially
+ *  populated corpus would be worse than a clean failure the researcher can
+ *  fix and retry from the same unconfirmed suggestion. */
+async function populateGoldRecords(
+  orm: Database['orm'],
+  projectContextId: string,
+  input: {
+    schemaNodes: readonly SchemaNode[]
+    columnFieldMapping: Readonly<Record<string, string>>
+    projectSpreadsheetVersionId: string | null
+  },
+): Promise<void> {
+  if (!input.projectSpreadsheetVersionId)
+    throw new ExtractionError(
+      'invalid_request',
+      'A spreadsheet-derived suggestion has no pinned spreadsheet version to populate gold data from.',
+    )
+  const spreadsheet = await orm.public.ProjectSpreadsheetVersion.select(
+    'columns',
+  ).first({ id: input.projectSpreadsheetVersionId, projectContextId })
+  if (!spreadsheet)
+    throw new ExtractionError(
+      'invalid_request',
+      'The pinned spreadsheet version is no longer available.',
+    )
+  const columns = spreadsheet.columns as GoldSpreadsheetColumn[]
+  const filenames = goldFilenameColumnValues(columns)
+  if (!filenames)
+    throw new ExtractionError(
+      'invalid_request',
+      'The spreadsheet has no "filename" column to resolve gold records against Source Documents.',
+    )
+
+  const resolved: {
+    sourceDocumentId: string
+    sourceRepresentationRevisionId: string
+    fields: unknown
+  }[] = []
+  const rowCount = goldSpreadsheetRowCount(columns)
+  for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+    // A spreadsheet row is 1-indexed with a header row, so data row
+    // `rowIndex` (0-based) is row `rowIndex + 2` as the researcher sees it.
+    const displayRow = rowIndex + 2
+    if (columns.every((column) => isBlankCell(column.values[rowIndex])))
+      continue // A wholly blank row (e.g. a trailing one) is noise, not data.
+    const filename = filenames[rowIndex]
+    if (isBlankCell(filename))
+      throw new ExtractionError(
+        'invalid_request',
+        `Row ${displayRow} has no filename value to resolve it against a Source Document.`,
+      )
+    const document = await orm.public.SourceDocument.select('id').first({
+      projectContextId,
+      originalName: String(filename),
+    })
+    if (!document)
+      throw new ExtractionError(
+        'invalid_request',
+        `Row ${displayRow}'s filename "${String(filename)}" does not match any Source Document in this project.`,
+      )
+    const representation =
+      await orm.public.SourceRepresentationRevision.where({
+        sourceDocumentId: document.id,
+      })
+        .select('id')
+        .orderBy((revision) => revision.revisionNumber.desc())
+        .first()
+    if (!representation)
+      throw new ExtractionError(
+        'invalid_request',
+        `Row ${displayRow}'s Source Document has no representation to pin.`,
+      )
+    resolved.push({
+      sourceDocumentId: document.id,
+      sourceRepresentationRevisionId: representation.id,
+      fields: buildGoldRecordFields(
+        input.schemaNodes,
+        input.columnFieldMapping,
+        columns,
+        rowIndex,
+      ),
+    })
+  }
+  if (resolved.length === 0) return
+
+  const evaluationCorpusId = stableUuid(
+    'project-evaluation-corpus',
+    projectContextId,
+  )
+  const existingCorpus = await orm.public.EvaluationCorpus.select(
+    'id',
+  ).first({ id: evaluationCorpusId })
+  if (!existingCorpus)
+    await orm.public.EvaluationCorpus.create({
+      id: evaluationCorpusId,
+      projectContextId,
+      name: 'Gold Standard Corpus',
+    })
+  const head = await orm.public.EvaluationCorpusVersion.where({
+    evaluationCorpusId,
+  })
+    .select('revisionNumber')
+    .orderBy((version) => version.revisionNumber.desc())
+    .first()
+  const evaluationCorpusVersionId = randomUUID()
+  await orm.public.EvaluationCorpusVersion.create({
+    id: evaluationCorpusVersionId,
+    evaluationCorpusId,
+    revisionNumber: (head?.revisionNumber ?? 0) + 1,
+  })
+  for (const record of resolved)
+    await orm.public.GoldRecord.create({
+      evaluationCorpusVersionId,
+      sourceDocumentId: record.sourceDocumentId,
+      sourceRepresentationRevisionId: record.sourceRepresentationRevisionId,
+      fields: record.fields,
+    })
+}
 
 /** Owns the atomic Schema Suggestion → Extraction Schema → Batch handoff. */
 export async function persistSuggestedBatch(
@@ -36,6 +171,10 @@ export async function persistSuggestedBatch(
         'executionStatus',
         'phase',
         'draft',
+        'sourceKind',
+        'purpose',
+        'columnFieldMapping',
+        'projectSpreadsheetVersionId',
         'confirmedSchemaRevisionId',
         'batchExtractionId',
       ).first({
@@ -63,8 +202,13 @@ export async function persistSuggestedBatch(
         .select('sourceDocumentId', 'sourceRepresentationRevisionId')
         .orderBy((source) => source.sourceDocumentId.asc())
         .all()
+      // A spreadsheet-derived suggestion has no document sources at all —
+      // confirming it is meant to produce only the Extraction Schema, with
+      // an empty Batch Extraction shell, not to reject on having zero
+      // members the way a document-grounded suggestion must (spreadsheet-
+      // schema-suggestion design.md D1b/D4).
       if (
-        members.length === 0 ||
+        (members.length === 0 && suggestion.sourceKind !== 'SPREADSHEET') ||
         members.length > BATCH_EXTRACTION_SELECTION_LIMIT ||
         new Set(members.map((member) => member.sourceDocumentId)).size !==
           members.length
@@ -99,6 +243,18 @@ export async function persistSuggestedBatch(
           schemaTree: draft,
         })
       }
+      if (
+        suggestion.sourceKind === 'SPREADSHEET' &&
+        suggestion.purpose === 'SCHEMA_AND_VALIDATE'
+      )
+        await populateGoldRecords(orm, input.projectContextId, {
+          schemaNodes: draft.schemaNodes,
+          columnFieldMapping: (suggestion.columnFieldMapping ?? {}) as Record<
+            string,
+            string
+          >,
+          projectSpreadsheetVersionId: suggestion.projectSpreadsheetVersionId,
+        })
       const batchExtractionId = stableUuid(
         'batch-extraction-from-suggestion',
         input.batchSchemaSuggestionId,

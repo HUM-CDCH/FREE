@@ -55,7 +55,7 @@ type SourceDocument = {
   pageCount: number | null
 }
 
-type SuggestionDraftVersion = Pick<
+export type SuggestionDraftVersion = Pick<
   BatchSchemaSuggestion,
   'draftVersion' | 'finishedAt'
 >
@@ -1321,7 +1321,7 @@ function SavedSchemaEditor({
  * every committed edit forwards into the caller-owned suggestion draft
  * machinery, and chat-driven edits stay unavailable exactly as before.
  */
-function SuggestedSchemaEditor({
+export function SuggestedSchemaEditor({
   proposal,
   proposalVersion,
   sourceDocumentName,

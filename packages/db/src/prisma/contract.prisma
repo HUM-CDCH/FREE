@@ -58,6 +58,20 @@ enum BatchSchemaSuggestionPhase {
   HETEROGENEOUS
 }
 
+enum BatchSchemaSuggestionSourceKind {
+  DOCUMENTS
+  SPREADSHEET
+}
+
+// Only meaningful for a SPREADSHEET-kind suggestion (null for DOCUMENTS):
+// SCHEMA seeds the schema and stops there; SCHEMA_AND_VALIDATE also
+// populates an EvaluationCorpusVersion from the pinned spreadsheet version
+// once confirmed (extraction-quality-evaluation design.md D1b).
+enum BatchSchemaSuggestionPurpose {
+  SCHEMA
+  SCHEMA_AND_VALIDATE
+}
+
 model ProjectContext {
   researcherAccountId Uuid
   id                Uuid               @id @default(uuid())
@@ -69,8 +83,29 @@ model ProjectContext {
   batchExtractions  BatchExtraction[]
   extractionJobs    ExtractionJob[]
   batchSchemaSuggestions BatchSchemaSuggestion[]
+  projectSpreadsheetVersions ProjectSpreadsheetVersion[]
+  evaluationCorpora EvaluationCorpus[]
 
   @@index([researcherAccountId])
+}
+
+// One versioned, project-scoped spreadsheet slot: uploading again appends a
+// new immutable version rather than replacing one, mirroring SchemaRevision.
+// A project shares this one spreadsheet across every schema-suggestion or
+// gold-standard-validation action that wants it, instead of each action
+// carrying its own one-off upload.
+model ProjectSpreadsheetVersion {
+  id                Uuid                    @id @default(uuid())
+  projectContextId  Uuid
+  revisionNumber    Int
+  originalFilename  String
+  columns           Json
+  createdAt         Timestamptz6            @default(now())
+  projectContext    ProjectContext          @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
+  batchSchemaSuggestions BatchSchemaSuggestion[]
+
+  @@unique([projectContextId, revisionNumber])
+  @@index([projectContextId, createdAt])
 }
 
 model SourceDocument {
@@ -84,9 +119,11 @@ model SourceDocument {
   projectContext         ProjectContext                 @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
   representations        SourceRepresentationRevision[]
   annotationSetRevisions AnnotationSetRevision[]
+  goldRecords            GoldRecord[]
 
   @@unique([projectContextId, ingestionKey])
   @@unique([projectContextId, contentSha256])
+  @@unique([projectContextId, originalName])
 }
 
 model SourceRepresentationRevision {
@@ -108,6 +145,7 @@ model SourceRepresentationRevision {
   batchMembers           BatchExtractionMember[]
   batchSchemaSuggestionSources BatchSchemaSuggestionSource[]
   extractionJobs         ExtractionJob[]
+  goldRecords            GoldRecord[]
 
   @@unique([sourceDocumentId, revisionNumber])
   @@unique([id, sourceDocumentId])
@@ -126,6 +164,78 @@ model AnnotationSetRevision {
   conversationalEdits            ConversationalSchemaEdit[]
 
   @@unique([sourceDocumentId, revisionNumber])
+}
+
+// A named, stable-identity gold-standard benchmark, held fixed across
+// schema/vocabulary refinement cycles. Curated data lives on its append-only
+// EvaluationCorpusVersion revisions (mirroring ExtractionSchema/
+// SchemaRevision), never on the corpus itself, so correcting a gold
+// annotation never rewrites what an earlier EvaluationRun reported.
+model EvaluationCorpus {
+  id                Uuid                      @id @default(uuid())
+  projectContextId  Uuid
+  name              String
+  createdAt         Timestamptz6              @default(now())
+  projectContext    ProjectContext            @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
+  versions          EvaluationCorpusVersion[]
+
+  @@index([projectContextId])
+}
+
+model EvaluationCorpusVersion {
+  id                 Uuid              @id @default(uuid())
+  evaluationCorpusId Uuid
+  revisionNumber     Int
+  createdAt          Timestamptz6      @default(now())
+  evaluationCorpus   EvaluationCorpus  @relation(fields: [evaluationCorpusId], references: [id], onDelete: Cascade)
+  goldRecords        GoldRecord[]
+  evaluationRuns     EvaluationRun[]
+
+  @@unique([evaluationCorpusId, revisionNumber])
+}
+
+// One expert-curated record within one EvaluationCorpusVersion. Multiple
+// GoldRecords MAY share a document (a multi-species table's several
+// records, or several annotators' independent takes) — this is not
+// deduplicated or constrained to one-per-document. Documents are
+// referenced, never duplicated: sourceRepresentationRevisionId pins the
+// content revision the annotation was curated against.
+model GoldRecord {
+  id                             Uuid                         @id @default(uuid())
+  evaluationCorpusVersionId      Uuid
+  sourceDocumentId               Uuid
+  sourceRepresentationRevisionId Uuid
+  fields                         Json
+  createdAt                      Timestamptz6                 @default(now())
+  evaluationCorpusVersion        EvaluationCorpusVersion       @relation(fields: [evaluationCorpusVersionId], references: [id], onDelete: Cascade)
+  sourceDocument                 SourceDocument                @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+  sourceRepresentationRevision   SourceRepresentationRevision  @relation(fields: [sourceRepresentationRevisionId], references: [id], onDelete: Cascade)
+
+  @@index([evaluationCorpusVersionId])
+  @@index([sourceDocumentId])
+}
+
+// One computed metrics snapshot, frozen at the schema revision + corpus
+// version it was run against — a later gold correction or schema edit
+// never retroactively changes what an old run reported (design.md D4).
+// Exactly one of batchExtractionId/extractionId is set (enforced in
+// project-store.ts, not a DB constraint — mirrors ReviewDecision's
+// EDITED/reviewedValue invariant, which is also application-enforced).
+model EvaluationRun {
+  id                        Uuid                     @id @default(uuid())
+  evaluationCorpusVersionId Uuid
+  schemaRevisionId          Uuid
+  batchExtractionId         Uuid?
+  extractionId              Uuid?
+  computedAt                Timestamptz6             @default(now())
+  metrics                   Json
+  evaluationCorpusVersion   EvaluationCorpusVersion  @relation(fields: [evaluationCorpusVersionId], references: [id], onDelete: Cascade)
+  schemaRevision            SchemaRevision           @relation(fields: [schemaRevisionId], references: [id], onDelete: Cascade)
+  batchExtraction           BatchExtraction?         @relation(fields: [batchExtractionId], references: [id], onDelete: Cascade)
+  extraction                Extraction?              @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+
+  @@index([evaluationCorpusVersionId, computedAt])
+  @@index([schemaRevisionId])
 }
 
 model ExtractionSchema {
@@ -227,6 +337,7 @@ model SchemaRevision {
   extractions                Extraction[]
   batchExtractions           BatchExtraction[]
   extractionJobs             ExtractionJob[]
+  evaluationRuns             EvaluationRun[]
 
   @@unique([extractionSchemaId, revisionNumber])
 }
@@ -248,6 +359,7 @@ model BatchExtraction {
   members          BatchExtractionMember[]
   extractions      Extraction[]
   extractionJobs   ExtractionJob[]
+  evaluationRuns   EvaluationRun[]
 
   @@unique([id, schemaRevisionId, strategy], map: "batch_extraction_pin_key")
   @@index([projectContextId, createdAt])
@@ -327,6 +439,11 @@ model BatchSchemaSuggestion {
   selectionKey              String                     @unique
   executionStatus           ProjectOperationStatus     @default(QUEUED)
   phase                     BatchSchemaSuggestionPhase @default(SOURCES)
+  sourceKind                BatchSchemaSuggestionSourceKind @default(DOCUMENTS)
+  purpose                   BatchSchemaSuggestionPurpose?
+  columnFieldMapping        Json?
+  projectSpreadsheetVersionId Uuid?
+  projectSpreadsheetVersion   ProjectSpreadsheetVersion? @relation(fields: [projectSpreadsheetVersionId], references: [id], onDelete: Restrict)
   proposal                  Json?
   coverage                  Json?
   draft                     Json?
@@ -396,6 +513,7 @@ model Extraction {
   retryOf                        Extraction?                  @relation("ExtractionRetries", fields: [retryOfId, sourceRepresentationRevisionId, schemaRevisionId, strategy], references: [id, sourceRepresentationRevisionId, schemaRevisionId, strategy], onDelete: Cascade, map: "extraction_retry_pin_fkey")
   retries                        Extraction[]                 @relation("ExtractionRetries")
   reviews                        ExtractionReview[]
+  evaluationRuns                 EvaluationRun[]
 
   @@unique([id, sourceDocumentId])
   @@unique([id, sourceRepresentationRevisionId, schemaRevisionId, strategy], map: "extraction_retry_pin_key")

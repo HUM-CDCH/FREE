@@ -5,6 +5,7 @@ import type {
   BatchExtractionSnapshot,
   CancellationResult,
   DocumentExtractionsSnapshot,
+  EvaluationRunSnapshot,
   ExtractionDiagnostics,
   ExtractionAttemptSnapshot,
   EvidenceLink,
@@ -12,6 +13,7 @@ import type {
   ExtractionModelAttribution,
   ExtractionSnapshot,
   ExtractionStrategy,
+  ListEvaluationRunsInput,
   ModelAttribution,
   ModelGenerationMetadata,
   ReadBatchInput,
@@ -23,6 +25,7 @@ import type {
   ScheduleBatchInput,
   ScheduleBatchResult,
   ScheduleSuggestedBatchInput,
+  ValidateExtractionInput,
 } from './types.js'
 
 export type LoadedExtractionInputs = Readonly<{
@@ -88,6 +91,8 @@ export interface ExtractionPersistence extends ExtractionInputReader {
   listBatches(projectContextId: string, limit: number): Promise<readonly BatchExtractionSnapshot[] | null>
   readBatch(input: ReadBatchInput): Promise<BatchExtractionSnapshot | null>
   readBatchResults(input: ReadBatchInput): Promise<BatchExtractionResults | null>
+  validateExtraction(input: ValidateExtractionInput): Promise<EvaluationRunSnapshot | null>
+  listEvaluationRuns(input: ListEvaluationRunsInput): Promise<readonly EvaluationRunSnapshot[] | null>
 }
 
 export type ExtractionModelRequest = Readonly<{

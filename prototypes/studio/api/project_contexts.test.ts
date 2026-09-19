@@ -19,6 +19,7 @@ import {
   createGetProjectContexts,
   createProjectContextWrites,
 } from './project_contexts.js'
+import { trackParsingTask } from './_parsingTaskRegistry.js'
 
 const RESEARCHER_ACCOUNT_ID = '00000000-0000-4000-8000-000000000043'
 
@@ -205,6 +206,69 @@ describe('Project Context routes', () => {
     expect(remove.status).toBe(204)
     expect(remove.headers.get('cache-control')).toBe('no-store')
     expect(deleteProjectContext).toHaveBeenCalledWith(DEMO_PROJECT_ID)
+  })
+
+  it('cancels any Parsing Service tasks still in flight for a deleted Project Context', async () => {
+    trackParsingTask(DEMO_PROJECT_ID, 'task-1')
+    trackParsingTask(DEMO_PROJECT_ID, 'task-2')
+    const fetcher = vi.fn()
+    fetcher.mockImplementation(
+      async (_url: string | URL, _init?: RequestInit) =>
+        new Response(null, { status: 200 }),
+    )
+    const { DELETE } = createProjectContextWrites(
+      {
+        createProjectContext: async () => {
+          throw new Error('not used')
+        },
+        renameProjectContext: async () => {
+          throw new Error('not used')
+        },
+        deleteProjectContext: async () => true,
+      },
+      { fetcher, parsingServiceBase: 'http://parser.test' },
+    )
+
+    const remove = await DELETE(
+      new Request(`http://test/api/project-contexts/${DEMO_PROJECT_ID}`, {
+        method: 'DELETE',
+      }),
+    )
+    expect(remove.status).toBe(204)
+    const cancelled = fetcher.mock.calls
+      .map((call) => {
+        const [url, init] = call as [string | URL, RequestInit?]
+        return [String(url), init?.method]
+      })
+      .sort()
+    expect(cancelled).toEqual([
+      ['http://parser.test/tasks/task-1/cancel', 'POST'],
+      ['http://parser.test/tasks/task-2/cancel', 'POST'],
+    ])
+  })
+
+  it('does not call the Parsing Service when no task is tracked for the deleted project', async () => {
+    const fetcher = vi.fn()
+    const { DELETE } = createProjectContextWrites(
+      {
+        createProjectContext: async () => {
+          throw new Error('not used')
+        },
+        renameProjectContext: async () => {
+          throw new Error('not used')
+        },
+        deleteProjectContext: async () => true,
+      },
+      { fetcher },
+    )
+
+    const remove = await DELETE(
+      new Request(`http://test/api/project-contexts/${DEMO_PROJECT_ID}`, {
+        method: 'DELETE',
+      }),
+    )
+    expect(remove.status).toBe(204)
+    expect(fetcher).not.toHaveBeenCalled()
   })
 
   it('bounds invalid writes, unknown owners, and persistence failures', async () => {

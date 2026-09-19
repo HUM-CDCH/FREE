@@ -84,6 +84,8 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
         },
       ],
     })),
+    validateExtraction: vi.fn<ExtractionModule['validateExtraction']>(),
+    listEvaluationRuns: vi.fn<ExtractionModule['listEvaluationRuns']>(),
     ...overrides,
   }
   return module

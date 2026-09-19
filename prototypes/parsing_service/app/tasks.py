@@ -11,8 +11,10 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
+from . import parallel_parsing
 from .contracts import Parser
 from .storage import MAX_UPLOAD_BYTES, TaskNotFoundError, TaskStorage, utc_now
+from .worker_pool import PartitionWorkerPool, parse_large_document
 
 
 DEFAULT_QUEUE_CAPACITY = 2
@@ -149,12 +151,26 @@ class TaskManager:
         parser: Parser | Any | None = None,
         *,
         capacity: int = DEFAULT_QUEUE_CAPACITY,
+        pool: PartitionWorkerPool | None = None,
+        parallel_min_pages: int = parallel_parsing.DEFAULT_MIN_PAGES,
+        parallel_target_partition_pages: int = parallel_parsing.DEFAULT_TARGET_PARTITION_PAGES,
+        parallel_max_workers: int = parallel_parsing.DEFAULT_MAX_WORKERS,
+        parallel_search_radius: int = parallel_parsing.DEFAULT_SPLIT_SEARCH_RADIUS,
     ) -> None:
         if not isinstance(capacity, int) or isinstance(capacity, bool) or capacity <= 0:
             raise ValueError("Queue capacity must be a positive integer.")
         self.storage = storage
         self.parser = parser
         self.capacity = capacity
+        # `pool` stays None unless a caller (see `main.create_app`) explicitly
+        # wires one up; every partitioning knob is otherwise inert and this
+        # class behaves exactly as it did before large-document partitioning
+        # existed (see `_parse`).
+        self.pool = pool
+        self.parallel_min_pages = parallel_min_pages
+        self.parallel_target_partition_pages = parallel_target_partition_pages
+        self.parallel_max_workers = parallel_max_workers
+        self.parallel_search_radius = parallel_search_radius
         # Capacity is accounted by _active. An unbounded physical queue lets a
         # cancelled pending tombstone remain in FIFO order without blocking admission.
         self._queue: asyncio.Queue[str] = asyncio.Queue()
@@ -240,9 +256,22 @@ class TaskManager:
         parse = getattr(parser, "parse", None)
         if not callable(parse):
             if callable(parser):
-                parse = parser
-            else:
-                raise ParserUnavailableError("Parser has no parse method.")
+                return parser(source_path, context)
+            raise ParserUnavailableError("Parser has no parse method.")
+        # Partitioning only ever engages for a real DoclingParser (the only
+        # thing exposing `.prepare()`) with a pool configured; every fake
+        # parser used in tests takes the exact path it always has.
+        if self.pool is not None and callable(getattr(parser, "prepare", None)):
+            return parse_large_document(
+                parser,
+                self.pool,
+                source_path,
+                context,
+                min_pages=self.parallel_min_pages,
+                target_partition_pages=self.parallel_target_partition_pages,
+                max_workers=self.parallel_max_workers,
+                search_radius=self.parallel_search_radius,
+            )
         return parse(source_path, context)
 
     async def _begin(self, task_id: str) -> tuple[dict[str, Any], dict[str, Any]] | None:

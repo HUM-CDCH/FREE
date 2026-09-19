@@ -276,6 +276,8 @@ function studioFetch(
       return Response.json({ batchExtractions: [] })
     if (url.startsWith('/api/batch-schema-suggestions?'))
       return Response.json({ batchSchemaSuggestions: [] })
+    if (url.startsWith('/api/project-spreadsheets?'))
+      return Response.json({ projectSpreadsheetVersion: null })
     if (url.endsWith(projectContextId)) return Response.json(branch)
     return projectListResponse([project])
   })

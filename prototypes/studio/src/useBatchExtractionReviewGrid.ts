@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import { finalizeExtractionReview, readExtraction, resetExtractionReview, saveExtractionReviewDraft } from './api'
+import { classifyExtractionFields, groundedPathKeySet } from './extractionClassification'
 import { leafFields } from './fieldCoverage'
 import { applyReviewDecisions, resultPathKey, toReviewDecisionInput } from './reviewDecisions'
 import { isRecord } from '../shared/template'
@@ -59,6 +60,34 @@ export function decisionMatchesColumn(path: readonly (string | number)[], column
   if (path[0] !== 'records' || typeof path[1] !== 'number') return false
   const fields = path.slice(2).filter((segment) => typeof segment === 'string')
   return fields.length === column.path.length && fields.every((field, index) => field === column.path[index])
+}
+
+/** ungroundedWithValue + missing for one member's full result (every record
+ *  it produced), per design.md D2 — how badly this document needs review,
+ *  read straight off its already-loaded attempt/diagnostics. */
+export function memberIssueScore(
+  state: MemberReviewState,
+  schemaNodes: readonly SchemaNode[] | null,
+): number {
+  if (state.status !== 'ready') return 0
+  const grounding = state.attempt.diagnostics?.grounding
+  const counts = classifyExtractionFields(
+    schemaNodes,
+    state.attempt.resultPayload,
+    groundedPathKeySet(grounding?.groundedPaths ?? []),
+  )
+  return counts.ungroundedWithValue + counts.missing
+}
+
+/** Sorts displayed rows by their member's issue score, descending, keeping
+ *  one member's own rows contiguous (equal score) and stable otherwise. */
+export function sortRowsByIssueScore<Row extends { sourceDocumentId: string }>(
+  rows: readonly Row[],
+  issueScores: ReadonlyMap<string, number>,
+): Row[] {
+  return [...rows].sort(
+    (a, b) => (issueScores.get(b.sourceDocumentId) ?? 0) - (issueScores.get(a.sourceDocumentId) ?? 0),
+  )
 }
 
 export function pendingReviewCount(state: MemberReviewState): number {
@@ -509,10 +538,18 @@ export function useBatchExtractionReviewGrid(
   const dirtyCount = [...members.values()]
     .filter((state) => state.status === 'ready' && state.editable && state.touched.size > 0).length
 
+  const issueScores = useMemo(() => {
+    const scores = new Map<string, number>()
+    for (const [sourceDocumentId, state] of members)
+      scores.set(sourceDocumentId, memberIssueScore(state, schemaNodes))
+    return scores
+  }, [members, schemaNodes])
+
   return {
     columns,
     members,
     dirtyCount,
+    issueScores,
     canRevert: [...members.values()].some((state) => state.status === 'ready' && state.attempt.reviewable && state.touched.size > 0),
     draftError: draftConflicts.current.size > 0 ? REVIEW_DRAFT_CONFLICT : draftError,
     draftSaving: draftSaving > 0,
