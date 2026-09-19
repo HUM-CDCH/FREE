@@ -1,6 +1,9 @@
 import { useRef } from 'react'
 import { useMachine } from '@xstate/react'
-import type { BatchSchemaSuggestion } from '../../shared/batchSchemaSuggestion.contract'
+import type {
+  BatchSchemaSuggestion,
+  BatchSchemaSuggestionPurpose,
+} from '../../shared/batchSchemaSuggestion.contract'
 import {
   BatchSchemaSuggestionRequestError,
   createSpreadsheetBatchSchemaSuggestion,
@@ -44,12 +47,14 @@ export function useSpreadsheetSchemaSuggestion({
   onRun(suggestion: BatchSchemaSuggestion): void
 }) {
   const pendingSeparator = useRef<string | undefined>(undefined)
+  const pendingPurpose = useRef<BatchSchemaSuggestionPurpose>('SCHEMA')
 
   const [snapshot, send] = useMachine(batchSchemaSuggestionMachine, {
     input: {
       create: () =>
         createSpreadsheetBatchSchemaSuggestion(
           projectContextId,
+          pendingPurpose.current,
           pendingSeparator.current,
         ),
       retry: (batchSchemaSuggestionId) =>
@@ -78,8 +83,15 @@ export function useSpreadsheetSchemaSuggestion({
   })
 
   /** Creates a suggestion from the project's current spreadsheet version.
-   *  Call `uploadProjectSpreadsheet` first if none has been uploaded yet. */
-  function createFromCurrentSpreadsheet(separator?: string) {
+   *  Call `uploadProjectSpreadsheet` first if none has been uploaded yet.
+   *  `purpose` chooses `SCHEMA` (seed the schema and stop) or
+   *  `SCHEMA_AND_VALIDATE` (also populate an Evaluation Corpus version
+   *  from this spreadsheet once the suggestion is confirmed). */
+  function createFromCurrentSpreadsheet(
+    purpose: BatchSchemaSuggestionPurpose,
+    separator?: string,
+  ) {
+    pendingPurpose.current = purpose
     pendingSeparator.current = separator
     send({
       type: 'selection.changed',

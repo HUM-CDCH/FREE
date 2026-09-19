@@ -17,6 +17,7 @@ import {
   batchSchemaSuggestionRunRequestSchema,
   type BatchSchemaSuggestion,
   type BatchSchemaSuggestionFailure,
+  type BatchSchemaSuggestionPurpose,
 } from '../../shared/batchSchemaSuggestion.contract'
 import {
   projectSpreadsheetErrorResponseSchema,
@@ -154,9 +155,13 @@ export async function createBatchSchemaSuggestion(
  *  immediately, no document sources involved (spreadsheet-schema-
  *  suggestion spec). `separator` splits a column header into a nested
  *  path when given (e.g. "." groups `measurement.temperature` under a
- *  `measurement` object); omit it to keep every column flat. */
+ *  `measurement` object); omit it to keep every column flat. `purpose`
+ *  chooses whether confirming the suggestion only seeds the schema
+ *  (`SCHEMA`) or also populates an Evaluation Corpus version from this
+ *  spreadsheet (`SCHEMA_AND_VALIDATE`). */
 export async function createSpreadsheetBatchSchemaSuggestion(
   projectContextId: string,
+  purpose: BatchSchemaSuggestionPurpose,
   separator?: string,
   signal?: AbortSignal,
 ): Promise<BatchSchemaSuggestion> {
@@ -168,6 +173,7 @@ export async function createSpreadsheetBatchSchemaSuggestion(
         batchSchemaSuggestionCreateFromSpreadsheetRequestSchema.parse({
           projectContextId,
           separator,
+          purpose,
         }),
       ),
       signal,

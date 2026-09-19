@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { NavigableRoute, ProjectResource } from '../projectNavigation'
 import { projectContextNameSchema } from '../../shared/projectContext.contract'
 import type { ProjectSpreadsheetVersion } from '../../shared/projectSpreadsheet.contract'
+import type { BatchSchemaSuggestionPurpose } from '../../shared/batchSchemaSuggestion.contract'
 import { listExtractionSchemas, renameExtractionSchema } from '../schemaRevisions'
 import SchemaNameEditor from '../SchemaNameEditor'
 import { Button, DeleteDialog, EmptyState } from '../ui'
@@ -232,6 +233,8 @@ export default function ProjectContextPage({
   const [spreadsheetUploading, setSpreadsheetUploading] = useState(false)
   const [spreadsheetError, setSpreadsheetError] = useState<string | null>(null)
   const [separator, setSeparator] = useState('')
+  const [spreadsheetPurpose, setSpreadsheetPurpose] =
+    useState<BatchSchemaSuggestionPurpose>('SCHEMA')
   const schemaList =
     settledSchemaList?.requestKey === schemaRequestKey
       ? settledSchemaList
@@ -624,6 +627,22 @@ export default function ProjectContextPage({
                   />
                 </label>
 
+                <label
+                  className="inline-flex items-center gap-1.5 text-[11px] text-ink-muted"
+                  title="Requires a &quot;filename&quot; column matching each row to an uploaded document."
+                >
+                  <input
+                    type="checkbox"
+                    checked={spreadsheetPurpose === 'SCHEMA_AND_VALIDATE'}
+                    onChange={(event) =>
+                      setSpreadsheetPurpose(
+                        event.target.checked ? 'SCHEMA_AND_VALIDATE' : 'SCHEMA',
+                      )
+                    }
+                  />
+                  Also populate evaluation corpus from this spreadsheet
+                </label>
+
                 <Button
                   size="sm"
                   disabled={
@@ -635,7 +654,10 @@ export default function ProjectContextPage({
                     )
                   }
                   onClick={() =>
-                    createSchemaFromSpreadsheet(separator.trim() || undefined)
+                    createSchemaFromSpreadsheet(
+                      spreadsheetPurpose,
+                      separator.trim() || undefined,
+                    )
                   }
                 >
                   Generate schema suggestion
