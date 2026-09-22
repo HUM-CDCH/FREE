@@ -1,0 +1,74 @@
+{
+  "result_version": 4,
+  "generation": "20260922T120315.748740Z-ae6cc6c9",
+  "digest": "6648ca3d5588e4244016b4de9f82c50ecb8909b18fd0ee27d06da38ea42eca01",
+  "fingerprint": "c3a49f84c371569c47768f40217f8e71b10e67a121d5c54b98bd9f1975c21a75",
+  "recipe": {
+    "result_version": 4,
+    "source_sha256": "641e16c209b792546e79ca2a660e14ecf6750c3c027ffb46a3b89f9a79770293",
+    "ingest_digest": null,
+    "transcriber": "native",
+    "model": null,
+    "repo": null,
+    "cut": "none",
+    "crop_dpi": null,
+    "layout_model": null,
+    "page_source": "pdf",
+    "pages_requested": null,
+    "max_image_size": null,
+    "max_output_tokens": null,
+    "record": null,
+    "versions": {
+      "docling": "2.127.0",
+      "surya-ocr": "0.22.1"
+    }
+  },
+  "source_name": "main.pdf",
+  "page_count": 8,
+  "effective": {
+    "max_size": null,
+    "scale": 1.0
+  },
+  "started": "2026-09-22T12:03:13.269538+00:00",
+  "seconds": 2.4783204389968887,
+  "status": "success",
+  "incomplete": null,
+  "pages": {
+    "1": {
+      "sha256": "a105d783176d8ba9d09741097aa71e84c11c3eaa0ac9ad4be06f430dc1fb7403",
+      "complete": true
+    },
+    "2": {
+      "sha256": "1edd7407474088a9c41af4aec8b44841a33ecce41bbb2940e7bff49476af458f",
+      "complete": true
+    },
+    "3": {
+      "sha256": "0ed78196b8d38cfcc43cf895f94e70f72cba57692f0a949dd5fc167c6c954def",
+      "complete": true
+    },
+    "4": {
+      "sha256": "3e60ca1d5a863a0bec20d89659ec1f2f748d0666008b31e97f102d9c1afcbab4",
+      "complete": true
+    },
+    "5": {
+      "sha256": "8019da3065189755e595d98e0e1d78d5b1958902ebb46e6bf13fb4299f92d33e",
+      "complete": true
+    },
+    "6": {
+      "sha256": "1854d3917aecde420b084f17bc34e4d21d17ed08518d10e1b5bd009696bcd577",
+      "complete": true
+    },
+    "7": {
+      "sha256": "119ffe3d4eaeaa4a56cb441c89c35686c62837e2a7e6949a1bcfe0df35aa6973",
+      "complete": true
+    },
+    "8": {
+      "sha256": "4f0bb63c1ff9fec79b66ce79dce0bba0d51e80489b472b8a0b11fe9327985930",
+      "complete": true
+    }
+  },
+  "tokens": {
+    "input": 0,
+    "output": 0
+  }
+}

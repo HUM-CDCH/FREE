@@ -412,6 +412,16 @@ The resolved production topology is:
 | Studio | `proxy` and `app`, port 5173 | TCP 127.0.0.1:5173 (for host nginx) |
 | PostgreSQL | `app`, port 5432 | none |
 | Parsing Service | `app`, port 8055 | TCP 127.0.0.1:8055 |
+| kei-exp API and worker (host processes, not containers) | Studio reaches `host.docker.internal:8001` (`KEI_EXP_URL`) | 8001 on the host loopback |
+
+New Source Document uploads are parsed by kei-exp, which runs outside this
+Compose project: one `kei_exp.api` process on `:8001` and one Procrastinate
+worker sharing its runs directory and PostgreSQL, after `kei-jobs schema
+--apply`. Studio reads `KEI_EXP_URL` (default `http://host.docker.internal:8001`,
+resolved through the studio service's `host-gateway` extra host) and
+`KEI_EXP_MODEL` (default `surya`; kei-exp still takes the native Docling path
+for born-digital PDFs by itself). The Parsing Service container stays only for
+rollback and is no longer called.
 
 Studio is the only member of the dedicated `172.30.0.0/24` `proxy` network in
 production, and its `gw_priority` makes host port forwarding enter through

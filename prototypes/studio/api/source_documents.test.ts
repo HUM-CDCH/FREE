@@ -1,5 +1,10 @@
 import { createHash } from 'node:crypto'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
+import { decodeParsedDocument } from 'extraction/parsed-document'
+import { createCanonicalPackageStore } from '../../../packages/db/src/artifact-store.js'
 import { IngestionKeyConflictError } from '../../../packages/db/src/project-store.js'
 import {
   createSourceDocumentDeletion,
@@ -12,16 +17,159 @@ const ids = {
   source: '33333333-3333-4333-8333-333333333333',
   representation: '44444444-4444-4444-8444-444444444444',
 }
+const UPLOAD_SHA256 =
+  '0716f9264c9fe19f5d7455276107f3ddcc1d3497f63d60689a73558ae8a1bf5e'
 const packageDocument = {
   schema_version: 'parsed_document.v2',
   page_count: 12,
-  document: {
-    content_sha256:
-      '0716f9264c9fe19f5d7455276107f3ddcc1d3497f63d60689a73558ae8a1bf5e',
-  },
-  preprocessing: { preprocess_id: 'preprocess-1' },
-  arbitration: { primary_document_parser: 'docling' },
-  parser_runs: [{ parser: 'docling', version: '2.0' }],
+  document: { content_sha256: UPLOAD_SHA256 },
+  preprocessing: { preprocess_id: 'kei-exp:run-1:gen-1' },
+  arbitration: { primary_document_parser: 'kei-exp' },
+  parser_runs: [{ parser: 'kei-exp', version: 'docling 2.127.0' }],
+}
+
+const sha256 = (value: Uint8Array | string) =>
+  createHash('sha256').update(value).digest('hex')
+const encoder = new TextEncoder()
+const decoder = new TextDecoder()
+
+type Overrides = NonNullable<Parameters<typeof createSourceDocumentIngestion>[1]>
+type Route = 'submit' | 'status' | 'result' | 'page'
+type ParserOptions = {
+  /** Status bodies in order; the last one repeats. */
+  statuses?: string[]
+  /** The hash kei-exp records for the upload; defaults to the upload's own. */
+  recordedSha256?: string
+  manifest?: Record<string, unknown>
+  respond?: (
+    route: Route,
+    fallback: () => Response,
+    init?: RequestInit,
+  ) => Response | Promise<Response>
+}
+
+function keiPage() {
+  return {
+    generation: 'gen-1',
+    page: 1,
+    size_pt: [612, 792],
+    units: [],
+    segments: [
+      {
+        text: 'Grav 8',
+        html: null,
+        markdown: 'Grav 8',
+        label: 'text',
+        confidence: null,
+        status: 'ok',
+        unit: 0,
+        crop: null,
+        bbox_px: null,
+        bbox_pt: [36, 36, 100, 54],
+        extent: 'input',
+      },
+    ],
+    markdown: 'Grav 8',
+    complete: true,
+    warnings: [],
+  }
+}
+
+function keiResult(sourceSha256: string, overrides: Record<string, unknown> = {}) {
+  const page = encoder.encode(JSON.stringify(keiPage()))
+  const manifest = {
+    result_version: 4,
+    generation: 'gen-1',
+    digest: 'digest',
+    fingerprint: 'fingerprint',
+    recipe: {
+      source_sha256: sourceSha256,
+      transcriber: 'native',
+      model: null,
+      versions: { docling: '2.127.0', 'surya-ocr': '0.22.1' },
+    },
+    source_name: 'report.pdf',
+    page_count: 1,
+    effective: {},
+    started: '2026-09-22T12:03:13.269538+00:00',
+    seconds: 2.5,
+    status: 'success',
+    incomplete: null,
+    pages: { '1': { sha256: sha256(page), complete: true } },
+    tokens: { input: 0, output: 0 },
+    ...overrides,
+  }
+  return { manifest, page }
+}
+
+/** kei-exp's HTTP contract as FREE drives it, over an in-memory run table. */
+function parser(fetcher: ReturnType<typeof vi.fn>, options: ParserOptions = {}) {
+  const runs = new Map<string, { sha256: string; statuses: string[] }>()
+  const respond =
+    options.respond ?? ((_route: Route, fallback: () => Response) => fallback())
+  fetcher.mockImplementation(
+    async (input: string | URL | Request, init?: RequestInit) => {
+      const { pathname } = new URL(String(input))
+      if (pathname === '/api/runs' && init?.method === 'POST') {
+        const pdf = (init.body as FormData).get('pdf') as File
+        const recorded =
+          options.recordedSha256 ??
+          sha256(new Uint8Array(await pdf.arrayBuffer()))
+        const id = `run-${runs.size + 1}`
+        runs.set(id, {
+          sha256: recorded,
+          statuses: [...(options.statuses ?? ['done'])],
+        })
+        return respond(
+          'submit',
+          () =>
+            Response.json(
+              {
+                id,
+                status: 'queued',
+                params: { source_sha256: recorded },
+                page_count: 1,
+              },
+              { status: 202 },
+            ),
+          init,
+        )
+      }
+      const match = /^\/api\/runs\/([^/]+)(?:\/(result|pages\/1))?$/.exec(
+        pathname,
+      )
+      const run = match ? runs.get(match[1]) : undefined
+      if (!match || !run) return new Response('no such run', { status: 404 })
+      if (match[2] === undefined) {
+        const status =
+          run.statuses.length > 1 ? run.statuses.shift() : run.statuses[0]
+        return respond(
+          'status',
+          () =>
+            Response.json({
+              id: match[1],
+              status,
+              error:
+                status === 'failed'
+                  ? 'docling-parse PDFium C:\\private\\input.pdf ' + 'a'.repeat(64)
+                  : null,
+            }),
+          init,
+        )
+      }
+      const { manifest, page } = keiResult(run.sha256, options.manifest)
+      if (match[2] === 'result')
+        return respond('result', () => Response.json(manifest), init)
+      return respond(
+        'page',
+        () =>
+          new Response(page, {
+            headers: { 'content-type': 'application/json' },
+          }),
+        init,
+      )
+    },
+  )
 }
 
 function request(
@@ -42,18 +190,6 @@ function request(
   )
 }
 
-function parser(
-  fetcher: ReturnType<typeof vi.fn>,
-  status: unknown = { status: 'completed' },
-) {
-  fetcher
-    .mockResolvedValueOnce(
-      Response.json({ task_id: 'task-1' }, { status: 202 }),
-    )
-    .mockResolvedValueOnce(Response.json(status))
-    .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3])))
-}
-
 function stalledBody(signal: AbortSignal | null | undefined): Response {
   return new Response(
     new ReadableStream({
@@ -68,9 +204,12 @@ function stalledBody(signal: AbortSignal | null | undefined): Response {
   )
 }
 
-function dependencies(overrides: Record<string, unknown> = {}) {
+function dependencies(
+  overrides: Overrides = {},
+  parserOptions: ParserOptions = {},
+) {
   const fetcher = vi.fn()
-  parser(fetcher)
+  parser(fetcher, parserOptions)
   const store = {
     getProjectContextWithDocuments: vi.fn().mockResolvedValue({
       projectContext: {},
@@ -110,6 +249,10 @@ function dependencies(overrides: Record<string, unknown> = {}) {
       ...overrides,
     }),
   }
+}
+
+function requestedPaths(fetcher: ReturnType<typeof vi.fn>): string[] {
+  return fetcher.mock.calls.map((call) => new URL(String(call[0])).pathname)
 }
 
 describe('Source Document deletion', () => {
@@ -202,8 +345,8 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
   it('ingests a scanned catalogue larger than 50 MiB without truncating it', async () => {
     const { handler, fetcher, packageStore, store } = dependencies()
     const bytes = new Uint8Array(65 * 1024 * 1024)
-    bytes.set(new TextEncoder().encode('%PDF-1.7\n'))
-    const contentSha256 = createHash('sha256').update(bytes).digest('hex')
+    bytes.set(encoder.encode('%PDF-1.7\n'))
+    const contentSha256 = sha256(bytes)
     packageStore.save.mockResolvedValueOnce({
       artifactReference: 'a'.repeat(64),
       artifactSha256: 'a'.repeat(64),
@@ -215,13 +358,13 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
       ['ingestionKey', ids.ingestion],
     ]))
     expect(response.status).toBe(201)
-    const uploaded = (fetcher.mock.calls[0][1].body as FormData).get('file') as File
+    const uploaded = (fetcher.mock.calls[0][1].body as FormData).get('pdf') as File
     expect(uploaded.size).toBe(bytes.length)
     expect(store.ingestSourceDocument).toHaveBeenCalledWith(ids.project,
       expect.objectContaining({ contentSha256 }))
   })
 
-  it('parses, validates provenance, and persists one sanitized PDF', async () => {
+  it('submits, polls, fetches the accepted result, and persists one sanitized PDF', async () => {
     const { handler, fetcher, store } = dependencies()
     const response = await handler(
       request(ids.project, [
@@ -248,12 +391,84 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
         ingestionKey: ids.ingestion,
         originalName: 'report draft.pdf',
         contractVersion: 'parsed_document.v2',
-        parserName: 'docling',
-        parserVersion: '2.0',
+        preprocessId: 'kei-exp:run-1:gen-1',
+        parserName: 'kei-exp',
+        parserVersion: 'docling 2.127.0',
       }),
     )
+    expect(requestedPaths(fetcher)).toEqual([
+      '/api/runs',
+      '/api/runs/run-1',
+      '/api/runs/run-1/result',
+      '/api/runs/run-1/pages/1',
+    ])
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe('http://parser.test/api/runs')
     const upload = fetcher.mock.calls[0]?.[1]?.body as FormData
-    expect((upload.get('file') as File).name).toBe('report draft.pdf')
+    expect((upload.get('pdf') as File).name).toBe('report draft.pdf')
+    expect(Object.fromEntries([...upload.entries()].filter(([key]) => key !== 'pdf'))).toEqual({
+      model: 'surya',
+      debug: 'false',
+      cut: 'auto',
+      page_source: 'pdf',
+    })
+  })
+
+  it('polls about once a second until the run is done', async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined)
+    const { handler, fetcher } = dependencies(
+      { sleep },
+      { statuses: ['queued', 'running', 'running', 'done'] },
+    )
+    expect((await handler(request())).status).toBe(201)
+    expect(requestedPaths(fetcher).filter((path) => path === '/api/runs/run-1')).toHaveLength(4)
+    expect(sleep.mock.calls).toEqual([[1000], [1000], [1000]])
+  })
+
+  it('packages the translated document with the upload itself and retains it', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'free-kei-exp-'))
+    try {
+      const packageStore = createCanonicalPackageStore(root)
+      const { handler, store } = dependencies({ packageStore, now: () => Date.parse('2026-09-22T13:00:00Z') })
+      const response = await handler(request())
+      expect(response.status).toBe(201)
+      await expect(response.json()).resolves.toMatchObject({ pageCount: 1 })
+      const input = store.ingestSourceDocument.mock.calls[0][1]
+      expect(input).toMatchObject({
+        contentSha256: UPLOAD_SHA256,
+        preprocessId: 'kei-exp:run-1:gen-1',
+        parserName: 'kei-exp',
+        parserVersion: 'docling 2.127.0',
+      })
+      const descriptor = {
+        artifactReference: input.artifactReference,
+        artifactSha256: input.artifactSha256,
+      }
+      expect(decoder.decode((await packageStore.read(descriptor, 'pdf')).bytes)).toBe('%PDF-1.7\n')
+      expect(decoder.decode((await packageStore.read(descriptor, 'markdown')).bytes)).toBe('Grav 8\n')
+      const document = decodeParsedDocument(
+        JSON.parse(decoder.decode((await packageStore.read(descriptor, 'source')).bytes)),
+      )
+      expect(document.document).toMatchObject({
+        document_id: 'run-1',
+        content_sha256: UPLOAD_SHA256,
+        created_at: '2026-09-22T13:00:00.000Z',
+        source: { original_filename: 'report.pdf', byte_size: 9 },
+      })
+      expect(document.content_stream).toEqual([
+        {
+          kind: 'paragraph',
+          block_id: 'b_p1_s0',
+          page_number: 1,
+          parser: 'kei-exp',
+          bbox: { x0: 36, y0: 36, x1: 100, y1: 54 },
+          markdown_span: { start: 0, end: 6 },
+          text: 'Grav 8',
+        },
+      ])
+      expect(document.evidence_index.anchors[0].producer_observations[0].producer_ref).toBe('kei-exp:native:page-1')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 
   it('accepts exactly 180 Unicode scalars and rejects 181 before parsing or persistence', async () => {
@@ -304,9 +519,10 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     expect(rejected.store.ingestSourceDocument).not.toHaveBeenCalled()
   })
 
-  it('prefers the production runtime Parsing Service address', async () => {
+  it('prefers the runtime kei-exp address and model', async () => {
     const { fetcher, store, packageStore } = dependencies()
-    vi.stubEnv('PARSING_SERVICE_URL', 'http://runtime-parser.test')
+    vi.stubEnv('KEI_EXP_URL', 'http://runtime-parser.test')
+    vi.stubEnv('KEI_EXP_MODEL', 'granite')
     try {
       const handler = createSourceDocumentIngestion(store, {
         fetcher,
@@ -315,16 +531,16 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
       })
       expect((await handler(request())).status).toBe(201)
       expect(String(fetcher.mock.calls[0]?.[0])).toBe(
-        'http://runtime-parser.test/tasks',
+        'http://runtime-parser.test/api/runs',
       )
+      expect((fetcher.mock.calls[0]?.[1]?.body as FormData).get('model')).toBe('granite')
     } finally {
       vi.unstubAllEnvs()
     }
   })
 
   it('returns the durable store result when the same request is replayed', async () => {
-    const { handler, fetcher, store } = dependencies()
-    parser(fetcher)
+    const { handler, store } = dependencies()
 
     const first = await handler(request())
     const replay = await handler(request())
@@ -340,16 +556,7 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
   })
 
   it('returns one durable identity for concurrent same-byte requests', async () => {
-    const { handler, fetcher, store } = dependencies()
-    fetcher.mockReset()
-    fetcher.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
-      const url = String(input)
-      if (url.endsWith('/tasks') && init?.method === 'POST')
-        return Response.json({ task_id: crypto.randomUUID() }, { status: 202 })
-      if (url.endsWith('/download'))
-        return new Response(new Uint8Array([1, 2, 3]))
-      return Response.json({ status: 'completed' })
-    })
+    const { handler, store } = dependencies()
 
     const [first, second] = await Promise.all([
       handler(request()),
@@ -420,15 +627,8 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     expect(store.discardCanonicalPackage).toHaveBeenCalledOnce()
   })
 
-  it('does not publish or persist when parsing fails or times out', async () => {
-    const failed = dependencies()
-    failed.fetcher.mockReset()
-    parser(failed.fetcher, {
-      status: 'failed',
-      error:
-        'docling-parse PDFium C:\\private\\source.pdf /tasks/task-1 ' +
-        'a'.repeat(64),
-    })
+  it('does not publish or persist when the run fails, is cancelled, or times out', async () => {
+    const failed = dependencies({}, { statuses: ['running', 'failed'] })
     const failedResponse = await failed.handler(request())
     expect(failedResponse.status).toBe(422)
     const failedBody = JSON.stringify(await failedResponse.json())
@@ -437,18 +637,22 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
       'docling-parse',
       'PDFium',
       'C:\\private',
-      '/tasks',
+      '/api/runs',
       'a'.repeat(64),
     ])
       expect(failedBody).not.toContain(forbidden)
     expect(failed.packageStore.save).not.toHaveBeenCalled()
     expect(failed.store.ingestSourceDocument).not.toHaveBeenCalled()
 
-    const timeout = dependencies({ timeoutMs: 0 })
-    timeout.fetcher.mockReset()
-    timeout.fetcher
-      .mockResolvedValueOnce(Response.json({ task_id: 'task-1' }))
-      .mockResolvedValueOnce(Response.json({ status: 'pending' }))
+    const cancelled = dependencies({}, { statuses: ['cancelling', 'cancelled'] })
+    expect((await cancelled.handler(request())).status).toBe(422)
+    expect(cancelled.packageStore.save).not.toHaveBeenCalled()
+
+    const unknown = dependencies({}, { statuses: ['exploded'] })
+    expect((await unknown.handler(request())).status).toBe(502)
+    expect(unknown.packageStore.save).not.toHaveBeenCalled()
+
+    const timeout = dependencies({ timeoutMs: 0 }, { statuses: ['queued'] })
     const timeoutResponse = await timeout.handler(request())
     expect(timeoutResponse.status).toBe(504)
     expect(await timeoutResponse.json()).toMatchObject({
@@ -470,64 +674,100 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     expect(stalledResponse.status).toBe(504)
     expect(stalled.packageStore.save).not.toHaveBeenCalled()
 
-    const stalledStatus = dependencies({ timeoutMs: 10 })
-    stalledStatus.fetcher.mockReset()
-    stalledStatus.fetcher
-      .mockResolvedValueOnce(Response.json({ task_id: 'task-1' }))
-      .mockImplementationOnce((_url: string, init?: RequestInit) =>
-        Promise.resolve(stalledBody(init?.signal)),
+    for (const route of ['status', 'result', 'page'] as const) {
+      const stalledRoute = dependencies(
+        { timeoutMs: 10 },
+        {
+          respond: (current, fallback, init) =>
+            current === route ? stalledBody(init?.signal) : fallback(),
+        },
       )
-    const stalledStatusResponse = await stalledStatus.handler(request())
-    expect(stalledStatusResponse.status).toBe(504)
-    expect(stalledStatus.packageStore.save).not.toHaveBeenCalled()
+      const stalledRouteResponse = await stalledRoute.handler(request())
+      expect(stalledRouteResponse.status).toBe(504)
+      expect(stalledRoute.packageStore.save).not.toHaveBeenCalled()
+    }
+  })
 
-    const stalledDownload = dependencies({ timeoutMs: 10 })
-    stalledDownload.fetcher.mockReset()
-    stalledDownload.fetcher
-      .mockResolvedValueOnce(Response.json({ task_id: 'task-1' }))
-      .mockResolvedValueOnce(Response.json({ status: 'completed' }))
-      .mockImplementationOnce((_url: string, init?: RequestInit) =>
-        Promise.resolve(stalledBody(init?.signal)),
-      )
-    const stalledDownloadResponse = await stalledDownload.handler(request())
-    expect(stalledDownloadResponse.status).toBe(504)
-    expect(stalledDownload.packageStore.save).not.toHaveBeenCalled()
+  it('refuses a run of other bytes, a partial result, and a page that fails its proof', async () => {
+    const foreign = dependencies({}, { recordedSha256: '0'.repeat(64) })
+    const foreignResponse = await foreign.handler(request())
+    expect(foreignResponse.status).toBe(502)
+    await expect(foreignResponse.json()).resolves.toMatchObject({
+      error: { message: 'The Parsing Service recorded another Source Document.' },
+    })
+    expect(requestedPaths(foreign.fetcher)).toEqual(['/api/runs'])
+    expect(foreign.packageStore.save).not.toHaveBeenCalled()
+
+    const foreignResult = dependencies(
+      {},
+      {
+        manifest: {
+          recipe: { source_sha256: '0'.repeat(64), transcriber: 'native', model: null, versions: {} },
+        },
+      },
+    )
+    const foreignResultResponse = await foreignResult.handler(request())
+    expect(foreignResultResponse.status).toBe(502)
+    await expect(foreignResultResponse.json()).resolves.toMatchObject({
+      error: { message: 'The parsed Source Document could not be translated.' },
+    })
+    expect(foreignResult.packageStore.save).not.toHaveBeenCalled()
+
+    const partial = dependencies(
+      {},
+      { manifest: { status: 'incomplete', incomplete: 'page 1 stopped at its token cap' } },
+    )
+    const partialResponse = await partial.handler(request())
+    expect(partialResponse.status).toBe(422)
+    await expect(partialResponse.json()).resolves.toMatchObject({
+      error: { message: 'The Source Document was only partially parsed.' },
+    })
+    expect(requestedPaths(partial.fetcher)).not.toContain('/api/runs/run-1/pages/1')
+    expect(partial.packageStore.save).not.toHaveBeenCalled()
+
+    const tampered = dependencies(
+      {},
+      {
+        respond: (route, fallback) =>
+          route === 'page'
+            ? Response.json({ ...keiPage(), segments: [] })
+            : fallback(),
+      },
+    )
+    const tamperedResponse = await tampered.handler(request())
+    expect(tamperedResponse.status).toBe(502)
+    await expect(tamperedResponse.json()).resolves.toMatchObject({
+      error: { message: 'The Parsing Service returned an invalid result.' },
+    })
+    expect(tampered.packageStore.save).not.toHaveBeenCalled()
+    expect(tampered.store.ingestSourceDocument).not.toHaveBeenCalled()
   })
 
   it('maps rejected parser endpoints to stable public copy', async () => {
-    const cases = [
-      {
-        responses: [new Response('secret', { status: 503 })],
-        message: 'Source Document parsing could not be started.',
-      },
-      {
-        responses: [
-          Response.json({ task_id: 'task-1' }, { status: 202 }),
-          new Response('secret', { status: 503 }),
-        ],
-        message: 'Source Document parsing status is unavailable.',
-      },
-      {
-        responses: [
-          Response.json({ task_id: 'task-1' }, { status: 202 }),
-          Response.json({ status: 'completed' }),
-          new Response('secret', { status: 503 }),
-        ],
-        message: 'The parsed Source Document could not be retrieved.',
-      },
+    const cases: Array<{ route: Route; message: string }> = [
+      { route: 'submit', message: 'Source Document parsing could not be started.' },
+      { route: 'status', message: 'Source Document parsing status is unavailable.' },
+      { route: 'result', message: 'The parsed Source Document could not be retrieved.' },
+      { route: 'page', message: 'The parsed Source Document could not be retrieved.' },
     ]
 
-    for (const { responses, message } of cases) {
-      const current = dependencies()
-      current.fetcher.mockReset()
-      for (const response of responses)
-        current.fetcher.mockResolvedValueOnce(response)
+    for (const { route, message } of cases) {
+      const current = dependencies(
+        {},
+        {
+          respond: (candidate, fallback) =>
+            candidate === route
+              ? new Response('secret', { status: 503 })
+              : fallback(),
+        },
+      )
       const result = await current.handler(request())
       expect(result.status).toBe(502)
       const body = JSON.stringify(await result.json())
       expect(body).toContain(message)
-      expect(body).not.toContain('/tasks')
+      expect(body).not.toContain('/api/runs')
       expect(body).not.toContain('secret')
+      expect(current.packageStore.save).not.toHaveBeenCalled()
     }
   })
 

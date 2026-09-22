@@ -4,7 +4,10 @@ import { createRequire } from 'node:module'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { join, resolve } from 'node:path'
-import { createCanonicalPackageStore } from '../../../packages/db/src/artifact-store.js'
+import {
+  createCanonicalPackageStore,
+  packCanonicalPackage,
+} from '../../../packages/db/src/artifact-store.js'
 import { db } from '../../../packages/db/src/prisma/db.js'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
 import { extractionAttemptSchema, type ExtractionAttempt } from '../shared/extraction.contract.js'
@@ -71,11 +74,6 @@ async function canonicalPackage(
   sourceDocument?: ParsedDocument,
   pdfFilename = 'Beretning_Ellekilde_8_13.pdf',
 ) {
-  const { strToU8, zipSync } = await import(
-    createRequire(
-      resolve(import.meta.dirname, '../../../packages/db/package.json'),
-    ).resolve('fflate')
-  )
   const pdf = await readFile(
     resolve(import.meta.dirname, '../../../examples', pdfFilename),
   )
@@ -95,33 +93,12 @@ async function canonicalPackage(
   for (const anchor of document.evidence_index.anchors)
     anchor.content_sha256 = sourceHash
 
-  const entries = [
-    ['source.pdf', pdf, 'application/pdf'],
-    ['parsed_document.json', strToU8(JSON.stringify(document)), 'application/json'],
-    ['artifacts/document.llm.md', strToU8('# Article fixture\n\nGrav 8\n'), 'text/markdown; charset=utf-8'],
-  ] as const
-  const manifest = strToU8(
-    JSON.stringify({
-      package_version: 'canonical-ingestion-package.v1',
-      parsed_document_schema_version: 'parsed_document.v2',
-      source_sha256: sourceHash,
-      preprocess_id: document.preprocessing.preprocess_id,
-      entries: entries.map(([path, bytes, mediaType]) => ({
-        path,
-        media_type: mediaType,
-        size: bytes.byteLength,
-        sha256: sha256(bytes),
-      })),
-    }),
-  )
   return {
-    bytes: zipSync(
-      Object.fromEntries([
-        ['manifest.json', manifest],
-        ...entries.map(([path, bytes]) => [path, bytes]),
-      ]),
-      { level: 0 },
-    ),
+    bytes: packCanonicalPackage({
+      pdf,
+      document,
+      markdown: '# Article fixture\n\nGrav 8\n',
+    }),
     sourceHash,
   }
 }

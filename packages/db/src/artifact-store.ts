@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { link, lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import envPaths from 'env-paths'
-import { strFromU8, unzipSync } from 'fflate'
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 
 const PACKAGE_VERSION = 'canonical-ingestion-package.v1'
 const DOCUMENT_VERSION = 'parsed_document.v2'
@@ -141,6 +141,42 @@ function validateEntries(
   )
     throw new Error('Canonical package identity is inconsistent.')
   return { manifest, document }
+}
+
+/**
+ * Packs a parsed document, its Markdown and the Source Document bytes into the
+ * fixed uncompressed layout `validateEntries` accepts. Entries carry one fixed
+ * timestamp so identical inputs pack to identical, content-addressable bytes.
+ */
+export function packCanonicalPackage(parts: {
+  pdf: Uint8Array
+  document: { preprocessing: { preprocess_id: string }; [key: string]: unknown }
+  markdown: Uint8Array | string
+}): Uint8Array {
+  const files: Record<string, Uint8Array> = {
+    [ENTRIES.pdf.path]: parts.pdf,
+    [ENTRIES.source.path]: strToU8(JSON.stringify(parts.document)),
+    [ENTRIES.markdown.path]:
+      typeof parts.markdown === 'string'
+        ? strToU8(parts.markdown)
+        : parts.markdown,
+  }
+  const manifest: Manifest = {
+    package_version: PACKAGE_VERSION,
+    parsed_document_schema_version: DOCUMENT_VERSION,
+    source_sha256: sha256(parts.pdf),
+    preprocess_id: parts.document.preprocessing.preprocess_id,
+    entries: Object.values(ENTRIES).map(({ path, mediaType }) => ({
+      path,
+      media_type: mediaType,
+      size: files[path].byteLength,
+      sha256: sha256(files[path]),
+    })),
+  }
+  return zipSync(
+    { 'manifest.json': strToU8(JSON.stringify(manifest)), ...files },
+    { level: 0, mtime: new Date(2000, 0, 1) },
+  )
 }
 
 function packageRoot(): string {

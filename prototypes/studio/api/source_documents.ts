@@ -9,7 +9,17 @@ import {
   persistenceUnavailable,
 } from './_http.js'
 import {
+  keiExpManifestSchema,
+  listedPages,
+  parsedDocumentFromKeiExp,
+  verifiedPage,
+  type KeiExpManifest,
+  type KeiExpPage,
+  type TranslatedDocument,
+} from './_kei_exp.js'
+import {
   canonicalPackageStore,
+  packCanonicalPackage,
   type CanonicalPackageDescriptor,
 } from '../../../packages/db/src/artifact-store.js'
 import {
@@ -22,10 +32,14 @@ import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
 import { sourceDocumentFilenameFailure } from '../shared/sourceDocumentFilename.js'
 
 const CONTRACT_VERSION = 'parsed_document.v2'
-const DEFAULT_PARSING_SERVICE = 'http://127.0.0.1:8055'
+// kei-exp's API (`uv run uvicorn kei_exp.api:app --port 8001`); its worker
+// switches to the native Docling path by itself for born-digital PDFs.
+const DEFAULT_KEI_EXP = 'http://127.0.0.1:8001'
+const DEFAULT_MODEL = 'surya'
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000
 const DEFAULT_POLL_INTERVAL_MS = 1000
 const MAX_PDF_BYTES = 100 * 1024 * 1024
+const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 
 type CanonicalPackage = {
   artifactReference: string
@@ -50,6 +64,7 @@ type Dependencies = {
   packageStore?: PackageStore
   fetcher?: typeof fetch
   parsingServiceBase?: string
+  model?: string
   timeoutMs?: number
   pollIntervalMs?: number
   sleep?: (milliseconds: number) => Promise<void>
@@ -236,38 +251,95 @@ function sameDescriptor(
   )
 }
 
-async function completedTask(
-  fetcher: typeof fetch,
-  base: string,
-  taskId: string,
+type Parser = {
+  fetcher: typeof fetch
+  base: string
+  signal: AbortSignal
+}
+
+/**
+ * `POST /api/runs`: kei-exp records the upload's hash before the run has a
+ * queue position, so a run of other bytes is refused before any waiting.
+ */
+async function submittedRun(
+  parser: Parser,
+  pdf: Uint8Array<ArrayBuffer>,
+  originalName: string,
+  model: string,
+  contentSha256: string,
+): Promise<string> {
+  const upload = new FormData()
+  upload.append(
+    'pdf',
+    new Blob([pdf], { type: 'application/pdf' }),
+    originalName,
+  )
+  upload.append('model', model)
+  upload.append('debug', 'false')
+  upload.append('cut', 'auto')
+  upload.append('page_source', 'pdf')
+  const created = await parsingRequest(
+    parser.fetcher,
+    parser.base,
+    '/api/runs',
+    'Source Document parsing could not be started.',
+    (response) => readJson(response, 'run submission response'),
+    { method: 'POST', body: upload, signal: parser.signal },
+  )
+  const runId = created.id
+  if (typeof runId !== 'string' || !RUN_ID.test(runId))
+    throw new ApiError(
+      502,
+      'source_ingestion_failed',
+      'The Parsing Service returned an invalid run identity.',
+    )
+  const params =
+    created.params && typeof created.params === 'object'
+      ? (created.params as Record<string, unknown>)
+      : {}
+  if (params.source_sha256 !== contentSha256)
+    throw new ApiError(
+      502,
+      'source_ingestion_failed',
+      'The Parsing Service recorded another Source Document.',
+    )
+  return runId
+}
+
+async function completedRun(
+  parser: Parser,
+  runId: string,
   timeoutMs: number,
   pollIntervalMs: number,
   sleep: (milliseconds: number) => Promise<void>,
   now: () => number,
-  signal: AbortSignal,
 ): Promise<void> {
   const deadline = now() + timeoutMs
   for (;;) {
     const status = await parsingRequest(
-      fetcher,
-      base,
-      `/tasks/${taskId}`,
+      parser.fetcher,
+      parser.base,
+      `/api/runs/${runId}`,
       'Source Document parsing status is unavailable.',
-      (response) => readJson(response, 'task status'),
-      { signal },
+      (response) => readJson(response, 'run status'),
+      { signal: parser.signal },
     )
-    if (status.status === 'completed') return
-    if (status.status === 'failed')
+    if (status.status === 'done') return
+    if (status.status === 'failed' || status.status === 'cancelled')
       throw new ApiError(
         422,
         'source_ingestion_failed',
         'The Source Document could not be parsed.',
       )
-    if (status.status !== 'pending' && status.status !== 'running')
+    if (
+      status.status !== 'queued' &&
+      status.status !== 'running' &&
+      status.status !== 'cancelling'
+    )
       throw new ApiError(
         502,
         'source_ingestion_failed',
-        'The Parsing Service returned an unknown task status.',
+        'The Parsing Service returned an unknown run status.',
       )
     const remaining = deadline - now()
     if (remaining <= 0)
@@ -278,6 +350,56 @@ async function completedTask(
       )
     await sleep(Math.min(pollIntervalMs, remaining))
   }
+}
+
+/** The manifest and every page file it lists, each proven to belong to it. */
+async function acceptedResult(
+  parser: Parser,
+  runId: string,
+): Promise<{ manifest: KeiExpManifest; pages: KeiExpPage[] }> {
+  const rejected = 'The parsed Source Document could not be retrieved.'
+  const invalid = (cause: unknown) =>
+    new ApiError(
+      502,
+      'source_ingestion_failed',
+      'The Parsing Service returned an invalid result.',
+      { cause },
+    )
+  const rawManifest = await parsingRequest(
+    parser.fetcher,
+    parser.base,
+    `/api/runs/${runId}/result`,
+    rejected,
+    (response) => readJson(response, 'result manifest'),
+    { signal: parser.signal },
+  )
+  const manifest = keiExpManifestSchema.safeParse(rawManifest)
+  if (!manifest.success) throw invalid(manifest.error)
+  if (manifest.data.status !== 'success')
+    throw new ApiError(
+      422,
+      'source_ingestion_failed',
+      'The Source Document was only partially parsed.',
+    )
+  const pages: KeiExpPage[] = []
+  for (const number of listedPages(manifest.data)) {
+    const bytes = new Uint8Array(
+      await parsingRequest(
+        parser.fetcher,
+        parser.base,
+        `/api/runs/${runId}/pages/${number}`,
+        rejected,
+        (response) => response.arrayBuffer(),
+        { signal: parser.signal },
+      ),
+    )
+    try {
+      pages.push(verifiedPage(manifest.data, number, bytes))
+    } catch (cause) {
+      throw invalid(cause)
+    }
+  }
+  return { manifest: manifest.data, pages }
 }
 
 async function discardPublishedPackage(
@@ -301,10 +423,12 @@ export function createSourceDocumentIngestion(
   const packageStore = dependencies.packageStore ?? canonicalPackageStore
   const base =
     dependencies.parsingServiceBase ??
-    process.env.PARSING_SERVICE_URL ??
+    process.env.KEI_EXP_URL ??
     (import.meta as ImportMeta & { env?: Record<string, string | undefined> })
-      .env?.VITE_PARSING_SERVICE_URL ??
-    DEFAULT_PARSING_SERVICE
+      .env?.VITE_KEI_EXP_URL ??
+    DEFAULT_KEI_EXP
+  const model =
+    dependencies.model ?? process.env.KEI_EXP_MODEL ?? DEFAULT_MODEL
   const timeoutMs = dependencies.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const pollIntervalMs = dependencies.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS
   const sleep =
@@ -379,64 +503,56 @@ export function createSourceDocumentIngestion(
           'The uploaded file must be a PDF.',
         )
       const contentSha256 = createHash('sha256').update(pdf).digest('hex')
-      const parsingDeadline = AbortSignal.timeout(timeoutMs)
-
-      const upload = new FormData()
-      upload.append(
-        'file',
-        new Blob([pdf], { type: 'application/pdf' }),
-        originalName,
-      )
-      const created = await parsingRequest(
-        fetcher(dependencies),
+      const parser: Parser = {
+        fetcher: fetcher(dependencies),
         base,
-        '/tasks',
-        'Source Document parsing could not be started.',
-        (response) => readJson(response, 'task creation response'),
-        {
-          method: 'POST',
-          body: upload,
-          signal: parsingDeadline,
-        },
+        signal: AbortSignal.timeout(timeoutMs),
+      }
+
+      const runId = await submittedRun(
+        parser,
+        pdf,
+        originalName,
+        model,
+        contentSha256,
       )
-      let taskId: string
+      await completedRun(parser, runId, timeoutMs, pollIntervalMs, sleep, now)
+      const { manifest, pages } = await acceptedResult(parser, runId)
+      let translated: TranslatedDocument
       try {
-        taskId = required(created.task_id, 'a task identity')
+        translated = parsedDocumentFromKeiExp(
+          runId,
+          manifest,
+          pages,
+          {
+            sha256: contentSha256,
+            originalFilename: originalName,
+            byteSize: pdf.byteLength,
+          },
+          new Date(now()),
+        )
       } catch (cause) {
         throw new ApiError(
           502,
           'source_ingestion_failed',
-          'The Parsing Service returned an invalid task identity.',
+          'The parsed Source Document could not be translated.',
           { cause },
         )
       }
-      await completedTask(
-        fetcher(dependencies),
-        base,
-        taskId,
-        timeoutMs,
-        pollIntervalMs,
-        sleep,
-        now,
-        parsingDeadline,
-      )
-      const packageBytes = new Uint8Array(
-        await parsingRequest(
-          fetcher(dependencies),
-          base,
-          `/tasks/${taskId}/download`,
-          'The parsed Source Document could not be retrieved.',
-          (response) => response.arrayBuffer(),
-          { signal: parsingDeadline },
-        ),
-      )
+      // The package's Source Document is FREE's own upload: kei-exp's recorded
+      // hash was checked against it at submission and in the manifest.
+      const packageBytes = packCanonicalPackage({
+        pdf,
+        document: translated.document,
+        markdown: translated.markdown,
+      })
       try {
         saved = await packageStore.save(packageBytes)
       } catch (cause) {
         throw new ApiError(
           502,
           'source_artifact_unavailable',
-          'The Parsing Service returned an invalid canonical package.',
+          'The parsed Source Document could not be packaged.',
           { cause },
         )
       }

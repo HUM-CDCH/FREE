@@ -63,7 +63,11 @@ services:
       dockerfile: prototypes/studio/Dockerfile
     environment:
       NODE_ENV: production
-      PARSING_SERVICE_URL: http://parsing_service:8055
+      # New uploads are parsed by kei-exp (its API and worker run on the host
+      # outside this Compose project; the API listens on :8001). The
+      # parsing_service container stays only for rollback and is not called.
+      KEI_EXP_URL: "${KEI_EXP_URL:-http://host.docker.internal:8001}"
+      KEI_EXP_MODEL: "${KEI_EXP_MODEL:-surya}"
       STUDIO_ORIGIN: "${STUDIO_ORIGIN:-https://localhost:8443}"
       STUDIO_BASE_PATH: "${STUDIO_BASE_PATH:-/free}"
       FREE_STUDIO_PROXY: trusted-proxy
@@ -78,6 +82,9 @@ services:
       # the dedicated proxy network (the nginx container is its only other
       # member), production pins the proxy network's bridge gateway, which is
       # where the host nginx's loopback connections enter.
+    # kei-exp runs on the Docker host: resolve its loopback from the container.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy
