@@ -228,6 +228,9 @@ describe('kei-exp translation', () => {
         segment({ label: 'PageHeader', text: 'Running head' }),
         segment({ label: 'Text', text: '   ' }),
         segment({ label: 'text', text: 'Whole page', crop: null, bbox_pt: [0, 0, 612, 792], extent: 'input', bbox_px: null }),
+        // Empty group containers are skipped as silently as an empty figure.
+        segment({ label: 'PictureGroup', text: '' }),
+        segment({ label: 'TableGroup', text: '   ' }),
       ],
       ['one block came back in error'],
     )

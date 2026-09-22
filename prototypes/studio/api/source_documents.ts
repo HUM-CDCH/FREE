@@ -213,10 +213,11 @@ async function parsingRequest<T>(
   rejectedMessage: string,
   consume: (response: Response) => Promise<T>,
   init?: RequestInit,
+  accepted: (response: Response) => boolean = (response) => response.ok,
 ): Promise<T> {
   try {
     const response = await fetcher(`${base.replace(/\/$/, '')}${path}`, init)
-    if (!response.ok)
+    if (!accepted(response))
       throw new ApiError(
         502,
         'source_ingestion_failed',
@@ -306,6 +307,17 @@ async function submittedRun(
   return runId
 }
 
+/** A status read kei-exp asks to repeat: its store is briefly unreachable (503) or it is busy (429). */
+const NOT_YET = new Set([429, 503])
+
+function retryAfterMs(response: Response, fallbackMs: number): number {
+  const header = response.headers.get('retry-after')
+  const seconds = header === null ? Number.NaN : Number(header)
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : fallbackMs
+}
+
+type Polled = { status: Record<string, unknown> } | { waitMs: number }
+
 async function completedRun(
   parser: Parser,
   runId: string,
@@ -316,31 +328,38 @@ async function completedRun(
 ): Promise<void> {
   const deadline = now() + timeoutMs
   for (;;) {
-    const status = await parsingRequest(
+    // A 503 or 429 on the status read says nothing about the run: keep
+    // polling, after Retry-After when given, until the deadline.
+    const polled = await parsingRequest<Polled>(
       parser.fetcher,
       parser.base,
       `/api/runs/${runId}`,
       'Source Document parsing status is unavailable.',
-      (response) => readJson(response, 'run status'),
+      async (response) =>
+        NOT_YET.has(response.status)
+          ? { waitMs: retryAfterMs(response, pollIntervalMs) }
+          : { status: await readJson(response, 'run status') },
       { signal: parser.signal },
+      (response) => response.ok || NOT_YET.has(response.status),
     )
-    if (status.status === 'done') return
-    if (status.status === 'failed' || status.status === 'cancelled')
-      throw new ApiError(
-        422,
-        'source_ingestion_failed',
-        'The Source Document could not be parsed.',
-      )
-    if (
-      status.status !== 'queued' &&
-      status.status !== 'running' &&
-      status.status !== 'cancelling'
-    )
-      throw new ApiError(
-        502,
-        'source_ingestion_failed',
-        'The Parsing Service returned an unknown run status.',
-      )
+    let waitMs = pollIntervalMs
+    if ('waitMs' in polled) waitMs = polled.waitMs
+    else {
+      const { status } = polled.status
+      if (status === 'done') return
+      if (status === 'failed' || status === 'cancelled')
+        throw new ApiError(
+          422,
+          'source_ingestion_failed',
+          'The Source Document could not be parsed.',
+        )
+      if (status !== 'queued' && status !== 'running' && status !== 'cancelling')
+        throw new ApiError(
+          502,
+          'source_ingestion_failed',
+          'The Parsing Service returned an unknown run status.',
+        )
+    }
     const remaining = deadline - now()
     if (remaining <= 0)
       throw new ApiError(
@@ -348,7 +367,7 @@ async function completedRun(
         'source_ingestion_timeout',
         'Source Document parsing did not finish within thirty minutes.',
       )
-    await sleep(Math.min(pollIntervalMs, remaining))
+    await sleep(Math.min(waitMs, remaining))
   }
 }
 

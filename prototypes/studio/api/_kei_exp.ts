@@ -14,6 +14,10 @@
  * block `b_p{page}_s{index}`, anchor `a_p{page}_s{index}`, occurrence
  * `o_p{page}_s{index}`. A segment without a block (error, skipped, an empty
  * figure) leaves its index unused, so the index keeps its meaning.
+ *
+ * Two departures from the agreed mapping table: a list segment's non-empty
+ * lines become one item each (Surya's `ListGroup` carries a whole list), and
+ * `Footnote` maps to `caption` as the previous parser did.
  */
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
@@ -122,10 +126,14 @@ const KIND_OF_LABEL: ReadonlyMap<string, Kind> = new Map<string, Kind>([
   ['code', 'code'],
   ['codeblock', 'code'],
   ['table', 'table'],
+  // `figure`: an image-like container, silent when empty, a paragraph when
+  // the transcriber read text inside it.
   ['picture', 'figure'],
   ['figure', 'figure'],
   ['image', 'figure'],
   ['diagram', 'figure'],
+  ['picturegroup', 'figure'],
+  ['tablegroup', 'figure'],
 ])
 const ENGINE_OF_TRANSCRIBER: ReadonlyMap<string, string> = new Map([
   ['native', 'docling'],

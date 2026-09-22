@@ -140,23 +140,23 @@ function parser(fetcher: ReturnType<typeof vi.fn>, options: ParserOptions = {}) 
       )
       const run = match ? runs.get(match[1]) : undefined
       if (!match || !run) return new Response('no such run', { status: 404 })
-      if (match[2] === undefined) {
-        const status =
-          run.statuses.length > 1 ? run.statuses.shift() : run.statuses[0]
+      if (match[2] === undefined)
         return respond(
           'status',
-          () =>
-            Response.json({
+          () => {
+            const status =
+              run.statuses.length > 1 ? run.statuses.shift() : run.statuses[0]
+            return Response.json({
               id: match[1],
               status,
               error:
                 status === 'failed'
                   ? 'docling-parse PDFium C:\\private\\input.pdf ' + 'a'.repeat(64)
                   : null,
-            }),
+            })
+          },
           init,
         )
-      }
       const { manifest, page } = keiResult(run.sha256, options.manifest)
       if (match[2] === 'result')
         return respond('result', () => Response.json(manifest), init)
@@ -422,6 +422,44 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     expect((await handler(request())).status).toBe(201)
     expect(requestedPaths(fetcher).filter((path) => path === '/api/runs/run-1')).toHaveLength(4)
     expect(sleep.mock.calls).toEqual([[1000], [1000], [1000]])
+  })
+
+  it('keeps polling through a transient 503 or 429 on the status read', async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined)
+    let polls = 0
+    const { handler, fetcher, store } = dependencies(
+      { sleep },
+      {
+        statuses: ['running', 'done'],
+        respond: (route, fallback) => {
+          if (route !== 'status') return fallback()
+          polls += 1
+          if (polls === 1)
+            return new Response('the run store is unavailable', {
+              status: 503,
+              headers: { 'retry-after': '2' },
+            })
+          if (polls === 2) return new Response('queue full', { status: 429 })
+          return fallback()
+        },
+      },
+    )
+    expect((await handler(request())).status).toBe(201)
+    expect(requestedPaths(fetcher).filter((path) => path === '/api/runs/run-1')).toHaveLength(4)
+    expect(sleep.mock.calls).toEqual([[2000], [1000], [1000]])
+    expect(store.ingestSourceDocument).toHaveBeenCalledOnce()
+
+    const exhausted = dependencies(
+      { timeoutMs: 0 },
+      {
+        respond: (route, fallback) =>
+          route === 'status'
+            ? new Response('the run store is unavailable', { status: 503 })
+            : fallback(),
+      },
+    )
+    expect((await exhausted.handler(request())).status).toBe(504)
+    expect(exhausted.packageStore.save).not.toHaveBeenCalled()
   })
 
   it('packages the translated document with the upload itself and retains it', async () => {
@@ -744,20 +782,21 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
   })
 
   it('maps rejected parser endpoints to stable public copy', async () => {
-    const cases: Array<{ route: Route; message: string }> = [
-      { route: 'submit', message: 'Source Document parsing could not be started.' },
-      { route: 'status', message: 'Source Document parsing status is unavailable.' },
-      { route: 'result', message: 'The parsed Source Document could not be retrieved.' },
-      { route: 'page', message: 'The parsed Source Document could not be retrieved.' },
+    // A 503 on the status read alone means "not yet" (tested above).
+    const cases: Array<{ route: Route; status: number; message: string }> = [
+      { route: 'submit', status: 503, message: 'Source Document parsing could not be started.' },
+      { route: 'status', status: 500, message: 'Source Document parsing status is unavailable.' },
+      { route: 'result', status: 503, message: 'The parsed Source Document could not be retrieved.' },
+      { route: 'page', status: 503, message: 'The parsed Source Document could not be retrieved.' },
     ]
 
-    for (const { route, message } of cases) {
+    for (const { route, status, message } of cases) {
       const current = dependencies(
         {},
         {
           respond: (candidate, fallback) =>
             candidate === route
-              ? new Response('secret', { status: 503 })
+              ? new Response('secret', { status })
               : fallback(),
         },
       )

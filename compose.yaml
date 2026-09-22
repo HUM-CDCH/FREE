@@ -64,7 +64,11 @@ services:
     environment:
       NODE_ENV: production
       # New uploads are parsed by kei-exp (its API and worker run on the host
-      # outside this Compose project; the API listens on :8001). The
+      # outside this Compose project). Studio reaches the host through the
+      # host-gateway extra host below, so kei-exp's API must listen on
+      # 0.0.0.0:8001 (`kei-exp dev` does by default; a uvicorn bound to
+      # 127.0.0.1 refuses the container's connection). That exposes the
+      # parser beyond the host: keep port 8001 firewalled. The
       # parsing_service container stays only for rollback and is not called.
       KEI_EXP_URL: "${KEI_EXP_URL:-http://host.docker.internal:8001}"
       KEI_EXP_MODEL: "${KEI_EXP_MODEL:-surya}"
