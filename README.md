@@ -173,10 +173,13 @@ registration and rotation:
 FREE sends the pinned schema and the Source Document's kei-exp run ID to
 `KEI_EXP_URL` for Article or Catalog extraction. kei-exp owns extraction and
 grounding; FREE stores the returned records, evidence and diagnostics for review.
-The configured Extraction Route supplies the optional model name. Provider
-credentials and execution settings for extraction belong to kei-exp. Polling waits
-up to ten minutes for Article and three hours for Catalog; cancellation stops
-FREE from waiting and publishing a result. The API has no remote cancellation
+`KEI_EXP_EXTRACT_MODEL` optionally names a model on kei-exp's own model server;
+unset, kei-exp uses its configured default, and the Extraction reports whichever
+model ran. The Extraction Route's model id is a FREE Model Connection's and is
+not sent. Provider credentials and execution settings for extraction belong to
+kei-exp. Polling waits up to ten minutes for Article and three hours for
+Catalog; cancellation stops FREE from waiting and publishing a result. A
+failed extraction carries kei-exp's own reason. The API has no remote cancellation
 or targeted Catalog retry operation; start a new Extraction to rerun.
 
 ## More

@@ -71,6 +71,7 @@ services:
       # parser beyond the host: keep port 8001 firewalled. The
       # parsing_service container stays only for rollback and is not called.
       KEI_EXP_URL: "${KEI_EXP_URL:-http://host.docker.internal:8001}"
+      # Set KEI_EXP_EXTRACT_MODEL here only to name a model on kei-exp's own model server for extraction; unset, kei-exp uses its configured default.
       KEI_EXP_MODEL: "${KEI_EXP_MODEL:-surya}"
       STUDIO_ORIGIN: "${STUDIO_ORIGIN:-https://localhost:8443}"
       STUDIO_BASE_PATH: "${STUDIO_BASE_PATH:-/free}"

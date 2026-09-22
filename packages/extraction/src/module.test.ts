@@ -218,6 +218,19 @@ describe('kei-exp extraction relay', () => {
     await assert.rejects(harness([], 'ARTICLE', unreadable).run(), { code: 'invalid_source_representation' })
   })
 
+  it('omits options.model when no model is named, leaving kei-exp its deployment default', async () => {
+    const bodies: string[] = []
+    const client = createKeiExpClient({
+      url: 'http://kei-exp:8001', pollIntervalMs: 1,
+      fetch: async (_url, init) => {
+        bodies.push(String(init?.body ?? ''))
+        return bodies.length === 1 ? json(ack, 202) : polled(artifact())
+      },
+    })
+    await client.extract({ runId, schema, strategy: 'article', expectedGeneration: null, signal: new AbortController().signal })
+    assert.deepEqual(JSON.parse(bodies[0]), { schema, options: { strategy: 'article' } })
+  })
+
   it('relays the document-level field names kei-exp could not verify', async () => {
     const result = await harness([json(ack, 202), polled(artifact({ unverified: ['archive'] }))]).run()
     assert.deepEqual(result.diagnostics.unverifiedFields, ['archive'])

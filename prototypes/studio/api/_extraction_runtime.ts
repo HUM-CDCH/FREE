@@ -1,6 +1,5 @@
 import { createExtractionRuntime, createKeiExpClient, type ExtractionAttemptSnapshot, type ExtractionModule } from 'extraction'
 import { extractionAttemptSchema } from '../shared/extraction.contract.js'
-import { readModelConfig } from './_model_config.js'
 
 function transportDiagnostics(
   extraction: ExtractionAttemptSnapshot,
@@ -82,7 +81,10 @@ export function extractionAttemptDto(extraction: ExtractionAttemptSnapshot) {
 export const extractionRuntime = createExtractionRuntime({
   keiExp: createKeiExpClient({
     url: process.env.KEI_EXP_URL ?? (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_KEI_EXP_URL ?? 'http://127.0.0.1:8001',
-    model: async () => (await readModelConfig()).routes.extraction?.modelId ?? null,
+    // Not the extraction route's modelId: that names a model on a FREE Model Connection, while
+    // kei-exp resolves this name against its own model server. Unset, kei-exp's deployment
+    // default wins, and the model that actually ran is read back from the artifact.
+    model: async () => process.env.KEI_EXP_EXTRACT_MODEL ?? null,
   }),
 })
 export function createResearcherExtractions(researcherAccountId: string): ExtractionModule {

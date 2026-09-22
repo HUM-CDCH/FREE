@@ -420,9 +420,13 @@ worker sharing its runs directory and PostgreSQL, after `kei-jobs schema
 --apply`. Studio reads `KEI_EXP_URL` (default `http://host.docker.internal:8001`,
 resolved through the studio service's `host-gateway` extra host) and
 `KEI_EXP_MODEL` (default `surya`; kei-exp still takes the native Docling path
-for born-digital PDFs by itself). The container connects to the host's
-gateway address, not to its loopback, so the kei-exp API must be started with
-`--host 0.0.0.0` (`uv run uvicorn kei_exp.api:app --host 0.0.0.0 --port 8001`;
+for born-digital PDFs by itself). Set `KEI_EXP_EXTRACT_MODEL` only to name a
+model on kei-exp's own model server for extraction — it is not a FREE Model
+Connection's model id — and leave it unset to take kei-exp's configured
+default, which the Extraction's model attribution then reports. The container
+connects to the host's gateway address, not to its loopback, so the kei-exp
+API must be started with `--host 0.0.0.0`
+(`uv run uvicorn kei_exp.api:app --host 0.0.0.0 --port 8001`;
 the `kei-exp dev` launcher already defaults to `--api-host 0.0.0.0`). A
 uvicorn bound to `127.0.0.1` refuses Studio's connection (`ECONNREFUSED`).
 Listening on all interfaces exposes the parser beyond the host: restrict port

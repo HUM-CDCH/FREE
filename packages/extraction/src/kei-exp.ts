@@ -140,7 +140,10 @@ export function createKeiExpClient({
         AbortSignal.timeout(request.strategy === 'catalog' ? 3 * 60 * 60 * 1000 : 10 * 60 * 1000),
       ])
       const base = `${url.replace(/\/$/, '')}/api/runs/${encodeURIComponent(request.runId)}`
-      const body = JSON.stringify({ schema: request.schema, options: { strategy: request.strategy, model: await model() } })
+      // `model` names a model on kei-exp's own model server, so it is omitted unless the
+      // deployment names one: kei-exp then uses its configured default.
+      const named = await model()
+      const body = JSON.stringify({ schema: request.schema, options: { strategy: request.strategy, ...(named === null ? {} : { model: named }) } })
       /** `resumable` says whether a request that may already have reached kei-exp can simply be
        *  sent again. Polling is; the POST is not, because kei-exp mints the extraction id per
        *  request, so a second POST admits a second extraction that holds the run's only
