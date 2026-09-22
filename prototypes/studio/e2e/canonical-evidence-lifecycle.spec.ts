@@ -11,6 +11,8 @@ import { db } from '../../../packages/db/src/prisma/db.js'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
 import { extractionAttemptSchema, type ExtractionAttempt } from '../shared/extraction.contract.js'
 import type { ParsedDocument } from 'extraction/parsed-document'
+import { keiExpAccepted, keiExpArtifact, keiExpEnvelope, keiExpEvidence } from 'extraction/kei-exp-fixture'
+import type { KeiExpArtifact } from 'extraction'
 import { DEVELOPMENT_ENTRA_TENANT_ID } from '../server/entraIdentityProvider.js'
 import {
   E2E_ORIGIN,
@@ -126,15 +128,20 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   let incompleteNextResult = false
   const resultGate: { release: (() => void) | null } = { release: null }
   const valuesGate: { release: (() => void) | null } = { release: null }
-  const artifacts = new Map<string, { ready: boolean; artifact: unknown }>()
+  const artifacts = new Map<string, { ready: boolean; runId: string; artifact: KeiExpArtifact }>()
   const modelServer = createServer((request, response) => {
     const send = (value: unknown, status = 200) => {
       response.writeHead(status, { 'content-type': 'application/json' })
       response.end(JSON.stringify(value))
     }
     if (request.method === 'GET') {
-      const job = artifacts.get(request.url!.split('/').at(-1)!)
-      send(job?.ready ? job.artifact : { status: 'running' })
+      const id = request.url!.split('/').at(-1)!
+      const job = artifacts.get(id)
+      // The polling envelope kei-exp serves: the artifact is nested under `result`, and only once done.
+      send(keiExpEnvelope({
+        id, run_id: job?.runId ?? decodeURIComponent(request.url!.split('/')[3]!),
+        status: job?.ready ? 'done' : 'running', result: job?.ready ? job.artifact : null,
+      }))
       return
     }
     let body = ''
@@ -161,13 +168,13 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       const ungrounded = omitGrounding || incompleteNextResult
       incompleteNextResult = false
       const resultPaths = paths({ records })
-      const job = { ready: true, artifact: {
-        extraction_version: 1, run_id: runId, generation: 'g1', digest: 'digest', fingerprint: id,
-        strategy: options.strategy, model: options.model, prompt_version: 'v1', schema, options,
+      const job = { ready: true, runId, artifact: keiExpArtifact({
+        run_id: runId, generation: 'g1', fingerprint: id,
+        strategy: options.strategy, model: options.model ?? null, schema, options,
         started: new Date().toISOString(), seconds: 0.1, complete: !ungrounded, records,
-        evidence: ungrounded ? [] : resultPaths.map(path => ({ path, segment: 'p1_s0', page: 1, bbox_pt: [1, 2, 3, 4], verbatim: false, hits: 0, linked_by: 'model' })),
-        ungrounded: ungrounded ? resultPaths : [], issues: [], calls: 1, tokens: { input: 10, output: 4 },
-      } }
+        evidence: ungrounded ? [] : resultPaths.map(path => keiExpEvidence({ path, verbatim: false, hits: 0, linked_by: 'model' })),
+        ungrounded: ungrounded ? resultPaths : [],
+      }) }
       if (blockNextValues || blockNextResult) {
         job.ready = false
         const gate = blockNextValues ? valuesGate : resultGate
@@ -176,7 +183,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
         blockNextResult = false
       }
       artifacts.set(id, job)
-      send({ id, run_id: runId, generation: 'g1', status: 'queued' }, 202)
+      send(keiExpAccepted({ id, run_id: runId, generation: 'g1' }), 202)
     })
   })
   await new Promise<void>(resolveListen => modelServer.listen(41_750, '127.0.0.1', resolveListen))

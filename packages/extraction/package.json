@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./allowed-values": "./src/allowed-values.ts",
     "./batch": "./src/batch.ts",
+    "./kei-exp-fixture": "./src/kei-exp-fixture.ts",
     "./parsed-document": "./src/parsed-document.ts",
     "./schema": "./src/schema.ts"
   },

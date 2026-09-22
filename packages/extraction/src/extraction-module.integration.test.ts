@@ -9,6 +9,7 @@ import type { CanonicalPackageStore, Database } from 'db'
 import { validateDisposableTestDatabaseTarget } from 'db/database-url'
 import { withBlockedUpdates } from '../../db/src/postgres-test-helpers.js'
 import type { KeiExpClient, KeiExpRequest, KeiExpArtifact } from './kei-exp.js'
+import { keiExpArtifact, keiExpEvidence } from './kei-exp-fixture.js'
 import { ExtractionError } from './errors.js'
 import type {
   BatchExtractionSnapshot,
@@ -375,14 +376,12 @@ if (!disposableDatabaseUrl) {
           calls.push(request)
           request.signal.throwIfAborted()
           if (options.failArticle) throw new Error('controlled extraction failure')
-          return {
-            extraction_version: 1, run_id: request.runId, generation: 'g1', digest: 'digest', fingerprint: 'fingerprint',
-            strategy: request.strategy, model: 'deterministic', prompt_version: 'v1', schema: request.schema,
+          return keiExpArtifact({
+            run_id: request.runId, strategy: request.strategy, model: 'deterministic', schema: request.schema,
             options: { strategy: request.strategy, model: 'deterministic' }, started: new Date().toISOString(), seconds: 0.001,
             complete: true, records: [{ title: 'Alpha', ...(request.schema.schemaNodes.some(node => node.name === 'filename') ? { filename: 'article.pdf' } : {}) }],
-            evidence: [{ path: ['records', 0, 'title'], segment: 'p1_s0', page: 1, bbox_pt: [10, 10, 100, 30], verbatim: true, hits: 1, linked_by: 'model' }],
-            ungrounded: [], issues: [], calls: 1, tokens: { input: 10, output: 5 },
-          }
+            evidence: [keiExpEvidence({ bbox_pt: [10, 10, 100, 30], linked_by: 'model' })],
+          })
         },
       },
     }

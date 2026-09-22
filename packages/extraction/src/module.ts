@@ -226,7 +226,7 @@ export function createExtractionJobExecutor({ inputs: reader, keiExp }: Extracti
       modelAttribution: artifact.model === null ? null : { provider: 'kei-exp', modelId: artifact.model },
       diagnostics: {
         phase: 'persisting', durationMs: Math.round(artifact.seconds * 1000),
-        modelCalls: artifact.calls, inputTokens: artifact.tokens.input, outputTokens: artifact.tokens.output,
+        modelCalls: artifact.calls.length, inputTokens: artifact.tokens.input, outputTokens: artifact.tokens.output,
         finishReason: null, ungroundedPaths: artifact.ungrounded, groundingIssues: artifact.issues,
         groundingBatches: [], catalog: null, retry: null,
       },
