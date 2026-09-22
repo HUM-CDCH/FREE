@@ -6,8 +6,7 @@
 // Compose owns the topology (compose.yaml plus compose.override.yaml or
 // compose.prod.yaml); this script only prepares what Compose cannot.
 // `local` prepares mkcert certificates, the optional Windows Wi-Fi firewall
-// rule, and the per-machine environment values — or, inside the Dev Container
-// where Docker is unavailable, starts the services directly. `production`
+// rule, and the per-machine environment values. `production`
 // validates .env before anything starts, renders the host nginx include from
 // the shared template, and starts the production overlay detached, waiting
 // for health.
@@ -146,16 +145,6 @@ function run(command, args, options = {}) {
   if (result.status !== 0 && !options.allowFailure)
     throw new Error(`${command} ${args.join(' ')} failed.`)
   return result
-}
-
-function pnpm(args) {
-  if (!WINDOWS) return run('pnpm', args)
-  return run(process.env.ComSpec ?? 'cmd.exe', [
-    '/d',
-    '/s',
-    '/c',
-    `pnpm ${args.join(' ')}`,
-  ])
 }
 
 function encodedPowerShell(script) {
@@ -439,44 +428,6 @@ export function developmentComposeEnvironment(
   return composeEnvironment
 }
 
-export function devContainerEnvironment(
-  environment = process.env,
-  sessionSecret = ensureDevelopmentSessionSecret(),
-) {
-  return {
-    ...environment,
-    STUDIO_ORIGIN: 'http://localhost:5173',
-    STUDIO_BASE_PATH: '/free',
-    FREE_SESSION_SECRET: sessionSecret,
-    FREE_ENTRA_REAL: '0',
-    FREE_ENTRA_MOCK_ISSUER: 'http://mock-oidc:8080/dev',
-    FREE_ENTRA_MOCK_BROWSER_ISSUER: 'http://localhost:8444/dev',
-  }
-}
-
-// The Dev Container has PostgreSQL and mock OIDC as sibling services but no
-// Docker socket, so it keeps the direct process path: migrate, verify, then run
-// Studio and the Parsing Service on loopback HTTP with the same /free base path.
-async function devContainerMain() {
-  pnpm(['db:generate'])
-  pnpm(['--filter', 'db', 'db:start'])
-  pnpm(['setup'])
-  pnpm(['--filter', 'db', 'db:verify'])
-  const environment = devContainerEnvironment()
-  console.log('\nStarting FREE at http://localhost:5173/free\n')
-  const services = spawn(
-    WINDOWS ? (process.env.ComSpec ?? 'cmd.exe') : 'pnpm',
-    WINDOWS
-      ? ['/d', '/s', '/c', 'pnpm --parallel --filter studio --filter parsing-service dev']
-      : ['--parallel', '--filter', 'studio', '--filter', 'parsing-service', 'dev'],
-    { cwd: ROOT, env: environment, stdio: 'inherit', shell: false },
-  )
-  process.exitCode = await new Promise((resolvePromise, reject) => {
-    services.once('error', reject)
-    services.once('exit', (code) => resolvePromise(code ?? 1))
-  })
-}
-
 async function awaitChild(child) {
   process.exitCode = await new Promise((resolvePromise, reject) => {
     child.once('error', reject)
@@ -489,14 +440,6 @@ async function localMain(args) {
   const options = parseDevOptions(args)
   if (options.revokeWifiAccess) {
     revokeWifiFirewall()
-    return
-  }
-  if (process.env.FREE_DEVCONTAINER === '1') {
-    if (options.entra)
-      throw new Error(
-        '--entra requires the local Compose stack and is unavailable in the Dev Container.',
-      )
-    await devContainerMain()
     return
   }
   const profile = deriveDevProfile(options)

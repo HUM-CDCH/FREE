@@ -74,9 +74,8 @@ FREE's normative product and safety contract is:
 10. **Secrets and destructive limits.** Secrets enter through environment or
     the OS credential store, never committed files. Forward migration replay
     may target the configured deployment database. Reset is limited to
-    `postgres` on loopback port 5432 database `free`, or the Dev Container's
-    `db` host only with `FREE_DEVCONTAINER=1`. Disposable PostgreSQL checks are
-    limited to `postgres` on loopback port 5432 databases named
+    `postgres` on loopback port 5432 database `free`. Disposable PostgreSQL
+    checks are limited to `postgres` on loopback port 5432 databases named
     `free_test_*`. Production is never reset.
 
 Out of scope: backward compatibility with historical API shapes, competing
@@ -146,12 +145,7 @@ Variants:
 | `pnpm dev:wifi:revoke` | Remove the Windows firewall rule again |
 | `pnpm dev -- --entra` | Local Compose against a configured real Entra tenant |
 
-Inside the repository Dev Container (no Docker socket), `pnpm dev` starts
-Studio and the Parsing Service directly, using sibling PostgreSQL and sibling
-mock OIDC services; the browser reaches mock OIDC on loopback port 8444 and
-Studio at **http://localhost:5173/free**.
-
-Detailed host, Dev Container, Entra, Wi-Fi, verification, and database
+Detailed host, Entra, Wi-Fi, verification, and database
 instructions:
 [docs/operations/local-development.md](docs/operations/local-development.md).
 

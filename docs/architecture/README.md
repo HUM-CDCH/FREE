@@ -5,9 +5,7 @@ implemented production and local-development runtimes. Production combines
 [`compose.yaml`](../../compose.yaml) and
 [`compose.prod.yaml`](../../compose.prod.yaml) behind host nginx. Local Compose
 adds [`compose.override.yaml`](../../compose.override.yaml), optionally
-[`compose.entra.yaml`](../../compose.entra.yaml); the Dev Container starts
-Studio and the Parsing Service directly beside its PostgreSQL and mock OIDC
-services.
+[`compose.entra.yaml`](../../compose.entra.yaml).
 
 The model deliberately contains no speculative credential vault, key-management
 service, parsing queue, or separate application backend. Model configuration and
@@ -35,9 +33,7 @@ Open the URL that LikeC4 prints, then follow these views:
 8. `local_compose_topology` — default local nginx, Studio, PostgreSQL, Parsing
    Service, and mock OIDC services.
 9. `local_entra_topology` — the same local entry topology using Microsoft Entra.
-10. `devcontainer_topology` — direct Studio and Parsing processes beside
-    PostgreSQL and mock OIDC, with no nginx.
-11. `model_configuration` — deployment-wide Model Connections and credentials.
+10. `model_configuration` — deployment-wide Model Connections and credentials.
 
 Use LikeC4 search (`Ctrl+K`) to open a view.
 

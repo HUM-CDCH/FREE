@@ -193,8 +193,8 @@ export function pdfjsWasmAssets(command: 'serve' | 'build', root = import.meta.d
   }
 }
 
-// Keep Studio on IPv4 loopback so dev-container port forwarding reaches the
-// same address on every host without exposing the server on the container LAN.
+// Bind direct development and test servers to IPv4 loopback by default;
+// Compose explicitly selects 0.0.0.0 for its internal proxy connection.
 export default defineConfig(({ command, mode }) => {
   const environment = loadEnv(mode, import.meta.dirname, '')
   const basePath = canonicalStudioBasePath(

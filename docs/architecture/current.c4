@@ -24,7 +24,6 @@ model {
   operator = person 'FREE Operator' 'Deploys FREE and assigns Researchers to the Microsoft Entra enterprise application.'
   researcher = person 'Humanities Researcher' 'Opens a Source Document, shapes an Extraction Schema, runs Extraction, and reviews Evidence.'
   browser = container 'Researcher browser' 'Runs the React client and follows OIDC redirects; it reaches production and local Compose only through their nginx TLS entry points.' 'Web browser'
-  dev_browser = container 'Dev Container browser' 'Reaches the directly started Studio process on loopback HTTP; there is no nginx in this topology.' 'Web browser'
   entra = external 'Microsoft Entra ID' 'Single-tenant OIDC identity provider and the source of application assignment.'
   mock_oidc = container 'Mock OIDC service' 'The sibling development identity service. Studio uses its server issuer while the browser follows the published loopback issuer.' 'mock-oauth2-server'
 
@@ -55,11 +54,9 @@ model {
 
   operator -> entra 'Registers the application, rotates its certificate, and assigns Researchers'
   researcher -> browser 'Uses FREE from a web browser'
-  researcher -> dev_browser 'Uses FREE from the Dev Container browser'
   browser -> gateway 'Uses the canonical private HTTPS origin'
   browser -> local_gateway 'Uses the local HTTPS origin'
   browser -> entra 'Follows Microsoft Entra authorization and sign-out redirects'
-  dev_browser -> studio.handlers 'Uses direct loopback HTTP in the Dev Container'
   gateway -> studio 'Forwards requests from the pinned proxy address'
   local_gateway -> studio.handlers 'Forwards TLS requests from the dedicated proxy network'
   studio -> parsing_service 'Parses selected PDFs through same-origin ingestion'
@@ -74,7 +71,7 @@ model {
   studio.handlers -> studio.authentication 'Authenticates the session and resolves its Researcher Account'
   studio.authentication -> entra 'Exchanges the authorization code and validates tenant identity claims'
   studio.authentication -> project_db 'Creates or refreshes the local account keyed by tenant and object IDs'
-  studio.authentication -> mock_oidc 'Uses the mock issuer for default local and Dev Container sign-in'
+  studio.authentication -> mock_oidc 'Uses the mock issuer for default local sign-in'
   studio.handlers -> parsing_service.http_api 'POST /tasks; poll /tasks/:id; GET /tasks/:id/download'
   studio.handlers -> studio.provider_registry 'Resolves a Capability Route'
   studio.handlers -> studio.extraction_module 'Runs and reopens Extractions; records versioned reviews; schedules and reads batches'
@@ -300,23 +297,6 @@ views {
     studio.handlers -> parsing_service.http_api 'Submit and poll parsing tasks'
     studio.handlers -> studio.project_store 'Read and write account-owned research state'
     studio.project_store -> project_db 'Persist through Prisma Next'
-  }
-
-  dynamic view devcontainer_topology {
-    title 'Local development — Dev Container topology'
-    description '''
-      With FREE_DEVCONTAINER=1, the launcher starts Studio and the Parsing
-      Service directly in the workspace on loopback HTTP. PostgreSQL and mock
-      OIDC are sibling Dev Container Compose services; nginx is absent, and
-      `--entra` is rejected for this topology.
-    '''
-    researcher -> dev_browser 'Open http://localhost:5173/free'
-    dev_browser -> studio.handlers 'Call the directly started Studio process'
-    studio.handlers -> studio.authentication 'Start the normal OIDC session path'
-    studio.authentication -> mock_oidc 'Redeem against the sibling development issuer'
-    studio.handlers -> parsing_service.http_api 'Call the directly started process on port 8055'
-    studio.handlers -> studio.project_store 'Read and write account-owned research state'
-    studio.project_store -> project_db 'Persist to sibling PostgreSQL'
   }
 
   dynamic view model_configuration {

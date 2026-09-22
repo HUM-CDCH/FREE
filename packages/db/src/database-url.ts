@@ -6,7 +6,6 @@ const LOOPBACK_HOSTS: Record<string, true> = {
 
 interface DatabaseTargetPolicy {
   acceptsDatabase(database: string): boolean
-  allowDevContainerHost: boolean
   errorMessage: string
 }
 
@@ -20,15 +19,12 @@ function validateDatabaseTarget(
   } catch {
     throw new Error(policy.errorMessage)
   }
-  const acceptedHost =
-    LOOPBACK_HOSTS[url.hostname] === true ||
-    (policy.allowDevContainerHost && url.hostname === 'db')
   const database = url.pathname.slice(1)
 
   if (
     url.protocol !== 'postgresql:' ||
     url.username !== 'postgres' ||
-    !acceptedHost ||
+    LOOPBACK_HOSTS[url.hostname] !== true ||
     url.port !== '5432' ||
     !policy.acceptsDatabase(database) ||
     url.searchParams.size !== 0
@@ -38,20 +34,12 @@ function validateDatabaseTarget(
   return url
 }
 
-/**
- * Validate a target before dropping or recreating FREE's development database.
- * The `db` host is accepted only when the caller explicitly confirms that it
- * is running in the Dev Container.
- */
-export function validateDestructiveDatabaseTarget(
-  value: string,
-  options: { allowDevContainerHost: boolean },
-): URL {
+/** Validate a target before dropping or recreating FREE's development database. */
+export function validateDestructiveDatabaseTarget(value: string): URL {
   return validateDatabaseTarget(value, {
     acceptsDatabase: (database) => database === 'free',
-    allowDevContainerHost: options.allowDevContainerHost,
     errorMessage:
-      'Destructive database operations require PostgreSQL user "postgres", explicit port 5432, database "free", and a loopback host (or Dev Container host "db" with FREE_DEVCONTAINER=1).',
+      'Destructive database operations require PostgreSQL user "postgres", explicit port 5432, database "free", and a loopback host.',
   })
 }
 
@@ -59,7 +47,6 @@ export function validateDestructiveDatabaseTarget(
 export function validateDisposableTestDatabaseTarget(value: string): URL {
   return validateDatabaseTarget(value, {
     acceptsDatabase: (database) => database.startsWith('free_test_'),
-    allowDevContainerHost: false,
     errorMessage:
       'Disposable PostgreSQL tests require PostgreSQL user "postgres", explicit port 5432, a loopback host, and a database named "free_test_*".',
   })

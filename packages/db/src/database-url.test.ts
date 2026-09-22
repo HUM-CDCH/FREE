@@ -5,7 +5,6 @@ import {
   validateDisposableTestDatabaseTarget,
 } from './database-url.js'
 
-const destructiveOptions = { allowDevContainerHost: false }
 const destructiveTargetError = /Destructive database operations require/
 const disposableTargetError = /Disposable PostgreSQL tests require/
 
@@ -17,33 +16,19 @@ describe('destructive database target', () => {
       'postgresql://postgres:different-password@[::1]:5432/free',
     ])
       assert.equal(
-        validateDestructiveDatabaseTarget(value, destructiveOptions).pathname,
+        validateDestructiveDatabaseTarget(value).pathname,
         '/free',
       )
   })
 
-  it('accepts the db host only with explicit Dev Container opt-in', () => {
-    const value = 'postgresql://postgres:local@db:5432/free'
-
-    assert.throws(
-      () => validateDestructiveDatabaseTarget(value, destructiveOptions),
-      destructiveTargetError,
-    )
-    assert.equal(
-      validateDestructiveDatabaseTarget(value, {
-        allowDevContainerHost: true,
-      }).hostname,
-      'db',
-    )
-  })
-
-  it('rejects remote hosts even when the database is named free', () => {
+  it('rejects non-loopback hosts even when the database is named free', () => {
     for (const value of [
+      'postgresql://postgres:local@db:5432/free',
       'postgresql://postgres:secret@db.production.example.com:5432/free',
       'postgresql://postgres:secret@localhost:5432/free?host=db.production.example.com',
     ])
       assert.throws(
-        () => validateDestructiveDatabaseTarget(value, destructiveOptions),
+        () => validateDestructiveDatabaseTarget(value),
         destructiveTargetError,
       )
   })
@@ -54,7 +39,6 @@ describe('destructive database target', () => {
         () =>
           validateDestructiveDatabaseTarget(
             `postgresql://postgres:local@localhost:5432/free?${parameter}`,
-            destructiveOptions,
           ),
         destructiveTargetError,
       )
@@ -69,7 +53,7 @@ describe('destructive database target', () => {
       'postgresql://postgres:local@localhost:5432/researchdata',
     ])
       assert.throws(
-        () => validateDestructiveDatabaseTarget(value, destructiveOptions),
+        () => validateDestructiveDatabaseTarget(value),
         destructiveTargetError,
       )
   })
@@ -89,7 +73,7 @@ describe('disposable PostgreSQL test target', () => {
       )
   })
 
-  it('rejects remote and Dev Container hosts even for free_test_* databases', () => {
+  it('rejects non-loopback hosts even for free_test_* databases', () => {
     for (const value of [
       'postgresql://postgres:test@database.example:5432/free_test_cascade',
       'postgresql://postgres:test@db:5432/free_test_cascade',

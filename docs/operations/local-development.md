@@ -9,9 +9,7 @@ source sync, sign-in goes through a local mock OIDC identity provider, the
 certificates come from `mkcert`, and nginx runs as a container (production
 uses the deployment machine's host-managed nginx) — both render the same
 shared `docker/nginx/free-studio-locations.inc.template`, so the
-application-facing proxy behavior is identical. The repository Dev Container
-is the supported exception: because it deliberately has no Docker socket, the
-same launcher runs its services directly on loopback HTTP as described below.
+application-facing proxy behavior is identical.
 
 ## Prerequisites
 
@@ -67,11 +65,6 @@ assertion signed with a throwaway key, code redemption, the
 accepts the development credential and signs in silently with the pinned
 development Researcher claims in `compose.override.yaml`.
 
-The Dev Container also uses OIDC rather than a development identity shortcut.
-Its direct Studio process reaches the sibling mock at
-`http://mock-oidc:8080/dev`, while the browser reaches the same issuer through
-the sibling service's loopback publish at `http://localhost:8444/dev`.
-
 ## Wi-Fi profile (test from a phone)
 
 ```bash
@@ -107,22 +100,7 @@ pnpm dev -- --entra
 
 See the [Entra authentication runbook](entra-authentication.md). In the host
 Compose topologies the base path and TLS behavior are identical, so the
-redirect URIs differ from production only by host. The direct Dev Container
-path uses its documented loopback HTTP callback instead.
-
-## Dev Container
-
-Inside the repository Dev Container (no Docker socket), `pnpm dev` waits for
-the sibling PostgreSQL service, replays authored migrations, verifies the live
-schema, and starts Studio and the Parsing Service directly from the workspace.
-Studio serves **http://localhost:5173/free** over plain HTTP. Authentication
-uses the sibling mock OIDC service, whose browser endpoint is forwarded on
-loopback port **8444**. The base path remains `/free`; only TLS and nginx are
-absent.
-
-FREE-managed provider credentials use the Dev Container user's GNOME Keyring.
-A rebuild creates a fresh keyring, so enter managed credentials again after
-rebuilding.
+redirect URIs differ from production only by host.
 
 ## Database operations
 
@@ -131,12 +109,9 @@ rebuilding.
   deployment database.
 - `pnpm db:reset` drops and recreates the configured database, then replays
   migrations. It is destructive and is accepted only for PostgreSQL user
-  `postgres`, explicit port `5432`, database `free`, and a loopback host. The
-  only non-loopback exception is host `db` when `FREE_DEVCONTAINER=1` is
-  explicit.
+  `postgres`, explicit port `5432`, database `free`, and a loopback host.
 - Disposable PostgreSQL integration targets must use user `postgres`, explicit
-  port `5432`, a loopback host, and a database named `free_test_*`. The
-  Dev Container host `db` is not accepted for these checks.
+  port `5432`, a loopback host, and a database named `free_test_*`.
 - Production startup runs only `pnpm --filter db db:init`; production is never
   reset.
 
@@ -148,7 +123,7 @@ deliberately according to their infrastructure and mutation boundaries:
 
 | Command | Requirements and effects |
 | --- | --- |
-| `pnpm test:safety` | Requires pnpm, Git, and a working Docker engine. It checks destructive-target rejection, deployment/Compose configuration, Dev Container wiring, secrets policy, and nginx rendering without a running FREE stack. It uses temporary files and a throwaway nginx container but does not mutate a database. |
+| `pnpm test:safety` | Requires pnpm, Git, and a working Docker engine. It checks destructive-target rejection, deployment/Compose configuration, secrets policy, and nginx rendering without a running FREE stack. It uses temporary files and a throwaway nginx container but does not mutate a database. |
 | `pnpm test:postgres` | Requires caller-created and migrated disposable databases. Set `PROJECT_STORE_POSTGRES_URL` and `EXTRACTION_TEST_DATABASE_URL` to separate fresh targets such as `postgresql://postgres:postgres@localhost:5432/free_test_cascade` and `postgresql://postgres:postgres@localhost:5432/free_test_extraction`. The checks write and delete integration fixtures; a failed run may leave data, so do not reuse that database as if it were fresh. |
 | `pnpm test:e2e` | Requires Docker and Playwright's browser. By default it removes any prior `free-studio-e2e` test stack, creates isolated PostgreSQL and interactive mock-OIDC containers, migrates the test database, starts Studio on a test loopback port, and removes the stack and volumes afterward. Browser sign-in runs through that mock OIDC service; the default development stack is not used. |
 | `pnpm test:all` | Runs typecheck, lint, unit, safety, PostgreSQL integration, and E2E sequentially. The caller must provide the Docker/browser prerequisites and two fresh, migrated PostgreSQL targets required by `test:postgres`. |

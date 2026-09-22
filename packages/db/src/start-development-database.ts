@@ -17,15 +17,7 @@ if (!configuredUrl) {
 }
 if (!configuredUrl) throw new Error('DATABASE_URL is required.')
 
-const devContainer = process.env.FREE_DEVCONTAINER === '1'
-const database = validateDestructiveDatabaseTarget(configuredUrl, {
-  allowDevContainerHost: devContainer,
-})
-
-if (devContainer) {
-  console.log('Using the Dev Container PostgreSQL service.')
-  process.exit(0)
-}
+const database = validateDestructiveDatabaseTarget(configuredUrl)
 
 if (
   (database.port && database.port !== '5432') ||

@@ -12,14 +12,13 @@ import {
   developmentComposeArguments,
   developmentComposeEnvironment,
   deriveDevProfile,
-  devContainerEnvironment,
   parseDevOptions,
   renderNginxLocations,
   validateProductionEnvironment,
 } from '../scripts/free.mjs'
 import { ROOT } from './helpers.mjs'
 
-function resetDatabase(databaseUrl, environment = process.env) {
+function resetDatabase(databaseUrl) {
   return spawnSync(
     process.execPath,
     [
@@ -28,7 +27,7 @@ function resetDatabase(databaseUrl, environment = process.env) {
     ],
     {
       cwd: ROOT,
-      env: { ...environment, DATABASE_URL: databaseUrl },
+      env: { ...process.env, DATABASE_URL: databaseUrl },
       encoding: 'utf8',
       timeout: 120_000,
     },
@@ -81,20 +80,9 @@ test('db safety: reset refuses a local database that is not the dev database', (
   )
 })
 
-test('db safety: dotenv cannot enable the Dev Container host allowance', (t) => {
-  const directory = mkdtempSync(join(tmpdir(), 'free-reset-env-test-'))
-  t.after(() => rmSync(directory, { recursive: true, force: true }))
-  const dotenvPath = join(directory, '.env')
-  writeFileSync(dotenvPath, 'FREE_DEVCONTAINER=1\n')
-  const environment = {
-    ...process.env,
-    DOTENV_CONFIG_PATH: dotenvPath,
-  }
-  delete environment.FREE_DEVCONTAINER
-
+test('db safety: reset refuses the Compose database hostname', () => {
   const result = resetDatabase(
     'postgresql://postgres:postgres@db:5432/free',
-    environment,
   )
 
   assert.notEqual(result.status, 0)
@@ -167,111 +155,6 @@ for (const gpu of [false, true]) test(`production: compose renders with GPU acce
   // Production has no containerized nginx and no mock identity provider.
   assert.ok(!/^\s{2}nginx:/m.test(result.stdout), 'nginx stays on the host')
   assert.ok(!result.stdout.includes('mock-oidc'), 'the mock cannot reach production')
-})
-
-test('Dev Container: sibling PostgreSQL and mock OIDC topology renders intact', () => {
-  const result = spawnSync(
-    'docker',
-    [
-      'compose',
-      '-f',
-      '.devcontainer/compose.yaml',
-      'config',
-      '--format',
-      'json',
-    ],
-    {
-      cwd: ROOT,
-      encoding: 'utf8',
-      timeout: 120_000,
-    },
-  )
-  assert.equal(result.status, 0, result.stderr)
-
-  const { services } = JSON.parse(result.stdout)
-  assert.ok(services.workspace)
-  assert.ok(services.db)
-  assert.ok(
-    services.workspace.volumes.some(
-      ({ target }) => target === '/workspaces/FREE',
-    ),
-    'the repository must remain mounted at /workspaces/FREE',
-  )
-  assert.ok(
-    services.db.volumes.some(
-      ({ type, target }) =>
-        type === 'volume' && target === '/var/lib/postgresql/data',
-    ),
-    'PostgreSQL must retain its data volume',
-  )
-  assert.equal(
-    services['mock-oidc']?.image,
-    'ghcr.io/navikt/mock-oauth2-server:2.2.1',
-  )
-  assert.deepEqual(
-    {
-      db: services.workspace.depends_on.db.condition,
-      mockOidc: services.workspace.depends_on['mock-oidc'].condition,
-    },
-    { db: 'service_healthy', mockOidc: 'service_started' },
-  )
-
-  const oidcConfiguration = JSON.parse(
-    services['mock-oidc'].environment.JSON_CONFIG,
-  )
-  assert.equal(oidcConfiguration.interactiveLogin, false)
-  assert.equal(oidcConfiguration.tokenCallbacks[0].issuerId, 'dev')
-  assert.deepEqual(
-    oidcConfiguration.tokenCallbacks[0].requestMappings[0].claims,
-    {
-      tid: '00000000-0000-4000-8000-000000000001',
-      oid: '00000000-0000-4000-8000-000000000002',
-      name: 'Development Researcher',
-    },
-  )
-  assert.ok(
-    services['mock-oidc'].ports.some(
-      ({ host_ip: hostIp, target, published }) =>
-        hostIp === '127.0.0.1' &&
-        target === 8080 &&
-        String(published) === '8444',
-    ),
-    'mock OIDC must publish host loopback port 8444 to container port 8080',
-  )
-
-  const devContainer = JSON.parse(
-    readFileSync(resolve(ROOT, '.devcontainer/devcontainer.json'), 'utf8'),
-  )
-  assert.deepEqual(devContainer.forwardPorts, [5173, 8055, 8444])
-  assert.equal(devContainer.portsAttributes['8444'].label, 'Mock OIDC')
-})
-
-test('Dev Container: direct Studio launcher uses sibling and browser OIDC issuers', () => {
-  const environment = devContainerEnvironment(
-    {
-      PATH: 'kept',
-      STUDIO_ORIGIN: 'https://deployment.example',
-      STUDIO_BASE_PATH: '/deployment',
-      FREE_ENTRA_REAL: '1',
-      FREE_ENTRA_MOCK_ISSUER: 'https://deployment.example/issuer',
-      FREE_ENTRA_MOCK_BROWSER_ISSUER: 'https://deployment.example/issuer',
-    },
-    'development-session-secret',
-  )
-
-  assert.equal(environment.PATH, 'kept')
-  assert.equal(environment.STUDIO_ORIGIN, 'http://localhost:5173')
-  assert.equal(environment.STUDIO_BASE_PATH, '/free')
-  assert.equal(environment.FREE_SESSION_SECRET, 'development-session-secret')
-  assert.equal(environment.FREE_ENTRA_REAL, '0')
-  assert.equal(
-    environment.FREE_ENTRA_MOCK_ISSUER,
-    'http://mock-oidc:8080/dev',
-  )
-  assert.equal(
-    environment.FREE_ENTRA_MOCK_BROWSER_ISSUER,
-    'http://localhost:8444/dev',
-  )
 })
 
 test('database tooling: package exposes only supported operator commands', () => {
