@@ -1,0 +1,25 @@
+# Phase 1: ingest the scanned spreads, then run Surya OCR over their book pages.
+#
+# Everything below is configuration, not a property of books. The ink thresholds and the search window are
+# initial calibration, measured on one reference fixture (spec section 4.5); another catalogue is another
+# file like this one, re-measured. The distances are fractions of the spread width rather than pixel
+# constants, so the rule keeps its physical size on a scan made at another resolution.
+#
+# Contract: docs/superpowers/specs/2026-09-14-kie-model-and-ingest-design.md, section 4.3, and for the evidence
+# docs/superpowers/specs/2026-09-21-canonical-evidence-design.md, section 6.
+
+ingest:
+  split: spread                   # spread or single. There is no automatic detection.
+  gutter_window: [0.40, 0.60]     # initial calibration: fraction of the width searched; the measured shadow sits at 0.49-0.52
+  interior_rows: [0.10, 0.90]     # fraction of the height profiled: skips the scanner border without cropping the saved image
+  bands: 5                        # coarse enough that one figure plate or dust patch cannot veto a candidate, fine enough to notice a column that is text-free only in part
+  blank_ink: 0.005                # initial calibration: at most this ink fraction is a blank column; measured margins are 0.000-0.004
+  dark_ink: 0.15                  # initial calibration: at least this is a dark column; measured text tops out near 0.12, the shadow at 0.15
+  min_blank_fraction: 0.004       # narrowest blank run that counts; in-page column gaps are wider but lie outside the window
+  min_dark_fraction: 0.006        # narrowest dark run that counts; on three measured spreads none qualifies and the blank margin decides
+  support_radius_fraction: 0.001  # about 10 px at the reference width: one shadow edge's blur, so the neighbourhood spans the edge rather than the whole run
+  min_band_support: 0.6           # three bands of five. A report threshold, not a gate: the measured baseline puts all 42 shadow selections below it (spec section 4.5), so it lists a spread as weak support and never changes the selection
+  overrides: {}                   # spread -> gutter_x_px, in native spread pixels, for a spread whose selection is wrong
+ocr:                             # null to run ingest alone; defaults use Surya at KEI_VLLM_URL
+  cut: auto
+  crop_dpi: 250

@@ -24,6 +24,7 @@ artifacts/architecture/site/
 
 # Agent scratch and local e2e output
 .scratch/
+.claude/worktrees/
 artifacts/
 .certs/
 .dev/

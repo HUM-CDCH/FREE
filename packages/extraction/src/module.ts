@@ -226,7 +226,7 @@ export function createExtractionJobExecutor({ inputs: reader, keiExp }: Extracti
         lexicalHits: link.hits,
         ...(link.linked_by === 'lexical' ? { linkedBy: 'lexical' as const } : {}),
       })),
-      modelAttribution: artifact.model === null ? null : { provider: 'kei-exp', modelId: artifact.model },
+      modelAttribution: { provider: 'kei-exp', modelId: artifact.model },
       diagnostics: {
         phase: 'persisting', durationMs: Math.round(artifact.seconds * 1000),
         modelCalls: artifact.calls.length, inputTokens: artifact.tokens.input, outputTokens: artifact.tokens.output,

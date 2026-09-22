@@ -42,7 +42,7 @@ export function keiExpArtifact(overrides: Partial<KeiExpArtifact> = {}): KeiExpA
     fingerprint: 'fingerprint',
     strategy: 'article',
     model: 'kei-exp-default',
-    // `PROMPT_VERSION = 1`: a number.
+    // kei-exp's `PROMPT_VERSION`: a number.
     prompt_version: 1,
     schema: { recordDescription: 'Article records.', schemaNodes: [] },
     options: { strategy: 'article', model: null, discovery_chars: 48_000, record_chars: 24_000 },

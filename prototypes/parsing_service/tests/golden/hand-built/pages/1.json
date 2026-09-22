@@ -1,0 +1,124 @@
+{
+  "page": 1,
+  "size_pt": [
+    595.2760009765625,
+    841.8900146484375
+  ],
+  "fingerprint": "7d5f2e4310a4ec2d9ecf82f9024306551099978ea150fc2a7a4cb5bd45366954",
+  "units": [
+    {
+      "index": 0,
+      "bbox_pt": [
+        0.0,
+        0.0,
+        595.2760009765625,
+        841.8900146484375
+      ],
+      "crops": [
+        {
+          "crop": 1,
+          "kind": "column",
+          "order": 0,
+          "bbox_pt": [
+            100.0,
+            200.0,
+            300.0,
+            500.0
+          ],
+          "ink": 0.5,
+          "transform": [
+            100.0,
+            200.0,
+            0.288,
+            0.288
+          ],
+          "source_px": null,
+          "image_px": [
+            500,
+            700
+          ],
+          "input_tokens": 10,
+          "output_tokens": 20,
+          "incomplete": "page 1 (source page 1, region 0): 1 block came back in error"
+        },
+        {
+          "crop": 2,
+          "kind": "figure",
+          "order": 1,
+          "bbox_pt": [
+            320.0,
+            200.0,
+            500.0,
+            400.0
+          ],
+          "ink": 0.5,
+          "transform": [
+            320.0,
+            200.0,
+            0.288,
+            0.288
+          ],
+          "source_px": null,
+          "image_px": [
+            500,
+            700
+          ],
+          "input_tokens": 10,
+          "output_tokens": 20,
+          "incomplete": null
+        }
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "text": "Grüße",
+      "html": "<p>Grüße</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.98,
+      "status": "ok",
+      "unit": 0,
+      "crop": 1,
+      "bbox_px": [
+        0.0,
+        0.0,
+        250.0,
+        125.0
+      ],
+      "bbox_pt": [
+        100.0,
+        200.0,
+        172.0,
+        236.0
+      ]
+    },
+    {
+      "text": "T",
+      "html": "<h1>T</h1>",
+      "markdown": null,
+      "label": "SectionHeader",
+      "confidence": 0.5,
+      "status": "error",
+      "unit": 0,
+      "crop": 1,
+      "bbox_px": [
+        10.0,
+        20.0,
+        30.0,
+        40.0
+      ],
+      "bbox_pt": [
+        102.88,
+        205.76,
+        108.64,
+        211.52
+      ]
+    }
+  ],
+  "markdown": "# T\n\nGrüße",
+  "complete": false,
+  "warnings": [
+    "page 1 (source page 1, region 0): 1 block came back in error"
+  ]
+}

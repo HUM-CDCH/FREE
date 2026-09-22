@@ -1,0 +1,51 @@
+{
+  "fingerprint": "7d5f2e4310a4ec2d9ecf82f9024306551099978ea150fc2a7a4cb5bd45366954",
+  "recipe": {
+    "result_version": 3,
+    "source_sha256": "641e16c209b792546e79ca2a660e14ecf6750c3c027ffb46a3b89f9a79770293",
+    "ingest_digest": null,
+    "transcriber": "surya",
+    "model": "surya",
+    "repo": "datalab-to/surya-ocr-2",
+    "cut": "auto",
+    "crop_dpi": 250,
+    "layout_model": "layout_heron_101",
+    "page_source": "pdf",
+    "pages_requested": null,
+    "max_image_size": null,
+    "max_output_tokens": null,
+    "record": {
+      "max_new_tokens": 16384,
+      "context": 24576,
+      "params": {
+        "SURYA_GUIDED_LAYOUT": true,
+        "SURYA_FULLPAGE_REGEN": false,
+        "SURYA_MAX_TOKENS_LAYOUT": 3072,
+        "SURYA_MAX_TOKENS_BLOCK_CEILING": 8192
+      },
+      "scale": 2.6666666666666665,
+      "spec": null,
+      "prompt": null
+    },
+    "versions": {
+      "docling": "2.127.0",
+      "surya-ocr": "0.22.1"
+    }
+  },
+  "source_name": "scan.pdf",
+  "page_count": 8,
+  "effective": {
+    "max_size": null,
+    "scale": null
+  },
+  "status": "incomplete",
+  "incomplete": "the layout cut found no content",
+  "pages": [
+    1,
+    2
+  ],
+  "tokens": {
+    "input": null,
+    "output": null
+  }
+}

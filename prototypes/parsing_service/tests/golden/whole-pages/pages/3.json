@@ -1,0 +1,69 @@
+{
+  "page": 3,
+  "size_pt": [
+    595.2760009765625,
+    841.8900146484375
+  ],
+  "fingerprint": "70c615bc46c59dcc1c5816b098d812efb23944f3817ebe0173ee88c29c64cd20",
+  "units": [
+    {
+      "index": 0,
+      "bbox_pt": [
+        0.0,
+        0.0,
+        595.2760009765625,
+        841.8900146484375
+      ],
+      "crops": []
+    }
+  ],
+  "segments": [
+    {
+      "text": "Grüße",
+      "html": "<p>Grüße</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.98,
+      "status": "ok",
+      "unit": 0,
+      "crop": null,
+      "bbox_px": [
+        192.0,
+        0.0,
+        384.0,
+        96.0
+      ],
+      "bbox_pt": [
+        72.01826854914934,
+        0.0,
+        144.03653709829868,
+        36.00064205178174
+      ]
+    },
+    {
+      "text": "b",
+      "html": "<p>b</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.98,
+      "status": "ok",
+      "unit": 0,
+      "crop": null,
+      "bbox_px": [
+        0.0,
+        96.0,
+        100.0,
+        100.0
+      ],
+      "bbox_pt": [
+        0.0,
+        36.00064205178174,
+        37.509514869348614,
+        37.500668803939305
+      ]
+    }
+  ],
+  "markdown": "a\n\nb",
+  "complete": true,
+  "warnings": []
+}

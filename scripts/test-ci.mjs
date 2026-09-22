@@ -6,6 +6,8 @@ export const CI_DATABASE_URLS = Object.freeze({
     'postgresql://postgres:postgres@127.0.0.1:5432/free_test_extraction',
   projectStore:
     'postgresql://postgres:postgres@127.0.0.1:5432/free_test_project_store',
+  parsing:
+    'postgresql://postgres:postgres@127.0.0.1:5432/free_test_parsing',
 })
 
 function required(environment, name) {
@@ -40,6 +42,7 @@ export function validateCiEnvironment(environment) {
   const databaseUrl = required(environment, 'DATABASE_URL')
   const extractionUrl = required(environment, 'EXTRACTION_TEST_DATABASE_URL')
   const projectStoreUrl = required(environment, 'PROJECT_STORE_POSTGRES_URL')
+  const parsingUrl = required(environment, 'PARSING_TEST_DATABASE_URL')
 
   if (databaseUrl !== extractionUrl)
     throw new Error(
@@ -60,8 +63,14 @@ export function validateCiEnvironment(environment) {
     'free_test_project_store',
     CI_DATABASE_URLS.projectStore,
   )
+  validateFixedTarget(
+    'PARSING_TEST_DATABASE_URL',
+    parsingUrl,
+    'free_test_parsing',
+    CI_DATABASE_URLS.parsing,
+  )
 
-  return { databaseUrl, extractionUrl, projectStoreUrl }
+  return { databaseUrl, extractionUrl, projectStoreUrl, parsingUrl }
 }
 
 function runPnpm(arguments_, environment = process.env) {

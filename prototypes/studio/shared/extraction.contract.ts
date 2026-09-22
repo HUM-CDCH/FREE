@@ -294,9 +294,7 @@ export const extractionAttemptSchema = z
       })
 
     if (
-      attempt.diagnostics &&
-      ((attempt.strategy === 'ARTICLE' && attempt.diagnostics.catalog != null) ||
-      (attempt.strategy === 'CATALOG' && attempt.diagnostics.catalog == null))
+      attempt.strategy === 'ARTICLE' && attempt.diagnostics?.catalog != null
     )
       context.addIssue({
         code: 'custom',

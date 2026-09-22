@@ -131,7 +131,7 @@ describe('Article lifecycle contracts', () => {
     }).success).toBe(false)
   })
 
-  it('accepts Catalog strategy only with ordered stage and boundary diagnostics', () => {
+  it('accepts service Catalog results without local stage diagnostics and validates stored diagnostics', () => {
     expect(
       extractionRequestSchema.safeParse({
         id: id('1'),
@@ -141,13 +141,14 @@ describe('Article lifecycle contracts', () => {
       }).success,
     ).toBe(true)
 
-    // Strategy and catalog diagnostics must agree in both directions.
+    // The service reports calls and issues, not the former local pipeline's stages.
     expect(
       extractionAttemptSchema.safeParse({
         ...completed,
         strategy: 'CATALOG',
+        modelAttribution: { provider: 'kei-exp', modelId: 'fixture' },
       }).success,
-    ).toBe(false)
+    ).toBe(true)
     const stage = {
       provenance: 'executed',
       outcome: 'succeeded',

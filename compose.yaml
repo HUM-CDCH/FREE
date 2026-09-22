@@ -13,6 +13,29 @@
 # nginx), the trusted proxy peer, the Studio process command, and the database
 # credentials all come from the chosen overlay, so skipping the overlay fails
 # instead of silently running with development defaults.
+x-parsing-build: &parsing-build
+  context: prototypes/parsing_service
+
+x-parsing-runtime: &parsing-runtime
+  build: *parsing-build
+  init: true
+  # Check the schema after every restart as well as the initial migration.
+  # A source watch must not serve code against an older database schema.
+  entrypoint: ["sh", "-c", "kei-jobs schema && exec \"$$@\"", "--"]
+  environment:
+    KEI_RUNS: /app/runs
+    KEI_SLOT: slot-1
+    KEI_VLLM_URL: http://ocr_model:8000/v1/chat/completions
+    KEI_EXTRACT_URL: http://extraction_model:11434/v1/chat/completions
+    KEI_EXTRACT_MODEL: "${KEI_EXTRACT_MODEL:-qwen3:8b}"
+    HF_HOME: /models/huggingface
+    HF_TOKEN: "${HF_TOKEN:-}"
+  volumes:
+    - parsing-runs:/app/runs
+    - parsing-models:/models
+  networks:
+    - app
+
 services:
   db:
     image: postgres:17
@@ -29,31 +52,86 @@ services:
     networks:
       - app
 
-  parsing_service:
-    build:
-      context: prototypes/parsing_service
-    # The launcher adds compose.gpu.yaml when Docker can expose an NVIDIA GPU.
+  # Kept separate from FREE's application database: the imported service owns
+  # its Procrastinate/job schema and has no access to Researcher Account data.
+  parsing_db:
+    image: postgres:17
     environment:
-      DOCLING_DEVICE: "${DOCLING_DEVICE:-auto}"
-    # Host loopback publish for the operator's own web app. Port 8000 is
-    # already taken on the deployment machine.
-    ports:
-      - "127.0.0.1:8055:8055"
+      POSTGRES_DB: kei
+      POSTGRES_USER: kei
     healthcheck:
-      # `/status` answers only once the Docling pipeline is initialized, and the
-      # first start downloads its models, so the start period is generous.
-      test:
-        - CMD
-        - python
-        - -c
-        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8055/status', timeout=5)"
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30m
+      test: ["CMD-SHELL", "pg_isready -U kei -d kei"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
     volumes:
-      - parsing-tasks:/app/data
-      - parsing-models:/models
+      - parsing-postgres:/var/lib/postgresql/data
+    networks:
+      - app
+
+  parsing_migrate:
+    build: *parsing-build
+    command: ["kei-jobs", "schema", "--apply"]
+    depends_on:
+      parsing_db:
+        condition: service_healthy
+    networks:
+      - app
+
+  parsing_service:
+    <<: *parsing-runtime
+    command: ["uvicorn", "kei_exp.api:app", "--host", "0.0.0.0", "--port", "8001"]
+    depends_on:
+      parsing_migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/models', timeout=5)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  parsing_worker:
+    <<: *parsing-runtime
+    command: ["kei-jobs", "worker"]
+    # Restarting only the API leaves the worker's admitted conversions alive.
+    # A replacement worker starts after the old process exits and releases its
+    # slot ownership lock; never scale this single slot with replicas.
+    restart: unless-stopped
+    stop_grace_period: 60s
+    depends_on:
+      parsing_migrate:
+        condition: service_completed_successfully
+
+  extraction_model:
+    image: "${OLLAMA_IMAGE:-ollama/ollama:0.34.2@sha256:da6e0dc5651df159e45686fd663c4dbe1624a52c44d7280eeac1551d8f865532}"
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      # Keep request capacity independent of VRAM-based server defaults.
+      OLLAMA_CONTEXT_LENGTH: "${OLLAMA_CONTEXT_LENGTH:-16384}"
+      OLLAMA_NUM_PARALLEL: "1"
+    volumes:
+      - extraction-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks:
+      - app
+
+  extraction_model_init:
+    image: "${OLLAMA_IMAGE:-ollama/ollama:0.34.2@sha256:da6e0dc5651df159e45686fd663c4dbe1624a52c44d7280eeac1551d8f865532}"
+    environment:
+      OLLAMA_HOST: http://extraction_model:11434
+      KEI_EXTRACT_MODEL: "${KEI_EXTRACT_MODEL:-qwen3:8b}"
+    # A persisted model must remain usable on a restart without registry
+    # access. Only the first initialization downloads it.
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama show \"$${KEI_EXTRACT_MODEL}\" >/dev/null 2>&1 || exec ollama pull \"$${KEI_EXTRACT_MODEL}\""]
+    depends_on:
+      extraction_model:
+        condition: service_healthy
     networks:
       - app
 
@@ -63,16 +141,10 @@ services:
       dockerfile: prototypes/studio/Dockerfile
     environment:
       NODE_ENV: production
-      # New uploads are parsed by kei-exp (its API and worker run on the host
-      # outside this Compose project). Studio reaches the host through the
-      # host-gateway extra host below, so kei-exp's API must listen on
-      # 0.0.0.0:8001 (`kei-exp dev` does by default; a uvicorn bound to
-      # 127.0.0.1 refuses the container's connection). That exposes the
-      # parser beyond the host: keep port 8001 firewalled. The
-      # parsing_service container stays only for rollback and is not called.
-      KEI_EXP_URL: "${KEI_EXP_URL:-http://host.docker.internal:8001}"
-      # Set KEI_EXP_EXTRACT_MODEL here only to name a model on kei-exp's own model server for extraction; unset, kei-exp uses its configured default.
+      # Parsing and extraction use the service built from this checkout.
+      KEI_EXP_URL: http://parsing_service:8001
       KEI_EXP_MODEL: "${KEI_EXP_MODEL:-surya}"
+      KEI_EXP_EXTRACT_MODEL: "${KEI_EXTRACT_MODEL:-qwen3:8b}"
       STUDIO_ORIGIN: "${STUDIO_ORIGIN:-https://localhost:8443}"
       STUDIO_BASE_PATH: "${STUDIO_BASE_PATH:-/free}"
       FREE_STUDIO_PROXY: trusted-proxy
@@ -87,14 +159,20 @@ services:
       # the dedicated proxy network (the nginx container is its only other
       # member), production pins the proxy network's bridge gateway, which is
       # where the host nginx's loopback connections enter.
-    # kei-exp runs on the Docker host: resolve its loopback from the container.
+    # Schema Suggestion and Interaction call the configured Model Connection
+    # directly; one on a host-run Ollama or OpenAI-compatible server names
+    # host.docker.internal, which Linux Docker Engine resolves only with this.
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy
       parsing_service:
+        condition: service_healthy
+      parsing_worker:
         condition: service_started
+      extraction_model_init:
+        condition: service_completed_successfully
     healthcheck:
       # Studio rejects direct HTTP peers outside the proxy network. A local TCP
       # connection proves the server started after migrations.
@@ -124,8 +202,10 @@ services:
 
 volumes:
   postgres-data:
-  parsing-tasks:
+  parsing-postgres:
+  parsing-runs:
   parsing-models:
+  extraction-models:
   studio-data:
   studio-config:
   studio-claude:

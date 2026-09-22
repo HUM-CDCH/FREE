@@ -11,6 +11,7 @@ function validEnvironment() {
     DATABASE_URL: CI_DATABASE_URLS.extraction,
     EXTRACTION_TEST_DATABASE_URL: CI_DATABASE_URLS.extraction,
     PROJECT_STORE_POSTGRES_URL: CI_DATABASE_URLS.projectStore,
+    PARSING_TEST_DATABASE_URL: CI_DATABASE_URLS.parsing,
   }
 }
 
@@ -20,6 +21,7 @@ describe('CI database environment', () => {
       databaseUrl: CI_DATABASE_URLS.extraction,
       extractionUrl: CI_DATABASE_URLS.extraction,
       projectStoreUrl: CI_DATABASE_URLS.projectStore,
+      parsingUrl: CI_DATABASE_URLS.parsing,
     })
   })
 
@@ -32,6 +34,7 @@ describe('CI database environment', () => {
       'DATABASE_URL',
       'EXTRACTION_TEST_DATABASE_URL',
       'PROJECT_STORE_POSTGRES_URL',
+      'PARSING_TEST_DATABASE_URL',
     ]) {
       const environment = validEnvironment()
       delete environment[name]
@@ -75,6 +78,14 @@ describe('CI database environment', () => {
     assert.throws(
       () => validateCiEnvironment(remote),
       /EXTRACTION_TEST_DATABASE_URL must be the fixed disposable CI database URL/,
+    )
+
+    const parsing = validEnvironment()
+    parsing.PARSING_TEST_DATABASE_URL =
+      'postgresql://postgres:postgres@127.0.0.1:5432/free'
+    assert.throws(
+      () => validateCiEnvironment(parsing),
+      /PARSING_TEST_DATABASE_URL must be the fixed disposable CI database URL/,
     )
   })
 })

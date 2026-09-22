@@ -97,6 +97,7 @@ const completeProductionEnvironment = (certificatePath) => ({
   STUDIO_BASE_PATH: '/free',
   FREE_SESSION_SECRET: Buffer.alloc(32, 7).toString('base64'),
   FREE_POSTGRES_PASSWORD: 'a'.repeat(64),
+  FREE_PARSING_POSTGRES_PASSWORD: 'c'.repeat(64),
   FREE_ENTRA_TENANT_ID: '11111111-2222-4333-8444-555555555555',
   FREE_ENTRA_CLIENT_ID: '66666666-7777-4888-9999-aaaaaaaaaaaa',
   FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'b'.repeat(64),
@@ -135,26 +136,82 @@ for (const gpu of [false, true]) test(`production: compose renders with GPU acce
   const result = spawnSync(
     'docker',
     ['compose', '-f', 'compose.yaml', '-f', 'compose.prod.yaml',
-      ...(gpu ? ['-f', 'compose.gpu.yaml'] : []), 'config'],
+      ...(gpu ? ['-f', 'compose.gpu.yaml'] : []), 'config', '--format', 'json'],
     {
       cwd: ROOT,
       env: {
         ...process.env,
         ...completeProductionEnvironment(certificate),
         COMPOSE_DISABLE_ENV_FILE: '1',
-        DOCLING_DEVICE: 'auto',
+        FREE_GPU: 'auto',
       },
       encoding: 'utf8',
       timeout: 120_000,
     },
   )
   assert.equal(result.status, 0, result.stderr)
-  assert.match(result.stdout, /studio:/)
-  assert.match(result.stdout, /DOCLING_DEVICE: auto/)
-  assert.equal(result.stdout.includes('driver: nvidia'), gpu)
-  // Production has no containerized nginx and no mock identity provider.
-  assert.ok(!/^\s{2}nginx:/m.test(result.stdout), 'nginx stays on the host')
-  assert.ok(!result.stdout.includes('mock-oidc'), 'the mock cannot reach production')
+  const config = JSON.parse(result.stdout)
+  assertOwnedParsingTopology(config, gpu)
+  assert.equal(config.services.parsing_db.environment.POSTGRES_PASSWORD, 'c'.repeat(64))
+  // Production keeps its host-managed nginx and has no mock identity provider.
+  assert.equal(config.services.nginx, undefined)
+  assert.equal(config.services['mock-oidc'], undefined)
+
+})
+
+function assertOwnedParsingTopology(config, gpu) {
+  const services = config.services
+  assert.equal(services.studio.environment.KEI_EXP_URL, 'http://parsing_service:8001')
+  // Host-run Model Connections still resolve from Studio, independently of parsing.
+  assert.ok(services.studio.extra_hosts?.some((host) => /^host\.docker\.internal[:=]host-gateway$/.test(host)),
+    `studio.extra_hosts: ${JSON.stringify(services.studio.extra_hosts)}`)
+  const expectedDatabase = services.parsing_migrate.environment.KEI_DATABASE_URL
+  assert.match(expectedDatabase, /@parsing_db:5432\/kei$/)
+  assert.deepEqual(services.parsing_migrate.command, ['kei-jobs', 'schema', '--apply'])
+  assert.equal(services.parsing_migrate.depends_on.parsing_db.condition, 'service_healthy')
+  for (const name of ['parsing_service', 'parsing_worker']) {
+    const service = services[name]
+    assert.equal(service.environment.KEI_DATABASE_URL, expectedDatabase)
+    assert.equal(service.environment.KEI_RUNS, '/app/runs')
+    assert.equal(service.environment.KEI_SLOT, 'slot-1')
+    assert.equal(service.depends_on.parsing_migrate.condition, 'service_completed_successfully')
+    assert.ok(service.volumes.some(({ source, target }) => source === 'parsing-runs' && target === '/app/runs'))
+    assert.equal(service.ports, undefined, 'the unauthenticated service stays private')
+    assert.equal(service.deploy?.resources?.reservations?.devices, undefined)
+  }
+  assert.equal(services.parsing_worker.restart, 'unless-stopped')
+  assert.deepEqual(services.parsing_worker.command, ['kei-jobs', 'worker'])
+  assert.equal(services.studio.depends_on.parsing_service.condition, 'service_healthy')
+  assert.equal(services.studio.depends_on.extraction_model_init.condition, 'service_completed_successfully')
+  assert.equal(services.extraction_model_init.depends_on.extraction_model.condition, 'service_healthy')
+  assert.equal(services.extraction_model.environment.OLLAMA_NUM_PARALLEL, '1')
+  assert.equal(services.extraction_model_init.environment.KEI_EXTRACT_MODEL, services.parsing_worker.environment.KEI_EXTRACT_MODEL)
+  for (const name of ['parsing_db', 'extraction_model'])
+    assert.equal(services[name].ports, undefined, `${name} stays private`)
+  assert.equal(Boolean(services.ocr_model), gpu)
+  assert.equal(Boolean(services.extraction_model.deploy?.resources?.reservations?.devices), gpu)
+  if (gpu) {
+    assert.equal(services.ocr_model.deploy.resources.reservations.devices[0].driver, 'nvidia')
+    assert.equal(services.parsing_worker.depends_on.ocr_model.condition, 'service_healthy')
+    assert.equal(services.ocr_model.ports, undefined)
+  }
+  assert.equal(config.volumes['postgres-data'].name.endsWith('_postgres-data'), true)
+  assert.equal(config.volumes['parsing-runs'].name.endsWith('_parsing-runs'), true)
+}
+
+test('development: the owned parsing stack migrates before serving and restarts both source processes', () => {
+  const config = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {}))
+  assertOwnedParsingTopology(config, false)
+  assert.equal(config.services.parsing_db.environment.POSTGRES_PASSWORD, 'kei')
+  for (const name of ['parsing_service', 'parsing_worker']) {
+    const watch = config.services[name].develop.watch
+    const source = watch.find(({ action }) => action === 'sync+restart')
+    assert.ok(source.path.replaceAll('\\', '/').endsWith('/prototypes/parsing_service/src'))
+    assert.equal(source.target, '/app/src')
+    assert.equal(source.initial_sync, true)
+    for (const filename of ['pyproject.toml', 'uv.lock', 'Dockerfile'])
+      assert.ok(watch.some(({ action, path }) => action === 'rebuild' && path.endsWith(`/${filename}`)))
+  }
 })
 
 test('database tooling: package exposes only supported operator commands', () => {

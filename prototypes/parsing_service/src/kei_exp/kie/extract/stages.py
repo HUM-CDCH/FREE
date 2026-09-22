@@ -1,0 +1,334 @@
+"""The extraction stages as plain functions over passages and a chat completion (plan B rule 6).
+
+Discovery asks the model which labelled passages open a record and cuts the passages into record slices at
+those starts; only the final chunk may close the records with an `end`, since an earlier chunk cannot know what
+follows it. Each record is extracted with one structured-output call under a guardrail. Verification is
+deterministic first: a value that occurs as a bounded token in exactly one of the record's passages is linked
+without a model; the rest go to one grounding call per record that may answer only with an evidence label it
+was shown, or NONE. A label outside the shown set links nothing. The merge orders a record's fields as the
+schema does and adds the document-level and filename fields.
+"""
+from __future__ import annotations
+
+import re
+import unicodedata
+from collections.abc import Iterator, Sequence
+from dataclasses import dataclass
+from typing import Any
+
+from kei_exp.kie.extract.evidence import Evidence, Passage, text_of
+from kei_exp.kie.extract.llm import Chat, ModelOutputError, Reply, parse_json
+from kei_exp.kie.extract.schema import Schema, conform, describe, json_schema, notes, records_schema
+
+GUARDRAIL = ("You extract structured data from a source document. Use only the requested output fields. Copy "
+             "values from the source as written; do not invent unsupported information. A value the source does "
+             "not give is null. Return only the JSON object.")
+DISCOVERY = ("Identify record boundaries in the labelled source text. A record is: {description}\nReturn JSON "
+             "with \"starts\", the labels of the blocks that OPEN each record in source order without duplicates, "
+             "and \"end\", the label of the first block AFTER the last record, or null when the records run to the "
+             "end of the text. Do not select continuation text, descriptions, finds within a record or section "
+             "headings unless they themselves open a record.")
+GROUNDING = ("Ground every claim listed under \"### Claims\" in the passages listed under \"### Evidence\". Return "
+             "JSON with one key per claim label whose value is exactly one evidence label that directly supports "
+             "the claim in the meaning of its field, or NONE when no passage supports it. Each claim names its "
+             "field: the same string in an unrelated detail is not evidence. Never invent a label.")
+NONE = "NONE"
+
+
+@dataclass(frozen=True)
+class Call:
+    """One model call as the artifact reports it."""
+    stage: str                          # discovery | document | record | grounding
+    record: int | None
+    input_tokens: int | None
+    output_tokens: int | None
+    seconds: float
+    finish: str | None
+    ok: bool
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class Link:
+    """One extracted value's evidence: the result path and the passage it was read from."""
+    path: tuple[str | int, ...]
+    segment: str
+    page: int
+    bbox_pt: tuple[float, float, float, float]
+    verbatim: bool                      # the value occurs as a bounded token in the passage
+    hits: int                           # passages of the record containing the value; above one is ambiguous
+    linked_by: str                      # lexical | model
+
+
+@dataclass(frozen=True)
+class Issue:
+    code: str
+    detail: str
+    record: int | None = None
+    path: tuple[str | int, ...] | None = None
+
+
+def _complete(chat: Chat, *, stage: str, record: int | None, system: str, user: str,
+              schema: dict) -> tuple[Any, Call]:
+    """One call, read as JSON; a truncated or unreadable reply is a failed call and a null answer."""
+    try:
+        reply = chat.complete(system=system, user=user, schema=schema)
+    except ModelOutputError as error:  # a fake or a client that already judged the reply
+        return None, Call(stage, record, None, None, 0.0, None, False, str(error))
+    if reply.finish == "length":
+        return None, _call(reply, stage, record, False, "the reply was cut off (finish_reason length)")
+    try:
+        return parse_json(reply.text), _call(reply, stage, record, True, None)
+    except ModelOutputError as error:
+        return None, _call(reply, stage, record, False, str(error))
+
+
+def _call(reply: Reply, stage: str, record: int | None, ok: bool, error: str | None) -> Call:
+    return Call(stage, record, reply.input_tokens, reply.output_tokens, reply.seconds, reply.finish, ok, error)
+
+
+def _labelled(passages: Sequence[Passage], labels: Sequence[str]) -> str:
+    return "\n\n".join(f"[{label}] {passage.text.strip()}" for label, passage in zip(labels, passages, strict=True))
+
+
+def _chunks(passages: Sequence[Passage], budget: int) -> list[tuple[int, int]]:
+    """Half-open index ranges of whole pages whose labelled text fits `budget` characters; a page that alone
+    exceeds it stands as its own chunk."""
+    ranges: list[tuple[int, int]] = []
+    start, size = 0, 0
+    for index, passage in enumerate(passages):
+        new_page = index > 0 and passage.page != passages[index - 1].page
+        if new_page and size + _page_size(passages, index) > budget and index > start:
+            ranges.append((start, index))
+            start, size = index, 0
+        size += len(passage.text) + 12
+    if start < len(passages):
+        ranges.append((start, len(passages)))
+    return ranges
+
+
+def _page_size(passages: Sequence[Passage], index: int) -> int:
+    page = passages[index].page
+    return sum(len(p.text) + 12 for p in passages[index:] if p.page == page)
+
+
+def discover(evidence: Evidence, schema: Schema, chat: Chat, *, budget: int) -> tuple[
+        list[list[Passage]], list[Call], list[Issue]]:
+    """Record slices of the passages, in order, cut at the starts the model names; labels run on across chunks.
+
+    Only the final chunk may close the records with an `end`: an earlier chunk cannot know what follows it. An end
+    named earlier, or one that lies at or before a record start, is ignored with an issue; a record is never
+    dropped for it."""
+    passages = list(evidence.passages)
+    labels = [f"B{n}" for n in range(1, len(passages) + 1)]
+    system = DISCOVERY.format(description=schema.record_description)
+    starts: list[int] = []
+    end: int | None = None
+    calls: list[Call] = []
+    issues: list[Issue] = []
+    chunks = _chunks(passages, budget)
+    for number, (first, last) in enumerate(chunks):
+        shown = labels[first:last]
+        reply_schema = {"type": "object", "properties": {
+            "starts": {"type": "array", "items": {"type": "string", "enum": shown}},
+            "end": {"type": ["string", "null"], "enum": [*shown, None]}},
+            "required": ["starts", "end"], "additionalProperties": False}
+        answer, call = _complete(chat, stage="discovery", record=None, system=system,
+                                 user=_labelled(passages[first:last], shown), schema=reply_schema)
+        calls.append(call)
+        if not call.ok:
+            issues.append(Issue("call_failed", call.error or "discovery failed"))
+            continue
+        given = answer.get("starts", []) if isinstance(answer, dict) else []
+        for label in given if isinstance(given, list) else []:
+            index = _index(label, labels)
+            if index is None or index < first or index >= last or (starts and index <= starts[-1]):
+                issues.append(Issue("discovery_ignored_label", f"start {label!r} is unknown, repeated or out of order"))
+                continue
+            starts.append(index)
+        named = answer.get("end") if isinstance(answer, dict) else None
+        if not isinstance(named, str):
+            continue
+        index = _index(named, labels)
+        if number + 1 < len(chunks):
+            issues.append(Issue("discovery_ignored_label", f"end {named!r} named in chunk {number + 1} of "
+                                f"{len(chunks)} is ignored: only the final chunk may close the records"))
+        elif index is None or index < first or index >= last:
+            issues.append(Issue("discovery_ignored_label", f"end {named!r} is unknown or was not shown"))
+        else:
+            end = index
+    if not starts:
+        issues.append(Issue("no_records_found", "the model named no record start"))
+    if end is not None and starts and starts[-1] >= end:
+        issues.append(Issue("discovery_inconsistent_end", f"end {labels[end]!r} lies at or before the last record "
+                            f"start {labels[starts[-1]]!r} and is ignored: the records run to the end of the text"))
+        end = None
+    stop = end if end is not None else len(passages)
+    slices = [passages[start:min(stop, starts[n + 1]) if n + 1 < len(starts) else stop]
+              for n, start in enumerate(starts)]
+    return [group for group in slices if group], calls, issues
+
+
+def _index(label: Any, labels: Sequence[str]) -> int | None:
+    return labels.index(label) if isinstance(label, str) and label in labels else None
+
+
+def _instruction(schema: Schema, nodes: Sequence) -> str:
+    lines = [GUARDRAIL, f"A record is: {schema.record_description}", *notes(nodes)]
+    return "\n".join(lines)
+
+
+def _clipped(passages: Sequence[Passage], budget: int, issues: list[Issue], record: int | None) -> str:
+    text = text_of(passages)
+    if len(text) > budget:
+        issues.append(Issue("text_truncated", f"{len(text)} characters of text, {budget} shown to the model", record))
+        text = text[:budget]
+    return text
+
+
+def extract_document(evidence: Evidence, schema: Schema, chat: Chat, *, budget: int) -> tuple[
+        dict, list[Call], list[Issue]]:
+    """The fields that belong to the document as a whole, from one call over its text."""
+    nodes = schema.document_nodes
+    if not nodes:
+        return {}, [], []
+    issues: list[Issue] = []
+    user = f"### Source document\n{_clipped(evidence.passages, budget, issues, None)}\n\nReturn the JSON object now."
+    answer, call = _complete(chat, stage="document", record=None, system=_instruction(schema, nodes), user=user,
+                             schema=json_schema(nodes))
+    if not call.ok:
+        issues.append(Issue("call_failed", call.error or "document extraction failed"))
+    return conform(answer, nodes), [call], issues
+
+
+def extract_record(passages: Sequence[Passage], schema: Schema, chat: Chat, *, budget: int,
+                   record: int | None = None) -> tuple[dict, Call, list[Issue]]:
+    """One record's fields from one structured-output call over its passages."""
+    nodes = schema.record_nodes
+    issues: list[Issue] = []
+    user = f"### Record\n{_clipped(passages, budget, issues, record)}\n\nReturn the JSON object now."
+    answer, call = _complete(chat, stage="record", record=record, system=_instruction(schema, nodes), user=user,
+                             schema=json_schema(nodes))
+    if not call.ok:
+        issues.append(Issue("call_failed", call.error or "record extraction failed", record))
+    return conform(answer, nodes), call, issues
+
+
+def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, budget: int) -> tuple[
+        list[dict], Call, list[Issue]]:
+    """Every record of the text at once: the article strategy, for sources short enough for one call. A reply
+    without records is an issue, as discovery naming no start is."""
+    nodes = schema.record_nodes
+    issues: list[Issue] = []
+    user = f"### Source document\n{_clipped(passages, budget, issues, None)}\n\nReturn the JSON object now."
+    answer, call = _complete(chat, stage="record", record=None, system=_instruction(schema, nodes), user=user,
+                             schema=records_schema(nodes))
+    if not call.ok:
+        issues.append(Issue("call_failed", call.error or "record extraction failed"))
+    found = answer.get("records") if isinstance(answer, dict) else None
+    records = [conform(item, nodes) for item in found] if isinstance(found, list) else []
+    if not records:
+        issues.append(Issue("no_records_found", "the model returned no record"))
+    return records, call, issues
+
+
+def leaves(value: Any, path: tuple[str | int, ...] = ()) -> Iterator[tuple[tuple[str | int, ...], Any]]:
+    """Every populated leaf: a non-blank string or a number. Booleans and nulls are not claims to ground."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield from leaves(item, (*path, key))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            yield from leaves(item, (*path, index))
+    elif isinstance(value, bool) or value is None:
+        return
+    elif isinstance(value, str):
+        if value.strip():
+            yield path, value
+    else:
+        yield path, value
+
+
+def normal(text: str) -> str:
+    return " ".join(unicodedata.normalize("NFKC", text).casefold().split())
+
+
+def _text(value: Any) -> str:
+    """A value as the source would print it: an integral float (1827.0) as its integer."""
+    return str(int(value)) if isinstance(value, float) and value.is_integer() else str(value)
+
+
+def contains(haystack: str, value: Any) -> bool:
+    """Whether `value` occurs in `haystack` as a bounded token: not inside a longer word or number."""
+    needle, hay = normal(_text(value)), normal(haystack)
+    if not needle:
+        return False
+    for match in re.finditer(re.escape(needle), hay):
+        before = hay[match.start() - 1] if match.start() > 0 else " "
+        after = hay[match.end()] if match.end() < len(hay) else " "
+        if not before.isalnum() and not after.isalnum():
+            return True
+    return False
+
+
+def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int) -> tuple[
+        list[Link], list[Call], list[Issue]]:
+    """Evidence for every populated value of one record: code first, then one grounding call for the rest. A
+    record without passages has nothing to verify against: an issue, not a call over an empty label set."""
+    prefix: tuple[str | int, ...] = ("records", record)
+    if not passages:
+        return [], [], [Issue("no_evidence", "the record has no passages to verify against", record)]
+    links: list[Link] = []
+    pending: list[tuple[tuple[str | int, ...], Any, int]] = []
+    for path, value in leaves(fields):
+        hits = [passage for passage in passages if contains(passage.text, value)]
+        if len(hits) == 1:
+            links.append(_link((*prefix, *path), hits[0], True, 1, "lexical"))
+        else:
+            pending.append(((*prefix, *path), value, len(hits)))
+    if not pending:
+        return links, [], []
+    labels = [f"E{n}" for n in range(1, len(passages) + 1)]
+    claims = [f"C{n}" for n in range(1, len(pending) + 1)]
+    lines = [f"{claim} ({describe(schema.record_nodes, path[2:])}): {_text(value)}"
+             for claim, (path, value, _) in zip(claims, pending, strict=True)]
+    user = "### Claims\n" + "\n".join(lines) + "\n\n### Evidence\n" + "\n".join(
+        f"{label}: {passage.text.strip()}" for label, passage in zip(labels, passages, strict=True))
+    reply_schema = {"type": "object", "properties": {claim: {"type": "string", "enum": [*labels, NONE]}
+                                                     for claim in claims},
+                    "required": claims, "additionalProperties": False}
+    answer, call = _complete(chat, stage="grounding", record=record, system=GROUNDING, user=user, schema=reply_schema)
+    issues: list[Issue] = []
+    if not call.ok:
+        issues.append(Issue("call_failed", call.error or "grounding failed", record))
+        return links, [call], issues
+    given = answer if isinstance(answer, dict) else {}
+    for claim, (path, value, hits) in zip(claims, pending, strict=True):
+        label = given.get(claim)
+        if label is None:
+            issues.append(Issue("missing_claim", f"the model did not answer {claim}", record, path))
+        elif label == NONE:
+            continue
+        elif label not in labels:
+            issues.append(Issue("unknown_label", f"{claim} was linked to {label!r}, which was not shown", record, path))
+        else:
+            passage = passages[labels.index(label)]
+            links.append(_link(path, passage, contains(passage.text, value), hits, "model"))
+    return links, [call], issues
+
+
+def _link(path: tuple[str | int, ...], passage: Passage, verbatim: bool, hits: int, linked_by: str) -> Link:
+    return Link(path, passage.id, passage.page, passage.bbox_pt, verbatim, hits, linked_by)
+
+
+def merge(fields: dict, document: dict, filename: str, schema: Schema) -> dict:
+    """One record in schema order: its own fields, then the document's, then the filename's."""
+    merged: dict[str, Any] = {}
+    for node in schema.nodes:
+        if node.value_source == "document":
+            merged[node.name] = document.get(node.name)
+        elif node.value_source == "source-filename":
+            merged[node.name] = filename
+        else:
+            merged[node.name] = fields.get(node.name)
+    return merged

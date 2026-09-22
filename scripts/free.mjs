@@ -9,7 +9,8 @@
 // rule, and the per-machine environment values. `production`
 // validates .env before anything starts, renders the host nginx include from
 // the shared template, and starts the production overlay detached, waiting
-// for health.
+// for health. Both targets build before stopping the old schema consumers;
+// Compose then runs the migration before starting their replacements.
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { isIP } from 'node:net'
@@ -350,18 +351,21 @@ export function loadLocalEntraEnvironment(
 }
 
 export function parsingGpuComposeArguments(environment = process.env, execute = run) {
-  if (environment.DOCLING_DEVICE === 'cpu') return []
+  const mode = environment.FREE_GPU || 'auto'
+  if (!['auto', 'off', 'required'].includes(mode))
+    throw new Error('FREE_GPU must be auto, off, or required.')
+  if (mode === 'off') return []
   const probe = execute('docker', [
     'run', '--rm', '--gpus', 'all',
     'ubuntu:24.04', 'nvidia-smi', '-L',
   ], { capture: true, allowFailure: true, timeout: 60_000 })
   if (probe.status === 0 && /GPU \d+:/.test(probe.stdout ?? '')) {
-    console.log('Parsing: NVIDIA GPU available to Docker; enabling GPU access.')
+    console.log('Models: NVIDIA GPU available; starting Surya OCR and enabling Ollama GPU access.')
     return ['-f', 'compose.gpu.yaml']
   }
-  if (environment.DOCLING_DEVICE?.startsWith('cuda'))
-    throw new Error(`CUDA was requested but Docker GPU access failed: ${probe.stderr || probe.error || 'no GPU found'}`)
-  console.log('Parsing: Docker GPU unavailable; using CPU. ' +
+  if (mode === 'required')
+    throw new Error(`GPU access was required but Docker GPU access failed: ${probe.stderr || probe.error || 'no GPU found'}`)
+  console.log('Models: Docker GPU unavailable; native PDFs and CPU extraction are available. Scanned PDFs require the GPU OCR service. ' +
     (probe.stderr?.trim() || probe.error?.message || 'No NVIDIA GPU found.'))
   return []
 }
@@ -381,7 +385,7 @@ export function developmentComposeArguments(profile, gpuArguments = []) {
     ...developmentComposeFiles(profile).flatMap((file) => ['-f', file]),
     ...gpuArguments,
     'up',
-    '--build',
+    '--no-build',
     '--watch',
   ]
 }
@@ -410,9 +414,10 @@ export function developmentComposeEnvironment(
     // deliberately self-contained; only host-run tooling consumes its
     // DATABASE_URL.
     COMPOSE_DISABLE_ENV_FILE: '1',
-    DOCLING_DEVICE: environment.DOCLING_DEVICE || 'auto',
+    FREE_GPU: environment.FREE_GPU || 'auto',
     FREE_NGINX_PORT: String(NGINX_PORT),
     FREE_POSTGRES_PASSWORD: 'postgres',
+    FREE_PARSING_POSTGRES_PASSWORD: 'kei',
     FREE_SESSION_SECRET: sessionSecret,
     STUDIO_BASE_PATH: '/free',
     STUDIO_ORIGIN: profile.origin,
@@ -428,11 +433,31 @@ export function developmentComposeEnvironment(
   return composeEnvironment
 }
 
-async function awaitChild(child) {
-  process.exitCode = await new Promise((resolvePromise, reject) => {
+function awaitChild(child) {
+  return new Promise((resolvePromise, reject) => {
     child.once('error', reject)
     child.once('exit', (code) => resolvePromise(code ?? 1))
   })
+}
+
+// Build failures leave the current deployment serving. Once images exist,
+// quiesce both schema consumers before Compose runs the migration dependency.
+export async function startComposeStack(upArguments, environment, start = spawn) {
+  const compose = upArguments.slice(0, upArguments.indexOf('up'))
+  for (const args of [
+    [...compose, 'build'],
+    [...compose, 'stop', '--timeout', '60', 'studio', 'parsing_service', 'parsing_worker'],
+    upArguments,
+  ]) {
+    const status = await awaitChild(start('docker', args, {
+      cwd: ROOT,
+      env: environment,
+      stdio: 'inherit',
+      shell: false,
+    }))
+    if (status !== 0) return status
+  }
+  return 0
 }
 
 async function localMain(args) {
@@ -457,18 +482,14 @@ async function localMain(args) {
     ensureWifiFirewall([NGINX_PORT, MOCK_OIDC_PORT])
   printReady(profile)
 
-  await awaitChild(
-    spawn('docker', developmentComposeArguments(profile, parsingGpuComposeArguments()), {
-      cwd: ROOT,
-      env: developmentComposeEnvironment(
-        profile,
-        process.env,
-        sessionSecret,
-        entraEnvironment,
-      ),
-      stdio: 'inherit',
-      shell: false,
-    }),
+  process.exitCode = await startComposeStack(
+    developmentComposeArguments(profile, parsingGpuComposeArguments()),
+    developmentComposeEnvironment(
+      profile,
+      process.env,
+      sessionSecret,
+      entraEnvironment,
+    ),
   )
 }
 
@@ -522,13 +543,13 @@ export function validateProductionEnvironment(
 
   appendSharedIssue('FREE_SESSION_SECRET')
 
-  const postgresPassword = environment.FREE_POSTGRES_PASSWORD
-  if (postgresPassword === undefined || postgresPassword === '')
-    errors.push('FREE_POSTGRES_PASSWORD is required in .env.')
-  else if (!/^[0-9a-fA-F]{32,}$/.test(postgresPassword))
-    errors.push(
-      'FREE_POSTGRES_PASSWORD must be a generated hexadecimal password (openssl rand -hex 32).',
-    )
+  for (const field of ['FREE_POSTGRES_PASSWORD', 'FREE_PARSING_POSTGRES_PASSWORD']) {
+    const password = environment[field]
+    if (password === undefined || password === '')
+      errors.push(`${field} is required in .env.`)
+    else if (!/^[0-9a-fA-F]{32,}$/.test(password))
+      errors.push(`${field} must be a generated hexadecimal password (openssl rand -hex 32).`)
+  }
 
   appendSharedIssue('FREE_ENTRA_TENANT_ID')
   appendSharedIssue('FREE_ENTRA_CLIENT_ID')
@@ -582,27 +603,24 @@ async function productionMain(args) {
 
   console.log(`Rendered ${RENDERED_NGINX_LOCATIONS} for the host nginx.`)
   console.log('Starting the production stack (waits for health checks)...\n')
-  await awaitChild(
-    spawn(
-      'docker',
-      [
-        'compose',
-        '-f',
-        'compose.yaml',
-        '-f',
-        'compose.prod.yaml',
-        ...parsingGpuComposeArguments(environment),
-        'up',
-        '--build',
-        '-d',
-        '--wait',
-      ],
-      { cwd: ROOT, stdio: 'inherit', shell: false },
-    ),
+  process.exitCode = await startComposeStack(
+    [
+      'compose',
+      '-f',
+      'compose.yaml',
+      '-f',
+      'compose.prod.yaml',
+      ...parsingGpuComposeArguments(environment),
+      'up',
+      '--no-build',
+      '-d',
+      '--wait',
+    ],
+    environment,
   )
   if (process.exitCode !== 0) return
   console.log(`
-The containers are healthy; migrations replayed before Studio started.
+The services started and configured health checks passed; migrations replayed before Studio started.
 Host nginx checklist (once per configuration change):
   1. Make the FREE server block include the rendered file, for example:
        include ${resolve(ROOT, RENDERED_NGINX_LOCATIONS)};

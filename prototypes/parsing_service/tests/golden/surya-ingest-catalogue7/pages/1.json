@@ -1,0 +1,1349 @@
+{
+  "page": 1,
+  "size_pt": [
+    1190.52001953125,
+    841.9199829101562
+  ],
+  "fingerprint": "93efee5da2542b946bc1e5047a258bcd089f6298531ab7ea3dfde1989acd225e",
+  "units": [
+    {
+      "index": 1,
+      "bbox_pt": [
+        -0.8222656250000003,
+        -1.1626129150390625,
+        595.0621057305963,
+        841.9179943862413
+      ],
+      "crops": [
+        {
+          "crop": 1,
+          "kind": "column",
+          "order": 0,
+          "bbox_pt": [
+            82.34479314753872,
+            54.67433490489009,
+            329.0727465801911,
+            756.0019648783222
+          ],
+          "ink": 0.5200260078023407,
+          "transform": [
+            83.04015736489194,
+            55.68010507131666,
+            0.287887869504327,
+            0.28804000100671207
+          ],
+          "source_px": [
+            692,
+            464,
+            2736,
+            6304
+          ],
+          "image_px": [
+            852,
+            2433
+          ],
+          "input_tokens": 2097,
+          "output_tokens": 3381,
+          "incomplete": null
+        },
+        {
+          "crop": 2,
+          "kind": "figure",
+          "order": 1,
+          "bbox_pt": [
+            319.7058249018461,
+            77.66344572682954,
+            566.6075381991657,
+            755.4877114216428
+          ],
+          "ink": 0.4690507152145644,
+          "transform": [
+            320.4006071737883,
+            78.24014764331565,
+            0.28783172951054914,
+            0.28795972706877426
+          ],
+          "source_px": [
+            2670,
+            652,
+            4716,
+            6296
+          ],
+          "image_px": [
+            853,
+            2352
+          ],
+          "input_tokens": 2045,
+          "output_tokens": 3097,
+          "incomplete": null
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "bbox_pt": [
+        593.4177270684869,
+        -0.0019885239152017675,
+        1192.1820983886719,
+        843.0842437744143
+      ],
+      "crops": [
+        {
+          "crop": 3,
+          "kind": "column",
+          "order": 0,
+          "bbox_pt": [
+            649.5174128211029,
+            75.97001385214708,
+            895.9133618180623,
+            754.4719768106663
+          ],
+          "ink": 0.46753561475480776,
+          "transform": [
+            55.92010597115556,
+            75.84014311437959,
+            0.2879441414369856,
+            0.28802093433493536
+          ],
+          "source_px": [
+            466,
+            632,
+            2508,
+            6282
+          ],
+          "image_px": [
+            851,
+            2354
+          ],
+          "input_tokens": 2045,
+          "output_tokens": 3529,
+          "incomplete": null
+        },
+        {
+          "crop": 4,
+          "kind": "column",
+          "order": 1,
+          "bbox_pt": [
+            886.5897505601437,
+            52.86353908444653,
+            1133.749964778693,
+            754.6083572065855
+          ],
+          "ink": 0.4791504388014748,
+          "transform": [
+            293.04055532524006,
+            52.32009873080617,
+            0.2881130899499534,
+            0.28800054347232756
+          ],
+          "source_px": [
+            2442,
+            436,
+            4490,
+            6280
+          ],
+          "image_px": [
+            853,
+            2435
+          ],
+          "input_tokens": 2097,
+          "output_tokens": 3616,
+          "incomplete": null
+        }
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "text": "102",
+      "html": "102",
+      "markdown": null,
+      "label": "PageHeader",
+      "confidence": 0.9931642546433456,
+      "status": "ok",
+      "unit": 1,
+      "crop": 1,
+      "bbox_px": [
+        14.484000000000002,
+        4.866,
+        77.532,
+        46.227
+      ],
+      "bbox_pt": [
+        87.89711541470736,
+        56.08931739942341,
+        106.07110399335484,
+        68.03836776399567
+      ]
+    },
+    {
+      "text": "Kreis Wanzleben",
+      "html": "<p>Kreis Wanzleben</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9931642546433456,
+      "status": "ok",
+      "unit": 1,
+      "crop": 1,
+      "bbox_px": [
+        14.484000000000002,
+        87.588,
+        241.968,
+        124.083
+      ],
+      "bbox_pt": [
+        87.85331531716245,
+        79.9165169157634,
+        153.36360580765344,
+        90.55642632278102
+      ]
+    },
+    {
+      "text": "76. Ampfurth, OT Schermcke. Fdpl. zwischen Sauren Holz und Schermcker Park. Mbl. 2165 (3933), N 13,5; O 16,0 (Mitte des Fundgebietes). Geländesit.: nach SO fallender spornartiger Hang.",
+      "html": "<p>76. <i>Ampfurth</i>, OT Schermcke. Fdpl. zwischen Sauren Holz und Schermcker Park. Mbl. 2165 (3933), N 13,5; O 16,0 (Mitte des Fundgebietes). Geländesit.: nach SO fallender spornartiger Hang.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9931642546433456,
+      "status": "ok",
+      "unit": 1,
+      "crop": 1,
+      "bbox_px": [
+        14.484000000000002,
+        160.578,
+        823.884,
+        311.424
+      ],
+      "bbox_pt": [
+        87.74792133244505,
+        100.94051648900438,
+        320.8487811563762,
+        144.8452247432807
+      ]
+    },
+    {
+      "text": "FA: G. Angaben zum Bau unklar; eventuell Steinkiste, denn nach einem Gutachten von W. Schulz (OA Schermcke des LM Halle) wird die Bergung von zu dem G gehörigen Steinplatten angeregt. Neben nicht aufbewahrten Skelettresten („der Geschiebeführer Adomheit in Schermcke, ..., spricht von großen, starken Knochen“; Schimmel 1932, S. 15). Folg. Funde: 1. KA mit gekehltem He.; am Hals, netzartiges Muster aus durch kl. längl. Einst. imitierten Schnurlinien und auf Schulter unter Einst. reihe Fr. gruppen aus imitierten Schnurlinien; begrenzt von imitierter Winkelschnurlinie; dunkelgrau; H. 18,2; Wdg. 0,5/0,6; HBI 1,10 (Taf. 16,25). 2. Gefäß u. Form (zerschlagen). 3. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; dunkelgrau mit hellen Flecken; L. 13,2; Schnbr. 6,4 (Taf. 16,27). 4. dickn. dünnbl. Feuersteinbeil mit spitz zulaufendem Nacken; Breitseiten überschliffen; grau mit hellen Flecken; L. 11,8; Schnbr. 3,4 (Taf. 16,26).",
+      "html": "<p>FA: G. Angaben zum Bau unklar; eventuell Steinkiste, denn nach einem Gutachten von W. Schulz (OA Schermcke des LM Halle) wird die Bergung von zu dem G gehörigen Steinplatten angeregt. Neben nicht aufbewahrten Skelettresten („der Geschiebeführer Adomheit in Schermcke, ..., spricht von großen, starken Knochen“; Schimmel 1932, S. 15). Folg. Funde: 1. KA mit gekehltem He.; am Hals, netzartiges Muster aus durch kl. längl. Einst. imitierten Schnurlinien und auf Schulter unter Einst. reihe Fr. gruppen aus imitierten Schnurlinien; begrenzt von imitierter Winkelschnurlinie; dunkelgrau; H. 18,2; Wdg. 0,5/0,6; HBI 1,10 (Taf. 16,25). 2. Gefäß u. Form (zerschlagen). 3. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; dunkelgrau mit hellen Flecken; L. 13,2; Schnbr. 6,4 (Taf. 16,27). 4. dickn. dünnbl. Feuersteinbeil mit spitz zulaufendem Nacken; Breitseiten überschliffen; grau mit hellen Flecken; L. 11,8; Schnbr. 3,4 (Taf. 16,26).</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9931642546433456,
+      "status": "ok",
+      "unit": 1,
+      "crop": 1,
+      "bbox_px": [
+        14.484000000000002,
+        311.424,
+        823.884,
+        902.643
+      ],
+      "bbox_pt": [
+        87.41531434171348,
+        144.3901156070359,
+        320.76391846738295,
+        315.1396212865335
+      ]
+    },
+    {
+      "text": "1. Mus. Magdeburg Inv.-Nr. 79:43 b; 3. und 4. Mus. Ummendorf Inv.-Nr. IV 199 c, d. 2. u. Schimmel 1932, S. 15 f., Abb. 10; Priebe 1938, S. 72, Taf. VII a; Fischer 1956, S. 295; Behrens 1973, S. 304.",
+      "html": "<p>1. Mus. Magdeburg Inv.-Nr. 79:43 b; 3. und 4. Mus. Ummendorf Inv.-Nr. IV 199 c, d. 2. u. Schimmel 1932, S. 15 f., Abb. 10; Priebe 1938, S. 72, Taf. VII a; Fischer 1956, S. 295; Behrens 1973, S. 304.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9931642546433456,
+      "status": "ok",
+      "unit": 1,
+      "crop": 1,
+      "bbox_px": [
+        14.484000000000002,
+        902.643,
+        823.884,
+        1053.489
+      ],
+      "bbox_pt": [
+        87.33045165272024,
+        314.6845121502887,
+        320.4313114766514,
+        358.5892204045651
+      ]
+    },
+    {
+      "text": "77. Bahrendorf, OT Stemmern. Fdpl. 2. Gemeindesandgrube. Mbl. 2167 (3935), S 0,7; W 20,3—20,7. Geländesit.: eben.",
+      "html": "<p>77. <i>Bahrendorf</i>, OT Stemmern. Fdpl. 2. Gemeindesandgrube. Mbl. 2167 (3935), S 0,7; W 20,3—20,7. Geländesit.: eben.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9931642546433456,
+      "status": "ok",
+      "unit": 1,
+      "crop": 1,
+      "bbox_px": [
+        14.484000000000002,
+        1087.551,
+        823.884,
+        1165.407
+      ],
+      "bbox_pt": [
+        87.26748901249945,
+        367.94531106916605,
+        320.32728624498225,
+        390.82601975020134
+      ]
+    },
+    {
+      "text": "FA: Brandg. 45 (Abb. 7,2). Am Rand eines Baalberger und frühbronzezeitl. G. feldes langovale Grube, 2,20 \\times 0,93 \\times 0,80 m Gr.; NW—SO. Inhalt: Brandschüttung mit Beigaben.",
+      "html": "<p>FA: Brandg. 45 (Abb. 7,2). Am Rand eines Baalberger und frühbronzezeitl. G. feldes langovale Grube, 2,20 <math>\\times</math> 0,93 <math>\\times</math> 0,80 m Gr.; NW—SO. Inhalt: Brandschüttung mit Beigaben.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9931642546433456,
+      "status": "ok",
+      "unit": 1,
+      "crop": 1,
+      "bbox_px": [
+        14.484000000000002,
+        1162.974,
+        823.884,
+        1277.325
+      ],
+      "bbox_pt": [
+        87.20452637227866,
+        389.67011062818176,
+        320.28485490048564,
+        423.0628190958377
+      ]
+    },
+    {
+      "text": "1. An der westl. Längswand fast in der Mitte T mit leicht abgeplattetem Boden und drei Winkel-Bodenst. reihen auf der Schulter; dunkelgrau-rötlich-gelb gefleckt; H. 12,4; Wdg. 0,5; HBI 0,83 (Taf. 16,18). Folg. Funde teils mit LBR vermischt regellos in Grube: 2. 3 graue Feuersteinklingen; L. 4,3—7,4 (Taf. 16,19—21) und weißer Feuersteinabschlag; L. 2,7 (Taf. 16,22). 3. Ovale Bernsteinperle mit y-Bohrung; L. 2,0 (Taf. 16,16), 2 röhrenförmige Bernsteinperlen; L. 1,6 und 1,4 (Taf. 16,14,15) sowie Fragmente von 7 weiteren. 4. Stark korrodiertes Kalkröhrchen; L. 1,0 (Nowak 1963, Abb. 3). 3 durchb. Muschelscheiben; Dm. 0,7 (Taf. 16,11—13) und durch Hitze deformierte Reste einer Muschelplatte mit eingeritzten Winkellinien (Taf. 16,17). 5. 4 durchb. Tierzähne (Taf. 16,7—10). 6. Durch Hitze deformiertes Knochenfragment mit abgerundeter Spitze (Nowak 1963, Abb. 3) und verwitterter Röhrenknochen eines Tieres. 7. Im SO vom G 0,40 m über Sohle 0,35 m langer Muschelkalkblock (primär?). 8. Über Grube verteilt mit Konzentration im SO nahe der Grabmitte 1237,3 g LBR eines Individuums; erwachsen; zwischen 20 und 50 Jahre; eher weiblich als männlich (Br.).",
+      "html": "<p>1. An der westl. Längswand fast in der Mitte T mit leicht abgeplattetem Boden und drei Winkel-Bodenst. reihen auf der Schulter; dunkelgrau-rötlich-gelb gefleckt; H. 12,4; Wdg. 0,5; HBI 0,83 (Taf. 16,18). Folg. Funde teils mit LBR vermischt regellos in Grube: 2. 3 graue Feuersteinklingen; L. 4,3—7,4 (Taf. 16,19—21) und weißer Feuersteinabschlag; L. 2,7 (Taf. 16,22). 3. Ovale Bernsteinperle mit y-Bohrung; L. 2,0 (Taf. 16,16), 2 röhrenförmige Bernsteinperlen; L. 1,6 und 1,4 (Taf. 16,14,15) sowie Fragmente von 7 weiteren. 4. Stark korrodiertes Kalkröhrchen; L. 1,0 (Nowak 1963, Abb. 3). 3 durchb. Muschelscheiben; Dm. 0,7 (Taf. 16,11—13) und durch Hitze deformierte Reste einer Muschelplatte mit eingeritzten Winkellinien (Taf. 16,17). 5. 4 durchb. Tierzähne (Taf. 16,7—10). 6. Durch Hitze deformiertes Knochenfragment mit abgerundeter Spitze (Nowak 1963, Abb. 3) und verwitterter Röhrenknochen eines Tieres. 7. Im SO vom G 0,40 m über Sohle 0,35 m langer Muschelkalkblock (primär?). 8. Über Grube verteilt mit Konzentration im SO nahe der Grabmitte 1237,3 g LBR eines Individuums; erwachsen; zwischen 20 und 50 Jahre; eher weiblich als männlich (Br.).</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9931642546433456,
+      "status": "ok",
+      "unit": 1,
+      "crop": 1,
+      "bbox_px": [
+        14.484000000000002,
+        1277.325,
+        823.884,
+        2012.091
+      ],
+      "bbox_pt": [
+        86.7911629516987,
+        422.60770995959285,
+        320.22052350721657,
+        634.7044147997979
+      ]
+    },
+    {
+      "text": "Mus. Ummendorf Inv.-Nr. IV 2200 a—m. Nowak 1963, S. 28 ff., Abb. 1—3; Voigt 1963, S. 229 (unter Glockenbecherkultur); Behrens 1973, S. 124, Abb. 48 e—k; Müller 1976, S. 219.",
+      "html": "<p>Mus. Ummendorf Inv.-Nr. IV 2200 a—m. Nowak 1963, S. 28 ff., Abb. 1—3; Voigt 1963, S. 229 (unter Glockenbecherkultur); Behrens 1973, S. 124, Abb. 48 e—k; Müller 1976, S. 219.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9931642546433456,
+      "status": "ok",
+      "unit": 1,
+      "crop": 1,
+      "bbox_px": [
+        14.484000000000002,
+        2012.091,
+        823.884,
+        2158.071
+      ],
+      "bbox_pt": [
+        86.709037768802,
+        634.2493056635531,
+        319.8071600866366,
+        676.7524139462801
+      ]
+    },
+    {
+      "text": "78. Druxberge. Fdpl. 4. Heinrichsberg. Mbl. 2098 (3833), N 14,7; O 7,7. Geländesit.: flache Anhöhe.",
+      "html": "<p>78. <i>Druxberge</i>. Fdpl. 4. Heinrichsberg. Mbl. 2098 (3833), N 14,7; O 7,7. Geländesit.: flache Anhöhe.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9931642546433456,
+      "status": "ok",
+      "unit": 1,
+      "crop": 1,
+      "bbox_px": [
+        14.484000000000002,
+        2192.1330000000003,
+        823.884,
+        2269.989
+      ],
+      "bbox_pt": [
+        86.64607512858122,
+        686.1085046108811,
+        319.70587236106405,
+        708.9892132919165
+      ]
+    },
+    {
+      "text": "FA: Zerstörtes Brand(?)grab. Innerhalb von früheisenzeitl. G. feld und kaiserzeitlicher Siedl. folg. Funde zusammenliegend: 1. Halb erh. Sch; am Hals ausgespartes Rautenband aus Bogenst. und auf Umbug unter Kerbreihe eingeritzte Drei-",
+      "html": "<p>FA: Zerstörtes Brand(?)grab. Innerhalb von früheisenzeitl. G. feld und kaiserzeitlicher Siedl. folg. Funde zusammenliegend: 1. Halb erh. Sch; am Hals ausgespartes Rautenband aus Bogenst. und auf Umbug unter Kerbreihe eingeritzte Drei-</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9931642546433456,
+      "status": "ok",
+      "unit": 1,
+      "crop": 1,
+      "bbox_px": [
+        14.484000000000002,
+        2267.556,
+        823.884,
+        2415.969
+      ],
+      "bbox_pt": [
+        86.56394994568454,
+        707.8333041698969,
+        319.6634410165674,
+        751.0372124383986
+      ]
+    },
+    {
+      "text": "ecke; dunkelgrau hell gefleckt; H. 9,5; Wdg. 0,5; HBI 0,63 (Taf. 16,23). 2. Dickn. dünnbl. Feuersteinbeil; nur Schneide überschliffen; grau gefleckt; L. 10,8; Schnbr. 4,5 (Taf. 16,24). 3. 5,3 g LBR; unbestimmbar (Br.).\nMus. Ummendorf Inv.-Nr. IV 1476 a—c.",
+      "html": "<p>ecke; dunkelgrau hell gefleckt; H. 9,5; Wdg. 0,5; HBI 0,63 (Taf. 16,23). 2. Dickn. dünnbl. Feuersteinbeil; nur Schneide überschliffen; grau gefleckt; L. 10,8; Schnbr. 4,5 (Taf. 16,24). 3. 5,3 g LBR; unbestimmbar (Br.).<br/>Mus. Ummendorf Inv.-Nr. IV 1476 a—c.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9928455300367028,
+      "status": "ok",
+      "unit": 1,
+      "crop": 2,
+      "bbox_px": [
+        29.855000000000004,
+        7.056,
+        838.499,
+        195.216
+      ],
+      "bbox_pt": [
+        329.5527024696167,
+        79.75178996220416,
+        562.4114848434668,
+        134.38878424888878
+      ]
+    },
+    {
+      "text": "79. Eilsleben. Fdpl. 1. Vosswelle. Mbl. 2098 (3833), S 14,8; W 19,5. Geländesit.: nach S leicht fallendes Gelände.",
+      "html": "<p>79. <i>Eilsleben</i>. Fdpl. 1. Vosswelle. Mbl. 2098 (3833), S 14,8; W 19,5. Geländesit.: nach S leicht fallendes Gelände.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9928455300367028,
+      "status": "ok",
+      "unit": 1,
+      "crop": 2,
+      "bbox_px": [
+        29.855000000000004,
+        228.144,
+        838.499,
+        305.76
+      ],
+      "bbox_pt": [
+        329.490530143656,
+        143.41610866990413,
+        562.2871401915454,
+        166.22094360273866
+      ]
+    },
+    {
+      "text": "FA: Siedl. Bernburger Kultur. Im Bereich der befestigten linienbandkeramischen Siedl. in 2 Bernburger Gruben Scherben der KAK. a) Grube 1/80. Aus Deckschicht über der Grube neben Siedl.abfällen, bandkeramischen und Bernburger Scherben: 1. HaS mit Dreiecken oder Rauten aus punkt-unförmigen Einst.; graubraun; Wdg. 0,5 (Taf. 17,9). 2. Unverz. Umbruchsch. eines wT oder TmhU; schwarz; Wdg. 0,5/0,6 (Taf. 17,7).",
+      "html": "<p>FA: Siedl. Bernburger Kultur. Im Bereich der befestigten linienbandkeramischen Siedl. in 2 Bernburger Gruben Scherben der KAK. a) Grube 1/80. Aus Deckschicht über der Grube neben Siedl.abfällen, bandkeramischen und Bernburger Scherben: 1. HaS mit Dreiecken oder Rauten aus punkt-unförmigen Einst.; graubraun; Wdg. 0,5 (Taf. 17,9). 2. Unverz. Umbruchsch. eines wT oder TmhU; schwarz; Wdg. 0,5/0,6 (Taf. 17,7).</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9928455300367028,
+      "status": "ok",
+      "unit": 1,
+      "crop": 2,
+      "bbox_px": [
+        29.855000000000004,
+        303.408,
+        838.499,
+        602.112
+      ],
+      "bbox_pt": [
+        329.3238553974634,
+        165.0890682299722,
+        562.2448100972742,
+        251.5582218705066
+      ]
+    },
+    {
+      "text": "b) Grube 5/80. Ovale muldenförmige Grube, 2,60 \\times 1,90 \\times 0,25 m; von Bernburger Grube 6/80 überlagert. Inhalt: 1. Wenige bandkeramische und zahlr. Scherben der Bernburger Kultur. 2. RS mit einer Reihe eingeritzter gekreuzter Linien (imitierte Kreuzst.?); schwärzlich; Wdg. 0,6 (Taf. 17,8).",
+      "html": "<p>b) Grube 5/80. Ovale muldenförmige Grube, <math>2,60 \\times 1,90 \\times 0,25</math> m; von Bernburger Grube 6/80 überlagert. Inhalt: 1. Wenige bandkeramische und zahlr. Scherben der Bernburger Kultur. 2. RS mit einer Reihe eingeritzter gekreuzter Linien (imitierte Kreuzst.?); schwärzlich; Wdg. 0,6 (Taf. 17,8).</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9928455300367028,
+      "status": "ok",
+      "unit": 1,
+      "crop": 2,
+      "bbox_px": [
+        29.855000000000004,
+        599.76,
+        838.499,
+        785.5680000000001
+      ],
+      "bbox_pt": [
+        329.2206757926775,
+        250.42634649774016,
+        562.0781353510816,
+        304.3860607981726
+      ]
+    },
+    {
+      "text": "3. Feuersteintrümmer. 4. Gebrannter Lehm. 5. Zahlr. Tierknochen.",
+      "html": "<p>3. Feuersteintrümmer. 4. Gebrannter Lehm. 5. Zahlr. Tierknochen.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9928455300367028,
+      "status": "ok",
+      "unit": 1,
+      "crop": 2,
+      "bbox_px": [
+        29.855000000000004,
+        783.216,
+        838.499,
+        858.48
+      ],
+      "bbox_pt": [
+        329.17966851385233,
+        303.25418542540615,
+        561.9749557462958,
+        325.3817403719886
+      ]
+    },
+    {
+      "text": "LM Halle HK 81:710 i, k und 728 c (für die Genehmigung zur Bekanntgabe sei Dr. D. Kaufmann, Halle, an dieser Stelle herzlichst gedankt).",
+      "html": "<p>LM Halle HK 81:710 i, k und 728 c (für die Genehmigung zur Bekanntgabe sei Dr. D. Kaufmann, Halle, an dieser Stelle herzlichst gedankt).</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9928455300367028,
+      "status": "ok",
+      "unit": 1,
+      "crop": 2,
+      "bbox_px": [
+        29.855000000000004,
+        856.1279999999999,
+        838.499,
+        971.376
+      ],
+      "bbox_pt": [
+        329.11617337244564,
+        324.24986499922204,
+        561.9339484674706,
+        357.8911797120906
+      ]
+    },
+    {
+      "text": "80. Eilsleben. Fdpl. 3. Am Rande des Kalkberges. Mbl. 2098 (3833), S 17,7; W 20,3. Geländesit.: nach O leicht fallendes Gelände.",
+      "html": "<p>80. <i>Eilsleben</i>. Fdpl. 3. Am Rande des Kalkberges. Mbl. 2098 (3833), S 17,7; W 20,3. Geländesit.: nach O leicht fallendes Gelände.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9928455300367028,
+      "status": "ok",
+      "unit": 1,
+      "crop": 2,
+      "bbox_px": [
+        29.855000000000004,
+        1006.656,
+        838.499,
+        1119.552
+      ],
+      "bbox_pt": [
+        329.03283599934935,
+        367.59578411935814,
+        561.8492882789284,
+        400.5598188459746
+      ]
+    },
+    {
+      "text": "FA: G. Versenkte Steinkiste mit Sandsteinplattenpflaster, 1,70 \\times 1,00 m; Orientierung u. Inhalt: Ca. 30 sehr kl. Scherben von mind. 2 verschiedenen Gefäßen: 1. 7 unverz. Scherben eines nicht näher bestimmbaren Gefäßes; braun. 2. Über 20 Scherben eines zweiten Gefäßes, auf 2 Scherben parallele Ritzlinien (Schulterfr. ?) (Taf. 17,6) und auf 3 Scherben Schnurwinkel(?)-linien (Taf. 17,4,5); dunkelgrau. Auf der Brust des Toten angeblich drei Beile bzw. Meißel, zwei erh. 3. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; hellgrau; L. 7,5; Schnbr. 3,2 (Taf. 17,1). 4. Dickn. Feuersteinmeißel; Breitseiten überschliffen; hellgrau dunkel gefleckt; L. 8,5; Schnbr. 2,0 (Taf. 17,2). 5. Fragment von Schweinezahn (Taf. 17,3). 6. In einer Ecke der Kiste wenige Skelettreste eines Individuums; erwachsen (Br.).",
+      "html": "<p>FA: G. Versenkte Steinkiste mit Sandsteinplattenpflaster, <math>1,70 \\times 1,00</math> m; Orientierung u. Inhalt: Ca. 30 sehr kl. Scherben von mind. 2 verschiedenen Gefäßen: 1. 7 unverz. Scherben eines nicht näher bestimmbaren Gefäßes; braun. 2. Über 20 Scherben eines zweiten Gefäßes, auf 2 Scherben parallele Ritzlinien (Schulterfr. ?) (Taf. 17,6) und auf 3 Scherben Schnurwinkel(?)-linien (Taf. 17,4,5); dunkelgrau. Auf der Brust des Toten angeblich drei Beile bzw. Meißel, zwei erh. 3. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; hellgrau; L. 7,5; Schnbr. 3,2 (Taf. 17,1). 4. Dickn. Feuersteinmeißel; Breitseiten überschliffen; hellgrau dunkel gefleckt; L. 8,5; Schnbr. 2,0 (Taf. 17,2). 5. Fragment von Schweinezahn (Taf. 17,3). 6. In einer Ecke der Kiste wenige Skelettreste eines Individuums; erwachsen (Br.).</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9928455300367028,
+      "status": "ok",
+      "unit": 1,
+      "crop": 2,
+      "bbox_px": [
+        29.855000000000004,
+        1117.2,
+        838.499,
+        1639.3439999999998
+      ],
+      "bbox_pt": [
+        328.7404937857894,
+        399.4279434732082,
+        561.7871159529676,
+        550.2386958076945
+      ]
+    },
+    {
+      "text": "Mus. Ummendorf Inv.-Nr. IV 660 a—e. Fischer 1956, S. 150, 294; Behrens 1973, S. 302.",
+      "html": "<p>Mus. Ummendorf Inv.-Nr. IV 660 a—e. Fischer 1956, S. 150, 294; Behrens 1973, S. 302.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9928455300367028,
+      "status": "ok",
+      "unit": 1,
+      "crop": 2,
+      "bbox_px": [
+        29.855000000000004,
+        1634.6399999999999,
+        838.499,
+        1712.2559999999999
+      ],
+      "bbox_pt": [
+        328.6994865069642,
+        548.429540448676,
+        561.4960965548536,
+        571.2343753815105
+      ]
+    },
+    {
+      "text": "Anm.: Steinkiste heute als Schauobjekt auf Parkfriedhof von Eilsleben.",
+      "html": "<p>Anm.: Steinkiste heute als Schauobjekt auf Parkfriedhof von Eilsleben.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9928455300367028,
+      "status": "ok",
+      "unit": 1,
+      "crop": 2,
+      "bbox_px": [
+        29.855000000000004,
+        1709.904,
+        838.499,
+        1785.1680000000001
+      ],
+      "bbox_pt": [
+        328.6584792281391,
+        570.1025000087441,
+        561.4537664605825,
+        592.2300549553266
+      ]
+    },
+    {
+      "text": "81. Hadmersleben. Fdpl. u. Mbl. 2235 (4033) oder 2236 (4034). Geländesit.: am Rande der nach N zur Bode steil abfallenden Hochfläche auf Areal mit geringer Neigung.",
+      "html": "<p>81. <i>Hadmersleben</i>. Fdpl. u. Mbl. 2235 (4033) oder 2236 (4034). Geländesit.: am Rande der nach N zur Bode steil abfallenden Hochfläche auf Areal mit geringer Neigung.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9928455300367028,
+      "status": "ok",
+      "unit": 1,
+      "crop": 2,
+      "bbox_px": [
+        29.855000000000004,
+        1815.7440000000001,
+        838.499,
+        1930.992
+      ],
+      "bbox_pt": [
+        328.57646467048875,
+        600.58009939009,
+        561.3942397655137,
+        634.2214141029582
+      ]
+    },
+    {
+      "text": "FA: EvS. Lesefunde auf Fdpl. der Bernburger und anderer neolithischer Kulturen: 1. RS eines wT mit eingeritzten Rauten; schwarz-grau; Wdg. 0,6/0,7 (Taf. 17,11). 2. HaS eines wT mit Rauten aus Schnurlinien; ockerfarben-braun; Wdg. 0,6/0,7 (Taf. 17,12). 3. HaS eines wT mit eingeritzten Rauten; grau; Wdg. 0,8 (Taf. 17,10).",
+      "html": "<p>FA: EvS. Lesefunde auf Fdpl. der Bernburger und anderer neolithischer Kulturen: 1. RS eines wT mit eingeritzten Rauten; schwarz-grau; Wdg. 0,6/0,7 (Taf. 17,11). 2. HaS eines wT mit Rauten aus Schnurlinien; ockerfarben-braun; Wdg. 0,6/0,7 (Taf. 17,12). 3. HaS eines wT mit eingeritzten Rauten; grau; Wdg. 0,8 (Taf. 17,10).</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9928455300367028,
+      "status": "ok",
+      "unit": 1,
+      "crop": 2,
+      "bbox_px": [
+        29.855000000000004,
+        1926.2879999999998,
+        838.499,
+        2152.08
+      ],
+      "bbox_pt": [
+        328.4521200185673,
+        632.4122587439397,
+        561.3320674395529,
+        697.8857328106582
+      ]
+    },
+    {
+      "text": "Mus. Egeln Inv.-Nr. 2367 und 2418.",
+      "html": "<p>Mus. Egeln Inv.-Nr. 2367 und 2418.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9928455300367028,
+      "status": "ok",
+      "unit": 1,
+      "crop": 2,
+      "bbox_px": [
+        29.855000000000004,
+        2147.376,
+        508.388,
+        2187.36
+      ],
+      "bbox_pt": [
+        328.4322777868777,
+        696.0765774516397,
+        466.19148395590935,
+        707.8593541080468
+      ]
+    },
+    {
+      "text": "Kreis Schönebeck",
+      "html": "<p>Kreis Schönebeck</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9928455300367028,
+      "status": "ok",
+      "unit": 1,
+      "crop": 2,
+      "bbox_px": [
+        29.855000000000004,
+        2222.64,
+        264.43,
+        2260.272
+      ],
+      "bbox_pt": [
+        328.39127050805257,
+        717.7495370117077,
+        395.9304347250166,
+        728.7178878163108
+      ]
+    },
+    {
+      "text": "82. Barby. Fdpl. 2. Kiesgrube am Weinberg. Mbl. 2239 (4037),",
+      "html": "<p>82. <i>Barby</i>. Fdpl. 2. Kiesgrube am Weinberg. Mbl. 2239 (4037),</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9928455300367028,
+      "status": "ok",
+      "unit": 1,
+      "crop": 2,
+      "bbox_px": [
+        29.855000000000004,
+        2295.552,
+        838.499,
+        2337.888
+      ],
+      "bbox_pt": [
+        328.34761759833543,
+        738.7452165855238,
+        561.1243854145353,
+        751.3908517245764
+      ]
+    },
+    {
+      "text": "N ca. 12,0; W ca. 6,0. Geländesit.: Bereich einer flachen Anhöhe.",
+      "html": "<p>N ca. 12,0; W ca. 6,0. Geländesit.: Bereich einer flachen Anhöhe.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9912459705106431,
+      "status": "ok",
+      "unit": 2,
+      "crop": 3,
+      "bbox_px": [
+        12.764999999999999,
+        9.416,
+        816.9599999999999,
+        87.098
+      ],
+      "bbox_pt": [
+        654.460583465086,
+        78.6664074767715,
+        886.0670799339622,
+        101.49267787909321
+      ]
+    },
+    {
+      "text": "FA: G. Flachgr.feld der Bernburger und der KAK. Mehrperiodiger Fdpl. mit zahlr. mittelneolithischen Funden. Aufzeichnungen des Ausgräbers W. Wanckel aus den 30er Jahren verschollen; Verhältnis der einzelnen Funde zueinander teilweise u. Wahrscheinlich spiegeln die Inv.-Nr. der Funde im Mus. Schönebeck indirekt die Reihenfolge ihrer Auffindung bzw. Ausgrabung wider, so daß man unter der Voraussetzung des ständig fortschreitenden Kiesabbaues eine horizontal-stratigraphische Abfolge vermuten kann.",
+      "html": "<p>FA: G. Flachgr.feld der Bernburger und der KAK. Mehrperiodiger Fdpl. mit zahlr. mittelneolithischen Funden. Aufzeichnungen des Ausgräbers W. Wanckel aus den 30er Jahren verschollen; Verhältnis der einzelnen Funde zueinander teilweise u. Wahrscheinlich spiegeln die Inv.-Nr. der Funde im Mus. Schönebeck indirekt die Reihenfolge ihrer Auffindung bzw. Ausgrabung wider, so daß man unter der Voraussetzung des ständig fortschreitenden Kiesabbaues eine horizontal-stratigraphische Abfolge vermuten kann.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9912459705106431,
+      "status": "ok",
+      "unit": 2,
+      "crop": 3,
+      "bbox_px": [
+        12.764999999999999,
+        82.39000000000001,
+        819.5129999999999,
+        416.65799999999996
+      ],
+      "bbox_pt": [
+        654.2751924272113,
+        99.68440705013438,
+        886.7611490522513,
+        196.41411173284155
+      ]
+    },
+    {
+      "text": "a) 2 Flachg. 1934 2 N-S-gerichtete extreme Hocker mit Blick nach O, einer bereits zerstört. Keine Beigaben.",
+      "html": "<p>a) 2 Flachg. 1934 2 N-S-gerichtete extreme Hocker mit Blick nach O, einer bereits zerstört. Keine Beigaben.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9912459705106431,
+      "status": "ok",
+      "unit": 2,
+      "crop": 3,
+      "bbox_px": [
+        12.764999999999999,
+        411.95,
+        819.5129999999999,
+        489.632
+      ],
+      "bbox_pt": [
+        654.2341415545392,
+        194.60440512338607,
+        886.5757580143767,
+        217.43211130620443
+      ]
+    },
+    {
+      "text": "Verschollen (ehemals Mus. Schönebeck).",
+      "html": "<p>Verschollen (ehemals Mus. Schönebeck).</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9912459705106431,
+      "status": "ok",
+      "unit": 2,
+      "crop": 3,
+      "bbox_px": [
+        12.764999999999999,
+        484.924,
+        539.534,
+        527.296
+      ],
+      "bbox_pt": [
+        654.2129540073535,
+        215.62240469674884,
+        805.9165481329497,
+        228.1226538248584
+      ]
+    },
+    {
+      "text": "b) Bernburger Flachg. mit Doppel(?)bestattung. Im Januar 1936 aus zerstörtem G geborgen: 1. T mit großem Bandhe. und ausgespartem Winkelband aus Furchenstichlinien; schwarzgrau; H. 7,2; Wdg. 0,2/0,4 (Taf. 17,13). 2. Feuersteinartefakte. 3. 2 Mahlsteine. 4. Tierknochen. 5. Menschliche Skelettreste, u. a. 2 Schädel.",
+      "html": "<p>b) Bernburger Flachg. mit Doppel(?)bestattung. Im Januar 1936 aus zerstörtem G geborgen: 1. T mit großem Bandhe. und ausgespartem Winkelband aus Furchenstichlinien; schwarzgrau; H. 7,2; Wdg. 0,2/0,4 (Taf. 17,13). 2. Feuersteinartefakte. 3. 2 Mahlsteine. 4. Tierknochen. 5. Menschliche Skelettreste, u. a. 2 Schädel.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9912459705106431,
+      "status": "ok",
+      "unit": 2,
+      "crop": 3,
+      "bbox_px": [
+        12.764999999999999,
+        522.588,
+        819.5129999999999,
+        748.572
+      ],
+      "bbox_pt": [
+        654.0884771676376,
+        226.4704044765491,
+        886.5135195945188,
+        292.01210979233065
+      ]
+    },
+    {
+      "text": "1. Mus. Schönebeck o. Nr.; 2.—5. verschollen.",
+      "html": "<p>1. Mus. Schönebeck o. Nr.; 2.—5. verschollen.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9912459705106431,
+      "status": "ok",
+      "unit": 2,
+      "crop": 3,
+      "bbox_px": [
+        12.764999999999999,
+        741.51,
+        607.6139999999999,
+        786.236
+      ],
+      "bbox_pt": [
+        654.0672896204519,
+        289.52440319663765,
+        825.375407726715,
+        302.74093979089866
+      ]
+    },
+    {
+      "text": "Fundkomplexe c—h vermutlich im März 1936 geborgen.",
+      "html": "<p>Fundkomplexe c—h vermutlich im März 1936 geborgen.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9912459705106431,
+      "status": "ok",
+      "unit": 2,
+      "crop": 3,
+      "bbox_px": [
+        12.764999999999999,
+        779.1740000000001,
+        759.092,
+        821.5459999999999
+      ],
+      "bbox_pt": [
+        654.0474262949654,
+        300.3724029764378,
+        868.9713396432325,
+        312.99612922727
+      ]
+    },
+    {
+      "text": "c) Flachg. der Bernburger Kultur („G 1“). NW(Schädel)-SO-gerichteter Hocker mit Blick nach N. Beigaben: 1. T mit eingeritztem Winkelband unter waag. Linien; hellbraun-grau; H. 7,5; Wdg. 0,3/0,4 (Taf. 17,20). 2. Dunkelgraue RS. 3. Zwei kl. „Tonsäulen“ (Standbeine ?); grau. 4. Dickn. Beil aus Wiedaer Schiefer; L. 10,4; Schnbr. 4,5 (Taf. 17,19). 5. Feuersteinabschlag.",
+      "html": "<p>c) Flachg. der Bernburger Kultur („G 1“). NW(Schädel)-SO-gerichteter Hocker mit Blick nach N. Beigaben: 1. T mit eingeritztem Winkelband unter waag. Linien; hellbraun-grau; H. 7,5; Wdg. 0,3/0,4 (Taf. 17,20). 2. Dunkelgraue RS. 3. Zwei kl. „Tonsäulen“ (Standbeine ?); grau. 4. Dickn. Beil aus Wiedaer Schiefer; L. 10,4; Schnbr. 4,5 (Taf. 17,19). 5. Feuersteinabschlag.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9912459705106431,
+      "status": "ok",
+      "unit": 2,
+      "crop": 3,
+      "bbox_px": [
+        12.764999999999999,
+        816.838,
+        819.5129999999999,
+        1080.486
+      ],
+      "bbox_pt": [
+        653.9017619080639,
+        311.22040275623806,
+        886.3479918821307,
+        387.61010785182
+      ]
+    },
+    {
+      "text": "Mus. Schönebeck Inv.-Nr. 1966 a—d; 2., 3., 5. u. Skelettreste verschollen.",
+      "html": "<p>Mus. Schönebeck Inv.-Nr. 1966 a—d; 2., 3., 5. u. Skelettreste verschollen.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9912459705106431,
+      "status": "ok",
+      "unit": 2,
+      "crop": 3,
+      "bbox_px": [
+        12.764999999999999,
+        1075.778,
+        816.9599999999999,
+        1153.46
+      ],
+      "bbox_pt": [
+        653.8607110353917,
+        385.8004012423643,
+        885.4672075042678,
+        408.62667164468604
+      ]
+    },
+    {
+      "text": "d) Flachg. der Bernburger Kultur („G 2“). NW(Schädel)-SO-gerichteter Hocker mit Blick nach N. Beigaben: 1. Unverz. T; graubraun; H. 9,3; Wdg. 0,4/0,5 (Taf. 17,17). 2. Unverz. Sch mit eingezogenem Boden und zweifach senkr. durchb. Grifflappen; rötlich-braun; H. 8,5; Wdg. 0,6 (Taf. 17,18). 3. Dickn. Beil aus Wiedaer Schiefer; L. 10,5; Schnbr. 4,7 (Taf. 17,16). 4. Querschneider (Taf. 17,15). 5. 3 Feuersteinabschläge. 6. Geweihspitze Typ Ostorf; L. 17,7 (Taf. 17,30); Rothirsch (Dö.). 7. In der Mitte durchb. Knebel mit Punktreihen auf der Oberseite; L. 10,3 (Taf. 17,14); wahrscheinlich Geweih (Dö.). 8. Stück Pech.",
+      "html": "<p>d) Flachg. der Bernburger Kultur („G 2“). NW(Schädel)-SO-gerichteter Hocker mit Blick nach N. Beigaben: 1. Unverz. T; graubraun; H. 9,3; Wdg. 0,4/0,5 (Taf. 17,17). 2. Unverz. Sch mit eingezogenem Boden und zweifach senkr. durchb. Grifflappen; rötlich-braun; H. 8,5; Wdg. 0,6 (Taf. 17,18). 3. Dickn. Beil aus Wiedaer Schiefer; L. 10,5; Schnbr. 4,7 (Taf. 17,16). 4. Querschneider (Taf. 17,15). 5. 3 Feuersteinabschläge. 6. Geweihspitze Typ Ostorf; L. 17,7 (Taf. 17,30); Rothirsch (Dö.). 7. In der Mitte durchb. Knebel mit Punktreihen auf der Oberseite; L. 10,3 (Taf. 17,14); wahrscheinlich Geweih (Dö.). 8. Stück Pech.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9912459705106431,
+      "status": "ok",
+      "unit": 2,
+      "crop": 3,
+      "bbox_px": [
+        12.764999999999999,
+        1148.752,
+        819.5129999999999,
+        1560.702
+      ],
+      "bbox_pt": [
+        653.6316206814465,
+        406.8184008157271,
+        886.1612766225569,
+        525.9221050442724
+      ]
+    },
+    {
+      "text": "Mus. Schönebeck Inv.-Nr. 1967 a—f (Skelettreste verschollen).",
+      "html": "<p>Mus. Schönebeck Inv.-Nr. 1967 a—f (Skelettreste verschollen).</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9912459705106431,
+      "status": "ok",
+      "unit": 2,
+      "crop": 3,
+      "bbox_px": [
+        12.764999999999999,
+        1555.9940000000001,
+        816.9599999999999,
+        1600.72
+      ],
+      "bbox_pt": [
+        653.6091089125617,
+        524.1123984348167,
+        885.1970662776505,
+        537.4466690298132
+      ]
+    },
+    {
+      "text": "e) Flachg. der Bernburger Kultur (?) („G 3“). Unklarer Befund; NW-SO-gerichtete Bestattung; Hocker ?; Keramik ?; Beigaben: 1. Dickn. Beil aus Wiedaer Schiefer; L. 10,9; Schnbr. 5,6 (Taf. 17,27). 2. 2 Feuersteinklingen; grau; L. 7,1 und 4,6 (Taf. 17,21,28). 3. Klingenartiger und 4 sonstige Feuersteinabschläge. 4. 5 Querschneider; grau (Taf. 17,22—26).",
+      "html": "<p>e) Flachg. der Bernburger Kultur (?) („G 3“). Unklarer Befund; NW-SO-gerichtete Bestattung; Hocker ?; Keramik ?; Beigaben: 1. Dickn. Beil aus Wiedaer Schiefer; L. 10,9; Schnbr. 5,6 (Taf. 17,27). 2. 2 Feuersteinklingen; grau; L. 7,1 und 4,6 (Taf. 17,21,28). 3. Klingenartiger und 4 sonstige Feuersteinabschläge. 4. 5 Querschneider; grau (Taf. 17,22—26).</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9912459705106431,
+      "status": "ok",
+      "unit": 2,
+      "crop": 3,
+      "bbox_px": [
+        12.764999999999999,
+        1596.0120000000002,
+        819.5129999999999,
+        1734.898
+      ],
+      "bbox_pt": [
+        653.5336282757128,
+        535.6383982008545,
+        885.9096744997271,
+        576.0941040258482
+      ]
+    },
+    {
+      "text": "5. Ovale Kieselscheibe, 5,8 × 4,8 cm und gebogenes fingerdickes Feuersteinstück; L. 10,2 (Behrens 1981 a, Abb. 1,3 — Feuersteinschlagbesteck ?). 6. Ausgebrochene Geweihspitze Typ Ostorf; erh. L. 18,2 (Taf. 17,29); Rothirsch (Dö.).",
+      "html": "<p>5. Ovale Kieselscheibe, 5,8 × 4,8 cm und gebogenes fingerdickes Feuersteinstück; L. 10,2 (Behrens 1981 a, Abb. 1,3 — Feuersteinschlagbesteck ?). 6. Ausgebrochene Geweihspitze Typ Ostorf; erh. L. 18,2 (Taf. 17,29); Rothirsch (Dö.).</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9912459705106431,
+      "status": "ok",
+      "unit": 2,
+      "crop": 3,
+      "bbox_px": [
+        12.764999999999999,
+        1730.19,
+        819.5129999999999,
+        1970.298
+      ],
+      "bbox_pt": [
+        653.4012061058023,
+        574.2843974163925,
+        885.8341938628781,
+        643.8941026495993
+      ]
+    },
+    {
+      "text": "Mus. Schönebeck Inv.-Nr. 1968 a—e (Skelettreste verschollen).",
+      "html": "<p>Mus. Schönebeck Inv.-Nr. 1968 a—e (Skelettreste verschollen).</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9912459705106431,
+      "status": "ok",
+      "unit": 2,
+      "crop": 3,
+      "bbox_px": [
+        12.764999999999999,
+        1963.2359999999999,
+        816.9599999999999,
+        2007.962
+      ],
+      "bbox_pt": [
+        653.3800185586166,
+        641.4063960539062,
+        884.9679759237054,
+        654.7406666489028
+      ]
+    },
+    {
+      "text": "Anm.: W. Wanckel erwähnt (OA Barby im LM Halle), daß in einem G eine gestreckte Bestattung lag; Angabe könnte sich auf dieses G beziehen.",
+      "html": "<p>Anm.: W. Wanckel erwähnt (OA Barby im LM Halle), daß in einem G eine gestreckte Bestattung lag; Angabe könnte sich auf dieses G beziehen.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9912459705106431,
+      "status": "ok",
+      "unit": 2,
+      "crop": 3,
+      "bbox_px": [
+        12.764999999999999,
+        2000.8999999999999,
+        819.5129999999999,
+        2116.246
+      ],
+      "bbox_pt": [
+        653.3191043604578,
+        652.2543958337064,
+        885.681908367481,
+        685.9301017963251
+      ]
+    },
+    {
+      "text": "f) Flachg. der Bernburger Kultur („G 4“). NW(Schädel)-SO-gerichteter Hocker, Blick N, Beigaben: 1. Tonnengefäß mit Tannenzweigmuster; braun-grau; H. 6,8; Wdg. 0,4/0,5 (Taf. 18,1). 2. Unverz. Sch mit Rest von zweifach durchb. Grifflappen; rötlich-braun-grau; H. 7,4; Wdg. 0,6/0,7 (Taf. 18,2). 3. Dickn. Beil aus Wiedaer Schiefer mit abgebro-",
+      "html": "<p>f) Flachg. der Bernburger Kultur („G 4“). NW(Schädel)-SO-gerichteter Hocker, Blick N, Beigaben: 1. Tonnengefäß mit Tannenzweigmuster; braun-grau; H. 6,8; Wdg. 0,4/0,5 (Taf. 18,1). 2. Unverz. Sch mit Rest von zweifach durchb. Grifflappen; rötlich-braun-grau; H. 7,4; Wdg. 0,6/0,7 (Taf. 18,2). 3. Dickn. Beil aus Wiedaer Schiefer mit abgebro-</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9912459705106431,
+      "status": "ok",
+      "unit": 2,
+      "crop": 3,
+      "bbox_px": [
+        12.764999999999999,
+        2109.184,
+        819.5129999999999,
+        2342.23
+      ],
+      "bbox_pt": [
+        653.1919790773438,
+        683.4423952006321,
+        885.6209941693222,
+        751.0181004751263
+      ]
+    },
+    {
+      "text": "103",
+      "html": "103",
+      "markdown": null,
+      "label": "PageHeader",
+      "confidence": 0.9952770739116479,
+      "status": "ok",
+      "unit": 2,
+      "crop": 4,
+      "bbox_px": [
+        774.524,
+        2.435,
+        838.499,
+        46.265
+      ],
+      "bbox_pt": [
+        1111.1239675357165,
+        54.02747362092043,
+        1129.5806217389916,
+        66.68651334580363
+      ]
+    },
+    {
+      "text": "chenem Nacken; erh. L. 6,9; Schnbr. 4,3 (Taf. 18,5). 4. 4 Feuersteinklingen; grau; L. 8,5—3,8 (Taf. 18,7—9). 5. Querschneider; grau (Taf. 18,10); Fragment eines Querschneiders; grau. 6. 10 klingenartige Feuersteinabschläge; grau-dunkelgrau; L. 4,5—9,8 und 6 atypische -abschläge; grau-dunkelgrau. 7. 2 längl. an einer Seite zugespitzte Knocheninstrumente (Ahlen?); Metatarsus von Reh (Dö.); L. 13,4 (Taf. 18,3) und 1 Vogelknochen (Dö.); L. 10,3 (Taf. 18,4). 8. Fragment eines nadelartigen Gerätes (?) mit doppelter Durchb. an einem Ende und Punktreihen auf der leicht gewölbten Oberseite; L. 9,6 (Taf. 18,6); wahrscheinlich Geweih (Dö.). 9. Großer Eberhauer; Abstand zwischen den Enden 12,5 (Taf. 18,11); Wildschwein (Dö.) und Unterkiefer eines größeren Säugetieres.",
+      "html": "<p>chenem Nacken; erh. L. 6,9; Schnbr. 4,3 (Taf. 18,5). 4. 4 Feuersteinklingen; grau; L. 8,5—3,8 (Taf. 18,7—9). 5. Querschneider; grau (Taf. 18,10); Fragment eines Querschneiders; grau. 6. 10 klingenartige Feuersteinabschläge; grau-dunkelgrau; L. 4,5—9,8 und 6 atypische -abschläge; grau-dunkelgrau. 7. 2 längl. an einer Seite zugespitzte Knocheninstrumente (Ahlen?); Metatarsus von Reh (Dö.); L. 13,4 (Taf. 18,3) und 1 Vogelknochen (Dö.); L. 10,3 (Taf. 18,4). 8. Fragment eines nadelartigen Gerätes (?) mit doppelter Durchb. an einem Ende und Punktreihen auf der leicht gewölbten Oberseite; L. 9,6 (Taf. 18,6); wahrscheinlich Geweih (Dö.). 9. Großer Eberhauer; Abstand zwischen den Enden 12,5 (Taf. 18,11); Wildschwein (Dö.) und Unterkiefer eines größeren Säugetieres.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9952770739116479,
+      "status": "ok",
+      "unit": 2,
+      "crop": 4,
+      "bbox_px": [
+        29.855000000000004,
+        85.22500000000001,
+        838.499,
+        606.315
+      ],
+      "bbox_pt": [
+        896.2604613471261,
+        77.45195335676169,
+        1129.5340522602792,
+        227.98091007174423
+      ]
+    },
+    {
+      "text": "Mus. Schönebeck Inv.-Nr. 1969 b—g und 2208 = 1969 a; Skelettreste und der tierische Unterkiefer verschollen.",
+      "html": "<p>Mus. Schönebeck Inv.-Nr. 1969 b—g und 2208 = 1969 a; Skelettreste und der tierische Unterkiefer verschollen.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9952770739116479,
+      "status": "ok",
+      "unit": 2,
+      "crop": 4,
+      "bbox_px": [
+        29.855000000000004,
+        606.315,
+        838.499,
+        681.8000000000001
+      ],
+      "bbox_pt": [
+        896.2180009400647,
+        227.525870310463,
+        1129.240938482501,
+        249.72058963045788
+      ]
+    },
+    {
+      "text": "g) Flachg. der Bernburger Kultur (?) („G 5“). NW(Schädel)-SO-gerichteter Hocker, Blick N. Beigaben: 1. RS mit Winkelband; rötlich-braun-grau. 2. Dickn. Beil aus Wiedaer Schiefer; L. 8,4; Schnbr. 4,6 (Taf. 18,13). 3. Feuersteinklingenfragment; dunkelgrau; L. 5,0 (Taf. 18,12). 4. 5 klingenartige Feuersteinabschläge; L. 2,8—4,5; 2 atypische Feuersteinabschläge und 2 längl. unbearbeitete Feuersteinstücke; grau; L. 7,4 und 6,0. 5. 9 durchb. Tierzähne. 6. Stück Pech.",
+      "html": "<p>g) Flachg. der Bernburger Kultur (?) („G 5“). NW(Schädel)-SO-gerichteter Hocker, Blick N. Beigaben: 1. RS mit Winkelband; rötlich-braun-grau. 2. Dickn. Beil aus Wiedaer Schiefer; L. 8,4; Schnbr. 4,6 (Taf. 18,13). 3. Feuersteinklingenfragment; dunkelgrau; L. 5,0 (Taf. 18,12). 4. 5 klingenartige Feuersteinabschläge; L. 2,8—4,5; 2 atypische Feuersteinabschläge und 2 längl. unbearbeitete Feuersteinstücke; grau; L. 7,4 und 6,0. 5. 9 durchb. Tierzähne. 6. Stück Pech.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9952770739116479,
+      "status": "ok",
+      "unit": 2,
+      "crop": 4,
+      "bbox_px": [
+        29.855000000000004,
+        679.365,
+        838.499,
+        974.0
+      ],
+      "bbox_pt": [
+        896.0536380740208,
+        248.56426988341184,
+        1129.19984776599,
+        333.87418792225316
+      ]
+    },
+    {
+      "text": "Mus. Schönebeck Inv.-Nr. 1972 a—d; 1., 5. u. Skelettreste verschollen.",
+      "html": "<p>Mus. Schönebeck Inv.-Nr. 1972 a—d; 1., 5. u. Skelettreste verschollen.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9952770739116479,
+      "status": "ok",
+      "unit": 2,
+      "crop": 4,
+      "bbox_px": [
+        29.855000000000004,
+        974.0,
+        838.499,
+        1049.485
+      ],
+      "bbox_pt": [
+        896.0111776669595,
+        333.41914816097193,
+        1129.0341152093956,
+        355.6138674809667
+      ]
+    },
+    {
+      "text": "h) Flachg. der Bernburger Kultur („G 6“). NW(Schädel)-SO-gerichteter Hocker, Blick N. Beigaben: 1. Unverz. Sch mit 3 nebenst. knubbenartigen Fortsätzen; hellbraun-rötlich; H. 10,5; Wdg. 0,7/0,8 (Taf. 17,33). 2. Unverz. Sch; hellbraun-rötlich-grau; H. 8,0; Wdg. 0,7 (Taf. 17,34). 3. Kl. dickn. Beil aus Sandstein; dechselartiger Längsschnitt; gelblich mit braunen Einlagen; L. 5,1; Schnbr. 3,2 (Taf. 17,32). 4. In der Mitte durchb. Knebel mit Punkten auf der Oberseite; L. 13,0 (Taf. 17,31); wahrscheinlich Geweih (Dö.).",
+      "html": "<p>h) Flachg. der Bernburger Kultur („G 6“). NW(Schädel)-SO-gerichteter Hocker, Blick N. Beigaben: 1. Unverz. Sch mit 3 nebenst. knubbenartigen Fortsätzen; hellbraun-rötlich; H. 10,5; Wdg. 0,7/0,8 (Taf. 17,33). 2. Unverz. Sch; hellbraun-rötlich-grau; H. 8,0; Wdg. 0,7 (Taf. 17,34). 3. Kl. dickn. Beil aus Sandstein; dechselartiger Längsschnitt; gelblich mit braunen Einlagen; L. 5,1; Schnbr. 3,2 (Taf. 17,32). 4. In der Mitte durchb. Knebel mit Punkten auf der Oberseite; L. 13,0 (Taf. 17,31); wahrscheinlich Geweih (Dö.).</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9952770739116479,
+      "status": "ok",
+      "unit": 2,
+      "crop": 4,
+      "bbox_px": [
+        29.855000000000004,
+        1049.485,
+        838.499,
+        1385.5149999999999
+      ],
+      "bbox_pt": [
+        895.822160371009,
+        355.15882771968546,
+        1128.9916548023343,
+        452.39050551653105
+      ]
+    },
+    {
+      "text": "Mus. Schönebeck Inv.-Nr. 1973 a, c—e und 2005 = 1973 b; Skelettreste verschollen.",
+      "html": "<p>Mus. Schönebeck Inv.-Nr. 1973 a, c—e und 2005 = 1973 b; Skelettreste verschollen.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9952770739116479,
+      "status": "ok",
+      "unit": 2,
+      "crop": 4,
+      "bbox_px": [
+        29.855000000000004,
+        1383.08,
+        838.499,
+        1458.565
+      ],
+      "bbox_pt": [
+        895.781069654498,
+        451.23418576948495,
+        1128.8040071969342,
+        473.42890508947994
+      ]
+    },
+    {
+      "text": "Anm.: Ob in der unter 2. beschriebenen Schale sich befindende Lehmbewurfreste primär zugehörig sind, ist unklar.",
+      "html": "<p>Anm.: Ob in der unter 2. beschriebenen Schale sich befindende Lehmbewurfreste primär zugehörig sind, ist unklar.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9952770739116479,
+      "status": "ok",
+      "unit": 2,
+      "crop": 4,
+      "bbox_px": [
+        29.855000000000004,
+        1458.565,
+        838.499,
+        1531.615
+      ],
+      "bbox_pt": [
+        895.7399789379871,
+        472.9738653281987,
+        1128.761546789873,
+        494.4673046624287
+      ]
+    },
+    {
+      "text": "Die Fundkomplexe i und j im April und Mai 1936 geborgen.",
+      "html": "<p>Die Fundkomplexe i und j im April und Mai 1936 geborgen.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9952770739116479,
+      "status": "ok",
+      "unit": 2,
+      "crop": 4,
+      "bbox_px": [
+        29.855000000000004,
+        1531.615,
+        838.499,
+        1570.575
+      ],
+      "bbox_pt": [
+        895.7180638891812,
+        494.0122649011475,
+        1128.720456073362,
+        505.6877844346682
+      ]
+    },
+    {
+      "text": "i) Flachg. der Bernburger Kultur (?) („G 7“). Teilbestattung. Becken auf den unteren Extremitätenknochen, in diesem ruhte der Schädel. Wirbelsäule und obere Extremitäten fehlten. Einige kl. Scherben der Bernburger Kultur und unter dem Grab im Sand „einige Brandreste von Knochen (Mensch?)“ (Wanckel, OA Barby im LM Halle). Keine weiteren Beigaben.",
+      "html": "<p>i) Flachg. der Bernburger Kultur (?) („G 7“). Teilbestattung. Becken auf den unteren Extremitätenknochen, in diesem ruhte der Schädel. Wirbelsäule und obere Extremitäten fehlten. Einige kl. Scherben der Bernburger Kultur und unter dem Grab im Sand „einige Brandreste von Knochen (Mensch?)“ (Wanckel, OA Barby im LM Halle). Keine weiteren Beigaben.</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9952770739116479,
+      "status": "ok",
+      "unit": 2,
+      "crop": 4,
+      "bbox_px": [
+        29.855000000000004,
+        1570.575,
+        838.499,
+        1826.25
+      ],
+      "bbox_pt": [
+        895.5742463813928,
+        505.23274467338695,
+        1128.698541024556,
+        579.3221829399888
+      ]
+    },
+    {
+      "text": "Verschollen (ehemals Mus. Schönebeck).",
+      "html": "<p>Verschollen (ehemals Mus. Schönebeck).</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9952770739116479,
+      "status": "ok",
+      "unit": 2,
+      "crop": 4,
+      "bbox_px": [
+        29.855000000000004,
+        1826.25,
+        566.392,
+        1865.21
+      ],
+      "bbox_pt": [
+        895.5523313325868,
+        578.8671431787075,
+        1050.1572844807076,
+        590.3895427925565
+      ]
+    },
+    {
+      "text": "j) Flachg. der KAK („G 8“). Bestattung in Bauchlage mit abnorm nach links verdrehtem Schädel; im Bereich der unteren Extremitäten gestört. Beigaben: 1. „Neben dem Grab“ eine KA; am Hals gestempelte Rauten, auf Schulter punktförmige längl. Einst.; grau-braun; H. 33,5; Wdg. 0,5/0,6; HBI 0,97 (Taf. 19,6). Rechts hinter Schädel: 2. Zerscherbt niedergelegte (?) unverz. KA; dunkelbraun; H. 15,4; Wdg. 0,6; HBI 1,11 (Taf. 19,2). 3. Zerscherbt niedergelegter (?) wT; am Hals unter Einst.reihe eingeritzte Rauten und auf Schulter Fr. aus Meißelst.; rötlich-braun; H. 24,5; Wdg. 0,6; HBI 1,02 (Taf. 19,1). 4. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; dunkelgrau; L. 10,2; Schnbr. 5,3 (Taf. 19,5). 5. Zwischen dem Schädel und den Gefäßen ein auf der rechten Seite liegender Schweineunterkiefer sowie ein längsgespaltener Eberzahn; Abstand zwischen den Enden: 10,0 (Taf. 19,3);",
+      "html": "<p>j) Flachg. der KAK („G 8“). Bestattung in Bauchlage mit abnorm nach links verdrehtem Schädel; im Bereich der unteren Extremitäten gestört. Beigaben: 1. „Neben dem Grab“ eine KA; am Hals gestempelte Rauten, auf Schulter punktförmige längl. Einst.; grau-braun; H. 33,5; Wdg. 0,5/0,6; HBI 0,97 (Taf. 19,6). Rechts hinter Schädel: 2. Zerscherbt niedergelegte (?) unverz. KA; dunkelbraun; H. 15,4; Wdg. 0,6; HBI 1,11 (Taf. 19,2). 3. Zerscherbt niedergelegter (?) wT; am Hals unter Einst.reihe eingeritzte Rauten und auf Schulter Fr. aus Meißelst.; rötlich-braun; H. 24,5; Wdg. 0,6; HBI 1,02 (Taf. 19,1). 4. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; dunkelgrau; L. 10,2; Schnbr. 5,3 (Taf. 19,5). 5. Zwischen dem Schädel und den Gefäßen ein auf der rechten Seite liegender Schweineunterkiefer sowie ein längsgespaltener Eberzahn; Abstand zwischen den Enden: 10,0 (Taf. 19,3);</p>",
+      "markdown": null,
+      "label": "Text",
+      "confidence": 0.9952770739116479,
+      "status": "ok",
+      "unit": 2,
+      "crop": 4,
+      "bbox_px": [
+        29.855000000000004,
+        1865.21,
+        838.499,
+        2420.39
+      ],
+      "bbox_pt": [
+        895.2400418871035,
+        590.087622950947,
+        1128.5328084679618,
+        750.4344994666386
+      ]
+    }
+  ],
+  "markdown": "102\n\nKreis Wanzleben\n\n76. *Ampfurth* , OT Schermcke. Fdpl. zwischen Sauren Holz und Schermcker Park. Mbl. 2165 (3933), N 13,5; O 16,0 (Mitte des Fundgebietes). Geländesit.: nach SO fallender spornartiger Hang.\n\nFA: G. Angaben zum Bau unklar; eventuell Steinkiste, denn nach einem Gutachten von W. Schulz (OA Schermcke des LM Halle) wird die Bergung von zu dem G gehörigen Steinplatten angeregt. Neben nicht aufbewahrten Skelettresten („der Geschiebeführer Adomheit in Schermcke, ..., spricht von großen, starken Knochen\"; Schimmel 1932, S. 15). Folg. Funde: 1. KA mit gekehltem He.; am Hals, netzartiges Muster aus durch kl. längl. Einst. imitierten Schnurlinien und auf Schulter unter Einst. reihe Fr. gruppen aus imitierten Schnurlinien; begrenzt von imitierter Winkelschnurlinie; dunkelgrau; H. 18,2; Wdg. 0,5/0,6; HBI 1,10 (Taf. 16,25). 2. Gefäß u. Form (zerschlagen). 3. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; dunkelgrau mit hellen Flecken; L. 13,2; Schnbr. 6,4 (Taf. 16,27). 4. dickn. dünnbl. Feuersteinbeil mit spitz zulaufendem Nacken; Breitseiten überschliffen; grau mit hellen Flecken; L. 11,8; Schnbr. 3,4 (Taf. 16,26).\n\n1. Mus. Magdeburg Inv.-Nr. 79:43 b; 3. und 4. Mus. Ummendorf Inv.-Nr. IV 199 c, d. 2. u. Schimmel 1932, S. 15 f., Abb. 10; Priebe 1938, S. 72, Taf. VII a; Fischer 1956, S. 295; Behrens 1973, S. 304.\n\n77. *Bahrendorf* , OT Stemmern. Fdpl. 2. Gemeindesandgrube. Mbl. 2167 (3935), S 0,7; W 20,3-20,7. Geländesit.: eben.\n\nFA: Brandg. 45 (Abb. 7,2). Am Rand eines Baalberger und frühbronzezeitl. G. feldes langovale Grube, 2,20 \\times 0,93 \\times 0,80 m Gr.; NW-SO. Inhalt: Brandschüttung mit Beigaben.\n\n1. An der westl. Längswand fast in der Mitte T mit leicht abgeplattetem Boden und drei Winkel-Bodenst. reihen auf der Schulter; dunkelgrau-rötlich-gelb gefleckt; H. 12,4; Wdg. 0,5; HBI 0,83 (Taf. 16,18). Folg. Funde teils mit LBR vermischt regellos in Grube: 2. 3 graue Feuersteinklingen; L. 4,3-7,4 (Taf. 16,19-21) und weißer Feuersteinabschlag; L. 2,7 (Taf. 16,22). 3. Ovale Bernsteinperle mit y-Bohrung; L. 2,0 (Taf. 16,16), 2 röhrenförmige Bernsteinperlen; L. 1,6 und 1,4 (Taf. 16,14,15) sowie Fragmente von 7 weiteren. 4. Stark korrodiertes Kalkröhrchen; L. 1,0 (Nowak 1963, Abb. 3). 3 durchb. Muschelscheiben; Dm. 0,7 (Taf. 16,11-13) und durch Hitze deformierte Reste einer Muschelplatte mit eingeritzten Winkellinien (Taf. 16,17). 5. 4 durchb. Tierzähne (Taf. 16,7-10). 6. Durch Hitze deformiertes Knochenfragment mit abgerundeter Spitze (Nowak 1963, Abb. 3) und verwitterter Röhrenknochen eines Tieres. 7. Im SO vom G 0,40 m über Sohle 0,35 m langer Muschelkalkblock (primär?). 8. Über Grube verteilt mit Konzentration im SO nahe der Grabmitte 1237,3 g LBR eines Individuums; erwachsen; zwischen 20 und 50 Jahre; eher weiblich als männlich (Br.).\n\nMus. Ummendorf Inv.-Nr. IV 2200 a-m. Nowak 1963, S. 28 ff., Abb. 1-3; Voigt 1963, S. 229 (unter Glockenbecherkultur); Behrens 1973, S. 124, Abb. 48 e-k; Müller 1976, S. 219.\n\n78. *Druxberge* . Fdpl. 4. Heinrichsberg. Mbl. 2098 (3833), N 14,7; O 7,7. Geländesit.: flache Anhöhe.\n\nFA: Zerstörtes Brand(?)grab. Innerhalb von früheisenzeitl. G. feld und kaiserzeitlicher Siedl. folg. Funde zusammenliegend: 1. Halb erh. Sch; am Hals ausgespartes Rautenband aus Bogenst. und auf Umbug unter Kerbreihe eingeritzte Drei-\n\necke; dunkelgrau hell gefleckt; H. 9,5; Wdg. 0,5; HBI 0,63 (Taf. 16,23). 2. Dickn. dünnbl. Feuersteinbeil; nur Schneide überschliffen; grau gefleckt; L. 10,8; Schnbr. 4,5 (Taf. 16,24). 3. 5,3 g LBR; unbestimmbar (Br.).  \nMus. Ummendorf Inv.-Nr. IV 1476 a-c.\n\n79. *Eilsleben* . Fdpl. 1. Vosswelle. Mbl. 2098 (3833), S 14,8; W 19,5. Geländesit.: nach S leicht fallendes Gelände.\n\nFA: Siedl. Bernburger Kultur. Im Bereich der befestigten linienbandkeramischen Siedl. in 2 Bernburger Gruben Scherben der KAK. a) Grube 1/80. Aus Deckschicht über der Grube neben Siedl.abfällen, bandkeramischen und Bernburger Scherben: 1. HaS mit Dreiecken oder Rauten aus punkt-unförmigen Einst.; graubraun; Wdg. 0,5 (Taf. 17,9). 2. Unverz. Umbruchsch. eines wT oder TmhU; schwarz; Wdg. 0,5/0,6 (Taf. 17,7).\n\nb) Grube 5/80. Ovale muldenförmige Grube, 2,60 \\times 1,90 \\times 0,25 m; von Bernburger Grube 6/80 überlagert. Inhalt: 1. Wenige bandkeramische und zahlr. Scherben der Bernburger Kultur. 2. RS mit einer Reihe eingeritzter gekreuzter Linien (imitierte Kreuzst.?); schwärzlich; Wdg. 0,6 (Taf. 17,8).\n\n3. Feuersteintrümmer. 4. Gebrannter Lehm. 5. Zahlr. Tierknochen.\n\nLM Halle HK 81:710 i, k und 728 c (für die Genehmigung zur Bekanntgabe sei Dr. D. Kaufmann, Halle, an dieser Stelle herzlichst gedankt).\n\n80. *Eilsleben* . Fdpl. 3. Am Rande des Kalkberges. Mbl. 2098 (3833), S 17,7; W 20,3. Geländesit.: nach O leicht fallendes Gelände.\n\nFA: G. Versenkte Steinkiste mit Sandsteinplattenpflaster, 1,70 \\times 1,00 m; Orientierung u. Inhalt: Ca. 30 sehr kl. Scherben von mind. 2 verschiedenen Gefäßen: 1. 7 unverz. Scherben eines nicht näher bestimmbaren Gefäßes; braun. 2. Über 20 Scherben eines zweiten Gefäßes, auf 2 Scherben parallele Ritzlinien (Schulterfr. ?) (Taf. 17,6) und auf 3 Scherben Schnurwinkel(?)-linien (Taf. 17,4,5); dunkelgrau. Auf der Brust des Toten angeblich drei Beile bzw. Meißel, zwei erh. 3. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; hellgrau; L. 7,5; Schnbr. 3,2 (Taf. 17,1). 4. Dickn. Feuersteinmeißel; Breitseiten überschliffen; hellgrau dunkel gefleckt; L. 8,5; Schnbr. 2,0 (Taf. 17,2). 5. Fragment von Schweinezahn (Taf. 17,3). 6. In einer Ecke der Kiste wenige Skelettreste eines Individuums; erwachsen (Br.).\n\nMus. Ummendorf Inv.-Nr. IV 660 a-e. Fischer 1956, S. 150, 294; Behrens 1973, S. 302.\n\nAnm.: Steinkiste heute als Schauobjekt auf Parkfriedhof von Eilsleben.\n\n81. *Hadmersleben* . Fdpl. u. Mbl. 2235 (4033) oder 2236 (4034). Geländesit.: am Rande der nach N zur Bode steil abfallenden Hochfläche auf Areal mit geringer Neigung.\n\nFA: EvS. Lesefunde auf Fdpl. der Bernburger und anderer neolithischer Kulturen: 1. RS eines wT mit eingeritzten Rauten; schwarz-grau; Wdg. 0,6/0,7 (Taf. 17,11). 2. HaS eines wT mit Rauten aus Schnurlinien; ockerfarben-braun; Wdg. 0,6/0,7 (Taf. 17,12). 3. HaS eines wT mit eingeritzten Rauten; grau; Wdg. 0,8 (Taf. 17,10).\n\nMus. Egeln Inv.-Nr. 2367 und 2418.\n\nKreis Schönebeck\n\n82. *Barby* . Fdpl. 2. Kiesgrube am Weinberg. Mbl. 2239 (4037),\n\nN ca. 12,0; W ca. 6,0. Geländesit.: Bereich einer flachen Anhöhe.\n\nFA: G. Flachgr.feld der Bernburger und der KAK. Mehrperiodiger Fdpl. mit zahlr. mittelneolithischen Funden. Aufzeichnungen des Ausgräbers W. Wanckel aus den 30er Jahren verschollen; Verhältnis der einzelnen Funde zueinander teilweise u. Wahrscheinlich spiegeln die Inv.-Nr. der Funde im Mus. Schönebeck indirekt die Reihenfolge ihrer Auffindung bzw. Ausgrabung wider, so daß man unter der Voraussetzung des ständig fortschreitenden Kiesabbaues eine horizontal-stratigraphische Abfolge vermuten kann.\n\na) 2 Flachg. 1934 2 N-S-gerichtete extreme Hocker mit Blick nach O, einer bereits zerstört. Keine Beigaben.\n\nVerschollen (ehemals Mus. Schönebeck).\n\nb) Bernburger Flachg. mit Doppel(?)bestattung. Im Januar 1936 aus zerstörtem G geborgen: 1. T mit großem Bandhe. und ausgespartem Winkelband aus Furchenstichlinien; schwarzgrau; H. 7,2; Wdg. 0,2/0,4 (Taf. 17,13). 2. Feuersteinartefakte. 3. 2 Mahlsteine. 4. Tierknochen. 5. Menschliche Skelettreste, u. a. 2 Schädel.\n\n1. Mus. Schönebeck o. Nr.; 2.-5. verschollen.\n\nFundkomplexe c-h vermutlich im März 1936 geborgen.\n\nc) Flachg. der Bernburger Kultur („G 1\"). NW(Schädel)-SO-gerichteter Hocker mit Blick nach N. Beigaben: 1. T mit eingeritztem Winkelband unter waag. Linien; hellbraun-grau; H. 7,5; Wdg. 0,3/0,4 (Taf. 17,20). 2. Dunkelgraue RS. 3. Zwei kl. „Tonsäulen\" (Standbeine ?); grau. 4. Dickn. Beil aus Wiedaer Schiefer; L. 10,4; Schnbr. 4,5 (Taf. 17,19). 5. Feuersteinabschlag.\n\nMus. Schönebeck Inv.-Nr. 1966 a-d; 2., 3., 5. u. Skelettreste verschollen.\n\nd) Flachg. der Bernburger Kultur („G 2\"). NW(Schädel)-SO-gerichteter Hocker mit Blick nach N. Beigaben: 1. Unverz. T; graubraun; H. 9,3; Wdg. 0,4/0,5 (Taf. 17,17). 2. Unverz. Sch mit eingezogenem Boden und zweifach senkr. durchb. Grifflappen; rötlich-braun; H. 8,5; Wdg. 0,6 (Taf. 17,18). 3. Dickn. Beil aus Wiedaer Schiefer; L. 10,5; Schnbr. 4,7 (Taf. 17,16). 4. Querschneider (Taf. 17,15). 5. 3 Feuersteinabschläge. 6. Geweihspitze Typ Ostorf; L. 17,7 (Taf. 17,30); Rothirsch (Dö.). 7. In der Mitte durchb. Knebel mit Punktreihen auf der Oberseite; L. 10,3 (Taf. 17,14); wahrscheinlich Geweih (Dö.). 8. Stück Pech.\n\nMus. Schönebeck Inv.-Nr. 1967 a-f (Skelettreste verschollen).\n\ne) Flachg. der Bernburger Kultur (?) („G 3\"). Unklarer Befund; NW-SO-gerichtete Bestattung; Hocker ?; Keramik ?; Beigaben: 1. Dickn. Beil aus Wiedaer Schiefer; L. 10,9; Schnbr. 5,6 (Taf. 17,27). 2. 2 Feuersteinklingen; grau; L. 7,1 und 4,6 (Taf. 17,21,28). 3. Klingenartiger und 4 sonstige Feuersteinabschläge. 4. 5 Querschneider; grau (Taf. 17,22-26).\n\n5. Ovale Kieselscheibe, 5,8 × 4,8 cm und gebogenes fingerdickes Feuersteinstück; L. 10,2 (Behrens 1981 a, Abb. 1,3 - Feuersteinschlagbesteck ?). 6. Ausgebrochene Geweihspitze Typ Ostorf; erh. L. 18,2 (Taf. 17,29); Rothirsch (Dö.).\n\nMus. Schönebeck Inv.-Nr. 1968 a-e (Skelettreste verschollen).\n\nAnm.: W. Wanckel erwähnt (OA Barby im LM Halle), daß in einem G eine gestreckte Bestattung lag; Angabe könnte sich auf dieses G beziehen.\n\nf) Flachg. der Bernburger Kultur („G 4\"). NW(Schädel)-SO-gerichteter Hocker, Blick N, Beigaben: 1. Tonnengefäß mit Tannenzweigmuster; braun-grau; H. 6,8; Wdg. 0,4/0,5 (Taf. 18,1). 2. Unverz. Sch mit Rest von zweifach durchb. Grifflappen; rötlich-braun-grau; H. 7,4; Wdg. 0,6/0,7 (Taf. 18,2). 3. Dickn. Beil aus Wiedaer Schiefer mit abgebro-\n\n103\n\nchenem Nacken; erh. L. 6,9; Schnbr. 4,3 (Taf. 18,5). 4. 4 Feuersteinklingen; grau; L. 8,5-3,8 (Taf. 18,7-9). 5. Querschneider; grau (Taf. 18,10); Fragment eines Querschneiders; grau. 6. 10 klingenartige Feuersteinabschläge; grau-dunkelgrau; L. 4,5-9,8 und 6 atypische -abschläge; grau-dunkelgrau. 7. 2 längl. an einer Seite zugespitzte Knocheninstrumente (Ahlen?); Metatarsus von Reh (Dö.); L. 13,4 (Taf. 18,3) und 1 Vogelknochen (Dö.); L. 10,3 (Taf. 18,4). 8. Fragment eines nadelartigen Gerätes (?) mit doppelter Durchb. an einem Ende und Punktreihen auf der leicht gewölbten Oberseite; L. 9,6 (Taf. 18,6); wahrscheinlich Geweih (Dö.). 9. Großer Eberhauer; Abstand zwischen den Enden 12,5 (Taf. 18,11); Wildschwein (Dö.) und Unterkiefer eines größeren Säugetieres.\n\nMus. Schönebeck Inv.-Nr. 1969 b-g und 2208 = 1969 a; Skelettreste und der tierische Unterkiefer verschollen.\n\ng) Flachg. der Bernburger Kultur (?) („G 5\"). NW(Schädel)-SO-gerichteter Hocker, Blick N. Beigaben: 1. RS mit Winkelband; rötlich-braun-grau. 2. Dickn. Beil aus Wiedaer Schiefer; L. 8,4; Schnbr. 4,6 (Taf. 18,13). 3. Feuersteinklingenfragment; dunkelgrau; L. 5,0 (Taf. 18,12). 4. 5 klingenartige Feuersteinabschläge; L. 2,8-4,5; 2 atypische Feuersteinabschläge und 2 längl. unbearbeitete Feuersteinstücke; grau; L. 7,4 und 6,0. 5. 9 durchb. Tierzähne. 6. Stück Pech.\n\nMus. Schönebeck Inv.-Nr. 1972 a-d; 1., 5. u. Skelettreste verschollen.\n\nh) Flachg. der Bernburger Kultur („G 6\"). NW(Schädel)-SO-gerichteter Hocker, Blick N. Beigaben: 1. Unverz. Sch mit 3 nebenst. knubbenartigen Fortsätzen; hellbraun-rötlich; H. 10,5; Wdg. 0,7/0,8 (Taf. 17,33). 2. Unverz. Sch; hellbraun-rötlich-grau; H. 8,0; Wdg. 0,7 (Taf. 17,34). 3. Kl. dickn. Beil aus Sandstein; dechselartiger Längsschnitt; gelblich mit braunen Einlagen; L. 5,1; Schnbr. 3,2 (Taf. 17,32). 4. In der Mitte durchb. Knebel mit Punkten auf der Oberseite; L. 13,0 (Taf. 17,31); wahrscheinlich Geweih (Dö.).\n\nMus. Schönebeck Inv.-Nr. 1973 a, c-e und 2005 = 1973 b; Skelettreste verschollen.\n\nAnm.: Ob in der unter 2. beschriebenen Schale sich befindende Lehmbewurfreste primär zugehörig sind, ist unklar.\n\nDie Fundkomplexe i und j im April und Mai 1936 geborgen.\n\ni) Flachg. der Bernburger Kultur (?) („G 7\"). Teilbestattung. Becken auf den unteren Extremitätenknochen, in diesem ruhte der Schädel. Wirbelsäule und obere Extremitäten fehlten. Einige kl. Scherben der Bernburger Kultur und unter dem Grab im Sand „einige Brandreste von Knochen (Mensch?)\" (Wanckel, OA Barby im LM Halle). Keine weiteren Beigaben.\n\nVerschollen (ehemals Mus. Schönebeck).\n\nj) Flachg. der KAK („G 8\"). Bestattung in Bauchlage mit abnorm nach links verdrehtem Schädel; im Bereich der unteren Extremitäten gestört. Beigaben: 1. „Neben dem Grab\" eine KA; am Hals gestempelte Rauten, auf Schulter punktförmige längl. Einst.; grau-braun; H. 33,5; Wdg. 0,5/0,6; HBI 0,97 (Taf. 19,6). Rechts hinter Schädel: 2. Zerscherbt niedergelegte (?) unverz. KA; dunkelbraun; H. 15,4; Wdg. 0,6; HBI 1,11 (Taf. 19,2). 3. Zerscherbt niedergelegter (?) wT; am Hals unter Einst.reihe eingeritzte Rauten und auf Schulter Fr. aus Meißelst.; rötlich-braun; H. 24,5; Wdg. 0,6; HBI 1,02 (Taf. 19,1). 4. Dickn. dünnbl. Feuersteinbeil; Breitseiten überschliffen; dunkelgrau; L. 10,2; Schnbr. 5,3 (Taf. 19,5). 5. Zwischen dem Schädel und den Gefäßen ein auf der rechten Seite liegender Schweineunterkiefer sowie ein längsgespaltener Eberzahn; Abstand zwischen den Enden: 10,0 (Taf. 19,3);",
+  "complete": true,
+  "warnings": []
+}

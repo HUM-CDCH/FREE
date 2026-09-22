@@ -9,15 +9,16 @@ node scripts/free.mjs production
 
 It validates `.env` before anything starts, renders the shared nginx
 application behavior for the host nginx into `.nginx/free-studio-locations.conf`,
-and runs `docker compose -f compose.yaml -f compose.prod.yaml up --build -d
---wait`, returning once every service is healthy — migrations replay in the
-Studio entrypoint before Studio's healthcheck can pass. The script needs only
-Node.js (the repository standard is 24) and Docker on the host; it has no
-package dependencies and installs nothing.
+and builds the images. After a successful build it stops Studio and the parsing
+API/worker with a 60-second grace period, then runs
+`docker compose -f compose.yaml -f compose.prod.yaml up --no-build -d --wait`.
+It returns after services start and configured health checks pass. The launcher
+requires Node.js 24, Docker, and an installed workspace
+(`pnpm install --frozen-lockfile`). It reads FREE's configuration helpers.
 
 `compose.yaml` builds the production Studio client and Node server;
 `compose.prod.yaml` adds only the production deltas: restart policies, required
-(never defaulted) secrets, real Entra authentication, CUDA parsing on DGX Spark,
+(never defaulted) secrets, real Entra authentication,
 and Studio's `127.0.0.1:5173` loopback publish for the host nginx. TLS terminates in the
 host nginx — there is no nginx container in production and this stack never
 touches the host nginx configuration outside the one include described below.
@@ -27,16 +28,24 @@ touches the host nginx configuration outside the one include described below.
 Install Docker with Docker Compose v2.40.0 or later. The launcher checks this
 before starting because the production network selection uses `gw_priority`.
 
-Both launchers use `DOCLING_DEVICE=auto` by default and probe Docker GPU access
-with `docker run --rm --gpus all ubuntu:24.04 nvidia-smi -L` (a first-use image
-pull may be needed). A successful probe adds `compose.gpu.yaml`; otherwise
-startup continues on CPU. Set `DOCLING_DEVICE=cpu` to skip probing or `cuda`
-to require a GPU. The probe has a 60-second timeout; a failed or timed-out
-probe prints its diagnostic. See [NVIDIA DGX Spark GPU](#nvidia-dgx-spark-gpu)
-for host validation and image compatibility checks.
-The initial image build and the first start's Docling layout and table model
-download can take several minutes and substantial disk space. Later builds and
-starts reuse the named model cache.
+The complete backend is built from `prototypes/parsing_service` in this
+checkout. Compose runs its API, worker, job PostgreSQL, schema initializer,
+and an Ollama extraction server alongside Studio and its database. No
+separate kei-exp repository or host process is needed.
+
+Both launchers use `FREE_GPU=auto` and probe Docker GPU access. A successful
+probe adds `compose.gpu.yaml`, which starts Surya's vLLM server and gives
+Ollama GPU access. Set `FREE_GPU=off` for CPU native-PDF parsing and extraction,
+or `FREE_GPU=required` to fail startup unless the GPU is available. Scanned
+PDFs require the GPU OCR server. The worker's document-layout processing runs
+on CPU so it does not compete with the model servers for GPU memory.
+
+First builds install the Python dependencies; first startup downloads
+`KEI_EXTRACT_MODEL` (default `qwen3:8b`). The Python environment alone is
+about 6 GiB; build caches and exported image layers require additional space.
+GPU startup also downloads the Surya
+OCR weights. Model caches persist in named volumes. Allow enough disk space,
+network access, and startup time for these downloads.
 
 TLS is the host nginx's: obtain a PEM certificate or full chain and its
 matching PEM private key from the institution or VPN that owns the private
@@ -44,8 +53,8 @@ hostname, and configure them in the host server block as usual. FREE does not
 request a public ACME certificate, run an internal CA, generate a self-signed
 certificate, or expose a plain-HTTP fallback.
 
-Generate the session secret and database password once and retain both across
-restarts:
+Generate the session secret and two independent database passwords once and
+retain them across restarts (run the hexadecimal command once per database):
 
 ```bash
 openssl rand -base64 32
@@ -59,6 +68,7 @@ STUDIO_ORIGIN=https://free.example.edu
 STUDIO_BASE_PATH=/free
 FREE_SESSION_SECRET=<canonical-base64-output>
 FREE_POSTGRES_PASSWORD=<hex-output>
+FREE_PARSING_POSTGRES_PASSWORD=<separately-generated-hex-output>
 FREE_ENTRA_TENANT_ID=<microsoft-entra-tenant-uuid>
 FREE_ENTRA_CLIENT_ID=<application-client-uuid>
 FREE_ENTRA_CLIENT_CERT_PATH=/srv/free-secrets/entra-client.pem
@@ -85,103 +95,34 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   Compose-interpolation ambiguity. Changing it does not update an existing
   PostgreSQL volume's password, so retain it with that volume.
 
-### NVIDIA DGX Spark GPU
+### GPU and DGX Spark
 
-DGX Spark is ARM64, and its NVIDIA Container Toolkit and Docker integration are
-preinstalled. First prove the host runtime can expose the GPU, using NVIDIA's
-[documented validation command](https://docs.nvidia.com/dgx/dgx-spark/nvidia-container-runtime-for-docker.html#test-gpu-access):
+`FREE_PARSING_POSTGRES_PASSWORD` is the separate job database password. Use a
+generated hexadecimal value and retain it with the database volume, just as
+for `FREE_POSTGRES_PASSWORD`.
 
-```bash
-docker run --rm --gpus=all \
-  nvcr.io/nvidia/cuda:13.0.1-devel-ubuntu24.04 nvidia-smi
-```
+The GPU overlay runs the OCR model separately from the Python worker. The
+worker reaches `http://ocr_model:8000/v1/chat/completions`; extraction reaches
+`http://extraction_model:11434/v1/chat/completions`. Neither endpoint is
+published to the LAN.
 
-Do not continue if that fails. Fix the host runtime before changing FREE.
+`VLLM_IMAGE` selects the OCR server image. The default is the generic vLLM
+image; on DGX Spark set it to a validated native ARM64 image with GB10 support.
+The previous kei-exp Spark deployment used `eugr/spark-vllm`; the migration
+does not establish that an arbitrary tag works on a particular machine.
+Validate the selected image and a representative scanned PDF on the target
+hardware before serving researchers. GPU visibility alone does not prove
+that its CUDA kernels or model architecture work.
 
-The launcher automatically adds the GPU reservation below from
-`compose.gpu.yaml` when Docker exposes an NVIDIA GPU. Docling's `auto` mode
-selects CUDA when PyTorch can use it. When invoking Compose directly, include
-`-f compose.gpu.yaml` after the production overlay to enable GPU access.
+`OCR_GPU_MEMORY_UTILIZATION` and `OCR_KV_CACHE_BYTES` control the OCR
+server's memory reservations. The default context is 24,576 tokens with up to
+four simultaneous sequences. Leave room for Ollama,
+the document-layout process, and the operating system. Spark's system memory
+is shared with its GPU. Set `OLLAMA_IMAGE` when the deployment needs an
+explicit tested Ollama image.
 
-```yaml
-services:
-  parsing_service:
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-```
-
-The overlay uses Docker's NVIDIA device request without requiring a runtime
-registered under the name `nvidia`. `capabilities` is required by Docker
-Compose; `count: all` exposes Spark's integrated GPU. This uses the standard
-[Compose GPU reservation](https://docs.docker.com/compose/how-tos/gpu-support/).
-The reservation does not give FREE exclusive GPU access.
-
-If Docker reports `unknown or invalid runtime name: nvidia`, remove any older
-`runtime: nvidia` setting; it is not required by this overlay. If the GPU
-validation command above instead reports that Docker cannot select the
-`nvidia` device driver with GPU capabilities, the daemon's NVIDIA Container
-Toolkit integration still needs repair. Removing the runtime setting does not
-install that integration or make a CPU-only host GPU-capable.
-
-#### Spark image compatibility
-
-- **Native ARM64:** Spark has an Arm CPU. Build on the Spark, or supply a native
-  `linux/arm64` image; do not force `linux/amd64` emulation for GPU inference.
-  See NVIDIA's [hardware overview](https://docs.nvidia.com/dgx/dgx-spark/hardware.html).
-- **GPU access is not kernel compatibility:** GB10 (`sm_121`) needs compatible
-  PyTorch, torchvision, and CUDA kernels inside the image. `nvidia-smi` alone
-  does not prove they work. A
-  [Docling/GB10 report](https://forums.developer.nvidia.com/t/gb10-and-docling/360665)
-  documents `no kernel image` and NVRTC `invalid architecture` failures with
-  older builds; its author resolved them with NVIDIA's `26.01-py3` image.
-  That is a historical report, not a required FREE base image: it uses Python
-  3.12, whereas FREE requires Python 3.13+. The current lock includes Torch
-  2.13.0, ARM64 wheels, and CUDA 13 dependencies; validate the built image below
-  rather than downgrading it or replacing the base image alone.
-- **Do not force architecture workarounds:** setting `TORCH_CUDA_ARCH_LIST`
-  at runtime cannot rebuild installed wheels. Do not permanently enable
-  `CUDA_FORCE_PTX_JIT`; NVIDIA documents it as a
-  [compatibility diagnostic](https://docs.nvidia.com/cuda/blackwell-compatibility-guide/index.html),
-  to be unset afterward. Kernel/NVRTC failures require a compatible image and
-  host driver, not additional Compose GPU flags.
-- **Shared memory budget:** Spark's 128 GB is unified CPU/GPU system memory,
-  not a separate 128 GB VRAM pool. Leave room for the OS, FREE's other services,
-  and any model server sharing the machine.
-
-Before starting production, build the Parsing Service image and exercise a CUDA
-operation without starting the queue, downloading Docling models, or touching
-the database:
-
-```bash
-docker compose -f compose.yaml -f compose.prod.yaml -f compose.gpu.yaml run --rm --no-deps --build \
-  parsing_service uv run --no-sync python -c \
-  "import os, platform, torch; assert os.environ['DOCLING_DEVICE'] in ('auto', 'cuda'); assert platform.machine() == 'aarch64'; assert torch.cuda.is_available(); print('torch', torch.__version__, 'CUDA', torch.version.cuda, 'GPU', torch.cuda.get_device_name(0), 'capability', torch.cuda.get_device_capability(0)); x = torch.ones((32, 32), device='cuda'); y = x @ x; torch.cuda.synchronize(); assert y.sum().item() == 32768; print('CUDA matmul OK')"
-```
-
-The command must print the GPU details and `CUDA matmul OK`, then exit
-successfully. If it fails, resolve runtime, driver, or image compatibility
-before starting production. Then start normally:
-
-```bash
-node scripts/free.mjs production
-```
-
-For an already-running deployment, the same Python check can be run with
-`docker compose -f compose.yaml -f compose.prod.yaml exec parsing_service`
-instead of `run --rm --no-deps --build parsing_service`.
-Finally, parse a representative PDF through Studio and check Parsing Service
-logs for CUDA/kernel errors; the small CUDA check does not exercise every
-Docling model kernel.
-
-Docling documents `DOCLING_DEVICE=cuda` as its NVIDIA inference selector in its
-[accelerator options](https://docling-project.github.io/docling/reference/pipeline_options/#docling.datamodel.accelerator_options.AcceleratorOptions).
-Do not use `/status` as GPU proof: its GPU fields are currently static service
-metadata rather than runtime probes.
+For direct Compose commands, add `-f compose.gpu.yaml` after the local or
+production overlay. The normal launcher selects it after its GPU probe.
 
 Before installing a certificate, inspect the subject alternative names and
 validity period and confirm that the certificate and key produce the same
@@ -249,70 +190,42 @@ Restrict the host nginx's TLS port to the intended private network with the
 host or perimeter firewall; Studio's `127.0.0.1:5173` publish is loopback-only
 and never needs to be exposed.
 
-## Start from clean volumes
+## Start and preserve state
 
-> **Destructive cutover:** this authenticated release has one empty-database
-> migration baseline. It does not migrate an old database, Project Context,
-> artifact, account, or model configuration. Never point it at volumes whose
-> data must be retained.
-
-Before checking out the new deployment, quiesce writes and snapshot the old
-named volumes with the container platform. From a still-running previous stack,
-the following captures the database plus Studio artifacts, model configuration,
-and keyring as rollback material:
+Normal startup builds before stopping the existing Studio and parsing API/worker,
+so a failed build leaves the application running. Once they stop, Compose runs
+`kei-jobs schema --apply` against the separate job database before starting
+the replacement API and worker. Studio replays its authored migrations before
+serving requests. A failed migration prevents startup. The launcher does not
+reset either database or seed an
+account, Project Context, Model Connection, route, or credential.
 
 ```bash
-umask 077
-backup_dir="/srv/free-backups/$(date +%Y%m%d-%H%M%S)"
-mkdir -p "$backup_dir"
-docker compose exec -T db pg_dump -U postgres -d free -Fc \
-  > "$backup_dir/free.pg_dump"
-docker compose exec -T studio tar -C /root/.local/share -czf - . \
-  > "$backup_dir/studio-data.tgz"
-docker compose exec -T studio tar -C /root/.config -czf - . \
-  > "$backup_dir/studio-config.tgz"
-docker compose down
-```
-
-Keep the previous image and all required volume snapshots with those archives.
-They support rollback to the previous release only; they are not inputs to the
-new baseline. If preservation is required and a verified backup is unavailable,
-stop here.
-
-After configuring `.env`, deliberately remove the old Compose volumes and
-create the clean deployment:
-
-```bash
-docker compose -f compose.yaml -f compose.prod.yaml config --quiet
-docker compose -f compose.yaml -f compose.prod.yaml down --volumes --remove-orphans
 node scripts/free.mjs production
 docker compose -f compose.yaml -f compose.prod.yaml ps
-```
-
-`down --volumes --remove-orphans` permanently removes `postgres-data`,
-`parsing-tasks`, `parsing-models`, `studio-data`, and `studio-config`. A plain
-`down` retains them and therefore does not perform this clean cutover.
-
-On every Studio container start, the entrypoint runs only
-`pnpm --filter db db:init`: authored forward migrations replay before the built
-Node host starts. Startup never resets or seeds data. A clean deployment
-therefore contains zero Researcher Accounts, zero Project Contexts, and no
-Model Connections, Capability Routes, or saved provider credentials.
-`pnpm db:reset` must never be run against production.
-
-`node scripts/free.mjs production` returns once every service is healthy; then
-check the public shallow health route through the canonical HTTPS origin:
-
-```bash
 curl --fail --silent --show-error https://free.example.edu/free/api/healthz
 ```
 
-Do not probe the Studio container from anywhere but the host nginx path:
-hosted Studio intentionally accepts only its pinned proxy peer, which is
-exactly how the host nginx's loopback connections arrive. Studio's container
-healthcheck instead opens a local TCP connection; because the entrypoint
-starts the Node host only after migrations, a healthy container proves the
-schema replay succeeded.
+Retain the existing `postgres-data`, `studio-data`, `studio-config`, and
+`studio-claude` volumes. The new job database and shared parsing runs must also
+survive restarts: completed runs are needed by later extractions, not merely
+disposable parsing caches. Back up both databases and their corresponding
+artifact volumes together after quiescing writes. A plain `docker compose
+down` retains volumes; `down --volumes` destroys them and is not a migration
+step.
+
+This source consolidation does not transfer runs from a separately running
+kei-exp installation. A Source Document uploaded before the service cutover
+may have no run in the new job database; upload it again before requesting a
+new extraction. Existing saved results and review history remain in FREE.
+Do not delete the separate deployment or its data as part of startup.
+
+Studio's container healthcheck opens a local TCP connection. Its entrypoint
+starts the server only after forward migrations finish. The Parsing Service
+has its own API healthcheck. Worker execution, completed jobs, and model
+quality are checked by integration validation, not the shallow Studio health
+route. The public application must be checked through the configured HTTPS
+proxy and sign-in path.
 
 ## Manage Researcher access
 
@@ -355,52 +268,20 @@ whose commit finishes later becomes authoritative without a field-level merge.
 Credential values are write-only and are never returned; Studio shows only
 `present`, `absent`, or `unavailable` state plus preserve/remove controls.
 
-## Tune Catalog extraction
+## Configure service extraction
 
-Catalog mode batches its model calls under a policy. The default groups five
-records per values call and five per grounding call, names each claim's record
-and field to the grounder, and makes one discovery call over the complete
-source when its discovery text is at most 48,000 characters; larger sources
-keep per-page discovery. This needs no configuration.
+Set `KEI_EXTRACT_MODEL` in `.env` to choose the model installed in the included
+Ollama server. This is independent of Studio's stored Model Connections,
+which still drive Schema Suggestion and Interaction. For those capabilities,
+a local Ollama Model Connection can use `http://extraction_model:11434` and
+the same installed model. Configuration is explicit; startup does not save
+Model Connections or Capability Routes.
 
-Open **Model Connections → Catalog policy** to edit and save deployment-wide
-settings. They persist in `catalog-policy.json` alongside the model configuration.
-Each job reads the policy when it starts; running jobs retain their settings.
-**Use defaults** fills the editor; **Save Catalog policy** persists it.
-
-Saved settings take precedence over `FREE_CATALOG_POLICY`. Without a saved
-policy, Studio reads that environment variable as a JSON object holding only
-the keys you change:
-
-```dotenv
-FREE_CATALOG_POLICY={"wholeSourceDiscoveryMaxChars":72000}
-```
-
-| Key | Default | Meaning |
-| --- | --- | --- |
-| `recordBatchSize` | 5 | Records per values call, 1 to 50. A batch that does not return every record once, in order, re-runs one record per call and keeps none of its rows. |
-| `groundingGroupSize` | 5 | Records per grounding call, 1 to 50. Every link is validated against its own record's anchors. |
-| `fieldAwareGrounding` | `true` | The grounder sees each claim's record, field name and description. |
-| `wholeSourceDiscoveryMaxChars` | 48000 | Character budget for whole-source discovery; `0` always chunks by page. |
-
-`CatalogPolicy` carries further keys (`citations`, `labelledSlices`,
-`citationLinks`, `groundAlways`, `groundMultiHit`, `groundedContext`,
-`lexicalLinks`). These controls are also available in the editor but remain
-off by default based on corpus measurements. Local citation/text checks verify
-occurrence, not semantic support; evidence links remain reviewable suggestions.
-
-The budget counts characters, not tokens: 48,000 is about 21,500 prompt tokens
-at the densest measured text, which fits a 32,768-token context. Raise it only
-when the deployment's Extraction model has the context to match.
-
-Invalid settings are rejected on save. An unreadable or invalid policy fails
-the job instead of silently using defaults. With no saved policy or environment
-override, jobs use the built-in defaults. To restore pre-batching behaviour,
-save these values in the editor, or supply this fallback when no policy is saved:
-
-```dotenv
-FREE_CATALOG_POLICY={"recordBatchSize":1,"groundingGroupSize":1,"fieldAwareGrounding":false,"wholeSourceDiscoveryMaxChars":0}
-```
+Article and Catalog extraction, discovery, and grounding run in the included
+Python service. The former Catalog policy editor and `FREE_CATALOG_POLICY`
+configuration no longer apply. See the
+[service contract](../../prototypes/parsing_service/README.md) for supported
+options and limitations.
 
 ## Network exposure and proxy trust
 
@@ -411,27 +292,17 @@ The resolved production topology is:
 | host nginx (not a container) | n/a | 443 (TLS, host-managed) |
 | Studio | `proxy` and `app`, port 5173 | TCP 127.0.0.1:5173 (for host nginx) |
 | PostgreSQL | `app`, port 5432 | none |
-| Parsing Service | `app`, port 8055 | TCP 127.0.0.1:8055 |
-| kei-exp API and worker (host processes, not containers) | Studio reaches `host.docker.internal:8001` (`KEI_EXP_URL`) | 8001 on every host interface (firewall it) |
+| Parsing Service API | `app`, port 8001 | none |
+| Parsing worker and schema initializer | `app`; no HTTP listener | none |
+| Parsing PostgreSQL | `app`, port 5432 | none |
+| Ollama extraction server | `app`, port 11434 | none |
+| Surya vLLM server (GPU overlay) | `app`, port 8000 | none |
 
-New Source Document uploads are parsed by kei-exp, which runs outside this
-Compose project: one `kei_exp.api` process on `:8001` and one Procrastinate
-worker sharing its runs directory and PostgreSQL, after `kei-jobs schema
---apply`. Studio reads `KEI_EXP_URL` (default `http://host.docker.internal:8001`,
-resolved through the studio service's `host-gateway` extra host) and
-`KEI_EXP_MODEL` (default `surya`; kei-exp still takes the native Docling path
-for born-digital PDFs by itself). Set `KEI_EXP_EXTRACT_MODEL` only to name a
-model on kei-exp's own model server for extraction — it is not a FREE Model
-Connection's model id — and leave it unset to take kei-exp's configured
-default, which the Extraction's model attribution then reports. The container
-connects to the host's gateway address, not to its loopback, so the kei-exp
-API must be started with `--host 0.0.0.0`
-(`uv run uvicorn kei_exp.api:app --host 0.0.0.0 --port 8001`;
-the `kei-exp dev` launcher already defaults to `--api-host 0.0.0.0`). A
-uvicorn bound to `127.0.0.1` refuses Studio's connection (`ECONNREFUSED`).
-Listening on all interfaces exposes the parser beyond the host: restrict port
-8001 with the host firewall to the Docker bridge and local operators. The
-Parsing Service container stays only for rollback and is no longer called.
+Studio reaches the API at `http://parsing_service:8001`. The API and worker
+share the job database and run volume. Their unauthenticated administrative
+API is private to the Compose network; researchers reach document processing
+through FREE's authenticated, ownership-scoped routes. Do not publish the
+service API or the model-server ports to the LAN.
 
 Studio is the only member of the dedicated `172.30.0.0/24` `proxy` network in
 production, and its `gw_priority` makes host port forwarding enter through
@@ -439,14 +310,13 @@ that network, so every connection the host nginx makes to `127.0.0.1:5173`
 reaches Studio from the network's bridge gateway. Compose fixes
 `FREE_STUDIO_PROXY=trusted-proxy` and `FREE_STUDIO_PROXY_ADDRESS=172.30.0.1`
 (that gateway): Studio accepts a request only from that single peer address.
-PostgreSQL and the Parsing Service sit on `app` with their own non-gateway
-addresses and are rejected. (Development differs only here: the nginx
+The databases, Parsing Service, and model servers sit on `app` with their
+own non-gateway addresses and are rejected. (Development differs only here: the nginx
 container joins `proxy` and the trusted peer set is that network's block.)
 Nginx discards any inbound `X-Real-IP`, writes exactly one value from the
 direct client socket, and proxies to Studio. Browser session cookies are never
-forwarded to the Parsing Service. Port 5432 is not published on the host; the
-Parsing Service publishes only its loopback port for the operator's own web app
-(8000 is already taken on the deployment machine, hence 8055).
+forwarded to the Parsing Service. Production publishes neither database nor the Parsing Service. Development
+publishes only the explicitly configured loopback tooling ports.
 
 ### Studio trust modes
 

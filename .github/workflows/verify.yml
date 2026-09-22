@@ -22,6 +22,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/free_test_extraction
       EXTRACTION_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/free_test_extraction
       PROJECT_STORE_POSTGRES_URL: postgresql://postgres:postgres@127.0.0.1:5432/free_test_project_store
+      PARSING_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/free_test_parsing
     services:
       postgres:
         image: postgres:17
@@ -67,8 +68,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Create extraction integration database
-        run: docker exec "${{ job.services.postgres.id }}" createdb --username postgres free_test_extraction
+      - name: Create extraction and parsing integration databases
+        run: |
+          docker exec "${{ job.services.postgres.id }}" createdb --username postgres free_test_extraction
+          docker exec "${{ job.services.postgres.id }}" createdb --username postgres free_test_parsing
 
       - name: Install Playwright Chromium
         run: pnpm --filter studio exec playwright install --with-deps chromium

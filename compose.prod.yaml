@@ -4,8 +4,8 @@
 #   node scripts/free.mjs production
 #
 # (which validates .env, renders .nginx/free-studio-locations.conf for the
-# host nginx, and runs
-# `docker compose -f compose.yaml -f compose.prod.yaml up --build -d --wait`).
+# host nginx, builds images, stops the old schema consumers, and runs
+# `docker compose -f compose.yaml -f compose.prod.yaml up --no-build -d --wait`).
 #
 # Same container topology as development minus the nginx container: the host
 # nginx terminates TLS and proxies to Studio's loopback-published port. This
@@ -19,7 +19,23 @@ services:
     environment:
       POSTGRES_PASSWORD: "${FREE_POSTGRES_PASSWORD:?FREE_POSTGRES_PASSWORD must be set to a generated hexadecimal password}"
 
+  parsing_db:
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: "${FREE_PARSING_POSTGRES_PASSWORD:?FREE_PARSING_POSTGRES_PASSWORD must be set to a generated hexadecimal password}"
+
+  parsing_migrate:
+    environment: &parsing-database
+      KEI_DATABASE_URL: "postgresql://kei:${FREE_PARSING_POSTGRES_PASSWORD:?FREE_PARSING_POSTGRES_PASSWORD must be set to a generated hexadecimal password}@parsing_db:5432/kei"
+
   parsing_service:
+    restart: unless-stopped
+    environment: *parsing-database
+
+  parsing_worker:
+    environment: *parsing-database
+
+  extraction_model:
     restart: unless-stopped
 
   studio:

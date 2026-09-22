@@ -77,13 +77,13 @@ describe('kei-exp extraction relay', () => {
 
   it('relays catalog, zero/multiple records, ungrounded paths and model-linked evidence', async () => {
     for (const records of [[], [{ title: 'A', year: 1901 }, { title: 'B', year: null }]]) {
-      const value = artifact({ strategy: 'catalog', complete: true, records, model: null, evidence: [], ungrounded: records.length ? [['records', 0, 'title']] : [] })
+      const value = artifact({ strategy: 'catalog', complete: true, records, evidence: [], ungrounded: records.length ? [['records', 0, 'title']] : [] })
       const h = harness([json(ack, 202), polled(value)], 'CATALOG')
       const result = await h.run()
       assert.equal(JSON.parse(h.requests[0].init!.body as string).options.strategy, 'catalog')
       assert.deepEqual(result.result, { records })
       assert.deepEqual(result.diagnostics.ungroundedPaths, value.ungrounded)
-      assert.equal(result.modelAttribution, null)
+      assert.deepEqual(result.modelAttribution, { provider: 'kei-exp', modelId: 'selected-model' })
       assert.equal(result.complete, true)
     }
     const value = artifact({ evidence: [keiExpEvidence({ linked_by: 'model' })] })
@@ -162,6 +162,15 @@ describe('kei-exp extraction relay', () => {
     await assert.rejects(harness([json(ack, 202), json({ nonsense: true })]).run(), { code: 'invalid_model_output' })
     await assert.rejects(harness([json({ ...ack, run_id: 'other' }, 202)]).run(), { code: 'invalid_model_output' })
     await assert.rejects(harness([new Response('not json')]).run(), { code: 'invalid_model_output' })
+  })
+
+  it('rejects results without model attribution before they can become unreadable saved results', async () => {
+    for (const model of [null, '', undefined]) {
+      await assert.rejects(
+        harness([json(ack, 202), polled({ ...artifact(), model })]).run(),
+        { code: 'invalid_model_output' },
+      )
+    }
   })
 
   it('fails with kei-exp\'s reason when the extraction failed, and distinctly when it was cancelled', async () => {

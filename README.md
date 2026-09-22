@@ -14,6 +14,11 @@ Both use the same base `compose.yaml`; the launcher adds the local
 `compose.override.yaml` or production `compose.prod.yaml` and prepares the
 host-only prerequisites. Local serves https://localhost:8443/free/.
 
+FREE contains its parsing and extraction service in
+[`prototypes/parsing_service`](prototypes/parsing_service/README.md). The
+service incorporates kei-exp's API, durable workers, and canonical evidence
+pipeline. No separate kei-exp checkout or host-run parser is required.
+
 ## Product contract
 
 FREE's normative product and safety contract is:
@@ -55,7 +60,7 @@ FREE's normative product and safety contract is:
    providers, with explicit Extraction and Interaction routes. Stored
    credentials are write-only; provider configuration is deployment-wide and
    is not seeded at startup.
-   Extraction execution is delegated to kei-exp using the selected model name;
+   Extraction execution is delegated to the included Parsing Service;
    FREE uses the configured provider directly for Schema Suggestion and Interaction.
    For those provider calls, output formatting is automatic: selecting a connection and model is sufficient,
    including for existing saved routes. FREE uses the adapter's output support and
@@ -101,9 +106,10 @@ mutating checks:
 | --- | --- |
 | `pnpm test` | Fast unit/static checks only; no live stack, PostgreSQL, browser, or model |
 | `pnpm test:safety` | Safety/configuration checks; no running FREE stack, but Docker is required for Compose rendering and a throwaway nginx config check; no database mutation |
-| `pnpm test:postgres` | PostgreSQL integration checks against caller-provisioned, migrated, disposable loopback `free_test_*` databases; they mutate those databases |
+| `pnpm test:postgres` | Studio/extraction and Parsing Service PostgreSQL checks against caller-provisioned disposable loopback `free_test_*` databases; they mutate those databases |
 | `pnpm test:e2e` | Playwright browser tests; creates and removes its own Docker PostgreSQL and mock-OIDC stack, migrates it, and starts Studio locally |
-| `pnpm test:all` | All deterministic tiers: typecheck, lint, unit, safety, caller-provisioned PostgreSQL integration, and E2E |
+| `pnpm test:service` | Isolated authenticated FREE workflow using the real Python API/worker and native PDF parsing; scripts only the extraction model boundary; checks evidence, review, and restart persistence |
+| `pnpm test:all` | All deterministic tiers: typecheck, lint, unit, safety, caller-provisioned PostgreSQL integration, E2E, and the real-service workflow |
 | `pnpm test:ci` | CI-only aggregate; verifies the fixed disposable CI targets, migrates them, and runs `test:all` |
 | `pnpm test:live-model` | Real Ollama and Docling smoke checks; requires the configured Ollama model and may download Docling models |
 | `pnpm test:system` | Mutating black-box contract check against the default local Compose stack and a reachable Ollama model; may start and restart the stack, changes its development database/model configuration, and leaves the stack running |
@@ -114,6 +120,11 @@ mutating checks:
 and `test:ci`: they depend on a live model or mutate the default development
 stack. GitHub's Linux `verify` job runs `test:ci`, including the POSIX-only
 session-secret permission assertion.
+
+`test:service` may download Docling layout weights on first use. Supply both
+`FREE_REAL_EXTRACT_URL` (a chat-completions URL) and
+`FREE_REAL_EXTRACT_MODEL` to run the same workflow against a real model; that
+optional run is outside deterministic CI.
 
 Detailed prerequisites, environment variables, and database target rules are
 in the [local development runbook](docs/operations/local-development.md).
@@ -132,11 +143,20 @@ pnpm dev
 ```
 
 Then open **https://localhost:8443/free** and sign in through the local mock
-OIDC identity provider. `pnpm dev` generates the mkcert certificate when missing
-and runs `docker compose up --build --watch`; migrations replay in the Studio
-container before its dev server starts, and source changes sync live. The
-first run builds the Parsing Service image and downloads its models, which
-takes several minutes.
+OIDC identity provider. `pnpm dev` generates the mkcert certificate when missing,
+builds the images, and stops Studio and the parsing API/worker before running
+`docker compose up --no-build --watch`. A failed build leaves the running
+application intact. Migrations finish before the replacement processes start,
+and source changes then sync live. The
+first run builds the Python image and downloads the extraction model into a
+persistent cache; this can take several minutes and substantial disk space.
+
+Native PDFs and extraction work on CPU. The launcher enables
+`compose.gpu.yaml` when Docker can expose an NVIDIA GPU; that overlay starts
+the Surya OCR model server for scanned PDFs and gives the extraction model
+server GPU access. Set `FREE_GPU=off` to use CPU or `FREE_GPU=required` to
+require the GPU stack. DGX Spark needs a compatible ARM64 `VLLM_IMAGE`; see
+the deployment runbook.
 
 Variants:
 
@@ -160,9 +180,10 @@ node scripts/free.mjs production
 ```
 
 This validates `.env`, renders the shared nginx behavior for the host nginx
-into `.nginx/free-studio-locations.conf`, and starts the Compose stack
-detached, waiting for health (migrations replay before Studio becomes
-healthy). Prerequisites, `.env`, the host nginx include, proxy trust, cutover,
+into `.nginx/free-studio-locations.conf`, builds the images, and stops Studio
+and the parsing API/worker before migration. It then starts the Compose stack
+detached and waits for its configured health checks. Prerequisites, `.env`,
+the host nginx include, proxy trust, cutover,
 and certificate rotation:
 [docs/operations/deployment.md](docs/operations/deployment.md). Entra
 registration and rotation:
@@ -170,14 +191,14 @@ registration and rotation:
 
 ## Extraction execution
 
-FREE sends the pinned schema and the Source Document's kei-exp run ID to
-`KEI_EXP_URL` for Article or Catalog extraction. kei-exp owns extraction and
-grounding; FREE stores the returned records, evidence and diagnostics for review.
-`KEI_EXP_EXTRACT_MODEL` optionally names a model on kei-exp's own model server;
-unset, kei-exp uses its configured default, and the Extraction reports whichever
-model ran. The Extraction Route's model id is a FREE Model Connection's and is
-not sent. Provider credentials and execution settings for extraction belong to
-kei-exp. Polling waits up to ten minutes for Article and three hours for
+FREE sends the pinned schema and the Source Document's run ID to the included
+Parsing Service for Article or Catalog extraction. The service owns extraction
+and grounding; Studio stores the returned records, evidence and diagnostics
+for review. Compose wires `KEI_EXP_URL` to its private API and starts an Ollama
+server with the `KEI_EXTRACT_MODEL` model (default `qwen3:8b`). The Extraction
+Route's model id belongs to a FREE Model Connection and is not sent to this
+separate execution endpoint. Schema Suggestion and Interaction still use the
+configured Capability Routes. Polling waits up to ten minutes for Article and three hours for
 Catalog; cancellation stops FREE from waiting and publishing a result. A
 failed extraction carries kei-exp's own reason. The API has no remote cancellation
 or targeted Catalog retry operation; start a new Extraction to rerun.

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { EventEmitter } from 'node:events'
 import {
   chmodSync,
   mkdtempSync,
@@ -26,6 +27,7 @@ import {
   parseDevOptions,
   renderNginxLocations,
   selectWifiAddress,
+  startComposeStack,
   validateComposeVersion,
   validateLocalEntraEnvironment,
   validateProductionEnvironment,
@@ -33,12 +35,13 @@ import {
 
 const temporaryDirectories = []
 
-it('uses optional Docker GPU access and preserves explicit device choices', () => {
+it('enables the owned OCR model only with Docker GPU access', () => {
   const profile = deriveDevProfile(parseDevOptions([]), {})
-  assert.equal(developmentComposeEnvironment(profile, {}, 'test-secret').DOCLING_DEVICE, 'auto')
-  assert.deepEqual(parsingGpuComposeArguments({ DOCLING_DEVICE: 'cpu' }, () => {
-    assert.fail('CPU must skip the GPU probe')
+  assert.equal(developmentComposeEnvironment(profile, {}, 'test-secret').FREE_GPU, 'auto')
+  assert.deepEqual(parsingGpuComposeArguments({ FREE_GPU: 'off' }, () => {
+    assert.fail('Disabled GPU access must skip the probe')
   }), [])
+  assert.throws(() => parsingGpuComposeArguments({ FREE_GPU: 'maybe' }), /FREE_GPU must be/)
   const gpu = parsingGpuComposeArguments({}, (command, args, options) => {
     assert.equal(command, 'docker')
     assert.ok(args.includes('--gpus'))
@@ -50,7 +53,7 @@ it('uses optional Docker GPU access and preserves explicit device choices', () =
   assert.ok(args.indexOf('compose.gpu.yaml') < args.indexOf('up'))
   for (const result of [{ status: 1 }, { status: null, error: new Error('timeout') }, { status: 0, stdout: '' }]) {
     assert.deepEqual(parsingGpuComposeArguments({}, () => result), [])
-    assert.throws(() => parsingGpuComposeArguments({ DOCLING_DEVICE: 'cuda' }, () => result), /CUDA was requested/)
+    assert.throws(() => parsingGpuComposeArguments({ FREE_GPU: 'required' }, () => result), /GPU access was required/)
   }
 })
 
@@ -89,6 +92,66 @@ const validEntraEnvironment = (certificatePath) => ({
   FREE_ENTRA_CLIENT_CERT_PATH: certificatePath,
 })
 
+describe('ordered Compose startup', () => {
+  const local = developmentComposeArguments(deriveDevProfile(parseDevOptions([]), {}))
+  const production = ['compose', '-f', 'compose.yaml', '-f', 'compose.prod.yaml', 'up', '--no-build', '-d', '--wait']
+
+  for (const up of [local, production]) {
+    it(`builds before stopping schema consumers and starting ${up.includes('--watch') ? 'development' : 'production'}`, async () => {
+      const environment = { FREE_SESSION_SECRET: 'test-only' }
+      for (const existing of [false, true]) {
+        const calls = []
+        let serving = existing
+        const status = await startComposeStack(up, environment, (command, args, options) => {
+          assert.equal(command, 'docker')
+          assert.equal(options.env, environment)
+          assert.equal(options.shell, false)
+          calls.push(args)
+          if (args.includes('build')) assert.equal(serving, existing, 'build leaves the current deployment alone')
+          if (args.includes('stop')) serving = false
+          if (args.includes('up')) assert.equal(serving, false, 'migration cannot overlap the old schema consumers')
+          const child = new EventEmitter()
+          queueMicrotask(() => child.emit('exit', 0))
+          return child
+        })
+        const prefix = up.slice(0, up.indexOf('up'))
+        assert.equal(status, 0)
+        assert.deepEqual(calls, [
+          [...prefix, 'build'],
+          [...prefix, 'stop', '--timeout', '60', 'studio', 'parsing_service', 'parsing_worker'],
+          up,
+        ])
+      }
+    })
+  }
+
+  it('stops after any failed command, preserving its exit status', async () => {
+    for (const outcomes of [[12], [0, 17], [0, 0, 23]]) {
+      let calls = 0
+      const status = await startComposeStack(local, {}, () => {
+        const child = new EventEmitter()
+        const outcome = outcomes[calls++]
+        assert.notEqual(outcome, undefined, 'no command may run after a failure')
+        queueMicrotask(() => child.emit('exit', outcome))
+        return child
+      })
+      assert.equal(calls, outcomes.length)
+      assert.equal(status, outcomes.at(-1))
+    }
+  })
+
+  it('does not stop services when the build process cannot start', async () => {
+    let calls = 0
+    await assert.rejects(startComposeStack(local, {}, () => {
+      calls += 1
+      const child = new EventEmitter()
+      queueMicrotask(() => child.emit('error', new Error('Docker could not start')))
+      return child
+    }), /Docker could not start/)
+    assert.equal(calls, 1)
+  })
+})
+
 describe('development launcher profiles', () => {
   it('keeps the default profile loopback-only behind the nginx entry point', () => {
     const profile = deriveDevProfile(parseDevOptions([]), interfaces)
@@ -110,7 +173,7 @@ describe('development launcher profiles', () => {
       '-f',
       'compose.override.yaml',
       'up',
-      '--build',
+      '--no-build',
       '--watch',
     ])
   })
@@ -135,7 +198,7 @@ describe('development launcher profiles', () => {
       '-f',
       'compose.entra.yaml',
       'up',
-      '--build',
+      '--no-build',
       '--watch',
     ])
   })
@@ -207,7 +270,7 @@ describe('development launcher profiles', () => {
       profile,
       {
         PATH: 'kept',
-        DOCLING_DEVICE: 'cuda',
+        FREE_GPU: 'required',
         FREE_NGINX_PORT: '443',
         FREE_POSTGRES_PASSWORD: 'deployment-secret',
         STUDIO_BASE_PATH: '/deployment',
@@ -227,7 +290,7 @@ describe('development launcher profiles', () => {
 
     assert.equal(environment.PATH, 'kept')
     assert.equal(environment.COMPOSE_DISABLE_ENV_FILE, '1')
-    assert.equal(environment.DOCLING_DEVICE, 'cuda')
+    assert.equal(environment.FREE_GPU, 'required')
     assert.equal(environment.FREE_NGINX_PORT, '8443')
     assert.equal(environment.FREE_POSTGRES_PASSWORD, 'postgres')
     assert.equal(environment.STUDIO_BASE_PATH, '/free')
@@ -257,7 +320,7 @@ describe('development launcher profiles', () => {
       profile,
       {
         PATH: 'kept',
-        DOCLING_DEVICE: 'cuda',
+        FREE_GPU: 'required',
         FREE_NGINX_PORT: '443',
         FREE_NGINX_BIND: '0.0.0.0',
         FREE_MOCK_OIDC_BIND: '0.0.0.0',
@@ -276,7 +339,7 @@ describe('development launcher profiles', () => {
     )
 
     assert.equal(environment.PATH, 'kept')
-    assert.equal(environment.DOCLING_DEVICE, 'cuda')
+    assert.equal(environment.FREE_GPU, 'required')
     assert.equal(environment.FREE_NGINX_PORT, '8443')
     assert.equal(environment.FREE_NGINX_BIND, '127.0.0.1')
     assert.equal(environment.COMPOSE_PROFILES, undefined)
@@ -500,6 +563,7 @@ const productionEnvironment = {
   STUDIO_BASE_PATH: '/free',
   FREE_SESSION_SECRET: Buffer.alloc(32, 7).toString('base64'),
   FREE_POSTGRES_PASSWORD: 'a'.repeat(64),
+  FREE_PARSING_POSTGRES_PASSWORD: 'c'.repeat(64),
   FREE_ENTRA_TENANT_ID: '00000000-0000-4000-8000-000000000001',
   FREE_ENTRA_CLIENT_ID: '00000000-0000-4000-8000-000000000002',
   FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'AB'.repeat(32),
@@ -519,6 +583,7 @@ describe('production environment validation', () => {
     for (const name of [
       ...SHARED_STUDIO_CONFIGURATION_FIELDS,
       'FREE_POSTGRES_PASSWORD',
+      'FREE_PARSING_POSTGRES_PASSWORD',
     ])
       assert.ok(
         errors.some((error) => error.includes(`${name} is required`)),
@@ -581,12 +646,14 @@ describe('production environment validation', () => {
     }
   })
 
-  it('rejects a non-hexadecimal database password', () => {
-    const errors = validateProductionEnvironment(
-      { ...productionEnvironment, FREE_POSTGRES_PASSWORD: 'p@ss word' },
-      () => true,
-    )
-    assert.ok(errors.some((error) => error.includes('FREE_POSTGRES_PASSWORD')))
+  it('rejects weak or URL-unsafe passwords for either database', () => {
+    for (const field of ['FREE_POSTGRES_PASSWORD', 'FREE_PARSING_POSTGRES_PASSWORD']) {
+      const errors = validateProductionEnvironment(
+        { ...productionEnvironment, [field]: 'p@ss word' },
+        () => true,
+      )
+      assert.ok(errors.some((error) => error.includes(field)))
+    }
   })
 
   it('accepts a colon-separated thumbprint and rejects a truncated one', () => {

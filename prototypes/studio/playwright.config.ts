@@ -18,6 +18,7 @@ const e2eOrigin = `http://localhost:${e2ePort}`
 
 export default defineConfig({
   testDir: './e2e',
+  testIgnore: 'real-service.spec.ts',
   fullyParallel: true,
   globalTeardown: './e2e/globalTeardown.ts',
   use: { baseURL: e2eOrigin },

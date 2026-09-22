@@ -1,5 +1,17 @@
 # Parsing Service
 
-Read `README.md` for the current service boundary and runtime contract. Keep
-all task-file resolution behind `TaskStorage`; external task identifiers must
-pass canonical UUID validation before becoming paths.
+Read this directory's `README.md` and the root `README.md` before changing the
+service, persistence, or verification. FREE Studio owns authentication, project
+ownership, schemas and review; this internal service owns parsing, extraction,
+canonical evidence and durable jobs. Keep the API and worker separate.
+
+`src/kei_exp` was imported from kei-exp commit
+`93b9435c2b9a01a5424758d917c058fc79bbc159`. This directory now owns that code;
+runtime and tests must not import from a sibling checkout. Root Compose owns
+deployment and model processes. Do not restore the old `app/` parser or a second
+web UI.
+
+Preserve canonical page/manifest hashes, immutable parse generations and source
+evidence identities. Never use debug artifacts as extraction inputs. Keep
+database-backed and model-backed tests out of the fast test command. Test
+databases must pass the explicit disposable-target guard before connecting.

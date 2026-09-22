@@ -1,10 +1,55 @@
-# Added by the launcher after verifying Docker GPU access.
+# The launcher adds this overlay only after verifying NVIDIA GPU access.
+# Layout and native PDF parsing remain on the CPU; model servers own the GPU.
+x-gpu: &gpu
+  resources:
+    reservations:
+      devices:
+        - driver: nvidia
+          count: all
+          capabilities: [gpu]
+
 services:
-  parsing_service:
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+  ocr_model:
+    image: "${VLLM_IMAGE:-vllm/vllm-openai:latest}"
+    init: true
+    # Both the generic vLLM image and an operator-selected Spark image use
+    # this explicit CLI, independent of their image entrypoint defaults.
+    entrypoint: ["vllm", "serve"]
+    restart: unless-stopped
+    shm_size: 2gb
+    deploy: *gpu
+    environment:
+      HF_HOME: /models/huggingface
+      HF_TOKEN: "${HF_TOKEN:-}"
+    volumes:
+      - parsing-models:/models
+    command:
+      - datalab-to/surya-ocr-2
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --gpu-memory-utilization
+      - "${OCR_GPU_MEMORY_UTILIZATION:-0.4}"
+      - --kv-cache-memory-bytes
+      - "${OCR_KV_CACHE_BYTES:-4G}"
+      - --max-model-len
+      - "24576"
+      - --max-num-seqs
+      - "4"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 15s
+      timeout: 5s
+      retries: 80
+      start_period: 2m
+    networks:
+      - app
+
+  extraction_model:
+    deploy: *gpu
+
+  parsing_worker:
+    depends_on:
+      ocr_model:
+        condition: service_healthy

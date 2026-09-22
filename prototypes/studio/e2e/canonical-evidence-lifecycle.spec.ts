@@ -170,7 +170,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       const resultPaths = paths({ records })
       const job = { ready: true, runId, artifact: keiExpArtifact({
         run_id: runId, generation: 'g1', fingerprint: id,
-        strategy: options.strategy, model: options.model ?? null, schema, options,
+        strategy: options.strategy, model: options.model ?? 'fixture/nuextract', schema, options,
         started: new Date().toISOString(), seconds: 0.1, complete: !ungrounded, records,
         evidence: ungrounded ? [] : resultPaths.map(path => keiExpEvidence({ path, verbatim: false, hits: 0, linked_by: 'model' })),
         ungrounded: ungrounded ? resultPaths : [],
@@ -289,6 +289,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     if (request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/api/extractions'))
       interactivePosts += 1
   })
+  await page.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
   await page.getByRole('button', { name: '▶ Run extraction' }).dblclick()
   await expect(page.getByRole('button', { name: '↻ Re-run extraction' })).toBeVisible()
   expect(interactivePosts).toBe(1)
@@ -324,6 +325,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       `/projects/${projectContextId}/documents/${otherSourceDocumentId}`,
     ),
   )
+  await page.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
   await activateWithKeyboard(
     page,
     page.getByRole('button', { name: '▶ Run extraction' }),
@@ -462,10 +464,11 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   )
 
   const reviewed = await db.orm.public.Extraction.where({ sourceDocumentId })
-    .select('id', 'reviewedAt')
+    .select('id', 'reviewedAt', 'strategy')
     .orderBy((attempt) => attempt.createdAt.desc())
     .first()
   expect(reviewed?.reviewedAt).not.toBeNull()
+  expect(reviewed?.strategy).toBe(strategy)
   const persistedReview = await db.orm.public.ExtractionReview.where({ extractionId: reviewed!.id })
     .select('id')
     .orderBy((review) => review.revisionNumber.desc())
@@ -598,6 +601,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(freshPage.locator('iframe[title="Pinned Source Document"]')).toHaveCount(0)
   omitGrounding = false
   blockNextResult = true
+  await freshPage.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
   await freshPage.getByRole('button', { name: '↻ Re-run extraction' }).click()
   await expect(freshPage.getByText('Running extraction…')).toBeVisible()
   await freshPage.goto(e2eStudioPath('/projects'))
@@ -610,12 +614,16 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   resultGate.release?.()
 
   failNextValues = true
-  await freshPage.getByRole('button', { name: '↻ Re-run extraction' }).click()
+  await freshPage.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
+  await freshPage.getByRole('button', { name: '▶ Run extraction' }).click()
   await expect(freshPage.getByText('Extraction failed', { exact: true })).toBeVisible()
   await expect(freshPage.getByRole('tab', { name: 'Raw JSON' })).toHaveCount(0)
 
   incompleteNextResult = true
-  await freshPage.getByRole('button', { name: 'Retry extraction' }).click()
+  await freshPage.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
+  await freshPage.getByRole('button', {
+    name: strategy === 'CATALOG' ? '▶ Run extraction' : 'Retry extraction',
+  }).click()
   await expect(freshPage.getByText('Incomplete Extraction', { exact: true })).toBeVisible()
   await expect(freshPage.getByRole('button', { name: 'Export' })).toBeEnabled()
   await expect(freshPage.getByRole('button', { name: 'Save Review' })).toHaveCount(0)
@@ -641,6 +649,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     },
   })).status()).toBe(201)
   await expect.poll(() => valuesGate.release !== null).toBe(true)
+  await freshPage.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
   await freshPage.getByRole('button', { name: '↻ Re-run extraction' }).click()
   await expect(freshPage.getByText('Queued extraction…')).toBeVisible()
   await freshPage.getByTitle('Cancel the active Extraction').click()
@@ -688,9 +697,12 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     freshPage.request.delete(e2eStudioPath(`/api/extractions/${activeId}`), { headers: { Origin: E2E_ORIGIN } }),
     freshPage.request.delete(e2eStudioPath(`/api/extractions/${activeId}`), { headers: { Origin: E2E_ORIGIN } }),
   ])
-  expect(activeDeletes.map((response) => response.status())).toEqual([202, 202])
+  const cancellationStatuses = activeDeletes.map((response) => response.status())
+  expect(cancellationStatuses).toContain(202)
+  // The worker may finish cancellation before the concurrent request arrives.
+  for (const status of cancellationStatuses) expect([202, 404]).toContain(status)
   valuesGate.release?.()
-  await waitForExtraction(freshPage.request, activeId)
+  expect((await waitForExtraction(freshPage.request, activeId)).failure?.code).toBe('cancelled')
   expect((await freshPage.request.delete(e2eStudioPath(`/api/extractions/${activeId}`), {
     headers: { Origin: E2E_ORIGIN },
   })).status()).toBe(404)
@@ -712,6 +724,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await freshPage.goto(url)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
   blockNextResult = true
+  await freshPage.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
   await freshPage.getByRole('button', { name: /▶ Run extraction|↻ Re-run extraction/ }).click()
   await expect(freshPage.getByText('Running extraction…')).toBeVisible()
   const status = freshPage.getByRole('region', { name: 'Extraction status' })
@@ -791,6 +804,9 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       strategy: batchMember!.strategy,
     },
   })).status()).toBe(409)
+  // Finish the admitted batch before closing its remote service; the shared
+  // Studio worker must be available for the next strategy's fixture.
+  expect((await waitForExtraction(freshPage.request, batchMember!.id)).outcome).toBe('SUCCEEDED')
   await fresh.close()
   } finally {
     await new Promise<void>((resolveClose, reject) =>

@@ -36,15 +36,17 @@ model {
     handlers = container 'Hono Node host' '`server/*.ts` authenticates and scopes browser requests, serves the built client, and dispatches `api/*.ts` same-origin handlers.' 'Hono, Node.js'
     authentication = component 'Authentication boundary' 'OIDC authorization-code transactions with PKCE and nonce validation, fixed token-expiry sessions, canonical-origin enforcement, and the trusted-proxy peer contract.' 'TypeScript, MSAL Node'
     provider_registry = component 'Provider registry' '`api/_provider.ts` resolves a Capability Route and adapts the configured provider.' 'AI SDK v7 provider adapters'
-    extraction_module = component 'Extraction module' '`packages/extraction` owns Extraction execution, grounding, review, batch scheduling, and their PostgreSQL persistence.' 'TypeScript, Prisma Next'
+    extraction_module = component 'Extraction module' '`packages/extraction` delegates execution to the Parsing Service and owns review, batch scheduling, and PostgreSQL persistence.' 'TypeScript, Prisma Next'
     batch_worker = component 'Batch Extraction worker' '`packages/extraction` claims durable batch work in the Studio process and runs each member through the same Extraction module and pinned model-session boundary.' 'TypeScript'
     project_store = component 'ProjectStore' '`packages/db` owns the remaining Project Store reads and writes; handlers hold no SQL.' 'TypeScript, Prisma Next'
   }
 
-  parsing_service = system 'Parsing Service' 'FastAPI PDF ingestion service; it owns no model operation.' {
-    http_api = container 'FastAPI HTTP API' '`POST /tasks`, task polling, ParsedDocument, Markdown, PDF, and package routes.' 'FastAPI'
-    parser = component 'Canonical parsing pipeline' 'Validates the PDF and publishes `parsed_document.v2`, canonical Markdown, and the package.' 'Python, Docling'
-    task_cache = datastore 'Task directory' 'Processor cache: source bytes, task metadata, and the published package. Never a durable dependency.'
+  parsing_service = system 'Parsing Service' 'Included Python service for PDF parsing, extraction, grounding, and durable jobs.' {
+    http_api = container 'FastAPI HTTP API' '`POST /api/runs`, run and extraction polling, canonical page manifests, source PDF, and Markdown routes.' 'FastAPI'
+    parser = container 'Durable worker' 'Claims parsing and extraction jobs; publishes canonical pages, Markdown, records, and grounded evidence.' 'Python, Procrastinate, Docling'
+    jobs = datastore 'Parsing job database' 'Durable admission, lifecycle events, retries, and extraction identity.' 'PostgreSQL 17'
+    models = container 'OCR and extraction models' 'Surya served by vLLM for scanned PDFs; Ollama for schema-guided extraction.' 'vLLM, Ollama'
+    task_cache = datastore 'Canonical service runs' 'Persistent source PDFs, generation-pinned page artifacts, and extraction outputs. Required for later extraction.'
   }
 
   project_db = datastore 'Project Store' 'Researcher Accounts plus account-owned Project Contexts, Source Documents, Source Representations, Annotation Sets, Schema Revisions, Extractions, and versioned ExtractionReview records that own their Review Decisions.' 'PostgreSQL 17, Prisma Next'
@@ -59,7 +61,7 @@ model {
   browser -> entra 'Follows Microsoft Entra authorization and sign-out redirects'
   gateway -> studio 'Forwards requests from the pinned proxy address'
   local_gateway -> studio.handlers 'Forwards TLS requests from the dedicated proxy network'
-  studio -> parsing_service 'Parses selected PDFs through same-origin ingestion'
+  studio -> parsing_service 'Parses PDFs and delegates extraction over private HTTP'
   studio -> project_db 'Reads research state and appends durable writes'
   studio -> package_store 'Reads the pinned canonical package'
   studio -> model_config 'Reads and updates machine-wide model configuration'
@@ -72,7 +74,7 @@ model {
   studio.authentication -> entra 'Exchanges the authorization code and validates tenant identity claims'
   studio.authentication -> project_db 'Creates or refreshes the local account keyed by tenant and object IDs'
   studio.authentication -> mock_oidc 'Uses the mock issuer for default local sign-in'
-  studio.handlers -> parsing_service.http_api 'POST /tasks; poll /tasks/:id; GET /tasks/:id/download'
+  studio.handlers -> parsing_service.http_api 'Submit /api/runs; poll and retrieve verified manifests and page artifacts'
   studio.handlers -> studio.provider_registry 'Resolves a Capability Route'
   studio.handlers -> studio.extraction_module 'Runs and reopens Extractions; records versioned reviews; schedules and reads batches'
   studio.handlers -> studio.project_store 'Reads a snapshot; creates, renames, and deletes a Project Context; appends a Schema Revision'
@@ -80,17 +82,18 @@ model {
   studio.project_store -> project_db 'Reads and writes through Prisma Next'
   studio.extraction_module -> project_db 'Reads and writes Extraction, Evidence, versioned ExtractionReview records with owned Review Decisions, and batch state through Prisma Next'
   studio.extraction_module -> package_store 'Reads the pinned canonical representation package'
-  studio.extraction_module -> studio.provider_registry 'Opens one pinned Extraction model session per attempt'
+  studio.extraction_module -> parsing_service.http_api 'Submit extraction with pinned schema and parse generation; poll artifacts'
   studio.extraction_module -> studio.batch_worker 'Wakes the in-process worker after durable batch scheduling'
   studio.batch_worker -> studio.extraction_module 'Runs each claimed member through the shared Extraction boundary'
   studio.batch_worker -> project_db 'Claims batch work and persists member attempts through Prisma Next'
   studio.batch_worker -> package_store 'Reads each member’s pinned canonical representation package'
-  studio.batch_worker -> studio.provider_registry 'Opens one pinned Extraction model session per claimed member'
   studio.provider_registry -> model_config 'Reads routes, connections, and credentials'
   studio.provider_registry -> model_connections 'Calls the resolved Model Connection'
-  parsing_service.http_api -> parsing_service.parser 'Runs parsing work through the bounded FIFO queue'
-  parsing_service.parser -> parsing_service.task_cache 'Publishes the canonical package'
-  parsing_service.http_api -> parsing_service.task_cache 'Reads task state and canonical outputs'
+  parsing_service.http_api -> parsing_service.jobs 'Durably admits work and reads job state'
+  parsing_service.parser -> parsing_service.jobs 'Claims jobs, records lifecycle, and retries transient failures'
+  parsing_service.parser -> parsing_service.models 'Calls OCR or extraction models as required'
+  parsing_service.parser -> parsing_service.task_cache 'Publishes canonical pages and extraction artifacts'
+  parsing_service.http_api -> parsing_service.task_cache 'Serves canonical artifacts and source PDFs'
 }
 
 views {
@@ -108,8 +111,8 @@ views {
       PostgreSQL and creates, renames, and deletes Project Contexts, appends
       Schema Revisions, Extractions, and versioned ExtractionReview records
       whose Review Decisions they own.
-      The Parsing Service task directory stays a processor cache; the durable
-      artifact is the canonical package.
+      The Parsing Service job database and run directory are durable; Studio
+      also stores the verified canonical package used for review.
     '''
     include operator, researcher, browser, entra, gateway, studio, parsing_service, project_db, package_store, model_config, model_connections
   }
@@ -204,14 +207,15 @@ views {
     researcher -> studio.ui 'Add one or more PDFs'
     studio.ui -> studio.browser_http 'POST one PDF and its stable ingestion key'
     studio.browser_http -> studio.handlers 'POST /api/project-contexts/:id/source-documents'
-    studio.handlers -> parsing_service.http_api 'POST /tasks'
-    parsing_service.http_api -> parsing_service.parser 'Validate and parse the PDF'
+    studio.handlers -> parsing_service.http_api 'POST /api/runs'
+    parsing_service.http_api -> parsing_service.jobs 'Admit the parse job'
+    parsing_service.parser -> parsing_service.jobs 'Claim and execute the job'
     parsing_service.parser -> parsing_service.task_cache 'Publish the canonical package'
     loop 'until parsing completes' {
-      studio.handlers -> parsing_service.http_api 'GET /tasks/:taskId'
+      studio.handlers -> parsing_service.http_api 'GET /api/runs/:runId'
     }
-    studio.handlers -> parsing_service.http_api 'GET /tasks/:taskId/download'
-    parsing_service.http_api -> studio.handlers 'Return the canonical package'
+    studio.handlers -> parsing_service.http_api 'Read result manifest, source PDF, and canonical pages'
+    parsing_service.http_api -> studio.handlers 'Return generation-pinned canonical artifacts'
     studio.handlers -> package_store 'Retain and validate the canonical package'
     studio.handlers -> studio.project_store 'Create Source Document and revision 1'
     studio.project_store -> project_db 'Commit the durable ingestion result'
@@ -221,10 +225,10 @@ views {
   dynamic view schema_guided_extraction {
     title 'Schema Suggestion to reviewed Extraction — current'
     description '''
-      The Extraction Route serves Schema Suggestion, Extraction, and Evidence
-      grounding. The Interaction Route serves chat and conversational schema
-      edits. The Extraction module resolves one model session for an attempt,
-      then uses that pinned route for values and every grounding batch. Review
+      The Extraction Route serves Schema Suggestion. The Interaction Route
+      serves chat and conversational schema edits. The included Parsing
+      Service executes extraction and grounding against the pinned source
+      generation and schema. Review
       finalization appends versioned ExtractionReview revision 1, which owns
       its Review Decisions; Review Decisions never attach directly to an
       Extraction.
@@ -251,8 +255,8 @@ views {
     researcher -> studio.ui 'Run extraction'
     studio.ui -> studio.handlers 'POST /api/extractions with the pinned Source Representation and Schema Revision'
     studio.handlers -> studio.extraction_module 'Execute the Extraction attempt'
-    studio.extraction_module -> studio.provider_registry 'Open one pinned Extraction model session'
-    studio.provider_registry -> model_connections 'Extract values, then ground bounded claim batches'
+    studio.extraction_module -> parsing_service.http_api 'Submit and poll Article or Catalog extraction'
+    parsing_service.parser -> parsing_service.models 'Extract values and verify source evidence'
     studio.extraction_module -> package_store 'Read the pinned parsed_document.v2 and canonical anchors'
     studio.extraction_module -> project_db 'Persist the attempt, Evidence, issues, and grounding diagnostics'
     studio.handlers -> studio.ui 'Show Results, diagnostics, and source-linked Evidence'

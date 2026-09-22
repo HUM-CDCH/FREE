@@ -35,8 +35,8 @@ const artifactSchema = z.object({
   digest: z.string(),
   fingerprint: z.string(),
   strategy: z.enum(['catalog', 'article']),
-  model: z.string().nullable(),
-  // kei-exp writes `PROMPT_VERSION = 1`: a number, not a label.
+  model: z.string().min(1),
+  // kei-exp writes its `PROMPT_VERSION`: a number, not a label.
   prompt_version: z.number().int(),
   schema: z.object({ recordDescription: z.string(), schemaNodes: z.array(z.unknown()) }),
   options: z.record(z.string(), z.unknown()),

@@ -136,10 +136,14 @@ function inspectorMiddleware(operation: ModelOperation, target: ExecutionTarget)
       const reader = result.stream.getReader()
       const chunks: StreamPart[] = []
       let streamFailed = false
+      let cancelled = false
       const stream = new ReadableStream<StreamPart>({
         async pull(controller) {
           try {
             const next = await reader.read()
+            // Cancelling resolves an in-flight read. Its closed controller and
+            // trace now belong to cancel(), not to this pending pull.
+            if (cancelled) return
             if (next.done) {
               if (!streamFailed) trace.complete({ request: result.request, response: result.response, chunks })
               controller.close()
@@ -153,12 +157,14 @@ function inspectorMiddleware(operation: ModelOperation, target: ExecutionTarget)
             }
             controller.enqueue(next.value)
           } catch (error) {
+            if (cancelled) return
             trace.fail(error)
             controller.error(error)
             reader.releaseLock()
           }
         },
         async cancel(reason) {
+          cancelled = true
           trace.cancel(reason)
           try {
             await reader.cancel(reason)
