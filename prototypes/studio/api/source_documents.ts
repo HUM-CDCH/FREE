@@ -214,6 +214,9 @@ async function parsingRequest<T>(
   consume: (response: Response) => Promise<T>,
   init?: RequestInit,
   accepted: (response: Response) => boolean = (response) => response.ok,
+  // What a request that got no usable response at all (ECONNREFUSED, a reset
+  // mid-body, an API restart) yields instead of failing; aborts stay a 504.
+  unreachable?: (cause: unknown) => T,
 ): Promise<T> {
   try {
     const response = await fetcher(`${base.replace(/\/$/, '')}${path}`, init)
@@ -233,6 +236,7 @@ async function parsingRequest<T>(
         { cause: error },
       )
     if (error instanceof ApiError) throw error
+    if (unreachable) return unreachable(error)
     throw new ApiError(
       502,
       'source_ingestion_failed',
@@ -328,8 +332,9 @@ async function completedRun(
 ): Promise<void> {
   const deadline = now() + timeoutMs
   for (;;) {
-    // A 503 or 429 on the status read says nothing about the run: keep
-    // polling, after Retry-After when given, until the deadline.
+    // A 503 or 429 on the status read, or no answer at all (the API
+    // restarting while its worker keeps running), says nothing about the
+    // run: keep polling, after Retry-After when given, until the deadline.
     const polled = await parsingRequest<Polled>(
       parser.fetcher,
       parser.base,
@@ -341,6 +346,7 @@ async function completedRun(
           : { status: await readJson(response, 'run status') },
       { signal: parser.signal },
       (response) => response.ok || NOT_YET.has(response.status),
+      () => ({ waitMs: pollIntervalMs }),
     )
     let waitMs = pollIntervalMs
     if ('waitMs' in polled) waitMs = polled.waitMs

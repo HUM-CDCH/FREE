@@ -462,6 +462,59 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     expect(exhausted.packageStore.save).not.toHaveBeenCalled()
   })
 
+  it('keeps polling when the status read cannot reach kei-exp at all', async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined)
+    let polls = 0
+    const { handler, fetcher, store } = dependencies(
+      { sleep },
+      {
+        statuses: ['running', 'done'],
+        respond: (route, fallback) => {
+          if (route !== 'status') return fallback()
+          polls += 1
+          return polls <= 2
+            ? Promise.reject(new TypeError('fetch failed: ECONNREFUSED'))
+            : fallback()
+        },
+      },
+    )
+    expect((await handler(request())).status).toBe(201)
+    expect(requestedPaths(fetcher).filter((path) => path === '/api/runs/run-1')).toHaveLength(4)
+    expect(sleep.mock.calls).toEqual([[1000], [1000], [1000]])
+    expect(store.ingestSourceDocument).toHaveBeenCalledOnce()
+
+    const unreachable = dependencies(
+      { timeoutMs: 0 },
+      {
+        respond: (route, fallback) =>
+          route === 'status'
+            ? Promise.reject(new TypeError('fetch failed: ECONNREFUSED'))
+            : fallback(),
+      },
+    )
+    expect((await unreachable.handler(request())).status).toBe(504)
+    expect(unreachable.packageStore.save).not.toHaveBeenCalled()
+
+    // Submission and artifact fetches still fail fast.
+    for (const route of ['submit', 'result', 'page'] as const) {
+      const failing = dependencies(
+        {},
+        {
+          respond: (candidate, fallback) =>
+            candidate === route
+              ? Promise.reject(new TypeError('fetch failed: ECONNRESET'))
+              : fallback(),
+        },
+      )
+      const response = await failing.handler(request())
+      expect(response.status).toBe(502)
+      await expect(response.json()).resolves.toMatchObject({
+        error: { message: 'The Parsing Service is unavailable.' },
+      })
+      expect(failing.packageStore.save).not.toHaveBeenCalled()
+    }
+  })
+
   it('packages the translated document with the upload itself and retains it', async () => {
     const root = await mkdtemp(join(tmpdir(), 'free-kei-exp-'))
     try {
