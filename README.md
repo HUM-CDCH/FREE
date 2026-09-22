@@ -55,7 +55,9 @@ FREE's normative product and safety contract is:
    providers, with explicit Extraction and Interaction routes. Stored
    credentials are write-only; provider configuration is deployment-wide and
    is not seeded at startup.
-   Output formatting is automatic: selecting a connection and model is sufficient,
+   Extraction execution is delegated to kei-exp using the selected model name;
+   FREE uses the configured provider directly for Schema Suggestion and Interaction.
+   For those provider calls, output formatting is automatic: selecting a connection and model is sufficient,
    including for existing saved routes. FREE uses the adapter's output support and
    falls back to prompt-only generation only after an explicit unsupported-format
    response, remembering that endpoint/model/route for the server session. Returned
@@ -166,19 +168,16 @@ and certificate rotation:
 registration and rotation:
 [docs/operations/entra-authentication.md](docs/operations/entra-authentication.md).
 
-## Catalog policy
+## Extraction execution
 
-Open **Model Connections → Catalog policy** to edit and save Catalog extraction
-parameters without restarting Studio. Settings are deployment-wide and persist
-in `catalog-policy.json` alongside the model configuration. Each job reads the
-policy when it starts; running jobs keep their initial settings, while queued
-jobs use the settings available when they start.
-
-Saved settings take precedence over `FREE_CATALOG_POLICY`; when no saved policy
-exists, that environment variable (if supplied to the Studio process) overrides
-the built-in defaults. **Use defaults** fills the editor; **Save Catalog policy**
-commits it. Local citation/text checks verify occurrence, not semantic support;
-evidence links remain reviewable suggestions.
+FREE sends the pinned schema and the Source Document's kei-exp run ID to
+`KEI_EXP_URL` for Article or Catalog extraction. kei-exp owns extraction and
+grounding; FREE stores the returned records, evidence and diagnostics for review.
+The configured Extraction Route supplies the optional model name. Provider
+credentials and execution settings for extraction belong to kei-exp. Polling waits
+up to ten minutes for Article and three hours for Catalog; cancellation stops
+FREE from waiting and publishing a result. The API has no remote cancellation
+or targeted Catalog retry operation; start a new Extraction to rerun.
 
 ## More
 

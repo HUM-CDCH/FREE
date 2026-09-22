@@ -423,3 +423,18 @@ describe('/api/extractions transport', () => {
     })
   })
 })
+
+it('transports kei-exp attribution and service issue codes without filtering diagnostics', async () => {
+  const { extractionAttemptDto } = await import('./_extraction_runtime.js')
+  const dto = extractionAttemptDto({
+    ...attemptSnapshot,
+    modelAttribution: { provider: 'kei-exp', modelId: 'remote-model' },
+    diagnostics: {
+      ...snapshot.diagnostics,
+      groundingIssues: [{ code: 'missing_value', detail: 'No source value', record: 0, path: ['records', 0, 'year'] }],
+      groundingBatches: [],
+    },
+  })
+  expect(dto.modelAttribution).toEqual({ provider: 'kei-exp', modelId: 'remote-model' })
+  expect(dto.diagnostics?.grounding?.issueCodes).toEqual(['missing_value'])
+})

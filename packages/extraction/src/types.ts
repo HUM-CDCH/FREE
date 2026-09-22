@@ -324,5 +324,11 @@ export interface ExtractionRuntime {
   close(): Promise<void>
 }
 import type { ScalarFieldType as SchemaScalarFieldType } from './allowed-values.js'
-import type { CatalogBoundary } from './catalog-boundaries.js'
+type CatalogBoundary = {
+  startBlockId: string
+  startContentIndex: number
+  endContentIndex: number
+  headingText: string
+  headingLevel: number | null
+}
 import type { SchemaNode } from './schema.js'

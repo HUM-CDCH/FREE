@@ -1,5 +1,4 @@
-import type { ZodType } from 'zod'
-import type { CatalogPolicy } from './catalog.js'
+import type { KeiExpClient } from './kei-exp.js'
 import type {
   BatchExtractionResults,
   BatchExtractionSnapshot,
@@ -12,8 +11,6 @@ import type {
   ExtractionModelAttribution,
   ExtractionSnapshot,
   ExtractionStrategy,
-  ModelAttribution,
-  ModelGenerationMetadata,
   ReadBatchInput,
   ReadDocumentExtractionsInput,
   ReviewDecisionInput,
@@ -90,70 +87,6 @@ export interface ExtractionPersistence extends ExtractionInputReader {
   readBatchResults(input: ReadBatchInput): Promise<BatchExtractionResults | null>
 }
 
-export type ExtractionModelRequest = Readonly<{
-  document: Readonly<{
-    markdown: string
-    pages: number
-  }>
-  template: Readonly<Record<string, unknown>>
-  /** A stricter output contract for model work such as canonical ID selection. */
-  outputSchema?: ZodType
-  instruction?: string
-  signal: AbortSignal
-}>
-
-export type ExtractionModelResponse = Readonly<{
-  result: Readonly<Record<string, unknown>>
-  metadata: ModelGenerationMetadata
-}>
-
-export interface ExtractionModel {
-  extract(request: ExtractionModelRequest): Promise<ExtractionModelResponse>
-}
-
-export type GroundingSelection = Readonly<{
-  claimLabel: string
-  anchorLabel: string | null
-}>
-
-/** What a claim's value means: its record, its field path and the schema
- *  description of that field. A string found under another field is not
- *  evidence. */
-export type GroundingClaimField = Readonly<{
-  record: string | null
-  field: string
-  description: string | null
-}>
-
-export type GroundingModelRequest = Readonly<{
-  claims: Readonly<Record<string, string | number | boolean>>
-  anchors: Readonly<Record<string, string>>
-  /** Present when the policy asks for field-aware grounding. */
-  claimFields?: Readonly<Record<string, GroundingClaimField>>
-  /** Claims of the same records already linked in code, shown as context
-   *  that needs no answer (policy.groundedContext). */
-  linkedClaims?: Readonly<Record<string, { value: string | number | boolean; anchorLabel: string; field: GroundingClaimField | null }>>
-  signal: AbortSignal
-}>
-
-export type GroundingModelResponse = Readonly<{
-  selections: readonly GroundingSelection[]
-  metadata: ModelGenerationMetadata
-}>
-
-export interface GroundingModel {
-  ground(request: GroundingModelRequest): Promise<GroundingModelResponse>
-}
-
-export type ExtractionModelSession = Readonly<{
-  attribution: ModelAttribution
-  model: ExtractionModel
-  groundingModel: GroundingModel
-}>
-
-export interface ExtractionModelSessions {
-  open(): Promise<ExtractionModelSession>
-}
 export type BatchMemberExtractionInput = Readonly<{
   extractionId: string
   sourceRepresentationRevisionId: string
@@ -195,15 +128,10 @@ export interface InternalExtractionJobStore {
 
 export type ExtractionJobExecutor = (
   input: ExtractionJobInput,
-  checkpoint: ExtractionValueCheckpoint | null,
-  saveCheckpoint: (checkpoint: ExtractionValueCheckpoint) => Promise<void>,
   signal: AbortSignal,
 ) => Promise<TerminalExtraction>
 
 export type ExtractionJobExecutorDependencies = Readonly<{
   inputs: ExtractionInputReader
-  models: ExtractionModelSessions
-  now?: () => number
-  /** Catalog call structure; DEFAULT_CATALOG_POLICY when absent. */
-  policy?: CatalogPolicy
+  keiExp: KeiExpClient
 }>

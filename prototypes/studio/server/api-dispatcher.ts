@@ -39,7 +39,6 @@ const STATIC_API: Readonly<Record<string, true>> = {
   healthz: true,
   llm_inspector: true,
   model_config: true,
-  catalog_policy: true,
   model_probe: true,
 }
 

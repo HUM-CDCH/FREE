@@ -26,6 +26,7 @@ export default defineConfig({
     url: e2eOrigin,
     env: {
       DATABASE_URL: stack.databaseUrl,
+      KEI_EXP_URL: 'http://127.0.0.1:41750',
       FREE_PLAYWRIGHT_LIFECYCLE_ID: stack.lifecycleId,
       STUDIO_ORIGIN: e2eOrigin,
       STUDIO_BASE_PATH: '/',

@@ -4,17 +4,14 @@
   "version": "1.0.0",
   "description": "Extraction domain and runtime",
   "exports": {
-    "./catalog": "./src/catalog.ts",
     ".": "./src/index.ts",
     "./allowed-values": "./src/allowed-values.ts",
     "./batch": "./src/batch.ts",
-    "./grounding": "./src/grounding.ts",
     "./parsed-document": "./src/parsed-document.ts",
-    "./schema": "./src/schema.ts",
-    "./source-context": "./src/source-context.ts"
+    "./schema": "./src/schema.ts"
   },
   "scripts": {
-    "test": "tsx --test src/job-worker.test.ts src/catalog-boundaries.test.ts src/grounding.test.ts src/module.test.ts src/parsed-document.test.ts",
+    "test": "tsx --test src/job-worker.test.ts src/module.test.ts src/parsed-document.test.ts",
     "test:postgres": "tsx --test src/extraction-module.integration.test.ts",
     "typecheck": "tsc --noEmit"
   },

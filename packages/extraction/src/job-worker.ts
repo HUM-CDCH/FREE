@@ -11,12 +11,11 @@ const LEASE_MS = 2 * 60 * 1000
 const LEASE_RENEW_MS = 30 * 1000
 const IDLE_POLL_MS = 5 * 1000
 const MEMBER_TIMEOUT_MS = 10 * 60 * 1000
-// Large catalogues make a values call and a grounding call per entry.
+// kei-exp owns Catalog execution; keep its longer remote deadline.
 const CATALOG_MEMBER_TIMEOUT_MS = 3 * 60 * 60 * 1000
 
 function durableFailure(
   error: unknown,
-  checkpointed: boolean,
   cancelled: boolean,
 ): ExtractionJobFailure {
   const mapped = cancelled
@@ -27,7 +26,7 @@ function durableFailure(
     message: mapped.code === 'extraction_failed'
       ? 'The operation failed unexpectedly.'
       : mapped.message.slice(0, 512),
-    phase: checkpointed ? 'grounding' : 'extracting',
+    phase: 'extracting',
   }
 }
 
@@ -119,7 +118,6 @@ export class ExtractionJobWorker {
     const controller = new AbortController()
     this.active = { jobId: job.input.extractionId, controller }
     let leaseState: 'owned' | 'cancelled' | 'lost' = 'owned'
-    let checkpointed = job.checkpoint !== null
     let renewing = false
     const renew = async () => {
       if (renewing || leaseState !== 'owned' || outerSignal.aborted) return
@@ -148,19 +146,7 @@ export class ExtractionJobWorker {
     )
     const signal = AbortSignal.any([outerSignal, controller.signal, timeout])
     try {
-      const extraction = await this.executeJob(
-        job.input,
-        job.checkpoint,
-        async (checkpoint) => {
-          if (!await this.store.checkpoint(
-            job.input.extractionId,
-            job.lease,
-            checkpoint,
-          )) throw new ExtractionError('cancelled', 'The Extraction lease was lost.')
-          checkpointed = true
-        },
-        signal,
-      )
+      const extraction = await this.executeJob(job.input, signal)
       await renew()
       if (outerSignal.aborted || (leaseState as 'owned' | 'cancelled' | 'lost') === 'lost') return
       if (leaseState !== 'owned' || signal.aborted)
@@ -182,7 +168,6 @@ export class ExtractionJobWorker {
         job.lease,
         durableFailure(
           error,
-          checkpointed,
           (leaseState as 'owned' | 'cancelled' | 'lost') === 'cancelled' || controller.signal.aborted,
         ),
         this.now(),

@@ -153,15 +153,7 @@ const groundingDiagnosticsSchema = z
   .object({
     groundedPaths: z.array(resultPathSchema),
     ungroundedPaths: z.array(resultPathSchema),
-    issueCodes: z.array(
-      z.enum([
-        'missing_claim',
-        'unknown_claim_label',
-        'unknown_anchor_label',
-        'malformed_selection',
-        'grounding_failed',
-      ]),
-    ),
+    issueCodes: z.array(z.string()),
     batches: z.array(
       modelCallDiagnosticsSchema.extend({
         resultPath: resultPathSchema.nullable(),
@@ -235,7 +227,7 @@ export const extractionDiagnosticsSchema = z
 export type ExtractionDiagnostics = z.infer<typeof extractionDiagnosticsSchema>
 
 const modelTargetAttributionSchema = z
-  .object({ provider: providerKindSchema, modelId: z.string().min(1) })
+  .object({ provider: z.union([providerKindSchema, z.literal('kei-exp')]), modelId: z.string().min(1) })
   .strict()
 
 export const extractionModelAttributionSchema = modelTargetAttributionSchema

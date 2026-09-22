@@ -8,7 +8,7 @@ import type {
 } from './dependencies.js'
 import { ExtractionJobWorker } from './job-worker.js'
 
-it('checkpoints values before terminal promotion', async () => {
+it('relays the remote artifact and reports terminal promotion failure', async () => {
   const extractionId = randomUUID()
   const sourceDocumentId = randomUUID()
   const sourceRepresentationRevisionId = randomUUID()
@@ -56,15 +56,7 @@ it('checkpoints values before terminal promotion', async () => {
     retryOfId: null, batchExtractionId: null,
   }
   const worker = new ExtractionJobWorker(store,
-    async (_input, _checkpoint, saveCheckpoint) => {
-      await saveCheckpoint({
-        complete: true,
-        modelAttribution: terminal.modelAttribution!,
-        diagnostics: { ...terminal.diagnostics, phase: 'grounding' },
-        result: terminal.result!,
-      })
-      return terminal
-    },
+    async () => terminal,
   )
   const stop = new AbortController()
   const running = worker.run(stop.signal)
@@ -72,11 +64,11 @@ it('checkpoints values before terminal promotion', async () => {
   await finished
   stop.abort()
   await running
-  assert.deepEqual(events, ['checkpoint', 'complete', 'fail'])
-  assert.equal(failurePhase, 'grounding')
+  assert.deepEqual(events, ['complete', 'fail'])
+  assert.equal(failurePhase, 'extracting')
 })
 
-it('stays in extracting when the checkpoint write fails', async () => {
+it('reports remote execution failure without promoting a result', async () => {
   const extractionId = randomUUID()
   const job: ClaimedExtractionJob = {
     input: {
@@ -99,7 +91,7 @@ it('stays in extracting when the checkpoint write fails', async () => {
     },
     async renew() { return 'owned' },
     async checkpoint() { return false },
-    async complete() { assert.fail('work without a checkpoint must not be promoted') },
+    async complete() { assert.fail('failed work must not be promoted') },
     async fail(_id, _lease, failure) {
       failurePhase = failure.phase
       finish()
@@ -107,20 +99,7 @@ it('stays in extracting when the checkpoint write fails', async () => {
     },
   }
   const worker = new ExtractionJobWorker(store,
-    async (_input, _checkpoint, saveCheckpoint) => {
-      await saveCheckpoint({
-        complete: true,
-        modelAttribution: { provider: 'test', modelId: 'test' },
-        diagnostics: {
-          phase: 'grounding', durationMs: 1, modelCalls: 1,
-          finishReason: 'stop', inputTokens: 1, outputTokens: 1,
-          ungroundedPaths: [], groundingIssues: [], groundingBatches: [],
-          catalog: null, retry: null,
-        },
-        result: { records: [] },
-      })
-      assert.fail('a rejected checkpoint must stop execution')
-    },
+    async () => { throw new Error('remote execution failed') },
   )
   const stop = new AbortController()
   const running = worker.run(stop.signal)
@@ -131,7 +110,7 @@ it('stays in extracting when the checkpoint write fails', async () => {
   assert.equal(failurePhase, 'extracting')
 })
 
-it('derives reclaimed cancellation phase from its stored checkpoint', async () => {
+it('does not promote a remote artifact after cancellation of a reclaimed job', async () => {
   const extractionId = randomUUID()
   const sourceRepresentationRevisionId = randomUUID()
   const schemaRevisionId = randomUUID()
@@ -197,7 +176,7 @@ it('derives reclaimed cancellation phase from its stored checkpoint', async () =
   stop.abort()
   await running
   assert.equal(failureCode, 'cancelled')
-  assert.equal(failurePhase, 'grounding')
+  assert.equal(failurePhase, 'extracting')
 })
 
 it('fails instead of stranding a job when terminal promotion loses its lease', async () => {

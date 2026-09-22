@@ -8,11 +8,7 @@ import { strToU8, zipSync } from 'fflate'
 import type { CanonicalPackageStore, Database } from 'db'
 import { validateDisposableTestDatabaseTarget } from 'db/database-url'
 import { withBlockedUpdates } from '../../db/src/postgres-test-helpers.js'
-import type {
-  ExtractionModel,
-  ExtractionModelRequest,
-  GroundingModel,
-} from './dependencies.js'
+import type { KeiExpClient, KeiExpRequest, KeiExpArtifact } from './kei-exp.js'
 import { ExtractionError } from './errors.js'
 import type {
   BatchExtractionSnapshot,
@@ -64,14 +60,6 @@ if (!disposableDatabaseUrl) {
       },
     ],
   } as const
-  const metadata = {
-    finishReason: 'stop',
-    inputTokens: 10,
-    outputTokens: 5,
-    durationMs: 1,
-  } as const
-  const attribution = { provider: 'test', modelId: 'deterministic' } as const
-
   type StoredPackage = {
     artifactReference: string
     artifactSha256: string
@@ -91,11 +79,7 @@ if (!disposableDatabaseUrl) {
     documents: SeededDocument[]
   }
 
-  type DeterministicAdapters = {
-    model: ExtractionModel
-    groundingModel: GroundingModel
-    calls: ExtractionModelRequest[]
-  }
+  type DeterministicAdapters = { client: KeiExpClient; calls: KeiExpRequest[] }
   const projects = new Set<string>()
   const accounts = new Set<string>()
   const runtimes = new Set<ExtractionRuntime>()
@@ -220,7 +204,7 @@ if (!disposableDatabaseUrl) {
           anchors: [
             {
               kind: 'text',
-              anchor_id: 'anchor-alpha',
+              anchor_id: 'a_p1_s0',
               content_sha256: contentSha256,
               preprocess_id: preprocessId,
               block_id: 'alpha',
@@ -236,7 +220,7 @@ if (!disposableDatabaseUrl) {
             },
             {
               kind: 'text',
-              anchor_id: 'anchor-beta',
+              anchor_id: 'a_p1_s1',
               content_sha256: contentSha256,
               preprocess_id: preprocessId,
               block_id: 'beta',
@@ -382,74 +366,26 @@ if (!disposableDatabaseUrl) {
     return sourceRepresentationRevisionId
   }
 
-  function deterministicAdapters(options: {
-    failArticle?: boolean
-  } = {}): DeterministicAdapters {
-    const calls: ExtractionModelRequest[] = []
-    const model: ExtractionModel = {
-      async extract(request) {
-        calls.push(request)
-        if (request.signal.aborted)
-          throw new DOMException('Aborted', 'AbortError')
-        if (options.failArticle)
-          throw new Error('controlled article failure')
-        return {
-          result: {
-            records: [{ title: 'Alpha' }],
-          },
-          metadata,
-          attribution,
-        }
-      },
-    }
-    const groundingModel: GroundingModel = {
-      async ground(request) {
-        const labels = Object.keys(request.anchors)
-        return {
-          selections: Object.keys(request.claims).map((claimLabel, index) => ({
-            claimLabel,
-            anchorLabel: labels[index] ?? labels[0] ?? null,
-          })),
-          metadata,
-          attribution,
-        }
-      },
-    }
-    return { model, groundingModel, calls }
-  }
-
-  /**
-   * A discovery-aware model over the seeded canonical package's two headings.
-   * Values calls against the Product B slice fail, so a fresh Catalog run
-   * persists a partial attempt whose failed record can be retried. Two
-   * failures is one run's worth under a batching policy: the batched call
-   * covers both slices and its rejection re-runs one record per call, so
-   * Product B must fail in the batch and again on its own to stay failed.
-   */
-  function catalogAdapters(failures = 2): DeterministicAdapters {
-    const base = deterministicAdapters()
-    let betaFailures = failures
-    const model: ExtractionModel = {
-      async extract(request) {
-        base.calls.push(request)
-        if (request.signal.aborted)
-          throw new DOMException('Aborted', 'AbortError')
-        if ('starts' in request.template)
+  function deterministicAdapters(options: { failArticle?: boolean } = {}): DeterministicAdapters {
+    const calls: KeiExpRequest[] = []
+    return {
+      calls,
+      client: {
+        async extract(request) {
+          calls.push(request)
+          request.signal.throwIfAborted()
+          if (options.failArticle) throw new Error('controlled extraction failure')
           return {
-            result: { starts: ['B1', 'B3'] },
-            metadata,
+            extraction_version: 1, run_id: request.runId, generation: 'g1', digest: 'digest', fingerprint: 'fingerprint',
+            strategy: request.strategy, model: 'deterministic', prompt_version: 'v1', schema: request.schema,
+            options: { strategy: request.strategy, model: 'deterministic' }, started: new Date().toISOString(), seconds: 0.001,
+            complete: true, records: [{ title: 'Alpha', ...(request.schema.schemaNodes.some(node => node.name === 'filename') ? { filename: 'article.pdf' } : {}) }],
+            evidence: [{ path: ['records', 0, 'title'], segment: 'p1_s0', page: 1, bbox_pt: [10, 10, 100, 30], verbatim: true, hits: 1, linked_by: 'model' }],
+            ungrounded: [], issues: [], calls: 1, tokens: { input: 10, output: 5 },
           }
-        if (request.document.markdown.includes('Beta')) {
-          if (betaFailures > 0) {
-            betaFailures -= 1
-            throw new Error('controlled record failure')
-          }
-          return { result: { record: { title: 'Beta' } }, metadata }
-        }
-        return { result: { record: { title: 'Alpha' } }, metadata }
+        },
       },
     }
-    return { ...base, model }
   }
 
   function createRuntime(
@@ -458,16 +394,7 @@ if (!disposableDatabaseUrl) {
   ) {
     const runtime = createExtractionRuntimeWithInfrastructure(
       {
-        models: {
-          async open() {
-            return {
-              attribution,
-              model: adapters.model,
-              groundingModel: adapters.groundingModel,
-            }
-          },
-        },
-        now: () => 100,
+        keiExp: { extract: request => adapters.client.extract(request) },
       },
       { database: db as Database, packages },
     )
@@ -684,170 +611,24 @@ if (!disposableDatabaseUrl) {
       assert.equal(unchanged?.reviewedAt, null)
     })
 
-    it('persists, reopens, replays, and retries a durable Catalog attempt', async (t) => {
+    it('persists and reopens a partial remote Catalog result without local stage diagnostics', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
-      const adapters = catalogAdapters()
+      const adapters = deterministicAdapters()
+      const extract = adapters.client.extract
+      adapters.client.extract = async request => ({ ...await extract(request), complete: false })
       const { module } = createRuntime(project.researcherAccountId, adapters)
       const input = { ...freshInput(project), strategy: 'CATALOG' as const }
-
       const created = await module.runSingle(input)
-      assert.equal(created.disposition, 'created')
-      assert.equal(created.extraction.strategy, 'CATALOG')
-      assert.equal(created.extraction.outcome, 'SUCCEEDED')
       assert.equal(created.extraction.complete, false)
-      assert.deepEqual(created.extraction.result, {
-        records: [{ title: 'Alpha', filename: 'article.pdf' }],
-      })
-      const catalog = created.extraction.diagnostics!.catalog
-      assert.ok(catalog)
-      assert.deepEqual(
-        catalog.records.map((record) => [
-          record.boundary.startBlockId,
-          record.outcome,
-        ]),
-        [['heading-a', 'succeeded'], ['heading-b', 'failed']],
-      )
-
-      const replayed = await module.runSingle(input)
-      assert.equal(replayed.disposition, 'replayed')
-      await assert.rejects(
-        module.runSingle({ ...input, strategy: 'ARTICLE' as const }),
-        rejectsWithCode('extraction_id_conflict'),
-      )
-
-      const reopened = await module.readDocumentExtractions({
-        sourceDocumentId: project.documents[0]!.sourceDocumentId,
-      })
-      assert.equal(reopened?.latestAttempt?.strategy, 'CATALOG')
-      assert.deepEqual(reopened?.latestAttempt?.diagnostics?.catalog, catalog)
-
-      const retry = {
-        kind: 'retry' as const,
-        extractionId: randomUUID(),
-        retryOfId: input.extractionId,
-        retryDocument: false,
-        rediscover: false,
-        retryRecordStartBlockIds: ['heading-b'] as readonly string[],
-      }
-      const child = (await module.runSingle(retry)).extraction
-      assert.equal(child.retryOfId, input.extractionId)
-      assert.equal(child.strategy, 'CATALOG')
-      assert.equal(child.outcome, 'SUCCEEDED')
-      assert.equal(child.complete, true)
-      assert.deepEqual(child.result, {
-        records: [
-          { title: 'Alpha', filename: 'article.pdf' },
-          { title: 'Beta', filename: 'article.pdf' },
-        ],
-      })
-      assert.deepEqual(
-        child.diagnostics!.catalog?.records.map((record) => [
-          record.provenance,
-          record.calls,
-        ]),
-        [['reused', 0], ['executed', 1]],
-      )
-      assert.deepEqual(child.diagnostics!.retry, retry && {
-        retryOfId: retry.retryOfId,
-        retryDocument: false,
-        rediscover: false,
-        retryRecordStartBlockIds: ['heading-b'],
-      })
-      assert.equal(child.reviewedAt, null)
-      assert.equal(child.reviewDecisions.length, 0)
-
-      // A stored retry replays for the same selection and conflicts otherwise.
-      const replayedChild = await module.runSingle(retry)
-      assert.equal(replayedChild.disposition, 'replayed')
-      await assert.rejects(
-        module.runSingle({ ...retry, rediscover: true }),
-        rejectsWithCode('extraction_id_conflict'),
-      )
-    })
-
-    it('arbitrates independent runtime races by complete retry selection', async (t) => {
-      t.after(cleanup)
-      const project = await seedProject()
-      const parentRuntime = createRuntime(
-        project.researcherAccountId,
-        catalogAdapters(),
-      )
-      const parent = (
-        await parentRuntime.module.runSingle({
-          ...freshInput(project),
-          strategy: 'CATALOG',
-        })
-      ).extraction
-      assert.equal(
-        parent.diagnostics!.catalog?.records.find(
-          (record) => record.boundary.startBlockId === 'heading-b',
-        )?.outcome,
-        'failed',
-      )
-
-      const differentAdapters = [catalogAdapters(0), catalogAdapters(0)]
-      const differentModules = differentAdapters.map(
-        (adapters) =>
-          createRuntime(project.researcherAccountId, adapters).module,
-      )
-      const differentId = randomUUID()
-      const different = await Promise.allSettled([
-        differentModules[0]!.runSingle({
-          kind: 'retry',
-          extractionId: differentId,
-          retryOfId: parent.extractionId,
-          retryDocument: false,
-          rediscover: false,
-          retryRecordStartBlockIds: ['heading-b'],
-        }),
-        differentModules[1]!.runSingle({
-          kind: 'retry',
-          extractionId: differentId,
-          retryOfId: parent.extractionId,
-          retryDocument: false,
-          rediscover: true,
-          retryRecordStartBlockIds: [],
-        }),
-      ])
-      const differentFulfilled = different.filter(
-        (result) => result.status === 'fulfilled',
-      )
-      const differentRejected = different.filter(
-        (result) => result.status === 'rejected',
-      )
-      assert.equal(differentFulfilled.length, 1)
-      assert.equal(differentRejected.length, 1)
-      assert.equal(differentFulfilled[0]!.value.disposition, 'created')
-      assert.equal(
-        differentRejected[0]!.reason instanceof ExtractionError
-          ? differentRejected[0]!.reason.code
-          : null,
-        'extraction_id_conflict',
-      )
-
-      const identicalAdapters = [catalogAdapters(0), catalogAdapters(0)]
-      const identicalModules = identicalAdapters.map(
-        (adapters) =>
-          createRuntime(project.researcherAccountId, adapters).module,
-      )
-      const identicalId = randomUUID()
-      const identicalInput = {
-        kind: 'retry' as const,
-        extractionId: identicalId,
-        retryOfId: parent.extractionId,
-        retryDocument: false,
-        rediscover: false,
-        retryRecordStartBlockIds: ['heading-b'] as readonly string[],
-      }
-      const identical = await Promise.all([
-        identicalModules[0]!.runSingle(identicalInput),
-        identicalModules[1]!.runSingle(identicalInput),
-      ])
-      assert.deepEqual(
-        identical.map((result) => result.disposition).sort(),
-        ['created', 'replayed'],
-      )
+      assert.equal(created.extraction.outcome, 'SUCCEEDED')
+      assert.equal(created.extraction.diagnostics!.catalog, null)
+      assert.equal((await module.runSingle(input)).disposition, 'replayed')
+      assert.equal(adapters.calls.length, 1)
+      const reopened = await module.readDocumentExtractions({ sourceDocumentId: project.documents[0]!.sourceDocumentId })
+      assert.deepEqual(reopened?.latestAttempt?.result, created.extraction.result)
+      const prepared = await module.prepareReview(input.extractionId)
+      assert.equal((await module.finalizeReview(input.extractionId, prepared.reviewDecisions)).disposition, 'reviewed')
     })
 
     it('retains Article failures on jobs without creating Extractions', async (t) => {
@@ -872,30 +653,18 @@ if (!disposableDatabaseUrl) {
       t.after(cleanup)
       const project = await seedProject()
       const modelStarted = Promise.withResolvers<void>()
-      const model: ExtractionModel = {
+      const client: KeiExpClient = {
         extract(request) {
           modelStarted.resolve()
-          const pending = Promise.withResolvers<never>()
-          const abort = () =>
-            pending.reject(new DOMException('Aborted', 'AbortError'))
+          const pending = Promise.withResolvers<KeiExpArtifact>()
+          const abort = () => pending.reject(new DOMException('Aborted', 'AbortError'))
           request.signal.addEventListener('abort', abort, { once: true })
           if (request.signal.aborted) abort()
           return pending.promise
         },
       }
-      const adapters = deterministicAdapters()
       const runtime = createExtractionRuntimeWithInfrastructure(
-        {
-          models: {
-            async open() {
-              return {
-                attribution,
-                model,
-                groundingModel: adapters.groundingModel,
-              }
-            },
-          },
-        },
+        { keiExp: client },
         { database: db, packages },
       )
       runtimes.add(runtime)
@@ -1030,7 +799,7 @@ if (!disposableDatabaseUrl) {
       assert.deepEqual(prepared.reviewDecisions, [
         {
           resultPath: ['records', 0, 'title'],
-          evidenceAnchorId: 'anchor-alpha',
+          evidenceAnchorId: 'a_p1_s0',
           reviewedOccurrenceIds: ['occurrence-alpha'],
           action: 'APPROVED',
           reviewedValue: null,
@@ -1040,7 +809,7 @@ if (!disposableDatabaseUrl) {
         module.finalizeReview(extractionId, [
           {
             resultPath: ['records', 0, 'title'],
-            evidenceAnchorId: 'anchor-alpha',
+            evidenceAnchorId: 'a_p1_s0',
             reviewedOccurrenceIds: ['occurrence-beta'],
             action: 'APPROVED',
             reviewedValue: null,
@@ -1076,7 +845,7 @@ if (!disposableDatabaseUrl) {
         module.finalizeReview(extractionId, [
           {
             resultPath: ['records', 0, 'title'],
-            evidenceAnchorId: 'anchor-alpha',
+            evidenceAnchorId: 'a_p1_s0',
             reviewedOccurrenceIds: ['occurrence-alpha'],
             action: 'REJECTED',
             reviewedValue: null,
@@ -1105,29 +874,12 @@ if (!disposableDatabaseUrl) {
         ],
       })
       const adapters = deterministicAdapters()
-      adapters.model = {
-        async extract() {
-          return {
-            result: { records: [{ title: 'Alpha', note: 'Beta' }] },
-            metadata,
-            attribution,
-          }
-        },
-      }
-      adapters.groundingModel = {
-        async ground(request) {
-          const [firstClaim, secondClaim] = Object.keys(request.claims)
-          const firstAnchor = Object.keys(request.anchors)[0] ?? null
-          return {
-            selections: [
-              { claimLabel: firstClaim!, anchorLabel: firstAnchor },
-              { claimLabel: secondClaim!, anchorLabel: null },
-            ],
-            metadata,
-            attribution,
-          }
-        },
-      }
+      const extract = adapters.client.extract
+      adapters.client.extract = async request => ({
+        ...await extract(request), complete: false,
+        records: [{ title: 'Alpha', note: 'Beta' }],
+        ungrounded: [['records', 0, 'note']],
+      })
       const { module } = createRuntime(project.researcherAccountId, adapters)
       const completed = await module.runSingle(freshInput(project))
       assert.equal(completed.extraction.outcome, 'SUCCEEDED')
@@ -1158,27 +910,12 @@ if (!disposableDatabaseUrl) {
         ],
       })
       const adapters = deterministicAdapters()
-      adapters.model = {
-        async extract() {
-          return {
-            result: { records: [{ title: 'Alpha', note: 'Alpha' }] },
-            metadata,
-            attribution,
-          }
-        },
-      }
-      adapters.groundingModel = {
-        async ground(request) {
-          const anchorLabel = Object.keys(request.anchors)[0]!
-          return {
-            selections: Object.keys(request.claims).map((claimLabel) => ({
-              claimLabel,
-              anchorLabel,
-            })),
-            metadata,
-            attribution,
-          }
-        },
+      const extract = adapters.client.extract
+      adapters.client.extract = async request => {
+        const artifact = await extract(request)
+        return { ...artifact, records: [{ title: 'Alpha', note: 'Alpha' }], evidence: [
+          ...artifact.evidence, { ...artifact.evidence[0]!, path: ['records', 0, 'note'] },
+        ] }
       }
       const { module } = createRuntime(project.researcherAccountId, adapters)
       const completed = await module.runSingle(freshInput(project))

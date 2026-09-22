@@ -6,7 +6,6 @@ import { ProviderRoutesEditor } from './ProviderRoutesEditor'
 import { apiErrorText, getModelConfig, putModelConfig } from './providerConfig.data'
 import { useProbeLifecycle } from './useProbeLifecycle'
 import { useProviderConfigDraft } from './useProviderConfigDraft'
-import { CatalogPolicyPanel } from './CatalogPolicyPanel'
 
 
 function ProviderConfigPage({
@@ -192,7 +191,6 @@ function ProviderConfigPage({
           <Button variant="primary" size="md" disabled={applying} onClick={() => void apply()}>{applying ? 'Applying…' : 'Apply'}</Button>
         </div>
       </section>
-      <CatalogPolicyPanel />
     </fieldset>
   )
 }
