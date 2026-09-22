@@ -21,9 +21,12 @@ function durableFailure(
   const mapped = cancelled
     ? new ExtractionError('cancelled', 'The Extraction was cancelled.')
     : extractionError(error)
+  // An ExtractionError's message was written to be read by a Researcher — it carries the reason
+  // kei-exp gave. Anything else reached here by accident, and its text may name internals.
+  const deliberate = cancelled || error instanceof ExtractionError
   return {
     code: mapped.code,
-    message: mapped.code === 'extraction_failed'
+    message: !deliberate && mapped.code === 'extraction_failed'
       ? 'The operation failed unexpectedly.'
       : mapped.message.slice(0, 512),
     phase: 'extracting',

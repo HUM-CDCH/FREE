@@ -60,6 +60,7 @@ const snapshot: ExtractionSnapshot = {
         durationMs: 4,
       },
     ],
+    unverifiedFields: [],
     catalog: null,
     retry: null,
   },

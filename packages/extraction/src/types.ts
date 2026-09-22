@@ -109,6 +109,10 @@ export type ExtractionDiagnostics = Readonly<{
   ungroundedPaths: readonly ResultPath[]
   groundingIssues: readonly Readonly<Record<string, unknown>>[]
   groundingBatches: readonly GroundingBatchSnapshot[]
+  /** Document-level field names (`valueSource: "document"`) the extractor could not verify: read
+   *  once for the whole source, copied into every record and grounded in none. They are not
+   *  ungrounded values — no passage was ever expected to carry them. */
+  unverifiedFields: readonly string[]
   catalog: CatalogDiagnostics | null
   retry: ExtractionRetrySelection | null
 }>

@@ -59,12 +59,17 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
     } catch (error) {
       throw new ExtractionError('invalid_review', 'The Extraction Result does not match its pinned Schema Revision.', { cause: error })
     }
-    const packageFields = new Set(partitionSchemaNodes(definition.schemaNodes).packageNodes.map((node) => node.name))
+    // Neither a source-filename field (filled from the package, never by the model) nor a
+    // document-level one (read once for the whole source; kei-exp reports its name under
+    // `unverified` and grounds it in no record) carries evidence, so neither is grounded nor
+    // ungrounded in the review's sense: both stay outside the coverage invariant.
+    const partition = partitionSchemaNodes(definition.schemaNodes)
+    const unreviewedFields = new Set([...partition.packageNodes, ...partition.documentNodes].map((node) => node.name))
     const populatedResultPathKeys = new Set(
       populatedContentPaths(extraction.result)
         .filter((path) => {
           const field = path[0] === 'records' && typeof path[1] === 'number' ? path[2] : path[0]
-          return typeof field !== 'string' || !packageFields.has(field)
+          return typeof field !== 'string' || !unreviewedFields.has(field)
         })
         .map(resultPathKey),
     )
@@ -201,12 +206,10 @@ export function createExtractionJobExecutor({ inputs: reader, keiExp }: Extracti
       runId: document.document.document_id,
       schema,
       strategy: input.strategy === 'CATALOG' ? 'catalog' : 'article',
+      expectedGeneration: pinnedGeneration(document),
       signal,
     })
     signal.throwIfAborted()
-    if (document.preprocessing.profile === 'kei-exp' &&
-        document.preprocessing.preprocess_id !== `kei-exp:${document.document.document_id}:${artifact.generation}`)
-      throw new ExtractionError('invalid_source_representation', 'kei-exp extracted a different Source Representation generation.')
     return {
       extractionId: input.extractionId,
       sourceDocumentId: inputs.sourceDocumentId,
@@ -228,12 +231,25 @@ export function createExtractionJobExecutor({ inputs: reader, keiExp }: Extracti
         phase: 'persisting', durationMs: Math.round(artifact.seconds * 1000),
         modelCalls: artifact.calls.length, inputTokens: artifact.tokens.input, outputTokens: artifact.tokens.output,
         finishReason: null, ungroundedPaths: artifact.ungrounded, groundingIssues: artifact.issues,
-        groundingBatches: [], catalog: null, retry: null,
+        // Document-level fields: extracted into every record, grounded in none of them.
+        groundingBatches: [], unverifiedFields: artifact.unverified, catalog: null, retry: null,
       },
       failure: null, reviewable: true, retryOfId: null,
       batchExtractionId: input.kind === 'batch-member' ? input.batchExtractionId : null,
     }
   }
+}
+
+/** The parse generation a kei-exp Source Representation is pinned to, read back out of its
+ *  `preprocess_id` (`kei-exp:{run}:{generation}`). Null for a representation from another parser,
+ *  whose revisions kei-exp's generations say nothing about. */
+function pinnedGeneration(document: ParsedDocument): string | null {
+  if (document.preprocessing.profile !== 'kei-exp') return null
+  const prefix = `kei-exp:${document.document.document_id}:`
+  const preprocessId = document.preprocessing.preprocess_id
+  if (!preprocessId.startsWith(prefix) || preprocessId.length === prefix.length)
+    throw new ExtractionError('invalid_source_representation', 'The pinned Source Representation does not name a kei-exp parse generation.')
+  return preprocessId.slice(prefix.length)
 }
 
 function decodeCanonical(raw: unknown): ParsedDocument {

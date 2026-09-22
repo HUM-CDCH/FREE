@@ -38,6 +38,7 @@ const extraction: ExtractionAttemptSnapshot = {
     ungroundedPaths: [],
     groundingIssues: [],
     groundingBatches: [],
+    unverifiedFields: [],
     catalog: null,
     retry: null,
   },

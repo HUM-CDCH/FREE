@@ -3,9 +3,11 @@ import { randomUUID } from 'node:crypto'
 import { it } from 'node:test'
 import type {
   ClaimedExtractionJob,
+  ExtractionJobFailure,
   InternalExtractionJobStore,
   TerminalExtraction,
 } from './dependencies.js'
+import { ExtractionError } from './errors.js'
 import { ExtractionJobWorker } from './job-worker.js'
 
 it('relays the remote artifact and reports terminal promotion failure', async () => {
@@ -50,7 +52,7 @@ it('relays the remote artifact and reports terminal promotion failure', async ()
     diagnostics: {
       phase: 'persisting', durationMs: 1, modelCalls: 1, finishReason: 'stop',
       inputTokens: 1, outputTokens: 1, ungroundedPaths: [], groundingIssues: [],
-      groundingBatches: [], catalog: null, retry: null,
+      groundingBatches: [], unverifiedFields: [], catalog: null, retry: null,
     },
     failure: null, result: { records: [] }, evidence: [], reviewable: true,
     retryOfId: null, batchExtractionId: null,
@@ -110,6 +112,53 @@ it('reports remote execution failure without promoting a result', async () => {
   assert.equal(failurePhase, 'extracting')
 })
 
+it('records the reason kei-exp gave and still scrubs an unexpected failure', async () => {
+  async function failureOf(thrown: unknown) {
+    const job: ClaimedExtractionJob = {
+      input: {
+        kind: 'fresh', extractionId: randomUUID(),
+        sourceRepresentationRevisionId: randomUUID(),
+        schemaRevisionId: randomUUID(), strategy: 'ARTICLE',
+      },
+      checkpoint: null,
+      lease: { owner: randomUUID(), version: 1, expiresAt: new Date(Date.now() + 60_000) },
+    }
+    let available = true
+    let recorded: ExtractionJobFailure | null = null
+    let finish!: () => void
+    const finished = new Promise<void>((resolve) => { finish = resolve })
+    const store: InternalExtractionJobStore = {
+      async claim() {
+        if (!available) return null
+        available = false
+        return job
+      },
+      async renew() { return 'owned' },
+      async checkpoint() { return false },
+      async complete() { assert.fail('failed work must not be promoted') },
+      async fail(_id, _lease, failure) {
+        recorded = failure
+        finish()
+        return true
+      },
+    }
+    const worker = new ExtractionJobWorker(store, async () => { throw thrown })
+    const stop = new AbortController()
+    const running = worker.run(stop.signal)
+    worker.wake()
+    await finished
+    stop.abort()
+    await running
+    return recorded as unknown as ExtractionJobFailure
+  }
+  const relayed = await failureOf(new ExtractionError('extraction_failed', 'kei-exp could not complete the Extraction: the model server refused the request'))
+  assert.equal(relayed.code, 'extraction_failed')
+  assert.match(relayed.message, /the model server refused the request/)
+  const unexpected = await failureOf(new Error('ECONNREFUSED 10.0.0.4:5432 while writing the lease'))
+  assert.equal(unexpected.code, 'extraction_failed')
+  assert.equal(unexpected.message, 'The operation failed unexpectedly.')
+})
+
 it('does not promote a remote artifact after cancellation of a reclaimed job', async () => {
   const extractionId = randomUUID()
   const sourceRepresentationRevisionId = randomUUID()
@@ -126,7 +175,7 @@ it('does not promote a remote artifact after cancellation of a reclaimed job', a
     diagnostics: {
       phase: 'persisting', durationMs: 1, modelCalls: 1, finishReason: 'stop',
       inputTokens: 1, outputTokens: 1, ungroundedPaths: [], groundingIssues: [],
-      groundingBatches: [], catalog: null, retry: null,
+      groundingBatches: [], unverifiedFields: [], catalog: null, retry: null,
     },
     failure: null, result: { records: [] }, evidence: [], reviewable: true,
     retryOfId: null, batchExtractionId: null,
@@ -223,7 +272,7 @@ it('fails instead of stranding a job when terminal promotion loses its lease', a
     diagnostics: {
       phase: 'grounding', durationMs: 1, modelCalls: 1, finishReason: 'stop',
       inputTokens: 1, outputTokens: 1, ungroundedPaths: [], groundingIssues: [],
-      groundingBatches: [], catalog: null, retry: null,
+      groundingBatches: [], unverifiedFields: [], catalog: null, retry: null,
     },
     failure: null, result: { records: [] }, evidence: [], reviewable: true,
     retryOfId: null, batchExtractionId: null,
