@@ -83,3 +83,67 @@ def test_text_of_joins_passages_with_blank_lines(digital_pdf, tmp_path):
     evidence = load(hand_built_complete(digital_pdf, tmp_path))
     expected = f"{evidence.passages[0].text.strip()}\n\n{evidence.passages[1].text.strip()}"
     assert text_of(evidence.passages[:2]) == expected
+
+
+def test_passages_carry_their_unit_crop_order_crop_box_and_precision(tmp_path):
+    from tests.helpers import catalogue
+    evidence = load(catalogue.write("continuations", tmp_path))
+    by_text = {passage.text: passage for passage in evidence.passages}
+    right_page = by_text["mit Rand."]
+    assert (right_page.page, right_page.unit) == (1, 2)          # the right book page of PDF page 1
+    assert (by_text["2. Beil."].crop_order, by_text["3. Knochen."].crop_order) == (0, 1)
+    assert by_text["2. Beil."].crop != by_text["3. Knochen."].crop
+    assert by_text["Weitere Scherben."].unit == 3 and by_text["Weitere Scherben."].page == 2
+    first = by_text["40. Aue. Fdpl. 1. FA: G. Funde:"]
+    assert first.crop_bbox_pt is not None and first.crop_bbox_pt[0] <= first.bbox_pt[0]
+    assert first.precision == "segment"
+
+
+def test_a_segment_that_did_not_read_ok_is_withheld_not_silently_dropped(tmp_path):
+    from tests.helpers import catalogue
+    case = {"pages": [{"page": 1, "units": [{"index": 1, "crops": [{"segments": [
+        "7. Adorf. FA: G.", {"text": "garbled", "status": "error"}, {"text": "   ", "status": "error"}]}]}]}]}
+    evidence = load(catalogue.write(case, tmp_path))
+    assert [passage.id for passage in evidence.passages] == ["p1_s0"]
+    # A block the engine failed on is known unreadable evidence even when it carries no text.
+    assert [(passage.id, passage.status) for passage in evidence.withheld] == [("p1_s1", "error"), ("p1_s2", "error")]
+
+
+@pytest.mark.parametrize("forced, reason", [({"crop": 99}, "crop 99"), ({"unit": 7}, "unit 7")])
+def test_a_segment_naming_a_crop_or_unit_its_page_has_not_is_refused(tmp_path, forced, reason):
+    """Hashes prove the bytes, not the placement: a segment pointing at another unit's crop, or at none, cannot be
+    placed in reading order or on its column, so the result is refused rather than projected without it."""
+    from tests.helpers import catalogue
+    case = {"pages": [{"page": 1, "units": [{"index": 1, "crops": [{"segments": [
+        "7. Adorf. FA: G.", {"text": "8. Bdorf. FA: EF.", **forced}]}]}]}]}
+    with pytest.raises(EvidenceUnavailable, match=reason):
+        load(catalogue.write(case, tmp_path))
+
+
+def test_a_crop_that_belongs_to_another_unit_is_refused(tmp_path):
+    from tests.helpers import catalogue
+    case = {"pages": [{"page": 1, "units": [
+        {"index": 1, "crops": [{"segments": ["7. Adorf. FA: G."]}]},
+        {"index": 2, "crops": [{"segments": [{"text": "8. Bdorf. FA: EF.", "crop": 1}]}]}]}]}
+    with pytest.raises(EvidenceUnavailable, match="crop 1"):
+        load(catalogue.write(case, tmp_path))
+
+
+def test_duplicate_crop_ordinals_on_a_page_are_refused(tmp_path):
+    from tests.helpers import catalogue
+    case = {"pages": [{"page": 1, "units": [{"index": 1, "crops": [
+        {"crop": 3, "segments": ["7. Adorf. FA: G."]}, {"crop": 3, "segments": ["8. Bdorf. FA: EF."]}]}]}]}
+    with pytest.raises(EvidenceUnavailable, match="crop 3"):
+        load(catalogue.write(case, tmp_path))
+
+
+def test_reading_order_disagreeing_with_the_cut_order_is_reported():
+    from kei_exp.kie.extract.evidence import Passage, order_issues
+    def passage(index, unit, crop, order):
+        return Passage(id=f"p1_s{index}", page=1, index=index, text="x", label="Text", bbox_pt=(0, 0, 1, 1),
+                       extent="block", unit=unit, crop=crop, crop_order=order, crop_bbox_pt=(0, 0, 1, 1))
+    assert order_issues([passage(0, 1, 1, 0), passage(1, 1, 2, 1), passage(2, 2, 3, 0)]) == []
+    assert order_issues([passage(0, 1, 2, 1), passage(1, 1, 1, 0)]) == [
+        "p1_s1 (unit 1, crop order 0) follows p1_s0 (unit 1, crop order 1) in the page file"]
+    assert order_issues([passage(0, 2, 3, 0), passage(1, 1, 1, 0)]) == [
+        "p1_s1 (unit 1, crop order 0) follows p1_s0 (unit 2, crop order 0) in the page file"]

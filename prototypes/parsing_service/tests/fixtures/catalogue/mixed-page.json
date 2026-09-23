@@ -1,0 +1,91 @@
+{
+  "description": "A page that opens with an orphan continuation and ends with the bibliography: nothing is dropped silently and coverage is incomplete.",
+  "pages": [
+    {
+      "page": 1,
+      "units": [
+        {
+          "index": 1,
+          "crops": [
+            {
+              "segments": [
+                "und weitere Scherben.",
+                "Kreis Heide",
+                "8. Adorf. FA: G.",
+                "Mus. Halle 8.",
+                {
+                  "text": "Literaturverzeichnis",
+                  "label": "SectionHeader"
+                },
+                "Adam, K., Die Funde. Halle 1950."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "lines": [
+      [
+        "p1_s0",
+        0,
+        21,
+        "unresolved",
+        "orphan_before_first_entry",
+        "und weitere Scherben."
+      ],
+      [
+        "p1_s1",
+        0,
+        11,
+        "heading",
+        "kreis:Heide",
+        "Kreis Heide"
+      ],
+      [
+        "p1_s2",
+        0,
+        16,
+        "entry",
+        "8",
+        "8. Adorf. FA: G."
+      ],
+      [
+        "p1_s3",
+        0,
+        13,
+        "entry",
+        "8",
+        "Mus. Halle 8."
+      ],
+      [
+        "p1_s4",
+        0,
+        20,
+        "heading",
+        "section:references",
+        "Literaturverzeichnis"
+      ],
+      [
+        "p1_s5",
+        0,
+        32,
+        "reference",
+        "",
+        "Adam, K., Die Funde. Halle 1950."
+      ]
+    ],
+    "blocks": [
+      {
+        "label": "8",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": "Heide"
+        }
+      }
+    ],
+    "coverage_complete": false
+  }
+}

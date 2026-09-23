@@ -14,6 +14,7 @@ import pytest
 
 from kei_exp.pagefile import RESULT_VERSION, read_manifest, read_page, result_digest
 from kei_exp.result import write_result
+from kei_exp.transcription.types import TEXT_RULES
 from tests.helpers.replay import Replay, replay
 from tests.helpers.synthetic import cases
 
@@ -56,7 +57,9 @@ def test_version_4_writes_what_version_3_wrote(played):
     golden = json.loads((GOLDEN / case / "result.json").read_text(encoding="utf-8"))
     assert manifest.result_version == RESULT_VERSION
     assert sorted(manifest.pages) == golden["pages"]
-    assert manifest.recipe == {**golden["recipe"], "result_version": RESULT_VERSION}
+    # Since 2026-09-23 a native recipe also names its text rules (list items keep their printed markers).
+    rules = {"text_rules": TEXT_RULES[manifest.recipe["transcriber"]]} if manifest.recipe["transcriber"] in TEXT_RULES else {}
+    assert manifest.recipe == {**golden["recipe"], "result_version": RESULT_VERSION, **rules}
     assert (manifest.status, manifest.incomplete, manifest.tokens, manifest.source_name, manifest.page_count,
             manifest.effective) == (golden["status"], golden["incomplete"], golden["tokens"], golden["source_name"],
                                     golden["page_count"], golden["effective"])

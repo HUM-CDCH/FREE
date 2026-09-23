@@ -154,7 +154,7 @@ def test_a_record_is_extracted_under_the_guardrail_with_the_schema_and_conformed
     def script(system, user, schema):
         seen.update(system=system, user=user, schema=schema)
         return {"entry_no": "31", "site": "Hjortlund sogn", "year": 1827, "finds": ["spyd"], "junk": True}
-    fields, call, issues = extract_record(passages()[1:3], SCHEMA, FakeChat(script), budget=24_000)
+    fields, (call,), issues = extract_record(passages()[1:3], SCHEMA, FakeChat(script), budget=24_000)
     assert fields == {"entry_no": "31", "site": "Hjortlund sogn", "year": 1827, "finds": ["spyd"]}
     assert "do not invent" in seen["system"] and "One numbered catalogue entry." in seen["system"]
     assert "- entry_no: the printed number" in seen["system"]
@@ -164,7 +164,7 @@ def test_a_record_is_extracted_under_the_guardrail_with_the_schema_and_conformed
 
 def test_a_truncated_or_unreadable_answer_is_a_failed_call_with_null_fields():
     cut = FakeChat(lambda s, u, schema: Reply('{"entry_no": "3', 5, 8192, "length", 0.1))
-    fields, call, issues = extract_record(passages()[1:3], SCHEMA, cut, budget=24_000)
+    fields, (call,), issues = extract_record(passages()[1:3], SCHEMA, cut, budget=24_000)
     assert fields == {"entry_no": None, "site": None, "year": None, "finds": None}
     assert not call.ok and "length" in (call.error or "") and issues[0].code == "call_failed"
 
@@ -243,7 +243,7 @@ def test_the_article_strategy_reports_no_records_found_and_is_incomplete_without
     assert result["records"] == [] and result["complete"] is False
     assert [issue["code"] for issue in result["issues"]] == ["no_records_found"]
     without = FakeChat(lambda s, u, schema: {"nothing": 1})
-    found, call, issues = extract_records(passages(), SCHEMA, without, budget=24_000)
+    found, (call,), issues = extract_records(passages(), SCHEMA, without, budget=24_000)
     assert found == [] and call.ok and [issue.code for issue in issues] == ["no_records_found"]
 
 
@@ -326,3 +326,12 @@ def test_a_malformed_request_is_refused(body, reason):
     from pydantic import ValidationError
     with pytest.raises(ValidationError, match=reason):
         ExtractRequest.model_validate(body)
+
+
+def test_a_refused_attempt_is_recorded_as_its_own_failed_call():
+    reply = Reply(text='{"starts": ["B2"], "end": null}', input_tokens=10, output_tokens=5, finish="stop", seconds=0.1,
+                  attempts=("HTTP 400: response_format is not supported",))
+    chat = FakeChat(lambda s, u, schema: reply)
+    _, calls, _ = discover(evidence(), SCHEMA, chat, budget=48_000)
+    assert [(call.ok, call.error) for call in calls] == [
+        (False, "HTTP 400: response_format is not supported"), (True, None)]

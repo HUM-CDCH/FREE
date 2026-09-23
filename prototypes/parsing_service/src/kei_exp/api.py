@@ -33,7 +33,7 @@ from kei_exp.files import load_dotenv, publish
 from kei_exp.jobs import store, tokens
 from kei_exp.jobs.app import ADMISSION_LIMIT, DATABASE_URL, SLOT, deferring_installed
 from kei_exp.kie.extract.run import ExtractRequest
-from kei_exp.kie.stages.ocr import TRANSCRIBERS, check_knobs
+from kei_exp.kie.stages.ocr import TRANSCRIBERS, check_ingest, check_knobs
 from kei_exp.models import MODELS
 from kei_exp.pagefile import ResultError, read_manifest
 from kei_exp.pages import PageSource, PdfPages, RenderablePage
@@ -136,6 +136,7 @@ def create_run(
     cut: str = Form("auto"),
     layout_model: str = Form(DEFAULT_LAYOUT_MODEL),
     page_source: str = Form("pdf"),
+    ingest: str | None = Form(None),
     crop_dpi: int = Form(250),
     max_image_size: int | None = Form(None),
     max_output_tokens: int | None = Form(None),
@@ -163,6 +164,18 @@ def create_run(
         raise HTTPException(400, f"unknown layout model {layout_model!r}")
     if page_source not in ("pdf", "ingest"):
         raise HTTPException(400, "page_source must be pdf or ingest")
+    setting = None
+    if ingest is not None:  # the spread layout's own settings (split, gutter overrides), fingerprinted by ingest
+        try:
+            setting = json.loads(ingest)
+        except json.JSONDecodeError as error:
+            raise HTTPException(400, f"the ingest setting is not JSON: {error}") from error
+        if not isinstance(setting, dict):
+            raise HTTPException(400, "the ingest setting must be a JSON object")
+        try:
+            check_ingest(page_source, setting)
+        except ValueError as error:
+            raise HTTPException(400, str(error)) from error
     if crop_dpi <= 0 or (max_image_size is not None and max_image_size <= 0) \
             or (max_output_tokens is not None and max_output_tokens <= 0):
         raise HTTPException(400, "crop_dpi, max_image_size and max_output_tokens must be positive")
@@ -205,7 +218,8 @@ def create_run(
         # name another transcriber entirely (a PDF with a text layer runs natively, with no model at all).
         "transcriber": record.kind, "model": model, "repo": record.repo, "url": VLLM_URL,
         "cut": cut, "crop_dpi": crop_dpi, "layout_model": layout_model,
-        "page_source": page_source, "max_image_size": max_image_size, "max_output_tokens": max_output_tokens,
+        "page_source": page_source, "ingest": setting,
+        "max_image_size": max_image_size, "max_output_tokens": max_output_tokens,
         "stream": stream, "pages": list(pages) if pages else None, "debug": debug,
     }
     runs.write_json(directory / "params.json", record_json)  # a convenience copy; the row admission commits is

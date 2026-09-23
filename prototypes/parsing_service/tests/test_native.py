@@ -26,6 +26,7 @@ from docling_core.types.doc import (
     CoordOrigin,
     DocItemLabel,
     DoclingDocument,
+    GroupLabel,
     ProvenanceItem,
     Size,
     TableCell,
@@ -311,6 +312,23 @@ def test_a_page_docling_found_nothing_on_keeps_its_one_coarse_segment(synthetic)
     (segment,) = _segments(0, None, record, CropTransform(0.0, 0.0, 1.0, 1.0, None), lambda box: box,
                            (0.0, 0.0, 200.0, 400.0))
     assert segment.extent == "input" and segment.bbox_px is None and segment.bbox_pt == (0.0, 0.0, 200.0, 400.0)
+
+
+def test_a_numbered_list_item_keeps_its_printed_marker_from_the_source_text():
+    """Docling strips a list item's printed marker from `text` and keeps the PDF's own characters in `orig`. A
+    catalogue's entry numbers are such markers, so the block publishes `orig`: the printed "31." is source text,
+    never a number derived from the item's position. An item whose source carries no marker stays as it is."""
+    document = DoclingDocument(name="list")
+    document.add_page(page_no=1, size=Size(width=200.0, height=400.0))
+    group = document.add_group(label=GroupLabel.LIST, name="list")
+
+    def at(top: float, bottom: float) -> ProvenanceItem:
+        return ProvenanceItem(page_no=1, charspan=(0, 0),
+                              bbox=BoundingBox(l=10, t=top, r=190, b=bottom, coord_origin=CoordOrigin.BOTTOMLEFT))
+    document.add_list_item(text="Oak: an urn.", orig="31. Oak: an urn.", marker="31.", enumerated=True,
+                           prov=at(390, 380), parent=group)
+    document.add_list_item(text="Brook: an axe.", orig="Brook: an axe.", marker="", prov=at(370, 360), parent=group)
+    assert [block["html"] for block in blocks_of(document, 1)] == ["<p>31. Oak: an urn.</p>", "<p>Brook: an axe.</p>"]
 
 
 @pytest.fixture(scope="module")

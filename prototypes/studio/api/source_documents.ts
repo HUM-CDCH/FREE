@@ -40,6 +40,11 @@ const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000
 const DEFAULT_POLL_INTERVAL_MS = 1000
 const MAX_PDF_BYTES = 100 * 1024 * 1024
 const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+/** The researcher's page layout: single PDF pages, or scanned two-page spreads split into book pages. */
+const PAGE_SOURCE_OF_LAYOUT: ReadonlyMap<string, 'pdf' | 'ingest'> = new Map([
+  ['pages', 'pdf'],
+  ['spreads', 'ingest'],
+])
 
 type CanonicalPackage = {
   artifactReference: string
@@ -272,6 +277,7 @@ async function submittedRun(
   originalName: string,
   model: string,
   contentSha256: string,
+  pageSource: 'pdf' | 'ingest',
 ): Promise<string> {
   const upload = new FormData()
   upload.append(
@@ -282,7 +288,7 @@ async function submittedRun(
   upload.append('model', model)
   upload.append('debug', 'false')
   upload.append('cut', 'auto')
-  upload.append('page_source', 'pdf')
+  upload.append('page_source', pageSource)
   const created = await parsingRequest(
     parser.fetcher,
     parser.base,
@@ -307,6 +313,12 @@ async function submittedRun(
       502,
       'source_ingestion_failed',
       'The Parsing Service recorded another Source Document.',
+    )
+  if (params.page_source !== pageSource)
+    throw new ApiError(
+      502,
+      'source_ingestion_failed',
+      'The Parsing Service recorded another page layout.',
     )
   return runId
 }
@@ -479,10 +491,11 @@ export function createSourceDocumentIngestion(
       if (!projectContext)
         throw new ApiError(404, 'not_found', 'Project Context was not found.')
       const form = await parseFormRequest(request)
-      assertFormFields(form, ['file', 'ingestionKey'])
+      assertFormFields(form, ['file', 'ingestionKey', 'layout'])
       if (
         form.getAll('file').length !== 1 ||
-        form.getAll('ingestionKey').length !== 1
+        form.getAll('ingestionKey').length !== 1 ||
+        form.getAll('layout').length > 1
       )
         throw new ApiError(
           400,
@@ -491,6 +504,15 @@ export function createSourceDocumentIngestion(
         )
       const file = form.get('file')
       const ingestionKey = form.get('ingestionKey')
+      const layout = form.get('layout') ?? 'pages'
+      const pageSource =
+        typeof layout === 'string' ? PAGE_SOURCE_OF_LAYOUT.get(layout) : undefined
+      if (pageSource === undefined)
+        throw new ApiError(
+          400,
+          'invalid_request',
+          'layout must be pages or spreads.',
+        )
       if (!(file instanceof File))
         throw new ApiError(
           400,
@@ -540,6 +562,7 @@ export function createSourceDocumentIngestion(
         originalName,
         model,
         contentSha256,
+        pageSource,
       )
       await completedRun(parser, runId, timeoutMs, pollIntervalMs, sleep, now)
       const { manifest, pages } = await acceptedResult(parser, runId)

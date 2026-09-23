@@ -240,3 +240,49 @@ describe('Article lifecycle contracts', () => {
     ).toBe(false)
   })
 })
+
+describe('numbered-catalogue recipe contracts', () => {
+  const fresh = { id: id('1'), sourceRepresentationRevisionId: id('3'), schemaRevisionId: id('4') }
+
+  it('accepts a recipe only on a Catalog request, and only in the id@version form', () => {
+    expect(extractionRequestSchema.parse({ ...fresh, strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1' }))
+      .toMatchObject({ catalogRecipe: 'numbered-catalogue-de@1' })
+    expect(extractionRequestSchema.parse({ ...fresh, strategy: 'CATALOG' })).not.toHaveProperty('catalogRecipe')
+    expect(extractionRequestSchema.safeParse({ ...fresh, strategy: 'ARTICLE', catalogRecipe: 'numbered-catalogue-de@1' }).success)
+      .toBe(false)
+    expect(extractionRequestSchema.safeParse({ ...fresh, strategy: 'CATALOG', catalogRecipe: '../etc' }).success).toBe(false)
+  })
+
+  it('carries version 2 review material: span evidence, proposals, rejections, coverage and completeness', () => {
+    const grounding = {
+      linkedBy: 'key', provenance: 'token', textSpans: [{ segment: 'p1_s2', start: 28, end: 32 }],
+      keySpans: [{ segment: 'p1_s2', start: 23, end: 27 }], alternatives: [], heading: null, precision: 'segment',
+      raw: '1827', normalized: { value: 'Meßtischblatt 1827', rule: 'glossary',
+                                 keySpan: { segment: 'p1_s0', start: 0, end: 4 },
+                                 expansionSpan: { segment: 'p1_s0', start: 7, end: 20 } },
+    }
+    const grounded = {
+      recipe: 'numbered-catalogue-de@1', segmentationFingerprint: 'f',
+      budget: { inputTokens: 4096, outputTokens: 1024, tokenizer: { source: 'ollama:/api/show' } },
+      segmentationDiagnostics: [],
+      normalization: { version: 1, rules: ['glossary'] },
+      recordBlocks: [{ block: 'b1', entry_label: '31' }],
+      proposed: [{ path: ['records', 0, 'site_name'], value: 'Eichdorf', quote: 'Eichdorf', key: null,
+                   provenance: 'positional', spans: [{ segment: 'p1_s2', start: 4, end: 12 }], alternatives: [], window: 0 }],
+      rejected: [{ path: ['records', 0, 'fundart'], value: 'Siedl.', quote: 'FA: Siedl.', key: 'FA:', provenance: 'token',
+                   spans: [], alternatives: [], window: 0, reason: 'quote_not_in_entry' }],
+      competitors: [],
+      coverage: { complete: false, unresolved: 1, lines: 12 },
+      completeness: { processing: true, coverage: false, grounding: true, recall: 'unmeasured' },
+    }
+    const parsed = extractionAttemptSchema.parse({
+      ...completed, strategy: 'CATALOG', complete: false,
+      resultPayload: { records: [{ mbl_old: 1827 }] },
+      evidenceLinks: [{ resultPath: ['records', 0, 'mbl_old'], evidenceAnchorId: 'a_p1_s2', verbatim: true,
+                        lexicalHits: 1, grounding }],
+      diagnostics: { ...completed.diagnostics, grounded },
+    })
+    expect(parsed.evidenceLinks![0].grounding).toEqual(grounding)
+    expect(parsed.diagnostics!.grounded).toEqual(grounded)
+  })
+})

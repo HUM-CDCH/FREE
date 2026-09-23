@@ -86,7 +86,7 @@ def execution_for(directory: Path, params: dict) -> Execution:
         page_source=params.get("page_source", "pdf"),
         # The ingest runs under the run directory, as `<run>/input/ingest/`: the runner names the document by
         # the PDF's stem, and this run's PDF is `input.pdf`.
-        ingest_dir=directory if params.get("page_source") == "ingest" else None)
+        ingest_dir=directory if params.get("page_source") == "ingest" else None, ingest=params.get("ingest"))
     return resolve(request)
 
 

@@ -163,6 +163,38 @@ def test_the_recorded_request_is_what_the_worker_resolves(client: TestClient, di
     assert execution.result_dir == directory / "result"
 
 
+def test_a_spread_layout_and_its_gutter_override_are_part_of_the_recorded_request(
+        client: TestClient, digital_pdf: Path, monkeypatch) -> None:
+    """The source layout is chosen at upload: `page_source` ingest with its ingest setting is recorded on the row the
+    worker resolves, so the split it asked for is the one ingest applies and the parse recipe fingerprints."""
+    with digital_pdf.open("rb") as handle:
+        response = client.post("/api/runs", files={"pdf": ("main.pdf", handle, "application/pdf")},
+                               data={"model": "surya", "page_source": "ingest",
+                                     "ingest": json.dumps({"overrides": {"1": 4800}})})
+    assert response.status_code == 202, response.text
+    params = response.json()["params"]
+    assert (params["page_source"], params["ingest"]) == ("ingest", {"overrides": {"1": 4800}})
+    row = store.record(params["id"])
+    assert row is not None and row.params["ingest"] == {"overrides": {"1": 4800}}
+    monkeypatch.setattr(ocr, "has_native_text", lambda *_args, **_kwargs: False)
+    assert runs.execution_for(runs.RUNS / params["id"], row.params).ingest == {"overrides": {"1": 4800}}
+
+
+@pytest.mark.parametrize("fields, message", [
+    ({"page_source": "pdf", "ingest": json.dumps({"split": "single"})}, "page_source ingest"),
+    ({"page_source": "ingest", "ingest": json.dumps({"split": "triptych"})}, "ingest setting"),
+    ({"page_source": "ingest", "ingest": "{not json"}, "ingest setting"),
+    ({"page_source": "ingest", "ingest": "[1, 2]"}, "ingest setting"),
+])
+def test_an_ingest_setting_that_cannot_apply_is_refused_before_admission(
+        client: TestClient, digital_pdf: Path, fields: dict, message: str) -> None:
+    with digital_pdf.open("rb") as handle:
+        response = client.post("/api/runs", files={"pdf": ("main.pdf", handle, "application/pdf")},
+                               data={"model": "surya", **fields})
+    assert response.status_code == 400 and message in response.json()["detail"], response.text
+    assert not [path for path in runs.RUNS.iterdir() if not path.name.startswith(".")]
+
+
 def test_the_source_pdf_is_served_back_byte_for_byte(client: TestClient, digital_pdf: Path) -> None:
     """`source_sha256` in the params and in the result's recipe identifies the input bytes; a consumer that
     holds the hash must be able to fetch those very bytes again, so the run's own copy is served as it is."""

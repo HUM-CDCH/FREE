@@ -47,6 +47,10 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
 ## HTTP and evidence contract
 
 - `POST /api/runs` accepts a PDF and returns 202 only after durable admission.
+  `page_source` is `pdf` (single pages, the default) or `ingest` (two-page
+  spreads). With `ingest`, an optional `ingest` JSON form field carries
+  splitter settings such as gutter overrides; both are recorded in the parse
+  recipe.
   `GET /api/runs/{id}` is the authoritative job status; `/events` supplies SSE.
 - A completed parse exposes `/source.pdf`, `/result`, `/pages/{page}` and
   `/output.md` below `/api/runs/{id}`. The canonical result is version 4:
@@ -62,6 +66,15 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   version, fingerprint, records, Evidence and diagnostics. Ungrounded values
   remain explicit. Document-level fields are currently listed as `unverified`;
   `complete` applies to record values.
+- `options.catalog = {recipe, input_tokens?, output_tokens?}` on a Catalog
+  request selects a recipe, such as `numbered-catalogue-de@1`. It returns
+  result version 2: structural segmentation with a coverage ledger, one bounded
+  call per entry, and code-verified candidates (accepted, proposed, rejected)
+  with code-point span Evidence. Without it, Catalog runs generic discovery
+  (version 1). The extraction endpoint must expose its tokenizer (Ollama
+  `/api/show` or vLLM `/tokenize`) and its context size. Otherwise the request
+  is refused before any call. See the
+  [grounded catalogue design](docs/superpowers/specs/2026-09-23-grounded-catalogue-design.md).
 
 The API is an internal processor and provides no researcher authentication.
 Only Studio exposes researcher-facing operations and enforces ownership.
@@ -78,6 +91,15 @@ lives in `kie/stages/ocr.py`, with native/Surya/VLM adapters in `transcription/`
 `result.py` publishes canonical pages and manifests; `pagefile.py` validates
 their identities and hashes. `kie/extract/` reads those artifacts and performs
 record discovery, structured extraction, grounding and result publication.
+The recipe path is split across these files:
+- `kie/recipe.py` and `kie/recipes/` hold the recipes;
+- `kie/stages/{layout,route,segment}.py` produce lines, roles and blocks;
+- `kie/segmentation.py` holds the artifact;
+- `kie/extract/{grounded,tokens,locate}.py` do bounded extraction, token
+  counting and span location;
+- `kie/boundaries.py` handles boundary labels and block-F1
+  (`python -m kei_exp.kie.boundaries report|prefill|score RUN_DIR`, read-only
+  on the run).
 The specifications under `docs/` retain the imported internal model contracts.
 
 ## Verification

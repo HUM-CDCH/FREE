@@ -1,10 +1,14 @@
 import { assign, fromPromise, setup } from 'xstate'
 import type { SourceDocumentIngestionResponse } from '../shared/sourceDocumentIngestion.contract'
 
+/** How the PDF's pages are read: single PDF pages, or scanned two-page spreads split into book pages. */
+export type SourceLayout = 'pages' | 'spreads'
+
 type AddedSource = {
   projectContextId: string
   file: File
   ingestionKey: string
+  layout: SourceLayout
   validationFailure?: string
 }
 

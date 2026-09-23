@@ -2014,6 +2014,32 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     ).toEqual(['A.pdf', 'B.pdf', 'C.pdf', 'D.pdf'])
   })
 
+  it('uploads with the page layout chosen beside the drop zone', async () => {
+    vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValueOnce(ingestionKeys.A) })
+    const layouts: (FormDataEntryValue | null)[] = []
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === 'POST') {
+        layouts.push((init.body as FormData).get('layout'))
+        return ingestionResult(uploadedA)
+      }
+      if (url.includes('/reopen')) return Response.json(snapshot(uploadedA))
+      if (url.endsWith(projectContextId)) return branch([])
+      return projectListResponse([project])
+    })
+
+    renderRoutes(fetcher)
+    const page = await openProjectPage()
+    await rail().findByText('Empty project.')
+    const layout = within(page).getByLabelText('Page layout')
+    expect(layout).toHaveValue('pages')
+    fireEvent.change(layout, { target: { value: 'spreads' } })
+    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
+      target: { files: [new File(['a'], 'A.pdf', { type: 'application/pdf' })] },
+    })
+    await waitFor(() => expect(layouts).toEqual(['spreads']))
+  })
+
   it('deduplicates acknowledged retries by Source Document id in the rail', async () => {
     vi.stubGlobal('crypto', {
       randomUUID: vi

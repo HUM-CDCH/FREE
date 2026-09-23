@@ -1,0 +1,99 @@
+{
+  "description": "Entry 1, finds 1 and 2, then 3 at the end of the source: the numbering cannot tell finds from entries, so 2 and 3 stay unresolved.",
+  "pages": [
+    {
+      "page": 1,
+      "units": [
+        {
+          "index": 1,
+          "crops": [
+            {
+              "segments": [
+                "Kreis Heide",
+                "1. Adorf. FA: G. Funde:",
+                "1. Gefäß.",
+                "2. Beil.",
+                "3. Cdorf. FA: EF."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "lines": [
+      [
+        "p1_s0",
+        0,
+        11,
+        "heading",
+        "kreis:Heide",
+        "Kreis Heide"
+      ],
+      [
+        "p1_s1",
+        0,
+        23,
+        "entry",
+        "1",
+        "1. Adorf. FA: G. Funde:"
+      ],
+      [
+        "p1_s2",
+        0,
+        9,
+        "entry",
+        "1",
+        "1. Gefäß."
+      ],
+      [
+        "p1_s3",
+        0,
+        8,
+        "unresolved",
+        "ambiguous_start",
+        "2. Beil."
+      ],
+      [
+        "p1_s4",
+        0,
+        17,
+        "unresolved",
+        "ambiguous_start",
+        "3. Cdorf. FA: EF."
+      ]
+    ],
+    "blocks": [
+      {
+        "label": "1",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": "Heide"
+        }
+      }
+    ],
+    "rejected_starts": [
+      [
+        "p1_s2",
+        "1",
+        "list_item"
+      ],
+      [
+        "p1_s3",
+        "2",
+        "ambiguous_start"
+      ],
+      [
+        "p1_s4",
+        "3",
+        "ambiguous_start"
+      ]
+    ],
+    "diagnostics": [
+      "ambiguous_start"
+    ],
+    "coverage_complete": false
+  }
+}

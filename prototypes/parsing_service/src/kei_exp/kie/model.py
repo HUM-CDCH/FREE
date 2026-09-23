@@ -25,6 +25,7 @@ from pydantic import (
 )
 
 from kei_exp.geometry import ordered_box
+from kei_exp.pagefile import segment_id as canonical_segment_id
 
 # An image axis under a point is not a scan of a page, whatever the raster claims (spec 4.1).
 MIN_AXIS_PT = 1.0
@@ -288,6 +289,12 @@ class EvidenceRef(_Base):
     page: Index  # the PDF page, which names the page file `pages/<page>.json`
     index: Count  # the 0-based position in that page file's `segments` list; the id's `n` counts per unit instead
 
+    @property
+    def segment_id(self) -> str:
+        """The canonical id FREE and extraction evidence use. The one resolver from a book-page `Segment.id`: the two
+        strings may look alike (`p2_s1` can be `p1_s5`) and are never compared."""
+        return canonical_segment_id(self.page, self.index)
+
 
 class Segment(_Base):
     """One immutable piece of OCR evidence: text, plus a bbox on its page (spec 3.3).
@@ -310,12 +317,33 @@ class Segment(_Base):
 
 
 class HeadingEvent(_Base):
-    """A Bezirk or Kreis heading, anchored to the spans that are its evidence (spec 3.6)."""
+    """A heading anchored to the spans that are its evidence (spec 3.6, amended 2026-09-23 by the grounded catalogue
+    design §10): `kind` is the recipe's name for its level (the German recipe keeps `bezirk` and `kreis`), `level` its
+    depth, 1 the outermost. A heading clears every deeper level, which is invariant 6 in general form."""
 
     id: Name
-    kind: Literal["bezirk", "kreis"]
+    kind: Name
+    level: Index
     text: str
-    spans: list[Span] = Field(min_length=1)  # its position is its first span; evidence is never a quotation alone
+    spans: list[Span] = Field(min_length=1)  # the inherited value's evidence; its position is its first span
+
+
+class GlossaryEntry(_Base):
+    """One abbreviation of the document's own glossary, with the spans of its key and its expansion."""
+
+    key: Name
+    expansion: Name
+    key_span: Span
+    expansion_span: Span
+
+
+class Diagnostic(_Base):
+    """Something a stage noticed and reports rather than corrects, with the source spans it concerns."""
+
+    code: Name
+    detail: str
+    spans: list[Span] = Field(default_factory=list)
+    block: str | None = None
 
 
 class Block(_Base):

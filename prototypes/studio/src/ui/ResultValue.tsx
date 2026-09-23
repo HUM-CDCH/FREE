@@ -61,6 +61,8 @@ export type ResultValueProps = {
   getEvidenceAnchorId?: (path: ResultPath) => string | undefined
   /** Reviewer-facing doubt about that link, when grounding flagged one. */
   getEvidenceCheck?: (path: ResultPath) => string | undefined
+  /** What tied a recipe Catalog value to its field, in the researcher's words. */
+  getEvidenceDetail?: (path: ResultPath) => string | undefined
   onSelectEvidence?: (anchorId: string) => void
   review?: ResultReview
 }
@@ -141,8 +143,8 @@ function firstStringValue(obj: Record<string, unknown>): string | null {
 // ── PrimitiveRow ──────────────────────────────────────────────────────────────
 
 function PrimitiveRow({
-  name, value, path, onChange, expandText, evidenceAnchorId, evidenceCheck, onSelectEvidence, review,
-}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; expandText?: boolean; evidenceAnchorId?: string; evidenceCheck?: string; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
+  name, value, path, onChange, expandText, evidenceAnchorId, evidenceCheck, evidenceDetail, onSelectEvidence, review,
+}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; expandText?: boolean; evidenceAnchorId?: string; evidenceCheck?: string; evidenceDetail?: string; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
   const missing = value === null || value === undefined || value === ''
   const text = missing ? '' : String(value)
   const [editing, setEditing] = useState(false)
@@ -293,6 +295,7 @@ function PrimitiveRow({
         <div className="pl-4 pt-0.5 text-[13px] leading-relaxed text-ink-muted wrap-anywhere whitespace-pre-wrap">
           {text}
         </div>
+        {evidenceDetail && <EvidenceDetail text={evidenceDetail} />}
         {reviewEditable && (
           <ReviewActions
             name={name}
@@ -360,6 +363,7 @@ function PrimitiveRow({
           </button>
         )}
       </div>
+      {evidenceDetail && <EvidenceDetail text={evidenceDetail} />}
       {reviewEditable && (
         <ReviewActions
           name={name}
@@ -373,6 +377,10 @@ function PrimitiveRow({
       )}
     </div>
   )
+}
+
+function EvidenceDetail({ text }: { text: string }) {
+  return <p className="pb-1 pl-[22px] text-[11px] leading-snug text-ink-faint">{text}</p>
 }
 
 // Leading status indicator: a hollow dot for an untouched (default-approved)
@@ -474,8 +482,8 @@ function CheckBadge({ reason }: { reason: string }) {
 // ── ObjectSection ─────────────────────────────────────────────────────────────
 
 function ObjectSection({
-  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, onSelectEvidence, review,
-}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
+  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, onSelectEvidence, review,
+}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; getEvidenceDetail?: (path: ResultPath) => string | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const entries = Object.entries(value)
   const preview = firstStringValue(value)
@@ -520,6 +528,7 @@ function ObjectSection({
                 expandText={expandText}
                 getEvidenceAnchorId={getEvidenceAnchorId}
                 getEvidenceCheck={getEvidenceCheck}
+                getEvidenceDetail={getEvidenceDetail}
                 onSelectEvidence={onSelectEvidence}
                 review={review}
                 depth={depth + 1}
@@ -535,8 +544,8 @@ function ObjectSection({
 // ── ArraySection ──────────────────────────────────────────────────────────────
 
 function ArraySection({
-  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, onSelectEvidence, review,
-}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
+  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, onSelectEvidence, review,
+}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; getEvidenceCheck?: (path: ResultPath) => string | undefined; getEvidenceDetail?: (path: ResultPath) => string | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
 
   return (
@@ -574,6 +583,7 @@ function ArraySection({
                 expandText={expandText}
                 getEvidenceAnchorId={getEvidenceAnchorId}
                 getEvidenceCheck={getEvidenceCheck}
+                getEvidenceDetail={getEvidenceDetail}
                 onSelectEvidence={onSelectEvidence}
                 review={review}
               />
@@ -587,14 +597,14 @@ function ArraySection({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-function ResultValue({ name, value, path = [], onChange, depth = 0, defaultExpanded, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, onSelectEvidence, review }: ResultValueProps) {
+function ResultValue({ name, value, path = [], onChange, depth = 0, defaultExpanded, onNavigateTo, expandText, getEvidenceAnchorId, getEvidenceCheck, getEvidenceDetail, onSelectEvidence, review }: ResultValueProps) {
   if (Array.isArray(value)) {
-    return <ArraySection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} getEvidenceCheck={getEvidenceCheck} onSelectEvidence={onSelectEvidence} review={review} />
+    return <ArraySection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} getEvidenceCheck={getEvidenceCheck} getEvidenceDetail={getEvidenceDetail} onSelectEvidence={onSelectEvidence} review={review} />
   }
   if (isRecord(value)) {
-    return <ObjectSection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} getEvidenceCheck={getEvidenceCheck} onSelectEvidence={onSelectEvidence} review={review} />
+    return <ObjectSection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} getEvidenceCheck={getEvidenceCheck} getEvidenceDetail={getEvidenceDetail} onSelectEvidence={onSelectEvidence} review={review} />
   }
-  return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} expandText={expandText} evidenceAnchorId={getEvidenceAnchorId?.(path)} evidenceCheck={getEvidenceCheck?.(path)} onSelectEvidence={onSelectEvidence} review={review} />
+  return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} expandText={expandText} evidenceAnchorId={getEvidenceAnchorId?.(path)} evidenceCheck={getEvidenceCheck?.(path)} evidenceDetail={getEvidenceDetail?.(path)} onSelectEvidence={onSelectEvidence} review={review} />
 }
 
 export default ResultValue

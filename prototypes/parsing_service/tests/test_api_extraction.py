@@ -208,6 +208,10 @@ def test_a_malformed_body_is_refused_before_admission(client):
     assert client.post("/api/runs/run-p/extract", json={"schema": {"recordDescription": "x", "schemaNodes": [
         {"id": "a", "name": "a", "type": "array"}]}}).status_code == 422
     assert client.post("/api/runs/run-p/extract", json={"options": {}}).status_code == 422
+    schema_ = {"recordDescription": "x", "schemaNodes": [{"id": "a", "name": "a", "type": "string"}]}
+    for options in ({"strategy": "catalog", "catalog": {"recipe": "no-such-recipe@1"}},
+                    {"strategy": "article", "catalog": {"recipe": "numbered-catalogue-de@1"}}):
+        assert client.post("/api/runs/run-p/extract", json={"schema": schema_, "options": options}).status_code == 422
     assert store.extractions_of("run-p") == []
 
 

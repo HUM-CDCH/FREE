@@ -1,0 +1,146 @@
+{
+  "description": "One seam line matches two differently merged observations in the other crop: nothing is excluded, the component is reported.",
+  "pages": [
+    {
+      "page": 1,
+      "units": [
+        {
+          "index": 1,
+          "crops": [
+            {
+              "bbox_pt": [
+                40,
+                36,
+                380,
+                300
+              ],
+              "segments": [
+                {
+                  "text": "50. Adorf. FA: G.",
+                  "bbox_pt": [
+                    42,
+                    40,
+                    378,
+                    52
+                  ]
+                },
+                {
+                  "text": "Mus. Köthen o. Nr.",
+                  "bbox_pt": [
+                    42,
+                    285,
+                    378,
+                    297
+                  ]
+                }
+              ]
+            },
+            {
+              "bbox_pt": [
+                40,
+                280,
+                380,
+                559
+              ],
+              "segments": [
+                {
+                  "text": "Mus. Köthen o. Nr.",
+                  "bbox_pt": [
+                    42,
+                    283,
+                    378,
+                    295
+                  ]
+                },
+                {
+                  "text": "Mus. Köthen o. Nr.",
+                  "bbox_pt": [
+                    42,
+                    286,
+                    378,
+                    298
+                  ]
+                },
+                {
+                  "text": "51. Bdorf. FA: EF.",
+                  "bbox_pt": [
+                    42,
+                    310,
+                    378,
+                    322
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "lines": [
+      [
+        "p1_s0",
+        0,
+        17,
+        "entry",
+        "50",
+        "50. Adorf. FA: G."
+      ],
+      [
+        "p1_s1",
+        0,
+        18,
+        "entry",
+        "50",
+        "Mus. Köthen o. Nr."
+      ],
+      [
+        "p1_s2",
+        0,
+        18,
+        "entry",
+        "50",
+        "Mus. Köthen o. Nr."
+      ],
+      [
+        "p1_s3",
+        0,
+        18,
+        "entry",
+        "50",
+        "Mus. Köthen o. Nr."
+      ],
+      [
+        "p1_s4",
+        0,
+        18,
+        "entry",
+        "51",
+        "51. Bdorf. FA: EF."
+      ]
+    ],
+    "blocks": [
+      {
+        "label": "50",
+        "continuation": true,
+        "headings": {
+          "bezirk": null,
+          "kreis": null
+        }
+      },
+      {
+        "label": "51",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": null
+        }
+      }
+    ],
+    "diagnostics": [
+      "potential_duplicate"
+    ],
+    "coverage_complete": false
+  }
+}

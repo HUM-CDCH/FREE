@@ -33,7 +33,7 @@ from kei_exp.pagefile import (  # noqa: F401  the page-file models keep their na
     result_digest,
 )
 from kei_exp.pages import BookPages, PdfPages
-from kei_exp.transcription.types import Execution, PageRecord, Transcription, html_to_text
+from kei_exp.transcription.types import TEXT_RULES, Execution, PageRecord, Transcription, html_to_text
 
 
 @dataclass(frozen=True)
@@ -71,6 +71,8 @@ def recipe(execution: Execution, source_sha256: str, ingest_digest: str | None) 
             "prompt": record.spec.prompt if record.spec else None,
         },
         "versions": versions(),
+        # Only a transcriber whose text rules have changed names them, so every other recipe stays as it was.
+        **({"text_rules": TEXT_RULES[execution.transcriber]} if execution.transcriber in TEXT_RULES else {}),
     }
 
 

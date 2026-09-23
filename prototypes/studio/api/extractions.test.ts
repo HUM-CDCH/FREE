@@ -229,6 +229,14 @@ describe('/api/extractions transport', () => {
     expect((await handle(request(fresh))).status).toBe(200)
   })
 
+  it('passes the Catalog recipe chosen for an Extraction to runSingle', async () => {
+    const module = extractionModule()
+    await handlerFor(module)(request({ ...fresh, strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1' }))
+    expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'fresh', strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1',
+    }), expect.any(AbortSignal))
+  })
+
   it('omits backend-only Catalog document values from strict API JSON', async () => {
     const documentStage = {
       stage: 'document-values' as const,
@@ -423,6 +431,20 @@ describe('/api/extractions transport', () => {
       },
     })
   })
+})
+
+it('transports the version 2 review material instead of stripping it', async () => {
+  const { extractionAttemptDto } = await import('./_extraction_runtime.js')
+  const grounded = {
+    recipe: 'numbered-catalogue-de@1', segmentationFingerprint: 'f',
+    budget: { inputTokens: 4096, outputTokens: 1024, tokenizer: { source: 'ollama:/api/show' } },
+    segmentationDiagnostics: [],
+    normalization: { version: 1, rules: ['glossary' as const] },
+    recordBlocks: [], proposed: [], rejected: [], competitors: [],
+    coverage: { complete: true }, completeness: { processing: true, coverage: true, grounding: true, recall: 'unmeasured' as const },
+  }
+  const dto = extractionAttemptDto({ ...attemptSnapshot, diagnostics: { ...snapshot.diagnostics, grounded } })
+  expect(dto.diagnostics?.grounded).toEqual(grounded)
 })
 
 it('transports kei-exp attribution and service issue codes without filtering diagnostics', async () => {

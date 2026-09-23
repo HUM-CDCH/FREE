@@ -8,6 +8,7 @@ import { exportExtractionResult } from 'extraction-result-export'
 import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
 import type { ExtractionAttempt, ReviewDecisionInput } from '../shared/extraction.contract'
+import type { EvidenceLink } from '../shared/groundedExtraction'
 import type { SchemaDefinition } from 'extraction/schema'
 
 vi.mock('extraction-result-export', async (importOriginal) => ({
@@ -1382,5 +1383,97 @@ describe('ResultsTab extraction status', () => {
     expect(screen.getByText('Using Schema Revision 3 · Current revision: 3')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Rerun' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: 'Run with current schema' })).not.toBeInTheDocument()
+  })
+})
+
+describe('ResultsTab recipe review material', () => {
+  const groundedAttempt: ExtractionAttempt = {
+    ...articleAttempt,
+    strategy: 'CATALOG',
+    complete: false,
+    resultPayload: { records: [{ entry_no: 31, site_name: null, fundart: null }] },
+    diagnostics: {
+      ...articleAttempt.diagnostics!,
+      grounded: {
+        recipe: 'numbered-catalogue-de@1', segmentationFingerprint: 'f',
+        budget: { inputTokens: 4096, outputTokens: 1024, tokenizer: { source: 'ollama:/api/show' } },
+        segmentationDiagnostics: [],
+        normalization: { version: 1, rules: ['glossary'] },
+        recordBlocks: [{ block: 'b1', entry_label: '31' }],
+        proposed: [{ path: ['records', 0, 'site_name'], value: 'Eichdorf', quote: 'Eichdorf', key: null,
+                     provenance: 'positional', spans: [{ segment: 'p1_s2', start: 4, end: 12 }], alternatives: [],
+                     window: 0, raw: 'Eichdorf' }],
+        rejected: [{ path: ['records', 0, 'fundart'], value: 'Siedl.', quote: 'FA: Siedl.', key: 'FA:',
+                     provenance: 'token', spans: [], alternatives: [], window: 0, reason: 'quote_not_in_entry' }],
+        competitors: [],
+        coverage: { complete: false, unresolved: 3, lines: 40 },
+        completeness: { processing: true, coverage: false, grounding: true, recall: 'unmeasured' },
+      },
+    },
+  }
+
+  it('shows coverage, proposals and rejections apart from the accepted values, with recall unmeasured', () => {
+    render(<ResultsTab {...defaultRunProps} controller={controller({ status: 'idle' })} schemaReady
+      documentMarkdown="" sourceDocumentName="Catalogue" inspectedAttempt={groundedAttempt} />)
+    const panel = screen.getByRole('region', { name: 'Recipe review' })
+    expect(panel).toHaveTextContent('numbered-catalogue-de@1')
+    expect(panel).toHaveTextContent('3 of 40 source lines unresolved')
+    expect(panel).toHaveTextContent('Recall is not measured')
+    expect(panel).toHaveTextContent('Entry 31 · site_name: Eichdorf')
+    expect(panel).toHaveTextContent('Entry 31 · fundart: Siedl. (quote not in entry)')
+    expect(panel).not.toHaveTextContent('%')  // no confidence number is derived from these flags
+  })
+
+  it('says what tied each accepted value to its field, and drops it once the value is edited', () => {
+    const span = { segment: 'p1_s2', start: 0, end: 2 }
+    const link = (field: string, grounding: Partial<NonNullable<EvidenceLink['grounding']>>): EvidenceLink => ({
+      resultPath: ['records', 0, field], evidenceAnchorId: `a_${field}`, verbatim: true, lexicalHits: 1,
+      grounding: { linkedBy: 'structure', provenance: 'positional', textSpans: [span], keySpans: [], alternatives: [],
+                   heading: null, precision: 'segment', raw: 'x', normalized: null, ...grounding },
+    })
+    const evidenceLinks = [
+      link('entry_no', {}),
+      link('kreis', { provenance: 'inherited', heading: 'h1', precision: 'input' }),
+      link('fundart', { linkedBy: 'key', provenance: 'token', alternatives: [[span]],
+                        normalized: { value: 'Grab', rule: 'glossary', keySpan: span, expansionSpan: span } }),
+    ]
+    const result = { records: [{ entry_no: 31, kreis: 'Heide', fundart: 'G' }] }
+    const decision: ReviewDecisionInput = { resultPath: ['records', 0, 'fundart'], evidenceAnchorId: 'a_fundart',
+                                            reviewedOccurrenceIds: ['o'], action: 'APPROVED', reviewedValue: null }
+    const props = { ...defaultRunProps, schemaReady: true, documentMarkdown: '', sourceDocumentName: 'Catalogue' }
+    const withDecision = (reviewed: ReviewDecisionInput) =>
+      controller({ status: 'ready', result, evidenceLinks, ungroundedCount: 0 }, null, { decisions: [reviewed] })
+    const { rerender } = render(<ResultsTab {...props} controller={withDecision(decision)} />)
+    expect(screen.getByText('Entry number from the segmentation')).toBeInTheDocument()
+    expect(screen.getByText('Inherited from the heading in force · located to the whole page only')).toBeInTheDocument()
+    expect(screen.getByText('Read after its printed key · 1 other match in the entry · glossary: Grab'))
+      .toBeInTheDocument()
+    expect(screen.getByText('G')).toBeInTheDocument()  // the record keeps the raw value
+
+    rerender(<ResultsTab {...props} controller={withDecision({ ...decision, action: 'EDITED', reviewedValue: 'Grab' })} />)
+    expect(screen.queryByText(/Read after its printed key/)).not.toBeInTheDocument()
+    expect(screen.getByText('Entry number from the segmentation')).toBeInTheDocument()
+  })
+
+  it('names every reason coverage is incomplete and lists what segmentation could not settle', () => {
+    const disordered: ExtractionAttempt = { ...groundedAttempt, diagnostics: { ...groundedAttempt.diagnostics!, grounded: {
+      ...groundedAttempt.diagnostics!.grounded!,
+      coverage: { complete: false, unresolved: 0, lines: 40, potential_duplicates: 0, reading_order_issues: 1 },
+      segmentationDiagnostics: [{ code: 'reading_order', detail: 'p1_s2 follows p1_s1 against the column order',
+                                  block: null, spans: [] }],
+    } } }
+    render(<ResultsTab {...defaultRunProps} controller={controller({ status: 'idle' })} schemaReady
+      documentMarkdown="" sourceDocumentName="Catalogue" inspectedAttempt={disordered} />)
+    const panel = screen.getByRole('region', { name: 'Recipe review' })
+    expect(panel).toHaveTextContent('reading order disagrees with the page layout in 1 place.')
+    expect(panel).not.toHaveTextContent('0 of 40')
+    expect(panel).toHaveTextContent('1 segmentation note')
+    expect(panel).toHaveTextContent('reading order: 1 — p1_s2 follows p1_s1 against the column order')
+  })
+
+  it('shows nothing of the kind for a version 1 result', () => {
+    render(<ResultsTab {...defaultRunProps} controller={controller({ status: 'idle' })} schemaReady
+      documentMarkdown="" sourceDocumentName="Catalogue" inspectedAttempt={articleAttempt} />)
+    expect(screen.queryByRole('region', { name: 'Recipe review' })).not.toBeInTheDocument()
   })
 })

@@ -1,0 +1,152 @@
+{
+  "id": "numbered-catalogue-de",
+  "version": 1,
+  "description": "German-language numbered catalogues: entries 'N.' or 'Na.' at a line start, grouped under Bezirk and Kreis headings, with a 'key — expansion' glossary. Developed on one archaeological catalogue; transfer to another catalogue is unmeasured (plan M10).",
+  "structure": {
+    "entry_marker": "(?P<number>\\d{1,4})(?P<suffix>[a-z]?)\\.(?=\\s|$)",
+    "inline_marker": "(?<![\\w,.])(?P<number>\\d{1,3})\\.(?=\\s)",
+    "series_marker": "[a-z]\\s\\d{1,4}\\.(?=\\s|$)",
+    "numbering_max_gap": 5,
+    "headings": [
+      {
+        "kind": "bezirk",
+        "level": 1,
+        "pattern": "(?:Bezirk|Bez\\.)\\s+(?P<value>\\S.*)",
+        "max_chars": 60
+      },
+      {
+        "kind": "kreis",
+        "level": 2,
+        "pattern": "(?:Kreis|Kr\\.)\\s+(?P<value>\\S.*)",
+        "max_chars": 60
+      },
+      {
+        "kind": "kreis",
+        "level": 2,
+        "pattern": "(?P<value>(?:Stadt|Land)kreis\\s+\\S.*|Saalkreis)",
+        "max_chars": 60
+      }
+    ],
+    "heading_hints": [
+      "\\bBezirk(?:es|s)?\\b",
+      "\\bGebiet\\b",
+      "\\bTerritorium\\b"
+    ],
+    "hint_max_chars": 120,
+    "sections": [
+      {
+        "pattern": "Katalog",
+        "region": "catalogue"
+      },
+      {
+        "pattern": "(?:Im Katalog verwendete )?Abkürzungen:?|Abkürzungsverzeichnis",
+        "region": "glossary"
+      },
+      {
+        "pattern": "Vorbemerkung(?:en)?|Einleitung|Vorwort",
+        "region": "prose"
+      },
+      {
+        "pattern": "[IVX]+\\.\\s+\\S.{0,80}",
+        "region": "catalogue"
+      },
+      {
+        "pattern": "Katalognachtrag|Nachtrag",
+        "region": "catalogue",
+        "numbering": "restart"
+      },
+      {
+        "pattern": "Ausgesonderte Befunde",
+        "region": "catalogue"
+      },
+      {
+        "pattern": "Listen|Fundliste\\s.{0,120}",
+        "region": "lists"
+      },
+      {
+        "pattern": "Literaturverzeichnis|Literatur|Bibliographie|Bibliografie",
+        "region": "references"
+      },
+      {
+        "pattern": "\\S*[Vv]erzeichnis\\b.{0,120}",
+        "region": "index"
+      },
+      {
+        "pattern": "Abbildungen|Tafeln",
+        "region": "figures"
+      }
+    ],
+    "labels": {
+      "furniture": [
+        "PageHeader",
+        "PageFooter"
+      ],
+      "figure": [
+        "Picture",
+        "Figure",
+        "Caption",
+        "Image"
+      ],
+      "heading": [
+        "SectionHeader",
+        "Title"
+      ],
+      "list_item": [
+        "List-item",
+        "ListItem"
+      ]
+    },
+    "glossary_line": "(?P<key>\\S(?:.*?\\S)?)\\s+[—–]\\s+(?P<expansion>\\S.*)",
+    "context": {
+      "lines": 2,
+      "max_chars": 300
+    }
+  },
+  "bindings": {
+    "entry_label": [
+      "entry_no",
+      "Katalognummer",
+      "Nummer"
+    ],
+    "headings": {
+      "bezirk": [
+        "bezirk",
+        "Bezirk"
+      ],
+      "kreis": [
+        "kreis",
+        "Kreis"
+      ]
+    },
+    "keys": {
+      "ortsteil": [
+        "OT"
+      ],
+      "fundplatz_no": [
+        "Fdpl."
+      ],
+      "mbl_old": [
+        "Mbl."
+      ],
+      "gelaendesituation": [
+        "Geländesit.:"
+      ],
+      "fundart": [
+        "FA:"
+      ],
+      "museum": [
+        "Mus."
+      ],
+      "inventory_no": [
+        "Inv.-Nr."
+      ],
+      "sammlung": [
+        "Slg."
+      ],
+      "anmerkung": [
+        "Anm.:"
+      ]
+    },
+    "positions": {}
+  }
+}

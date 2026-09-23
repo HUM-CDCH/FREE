@@ -297,6 +297,7 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
           source.projectContextId,
           source.file,
           source.ingestionKey,
+          source.layout,
         ),
       toFailureMessage: (error) => failure(error).message,
       onIngested: ({ item, result }) =>
@@ -310,6 +311,7 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
         type: 'sources.added',
         items: sources.map((source) => ({
           ...source,
+          layout: source.layout ?? 'pages',
           ingestionKey: crypto.randomUUID(),
           validationFailure:
             sourceDocumentFilenameFailure(source.file.name) ?? undefined,

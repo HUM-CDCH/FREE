@@ -33,6 +33,7 @@ type ExtractionRunRequest =
       sourceRepresentationRevisionId: string
       schemaRevisionId: string
       strategy: ExtractionStrategy
+      catalogRecipe?: string
     }>
   | Readonly<{ retryOfId: string } & ExtractionRetryInput>
 
@@ -439,12 +440,14 @@ export function useExtraction({
   async function runExtraction(
     target: ReviewTarget | null = reviewTarget,
     strategy: ExtractionStrategy = 'ARTICLE',
+    catalogRecipe: string | null = null,
   ) {
     if (!target?.schemaRevisionId) return null
     return runRequest(attempt !== null, {
       sourceRepresentationRevisionId: target.sourceRepresentationId,
       schemaRevisionId: target.schemaRevisionId,
       strategy,
+      ...(strategy === 'CATALOG' && catalogRecipe ? { catalogRecipe } : {}),
     })
   }
 

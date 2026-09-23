@@ -40,6 +40,8 @@ type ParserOptions = {
   statuses?: string[]
   /** The hash kei-exp records for the upload; defaults to the upload's own. */
   recordedSha256?: string
+  /** The page source kei-exp records; defaults to the one submitted. */
+  recordedPageSource?: string
   manifest?: Record<string, unknown>
   respond?: (
     route: Route,
@@ -127,7 +129,10 @@ function parser(fetcher: ReturnType<typeof vi.fn>, options: ParserOptions = {}) 
               {
                 id,
                 status: 'queued',
-                params: { source_sha256: recorded },
+                params: {
+                  source_sha256: recorded,
+                  page_source: options.recordedPageSource ?? (init.body as FormData).get('page_source'),
+                },
                 page_count: 1,
               },
               { status: 202 },
@@ -411,6 +416,46 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
       cut: 'auto',
       page_source: 'pdf',
     })
+  })
+
+  it('parses scanned two-page spreads as book pages when the researcher chooses that layout', async () => {
+    const { handler, fetcher } = dependencies()
+    const response = await handler(
+      request(ids.project, [
+        ['file', new File(['%PDF-1.7\n'], 'catalogue.pdf', { type: 'application/pdf' })],
+        ['ingestionKey', ids.ingestion],
+        ['layout', 'spreads'],
+      ]),
+    )
+    expect(response.status).toBe(201)
+    const upload = fetcher.mock.calls[0]?.[1]?.body as FormData
+    expect(upload.get('page_source')).toBe('ingest')
+  })
+
+  it('refuses an unknown page layout before parsing', async () => {
+    const { handler, fetcher } = dependencies()
+    const response = await handler(
+      request(ids.project, [
+        ['file', new File(['%PDF-1.7\n'], 'catalogue.pdf', { type: 'application/pdf' })],
+        ['ingestionKey', ids.ingestion],
+        ['layout', 'triptych'],
+      ]),
+    )
+    expect(response.status).toBe(400)
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('refuses a run that recorded another page layout than the one requested', async () => {
+    const { handler, store } = dependencies({}, { recordedPageSource: 'pdf' })
+    const response = await handler(
+      request(ids.project, [
+        ['file', new File(['%PDF-1.7\n'], 'catalogue.pdf', { type: 'application/pdf' })],
+        ['ingestionKey', ids.ingestion],
+        ['layout', 'spreads'],
+      ]),
+    )
+    expect(response.status).toBe(502)
+    expect(store.ingestSourceDocument).not.toHaveBeenCalled()
   })
 
   it('polls about once a second until the run is done', async () => {

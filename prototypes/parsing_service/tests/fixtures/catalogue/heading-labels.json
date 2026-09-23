@@ -1,0 +1,174 @@
+{
+  "description": "The same heading words under Text and SectionHeader labels, and Stadtkreis/Saalkreis forms.",
+  "pages": [
+    {
+      "page": 1,
+      "units": [
+        {
+          "index": 1,
+          "crops": [
+            {
+              "segments": [
+                "Bezirk Nord",
+                {
+                  "text": "Kreis Heide",
+                  "label": "SectionHeader"
+                },
+                "1. Adorf. FA: G.",
+                "Kreis Heide",
+                "2. Bdorf. FA: EF.",
+                {
+                  "text": "Stadtkreis Mitte",
+                  "label": "SectionHeader"
+                },
+                "3. Cdorf. FA: G.",
+                "Saalkreis",
+                "4. Ddorf. FA: EvG.",
+                {
+                  "text": "Bezirk Süd",
+                  "label": "SectionHeader"
+                },
+                "5. Edorf. FA: G."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "lines": [
+      [
+        "p1_s0",
+        0,
+        11,
+        "heading",
+        "bezirk:Nord",
+        "Bezirk Nord"
+      ],
+      [
+        "p1_s1",
+        0,
+        11,
+        "heading",
+        "kreis:Heide",
+        "Kreis Heide"
+      ],
+      [
+        "p1_s2",
+        0,
+        16,
+        "entry",
+        "1",
+        "1. Adorf. FA: G."
+      ],
+      [
+        "p1_s3",
+        0,
+        11,
+        "heading",
+        "kreis:Heide",
+        "Kreis Heide"
+      ],
+      [
+        "p1_s4",
+        0,
+        17,
+        "entry",
+        "2",
+        "2. Bdorf. FA: EF."
+      ],
+      [
+        "p1_s5",
+        0,
+        16,
+        "heading",
+        "kreis:Stadtkreis Mitte",
+        "Stadtkreis Mitte"
+      ],
+      [
+        "p1_s6",
+        0,
+        16,
+        "entry",
+        "3",
+        "3. Cdorf. FA: G."
+      ],
+      [
+        "p1_s7",
+        0,
+        9,
+        "heading",
+        "kreis:Saalkreis",
+        "Saalkreis"
+      ],
+      [
+        "p1_s8",
+        0,
+        18,
+        "entry",
+        "4",
+        "4. Ddorf. FA: EvG."
+      ],
+      [
+        "p1_s9",
+        0,
+        10,
+        "heading",
+        "bezirk:Süd",
+        "Bezirk Süd"
+      ],
+      [
+        "p1_s10",
+        0,
+        16,
+        "entry",
+        "5",
+        "5. Edorf. FA: G."
+      ]
+    ],
+    "blocks": [
+      {
+        "label": "1",
+        "continuation": false,
+        "headings": {
+          "bezirk": "Nord",
+          "kreis": "Heide"
+        }
+      },
+      {
+        "label": "2",
+        "continuation": false,
+        "headings": {
+          "bezirk": "Nord",
+          "kreis": "Heide"
+        }
+      },
+      {
+        "label": "3",
+        "continuation": false,
+        "headings": {
+          "bezirk": "Nord",
+          "kreis": "Stadtkreis Mitte"
+        }
+      },
+      {
+        "label": "4",
+        "continuation": false,
+        "headings": {
+          "bezirk": "Nord",
+          "kreis": "Saalkreis"
+        }
+      },
+      {
+        "label": "5",
+        "continuation": false,
+        "headings": {
+          "bezirk": "Süd",
+          "kreis": null
+        }
+      }
+    ],
+    "coverage_complete": true
+  }
+}

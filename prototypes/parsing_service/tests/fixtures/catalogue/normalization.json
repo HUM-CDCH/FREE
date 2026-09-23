@@ -1,0 +1,60 @@
+{
+  "description": "German sharp s, a combining diaeresis, a ligature and a line-end hyphenation inside one entry.",
+  "pages": [
+    {
+      "page": 1,
+      "units": [
+        {
+          "index": 1,
+          "crops": [
+            {
+              "segments": [
+                "Kreis Heide",
+                "9. Großenhain. Fdpl. Mühle. Mbl. 2457 (4335). FA: G. Groß-\nsteingrab mit ﬂacher Schale."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "lines": [
+      [
+        "p1_s0",
+        0,
+        11,
+        "heading",
+        "kreis:Heide",
+        "Kreis Heide"
+      ],
+      [
+        "p1_s1",
+        0,
+        59,
+        "entry",
+        "9",
+        "9. Großenhain. Fdpl. Mühle. Mbl. 2457 (4335). FA: G. Groß-"
+      ],
+      [
+        "p1_s1",
+        60,
+        88,
+        "entry",
+        "9",
+        "steingrab mit ﬂacher Schale."
+      ]
+    ],
+    "blocks": [
+      {
+        "label": "9",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": "Heide"
+        }
+      }
+    ],
+    "coverage_complete": true
+  }
+}

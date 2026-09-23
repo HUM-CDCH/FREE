@@ -484,3 +484,19 @@ def test_a_successful_run_is_complete_and_its_header_carries_the_generation_para
     assert outcome.pages[0].markdown == "# T\n\n76. First" and outcome.incomplete is None
     assert outcome.header["docling_status"] == "success"
     assert outcome.header["generation_params"]["chat_template_kwargs"] == {"enable_thinking": False}
+
+
+def test_the_recorded_layout_is_what_the_worker_resolves(tmp_path, monkeypatch):
+    """A run's recorded `ingest` setting reaches its execution; a native PDF ignores it, as it ignores the split."""
+    from kei_exp import runs
+    from kei_exp.kie.stages import ocr as ocr_stage
+    directory = tmp_path / "run"
+    directory.mkdir()
+    (directory / "input.pdf").write_bytes(b"%PDF-1.4")
+    params = {"model": "surya", "page_source": "ingest", "ingest": {"split": "spread", "overrides": {"1": 4800}}}
+    monkeypatch.setattr(ocr_stage, "has_native_text", lambda *_args, **_kwargs: False)
+    assert runs.execution_for(directory, params).ingest == {"split": "spread", "overrides": {"1": 4800}}
+    assert runs.execution_for(directory, {"model": "surya", "page_source": "ingest"}).ingest is None
+    monkeypatch.setattr(ocr_stage, "has_native_text", lambda *_args, **_kwargs: True)
+    native = runs.execution_for(directory, params)
+    assert (native.page_source, native.ingest) == ("pdf", None)

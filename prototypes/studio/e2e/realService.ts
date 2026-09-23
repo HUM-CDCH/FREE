@@ -12,18 +12,37 @@ const python = resolve(directory, '.venv', process.platform === 'win32' ? 'Scrip
 /** A real text PDF; neither its canonical representation nor extraction artifact is mocked. */
 export function cataloguePdf(): Buffer {
   // The heading is not a record: discovery must neither start one there nor end the records before Valley.
-  const texts = [
-    'Site catalogue',
-    '1. Hill: pottery dated 1801.',
-    '2. Valley: flint dated 1802.',
-  ]
-  const stream = texts.map((text, index) => `BT /F1 16 Tf 72 ${680 - index * 180} Td (${text}) Tj ET\n`).join('')
+  return textPdf([['Site catalogue', '1. Hill: pottery dated 1801.', '2. Valley: flint dated 1802.']])
+}
+
+/**
+ * A numbered catalogue for the recipe path: a Kreis heading the entries inherit, and entry 32
+ * continuing onto page 2, where its FA: value is printed. Docling joins the lines of one paragraph
+ * with spaces, so two entries inside one segment are exercised by the service's unit fixtures and
+ * the scanned catalogue, not by this native PDF.
+ */
+export function numberedCataloguePdf(): Buffer {
+  return textPdf([['Kreis Heide', '31. Hill. FA: G.', '32. Valley.'], ['FA: EF.']])
+}
+
+function textPdf(pages: string[][]): Buffer {
+  const font = 3
+  const pageObjects: string[] = []
+  const kids: string[] = []
+  for (const [index, texts] of pages.entries()) {
+    const stream = texts.map((text, line) => `BT /F1 16 Tf 72 ${680 - line * 180} Td (${text}) Tj ET\n`).join('')
+    const page = 4 + index * 2
+    kids.push(`${page} 0 R`)
+    pageObjects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${font} 0 R >> >> /Contents ${page + 1} 0 R >>`,
+      `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}endstream`,
+    )
+  }
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Count 1 /Kids [4 0 R] >>',
+    `<< /Type /Pages /Count ${pages.length} /Kids [${kids.join(' ')}] >>`,
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>',
-    `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}endstream`,
+    ...pageObjects,
   ]
   let content = '%PDF-1.4\n'
   const offsets = [0]
@@ -43,19 +62,41 @@ async function modelServer() {
   let calls = 0
   const server = createServer(async (request, response) => {
     try {
-      if (request.method !== 'POST' || request.url !== '/v1/chat/completions')
+      if (request.method !== 'POST' || !['/v1/chat/completions', '/tokenize'].includes(request.url ?? ''))
         throw new Error(`Unexpected model request: ${request.method} ${request.url}`)
       let bytes = ''
       for await (const chunk of request) bytes += chunk
       const body = JSON.parse(bytes)
+      // A verified count stands in for vLLM's /tokenize, and every completion reports the same count, as a
+      // real server does: the recipe path refuses an endpoint whose counts it cannot verify.
+      const counted = body.messages.reduce((total: number, message: { content: string }) =>
+        total + message.content.split(/\s+/).filter(Boolean).length, 0) + 7
+      if (request.url === '/tokenize') {
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ count: counted, max_model_len: 16384 }))
+        return
+      }
       const prompt: string = body.messages.at(-1).content
       const properties = body.response_format.json_schema.schema.properties
+      const candidates = Object.values(properties).some((field) =>
+        typeof field === 'object' && field !== null && 'properties' in field &&
+        'quote' in ((field as { properties: object }).properties))
       const records = [...prompt.matchAll(/(?:Hill|Valley):\s*(?:pottery|flint) dated \d{4}/g)].map(match => {
         const [site, finds, year] = match[0].split(/:\s*| dated /)
         return { site, finds, year: Number(year) }
       })
       let answer: unknown
-      if ('starts' in properties) {
+      if (candidates) {
+        // One recipe entry: answer from the text between the ENTRY markers only, quoting it verbatim.
+        const entry = prompt.split('### ENTRY\n')[1]?.split('\n### END ENTRY')[0]
+        if (!entry) throw new Error(`Recipe call without an entry: ${prompt}`)
+        const kind = /FA: (\w+)/.exec(entry)
+        const site = /^\d+\.\s+([^.]+)/.exec(entry)
+        answer = Object.fromEntries(Object.keys(properties).map((name) => [name,
+          name === 'fundart' && kind ? { value: kind[1], quote: kind[0], key: 'FA:', provenance: 'token' }
+            : name === 'site_name' && site ? { value: site[1], quote: site[1], key: null, provenance: 'positional' }
+              : null]))
+      } else if ('starts' in properties) {
         const starts = [...prompt.matchAll(/\[(B\d+)\]([^]*?)(?=\[B\d+\]|$)/g)]
           .filter(match => /Hill:|Valley:/.test(match[2])).map(match => match[1])
         if (starts.length !== 2) throw new Error(`Discovery did not receive both parsed entries: ${prompt}`)
@@ -71,7 +112,7 @@ async function modelServer() {
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(JSON.stringify({
         choices: [{ message: { role: 'assistant', content: JSON.stringify(answer) }, finish_reason: 'stop' }],
-        usage: { prompt_tokens: 100, completion_tokens: 30 },
+        usage: { prompt_tokens: counted, completion_tokens: 30 },
       }))
     } catch (error) {
       response.writeHead(500, { 'content-type': 'application/json' })

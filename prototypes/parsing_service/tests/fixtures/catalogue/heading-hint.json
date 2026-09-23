@@ -1,0 +1,117 @@
+{
+  "description": "A Text line naming a region the recipe cannot classify: unresolved, and no older heading is inherited through it.",
+  "pages": [
+    {
+      "page": 1,
+      "units": [
+        {
+          "index": 1,
+          "crops": [
+            {
+              "segments": [
+                "Bezirk Nord",
+                "Kreis Heide",
+                "1. Adorf. FA: G.",
+                "Gebiet der Elster im Bezirk Süd.",
+                "2. Bdorf. FA: EF.",
+                "Kreis Ried",
+                "3. Cdorf. FA: G."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "lines": [
+      [
+        "p1_s0",
+        0,
+        11,
+        "heading",
+        "bezirk:Nord",
+        "Bezirk Nord"
+      ],
+      [
+        "p1_s1",
+        0,
+        11,
+        "heading",
+        "kreis:Heide",
+        "Kreis Heide"
+      ],
+      [
+        "p1_s2",
+        0,
+        16,
+        "entry",
+        "1",
+        "1. Adorf. FA: G."
+      ],
+      [
+        "p1_s3",
+        0,
+        32,
+        "unresolved",
+        "unclassified_heading",
+        "Gebiet der Elster im Bezirk Süd."
+      ],
+      [
+        "p1_s4",
+        0,
+        17,
+        "entry",
+        "2",
+        "2. Bdorf. FA: EF."
+      ],
+      [
+        "p1_s5",
+        0,
+        10,
+        "heading",
+        "kreis:Ried",
+        "Kreis Ried"
+      ],
+      [
+        "p1_s6",
+        0,
+        16,
+        "entry",
+        "3",
+        "3. Cdorf. FA: G."
+      ]
+    ],
+    "blocks": [
+      {
+        "label": "1",
+        "continuation": false,
+        "headings": {
+          "bezirk": "Nord",
+          "kreis": "Heide"
+        }
+      },
+      {
+        "label": "2",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": null
+        }
+      },
+      {
+        "label": "3",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": "Ried"
+        }
+      }
+    ],
+    "diagnostics": [
+      "heading_hint",
+      "heading_state_uncertain"
+    ],
+    "coverage_complete": false
+  }
+}

@@ -5,11 +5,12 @@ import { sourceIngestionMachine } from './sourceIngestionMachine'
 
 const projectContextId = '51000000-0000-4000-8000-000000000001'
 
-function item(name: string, ingestionKey: string) {
+function item(name: string, ingestionKey: string, layout: 'pages' | 'spreads' = 'pages') {
   return {
     projectContextId,
     file: new File([name], name),
     ingestionKey,
+    layout,
   }
 }
 
@@ -25,6 +26,29 @@ function result(sourceDocumentId: string, name: string) {
 }
 
 describe('sourceIngestionMachine', () => {
+  it('retries an upload with the page layout it was added with', async () => {
+    const layouts: string[] = []
+    let fail = true
+    const actor = createActor(sourceIngestionMachine, {
+      input: {
+        ingest: async (source) => {
+          layouts.push(source.layout)
+          if (fail) {
+            fail = false
+            throw new Error('parser unavailable')
+          }
+          return result('51000000-0000-4000-8001-000000000009', source.file.name)
+        },
+        onIngested: vi.fn(),
+        toFailureMessage: (error) => String(error),
+      },
+    }).start()
+    actor.send({ type: 'sources.added', items: [item('Scan.pdf', 'key-scan', 'spreads')] })
+    await vi.waitFor(() => expect(actor.getSnapshot().context.items[0]?.status).toBe('failed'))
+    actor.send({ type: 'source.retry', ingestionKey: 'key-scan' })
+    await vi.waitFor(() => expect(layouts).toEqual(['spreads', 'spreads']))
+  })
+
   it('processes sequentially, continues after failure, and retries with the same key', async () => {
     const pending: Array<PromiseWithResolvers<SourceDocumentIngestionResponse>> = []
     const writes: string[] = []

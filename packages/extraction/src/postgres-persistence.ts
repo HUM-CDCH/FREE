@@ -313,6 +313,7 @@ type ScheduledJob = Readonly<{
   sourceRepresentationRevisionId: string
   schemaRevisionId: string
   strategy: ExtractionStrategy
+  catalogRecipe: string | null
   retryOfId: string | null
   retryDocument: boolean | null
   rediscover: boolean | null
@@ -326,6 +327,7 @@ function jobIdentityMatches(
     sourceRepresentationRevisionId: string
     schemaRevisionId: string
     strategy: ExtractionStrategy
+    catalogRecipe: string | null
     retryOfId: string | null
     retryDocument: boolean | null
     rediscover: boolean | null
@@ -356,6 +358,7 @@ function jobIdentityMatches(
     row.sourceRepresentationRevisionId === job.sourceRepresentationRevisionId &&
     row.schemaRevisionId === job.schemaRevisionId &&
     row.strategy === job.strategy &&
+    row.catalogRecipe === job.catalogRecipe &&
     retryMatches
 }
 
@@ -382,6 +385,7 @@ async function resolveScheduledJob(
       sourceRepresentationRevisionId: parent.sourceRepresentationRevisionId,
       schemaRevisionId: parent.schemaRevisionId,
       strategy: 'CATALOG',
+      catalogRecipe: null,
       retryOfId: parent.extractionId,
       retryDocument: retry.selection.retryDocument,
       rediscover: retry.selection.rediscover,
@@ -422,6 +426,7 @@ async function resolveScheduledJob(
     sourceRepresentationRevisionId: input.sourceRepresentationRevisionId,
     schemaRevisionId: input.schemaRevisionId,
     strategy: input.strategy,
+    catalogRecipe: input.strategy === 'CATALOG' ? input.catalogRecipe ?? null : null,
     retryOfId: null,
     retryDocument: null,
     rediscover: null,
@@ -441,7 +446,7 @@ async function scheduleInteractiveExtraction(
       const { orm } = transaction
       const existingJob = await orm.public.ExtractionJob.select(
         'kind', 'projectContextId', 'sourceRepresentationRevisionId',
-        'schemaRevisionId', 'strategy', 'retryOfId', 'retryDocument',
+        'schemaRevisionId', 'strategy', 'catalogRecipe', 'retryOfId', 'retryDocument',
         'rediscover', 'retryRecordStartBlockIds',
       ).first({ id: input.extractionId })
       const job = await resolveScheduledJob(transaction, input, researcherAccountId)
@@ -1059,7 +1064,7 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
         kind,
         executionStatus: 'QUEUED',
       }).select(
-        'id', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy',
+        'id', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'catalogRecipe',
         'retryOfId', 'retryDocument', 'rediscover', 'retryRecordStartBlockIds',
         'batchExtractionId', 'leaseVersion', 'startedAt', 'createdAt',
         'complete', 'modelAttribution', 'diagnostics', 'resultPayload',
@@ -1071,7 +1076,7 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
         kind,
         executionStatus: 'RUNNING',
       }).select(
-        'id', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy',
+        'id', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'catalogRecipe',
         'retryOfId', 'retryDocument', 'rediscover', 'retryRecordStartBlockIds',
         'batchExtractionId', 'leaseVersion', 'leaseExpiresAt', 'startedAt', 'createdAt',
         'cancelRequestedAt', 'complete', 'modelAttribution', 'diagnostics', 'resultPayload',
@@ -1162,6 +1167,7 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
               sourceRepresentationRevisionId: candidate.sourceRepresentationRevisionId,
               schemaRevisionId: candidate.schemaRevisionId,
               strategy: candidate.strategy,
+              catalogRecipe: candidate.catalogRecipe,
             }
       const checkpoint = candidate.resultPayload !== null &&
           candidate.complete !== null &&

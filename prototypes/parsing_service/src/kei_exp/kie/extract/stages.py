@@ -95,19 +95,21 @@ class Issue:
     path: tuple[str | int, ...] | None = None
 
 
-def _complete(chat: Chat, *, stage: str, record: int | None, system: str, user: str,
-              schema: dict) -> tuple[Any, Call]:
-    """One call, read as JSON; a truncated or unreadable reply is a failed call and a null answer."""
+def _complete(chat: Chat, *, stage: str, record: int | None, system: str, user: str, schema: dict,
+              max_tokens: int | None = None) -> tuple[Any, list[Call]]:
+    """One call, read as JSON; a truncated or unreadable reply is a failed call and a null answer. The calls are the
+    attempts in order, the last one the call whose reply this is: a refused earlier attempt is a failed call too."""
     try:
-        reply = chat.complete(system=system, user=user, schema=schema)
+        reply = chat.complete(system=system, user=user, schema=schema, max_tokens=max_tokens)
     except ModelOutputError as error:  # a fake or a client that already judged the reply
-        return None, Call(stage, record, None, None, 0.0, None, False, str(error))
+        return None, [Call(stage, record, None, None, 0.0, None, False, str(error))]
+    refused = [Call(stage, record, None, None, 0.0, None, False, attempt) for attempt in reply.attempts]
     if reply.finish == "length":
-        return None, _call(reply, stage, record, False, "the reply was cut off (finish_reason length)")
+        return None, [*refused, _call(reply, stage, record, False, "the reply was cut off (finish_reason length)")]
     try:
-        return parse_json(reply.text), _call(reply, stage, record, True, None)
+        return parse_json(reply.text), [*refused, _call(reply, stage, record, True, None)]
     except ModelOutputError as error:
-        return None, _call(reply, stage, record, False, str(error))
+        return None, [*refused, _call(reply, stage, record, False, str(error))]
 
 
 def _call(reply: Reply, stage: str, record: int | None, ok: bool, error: str | None) -> Call:
@@ -160,9 +162,10 @@ def discover(evidence: Evidence, schema: Schema, chat: Chat, *, budget: int) -> 
             "starts": {"type": "array", "items": {"type": "string", "enum": shown}},
             "end": {"type": ["string", "null"], "enum": [*shown, None]}},
             "required": ["starts", "end"], "additionalProperties": False}
-        answer, call = _complete(chat, stage="discovery", record=None, system=system,
-                                 user=_labelled(passages[first:last], shown), schema=reply_schema)
-        calls.append(call)
+        answer, attempts = _complete(chat, stage="discovery", record=None, system=system,
+                                     user=_labelled(passages[first:last], shown), schema=reply_schema)
+        calls += attempts
+        call = attempts[-1]
         if not call.ok:
             issues.append(Issue("call_failed", call.error or "discovery failed"))
             continue
@@ -241,42 +244,42 @@ def extract_document(evidence: Evidence, schema: Schema, chat: Chat, *, budget: 
         return {}, [], []
     issues: list[Issue] = []
     user = f"### Source document\n{_clipped(evidence.passages, budget, issues, None)}\n\nReturn the JSON object now."
-    answer, call = _complete(chat, stage="document", record=None, system=_instruction(schema, nodes), user=user,
-                             schema=json_schema(nodes))
-    if not call.ok:
-        issues.append(Issue("call_failed", call.error or "document extraction failed"))
-    return conform(answer, nodes), [call], issues
+    answer, attempts = _complete(chat, stage="document", record=None, system=_instruction(schema, nodes), user=user,
+                                 schema=json_schema(nodes))
+    if not attempts[-1].ok:
+        issues.append(Issue("call_failed", attempts[-1].error or "document extraction failed"))
+    return conform(answer, nodes), attempts, issues
 
 
 def extract_record(passages: Sequence[Passage], schema: Schema, chat: Chat, *, budget: int,
-                   record: int | None = None) -> tuple[dict, Call, list[Issue]]:
+                   record: int | None = None) -> tuple[dict, list[Call], list[Issue]]:
     """One record's fields from one structured-output call over its passages."""
     nodes = schema.record_nodes
     issues: list[Issue] = []
     user = f"### Record\n{_clipped(passages, budget, issues, record)}\n\nReturn the JSON object now."
-    answer, call = _complete(chat, stage="record", record=record, system=_instruction(schema, nodes), user=user,
-                             schema=json_schema(nodes))
-    if not call.ok:
-        issues.append(Issue("call_failed", call.error or "record extraction failed", record))
-    return conform(answer, nodes), call, issues
+    answer, attempts = _complete(chat, stage="record", record=record, system=_instruction(schema, nodes), user=user,
+                                 schema=json_schema(nodes))
+    if not attempts[-1].ok:
+        issues.append(Issue("call_failed", attempts[-1].error or "record extraction failed", record))
+    return conform(answer, nodes), attempts, issues
 
 
 def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, budget: int) -> tuple[
-        list[dict], Call, list[Issue]]:
+        list[dict], list[Call], list[Issue]]:
     """Every record of the text at once: the article strategy, for sources short enough for one call. A reply
     without records is an issue, as discovery naming no start is."""
     nodes = schema.record_nodes
     issues: list[Issue] = []
     user = f"### Source document\n{_clipped(passages, budget, issues, None)}\n\nReturn the JSON object now."
-    answer, call = _complete(chat, stage="record", record=None, system=_instruction(schema, nodes), user=user,
-                             schema=records_schema(nodes))
-    if not call.ok:
-        issues.append(Issue("call_failed", call.error or "record extraction failed"))
+    answer, attempts = _complete(chat, stage="record", record=None, system=_instruction(schema, nodes), user=user,
+                                 schema=records_schema(nodes))
+    if not attempts[-1].ok:
+        issues.append(Issue("call_failed", attempts[-1].error or "record extraction failed"))
     found = answer.get("records") if isinstance(answer, dict) else None
     records = [conform(item, nodes) for item in found] if isinstance(found, list) else []
     if not records:
         issues.append(Issue("no_records_found", "the model returned no record"))
-    return records, call, issues
+    return records, attempts, issues
 
 
 def leaves(value: Any, path: tuple[str | int, ...] = ()) -> Iterator[tuple[tuple[str | int, ...], Any]]:
@@ -344,11 +347,12 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     reply_schema = {"type": "object", "properties": {claim: {"type": "string", "enum": [*labels, NONE]}
                                                      for claim in claims},
                     "required": claims, "additionalProperties": False}
-    answer, call = _complete(chat, stage="grounding", record=record, system=GROUNDING, user=user, schema=reply_schema)
+    answer, attempts = _complete(chat, stage="grounding", record=record, system=GROUNDING, user=user,
+                                 schema=reply_schema)
     issues: list[Issue] = []
-    if not call.ok:
-        issues.append(Issue("call_failed", call.error or "grounding failed", record))
-        return links, [call], issues
+    if not attempts[-1].ok:
+        issues.append(Issue("call_failed", attempts[-1].error or "grounding failed", record))
+        return links, attempts, issues
     given = answer if isinstance(answer, dict) else {}
     for claim, (path, value, hits) in zip(claims, pending, strict=True):
         label = given.get(claim)
@@ -361,7 +365,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
         else:
             passage = passages[labels.index(label)]
             links.append(_link(path, passage, contains(passage.text, value), hits, "model"))
-    return links, [call], issues
+    return links, attempts, issues
 
 
 def _link(path: tuple[str | int, ...], passage: Passage, verbatim: bool, hits: int, linked_by: str) -> Link:

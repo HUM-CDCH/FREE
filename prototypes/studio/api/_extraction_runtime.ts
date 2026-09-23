@@ -40,6 +40,7 @@ function transportDiagnostics(
         }
       : null,
     retry: diagnostics.retry ?? null,
+    ...(diagnostics.grounded ? { grounded: diagnostics.grounded } : {}),
   }
 }
 

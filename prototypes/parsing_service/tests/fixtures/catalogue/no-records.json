@@ -1,0 +1,58 @@
+{
+  "description": "A source with no catalogue entries: an explicit no-record outcome, not an invented empty entry.",
+  "pages": [
+    {
+      "page": 1,
+      "units": [
+        {
+          "index": 1,
+          "crops": [
+            {
+              "segments": [
+                {
+                  "text": "Vorbemerkung",
+                  "label": "SectionHeader"
+                },
+                "Im Katalog werden die Funde beschrieben.",
+                "Die Maße sind in cm angegeben."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "lines": [
+      [
+        "p1_s0",
+        0,
+        12,
+        "heading",
+        "section:prose",
+        "Vorbemerkung"
+      ],
+      [
+        "p1_s1",
+        0,
+        40,
+        "excluded",
+        "region:prose",
+        "Im Katalog werden die Funde beschrieben."
+      ],
+      [
+        "p1_s2",
+        0,
+        30,
+        "excluded",
+        "region:prose",
+        "Die Maße sind in cm angegeben."
+      ]
+    ],
+    "blocks": [],
+    "diagnostics": [
+      "no_records"
+    ],
+    "coverage_complete": true
+  }
+}

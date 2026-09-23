@@ -3,6 +3,7 @@ import {
   evidenceLinkSchema,
   evidenceLinksHaveUniqueScalarPaths,
   resultPathSchema,
+  textSpanSchema,
 } from './groundedExtraction.js'
 import { providerKindSchema } from './modelConfig.contract.js'
 
@@ -13,6 +14,9 @@ export type ExtractionStrategy = z.infer<typeof extractionStrategySchema>
 export const CATALOG_NOT_ATTEMPTED_LIMIT = 'not_attempted_limit'
 
 const requestUuid = z.uuid().transform((value) => value.toLowerCase())
+
+/** A numbered-catalogue recipe reference (`id@version`), chosen per Catalog Extraction; kei-exp owns the recipes. */
+export const catalogRecipeSchema = z.string().regex(/^[a-z0-9][a-z0-9-]*@[1-9][0-9]*$/)
 
 export const extractionRetrySelectionSchema = z
   .object({
@@ -33,12 +37,17 @@ const extractionFreshRequestSchema = z
     sourceRepresentationRevisionId: requestUuid,
     schemaRevisionId: requestUuid,
     strategy: extractionStrategySchema,
+    catalogRecipe: catalogRecipeSchema.optional(),
     retryOfId: z.never().optional(),
     retryDocument: z.never().optional(),
     rediscover: z.never().optional(),
     retryRecordStartBlockIds: z.never().optional(),
   })
   .strict()
+  .refine((request) => request.catalogRecipe === undefined || request.strategy === 'CATALOG', {
+    path: ['catalogRecipe'],
+    message: 'A recipe applies to a Catalog Extraction only.',
+  })
 
 const extractionRetryRequestSchema = z
   .object({
@@ -52,6 +61,7 @@ const extractionRetryRequestSchema = z
     sourceRepresentationRevisionId: z.never().optional(),
     schemaRevisionId: z.never().optional(),
     strategy: z.never().optional(),
+    catalogRecipe: z.never().optional(),
   })
   .strict()
   .superRefine((request, context) => {
@@ -205,6 +215,60 @@ export const catalogDiagnosticsSchema = z
 
 export type CatalogDiagnostics = z.infer<typeof catalogDiagnosticsSchema>
 
+const reviewCandidateSchema = z
+  .object({
+    path: z.array(z.union([z.string(), z.number().int().nonnegative(), z.null()])),
+    value: z.json(),
+    quote: z.string().nullable(),
+    key: z.string().nullable(),
+    provenance: z.string().nullable(),
+    spans: z.array(textSpanSchema),
+    alternatives: z.array(z.array(textSpanSchema)),
+    window: z.number().int().nonnegative(),
+    reason: z.string().optional(),
+    raw: z.string().optional(),
+  })
+  .strict()
+
+/** The recipe path's review material: proposals and rejections kept outside the accepted result, competitors, the
+ *  segmentation's source coverage and the separated completeness. No confidence number is derived from any of it. */
+export const groundedDiagnosticsSchema = z
+  .object({
+    recipe: catalogRecipeSchema,
+    segmentationFingerprint: z.string(),
+    budget: z
+      .object({
+        inputTokens: z.number().int().positive(),
+        outputTokens: z.number().int().positive(),
+        tokenizer: z.record(z.string(), z.json()),
+      })
+      .strict(),
+    segmentationDiagnostics: z.array(
+      z
+        .object({ code: z.string(), detail: z.string(), block: z.string().nullable(), spans: z.array(textSpanSchema) })
+        .strict(),
+    ),
+    normalization: z
+      .object({ version: z.number().int().positive(), rules: z.array(z.literal('glossary')) })
+      .strict(),
+    recordBlocks: z.array(z.object({ block: z.string(), entry_label: z.string() }).strict()),
+    proposed: z.array(reviewCandidateSchema),
+    rejected: z.array(reviewCandidateSchema),
+    competitors: z.array(z.record(z.string(), z.json())),
+    coverage: z.record(z.string(), z.json()),
+    completeness: z
+      .object({
+        processing: z.boolean(),
+        coverage: z.boolean(),
+        grounding: z.boolean(),
+        recall: z.literal('unmeasured'),
+      })
+      .strict(),
+  })
+  .strict()
+
+export type GroundedDiagnostics = z.infer<typeof groundedDiagnosticsSchema>
+
 export const extractionDiagnosticsSchema = z
   .object({
     phase: z.enum([
@@ -221,6 +285,7 @@ export const extractionDiagnosticsSchema = z
     grounding: groundingDiagnosticsSchema.nullable(),
     catalog: catalogDiagnosticsSchema.nullable(),
     retry: extractionRetrySelectionSchema.nullable(),
+    grounded: groundedDiagnosticsSchema.nullable().optional(),
   })
   .strict()
 

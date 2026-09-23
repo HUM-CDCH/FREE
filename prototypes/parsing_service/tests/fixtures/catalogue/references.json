@@ -1,0 +1,95 @@
+{
+  "description": "The final entry continues into the next column and is followed by the bibliography, which is accounted for, not owned.",
+  "pages": [
+    {
+      "page": 1,
+      "units": [
+        {
+          "index": 1,
+          "crops": [
+            {
+              "segments": [
+                "Kreis Heide",
+                "7. Adorf. FA: G. Funde: Urne und"
+              ]
+            },
+            {
+              "segments": [
+                "Scherben. Mus. Halle 7.",
+                {
+                  "text": "Literaturverzeichnis",
+                  "label": "SectionHeader"
+                },
+                "Adam, K., Die Funde. Halle 1950.",
+                "Berg, L., Urnen. Berlin 1961."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "lines": [
+      [
+        "p1_s0",
+        0,
+        11,
+        "heading",
+        "kreis:Heide",
+        "Kreis Heide"
+      ],
+      [
+        "p1_s1",
+        0,
+        32,
+        "entry",
+        "7",
+        "7. Adorf. FA: G. Funde: Urne und"
+      ],
+      [
+        "p1_s2",
+        0,
+        23,
+        "entry",
+        "7",
+        "Scherben. Mus. Halle 7."
+      ],
+      [
+        "p1_s3",
+        0,
+        20,
+        "heading",
+        "section:references",
+        "Literaturverzeichnis"
+      ],
+      [
+        "p1_s4",
+        0,
+        32,
+        "reference",
+        "",
+        "Adam, K., Die Funde. Halle 1950."
+      ],
+      [
+        "p1_s5",
+        0,
+        29,
+        "reference",
+        "",
+        "Berg, L., Urnen. Berlin 1961."
+      ]
+    ],
+    "blocks": [
+      {
+        "label": "7",
+        "continuation": true,
+        "headings": {
+          "bezirk": null,
+          "kreis": "Heide"
+        }
+      }
+    ],
+    "coverage_complete": true
+  }
+}

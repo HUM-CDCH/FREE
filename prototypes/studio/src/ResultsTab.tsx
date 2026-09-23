@@ -9,7 +9,9 @@ import { resultStats } from './resultStats'
 import { extractionStateFromAttempt, type ExtractionController, type ExtractionRetryInput } from './useExtraction'
 import type { ExtractionState } from './extraction'
 import type { ExtractionAttempt, ReviewDecisionAction } from '../shared/extraction.contract'
+import type { EvidenceLink } from '../shared/groundedExtraction'
 import { REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
+import { RecipeReview } from './RecipeReview'
 import {
   applyReviewDecisions,
   orderResultFields,
@@ -71,6 +73,20 @@ function evidenceCheck(link: { verbatim?: boolean; lexicalHits?: number }, actio
   const others = (link.lexicalHits ?? 1) - 1
   if (link.verbatim && others > 0) return `Value also appears in ${others} other passage${others === 1 ? '' : 's'}`
   return undefined
+}
+
+/** A recipe Catalog value's grounding in the researcher's words; like the checks, it describes the original value. */
+function evidenceDetail(link: EvidenceLink, action?: ReviewDecisionAction): string | undefined {
+  const grounding = link.grounding
+  if (!grounding || action === 'EDITED' || action === 'REJECTED') return undefined
+  const parts = [grounding.linkedBy === 'key' ? 'Read after its printed key'
+    : grounding.provenance === 'inherited' ? 'Inherited from the heading in force'
+      : 'Entry number from the segmentation']
+  const others = grounding.alternatives.length
+  if (others > 0) parts.push(`${others} other match${others === 1 ? '' : 'es'} in the entry`)
+  if (grounding.precision === 'input') parts.push('located to the whole page only')
+  if (grounding.normalized) parts.push(`glossary: ${grounding.normalized.value}`)
+  return parts.join(' · ')
 }
 
 type DiagnosticCall = {
@@ -878,6 +894,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                 <p className="text-ink-muted">No populated value has Evidence. Raw JSON and diagnostics remain available.</p>
               </div>
             )}
+            {attempt?.diagnostics?.grounded && <RecipeReview grounded={attempt.diagnostics.grounded} />}
             {state.ungroundedCount > 0 && (
               <p className="mt-2 text-[11.5px] leading-snug text-ink-muted">
                 {state.ungroundedCount} value{state.ungroundedCount === 1 ? '' : 's'} could not be grounded. {noReviewableResult ? 'No Review Decisions can be saved; ' : 'You can still save the grounded Review Decisions; '}{state.ungroundedCount === 1 ? 'it' : 'they'} will remain recorded without Evidence.
@@ -970,6 +987,10 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                     getEvidenceCheck={(path) => {
                       const link = evidenceLinkByPath.get(JSON.stringify(path))
                       return link && evidenceCheck(link, reviewDecisionByPath.get(resultPathKey(link.resultPath))?.action)
+                    }}
+                    getEvidenceDetail={(path) => {
+                      const link = evidenceLinkByPath.get(JSON.stringify(path))
+                      return link && evidenceDetail(link, reviewDecisionByPath.get(resultPathKey(link.resultPath))?.action)
                     }}
                     onSelectEvidence={onSelectEvidence}
                     review={noReviewableResult ? undefined : {

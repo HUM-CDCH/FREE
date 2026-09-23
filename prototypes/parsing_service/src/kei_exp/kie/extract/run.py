@@ -20,11 +20,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from kei_exp.canonical import canonical_json
 from kei_exp.files import publish
+from kei_exp.kie.extract import grounded
 from kei_exp.kie.extract.evidence import load
+from kei_exp.kie.extract.grounded import CatalogOptions
 from kei_exp.kie.extract.llm import Chat, OpenAIChat
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.stages import (
@@ -39,6 +41,9 @@ from kei_exp.kie.extract.stages import (
     merge,
     verify,
 )
+from kei_exp.kie.extract.tokens import counter_for
+from kei_exp.kie.recipe import load_recipe
+from kei_exp.kie.segmentation import obtain
 
 EXTRACTION_VERSION = 1
 PROMPT_VERSION = 4  # Discovery examples distinguish grouping headings, nested finds and final continuations.
@@ -50,6 +55,19 @@ class Options(BaseModel):
     model: str | None = None                             # the server's model id; the deployment default when None
     discovery_chars: int = Field(default=48_000, ge=1_000)  # text per discovery call
     record_chars: int = Field(default=24_000, ge=1_000)     # text per record or document call
+    catalog: CatalogOptions | None = None  # a recipe: structural segmentation and grounded result version 2
+
+    @model_validator(mode="after")
+    def _recipe_is_known(self) -> Options:
+        if self.catalog is not None:
+            if self.strategy != "catalog":
+                raise ValueError("options.catalog applies to the catalog strategy only")
+            load_recipe(self.catalog.recipe)  # an unknown reference is refused at admission, not in the worker
+        return self
+
+    def dumped(self) -> dict:
+        """The options as the artifact and the fingerprint record them; no `catalog` key on the version 1 path."""
+        return self.model_dump(exclude={"catalog"} if self.catalog is None else set())
 
 
 class ExtractRequest(BaseModel):
@@ -73,11 +91,12 @@ def fingerprint(result: dict, request: ExtractRequest, model: str) -> str:
     return hashlib.sha256(canonical_json({
         "generation": result["generation"], "digest": result["digest"],
         "schema": request.schema_.model_dump(by_alias=True, exclude_none=True),
-        "options": request.options.model_dump(), "model": model, "prompt_version": PROMPT_VERSION,
+        "options": request.options.dumped(), "model": model, "prompt_version": PROMPT_VERSION,
     })).hexdigest()
 
 
-def extract(run_dir: Path, request: ExtractRequest, chat: Chat, *, generation: str | None = None) -> dict:
+def extract(run_dir: Path, request: ExtractRequest, chat: Chat, *, generation: str | None = None,
+            counter=None) -> dict:
     """The artifact for `request` over the run's canonical result, from the stages in order.
 
     `generation` is the parse the caller admitted this extraction against, when it had one: the result on disk
@@ -93,6 +112,8 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat, *, generation: s
             f"generation that is there now")
     schema = request.schema_
     options = request.options
+    if options.catalog is not None:
+        return _grounded(run_dir, evidence, request, chat, counter)
     started = datetime.now(UTC).isoformat()
     clock = time.monotonic()
     calls: list[Call] = []
@@ -101,8 +122,9 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat, *, generation: s
     calls += document_calls
     issues += document_issues
     if options.strategy == "article":
-        found, call, record_issues = extract_records(evidence.passages, schema, chat, budget=options.record_chars)
-        calls.append(call)
+        found, record_calls, record_issues = extract_records(evidence.passages, schema, chat,
+                                                             budget=options.record_chars)
+        calls += record_calls
         issues += record_issues
         slices = [(list(evidence.passages), fields) for fields in found]
     else:
@@ -111,9 +133,9 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat, *, generation: s
         issues += discovery_issues
         slices = []
         for number, group in enumerate(groups):
-            fields, call, record_issues = extract_record(group, schema, chat, budget=options.record_chars,
-                                                         record=number)
-            calls.append(call)
+            fields, record_calls, record_issues = extract_record(group, schema, chat, budget=options.record_chars,
+                                                                 record=number)
+            calls += record_calls
             issues += record_issues
             slices.append((group, fields))
     records: list[dict] = []
@@ -130,7 +152,7 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat, *, generation: s
     result = {
         "extraction_version": EXTRACTION_VERSION, "run_id": evidence.run_id, "generation": evidence.generation,
         "digest": evidence.digest, "strategy": options.strategy, "model": chat.model, "prompt_version": PROMPT_VERSION,
-        "schema": schema.model_dump(by_alias=True, exclude_none=True), "options": options.model_dump(),
+        "schema": schema.model_dump(by_alias=True, exclude_none=True), "options": options.dumped(),
         "started": started, "seconds": round(time.monotonic() - clock, 3),
         "complete": all(call.ok for call in calls) and not ungrounded and not issues,
         "records": records,
@@ -143,6 +165,23 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat, *, generation: s
                    "output": _total(call.output_tokens for call in calls)},
     }
     result["fingerprint"] = fingerprint(result, request, chat.model)
+    return result
+
+
+def _grounded(run_dir: Path, evidence, request: ExtractRequest, chat: Chat, counter) -> dict:
+    """The recipe path: the proven segmentation (computed and published when absent), a verified token counter for the
+    serving endpoint, and the version 2 artifact."""
+    options = request.options
+    recipe = load_recipe(options.catalog.recipe)
+    segmentation = obtain(run_dir, evidence, recipe)
+    if counter is None:
+        counter = counter_for(chat.url, chat.model, headers=getattr(chat, "headers", None))
+    body = grounded.extract_grounded(evidence, request.schema_, recipe, options.catalog, segmentation, chat, counter)
+    result = {"run_id": evidence.run_id, "generation": evidence.generation, "digest": evidence.digest,
+              "model": chat.model, "schema": request.schema_.model_dump(by_alias=True, exclude_none=True),
+              "options": options.dumped(), **body}
+    result["fingerprint"] = grounded.fingerprint(body, evidence.generation, evidence.digest, request.schema_,
+                                                 options.dumped(), chat.model)
     return result
 
 

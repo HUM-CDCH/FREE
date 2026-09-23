@@ -24,7 +24,7 @@ from kei_exp.pagefile import (
     result_digest,
 )
 from kei_exp.result import Input, Inventory, Source, fingerprint, recipe, write_result
-from kei_exp.transcription.types import Transcription, html_to_text
+from kei_exp.transcription.types import TEXT_RULES, Transcription, html_to_text
 from tests.helpers.replay import book_pages
 from tests.helpers.synthetic import ERROR, TABLE, TABLE_TEXT, block, crop, execution, record
 from tests.helpers.synthetic import cases as synthetic_cases
@@ -329,3 +329,15 @@ pipeline = sorted(m for m in sys.modules if m.startswith("kei_exp.kie"))
 assert not pipeline, pipeline
 """
     subprocess.run([sys.executable, "-c", probe], check=True, cwd=Path(__file__).resolve().parents[1])
+
+
+def test_the_native_text_rules_are_part_of_what_a_native_run_was_asked(digital_pdf, tmp_path):
+    """Native list items now publish their printed markers: the same PDF under the old rule wrote other text, so a
+    native recipe names its text rules and a resumed attempt under other rules cannot share a fingerprint."""
+    native = execution(digital_pdf, tmp_path, transcriber="native", model=None, repo=None, url=None, cut="none",
+                       layout_model=None, crop_dpi=None)
+    made = recipe(native, "ab" * 32, None)
+    assert made["text_rules"] == TEXT_RULES["native"]
+    with patch.dict(TEXT_RULES, {"native": TEXT_RULES["native"] + 1}):
+        assert fingerprint(recipe(native, "ab" * 32, None)) != fingerprint(made)
+    assert "text_rules" not in recipe(execution(digital_pdf, tmp_path), "ab" * 32, None)  # Surya's recipe unchanged

@@ -9,7 +9,7 @@ import type { CanonicalPackageStore, Database } from 'db'
 import { validateDisposableTestDatabaseTarget } from 'db/database-url'
 import { withBlockedUpdates } from '../../db/src/postgres-test-helpers.js'
 import type { KeiExpClient, KeiExpRequest, KeiExpArtifact } from './kei-exp.js'
-import { keiExpArtifact, keiExpEvidence } from './kei-exp-fixture.js'
+import { keiExpArtifact, keiExpEvidence, keiExpGroundedArtifact } from './kei-exp-fixture.js'
 import { ExtractionError } from './errors.js'
 import type {
   BatchExtractionSnapshot,
@@ -630,6 +630,45 @@ if (!disposableDatabaseUrl) {
       assert.equal((await module.finalizeReview(input.extractionId, prepared.reviewDecisions)).disposition, 'reviewed')
     })
 
+    it('persists and reopens a version 2 recipe result with its span evidence and review material', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const adapters = deterministicAdapters()
+      adapters.client.extract = async request => (adapters.calls.push(request), keiExpGroundedArtifact({
+        run_id: request.runId, schema: request.schema, model: 'deterministic',
+        records: [{ title: 'Alpha' }], record_blocks: [{ block: 'b1', entry_label: '1' }],
+        evidence: [{ path: ['records', 0, 'title'], segment: 'p1_s0', page: 1, bbox_pt: [10, 10, 100, 30],
+                     verbatim: true, hits: 1, linked_by: 'key', spans: [{ segment: 'p1_s0', start: 0, end: 5 }],
+                     alternatives: [], provenance: 'token', key_spans: [], heading: null, precision: 'segment',
+                     raw: 'Alpha', normalized: { value: 'Alphabet', rule: 'glossary',
+                                                 key_span: { segment: 'p1_s0', start: 0, end: 5 },
+                                                 expansion_span: { segment: 'p1_s0', start: 8, end: 16 } } }],
+      }))
+      const { module } = createRuntime(project.researcherAccountId, adapters)
+      const input = { ...freshInput(project), strategy: 'CATALOG' as const, catalogRecipe: 'numbered-catalogue-de@1' }
+      const created = await module.runSingle(input)
+      assert.equal(adapters.calls[0]?.catalogRecipe, 'numbered-catalogue-de@1')
+      const reopened = await module.readDocumentExtractions({ sourceDocumentId: project.documents[0]!.sourceDocumentId })
+      const attempt = reopened!.latestAttempt!
+      assert.equal(attempt.extractionId, created.extraction.extractionId)
+      assert.deepEqual(attempt.evidence![0]!.grounding, {
+        linkedBy: 'key', provenance: 'token', textSpans: [{ segment: 'p1_s0', start: 0, end: 5 }], keySpans: [],
+        alternatives: [], heading: null, precision: 'segment', raw: 'Alpha',
+        normalized: { value: 'Alphabet', rule: 'glossary', keySpan: { segment: 'p1_s0', start: 0, end: 5 },
+                      expansionSpan: { segment: 'p1_s0', start: 8, end: 16 } },
+      })
+      const grounded = attempt.diagnostics!.grounded!
+      const fixture = keiExpGroundedArtifact()
+      assert.equal(grounded.recipe, 'numbered-catalogue-de@1')
+      assert.deepEqual(grounded.proposed, fixture.proposed)
+      assert.deepEqual(grounded.rejected, fixture.rejected)
+      assert.deepEqual(grounded.coverage, fixture.coverage)
+      assert.deepEqual(grounded.completeness, fixture.completeness)
+      const prepared = await module.prepareReview(input.extractionId)
+      assert.equal(prepared.reviewDecisions.length, 1)
+      assert.equal((await module.finalizeReview(input.extractionId, prepared.reviewDecisions)).disposition, 'reviewed')
+    })
+
     it('retains Article failures on jobs without creating Extractions', async (t) => {
       t.after(cleanup)
       const article = await seedProject()
@@ -912,6 +951,7 @@ if (!disposableDatabaseUrl) {
       const extract = adapters.client.extract
       adapters.client.extract = async request => {
         const artifact = await extract(request)
+        if (artifact.extraction_version !== 1) throw new Error('the deterministic adapter answers version 1')
         return { ...artifact, records: [{ title: 'Alpha', note: 'Alpha' }], evidence: [
           ...artifact.evidence, { ...artifact.evidence[0]!, path: ['records', 0, 'note'] },
         ] }
@@ -1045,6 +1085,27 @@ if (!disposableDatabaseUrl) {
       await store.fail(second.input.extractionId, second.lease, failure, now)
       const batchMember = await store.claim(owner, now, expiresAt)
       assert.equal(batchMember?.input.kind, 'batch-member')
+    })
+
+    it('stores the Catalog recipe chosen for an Extraction on its job and hands it to the worker', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const scheduler = createRuntime(project.researcherAccountId).runtime.forResearcher(project.researcherAccountId)
+      const extractionId = randomUUID()
+      const input = { ...freshInput(project, extractionId), strategy: 'CATALOG' as const,
+                      catalogRecipe: 'numbered-catalogue-de@1' }
+      await scheduler.runSingle(input)
+      assert.equal((await scheduler.runSingle(input)).disposition, 'replayed')
+      await assert.rejects(scheduler.runSingle({ ...input, catalogRecipe: null }),
+        (error: unknown) => error instanceof ExtractionError && error.code === 'extraction_id_conflict')
+      const row = await db.orm.public.ExtractionJob.select('catalogRecipe').first({ id: extractionId })
+      assert.equal(row?.catalogRecipe, 'numbered-catalogue-de@1')
+      const store = createInternalExtractionJobStore(db, packages)
+      const claimed = await store.claim(randomUUID(), new Date(), new Date(Date.now() + 60_000))
+      assert.ok(claimed && claimed.input.kind === 'fresh')
+      assert.equal(claimed.input.catalogRecipe, 'numbered-catalogue-de@1')
+      await store.fail(claimed.input.extractionId, claimed.lease,
+        { code: 'test_cleanup', message: 'Test cleanup.', phase: 'loading' }, new Date())
     })
 
     it('claims a queued job only once when workers compete', async (t) => {

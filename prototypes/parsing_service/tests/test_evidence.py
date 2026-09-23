@@ -152,3 +152,29 @@ def test_a_whole_page_entry_is_no_evidence_over_the_ingest(tmp_path):
     directory = fixture(tmp_path, INGEST, prepare=lambda m, f: f[1]["segments"].append(page_segment(1, None, (0, 0, 1, 1))))
     with pytest.raises(EvidenceError, match="crop None"):
         load_evidence(directory, INGEST)
+
+
+def test_a_book_page_id_resolves_through_its_reference_never_by_string_resemblance(loaded):
+    """Internal ids count per book page; canonical ids are the PDF page and the page-file position. The right half
+    of spread 1 is book page 2 on PDF page 1, and a rejected entry before it shifts every later position, so the
+    strings differ and only the reference resolves one to the other."""
+    evidence, directory = loaded
+    by_id = {segment.id: segment for segment in evidence.segments}
+    assert by_id["p2_s1"].source.segment_id == "p1_s5"
+    assert by_id["p1_s3"].source.segment_id == "p1_s2"
+    result = load_result(directory)
+    for segment in evidence.segments:
+        assert result.pages[segment.source.page].segments[segment.source.index].text == segment.text
+
+
+def test_the_extraction_view_names_every_internal_segment_by_its_canonical_id(loaded, tmp_path):
+    """What reaches Studio is the extraction view's id; it must be the resolved reference of the internal segment."""
+    import shutil
+
+    from kei_exp.kie.extract.evidence import load as load_view
+    evidence, directory = loaded
+    shutil.copytree(directory, tmp_path / "run" / "result")
+    view = {passage.id: passage for passage in load_view(tmp_path / "run").passages}
+    for segment in evidence.segments:
+        if segment.status == "ok" and segment.text.strip():
+            assert view[segment.source.segment_id].text == segment.text

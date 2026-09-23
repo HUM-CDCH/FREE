@@ -1,9 +1,11 @@
 """One text-in, JSON-out chat completion against any OpenAI-compatible server, and how its reply is read.
 
 vLLM and Ollama's `/v1` both take this shape. A call asks for a reply constrained to a JSON schema through
-`response_format`, with reasoning off; a server that refuses that (HTTP 400) is asked once more without it, and the prompt's own
-"return only the JSON object" has to do. `finish` is the server's finish_reason: "length" means the reply was
-cut off, which the caller treats as a failed call rather than a short answer.
+`response_format`, with reasoning off. Only a refusal that positively says structured output is unsupported is asked
+once more without it (the prompt's own "return only the JSON object" then has to do); a malformed schema, an
+overlong input or any other refusal surfaces unchanged. The refused attempt is kept on the reply, so the artifact
+records every call. `finish` is the server's finish_reason: "length" means the reply was cut off, which the caller
+treats as a failed call rather than a short answer.
 """
 from __future__ import annotations
 
@@ -35,12 +37,20 @@ class Reply:
     output_tokens: int | None
     finish: str | None
     seconds: float
+    attempts: tuple[str, ...] = ()      # refused earlier attempts of this call, each as the server's words
+
+
+# A refusal that names structured output as unsupported, in the wordings vLLM, Ollama and OpenAI-compatible proxies
+# use; nothing else earns a second attempt without the schema.
+UNSUPPORTED = re.compile(r"(?is)(response_format|json_schema|structured output|guided).{0,80}"
+                         r"(not supported|unsupported|not implemented)|(not supported|unsupported|does not support|"
+                         r"not implemented).{0,80}(response_format|json_schema|structured output|guided)")
 
 
 class Chat(Protocol):
     model: str
 
-    def complete(self, *, system: str, user: str, schema: dict | None) -> Reply: ...
+    def complete(self, *, system: str, user: str, schema: dict | None, max_tokens: int | None = None) -> Reply: ...
 
 
 @dataclass
@@ -51,18 +61,22 @@ class OpenAIChat:
     headers: dict[str, str] = field(default_factory=dict)
     max_tokens: int = 8192
 
-    def complete(self, *, system: str, user: str, schema: dict | None) -> Reply:
+    def complete(self, *, system: str, user: str, schema: dict | None, max_tokens: int | None = None) -> Reply:
         # No reasoning: under greedy decoding a thinking model (Qwen3) can loop in its reasoning until
         # max_tokens and return no answer at all. Ollama's /v1 honours this field.
         payload: dict[str, Any] = {
-            "model": self.model, "temperature": 0, "max_tokens": self.max_tokens, "reasoning_effort": "none",
+            "model": self.model, "temperature": 0, "max_tokens": max_tokens or self.max_tokens,
+            "reasoning_effort": "none",
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         }
         constrained = {**payload, "response_format": {"type": "json_schema", "json_schema": {
             "name": "reply", "schema": schema, "strict": True}}} if schema is not None else payload
         started = time.monotonic()
+        attempts: tuple[str, ...] = ()
         response = requests.post(self.url, json=constrained, headers=self.headers, timeout=self.timeout)
-        if response.status_code == 400 and schema is not None:  # no structured output here: the prompt asks for JSON
+        refusal = getattr(response, "text", "") or ""
+        if response.status_code == 400 and schema is not None and UNSUPPORTED.search(refusal):
+            attempts = (f"HTTP 400: {refusal[:300]}",)
             response = requests.post(self.url, json=payload, headers=self.headers, timeout=self.timeout)
         response.raise_for_status()
         body = response.json()
@@ -70,7 +84,7 @@ class OpenAIChat:
         usage = body.get("usage") or {}
         return Reply(text=choice["message"].get("content") or "", input_tokens=usage.get("prompt_tokens"),
                      output_tokens=usage.get("completion_tokens"), finish=choice.get("finish_reason"),
-                     seconds=time.monotonic() - started)
+                     seconds=time.monotonic() - started, attempts=attempts)
 
 
 _THINK = re.compile(r"<think>.*?</think>", re.DOTALL)

@@ -142,6 +142,13 @@ class LoadedResult:
     pages: dict[int, PageResult]
 
 
+def segment_id(page: int, index: int) -> str:
+    """The canonical identity of a page segment: the physical, one-based PDF page and its zero-based position in that
+    page file's `segments`. Extraction evidence and FREE's anchors (`a_p{page}_s{index}`) are named by it; it is
+    valid within one generation only."""
+    return f"p{page}_s{index}"
+
+
 def page_path(directory: Path, number: int) -> Path:
     return directory / "pages" / f"{number}.json"
 

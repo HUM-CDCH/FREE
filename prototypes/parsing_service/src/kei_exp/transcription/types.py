@@ -18,6 +18,10 @@ from kei_exp.progress import Emit
 
 load_dotenv()
 DEFAULT_URL = os.environ.get("KEI_VLLM_URL", "http://localhost:8000/v1/chat/completions")
+# The version of the rules by which a transcriber turns what its engine read into canonical text, per transcriber
+# kind, recorded in the recipe: a change here writes other text for the same PDF, so it must not share a fingerprint.
+# native 2: a list item publishes its source text with the printed marker (Docling strips it from `text`).
+TEXT_RULES: dict[str, int] = {"native": 2}
 
 
 @dataclass(frozen=True)
@@ -38,6 +42,8 @@ class RunParams:
     page_source: str = "pdf"                 # pdf | ingest: the PDF's pages, or the book pages the KIE ingest cuts from them
     ingest_dir: Path | None = None           # the ingest's run directory; None = runs/kie/<pdf stem>
     source_name: str | None = None           # the source's own name (an upload's filename); None = the path's
+    ingest: dict | None = None               # IngestConfig settings for page_source ingest (split, gutter overrides);
+                                             # None = the defaults. Bound into the parse through the ingest digest
 
 
 @dataclass(frozen=True)
@@ -64,6 +70,7 @@ class Execution:
     page_source: str                 # pdf | ingest; a native execution reads the PDF
     ingest_dir: Path | None
     source_name: str | None = None
+    ingest: dict | None = None               # the requested IngestConfig settings; None for defaults and native runs
 
 
 class ConversionError(RuntimeError):

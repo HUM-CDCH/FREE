@@ -17,6 +17,7 @@ from docling_core.types.doc import (
     DocItemLabel,
     DoclingDocument,
     FormulaItem,
+    ListItem,
     TableItem,
     TextItem,
 )
@@ -148,6 +149,10 @@ def blocks_of(document: DoclingDocument, page_no: int) -> list[dict]:
             continue
         if isinstance(item, TableItem):
             html = item.export_to_html(doc=document)
+        elif isinstance(item, ListItem) and item.orig.strip():
+            # Docling strips a list item's printed marker ("31.") from `text`; `orig` keeps the PDF's own
+            # characters. A catalogue's entry numbers are such markers, so the source text is what is published.
+            html = f"<p>{escape(item.orig)}</p>"
         elif text := getattr(item, "text", ""):
             html = f"<p>{escape(text)}</p>"
         else:

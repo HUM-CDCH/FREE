@@ -206,10 +206,12 @@ export function createExtractionJobExecutor({ inputs: reader, keiExp }: Extracti
       runId: document.document.document_id,
       schema,
       strategy: input.strategy === 'CATALOG' ? 'catalog' : 'article',
+      catalogRecipe: input.kind === 'fresh' && input.strategy === 'CATALOG' ? input.catalogRecipe ?? null : null,
       expectedGeneration: pinnedGeneration(document),
       signal,
     })
     signal.throwIfAborted()
+    const grounded = artifact.extraction_version === 2 ? artifact : null
     return {
       extractionId: input.extractionId,
       sourceDocumentId: inputs.sourceDocumentId,
@@ -219,13 +221,28 @@ export function createExtractionJobExecutor({ inputs: reader, keiExp }: Extracti
       outcome: 'SUCCEEDED',
       complete: artifact.complete,
       result: { records: artifact.records },
-      evidence: artifact.evidence.map(link => ({
-        resultPath: link.path,
-        evidenceAnchorId: `a_${link.segment}`,
-        verbatim: link.verbatim,
-        lexicalHits: link.hits,
-        ...(link.linked_by === 'lexical' ? { linkedBy: 'lexical' as const } : {}),
-      })),
+      evidence: grounded
+        ? grounded.evidence.map(link => ({
+            resultPath: link.path,
+            evidenceAnchorId: `a_${link.segment}`,
+            verbatim: link.verbatim,
+            lexicalHits: link.hits,
+            grounding: {
+              linkedBy: link.linked_by, provenance: link.provenance, textSpans: link.spans, keySpans: link.key_spans,
+              alternatives: link.alternatives, heading: link.heading, precision: link.precision, raw: link.raw,
+              normalized: link.normalized && {
+                value: link.normalized.value, rule: link.normalized.rule,
+                keySpan: link.normalized.key_span, expansionSpan: link.normalized.expansion_span,
+              },
+            },
+          }))
+        : artifact.evidence.map(link => ({
+            resultPath: link.path,
+            evidenceAnchorId: `a_${link.segment}`,
+            verbatim: link.verbatim,
+            lexicalHits: link.hits,
+            ...(link.linked_by === 'lexical' ? { linkedBy: 'lexical' as const } : {}),
+          })),
       modelAttribution: { provider: 'kei-exp', modelId: artifact.model },
       diagnostics: {
         phase: 'persisting', durationMs: Math.round(artifact.seconds * 1000),
@@ -233,6 +250,23 @@ export function createExtractionJobExecutor({ inputs: reader, keiExp }: Extracti
         finishReason: null, ungroundedPaths: artifact.ungrounded, groundingIssues: artifact.issues,
         // Document-level fields: extracted into every record, grounded in none of them.
         groundingBatches: [], unverifiedFields: artifact.unverified, catalog: null, retry: null,
+        ...(grounded
+          ? {
+              grounded: {
+                recipe: `${grounded.segmentation.recipe.id}@${grounded.segmentation.recipe.version}`,
+                segmentationFingerprint: grounded.segmentation.fingerprint,
+                budget: { inputTokens: grounded.budget.input_tokens, outputTokens: grounded.budget.output_tokens, tokenizer: grounded.budget.tokenizer },
+                segmentationDiagnostics: grounded.segmentation.diagnostics,
+                normalization: grounded.normalization,
+                recordBlocks: grounded.record_blocks,
+                proposed: grounded.proposed,
+                rejected: grounded.rejected,
+                competitors: grounded.competitors,
+                coverage: grounded.coverage,
+                completeness: grounded.completeness,
+              },
+            }
+          : {}),
       },
       failure: null, reviewable: true, retryOfId: null,
       batchExtractionId: input.kind === 'batch-member' ? input.batchExtractionId : null,

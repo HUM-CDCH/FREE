@@ -1,0 +1,44 @@
+[
+  {
+    "id": "column.public.extractionJob.catalogRecipe",
+    "label": "Add column \"catalogRecipe\" to \"extractionJob\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "catalogRecipe",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"catalogRecipe\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extractionJob",
+          "catalogRecipe"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"catalogRecipe\"",
+        "sql": "ALTER TABLE \"public\".\"extractionJob\" ADD COLUMN \"catalogRecipe\" text"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"catalogRecipe\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extractionJob",
+          "catalogRecipe"
+        ]
+      }
+    ]
+  }
+]

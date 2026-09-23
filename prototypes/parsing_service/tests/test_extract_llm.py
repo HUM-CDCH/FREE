@@ -9,11 +9,11 @@ from kei_exp.kie.extract import llm
 from kei_exp.kie.extract.llm import ModelOutputError, OpenAIChat, parse_json
 
 
-def response(status: int, body: dict | None = None):
+def response(status: int, body: dict | None = None, text: str = ""):
     def raise_for_status():
         if status >= 400:
             raise requests.HTTPError(f"{status}")
-    return SimpleNamespace(status_code=status, json=lambda: body, raise_for_status=raise_for_status)
+    return SimpleNamespace(status_code=status, json=lambda: body, text=text, raise_for_status=raise_for_status)
 
 
 def test_a_call_sends_the_messages_and_the_json_schema_and_reads_the_reply(monkeypatch):
@@ -36,18 +36,40 @@ def test_a_call_sends_the_messages_and_the_json_schema_and_reads_the_reply(monke
         "name": "reply", "schema": {"type": "object"}, "strict": True}}
 
 
-def test_a_server_refusing_structured_output_is_asked_again_without_it(monkeypatch):
+def test_a_server_that_says_it_lacks_structured_output_is_asked_again_and_both_attempts_are_kept(monkeypatch):
     sent = []
     body = {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}]}
 
     def post(url, **kwargs):
         sent.append(kwargs["json"])
-        return response(400) if "response_format" in kwargs["json"] else response(200, body)
+        if "response_format" in kwargs["json"]:
+            return response(400, text='{"error": "response_format json_schema is not supported by this server"}')
+        return response(200, body)
     monkeypatch.setattr(llm.requests, "post", post)
     reply = OpenAIChat(url="http://server", model="m").complete(system="S", user="U", schema={"type": "object"})
     assert reply.text == "{}" and reply.input_tokens is None
     assert "response_format" in sent[0] and "response_format" not in sent[1]
     assert sent[1]["reasoning_effort"] == "none"
+    assert len(reply.attempts) == 1 and "not supported" in reply.attempts[0]
+
+
+@pytest.mark.parametrize("text", ['{"error": "invalid JSON schema in response_format: unknown type"}',
+                                  '{"error": "the input length exceeds the context length"}', ""])
+def test_any_other_refusal_surfaces_unchanged_without_a_second_attempt(monkeypatch, text):
+    sent = []
+    monkeypatch.setattr(llm.requests, "post", lambda url, **kwargs: sent.append(kwargs) or response(400, text=text))
+    with pytest.raises(requests.HTTPError):
+        OpenAIChat(url="http://server", model="m").complete(system="S", user="U", schema={"type": "object"})
+    assert len(sent) == 1
+
+
+def test_a_call_may_set_its_own_output_allowance(monkeypatch):
+    sent = []
+    body = {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}]}
+    monkeypatch.setattr(llm.requests, "post", lambda url, **kwargs: sent.append(kwargs["json"]) or response(200, body))
+    OpenAIChat(url="http://server", model="m").complete(system="S", user="U", schema=None, max_tokens=1024)
+    OpenAIChat(url="http://server", model="m").complete(system="S", user="U", schema=None)
+    assert [payload["max_tokens"] for payload in sent] == [1024, 8192]
 
 
 def test_a_failing_server_raises_the_http_error(monkeypatch):

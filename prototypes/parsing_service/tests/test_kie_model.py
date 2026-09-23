@@ -178,8 +178,9 @@ def document(**overrides) -> dict:
             ),
         ],
         "heading_events": [
-            {"id": "h1", "kind": "bezirk", "text": "Bezirk Halle", "spans": [span("p2_s1", 0, 12)]},
-            {"id": "h2", "kind": "kreis", "text": "Kreis Grosse", "spans": [span("p2_s1", ASTRAL + 2, len(HEADING))]},
+            {"id": "h1", "kind": "bezirk", "level": 1, "text": "Bezirk Halle", "spans": [span("p2_s1", 0, 12)]},
+            {"id": "h2", "kind": "kreis", "level": 2, "text": "Kreis Grosse",
+             "spans": [span("p2_s1", ASTRAL + 2, len(HEADING))]},
         ],
     }
     return {**fields, **overrides}
@@ -458,14 +459,19 @@ SEGMENT_HEADING_BLOCK_REJECTIONS = [
         id="a segment source with an unknown field",
     ),
     pytest.param(
-        lambda: HeadingEvent.model_validate({"id": "h1", "kind": "bezirk", "text": "Bezirk Halle", "spans": []}),
+        lambda: HeadingEvent.model_validate({"id": "h1", "kind": "bezirk", "level": 1, "text": "Bezirk Halle",
+                                             "spans": []}),
         id="a heading event without evidence",
     ),
     pytest.param(
-        lambda: HeadingEvent.model_validate(
-            {"id": "h1", "kind": "gemeinde", "text": "x", "spans": [span("p2_s1", 0, 1)]}
-        ),
-        id="an unknown heading kind",
+        lambda: HeadingEvent.model_validate({"id": "h1", "kind": "kreis", "level": 0, "text": "x",
+                                             "spans": [span("p2_s1", 0, 1)]}),
+        id="a heading level under 1",
+    ),
+    pytest.param(
+        lambda: HeadingEvent.model_validate({"id": "h1", "kind": "", "level": 1, "text": "x",
+                                             "spans": [span("p2_s1", 0, 1)]}),
+        id="a heading without a kind",
     ),
     pytest.param(lambda: Block.model_validate(block("b1", "31", 31, "", [])), id="a block without primary spans"),
     pytest.param(
@@ -514,7 +520,7 @@ def test_span_offsets_are_code_points():
     astral_only = Document.model_validate(
         document(
             heading_events=[
-                {"id": "h1", "kind": "bezirk", "text": "\U0001d505", "spans": [span("p2_s1", ASTRAL, ASTRAL + 1)]},
+                {"id": "h1", "kind": "bezirk", "level": 1, "text": "\U0001d505", "spans": [span("p2_s1", ASTRAL, ASTRAL + 1)]},
             ],
             blocks=[block("b1", "31", 31, "", [span("p1_s1", 0, BOUNDARY)])],
         )
@@ -581,8 +587,8 @@ DOCUMENT_REJECTIONS = [
         lambda: Document.model_validate(
             document(
                 heading_events=[
-                    {"id": "h1", "kind": "bezirk", "text": "a", "spans": [span("p2_s1", 0, 1)]},
-                    {"id": "h1", "kind": "kreis", "text": "b", "spans": [span("p2_s1", 1, 2)]},
+                    {"id": "h1", "kind": "bezirk", "level": 1, "text": "a", "spans": [span("p2_s1", 0, 1)]},
+                    {"id": "h1", "kind": "kreis", "level": 2, "text": "b", "spans": [span("p2_s1", 1, 2)]},
                 ]
             )
         ),

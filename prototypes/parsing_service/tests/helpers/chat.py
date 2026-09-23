@@ -17,8 +17,8 @@ class FakeChat:
         self.script = script
         self.calls: list[dict] = []
 
-    def complete(self, *, system: str, user: str, schema: dict | None) -> Reply:
-        self.calls.append({"system": system, "user": user, "schema": schema})
+    def complete(self, *, system: str, user: str, schema: dict | None, max_tokens: int | None = None) -> Reply:
+        self.calls.append({"system": system, "user": user, "schema": schema, "max_tokens": max_tokens})
         answer = self.script(system, user, schema)
         if isinstance(answer, Reply):
             return answer

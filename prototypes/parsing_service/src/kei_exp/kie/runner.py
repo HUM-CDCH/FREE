@@ -119,7 +119,7 @@ def convert(execution: Execution, emit: Emit = print_event) -> str:
         emit({"type": "phase", "name": "ingest", "total": None})
         try:
             doc_dir.mkdir(parents=True, exist_ok=True)
-            step, artifact = ingest_step(execution.pdf, IngestConfig(), doc_dir,
+            step, artifact = ingest_step(execution.pdf, IngestConfig.model_validate(execution.ingest or {}), doc_dir,
                                         lambda spread, spreads: emit(
                                             {"type": "log", "text": f"Ingest: reading spread {spread}/{spreads}"}))
         except (RunError, OSError) as error:

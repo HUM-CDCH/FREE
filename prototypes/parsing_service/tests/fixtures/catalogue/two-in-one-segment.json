@@ -1,0 +1,80 @@
+{
+  "description": "Two numbered entries inside one OCR segment: two blocks, disjoint spans, one unchanged segment.",
+  "pages": [
+    {
+      "page": 1,
+      "units": [
+        {
+          "index": 1,
+          "crops": [
+            {
+              "segments": [
+                "Bezirk Nord",
+                {
+                  "text": "Kreis Heide",
+                  "label": "SectionHeader"
+                },
+                "31. Eichdorf. Fdpl. 2. Mbl. 1827 (3436). FA: G. Urne.\n32. Birkenau. Fdpl. 1. Mbl. 1828. FA: EF. Axt."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "lines": [
+      [
+        "p1_s0",
+        0,
+        11,
+        "heading",
+        "bezirk:Nord",
+        "Bezirk Nord"
+      ],
+      [
+        "p1_s1",
+        0,
+        11,
+        "heading",
+        "kreis:Heide",
+        "Kreis Heide"
+      ],
+      [
+        "p1_s2",
+        0,
+        53,
+        "entry",
+        "31",
+        "31. Eichdorf. Fdpl. 2. Mbl. 1827 (3436). FA: G. Urne."
+      ],
+      [
+        "p1_s2",
+        54,
+        100,
+        "entry",
+        "32",
+        "32. Birkenau. Fdpl. 1. Mbl. 1828. FA: EF. Axt."
+      ]
+    ],
+    "blocks": [
+      {
+        "label": "31",
+        "continuation": false,
+        "headings": {
+          "bezirk": "Nord",
+          "kreis": "Heide"
+        }
+      },
+      {
+        "label": "32",
+        "continuation": false,
+        "headings": {
+          "bezirk": "Nord",
+          "kreis": "Heide"
+        }
+      }
+    ],
+    "coverage_complete": true
+  }
+}

@@ -23,6 +23,55 @@ export type EvidenceLink = Readonly<{
    *  the block and code found the value in it, or code found the value in
    *  exactly one candidate. Absent means the grounder chose the anchor. */
   linkedBy?: 'citation_lexical' | 'lexical'
+  /** Version 2 (recipe Catalog) evidence: code-point spans of the value in its canonical segment, the key that
+   *  introduced it or the heading it was inherited from, and the precision its box can claim. Absent on version 1. */
+  grounding?: EvidenceGrounding
+}>
+
+export type TextSpan = Readonly<{ segment: string; start: number; end: number }>
+
+export type EvidenceGrounding = Readonly<{
+  linkedBy: 'key' | 'structure'
+  provenance: 'token' | 'positional' | 'inherited'
+  textSpans: readonly TextSpan[]
+  keySpans: readonly TextSpan[]
+  alternatives: readonly (readonly TextSpan[])[]
+  heading: string | null
+  precision: 'segment' | 'input'
+  raw: string
+  /** The document's own glossary expansion of `raw`, with both glossary spans; the record keeps the raw value. */
+  normalized: Readonly<{ value: string; rule: 'glossary'; keySpan: TextSpan; expansionSpan: TextSpan }> | null
+}>
+
+/** A candidate the recipe path kept for review rather than accepting: proposed (quote-supported, no rule ties it to
+ *  its field) or rejected (a check failed, with the reason). Never part of the accepted Extraction Result. */
+export type ReviewCandidate = Readonly<{
+  path: readonly (string | number | null)[]
+  value: unknown
+  quote: string | null
+  key: string | null
+  provenance: string | null
+  spans: readonly TextSpan[]
+  alternatives: readonly (readonly TextSpan[])[]
+  window: number
+  reason?: string
+  raw?: string
+}>
+
+export type GroundedDiagnostics = Readonly<{
+  recipe: string
+  segmentationFingerprint: string
+  budget: Readonly<{ inputTokens: number; outputTokens: number; tokenizer: Readonly<Record<string, unknown>> }>
+  /** What segmentation could not settle (reading order, numbering, glossary...), each with its source spans. */
+  segmentationDiagnostics: readonly Readonly<{ code: string; detail: string; block: string | null; spans: readonly TextSpan[] }>[]
+  /** Which value normalizations the result applied (expansions sit beside raw values on the evidence). */
+  normalization: Readonly<{ version: number; rules: readonly 'glossary'[] }>
+  recordBlocks: readonly Readonly<{ block: string; entry_label: string }>[]
+  proposed: readonly ReviewCandidate[]
+  rejected: readonly ReviewCandidate[]
+  competitors: readonly Readonly<Record<string, unknown>>[]
+  coverage: Readonly<Record<string, unknown>>
+  completeness: Readonly<{ processing: boolean; coverage: boolean; grounding: boolean; recall: 'unmeasured' }>
 }>
 
 export type ReviewDecisionAction = 'APPROVED' | 'EDITED' | 'REJECTED'
@@ -115,6 +164,8 @@ export type ExtractionDiagnostics = Readonly<{
   unverifiedFields: readonly string[]
   catalog: CatalogDiagnostics | null
   retry: ExtractionRetrySelection | null
+  /** The recipe path's review material and separated completeness; absent on version 1 results. */
+  grounded?: GroundedDiagnostics | null
 }>
 
 export type ExtractionFailure = Readonly<{
@@ -178,6 +229,8 @@ export type FreshExtractionInput = Readonly<{
   sourceRepresentationRevisionId: string
   schemaRevisionId: string
   strategy: ExtractionStrategy
+  /** The numbered-catalogue recipe chosen for this Catalog Extraction; null or absent for generic Catalog. */
+  catalogRecipe?: string | null
 }>
 
 export type RetryExtractionInput = Readonly<{

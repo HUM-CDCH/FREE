@@ -493,3 +493,27 @@ def test_the_http_layer_keeps_no_run_state_of_its_own(run, scan_pdf, jobs_store)
         row = store.record(created["id"])
         assert row is not None  # the store recorded the submission under the redirected runs.RUNS, not api's own
     assert runs.directory_of(created["id"]) == run.parent / created["id"]  # under the redirected store
+
+
+def test_a_gutter_override_reaches_the_ingest_and_binds_the_parse(converted, workspace, scan_pdf, fake):
+    """The source layout is part of the request: an override chosen at upload is what ingest applies, and the
+    parse recipe's ingest digest changes with it, so a result under another split is another fingerprint."""
+    execution = resolve(RunParams(pdf=scan_pdf, model="fake", page_source="ingest", ingest_dir=workspace / "override",
+                                  crop_dpi=100, result_dir=workspace / "override-result",
+                                  ingest={"overrides": {"1": 4800}}))
+    assert execution.ingest == {"overrides": {"1": 4800}}
+    convert(execution, emit=lambda event: None)
+    artifact = IngestArtifact.model_validate_json(
+        (workspace / "override" / scan_pdf.stem / "ingest" / "ingest.json").read_bytes())
+    assert {(page.gutter_method, page.gutter_x_px) for page in artifact.pages} == {("override", 4800)}
+    default = json.loads((converted.result_dir / "result.json").read_text(encoding="utf-8"))
+    overridden = json.loads((workspace / "override-result" / "result.json").read_text(encoding="utf-8"))
+    assert overridden["recipe"]["ingest_digest"] == artifact.envelope.digest != default["recipe"]["ingest_digest"]
+
+
+def test_a_malformed_ingest_setting_is_refused_before_anything_runs(workspace, scan_pdf, fake):
+    with pytest.raises(ValueError, match="ingest"):
+        resolve(RunParams(pdf=scan_pdf, model="fake", page_source="ingest", ingest_dir=workspace / "bad",
+                          ingest={"split": "triptych"}))
+    with pytest.raises(ValueError, match="page_source"):
+        resolve(RunParams(pdf=scan_pdf, model="fake", page_source="pdf", ingest={"split": "single"}))

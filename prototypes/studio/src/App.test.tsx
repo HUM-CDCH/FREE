@@ -1166,8 +1166,8 @@ describe('reopened Source Document workspace', () => {
       expect(control).toBeDisabled()
   })
 
-  it('submits the selected Catalog strategy once, then defaults back to Article', async () => {
-    const extractionRequests: Array<{ strategy?: string }> = []
+  it.each([[null], ['numbered-catalogue-de@1']])('submits the selected Catalog strategy and record boundaries (%s) once, then defaults back to Article', async (recipe) => {
+    const extractionRequests: Array<{ strategy?: string; catalogRecipe?: string }> = []
     vi.stubGlobal(
       'fetch',
       vi.fn((input: string | URL | Request, init?: RequestInit) => {
@@ -1202,17 +1202,25 @@ describe('reopened Source Document workspace', () => {
     )
     const selector = screen.getByLabelText('Extraction strategy')
     expect(selector).toHaveValue('ARTICLE')
+    // Record boundaries only apply to Catalog; generic model discovery stays the default.
+    expect(screen.queryByLabelText('Record boundaries')).not.toBeInTheDocument()
     fireEvent.change(selector, { target: { value: 'CATALOG' } })
+    const boundaries = screen.getByLabelText('Record boundaries')
+    expect(boundaries).toHaveValue('')
+    if (recipe) fireEvent.change(boundaries, { target: { value: recipe } })
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
 
     await waitFor(() => expect(extractionRequests).toHaveLength(1))
     expect(extractionRequests[0]).toEqual(
       expect.objectContaining({ strategy: 'CATALOG' }),
     )
+    if (recipe) expect(extractionRequests[0].catalogRecipe).toBe(recipe)
+    else expect(extractionRequests[0]).not.toHaveProperty('catalogRecipe')
     // The selection is one-shot: the next run defaults back to Article.
     await waitFor(() =>
       expect(screen.getByLabelText('Extraction strategy')).toHaveValue('ARTICLE'),
     )
+    expect(screen.queryByLabelText('Record boundaries')).not.toBeInTheDocument()
   })
 
   it('abandons a pending run when the active Source Document changes', async () => {

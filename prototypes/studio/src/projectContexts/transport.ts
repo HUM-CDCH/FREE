@@ -13,6 +13,7 @@ import {
   sourceDocumentIngestionResponseSchema,
   type SourceDocumentIngestionResponse,
 } from '../../shared/sourceDocumentIngestion.contract'
+import type { SourceLayout } from '../sourceIngestionMachine'
 
 export type ProjectContext = z.output<typeof projectContextListItemSchema>
 export type ProjectContextActivitySummary = ProjectContext['summary']
@@ -141,11 +142,13 @@ export async function ingestSourceDocument(
   projectContextId: string,
   file: File,
   ingestionKey: string,
+  layout: SourceLayout = 'pages',
   signal?: AbortSignal,
 ): Promise<SourceDocumentIngestionResponse> {
   const form = new FormData()
   form.append('file', file, file.name)
   form.append('ingestionKey', ingestionKey)
+  form.append('layout', layout)
   return sourceDocumentIngestionResponseSchema.parse(
     await read(`/api/project-contexts/${projectContextId}/source-documents`, {
       method: 'POST',

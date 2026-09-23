@@ -10,6 +10,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 from kei_exp.cut import Crop, CutError, cut_pages, whole_pages
+from kei_exp.kie.model import IngestConfig
 from kei_exp.models import MODELS
 from kei_exp.pages import BookPages, PdfPages
 from kei_exp.progress import Emit, Event, print_event
@@ -50,6 +51,19 @@ def check_knobs(params: RunParams) -> None:
         raise ValueError(f"the {record.kind} transcriber does not accept {', '.join(refused)}")
 
 
+def check_ingest(page_source: str, ingest: dict | None) -> None:
+    """An ingest setting (split, gutter overrides) applies only to book pages, and must be a valid IngestConfig.
+    Checked at admission and again when the run resolves, so a refused setting never reaches a worker."""
+    if ingest is None:
+        return
+    if page_source != "ingest":
+        raise ValueError("an ingest setting (split, gutter overrides) needs page_source ingest")
+    try:
+        IngestConfig.model_validate(ingest)
+    except ValueError as error:
+        raise ValueError(f"the ingest setting is invalid: {error}") from error
+
+
 def resolve(params: RunParams) -> Execution:
     """The execution choice for params, made once per run.
 
@@ -59,6 +73,7 @@ def resolve(params: RunParams) -> Execution:
     """
     if params.page_source not in ("pdf", "ingest"):
         raise ValueError(f"page_source must be pdf or ingest, not {params.page_source!r}")
+    check_ingest(params.page_source, params.ingest)
     if has_native_text(params.pdf, params.pages):
         return Execution(pdf=params.pdf, source_name=params.source_name, transcriber=NativeText.kind,
                          model=None, repo=None, url=None, cut="none",
@@ -73,7 +88,7 @@ def resolve(params: RunParams) -> Execution:
                      crop_dpi=params.crop_dpi, max_image_size=params.max_image_size,
                      max_output_tokens=params.max_output_tokens, stream=params.stream, pages=params.pages,
                      debug_dir=params.debug_dir, result_dir=params.result_dir, page_source=params.page_source,
-                     ingest_dir=params.ingest_dir)
+                     ingest_dir=params.ingest_dir, ingest=params.ingest)
 
 
 PAGE_EVENTS = frozenset({"page_start", "token", "page_end", "page_stats"})

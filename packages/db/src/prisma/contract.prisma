@@ -281,6 +281,9 @@ model ExtractionJob {
   sourceRepresentationRevisionId Uuid
   schemaRevisionId               Uuid
   strategy                       String
+  // The numbered-catalogue recipe (`id@version`) a Catalog Extraction segments by; null for generic Catalog and
+  // Article. Chosen per Extraction (OpenSpec grounded-numbered-catalogue D1) and pinned in the result it produces.
+  catalogRecipe                  String?
   retryOfId                      Uuid?
   retryDocument                  Boolean?
   rediscover                     Boolean?

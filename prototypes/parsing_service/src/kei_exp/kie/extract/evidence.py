@@ -10,9 +10,10 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from itertools import pairwise
 from pathlib import Path
 
-from kei_exp.pagefile import ResultError, load_result
+from kei_exp.pagefile import CropResult, PageResult, ResultError, load_result, page_path, segment_id
 
 
 class EvidenceUnavailable(Exception):
@@ -21,7 +22,11 @@ class EvidenceUnavailable(Exception):
 
 @dataclass(frozen=True)
 class Passage:
-    """One readable segment: its identity, its page, its text and where it sits on the page (top-left points)."""
+    """One segment as extraction sees it: its canonical identity, where the parser placed it, and its raw text.
+
+    `unit` is 0 for the PDF page itself and the book page otherwise (both halves of a spread share one `page`);
+    `crop`, `crop_order` and `crop_bbox_pt` name the cut's column the engine read it in, None for a native page.
+    """
     id: str
     page: int
     index: int
@@ -29,6 +34,16 @@ class Passage:
     label: str
     bbox_pt: tuple[float, float, float, float]
     extent: str                        # block: the engine's own box; input: the whole input, deliberately coarse
+    unit: int = 0
+    crop: int | None = None
+    crop_order: int | None = None
+    crop_bbox_pt: tuple[float, float, float, float] | None = None
+    status: str = "ok"
+
+    @property
+    def precision(self) -> str:
+        """The precision a span inside this passage can claim visually: its segment's box, or the whole input."""
+        return "segment" if self.extent == "block" else "input"
 
 
 @dataclass(frozen=True)
@@ -39,12 +54,27 @@ class Evidence:
     source_name: str
     page_count: int
     passages: tuple[Passage, ...]      # pages ascending, then page-file order: the reading order
+    withheld: tuple[Passage, ...] = () # segments the engine did not read ok, blank or not: never extracted from
+    order_issues: tuple[str, ...] = () # where the page files' order disagrees with the cut's own order
 
     def by_id(self, passage_id: str) -> Passage:
         for passage in self.passages:
             if passage.id == passage_id:
                 return passage
         raise KeyError(passage_id)
+
+
+def order_issues(passages: Sequence[Passage]) -> list[str]:
+    """Where consecutive passages of one page go backwards in (unit, crop order): the page file's reading order is
+    units ascending, then crops by their cut order. Reported, never reordered."""
+    issues = []
+    for before, after in pairwise(passages):
+        if before.page != after.page:
+            continue
+        if (after.unit, after.crop_order or 0) < (before.unit, before.crop_order or 0):
+            issues.append(f"{after.id} (unit {after.unit}, crop order {after.crop_order}) follows {before.id} "
+                          f"(unit {before.unit}, crop order {before.crop_order}) in the page file")
+    return issues
 
 
 def load(run_dir: Path) -> Evidence:
@@ -55,15 +85,46 @@ def load(run_dir: Path) -> Evidence:
     except ResultError as error:
         raise EvidenceUnavailable(str(error)) from error
     passages: list[Passage] = []
+    withheld: list[Passage] = []
     for number in sorted(loaded.pages):
-        for index, segment in enumerate(loaded.pages[number].segments):
-            if segment.status != "ok" or not segment.text.strip():
+        page = loaded.pages[number]
+        crops = _placement(page, page_path(run_dir / "result", number))
+        for index, segment in enumerate(page.segments):
+            if segment.status == "ok" and not segment.text.strip():
                 continue
-            passages.append(Passage(id=f"p{number}_s{index}", page=number, index=index, text=segment.text,
-                                    label=segment.label, bbox_pt=tuple(segment.bbox_pt), extent=segment.extent))
+            crop = crops[segment.crop] if segment.crop is not None else None
+            passage = Passage(id=segment_id(number, index), page=number, index=index, text=segment.text,
+                              label=segment.label, bbox_pt=tuple(segment.bbox_pt), extent=segment.extent,
+                              unit=segment.unit, crop=segment.crop, crop_order=crop.order if crop else None,
+                              crop_bbox_pt=tuple(crop.bbox_pt) if crop else None, status=segment.status)
+            (passages if segment.status == "ok" else withheld).append(passage)
     manifest = loaded.manifest
     return Evidence(run_id=run_dir.name, generation=manifest.generation, digest=manifest.digest,
-                    source_name=manifest.source_name, page_count=manifest.page_count, passages=tuple(passages))
+                    source_name=manifest.source_name, page_count=manifest.page_count, passages=tuple(passages),
+                    withheld=tuple(withheld), order_issues=tuple(order_issues(passages)))
+
+
+def _placement(page: PageResult, path: Path) -> dict[int, CropResult]:
+    """The page's crops by ordinal, once every segment is proven to sit on a unit the page has and in a crop of that
+    unit. The hashes prove the bytes, not the placement: a segment naming a missing or foreign crop could be neither
+    ordered nor placed on its column, so the result is refused rather than projected without it."""
+    units: set[int] = set()
+    crops: dict[int, tuple[int, CropResult]] = {}
+    for unit in page.units:
+        if unit.index in units:
+            raise EvidenceUnavailable(f"{path}: unit {unit.index} appears twice")
+        units.add(unit.index)
+        for crop in unit.crops:
+            if crop.crop in crops:
+                raise EvidenceUnavailable(f"{path}: crop {crop.crop} appears twice")
+            crops[crop.crop] = (unit.index, crop)
+    for index, segment in enumerate(page.segments):
+        if segment.unit not in units:
+            raise EvidenceUnavailable(f"{path}: segment {index} names unit {segment.unit}, which the page has not")
+        if segment.crop is not None and crops.get(segment.crop, (None,))[0] != segment.unit:
+            raise EvidenceUnavailable(f"{path}: segment {index} names crop {segment.crop}, which unit "
+                                      f"{segment.unit} has not")
+    return {ordinal: crop for ordinal, (_, crop) in crops.items()}
 
 
 def text_of(passages: Sequence[Passage]) -> str:

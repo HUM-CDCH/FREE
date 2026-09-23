@@ -6,6 +6,36 @@ export const resultPathSchema = z
 
 export type ResultPath = z.infer<typeof resultPathSchema>
 
+/** A half-open range of Unicode code points in one canonical segment's text (`p{page}_s{index}`); not UTF-16. */
+export const textSpanSchema = z
+  .object({
+    segment: z.string().regex(/^p\d+_s\d+$/),
+    start: z.number().int().nonnegative(),
+    end: z.number().int().positive(),
+  })
+  .strict()
+
+export type TextSpan = z.infer<typeof textSpanSchema>
+
+/** Version 2 (recipe Catalog) evidence detail: what tied the value to its field and where exactly it is. */
+export const evidenceGroundingSchema = z
+  .object({
+    linkedBy: z.enum(['key', 'structure']),
+    provenance: z.enum(['token', 'positional', 'inherited']),
+    textSpans: z.array(textSpanSchema).min(1),
+    keySpans: z.array(textSpanSchema),
+    alternatives: z.array(z.array(textSpanSchema)),
+    heading: z.string().nullable(),
+    precision: z.enum(['segment', 'input']),
+    raw: z.string(),
+    // The document's own glossary expansion of `raw`; the Extraction Result keeps the raw value.
+    normalized: z
+      .object({ value: z.string(), rule: z.literal('glossary'), keySpan: textSpanSchema, expansionSpan: textSpanSchema })
+      .strict()
+      .nullable(),
+  })
+  .strict()
+
 export const evidenceLinkSchema = z
   .object({
     resultPath: resultPathSchema,
@@ -15,6 +45,8 @@ export const evidenceLinkSchema = z
     lexicalHits: z.number().int().nonnegative().optional(),
     // Absent means the grounder chose the anchor.
     linkedBy: z.enum(['citation_lexical', 'lexical']).optional(),
+    // Present only on version 2 results.
+    grounding: evidenceGroundingSchema.optional(),
   })
   .strict()
 

@@ -5,7 +5,7 @@ import parsedDocument from '../../../prototypes/studio/src/assets/parsed_documen
 import type { ExtractionInputReader, ExtractionPersistence } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import type { ExtractionSnapshot } from './types.js'
-import { keiExpAccepted, keiExpArtifact, keiExpCall, keiExpEnvelope, keiExpEvidence } from './kei-exp-fixture.js'
+import { keiExpAccepted, keiExpArtifact, keiExpCall, keiExpEnvelope, keiExpEvidence, keiExpGroundedArtifact } from './kei-exp-fixture.js'
 import { createKeiExpClient, retryAfterMs, type KeiExpArtifact, type KeiExpStatus } from './kei-exp.js'
 import { createExtractionJobExecutor, createExtractionModule } from './module.js'
 
@@ -28,7 +28,8 @@ function artifact(overrides: Partial<KeiExpArtifact> = {}): KeiExpArtifact {
     ...overrides,
   })
 }
-function harness(responses: Array<Response | Error>, strategy: 'ARTICLE' | 'CATALOG' = 'ARTICLE', document = parsedDocument) {
+function harness(responses: Array<Response | Error>, strategy: 'ARTICLE' | 'CATALOG' = 'ARTICLE', document = parsedDocument,
+  catalogRecipe: string | null = null) {
   const requests: Array<{ url: string; init?: RequestInit }> = []
   const inputs: ExtractionInputReader = {
     readExtractionAttempt: async () => null,
@@ -48,7 +49,7 @@ function harness(responses: Array<Response | Error>, strategy: 'ARTICLE' | 'CATA
     },
   })
   const execute = createExtractionJobExecutor({ inputs, keiExp })
-  const input = { kind: 'fresh' as const, extractionId: randomUUID(), sourceRepresentationRevisionId: randomUUID(), schemaRevisionId: randomUUID(), strategy }
+  const input = { kind: 'fresh' as const, extractionId: randomUUID(), sourceRepresentationRevisionId: randomUUID(), schemaRevisionId: randomUUID(), strategy, catalogRecipe }
   return {
     requests, input, execute,
     run: (signal = new AbortController().signal) => execute(input, signal),
@@ -73,6 +74,52 @@ describe('kei-exp extraction relay', () => {
     assert.equal(result.outcome, 'SUCCEEDED')
     assert.deepEqual(result.modelAttribution, { provider: 'kei-exp', modelId: 'selected-model' })
     assert.deepEqual(result.diagnostics, { phase: 'persisting', durationMs: 1250, modelCalls: 3, inputTokens: 20, outputTokens: 10, finishReason: null, ungroundedPaths: [], groundingIssues: issues, groundingBatches: [], unverifiedFields: [], catalog: null, retry: null })
+  })
+
+  it('sends a Catalog recipe and maps the version 2 artifact without dropping what review needs', async () => {
+    const base = keiExpGroundedArtifact({ run_id: runId, model: 'selected-model', schema })
+    // A glossary expansion travels beside the raw value, spans renamed to the client's casing.
+    const glossary = { value: 'Heidekreis', rule: 'glossary' as const, key_span: { segment: 'p1_s0', start: 0, end: 5 },
+                       expansion_span: { segment: 'p1_s0', start: 8, end: 18 } }
+    const grounded = { ...base, evidence: base.evidence.map(link =>
+      link.path[2] === 'kreis' ? { ...link, normalized: glossary } : link) }
+    const h = harness([json(ack, 202), polled(grounded)], 'CATALOG', parsedDocument, 'numbered-catalogue-de@1')
+    const result = await h.run()
+    assert.deepEqual(JSON.parse(h.requests[0].init!.body as string).options,
+      { strategy: 'catalog', model: 'selected-model', catalog: { recipe: 'numbered-catalogue-de@1' } })
+    assert.deepEqual(result.result, { records: grounded.records })
+    assert.equal(result.complete, false)
+    const sheet = result.evidence!.find((link) => link.resultPath[2] === 'mbl_old')!
+    assert.equal(sheet.evidenceAnchorId, 'a_p1_s2')
+    assert.deepEqual(sheet.grounding, {
+      linkedBy: 'key', provenance: 'token', textSpans: [{ segment: 'p1_s2', start: 28, end: 32 }],
+      keySpans: [{ segment: 'p1_s2', start: 23, end: 27 }], alternatives: [], heading: null, precision: 'segment',
+      raw: '1827', normalized: null,
+    })
+    const kreis = result.evidence!.find((link) => link.resultPath[2] === 'kreis')!
+    assert.equal(kreis.grounding!.provenance, 'inherited')
+    assert.deepEqual(kreis.grounding!.normalized, { value: 'Heidekreis', rule: 'glossary',
+      keySpan: { segment: 'p1_s0', start: 0, end: 5 }, expansionSpan: { segment: 'p1_s0', start: 8, end: 18 } })
+    assert.equal(kreis.evidenceAnchorId, 'a_p1_s1')
+    const report = result.diagnostics.grounded!
+    assert.equal(report.recipe, 'numbered-catalogue-de@1')
+    assert.deepEqual(report.completeness, grounded.completeness)
+    assert.deepEqual(report.normalization, { version: 1, rules: ['glossary'] })
+    assert.deepEqual(report.segmentationDiagnostics, grounded.segmentation.diagnostics)
+    assert.deepEqual(report.coverage, grounded.coverage)
+    assert.deepEqual(report.proposed, grounded.proposed)
+    assert.deepEqual(report.rejected, grounded.rejected)
+    assert.deepEqual(report.recordBlocks, grounded.record_blocks)
+    assert.deepEqual(result.diagnostics.ungroundedPaths, [])
+  })
+
+  it('refuses a version 2 artifact produced under another recipe than the one requested', async () => {
+    const other = keiExpGroundedArtifact({
+      run_id: runId, model: 'selected-model', schema,
+      segmentation: { ...keiExpGroundedArtifact().segmentation, recipe: { ...keiExpGroundedArtifact().segmentation.recipe, version: 2 } },
+    })
+    const h = harness([json(ack, 202), polled(other)], 'CATALOG', parsedDocument, 'numbered-catalogue-de@1')
+    await assert.rejects(h.run(), (error: unknown) => error instanceof ExtractionError && error.code === 'invalid_model_output')
   })
 
   it('relays catalog, zero/multiple records, ungrounded paths and model-linked evidence', async () => {

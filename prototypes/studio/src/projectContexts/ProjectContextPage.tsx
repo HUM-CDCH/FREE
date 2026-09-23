@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { NavigableRoute, ProjectResource } from '../projectNavigation'
+import type { SourceLayout } from '../sourceIngestionMachine'
 import { projectContextNameSchema } from '../../shared/projectContext.contract'
 import { listExtractionSchemas, renameExtractionSchema } from '../schemaRevisions'
 import SchemaNameEditor from '../SchemaNameEditor'
@@ -210,6 +211,10 @@ export default function ProjectContextPage({
     name: string
   } | null>(null)
   const [dragging, setDragging] = useState(false)
+  // How new uploads are read: scanned two-page spreads are split into book
+  // pages; everything else is read page by page. Born-digital PDFs are read
+  // natively whatever is chosen.
+  const [layout, setLayout] = useState<SourceLayout>('pages')
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<'newest' | 'oldest' | 'name'>('newest')
   const [settledSchemaList, setSettledSchemaList] =
@@ -266,7 +271,7 @@ export default function ProjectContextPage({
 
   const addFiles = (files: readonly File[]) => {
     if (!files.length) return
-    addSources(files.map((file) => ({ projectContextId, file })))
+    addSources(files.map((file) => ({ projectContextId, file, layout })))
   }
 
   useEffect(() => {
@@ -630,6 +635,17 @@ export default function ProjectContextPage({
                   addFiles(files)
                 }}
               />
+            </label>
+            <label className="mt-2 flex items-center justify-end gap-2 text-xs text-ink-muted">
+              Page layout
+              <select
+                className="h-8 rounded-md border border-line bg-surface px-2 text-xs text-ink outline-none hover:border-line-strong focus-visible:border-accent"
+                value={layout}
+                onChange={(event) => setLayout(event.target.value as SourceLayout)}
+              >
+                <option value="pages">Single pages</option>
+                <option value="spreads">Scanned two-page spreads</option>
+              </select>
             </label>
 
             <div className="mt-3 flex items-center gap-3">

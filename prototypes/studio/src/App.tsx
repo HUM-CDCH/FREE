@@ -26,6 +26,7 @@ import type { DocumentSnapshot } from './projectContexts/transport'
 import { getSchemaRevision, renameExtractionSchema } from './schemaRevisions'
 import type { SchemaDefinition } from 'extraction/schema'
 import { browserStudioPath } from './studioUrl.js'
+import { CATALOG_RECIPES } from '../shared/catalogRecipes.js'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -163,6 +164,8 @@ export function DocumentWorkspace({
   // selector never changes the strategy of an active or persisted attempt.
   const [nextExtractionStrategy, setNextExtractionStrategy] =
     useState<ExtractionStrategy>('ARTICLE')
+  // Catalog only, one-shot like the strategy: '' keeps generic model discovery of record boundaries.
+  const [nextCatalogRecipe, setNextCatalogRecipe] = useState('')
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('schema')
@@ -209,6 +212,7 @@ export function DocumentWorkspace({
     setLoadState({ status: 'loading' })
     setZoomPercent(100)
     setNextExtractionStrategy('ARTICLE')
+    setNextCatalogRecipe('')
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
     setKnownSchemas(reopenedSchemas)
     setResultPath(null)
@@ -629,6 +633,7 @@ export function DocumentWorkspace({
       if (!revision)
         throw new Error('Save the Current Schema Revision before extraction.')
       const strategy = nextExtractionStrategy
+      const catalogRecipe = nextCatalogRecipe || null
       // The researcher asked for this run, so it is what they now inspect;
       // its schema is known before the server acknowledges the attempt.
       setSelectedInspectionId(null)
@@ -647,9 +652,11 @@ export function DocumentWorkspace({
           schemaRevisionId: revision.schemaRevisionId,
         },
         strategy,
+        catalogRecipe,
       )
       if (!acknowledged) return
       setNextExtractionStrategy('ARTICLE')
+      setNextCatalogRecipe('')
       if (acknowledged.executionStatus === 'COMPLETED' || acknowledged.executionStatus === 'FAILED') {
         if (acknowledged.outcome === 'SUCCEEDED')
           setFinishedExtractionReport({ attempt: acknowledged, schemaNodes: revision.schemaNodes })
@@ -782,6 +789,24 @@ export function DocumentWorkspace({
               <option value="CATALOG">Catalog</option>
             </select>
           </label>
+          {!running && nextExtractionStrategy === 'CATALOG' && (
+            <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted">
+              Boundaries
+              <select
+                aria-label="Record boundaries"
+                value={nextCatalogRecipe}
+                disabled={savingForRun}
+                onChange={(event) => setNextCatalogRecipe(event.target.value)}
+                title="How catalogue entries are found: by the model, or by a numbered-catalogue recipe with source-backed evidence"
+                className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink"
+              >
+                <option value="">Model discovery</option>
+                {CATALOG_RECIPES.map((recipe) => (
+                  <option key={recipe.id} value={recipe.id}>{recipe.label}</option>
+                ))}
+              </select>
+            </label>
+          )}
           <Button
             variant="primary"
             size="md"

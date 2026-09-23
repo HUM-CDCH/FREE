@@ -7,6 +7,13 @@ instructions.
 
 ## Current update: September 23
 
+- Later on September 23 the grounded numbered-catalogue plan was implemented
+  (uncommitted) through M5: recipe segmentation, grounded extraction
+  version 2, and Studio review. M6/M7 are partial and M8–M10 are blocked on
+  data. Current evidence and gates are in the
+  [grounded catalogue validation record](2026-09-23-grounded-catalogue.md).
+  It adds to the discovery notes below, which still describe generic Catalog
+  (the default).
 - Consolidation is committed in `b07741d`. Later discovery, launcher, fixture,
   and documentation changes remain uncommitted. Preserve the live working tree.
 - The captured 8192-token Qwen reasoning loop was reproduced and addressed by

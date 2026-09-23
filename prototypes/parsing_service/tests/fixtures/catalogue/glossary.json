@@ -1,0 +1,121 @@
+{
+  "description": "A glossary parsed once: key and expansion spans; a malformed line and a key with two expansions are diagnostics, never used.",
+  "pages": [
+    {
+      "page": 1,
+      "units": [
+        {
+          "index": 1,
+          "crops": [
+            {
+              "segments": [
+                {
+                  "text": "Im Katalog verwendete Abkürzungen:",
+                  "label": "SectionHeader"
+                },
+                "Mbl. — Meßtischblatt\nFdpl. — Fundplatz\nKA — Kugelamphore\nAnm. Anmerkung\nKA — Kragenamphore",
+                {
+                  "text": "Katalog",
+                  "label": "SectionHeader"
+                },
+                "Kreis Heide",
+                "1. Adorf. Fdpl. 2. Mbl. 1827. FA: G."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "lines": [
+      [
+        "p1_s0",
+        0,
+        34,
+        "heading",
+        "section:glossary",
+        "Im Katalog verwendete Abkürzungen:"
+      ],
+      [
+        "p1_s1",
+        0,
+        20,
+        "glossary",
+        "",
+        "Mbl. — Meßtischblatt"
+      ],
+      [
+        "p1_s1",
+        21,
+        38,
+        "glossary",
+        "",
+        "Fdpl. — Fundplatz"
+      ],
+      [
+        "p1_s1",
+        39,
+        56,
+        "glossary",
+        "",
+        "KA — Kugelamphore"
+      ],
+      [
+        "p1_s1",
+        57,
+        71,
+        "glossary",
+        "",
+        "Anm. Anmerkung"
+      ],
+      [
+        "p1_s1",
+        72,
+        90,
+        "glossary",
+        "",
+        "KA — Kragenamphore"
+      ],
+      [
+        "p1_s2",
+        0,
+        7,
+        "heading",
+        "section:catalogue",
+        "Katalog"
+      ],
+      [
+        "p1_s3",
+        0,
+        11,
+        "heading",
+        "kreis:Heide",
+        "Kreis Heide"
+      ],
+      [
+        "p1_s4",
+        0,
+        36,
+        "entry",
+        "1",
+        "1. Adorf. Fdpl. 2. Mbl. 1827. FA: G."
+      ]
+    ],
+    "blocks": [
+      {
+        "label": "1",
+        "continuation": false,
+        "headings": {
+          "bezirk": null,
+          "kreis": "Heide"
+        }
+      }
+    ],
+    "coverage_complete": true,
+    "diagnostics": [
+      "glossary_ambiguous",
+      "glossary_malformed"
+    ]
+  }
+}

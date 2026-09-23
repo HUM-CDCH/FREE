@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect } from 'react'
 import type { Route } from '../projectNavigation'
-import type { SourceIngestionItem } from '../sourceIngestionMachine'
+import type { SourceIngestionItem, SourceLayout } from '../sourceIngestionMachine'
 import type { SourceDocumentIngestionResponse } from '../../shared/sourceDocumentIngestion.contract'
 import type {
   ProjectContext,
@@ -69,7 +69,11 @@ export type ProjectContextsValue = {
    */
   ingestingSources: readonly SourceIngestionItem[]
   addSources: (
-    sources: readonly { projectContextId: string; file: File }[],
+    sources: readonly {
+      projectContextId: string
+      file: File
+      layout?: SourceLayout
+    }[],
   ) => void
   retrySource: (ingestionKey: string) => void
 }
