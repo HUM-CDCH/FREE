@@ -76,6 +76,8 @@ services:
       - openai
       - --generation-config
       - vllm
+      - --gpu-memory-utilization
+      - "${NUEXTRACT_GPU_MEMORY_UTILIZATION:-0.35}"
       - --max-model-len
       - "${NUEXTRACT_MAX_MODEL_LEN:-32768}"
       - --kv-cache-memory-bytes
@@ -101,6 +103,8 @@ services:
       - --language-model-only
       - --generation-config
       - vllm
+      - --gpu-memory-utilization
+      - "${EXTRACT_GPU_MEMORY_UTILIZATION:-0.35}"
       - --max-model-len
       - "${EXTRACT_MAX_MODEL_LEN:-32768}"
       - --kv-cache-memory-bytes
