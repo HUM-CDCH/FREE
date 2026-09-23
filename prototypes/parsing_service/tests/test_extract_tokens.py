@@ -3,8 +3,11 @@
 These checks use scripted HTTP answers; whether a count equals the served prompt count on the real chat-completions
 route is the live check in `test_extract_tokens_live.py`, which runs against the deployed endpoint.
 """
+import json
+
 import pytest
 
+from kei_exp.kie.extract.llm import NuExtractChat, OpenAIChat
 from kei_exp.kie.extract.tokens import BudgetUnavailable, counter_for
 
 
@@ -70,3 +73,17 @@ def test_the_served_context_is_read_at_every_use():
 def test_an_endpoint_that_cannot_count_is_refused():
     with pytest.raises(BudgetUnavailable, match="no /tokenize"):
         counter_for(Chat("http://x.test/v1/chat/completions"), http=Http({}))
+
+
+@pytest.mark.parametrize("chat", [
+    NuExtractChat(url="http://n.test:8000/v1/chat/completions", model="numind/NuExtract3-FP8"),
+    OpenAIChat(url="http://q.test:8000/v1/chat/completions", model="Qwen/Qwen3.8-27B-FP8")], ids=["nuextract", "instruct"])
+def test_each_adapter_s_counter_is_obtained_from_a_request_it_can_render(chat):
+    """Obtaining the counter reads the served context from one counted request; a template extractor renders none
+    without a reply schema, so the probe carries one."""
+    http = Http({"/tokenize": {"count": 40, "max_model_len": 32768}})
+    counter = counter_for(chat, http=http)
+    assert counter.context_tokens == 32768
+    probe = http.sent[0][1]
+    if isinstance(chat, NuExtractChat):
+        assert json.loads(probe["chat_template_kwargs"]["template"])

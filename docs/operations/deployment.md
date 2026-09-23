@@ -36,7 +36,8 @@ needed.
 
 Both launchers use `FREE_GPU=auto` and probe Docker GPU access. A successful
 probe adds `compose.gpu.yaml`, which starts the OCR (Surya) and extraction vLLM
-servers. Set `FREE_GPU=off` for CPU native-PDF parsing only, or
+servers: Surya, the NuExtract template extractor, and the instruction model.
+Set `FREE_GPU=off` for CPU native-PDF parsing only, or
 `FREE_GPU=required` to fail startup unless the GPU is available. Scanned PDFs
 and extraction require the GPU model servers; without them an operator can
 point `KEI_EXTRACT_URL` at another OpenAI-compatible vLLM endpoint. The
@@ -45,8 +46,9 @@ the model servers for GPU memory.
 
 First builds install the Python dependencies. The Python environment alone
 is about 6 GiB; build caches and exported image layers require additional
-space. First GPU startup downloads the Surya OCR weights and
-`KEI_EXTRACT_MODEL` (default `Qwen/Qwen3.8-27B-FP8`, about 30 GB) into the
+space. First GPU startup downloads the Surya OCR weights,
+`KEI_NUEXTRACT_MODEL` (default `numind/NuExtract3-FP8`, about 7 GB) and
+`KEI_EXTRACT_MODEL` (default `Qwen/Qwen3.8-27B-FP8`, about 31 GB) into the
 shared Hugging Face cache. Model caches persist in named volumes. Allow enough disk space,
 network access, and startup time for these downloads.
 
@@ -106,7 +108,9 @@ for `FREE_POSTGRES_PASSWORD`.
 
 The GPU overlay runs each model in its own vLLM server, separately from the
 Python worker. The worker reaches `http://ocr_model:8000/v1/chat/completions`;
-extraction reaches `http://extraction_model:8000/v1/chat/completions`. Neither
+extraction reaches `http://nuextract_model:8000/v1/chat/completions` for field
+values and `http://extraction_model:8000/v1/chat/completions` for its reasoning
+calls. A run may choose the instruction model for field values too. No model
 endpoint is published to the LAN. The servers start one after another, since
 each profiles the GPU's free memory when it starts.
 
@@ -121,11 +125,16 @@ that its CUDA kernels or model architecture work.
 For extraction's `Qwen/Qwen3.8-27B-FP8` (the `qwen3_5` architecture), the
 image must also support that architecture and FP8 on the target GPU.
 
-`OCR_GPU_MEMORY_UTILIZATION` and `OCR_KV_CACHE_BYTES` control the OCR
-server's memory reservations. The default context is 24,576 tokens with up to
+`OCR_KV_CACHE_BYTES` sizes the OCR server's KV cache; with a cache size set,
+vLLM ignores `OCR_GPU_MEMORY_UTILIZATION`. The default context is 24,576 tokens with up to
 four simultaneous sequences. `EXTRACT_MAX_MODEL_LEN` (default 32,768 tokens)
 and `EXTRACT_KV_CACHE_BYTES` (default 8G) size the extraction server; it
-loads the text model only. Leave room for both servers' weights, the
+loads the text model only. `KEI_NUEXTRACT_MODEL` (default
+`numind/NuExtract3-FP8`), `NUEXTRACT_MAX_MODEL_LEN` and
+`NUEXTRACT_KV_CACHE_BYTES` (default 4G) do the same for the NuExtract server,
+which runs its repository's processor code (`--trust-remote-code`); pin a
+reviewed model revision if that matters to the deployment. Leave room for every
+server's weights, the
 document-layout process, and the operating system. Spark's system memory is
 shared with its GPU.
 
@@ -304,6 +313,7 @@ The resolved production topology is:
 | Parsing worker and schema initializer | `app`; no HTTP listener | none |
 | Parsing PostgreSQL | `app`, port 5432 | none |
 | Surya vLLM server (GPU overlay) | `app`, port 8000 | none |
+| NuExtract vLLM server (GPU overlay) | `app`, port 8000 | none |
 | Extraction vLLM server (GPU overlay) | `app`, port 8000 | none |
 
 Studio reaches the API at `http://parsing_service:8001`. The API and worker

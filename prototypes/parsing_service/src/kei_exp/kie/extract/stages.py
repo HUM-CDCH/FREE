@@ -18,6 +18,7 @@ from typing import Any
 
 from kei_exp.kie.extract.evidence import Evidence, Passage, text_of
 from kei_exp.kie.extract.llm import Chat, ModelOutputError, Reply, parse_json
+from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.schema import Schema, conform, describe, json_schema, notes, records_schema
 
 GUARDRAIL = ("You extract structured data from a source document. Use only the requested output fields. Copy "
@@ -95,10 +96,13 @@ class Issue:
     path: tuple[str | int, ...] | None = None
 
 
-def _complete(chat: Chat, *, stage: str, record: int | None, system: str, user: str, schema: dict,
+def _complete(chat: Chat | Router, *, stage: str, record: int | None, system: str, user: str, schema: dict,
               max_tokens: int | None = None) -> tuple[Any, list[Call]]:
     """One call, read as JSON; a truncated or unreadable reply is a failed call and a null answer. The calls are the
-    attempts in order, the last one the call whose reply this is: a refused earlier attempt is a failed call too."""
+    attempts in order, the last one the call whose reply this is: a refused earlier attempt is a failed call too.
+    A router sends the call to the model serving the stage's role."""
+    if isinstance(chat, Router):
+        chat = chat.for_stage(stage)
     try:
         reply = chat.complete(system=system, user=user, schema=schema, max_tokens=max_tokens)
     except ModelOutputError as error:  # a fake or a client that already judged the reply

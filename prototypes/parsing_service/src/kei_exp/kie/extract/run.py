@@ -25,9 +25,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from kei_exp.canonical import canonical_json
 from kei_exp.files import publish
 from kei_exp.kie.extract import grounded
+from kei_exp.kie.extract import models as extraction_models
 from kei_exp.kie.extract.evidence import load
 from kei_exp.kie.extract.grounded import CatalogOptions
-from kei_exp.kie.extract.llm import Chat, OpenAIChat
+from kei_exp.kie.extract.llm import Chat
+from kei_exp.kie.extract.models import Router, as_router, chats_for
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.stages import (
     Call,
@@ -46,16 +48,24 @@ from kei_exp.kie.recipe import load_recipe
 from kei_exp.kie.segmentation import obtain
 
 EXTRACTION_VERSION = 1
-PROMPT_VERSION = 4  # Discovery examples distinguish grouping headings, nested finds and final continuations.
+PROMPT_VERSION = 5  # Calls are routed by role (fields, reasoning); thinking is switched off in the chat template.
 
 
 class Options(BaseModel):
     model_config = ConfigDict(extra="forbid")
     strategy: Literal["catalog", "article"] = "catalog"  # catalog: discover records first; article: one call
-    model: str | None = None                             # the server's model id; the deployment default when None
+    models: dict[str, str] | None = None  # role (fields, reasoning) -> extraction model key; deployment defaults
+    model: str | None = None  # legacy: every stage on the instruction server, asking for this model id
     discovery_chars: int = Field(default=48_000, ge=1_000)  # text per discovery call
     record_chars: int = Field(default=24_000, ge=1_000)     # text per record or document call
     catalog: CatalogOptions | None = None  # a recipe: structural segmentation and grounded result version 2
+
+    @model_validator(mode="after")
+    def _models_are_served(self) -> Options:
+        if self.model and self.models:
+            raise ValueError("options name either a legacy model or models per role, not both")
+        extraction_models.check(self.models or {})  # an unservable route is refused at admission
+        return self
 
     @model_validator(mode="after")
     def _recipe_is_known(self) -> Options:
@@ -86,8 +96,8 @@ class StaleGeneration(ValueError):
     """
 
 
-def fingerprint(result: dict, request: ExtractRequest, model: str) -> str:
-    """Over the parse generation and digest, the schema, the options, the model and the prompt version."""
+def fingerprint(result: dict, request: ExtractRequest, model: dict) -> str:
+    """Over the parse generation and digest, the schema, the options, the model per role and the prompt version."""
     return hashlib.sha256(canonical_json({
         "generation": result["generation"], "digest": result["digest"],
         "schema": request.schema_.model_dump(by_alias=True, exclude_none=True),
@@ -95,7 +105,7 @@ def fingerprint(result: dict, request: ExtractRequest, model: str) -> str:
     })).hexdigest()
 
 
-def extract(run_dir: Path, request: ExtractRequest, chat: Chat, *, generation: str | None = None,
+def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, generation: str | None = None,
             counter=None) -> dict:
     """The artifact for `request` over the run's canonical result, from the stages in order.
 
@@ -112,6 +122,7 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat, *, generation: s
             f"generation that is there now")
     schema = request.schema_
     options = request.options
+    chat = as_router(chat)
     if options.catalog is not None:
         return _grounded(run_dir, evidence, request, chat, counter)
     started = datetime.now(UTC).isoformat()
@@ -151,7 +162,8 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat, *, generation: s
                   for path, _ in leaves(fields) if ("records", number, *path) not in grounded]
     result = {
         "extraction_version": EXTRACTION_VERSION, "run_id": evidence.run_id, "generation": evidence.generation,
-        "digest": evidence.digest, "strategy": options.strategy, "model": chat.model, "prompt_version": PROMPT_VERSION,
+        "digest": evidence.digest, "strategy": options.strategy, "model": chat.model, "models": chat.models,
+        "prompt_version": PROMPT_VERSION,
         "schema": schema.model_dump(by_alias=True, exclude_none=True), "options": options.dumped(),
         "started": started, "seconds": round(time.monotonic() - clock, 3),
         "complete": all(call.ok for call in calls) and not ungrounded and not issues,
@@ -164,24 +176,26 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat, *, generation: s
         "tokens": {"input": _total(call.input_tokens for call in calls),
                    "output": _total(call.output_tokens for call in calls)},
     }
-    result["fingerprint"] = fingerprint(result, request, chat.model)
+    result["fingerprint"] = fingerprint(result, request, chat.models)
     return result
 
 
-def _grounded(run_dir: Path, evidence, request: ExtractRequest, chat: Chat, counter) -> dict:
-    """The recipe path: the proven segmentation (computed and published when absent), a verified token counter for the
-    serving endpoint, and the version 2 artifact."""
+def _grounded(run_dir: Path, evidence, request: ExtractRequest, chat: Router, counter) -> dict:
+    """The recipe path: the proven segmentation (computed and published when absent), a verified token counter for
+    each serving endpoint (one per distinct chat), and the version 2 artifact."""
     options = request.options
     recipe = load_recipe(options.catalog.recipe)
     segmentation = obtain(run_dir, evidence, recipe)
     if counter is None:
-        counter = counter_for(chat)
+        counters = {id(client): counter_for(client) for client in chat.chats().values()}
+        counter = {role: counters[id(client)] for role, client in chat.chats().items()}
     body = grounded.extract_grounded(evidence, request.schema_, recipe, options.catalog, segmentation, chat, counter)
     result = {"run_id": evidence.run_id, "generation": evidence.generation, "digest": evidence.digest,
-              "model": chat.model, "schema": request.schema_.model_dump(by_alias=True, exclude_none=True),
-              "options": options.dumped(), **body}
+              "model": chat.model, "models": chat.models,
+              "schema": request.schema_.model_dump(by_alias=True, exclude_none=True), "options": options.dumped(),
+              **body}
     result["fingerprint"] = grounded.fingerprint(body, evidence.generation, evidence.digest, request.schema_,
-                                                 options.dumped(), chat.model)
+                                                 options.dumped(), chat.models)
     return result
 
 
@@ -201,18 +215,20 @@ def publish_extraction(run_dir: Path, extraction_id: str, result: dict) -> Path:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """`uv run python -m kei_exp.kie.extract.run RUN_DIR SCHEMA.json [--strategy article] [--model m]`: one
-    extraction against the configured server, printed as JSON; no PostgreSQL involved."""
+    """`uv run python -m kei_exp.kie.extract.run RUN_DIR SCHEMA.json [--strategy article] [--fields KEY]
+    [--reasoning KEY]`: one extraction against the configured servers, printed as JSON; no PostgreSQL involved."""
     parser = argparse.ArgumentParser(description="extract structured records from a finished parse run")
     parser.add_argument("run_dir", type=Path)
     parser.add_argument("schema", type=Path, help="a FREE schema definition (recordDescription, schemaNodes)")
     parser.add_argument("--strategy", choices=["catalog", "article"], default="catalog")
-    parser.add_argument("--model", default=None)
+    for role in ("fields", "reasoning"):
+        parser.add_argument(f"--{role}", default=None, metavar="KEY",
+                            help=f"extraction model for the {role} role (default: the deployment's)")
     args = parser.parse_args(argv)
+    chosen = {role: key for role in ("fields", "reasoning") if (key := getattr(args, role))}
     request = ExtractRequest.model_validate({"schema": json.loads(args.schema.read_text(encoding="utf-8")),
-                                             "options": {"strategy": args.strategy, "model": args.model}})
-    chat = OpenAIChat(model=request.options.model) if request.options.model else OpenAIChat()
-    json.dump(extract(args.run_dir, request, chat), sys.stdout, ensure_ascii=False, indent=2)
+                                             "options": {"strategy": args.strategy, "models": chosen or None}})
+    json.dump(extract(args.run_dir, request, chats_for(request.options)), sys.stdout, ensure_ascii=False, indent=2)
     sys.stdout.write("\n")
     return 0
 

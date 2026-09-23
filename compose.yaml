@@ -26,8 +26,10 @@ x-parsing-runtime: &parsing-runtime
     KEI_RUNS: /app/runs
     KEI_SLOT: slot-1
     KEI_VLLM_URL: http://ocr_model:8000/v1/chat/completions
-    # Extraction's vLLM server exists on the GPU overlay only (compose.gpu.yaml).
-    KEI_EXTRACT_URL: http://extraction_model:8000/v1/chat/completions
+    # Extraction's vLLM servers exist on the GPU overlay only (compose.gpu.yaml),
+    # which also registers NuExtract. Without it an operator may point the
+    # instruction model at another OpenAI-compatible vLLM endpoint.
+    KEI_EXTRACT_URL: "${KEI_EXTRACT_URL:-http://extraction_model:8000/v1/chat/completions}"
     KEI_EXTRACT_MODEL: "${KEI_EXTRACT_MODEL:-Qwen/Qwen3.8-27B-FP8}"
     HF_HOME: /models/huggingface
     HF_TOKEN: "${HF_TOKEN:-}"
@@ -113,7 +115,6 @@ services:
       # Parsing and extraction use the service built from this checkout.
       KEI_EXP_URL: http://parsing_service:8001
       KEI_EXP_MODEL: "${KEI_EXP_MODEL:-surya}"
-      KEI_EXP_EXTRACT_MODEL: "${KEI_EXTRACT_MODEL:-Qwen/Qwen3.8-27B-FP8}"
       STUDIO_ORIGIN: "${STUDIO_ORIGIN:-https://localhost:8443}"
       STUDIO_BASE_PATH: "${STUDIO_BASE_PATH:-/free}"
       FREE_STUDIO_PROXY: trusted-proxy

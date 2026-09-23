@@ -6,7 +6,16 @@ import pytest
 import requests
 
 from kei_exp.kie.extract import llm
-from kei_exp.kie.extract.llm import ModelOutputError, OpenAIChat, parse_json
+from kei_exp.kie.extract.grounded import _candidate_schema
+from kei_exp.kie.extract.llm import (
+    ModelOutputError,
+    NuExtractChat,
+    OpenAIChat,
+    TemplateError,
+    nuextract_template,
+    parse_json,
+)
+from kei_exp.kie.extract.schema import Node, json_schema
 
 
 def response(status: int, body: dict | None = None, text: str = ""):
@@ -105,3 +114,103 @@ def test_parse_json_names_the_reply_it_could_not_read():
 def test_the_settings_come_from_the_environment():
     assert llm.EXTRACT_URL.endswith("/v1/chat/completions") and isinstance(llm.EXTRACT_TIMEOUT, float)
     assert json.dumps(llm.EXTRACT_MODEL)  # a string
+
+
+def fields(*nodes: dict) -> dict:
+    return json_schema([Node.model_validate(node) for node in nodes])
+
+
+def annotated(value) -> bool:
+    if isinstance(value, dict):
+        return any(key.startswith("x-") or annotated(item) for key, item in value.items())
+    return isinstance(value, list) and any(annotated(item) for item in value)
+
+
+def test_the_instruction_model_is_sent_the_schema_without_the_field_type_annotations(monkeypatch):
+    sent = []
+    body = {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}]}
+    monkeypatch.setattr(llm.requests, "post", lambda url, **kwargs: sent.append(kwargs["json"]) or response(200, body))
+    schema = fields({"id": "n", "name": "entry_no", "type": "integer"},
+                    {"id": "f", "name": "finds", "type": "array", "children": [
+                        {"id": "c", "name": "count", "type": "integer"}]})
+    assert annotated(schema)
+    OpenAIChat(url="http://server", model="m").complete(system="S", user="U", schema=schema)
+    assert not annotated(sent[0]["response_format"]["json_schema"]["schema"])
+    assert sent[0]["response_format"]["json_schema"]["schema"]["properties"]["entry_no"] == {"type": ["integer", "null"]}
+
+
+def test_nuextract_is_sent_the_template_and_the_instructions_only_through_the_chat_template(monkeypatch):
+    """The June provider probe: when message text and template kwargs disagree, vLLM follows the text, so the
+    controls travel in one channel. The user message is the source text alone; there is no system message."""
+    sent = []
+    body = {"choices": [{"message": {"content": '{"entry_no": 7}'}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 40, "completion_tokens": 6}}
+    monkeypatch.setattr(llm.requests, "post", lambda url, **kwargs: sent.append((url, kwargs)) or response(200, body))
+    chat = NuExtractChat(url="http://nuextract/v1/chat/completions", model="numind/NuExtract3-FP8", timeout=5.0)
+    schema = fields({"id": "n", "name": "entry_no", "type": "integer"})
+    reply = chat.complete(system="Read the entry.", user="7. Großenhain", schema=schema, max_tokens=256)
+    assert reply.text == '{"entry_no": 7}' and reply.input_tokens == 40 and reply.finish == "stop"
+    url, kwargs = sent[0]
+    payload = kwargs["json"]
+    assert url == "http://nuextract/v1/chat/completions" and kwargs["timeout"] == 5.0
+    assert payload["model"] == "numind/NuExtract3-FP8" and payload["temperature"] == 0 and payload["max_tokens"] == 256
+    assert payload["messages"] == [{"role": "user", "content": "7. Großenhain"}]
+    assert payload["chat_template_kwargs"] == {"template": json.dumps({"entry_no": "integer"}, ensure_ascii=False),
+                                               "instructions": "Read the entry.", "enable_thinking": False}
+    assert "response_format" not in payload
+    counted = chat.tokenize_body(system="Read the entry.", user="7. Großenhain", schema=schema)
+    assert counted == {"model": "numind/NuExtract3-FP8", "add_generation_prompt": True,
+                       "messages": payload["messages"], "chat_template_kwargs": payload["chat_template_kwargs"]}
+
+
+def test_nuextract_has_nothing_to_extract_to_without_a_schema():
+    with pytest.raises(TemplateError, match="template"):
+        NuExtractChat(url="http://nuextract", model="m").complete(system="S", user="U", schema=None)
+
+
+def test_the_template_follows_the_shape_of_the_schema():
+    schema = fields({"id": "n", "name": "entry_no", "type": "integer"},
+                    {"id": "h", "name": "height", "type": "number"},
+                    {"id": "o", "name": "open", "type": "boolean"},
+                    {"id": "q", "name": "inscription", "type": "verbatim-string"},
+                    {"id": "s", "name": "sex", "type": "string", "allowedValues": ["mand", "kvinde", "ukendt"]},
+                    {"id": "m", "name": "sheets", "type": "array", "itemType": "integer"},
+                    {"id": "f", "name": "finds", "type": "array", "children": [
+                        {"id": "c", "name": "count", "type": "integer"}]},
+                    {"id": "p", "name": "place", "type": "object", "children": [
+                        {"id": "z", "name": "zone", "type": "integer"}]})
+    assert nuextract_template(schema) == {
+        "entry_no": "integer", "height": "number", "open": "boolean", "inscription": "verbatim-string",
+        "sex": ["mand", "kvinde", "ukendt"], "sheets": ["integer"], "finds": [{"count": "integer"}],
+        "place": {"zone": "integer"}}
+
+
+def test_a_grounded_candidate_asks_for_its_quote_and_key_verbatim():
+    candidate = _candidate_schema(Node(id="m", name="mbl_old", type="integer"))
+    assert nuextract_template({"type": "object", "properties": {"mbl_old": candidate}}) == {"mbl_old": {
+        "value": "integer", "quote": "verbatim-string", "key": "verbatim-string",
+        "provenance": ["token", "positional"]}}
+
+
+@pytest.mark.parametrize("schema", [{"type": ["string", "number"]}, {"type": "string", "enum": ["only"]},
+                                    {"description": "no type at all"}])
+def test_a_schema_a_template_cannot_express_is_refused(schema):
+    with pytest.raises(TemplateError):
+        nuextract_template({"type": "object", "properties": {"field": schema}})
+
+
+def test_nuextract_uses_a_general_string_for_free_string_fields():
+    schema = fields({"id": "s", "name": "place", "type": "string"})
+    assert annotated(schema)
+    assert nuextract_template(schema) == {"place": "string"}
+
+
+def test_nuextract_preserves_printed_dates_for_grounding():
+    schema = fields({"id": "d", "name": "date", "type": "date"})
+    assert annotated(schema)
+    assert nuextract_template(schema) == {"date": "verbatim-string"}
+
+
+def test_a_field_type_nuextract_has_no_name_for_is_refused_like_any_inexpressible_schema():
+    with pytest.raises(TemplateError, match="colour"):
+        nuextract_template({"type": "object", "properties": {"x": {"type": "string", "x-free-type": "colour"}}})

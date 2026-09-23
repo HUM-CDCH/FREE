@@ -35,7 +35,8 @@ previews are never authoritative Evidence.
 | `KEI_RUNS` | Shared source/result directory; `/app/runs` in the image |
 | `KEI_SLOT` | Shared API/worker queue and ownership slot |
 | `KEI_VLLM_URL` | OCR chat-completions endpoint, normally the `ocr_model` service |
-| `KEI_EXTRACT_URL`, `KEI_EXTRACT_MODEL` | Extraction endpoint and default model |
+| `KEI_EXTRACT_URL`, `KEI_EXTRACT_MODEL` | Extraction's instruction model server and the model it serves |
+| `KEI_NUEXTRACT_URL`, `KEI_NUEXTRACT_MODEL` | NuExtract template extractor server and model; unset, every call goes to the instruction model |
 | `KEI_EXTRACT_TIMEOUT` | Timeout of one extraction model call, seconds |
 | `KEI_ADMISSION_LIMIT` | Maximum unfinished parse/extraction jobs per slot |
 | `KEI_MAX_UPLOAD_BYTES`, `KEI_MAX_PAGES` | Admission limits |
@@ -58,12 +59,24 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
 - `POST /api/runs/{id}/extract` accepts `{schema, options}` against a complete
   parse. `GET /api/runs/{id}/extractions/{extraction_id}` returns its status and
   final result. Changing the schema reruns Extraction without rerunning OCR.
+- Extraction calls take one of two roles. `fields` reads values off the source
+  (document, record and grounded entry calls); `reasoning` decides over labelled
+  text (discovery, grounding, arbitration). `GET /api/extraction-models` lists
+  the deployment's models (`instruct`, and `nuextract` when configured), the
+  roles each may take, whether its server serves it now, and the default per
+  role: NuExtract fills fields, the instruction model reasons.
+  `options.models = {fields?, reasoning?}` chooses per run; a model that cannot
+  take a role (NuExtract cannot reason) is refused at admission. NuExtract
+  receives the reply schema as its template and the instructions only through
+  the chat template's kwargs. The legacy `options.model` still runs every call
+  on the instruction server under that model id.
 - Extraction Evidence names canonical segments `p{page}_s{index}`. Page numbers
   are physical, one-based PDF pages; segment indexes are zero-based. Geometry
   uses PDF points measured from the top-left. Native Docling items retain their
   own boxes; coarse input boxes are marked explicitly.
-- Results preserve the parse generation/digest, schema, options, model, prompt
-  version, fingerprint, records, Evidence and diagnostics. Ungrounded values
+- Results preserve the parse generation/digest, schema, options, model (the
+  fields model), `models` per role, prompt version, fingerprint, records,
+  Evidence and diagnostics. Ungrounded values
   remain explicit. Document-level fields are currently listed as `unverified`;
   `complete` applies to record values.
 - `options.catalog = {recipe, input_tokens?, output_tokens?}` on a Catalog

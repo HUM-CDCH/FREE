@@ -188,22 +188,32 @@ function assertOwnedParsingTopology(config, gpu) {
   assert.equal(services.studio.depends_on.extraction_model_init, undefined)
   assert.equal(config.volumes['extraction-models'], undefined)
   assert.equal(services.parsing_worker.environment.KEI_EXTRACT_URL, 'http://extraction_model:8000/v1/chat/completions')
-  for (const name of ['ocr_model', 'extraction_model']) assert.equal(Boolean(services[name]), gpu, name)
+  // NuExtract is registered only where its server runs; without it every extraction call goes to KEI_EXTRACT_URL.
+  for (const name of ['parsing_service', 'parsing_worker'])
+    assert.equal(services[name].environment.KEI_NUEXTRACT_URL,
+      gpu ? 'http://nuextract_model:8000/v1/chat/completions' : undefined, name)
+  const servers = ['ocr_model', 'nuextract_model', 'extraction_model']
+  for (const name of servers) assert.equal(Boolean(services[name]), gpu, name)
   if (gpu) {
-    for (const name of ['ocr_model', 'extraction_model']) {
+    for (const name of servers) {
       const server = services[name]
       assert.equal(server.deploy.resources.reservations.devices[0].driver, 'nvidia', name)
       assert.deepEqual(server.entrypoint, ['vllm', 'serve'], name)
       assert.equal(server.restart, 'unless-stopped', name)
       assert.equal(server.ports, undefined, `${name} stays private`)
     }
-    assert.equal(services.extraction_model.image, services.ocr_model.image)
-    // The worker asks for the model the server serves: vLLM's model id is the repo it was started with.
+    for (const name of servers) assert.equal(services[name].image, services.ocr_model.image, name)
+    // The worker asks for the model each server serves: vLLM's model id is the repo it was started with.
     assert.equal(services.extraction_model.command[0], services.parsing_worker.environment.KEI_EXTRACT_MODEL)
-    // One vLLM engine profiles the GPU's free memory at a time.
-    assert.equal(services.extraction_model.depends_on.ocr_model.condition, 'service_healthy')
+    assert.equal(services.nuextract_model.command[0], services.parsing_worker.environment.KEI_NUEXTRACT_MODEL)
+    // One vLLM engine profiles the GPU's free memory at a time: OCR, then NuExtract, then the instruction model.
+    assert.equal(services.nuextract_model.depends_on.ocr_model.condition, 'service_healthy')
+    assert.equal(services.extraction_model.depends_on.nuextract_model.condition, 'service_healthy')
     assert.equal(services.parsing_worker.depends_on.ocr_model.condition, 'service_healthy')
-    assert.equal(services.studio.depends_on.extraction_model.condition, 'service_healthy')
+    // A restarted worker reclaims durable extraction jobs: it starts once the last extraction server is serving.
+    assert.equal(services.parsing_worker.depends_on.extraction_model.condition, 'service_healthy')
+    for (const name of ['nuextract_model', 'extraction_model'])
+      assert.equal(services.studio.depends_on[name].condition, 'service_healthy', name)
   }
   assert.equal(config.volumes['postgres-data'].name.endsWith('_postgres-data'), true)
   assert.equal(config.volumes['parsing-runs'].name.endsWith('_parsing-runs'), true)

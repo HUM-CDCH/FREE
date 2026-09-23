@@ -24,10 +24,18 @@ load_dotenv()
 EXTRACT_URL = os.environ.get("KEI_EXTRACT_URL", "http://127.0.0.1:8002/v1/chat/completions")
 EXTRACT_MODEL = os.environ.get("KEI_EXTRACT_MODEL", "Qwen/Qwen3.8-27B-FP8")
 EXTRACT_TIMEOUT = float(os.environ.get("KEI_EXTRACT_TIMEOUT", "600"))
+# The template extractor's server; unset, the deployment has none and every call goes to the instruction model.
+NUEXTRACT_URL = os.environ.get("KEI_NUEXTRACT_URL", "")
+NUEXTRACT_MODEL = os.environ.get("KEI_NUEXTRACT_MODEL", "numind/NuExtract3-FP8")
 
 
 class ModelOutputError(ValueError):
     """The model answered, but not with the JSON asked for; the message carries the start of the reply."""
+
+
+class TemplateError(ValueError):
+    """A reply schema a NuExtract template cannot express. NuExtract takes only the fields role, whose schemas are
+    built from FREE fields and always expressible; anything else reaching it is an error, not a fallback."""
 
 
 @dataclass(frozen=True)
@@ -81,7 +89,7 @@ class OpenAIChat:
             "messages": _messages(system, user), "chat_template_kwargs": dict(THINKING_OFF),
         }
         constrained = {**payload, "response_format": {"type": "json_schema", "json_schema": {
-            "name": "reply", "schema": schema, "strict": True}}} if schema is not None else payload
+            "name": "reply", "schema": _plain(schema), "strict": True}}} if schema is not None else payload
         started = time.monotonic()
         attempts: tuple[str, ...] = ()
         response = requests.post(self.url, json=constrained, headers=self.headers, timeout=self.timeout)
@@ -89,13 +97,96 @@ class OpenAIChat:
         if response.status_code == 400 and schema is not None and UNSUPPORTED.search(refusal):
             attempts = (f"HTTP 400: {refusal[:300]}",)
             response = requests.post(self.url, json=payload, headers=self.headers, timeout=self.timeout)
-        response.raise_for_status()
-        body = response.json()
-        choice = body["choices"][0]
-        usage = body.get("usage") or {}
-        return Reply(text=choice["message"].get("content") or "", input_tokens=usage.get("prompt_tokens"),
-                     output_tokens=usage.get("completion_tokens"), finish=choice.get("finish_reason"),
-                     seconds=time.monotonic() - started, attempts=attempts)
+        return _reply(response, started, attempts)
+
+
+@dataclass
+class NuExtractChat:
+    """NuExtract3: the reply schema becomes its template and the call's instructions its `instructions`, both in the
+    chat template's kwargs; the user message is the source text alone. The June 2026 provider probe found vLLM
+    follows message text over conflicting kwargs, so the controls travel in that one channel only. The template
+    shapes the reply, so no `response_format` is sent."""
+    url: str = NUEXTRACT_URL
+    model: str = NUEXTRACT_MODEL
+    timeout: float = EXTRACT_TIMEOUT
+    headers: dict[str, str] = field(default_factory=dict)
+    max_tokens: int = 8192
+
+    def _controls(self, system: str, schema: dict | None) -> dict:
+        if schema is None:
+            raise TemplateError("NuExtract extracts into a template, and a call without a reply schema has none")
+        template = json.dumps(nuextract_template(schema), ensure_ascii=False)
+        return {"template": template, "instructions": system, **THINKING_OFF}
+
+    def tokenize_body(self, *, system: str, user: str, schema: dict | None = None) -> dict:
+        return {"model": self.model, "add_generation_prompt": True, "messages": [{"role": "user", "content": user}],
+                "chat_template_kwargs": self._controls(system, schema)}
+
+    def complete(self, *, system: str, user: str, schema: dict | None, max_tokens: int | None = None) -> Reply:
+        payload = {"model": self.model, "temperature": 0, "max_tokens": max_tokens or self.max_tokens,
+                   "messages": [{"role": "user", "content": user}],
+                   "chat_template_kwargs": self._controls(system, schema)}
+        started = time.monotonic()
+        return _reply(requests.post(self.url, json=payload, headers=self.headers, timeout=self.timeout), started, ())
+
+
+def _reply(response, started: float, attempts: tuple[str, ...]) -> Reply:
+    response.raise_for_status()
+    body = response.json()
+    choice = body["choices"][0]
+    usage = body.get("usage") or {}
+    return Reply(text=choice["message"].get("content") or "", input_tokens=usage.get("prompt_tokens"),
+                 output_tokens=usage.get("completion_tokens"), finish=choice.get("finish_reason"),
+                 seconds=time.monotonic() - started, attempts=attempts)
+
+
+def _plain(schema: Any) -> Any:
+    """The schema without its `x-` annotations: what constrains decoding carries no vendor keywords."""
+    if isinstance(schema, dict):
+        return {key: _plain(value) for key, value in schema.items() if not key.startswith("x-")}
+    if isinstance(schema, list):
+        return [_plain(item) for item in schema]
+    return schema
+
+
+def nuextract_template(schema: dict) -> Any:
+    """The NuExtract template with the shape of a reply `schema` built by `schema.json_schema` or the grounded
+    candidate schema: an object maps its properties, an array wraps its item's template in a list, an enum is the
+    list of its values (at least two, else it would read as an array of one type), a scalar is a type name. A
+    nullable union collapses: NuExtract returns null (or []) for what the source does not give."""
+    if not isinstance(schema, dict):
+        raise TemplateError(f"not a schema: {schema!r}")
+    if "enum" in schema:
+        values = [value for value in schema["enum"] if value is not None]
+        if len(values) < 2 or not all(isinstance(value, str) for value in values):
+            raise TemplateError(f"a template enum lists two or more strings, not {schema['enum']!r}")
+        return values
+    kinds = schema.get("type")
+    kinds = [kind for kind in ([kinds] if isinstance(kinds, str) else kinds or []) if kind != "null"]
+    if len(kinds) != 1:
+        raise TemplateError(f"a template field has exactly one type besides null, not {schema.get('type')!r}")
+    if kinds[0] == "object":
+        return {name: nuextract_template(item) for name, item in (schema.get("properties") or {}).items()}
+    if kinds[0] == "array":
+        return [nuextract_template(schema.get("items"))]
+    if "x-free-type" in schema:
+        return _free_leaf(schema["x-free-type"])
+    # Unannotated strings are the grounded candidate's quote and key: text copied from the source.
+    return {"string": "verbatim-string"}.get(kinds[0], kinds[0])
+
+
+# FREE scalar types whose NuExtract type has the same name and meaning.
+_SAME = {"verbatim-string", "string", "integer", "number", "boolean"}
+
+
+def _free_leaf(free_type: str) -> str:
+    """The NuExtract type a FREE scalar field is extracted as."""
+    if free_type in _SAME:
+        return free_type
+    if free_type == "date":
+        # Grounding matches printed dates; it has no ISO-date normalisation.
+        return "verbatim-string"
+    raise TemplateError(f"FREE field type {free_type!r} has no NuExtract type")
 
 
 _THINK = re.compile(r"<think>.*?</think>", re.DOTALL)

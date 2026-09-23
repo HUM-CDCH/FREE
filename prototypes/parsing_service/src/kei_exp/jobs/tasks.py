@@ -22,7 +22,7 @@ from kei_exp.files import publish
 from kei_exp.jobs import store
 from kei_exp.jobs.app import QUEUE, app
 from kei_exp.jobs.events import DurableEmit
-from kei_exp.kie.extract.llm import OpenAIChat
+from kei_exp.kie.extract.models import Router, chats_for
 from kei_exp.kie.extract.run import ExtractRequest, Options, extract, publish_extraction
 from kei_exp.kie.runner import convert
 from kei_exp.transcription.types import ConversionError, IncompleteConversionError
@@ -206,9 +206,9 @@ def convert_run(context, run_id: str) -> None:
            last_attempt=max_attempts is None or context.job.attempts >= max_attempts)
 
 
-def chat_for(options: Options) -> OpenAIChat:
-    """The chat completion an extraction talks to: the deployment's server, the request's model when it names one."""
-    return OpenAIChat(model=options.model) if options.model else OpenAIChat()
+def chat_for(options: Options) -> Router:
+    """The chat completions an extraction talks to: per role, the run's choice of the deployment's models."""
+    return chats_for(options)
 
 
 def execute_extraction(extraction_id: str) -> None:

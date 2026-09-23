@@ -15,6 +15,9 @@ from typing import Any, Protocol
 import requests
 
 SOURCE = "vllm:/tokenize"
+# The reply schema of the request that reads the served context: a template extractor renders no request without one.
+PROBE_SCHEMA = {"type": "object", "properties": {"probe": {"type": ["string", "null"]}}, "required": ["probe"],
+                "additionalProperties": False}
 
 
 class BudgetUnavailable(Exception):
@@ -64,7 +67,7 @@ def counter_for(chat: Countable, *, http: Http = requests) -> TokenCounter:
     base = chat.url.split("/v1/", 1)[0].rstrip("/")
     counter = TokenCounter(SOURCE, chat.model, None, _chat=chat, _http=http, _base=base)
     try:
-        answer = counter._post(chat.tokenize_body(system="S", user="U"))
+        answer = counter._post(chat.tokenize_body(system="S", user="U", schema=PROBE_SCHEMA))
     except Exception as error:  # any failure here means the budget cannot be enforced
         raise BudgetUnavailable(f"no /tokenize route counted a request for {chat.model!r} at {base}: {error}") from error
     if "count" not in answer:

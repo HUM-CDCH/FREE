@@ -24,6 +24,7 @@ from kei_exp.canonical import canonical_json
 from kei_exp.kie.extract.evidence import Evidence, text_of
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.locate import BlockText, forms, locate, normalise, raw_range
+from kei_exp.kie.extract.models import ROLE, ROLES, Router, as_router
 from kei_exp.kie.extract.schema import Node, Schema, conform, json_schema, notes
 from kei_exp.kie.extract.stages import Call, _complete, merge
 from kei_exp.kie.model import Block, GlossaryEntry, Span
@@ -31,7 +32,7 @@ from kei_exp.kie.recipe import Recipe
 from kei_exp.kie.segmentation import Segmentation
 
 EXTRACTION_VERSION = 2
-PROMPT_VERSION = 1
+PROMPT_VERSION = 2  # calls are routed by role (entry and document: fields; arbitration: reasoning)
 BUDGET_VERSION = 1
 NORMALIZATION_VERSION = 1        # verified glossary expansions beside accepted raw values; a change invalidates results
 KEY_GAP = 3                      # at most this many non-alphanumeric characters between a key and its value
@@ -63,7 +64,7 @@ class Counter:  # the interface `kie.extract.tokens.TokenCounter` offers; a test
     context_tokens: int | None
     probes: list[dict]                           # calibration requests it sent to the model while being obtained
 
-    def request_tokens(self, system: str, user: str) -> int: ...
+    def request_tokens(self, system: str, user: str, schema: dict | None = None) -> int: ...
     def identity(self) -> dict: ...
 
 
@@ -114,8 +115,8 @@ class _Run:
     schema: Schema
     recipe: Recipe
     options: CatalogOptions
-    chat: Chat
-    counter: Counter
+    chat: Router
+    counters: dict[str, Counter]                 # role -> the counter of the server that role's calls go to
     calls: list[Call] = field(default_factory=list)
     issues: list[dict] = field(default_factory=list)
     refused: bool = False
@@ -124,9 +125,13 @@ class _Run:
         self.issues.append({"code": code, "detail": detail, "record": record,
                             "path": list(path) if path is not None else None})
 
+    def count(self, stage: str, system: str, user: str, schema: dict) -> int:
+        """The input tokens of a `stage` request as the server that serves it will count them."""
+        return self.counters[ROLE[stage]].request_tokens(system, user, schema)
+
     def call(self, stage: str, record: int | None, system: str, user: str, schema: dict) -> Any:
         """One counted call: refused before sending when over budget, compared with the served count after."""
-        counted = self.counter.request_tokens(system, user)
+        counted = self.count(stage, system, user, schema)
         if counted > self.options.input_tokens:
             self.issue("budget_refused", f"a {stage} request counts {counted} tokens, over the input budget of "
                        f"{self.options.input_tokens}", record)
@@ -151,22 +156,26 @@ class _Run:
 
 
 def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options: CatalogOptions,
-                     segmentation: Segmentation, chat: Chat, counter: Counter) -> dict:
-    """The version 2 artifact body for `schema` over `segmentation` (without run identity and fingerprint)."""
+                     segmentation: Segmentation, chat: Chat | Router, counter: Counter | dict[str, Counter]) -> dict:
+    """The version 2 artifact body for `schema` over `segmentation` (without run identity and fingerprint). `counter`
+    is one counter for every call, or one per role when the roles are served apart."""
     started, clock = datetime.now(UTC).isoformat(), time.monotonic()
-    run = _Run(evidence, schema, recipe, options, chat, counter)
+    counters = counter if isinstance(counter, dict) else dict.fromkeys(ROLES, counter)
+    distinct = list({id(each): each for each in counters.values()}.values())
+    run = _Run(evidence, schema, recipe, options, as_router(chat), counters)
     run.calls += [Call(stage="tokenizer_probe", record=None, input_tokens=probe["input_tokens"],
                        output_tokens=probe["output_tokens"], seconds=probe["seconds"], finish=None, ok=True)
-                  for probe in getattr(counter, "probes", [])]
+                  for each in distinct for probe in getattr(each, "probes", [])]
     bindings = bindings_for(schema, recipe)
-    if counter.context_tokens is None:
-        run.issue("budget_context_unknown", "the server reports no context size, so the budget cannot be shown to "
-                  "fit it")
-        run.refused = True
-    elif options.input_tokens + options.output_tokens > counter.context_tokens:
-        run.issue("budget_exceeds_context", f"input {options.input_tokens} + output {options.output_tokens} tokens "
-                  f"exceed the server's context of {counter.context_tokens}")
-        run.refused = True
+    for each in distinct:
+        if each.context_tokens is None:
+            run.issue("budget_context_unknown", "the server reports no context size, so the budget cannot be shown "
+                      "to fit it")
+            run.refused = True
+        elif options.input_tokens + options.output_tokens > each.context_tokens:
+            run.issue("budget_exceeds_context", f"input {options.input_tokens} + output {options.output_tokens} "
+                      f"tokens exceed the server's context of {each.context_tokens}")
+            run.refused = True
     headings = {event.id: event for event in segmentation.heading_events}
     records: list[dict] = []
     outcomes: list[_Outcome] = []
@@ -207,7 +216,8 @@ def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options
                          "diagnostics": [{"code": d.code, "detail": d.detail, "block": d.block, "spans": _spans(d.spans)}
                                          for d in segmentation.diagnostics]},
         "budget": {"version": BUDGET_VERSION, "input_tokens": options.input_tokens,
-                   "output_tokens": options.output_tokens, "tokenizer": counter.identity()},
+                   "output_tokens": options.output_tokens, "tokenizer": counters["fields"].identity(),
+                   "tokenizers": {role: each.identity() for role, each in counters.items()}},
         "normalization": {"version": NORMALIZATION_VERSION, "rules": ["glossary"]},
         "records": records,
         "record_blocks": [{"block": block.id, "entry_label": block.entry_label} for block in segmentation.blocks],
@@ -226,7 +236,7 @@ def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options
     }
 
 
-def fingerprint(body: dict, generation: str, digest: str, schema: Schema, options: dict, model: str) -> str:
+def fingerprint(body: dict, generation: str, digest: str, schema: Schema, options: dict, model: dict) -> str:
     """Over everything the artifact follows from: parse, schema, options, model, prompt, recipe, budget, tokenizer and
     the segmentation it was cut from."""
     return hashlib.sha256(canonical_json({
@@ -261,8 +271,8 @@ def _user(headings: list[str], glossary: list[str], before: list[str], entry: st
 
 def _schema_alone(run: _Run, schema: Schema) -> int:
     nodes = schema.record_nodes
-    return run.counter.request_tokens(_system(schema, nodes, bindings_for(schema, run.recipe).keys),
-                                      _user([], [], [], "", []))
+    return run.count("entry", _system(schema, nodes, bindings_for(schema, run.recipe).keys), _user([], [], [], "", []),
+                     _candidates_schema(nodes))
 
 
 @dataclass(frozen=True)
@@ -374,7 +384,7 @@ def _block(run: _Run, number: int, block: Block, headings: dict, bindings: _Bind
     def fits(window, with_extras=False):
         user = _user(heading_lines, glossary if with_extras else [], before if with_extras else [],
                      "\n".join(texts[u.segment][u.start:u.end] for u in window), after if with_extras else [])
-        return run.counter.request_tokens(system, user) <= run.options.input_tokens
+        return run.count("entry", system, user, reply_schema) <= run.options.input_tokens
 
     if fits(units, with_extras=True):
         windows, extras = [units], True
@@ -685,8 +695,8 @@ def _document(run: _Run) -> dict:
     while low < high:  # the most leading passages whose request fits
         middle = (low + high + 1) // 2
         text = text_of(passages[:middle])
-        if run.counter.request_tokens(system, f"### Source document\n{text}\n\nReturn the JSON object now.") <= \
-                run.options.input_tokens:
+        if run.count("document", system, f"### Source document\n{text}\n\nReturn the JSON object now.",
+                     json_schema(nodes)) <= run.options.input_tokens:
             low = middle
         else:
             high = middle - 1

@@ -222,13 +222,14 @@ def test_extract_composes_the_stages_into_a_complete_grounded_artifact(digital_p
     assert result["extraction_version"] == 1 and result["run_id"] == tmp_path.name
     assert result["generation"] and result["digest"] and result["strategy"] == "article"
     assert result["model"] == "fake/extractor" and result["prompt_version"] == PROMPT_VERSION
+    assert result["models"] == {"fields": "fake/extractor", "reasoning": "fake/extractor"}  # one chat serves both
     assert result["schema"] == request.schema_.model_dump(by_alias=True, exclude_none=True)
     assert result["records"][0]["title"] == "Grüße" and result["records"][0]["filename"] == run.source.name
     assert result["records"][0]["entry_no"] == "1"
     assert isinstance(result["evidence"], list) and isinstance(result["issues"], list)
     assert result["tokens"] == {"input": 10 * len(chat.calls), "output": 5 * len(chat.calls)}
     assert result["seconds"] >= 0 and result["started"]
-    assert result["fingerprint"] == fingerprint(result, request, chat.model)
+    assert result["fingerprint"] == fingerprint(result, request, {"fields": chat.model, "reasoning": chat.model})
     path = publish_extraction(tmp_path, "x-1", result)
     assert path == tmp_path / "extractions" / "x-1" / "result.json"
     assert json.loads(path.read_text(encoding="utf-8")) == result

@@ -92,13 +92,16 @@ def test_the_json_schema_makes_every_field_present_and_nullable_and_nothing_else
     built = json_schema(schema.record_nodes)
     assert built["type"] == "object" and built["additionalProperties"] is False
     assert built["required"] == ["entry_no", "site", "sex", "year", "finds", "dating", "references"]
-    assert built["properties"]["site"] == {"type": ["string", "null"]}
-    assert built["properties"]["year"] == {"type": ["integer", "null"]}
+    # Each scalar carries FREE's own type under `x-free-type`, for a template extractor; OpenAIChat strips it.
+    assert built["properties"]["site"] == {"type": ["string", "null"], "x-free-type": "string"}
+    assert built["properties"]["year"] == {"type": ["integer", "null"], "x-free-type": "integer"}
     assert built["properties"]["sex"] == {"type": ["string", "null"], "enum": ["mand", "kvinde", "ukendt", None]}
-    assert built["properties"]["finds"] == {"type": ["array", "null"], "items": {"type": "string"}}
+    assert built["properties"]["finds"] == {"type": ["array", "null"],
+                                            "items": {"type": "string", "x-free-type": "string"}}
     assert built["properties"]["dating"]["type"] == ["object", "null"]
     assert built["properties"]["dating"]["required"] == ["from", "to"]
-    assert built["properties"]["references"]["items"]["properties"]["page"] == {"type": ["integer", "null"]}
+    assert built["properties"]["references"]["items"]["properties"]["page"] == {"type": ["integer", "null"],
+                                                                                "x-free-type": "integer"}
     wrapped = records_schema(schema.record_nodes)
     assert wrapped["properties"]["records"]["items"] == built and wrapped["required"] == ["records"]
 

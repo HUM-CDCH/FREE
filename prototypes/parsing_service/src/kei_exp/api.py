@@ -32,6 +32,8 @@ from kei_exp.cut import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS
 from kei_exp.files import load_dotenv, publish
 from kei_exp.jobs import store, tokens
 from kei_exp.jobs.app import ADMISSION_LIMIT, DATABASE_URL, SLOT, deferring_installed
+from kei_exp.kie.extract import models as extraction_models
+from kei_exp.kie.extract.models import ROLES
 from kei_exp.kie.extract.run import ExtractRequest
 from kei_exp.kie.stages.ocr import TRANSCRIBERS, check_ingest, check_knobs
 from kei_exp.models import MODELS
@@ -104,6 +106,18 @@ def server_info() -> dict:
     reachable, repo = loaded_model(VLLM_URL)
     key = next((key for key, record in MODELS.items() if record.repo == repo), None)
     return {"url": VLLM_URL, "reachable": reachable, "loaded_repo": repo, "loaded_model": key}
+
+
+@app.get("/api/extraction-models")
+def list_extraction_models() -> dict:
+    """The extraction models this deployment serves, each with the roles it may take and whether its server answers
+    with it now, and the default per role: what a run may choose in `options.models`."""
+    models = []
+    for key, record in extraction_models.EXTRACT_MODELS.items():
+        reachable, repo = loaded_model(record.url)
+        models.append({"key": key, "repo": record.repo, "roles": [role for role in ROLES if role in record.roles],
+                       "reachable": reachable, "serving": repo == record.repo})
+    return {"defaults": extraction_models.DEFAULTS, "models": models}
 
 
 @app.get("/api/layout-models")

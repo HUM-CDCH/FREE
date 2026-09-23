@@ -37,6 +37,11 @@ x-vllm: &vllm
   networks:
     - app
 
+# The parsing processes learn of the NuExtract server only where it runs.
+x-nuextract-env: &nuextract-env
+  KEI_NUEXTRACT_URL: http://nuextract_model:8000/v1/chat/completions
+  KEI_NUEXTRACT_MODEL: "${KEI_NUEXTRACT_MODEL:-numind/NuExtract3-FP8}"
+
 services:
   ocr_model:
     <<: *vllm
@@ -55,7 +60,34 @@ services:
       - --max-num-seqs
       - "4"
 
-  # Extraction's instruction model. Text only: the vision tower is not loaded.
+  # Extraction's template extractor, for the fields role. Text only. The repo
+  # ships its processor code, which --trust-remote-code runs.
+  nuextract_model:
+    <<: *vllm
+    command:
+      - "${KEI_NUEXTRACT_MODEL:-numind/NuExtract3-FP8}"
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --trust-remote-code
+      - --language-model-only
+      - --chat-template-content-format
+      - openai
+      - --generation-config
+      - vllm
+      - --max-model-len
+      - "${NUEXTRACT_MAX_MODEL_LEN:-32768}"
+      - --kv-cache-memory-bytes
+      - "${NUEXTRACT_KV_CACHE_BYTES:-4G}"
+      - --max-num-seqs
+      - "4"
+    depends_on:
+      ocr_model:
+        condition: service_healthy
+
+  # Extraction's instruction model, for the reasoning role (and the fields
+  # role when a run chooses it). Text only: the vision tower is not loaded.
   # Thinking is switched off per request (chat_template_kwargs), not here, so
   # the request that is counted and recorded is the one that is served.
   extraction_model:
@@ -76,15 +108,25 @@ services:
       - --max-num-seqs
       - "4"
     depends_on:
-      ocr_model:
+      nuextract_model:
         condition: service_healthy
 
+  parsing_service:
+    environment: *nuextract-env
+
+  # A restarted worker reclaims durable extraction jobs, so it starts once the
+  # last extraction server (after OCR and NuExtract) is serving.
   parsing_worker:
+    environment: *nuextract-env
     depends_on:
       ocr_model:
+        condition: service_healthy
+      extraction_model:
         condition: service_healthy
 
   studio:
     depends_on:
+      nuextract_model:
+        condition: service_healthy
       extraction_model:
         condition: service_healthy

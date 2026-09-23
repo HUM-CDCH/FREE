@@ -13,6 +13,7 @@ import pytest
 
 from kei_exp.kie.extract.grounded import EXTRACTION_VERSION
 from kei_exp.kie.extract.llm import Reply
+from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.run import ExtractRequest, StaleGeneration, extract
 from tests.helpers import catalogue
 from tests.helpers.chat import FakeChat
@@ -34,10 +35,12 @@ class WordCounter:
 
     def __init__(self):
         self.counted: list[int] = []
+        self.schemas: list[dict | None] = []
 
-    def request_tokens(self, system: str, user: str) -> int:
+    def request_tokens(self, system: str, user: str, schema: dict | None = None) -> int:
         count = len(system.split()) + len(user.split()) + self.template_tokens
         self.counted.append(count)
+        self.schemas.append(schema)
         return count
 
     def identity(self) -> dict:
@@ -202,6 +205,30 @@ def test_disagreeing_windows_are_competitors_and_arbitration_may_choose_among_th
     (competition,) = result["competitors"]
     assert sorted(item["value"] for item in competition["candidates"]) == [1827, 1828]
     assert competition["outcome"] == "arbitrated" and result["calls"][-1]["stage"] == "arbitration"
+
+
+def test_entries_are_read_by_the_fields_model_and_arbitration_by_the_reasoning_model_each_counted_on_its_server(
+        tmp_path):
+    long = " ".join(f"Scherbe{n}" for n in range(300))
+    case = {"pages": [{"page": 1, "units": [{"index": 1, "crops": [{"segments": [
+        "7. Adorf. Mbl. 1827. FA: G.", long, "Mbl. 1828 nach anderer Angabe."]}]}]}]}
+    reader, judge = CountingChat(honest), CountingChat(lambda system, user, schema: {"choice": "C2"})
+    reader.model, judge.model = "numind/NuExtract3-FP8", "Qwen/Qwen3.8-27B-FP8"
+    counters = {"fields": WordCounter(), "reasoning": type("Other", (WordCounter,), {
+        "identity": lambda self: {"source": "other", "model": "Qwen/Qwen3.8-27B-FP8", "model_digest": None,
+                                  "template_tokens": None}})()}
+    run_dir = catalogue.write(case, tmp_path)
+    result = extract(run_dir, request(input_tokens=260, output_tokens=64), Router(fields=reader, reasoning=judge),
+                     counter=counters)
+    stages = [call["stage"] for call in result["calls"]]
+    assert "arbitration" in stages and len(judge.calls) == stages.count("arbitration") == 1
+    assert len(reader.calls) == stages.count("entry") + stages.count("document")
+    assert len(counters["reasoning"].counted) == 1 and all(counters["fields"].schemas)  # counted with its template
+    assert result["records"][0]["mbl_old"] == 1828
+    assert result["model"] == "numind/NuExtract3-FP8"
+    assert result["models"] == {"fields": "numind/NuExtract3-FP8", "reasoning": "Qwen/Qwen3.8-27B-FP8"}
+    assert result["budget"]["tokenizer"]["source"] == "words"  # the fields model's, for a client reading one
+    assert result["budget"]["tokenizers"]["reasoning"]["source"] == "other"
 
 
 def test_a_schema_that_alone_exceeds_the_budget_is_refused_before_any_call(tmp_path):
