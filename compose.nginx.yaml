@@ -1,0 +1,60 @@
+# Production overlay for hosts without a managed nginx: a bundled nginx
+# container terminates TLS instead of the host nginx. Selected by
+# FREE_NGINX=container in .env:
+#
+#   node scripts/free.mjs production
+#
+# (which then runs `docker compose -f compose.yaml -f compose.prod.yaml
+# -f compose.nginx.yaml ...`). The certificate and key are the deployment's
+# own PEM files, named by FREE_TLS_CERT_PATH and FREE_TLS_KEY_PATH, and the
+# listener is published on every interface at FREE_NGINX_PORT (default 443).
+# See docs/operations/deployment.md.
+services:
+  studio:
+    environment:
+      # The bundled nginx is the single trusted peer: its fixed address below.
+      FREE_STUDIO_PROXY_ADDRESS: 172.30.0.10
+    # Only the host nginx needed the loopback publish.
+    ports: !reset []
+
+  nginx:
+    image: nginx:stable-alpine
+    restart: unless-stopped
+    environment:
+      STUDIO_BASE_PATH: "${STUDIO_BASE_PATH:?STUDIO_BASE_PATH must be a canonical path such as /free}"
+      FREE_STUDIO_UPSTREAM: studio:5173
+    ports:
+      - "0.0.0.0:${FREE_NGINX_PORT:-443}:443"
+    volumes:
+      - type: bind
+        source: ./docker/nginx/free-studio.conf.template
+        target: /etc/nginx/templates/free-studio.conf.template
+        read_only: true
+        bind:
+          create_host_path: false
+      # Renders next to the wrapper as conf.d/free-studio-locations.inc; the
+      # .inc suffix keeps it out of nginx's automatic conf.d/*.conf include.
+      - type: bind
+        source: ./docker/nginx/free-studio-locations.inc.template
+        target: /etc/nginx/templates/free-studio-locations.inc.template
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "${FREE_TLS_CERT_PATH:?FREE_TLS_CERT_PATH must name the TLS certificate (full chain) PEM}"
+        target: /etc/nginx/tls/studio.crt
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "${FREE_TLS_KEY_PATH:?FREE_TLS_KEY_PATH must name the TLS private-key PEM}"
+        target: /etc/nginx/tls/studio.key
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      studio:
+        condition: service_healthy
+    networks:
+      proxy:
+        ipv4_address: 172.30.0.10

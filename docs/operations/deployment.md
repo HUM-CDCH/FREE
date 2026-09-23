@@ -207,6 +207,31 @@ Restrict the host nginx's TLS port to the intended private network with the
 host or perimeter firewall; Studio's `127.0.0.1:5173` publish is loopback-only
 and never needs to be exposed.
 
+## Bundled nginx (hosts without a managed nginx)
+
+On a host where the operator cannot configure nginx (no root, as on the DGX
+Spark), set `FREE_NGINX=container`. The launcher then adds
+[`compose.nginx.yaml`](../../compose.nginx.yaml): an nginx container renders
+the same shared location template and terminates TLS itself, and nothing is
+rendered for a host nginx.
+
+```dotenv
+FREE_NGINX=container
+FREE_NGINX_PORT=11434
+FREE_TLS_CERT_PATH=/home/free/free-tls/studio.crt
+FREE_TLS_KEY_PATH=/home/free/free-tls/studio.key
+STUDIO_ORIGIN=https://free.example.edu:11434
+```
+
+The container publishes `FREE_NGINX_PORT` (default 443) on every interface;
+`STUDIO_ORIGIN` must carry the same port, and the Entra redirect URIs follow
+from it. The certificate should be a full chain, and the launcher refuses to
+start unless both files exist. The bundled nginx has the fixed address
+`172.30.0.10` on the `proxy` network, which is Studio's only trusted proxy
+peer, and Studio publishes no host port. Restrict the published port with the
+perimeter firewall as for the host nginx; certificate renewal replaces the two
+files and restarts the `nginx` service.
+
 ## Start and preserve state
 
 Normal startup builds before stopping the existing Studio and parsing API/worker,

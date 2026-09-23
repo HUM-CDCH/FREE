@@ -564,7 +564,31 @@ export function validateProductionEnvironment(
       `FREE_ENTRA_CLIENT_CERT_PATH names ${shared.values.FREE_ENTRA_CLIENT_CERT_PATH}, which does not exist on this host.`,
     )
 
+  const nginx = environment.FREE_NGINX || 'host'
+  if (!['host', 'container'].includes(nginx))
+    errors.push('FREE_NGINX must be host or container.')
+  // The bundled nginx terminates TLS itself, so its certificate and key must
+  // be on this host; the host nginx keeps them in its own configuration.
+  if (nginx === 'container')
+    for (const field of ['FREE_TLS_CERT_PATH', 'FREE_TLS_KEY_PATH']) {
+      const path = environment[field]
+      if (path === undefined || path === '')
+        errors.push(`${field} is required in .env when FREE_NGINX=container.`)
+      else if (!fileExists(path))
+        errors.push(`${field} names ${path}, which does not exist on this host.`)
+    }
+
   return errors
+}
+
+// Where TLS terminates: the host-managed nginx (default) or the bundled nginx
+// container of compose.nginx.yaml for hosts without one.
+export function productionComposeFiles(environment) {
+  return [
+    'compose.yaml',
+    'compose.prod.yaml',
+    ...(environment.FREE_NGINX === 'container' ? ['compose.nginx.yaml'] : []),
+  ]
 }
 
 // The same substitution the nginx image's envsubst entrypoint applies to this
@@ -592,25 +616,25 @@ async function productionMain(args) {
   if (errors.length > 0)
     throw new Error(['The .env deployment values are incomplete:', ...errors.map((error) => `  - ${error}`)].join('\n'))
 
-  const rendered = renderNginxLocations(
-    readFileSync(resolve(ROOT, NGINX_LOCATIONS_TEMPLATE), 'utf8'),
-    {
-      STUDIO_BASE_PATH: environment.STUDIO_BASE_PATH,
-      FREE_STUDIO_UPSTREAM: `127.0.0.1:${STUDIO_PORT}`,
-    },
-  )
-  mkdirSync(resolve(ROOT, '.nginx'), { recursive: true })
-  writeFileSync(resolve(ROOT, RENDERED_NGINX_LOCATIONS), rendered)
+  const hostNginx = environment.FREE_NGINX !== 'container'
+  if (hostNginx) {
+    const rendered = renderNginxLocations(
+      readFileSync(resolve(ROOT, NGINX_LOCATIONS_TEMPLATE), 'utf8'),
+      {
+        STUDIO_BASE_PATH: environment.STUDIO_BASE_PATH,
+        FREE_STUDIO_UPSTREAM: `127.0.0.1:${STUDIO_PORT}`,
+      },
+    )
+    mkdirSync(resolve(ROOT, '.nginx'), { recursive: true })
+    writeFileSync(resolve(ROOT, RENDERED_NGINX_LOCATIONS), rendered)
+    console.log(`Rendered ${RENDERED_NGINX_LOCATIONS} for the host nginx.`)
+  }
 
-  console.log(`Rendered ${RENDERED_NGINX_LOCATIONS} for the host nginx.`)
   console.log('Starting the production stack (waits for health checks)...\n')
   process.exitCode = await startComposeStack(
     [
       'compose',
-      '-f',
-      'compose.yaml',
-      '-f',
-      'compose.prod.yaml',
+      ...productionComposeFiles(environment).flatMap((file) => ['-f', file]),
       ...parsingGpuComposeArguments(environment),
       'up',
       '--no-build',
@@ -620,6 +644,12 @@ async function productionMain(args) {
     environment,
   )
   if (process.exitCode !== 0) return
+  if (!hostNginx) {
+    console.log(`
+The services started and configured health checks passed; the bundled nginx terminates TLS.
+Verify: curl --fail ${environment.STUDIO_ORIGIN}${environment.STUDIO_BASE_PATH}/api/healthz`)
+    return
+  }
   console.log(`
 The services started and configured health checks passed; migrations replayed before Studio started.
 Host nginx checklist (once per configuration change):

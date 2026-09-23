@@ -20,6 +20,7 @@ import {
   developmentComposeEnvironment,
   developmentComposeFiles,
   parsingGpuComposeArguments,
+  productionComposeFiles,
   deriveDevProfile,
   effectiveLocalEnvironment,
   ensureDevelopmentSessionSecret,
@@ -687,6 +688,57 @@ describe('production environment validation', () => {
     assert.ok(
       errors.some((error) => error.includes('FREE_ENTRA_CLIENT_CERT_PATH')),
     )
+  })
+})
+
+describe('production TLS entry point', () => {
+  const containerEnvironment = {
+    ...productionEnvironment,
+    FREE_NGINX: 'container',
+    FREE_TLS_CERT_PATH: '/srv/free-tls/studio.crt',
+    FREE_TLS_KEY_PATH: '/srv/free-tls/studio.key',
+  }
+
+  it('defaults to the host nginx with the plain production overlay', () => {
+    assert.deepEqual(productionComposeFiles(productionEnvironment), [
+      'compose.yaml',
+      'compose.prod.yaml',
+    ])
+  })
+
+  it('adds the bundled nginx overlay when TLS terminates in a container', () => {
+    assert.deepEqual(
+      validateProductionEnvironment(containerEnvironment, () => true),
+      [],
+    )
+    assert.deepEqual(productionComposeFiles(containerEnvironment), [
+      'compose.yaml',
+      'compose.prod.yaml',
+      'compose.nginx.yaml',
+    ])
+  })
+
+  it('requires both TLS files to exist on the host for the container', () => {
+    for (const field of ['FREE_TLS_CERT_PATH', 'FREE_TLS_KEY_PATH']) {
+      const missing = validateProductionEnvironment(
+        { ...containerEnvironment, [field]: undefined },
+        () => true,
+      )
+      assert.ok(missing.some((error) => error.includes(`${field} is required`)))
+      const absent = validateProductionEnvironment(
+        containerEnvironment,
+        (path) => path !== containerEnvironment[field],
+      )
+      assert.ok(absent.some((error) => error.includes(`${field} names`)))
+    }
+  })
+
+  it('rejects an unknown TLS entry point', () => {
+    const errors = validateProductionEnvironment(
+      { ...productionEnvironment, FREE_NGINX: 'traefik' },
+      () => true,
+    )
+    assert.ok(errors.some((error) => error.includes('FREE_NGINX')))
   })
 })
 
