@@ -34,7 +34,7 @@ pnpm dev
 The launcher generates `.certs/studio.crt`/`.certs/studio.key` with `mkcert`
 when missing, builds the images, then stops Studio and the parsing API/worker
 with a 60-second grace period. It runs
-`docker compose --profile mock-oidc up --no-build --watch` after they stop,
+`docker compose --profile mock-oidc up --watch` after they stop,
 so migration cannot overlap processes using the old job schema. Failed builds
 leave the running application intact; a failed migration prevents startup.
 On the first run, the Python image build and the extraction-model download

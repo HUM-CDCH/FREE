@@ -41,7 +41,7 @@ from kei_exp.kie.extract.stages import (
 )
 
 EXTRACTION_VERSION = 1
-PROMPT_VERSION = 2  # 2: extraction calls turn model reasoning off
+PROMPT_VERSION = 4  # Discovery examples distinguish grouping headings, nested finds and final continuations.
 
 
 class Options(BaseModel):

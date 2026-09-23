@@ -68,6 +68,32 @@ def test_discovery_labels_every_passage_and_cuts_records_at_the_starts_it_is_tol
     assert calls[0].stage == "discovery" and calls[0].ok and not issues
 
 
+def test_discovery_reports_a_numbered_entry_that_its_end_cuts_off():
+    # qwen3:8b without reasoning named the second entry as `end` after a heading: a dropped record, not a finish.
+    items = passages(["Site catalogue", "1. Hill: pottery dated 1801.", "2. Valley: flint dated 1802."])
+    chat = FakeChat(lambda s, u, schema: {"starts": ["B2"], "end": "B3"})
+    slices, _, issues = discover(evidence(items), SCHEMA, chat, budget=48_000)
+    assert [[p.id for p in group] for group in slices] == [["p1_s1"]]
+    assert [(issue.code, issue.detail) for issue in issues] == [
+        ("discovery_numbered_after_end", "'B3' is numbered like every record start, but the end 'B3' drops it")]
+
+
+def test_discovery_reports_an_unnumbered_start_among_numbered_ones():
+    items = passages(["Kreis Nord", "1. Hill: pottery dated 1801.", "Kreis Sued", "2. Valley: flint dated 1802."])
+    chat = FakeChat(lambda s, u, schema: {"starts": ["B1", "B2", "B3", "B4"], "end": None})
+    slices, _, issues = discover(evidence(items), SCHEMA, chat, budget=48_000)
+    assert len(slices) == 4
+    assert [(issue.code, issue.detail) for issue in issues] == [
+        ("discovery_unnumbered_start", f"start {label!r} is not numbered like the other record starts")
+        for label in ("B1", "B3")]
+
+
+def test_discovery_does_not_judge_numbering_where_the_records_have_none():
+    items = passages(["Hill: pottery dated 1801.", "Valley: flint dated 1802.", "Index of sites", "3. Hill, 2. Valley"])
+    chat = FakeChat(lambda s, u, schema: {"starts": ["B1", "B2"], "end": "B3"})
+    assert discover(evidence(items), SCHEMA, chat, budget=48_000)[2] == []
+
+
 def test_discovery_ignores_out_of_order_and_unknown_starts_with_an_issue():
     chat = FakeChat(lambda s, u, schema: {"starts": ["B4", "B2", "B9", "B4"], "end": None})
     slices, _, issues = discover(evidence(), SCHEMA, chat, budget=48_000)
@@ -108,7 +134,9 @@ def test_discovery_still_closes_the_records_at_an_end_from_the_final_chunk():
     def script(system, user, schema):
         shown = schema["properties"]["starts"]["items"]["enum"]
         return {"starts": [shown[0]], "end": shown[1] if shown[0] == "B5" else None}
-    slices, _, issues = discover(evidence(six_pages()), SCHEMA, FakeChat(script), budget=7_000)
+    # What follows the records is not an entry: a numbered block there would be reported as dropped.
+    items = [*six_pages()[:5], dataclasses.replace(six_pages()[5], text="Literature " + "x" * 3000)]
+    slices, _, issues = discover(evidence(items), SCHEMA, FakeChat(script), budget=7_000)
     assert [[p.id for p in group] for group in slices] == [["p1_s0", "p2_s0"], ["p3_s0", "p4_s0"], ["p5_s0"]]
     assert not issues
 

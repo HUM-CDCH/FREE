@@ -384,8 +384,9 @@ export function developmentComposeArguments(profile, gpuArguments = []) {
     ...(!profile.entra ? ['--profile', 'mock-oidc'] : []),
     ...developmentComposeFiles(profile).flatMap((file) => ['-f', file]),
     ...gpuArguments,
+    // Compose rejects --no-build with --watch. The build step has already
+    // produced every image, and up builds only images that are missing.
     'up',
-    '--no-build',
     '--watch',
   ]
 }

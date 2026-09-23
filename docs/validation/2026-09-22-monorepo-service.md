@@ -1,8 +1,9 @@
 # FREE service consolidation validation
 
-Date: 2026-09-22. Status: paused for coordinator handoff at the user's request;
-implementation is uncommitted and validation is incomplete. Continue from
-[the coordinator handoff](2026-09-22-service-consolidation-handoff.md).
+Created: 2026-09-22. Updated: 2026-09-23. Status: consolidation implemented in
+`b07741d`; subsequent discovery and launcher changes remain uncommitted.
+Validation is incomplete. The September 23 results below supersede the older
+Qwen result; see also [the coordinator handoff](2026-09-22-service-consolidation-handoff.md).
 
 ## Change under test
 
@@ -29,7 +30,7 @@ pnpm architecture:check
 
 `test:service` provisions isolated PostgreSQL and mock OIDC, uses the imported
 Python environment, and starts a real API and worker. Its generated native
-PDF contains two separate entries on one page. Only extraction completions are
+PDF contains a "Site catalogue" heading and two separate entries on one page. Only extraction completions are
 scripted; their values are derived from actual parsed prompt text. It checks:
 
 - authenticated upload and canonical artifact import;
@@ -52,7 +53,88 @@ The audit used its own `free-monorepo-parsing-tests` container on loopback 5432,
 with `free_test_project_store`, `free_test_extraction`, and `free_test_parsing`.
 Existing databases on other ports and the existing model server were not used.
 
-## Results
+## September 23 discovery prompt validation
+
+Disabling Qwen reasoning fixed the captured token loop, but subsequent headed
+inputs exposed discovery errors: the model could mistake a heading for a record
+or exclude a final continuation while reporting `complete: true`. The full
+[918-call investigation](../../artifacts/handoffs/2026-09-22-service-consolidation/codex-investigation/report.md)
+is local evidence, not a real-catalogue accuracy benchmark. Its cases and prompt
+examples were developed together.
+
+Discovery now includes three examples with reasoning still off. The second
+example uses different names from case Q and includes a continuation before
+the bibliography. `PROMPT_VERSION` is 4, so the extraction fingerprint does not
+reuse results from earlier prompts. No second discovery call or disagreement
+policy was added.
+
+The changed prompt was measured through the actual `discover()` function and
+`OpenAIChat` adapter at the runtime 8192-token cap, twice on each A–Q input.
+It scored **30/34 exact boundaries**, including a correct first request after
+unloading the model. Q retained its final continuation in both runs. The failures
+changed: L still returns no starts and raises `no_records_found`; **N now selects
+German district headings as record starts**, with no discovery issue. The prior
+three-example candidate got N right and Q wrong. Equal totals do not establish
+that the revised prompt is uniformly better. Populated-value grounding and
+`complete` do not prove that all source records were discovered correctly.
+
+Focused extraction stage/client tests: **32 passed**. The existing multi-chunk
+unit checks passed; real-model multi-chunk behaviour remains unvalidated.
+The scanner and manual bloat review found no blockers; existing numbering
+diagnostics were preserved, including their known false-positive boundary.
+
+Reproduction and captured requests/replies are in
+[`discovery-prompt-v4/`](../../artifacts/handoffs/2026-09-22-service-consolidation/discovery-prompt-v4/):
+
+```bash
+prototypes/parsing_service/.venv/bin/python -m pytest \
+  prototypes/parsing_service/tests/test_extract_stages.py \
+  prototypes/parsing_service/tests/test_extract_llm.py -q
+prototypes/parsing_service/.venv/bin/python -B \
+  artifacts/handoffs/2026-09-22-service-consolidation/discovery-prompt-v4/probe.py
+```
+
+The probe unloads only the task-owned local `qwen3:8b` at port 32769 before its
+first request. It is an exploratory replay, not part of deterministic CI.
+
+| Fresh workflow check | Result and scope |
+| --- | --- |
+| Local real-model service E2E | **Pass**, 6.5 minutes: authenticated headed native PDF, Article and Catalog exact values, six evidence links each, review, evidence navigation, and API/worker restart persistence |
+| Spark native Catalog | **Pass**: authenticated Studio upload through development nginx/mock OIDC, two exact records, six grounded values, review, evidence navigation, and reload |
+| Spark scanned Catalog | **Pass**: the same headed page rendered into an image-only PDF, real Surya OCR, and the same Catalog/browser assertions |
+
+The local successful command was the existing Playwright service entrypoint
+with `OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2` and the real
+model URL/model variables above. Initial attempts failed disposable PostgreSQL
+readiness and then the 180-second upload timeout, before extraction. The host
+had little available memory and full swap; unrelated workloads were left alone.
+Neither timeouts nor result assertions were weakened. The successful run is
+recorded in `discovery-prompt-v4/local-real-service-threads2.log`; service logs
+and browser evidence are retained under `local-success-results/`.
+This real-model tier establishes identical artifacts after restart, not the
+scripted tier's extra assertion about model call counts. The deterministic
+service tier was not rerun in this continuation.
+
+Spark validation used `/home/geba/Projects/FREE`, with explicit user approval
+to copy only `stages.py` and `run.py` into the checkout and API/worker containers
+and restart those two services. Saved service artifacts confirm prompt version
+4 and six evidence links for both PDFs; the scanned manifest records OCR token
+usage while the native manifest records none. The browser runner, PDF inputs,
+page artifacts, screenshots and results are in `discovery-prompt-v4/`.
+Two initial browser-runner mistakes (the `/free` resource prefix and whitespace
+in a button selector) were corrected in that local validation script. The final
+run passed both documents. All synthetic Studio projects from these attempts
+were removed; backend run artifacts remain as evidence. The temporary SSH
+tunnel was closed. Spark and the task-owned local model remain running.
+
+The Spark checks validate patched running development containers, not freshly
+rebuilt images or production Entra authentication. Recreating either parsing
+container from the old image would lose its copied source changes: rebuild
+from the updated checkout before recreating it. The successful Spark browser
+checks cover reload, not a second restart after extraction. The local service
+E2E supplies the fresh API/worker restart coverage.
+
+## September 22 results (preserved evidence)
 
 - Workspace type checks and lint passed; lint retains three existing React Hook warnings.
 - Fast unit aggregate passed, including 583 backend tests. 73 backend cases skip
@@ -86,8 +168,10 @@ an explicit cancellation trace. Both have regression coverage.
 
 ## Boundaries
 
-The complete service test uses native PDF parsing. It does not prove scanned
-Surya OCR quality, GPU model compatibility, or DGX Spark deployment. The imported
+The complete local service test uses native PDF parsing. The September 23 Spark
+check additionally proves one generated scanned page through the running GPU
+stack; it does not establish real-catalogue OCR quality, arbitrary GPU/image
+compatibility, or production HTTPS/Entra deployment. The imported
 Catalog implementation still cannot place two record starts within one parser
 segment; preserving separate native blocks addresses the test's two-entry page,
 not the full character-span boundary design.

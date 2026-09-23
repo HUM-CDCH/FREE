@@ -11,7 +11,9 @@ const python = resolve(directory, '.venv', process.platform === 'win32' ? 'Scrip
 
 /** A real text PDF; neither its canonical representation nor extraction artifact is mocked. */
 export function cataloguePdf(): Buffer {
+  // The heading is not a record: discovery must neither start one there nor end the records before Valley.
   const texts = [
+    'Site catalogue',
     '1. Hill: pottery dated 1801.',
     '2. Valley: flint dated 1802.',
   ]

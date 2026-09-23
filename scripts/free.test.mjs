@@ -96,6 +96,11 @@ describe('ordered Compose startup', () => {
   const local = developmentComposeArguments(deriveDevProfile(parseDevOptions([]), {}))
   const production = ['compose', '-f', 'compose.yaml', '-f', 'compose.prod.yaml', 'up', '--no-build', '-d', '--wait']
 
+  it('never asks development Compose for --no-build, which it rejects with --watch', () => {
+    // `docker compose up --no-build --watch` fails: "--no-build and --watch are incompatible".
+    assert.ok(local.includes('--watch') && !local.includes('--no-build'))
+  })
+
   for (const up of [local, production]) {
     it(`builds before stopping schema consumers and starting ${up.includes('--watch') ? 'development' : 'production'}`, async () => {
       const environment = { FREE_SESSION_SECRET: 'test-only' }
@@ -173,7 +178,6 @@ describe('development launcher profiles', () => {
       '-f',
       'compose.override.yaml',
       'up',
-      '--no-build',
       '--watch',
     ])
   })
@@ -198,7 +202,6 @@ describe('development launcher profiles', () => {
       '-f',
       'compose.entra.yaml',
       'up',
-      '--no-build',
       '--watch',
     ])
   })

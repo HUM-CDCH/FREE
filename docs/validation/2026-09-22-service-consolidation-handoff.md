@@ -1,8 +1,59 @@
 # FREE service consolidation: coordinator handoff
 
-Date: 2026-09-22. Status: **paused at the user's request; not complete**.
-This is an execution record for the uncommitted consolidation change, not a
-new product plan. Supersede this record when validation finishes.
+Created: 2026-09-22. Updated: 2026-09-23. Status: **consolidation implemented;
+validation incomplete**. The current update below supersedes the September 22
+snapshot, which is retained as historical evidence rather than current resume
+instructions.
+
+## Current update: September 23
+
+- Consolidation is committed in `b07741d`. Later discovery, launcher, fixture,
+  and documentation changes remain uncommitted. Preserve the live working tree.
+- The captured 8192-token Qwen reasoning loop was reproduced and addressed by
+  `reasoning_effort: "none"`. The old handoff's statement that this was only a
+  hypothesis is superseded. Headed sources then exposed separate discovery errors.
+- The [completed investigation](../../artifacts/handoffs/2026-09-22-service-consolidation/codex-investigation/report.md)
+  made 918 local model calls without changing service code. The current service
+  uses three discovery examples; the second was reworded and includes a final
+  continuation. `PROMPT_VERSION` is now 4. No second classification call was added.
+- A fresh A–Q replay scored 30/34 at the runtime token cap. Q's continuation is
+  retained; N's German district headings are now misclassified without a
+  discovery issue. The remaining L mismatch reports no records. These are
+  development fixtures, not blind catalogue evaluation. See the
+  [updated validation record](2026-09-22-monorepo-service.md#september-23-discovery-prompt-validation).
+- Focused extraction tests passed: 32. The two-records-in-one-segment limitation
+  remains; this prompt change does not implement character-span boundaries.
+- The headed real-model local service E2E passed in 6.5 minutes, including
+  Article/Catalog results, evidence/review, and API/worker restarts. It used two
+  CPU math-library threads under host memory pressure; preceding database
+  readiness/upload-timeout failures are preserved. No assertions or timeouts
+  were weakened. The deterministic tier was not rerun in this continuation.
+- Spark authenticated Catalog checks passed for both native and image-only
+  versions of the headed page: two correct records, six grounded values,
+  review, evidence navigation, and reload. This is one synthetic scanned page,
+  not broad OCR/catalogue-quality validation. Logs, artifacts and screenshots
+  are in [`discovery-prompt-v4/`](../../artifacts/handoffs/2026-09-22-service-consolidation/discovery-prompt-v4/).
+- With explicit user authorization, `stages.py` and `run.py` were copied into the
+  Spark development checkout and its API/worker containers, and only those two
+  services restarted. Both load version 4. This validates patched running
+  containers, not newly rebuilt images; a recreate from the old image would
+  require rebuilding or reapplying the source changes.
+- Local launcher code now uses `up --watch`, because Compose rejects combining
+  `--watch` with `--no-build`. Production still uses `up --no-build -d --wait`.
+- Resource listings and disk limits in the historical snapshot are stale.
+  Reinspect before reuse or cleanup. The local task model and Spark development
+  stack are retained; synthetic Studio projects and the temporary tunnel were
+  cleaned up. Unrelated services were left untouched.
+- Remaining consolidation work includes fresh image-build validation and the
+  earlier launcher/runbook review leads. The wider KIE segmentation work and
+  the German-heading discovery error remain unresolved. Do not describe this
+  prompt improvement as completion of the broader plan.
+  The [implementation plan for Opus 5.5](../plans/2026-09-23-grounded-kie-opus-5.5.md)
+  defines the next catalogue milestones; it is proposed work, not a completion record.
+
+## Historical snapshot: September 22
+
+The remaining sections describe the state at the original pause.
 
 ## Start here
 

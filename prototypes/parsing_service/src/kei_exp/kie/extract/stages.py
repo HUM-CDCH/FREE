@@ -23,11 +23,38 @@ from kei_exp.kie.extract.schema import Schema, conform, describe, json_schema, n
 GUARDRAIL = ("You extract structured data from a source document. Use only the requested output fields. Copy "
              "values from the source as written; do not invent unsupported information. A value the source does "
              "not give is null. Return only the JSON object.")
+# Without reasoning, "the first block AFTER the last record" read to qwen3:8b as the last record itself.
 DISCOVERY = ("Identify record boundaries in the labelled source text. A record is: {description}\nReturn JSON "
-             "with \"starts\", the labels of the blocks that OPEN each record in source order without duplicates, "
-             "and \"end\", the label of the first block AFTER the last record, or null when the records run to the "
-             "end of the text. Do not select continuation text, descriptions, finds within a record or section "
-             "headings unless they themselves open a record.")
+             "with \"starts\", the labels of the blocks that OPEN each record, in source order without duplicates; "
+             "the last record opens at a start too. Return \"end\" as null when the last record runs to the end of "
+             "the text; otherwise \"end\" is the label of the first block after the last record that belongs to no "
+             "record, such as a bibliography or index. A block that opens a record is never the end. Do not select "
+             "continuation text, descriptions, finds within a record or section headings unless they themselves "
+             "open a record.")
+DISCOVERY_EXAMPLES = """
+Examples (independent documents; use only labels from the actual input):
+Input: [B1] Regional inventory
+[B2] 7. Oak: urn.
+[B3] Another fragment from Oak.
+[B4] 8. Brook: axe.
+Output: {"starts":["B2","B4"],"end":null}
+Input: [B1] Northern region
+[B2] Reed: a bronze spear.
+[B3] Southern region
+[B4] Mere: a clay bowl.
+[B5] A decorated rim was also recovered at Mere.
+[B6] References
+[B7] Smith 1998.
+Output: {"starts":["B2","B4"],"end":"B6"}
+
+Input: [B1] Inventory
+[B2] 12. Marsh: a burial with these finds:
+[B3] 1. A clay vessel.
+[B4] 2. A bone pin.
+[B5] 13. Heath: a stone axe.
+[B6] A second axe was found at Heath.
+Output: {"starts":["B2","B5"],"end":null}
+"""
 GROUNDING = ("Ground every claim listed under \"### Claims\" in the passages listed under \"### Evidence\". Return "
              "JSON with one key per claim label whose value is exactly one evidence label that directly supports "
              "the claim in the meaning of its field, or NONE when no passage supports it. Each claim names its "
@@ -121,7 +148,7 @@ def discover(evidence: Evidence, schema: Schema, chat: Chat, *, budget: int) -> 
     dropped for it."""
     passages = list(evidence.passages)
     labels = [f"B{n}" for n in range(1, len(passages) + 1)]
-    system = DISCOVERY.format(description=schema.record_description)
+    system = DISCOVERY.format(description=schema.record_description) + DISCOVERY_EXAMPLES
     starts: list[int] = []
     end: int | None = None
     calls: list[Call] = []
@@ -163,10 +190,30 @@ def discover(evidence: Evidence, schema: Schema, chat: Chat, *, budget: int) -> 
         issues.append(Issue("discovery_inconsistent_end", f"end {labels[end]!r} lies at or before the last record "
                             f"start {labels[starts[-1]]!r} and is ignored: the records run to the end of the text"))
         end = None
+    issues += _numbering_issues(passages, labels, starts, end)
     stop = end if end is not None else len(passages)
     slices = [passages[start:min(stop, starts[n + 1]) if n + 1 < len(starts) else stop]
               for n, start in enumerate(starts)]
     return [group for group in slices if group], calls, issues
+
+
+_NUMBERED = re.compile(r"\s*\d{1,4}[.)]\s")
+
+
+def _numbering_issues(passages: Sequence[Passage], labels: Sequence[str], starts: Sequence[int],
+                      end: int | None) -> list[Issue]:
+    """Where the record starts are numbered entries, a numbered block the end drops or an unnumbered start is
+    most likely a boundary the model misread. Reported, never corrected; without numbered starts, silent."""
+    numbered = [bool(_NUMBERED.match(passages[index].text)) for index in starts]
+    issues: list[Issue] = []
+    if end is not None and numbered and all(numbered):
+        issues += [Issue("discovery_numbered_after_end", f"{labels[index]!r} is numbered like every record start, "
+                         f"but the end {labels[end]!r} drops it")
+                   for index in range(end, len(passages)) if _NUMBERED.match(passages[index].text)]
+    if sum(numbered) >= 2:
+        issues += [Issue("discovery_unnumbered_start", f"start {labels[index]!r} is not numbered like the other "
+                         "record starts") for index, ok in zip(starts, numbered, strict=True) if not ok]
+    return issues
 
 
 def _index(label: Any, labels: Sequence[str]) -> int | None:

@@ -145,7 +145,7 @@ pnpm dev
 Then open **https://localhost:8443/free** and sign in through the local mock
 OIDC identity provider. `pnpm dev` generates the mkcert certificate when missing,
 builds the images, and stops Studio and the parsing API/worker before running
-`docker compose up --no-build --watch`. A failed build leaves the running
+`docker compose up --watch`. A failed build leaves the running
 application intact. Migrations finish before the replacement processes start,
 and source changes then sync live. The
 first run builds the Python image and downloads the extraction model into a
