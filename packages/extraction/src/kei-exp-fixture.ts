@@ -33,6 +33,7 @@ export function keiExpAccepted(overrides: Record<string, unknown> = {}): Record<
 }
 
 export function keiExpArtifact(overrides: Partial<KeiExpArtifact> = {}): KeiExpArtifact {
+  const model = overrides.model ?? 'kei-exp-default'
   return {
     extraction_version: 1,
     run_id: 'run',
@@ -41,11 +42,14 @@ export function keiExpArtifact(overrides: Partial<KeiExpArtifact> = {}): KeiExpA
     digest: 'digest',
     fingerprint: 'fingerprint',
     strategy: 'article',
-    model: 'kei-exp-default',
+    // The fields model's repo id, which attribution names; `models` is the repo id each role ran on.
+    model,
+    models: { fields: model, reasoning: model },
     // kei-exp's `PROMPT_VERSION`: a number.
     prompt_version: 1,
     schema: { recordDescription: 'Article records.', schemaNodes: [] },
-    options: { strategy: 'article', model: null, discovery_chars: 48_000, record_chars: 24_000 },
+    // As kei-exp dumps them: `models` is the run's choice of registry keys per role, null for the deployment defaults.
+    options: { strategy: 'article', model: null, models: null, discovery_chars: 48_000, record_chars: 24_000 },
     started: '2026-09-22T00:00:00+00:00',
     seconds: 1.25,
     complete: false,
@@ -80,12 +84,13 @@ export function keiExpEvidence(overrides: Partial<KeiExpEvidence> = {}): KeiExpE
 /** A version 2 artifact of the recipe path (`kie/extract/grounded.py`): span evidence with provenance, the proposals
  *  and rejections kept for review, competitors, the segmentation's coverage and the separated completeness. */
 export function keiExpGroundedArtifact(overrides: Partial<KeiExpGroundedArtifact> = {}): KeiExpGroundedArtifact {
+  const model = overrides.model ?? 'kei-exp-default'
   return {
     extraction_version: 2,
     run_id: 'run', generation: 'g1', digest: 'digest', fingerprint: 'fingerprint', strategy: 'catalog',
-    model: 'kei-exp-default', prompt_version: 1,
+    model, models: { fields: model, reasoning: model }, prompt_version: 2,
     schema: { recordDescription: 'Catalogue entries.', schemaNodes: [] },
-    options: { strategy: 'catalog', model: null, discovery_chars: 48_000, record_chars: 24_000,
+    options: { strategy: 'catalog', model: null, models: null, discovery_chars: 48_000, record_chars: 24_000,
                catalog: { recipe: 'numbered-catalogue-de@1', input_tokens: 4096, output_tokens: 1024 } },
     started: '2026-09-23T00:00:00+00:00', seconds: 2.5, complete: false,
     segmentation: {
@@ -96,7 +101,12 @@ export function keiExpGroundedArtifact(overrides: Partial<KeiExpGroundedArtifact
                       spans: [{ segment: 'p1_s2', start: 0, end: 3 }] }],
     },
     budget: { version: 1, input_tokens: 4096, output_tokens: 1024,
-              tokenizer: { source: 'vllm:/tokenize', model: 'Qwen/Qwen3.8-27B-FP8', model_digest: null, template_tokens: null } },
+              tokenizer: { source: 'vllm:/tokenize', model: 'Qwen/Qwen3.8-27B-FP8', model_digest: null, template_tokens: null },
+              // One identity per role, since the roles may be served apart; `tokenizer` is the fields role's.
+              tokenizers: {
+                fields: { source: 'vllm:/tokenize', model: 'Qwen/Qwen3.8-27B-FP8', model_digest: null, template_tokens: null },
+                reasoning: { source: 'vllm:/tokenize', model: 'Qwen/Qwen3.8-27B-FP8', model_digest: null, template_tokens: null },
+              } },
     records: [{ entry_no: 31, kreis: 'Heide', mbl_old: 1827, site_name: null }],
     normalization: { version: 1, rules: ['glossary'] },
     record_blocks: [{ block: 'b1', entry_label: '31' }],

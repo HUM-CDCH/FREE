@@ -29,7 +29,6 @@ export default defineConfig({
     env: {
       DATABASE_URL: stack.databaseUrl,
       KEI_EXP_URL: process.env.FREE_PLAYWRIGHT_SERVICE_URL,
-      KEI_EXP_EXTRACT_MODEL: '',
       FREE_PLAYWRIGHT_LIFECYCLE_ID: stack.lifecycleId,
       STUDIO_ORIGIN: origin,
       STUDIO_BASE_PATH: '/',

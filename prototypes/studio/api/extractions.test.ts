@@ -237,6 +237,37 @@ describe('/api/extractions transport', () => {
     }), expect.any(AbortSignal))
   })
 
+  it('passes the Extraction Model Choice to runSingle and echoes it beside the models each role ran on', async () => {
+    const models = { fields: 'nuextract', reasoning: 'instruct' }
+    const used = { fields: 'numind/NuExtract3-FP8', reasoning: 'Qwen/Qwen3.8-27B-FP8' }
+    const module = extractionModule({
+      runSingle: vi.fn<ExtractionModule['runSingle']>(async () => ({
+        disposition: 'created',
+        extraction: {
+          ...attemptSnapshot,
+          requestedModels: models,
+          modelAttribution: { provider: 'kei-exp', modelId: used.fields },
+          diagnostics: { ...snapshot.diagnostics, models: used },
+        },
+      })),
+    })
+    const response = await handlerFor(module)(request({ ...fresh, models }))
+    expect(response.status).toBe(201)
+    expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({ kind: 'fresh', models }), expect.any(AbortSignal))
+    const body = extractionAttemptSchema.parse(await response.json())
+    expect(body.requestedModels).toEqual(models)
+    expect(body.diagnostics?.models).toEqual(used)
+    expect(body.modelAttribution).toEqual({ provider: 'kei-exp', modelId: used.fields })
+  })
+
+  it('refuses a model choice that is not a kei-exp model key per role before the module runs', async () => {
+    const module = extractionModule()
+    const handle = handlerFor(module)
+    for (const body of [{ ...fresh, models: { fields: '' } }, { ...fresh, models: { planner: 'instruct' } }, { ...fresh, model: 'instruct' }])
+      expect((await handle(request(body))).status).toBe(422)
+    expect(module.runSingle).not.toHaveBeenCalled()
+  })
+
   it('omits backend-only Catalog document values from strict API JSON', async () => {
     const documentStage = {
       stage: 'document-values' as const,
@@ -445,6 +476,13 @@ it('transports the version 2 review material instead of stripping it', async () 
   }
   const dto = extractionAttemptDto({ ...attemptSnapshot, diagnostics: { ...snapshot.diagnostics, grounded } })
   expect(dto.diagnostics?.grounded).toEqual(grounded)
+})
+
+it('echoes no Extraction Model Choice as null and transports no per-role models when kei-exp reported none', async () => {
+  const { extractionAttemptDto } = await import('./_extraction_runtime.js')
+  const dto = extractionAttemptDto(attemptSnapshot)
+  expect(dto.requestedModels).toBeNull()
+  expect(dto.diagnostics).not.toHaveProperty('models')
 })
 
 it('transports kei-exp attribution and service issue codes without filtering diagnostics', async () => {

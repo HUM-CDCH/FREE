@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   extractionRequestSchema,
   extractionAttemptSchema,
+  extractionModelListingSchema,
 } from './extraction.contract.js'
 
 const id = (digit: string) =>
@@ -284,5 +285,51 @@ describe('numbered-catalogue recipe contracts', () => {
     })
     expect(parsed.evidenceLinks![0].grounding).toEqual(grounding)
     expect(parsed.diagnostics!.grounded).toEqual(grounded)
+  })
+})
+
+describe('Extraction Model Choice contracts', () => {
+  const fresh = { id: id('1'), sourceRepresentationRevisionId: id('3'), schemaRevisionId: id('4'), strategy: 'ARTICLE' }
+
+  it('accepts a per-run choice of kei-exp model keys for either role, on a fresh request only', () => {
+    expect(extractionRequestSchema.parse({ ...fresh, models: { fields: 'nuextract', reasoning: 'instruct' } }))
+      .toMatchObject({ models: { fields: 'nuextract', reasoning: 'instruct' } })
+    expect(extractionRequestSchema.parse({ ...fresh, models: { reasoning: 'instruct' } }))
+      .toMatchObject({ models: { reasoning: 'instruct' } })
+    expect(extractionRequestSchema.parse(fresh)).not.toHaveProperty('models')
+    for (const models of [{ fields: '' }, { reasoning: 7 }, { fields: 'instruct', planner: 'instruct' }, 'instruct'])
+      expect(extractionRequestSchema.safeParse({ ...fresh, models }).success).toBe(false)
+    expect(extractionRequestSchema.safeParse({ ...fresh, model: 'instruct' }).success).toBe(false)
+    expect(extractionRequestSchema.safeParse({ id: id('1'), retryOfId: id('5'), models: { fields: 'nuextract' } }).success)
+      .toBe(false)
+  })
+
+  it('echoes the requested choice and the models kei-exp resolved per role beside the unchanged attribution', () => {
+    const parsed = extractionAttemptSchema.parse({
+      ...completed,
+      modelAttribution: { provider: 'kei-exp', modelId: 'numind/NuExtract3-FP8' },
+      requestedModels: { fields: 'nuextract' },
+      diagnostics: { ...completed.diagnostics, models: { fields: 'numind/NuExtract3-FP8', reasoning: 'Qwen/Qwen3.8-27B-FP8' } },
+    })
+    expect(parsed.requestedModels).toEqual({ fields: 'nuextract' })
+    expect(parsed.diagnostics!.models).toEqual({ fields: 'numind/NuExtract3-FP8', reasoning: 'Qwen/Qwen3.8-27B-FP8' })
+    expect(extractionAttemptSchema.parse({ ...completed, requestedModels: null }).requestedModels).toBeNull()
+    expect(extractionAttemptSchema.safeParse({
+      ...completed, diagnostics: { ...completed.diagnostics, models: { fields: 'numind/NuExtract3-FP8' } },
+    }).success).toBe(false)
+  })
+
+  it('reads the kei-exp deployment listing of extraction models, roles and defaults', () => {
+    const listing = {
+      defaults: { fields: 'nuextract', reasoning: 'instruct' },
+      models: [
+        { key: 'instruct', repo: 'Qwen/Qwen3.8-27B-FP8', roles: ['fields', 'reasoning'], reachable: true, serving: true },
+        { key: 'nuextract', repo: 'numind/NuExtract3-FP8', roles: ['fields'], reachable: false, serving: false },
+      ],
+    }
+    expect(extractionModelListingSchema.parse(listing)).toEqual(listing)
+    expect(extractionModelListingSchema.safeParse({ ...listing, models: [{ ...listing.models[0], roles: ['planner'] }] }).success)
+      .toBe(false)
+    expect(extractionModelListingSchema.safeParse({ defaults: { fields: 'nuextract' }, models: [] }).success).toBe(false)
   })
 })

@@ -141,6 +141,10 @@ _Avoid_: task route, model setting, project model
 The Capability Route used for Extraction and Schema Suggestion.
 _Avoid_: extraction model, ext route
 
+**Extraction Model Choice**:
+A per-run choice, for one Extraction, of the Parsing Service's extraction models by role: the *field model* reads values off the source for the Extraction Schema, and the *reasoning model* decides over labelled source text (where records start, which passage grounds a value, which competing candidate is right). Each role is chosen among the models the Parsing Service deployment serves for that role; a role left unchosen uses the deployment's default. It is recorded on the Extraction beside the models each role actually ran on. It is not a Capability Route and does not name a Model Connection.
+_Avoid_: extraction model, extraction route, model setting
+
 **Interaction Route**:
 The Capability Route used for document chat and conversational Extraction
 Schema editing.

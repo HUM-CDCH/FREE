@@ -3,7 +3,7 @@ export { createExtractionRuntime } from './runtime.js'
 export type { ExtractionErrorCode } from './errors.js'
 export type { CreateExtractionRuntimeDependencies } from './runtime.js'
 export { createKeiExpClient } from './kei-exp.js'
-export type { KeiExpClient, KeiExpArtifact, KeiExpRequest } from './kei-exp.js'
+export type { KeiExpClient, KeiExpArtifact, KeiExpModelListing, KeiExpRequest } from './kei-exp.js'
 export type {
   BatchDisposition,
   BatchExtractionMemberSnapshot,
@@ -26,6 +26,9 @@ export type {
   ExtractionDisposition,
   ExtractionFailure,
   ExtractionModelAttribution,
+  ExtractionModelChoice,
+  ExtractionModelRole,
+  ExtractionModelsUsed,
   FinalizeReviewResult,
   ExtractionModule,
   ExtractionOutcome,

@@ -90,6 +90,8 @@ test('PDF upload, real parse worker, extraction, evidence and review survive ser
       const polled = await (await fetch(`${service.url}/api/runs/${runId}/extractions/${job.id}`)).json()
       expect(polled.status).toBe('done')
       expect(polled.result.model).toBe(service.model)
+      // One scripted server takes both roles, so each role reports the same model.
+      expect(polled.result.models).toEqual({ fields: service.model, reasoning: service.model })
       const disk = JSON.parse(await readFile(join(service.runs, runId, 'extractions', job.id, 'result.json'), 'utf8'))
       expect(polled.result).toEqual(disk)
       return polled

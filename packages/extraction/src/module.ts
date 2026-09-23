@@ -207,6 +207,8 @@ export function createExtractionJobExecutor({ inputs: reader, keiExp }: Extracti
       schema,
       strategy: input.strategy === 'CATALOG' ? 'catalog' : 'article',
       catalogRecipe: input.kind === 'fresh' && input.strategy === 'CATALOG' ? input.catalogRecipe ?? null : null,
+      // Batch members and retries keep kei-exp's deployment defaults.
+      models: input.kind === 'fresh' ? input.models ?? null : null,
       expectedGeneration: pinnedGeneration(document),
       signal,
     })
@@ -250,6 +252,7 @@ export function createExtractionJobExecutor({ inputs: reader, keiExp }: Extracti
         finishReason: null, ungroundedPaths: artifact.ungrounded, groundingIssues: artifact.issues,
         // Document-level fields: extracted into every record, grounded in none of them.
         groundingBatches: [], unverifiedFields: artifact.unverified, catalog: null, retry: null,
+        models: { fields: artifact.models.fields, reasoning: artifact.models.reasoning },
         ...(grounded
           ? {
               grounded: {

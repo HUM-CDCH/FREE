@@ -198,7 +198,11 @@ for review. Compose wires `KEI_EXP_URL` to its private API and, with GPU access,
 starts a vLLM server with the `KEI_EXTRACT_MODEL` model (default
 `Qwen/Qwen3.8-27B-FP8`). The Extraction
 Route's model id belongs to a FREE Model Connection and is not sent to this
-separate execution endpoint. Schema Suggestion and Interaction still use the
+separate execution endpoint. Instead, each single-document Extraction may carry
+an Extraction Model Choice: a field model and a reasoning model picked from the
+models the service lists at `GET /api/extraction-models`; an unchosen role (and
+every Batch Extraction) uses the service's defaults, and each Extraction records
+the models its roles ran on. Schema Suggestion and Interaction still use the
 configured Capability Routes. Polling waits up to ten minutes for Article and three hours for
 Catalog; cancellation stops FREE from waiting and publishing a result. A
 failed extraction carries kei-exp's own reason. The API has no remote cancellation

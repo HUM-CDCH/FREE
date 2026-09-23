@@ -284,6 +284,9 @@ model ExtractionJob {
   // The numbered-catalogue recipe (`id@version`) a Catalog Extraction segments by; null for generic Catalog and
   // Article. Chosen per Extraction (OpenSpec grounded-numbered-catalogue D1) and pinned in the result it produces.
   catalogRecipe                  String?
+  // The Extraction Model Choice (`{fields?, reasoning?}`: kei-exp model keys per role) requested for this run; null
+  // when every role keeps kei-exp's deployment default. Batch members and retries never choose.
+  requestedModels                Json?
   retryOfId                      Uuid?
   retryDocument                  Boolean?
   rediscover                     Boolean?
@@ -373,6 +376,9 @@ model Extraction {
   schemaRevisionId               Uuid
   sourceRepresentationRevisionId Uuid
   strategy                       String
+  // Copied from the Extraction Job: the run's Extraction Model Choice. The models each role actually ran on are in
+  // `diagnostics.models`; `modelAttribution` names the fields model.
+  requestedModels                Json?
   outcome                        ExtractionOutcome
   complete                       Boolean?
   modelAttribution               Json?

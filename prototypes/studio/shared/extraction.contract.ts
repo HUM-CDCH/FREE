@@ -18,6 +18,47 @@ const requestUuid = z.uuid().transform((value) => value.toLowerCase())
 /** A numbered-catalogue recipe reference (`id@version`), chosen per Catalog Extraction; kei-exp owns the recipes. */
 export const catalogRecipeSchema = z.string().regex(/^[a-z0-9][a-z0-9-]*@[1-9][0-9]*$/)
 
+/** The two roles an Extraction's model calls split into: `fields` reads values off the source, `reasoning` decides over
+ *  labelled text (record starts, grounding, arbitration). kei-exp routes each role to one of its deployment's models. */
+export const extractionModelRoleSchema = z.enum(['fields', 'reasoning'])
+export type ExtractionModelRole = z.infer<typeof extractionModelRoleSchema>
+
+/** A kei-exp extraction model key (`instruct`, `nuextract`, ...): a registry key of the kei-exp deployment, never a
+ *  repo id and never a FREE Model Connection's model. */
+const extractionModelKeySchema = z.string().min(1).max(128)
+
+/** An Extraction Model Choice: per role, the kei-exp model key chosen for one run. An omitted role keeps kei-exp's
+ *  deployment default; kei-exp refuses a key it does not serve, or one that cannot take the role. */
+export const extractionModelChoiceSchema = z
+  .object({ fields: extractionModelKeySchema.optional(), reasoning: extractionModelKeySchema.optional() })
+  .strict()
+export type ExtractionModelChoice = z.infer<typeof extractionModelChoiceSchema>
+
+/** The model (its served repo id) each role actually ran on, as kei-exp reports it in the artifact. */
+export const extractionModelsUsedSchema = z
+  .object({ fields: z.string().min(1), reasoning: z.string().min(1) })
+  .strict()
+
+/** kei-exp's `GET /api/extraction-models`: the deployment's extraction models, the roles each may take and whether its
+ *  server serves it now, and the default key per role. */
+export const extractionModelListingSchema = z
+  .object({
+    defaults: z.object({ fields: extractionModelKeySchema, reasoning: extractionModelKeySchema }).strict(),
+    models: z.array(
+      z
+        .object({
+          key: extractionModelKeySchema,
+          repo: z.string().min(1),
+          roles: z.array(extractionModelRoleSchema),
+          reachable: z.boolean(),
+          serving: z.boolean(),
+        })
+        .strict(),
+    ),
+  })
+  .strict()
+export type ExtractionModelListing = z.infer<typeof extractionModelListingSchema>
+
 export const extractionRetrySelectionSchema = z
   .object({
     retryOfId: requestUuid,
@@ -38,6 +79,7 @@ const extractionFreshRequestSchema = z
     schemaRevisionId: requestUuid,
     strategy: extractionStrategySchema,
     catalogRecipe: catalogRecipeSchema.optional(),
+    models: extractionModelChoiceSchema.optional(),
     retryOfId: z.never().optional(),
     retryDocument: z.never().optional(),
     rediscover: z.never().optional(),
@@ -62,6 +104,7 @@ const extractionRetryRequestSchema = z
     schemaRevisionId: z.never().optional(),
     strategy: z.never().optional(),
     catalogRecipe: z.never().optional(),
+    models: z.never().optional(),
   })
   .strict()
   .superRefine((request, context) => {
@@ -286,6 +329,8 @@ export const extractionDiagnosticsSchema = z
     catalog: catalogDiagnosticsSchema.nullable(),
     retry: extractionRetrySelectionSchema.nullable(),
     grounded: groundedDiagnosticsSchema.nullable().optional(),
+    /** The model each role ran on, as kei-exp resolved the run's choice over its deployment defaults. */
+    models: extractionModelsUsedSchema.nullable().optional(),
   })
   .strict()
 
@@ -308,6 +353,8 @@ export const extractionAttemptSchema = z
     sourceRepresentationRevisionId: z.uuid(),
     schemaRevisionId: z.uuid(),
     strategy: extractionStrategySchema,
+    /** The run's Extraction Model Choice as requested; null when every role kept kei-exp's deployment default. */
+    requestedModels: extractionModelChoiceSchema.nullable().optional(),
     executionStatus: z.enum(['QUEUED', 'RUNNING', 'COMPLETED', 'FAILED']),
     outcome: z.enum(['SUCCEEDED', 'FAILED', 'CANCELLED']).nullable(),
     complete: z.boolean().nullable(),

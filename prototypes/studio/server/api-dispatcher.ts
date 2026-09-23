@@ -20,6 +20,7 @@ const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
   [/^\/api\/project-contexts(?:\/[^/]+)?$/, 'project_contexts'],
   [/^\/api\/schema-revisions(?:\/[^/]+)?$/, 'schema_revisions'],
   [/^\/api\/extraction-schemas(?:\/[^/]+)?$/, 'extraction_schemas'],
+  [/^\/api\/extraction-models$/, 'extraction_models'],
   [/^\/api\/extractions(?:\/[^/]+)?(?:\/review(?:\/(?:draft|reset))?)?$/, 'extractions'],
   [
     /^\/api\/batch-extractions(?:\/[^/]+)?(?:\/results)?$/,

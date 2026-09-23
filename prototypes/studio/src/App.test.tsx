@@ -1223,6 +1223,106 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByLabelText('Record boundaries')).not.toBeInTheDocument()
   })
 
+  describe('Extraction Model Choice', () => {
+    const listing = {
+      defaults: { fields: 'nuextract', reasoning: 'instruct' },
+      models: [
+        { key: 'instruct', repo: 'Qwen/Qwen3.8-27B-FP8', roles: ['fields', 'reasoning'], reachable: true, serving: true },
+        { key: 'nuextract', repo: 'numind/NuExtract3-FP8', roles: ['fields'], reachable: true, serving: false },
+      ],
+    }
+    const attemptFor = (body: { models?: object }, executionStatus: 'RUNNING' | 'FAILED') => ({
+      extractionId: '51000000-0000-4000-8006-000000000031',
+      sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+      sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+      schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+      strategy: 'ARTICLE', requestedModels: body.models ?? null, executionStatus, outcome: null, complete: null,
+      modelAttribution: null, diagnostics: null,
+      failure: executionStatus === 'FAILED' ? { code: 'extraction_failed', message: 'kei-exp returned HTTP 422.' } : null,
+      resultPayload: null, evidenceLinks: null, reviewable: false, retryOfId: null, batchExtractionId: null,
+      createdAt: '2026-08-12T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+    })
+    function stubFetch(models: () => Response, executionStatus: 'RUNNING' | 'FAILED') {
+      const extractionRequests: Array<{ models?: object }> = []
+      const modelReads: string[] = []
+      let acknowledged: ReturnType<typeof attemptFor> | null = null
+      vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+        if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+        if (url.startsWith('/api/schema-revisions?')) return Promise.resolve(Response.json({ revisions: [] }))
+        if (url.endsWith('/api/extraction-models')) {
+          modelReads.push(url)
+          return Promise.resolve(models())
+        }
+        if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+          const body = JSON.parse(String(init.body)) as { models?: object }
+          extractionRequests.push(body)
+          acknowledged = attemptFor(body, executionStatus)
+          return Promise.resolve(Response.json(acknowledged, { status: 201 }))
+        }
+        if (url.startsWith('/api/extractions/') && acknowledged)
+          return Promise.resolve(Response.json({ extraction: acknowledged, pendingReviewDecisions: null }))
+        return Promise.resolve(new Response('pdf'))
+      }))
+      return { extractionRequests, modelReads }
+    }
+    const optionLabels = (label: string) =>
+      Array.from((screen.getByLabelText(label) as HTMLSelectElement).options).map((option) => option.textContent)
+
+    it('offers each role the deployment\'s models, submits the choice once, then defaults back to kei-exp\'s', async () => {
+      const { extractionRequests, modelReads } = stubFetch(() => Response.json(listing), 'FAILED')
+      render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+      await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+      await waitFor(() => expect(optionLabels('Field model')).toEqual([
+        'Default (numind/NuExtract3-FP8)', 'Qwen/Qwen3.8-27B-FP8', 'numind/NuExtract3-FP8 (unavailable)',
+      ]))
+      // NuExtract cannot take the reasoning role, so it is not offered there.
+      expect(optionLabels('Reasoning model')).toEqual(['Default (Qwen/Qwen3.8-27B-FP8)', 'Qwen/Qwen3.8-27B-FP8'])
+      expect(screen.getByLabelText('Field model')).toHaveValue('')
+      expect(screen.getByLabelText('Reasoning model')).toHaveValue('')
+      fireEvent.change(screen.getByLabelText('Field model'), { target: { value: 'instruct' } })
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+
+      await waitFor(() => expect(extractionRequests).toHaveLength(1))
+      // Only the role the researcher changed is sent; the other keeps kei-exp's default.
+      expect(extractionRequests[0]!.models).toEqual({ fields: 'instruct' })
+      await waitFor(() => expect(screen.getByLabelText('Field model')).toHaveValue(''))
+      expect(screen.getByLabelText('Reasoning model')).toHaveValue('')
+      expect(modelReads).toHaveLength(1)
+    })
+
+    it('shows the running attempt\'s own choice while it runs', async () => {
+      const { extractionRequests } = stubFetch(() => Response.json(listing), 'RUNNING')
+      render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+      await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+      await waitFor(() => expect(optionLabels('Reasoning model')).toHaveLength(2))
+      fireEvent.change(screen.getByLabelText('Reasoning model'), { target: { value: 'instruct' } })
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+
+      await waitFor(() => expect(extractionRequests).toHaveLength(1))
+      expect(extractionRequests[0]!.models).toEqual({ reasoning: 'instruct' })
+      await waitFor(() => expect(screen.getByLabelText('Reasoning model')).toBeDisabled())
+      expect(screen.getByLabelText('Reasoning model')).toHaveValue('instruct')
+      expect(screen.getByLabelText('Field model')).toHaveValue('')
+      expect(screen.getByLabelText('Field model')).toBeDisabled()
+    })
+
+    it('keeps only the Default options and still runs when the models cannot be listed', async () => {
+      const { extractionRequests } = stubFetch(
+        () => Response.json({ error: { code: 'extraction_models_unavailable', message: 'Unavailable.' } }, { status: 503 }),
+        'FAILED',
+      )
+      render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+      await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+      expect(optionLabels('Field model')).toEqual(['Default'])
+      expect(optionLabels('Reasoning model')).toEqual(['Default'])
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      await waitFor(() => expect(extractionRequests).toHaveLength(1))
+      expect(extractionRequests[0]).not.toHaveProperty('models')
+    })
+  })
+
   it('abandons a pending run when the active Source Document changes', async () => {
     const nextSourceRepresentationId =
       '51000000-0000-4000-8002-000000000099'

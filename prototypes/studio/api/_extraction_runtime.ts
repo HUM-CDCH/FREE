@@ -41,6 +41,7 @@ function transportDiagnostics(
       : null,
     retry: diagnostics.retry ?? null,
     ...(diagnostics.grounded ? { grounded: diagnostics.grounded } : {}),
+    ...(diagnostics.models ? { models: diagnostics.models } : {}),
   }
 }
 
@@ -52,6 +53,7 @@ export function extractionAttemptDto(extraction: ExtractionAttemptSnapshot) {
       extraction.sourceRepresentationRevisionId,
     schemaRevisionId: extraction.schemaRevisionId,
     strategy: extraction.strategy,
+    requestedModels: extraction.requestedModels ?? null,
     executionStatus: extraction.executionStatus,
     outcome: extraction.outcome,
     complete: extraction.complete,
@@ -79,15 +81,15 @@ export function extractionAttemptDto(extraction: ExtractionAttemptSnapshot) {
 }
 
 
-export const extractionRuntime = createExtractionRuntime({
-  keiExp: createKeiExpClient({
-    url: process.env.KEI_EXP_URL ?? (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_KEI_EXP_URL ?? 'http://127.0.0.1:8001',
-    // Not the extraction route's modelId: that names a model on a FREE Model Connection, while
-    // kei-exp resolves this name against its own model server. Unset, kei-exp's deployment
-    // default wins, and the model that actually ran is read back from the artifact.
-    model: async () => process.env.KEI_EXP_EXTRACT_MODEL ?? null,
-  }),
+/** The one kei-exp client: jobs extract through it, and Studio lists the deployment's extraction models with it.
+ *  It names no model itself: a run sends its Extraction Model Choice (kei-exp model keys per role) or none, and
+ *  kei-exp's deployment defaults fill the rest. The Extraction Route's modelId names a model on a FREE Model
+ *  Connection and never reaches kei-exp; the models that actually ran are read back from the artifact. */
+export const keiExpClient = createKeiExpClient({
+  url: process.env.KEI_EXP_URL ?? (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_KEI_EXP_URL ?? 'http://127.0.0.1:8001',
 })
+
+export const extractionRuntime = createExtractionRuntime({ keiExp: keiExpClient })
 export function createResearcherExtractions(researcherAccountId: string): ExtractionModule {
   return extractionRuntime.forResearcher(researcherAccountId)
 }

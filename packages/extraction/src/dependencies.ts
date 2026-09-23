@@ -133,5 +133,6 @@ export type ExtractionJobExecutor = (
 
 export type ExtractionJobExecutorDependencies = Readonly<{
   inputs: ExtractionInputReader
-  keiExp: KeiExpClient
+  /** A job only extracts; listing kei-exp's models is Studio's concern. */
+  keiExp: Pick<KeiExpClient, 'extract'>
 }>

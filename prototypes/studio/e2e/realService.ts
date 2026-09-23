@@ -169,6 +169,8 @@ export async function startRealService(logFile: string) {
     KEI_EXTRACT_URL: realUrl ?? fixture!.url,
     KEI_EXTRACT_MODEL: realModel ?? 'deterministic-source-reader',
     KEI_EXTRACT_TIMEOUT: '180',
+    // One instruct server serves every role here; a KEI_NUEXTRACT_URL exported in the shell must not route fields away.
+    KEI_NUEXTRACT_URL: '',
     CUDA_VISIBLE_DEVICES: '',
     HF_HUB_DISABLE_TELEMETRY: '1',
   }

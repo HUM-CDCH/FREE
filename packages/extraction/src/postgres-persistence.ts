@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
+import { isDeepStrictEqual } from 'node:util'
 import {
   canonicalPackageStore,
   db,
@@ -13,6 +14,7 @@ import { ExtractionError } from './errors.js'
 import { persistSuggestedBatch } from './postgres-suggested-batch.js'
 import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
 import { sameRetrySelection, validateCatalogRetry } from './catalog.js'
+import { modelChoice } from './model-choice.js'
 import type {
   ClaimedExtractionJob,
   ExtractionInputReader,
@@ -31,6 +33,7 @@ import type {
   CancellationResult,
   DocumentExtractionsSnapshot,
   ExtractionAttemptSnapshot,
+  ExtractionModelChoice,
   ExtractionSnapshot,
   ExtractionStrategy,
   ReadBatchInput,
@@ -163,7 +166,7 @@ export function snapshot(batch: DurableBatchExtraction): BatchExtractionSnapshot
 async function loadExtraction(orm: DatabaseOrm, extractionId: string): Promise<ExtractionSnapshot | null> {
   const row = await orm.public.Extraction.select(
     'id', 'sourceDocumentId', 'sourceRepresentationRevisionId', 'schemaRevisionId',
-    'strategy', 'outcome', 'complete', 'modelAttribution', 'diagnostics', 'failure',
+    'strategy', 'requestedModels', 'outcome', 'complete', 'modelAttribution', 'diagnostics', 'failure',
     'resultPayload', 'evidenceLinks', 'reviewable', 'retryOfId', 'batchExtractionId',
     'createdAt', 'reviewedAt',
   ).first({ id: extractionId })
@@ -202,6 +205,7 @@ async function loadExtraction(orm: DatabaseOrm, extractionId: string): Promise<E
     extractionSchemaId: schema.extractionSchemaId,
     schemaRevisionNumber: schema.revisionNumber,
     strategy: row.strategy,
+    requestedModels: modelChoice(row.requestedModels),
     outcome: row.outcome,
     complete: row.complete,
     modelAttribution: row.modelAttribution as ExtractionSnapshot['modelAttribution'],
@@ -250,6 +254,7 @@ async function loadExtractionAttempt(
     'sourceRepresentationRevisionId',
     'schemaRevisionId',
     'strategy',
+    'requestedModels',
     'executionStatus',
     'complete',
     'modelAttribution',
@@ -289,6 +294,7 @@ async function loadExtractionAttempt(
     extractionSchemaId: schema.extractionSchemaId,
     schemaRevisionNumber: schema.revisionNumber,
     strategy: row.strategy,
+    requestedModels: modelChoice(row.requestedModels),
     executionStatus: row.executionStatus,
     outcome: null,
     complete: row.complete,
@@ -314,6 +320,7 @@ type ScheduledJob = Readonly<{
   schemaRevisionId: string
   strategy: ExtractionStrategy
   catalogRecipe: string | null
+  requestedModels: ExtractionModelChoice | null
   retryOfId: string | null
   retryDocument: boolean | null
   rediscover: boolean | null
@@ -328,6 +335,7 @@ function jobIdentityMatches(
     schemaRevisionId: string
     strategy: ExtractionStrategy
     catalogRecipe: string | null
+    requestedModels: unknown
     retryOfId: string | null
     retryDocument: boolean | null
     rediscover: boolean | null
@@ -359,6 +367,7 @@ function jobIdentityMatches(
     row.schemaRevisionId === job.schemaRevisionId &&
     row.strategy === job.strategy &&
     row.catalogRecipe === job.catalogRecipe &&
+    isDeepStrictEqual(modelChoice(row.requestedModels), job.requestedModels) &&
     retryMatches
 }
 
@@ -386,6 +395,7 @@ async function resolveScheduledJob(
       schemaRevisionId: parent.schemaRevisionId,
       strategy: 'CATALOG',
       catalogRecipe: null,
+      requestedModels: null,
       retryOfId: parent.extractionId,
       retryDocument: retry.selection.retryDocument,
       rediscover: retry.selection.rediscover,
@@ -427,6 +437,7 @@ async function resolveScheduledJob(
     schemaRevisionId: input.schemaRevisionId,
     strategy: input.strategy,
     catalogRecipe: input.strategy === 'CATALOG' ? input.catalogRecipe ?? null : null,
+    requestedModels: modelChoice(input.models),
     retryOfId: null,
     retryDocument: null,
     rediscover: null,
@@ -446,7 +457,7 @@ async function scheduleInteractiveExtraction(
       const { orm } = transaction
       const existingJob = await orm.public.ExtractionJob.select(
         'kind', 'projectContextId', 'sourceRepresentationRevisionId',
-        'schemaRevisionId', 'strategy', 'catalogRecipe', 'retryOfId', 'retryDocument',
+        'schemaRevisionId', 'strategy', 'catalogRecipe', 'requestedModels', 'retryOfId', 'retryDocument',
         'rediscover', 'retryRecordStartBlockIds',
       ).first({ id: input.extractionId })
       const job = await resolveScheduledJob(transaction, input, researcherAccountId)
@@ -1064,7 +1075,7 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
         kind,
         executionStatus: 'QUEUED',
       }).select(
-        'id', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'catalogRecipe',
+        'id', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'catalogRecipe', 'requestedModels',
         'retryOfId', 'retryDocument', 'rediscover', 'retryRecordStartBlockIds',
         'batchExtractionId', 'leaseVersion', 'startedAt', 'createdAt',
         'complete', 'modelAttribution', 'diagnostics', 'resultPayload',
@@ -1076,7 +1087,7 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
         kind,
         executionStatus: 'RUNNING',
       }).select(
-        'id', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'catalogRecipe',
+        'id', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'catalogRecipe', 'requestedModels',
         'retryOfId', 'retryDocument', 'rediscover', 'retryRecordStartBlockIds',
         'batchExtractionId', 'leaseVersion', 'leaseExpiresAt', 'startedAt', 'createdAt',
         'cancelRequestedAt', 'complete', 'modelAttribution', 'diagnostics', 'resultPayload',
@@ -1168,6 +1179,7 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
               schemaRevisionId: candidate.schemaRevisionId,
               strategy: candidate.strategy,
               catalogRecipe: candidate.catalogRecipe,
+              models: modelChoice(candidate.requestedModels),
             }
       const checkpoint = candidate.resultPayload !== null &&
           candidate.complete !== null &&
@@ -1240,7 +1252,7 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
     finishedAt: Date,
   ): Promise<boolean> {
     return this.database.transaction(async ({ orm }) => {
-      const job = await orm.public.ExtractionJob.select('id').first({
+      const job = await orm.public.ExtractionJob.select('id', 'requestedModels').first({
         id,
         executionStatus: 'RUNNING',
         leaseOwner: lease.owner,
@@ -1254,6 +1266,8 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
         sourceRepresentationRevisionId: input.sourceRepresentationRevisionId,
         schemaRevisionId: input.schemaRevisionId,
         strategy: input.strategy,
+        // The Extraction keeps what its job was asked for; what each role ran on is in its diagnostics.
+        requestedModels: modelChoice(job.requestedModels),
         outcome: 'SUCCEEDED',
         complete: input.complete,
         modelAttribution: input.modelAttribution,

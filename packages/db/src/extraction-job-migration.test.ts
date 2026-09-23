@@ -73,3 +73,36 @@ it('rejects populated batch tables before schema changes', async () => {
     1,
   )
 })
+
+it('adds the requested Extraction Model Choice as a nullable jsonb column to jobs and Extractions only', async () => {
+  const directory = resolve(
+    import.meta.dirname,
+    '../migrations/app/20260923T1547_extraction_requested_models',
+  )
+  const all = JSON.parse(
+    await readFile(resolve(directory, 'ops.json'), 'utf8'),
+  ) as MigrationOperation[]
+
+  assert.deepEqual(all.map((operation) => operation.id).sort(), [
+    'column.public.extraction.requestedModels',
+    'column.public.extractionJob.requestedModels',
+  ])
+  for (const operation of all) {
+    assert.equal(operation.operationClass, 'additive')
+    // Nullable, with no default: jobs and Extractions made before a run could choose keep kei-exp's defaults.
+    assert.match(
+      operation.execute?.[0]?.sql ?? '',
+      /^ALTER TABLE "public"\."(?:extraction|extractionJob)" ADD COLUMN "requestedModels" jsonb$/,
+    )
+  }
+  const migration = JSON.parse(
+    await readFile(resolve(directory, 'migration.json'), 'utf8'),
+  ) as { from: string }
+  const previous = JSON.parse(
+    await readFile(
+      resolve(directory, '../20260923T1050_extraction_job_catalog_recipe/migration.json'),
+      'utf8',
+    ),
+  ) as { to: string }
+  assert.equal(migration.from, previous.to)
+})

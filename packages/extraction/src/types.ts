@@ -102,6 +102,17 @@ export type ModelAttribution = Readonly<{
 
 export type ExtractionModelAttribution = ModelAttribution
 
+/** The two roles an Extraction's model calls split into: `fields` reads values off the source, `reasoning` decides
+ *  over labelled text (record starts, grounding, arbitration). */
+export type ExtractionModelRole = 'fields' | 'reasoning'
+
+/** An Extraction Model Choice: per role, a model key of kei-exp's deployment (`instruct`, `nuextract`...), chosen for
+ *  one run. A role left out keeps kei-exp's deployment default. Not a Capability Route or a FREE Model Connection. */
+export type ExtractionModelChoice = Readonly<Partial<Record<ExtractionModelRole, string>>>
+
+/** The model (its served repo id) each role actually ran on, as kei-exp resolved the choice. */
+export type ExtractionModelsUsed = Readonly<Record<ExtractionModelRole, string>>
+
 export type GroundingBatchSnapshot = Readonly<{
   resultPath: ResultPath | null
   candidateCount: number
@@ -166,6 +177,8 @@ export type ExtractionDiagnostics = Readonly<{
   retry: ExtractionRetrySelection | null
   /** The recipe path's review material and separated completeness; absent on version 1 results. */
   grounded?: GroundedDiagnostics | null
+  /** The model each role ran on; absent on results from before kei-exp routed calls by role. */
+  models?: ExtractionModelsUsed | null
 }>
 
 export type ExtractionFailure = Readonly<{
@@ -183,6 +196,8 @@ export type ExtractionSnapshot = Readonly<{
   extractionSchemaId: string
   schemaRevisionNumber: number
   strategy: ExtractionStrategy
+  /** The run's Extraction Model Choice; null (or absent) when every role kept kei-exp's deployment default. */
+  requestedModels?: ExtractionModelChoice | null
   outcome: ExtractionOutcome
   complete: boolean | null
   modelAttribution: ExtractionModelAttribution | null
@@ -207,6 +222,8 @@ export type ExtractionAttemptSnapshot = Readonly<{
   extractionSchemaId: string
   schemaRevisionNumber: number
   strategy: ExtractionStrategy
+  /** The run's Extraction Model Choice; null (or absent) when every role kept kei-exp's deployment default. */
+  requestedModels?: ExtractionModelChoice | null
   executionStatus: ProjectOperationStatus
   outcome: ExtractionOutcome | null
   complete: boolean | null
@@ -231,6 +248,8 @@ export type FreshExtractionInput = Readonly<{
   strategy: ExtractionStrategy
   /** The numbered-catalogue recipe chosen for this Catalog Extraction; null or absent for generic Catalog. */
   catalogRecipe?: string | null
+  /** The Extraction Model Choice for this run; null, absent or empty keeps kei-exp's defaults for every role. */
+  models?: ExtractionModelChoice | null
 }>
 
 export type RetryExtractionInput = Readonly<{

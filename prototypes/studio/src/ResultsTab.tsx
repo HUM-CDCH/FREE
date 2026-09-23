@@ -182,7 +182,13 @@ function ExtractionDiagnostics({ attempt }: { attempt: ExtractionAttempt }) {
               failureCode: null,
               calls: diagnostics.modelCalls,
             }}
-            identity={[["Phase", diagnostics.phase]]}
+            identity={[
+              ['Phase', diagnostics.phase],
+              // The model each role ran on, as kei-exp resolved the run's choice over its defaults.
+              ...(diagnostics.models
+                ? [['Field model', diagnostics.models.fields], ['Reasoning model', diagnostics.models.reasoning]] as Array<[string, string]>
+                : []),
+            ]}
           />
           {catalog && (
             <div className="space-y-2" aria-label="Catalog diagnostics">

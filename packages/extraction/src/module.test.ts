@@ -29,7 +29,7 @@ function artifact(overrides: Partial<KeiExpArtifact> = {}): KeiExpArtifact {
   })
 }
 function harness(responses: Array<Response | Error>, strategy: 'ARTICLE' | 'CATALOG' = 'ARTICLE', document = parsedDocument,
-  catalogRecipe: string | null = null) {
+  catalogRecipe: string | null = null, models: Readonly<{ fields?: string; reasoning?: string }> | null = null) {
   const requests: Array<{ url: string; init?: RequestInit }> = []
   const inputs: ExtractionInputReader = {
     readExtractionAttempt: async () => null,
@@ -39,7 +39,7 @@ function harness(responses: Array<Response | Error>, strategy: 'ARTICLE' | 'CATA
     }),
   }
   const keiExp = createKeiExpClient({
-    url: 'http://kei-exp:8001/', model: async () => 'selected-model', pollIntervalMs: 1,
+    url: 'http://kei-exp:8001/', pollIntervalMs: 1,
     fetch: async (url, init) => {
       requests.push({ url: String(url), init })
       const next = responses.shift()
@@ -49,7 +49,7 @@ function harness(responses: Array<Response | Error>, strategy: 'ARTICLE' | 'CATA
     },
   })
   const execute = createExtractionJobExecutor({ inputs, keiExp })
-  const input = { kind: 'fresh' as const, extractionId: randomUUID(), sourceRepresentationRevisionId: randomUUID(), schemaRevisionId: randomUUID(), strategy, catalogRecipe }
+  const input = { kind: 'fresh' as const, extractionId: randomUUID(), sourceRepresentationRevisionId: randomUUID(), schemaRevisionId: randomUUID(), strategy, catalogRecipe, models }
   return {
     requests, input, execute,
     run: (signal = new AbortController().signal) => execute(input, signal),
@@ -65,7 +65,8 @@ describe('kei-exp extraction relay', () => {
     const h = harness([json(ack, 202), polled(artifact())])
     const result = await h.run()
     assert.equal(h.requests[0].url, `http://kei-exp:8001/api/runs/${encodeURIComponent(runId)}/extract`)
-    assert.deepEqual(JSON.parse(h.requests[0].init!.body as string), { schema, options: { strategy: 'article', model: 'selected-model' } })
+    // Never a single `model`: kei-exp routes each role to its deployment default unless the run chose otherwise.
+    assert.deepEqual(JSON.parse(h.requests[0].init!.body as string), { schema, options: { strategy: 'article' } })
     assert.equal(h.requests[1].url, `http://kei-exp:8001/api/runs/${encodeURIComponent(runId)}/extractions/${ack.id}`)
     assert.deepEqual(result.result, { records: [{ title: 'Alpha', year: null }] })
     assert.deepEqual(result.evidence, [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'a_p1_s0', verbatim: true, lexicalHits: 1, linkedBy: 'lexical' }])
@@ -73,7 +74,7 @@ describe('kei-exp extraction relay', () => {
     assert.equal(result.reviewable, true)
     assert.equal(result.outcome, 'SUCCEEDED')
     assert.deepEqual(result.modelAttribution, { provider: 'kei-exp', modelId: 'selected-model' })
-    assert.deepEqual(result.diagnostics, { phase: 'persisting', durationMs: 1250, modelCalls: 3, inputTokens: 20, outputTokens: 10, finishReason: null, ungroundedPaths: [], groundingIssues: issues, groundingBatches: [], unverifiedFields: [], catalog: null, retry: null })
+    assert.deepEqual(result.diagnostics, { phase: 'persisting', durationMs: 1250, modelCalls: 3, inputTokens: 20, outputTokens: 10, finishReason: null, ungroundedPaths: [], groundingIssues: issues, groundingBatches: [], unverifiedFields: [], catalog: null, retry: null, models: { fields: 'selected-model', reasoning: 'selected-model' } })
   })
 
   it('sends a Catalog recipe and maps the version 2 artifact without dropping what review needs', async () => {
@@ -86,7 +87,7 @@ describe('kei-exp extraction relay', () => {
     const h = harness([json(ack, 202), polled(grounded)], 'CATALOG', parsedDocument, 'numbered-catalogue-de@1')
     const result = await h.run()
     assert.deepEqual(JSON.parse(h.requests[0].init!.body as string).options,
-      { strategy: 'catalog', model: 'selected-model', catalog: { recipe: 'numbered-catalogue-de@1' } })
+      { strategy: 'catalog', catalog: { recipe: 'numbered-catalogue-de@1' } })
     assert.deepEqual(result.result, { records: grounded.records })
     assert.equal(result.complete, false)
     const sheet = result.evidence!.find((link) => link.resultPath[2] === 'mbl_old')!
@@ -274,17 +275,72 @@ describe('kei-exp extraction relay', () => {
     await assert.rejects(harness([], 'ARTICLE', unreadable).run(), { code: 'invalid_source_representation' })
   })
 
-  it('omits options.model when no model is named, leaving kei-exp its deployment default', async () => {
-    const bodies: string[] = []
-    const client = createKeiExpClient({
-      url: 'http://kei-exp:8001', pollIntervalMs: 1,
-      fetch: async (_url, init) => {
-        bodies.push(String(init?.body ?? ''))
-        return bodies.length === 1 ? json(ack, 202) : polled(artifact())
+  it('omits options.models when the run chose no role, leaving kei-exp its deployment defaults', async () => {
+    for (const models of [undefined, null, {}, { fields: undefined }]) {
+      const bodies: string[] = []
+      const client = createKeiExpClient({
+        url: 'http://kei-exp:8001', pollIntervalMs: 1,
+        fetch: async (_url, init) => {
+          bodies.push(String(init?.body ?? ''))
+          return bodies.length === 1 ? json(ack, 202) : polled(artifact())
+        },
+      })
+      await client.extract({ runId, schema, strategy: 'article', models, expectedGeneration: null, signal: new AbortController().signal })
+      assert.deepEqual(JSON.parse(bodies[0]), { schema, options: { strategy: 'article' } })
+    }
+  })
+
+  it('sends the Extraction Model Choice as options.models and records the model each role ran on', async () => {
+    const models = { fields: 'selected-model', reasoning: 'reasoning-model' }
+    const value = artifact({ models, options: { strategy: 'article', model: null, models: { reasoning: 'instruct' } } })
+    const h = harness([json(ack, 202), polled(value)], 'ARTICLE', parsedDocument, null, { reasoning: 'instruct' })
+    const result = await h.run()
+    assert.deepEqual(JSON.parse(h.requests[0].init!.body as string).options, { strategy: 'article', models: { reasoning: 'instruct' } })
+    // Attribution stays the model that read the values: the fields model.
+    assert.deepEqual(result.modelAttribution, { provider: 'kei-exp', modelId: 'selected-model' })
+    assert.deepEqual(result.diagnostics.models, models)
+  })
+
+  it('refuses an artifact produced under another Extraction Model Choice than the one requested', async () => {
+    for (const recorded of [null, { fields: 'instruct' }, { fields: 'nuextract', reasoning: 'instruct' }]) {
+      const value = artifact({ options: { strategy: 'article', model: null, models: recorded } })
+      const h = harness([json(ack, 202), polled(value)], 'ARTICLE', parsedDocument, null, { fields: 'nuextract' })
+      await assert.rejects(h.run(), { code: 'invalid_model_output' })
+    }
+    const unchosen = artifact({ options: { strategy: 'article', model: null, models: { fields: 'nuextract' } } })
+    await assert.rejects(harness([json(ack, 202), polled(unchosen)]).run(), { code: 'invalid_model_output' })
+  })
+
+  it('rejects an artifact that does not name the model of each role', async () => {
+    for (const models of [undefined, null, { fields: 'selected-model' }, { fields: '', reasoning: 'r' }])
+      await assert.rejects(harness([json(ack, 202), polled({ ...artifact(), models })]).run(), { code: 'invalid_model_output' })
+  })
+
+  it('lists the deployment\'s extraction models, their roles and the default per role', async () => {
+    const listing = {
+      defaults: { fields: 'nuextract', reasoning: 'instruct' },
+      models: [
+        { key: 'instruct', repo: 'Qwen/Qwen3.8-27B-FP8', roles: ['fields', 'reasoning'], reachable: true, serving: true },
+        { key: 'nuextract', repo: 'numind/NuExtract3-FP8', roles: ['fields'], reachable: true, serving: false },
+      ],
+    }
+    const requests: string[] = []
+    const client = (response: Response | Error) => createKeiExpClient({
+      url: 'http://kei-exp:8001/', pollIntervalMs: 1,
+      fetch: async (url, init) => {
+        requests.push(`${init?.method ?? 'GET'} ${String(url)}`)
+        if (response instanceof Error) throw response
+        return response
       },
     })
-    await client.extract({ runId, schema, strategy: 'article', expectedGeneration: null, signal: new AbortController().signal })
-    assert.deepEqual(JSON.parse(bodies[0]), { schema, options: { strategy: 'article' } })
+    assert.deepEqual(await client(json(listing)).listModels(new AbortController().signal), listing)
+    assert.deepEqual(requests, ['GET http://kei-exp:8001/api/extraction-models'])
+    await assert.rejects(client(json({ detail: 'the store is down' }, 503)).listModels(), (error: unknown) =>
+      error instanceof ExtractionError && error.code === 'model_unavailable' && error.message.includes('the store is down'))
+    await assert.rejects(client(new TypeError('fetch failed')).listModels(), (error: unknown) =>
+      error instanceof ExtractionError && error.code === 'model_unavailable' && error.message.includes('fetch failed'))
+    for (const invalid of [json({ models: [] }), json({ ...listing, models: [{ key: 'x' }] }), new Response('not json')])
+      await assert.rejects(client(invalid).listModels(), { code: 'invalid_model_output' })
   })
 
   it('relays the document-level field names kei-exp could not verify', async () => {

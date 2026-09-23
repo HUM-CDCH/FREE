@@ -134,6 +134,14 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       response.writeHead(status, { 'content-type': 'application/json' })
       response.end(JSON.stringify(value))
     }
+    // kei-exp's deployment listing: the fixture serves one instruction model for both roles.
+    if (request.method === 'GET' && request.url === '/api/extraction-models') {
+      send({
+        defaults: { fields: 'instruct', reasoning: 'instruct' },
+        models: [{ key: 'instruct', repo: 'fixture/nuextract', roles: ['fields', 'reasoning'], reachable: true, serving: true }],
+      })
+      return
+    }
     if (request.method === 'GET') {
       const id = request.url!.split('/').at(-1)!
       const job = artifacts.get(id)
@@ -170,7 +178,10 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       const resultPaths = paths({ records })
       const job = { ready: true, runId, artifact: keiExpArtifact({
         run_id: runId, generation: 'g1', fingerprint: id,
-        strategy: options.strategy, model: options.model ?? 'fixture/nuextract', schema, options,
+        strategy: options.strategy, model: 'fixture/nuextract',
+        models: { fields: 'fixture/nuextract', reasoning: 'fixture/nuextract' }, schema,
+        // kei-exp records the options it ran under, `models` null when the run kept the deployment defaults.
+        options: { model: null, models: null, ...options },
         started: new Date().toISOString(), seconds: 0.1, complete: !ungrounded, records,
         evidence: ungrounded ? [] : resultPaths.map(path => keiExpEvidence({ path, verbatim: false, hits: 0, linked_by: 'model' })),
         ungrounded: ungrounded ? resultPaths : [],
@@ -289,10 +300,20 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     if (request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/api/extractions'))
       interactivePosts += 1
   })
+  // kei-exp's listed models are offered per role; the choice goes with this one run and stays with its Extraction.
+  const fieldModel = page.getByRole('combobox', { name: 'Field model' })
+  await expect(fieldModel.locator('option')).toHaveText(['Default (fixture/nuextract)', 'fixture/nuextract'])
+  await fieldModel.selectOption('instruct')
   await page.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
   await page.getByRole('button', { name: '▶ Run extraction' }).dblclick()
   await expect(page.getByRole('button', { name: '↻ Re-run extraction' })).toBeVisible()
   expect(interactivePosts).toBe(1)
+  await expect(fieldModel).toHaveValue('')
+  const chosen = await db.orm.public.Extraction.where({ sourceDocumentId })
+    .select('requestedModels', 'diagnostics').first()
+  expect(chosen?.requestedModels).toEqual({ fields: 'instruct' })
+  expect((chosen?.diagnostics as { models?: unknown } | undefined)?.models)
+    .toEqual({ fields: 'fixture/nuextract', reasoning: 'fixture/nuextract' })
 
   const otherPackage = await canonicalPackage(
     'different-document.pdf',
@@ -657,16 +678,22 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   valuesGate.release?.()
   await waitForExtraction(freshPage.request, blockerId)
 
-  const replayRequest = {
+  const replayPins = {
     id: reviewed!.id,
     sourceRepresentationRevisionId: firstRepresentationId,
     schemaRevisionId: firstSchemaRevisionId,
     strategy,
   }
+  // The first run chose its field model, and that choice is part of its identity.
+  const replayRequest = { ...replayPins, models: { fields: 'instruct' } }
   expect((await freshPage.request.post(e2eStudioPath('/api/extractions'), {
     headers: { Origin: E2E_ORIGIN },
     data: replayRequest,
   })).status()).toBe(200)
+  expect((await freshPage.request.post(e2eStudioPath('/api/extractions'), {
+    headers: { Origin: E2E_ORIGIN },
+    data: replayPins,
+  })).status()).toBe(409)
   expect((await freshPage.request.post(e2eStudioPath('/api/extractions'), {
     headers: { Origin: E2E_ORIGIN },
     data: { ...replayRequest, sourceRepresentationRevisionId: otherRepresentationId },

@@ -7,11 +7,13 @@ import {
   extractionRequestSchema,
   extractionAttemptSchema,
   extractionReadResponseSchema,
+  extractionModelListingSchema,
   finalizeExtractionReviewSchema,
   extractionReviewDraftSchema,
   reviewDecisionInputSchema,
   type ExtractionRequestInput,
   type ExtractionAttempt,
+  type ExtractionModelListing,
   type ReviewDecisionInput,
 } from '../shared/extraction.contract'
 
@@ -125,6 +127,14 @@ async function extractionJson(
     )
   }
   return response.json()
+}
+
+/** The kei-exp deployment's extraction models, the roles each may take and its default per role: what a run's
+ *  Extraction Model Choice picks from. */
+export async function readExtractionModels(signal?: AbortSignal): Promise<ExtractionModelListing> {
+  return extractionModelListingSchema.parse(
+    await extractionJson('/extraction-models', 'GET', null, signal),
+  )
 }
 
 export async function requestExtraction(

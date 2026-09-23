@@ -3,6 +3,8 @@ import { isDeepStrictEqual } from 'node:util'
 import { z } from 'zod'
 import { ExtractionError } from './errors.js'
 import type { ExtractionSchemaDefinition } from './schema.js'
+import { modelChoice } from './model-choice.js'
+import type { ExtractionModelChoice } from './types.js'
 
 const path = z.array(z.union([z.string(), z.number().int().nonnegative()]))
 /** One model call, as kei-exp's `kie/extract/stages.py` `Call` is written into the artifact. */
@@ -35,7 +37,10 @@ const artifactSchema = z.object({
   digest: z.string(),
   fingerprint: z.string(),
   strategy: z.enum(['catalog', 'article']),
+  // The fields model's repo id: the model that read the values, and the one attribution names.
   model: z.string().min(1),
+  // The repo id each role ran on (`kie/extract/models.py` `Router.models`): the run's choice over the deployment defaults.
+  models: z.object({ fields: z.string().min(1), reasoning: z.string().min(1) }),
   // kei-exp writes its `PROMPT_VERSION`: a number, not a label.
   prompt_version: z.number().int(),
   schema: z.object({ recordDescription: z.string(), schemaNodes: z.array(z.unknown()) }),
@@ -105,6 +110,8 @@ const groundedArtifactSchema = artifactSchema.extend({
   budget: z.object({
     version: z.number().int().positive(), input_tokens: z.number().int().positive(), output_tokens: z.number().int().positive(),
     tokenizer: z.object({ source: z.string(), model: z.string(), model_digest: z.string().nullable(), template_tokens: z.number().int().nullable() }),
+    // One tokenizer identity per role, since the roles may be served apart; `tokenizer` is the fields role's.
+    tokenizers: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
   }),
   normalization: z.object({ version: z.number().int().positive(), rules: z.array(z.literal('glossary')) }),
   record_blocks: z.array(z.object({ block: z.string(), entry_label: z.string() })),
@@ -116,6 +123,17 @@ const groundedArtifactSchema = artifactSchema.extend({
 })
 const versionOneSchema = artifactSchema.extend({ extraction_version: z.literal(1) })
 const anyArtifactSchema = z.discriminatedUnion('extraction_version', [versionOneSchema, groundedArtifactSchema])
+/** `GET /api/extraction-models` (kei-exp `api.py` `list_extraction_models`). */
+const modelListingSchema = z.object({
+  defaults: z.object({ fields: z.string().min(1), reasoning: z.string().min(1) }),
+  models: z.array(z.object({
+    key: z.string().min(1),
+    repo: z.string().min(1),
+    roles: z.array(z.enum(['fields', 'reasoning'])),
+    reachable: z.boolean(),
+    serving: z.boolean(),
+  })),
+})
 const acceptedSchema = z.object({ id: z.string().min(1), run_id: z.string(), status: z.literal('queued'), generation: z.string().min(1) })
 /** What `GET /api/runs/{run_id}/extractions/{id}` answers: the job's status, and the
  *  artifact under `result` only once the status is `done`. */
@@ -162,6 +180,7 @@ export type KeiExpArtifact = z.infer<typeof versionOneSchema>
 export type KeiExpGroundedArtifact = z.infer<typeof groundedArtifactSchema>
 export type KeiExpGroundedEvidence = z.infer<typeof groundedEvidenceSchema>
 export type KeiExpAnyArtifact = z.infer<typeof anyArtifactSchema>
+export type KeiExpModelListing = z.infer<typeof modelListingSchema>
 export type KeiExpCall = z.infer<typeof callSchema>
 export type KeiExpEvidence = z.infer<typeof evidenceSchema>
 export type KeiExpStatus = 'queued' | 'running' | 'done' | 'failed' | 'cancelled'
@@ -181,6 +200,9 @@ export type KeiExpRequest = Readonly<{
   /** A numbered-catalogue recipe (`id@version`) for a Catalog Extraction, chosen per Extraction; null keeps
    *  kei-exp's generic Catalog discovery. With a recipe kei-exp answers with a version 2 artifact. */
   catalogRecipe?: string | null
+  /** The Extraction Model Choice: per role, a model key of kei-exp's deployment. A role left out, or no choice at all,
+   *  keeps kei-exp's deployment default for it. */
+  models?: ExtractionModelChoice | null
   /** The parse generation the caller pinned, checked against the acknowledgement before any
    *  polling; null when the Source Representation does not come from kei-exp. */
   expectedGeneration: string | null
@@ -188,32 +210,52 @@ export type KeiExpRequest = Readonly<{
 }>
 export interface KeiExpClient {
   extract(request: KeiExpRequest): Promise<KeiExpAnyArtifact>
+  /** The extraction models kei-exp's deployment serves, the roles each may take, and its default per role. */
+  listModels(signal?: AbortSignal): Promise<KeiExpModelListing>
 }
 
 export function createKeiExpClient({
   url,
-  model = async () => null,
   fetch: fetchRequest = globalThis.fetch,
   pollIntervalMs = 1500,
 }: {
   url: string
-  model?: () => Promise<string | null>
   fetch?: typeof globalThis.fetch
   pollIntervalMs?: number
 }): KeiExpClient {
+  const root = url.replace(/\/$/, '')
   return {
+    async listModels(signal) {
+      let response: Response
+      try {
+        response = await fetchRequest(`${root}/api/extraction-models`, {
+          method: 'GET', signal: AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(10_000)]),
+        })
+      } catch (error) {
+        signal?.throwIfAborted()
+        throw new ExtractionError('model_unavailable', `kei-exp could not be reached to list its extraction models: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
+      }
+      if (!response.ok) throw new ExtractionError('model_unavailable', await httpFailure(response))
+      let body: unknown
+      try { body = await response.json() }
+      catch (error) { throw new ExtractionError('invalid_model_output', 'kei-exp returned invalid JSON.', { cause: error }) }
+      const listing = modelListingSchema.safeParse(body)
+      if (!listing.success)
+        throw new ExtractionError('invalid_model_output', 'kei-exp returned an invalid extraction model listing.')
+      return listing.data
+    },
     async extract(request) {
       const signal = AbortSignal.any([
         request.signal,
         AbortSignal.timeout(request.strategy === 'catalog' ? 3 * 60 * 60 * 1000 : 10 * 60 * 1000),
       ])
-      const base = `${url.replace(/\/$/, '')}/api/runs/${encodeURIComponent(request.runId)}`
-      // `model` names a model on kei-exp's own model server, so it is omitted unless the
-      // deployment names one: kei-exp then uses its configured default.
-      const named = await model()
+      const base = `${root}/api/runs/${encodeURIComponent(request.runId)}`
+      // Keys of kei-exp's own model registry, per role; never a single legacy `model`, and never a FREE Model
+      // Connection's model id. A role left out keeps kei-exp's deployment default.
+      const models = modelChoice(request.models)
       const recipe = request.strategy === 'catalog' ? request.catalogRecipe ?? null : null
       const body = JSON.stringify({ schema: request.schema, options: {
-        strategy: request.strategy, ...(named === null ? {} : { model: named }), ...(recipe === null ? {} : { catalog: { recipe } }),
+        strategy: request.strategy, ...(models === null ? {} : { models }), ...(recipe === null ? {} : { catalog: { recipe } }),
       } })
       /** `resumable` says whether a request that may already have reached kei-exp can simply be
        *  sent again. Polling is; the POST is not, because kei-exp mints the extraction id per
@@ -270,7 +312,9 @@ export function createKeiExpClient({
         const produced = artifact.data.extraction_version === 2
           ? `${artifact.data.segmentation.recipe.id}@${artifact.data.segmentation.recipe.version}`
           : null
-        if (artifact.data.run_id !== request.runId || artifact.data.generation !== accepted.data.generation || artifact.data.strategy !== request.strategy || !isDeepStrictEqual(artifact.data.schema, request.schema) || produced !== recipe)
+        // kei-exp records the options it ran under; `models` is absent from an artifact of a run that chose none.
+        const routed = artifact.data.options.models ?? null
+        if (artifact.data.run_id !== request.runId || artifact.data.generation !== accepted.data.generation || artifact.data.strategy !== request.strategy || !isDeepStrictEqual(artifact.data.schema, request.schema) || produced !== recipe || !isDeepStrictEqual(routed, models))
           throw new ExtractionError('invalid_model_output', 'kei-exp returned an artifact for different extraction inputs.')
         return artifact.data
       }

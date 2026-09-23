@@ -80,7 +80,7 @@ if (!disposableDatabaseUrl) {
     documents: SeededDocument[]
   }
 
-  type DeterministicAdapters = { client: KeiExpClient; calls: KeiExpRequest[] }
+  type DeterministicAdapters = { client: Pick<KeiExpClient, 'extract'>; calls: KeiExpRequest[] }
   const projects = new Set<string>()
   const accounts = new Set<string>()
   const runtimes = new Set<ExtractionRuntime>()
@@ -691,7 +691,7 @@ if (!disposableDatabaseUrl) {
       t.after(cleanup)
       const project = await seedProject()
       const modelStarted = Promise.withResolvers<void>()
-      const client: KeiExpClient = {
+      const client: Pick<KeiExpClient, 'extract'> = {
         extract(request) {
           modelStarted.resolve()
           const pending = Promise.withResolvers<KeiExpArtifact>()
@@ -1104,8 +1104,58 @@ if (!disposableDatabaseUrl) {
       const claimed = await store.claim(randomUUID(), new Date(), new Date(Date.now() + 60_000))
       assert.ok(claimed && claimed.input.kind === 'fresh')
       assert.equal(claimed.input.catalogRecipe, 'numbered-catalogue-de@1')
+      assert.equal(claimed.input.models, null)
       await store.fail(claimed.input.extractionId, claimed.lease,
         { code: 'test_cleanup', message: 'Test cleanup.', phase: 'loading' }, new Date())
+    })
+
+    it('keeps the Extraction Model Choice on its job and Extraction, relays it, and records the model each role ran on', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const adapters = deterministicAdapters()
+      const extract = adapters.client.extract
+      adapters.client.extract = async request => ({
+        ...await extract(request), models: { fields: 'numind/NuExtract3-FP8', reasoning: 'Qwen/Qwen3.8-27B-FP8' },
+      })
+      const { module, runtime } = createRuntime(project.researcherAccountId, adapters)
+      const models = { fields: 'nuextract', reasoning: 'instruct' }
+      const input = { ...freshInput(project), models }
+      const queued = await runtime.forResearcher(project.researcherAccountId).runSingle(input)
+      assert.deepEqual(queued.extraction.requestedModels, models)
+      // A replay must ask for the same models: another choice under the same id is another Extraction.
+      for (const other of [null, {}, { fields: 'nuextract' }, { fields: 'instruct', reasoning: 'instruct' }])
+        await assert.rejects(module.runSingle({ ...input, models: other }),
+          (error: unknown) => error instanceof ExtractionError && error.code === 'extraction_id_conflict')
+      const created = await module.runSingle({ ...input, models: { reasoning: 'instruct', fields: 'nuextract' } })
+      assert.equal(created.disposition, 'replayed')
+      assert.equal(created.extraction.outcome, 'SUCCEEDED')
+      assert.deepEqual(adapters.calls.map(call => call.models), [models])
+      assert.deepEqual(created.extraction.requestedModels, models)
+      assert.deepEqual(created.extraction.diagnostics?.models,
+        { fields: 'numind/NuExtract3-FP8', reasoning: 'Qwen/Qwen3.8-27B-FP8' })
+      assert.deepEqual(created.extraction.modelAttribution, { provider: 'kei-exp', modelId: 'deterministic' })
+      const job = await db.orm.public.ExtractionJob.select('requestedModels').first({ id: input.extractionId })
+      const extraction = await db.orm.public.Extraction.select('requestedModels').first({ id: input.extractionId })
+      assert.deepEqual(job?.requestedModels, models)
+      assert.deepEqual(extraction?.requestedModels, models)
+      const reopened = await module.readDocumentExtractions({ sourceDocumentId: project.documents[0]!.sourceDocumentId })
+      assert.deepEqual(reopened?.latestAttempt?.requestedModels, models)
+    })
+
+    it('stores no Extraction Model Choice when every role keeps kei-exp\'s defaults', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const { module, adapters } = createRuntime(project.researcherAccountId)
+      for (const models of [undefined, null, {}]) {
+        const input = { ...freshInput(project), models }
+        const created = await module.runSingle(input)
+        assert.equal(created.extraction.requestedModels, null)
+        // No choice and an empty choice are the same request.
+        assert.equal((await module.runSingle({ ...input, models: {} })).disposition, 'replayed')
+        const row = await db.orm.public.Extraction.select('requestedModels').first({ id: input.extractionId })
+        assert.equal(row?.requestedModels, null)
+      }
+      assert.deepEqual(adapters.calls.map(call => call.models ?? null), [null, null, null])
     })
 
     it('claims a queued job only once when workers compete', async (t) => {

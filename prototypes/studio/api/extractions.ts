@@ -91,6 +91,7 @@ export function createResearcherApiHandlers(
             schemaRevisionId: parsed.data.schemaRevisionId!,
             strategy: parsed.data.strategy!,
             ...(parsed.data.catalogRecipe ? { catalogRecipe: parsed.data.catalogRecipe } : {}),
+            ...(parsed.data.models ? { models: parsed.data.models } : {}),
           }
     const completed = await module.runSingle(input, request.signal)
     return json(extractionAttemptDto(completed.extraction), {

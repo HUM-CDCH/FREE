@@ -7,18 +7,14 @@ vi.mock('extraction', async (importOriginal) => ({
   createKeiExpClient: runtime.client,
 }))
 
-it('wires KEI_EXP_URL and names a model only when KEI_EXP_EXTRACT_MODEL does', async () => {
+it('wires KEI_EXP_URL and names no deployment-wide model: each run chooses its own, or kei-exp\'s defaults apply', async () => {
   vi.stubEnv('KEI_EXP_URL', 'http://kei-exp:8001')
-  const client = { extract: vi.fn() }
+  const client = { extract: vi.fn(), listModels: vi.fn() }
   runtime.client.mockReturnValue(client)
-  await import('./_extraction_runtime.js')
+  const module = await import('./_extraction_runtime.js')
   expect(runtime.create).toHaveBeenCalledWith({ keiExp: client })
-  const options = runtime.client.mock.calls[0][0]
-  expect(options.url).toBe('http://kei-exp:8001')
-  // Not the FREE provider route's modelId: kei-exp resolves the name against its own model
-  // server, so a model id from a FREE connection means nothing there.
-  expect(await options.model()).toBeNull()
-  vi.stubEnv('KEI_EXP_EXTRACT_MODEL', 'a-model-on-the-kei-exp-server')
-  expect(await options.model()).toBe('a-model-on-the-kei-exp-server')
+  expect(module.keiExpClient).toBe(client)
+  // Only the endpoint: neither a FREE connection's model id nor any env model reaches kei-exp.
+  expect(runtime.client.mock.calls[0][0]).toEqual({ url: 'http://kei-exp:8001' })
   vi.unstubAllEnvs()
 })

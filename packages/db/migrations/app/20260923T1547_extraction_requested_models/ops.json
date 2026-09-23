@@ -1,0 +1,86 @@
+[
+  {
+    "id": "column.public.extraction.requestedModels",
+    "label": "Add column \"requestedModels\" to \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "requestedModels",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"requestedModels\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "requestedModels"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"requestedModels\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD COLUMN \"requestedModels\" jsonb"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"requestedModels\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "requestedModels"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.extractionJob.requestedModels",
+    "label": "Add column \"requestedModels\" to \"extractionJob\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "requestedModels",
+        "table": "extractionJob"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"requestedModels\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extractionJob",
+          "requestedModels"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"requestedModels\"",
+        "sql": "ALTER TABLE \"public\".\"extractionJob\" ADD COLUMN \"requestedModels\" jsonb"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"requestedModels\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extractionJob",
+          "requestedModels"
+        ]
+      }
+    ]
+  }
+]

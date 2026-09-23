@@ -563,6 +563,34 @@ describe('ResultsTab grounded values', () => {
     })
   })
 
+  it('names the model each role ran on in the run\'s technical details, when kei-exp reported them', () => {
+    const renderWith = (attempt: ExtractionAttempt) => render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller({
+          status: 'ready', result: attempt.resultPayload!, evidenceLinks: [], ungroundedCount: 0,
+        }, attempt)}
+        schemaReady
+        documentMarkdown="# Source" sourceDocumentName="Article.pdf"
+      />,
+    )
+    renderWith({
+      ...articleAttempt,
+      requestedModels: { fields: 'nuextract' },
+      modelAttribution: { provider: 'kei-exp', modelId: 'numind/NuExtract3-FP8' },
+      diagnostics: { ...articleAttempt.diagnostics!, models: { fields: 'numind/NuExtract3-FP8', reasoning: 'Qwen/Qwen3.8-27B-FP8' } },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Run details' }))
+    expect(screen.getByText('Field model').nextElementSibling).toHaveTextContent('numind/NuExtract3-FP8')
+    expect(screen.getByText('Reasoning model').nextElementSibling).toHaveTextContent('Qwen/Qwen3.8-27B-FP8')
+    cleanup()
+
+    renderWith(articleAttempt)
+    fireEvent.click(screen.getByRole('button', { name: 'Run details' }))
+    expect(screen.getByText('Phase')).toBeInTheDocument()
+    expect(screen.queryByText('Field model')).not.toBeInTheDocument()
+  })
+
   it('offers rediscovery after an empty failed discovery', () => {
     const attempt: ExtractionAttempt = {
       ...articleAttempt,
