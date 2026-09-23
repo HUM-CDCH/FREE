@@ -130,19 +130,19 @@ source text or a table cell without requiring visual geometry.
 _Avoid_: citation anchor, model reference, highlight
 
 **Model Connection**:
-A deployment-wide shared description of how FREE can reach a model provider. It may represent a local service, a remote service, or an authenticated local model harness.
+A deployment-wide shared description of how FREE can reach a model provider. It may represent a local service, a remote service, or an authenticated local model harness. A *deployment connection* is one the deployment itself runs (its vLLM servers): read-only, described by the environment rather than saved.
 _Avoid_: provider configuration, endpoint, account
 
 **Capability Route**:
-A deployment-wide shared choice of Model Connection and model for a related family of FREE model work. Researcher Accounts and Project Contexts do not own or override Capability Routes.
+A deployment-wide shared choice of Model Connection and model for a related family of FREE model work. Researcher Accounts and Project Contexts do not own or override Capability Routes. A route left unset runs on the deployment's instruction model, when the deployment serves one.
 _Avoid_: task route, model setting, project model
 
-**Extraction Route**:
-The Capability Route used for Extraction and Schema Suggestion.
-_Avoid_: extraction model, ext route
+**Schema Suggestion Route**:
+The Capability Route used for Schema Suggestion. On a vLLM Model Connection it may use the *NuExtract protocol*: NuExtract's own template generation, driven through its chat template. Formerly the Extraction Route; Extraction itself runs in the Parsing Service.
+_Avoid_: extraction route, extraction model, ext route
 
 **Extraction Model Choice**:
-A per-run choice, for one Extraction, of the Parsing Service's extraction models by role: the *field model* reads values off the source for the Extraction Schema, and the *reasoning model* decides over labelled source text (where records start, which passage grounds a value, which competing candidate is right). Each role is chosen among the models the Parsing Service deployment serves for that role; a role left unchosen uses the deployment's default. It is recorded on the Extraction beside the models each role actually ran on. It is not a Capability Route and does not name a Model Connection.
+A deployment-wide choice, set on the Model Configuration page, of the Parsing Service's extraction models by role: the *field model* reads values off the source for the Extraction Schema, and the *reasoning model* decides over labelled source text (where records start, which passage grounds a value, which competing candidate is right). Each role is chosen among the models the Parsing Service deployment serves for that role; a role left unchosen uses the deployment's default. Every single and batch Extraction is requested on the choice current when it starts, and records it beside the models each role actually ran on. It is not a Capability Route and does not name a Model Connection.
 _Avoid_: extraction model, extraction route, model setting
 
 **Interaction Route**:

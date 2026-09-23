@@ -204,10 +204,12 @@ test('the provider dialog remains keyboard-operable across required viewports @d
       json: {
         config: {
           connections: [],
-          routes: { extraction: null, interaction: null },
+          routes: { schemaSuggestion: null, interaction: null },
+          extractionModels: {},
         },
         credentialStates: {},
         providers: [],
+        deployment: { connections: [], defaultRoute: null },
       },
     }),
   )
@@ -221,10 +223,10 @@ test('the provider dialog remains keyboard-operable across required viewports @d
       await expect(expand).toBeVisible()
       await activateWithKeyboard(page, expand)
     }
-    const configure = page.getByRole('button', { name: 'Configure providers' })
+    const configure = page.getByRole('button', { name: 'Configure models' })
     await activateWithKeyboard(page, configure)
-    const dialog = page.getByRole('dialog', { name: 'Provider configuration' })
-    const close = dialog.getByRole('button', { name: 'Close Model Connections' })
+    const dialog = page.getByRole('dialog', { name: 'Model configuration' })
+    const close = dialog.getByRole('button', { name: 'Close Model Configuration' })
     await expect(close).toBeFocused()
     await expectOperableInViewport(page, close)
     await page.keyboard.press('Escape')

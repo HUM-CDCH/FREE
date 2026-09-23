@@ -606,7 +606,7 @@ export default function AppFrame({
       {providersOpen && (
         <ModalDialog
           className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-4xl overflow-y-auto border-0 bg-transparent p-0 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]"
-          ariaLabel="Provider configuration"
+          ariaLabel="Model configuration"
           initialFocusRef={providerInitialFocus}
           returnFocusRef={providerTrigger}
           onDismiss={() => setProvidersOpen(false)}

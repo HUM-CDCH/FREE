@@ -45,16 +45,17 @@ from extraction-result Evidence and arbitrary extraction JSON remains permissive
 
 ## Model configuration
 
-A fresh Studio starts without Model Connections or Capability Routes. Open **Model Connections** in Studio to configure them. Saved configuration is machine-wide and is the sole model-configuration source.
+A fresh Studio starts without saved Model Connections or Capability Routes. Open **Configure models** in Studio for the Model Configuration page, which holds every model choice. Saved configuration is machine-wide; the deployment's own vLLM servers are added from the environment (`FREE_DEPLOYMENT_INSTRUCT_URL`, `FREE_DEPLOYMENT_INSTRUCT_MODEL`, `FREE_DEPLOYMENT_NUEXTRACT_URL`, set by the GPU overlay), listed read-only, and never saved.
 
 - Non-secret connection and route state is stored as `model-config.json` in the operating system user configuration directory for `FREE Studio`.
 - FREE-managed credentials are stored only in the operating system credential store. A locked or unavailable credential store does not block credentialless Ollama/OpenAI-compatible connections or externally authenticated Codex CLI and Claude Code connections.
-- **Single model** assigns one explicit connection and model ID to Extraction, Schema Suggestion, document chat, and conversational Extraction Schema editing.
-- **Capability Routes** independently assigns the Extraction Route and Interaction Route. Raw NuExtract is an explicit Ollama-only Extraction Route option.
+- **Extraction** chooses kei-exp's field and reasoning models for every single and Batch Extraction; **Default** keeps the service's default for the role.
+- **Single model** assigns one explicit connection and model ID to Schema Suggestion, document chat, and conversational Extraction Schema editing.
+- **Capability Routes** independently assigns the Schema Suggestion Route and Interaction Route. The NuExtract protocol is a vLLM-only Schema Suggestion Route option. A route left unset runs on the deployment's instruction model.
 - **Apply** sends the complete editable draft once. Credential fields are write-only; leaving one untouched preserves its saved value.
 - Connection checks run after edited provider inputs settle and through **Refresh models**. Their status and model catalog are advisory session state: checks never generate content, change configuration, or gate manual model IDs or Apply.
 
-Ollama, OpenAI, Anthropic, Google, Codex CLI, Claude Code, and generic OpenAI-compatible connections are supported. Enter provider base URLs exactly as their adapters expect. Ollama uses the server base, such as `http://127.0.0.1:11434`, and FREE reaches its native resources beneath `/api`. Other HTTP providers may require a version prefix such as `/v1` or `/v1beta`; generic OpenAI-compatible bases provide `/models` and `/chat/completions` beneath the entered base.
+Ollama, OpenAI, Anthropic, Google, Codex CLI, Claude Code, vLLM, and generic OpenAI-compatible connections are supported. A vLLM connection is OpenAI-compatible and switches the chat template's thinking off. Enter provider base URLs exactly as their adapters expect. Ollama uses the server base, such as `http://127.0.0.1:11434`, and FREE reaches its native resources beneath `/api`. Other HTTP providers may require a version prefix such as `/v1` or `/v1beta`; generic OpenAI-compatible bases provide `/models` and `/chat/completions` beneath the entered base.
 
 The Studio container includes the Codex CLI. Authenticate it once inside the
 running container before using a Codex CLI Model Connection:

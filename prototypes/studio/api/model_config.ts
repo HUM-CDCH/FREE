@@ -3,13 +3,19 @@ import { systemCredentialStore, type CredentialStore } from './_keyring.js'
 import {
   credentialStates,
   readModelConfig,
+  resetModelConfig,
   updateModelConfig,
   type ConfigStorageOptions,
 } from './_model_config.js'
+import type { DeploymentModels } from '../shared/modelConfig.contract.js'
+import { deploymentModels } from './_deployment_models.js'
 import { PROVIDERS } from './_provider.js'
 
 /** `credentialStore` is the keyring seam; tests inject a fake for both handlers. */
-export type ModelConfigDependencies = ConfigStorageOptions & { credentialStore?: CredentialStore }
+export type ModelConfigDependencies = ConfigStorageOptions & {
+  credentialStore?: CredentialStore
+  deployment?: () => DeploymentModels
+}
 
 let modelConfigWriteBarrier: Promise<void> = Promise.resolve()
 
@@ -44,6 +50,7 @@ export function createGetModelConfig(dependencies: ModelConfigDependencies = {})
         config,
         credentialStates: await credentialStates(config, credentialStore),
         providers: PROVIDERS,
+        deployment: (dependencies.deployment ?? deploymentModels)(),
       })
     } catch (error) {
       return apiErrorResponse(error)
@@ -71,5 +78,19 @@ export function createPutModelConfig(dependencies: ModelConfigDependencies = {})
   }
 }
 
+/** Deletes the saved document, readable or not; the response is the empty state a GET would now return. */
+export function createDeleteModelConfig(dependencies: ModelConfigDependencies = {}) {
+  const get = createGetModelConfig(dependencies)
+  return async function deleteModelConfig(): Promise<Response> {
+    try {
+      await serializeModelConfigWrite(() => resetModelConfig(dependencies))
+      return await get()
+    } catch (error) {
+      return apiErrorResponse(error)
+    }
+  }
+}
+
 export const GET = createGetModelConfig()
 export const PUT = createPutModelConfig()
+export const DELETE = createDeleteModelConfig()

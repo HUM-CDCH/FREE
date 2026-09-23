@@ -14,6 +14,7 @@ import { createOllama } from 'ai-sdk-ollama'
 import { claudeCode } from 'ai-sdk-provider-claude-code'
 import { createCodexAppServer, type CodexAppServerProvider } from 'ai-sdk-provider-codex-cli'
 import type {
+  DeploymentModels,
   ModelConfig,
   ModelConnection,
   ModelDescriptor,
@@ -21,7 +22,9 @@ import type {
   ProbeStatus,
   ProviderDescriptor,
   ProviderKind,
+  SchemaSuggestionRoute,
 } from '../shared/modelConfig.contract.js'
+import { DEPLOYMENT_IDS, deploymentModels } from './_deployment_models.js'
 import { ApiError } from './_http.js'
 import { systemCredentialStore, type CredentialStore } from './_keyring.js'
 
@@ -395,15 +398,25 @@ const commonHttpHeaders = (credential: string | null): Record<string, string> =>
   ...(credential === null ? {} : { authorization: `Bearer ${credential}` }),
 })
 
+export const THINKING_OFF = { enable_thinking: false } as const
+
+export function withThinkingOff(body: Record<string, unknown>): Record<string, unknown> {
+  const kwargs = body.chat_template_kwargs
+  return {
+    ...body,
+    chat_template_kwargs: { ...THINKING_OFF, ...(kwargs && typeof kwargs === 'object' ? kwargs : {}) },
+  }
+}
+
 export const providerTable = {
   ollama: {
-    // The SDK appends api/chat; FREE appends api/tags and api/generate at their own call sites.
+    // The SDK appends api/chat; FREE appends api/tags at its own call site.
     kind: 'ollama',
     label: 'Ollama',
     transport: 'http',
     defaultBaseUrl: 'http://127.0.0.1:11434',
     authentication: 'optional',
-    supportsNuextractRaw: true,
+    supportsNuextract: false,
     temperatureSupported: true,
     discover: httpDiscovery('api/tags', commonHttpHeaders, ollamaCatalog),
     createModel: (connection, modelId, credential) => {
@@ -433,7 +446,7 @@ export const providerTable = {
     transport: 'http',
     defaultBaseUrl: 'https://api.openai.com/v1',
     authentication: 'managed',
-    supportsNuextractRaw: false,
+    supportsNuextract: false,
     temperatureSupported: true,
     discover: httpDiscovery('models', commonHttpHeaders, openAiCatalog),
     createModel: (connection, modelId, credential) =>
@@ -445,7 +458,7 @@ export const providerTable = {
     transport: 'http',
     defaultBaseUrl: 'https://api.anthropic.com/v1',
     authentication: 'managed',
-    supportsNuextractRaw: false,
+    supportsNuextract: false,
     temperatureSupported: true,
     discover: httpDiscovery(
       'models',
@@ -461,7 +474,7 @@ export const providerTable = {
     transport: 'http',
     defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
     authentication: 'managed',
-    supportsNuextractRaw: false,
+    supportsNuextract: false,
     temperatureSupported: true,
     discover: httpDiscovery(
       'models',
@@ -477,7 +490,7 @@ export const providerTable = {
     transport: 'cli',
     defaultBaseUrl: null,
     authentication: 'external',
-    supportsNuextractRaw: false,
+    supportsNuextract: false,
     temperatureSupported: false,
     discover: discoverCodex,
     createModel: (_connection, modelId) => codexProvider()(modelId),
@@ -488,7 +501,7 @@ export const providerTable = {
     transport: 'cli',
     defaultBaseUrl: null,
     authentication: 'external',
-    supportsNuextractRaw: false,
+    supportsNuextract: false,
     temperatureSupported: false,
     discover: discoverClaude,
     createModel: (_connection, modelId) => claudeCode(modelId, { tools: [], settingSources: [] }),
@@ -499,7 +512,7 @@ export const providerTable = {
     transport: 'http',
     defaultBaseUrl: null,
     authentication: 'optional',
-    supportsNuextractRaw: false,
+    supportsNuextract: false,
     temperatureSupported: true,
     discover: httpDiscovery('models', commonHttpHeaders, openAiCatalog),
     createModel: (connection, modelId, credential) =>
@@ -510,17 +523,38 @@ export const providerTable = {
         ...(credential ? { apiKey: credential } : {}),
       }).chatModel(modelId),
   },
+  vllm: {
+    // An OpenAI-compatible vLLM server. Thinking is off unless a call asks for
+    // it: under greedy decoding Qwen3.x can reason until max_tokens and answer
+    // nothing. vLLM passes chat_template_kwargs to the model's chat template.
+    kind: 'vllm',
+    label: 'vLLM',
+    transport: 'http',
+    defaultBaseUrl: null,
+    authentication: 'optional',
+    supportsNuextract: true,
+    temperatureSupported: true,
+    discover: httpDiscovery('models', commonHttpHeaders, openAiCatalog),
+    createModel: (connection, modelId, credential) =>
+      createOpenAICompatible({
+        name: 'free-vllm',
+        baseURL: connection.baseUrl!,
+        supportsStructuredOutputs: true,
+        ...(credential ? { apiKey: credential } : {}),
+        transformRequestBody: withThinkingOff,
+      }).chatModel(modelId),
+  },
 } as const satisfies ProviderTable
 
 /** Serializable metadata only; backend capabilities and functions never cross HTTP. */
 export const PROVIDERS: readonly ProviderDescriptor[] = Object.values(providerTable).map(
-  ({ kind, label, transport, defaultBaseUrl, authentication, supportsNuextractRaw }) => ({
+  ({ kind, label, transport, defaultBaseUrl, authentication, supportsNuextract }) => ({
     kind,
     label,
     transport,
     defaultBaseUrl,
     authentication,
-    supportsNuextractRaw,
+    supportsNuextract,
   }),
 )
 
@@ -575,9 +609,9 @@ export async function probeConnection(
   }
 }
 
-export type ModelOperation = 'extraction' | 'schema-suggestion' | 'chat' | 'schema-edit'
+export type ModelOperation = 'schema-suggestion' | 'chat' | 'schema-edit'
 /**
- * What actually ran, as the persisted Extraction records it. Absent only for a
+ * What actually ran, as the persisted result records it. Absent only for a
  * target a caller constructed itself instead of resolving from a route.
  */
 export type ModelAttribution = { provider: ProviderKind; modelId: string }
@@ -590,19 +624,22 @@ export type GeneralExecutionTarget = {
   temperatureSupported: boolean
   attribution?: ModelAttribution
 }
-export type NuExtractRawExecutionTarget = {
-  profile: 'nuextract-raw'
+/** NuExtract on vLLM, driven by its chat template's own controls. */
+export type NuExtractExecutionTarget = {
+  profile: 'nuextract'
   modelId: string
   baseUrl: string
   authorization: string | null
   temperatureSupported: boolean
   attribution?: ModelAttribution
 }
-export type ExecutionTarget = GeneralExecutionTarget | NuExtractRawExecutionTarget
+export type ExecutionTarget = GeneralExecutionTarget | NuExtractExecutionTarget
 
 export type RouteResolverDependencies = {
   config?: ModelConfig
   readConfig?: () => Promise<ModelConfig>
+  /** The deployment's own model servers; read from the environment when omitted. */
+  deployment?: DeploymentModels
   credentialStore?: CredentialStore
   modelFactories?: Partial<Record<ProviderKind, ModelFactory>>
 }
@@ -626,6 +663,8 @@ async function resolvedCredential(
   throw new ApiError(409, 'invalid_model_config', 'The selected Model Connection requires a credential.')
 }
 
+const ROUTE_LABELS = { schemaSuggestion: 'Schema Suggestion', interaction: 'Interaction' } as const
+
 export async function resolveCapabilityRoute(
   operation: ModelOperation,
   options: { temperature?: number } = {},
@@ -638,27 +677,33 @@ export async function resolveCapabilityRoute(
     }
     config = await dependencies.readConfig()
   }
-  const key = operation === 'extraction' || operation === 'schema-suggestion' ? 'extraction' : 'interaction'
-  const route = config.routes?.[key]
+  const deployment = dependencies.deployment ?? deploymentModels()
+  const key = operation === 'schema-suggestion' ? 'schemaSuggestion' : 'interaction'
+  const label = ROUTE_LABELS[key]
+  // An unset route runs on the deployment's instruction model, when it serves one.
+  const route: SchemaSuggestionRoute | null = config.routes[key] ?? deployment.defaultRoute
   if (!route) {
-    throw new ApiError(409, 'invalid_model_config', `The ${key} Capability Route is not configured.`)
+    throw new ApiError(409, 'invalid_model_config', `The ${label} Route is not configured.`)
   }
-  const connection = config.connections.find(({ id }) => id === route.connectionId)
+  const connection = [...config.connections, ...deployment.connections].find(({ id }) => id === route.connectionId)
   if (!connection) {
-    throw new ApiError(409, 'invalid_model_config', `The ${key} Capability Route is invalid.`)
+    throw new ApiError(409, 'invalid_model_config', `The ${label} Route names a Model Connection that does not exist.`)
   }
   const entry = providerTable[connection.provider]
   if (options.temperature !== undefined && !entry.temperatureSupported) {
     throw new ApiError(400, 'unsupported_temperature', `${entry.label} does not support an explicit temperature.`)
   }
-  const credential = await resolvedCredential(connection, dependencies.credentialStore ?? systemCredentialStore)
+  // The deployment's own servers take no FREE-managed credential.
+  const credential = DEPLOYMENT_IDS.has(connection.id)
+    ? null
+    : await resolvedCredential(connection, dependencies.credentialStore ?? systemCredentialStore)
 
-  if (key === 'extraction' && 'nuextractRaw' in route && route.nuextractRaw === true) {
-    if (connection.provider !== 'ollama' || connection.baseUrl === null) {
-      throw new ApiError(409, 'invalid_model_config', 'Raw NuExtract requires an Ollama Model Connection.')
+  if (route.protocol === 'nuextract') {
+    if (!entry.supportsNuextract || connection.baseUrl === null) {
+      throw new ApiError(409, 'invalid_model_config', 'The NuExtract protocol requires a vLLM Model Connection.')
     }
     return {
-      profile: 'nuextract-raw',
+      profile: 'nuextract',
       modelId: route.modelId,
       baseUrl: connection.baseUrl,
       authorization: credential === null ? null : `Bearer ${credential}`,
@@ -679,7 +724,7 @@ export async function resolveCapabilityRoute(
   return {
     profile: 'general',
     model,
-    jsonOutput: ['anthropic', 'claude-code', 'openai-compatible'].includes(connection.provider) ? 'schema' : 'native',
+    jsonOutput: ['anthropic', 'claude-code', 'openai-compatible', 'vllm'].includes(connection.provider) ? 'schema' : 'native',
     automaticOutputKey: JSON.stringify([connection.id, connection.provider, connection.baseUrl, route.modelId, key]),
     temperatureSupported: entry.temperatureSupported,
     attribution: { provider: connection.provider, modelId: route.modelId },

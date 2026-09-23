@@ -2,11 +2,9 @@ import {
   APICallError,
   NoObjectGeneratedError,
   Output,
-  asSchema,
   convertToModelMessages,
   createUIMessageStreamResponse,
   generateText,
-  jsonSchema,
   streamText,
   toUIMessageStream,
   type UIMessage,
@@ -19,53 +17,30 @@ import {
   ApiError,
   asModelOperationError,
 } from './_http.js'
-import { applyAllowedValues } from 'extraction/allowed-values'
-import { isRecord, schemaNodesToZod, templateToNodes } from 'extraction/schema'
-import { parseExtractionResult, parseTemplate } from './_model_output.js'
+import { parseTemplate } from './_model_output.js'
 import { readModelConfig } from './_model_config.js'
 import { inspectHttpExchange, inspectTarget } from './_llm_inspector.js'
 import {
   appendProviderResource,
   resolveCapabilityRoute,
   type ExecutionTarget,
+  THINKING_OFF,
   type GeneralExecutionTarget,
-  type ModelAttribution,
   type ModelOperation,
-  type NuExtractRawExecutionTarget,
+  type NuExtractExecutionTarget,
   type RouteResolverDependencies,
 } from './_provider.js'
 
 export { parseInstruction, parseDocument } from './_document.js'
 export { json, parseTemperature, type FormValue } from './_http.js'
 
-const IMAGE_PLACEHOLDER = '<|vision_start|><|image_pad|><|vision_end|>'
 const NON_THINKING_TEMPERATURE = 0.2
-const EXTRACTION_SCOPE_GUARDRAIL =
-  'Use only the requested output fields. Base values and selections on the supplied source; do not invent unsupported information.'
-export type ExtractModelInput = {
-  readonly document: DocumentInput
-  readonly template: unknown
-  readonly outputSchema?: z.ZodType
-  readonly instruction?: string
-  readonly temperature?: number
-  readonly signal?: AbortSignal
-}
 
 export type ModelGenerationMetadata = {
   readonly finishReason: string | null
   readonly inputTokens: number | null
   readonly outputTokens: number | null
   readonly durationMs: number
-}
-
-const generationMetadataByError = new WeakMap<object, ModelGenerationMetadata>()
-
-export function modelGenerationMetadata(
-  error: unknown,
-): ModelGenerationMetadata | null {
-  return typeof error === 'object' && error !== null
-    ? generationMetadataByError.get(error) ?? null
-    : null
 }
 
 type GeneratedText = {
@@ -81,7 +56,7 @@ export type SchemaModelInput = {
 }
 
 type DocumentContentPart = DocumentFilePart | { readonly type: 'text'; readonly text: string }
-type NuExtractMode = 'structured' | 'template-generation' | 'content' | 'markdown'
+type NuExtractMode = 'template-generation'
 type ModelDependencies = RouteResolverDependencies & { fetch?: typeof fetch }
 
 async function documentContentParts(document: DocumentInput): Promise<{
@@ -145,120 +120,6 @@ export async function streamChatWithModel(
   }
 }
 
-/**
- * `templateToNodes` degrades a non-record template to zero nodes rather than
- * throwing, which would otherwise derive a spuriously empty `.strict()`
- * schema that rejects every field. Guard on the input actually being a
- * record so an unconvertible template shape falls back to unconstrained
- * generation instead of over-constraining it.
- */
-function deriveExtractionSchema(template: unknown): z.ZodType | undefined {
-  if (!isRecord(template)) return undefined
-  try {
-    return schemaNodesToZod(templateToNodes(template))
-  } catch {
-    return undefined
-  }
-}
-
-function requireEveryJsonSchemaProperty(schema: unknown): void {
-  if (Array.isArray(schema)) {
-    schema.forEach(requireEveryJsonSchemaProperty)
-    return
-  }
-  if (!isRecord(schema)) return
-
-  if (isRecord(schema.properties)) schema.required = Object.keys(schema.properties)
-  Object.values(schema).forEach(requireEveryJsonSchemaProperty)
-}
-
-function structuredOutputSchema(schema: z.ZodType) {
-  return jsonSchema(async () => {
-    const converted = await asSchema(schema).jsonSchema
-    requireEveryJsonSchemaProperty(converted)
-    return converted
-  }, {
-    validate: (value) => {
-      const result = schema.safeParse(value)
-      return result.success
-        ? { success: true, value: result.data }
-        : { success: false, error: result.error }
-    },
-  })
-}
-
-export async function extractWithModel(
-  { document, template, outputSchema, instruction, temperature, signal }: ExtractModelInput,
-  target?: ExecutionTarget,
-  dependencies: ModelDependencies = {},
-): Promise<{
-  readonly result: Record<string, unknown>
-  readonly reasoning: null
-  readonly pages: number | null
-  readonly modelAttribution: ModelAttribution | null
-  readonly metadata: ModelGenerationMetadata
-}> {
-  const resolved = await operationTarget('extraction', temperature, target, dependencies)
-  const documentParts = await documentContentParts(document)
-  const extractionTemplate = template ?? {}
-  const callerInstruction = instruction?.trim()
-  let generated: GeneratedText
-  if (resolved.profile === 'general') {
-    const request = [
-      ...(outputSchema
-        ? ['Output JSON Schema:\n' + JSON.stringify(await asSchema(outputSchema).jsonSchema, null, 2)]
-        : ['Extract information using this output template:', JSON.stringify(extractionTemplate, null, 2)]),
-      ...(callerInstruction
-        ? [`Task:\n${callerInstruction}`]
-        : []),
-    ].join('\n\n')
-    const schema = outputSchema ?? deriveExtractionSchema(extractionTemplate)
-    generated = await generateWithGenericJsonPrompt(resolved, {
-      instructions:
-        'Follow the task and output structure supplied in the request. ' +
-        'Return one complete JSON object with no Markdown or commentary. ' +
-        EXTRACTION_SCOPE_GUARDRAIL,
-      request,
-      documentParts: documentParts.parts,
-      temperature,
-      signal,
-      schema,
-    })
-  } else {
-    generated = await generateWithNuExtractRawPrompt('extraction', resolved, {
-      mode: 'structured',
-      template: JSON.stringify(extractionTemplate, null, 2),
-      instructions: callerInstruction
-        ? `${EXTRACTION_SCOPE_GUARDRAIL}\n\n${callerInstruction}`
-        : EXTRACTION_SCOPE_GUARDRAIL,
-      documentParts: documentParts.parts,
-      temperature,
-      signal,
-    }, dependencies.fetch)
-  }
-
-  let normalized: Record<string, unknown>
-  try {
-    const parsed = await parseExtractionResult(
-      generated.response,
-      extractionTemplate,
-    )
-    normalized = applyAllowedValues(parsed, extractionTemplate)
-  } catch (error) {
-    if (typeof error === 'object' && error !== null)
-      generationMetadataByError.set(error, generated.metadata)
-    throw error
-  }
-
-  return {
-    result: normalized,
-    reasoning: null,
-    pages: documentParts.pages ?? document.pages,
-    modelAttribution: resolved.attribution ?? null,
-    metadata: generated.metadata,
-  }
-}
-
 export async function generateSchemaWithModel(
   { document, instruction, temperature, signal }: SchemaModelInput,
   target?: ExecutionTarget,
@@ -285,9 +146,8 @@ export async function generateSchemaWithModel(
           temperature,
           signal,
         })
-      : await generateWithNuExtractRawPrompt('schema-suggestion', resolved, {
+      : await generateWithNuExtract('schema-suggestion', resolved, {
           mode: 'template-generation',
-          instructions: null,
           documentParts: [{ type: 'text', text: guidance }, ...documentParts.parts],
           temperature,
           signal,
@@ -336,14 +196,11 @@ async function generateWithGenericJsonPrompt(
     readonly documentParts: readonly DocumentContentPart[]
     readonly temperature?: number
     readonly signal?: AbortSignal
-    readonly schema?: z.ZodType
   },
 ): Promise<GeneratedText> {
   const startedAt = performance.now()
-  // The selected route declares schema support separately from schema-free JSON mode.
-  const structuredOutput = input.schema && target.jsonOutput !== 'prompt'
-    ? Output.object({ schema: structuredOutputSchema(input.schema) })
-    : target.jsonOutput === 'native' ? Output.json() : undefined
+  // Schema-free JSON mode where the route has one; otherwise the prompt asks for JSON.
+  const structuredOutput = target.jsonOutput === 'native' ? Output.json() : undefined
   try {
     const generated = await generateWithRouteOutput(target, {
       model: target.model,
@@ -388,13 +245,17 @@ async function generateWithGenericJsonPrompt(
   }
 }
 
-async function generateWithNuExtractRawPrompt(
+/**
+ * NuExtract3 takes its task from its chat template's kwargs, which vLLM passes
+ * through: `mode` selects the task and the document is the only user message.
+ * Only `structured` mode has an instructions slot, so guidance for
+ * `template-generation` leads the document content in the message itself.
+ */
+async function generateWithNuExtract(
   operation: ModelOperation,
-  target: NuExtractRawExecutionTarget,
+  target: NuExtractExecutionTarget,
   input: {
     readonly mode: NuExtractMode
-    readonly template?: string
-    readonly instructions: string | null
     readonly documentParts: readonly DocumentContentPart[]
     readonly temperature?: number
     readonly signal?: AbortSignal
@@ -402,19 +263,13 @@ async function generateWithNuExtractRawPrompt(
   requestFetch: typeof fetch = fetch,
 ): Promise<GeneratedText> {
   const startedAt = performance.now()
-  const rendered = renderNuExtractPrompt(input)
-  const url = appendProviderResource(target.baseUrl, 'api/generate')
+  const url = appendProviderResource(target.baseUrl, 'chat/completions')
   const requestBody = JSON.stringify({
     model: target.modelId,
-    prompt: rendered.prompt,
-    images: rendered.images.length > 0 ? rendered.images : undefined,
-    raw: true,
-    stream: false,
-    options: {
-      temperature: input.temperature ?? NON_THINKING_TEMPERATURE,
-      num_ctx: 32768,
-      num_predict: 8192,
-    },
+    messages: [{ role: 'user', content: input.documentParts.map(chatContentPart) }],
+    chat_template_kwargs: { mode: input.mode, ...THINKING_OFF },
+    temperature: input.temperature ?? NON_THINKING_TEMPERATURE,
+    max_tokens: 8192,
   })
   let response: Response
   try {
@@ -433,81 +288,55 @@ async function generateWithNuExtractRawPrompt(
       }),
     )
   } catch (error) {
-    throw asModelOperationError(error, 'Ollama generation failed.')
+    throw asModelOperationError(error, 'NuExtract generation failed.')
   }
 
   const bodyText = await response.text()
   if (!response.ok) {
-    throw new ApiError(502, 'model_operation_failed', 'Ollama generation failed.')
+    throw new ApiError(502, 'model_operation_failed', 'NuExtract generation failed.')
   }
   let body: unknown
   try {
     body = JSON.parse(bodyText)
   } catch (cause) {
-    throw new ApiError(502, 'invalid_model_output', 'Ollama returned an invalid generation response.', { cause })
+    throw new ApiError(502, 'invalid_model_output', 'NuExtract returned an invalid chat completion.', { cause })
   }
-  const parsed = ollamaGenerateResponseSchema.safeParse(body)
+  const parsed = chatCompletionSchema.safeParse(body)
   if (!parsed.success) {
-    throw new ApiError(502, 'invalid_model_output', 'Ollama returned an invalid generation response.', {
+    throw new ApiError(502, 'invalid_model_output', 'NuExtract returned an invalid chat completion.', {
       cause: parsed.error,
     })
   }
+  const [choice] = parsed.data.choices
   return {
-    response: parsed.data.response,
+    response: choice.message.content,
     metadata: {
-      finishReason: parsed.data.done_reason ?? null,
-      inputTokens: parsed.data.prompt_eval_count ?? null,
-      outputTokens: parsed.data.eval_count ?? null,
-      durationMs:
-        parsed.data.total_duration === undefined
-          ? Math.round(performance.now() - startedAt)
-          : Math.round(parsed.data.total_duration / 1_000_000),
+      finishReason: choice.finish_reason ?? null,
+      inputTokens: parsed.data.usage?.prompt_tokens ?? null,
+      outputTokens: parsed.data.usage?.completion_tokens ?? null,
+      durationMs: Math.round(performance.now() - startedAt),
     },
   }
 }
 
-const ollamaGenerateResponseSchema = z.object({
-  response: z.string(),
-  done_reason: z.string().optional(),
-  prompt_eval_count: z.number().int().nonnegative().optional(),
-  eval_count: z.number().int().nonnegative().optional(),
-  total_duration: z.number().int().nonnegative().optional(),
-})
-
-export function renderNuExtractPrompt({
-  mode,
-  template,
-  instructions,
-  documentParts,
-}: {
-  readonly mode: NuExtractMode
-  readonly template?: string
-  readonly instructions: string | null
-  readonly documentParts: readonly DocumentContentPart[]
-}): { readonly prompt: string; readonly images: readonly string[] } {
-  const images: string[] = []
-  let prompt = '<|im_start|>user\n'
-  prompt += `【task】${mode.replaceAll('-', ' ')}\n`
-  if (template) prompt += `【template_start】${template}【template_end】\n`
-  if (mode === 'structured' && instructions) {
-    prompt += `【instructions_start】${instructions}【instructions_end】\n`
-  }
-  prompt += '【document_start】\n'
-  for (const part of documentParts) {
-    if (part.type === 'text') {
-      prompt += `${part.text.trim()}\n`
-    } else {
-      images.push(
-        typeof part.data === 'string'
-          ? (part.data.split(',', 2)[1] ?? part.data)
-          : Buffer.from(part.data).toString('base64'),
-      )
-      prompt += `${IMAGE_PLACEHOLDER}\n`
-    }
-  }
-  prompt += '【document_end】<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n'
-  return { prompt, images }
+function chatContentPart(part: DocumentContentPart) {
+  if (part.type === 'text') return { type: 'text', text: part.text }
+  const data = typeof part.data === 'string'
+    ? (part.data.split(',', 2)[1] ?? part.data)
+    : Buffer.from(part.data).toString('base64')
+  return { type: 'image_url', image_url: { url: `data:${part.mediaType};base64,${data}` } }
 }
+
+const chatCompletionSchema = z.object({
+  choices: z.tuple([z.object({
+    message: z.object({ content: z.string() }),
+    finish_reason: z.string().nullable().optional(),
+  })]).rest(z.unknown()),
+  usage: z.object({
+    prompt_tokens: z.number().int().nonnegative().optional(),
+    completion_tokens: z.number().int().nonnegative().optional(),
+  }).optional(),
+})
 
 export async function generateSchemaEditJson(
   prompt: string,

@@ -214,6 +214,13 @@ function assertOwnedParsingTopology(config, gpu) {
     assert.equal(services.parsing_worker.depends_on.extraction_model.condition, 'service_healthy')
     for (const name of ['nuextract_model', 'extraction_model'])
       assert.equal(services.studio.depends_on[name].condition, 'service_healthy', name)
+    // Studio's deployment default names the same served model, on the servers' private addresses.
+    assert.equal(services.studio.environment.FREE_DEPLOYMENT_INSTRUCT_URL, 'http://extraction_model:8000/v1')
+    assert.equal(services.studio.environment.FREE_DEPLOYMENT_INSTRUCT_MODEL, services.extraction_model.command[0])
+    assert.equal(services.studio.environment.FREE_DEPLOYMENT_NUEXTRACT_URL, 'http://nuextract_model:8000/v1')
+  } else {
+    // Without the servers, Studio offers no deployment default.
+    assert.equal(services.studio.environment.FREE_DEPLOYMENT_INSTRUCT_URL, undefined)
   }
   assert.equal(config.volumes['postgres-data'].name.endsWith('_postgres-data'), true)
   assert.equal(config.volumes['parsing-runs'].name.endsWith('_parsing-runs'), true)

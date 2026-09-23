@@ -291,32 +291,41 @@ for registration, certificate rotation, guarded cutover, and smoke checks.
 
 ## Configure shared models
 
-After normal login, use the **Configure providers** gear in the Project Context
-rail:
+After normal login, use the **Configure models** gear in the Project Context
+rail. The Model Configuration page holds every model choice:
 
-1. Add a Model Connection and set its provider, base URL when applicable, and
-   any write-only credential.
-2. Review the advisory probe or refresh the model list. Probes use the current
+1. Under **Extraction**, choose the field and reasoning models every single and
+   Batch Extraction runs on, or keep the service's **Default** per role.
+2. With the GPU overlay, the deployment's own vLLM servers are listed as
+   read-only deployment connections, and Schema Suggestion and Interaction run
+   on the instruction model until a route says otherwise. Add a Model
+   Connection for anything else and set its provider, base URL when
+   applicable, and any write-only credential.
+3. Review the advisory probe or refresh the model list. Probes use the current
    draft and transient credential but do not save either one.
-3. Choose a single model or assign the Extraction and Interaction Capability
-   Routes, then select **Apply**. Apply replaces the complete shared document;
-   it does not run another provider probe.
+4. Choose a single model or assign the Schema Suggestion and Interaction
+   Capability Routes (optionally with the NuExtract protocol on a vLLM
+   connection), then select **Apply**. Apply replaces the complete shared
+   document; it does not run another provider probe.
 
-Model Connections, Capability Routes, and saved credential state are
+The Extraction Model Choice, Model Connections, Capability Routes, and saved credential state are
 deployment-wide, never per-account or per-Project Context. Every fully
 authenticated researcher may view, probe, and replace them for everybody.
 Coordinate concurrent edits: complete writes are serialized, and the document
 whose commit finishes later becomes authoritative without a field-level merge.
 Credential values are write-only and are never returned; Studio shows only
 `present`, `absent`, or `unavailable` state plus preserve/remove controls.
+A `model-config.json` this Studio cannot read (for example one saved before
+[ADR 0011](../adr/0011-one-model-configuration-page.md)) is not migrated: the
+page reports it and offers a confirmed **Reset model configuration**.
 
 ## Configure service extraction
 
 Set `KEI_EXTRACT_MODEL` in `.env` to the Hugging Face repo id the included
-extraction vLLM server loads. This is independent of Studio's stored Model
-Connections, which still drive Schema Suggestion and Interaction. For those
-capabilities, an OpenAI-compatible Model Connection can use
-`http://extraction_model:8000/v1` and the same model. Configuration is explicit; startup does not save
+extraction vLLM server loads. The GPU overlay also hands Studio that server and
+the NuExtract server as deployment connections (`FREE_DEPLOYMENT_INSTRUCT_URL`,
+`FREE_DEPLOYMENT_INSTRUCT_MODEL`, `FREE_DEPLOYMENT_NUEXTRACT_URL`), so Schema
+Suggestion and Interaction work before any route is saved. Startup never saves
 Model Connections or Capability Routes.
 
 Article and Catalog extraction, discovery, and grounding run in the included

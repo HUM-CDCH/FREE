@@ -95,12 +95,14 @@ function canonicalIds(ids: readonly string[]): string[] {
   return [...new Set(ids)].sort((left, right) => left.localeCompare(right))
 }
 function selectionId(input: ScheduleBatchInput): string {
+  const models = modelChoice(input.models)
   const hash = createHash('sha256')
     .update(JSON.stringify([
       input.projectContextId,
       input.schemaRevisionId,
       input.strategy,
       canonicalIds(input.sourceDocumentIds),
+      ...(models === null ? [] : [models]),
     ]))
     .digest('hex')
   const variant = (['8', '9', 'a', 'b'] as const)[parseInt(hash[16]!, 16) & 3]
@@ -1166,6 +1168,7 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
         : candidate.batchExtractionId
           ? {
               kind: 'batch-member' as const,
+              models: modelChoice(candidate.requestedModels),
               extractionId: candidate.id,
               sourceRepresentationRevisionId: candidate.sourceRepresentationRevisionId,
               schemaRevisionId: candidate.schemaRevisionId,
@@ -1754,6 +1757,7 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
           await orm.public.ExtractionJob.create({
             id: initialExtractionJobId,
             kind: 'BATCH_MEMBER',
+            requestedModels: modelChoice(input.models),
             projectContextId: input.projectContextId,
             ...member,
             schemaRevisionId: input.schemaRevisionId,

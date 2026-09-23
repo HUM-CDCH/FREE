@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   extractionRequestSchema,
   extractionAttemptSchema,
+  extractionModelChoiceSchema,
   extractionModelListingSchema,
 } from './extraction.contract.js'
 
@@ -291,17 +292,20 @@ describe('numbered-catalogue recipe contracts', () => {
 describe('Extraction Model Choice contracts', () => {
   const fresh = { id: id('1'), sourceRepresentationRevisionId: id('3'), schemaRevisionId: id('4'), strategy: 'ARTICLE' }
 
-  it('accepts a per-run choice of kei-exp model keys for either role, on a fresh request only', () => {
-    expect(extractionRequestSchema.parse({ ...fresh, models: { fields: 'nuextract', reasoning: 'instruct' } }))
-      .toMatchObject({ models: { fields: 'nuextract', reasoning: 'instruct' } })
-    expect(extractionRequestSchema.parse({ ...fresh, models: { reasoning: 'instruct' } }))
-      .toMatchObject({ models: { reasoning: 'instruct' } })
+  it('never takes a model choice from the client: the server applies the configured one', () => {
     expect(extractionRequestSchema.parse(fresh)).not.toHaveProperty('models')
-    for (const models of [{ fields: '' }, { reasoning: 7 }, { fields: 'instruct', planner: 'instruct' }, 'instruct'])
+    for (const models of [{ fields: 'nuextract', reasoning: 'instruct' }, {}, 'instruct'])
       expect(extractionRequestSchema.safeParse({ ...fresh, models }).success).toBe(false)
     expect(extractionRequestSchema.safeParse({ ...fresh, model: 'instruct' }).success).toBe(false)
     expect(extractionRequestSchema.safeParse({ id: id('1'), retryOfId: id('5'), models: { fields: 'nuextract' } }).success)
       .toBe(false)
+  })
+
+  it('accepts a choice of kei-exp model keys for either role, and nothing else', () => {
+    expect(extractionModelChoiceSchema.parse({ fields: 'nuextract', reasoning: 'instruct' }))
+      .toEqual({ fields: 'nuextract', reasoning: 'instruct' })
+    for (const models of [{ fields: '' }, { reasoning: 7 }, { fields: 'instruct', planner: 'instruct' }, 'instruct'])
+      expect(extractionModelChoiceSchema.safeParse(models).success).toBe(false)
   })
 
   it('echoes the requested choice and the models kei-exp resolved per role beside the unchanged attribution', () => {

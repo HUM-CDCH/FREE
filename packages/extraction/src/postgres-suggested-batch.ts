@@ -1,4 +1,5 @@
 import { stableJson, stableUuid, uniqueConstraint, type Database } from 'db'
+import { modelChoice } from './model-choice.js'
 import { ExtractionError } from './errors.js'
 import type { DurableBatchExtraction } from './postgres-persistence.js'
 import { parseBatchSuggestionDefinition } from './schema.js'
@@ -117,6 +118,7 @@ export async function persistSuggestedBatch(
         await orm.public.ExtractionJob.create({
           id: initialExtractionJobId,
           kind: 'BATCH_MEMBER',
+          requestedModels: modelChoice(input.models),
           projectContextId: input.projectContextId,
           ...member,
           schemaRevisionId,

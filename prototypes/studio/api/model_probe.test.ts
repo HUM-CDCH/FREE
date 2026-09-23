@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { ModelConnection } from '../shared/modelConfig.contract.js'
+import { DEPLOYMENT_CONNECTION_IDS, type ModelConnection } from '../shared/modelConfig.contract.js'
 import type { CredentialStore } from './_keyring.js'
 import { writeModelConfig } from './_model_config.js'
 import { createPostModelProbe } from './model_probe.js'
@@ -44,6 +44,47 @@ afterEach(async () => {
 })
 
 describe('POST /api/model_probe', () => {
+  const deployed = {
+    id: DEPLOYMENT_CONNECTION_IDS.instruct, name: 'Deployment instruction model', provider: 'vllm' as const,
+    baseUrl: 'http://extraction_model:8000/v1',
+  }
+  const deployment = () => ({ connections: [deployed], defaultRoute: null })
+
+  it('probes a deployment connection at the served address, never the submitted one, and without the keyring', async () => {
+    const credentialStore = { ...store('never-read'), get: vi.fn(async () => 'never-read') }
+    const fetch = vi.fn(async () => Response.json({ data: [{ id: 'Qwen/Qwen3.8-27B-FP8' }] }))
+    const post = createPostModelProbe({ configRoot: await temporaryRoot(), credentialStore, fetch, deployment })
+
+    const response = await post(request({ connection: { ...deployed, baseUrl: 'https://attacker.example/v1' } }))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ status: 'connected', catalog: [{ id: 'Qwen/Qwen3.8-27B-FP8' }] })
+    expect(fetch).toHaveBeenCalledWith('http://extraction_model:8000/v1/models', expect.objectContaining({
+      headers: expect.not.objectContaining({ authorization: expect.anything() }),
+    }))
+    expect(credentialStore.get).not.toHaveBeenCalled()
+  })
+
+  it('refuses a credential for, or a probe of an unserved, deployment connection', async () => {
+    const fetch = vi.fn()
+    const post = createPostModelProbe({ configRoot: await temporaryRoot(), fetch, deployment })
+    expect((await post(request({ connection: deployed, credential: 'x' }))).status).toBe(409)
+    const unserved = { ...deployed, id: DEPLOYMENT_CONNECTION_IDS.nuextract }
+    expect((await post(request({ connection: unserved }))).status).toBe(409)
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('holds a deployment probe to the same request contract as any probe', async () => {
+    const fetch = vi.fn()
+    const post = createPostModelProbe({ configRoot: await temporaryRoot(), fetch, deployment })
+    for (const body of [{ connection: { id: deployed.id } }, { connection: deployed, unknown: true }]) {
+      const response = await post(request(body))
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toMatchObject({ error: { code: 'invalid_request' } })
+    }
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
   it('uses a transient credential without storing or returning it', async () => {
     const credentialStore = store()
     const fetch = vi.fn(async () => Response.json({ data: [{ id: 'gpt-manual' }] }))
@@ -71,7 +112,8 @@ describe('POST /api/model_probe', () => {
     const root = await temporaryRoot()
     await writeModelConfig({
       connections: [connection],
-      routes: { extraction: null, interaction: null },
+      routes: { schemaSuggestion: null, interaction: null },
+      extractionModels: {},
     }, { configRoot: root })
     const before = await readFile(join(root, 'model-config.json'))
     const post = createPostModelProbe({
@@ -90,7 +132,8 @@ describe('POST /api/model_probe', () => {
     await writeModelConfig(
       {
         connections: [connection],
-        routes: { extraction: null, interaction: null },
+        routes: { schemaSuggestion: null, interaction: null },
+      extractionModels: {},
       },
       { configRoot: root },
     )
@@ -122,7 +165,8 @@ describe('POST /api/model_probe', () => {
     if (stored !== undefined) {
       await writeModelConfig({
         connections: [connection],
-        routes: { extraction: null, interaction: null },
+        routes: { schemaSuggestion: null, interaction: null },
+      extractionModels: {},
       }, { configRoot: root })
     }
     const post = createPostModelProbe({
@@ -151,7 +195,8 @@ describe('POST /api/model_probe', () => {
     if (stored !== undefined) {
       await writeModelConfig({
         connections: [connection],
-        routes: { extraction: null, interaction: null },
+        routes: { schemaSuggestion: null, interaction: null },
+      extractionModels: {},
       }, { configRoot: root })
     }
     const post = createPostModelProbe({

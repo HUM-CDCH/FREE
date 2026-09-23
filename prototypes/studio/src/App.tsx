@@ -11,15 +11,14 @@ import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
 import { useDurableCurrentSchemaRevision } from './useCurrentSchemaRevision'
-import { readExtractionModels, requestSchema } from './api'
+import { requestSchema } from './api'
 import {
   decodeParsedDocument,
   type ParsedDocument,
 } from 'extraction/parsed-document'
 import { useEvidenceOverlays } from './useEvidenceOverlays'
 import { useExtraction } from './useExtraction'
-import type { ExtractionAttempt, ExtractionModelListing, ExtractionStrategy } from '../shared/extraction.contract'
-import { ExtractionModelSelect } from './ExtractionModelSelect'
+import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
 import ExtractionFinishedDialog from './ExtractionFinishedDialog'
 import { Button, Spinner } from './ui'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
@@ -167,11 +166,6 @@ export function DocumentWorkspace({
     useState<ExtractionStrategy>('ARTICLE')
   // Catalog only, one-shot like the strategy: '' keeps generic model discovery of record boundaries.
   const [nextCatalogRecipe, setNextCatalogRecipe] = useState('')
-  // The next run's Extraction Model Choice, one-shot like the strategy: '' keeps kei-exp's default for the role.
-  const [nextFieldModel, setNextFieldModel] = useState('')
-  const [nextReasoningModel, setNextReasoningModel] = useState('')
-  // The kei-exp deployment's extraction models; null until listed, and for good when they cannot be.
-  const [extractionModels, setExtractionModels] = useState<ExtractionModelListing | null>(null)
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('schema')
@@ -203,19 +197,6 @@ export function DocumentWorkspace({
   const [docIndex, setDocIndex] = useState<DocIndex>({ status: 'parsing' })
   const resizeControllerRef = useRef<AbortController | null>(null)
 
-  // Listed once: the models belong to the deployment, not to a document. A failed read leaves only the defaults,
-  // which never block a run.
-  useEffect(() => {
-    const controller = new AbortController()
-    readExtractionModels(controller.signal).then(
-      (listing) => {
-        if (!controller.signal.aborted) setExtractionModels(listing)
-      },
-      () => {},
-    )
-    return () => controller.abort()
-  }, [])
-
   useEffect(() => () => {
     if (!resizeControllerRef.current) return
     resizeControllerRef.current.abort()
@@ -232,8 +213,6 @@ export function DocumentWorkspace({
     setZoomPercent(100)
     setNextExtractionStrategy('ARTICLE')
     setNextCatalogRecipe('')
-    setNextFieldModel('')
-    setNextReasoningModel('')
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
     setKnownSchemas(reopenedSchemas)
     setResultPath(null)
@@ -655,7 +634,6 @@ export function DocumentWorkspace({
         throw new Error('Save the Current Schema Revision before extraction.')
       const strategy = nextExtractionStrategy
       const catalogRecipe = nextCatalogRecipe || null
-      const models = { fields: nextFieldModel, reasoning: nextReasoningModel }
       // The researcher asked for this run, so it is what they now inspect;
       // its schema is known before the server acknowledges the attempt.
       setSelectedInspectionId(null)
@@ -675,13 +653,10 @@ export function DocumentWorkspace({
         },
         strategy,
         catalogRecipe,
-        models,
       )
       if (!acknowledged) return
       setNextExtractionStrategy('ARTICLE')
       setNextCatalogRecipe('')
-      setNextFieldModel('')
-      setNextReasoningModel('')
       if (acknowledged.executionStatus === 'COMPLETED' || acknowledged.executionStatus === 'FAILED') {
         if (acknowledged.outcome === 'SUCCEEDED')
           setFinishedExtractionReport({ attempt: acknowledged, schemaNodes: revision.schemaNodes })
@@ -832,20 +807,6 @@ export function DocumentWorkspace({
               </select>
             </label>
           )}
-          <ExtractionModelSelect
-            role="fields"
-            listing={extractionModels}
-            value={running ? latestAttempt.requestedModels?.fields ?? '' : nextFieldModel}
-            disabled={running || savingForRun}
-            onChange={setNextFieldModel}
-          />
-          <ExtractionModelSelect
-            role="reasoning"
-            listing={extractionModels}
-            value={running ? latestAttempt.requestedModels?.reasoning ?? '' : nextReasoningModel}
-            disabled={running || savingForRun}
-            onChange={setNextReasoningModel}
-          />
           <Button
             variant="primary"
             size="md"

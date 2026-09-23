@@ -324,6 +324,7 @@ export type ScheduleBatchInput = Readonly<{
   projectContextId: string
   schemaRevisionId: string
   strategy: ExtractionStrategy
+  models?: ExtractionModelChoice | null
   sourceDocumentIds: readonly string[]
   repetition: BatchRepetition
 }>
@@ -332,6 +333,7 @@ export type ScheduleSuggestedBatchInput = Readonly<{
   projectContextId: string
   batchSchemaSuggestionId: string
   strategy: ExtractionStrategy
+  models?: ExtractionModelChoice | null
 }>
 
 export type ScheduleBatchResult = Readonly<{

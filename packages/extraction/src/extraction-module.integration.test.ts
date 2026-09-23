@@ -1057,6 +1057,7 @@ if (!disposableDatabaseUrl) {
         strategy: 'ARTICLE',
         sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId),
         repetition: 'create-new',
+        models: { fields: 'nuextract', reasoning: 'instruct' },
       })
       const scheduler = runtime.forResearcher(project.researcherAccountId)
       const firstId = randomUUID()
@@ -1084,7 +1085,8 @@ if (!disposableDatabaseUrl) {
       assert.ok(second)
       await store.fail(second.input.extractionId, second.lease, failure, now)
       const batchMember = await store.claim(owner, now, expiresAt)
-      assert.equal(batchMember?.input.kind, 'batch-member')
+      assert.ok(batchMember?.input.kind === 'batch-member')
+      assert.deepEqual(batchMember.input.models, { fields: 'nuextract', reasoning: 'instruct' })
     })
 
     it('stores the Catalog recipe chosen for an Extraction on its job and hands it to the worker', async (t) => {
@@ -1140,6 +1142,62 @@ if (!disposableDatabaseUrl) {
       assert.deepEqual(extraction?.requestedModels, models)
       const reopened = await module.readDocumentExtractions({ sourceDocumentId: project.documents[0]!.sourceDocumentId })
       assert.deepEqual(reopened?.latestAttempt?.requestedModels, models)
+    })
+
+    it('stores batch model choices on every job and completed Extraction and includes them in selection identity', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])
+      const { module, runtime, adapters } = createRuntime(project.researcherAccountId)
+      const input = {
+        projectContextId: project.projectContextId,
+        schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE' as const,
+        sourceDocumentIds: project.documents.map(document => document.sourceDocumentId),
+        repetition: 'reuse-equal-selection' as const,
+      }
+      // Preserve the pre-model-choice identity for deployments with no selected roles.
+      const hash = createHash('sha256').update(JSON.stringify([
+        input.projectContextId, input.schemaRevisionId, input.strategy,
+        [...input.sourceDocumentIds].sort((left, right) => left.localeCompare(right)),
+      ])).digest('hex')
+      const variant = ['8', '9', 'a', 'b'][parseInt(hash[16]!, 16) & 3]
+      const originalId = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-${variant}${hash.slice(17, 20)}-${hash.slice(20, 32)}`
+      const defaults = await module.scheduleBatch(input)
+      assert.equal(defaults.batch.batchExtractionId, originalId)
+      for (const models of [null, {}, { fields: '' }]) {
+        const replay = await module.scheduleBatch({ ...input, models })
+        assert.equal(replay.disposition, 'replayed')
+        assert.equal(replay.batch.batchExtractionId, originalId)
+      }
+      const ids = new Set([originalId])
+      for (const models of [null, { fields: 'nuextract', reasoning: 'instruct' },
+        { fields: 'instruct', reasoning: 'instruct' }, { fields: 'nuextract', reasoning: 'other' }]) {
+        const scheduled = await module.scheduleBatch({ ...input, models })
+        const batchExtractionId = scheduled.batch.batchExtractionId
+        if (models) {
+          assert.equal(scheduled.disposition, 'created')
+          assert.ok(!ids.has(batchExtractionId))
+          ids.add(batchExtractionId)
+          const replay = await module.scheduleBatch({
+            ...input, sourceDocumentIds: [...input.sourceDocumentIds].reverse(),
+            models: { reasoning: models.reasoning, fields: models.fields },
+          })
+          assert.equal(replay.disposition, 'replayed')
+          assert.equal(replay.batch.batchExtractionId, batchExtractionId)
+        }
+        const jobs = await db.orm.public.ExtractionJob.where({ batchExtractionId })
+          .select('requestedModels').all()
+        assert.equal(jobs.length, project.documents.length)
+        for (const job of jobs) assert.deepEqual(job.requestedModels, models)
+        await runWorkerUntil(runtime, module, project.projectContextId,
+          batchExtractionId, batch => batch.executionStatus === 'COMPLETED')
+        const extractions = await db.orm.public.Extraction.where({ batchExtractionId })
+          .select('requestedModels').all()
+        assert.equal(extractions.length, project.documents.length)
+        for (const extraction of extractions) assert.deepEqual(extraction.requestedModels, models)
+        assert.deepEqual(adapters.calls.slice(-project.documents.length).map(call => call.models),
+          project.documents.map(() => models))
+      }
     })
 
     it('stores no Extraction Model Choice when every role keeps kei-exp\'s defaults', async (t) => {
@@ -1423,6 +1481,7 @@ if (!disposableDatabaseUrl) {
         projectContextId: project.projectContextId,
         batchSchemaSuggestionId,
         strategy: 'ARTICLE' as const,
+        models: { reasoning: 'instruct', fields: 'nuextract' },
       }
       const handoffs = await Promise.all([
         module.scheduleSuggestedBatch(request),
@@ -1452,6 +1511,20 @@ if (!disposableDatabaseUrl) {
             left.sourceDocumentId.localeCompare(right.sourceDocumentId),
           ),
       )
+      const jobs = await db.orm.public.ExtractionJob.where({
+        batchExtractionId: handoffs[0]!.batch.batchExtractionId,
+      }).select('requestedModels').all()
+      assert.equal(jobs.length, project.documents.length)
+      for (const job of jobs) assert.deepEqual(job.requestedModels, request.models)
+      const store = createInternalExtractionJobStore(db, packages)
+      for (const _document of project.documents) {
+        const claimed = await store.claim(randomUUID(), new Date(), new Date(Date.now() + 60_000))
+        assert.ok(claimed?.input.kind === 'batch-member')
+        assert.equal(claimed.input.batchExtractionId, handoffs[0]!.batch.batchExtractionId)
+        assert.deepEqual(claimed.input.models, request.models)
+        await store.fail(claimed.input.extractionId, claimed.lease,
+          { code: 'test_cleanup', message: 'Test cleanup.', phase: 'loading' }, new Date())
+      }
       const persisted = await db.orm.public.BatchSchemaSuggestion.select(
         'confirmedSchemaRevisionId',
         'batchExtractionId',

@@ -225,7 +225,7 @@ views {
   dynamic view schema_guided_extraction {
     title 'Schema Suggestion to reviewed Extraction — current'
     description '''
-      The Extraction Route serves Schema Suggestion. The Interaction Route
+      The Schema Suggestion Route serves Schema Suggestion. The Interaction Route
       serves chat and conversational schema edits. The included Parsing
       Service executes extraction and grounding against the pinned source
       generation and schema. Review
@@ -240,8 +240,8 @@ views {
     researcher -> studio.ui 'Annotate the Source Document and choose Generate schema'
     studio.ui -> studio.browser_http 'Prepare the Markdown and the browser Annotations'
     studio.browser_http -> studio.handlers 'POST /api/generate_schema'
-    studio.handlers -> studio.provider_registry 'Resolve the Extraction Route'
-    studio.provider_registry -> model_connections 'Generate the schema, raw NuExtract or general protocol'
+    studio.handlers -> studio.provider_registry 'Resolve the Schema Suggestion Route'
+    studio.provider_registry -> model_connections 'Generate the schema, NuExtract or general protocol'
     model_connections -> studio.handlers 'Return the suggested schema'
     studio.handlers -> studio.ui 'Show the editable Extraction Schema'
     researcher -> studio.ui 'Edit a field, or ask for a change in chat'

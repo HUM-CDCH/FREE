@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { ExtractionModelRole } from '../../shared/extraction.contract'
 import type { CredentialActions, ModelConfig, ModelConnection, ProviderDescriptor, ProviderKind, RouteKey } from '../../shared/modelConfig.contract'
 
 export type ConfigurationMode = 'single' | 'routes'
@@ -6,22 +7,24 @@ type ProbeSchedule = (connection: ModelConnection, action: string | null | undef
 
 type DraftInputs = {
   providers: readonly ProviderDescriptor[]
+  /** Read-only connections the deployment runs; routes may name them. */
+  deploymentConnections?: readonly ModelConnection[]
   scheduleProbe: ProbeSchedule
   disposeProbe: (connectionId: string) => void
 }
 
 export function configurationMode(config: ModelConfig): ConfigurationMode {
-  const { extraction, interaction } = config.routes
-  if (extraction === null && interaction === null) return 'single'
-  if (extraction === null || interaction === null) return 'routes'
-  return extraction.connectionId === interaction.connectionId &&
-    extraction.modelId === interaction.modelId &&
-    !('nuextractRaw' in extraction && extraction.nuextractRaw)
+  const { schemaSuggestion, interaction } = config.routes
+  if (schemaSuggestion === null && interaction === null) return 'single'
+  if (schemaSuggestion === null || interaction === null) return 'routes'
+  return schemaSuggestion.connectionId === interaction.connectionId &&
+    schemaSuggestion.modelId === interaction.modelId &&
+    schemaSuggestion.protocol === undefined
     ? 'single'
     : 'routes'
 }
 
-export function useProviderConfigDraft({ providers, scheduleProbe, disposeProbe }: DraftInputs) {
+export function useProviderConfigDraft({ providers, deploymentConnections = [], scheduleProbe, disposeProbe }: DraftInputs) {
   const [draft, setDraft] = useState<ModelConfig | null>(null)
   const [mode, setMode] = useState<ConfigurationMode>('single')
   const [credentialActions, setCredentialActions] = useState<CredentialActions>({})
@@ -66,11 +69,12 @@ export function useProviderConfigDraft({ providers, scheduleProbe, disposeProbe 
       baseUrl: provider.transport === 'http' ? (provider.defaultBaseUrl ?? '') : null,
     }
     const routes = { ...draft.routes }
-    const { extraction } = routes
-    if (extraction?.connectionId === connection.id && !provider.supportsNuextractRaw) {
-      routes.extraction = { connectionId: extraction.connectionId, modelId: extraction.modelId }
+    const { schemaSuggestion } = routes
+    if (schemaSuggestion?.connectionId === connection.id && !provider.supportsNuextract) {
+      routes.schemaSuggestion = { connectionId: schemaSuggestion.connectionId, modelId: schemaSuggestion.modelId }
     }
     setDraft({
+      ...draft,
       connections: draft.connections.map((item) => (item.id === connection.id ? next : item)),
       routes,
     })
@@ -108,9 +112,9 @@ export function useProviderConfigDraft({ providers, scheduleProbe, disposeProbe 
   function removeConnection(connectionId: string): void {
     if (!draft) return
     const routes = { ...draft.routes }
-    if (routes.extraction?.connectionId === connectionId) routes.extraction = null
+    if (routes.schemaSuggestion?.connectionId === connectionId) routes.schemaSuggestion = null
     if (routes.interaction?.connectionId === connectionId) routes.interaction = null
-    setDraft({ connections: draft.connections.filter(({ id }) => id !== connectionId), routes })
+    setDraft({ ...draft, connections: draft.connections.filter(({ id }) => id !== connectionId), routes })
     const actions = { ...credentialActions }
     delete actions[connectionId]
     setCredentialActions(actions)
@@ -124,8 +128,8 @@ export function useProviderConfigDraft({ providers, scheduleProbe, disposeProbe 
       return
     }
     const current = draft.routes[key]
-    const selected = draft.connections.find(({ id }) => id === connectionId)
-    const rawSupported = selected ? descriptor(selected)?.supportsNuextractRaw === true : false
+    const selected = [...draft.connections, ...deploymentConnections].find(({ id }) => id === connectionId)
+    const nuextractSupported = selected ? descriptor(selected)?.supportsNuextract === true : false
     setDraft({
       ...draft,
       routes: {
@@ -133,8 +137,8 @@ export function useProviderConfigDraft({ providers, scheduleProbe, disposeProbe 
         [key]: {
           connectionId,
           modelId: current?.modelId ?? '',
-          ...(key === 'extraction' && rawSupported && current && 'nuextractRaw' in current && current.nuextractRaw
-            ? { nuextractRaw: true as const }
+          ...(key === 'schemaSuggestion' && nuextractSupported && current && 'protocol' in current && current.protocol
+            ? { protocol: current.protocol }
             : {}),
         },
       },
@@ -149,34 +153,41 @@ export function useProviderConfigDraft({ providers, scheduleProbe, disposeProbe 
   function setSingleConnection(connectionId: string): void {
     if (!draft) return
     if (!connectionId) {
-      setDraft({ ...draft, routes: { extraction: null, interaction: null } })
+      setDraft({ ...draft, routes: { schemaSuggestion: null, interaction: null } })
       return
     }
-    const modelId = draft.routes.extraction?.modelId ?? draft.routes.interaction?.modelId ?? ''
+    const modelId = draft.routes.schemaSuggestion?.modelId ?? draft.routes.interaction?.modelId ?? ''
     const route = { connectionId, modelId }
-    setDraft({ ...draft, routes: { extraction: route, interaction: route } })
+    setDraft({ ...draft, routes: { schemaSuggestion: route, interaction: route } })
   }
 
   function setSingleModel(modelId: string): void {
     if (!draft) return
-    const current = draft.routes.extraction ?? draft.routes.interaction
+    const current = draft.routes.schemaSuggestion ?? draft.routes.interaction
     if (!current) return
     const route = { connectionId: current.connectionId, modelId }
-    setDraft({ ...draft, routes: { extraction: route, interaction: route } })
+    setDraft({ ...draft, routes: { schemaSuggestion: route, interaction: route } })
   }
 
-  function setRawNuextract(enabled: boolean): void {
-    if (!draft?.routes.extraction) return
-    const extraction = draft.routes.extraction
+  function setNuextractProtocol(enabled: boolean): void {
+    if (!draft?.routes.schemaSuggestion) return
+    const { connectionId, modelId } = draft.routes.schemaSuggestion
     setDraft({
       ...draft,
       routes: {
         ...draft.routes,
-        extraction: enabled
-          ? { ...extraction, nuextractRaw: true }
-          : { connectionId: extraction.connectionId, modelId: extraction.modelId },
+        schemaSuggestion: enabled ? { connectionId, modelId, protocol: 'nuextract' } : { connectionId, modelId },
       },
     })
+  }
+
+  /** '' leaves the role to kei-exp's deployment default. */
+  function setExtractionModel(role: ExtractionModelRole, key: string): void {
+    if (!draft) return
+    const extractionModels = { ...draft.extractionModels }
+    if (key) extractionModels[role] = key
+    else delete extractionModels[role]
+    setDraft({ ...draft, extractionModels })
   }
 
   return {
@@ -197,6 +208,7 @@ export function useProviderConfigDraft({ providers, scheduleProbe, disposeProbe 
     setRouteModel,
     setSingleConnection,
     setSingleModel,
-    setRawNuextract,
+    setNuextractProtocol,
+    setExtractionModel,
   }
 }

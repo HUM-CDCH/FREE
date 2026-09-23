@@ -1,5 +1,9 @@
 # Two explicit model Capability Routes
 
+> Amended by [0011](0011-one-model-configuration-page.md): the Extraction Route
+> is now the Schema Suggestion Route, and an unset route runs on the
+> deployment's instruction model when it serves one.
+
 FREE exposes exactly two machine-wide Capability Routes for now: the Extraction
 Route serves Extraction and Schema Suggestion, while the Interaction Route
 serves document chat and conversational Extraction Schema editing. Operations

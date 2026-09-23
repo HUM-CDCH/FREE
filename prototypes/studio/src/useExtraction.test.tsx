@@ -357,25 +357,14 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(result.current.attempt?.strategy).toBe('CATALOG')
   })
 
-  it('submits only the roles the researcher chose as the run\'s Extraction Model Choice', async () => {
+  it('sends no Extraction Model Choice: the server applies the configured one', async () => {
     vi.mocked(api.requestExtraction).mockResolvedValue(attempt({ requestedModels: { reasoning: 'instruct' } }))
     const { result } = renderHook(() => useExtraction(options()))
 
-    await act(() => result.current.runExtraction(undefined, 'ARTICLE', null, { fields: '', reasoning: 'instruct' }))
-
-    const [request] = vi.mocked(api.requestExtraction).mock.calls[0]!
-    expect(request).toMatchObject({ strategy: 'ARTICLE', models: { reasoning: 'instruct' } })
-    expect(request.models).not.toHaveProperty('fields')
-    expect(result.current.attempt?.requestedModels).toEqual({ reasoning: 'instruct' })
-  })
-
-  it('sends no Extraction Model Choice when every role keeps the default', async () => {
-    vi.mocked(api.requestExtraction).mockResolvedValue(attempt())
-    const { result } = renderHook(() => useExtraction(options()))
-
-    await act(() => result.current.runExtraction(undefined, 'ARTICLE', null, { fields: '', reasoning: '' }))
+    await act(() => result.current.runExtraction(undefined, 'ARTICLE', null))
 
     expect(vi.mocked(api.requestExtraction).mock.calls[0]![0]).not.toHaveProperty('models')
+    expect(result.current.attempt?.requestedModels).toEqual({ reasoning: 'instruct' })
   })
 
   it('submits targeted Catalog retries only for a Catalog parent', async () => {

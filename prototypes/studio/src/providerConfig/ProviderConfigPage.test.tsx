@@ -3,10 +3,12 @@
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type {
-  CredentialState,
-  ModelConfig,
-  ProviderDescriptor,
+import {
+  DEPLOYMENT_CONNECTION_IDS,
+  type CredentialState,
+  type DeploymentModels,
+  type ModelConfig,
+  type ProviderDescriptor,
 } from '../../shared/modelConfig.contract'
 import ProviderConfigPage from './ProviderConfigPage'
 
@@ -20,7 +22,7 @@ const providers: ProviderDescriptor[] = [
     transport: 'http',
     defaultBaseUrl: 'http://127.0.0.1:11434',
     authentication: 'optional',
-    supportsNuextractRaw: true,
+    supportsNuextract: false,
   },
   {
     kind: 'openai',
@@ -28,7 +30,7 @@ const providers: ProviderDescriptor[] = [
     transport: 'http',
     defaultBaseUrl: 'https://api.openai.com/v1',
     authentication: 'managed',
-    supportsNuextractRaw: false,
+    supportsNuextract: false,
   },
   {
     kind: 'anthropic',
@@ -36,7 +38,7 @@ const providers: ProviderDescriptor[] = [
     transport: 'http',
     defaultBaseUrl: 'https://api.anthropic.com/v1',
     authentication: 'managed',
-    supportsNuextractRaw: false,
+    supportsNuextract: false,
   },
   {
     kind: 'google',
@@ -44,7 +46,7 @@ const providers: ProviderDescriptor[] = [
     transport: 'http',
     defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
     authentication: 'managed',
-    supportsNuextractRaw: false,
+    supportsNuextract: false,
   },
   {
     kind: 'codex-cli',
@@ -52,7 +54,7 @@ const providers: ProviderDescriptor[] = [
     transport: 'cli',
     defaultBaseUrl: null,
     authentication: 'external',
-    supportsNuextractRaw: false,
+    supportsNuextract: false,
   },
   {
     kind: 'claude-code',
@@ -60,7 +62,7 @@ const providers: ProviderDescriptor[] = [
     transport: 'cli',
     defaultBaseUrl: null,
     authentication: 'external',
-    supportsNuextractRaw: false,
+    supportsNuextract: false,
   },
   {
     kind: 'openai-compatible',
@@ -68,13 +70,38 @@ const providers: ProviderDescriptor[] = [
     transport: 'http',
     defaultBaseUrl: null,
     authentication: 'optional',
-    supportsNuextractRaw: false,
+    supportsNuextract: false,
+  },
+  {
+    kind: 'vllm',
+    label: 'vLLM',
+    transport: 'http',
+    defaultBaseUrl: null,
+    authentication: 'optional',
+    supportsNuextract: true,
   },
 ]
 
+const NO_DEPLOYMENT: DeploymentModels = { connections: [], defaultRoute: null }
+const deployment: DeploymentModels = {
+  connections: [
+    { id: DEPLOYMENT_CONNECTION_IDS.instruct, name: 'Deployment instruction model', provider: 'vllm', baseUrl: 'http://extraction_model:8000/v1' },
+    { id: DEPLOYMENT_CONNECTION_IDS.nuextract, name: 'Deployment NuExtract', provider: 'vllm', baseUrl: 'http://nuextract_model:8000/v1' },
+  ],
+  defaultRoute: { connectionId: DEPLOYMENT_CONNECTION_IDS.instruct, modelId: 'Qwen/Qwen3.8-27B-FP8' },
+}
+const extractionListing = {
+  defaults: { fields: 'nuextract', reasoning: 'instruct' },
+  models: [
+    { key: 'instruct', repo: 'Qwen/Qwen3.8-27B-FP8', roles: ['fields', 'reasoning'], reachable: true, serving: true },
+    { key: 'nuextract', repo: 'numind/NuExtract3-FP8', roles: ['fields'], reachable: true, serving: false },
+  ],
+}
+
 const emptyConfig: ModelConfig = {
   connections: [],
-  routes: { extraction: null, interaction: null },
+  routes: { schemaSuggestion: null, interaction: null },
+  extractionModels: {},
 }
 
 function ollamaConfig(modelId = 'saved-model'): ModelConfig {
@@ -88,7 +115,8 @@ function ollamaConfig(modelId = 'saved-model'): ModelConfig {
         baseUrl: 'http://127.0.0.1:11434',
       },
     ],
-    routes: { extraction: route, interaction: route },
+    routes: { schemaSuggestion: route, interaction: route },
+    extractionModels: {},
   }
 }
 
@@ -108,7 +136,8 @@ function mixedConfig(): ModelConfig {
         baseUrl: 'https://api.openai.com/v1',
       },
     ],
-    routes: { extraction: null, interaction: null },
+    routes: { schemaSuggestion: null, interaction: null },
+    extractionModels: {},
   }
 }
 
@@ -122,20 +151,23 @@ function jsonResponse(body: unknown, status = 200): Response {
 function configResponse(
   config: ModelConfig,
   credentialStates: Record<string, CredentialState> = {},
+  deploymentModels: DeploymentModels = NO_DEPLOYMENT,
 ): Response {
-  return jsonResponse({ config, credentialStates, providers })
+  return jsonResponse({ config, credentialStates, providers, deployment: deploymentModels })
 }
 
 type FetchHandler = (url: string, init: RequestInit) => Promise<Response> | Response
 
-function mockFetch(handler: FetchHandler) {
+/** Records every Model Configuration request; kei-exp's model listing is answered apart, so counts stay exact. */
+function mockFetch(handler: FetchHandler, listing: () => Response = () => jsonResponse(extractionListing)) {
   const request = vi.fn(
     (input: string | URL | Request, init: RequestInit = {}) => {
       expect(init.credentials).toBe('same-origin')
       return Promise.resolve(handler(String(input), init))
     },
   )
-  vi.stubGlobal('fetch', request)
+  vi.stubGlobal('fetch', (input: string | URL | Request, init: RequestInit = {}) =>
+    String(input).endsWith('/api/extraction-models') ? Promise.resolve(listing()) : request(input, init))
   return request
 }
 
@@ -182,13 +214,13 @@ describe('ProviderConfigPage', () => {
     const request = mockFetch((url, init) => {
       if (url === '/api/model_config' && init.method === 'PUT') {
         const submitted = requestBody(init).config as ModelConfig
-        expect(submitted.routes.extraction?.modelId).toBe('manual-model')
+        expect(submitted.routes.schemaSuggestion?.modelId).toBe('manual-model')
         expect(submitted.routes.interaction?.modelId).toBe('manual-model')
         for (const route of Object.values(submitted.routes)) expect(route).not.toHaveProperty('jsonOutput')
         stored = {
           ...submitted,
           routes: {
-            extraction: { ...submitted.routes.extraction!, modelId: 'normalized-model' },
+            schemaSuggestion: { ...submitted.routes.schemaSuggestion!, modelId: 'normalized-model' },
             interaction: { ...submitted.routes.interaction!, modelId: 'normalized-model' },
           },
         }
@@ -268,7 +300,7 @@ describe('ProviderConfigPage', () => {
               message: 'The request is invalid.',
               details: {
                 path: 'request',
-                issues: [{ path: 'config.routes.extraction.modelId', message: 'Must not be empty.' }],
+                issues: [{ path: 'config.routes.schemaSuggestion.modelId', message: 'Must not be empty.' }],
                 truncated: false,
               },
             },
@@ -284,7 +316,7 @@ describe('ProviderConfigPage', () => {
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('invalid_request: The request is invalid.')
-    expect(alert).toHaveTextContent('config.routes.extraction.modelId: Must not be empty.')
+    expect(alert).toHaveTextContent('config.routes.schemaSuggestion.modelId: Must not be empty.')
   })
 
   it('debounces draft checks, cancels and suppresses stale results, retries immediately, and saves offline', async () => {
@@ -362,7 +394,7 @@ describe('ProviderConfigPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
     await act(async () => { await Promise.resolve() })
     expect(putBodies).toHaveLength(1)
-    expect((putBodies[0].config as ModelConfig).routes.extraction?.modelId).toBe('manual-offline-model')
+    expect((putBodies[0].config as ModelConfig).routes.schemaSuggestion?.modelId).toBe('manual-offline-model')
   })
 
   it('probes when the model list is opened for an unchecked connection, once per session', async () => {
@@ -457,30 +489,33 @@ describe('ProviderConfigPage', () => {
     expect(request.mock.calls.filter(([url]) => String(url) === '/api/model_config')).toHaveLength(4)
   })
 
-  it('saves mixed routes and exposes raw NuExtract only for Ollama extraction', async () => {
+  it('saves mixed routes and exposes the NuExtract protocol only on a vLLM Schema Suggestion Route', async () => {
+    const VLLM_ID = '33333333-3333-4333-8333-333333333333'
     const putBodies: Record<string, unknown>[] = []
+    const config = mixedConfig()
+    config.connections.push({ id: VLLM_ID, name: 'Lab vLLM', provider: 'vllm', baseUrl: 'http://lab.example:8000/v1' })
     mockFetch((url, init) => {
       if (url === '/api/model_config' && init.method === 'PUT') {
         const body = requestBody(init)
         putBodies.push(body)
         return jsonResponse({ config: body.config, credentialStates: {} })
       }
-      return configResponse(mixedConfig())
+      return configResponse(config)
     })
 
     await renderPage()
     fireEvent.click(screen.getByRole('button', { name: 'Capability Routes' }))
-    const extractionConnection = screen.getByLabelText('Extraction & Schema Suggestion connection')
-    fireEvent.change(extractionConnection, { target: { value: OLLAMA_ID } })
-    fireEvent.change(screen.getByLabelText('Extraction & Schema Suggestion model ID'), {
-      target: { value: 'nuextract-manual' },
+    const suggestionConnection = screen.getByLabelText('Schema Suggestion connection')
+    fireEvent.change(suggestionConnection, { target: { value: VLLM_ID } })
+    fireEvent.change(screen.getByLabelText('Schema Suggestion model ID'), {
+      target: { value: 'numind/NuExtract3-FP8' },
     })
-    fireEvent.click(screen.getByLabelText('Use raw NuExtract protocol'))
+    fireEvent.click(screen.getByLabelText('Use NuExtract protocol'))
 
-    fireEvent.change(extractionConnection, { target: { value: OPENAI_ID } })
-    expect(screen.queryByLabelText('Use raw NuExtract protocol')).not.toBeInTheDocument()
-    fireEvent.change(extractionConnection, { target: { value: OLLAMA_ID } })
-    fireEvent.click(screen.getByLabelText('Use raw NuExtract protocol'))
+    fireEvent.change(suggestionConnection, { target: { value: OLLAMA_ID } })
+    expect(screen.queryByLabelText('Use NuExtract protocol')).not.toBeInTheDocument()
+    fireEvent.change(suggestionConnection, { target: { value: VLLM_ID } })
+    fireEvent.click(screen.getByLabelText('Use NuExtract protocol'))
 
     fireEvent.change(screen.getByLabelText('Chat & Extraction Schema editing connection'), {
       target: { value: OPENAI_ID },
@@ -492,14 +527,86 @@ describe('ProviderConfigPage', () => {
 
     await waitFor(() => expect(putBodies).toHaveLength(1))
     const saved = putBodies[0].config as ModelConfig
-    expect(saved.routes.extraction).toEqual({
-      connectionId: OLLAMA_ID,
-      modelId: 'nuextract-manual',
-      nuextractRaw: true,
+    expect(saved.routes.schemaSuggestion).toEqual({
+      connectionId: VLLM_ID,
+      modelId: 'numind/NuExtract3-FP8',
+      protocol: 'nuextract',
     })
     expect(saved.routes.interaction).toEqual({
       connectionId: OPENAI_ID,
       modelId: 'gpt-manual',
+    })
+  })
+
+  it('sets the deployment-wide Extraction Model Choice from kei-exp\'s listing', async () => {
+    const putBodies: Record<string, unknown>[] = []
+    mockFetch((url, init) => {
+      if (url === '/api/model_config' && init.method === 'PUT') {
+        const body = requestBody(init)
+        putBodies.push(body)
+        return jsonResponse({ config: body.config, credentialStates: {} })
+      }
+      return configResponse({ ...emptyConfig, extractionModels: { reasoning: 'instruct' } })
+    })
+    const optionLabels = (label: string) =>
+      Array.from((screen.getByLabelText(label) as HTMLSelectElement).options).map((option) => option.textContent)
+
+    await renderPage()
+    await waitFor(() => expect(optionLabels('Field model')).toEqual([
+      'Default (numind/NuExtract3-FP8)', 'Qwen/Qwen3.8-27B-FP8', 'numind/NuExtract3-FP8 (unavailable)',
+    ]))
+    // NuExtract cannot take the reasoning role, so it is not offered there.
+    expect(optionLabels('Reasoning model')).toEqual(['Default (Qwen/Qwen3.8-27B-FP8)', 'Qwen/Qwen3.8-27B-FP8'])
+    expect(screen.getByLabelText('Reasoning model')).toHaveValue('instruct')
+
+    fireEvent.change(screen.getByLabelText('Field model'), { target: { value: 'instruct' } })
+    fireEvent.change(screen.getByLabelText('Reasoning model'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+
+    await waitFor(() => expect(putBodies).toHaveLength(1))
+    expect((putBodies[0].config as ModelConfig).extractionModels).toEqual({ fields: 'instruct' })
+  })
+
+  it('keeps only the Default extraction models when kei-exp cannot list them', async () => {
+    mockFetch(() => configResponse(emptyConfig), () => jsonResponse({ error: { code: 'extraction_models_unavailable', message: 'Unavailable.' } }, 503))
+    await renderPage()
+    const labels = (label: string) =>
+      Array.from((screen.getByLabelText(label) as HTMLSelectElement).options).map((option) => option.textContent)
+    expect(labels('Field model')).toEqual(['Default'])
+    expect(labels('Reasoning model')).toEqual(['Default'])
+  })
+
+  it('offers the deployment connections read-only and names the default an unset route runs on', async () => {
+    const putBodies: Record<string, unknown>[] = []
+    mockFetch((url, init) => {
+      if (url === '/api/model_config' && init.method === 'PUT') {
+        const body = requestBody(init)
+        putBodies.push(body)
+        return jsonResponse({ config: body.config, credentialStates: {} })
+      }
+      return configResponse(emptyConfig, {}, deployment)
+    })
+
+    await renderPage()
+    const listed = within(screen.getByText('Deployment connections').parentElement!)
+    expect(listed.getByText('Deployment NuExtract')).toBeInTheDocument()
+    expect(listed.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('article')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Capability Routes' }))
+    const suggestionConnection = screen.getByLabelText('Schema Suggestion connection')
+    expect(suggestionConnection).toHaveValue('')
+    expect(within(suggestionConnection).getByRole('option', { name: 'Deployment default (Qwen/Qwen3.8-27B-FP8)' })).toBeInTheDocument()
+    fireEvent.change(suggestionConnection, { target: { value: DEPLOYMENT_CONNECTION_IDS.nuextract } })
+    fireEvent.change(screen.getByLabelText('Schema Suggestion model ID'), { target: { value: 'numind/NuExtract3-FP8' } })
+    fireEvent.click(screen.getByLabelText('Use NuExtract protocol'))
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+
+    await waitFor(() => expect(putBodies).toHaveLength(1))
+    const saved = putBodies[0].config as ModelConfig
+    expect(saved.connections).toEqual([])
+    expect(saved.routes.schemaSuggestion).toEqual({
+      connectionId: DEPLOYMENT_CONNECTION_IDS.nuextract, modelId: 'numind/NuExtract3-FP8', protocol: 'nuextract',
     })
   })
 
@@ -517,5 +624,35 @@ describe('ProviderConfigPage', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'invalid_model_config: Saved model configuration is invalid.',
     )
+  })
+
+  it('replaces an unreadable configuration only after a confirmed reset', async () => {
+    let saved: 'unreadable' | 'reset' = 'unreadable'
+    const request = mockFetch((url, init) => {
+      if (url === '/api/model_config' && init.method === 'DELETE') {
+        saved = 'reset'
+        return configResponse(emptyConfig, {}, deployment)
+      }
+      return saved === 'unreadable'
+        ? jsonResponse({ error: { code: 'invalid_model_config', message: 'Saved model configuration is invalid.' } }, 409)
+        : configResponse(emptyConfig, {}, deployment)
+    })
+
+    render(<ProviderConfigPage onClose={() => {}} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Reset model configuration' }))
+    expect(request.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm reset' }))
+
+    expect(await screen.findByText('Model Configuration')).toBeInTheDocument()
+    expect(screen.getByText('Deployment connections')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(request.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(1)
+  })
+
+  it('offers no reset when the configuration failed to load for another reason', async () => {
+    mockFetch(() => jsonResponse({ error: { code: 'storage_failure', message: 'Unreadable.' } }, 500))
+    render(<ProviderConfigPage onClose={() => {}} />)
+    expect(await screen.findByText('Model configuration could not be loaded.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reset model configuration' })).not.toBeInTheDocument()
   })
 })

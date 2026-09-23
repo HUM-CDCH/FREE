@@ -31,8 +31,9 @@ Two models serve extraction by default, in FP8:
 and grounded entry calls), and `Qwen/Qwen3.8-27B-FP8`, an instruction model,
 does the reasoning calls (record discovery, grounding and arbitration), whose
 replies are label enums a NuExtract template cannot express. A run may route
-the fields role to the instruction model too; Studio offers the choice per
-run. Thinking is switched off per request through the chat template, and
+the fields role to the instruction model too; Studio offers the choice
+(per run here, deployment-wide since
+[0011](0011-one-model-configuration-page.md)). Thinking is switched off per request through the chat template, and
 NuExtract's template and instructions travel only in the chat template's
 arguments. Token budgets are counted on vLLM's `/tokenize` with the same
 rendered request.
@@ -42,7 +43,8 @@ rendered request.
 `FREE_GPU=off` no longer extracts: without the GPU overlay only native PDF
 parsing is available, unless an operator points extraction at another
 OpenAI-compatible vLLM endpoint. The Ollama service, its pull job and its
-volume are removed; Studio's own Ollama Model Connections are unaffected.
+volume are removed; Studio's own Ollama Model Connections are unaffected
+(raw NuExtract on Ollama is retired in [0011](0011-one-model-configuration-page.md)).
 First GPU startup downloads about 38 GB of extraction weights, and the image
 must support the `qwen3_5` architecture and FP8 on the target GPU. The
 NuExtract server runs its repository's processor code (`--trust-remote-code`).

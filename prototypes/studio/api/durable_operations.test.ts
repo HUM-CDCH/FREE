@@ -103,7 +103,7 @@ function handlerFor(
   return createResearcherApiHandlers({
     researcherAccountId,
     ...store,
-  } as ResearcherProjectStore).POST
+  } as ResearcherProjectStore, { extractionModels: async () => ({ reasoning: 'instruct' }) }).POST
 }
 
 const runRequest = () =>
@@ -179,6 +179,7 @@ describe('durable operation APIs', () => {
         projectContextId,
         batchSchemaSuggestionId: suggestionId,
         strategy: 'ARTICLE',
+        models: { reasoning: 'instruct' },
       })
       return { disposition: 'created', batch: {} as never }
     })

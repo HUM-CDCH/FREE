@@ -22,6 +22,8 @@ import {
 import { validateEditableSuggestion } from './_batch_schema_suggestions.js'
 import { projectOperations } from './_project_operations.js'
 import { createResearcherExtractions } from './_extraction_runtime.js'
+import type { ExtractionHandlerDependencies } from './extractions.js'
+import { configuredExtractionModels } from './_model_config.js'
 
 const ROUTE = '/api/batch-schema-suggestions'
 const ITEM_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)$/
@@ -85,9 +87,11 @@ function suggestionDto(suggestion: BatchSchemaSuggestionRecord) {
 /** Durable schema-suggestion HTTP lifecycle: all model work runs after 202. */
 export function createResearcherApiHandlers(
   store: ResearcherProjectStore,
+  dependencies: ExtractionHandlerDependencies = {},
 ): Readonly<
   Record<string, (request: Request) => Response | Promise<Response>>
 > {
+  const extractionModels = dependencies.extractionModels ?? (() => configuredExtractionModels())
   const operations = projectOperations
   const extractionModule = createResearcherExtractions(
     store.researcherAccountId,
@@ -212,8 +216,10 @@ export function createResearcherApiHandlers(
         'The Batch Extraction strategy is invalid.',
       )
     const projectContextId = projectId(url)
+    const models = await extractionModels()
     try {
       await extractionModule.scheduleSuggestedBatch({
+        models,
         projectContextId,
         batchSchemaSuggestionId: id,
         strategy: parsed.data.strategy,

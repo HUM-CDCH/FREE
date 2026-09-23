@@ -9,6 +9,10 @@ import { configurationMode, type ConfigurationMode } from './useProviderConfigDr
 type Props = {
   mode: ConfigurationMode
   draft: ModelConfig
+  /** Every connection a route may name: the deployment's own, then the saved ones. */
+  connections: readonly ModelConnection[]
+  /** What an unset route runs on, when the deployment serves an instruction model. */
+  defaultModelId: string | null
   probes: Readonly<Record<string, ProbeView>>
   descriptor: (connection: ModelConnection) => ProviderDescriptor | undefined
   onModelListOpen: (connectionId: string) => void
@@ -16,12 +20,14 @@ type Props = {
   setRouteModel: (key: RouteKey, modelId: string) => void
   setSingleConnection: (connectionId: string) => void
   setSingleModel: (modelId: string) => void
-  setRawNuextract: (enabled: boolean) => void
+  setNuextractProtocol: (enabled: boolean) => void
 }
 
 export function ProviderRoutesEditor({
   mode,
   draft,
+  connections,
+  defaultModelId,
   probes,
   descriptor,
   onModelListOpen,
@@ -29,12 +35,13 @@ export function ProviderRoutesEditor({
   setRouteModel,
   setSingleConnection,
   setSingleModel,
-  setRawNuextract,
+  setNuextractProtocol,
 }: Props) {
-  const extraction = draft.routes.extraction
+  const schemaSuggestion = draft.routes.schemaSuggestion
   const interaction = draft.routes.interaction
   const uniform = configurationMode(draft) === 'single'
-  const singleRoute = extraction ?? interaction
+  const singleRoute = schemaSuggestion ?? interaction
+  const unsetLabel = defaultModelId ? `Deployment default (${defaultModelId})` : 'Select a connection…'
   const singleConnectionId = singleRoute?.connectionId ?? ''
   const singleModelId = singleRoute?.modelId ?? ''
   const singleProbe = probes[singleConnectionId]
@@ -43,13 +50,13 @@ export function ProviderRoutesEditor({
   if (mode === 'single') {
     return (
       <div>
-        {!uniform && (extraction !== null || interaction !== null) && <p className="rounded-lg border border-stale bg-stale-soft px-3 py-2 text-[11px] text-stale-ink">Capability Routes currently differ. Selecting a connection and model here will assign the same target to both.</p>}
+        {!uniform && (schemaSuggestion !== null || interaction !== null) && <p className="rounded-lg border border-stale bg-stale-soft px-3 py-2 text-[11px] text-stale-ink">Capability Routes currently differ. Selecting a connection and model here will assign the same target to both.</p>}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <label className="flex flex-col gap-1">
             <span className="font-mono text-[10px] font-semibold uppercase text-ink-muted">Connection</span>
             <select aria-label="Single model connection" value={singleConnectionId} onChange={(event) => setSingleConnection(event.target.value)} className={`${providerFieldClass} cursor-pointer`}>
-              <option value="">Select a connection…</option>
-              {draft.connections.map((connection) => <option key={connection.id} value={connection.id}>{connection.name}</option>)}
+              <option value="">{unsetLabel}</option>
+              {connections.map((connection) => <option key={connection.id} value={connection.id}>{connection.name}</option>)}
             </select>
           </label>
           <div className="flex flex-col gap-1">
@@ -75,7 +82,7 @@ export function ProviderRoutesEditor({
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {ROUTABLE_TASKS.map((task) => {
           const route = draft.routes[task.key]
-          const connection = draft.connections.find(({ id }) => id === route?.connectionId)
+          const connection = connections.find(({ id }) => id === route?.connectionId)
           const provider = connection ? descriptor(connection) : undefined
           const probe = connection ? probes[connection.id] : undefined
           const catalog = probe?.phase === 'done' ? probe.result.catalog : []
@@ -86,8 +93,8 @@ export function ProviderRoutesEditor({
               <label className="mb-2 flex flex-col gap-1">
                 <span className="font-mono text-[9px] font-semibold uppercase text-ink-muted">Connection</span>
                 <select aria-label={`${task.label} connection`} value={route?.connectionId ?? ''} onChange={(event) => setRoute(task.key, event.target.value)} className={`${providerFieldClass} cursor-pointer`}>
-                  <option value="">Select a connection…</option>
-                  {draft.connections.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  <option value="">{unsetLabel}</option>
+                  {connections.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                 </select>
               </label>
               <div className="flex flex-col gap-1">
@@ -102,10 +109,10 @@ export function ProviderRoutesEditor({
                   onOpen={() => connection && onModelListOpen(connection.id)}
                 />
               </div>
-              {task.key === 'extraction' && provider?.supportsNuextractRaw && route && (
+              {task.key === 'schemaSuggestion' && provider?.supportsNuextract && route && (
                 <label className="mt-2 flex items-center gap-2 text-[11px] text-ink-muted">
-                  <input type="checkbox" checked={'nuextractRaw' in route && route.nuextractRaw === true} onChange={(event) => setRawNuextract(event.target.checked)} />
-                  Use raw NuExtract protocol
+                  <input type="checkbox" checked={'protocol' in route && route.protocol === 'nuextract'} onChange={(event) => setNuextractProtocol(event.target.checked)} />
+                  Use NuExtract protocol
                 </label>
               )}
             </div>

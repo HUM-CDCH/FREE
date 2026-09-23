@@ -20,9 +20,9 @@ export const ROUTABLE_TASKS: readonly {
   description: string
 }[] = [
   {
-    key: 'extraction',
-    label: 'Extraction & Schema Suggestion',
-    description: 'Runs over every Source Document',
+    key: 'schemaSuggestion',
+    label: 'Schema Suggestion',
+    description: 'Proposes an Extraction Schema from a Source Document',
   },
   {
     key: 'interaction',
@@ -89,6 +89,15 @@ export async function checkedJson(response: Response): Promise<unknown> {
 
 export async function getModelConfig(signal?: AbortSignal): Promise<GetModelConfigResponse> {
   const parsed = getModelConfigResponseSchema.safeParse(await checkedJson(await authenticatedFetch('/api/model_config', { signal })))
+  if (!parsed.success) throw new ModelConfigApiError(500, 'invalid_response', 'Studio returned invalid model configuration state.')
+  return parsed.data
+}
+
+/** Deletes the saved document, even one this Studio cannot read, and returns the empty state. */
+export async function resetModelConfig(signal?: AbortSignal): Promise<GetModelConfigResponse> {
+  const parsed = getModelConfigResponseSchema.safeParse(
+    await checkedJson(await authenticatedFetch('/api/model_config', { method: 'DELETE', signal })),
+  )
   if (!parsed.success) throw new ModelConfigApiError(500, 'invalid_response', 'Studio returned invalid model configuration state.')
   return parsed.data
 }

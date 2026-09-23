@@ -55,21 +55,25 @@ FREE's normative product and safety contract is:
    permanently delete a Project Context. Deletion removes its owned database
    graph and removes filesystem artifacts only when no remaining Project
    Context references them.
-7. **Model-provider surface.** The shared configuration supports Ollama,
-   OpenAI, Anthropic, Google, Codex CLI, Claude Code, and OpenAI-compatible
-   providers, with explicit Extraction and Interaction routes. Stored
-   credentials are write-only; provider configuration is deployment-wide and
-   is not seeded at startup.
+7. **Model-provider surface.** The Model Configuration page supports Ollama,
+   OpenAI, Anthropic, Google, Codex CLI, Claude Code, vLLM, and
+   OpenAI-compatible providers, with explicit Schema Suggestion and
+   Interaction routes and the Extraction Model Choice. Stored credentials are
+   write-only; configuration is deployment-wide and is not seeded at startup.
+   With the GPU overlay, the deployment's own vLLM servers are listed as
+   read-only deployment connections, and an unset route runs on the
+   deployment's instruction model.
    Extraction execution is delegated to the included Parsing Service;
    FREE uses the configured provider directly for Schema Suggestion and Interaction.
-   For those provider calls, output formatting is automatic: selecting a connection and model is sufficient,
-   including for existing saved routes. FREE uses the adapter's output support and
+   For those provider calls, output formatting is automatic: selecting a connection and model is sufficient.
+   FREE uses the adapter's output support and
    falls back to prompt-only generation only after an explicit unsupported-format
    response, remembering that endpoint/model/route for the server session. Returned
-   results are still validated. OpenAI-compatible requests include the JSON schema
-   when supplied. Output formatting has no route override; previously saved output
-   overrides are ignored and removed on the next save. Raw NuExtract keeps its own
-   protocol.
+   results are still validated. Output formatting has no route override. On a
+   vLLM connection, Schema Suggestion may use the NuExtract protocol (NuExtract's
+   template generation through its chat template). A saved configuration of an
+   earlier shape is not migrated: it fails closed, and the page offers a
+   confirmed reset to the empty configuration.
 8. **Safe startup.** Authored forward migrations finish before Studio becomes
    ready, both for a fresh database and an already-migrated one. Normal startup
    never resets the database or seeds an account, Project Context, provider,
@@ -196,14 +200,14 @@ Parsing Service for Article or Catalog extraction. The service owns extraction
 and grounding; Studio stores the returned records, evidence and diagnostics
 for review. Compose wires `KEI_EXP_URL` to its private API and, with GPU access,
 starts a vLLM server with the `KEI_EXTRACT_MODEL` model (default
-`Qwen/Qwen3.8-27B-FP8`). The Extraction
-Route's model id belongs to a FREE Model Connection and is not sent to this
-separate execution endpoint. Instead, each single-document Extraction may carry
-an Extraction Model Choice: a field model and a reasoning model picked from the
-models the service lists at `GET /api/extraction-models`; an unchosen role (and
-every Batch Extraction) uses the service's defaults, and each Extraction records
-the models its roles ran on. Schema Suggestion and Interaction still use the
-configured Capability Routes. Polling waits up to ten minutes for Article and three hours for
+`Qwen/Qwen3.8-27B-FP8`). Model Connections and Capability Routes are not sent
+to this separate execution endpoint. Instead, every single and Batch Extraction
+is requested on the Extraction Model Choice saved on the Model Configuration
+page: a field model and a reasoning model picked from the models the service
+lists at `GET /api/extraction-models`; an unchosen role uses the service's
+defaults, and each Extraction records the models its roles ran on. Schema
+Suggestion and Interaction use the configured Capability Routes, and an unset
+route runs on the deployment's instruction model. Polling waits up to ten minutes for Article and three hours for
 Catalog; cancellation stops FREE from waiting and publishing a result. A
 failed extraction carries kei-exp's own reason. The API has no remote cancellation
 or targeted Catalog retry operation; start a new Extraction to rerun.

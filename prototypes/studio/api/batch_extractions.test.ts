@@ -88,11 +88,11 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
   }
   return module
 }
-function handlerFor(module: ExtractionModule) {
+function handlerFor(module: ExtractionModule, configured: { fields?: string; reasoning?: string } | null = null) {
   runtime.createResearcherExtractions.mockReturnValue(module)
   return createResearcherApiHandlers({
     researcherAccountId: ACCOUNT,
-  } as ResearcherProjectStore).POST
+  } as ResearcherProjectStore, { extractionModels: async () => configured }).POST
 }
 
 const open = (body: unknown) =>
@@ -118,6 +118,7 @@ describe('/api/batch-extractions transport', () => {
     expect(reusable.status).toBe(202)
     expect(module.scheduleBatch).toHaveBeenCalledWith({
       ...selection,
+      models: null,
       repetition: 'reuse-equal-selection',
     })
     expect(await reusable.json()).toMatchObject({
@@ -128,6 +129,7 @@ describe('/api/batch-extractions transport', () => {
     await handle(open({ ...selection, force: true }))
     expect(module.scheduleBatch).toHaveBeenLastCalledWith({
       ...selection,
+      models: null,
       repetition: 'create-new',
     })
 
@@ -136,8 +138,16 @@ describe('/api/batch-extractions transport', () => {
     expect(module.scheduleBatch).toHaveBeenLastCalledWith({
       ...selection,
       strategy: 'CATALOG',
+      models: null,
       repetition: 'reuse-equal-selection',
     })
+  })
+
+  it('schedules every member on the configured Extraction Model Choice', async () => {
+    const module = extractionModule()
+    const response = await handlerFor(module, { fields: 'instruct' })(open(selection))
+    expect(response.status).toBe(202)
+    expect(module.scheduleBatch).toHaveBeenCalledWith(expect.objectContaining({ models: { fields: 'instruct' } }))
   })
 
   it('lists, reads, and exports through caller-shaped module methods', async () => {

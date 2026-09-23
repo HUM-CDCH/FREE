@@ -1267,59 +1267,18 @@ describe('reopened Source Document workspace', () => {
       }))
       return { extractionRequests, modelReads }
     }
-    const optionLabels = (label: string) =>
-      Array.from((screen.getByLabelText(label) as HTMLSelectElement).options).map((option) => option.textContent)
 
-    it('offers each role the deployment\'s models, submits the choice once, then defaults back to kei-exp\'s', async () => {
+    it('offers no per-run model choice: the run carries none and the header lists no models', async () => {
       const { extractionRequests, modelReads } = stubFetch(() => Response.json(listing), 'FAILED')
       render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
       await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-      await waitFor(() => expect(optionLabels('Field model')).toEqual([
-        'Default (numind/NuExtract3-FP8)', 'Qwen/Qwen3.8-27B-FP8', 'numind/NuExtract3-FP8 (unavailable)',
-      ]))
-      // NuExtract cannot take the reasoning role, so it is not offered there.
-      expect(optionLabels('Reasoning model')).toEqual(['Default (Qwen/Qwen3.8-27B-FP8)', 'Qwen/Qwen3.8-27B-FP8'])
-      expect(screen.getByLabelText('Field model')).toHaveValue('')
-      expect(screen.getByLabelText('Reasoning model')).toHaveValue('')
-      fireEvent.change(screen.getByLabelText('Field model'), { target: { value: 'instruct' } })
+      expect(screen.queryByLabelText('Field model')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Reasoning model')).not.toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
 
-      await waitFor(() => expect(extractionRequests).toHaveLength(1))
-      // Only the role the researcher changed is sent; the other keeps kei-exp's default.
-      expect(extractionRequests[0]!.models).toEqual({ fields: 'instruct' })
-      await waitFor(() => expect(screen.getByLabelText('Field model')).toHaveValue(''))
-      expect(screen.getByLabelText('Reasoning model')).toHaveValue('')
-      expect(modelReads).toHaveLength(1)
-    })
-
-    it('shows the running attempt\'s own choice while it runs', async () => {
-      const { extractionRequests } = stubFetch(() => Response.json(listing), 'RUNNING')
-      render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
-      await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-      await waitFor(() => expect(optionLabels('Reasoning model')).toHaveLength(2))
-      fireEvent.change(screen.getByLabelText('Reasoning model'), { target: { value: 'instruct' } })
-      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
-
-      await waitFor(() => expect(extractionRequests).toHaveLength(1))
-      expect(extractionRequests[0]!.models).toEqual({ reasoning: 'instruct' })
-      await waitFor(() => expect(screen.getByLabelText('Reasoning model')).toBeDisabled())
-      expect(screen.getByLabelText('Reasoning model')).toHaveValue('instruct')
-      expect(screen.getByLabelText('Field model')).toHaveValue('')
-      expect(screen.getByLabelText('Field model')).toBeDisabled()
-    })
-
-    it('keeps only the Default options and still runs when the models cannot be listed', async () => {
-      const { extractionRequests } = stubFetch(
-        () => Response.json({ error: { code: 'extraction_models_unavailable', message: 'Unavailable.' } }, { status: 503 }),
-        'FAILED',
-      )
-      render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
-      await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-      expect(optionLabels('Field model')).toEqual(['Default'])
-      expect(optionLabels('Reasoning model')).toEqual(['Default'])
-      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
       await waitFor(() => expect(extractionRequests).toHaveLength(1))
       expect(extractionRequests[0]).not.toHaveProperty('models')
+      expect(modelReads).toHaveLength(0)
     })
   })
 

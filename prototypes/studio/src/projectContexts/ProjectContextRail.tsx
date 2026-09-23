@@ -472,8 +472,8 @@ export function ProjectContextRail({
           <button
             className="rounded p-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
             type="button"
-            aria-label="Configure providers"
-            title="Configure providers"
+            aria-label="Configure models"
+            title="Configure models"
             onClick={(event) => onConfigure(event.currentTarget)}
           >
             <GearIcon />

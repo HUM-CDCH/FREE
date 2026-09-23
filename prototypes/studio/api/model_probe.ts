@@ -1,4 +1,9 @@
-import type { ModelConnection } from '../shared/modelConfig.contract.js'
+import {
+  modelProbeRequestSchema,
+  type DeploymentModels,
+  type ModelConnection,
+} from '../shared/modelConfig.contract.js'
+import { DEPLOYMENT_IDS, deploymentModels } from './_deployment_models.js'
 import { ApiError, apiErrorResponse, json, parseJsonRequest } from './_http.js'
 import { systemCredentialStore, type CredentialStore } from './_keyring.js'
 import {
@@ -13,7 +18,30 @@ import {
 } from './_provider.js'
 
 export type ModelProbeDependencies = ConfigStorageOptions &
-  ProviderProbeDependencies & { credentialStore?: CredentialStore }
+  ProviderProbeDependencies & {
+    credentialStore?: CredentialStore
+    deployment?: () => DeploymentModels
+  }
+
+/**
+ * A deployment connection is probed at the address the server knows, never at
+ * one the client sends, and without a credential.
+ */
+function deploymentProbe(value: unknown, dependencies: ModelProbeDependencies): ModelConnection | null {
+  const body = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  const connection = body.connection && typeof body.connection === 'object'
+    ? (body.connection as Record<string, unknown>)
+    : {}
+  if (typeof connection.id !== 'string' || !DEPLOYMENT_IDS.has(connection.id)) return null
+  // The same structural contract as any probe; only the reserved-ID rule differs.
+  if (!modelProbeRequestSchema.safeParse(value).success) parseModelProbeRequest(value)
+  if (Object.hasOwn(body, 'credential')) {
+    throw new ApiError(409, 'invalid_model_config', 'Deployment connections take no credential.')
+  }
+  const served = (dependencies.deployment ?? deploymentModels)().connections.find(({ id }) => id === connection.id)
+  if (!served) throw new ApiError(409, 'invalid_model_config', 'This deployment does not serve that connection.')
+  return served
+}
 
 async function savedCredential(
   connection: ModelConnection,
@@ -47,7 +75,10 @@ async function savedCredential(
 export function createPostModelProbe(dependencies: ModelProbeDependencies = {}) {
   return async function postModelProbe(request: Request): Promise<Response> {
     try {
-      const parsed = parseModelProbeRequest(await parseJsonRequest(request))
+      const body = await parseJsonRequest(request)
+      const deployed = deploymentProbe(body, dependencies)
+      if (deployed) return json(await probeConnection(deployed, null, dependencies))
+      const parsed = parseModelProbeRequest(body)
       const entry = providerTable[parsed.connection.provider]
       if (entry.authentication === 'external' && parsed.credential !== undefined) {
         throw new ApiError(409, 'invalid_model_config', 'External providers do not accept managed credentials.')

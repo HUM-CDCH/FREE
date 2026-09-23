@@ -7,7 +7,7 @@ import {
 } from 'extraction'
 import { createResearcherApiHandlers } from './extractions.js'
 import type * as ExtractionRuntimeModule from './_extraction_runtime.js'
-import { extractionAttemptSchema } from '../shared/extraction.contract.js'
+import { extractionAttemptSchema, type ExtractionModelChoice } from '../shared/extraction.contract.js'
 
 const runtime = vi.hoisted(() => ({
   createResearcherExtractions: vi.fn(),
@@ -134,11 +134,11 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
   }
   return module
 }
-function handlerFor(module: ExtractionModule) {
+function handlerFor(module: ExtractionModule, configured: ExtractionModelChoice | null = null) {
   runtime.createResearcherExtractions.mockReturnValue(module)
   return createResearcherApiHandlers({
     researcherAccountId: ACCOUNT,
-  } as ResearcherProjectStore).POST
+  } as ResearcherProjectStore, { extractionModels: async () => configured }).POST
 }
 
 const request = (body: unknown) =>
@@ -237,7 +237,7 @@ describe('/api/extractions transport', () => {
     }), expect.any(AbortSignal))
   })
 
-  it('passes the Extraction Model Choice to runSingle and echoes it beside the models each role ran on', async () => {
+  it('runs a fresh Extraction on the configured Extraction Model Choice and echoes it beside the models each role ran on', async () => {
     const models = { fields: 'nuextract', reasoning: 'instruct' }
     const used = { fields: 'numind/NuExtract3-FP8', reasoning: 'Qwen/Qwen3.8-27B-FP8' }
     const module = extractionModule({
@@ -251,7 +251,7 @@ describe('/api/extractions transport', () => {
         },
       })),
     })
-    const response = await handlerFor(module)(request({ ...fresh, models }))
+    const response = await handlerFor(module, models)(request(fresh))
     expect(response.status).toBe(201)
     expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({ kind: 'fresh', models }), expect.any(AbortSignal))
     const body = extractionAttemptSchema.parse(await response.json())
@@ -260,10 +260,10 @@ describe('/api/extractions transport', () => {
     expect(body.modelAttribution).toEqual({ provider: 'kei-exp', modelId: used.fields })
   })
 
-  it('refuses a model choice that is not a kei-exp model key per role before the module runs', async () => {
+  it('refuses a client-sent model choice before the module runs: the configuration owns it', async () => {
     const module = extractionModule()
     const handle = handlerFor(module)
-    for (const body of [{ ...fresh, models: { fields: '' } }, { ...fresh, models: { planner: 'instruct' } }, { ...fresh, model: 'instruct' }])
+    for (const body of [{ ...fresh, models: { fields: 'instruct' } }, { ...fresh, models: {} }, { ...fresh, model: 'instruct' }])
       expect((await handle(request(body))).status).toBe(422)
     expect(module.runSingle).not.toHaveBeenCalled()
   })

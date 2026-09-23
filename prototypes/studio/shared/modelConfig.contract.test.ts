@@ -18,10 +18,11 @@ describe('model configuration runtime contract', () => {
       'codex-cli',
       'claude-code',
       'openai-compatible',
+      'vllm',
     ])
     expect(uuidSchema.safeParse('11111111-1111-4111-8111-111111111111').success).toBe(true)
     expect(uuidSchema.safeParse('11111111-1111-4111-8111-11111111111A').success).toBe(false)
-    expect(modelConfigSchema.safeParse({ connections: [], routes: { extraction: null, interaction: null }, version: 1 }).success).toBe(false)
+    expect(modelConfigSchema.safeParse({ connections: [], routes: { schemaSuggestion: null, interaction: null }, extractionModels: {}, version: 1 }).success).toBe(false)
   })
 
   it.each([

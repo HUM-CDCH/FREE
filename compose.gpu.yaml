@@ -128,7 +128,13 @@ services:
       extraction_model:
         condition: service_healthy
 
+  # Schema Suggestion and Interaction run on these servers until the Model
+  # Configuration page routes them elsewhere; the page lists both read-only.
   studio:
+    environment:
+      FREE_DEPLOYMENT_INSTRUCT_URL: http://extraction_model:8000/v1
+      FREE_DEPLOYMENT_INSTRUCT_MODEL: "${KEI_EXTRACT_MODEL:-Qwen/Qwen3.8-27B-FP8}"
+      FREE_DEPLOYMENT_NUEXTRACT_URL: http://nuextract_model:8000/v1
     depends_on:
       nuextract_model:
         condition: service_healthy

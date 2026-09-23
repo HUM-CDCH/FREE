@@ -301,6 +301,19 @@ describe('kei-exp extraction relay', () => {
     assert.deepEqual(result.diagnostics.models, models)
   })
 
+  it('sends batch-member model choices and preserves deployment defaults when unchosen', async () => {
+    for (const models of [null, { fields: 'nuextract', reasoning: 'instruct' }, { reasoning: 'instruct' }]) {
+      const value = artifact({ options: { strategy: 'article', model: null, models } })
+      const h = harness([json(ack, 202), polled(value)])
+      const result = await h.execute({
+        ...h.input, kind: 'batch-member', batchExtractionId: 'batch', models,
+      }, new AbortController().signal)
+      assert.equal(result.batchExtractionId, 'batch')
+      assert.deepEqual(JSON.parse(h.requests[0].init!.body as string).options,
+        { strategy: 'article', ...(models ? { models } : {}) })
+    }
+  })
+
   it('refuses an artifact produced under another Extraction Model Choice than the one requested', async () => {
     for (const recorded of [null, { fields: 'instruct' }, { fields: 'nuextract', reasoning: 'instruct' }]) {
       const value = artifact({ options: { strategy: 'article', model: null, models: recorded } })

@@ -2,12 +2,12 @@ import type { LanguageModel } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { inspectHttpExchange, inspectTarget } from './_llm_inspector.js'
 import { DELETE, GET, type LlmTrace } from './llm_inspector.js'
-import type { GeneralExecutionTarget, ModelOperation, NuExtractRawExecutionTarget } from './_provider.js'
+import type { GeneralExecutionTarget, ModelOperation, NuExtractExecutionTarget } from './_provider.js'
 
-const rawTarget: NuExtractRawExecutionTarget = {
-  profile: 'nuextract-raw',
+const rawTarget: NuExtractExecutionTarget = {
+  profile: 'nuextract',
   modelId: 'nuextract',
-  baseUrl: 'http://localhost:11434',
+  baseUrl: 'http://localhost:8000/v1',
   authorization: 'Bearer secret',
   temperatureSupported: true,
 }
@@ -92,7 +92,6 @@ describe('LLM inspector middleware', () => {
     const operations = [
       'schema-suggestion',
       'schema-edit',
-      'extraction',
       'chat',
     ] as const
     for (const operation of operations) {
@@ -106,13 +105,13 @@ describe('LLM inspector middleware', () => {
     )
     const failed = inspected(
       model({ doGenerate: async () => Promise.reject(unsafe) }),
-      'extraction',
+      'chat',
     )
     await expect(failed.doGenerate({ prompt: [] })).rejects.toBe(unsafe)
 
     const history = await traces()
     expect(history.map(({ operation }) => operation)).toEqual([
-      'extraction',
+      'chat',
       ...operations.toReversed(),
     ])
     const failedPayload = history[0].response ?? ''
@@ -192,7 +191,7 @@ describe('LLM inspector middleware', () => {
 describe('LLM inspector endpoint', () => {
   it('records failed raw exchanges', async () => {
     const response = await inspectHttpExchange(
-      'extraction',
+      'schema-suggestion',
       rawTarget,
       { body: 'request' },
       async () => new Response('upstream rejected request', { status: 401 }),
@@ -205,7 +204,7 @@ describe('LLM inspector endpoint', () => {
   it('returns newest-first history, limits it to 50, and clears it', async () => {
     for (let index = 0; index < 51; index += 1) {
       await inspectHttpExchange(
-        'extraction',
+        'schema-suggestion',
         rawTarget,
         { body: `request-${index}` },
         async () => Response.json({ response: `response-${index}` }),

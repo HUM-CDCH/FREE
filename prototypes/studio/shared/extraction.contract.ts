@@ -5,7 +5,13 @@ import {
   resultPathSchema,
   textSpanSchema,
 } from './groundedExtraction.js'
-import { providerKindSchema } from './modelConfig.contract.js'
+import {
+  extractionModelChoiceSchema,
+  extractionModelKeySchema,
+  providerKindSchema,
+} from './modelConfig.contract.js'
+
+export { extractionModelChoiceSchema, type ExtractionModelChoice } from './modelConfig.contract.js'
 
 export const extractionStrategySchema = z.enum(['ARTICLE', 'CATALOG'])
 export type ExtractionStrategy = z.infer<typeof extractionStrategySchema>
@@ -22,17 +28,6 @@ export const catalogRecipeSchema = z.string().regex(/^[a-z0-9][a-z0-9-]*@[1-9][0
  *  labelled text (record starts, grounding, arbitration). kei-exp routes each role to one of its deployment's models. */
 export const extractionModelRoleSchema = z.enum(['fields', 'reasoning'])
 export type ExtractionModelRole = z.infer<typeof extractionModelRoleSchema>
-
-/** A kei-exp extraction model key (`instruct`, `nuextract`, ...): a registry key of the kei-exp deployment, never a
- *  repo id and never a FREE Model Connection's model. */
-const extractionModelKeySchema = z.string().min(1).max(128)
-
-/** An Extraction Model Choice: per role, the kei-exp model key chosen for one run. An omitted role keeps kei-exp's
- *  deployment default; kei-exp refuses a key it does not serve, or one that cannot take the role. */
-export const extractionModelChoiceSchema = z
-  .object({ fields: extractionModelKeySchema.optional(), reasoning: extractionModelKeySchema.optional() })
-  .strict()
-export type ExtractionModelChoice = z.infer<typeof extractionModelChoiceSchema>
 
 /** The model (its served repo id) each role actually ran on, as kei-exp reports it in the artifact. */
 export const extractionModelsUsedSchema = z
@@ -79,7 +74,8 @@ const extractionFreshRequestSchema = z
     schemaRevisionId: requestUuid,
     strategy: extractionStrategySchema,
     catalogRecipe: catalogRecipeSchema.optional(),
-    models: extractionModelChoiceSchema.optional(),
+    // The server applies the configured Extraction Model Choice.
+    models: z.never().optional(),
     retryOfId: z.never().optional(),
     retryDocument: z.never().optional(),
     rediscover: z.never().optional(),

@@ -9,6 +9,7 @@ import type {
   EvidenceLink,
   ExtractionFailure,
   ExtractionModelAttribution,
+  ExtractionModelChoice,
   ExtractionSnapshot,
   ExtractionStrategy,
   ReadBatchInput,
@@ -88,6 +89,7 @@ export interface ExtractionPersistence extends ExtractionInputReader {
 }
 
 export type BatchMemberExtractionInput = Readonly<{
+  models: ExtractionModelChoice | null
   extractionId: string
   sourceRepresentationRevisionId: string
   schemaRevisionId: string

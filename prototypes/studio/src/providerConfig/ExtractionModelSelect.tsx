@@ -1,10 +1,10 @@
-import type { ExtractionModelListing, ExtractionModelRole } from '../shared/extraction.contract'
+import type { ExtractionModelListing, ExtractionModelRole } from '../../shared/extraction.contract'
 
 const ROLE_TEXT: Readonly<Record<ExtractionModelRole, { label: string; name: string; title: string }>> = {
   fields: {
     label: 'Fields',
     name: 'Field model',
-    title: 'The model that reads field values off the source for this run',
+    title: 'The model that reads field values off the source, for every extraction',
   },
   reasoning: {
     label: 'Reasoning',
@@ -14,7 +14,7 @@ const ROLE_TEXT: Readonly<Record<ExtractionModelRole, { label: string; name: str
 }
 
 /**
- * One role of the next run's Extraction Model Choice: kei-exp's default ('') or one of the deployment's models that
+ * One role of the deployment-wide Extraction Model Choice: kei-exp's default ('') or one of the deployment's models that
  * can take the role. Without a listing only the default is offered, and a run is never blocked on it.
  */
 export function ExtractionModelSelect({

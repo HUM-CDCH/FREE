@@ -214,13 +214,14 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
         },
       ],
       routes: {
-        extraction: {
+        schemaSuggestion: {
           connectionId,
           modelId: 'fixture/nuextract',
-          nuextractRaw: true,
         },
         interaction: null,
       },
+      // The deployment-wide Extraction Model Choice every run is requested on.
+      extractionModels: { fields: 'instruct' },
     }),
     'utf8',
   )
@@ -300,15 +301,12 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     if (request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/api/extractions'))
       interactivePosts += 1
   })
-  // kei-exp's listed models are offered per role; the choice goes with this one run and stays with its Extraction.
-  const fieldModel = page.getByRole('combobox', { name: 'Field model' })
-  await expect(fieldModel.locator('option')).toHaveText(['Default (fixture/nuextract)', 'fixture/nuextract'])
-  await fieldModel.selectOption('instruct')
+  // The configured Extraction Model Choice goes with the run and stays with its Extraction; the header offers none.
+  await expect(page.getByRole('combobox', { name: 'Field model' })).toHaveCount(0)
   await page.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
   await page.getByRole('button', { name: '▶ Run extraction' }).dblclick()
   await expect(page.getByRole('button', { name: '↻ Re-run extraction' })).toBeVisible()
   expect(interactivePosts).toBe(1)
-  await expect(fieldModel).toHaveValue('')
   const chosen = await db.orm.public.Extraction.where({ sourceDocumentId })
     .select('requestedModels', 'diagnostics').first()
   expect(chosen?.requestedModels).toEqual({ fields: 'instruct' })
@@ -684,19 +682,18 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     schemaRevisionId: firstSchemaRevisionId,
     strategy,
   }
-  // The first run chose its field model, and that choice is part of its identity.
-  const replayRequest = { ...replayPins, models: { fields: 'instruct' } }
-  expect((await freshPage.request.post(e2eStudioPath('/api/extractions'), {
-    headers: { Origin: E2E_ORIGIN },
-    data: replayRequest,
-  })).status()).toBe(200)
+  // The configured field model is part of the first run's identity, and a client cannot choose another.
   expect((await freshPage.request.post(e2eStudioPath('/api/extractions'), {
     headers: { Origin: E2E_ORIGIN },
     data: replayPins,
-  })).status()).toBe(409)
+  })).status()).toBe(200)
   expect((await freshPage.request.post(e2eStudioPath('/api/extractions'), {
     headers: { Origin: E2E_ORIGIN },
-    data: { ...replayRequest, sourceRepresentationRevisionId: otherRepresentationId },
+    data: { ...replayPins, models: { fields: 'instruct' } },
+  })).status()).toBe(422)
+  expect((await freshPage.request.post(e2eStudioPath('/api/extractions'), {
+    headers: { Origin: E2E_ORIGIN },
+    data: { ...replayPins, sourceRepresentationRevisionId: otherRepresentationId },
   })).status()).toBe(409)
   expect((await freshPage.request.delete(e2eStudioPath(`/api/extractions/${reviewed!.id}`), {
     headers: { Origin: E2E_ORIGIN },

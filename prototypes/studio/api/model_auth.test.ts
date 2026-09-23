@@ -42,9 +42,10 @@ const config: ModelConfig = {
     },
   ],
   routes: {
-    extraction: { connectionId: CONNECTION_ID, modelId: 'gpt-research' },
+    schemaSuggestion: { connectionId: CONNECTION_ID, modelId: 'gpt-research' },
     interaction: { connectionId: CONNECTION_ID, modelId: 'gpt-research' },
   },
+  extractionModels: {},
 }
 
 type ProviderFetch = (

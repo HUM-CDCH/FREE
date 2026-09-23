@@ -10,6 +10,7 @@ import {
   modelConfigUpdateSchema,
   modelProbeRequestSchema,
   type CredentialState,
+  type ExtractionModelChoice,
   type ModelConfig,
   type ModelConfigUpdate,
   type ModelConnection,
@@ -18,11 +19,12 @@ import {
 } from '../shared/modelConfig.contract.js'
 import { ApiError, boundedValidationDetails, type ValidationIssue } from './_http.js'
 import type { CredentialStore } from './_keyring.js'
+import { DEPLOYMENT_IDS } from './_deployment_models.js'
 import { providerTable } from './_provider.js'
 
 
 function emptyModelConfig(): ModelConfig {
-  return { connections: [], routes: { extraction: null, interaction: null } }
+  return { connections: [], routes: { schemaSuggestion: null, interaction: null }, extractionModels: {} }
 }
 
 /** Comparison value only. Readers return a fresh document so callers cannot alias it. */
@@ -98,22 +100,37 @@ function semanticIssues(config: ModelConfig): ValidationIssue[] {
     if (issue) issues.push({ path: `${at}.baseUrl`, message: issue })
   })
 
-  const { extraction, interaction } = config.routes
-  if (extraction !== null) {
-    const connection = connectionById.get(extraction.connectionId)
+  config.connections.forEach((connection, index) => {
+    if (DEPLOYMENT_IDS.has(connection.id)) {
+      issues.push({ path: `connections.${index}.id`, message: 'This ID is reserved for a deployment connection.' })
+    }
+  })
+
+  // A route may name a deployment connection. Whether this deployment still
+  // serves it is decided when the route is resolved, not when the file is read.
+  const routed = (connectionId: string) => connectionById.get(connectionId) ?? (
+    DEPLOYMENT_IDS.has(connectionId) ? 'deployment' : undefined
+  )
+  const { schemaSuggestion, interaction } = config.routes
+  if (schemaSuggestion !== null) {
+    const connection = routed(schemaSuggestion.connectionId)
     if (!connection) {
       issues.push({
-        path: 'routes.extraction.connectionId',
+        path: 'routes.schemaSuggestion.connectionId',
         message: 'Route must reference an existing connection.',
       })
-    } else if (extraction.nuextractRaw === true && connection.provider !== 'ollama') {
+    } else if (
+      schemaSuggestion.protocol === 'nuextract' &&
+      connection !== 'deployment' &&
+      !providerTable[connection.provider].supportsNuextract
+    ) {
       issues.push({
-        path: 'routes.extraction.nuextractRaw',
-        message: 'Raw NuExtract requires an Ollama connection.',
+        path: 'routes.schemaSuggestion.protocol',
+        message: 'The NuExtract protocol requires a vLLM connection.',
       })
     }
   }
-  if (interaction !== null && !connectionById.has(interaction.connectionId)) {
+  if (interaction !== null && !routed(interaction.connectionId)) {
     issues.push({
       path: 'routes.interaction.connectionId',
       message: 'Route must reference an existing connection.',
@@ -177,7 +194,8 @@ export function parseModelProbeRequest(value: unknown): ModelProbeRequest {
   }
   const issues = semanticIssues({
     connections: [parsed.data.connection],
-    routes: { extraction: null, interaction: null },
+    routes: { schemaSuggestion: null, interaction: null },
+    extractionModels: {},
   })
   if (issues.length > 0) {
     throw invalidSubmitted(
@@ -222,15 +240,22 @@ export async function readModelConfig(options: ConfigStorageOptions = {}): Promi
   } catch (error) {
     throw invalidModelConfig(path, [{ path: '', message: 'Document must contain valid JSON.' }], error)
   }
-  // Discard retired output overrides only on disk reads; new API writes stay strict.
-  if (document && typeof document === 'object' && 'routes' in document &&
-    document.routes && typeof document.routes === 'object') {
-    for (const key of ['extraction', 'interaction']) {
-      const route = Reflect.get(document.routes, key)
-      if (route && typeof route === 'object' && !Array.isArray(route)) delete route.jsonOutput
-    }
-  }
   return validateModelConfig(document, path)
+}
+
+/**
+ * Removes the saved document so the next read is the empty configuration. The
+ * one way back from a document this Studio cannot read; credentials it named
+ * stay in the keyring under UUIDs no new connection reuses.
+ */
+export async function resetModelConfig(options: ConfigStorageOptions = {}): Promise<void> {
+  const fileSystem = options.fileSystem ?? nodeFileSystem
+  try {
+    await fileSystem.unlink(modelConfigPath(options.configRoot))
+  } catch (error) {
+    if (isMissingFile(error)) return
+    throw new ApiError(500, 'storage_failure', 'The model configuration could not be reset.', { cause: error })
+  }
 }
 
 /** Flushed sibling temporary then rename, so the document is never half-written. */
@@ -433,4 +458,12 @@ export async function updateModelConfig(
   }
 
   return { config: committed, credentialStates: await credentialStates(committed, store) }
+}
+
+/** The configured Extraction Model Choice, or `null` when every role keeps kei-exp's default. */
+export async function configuredExtractionModels(
+  options: ConfigStorageOptions = {},
+): Promise<ExtractionModelChoice | null> {
+  const { extractionModels } = await readModelConfig(options)
+  return extractionModels.fields || extractionModels.reasoning ? extractionModels : null
 }

@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { ModelConfig } from '../shared/modelConfig.contract.js'
+import { DEPLOYMENT_CONNECTION_IDS, type ModelConfig } from '../shared/modelConfig.contract.js'
 import { ApiError } from './_http.js'
 import { createCredentialStore, type CredentialStore } from './_keyring.js'
 import {
@@ -14,12 +14,13 @@ import {
   writeModelConfig,
 } from './_model_config.js'
 import { PROVIDERS, appendProviderResource } from './_provider.js'
-import { createGetModelConfig, createPutModelConfig } from './model_config.js'
+import { createDeleteModelConfig, createGetModelConfig, createPutModelConfig } from './model_config.js'
 
-const OLLAMA_ID = '00000000-0000-4000-8000-000000000001'
+const VLLM_ID = '00000000-0000-4000-8000-000000000001'
 const OPENAI_ID = '00000000-0000-4000-8000-000000000002'
 const OTHER_ID = '00000000-0000-4000-8000-000000000003'
 const AT = '/config/model-config.json'
+const NO_DEPLOYMENT = { connections: [], defaultRoute: null }
 const roots: string[] = []
 
 async function temporaryRoot(): Promise<string> {
@@ -31,13 +32,14 @@ async function temporaryRoot(): Promise<string> {
 function configured(overrides: Partial<ModelConfig> = {}): ModelConfig {
   return {
     connections: [
-      { id: OLLAMA_ID, name: 'Local Ollama', provider: 'ollama', baseUrl: 'http://127.0.0.1:11434' },
+      { id: VLLM_ID, name: 'Local vLLM', provider: 'vllm', baseUrl: 'http://127.0.0.1:8003/v1' },
       { id: OPENAI_ID, name: 'Research OpenAI', provider: 'openai', baseUrl: 'https://gateway.example/proxy/openai/v1' },
     ],
     routes: {
-      extraction: { connectionId: OLLAMA_ID, modelId: 'vendor/model:latest', nuextractRaw: true },
+      schemaSuggestion: { connectionId: VLLM_ID, modelId: 'numind/NuExtract3-FP8', protocol: 'nuextract' },
       interaction: { connectionId: OPENAI_ID, modelId: 'an opaque model id' },
     },
+    extractionModels: { fields: 'nuextract' },
     ...overrides,
   }
 }
@@ -99,23 +101,6 @@ afterEach(async () => {
 })
 
 describe('model configuration storage', () => {
-  it.each(['auto', 'prompt', 'schema', 'native'])('retires saved %s overrides without rewriting on read', async (jsonOutput) => {
-    const root = await temporaryRoot()
-    const config = configured()
-    const saved = { ...config, routes: {
-      extraction: { ...config.routes.extraction, jsonOutput },
-      interaction: { ...config.routes.interaction, jsonOutput },
-    } }
-    const path = modelConfigPath(root)
-    const bytes = JSON.stringify(saved)
-    await writeFile(path, bytes)
-    const loaded = await readModelConfig({ configRoot: root })
-    expect(loaded).toEqual(config)
-    expect(await readFile(path, 'utf8')).toBe(bytes)
-    await writeModelConfig(loaded, { configRoot: root })
-    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual(config)
-  })
-
   it('reads an absent file as a fresh empty configuration it does not create', async () => {
     const root = await temporaryRoot()
 
@@ -171,36 +156,58 @@ describe('model configuration storage', () => {
     })
   })
 
-  it('rejects duplicate IDs, dangling routes, and non-Ollama raw extraction', () => {
+  it('rejects duplicate IDs, dangling routes, and the NuExtract protocol off vLLM', () => {
     const duplicate = configured()
-    duplicate.connections[1] = { ...duplicate.connections[1], id: OLLAMA_ID }
+    duplicate.connections[1] = { ...duplicate.connections[1], id: VLLM_ID }
     expectInvalid(() => validateModelConfig(duplicate, AT), 'connections.1.id')
 
-    for (const route of ['extraction', 'interaction'] as const) {
+    for (const route of ['schemaSuggestion', 'interaction'] as const) {
       const dangling = configured()
       dangling.routes[route] = { connectionId: OTHER_ID, modelId: 'missing' }
       expectInvalid(() => validateModelConfig(dangling, AT), `routes.${route}.connectionId`)
     }
 
     const wrongProvider = configured()
-    wrongProvider.routes.extraction = { connectionId: OPENAI_ID, modelId: 'gpt', nuextractRaw: true }
-    expectInvalid(() => validateModelConfig(wrongProvider, AT), 'routes.extraction.nuextractRaw')
+    wrongProvider.routes.schemaSuggestion = { connectionId: OPENAI_ID, modelId: 'gpt', protocol: 'nuextract' }
+    expectInvalid(() => validateModelConfig(wrongProvider, AT), 'routes.schemaSuggestion.protocol')
+  })
+
+  it('bounds extraction model keys as the extraction contract does', () => {
+    const long = configured({ extractionModels: { fields: 'k'.repeat(129) } })
+    expectInvalid(() => validateModelConfig(long, AT), 'extractionModels.fields')
+    for (const extractionModels of [{ fields: '' }, { planner: 'instruct' }])
+      expect(() => validateModelConfig(configured({ extractionModels } as never), AT)).toThrow(ApiError)
+  })
+
+  it('lets routes name a deployment connection but reserves its ID', () => {
+    const routed = configured({
+      routes: {
+        schemaSuggestion: { connectionId: DEPLOYMENT_CONNECTION_IDS.nuextract, modelId: 'n', protocol: 'nuextract' },
+        interaction: { connectionId: DEPLOYMENT_CONNECTION_IDS.instruct, modelId: 'q' },
+      },
+    })
+    expect(validateModelConfig(routed, AT)).toEqual(routed)
+
+    const squatting = configured()
+    squatting.connections[1] = { ...squatting.connections[1], id: DEPLOYMENT_CONNECTION_IDS.instruct }
+    squatting.routes.interaction = null
+    expectInvalid(() => validateModelConfig(squatting, AT), 'connections.1.id')
   })
 
   it('enforces null CLI bases and at most one connection per CLI kind', () => {
     for (const provider of ['codex-cli', 'claude-code'] as const) {
       const twice = configured({
         connections: [
-          { id: OLLAMA_ID, name: 'One', provider, baseUrl: null },
+          { id: VLLM_ID, name: 'One', provider, baseUrl: null },
           { id: OPENAI_ID, name: 'Two', provider, baseUrl: null },
         ],
-        routes: { extraction: null, interaction: null },
+        routes: { schemaSuggestion: null, interaction: null },
       })
       expectInvalid(() => validateModelConfig(twice, AT), 'connections.1.provider')
 
       const withBase = configured({
-        connections: [{ id: OLLAMA_ID, name: 'CLI', provider, baseUrl: 'https://example.test' }],
-        routes: { extraction: null, interaction: null },
+        connections: [{ id: VLLM_ID, name: 'CLI', provider, baseUrl: 'https://example.test' }],
+        routes: { schemaSuggestion: null, interaction: null },
       })
       expectInvalid(() => validateModelConfig(withBase, AT), 'connections.0.baseUrl')
     }
@@ -271,7 +278,60 @@ describe('model configuration storage', () => {
   })
 })
 
+describe('DELETE /api/model_config', () => {
+  it('replaces a document of an earlier shape with the empty configuration, strictly and only on request', async () => {
+    const root = await temporaryRoot()
+    const earlier = {
+      connections: [],
+      routes: { extraction: null, interaction: null },
+    }
+    await writeFile(modelConfigPath(root), JSON.stringify(earlier))
+    const options = { configRoot: root, credentialStore: fakeCredentialStore().store, deployment: () => NO_DEPLOYMENT }
+    await expect(readModelConfig({ configRoot: root })).rejects.toMatchObject({ status: 409, code: 'invalid_model_config' })
+
+    const response = await createDeleteModelConfig(options)()
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ config: EMPTY_MODEL_CONFIG, credentialStates: {} })
+    await expect(readFile(modelConfigPath(root))).rejects.toMatchObject({ code: 'ENOENT' })
+    expect((await createDeleteModelConfig(options)()).status).toBe(200)
+  })
+
+  it('reports a failed removal as a storage failure', async () => {
+    const fileSystem = {
+      ...nodeFileSystem,
+      unlink: () => Promise.reject(Object.assign(new Error('denied'), { code: 'EACCES' })),
+    }
+    const response = await createDeleteModelConfig({
+      configRoot: '/config', fileSystem, credentialStore: fakeCredentialStore().store,
+    })()
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'storage_failure' } })
+  })
+})
+
 describe('GET /api/model_config', () => {
+  it('reports the deployment\'s own model servers from the environment, never from the file', async () => {
+    vi.stubEnv('FREE_DEPLOYMENT_INSTRUCT_URL', 'http://extraction_model:8000/v1')
+    vi.stubEnv('FREE_DEPLOYMENT_INSTRUCT_MODEL', 'Qwen/Qwen3.8-27B-FP8')
+    vi.stubEnv('FREE_DEPLOYMENT_NUEXTRACT_URL', 'http://nuextract_model:8000/v1')
+    const root = await temporaryRoot()
+
+    const response = await createGetModelConfig({ configRoot: root, credentialStore: fakeCredentialStore().store })()
+
+    const body = await response.json()
+    expect(body.config).toEqual(EMPTY_MODEL_CONFIG)
+    expect(body.credentialStates).toEqual({})
+    expect(body.deployment).toEqual({
+      connections: [
+        { id: DEPLOYMENT_CONNECTION_IDS.instruct, name: 'Deployment instruction model', provider: 'vllm', baseUrl: 'http://extraction_model:8000/v1' },
+        { id: DEPLOYMENT_CONNECTION_IDS.nuextract, name: 'Deployment NuExtract', provider: 'vllm', baseUrl: 'http://nuextract_model:8000/v1' },
+      ],
+      defaultRoute: { connectionId: DEPLOYMENT_CONNECTION_IDS.instruct, modelId: 'Qwen/Qwen3.8-27B-FP8' },
+    })
+  })
+
+
   it('returns the empty configuration and every descriptor without probing or reading AI_*', async () => {
     vi.stubEnv('AI_PROVIDER', 'claude-code')
     vi.stubEnv('AI_MODEL', 'must-not-be-read')
@@ -280,13 +340,16 @@ describe('GET /api/model_config', () => {
     const root = await temporaryRoot()
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
 
-    const response = await createGetModelConfig({ configRoot: root, credentialStore: fakeCredentialStore().store })()
+    const response = await createGetModelConfig({
+      configRoot: root, credentialStore: fakeCredentialStore().store, deployment: () => NO_DEPLOYMENT,
+    })()
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({
       config: EMPTY_MODEL_CONFIG,
       credentialStates: {},
       providers: PROVIDERS,
+      deployment: NO_DEPLOYMENT,
     })
     expect(fetchSpy).not.toHaveBeenCalled()
     fetchSpy.mockRestore()
@@ -313,7 +376,7 @@ describe('GET /api/model_config', () => {
       ],
     })
     await writeModelConfig(config, { configRoot: root })
-    const partial = fakeCredentialStore({ [OLLAMA_ID]: 'stored' })
+    const partial = fakeCredentialStore({ [VLLM_ID]: 'stored' })
     const store: CredentialStore = {
       ...partial.store,
       state: (id) => (id === OPENAI_ID ? Promise.reject(new Error('locked')) : partial.store.state(id)),
@@ -323,7 +386,7 @@ describe('GET /api/model_config', () => {
 
     // codex-cli authenticates externally, so it never appears in the map at all.
     await expect(response.json()).resolves.toMatchObject({
-      credentialStates: { [OLLAMA_ID]: 'present', [OPENAI_ID]: 'unavailable' },
+      credentialStates: { [VLLM_ID]: 'present', [OPENAI_ID]: 'unavailable' },
     })
   })
 
@@ -336,7 +399,7 @@ describe('GET /api/model_config', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
       config: configured(),
-      credentialStates: { [OLLAMA_ID]: 'unavailable', [OPENAI_ID]: 'unavailable' },
+      credentialStates: { [VLLM_ID]: 'unavailable', [OPENAI_ID]: 'unavailable' },
     })
   })
 
@@ -371,7 +434,7 @@ describe('GET /api/model_config', () => {
           provider: 'openai',
           baseUrl: 'https://api.openai.com/v1',
         })),
-        routes: { extraction: null, interaction: null },
+        routes: { schemaSuggestion: null, interaction: null },
       }),
     )
 
@@ -426,7 +489,7 @@ describe('PUT /api/model_config', () => {
   it.each(['auto', 'prompt', 'schema', 'native'])('rejects the retired %s output override', async (jsonOutput) => {
     const config = configured()
     const response = await createPutModelConfig({ credentialStore: fakeCredentialStore().store })(putRequest({
-      config: { ...config, routes: { ...config.routes, extraction: { ...config.routes.extraction, jsonOutput } } },
+      config: { ...config, routes: { ...config.routes, schemaSuggestion: { ...config.routes.schemaSuggestion, jsonOutput } } },
     }))
     expect(response.status).toBe(400)
     expect(await response.json()).toMatchObject({ error: { code: 'invalid_request' } })
@@ -465,7 +528,7 @@ describe('PUT /api/model_config', () => {
     const body = await response.json()
     expect(body).toEqual({
       config,
-      credentialStates: { [OLLAMA_ID]: 'absent', [OPENAI_ID]: 'present' },
+      credentialStates: { [VLLM_ID]: 'absent', [OPENAI_ID]: 'present' },
     })
     expect(body).not.toHaveProperty('providers')
     expect(JSON.stringify(body)).not.toContain('sk-secret')
@@ -482,29 +545,29 @@ describe('PUT /api/model_config', () => {
   it('preserves, replaces, and deletes a credential from the action tri-state alone', async () => {
     const root = await temporaryRoot()
     const fake = fakeCredentialStore()
-    // Ollama authenticates optionally, so it stays valid with no credential at all.
+    // vLLM authenticates optionally, so it stays valid with no credential at all.
     const config = configured({
       connections: [configured().connections[0]],
-      routes: { extraction: { connectionId: OLLAMA_ID, modelId: 'vendor/model:latest' }, interaction: null },
+      routes: { schemaSuggestion: { connectionId: VLLM_ID, modelId: 'vendor/model:latest' }, interaction: null },
     })
     const put = createPutModelConfig({ configRoot: root, credentialStore: fake.store })
 
-    await put(putRequest({ config, credentials: { [OLLAMA_ID]: 'first' } }))
-    expect(fake.values.get(OLLAMA_ID)).toBe('first')
+    await put(putRequest({ config, credentials: { [VLLM_ID]: 'first' } }))
+    expect(fake.values.get(VLLM_ID)).toBe('first')
 
-    await put(putRequest({ config, credentials: { [OLLAMA_ID]: 'second' } }))
-    expect(fake.values.get(OLLAMA_ID)).toBe('second')
+    await put(putRequest({ config, credentials: { [VLLM_ID]: 'second' } }))
+    expect(fake.values.get(VLLM_ID)).toBe('second')
 
     const preserved = await put(putRequest({ config }))
-    expect(fake.values.get(OLLAMA_ID)).toBe('second')
+    expect(fake.values.get(VLLM_ID)).toBe('second')
     await expect(preserved.json()).resolves.toMatchObject({
-      credentialStates: { [OLLAMA_ID]: 'present' },
+      credentialStates: { [VLLM_ID]: 'present' },
     })
 
-    const deleted = await put(putRequest({ config, credentials: { [OLLAMA_ID]: null } }))
-    expect(fake.values.has(OLLAMA_ID)).toBe(false)
+    const deleted = await put(putRequest({ config, credentials: { [VLLM_ID]: null } }))
+    expect(fake.values.has(VLLM_ID)).toBe(false)
     await expect(deleted.json()).resolves.toMatchObject({
-      credentialStates: { [OLLAMA_ID]: 'absent' },
+      credentialStates: { [VLLM_ID]: 'absent' },
     })
   })
 
@@ -649,7 +712,7 @@ describe('PUT /api/model_config', () => {
     const store: CredentialStore = { ...fake.store, delete: () => Promise.reject(new Error('locked')) }
     const remaining = configured({
       connections: [configured().connections[0]],
-      routes: { extraction: configured().routes.extraction, interaction: null },
+      routes: { schemaSuggestion: configured().routes.schemaSuggestion, interaction: null },
     })
 
     const response = await createPutModelConfig({ configRoot: root, credentialStore: store })(
@@ -661,7 +724,7 @@ describe('PUT /api/model_config', () => {
     // it left behind is inert: no saved connection can reach it.
     await expect(readModelConfig({ configRoot: root })).resolves.toEqual(remaining)
     await expect(response.json()).resolves.toMatchObject({
-      credentialStates: { [OLLAMA_ID]: 'absent' },
+      credentialStates: { [VLLM_ID]: 'absent' },
     })
     expect(fake.values.get(OPENAI_ID)).toBe('sk-orphan')
 
@@ -709,10 +772,10 @@ describe('PUT /api/model_config', () => {
     const firstConfig = configured()
     firstConfig.connections[0].name = 'First researcher local'
     firstConfig.connections[1].name = 'First researcher remote'
-    firstConfig.routes.extraction = {
-      connectionId: OLLAMA_ID,
-      modelId: 'first-extraction',
-      nuextractRaw: true,
+    firstConfig.routes.schemaSuggestion = {
+      connectionId: VLLM_ID,
+      modelId: 'first-suggestion',
+      protocol: 'nuextract',
     }
     firstConfig.routes.interaction = {
       connectionId: OPENAI_ID,
@@ -721,10 +784,10 @@ describe('PUT /api/model_config', () => {
     const secondConfig = configured()
     secondConfig.connections[0].name = 'Second researcher local'
     secondConfig.connections[1].name = 'Second researcher remote'
-    secondConfig.routes.extraction = {
-      connectionId: OLLAMA_ID,
-      modelId: 'second-extraction',
-      nuextractRaw: true,
+    secondConfig.routes.schemaSuggestion = {
+      connectionId: VLLM_ID,
+      modelId: 'second-suggestion',
+      protocol: 'nuextract',
     }
     secondConfig.routes.interaction = {
       connectionId: OPENAI_ID,

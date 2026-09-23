@@ -1,13 +1,15 @@
 # Studio
 
-## NuExtract raw Ollama prompts
+## NuExtract on vLLM
 
-Before changing the raw prompt construction in `api/_model.ts`, preserve the
-characterized provider behavior: Ollama's OpenAI-compatible endpoint ignored
-`chat_template_kwargs`, so the Ollama path reconstructs the NuExtract control
-tokens and posts to `/api/generate` with `raw: true`.
+Schema Suggestion's NuExtract protocol (`generateWithNuExtract` in
+`api/_model.ts`) drives NuExtract3 through its chat template, which vLLM
+passes `chat_template_kwargs` to: `mode` selects the task and the document is
+the only user message. Ollama's OpenAI-compatible endpoint ignored those
+kwargs, which is why an earlier raw `/api/generate` path rebuilt the control
+tokens; that path is retired with Ollama.
 
 Only `structured` mode has an `【instructions】` slot. Guidance for
-`template-generation` and `markdown` must lead the document content in the
-message body. Keep non-thinking requests at the characterized `0.2`
-temperature unless new provider evidence changes that contract.
+`template-generation` must lead the document content in the message body.
+Keep non-thinking requests at the characterized `0.2` temperature, and
+`enable_thinking: false`, unless new provider evidence changes that contract.

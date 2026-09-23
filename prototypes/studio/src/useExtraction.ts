@@ -11,7 +11,6 @@ import {
 import type { ExtractionState } from './extraction'
 import {
   type ExtractionAttempt,
-  type ExtractionModelChoice,
   type ExtractionRetrySelection,
   type ExtractionStrategy,
   type ReviewDecisionAction,
@@ -35,17 +34,8 @@ type ExtractionRunRequest =
       schemaRevisionId: string
       strategy: ExtractionStrategy
       catalogRecipe?: string
-      models?: ExtractionModelChoice
     }>
   | Readonly<{ retryOfId: string } & ExtractionRetryInput>
-
-/** The roles given a model key; '' (Default) leaves a role to kei-exp's deployment default. */
-function chosenModels(models: ExtractionModelChoice | null): ExtractionModelChoice | null {
-  const chosen = Object.fromEntries(
-    Object.entries(models ?? {}).filter(([, key]) => typeof key === 'string' && key !== ''),
-  )
-  return Object.keys(chosen).length === 0 ? null : chosen
-}
 
 export type ReviewTarget = {
   sourceRepresentationId: string
@@ -451,16 +441,13 @@ export function useExtraction({
     target: ReviewTarget | null = reviewTarget,
     strategy: ExtractionStrategy = 'ARTICLE',
     catalogRecipe: string | null = null,
-    models: ExtractionModelChoice | null = null,
   ) {
     if (!target?.schemaRevisionId) return null
-    const chosen = chosenModels(models)
     return runRequest(attempt !== null, {
       sourceRepresentationRevisionId: target.sourceRepresentationId,
       schemaRevisionId: target.schemaRevisionId,
       strategy,
       ...(strategy === 'CATALOG' && catalogRecipe ? { catalogRecipe } : {}),
-      ...(chosen ? { models: chosen } : {}),
     })
   }
 

@@ -148,9 +148,10 @@ test('extraction: the canonical schema-guided path succeeds with evidence', { ti
           },
         ],
         routes: {
-          extraction: { connectionId: state.connectionId, modelId: OLLAMA_MODEL },
+          schemaSuggestion: { connectionId: state.connectionId, modelId: OLLAMA_MODEL },
           interaction: { connectionId: state.connectionId, modelId: OLLAMA_MODEL },
         },
+        extractionModels: {},
       },
       credentials: {},
     }),

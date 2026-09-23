@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { wrapLanguageModel, type LanguageModelMiddleware } from 'ai'
 import type { LlmTrace, LlmTraceStatus } from '../shared/llmInspector.contract.js'
-import type { ExecutionTarget, ModelOperation, NuExtractRawExecutionTarget } from './_provider.js'
+import type { ExecutionTarget, ModelOperation, NuExtractExecutionTarget } from './_provider.js'
 
 const TRACE_LIMIT = 50
 const SENSITIVE_KEY = /^(?:authorization|proxy-authorization|cookie|set-cookie|x-goog-api-key|x-api-key|api[-_]?key|token|x-auth-token|access[-_]?token|refresh[-_]?token|id[-_]?token|secret|credential|password)$/i
@@ -75,8 +75,8 @@ function errorPayload(error: unknown, secrets: Set<string>): string {
 function startTrace(operation: ModelOperation, target: ExecutionTarget, request: unknown) {
   const secrets = new Set<string>()
   collectSecrets(request, secrets)
-  const model = target.profile === 'nuextract-raw'
-    ? { provider: 'ollama', modelId: target.modelId }
+  const model = target.profile === 'nuextract'
+    ? { provider: target.attribution?.provider ?? 'vllm', modelId: target.modelId }
     : target.model as unknown as { provider?: string; modelId?: string }
   const trace: LlmTrace = {
     id: randomUUID(),
@@ -188,7 +188,7 @@ export function inspectTarget<T extends ExecutionTarget>(operation: ModelOperati
 
 export async function inspectHttpExchange(
   operation: ModelOperation,
-  target: NuExtractRawExecutionTarget,
+  target: NuExtractExecutionTarget,
   request: unknown,
   exchange: () => Promise<Response>,
 ): Promise<Response> {

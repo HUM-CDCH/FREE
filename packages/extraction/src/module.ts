@@ -207,8 +207,8 @@ export function createExtractionJobExecutor({ inputs: reader, keiExp }: Extracti
       schema,
       strategy: input.strategy === 'CATALOG' ? 'catalog' : 'article',
       catalogRecipe: input.kind === 'fresh' && input.strategy === 'CATALOG' ? input.catalogRecipe ?? null : null,
-      // Batch members and retries keep kei-exp's deployment defaults.
-      models: input.kind === 'fresh' ? input.models ?? null : null,
+      // Fresh runs and batch members carry their choice; unchosen roles use deployment defaults.
+      models: input.models ?? null,
       expectedGeneration: pinnedGeneration(document),
       signal,
     })

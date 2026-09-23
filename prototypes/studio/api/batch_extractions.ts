@@ -23,6 +23,8 @@ import {
   persistenceUnavailable,
 } from './_http.js'
 import { createResearcherExtractions } from './_extraction_runtime.js'
+import type { ExtractionHandlerDependencies } from './extractions.js'
+import { configuredExtractionModels } from './_model_config.js'
 
 const COLLECTION_ROUTE = '/api/batch-extractions'
 const ITEM_ROUTE = /^\/api\/batch-extractions\/([0-9a-f-]+)$/
@@ -71,9 +73,11 @@ function unavailableUnlessNotFound(error: unknown, message: string): never {
 /** The HTTP boundary schedules durable work; it never waits for model execution. */
 export function createResearcherApiHandlers(
   store: ResearcherProjectStore,
+  dependencies: ExtractionHandlerDependencies = {},
 ): Readonly<
   Record<string, (request: Request) => Response | Promise<Response>>
 > {
+  const extractionModels = dependencies.extractionModels ?? (() => configuredExtractionModels())
   const extractionModule = createResearcherExtractions(
     store.researcherAccountId,
   )
@@ -88,9 +92,11 @@ export function createResearcherApiHandlers(
         'The Batch Extraction request is invalid.',
       )
     const { force, ...selection } = parsed.data
+    const models = await extractionModels()
     let opened: ScheduleBatchResult
     try {
       opened = await extractionModule.scheduleBatch({
+        models,
         ...selection,
         repetition: force ? 'create-new' : 'reuse-equal-selection',
       })

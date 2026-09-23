@@ -1,20 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { MockLanguageModelV4 } from 'ai/test'
-import { z } from 'zod'
 import {
   generateSchemaEditJson,
-  extractWithModel,
   generateSchemaWithModel,
-  modelGenerationMetadata,
-  renderNuExtractPrompt,
   streamChatWithModel,
 } from './_model.js'
 import type { ExecutionTarget } from './_provider.js'
-import {
-  DELETE as clearLlmInspector,
-  GET as getLlmInspector,
-  type LlmTrace,
-} from './llm_inspector.js'
+import { DELETE as clearLlmInspector } from './llm_inspector.js'
 
 const { generateTextMock, streamTextMock } = vi.hoisted(() => ({
   generateTextMock: vi.fn(),
@@ -26,10 +17,10 @@ vi.mock('ai', async (importOriginal) => {
 })
 
 const document = { file: null, markdown: 'Grave 1', pages: null }
-const rawTarget: ExecutionTarget = {
-  profile: 'nuextract-raw',
-  modelId: 'nuextract/manual',
-  baseUrl: 'http://127.0.0.1:11434',
+const nuextractTarget: ExecutionTarget = {
+  profile: 'nuextract',
+  modelId: 'numind/NuExtract3-FP8',
+  baseUrl: 'http://nuextract_model:8000/v1',
   authorization: 'Bearer secret',
   temperatureSupported: true,
 }
@@ -47,66 +38,15 @@ const generalTarget: ExecutionTarget = {
   temperatureSupported: false,
 }
 
-function mockGeneration(text: string) {
-  return {
-    content: [{ type: 'text' as const, text }],
-    finishReason: { unified: 'stop' as const, raw: undefined },
-    usage: {
-      inputTokens: { total: 10, noCache: 10, cacheRead: undefined, cacheWrite: undefined },
-      outputTokens: { total: 20, text: 20, reasoning: undefined },
-    },
-    warnings: [],
-  }
-}
-
-function schemaRecord(schema: unknown): Record<string, unknown> {
-  return schema as Record<string, unknown>
-}
-
-type JsonSchemaLike = { anyOf?: JsonSchemaLike[]; type?: string; [key: string]: unknown }
-
-// Every derived field is `.nullable().optional()`, which Zod renders as
-// `anyOf: [<actual schema>, {type: "null"}]` in JSON Schema output.
-function unwrapNullable(schema: JsonSchemaLike | undefined): JsonSchemaLike | undefined {
-  return schema?.anyOf?.find((branch) => branch.type !== 'null') ?? schema
-}
-
-function expectEveryPropertyRequired(schema: unknown): void {
-  if (Array.isArray(schema)) {
-    schema.forEach(expectEveryPropertyRequired)
-    return
-  }
-  if (typeof schema !== 'object' || schema === null) return
-
-  const object = schema as Record<string, unknown>
-  if (typeof object.properties === 'object' && object.properties !== null && !Array.isArray(object.properties)) {
-    expect(object.required).toEqual(Object.keys(object.properties))
-  }
-  Object.values(object).forEach(expectEveryPropertyRequired)
-}
-
-function stubOllamaResponses(...generations: readonly {
-  readonly response: string
-  readonly doneReason?: string
-}[]) {
-  const request = vi.fn()
-  for (const generation of generations) {
-    request.mockResolvedValueOnce(
-      new Response(JSON.stringify({
-        response: generation.response,
-        done_reason: generation.doneReason ?? 'stop',
-      }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    )
-  }
+function stubNuExtractResponse(content: string, finishReason = 'stop') {
+  const request = vi.fn().mockResolvedValueOnce(
+    new Response(JSON.stringify({
+      choices: [{ message: { role: 'assistant', content }, finish_reason: finishReason }],
+      usage: { prompt_tokens: 10, completion_tokens: 20 },
+    }), { status: 200, headers: { 'content-type': 'application/json' } }),
+  )
   vi.stubGlobal('fetch', request)
   return request
-}
-
-function stubOllamaResponse(response: string, doneReason = 'stop') {
-  return stubOllamaResponses({ response, doneReason })
 }
 
 afterEach(() => {
@@ -115,470 +55,63 @@ afterEach(() => {
   clearLlmInspector()
 })
 
-describe('extractWithModel', () => {
-  it('preserves raw NuExtract transport fields without model-generated evidence', async () => {
-    const request = stubOllamaResponse(
-      '{"grave":[{"name":"Grave 1"}]}',
-    )
-    const result = await extractWithModel(
-      { document, template: { grave: [{ name: 'verbatim-string' }] } },
-      rawTarget,
-    )
-
-    expect(result.result).toEqual({ grave: [{ name: 'Grave 1' }] })
-    expect(result).not.toHaveProperty('evidence')
-    expect(request).toHaveBeenCalledOnce()
-    expect(request).toHaveBeenCalledWith('http://127.0.0.1:11434/api/generate', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: 'Bearer secret' },
-      body: expect.any(String),
-    })
-    const body = JSON.parse(request.mock.calls[0][1].body as string)
-    expect(body).toMatchObject({
-      model: 'nuextract/manual',
-      raw: true,
-      stream: false,
-      options: { temperature: 0.2, num_ctx: 32768, num_predict: 8192 },
-    })
-    expect(body).not.toHaveProperty('chat_template_kwargs')
-    expect(body.prompt).toContain('"name": "verbatim-string"')
-    expect(body.prompt).not.toContain('_evidence')
-    const inspector = await getLlmInspector().json() as { traces: LlmTrace[] }
-    expect(inspector.traces[0]).toMatchObject({
-      operation: 'extraction',
-      provider: 'ollama',
-      model: 'nuextract/manual',
-      status: 'complete',
-    })
-    expect(inspector.traces[0].request).toContain('【task】structured')
-    expect(inspector.traces[0].request).not.toContain('Bearer secret')
-    expect(inspector.traces[0].response).toContain('Grave 1')
-  })
-
-  it('rejects invalid output without retrying', async () => {
-    const request = stubOllamaResponses({ response: '[]', doneReason: 'stop' })
-    await expect(extractWithModel(
-      {
-        document,
-        template: { grave: [{ name: 'verbatim-string' }] },
-        instruction: 'Keep exact names.',
-      },
-      rawTarget,
-    )).rejects.toMatchObject({ code: 'invalid_model_output' })
-
-    expect(request).toHaveBeenCalledOnce()
-    const body = JSON.parse(request.mock.calls[0][1].body as string)
-    expect(body.prompt).not.toContain('_evidence')
-    expect(body.prompt).toContain('Keep exact names.')
-  })
-
-  it('preserves a parseable length-stopped partial without retrying', async () => {
-    const request = stubOllamaResponses({
-      response: '{"grave":[{"name":"Repeated"}]}',
-      doneReason: 'length',
-    })
-
-    const result = await extractWithModel(
-      { document, template: { grave: [{ name: 'verbatim-string' }] } },
-      rawTarget,
-    )
-
-    expect(request).toHaveBeenCalledOnce()
-    expect(result.result).toEqual({ grave: [{ name: 'Repeated' }] })
-    expect(result.metadata.finishReason).toBe('length')
-    expect(result).not.toHaveProperty('evidence')
-  })
-
-  it('retains length metadata when truncated output cannot be parsed', async () => {
-    stubOllamaResponses({ response: '[]', doneReason: 'length' })
-
-    let failure: unknown
-    try {
-      await extractWithModel(
-        { document, template: { grave: [{ name: 'verbatim-string' }] } },
-        rawTarget,
-      )
-    } catch (error) {
-      failure = error
-    }
-
-    expect(failure).toBeDefined()
-    expect(modelGenerationMetadata(failure)).toMatchObject({
-      finishReason: 'length',
-    })
-  })
-
-  it('preserves a path-prefixed Ollama server base for raw generation', async () => {
-    const request = stubOllamaResponse(
-      '{"grave":[{"name":"Grave 1"}]}',
-    )
-    await extractWithModel(
-      { document, template: { grave: [{ name: 'verbatim-string' }] } },
-      { ...rawTarget, baseUrl: 'https://gateway.example/ollama/' },
-    )
-
-    expect(request).toHaveBeenCalledWith(
-      'https://gateway.example/ollama/api/generate',
-      expect.objectContaining({ method: 'POST' }),
-    )
-  })
-
-  it('keeps parseable schema-mismatched extraction output', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    stubOllamaResponse('{"grave":[{"name":"Grave 1","extra":"invented"}]}')
-    const result = await extractWithModel(
-      { document, template: { grave: [{ name: 'verbatim-string' }] } },
-      rawTarget,
-    )
-    expect(result.result).toEqual({ grave: [{ name: 'Grave 1', extra: 'invented' }] })
-    expect(warn).toHaveBeenCalled()
-    warn.mockRestore()
-  })
-
-  it('uses direct general execution without calling Ollama', async () => {
-    const request = vi.fn().mockRejectedValue(new Error('raw transport must not run'))
-    vi.stubGlobal('fetch', request)
-    generateTextMock.mockResolvedValue({
-      text: '{"grave":[{"name":"Grave 1"}]}',
-    })
-    const result = await extractWithModel(
-      { document, template: { grave: [{ name: 'verbatim-string' }] } },
-      generalTarget,
-    )
-    expect(request).not.toHaveBeenCalled()
-    expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('temperature')
-    expect(generateTextMock.mock.calls[0][0]).toHaveProperty('reasoning', 'none')
-    expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('maxOutputTokens')
-    const instructions = generateTextMock.mock.calls[0][0].instructions as string
-    expect(instructions).not.toContain('_evidence')
-    expect(instructions).not.toContain('source evidence')
-    expect(instructions).toContain(
-      'Return one complete JSON object with no Markdown or commentary.',
-    )
-    expect(result.result).toEqual({ grave: [{ name: 'Grave 1' }] })
-    expect(result).not.toHaveProperty('evidence')
-  })
-
-  it('defaults supported structured generation to temperature zero', async () => {
-    generateTextMock.mockResolvedValue({ text: '{"starts":["B1","B2"]}' })
-    await extractWithModel(
-      { document, template: { starts: ['string'] } },
-      { ...generalTarget, temperatureSupported: true },
-    )
-    expect(generateTextMock.mock.calls[0][0]).toHaveProperty('temperature', 0)
-  })
-
-  it('uses native JSON output without changing the Extraction Schema', async () => {
-    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
-    generateTextMock.mockImplementation(generateText)
-    const rawOutput = JSON.stringify({
-      records: [{
-        grave_number: 8,
-        skeleton: {
-          preservation: 'Jaw fragment',
-          parts: [{
-            number: '8-1',
-            description: 'Jaw and teeth',
-          }],
-        },
-      }],
-    })
-    const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
-      async () => mockGeneration(rawOutput),
-    )
-    const target: ExecutionTarget = {
-      ...generalTarget,
-      model: new MockLanguageModelV4({ doGenerate }),
-      jsonOutput: 'native',
-    }
-    const result = await extractWithModel(
-      {
-        document,
-        template: {
-          records: [{
-            grave_number: 'integer',
-            skeleton: {
-              preservation: 'verbatim-string',
-              parts: [{ number: 'string', description: 'string' }],
-            },
-          }],
-        },
-      },
-      target,
-    )
-
-    const responseFormat = schemaRecord(doGenerate.mock.calls[0][0]).responseFormat as {
-      type?: string
-      schema?: { properties?: Record<string, unknown> }
-    } | undefined
-    expect(responseFormat?.type).toBe('json')
-    expect(responseFormat?.schema?.properties).toHaveProperty('records')
-    expect(result.result).toMatchObject({ records: [{ grave_number: 8 }] })
-    expect(result).not.toHaveProperty('raw')
-    expect(result).not.toHaveProperty('evidence')
-  })
-
-  it('emits OpenAI-compatible required fields while accepting an omitted model value', async () => {
-    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
-    generateTextMock.mockImplementation(generateText)
-    const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
-      async () => mockGeneration('{"records":[{"grave_number":8}]}'),
-    )
-    const target: ExecutionTarget = {
-      ...generalTarget,
-      model: new MockLanguageModelV4({ doGenerate }),
-      jsonOutput: 'native',
-    }
-
-    const result = await extractWithModel({
-      document,
-      template: {
-        records: [{
-          grave_number: 'integer',
-          discovered_features: {
-            longhouses: 'string',
-            storage_houses: 'string',
-            hedge_lines: 'string',
-            time_span: 'string',
-          },
-        }],
-      },
-    }, target)
-
-    const responseFormat = schemaRecord(doGenerate.mock.calls[0][0]).responseFormat as {
-      schema?: JsonSchemaLike & { properties?: Record<string, JsonSchemaLike> }
-    } | undefined
-    expectEveryPropertyRequired(responseFormat?.schema)
-    const records = unwrapNullable(responseFormat?.schema?.properties?.records)
-    const record = records?.items as JsonSchemaLike & { properties?: Record<string, JsonSchemaLike> }
-    const discoveredFeatures = unwrapNullable(record.properties?.discovered_features)
-    expect(discoveredFeatures?.required).toContain('longhouses')
-    expect(result.result).toEqual({ records: [{ grave_number: 8 }] })
-  })
-
-  it('repairs and preserves partial native extraction results', async () => {
-    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
-    generateTextMock.mockImplementation(generateText)
-    const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
-      async () => mockGeneration('{"records":[{"grave_number":8}]} trailing'),
-    )
-    const target: ExecutionTarget = {
-      ...generalTarget,
-      model: new MockLanguageModelV4({ doGenerate }),
-      jsonOutput: 'native',
-    }
-
-    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const result = await extractWithModel({
-      document,
-      template: { records: [{ grave_number: 'integer', note: 'string' }] },
-    }, target)
-
-    expect(result.result).toEqual({ records: [{ grave_number: 8 }] })
-    expect(result).not.toHaveProperty('evidence')
-    expect(warning).toHaveBeenCalledOnce()
-    expect(doGenerate).toHaveBeenCalledOnce()
-  })
-
-  it('does not send a response format to prompt-only providers', async () => {
-    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
-    generateTextMock.mockImplementation(generateText)
-    const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
-      async () => mockGeneration(
-        '{"grave":[{"name":"Grave 1"}]}',
-      ),
-    )
-    await extractWithModel(
-      { document, template: { grave: [{ name: 'verbatim-string' }] } },
-      { ...generalTarget, model: new MockLanguageModelV4({ doGenerate }) },
-    )
-
-    expect(schemaRecord(doGenerate.mock.calls[0][0]).responseFormat).toBeUndefined()
-  })
-
-  it.each(['schema', 'native'] as const)('excludes invented fields from the schema on a %s route', async (jsonOutput) => {
-    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
-    generateTextMock.mockImplementation(generateText)
-    // Regression for a real Claude Haiku failure: the model echoed the schema's own
-    // description text back as an extra "description" key, which restoreSchemaNodeOrder
-    // only caught after the fact ("Unexpected model key: description"), failing the
-    // whole record. A schema-constrained request must not offer that key at all.
-    const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
-      async () => mockGeneration(
-        '{"grave":[{"name":"Grave 1","description":"A grave record."}]}',
-      ),
-    )
-    await extractWithModel(
-      { document, template: { grave: [{ name: 'verbatim-string' }] } },
-      { ...generalTarget, jsonOutput, model: new MockLanguageModelV4({ doGenerate }) },
-    )
-
-    const responseFormat = schemaRecord(doGenerate.mock.calls[0][0]).responseFormat as {
-      schema?: { properties?: Record<string, JsonSchemaLike> }
-    } | undefined
-    const graveField = unwrapNullable(responseFormat?.schema?.properties?.grave)
-    const graveItemProperties = (graveField?.items as { properties?: Record<string, unknown> } | undefined)?.properties ?? {}
-    expect(Object.keys(graveItemProperties)).toEqual(['name'])
-    expect(graveItemProperties).not.toHaveProperty('description')
-  })
-
-  it.each(['native', 'prompt'] as const)('preserves discovery constraints on a %s provider', async (jsonOutput) => {
-    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
-    generateTextMock.mockImplementation(generateText)
-    const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
-      async () => mockGeneration('{"starts":["B1"],"end":null}'),
-    )
-    const label = z.enum(['B1', 'B3'])
-    const result = await extractWithModel({
-      document,
-      template: { starts: ['string'], end: 'string' },
-      outputSchema: z.object({ starts: z.array(label), end: label.nullable() }).strict(),
-    }, { ...generalTarget, jsonOutput, model: new MockLanguageModelV4({ doGenerate }) })
-    const format = schemaRecord(doGenerate.mock.calls[0][0]).responseFormat as {
-      schema: { properties: { starts: { items: { enum: string[] } }; end: JsonSchemaLike } }
-    } | undefined
-    if (jsonOutput === 'prompt') expect(format).toBeUndefined()
-    else {
-      expect(format?.schema.properties.starts.items.enum).toEqual(['B1', 'B3'])
-      expect(unwrapNullable(format?.schema.properties.end)?.enum).toEqual(['B1', 'B3'])
-    }
-    expect(result.result).toEqual({ starts: ['B1'], end: null })
-    const prompt = JSON.stringify(schemaRecord(doGenerate.mock.calls[0][0]).prompt)
-    expect(prompt).not.toContain('FREE')
-    expect(prompt).not.toContain('not present in the schema')
-    expect(prompt).not.toContain('Extraction Schema:')
-    expect(prompt).toContain('Output JSON Schema:')
-    const messages = schemaRecord(doGenerate.mock.calls[0][0]).prompt as { role: string; content: { type: string; text: string }[] }[]
-    const requestText = messages.find(message => message.role === 'user')!.content[0].text
-    const displayedSchema = JSON.parse(requestText.split('Output JSON Schema:\n')[1].split('\n\n')[0])
-    expect(displayedSchema.properties.end.anyOf).toContainEqual({ type: 'null' })
-    expect(displayedSchema.properties.starts.items.enum).toEqual(['B1', 'B3'])
-  })
-
-  it('retains invalid discovery labels for local normalization or corrective feedback', async () => {
-    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
-    generateTextMock.mockImplementation(generateText)
-    const doGenerate = vi.fn(async () => mockGeneration('{"starts":["215. Oberheldrungen"],"end":"[[block:B3]]"}'))
-    const label = z.enum(['B1', 'B3'])
-    const result = await extractWithModel({
-      document,
-      template: { starts: ['string'], end: 'string' },
-      outputSchema: z.object({ starts: z.array(label), end: label.nullable() }).strict(),
-    }, { ...generalTarget, jsonOutput: 'native', model: new MockLanguageModelV4({ doGenerate }) })
-    expect(result.result).toEqual({ starts: ['215. Oberheldrungen'], end: '[[block:B3]]' })
-    expect(doGenerate).toHaveBeenCalledOnce()
-  })
-
-  it('derives and sends a response schema for the grounding call template shape', async () => {
-    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
-    generateTextMock.mockImplementation(generateText)
-    const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
-      async () => mockGeneration('{"links":{"C1":"E3","C2":"NONE"}}'),
-    )
-    const result = await extractWithModel(
-      {
-        document: { file: null, markdown: '### Canonical Evidence\n[E3] Grave 1', pages: null },
-        template: { links: { C1: 'verbatim-string', C2: 'verbatim-string' } },
-      },
-      { ...generalTarget, jsonOutput: 'native', model: new MockLanguageModelV4({ doGenerate }) },
-    )
-
-    const responseFormat = schemaRecord(doGenerate.mock.calls[0][0]).responseFormat as {
-      schema?: { properties?: Record<string, JsonSchemaLike> }
-    } | undefined
-    const linksField = unwrapNullable(responseFormat?.schema?.properties?.links) as { properties?: Record<string, unknown> } | undefined
-    expect(Object.keys(linksField?.properties ?? {})).toEqual(['C1', 'C2'])
-    expect(result.result).toEqual({ links: { C1: 'E3', C2: 'NONE' } })
-  })
-
-  it('falls back to unconstrained generation when schema derivation fails', async () => {
-    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
-    generateTextMock.mockImplementation(generateText)
-    const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
-      async () => mockGeneration('{"grave":[{"name":"Grave 1"}]}'),
-    )
-    // An array at the template root is not a shape templateToNodes can convert
-    // (it only walks plain records); derivation must fail closed, not throw.
-    await extractWithModel(
-      { document, template: ['not', 'a', 'record'] },
-      { ...generalTarget, model: new MockLanguageModelV4({ doGenerate }) },
-    )
-
-    expect(schemaRecord(doGenerate.mock.calls[0][0]).responseFormat).toBeUndefined()
-  })
-
-  it('classifies empty structured output as invalid model output without regeneration', async () => {
-    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
-    generateTextMock.mockImplementation(generateText)
-    const doGenerate = vi.fn(async () => mockGeneration(''))
-    await expect(extractWithModel(
-      { document, template: { starts: ['string'], end: 'string' } },
-      { ...generalTarget, jsonOutput: 'schema', model: new MockLanguageModelV4({ doGenerate }) },
-    )).rejects.toMatchObject({ code: 'invalid_model_output' })
-    expect(doGenerate).toHaveBeenCalledTimes(1)
-  })
-
-  it('repairs prompt-only text without requesting structured output', async () => {
-    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
-    generateTextMock.mockImplementation(generateText)
-    const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
-      async () => mockGeneration('{"records":[{"grave_number":8}]} trailing'),
-    )
-    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-
-    const result = await extractWithModel(
-      { document, template: { records: [{ grave_number: 'integer', note: 'string' }] } },
-      { ...generalTarget, model: new MockLanguageModelV4({ doGenerate }) },
-    )
-
-    expect(schemaRecord(doGenerate.mock.calls[0][0]).responseFormat).toBeUndefined()
-    expect(result.result).toEqual({ records: [{ grave_number: 8 }] })
-    expect(warning).toHaveBeenCalled()
-    warning.mockRestore()
-  })
-})
-
 describe('generateSchemaWithModel', () => {
-  it('repairs generated model JSON on the raw path', async () => {
-    stubOllamaResponse('{"_description":"One grave record.","grave":[{"name":"verbatim-string"}}]')
+  it('repairs generated model JSON on the NuExtract path', async () => {
+    stubNuExtractResponse('{"_description":"One grave record.","grave":[{"name":"verbatim-string"}}]')
     const result = await generateSchemaWithModel(
       { document, instruction: '' },
-      rawTarget,
+      nuextractTarget,
     )
     expect(result.template).toEqual({ _description: 'One grave record.', grave: [{ name: 'verbatim-string' }] })
   })
 
   it('rejects a generated schema without a root record description', async () => {
-    stubOllamaResponse('{"grave":[{"name":"verbatim-string"}]}')
+    stubNuExtractResponse('{"grave":[{"name":"verbatim-string"}]}')
 
     await expect(
       generateSchemaWithModel(
         { document, instruction: '' },
-        rawTarget,
+        nuextractTarget,
       ),
     ).rejects.toMatchObject({ code: 'invalid_model_output' })
   })
 
-  it('leads the raw template-generation message with schema guidance', async () => {
-    const request = stubOllamaResponse('{"_description":"One grave record.","grave":[{"name":"verbatim-string"}]}')
+  it('asks vLLM for template generation, leading the message with schema guidance', async () => {
+    const request = stubNuExtractResponse('{"_description":"One grave record.","grave":[{"name":"verbatim-string"}]}')
     await generateSchemaWithModel(
       { document, instruction: '' },
-      rawTarget,
+      nuextractTarget,
     )
-    const body = request.mock.calls[0][1].body as string
-    expect(body.indexOf('compact JSON extraction schema')).toBeLessThan(body.indexOf('Grave 1'))
-    expect(body).not.toContain('【instructions_start】')
+    const [url, init] = request.mock.calls[0]!
+    expect(url).toBe('http://nuextract_model:8000/v1/chat/completions')
+    expect(init.headers).toMatchObject({ authorization: 'Bearer secret' })
+    const body = JSON.parse(init.body as string)
+    expect(body).toMatchObject({
+      model: 'numind/NuExtract3-FP8',
+      chat_template_kwargs: { mode: 'template-generation', enable_thinking: false },
+      temperature: 0.2,
+    })
+    expect(body.messages).toHaveLength(1)
+    const text = JSON.stringify(body.messages[0].content)
+    expect(text.indexOf('compact JSON extraction schema')).toBeLessThan(text.indexOf('Grave 1'))
+    expect(text).not.toContain('【')
   })
 
-  it('passes cancellation to the raw NuExtract request', async () => {
-    const request = stubOllamaResponse(
+  it('maps a failed NuExtract call to a model operation failure', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response('overloaded', { status: 503 })))
+    await expect(generateSchemaWithModel({ document, instruction: '' }, nuextractTarget))
+      .rejects.toMatchObject({ status: 502, code: 'model_operation_failed' })
+  })
+
+  it('passes cancellation to the NuExtract request', async () => {
+    const request = stubNuExtractResponse(
       '{"_description":"One grave record.","grave":[{"name":"verbatim-string"}]}',
     )
     const controller = new AbortController()
 
     await generateSchemaWithModel(
       { document, instruction: '', signal: controller.signal },
-      rawTarget,
+      nuextractTarget,
     )
 
     expect(request.mock.calls[0]?.[1]).toMatchObject({
@@ -674,18 +207,5 @@ describe('interactive model operations', () => {
     expect(response.status).toBe(200)
     expect(body).toContain('Chat failed.')
     expect(body).not.toContain('upstream secret')
-  })
-})
-
-describe('renderNuExtractPrompt', () => {
-  it.each(['content', 'markdown'] as const)('renders %s without a synthetic instructions slot', (mode) => {
-    const rendered = renderNuExtractPrompt({
-      mode,
-      instructions: 'inline guidance',
-      documentParts: [{ type: 'text', text: 'Source' }],
-    })
-    expect(rendered.prompt).toContain(`【task】${mode}`)
-    expect(rendered.prompt).not.toContain('【instructions_start】')
-    expect(rendered.prompt).toContain('<think>\n\n</think>')
   })
 })

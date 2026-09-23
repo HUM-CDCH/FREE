@@ -3,6 +3,7 @@
 import type { ResearcherProjectStore } from 'db'
 import { ExtractionError } from 'extraction'
 import {
+  type ExtractionModelChoice,
   extractionReadResponseSchema,
   extractionRequestSchema,
   finalizeExtractionReviewSchema,
@@ -20,6 +21,12 @@ import {
   createResearcherExtractions,
   extractionAttemptDto,
 } from './_extraction_runtime.js'
+import { configuredExtractionModels } from './_model_config.js'
+
+export type ExtractionHandlerDependencies = {
+  /** The deployment-wide Extraction Model Choice a fresh run is requested on. */
+  readonly extractionModels?: () => Promise<ExtractionModelChoice | null>
+}
 
 const COLLECTION_ROUTE = '/api/extractions'
 const ITEM_ROUTE = /^\/api\/extractions\/([0-9a-f-]+)$/
@@ -59,10 +66,12 @@ function asTransportError(error: unknown): unknown {
 
 export function createResearcherApiHandlers(
   store: ResearcherProjectStore,
+  dependencies: ExtractionHandlerDependencies = {},
 ): Readonly<
   Record<string, (request: Request) => Response | Promise<Response>>
 > {
   const module = createResearcherExtractions(store.researcherAccountId)
+  const extractionModels = dependencies.extractionModels ?? (() => configuredExtractionModels())
   async function create(request: Request): Promise<Response> {
     const parsed = extractionRequestSchema.safeParse(
       await parseJsonRequest(request),
@@ -73,6 +82,7 @@ export function createResearcherApiHandlers(
         'invalid_request',
         'The Extraction request is invalid.',
       )
+    const models = parsed.data.retryOfId === undefined ? await extractionModels() : null
     const input =
       'retryOfId' in parsed.data && parsed.data.retryOfId !== undefined
         ? {
@@ -91,7 +101,7 @@ export function createResearcherApiHandlers(
             schemaRevisionId: parsed.data.schemaRevisionId!,
             strategy: parsed.data.strategy!,
             ...(parsed.data.catalogRecipe ? { catalogRecipe: parsed.data.catalogRecipe } : {}),
-            ...(parsed.data.models ? { models: parsed.data.models } : {}),
+            ...(models ? { models } : {}),
           }
     const completed = await module.runSingle(input, request.signal)
     return json(extractionAttemptDto(completed.extraction), {

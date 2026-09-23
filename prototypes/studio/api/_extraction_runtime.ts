@@ -82,9 +82,9 @@ export function extractionAttemptDto(extraction: ExtractionAttemptSnapshot) {
 
 
 /** The one kei-exp client: jobs extract through it, and Studio lists the deployment's extraction models with it.
- *  It names no model itself: a run sends its Extraction Model Choice (kei-exp model keys per role) or none, and
- *  kei-exp's deployment defaults fill the rest. The Extraction Route's modelId names a model on a FREE Model
- *  Connection and never reaches kei-exp; the models that actually ran are read back from the artifact. */
+ *  It names no model itself: a run sends the configured Extraction Model Choice (kei-exp model keys per role) or
+ *  none, and kei-exp's deployment defaults fill the rest. Model Connections and Capability Routes never reach
+ *  kei-exp; the models that actually ran are read back from the artifact. */
 export const keiExpClient = createKeiExpClient({
   url: process.env.KEI_EXP_URL ?? (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_KEI_EXP_URL ?? 'http://127.0.0.1:8001',
 })
