@@ -32,6 +32,10 @@ kei-jobs = "kei_exp.jobs.cli:main"
 
 [tool.uv]
 link-mode = "copy"
+# docling's rapidocr wants opencv-python while surya-ocr wants the headless
+# build. Both wheels unpack into the same cv2/ package, so whichever installs
+# last leaves a mixed module that fails to import. Keep only the headless one.
+override-dependencies = ["opencv-python; sys_platform == 'never'"]
 
 [build-system]
 requires = ["uv_build>=0.12.13,<0.13.0"]
