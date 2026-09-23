@@ -1,5 +1,10 @@
 # The launcher adds this overlay only after verifying NVIDIA GPU access.
 # Layout and native PDF parsing remain on the CPU; model servers own the GPU.
+# Each model runs in its own vLLM server (one model per engine). Engines start
+# one after another: each profiles the GPU's free memory when it starts, and
+# two profiling at once on one GPU can misjudge it. Each server's memory is a
+# fixed KV-cache budget rather than a fraction of the GPU, so the budgets add
+# up predictably on a shared-memory DGX Spark.
 x-gpu: &gpu
   resources:
     reservations:
@@ -8,21 +13,33 @@ x-gpu: &gpu
           count: all
           capabilities: [gpu]
 
+x-vllm: &vllm
+  image: "${VLLM_IMAGE:-vllm/vllm-openai:latest}"
+  init: true
+  # Both the generic vLLM image and an operator-selected Spark image use
+  # this explicit CLI, independent of their image entrypoint defaults.
+  entrypoint: ["vllm", "serve"]
+  restart: unless-stopped
+  shm_size: 2gb
+  deploy: *gpu
+  environment:
+    HF_HOME: /models/huggingface
+    HF_TOKEN: "${HF_TOKEN:-}"
+  volumes:
+    - parsing-models:/models
+  healthcheck:
+    test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+    interval: 15s
+    timeout: 5s
+    # A first start downloads the weights into the shared Hugging Face cache.
+    retries: 160
+    start_period: 2m
+  networks:
+    - app
+
 services:
   ocr_model:
-    image: "${VLLM_IMAGE:-vllm/vllm-openai:latest}"
-    init: true
-    # Both the generic vLLM image and an operator-selected Spark image use
-    # this explicit CLI, independent of their image entrypoint defaults.
-    entrypoint: ["vllm", "serve"]
-    restart: unless-stopped
-    shm_size: 2gb
-    deploy: *gpu
-    environment:
-      HF_HOME: /models/huggingface
-      HF_TOKEN: "${HF_TOKEN:-}"
-    volumes:
-      - parsing-models:/models
+    <<: *vllm
     command:
       - datalab-to/surya-ocr-2
       - --host
@@ -37,19 +54,37 @@ services:
       - "24576"
       - --max-num-seqs
       - "4"
-    healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
-      interval: 15s
-      timeout: 5s
-      retries: 80
-      start_period: 2m
-    networks:
-      - app
 
+  # Extraction's instruction model. Text only: the vision tower is not loaded.
+  # Thinking is switched off per request (chat_template_kwargs), not here, so
+  # the request that is counted and recorded is the one that is served.
   extraction_model:
-    deploy: *gpu
+    <<: *vllm
+    command:
+      - "${KEI_EXTRACT_MODEL:-Qwen/Qwen3.8-27B-FP8}"
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --language-model-only
+      - --generation-config
+      - vllm
+      - --max-model-len
+      - "${EXTRACT_MAX_MODEL_LEN:-32768}"
+      - --kv-cache-memory-bytes
+      - "${EXTRACT_KV_CACHE_BYTES:-8G}"
+      - --max-num-seqs
+      - "4"
+    depends_on:
+      ocr_model:
+        condition: service_healthy
 
   parsing_worker:
     depends_on:
       ocr_model:
+        condition: service_healthy
+
+  studio:
+    depends_on:
+      extraction_model:
         condition: service_healthy

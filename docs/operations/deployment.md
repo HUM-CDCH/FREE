@@ -30,21 +30,24 @@ before starting because the production network selection uses `gw_priority`.
 
 The complete backend is built from `prototypes/parsing_service` in this
 checkout. Compose runs its API, worker, job PostgreSQL, schema initializer,
-and an Ollama extraction server alongside Studio and its database. No
-separate kei-exp repository or host process is needed.
+and, with GPU access, the vLLM model servers for OCR and extraction alongside
+Studio and its database. No separate kei-exp repository or host process is
+needed.
 
 Both launchers use `FREE_GPU=auto` and probe Docker GPU access. A successful
-probe adds `compose.gpu.yaml`, which starts Surya's vLLM server and gives
-Ollama GPU access. Set `FREE_GPU=off` for CPU native-PDF parsing and extraction,
-or `FREE_GPU=required` to fail startup unless the GPU is available. Scanned
-PDFs require the GPU OCR server. The worker's document-layout processing runs
-on CPU so it does not compete with the model servers for GPU memory.
+probe adds `compose.gpu.yaml`, which starts the OCR (Surya) and extraction vLLM
+servers. Set `FREE_GPU=off` for CPU native-PDF parsing only, or
+`FREE_GPU=required` to fail startup unless the GPU is available. Scanned PDFs
+and extraction require the GPU model servers; without them an operator can
+point `KEI_EXTRACT_URL` at another OpenAI-compatible vLLM endpoint. The
+worker's document-layout processing runs on CPU so it does not compete with
+the model servers for GPU memory.
 
-First builds install the Python dependencies; first startup downloads
-`KEI_EXTRACT_MODEL` (default `qwen3:8b`). The Python environment alone is
-about 6 GiB; build caches and exported image layers require additional space.
-GPU startup also downloads the Surya
-OCR weights. Model caches persist in named volumes. Allow enough disk space,
+First builds install the Python dependencies. The Python environment alone
+is about 6 GiB; build caches and exported image layers require additional
+space. First GPU startup downloads the Surya OCR weights and
+`KEI_EXTRACT_MODEL` (default `Qwen/Qwen3.8-27B-FP8`, about 30 GB) into the
+shared Hugging Face cache. Model caches persist in named volumes. Allow enough disk space,
 network access, and startup time for these downloads.
 
 TLS is the host nginx's: obtain a PEM certificate or full chain and its
@@ -101,12 +104,13 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
 generated hexadecimal value and retain it with the database volume, just as
 for `FREE_POSTGRES_PASSWORD`.
 
-The GPU overlay runs the OCR model separately from the Python worker. The
-worker reaches `http://ocr_model:8000/v1/chat/completions`; extraction reaches
-`http://extraction_model:11434/v1/chat/completions`. Neither endpoint is
-published to the LAN.
+The GPU overlay runs each model in its own vLLM server, separately from the
+Python worker. The worker reaches `http://ocr_model:8000/v1/chat/completions`;
+extraction reaches `http://extraction_model:8000/v1/chat/completions`. Neither
+endpoint is published to the LAN. The servers start one after another, since
+each profiles the GPU's free memory when it starts.
 
-`VLLM_IMAGE` selects the OCR server image. The default is the generic vLLM
+`VLLM_IMAGE` selects the image of every model server. The default is the generic vLLM
 image; on DGX Spark set it to a validated native ARM64 image with GB10 support.
 The previous kei-exp Spark deployment used `eugr/spark-vllm`; the migration
 does not establish that an arbitrary tag works on a particular machine.
@@ -114,12 +118,16 @@ Validate the selected image and a representative scanned PDF on the target
 hardware before serving researchers. GPU visibility alone does not prove
 that its CUDA kernels or model architecture work.
 
+For extraction's `Qwen/Qwen3.8-27B-FP8` (the `qwen3_5` architecture), the
+image must also support that architecture and FP8 on the target GPU.
+
 `OCR_GPU_MEMORY_UTILIZATION` and `OCR_KV_CACHE_BYTES` control the OCR
 server's memory reservations. The default context is 24,576 tokens with up to
-four simultaneous sequences. Leave room for Ollama,
-the document-layout process, and the operating system. Spark's system memory
-is shared with its GPU. Set `OLLAMA_IMAGE` when the deployment needs an
-explicit tested Ollama image.
+four simultaneous sequences. `EXTRACT_MAX_MODEL_LEN` (default 32,768 tokens)
+and `EXTRACT_KV_CACHE_BYTES` (default 8G) size the extraction server; it
+loads the text model only. Leave room for both servers' weights, the
+document-layout process, and the operating system. Spark's system memory is
+shared with its GPU.
 
 For direct Compose commands, add `-f compose.gpu.yaml` after the local or
 production overlay. The normal launcher selects it after its GPU probe.
@@ -270,11 +278,11 @@ Credential values are write-only and are never returned; Studio shows only
 
 ## Configure service extraction
 
-Set `KEI_EXTRACT_MODEL` in `.env` to choose the model installed in the included
-Ollama server. This is independent of Studio's stored Model Connections,
-which still drive Schema Suggestion and Interaction. For those capabilities,
-a local Ollama Model Connection can use `http://extraction_model:11434` and
-the same installed model. Configuration is explicit; startup does not save
+Set `KEI_EXTRACT_MODEL` in `.env` to the Hugging Face repo id the included
+extraction vLLM server loads. This is independent of Studio's stored Model
+Connections, which still drive Schema Suggestion and Interaction. For those
+capabilities, an OpenAI-compatible Model Connection can use
+`http://extraction_model:8000/v1` and the same model. Configuration is explicit; startup does not save
 Model Connections or Capability Routes.
 
 Article and Catalog extraction, discovery, and grounding run in the included
@@ -295,8 +303,8 @@ The resolved production topology is:
 | Parsing Service API | `app`, port 8001 | none |
 | Parsing worker and schema initializer | `app`; no HTTP listener | none |
 | Parsing PostgreSQL | `app`, port 5432 | none |
-| Ollama extraction server | `app`, port 11434 | none |
 | Surya vLLM server (GPU overlay) | `app`, port 8000 | none |
+| Extraction vLLM server (GPU overlay) | `app`, port 8000 | none |
 
 Studio reaches the API at `http://parsing_service:8001`. The API and worker
 share the job database and run volume. Their unauthenticated administrative

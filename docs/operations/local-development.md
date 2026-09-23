@@ -42,10 +42,10 @@ can take several minutes. The model cache is persistent. The Parsing Service
 is included in this checkout; do not start a second kei-exp checkout.
 
 `FREE_GPU=auto` enables the GPU overlay when Docker exposes an NVIDIA GPU.
-`FREE_GPU=off` runs native-PDF parsing and extraction on CPU;
-`FREE_GPU=required` requires GPU access. Scanned PDFs need the GPU overlay's
-Surya OCR server. `KEI_EXTRACT_MODEL` selects the model installed in the
-included Ollama server (default `qwen3:8b`).
+`FREE_GPU=off` runs native-PDF parsing on CPU only;
+`FREE_GPU=required` requires GPU access. Scanned PDFs and extraction need the
+GPU overlay's vLLM servers. `KEI_EXTRACT_MODEL` selects the Hugging Face model
+the extraction server loads (default `Qwen/Qwen3.8-27B-FP8`).
 
 Open **https://localhost:8443/free**. Signing in runs the OIDC authorization
 code flow against the local `mock-oidc` service (see below); the local

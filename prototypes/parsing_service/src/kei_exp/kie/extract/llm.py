@@ -1,11 +1,11 @@
-"""One text-in, JSON-out chat completion against any OpenAI-compatible server, and how its reply is read.
+"""One text-in, JSON-out chat completion against an OpenAI-compatible vLLM server, and how its reply is read.
 
-vLLM and Ollama's `/v1` both take this shape. A call asks for a reply constrained to a JSON schema through
-`response_format`, with reasoning off. Only a refusal that positively says structured output is unsupported is asked
-once more without it (the prompt's own "return only the JSON object" then has to do); a malformed schema, an
-overlong input or any other refusal surfaces unchanged. The refused attempt is kept on the reply, so the artifact
-records every call. `finish` is the server's finish_reason: "length" means the reply was cut off, which the caller
-treats as a failed call rather than a short answer.
+A call asks for a reply constrained to a JSON schema through `response_format`, with thinking switched off in the
+chat template. Only a refusal that positively says structured output is unsupported is asked once more without it
+(the prompt's own "return only the JSON object" then has to do); a malformed schema, an overlong input or any other
+refusal surfaces unchanged. The refused attempt is kept on the reply, so the artifact records every call. `finish`
+is the server's finish_reason: "length" means the reply was cut off, which the caller treats as a failed call
+rather than a short answer. `tokenize_body` is the same request as vLLM's `/tokenize` counts it.
 """
 from __future__ import annotations
 
@@ -21,8 +21,8 @@ import requests
 from kei_exp.files import load_dotenv
 
 load_dotenv()
-EXTRACT_URL = os.environ.get("KEI_EXTRACT_URL", "http://127.0.0.1:11434/v1/chat/completions")
-EXTRACT_MODEL = os.environ.get("KEI_EXTRACT_MODEL", "qwen3:8b")
+EXTRACT_URL = os.environ.get("KEI_EXTRACT_URL", "http://127.0.0.1:8002/v1/chat/completions")
+EXTRACT_MODEL = os.environ.get("KEI_EXTRACT_MODEL", "Qwen/Qwen3.8-27B-FP8")
 EXTRACT_TIMEOUT = float(os.environ.get("KEI_EXTRACT_TIMEOUT", "600"))
 
 
@@ -40,11 +40,20 @@ class Reply:
     attempts: tuple[str, ...] = ()      # refused earlier attempts of this call, each as the server's words
 
 
-# A refusal that names structured output as unsupported, in the wordings vLLM, Ollama and OpenAI-compatible proxies
+# A refusal that names structured output as unsupported, in the wordings vLLM and OpenAI-compatible proxies
 # use; nothing else earns a second attempt without the schema.
 UNSUPPORTED = re.compile(r"(?is)(response_format|json_schema|structured output|guided).{0,80}"
                          r"(not supported|unsupported|not implemented)|(not supported|unsupported|does not support|"
                          r"not implemented).{0,80}(response_format|json_schema|structured output|guided)")
+
+
+# No thinking: under greedy decoding a thinking model (Qwen3.x) can loop in its reasoning until max_tokens and return
+# no answer at all. vLLM passes this to the chat template; the Qwen3.x and NuExtract3 templates honour it.
+THINKING_OFF = {"enable_thinking": False}
+
+
+def _messages(system: str, user: str) -> list[dict]:
+    return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
 
 class Chat(Protocol):
@@ -61,13 +70,15 @@ class OpenAIChat:
     headers: dict[str, str] = field(default_factory=dict)
     max_tokens: int = 8192
 
+    def tokenize_body(self, *, system: str, user: str, schema: dict | None = None) -> dict:
+        """The body vLLM's /tokenize renders into exactly the prompt `complete` sends (the schema does not enter it)."""
+        return {"model": self.model, "add_generation_prompt": True, "messages": _messages(system, user),
+                "chat_template_kwargs": dict(THINKING_OFF)}
+
     def complete(self, *, system: str, user: str, schema: dict | None, max_tokens: int | None = None) -> Reply:
-        # No reasoning: under greedy decoding a thinking model (Qwen3) can loop in its reasoning until
-        # max_tokens and return no answer at all. Ollama's /v1 honours this field.
         payload: dict[str, Any] = {
             "model": self.model, "temperature": 0, "max_tokens": max_tokens or self.max_tokens,
-            "reasoning_effort": "none",
-            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            "messages": _messages(system, user), "chat_template_kwargs": dict(THINKING_OFF),
         }
         constrained = {**payload, "response_format": {"type": "json_schema", "json_schema": {
             "name": "reply", "schema": schema, "strict": True}}} if schema is not None else payload

@@ -71,8 +71,8 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   result version 2: structural segmentation with a coverage ledger, one bounded
   call per entry, and code-verified candidates (accepted, proposed, rejected)
   with code-point span Evidence. Without it, Catalog runs generic discovery
-  (version 1). The extraction endpoint must expose its tokenizer (Ollama
-  `/api/show` or vLLM `/tokenize`) and its context size. Otherwise the request
+  (version 1). The extraction endpoint must count requests on vLLM's
+  `/tokenize` and report its context size. Otherwise the request
   is refused before any call. See the
   [grounded catalogue design](docs/superpowers/specs/2026-09-23-grounded-catalogue-design.md).
 

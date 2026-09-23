@@ -35,9 +35,6 @@ services:
   parsing_worker:
     environment: *parsing-database
 
-  extraction_model:
-    restart: unless-stopped
-
   studio:
     restart: unless-stopped
     # The FREE_ENTRA_* values and the client-certificate mount are duplicated

@@ -4,9 +4,9 @@ and `FREE_REAL_EXTRACT_MODEL`, the variables the real-model service tier already
 import os
 
 import pytest
-import requests
 
-from kei_exp.kie.extract.tokens import PROBE_SCHEMA, counter_for
+from kei_exp.kie.extract.llm import OpenAIChat
+from kei_exp.kie.extract.tokens import counter_for
 
 URL, MODEL = os.environ.get("FREE_REAL_EXTRACT_URL"), os.environ.get("FREE_REAL_EXTRACT_MODEL")
 pytestmark = [pytest.mark.live_model,
@@ -23,28 +23,30 @@ ADVERSARIAL = [
 ]
 
 
+PROBE_SCHEMA = {"type": "object", "properties": {}, "additionalProperties": False}
+
+
 @pytest.fixture(scope="module")
-def counter():
-    return counter_for(URL, MODEL)
+def chat():
+    return OpenAIChat(url=URL, model=MODEL)
 
 
-def served(system: str, user: str) -> int:
-    response = requests.post(URL, json={
-        "model": MODEL, "temperature": 0, "max_tokens": 1, "reasoning_effort": "none",
-        "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        "response_format": {"type": "json_schema", "json_schema": {"name": "reply", "schema": PROBE_SCHEMA,
-                                                                  "strict": True}}}, timeout=600)
-    response.raise_for_status()
-    return response.json()["usage"]["prompt_tokens"]
+@pytest.fixture(scope="module")
+def counter(chat):
+    return counter_for(chat)
+
+
+def served(chat: OpenAIChat, system: str, user: str) -> int:
+    """The prompt count the server reports for the very request extraction sends (one output token)."""
+    return chat.complete(system=system, user=user, schema=PROBE_SCHEMA, max_tokens=1).input_tokens
 
 
 @pytest.mark.parametrize("user", ADVERSARIAL, ids=range(len(ADVERSARIAL)))
-def test_the_count_equals_the_served_prompt_count(counter, user):
+def test_the_count_equals_the_served_prompt_count(chat, counter, user):
     system = "You extract structured data. Return only the JSON object.\n- Fundort: the site name"
-    assert counter.request_tokens(system, user) == served(system, user)
+    assert counter.request_tokens(system, user, PROBE_SCHEMA) == served(chat, system, user)
 
 
 def test_the_counter_is_pinned_and_the_context_fits_the_default_budget(counter):
-    identity = counter.identity()
-    assert identity["model_digest"] or identity["source"] == "vllm:/tokenize"
+    assert counter.identity()["source"] == "vllm:/tokenize"
     assert counter.context_tokens is not None and counter.context_tokens >= 4096 + 1024

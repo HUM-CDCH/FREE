@@ -194,8 +194,9 @@ registration and rotation:
 FREE sends the pinned schema and the Source Document's run ID to the included
 Parsing Service for Article or Catalog extraction. The service owns extraction
 and grounding; Studio stores the returned records, evidence and diagnostics
-for review. Compose wires `KEI_EXP_URL` to its private API and starts an Ollama
-server with the `KEI_EXTRACT_MODEL` model (default `qwen3:8b`). The Extraction
+for review. Compose wires `KEI_EXP_URL` to its private API and, with GPU access,
+starts a vLLM server with the `KEI_EXTRACT_MODEL` model (default
+`Qwen/Qwen3.8-27B-FP8`). The Extraction
 Route's model id belongs to a FREE Model Connection and is not sent to this
 separate execution endpoint. Schema Suggestion and Interaction still use the
 configured Capability Routes. Polling waits up to ten minutes for Article and three hours for

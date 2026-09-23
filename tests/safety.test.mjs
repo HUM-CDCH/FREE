@@ -182,18 +182,28 @@ function assertOwnedParsingTopology(config, gpu) {
   assert.equal(services.parsing_worker.restart, 'unless-stopped')
   assert.deepEqual(services.parsing_worker.command, ['kei-jobs', 'worker'])
   assert.equal(services.studio.depends_on.parsing_service.condition, 'service_healthy')
-  assert.equal(services.studio.depends_on.extraction_model_init.condition, 'service_completed_successfully')
-  assert.equal(services.extraction_model_init.depends_on.extraction_model.condition, 'service_healthy')
-  assert.equal(services.extraction_model.environment.OLLAMA_NUM_PARALLEL, '1')
-  assert.equal(services.extraction_model_init.environment.KEI_EXTRACT_MODEL, services.parsing_worker.environment.KEI_EXTRACT_MODEL)
-  for (const name of ['parsing_db', 'extraction_model'])
-    assert.equal(services[name].ports, undefined, `${name} stays private`)
-  assert.equal(Boolean(services.ocr_model), gpu)
-  assert.equal(Boolean(services.extraction_model.deploy?.resources?.reservations?.devices), gpu)
+  assert.equal(services.parsing_db.ports, undefined, 'parsing_db stays private')
+  // Extraction is served by vLLM on the GPU overlay only; no Ollama server or pull job remains.
+  assert.equal(services.extraction_model_init, undefined)
+  assert.equal(services.studio.depends_on.extraction_model_init, undefined)
+  assert.equal(config.volumes['extraction-models'], undefined)
+  assert.equal(services.parsing_worker.environment.KEI_EXTRACT_URL, 'http://extraction_model:8000/v1/chat/completions')
+  for (const name of ['ocr_model', 'extraction_model']) assert.equal(Boolean(services[name]), gpu, name)
   if (gpu) {
-    assert.equal(services.ocr_model.deploy.resources.reservations.devices[0].driver, 'nvidia')
+    for (const name of ['ocr_model', 'extraction_model']) {
+      const server = services[name]
+      assert.equal(server.deploy.resources.reservations.devices[0].driver, 'nvidia', name)
+      assert.deepEqual(server.entrypoint, ['vllm', 'serve'], name)
+      assert.equal(server.restart, 'unless-stopped', name)
+      assert.equal(server.ports, undefined, `${name} stays private`)
+    }
+    assert.equal(services.extraction_model.image, services.ocr_model.image)
+    // The worker asks for the model the server serves: vLLM's model id is the repo it was started with.
+    assert.equal(services.extraction_model.command[0], services.parsing_worker.environment.KEI_EXTRACT_MODEL)
+    // One vLLM engine profiles the GPU's free memory at a time.
+    assert.equal(services.extraction_model.depends_on.ocr_model.condition, 'service_healthy')
     assert.equal(services.parsing_worker.depends_on.ocr_model.condition, 'service_healthy')
-    assert.equal(services.ocr_model.ports, undefined)
+    assert.equal(services.studio.depends_on.extraction_model.condition, 'service_healthy')
   }
   assert.equal(config.volumes['postgres-data'].name.endsWith('_postgres-data'), true)
   assert.equal(config.volumes['parsing-runs'].name.endsWith('_parsing-runs'), true)

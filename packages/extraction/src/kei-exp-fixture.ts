@@ -96,7 +96,7 @@ export function keiExpGroundedArtifact(overrides: Partial<KeiExpGroundedArtifact
                       spans: [{ segment: 'p1_s2', start: 0, end: 3 }] }],
     },
     budget: { version: 1, input_tokens: 4096, output_tokens: 1024,
-              tokenizer: { source: 'ollama:/api/show', model: 'qwen3:8b', model_digest: 'd'.repeat(64), template_tokens: 21 } },
+              tokenizer: { source: 'vllm:/tokenize', model: 'Qwen/Qwen3.8-27B-FP8', model_digest: null, template_tokens: null } },
     records: [{ entry_no: 31, kreis: 'Heide', mbl_old: 1827, site_name: null }],
     normalization: { version: 1, rules: ['glossary'] },
     record_blocks: [{ block: 'b1', entry_label: '31' }],

@@ -360,12 +360,12 @@ export function parsingGpuComposeArguments(environment = process.env, execute = 
     'ubuntu:24.04', 'nvidia-smi', '-L',
   ], { capture: true, allowFailure: true, timeout: 60_000 })
   if (probe.status === 0 && /GPU \d+:/.test(probe.stdout ?? '')) {
-    console.log('Models: NVIDIA GPU available; starting Surya OCR and enabling Ollama GPU access.')
+    console.log('Models: NVIDIA GPU available; starting the OCR and extraction vLLM servers.')
     return ['-f', 'compose.gpu.yaml']
   }
   if (mode === 'required')
     throw new Error(`GPU access was required but Docker GPU access failed: ${probe.stderr || probe.error || 'no GPU found'}`)
-  console.log('Models: Docker GPU unavailable; native PDFs and CPU extraction are available. Scanned PDFs require the GPU OCR service. ' +
+  console.log('Models: Docker GPU unavailable; native PDFs are available. Scanned PDFs and extraction require the GPU model servers. ' +
     (probe.stderr?.trim() || probe.error?.message || 'No NVIDIA GPU found.'))
   return []
 }

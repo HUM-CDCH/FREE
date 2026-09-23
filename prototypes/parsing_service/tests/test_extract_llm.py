@@ -29,8 +29,9 @@ def test_a_call_sends_the_messages_and_the_json_schema_and_reads_the_reply(monke
     assert url == "http://server/v1/chat/completions" and kwargs["timeout"] == 5.0
     payload = kwargs["json"]
     assert payload["model"] == "m" and payload["temperature"] == 0
-    # Greedy decoding can loop Qwen3's thinking until max_tokens and leave no answer; extraction asks for none.
-    assert payload["reasoning_effort"] == "none"
+    # Greedy decoding can loop a thinking model's reasoning until max_tokens and leave no answer; extraction turns
+    # thinking off through the chat template, the switch vLLM applies (Ollama's `reasoning_effort` is not one).
+    assert payload["chat_template_kwargs"] == {"enable_thinking": False} and "reasoning_effort" not in payload
     assert payload["messages"] == [{"role": "system", "content": "S"}, {"role": "user", "content": "U"}]
     assert payload["response_format"] == {"type": "json_schema", "json_schema": {
         "name": "reply", "schema": {"type": "object"}, "strict": True}}
@@ -49,7 +50,7 @@ def test_a_server_that_says_it_lacks_structured_output_is_asked_again_and_both_a
     reply = OpenAIChat(url="http://server", model="m").complete(system="S", user="U", schema={"type": "object"})
     assert reply.text == "{}" and reply.input_tokens is None
     assert "response_format" in sent[0] and "response_format" not in sent[1]
-    assert sent[1]["reasoning_effort"] == "none"
+    assert sent[1]["chat_template_kwargs"] == {"enable_thinking": False}
     assert len(reply.attempts) == 1 and "not supported" in reply.attempts[0]
 
 
@@ -70,6 +71,19 @@ def test_a_call_may_set_its_own_output_allowance(monkeypatch):
     OpenAIChat(url="http://server", model="m").complete(system="S", user="U", schema=None, max_tokens=1024)
     OpenAIChat(url="http://server", model="m").complete(system="S", user="U", schema=None)
     assert [payload["max_tokens"] for payload in sent] == [1024, 8192]
+
+
+def test_the_request_to_count_renders_the_same_template_as_the_request_sent(monkeypatch):
+    """The token budget counts on vLLM's /tokenize; any template switch the call sends changes the rendered prompt,
+    so the body to count carries the same messages and switches."""
+    sent = []
+    body = {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}]}
+    monkeypatch.setattr(llm.requests, "post", lambda url, **kwargs: sent.append(kwargs["json"]) or response(200, body))
+    chat = OpenAIChat(url="http://server/v1/chat/completions", model="m")
+    chat.complete(system="S", user="U", schema={"type": "object"})
+    counted = chat.tokenize_body(system="S", user="U", schema={"type": "object"})
+    assert counted == {"model": "m", "add_generation_prompt": True, "messages": sent[0]["messages"],
+                       "chat_template_kwargs": sent[0]["chat_template_kwargs"]}
 
 
 def test_a_failing_server_raises_the_http_error(monkeypatch):

@@ -437,7 +437,7 @@ it('transports the version 2 review material instead of stripping it', async () 
   const { extractionAttemptDto } = await import('./_extraction_runtime.js')
   const grounded = {
     recipe: 'numbered-catalogue-de@1', segmentationFingerprint: 'f',
-    budget: { inputTokens: 4096, outputTokens: 1024, tokenizer: { source: 'ollama:/api/show' } },
+    budget: { inputTokens: 4096, outputTokens: 1024, tokenizer: { source: 'vllm:/tokenize' } },
     segmentationDiagnostics: [],
     normalization: { version: 1, rules: ['glossary' as const] },
     recordBlocks: [], proposed: [], rejected: [], competitors: [],

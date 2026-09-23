@@ -175,7 +175,7 @@ def _grounded(run_dir: Path, evidence, request: ExtractRequest, chat: Chat, coun
     recipe = load_recipe(options.catalog.recipe)
     segmentation = obtain(run_dir, evidence, recipe)
     if counter is None:
-        counter = counter_for(chat.url, chat.model, headers=getattr(chat, "headers", None))
+        counter = counter_for(chat)
     body = grounded.extract_grounded(evidence, request.schema_, recipe, options.catalog, segmentation, chat, counter)
     result = {"run_id": evidence.run_id, "generation": evidence.generation, "digest": evidence.digest,
               "model": chat.model, "schema": request.schema_.model_dump(by_alias=True, exclude_none=True),

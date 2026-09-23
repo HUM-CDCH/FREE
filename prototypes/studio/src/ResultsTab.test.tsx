@@ -1396,7 +1396,7 @@ describe('ResultsTab recipe review material', () => {
       ...articleAttempt.diagnostics!,
       grounded: {
         recipe: 'numbered-catalogue-de@1', segmentationFingerprint: 'f',
-        budget: { inputTokens: 4096, outputTokens: 1024, tokenizer: { source: 'ollama:/api/show' } },
+        budget: { inputTokens: 4096, outputTokens: 1024, tokenizer: { source: 'vllm:/tokenize' } },
         segmentationDiagnostics: [],
         normalization: { version: 1, rules: ['glossary'] },
         recordBlocks: [{ block: 'b1', entry_label: '31' }],
