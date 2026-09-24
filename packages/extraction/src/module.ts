@@ -214,6 +214,31 @@ export function createExtractionJobExecutor({ inputs: reader, keiExp }: Extracti
     })
     signal.throwIfAborted()
     const grounded = artifact.extraction_version === 2 ? artifact : null
+    const anchorId = (link: {
+      segment: string
+      cell?: string | null
+      page: number
+    }) => {
+      const id = `a_${link.segment}${link.cell ? `_${link.cell}` : ''}`
+      if (link.cell) {
+        const anchor = document.evidence_index.anchors.find(
+          (anchor) => anchor.anchor_id === id,
+        )
+        if (
+          anchor?.kind !== 'table_cell' ||
+          anchor.cell_id !== link.cell ||
+          anchor.logical_table_id !== `t_${link.segment}` ||
+          !anchor.producer_observations.some(
+            (observation) => observation.page_number === link.page,
+          )
+        )
+          throw new ExtractionError(
+            'invalid_model_output',
+            'Cell Evidence does not belong to the pinned Source Representation.',
+          )
+      }
+      return id
+    }
     return {
       extractionId: input.extractionId,
       sourceDocumentId: inputs.sourceDocumentId,
@@ -224,9 +249,10 @@ export function createExtractionJobExecutor({ inputs: reader, keiExp }: Extracti
       complete: artifact.complete,
       result: { records: artifact.records },
       evidence: grounded
-        ? grounded.evidence.map(link => ({
+        ? grounded.evidence.map((link) => ({
             resultPath: link.path,
-            evidenceAnchorId: `a_${link.segment}`,
+            evidenceAnchorId: anchorId(link),
+            ...(link.precision ? { precision: link.precision } : {}),
             verbatim: link.verbatim,
             lexicalHits: link.hits,
             grounding: {
@@ -238,9 +264,10 @@ export function createExtractionJobExecutor({ inputs: reader, keiExp }: Extracti
               },
             },
           }))
-        : artifact.evidence.map(link => ({
+        : artifact.evidence.map((link) => ({
             resultPath: link.path,
-            evidenceAnchorId: `a_${link.segment}`,
+            evidenceAnchorId: anchorId(link),
+            ...(link.precision ? { precision: link.precision } : {}),
             verbatim: link.verbatim,
             lexicalHits: link.hits,
             ...(link.linked_by === 'lexical' ? { linkedBy: 'lexical' as const } : {}),

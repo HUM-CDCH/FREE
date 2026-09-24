@@ -32,7 +32,7 @@ from kei_exp.kie.recipe import Recipe
 from kei_exp.kie.segmentation import Segmentation
 
 EXTRACTION_VERSION = 2
-PROMPT_VERSION = 2  # calls are routed by role (entry and document: fields; arbitration: reasoning)
+PROMPT_VERSION = 3  # Accepted spans can name a measured table cell inside their canonical segment.
 BUDGET_VERSION = 1
 NORMALIZATION_VERSION = 1        # verified glossary expansions beside accepted raw values; a change invalidates results
 KEY_GAP = 3                      # at most this many non-alphanumeric characters between a key and its value
@@ -738,11 +738,16 @@ def _normalized(outcome: _Outcome, texts: dict, expansions: dict[str, GlossaryEn
 
 def _link(outcome: _Outcome, texts: dict, expansions: dict[str, GlossaryEntry]) -> dict:
     first = texts[outcome.spans[0].segment_id]
-    return {"path": list(outcome.path), "segment": first.id, "page": first.page, "bbox_pt": list(first.bbox_pt),
+    cells = [cell for cell in first.table.cells if cell.bbox_pt is not None
+             and all(span.segment_id == first.id and cell.start <= span.start < span.end <= cell.end
+                     for span in outcome.spans)] if first.table and not outcome.alternatives else []
+    cell = cells[0] if len(cells) == 1 else None
+    return {"path": list(outcome.path), "segment": first.id, "page": first.page,
+            "bbox_pt": list(cell.bbox_pt if cell else first.bbox_pt), "cell": cell.cell_id if cell else None,
             "verbatim": True, "hits": 1 + len(outcome.alternatives), "linked_by": outcome.linked_by,
             "spans": _spans(outcome.spans), "alternatives": [_spans(spans) for spans in outcome.alternatives],
             "provenance": outcome.provenance, "key_spans": _spans(outcome.key_spans), "heading": outcome.heading,
-            "precision": first.precision, "raw": _raw(outcome.spans, texts),
+            "precision": "cell" if cell else first.precision, "raw": _raw(outcome.spans, texts),
             "normalized": _normalized(outcome, texts, expansions)}
 
 

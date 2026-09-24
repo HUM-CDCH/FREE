@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from itertools import pairwise
 from pathlib import Path
 
-from kei_exp.pagefile import CropResult, PageResult, ResultError, load_result, page_path, segment_id
+from kei_exp.pagefile import CropResult, PageResult, PageTable, ResultError, load_result, page_path, segment_id
 
 
 class EvidenceUnavailable(Exception):
@@ -39,6 +39,7 @@ class Passage:
     crop_order: int | None = None
     crop_bbox_pt: tuple[float, float, float, float] | None = None
     status: str = "ok"
+    table: PageTable | None = None
 
     @property
     def precision(self) -> str:
@@ -96,7 +97,8 @@ def load(run_dir: Path) -> Evidence:
             passage = Passage(id=segment_id(number, index), page=number, index=index, text=segment.text,
                               label=segment.label, bbox_pt=tuple(segment.bbox_pt), extent=segment.extent,
                               unit=segment.unit, crop=segment.crop, crop_order=crop.order if crop else None,
-                              crop_bbox_pt=tuple(crop.bbox_pt) if crop else None, status=segment.status)
+                              crop_bbox_pt=tuple(crop.bbox_pt) if crop else None, status=segment.status,
+                              table=segment.table)
             (passages if segment.status == "ok" else withheld).append(passage)
     manifest = loaded.manifest
     return Evidence(run_id=run_dir.name, generation=manifest.generation, digest=manifest.digest,

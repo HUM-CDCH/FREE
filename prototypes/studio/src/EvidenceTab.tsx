@@ -20,7 +20,7 @@ function Detail({ children }: { children: ReactNode }) {
 function TextAnchor({ anchor, document, onSelect, reviewedCount }: { anchor: TextEvidenceAnchor; document: ParsedDocument; onSelect: () => void; reviewedCount: number }) {
   const block = blockForAnchor(document, anchor)
   const observation = anchor.producer_observations[0]
-  const blockText = block && ('text' in block ? block.text : block.kind === 'list' ? block.items.join(' ') : '')
+  const blockText = block && ('text' in block ? block.text : block.kind === 'list' ? block.items.join(' ') : block.kind === 'table' ? 'Whole table' : '')
   return (
     <button type="button" onClick={onSelect} className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-left transition-colors hover:border-accent/60 hover:bg-accent-ghost focus-visible:outline-2 focus-visible:outline-accent" aria-label={`Evidence anchor ${anchor.anchor_id} on page ${observation.page_number}`}>
       <div className="flex items-center justify-between gap-2">
@@ -39,11 +39,12 @@ function TextAnchor({ anchor, document, onSelect, reviewedCount }: { anchor: Tex
 
 function TableAnchor({ anchor, document, onSelect, reviewedCount }: { anchor: TableCellEvidenceAnchor; document: ParsedDocument; onSelect: () => void; reviewedCount: number }) {
   const table = tableForAnchor(document, anchor)
+  const cell = table?.cells.find((cell) => cell.cell_id === anchor.cell_id)
   const observation = anchor.producer_observations[0]
   return (
     <button type="button" onClick={onSelect} className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-left transition-colors hover:border-accent/60 hover:bg-accent-ghost focus-visible:outline-2 focus-visible:outline-accent" aria-label={`Evidence anchor ${anchor.anchor_id} on page ${observation.page_number}`}>
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-xs font-semibold text-ink">Table cell {anchor.cell_id}</span>
+        <span className="truncate text-xs font-semibold text-ink">{cell?.text || 'Empty cell'} · row {anchor.canonical_row + 1}, column {anchor.canonical_column + 1}</span>
         <Detail>table cell</Detail>
       </div>
       <div className="mt-1.5 flex flex-wrap gap-1.5">

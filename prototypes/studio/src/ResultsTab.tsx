@@ -78,13 +78,23 @@ function evidenceCheck(link: { verbatim?: boolean; lexicalHits?: number }, actio
 /** A recipe Catalog value's grounding in the researcher's words; like the checks, it describes the original value. */
 function evidenceDetail(link: EvidenceLink, action?: ReviewDecisionAction): string | undefined {
   const grounding = link.grounding
-  if (!grounding || action === 'EDITED' || action === 'REJECTED') return undefined
+  if (action === 'EDITED' || action === 'REJECTED') return undefined
+  const location =
+    link.precision === 'cell'
+      ? 'Located to a table cell'
+      : link.precision === 'segment'
+        ? 'Located to the source block'
+        : link.precision === 'input'
+          ? 'Located to the whole input only'
+          : undefined
+  if (!grounding) return location
   const parts = [grounding.linkedBy === 'key' ? 'Read after its printed key'
     : grounding.provenance === 'inherited' ? 'Inherited from the heading in force'
       : 'Entry number from the segmentation']
   const others = grounding.alternatives.length
   if (others > 0) parts.push(`${others} other match${others === 1 ? '' : 'es'} in the entry`)
   if (grounding.precision === 'input') parts.push('located to the whole page only')
+  if (grounding.precision === 'cell') parts.push('located to a table cell')
   if (grounding.normalized) parts.push(`glossary: ${grounding.normalized.value}`)
   return parts.join(' · ')
 }

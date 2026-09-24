@@ -124,10 +124,15 @@ def _segments(unit: int, ordinal: int | None, record: PageRecord, transform: Cro
     segments = []
     for block in blocks:
         box = tuple(float(v) for v in block["bbox"])
+        table = block.get("table")
+        if table is not None:
+            table = {**table, "cells": [{**cell, "bbox_pt": to_page(transform.to_unit_points(cell["bbox_pt"]))
+                                       if cell["bbox_pt"] is not None else None} for cell in table["cells"]]}
         segments.append(PageSegment(
             text=html_to_text(block["html"]), html=block["html"], markdown=None,
             label=block["label"], confidence=block.get("confidence"), status=_status(block), unit=unit,
             crop=ordinal, bbox_px=box, bbox_pt=to_page(transform.to_unit_points(box)), extent="block",
+            table=table,
         ))
     return segments
 

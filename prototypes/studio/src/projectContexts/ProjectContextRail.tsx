@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
+import { ReprocessSourceModal } from './ReprocessSourceModal'
 import GearIcon from '../GearIcon'
 import PlusIcon from '../PlusIcon'
 import PanelToggleIcon from '../PanelToggleIcon'
@@ -148,6 +149,11 @@ export function ProjectContextRail({
     name: string
     x: number
     y: number
+  } | null>(null)
+  const [reprocessingSource, setReprocessingSource] = useState<{
+    projectContextId: string
+    sourceDocumentId: string
+    name: string
   } | null>(null)
   const [deletingSource, setDeletingSource] = useState<{
     projectContextId: string
@@ -502,7 +508,36 @@ export function ProjectContextRail({
             <TrashIcon />
             Delete
           </button>
+        <button
+            type="button"
+            role="menuitem"
+            className="block w-full rounded px-3 py-2 text-left text-xs hover:bg-canvas"
+            onClick={() => {
+              setReprocessingSource({
+                projectContextId: sourceContextMenu.projectContextId,
+                sourceDocumentId: sourceContextMenu.sourceDocumentId,
+                name: sourceContextMenu.name,
+              })
+              setSourceContextMenu(null)
+            }}
+          >
+            Reprocess
+          </button>
         </div>
+      )}
+
+      {reprocessingSource && (
+        <ReprocessSourceModal
+          source={reprocessingSource}
+          onClose={() => setReprocessingSource(null)}
+          onQueued={() =>
+            onNavigate({
+              kind: 'project',
+              projectContextId: reprocessingSource.projectContextId,
+              tab: 'sources',
+            })
+          }
+        />
       )}
 
       {deletingSource && (

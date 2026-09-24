@@ -5,8 +5,8 @@
  *
  * Physical PDF page numbers, top-left PDF-point geometry and the source
  * SHA-256 pass through unchanged. Markdown byte spans are computed while the
- * Markdown is rendered, never recovered by search. Table cells get no
- * fabricated geometry: a table is a coarse text block with a diagnostic.
+ * Markdown is rendered, never recovered by search. Native cells retain their
+ * measured geometry; tables without cell geometry keep a coarse anchor.
  *
  * Identities are functions of the kei-exp segment identity `p{page}_s{index}`
  * (the physical PDF page and the 0-based index of the segment in that page
@@ -27,15 +27,38 @@ import {
   type ParsedContentBlock,
   type ParsedDocument,
   type ParsedDocumentPage,
-  type TextEvidenceAnchor,
+  type ParsedEvidenceAnchor,
+  type ParsedLogicalTable,
 } from 'extraction/parsed-document'
 
 export const PARSER_NAME = 'kei-exp'
-const RESULT_VERSION = 4
 /** A page edge moved by more than this while clamping is worth a diagnostic. */
 const CLAMP_TOLERANCE_PT = 0.5
 
 const pointBoxSchema = z.tuple([z.number(), z.number(), z.number(), z.number()])
+const tableSchema = z
+  .object({
+    rows: z.int().nonnegative(),
+    columns: z.int().nonnegative(),
+    producer: z.string().min(1),
+    cells: z.array(
+      z
+        .object({
+          cell_id: z.string().regex(/^r\d+_c\d+$/),
+          row: z.int().nonnegative(),
+          column: z.int().nonnegative(),
+          rowspan: z.int().positive(),
+          colspan: z.int().positive(),
+          role: z.string().nullable(),
+          text: z.string(),
+          start: z.int().nonnegative(),
+          end: z.int().nonnegative(),
+          bbox_pt: pointBoxSchema.nullable(),
+        })
+        .strict(),
+    ),
+  })
+  .strict()
 const segmentSchema = z
   .object({
     text: z.string(),
@@ -45,6 +68,7 @@ const segmentSchema = z
     crop: z.int().nullable(),
     bbox_pt: pointBoxSchema,
     extent: z.enum(['block', 'input']),
+    table: tableSchema.nullable().optional(),
   })
   .loose()
 export const keiExpPageSchema = z
@@ -59,7 +83,7 @@ export const keiExpPageSchema = z
   .loose()
 export const keiExpManifestSchema = z
   .object({
-    result_version: z.literal(RESULT_VERSION),
+    result_version: z.union([z.literal(4), z.literal(5)]),
     generation: z.string().min(1),
     recipe: z
       .object({
@@ -105,12 +129,15 @@ type Kind =
   | 'table'
   | 'figure'
   | 'paragraph'
-type Draft = { block: ParsedContentBlock; producerRef: string }
+type Draft = { block: ParsedContentBlock
+  producerRef: string
+  table?: KeiExpSegment['table']
+  tableText?: string }
 type DraftPage = { page: KeiExpPage; drafts: Draft[] }
 type RenderedPage = {
   page: KeiExpPage
   span: MarkdownSpan | null
-  blocks: Array<{ block: ParsedContentBlock; producerRef: string }>
+  blocks: Draft[]
 }
 
 /** Surya's public label names, kei-exp's native `text`, and older spellings, folded to letters. */
@@ -254,7 +281,9 @@ function blockOf(
     case 'code':
       return { ...common, kind: 'code', text, language: null }
     case 'table':
-      return { ...common, kind: 'text', text }
+      return segment.table
+        ? { ...common, kind: 'table', table_id: blockId.replace(/^b_/, 't_') }
+        : { ...common, kind: 'text', text }
     case 'figure':
     case 'paragraph':
       return { ...common, kind: 'paragraph', text }
@@ -276,7 +305,7 @@ function draftsOf(
       diagnostic(`segment_${segment.status}`, `${blockId} ${segment.label}`)
       continue
     }
-    const kind = kindOf(segment.label)
+    const kind = segment.table ? 'table' : kindOf(segment.label)
     if (segment.text.trim() === '') {
       if (kind !== 'figure')
         diagnostic('empty_segment_omitted', `${blockId} ${segment.label}`)
@@ -285,15 +314,64 @@ function draftsOf(
     const { bbox, moved } = clamped(segment.bbox_pt, width, height)
     if (moved > CLAMP_TOLERANCE_PT) diagnostic('bbox_clamped', blockId)
     if (bbox === null) diagnostic('bbox_empty', blockId)
-    if (kind === 'table') diagnostic('table_cell_evidence_unsupported', blockId)
+    if (kind === 'table' && !segment.table)
+      diagnostic('table_cell_evidence_unsupported', blockId)
+    if (segment.table) validateCells(segment, width, height)
     const input =
       segment.crop === null ? `page-${page.page}` : `crop-${segment.crop}`
     drafts.push({
       block: blockOf(kind, segment, blockId, page.page, bbox),
       producerRef: `${PARSER_NAME}:${transcriber}:${input}`,
+      ...(segment.table
+        ? { table: segment.table, tableText: segment.text }
+        : {}),
     })
   }
   return drafts
+}
+
+function validateCells(segment: KeiExpSegment, width: number, height: number) {
+  if (!segment.table) return
+  const occupied = new Set<string>()
+  const text = Array.from(segment.text) // canonical offsets count Unicode code points
+  for (const cell of segment.table.cells) {
+    if (
+      cell.cell_id !== `r${cell.row}_c${cell.column}` ||
+      cell.end < cell.start ||
+      cell.end > text.length ||
+      text.slice(cell.start, cell.end).join('') !== cell.text ||
+      cell.row + cell.rowspan > segment.table.rows ||
+      cell.column + cell.colspan > segment.table.columns
+    )
+      throw new Error('Invalid canonical table cell identity, range or grid')
+    for (let row = cell.row; row < cell.row + cell.rowspan; row++) {
+      for (
+        let column = cell.column;
+        column < cell.column + cell.colspan;
+        column++
+      ) {
+        const key = `${row}:${column}`
+        if (occupied.has(key))
+          throw new Error('Overlapping canonical table cells')
+        occupied.add(key)
+      }
+    }
+    if (cell.bbox_pt) {
+      const [x0, y0, x1, y1] = cell.bbox_pt
+      if (
+        !cell.bbox_pt.every(Number.isFinite) ||
+        !(
+          0 <= x0 &&
+          x0 < x1 &&
+          x1 <= width &&
+          0 <= y0 &&
+          y0 < y1 &&
+          y1 <= height
+        )
+      )
+        throw new Error('Canonical table cell is outside its physical page')
+    }
+  }
 }
 
 /** The Markdown of one block, exactly as `renderMarkdown` writes it. */
@@ -340,8 +418,9 @@ function renderMarkdown(pages: DraftPage[]): {
     for (const [index, draft] of drafts.entries()) {
       if (index > 0) write('\n\n')
       const blockStart = length
-      write(blockMarkdown(draft.block))
+      write(draft.tableText ?? blockMarkdown(draft.block))
       blocks.push({
+        ...draft,
         block: {
           ...draft.block,
           markdown_span: { start: blockStart, end: length },
@@ -440,13 +519,14 @@ export function parsedDocumentFromKeiExp(
 
   const preprocessId = `${PARSER_NAME}:${runId}:${manifest.generation}`
   const contentStream: ParsedContentBlock[] = []
-  const anchors: TextEvidenceAnchor[] = []
+  const anchors: ParsedEvidenceAnchor[] = []
+  const tables: ParsedLogicalTable[] = []
   const documentPages: ParsedDocumentPage[] = []
   for (const { page, span, blocks } of rendered.pages) {
-    for (const { block, producerRef } of blocks) {
+    for (const { block, producerRef, table } of blocks) {
       contentStream.push(block)
-      if (block.bbox === null || block.markdown_span === null) continue
       const identity = block.block_id.slice('b_'.length)
+      if (block.bbox !== null && block.markdown_span !== null)
       anchors.push({
         kind: 'text',
         anchor_id: `a_${identity}`,
@@ -463,6 +543,80 @@ export function parsedDocumentFromKeiExp(
           },
         ],
       })
+      if (block.kind === 'table' && table) {
+        const cells: ParsedLogicalTable['cells'] = []
+        for (const cell of table.cells) {
+          if (!cell.bbox_pt) {
+            diagnostics.push({
+              code: 'table_cell_geometry_unavailable',
+              detail: `${identity}:${cell.cell_id}`,
+              page_number: page.page,
+            })
+            continue
+          }
+          const [x0, y0, x1, y1] = cell.bbox_pt
+          const bbox = { x0, y0, x1, y1 }
+          const anchorId = `a_${identity}_${cell.cell_id}`
+          cells.push({
+            cell_id: cell.cell_id,
+            row: cell.row,
+            column: cell.column,
+            text: cell.text,
+            role: cell.role,
+            rowspan: cell.rowspan,
+            colspan: cell.colspan,
+            bbox,
+            evidence_anchor_id: anchorId,
+          })
+          anchors.push({
+            kind: 'table_cell',
+            anchor_id: anchorId,
+            content_sha256: source.sha256,
+            preprocess_id: preprocessId,
+            logical_table_id: block.table_id,
+            cell_id: cell.cell_id,
+            canonical_row: cell.row,
+            canonical_column: cell.column,
+            producer_observations: [
+              {
+                occurrence_id: `o_${identity}_${cell.cell_id}`,
+                page_number: page.page,
+                producer_ref: producerRef,
+                row_offset: cell.row,
+                column_offset: cell.column,
+                row_span: cell.rowspan,
+                column_span: cell.colspan,
+                bbox,
+              },
+            ],
+          })
+        }
+        const attribution = {
+          parser: table.producer,
+          version: manifest.recipe.versions?.[table.producer] ?? null,
+        }
+        tables.push({
+          table_id: block.table_id,
+          rows: table.rows,
+          cols: table.columns,
+          cells,
+          spans: [
+            {
+              page_number: page.page,
+              producer_table_ref: producerRef,
+              page_local_row_start: 0,
+              page_local_row_end: table.rows ? table.rows - 1 : null,
+              page_local_col_count: table.columns,
+            },
+          ],
+          parser_attribution: {
+            content_parser: attribution,
+            structure_parser: attribution,
+            geometry_parser: attribution,
+          },
+          continuation: 'page_local',
+        })
+      }
     }
     documentPages.push({
       page_number: page.page,
@@ -527,7 +681,7 @@ export function parsedDocumentFromKeiExp(
     diagnostics,
     content_stream: contentStream,
     pages: documentPages,
-    tables: [],
+    tables,
     evidence_index: { anchors },
   }
   return {

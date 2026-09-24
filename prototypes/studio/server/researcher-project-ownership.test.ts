@@ -311,6 +311,8 @@ function twoAccountStoreFixture(): TwoAccountStores {
   const stores = new Map<string, ResearcherProjectStore>()
   for (const accountId of [ids.accountA, ids.accountB] as const) {
     const store: ResearcherProjectStore = {
+      findReprocessedSourceDocument: vi.fn(async () => null),
+      reprocessSourceDocument: vi.fn(async () => null),
       researcherAccountId: accountId,
       createProjectContext: vi.fn(async (name) => {
         const projectContextId =

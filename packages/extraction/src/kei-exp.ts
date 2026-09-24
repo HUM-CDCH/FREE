@@ -27,6 +27,12 @@ const evidenceSchema = z.object({
   verbatim: z.boolean(),
   hits: z.number().int().nonnegative(),
   linked_by: z.enum(['lexical', 'model']),
+  cell: z
+    .string()
+    .regex(/^r\d+_c\d+$/)
+    .nullable()
+    .optional(),
+  precision: z.enum(['cell', 'segment', 'input']).optional(),
 })
 /** The dict kei-exp's `kie/extract/run.py` `extract()` returns, field by field. */
 const artifactSchema = z.object({
@@ -70,7 +76,7 @@ const groundedEvidenceSchema = evidenceSchema.extend({
   provenance: z.enum(['token', 'positional', 'inherited']),
   key_spans: z.array(span),
   heading: z.string().nullable(),
-  precision: z.enum(['segment', 'input']),
+  precision: z.enum(['cell', 'segment', 'input']),
   raw: z.string(),
   // The document's own glossary expansion of the raw value, which the record keeps unchanged.
   normalized: z.object({ value: z.string(), rule: z.literal('glossary'), key_span: span, expansion_span: span }).nullable(),

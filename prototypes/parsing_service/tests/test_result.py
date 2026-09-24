@@ -341,3 +341,21 @@ def test_the_native_text_rules_are_part_of_what_a_native_run_was_asked(digital_p
     with patch.dict(TEXT_RULES, {"native": TEXT_RULES["native"] + 1}):
         assert fingerprint(recipe(native, "ab" * 32, None)) != fingerprint(made)
     assert "text_rules" not in recipe(execution(digital_pdf, tmp_path), "ab" * 32, None)  # Surya's recipe unchanged
+
+
+def test_v4_result_keeps_original_bytes_and_hash_verification(written):
+    played, manifest, _ = written
+    directory = played.execution.result_dir
+    file = directory / 'result.json'
+    data = json.loads(file.read_text())
+    data['result_version'] = 4
+    data['recipe']['result_version'] = 4
+    data['fingerprint'] = fingerprint(data['recipe'])
+    file.write_text(json.dumps(data))
+    before = {path: path.read_bytes() for path in (directory / 'pages').glob('*.json')}
+    assert load_result(directory).manifest.result_version == 4
+    assert all(path.read_bytes() == raw for path, raw in before.items())
+    first = next(iter(before))
+    first.write_bytes(before[first] + b' ')
+    with pytest.raises(ResultError, match='sha256'):
+        load_result(directory)

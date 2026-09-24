@@ -955,3 +955,84 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     expect(replay.store.discardCanonicalPackage).not.toHaveBeenCalled()
   })
 })
+
+describe('Source Document reprocessing', () => {
+  it('parses retained bytes, publishes a revision, and replays without parsing', async () => {
+    const { createSourceDocumentReprocessing } =
+      await import('./source_reprocess.js')
+    const { fetcher, packageStore, store: ingestionStore } = dependencies()
+    const retained = {
+      artifactReference: 'a'.repeat(64),
+      artifactSha256: 'a'.repeat(64),
+    }
+    const result = {
+      sourceDocumentId: ids.source,
+      name: 'report.pdf',
+      createdAt: new Date(),
+      sourceRepresentationId: ids.representation,
+      revisionNumber: 2,
+      descriptor: retained,
+    }
+    const store = {
+      discardCanonicalPackage: ingestionStore.discardCanonicalPackage,
+      getDocumentReopenSnapshot: vi
+        .fn()
+        .mockResolvedValue({
+          sourceDocument: { name: 'report.pdf' },
+          sourceRepresentation: { sourceRepresentationId: ids.representation },
+        }),
+      getSourceRepresentation: vi.fn().mockResolvedValue(retained),
+      findReprocessedSourceDocument: vi.fn().mockResolvedValue(null),
+      reprocessSourceDocument: vi.fn().mockResolvedValue(result),
+    }
+    const handler = createSourceDocumentReprocessing(store, {
+      fetcher,
+      packageStore,
+      parsingServiceBase: 'http://parser.test',
+      sleep: async () => {},
+      readPackage: async (_descriptor, artifact) => ({
+        bytes: encoder.encode(
+          artifact === 'pdf' ? '%PDF-1.7\n' : JSON.stringify(packageDocument),
+        ),
+        mediaType: 'application/json',
+      }),
+    })
+    const request = () =>
+      new Request(
+        `http://test/api/project-contexts/${ids.project}/source-documents/${ids.source}/reprocess`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requestKey: ids.ingestion,
+            expectedRepresentationId: ids.representation,
+            layout: 'pages',
+          }),
+        },
+      )
+    const response = await handler(request())
+    expect(response.status).toBe(201)
+    expect((await response.json()).revisionNumber).toBe(2)
+    expect(store.reprocessSourceDocument).toHaveBeenCalledWith(
+      ids.project,
+      ids.source,
+      expect.objectContaining({
+        contentSha256: UPLOAD_SHA256,
+        expectedRepresentationId: ids.representation,
+      }),
+    )
+    store.findReprocessedSourceDocument.mockResolvedValue(result)
+    fetcher.mockClear()
+    expect((await handler(request())).status).toBe(200)
+    expect(fetcher).not.toHaveBeenCalled()
+    store.findReprocessedSourceDocument.mockResolvedValue(null)
+    store.getDocumentReopenSnapshot.mockResolvedValue({
+      sourceDocument: { name: 'report.pdf' },
+      sourceRepresentation: { sourceRepresentationId: ids.source },
+    })
+    expect((await handler(request())).status).toBe(409)
+    expect(fetcher).not.toHaveBeenCalled()
+    store.getDocumentReopenSnapshot.mockResolvedValue(null)
+    expect((await handler(request())).status).toBe(404)
+  })
+})

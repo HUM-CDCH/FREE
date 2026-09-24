@@ -114,6 +114,7 @@ export type DocumentWorkspaceProps = {
   extractionSchema: DocumentSnapshot['extractionSchema']
   persistedExtraction: DocumentSnapshot['latestAttempt']
   latestReviewedExtraction?: DocumentSnapshot['latestReviewed']
+  onOpenExtraction: (extractionId: string) => void
   /** Only the loader sees a retained resource fail; reported once, on open. */
   onInitialResourceLoadFailure?: () => void
   /** DocumentTabBar's (AppFrame.tsx) trailing slot, in its own tab-strip row —
@@ -136,6 +137,7 @@ export function DocumentWorkspace({
   extractionSchema,
   persistedExtraction,
   latestReviewedExtraction = null,
+  onOpenExtraction,
   onInitialResourceLoadFailure,
   tabBarSlot = null,
 }: DocumentWorkspaceProps) {
@@ -565,13 +567,15 @@ export function DocumentWorkspace({
   const running =
     latestAttempt?.executionStatus === 'QUEUED' ||
     latestAttempt?.executionStatus === 'RUNNING'
-  const inspectionChoices = latestAttempt && latestReviewedExtraction && latestAttempt.extractionId !== latestReviewedExtraction.extractionId
+  const reviewedOnAnotherSource = latestReviewedExtraction &&
+    latestReviewedExtraction.sourceRepresentationRevisionId !== sourceRepresentationId
+  const inspectionChoices = latestAttempt && latestReviewedExtraction && !reviewedOnAnotherSource && latestAttempt.extractionId !== latestReviewedExtraction.extractionId
     ? [
         { extractionId: latestAttempt.extractionId, label: 'Latest attempt' },
         { extractionId: latestReviewedExtraction.extractionId, label: 'Latest reviewed' },
       ]
     : []
-  const pinnedAttempt = selectedInspectionId === latestReviewedExtraction?.extractionId
+  const pinnedAttempt = !reviewedOnAnotherSource && selectedInspectionId === latestReviewedExtraction?.extractionId
     ? latestReviewedExtraction
     : null
   const inspectedAttempt = pinnedAttempt ?? latestAttempt
@@ -725,6 +729,14 @@ export function DocumentWorkspace({
             <select aria-label="Extraction snapshot" value={inspectedAttempt?.extractionId ?? ''} onChange={(event) => setSelectedInspectionId(event.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-xs">
               {inspectionChoices.map((choice) => <option key={choice.extractionId} value={choice.extractionId}>{choice.label}</option>)}
             </select>
+          )}
+          {reviewedOnAnotherSource && latestReviewedExtraction && (
+            <Button
+              variant="secondary"
+              onClick={() => onOpenExtraction(latestReviewedExtraction.extractionId)}
+            >
+              Open latest reviewed
+            </Button>
           )}
           <p
             aria-live="polite"

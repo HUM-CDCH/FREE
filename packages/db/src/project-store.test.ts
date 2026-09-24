@@ -1396,3 +1396,64 @@ describe('ResearcherProjectStore Schema Revisions', () => {
   })
 })
 
+describe('source reprocessing', () => {
+  it('appends a revision, replays its key, and rejects stale heads and changed requests', async () => {
+    const database = fakeDatabase()
+    const { tables } = database
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const first = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
+    assert.ok(first)
+    const input = {
+      ...ingestion({ ingestionKey: '51000000-0000-4000-9000-000000000002' }),
+      expectedRepresentationId: first.sourceRepresentationId,
+      requestFingerprint: 'f'.repeat(64),
+    }
+    const next = await store.reprocessSourceDocument(
+      EMPTY_PROJECT,
+      first.sourceDocumentId,
+      input,
+    )
+    assert.equal(next?.revisionNumber, 2)
+    assert.notEqual(next?.sourceRepresentationId, first.sourceRepresentationId)
+    assert.deepEqual(
+      await store.reprocessSourceDocument(
+        EMPTY_PROJECT,
+        first.sourceDocumentId,
+        input,
+      ),
+      next,
+    )
+    await assert.rejects(
+      store.reprocessSourceDocument(EMPTY_PROJECT, first.sourceDocumentId, {
+        ...input,
+        requestFingerprint: 'a'.repeat(64),
+      }),
+      /changed/,
+    )
+    await assert.rejects(
+      store.reprocessSourceDocument(EMPTY_PROJECT, first.sourceDocumentId, {
+        ...input,
+        ingestionKey: '51000000-0000-4000-9000-000000000003',
+      }),
+      /changed/,
+    )
+    assert.equal(
+      tables.SourceRepresentationRevision.filter(
+        (row) => row.sourceDocumentId === first.sourceDocumentId,
+      ).length,
+      2,
+    )
+    assert.equal(
+      await createResearcherProjectStore(
+        RESEARCHER_B,
+        database as never,
+      ).findReprocessedSourceDocument(
+        EMPTY_PROJECT,
+        first.sourceDocumentId,
+        input.ingestionKey,
+        input.requestFingerprint,
+      ),
+      null,
+    )
+  })
+})

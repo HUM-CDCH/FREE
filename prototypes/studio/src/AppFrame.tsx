@@ -227,9 +227,15 @@ export default function AppFrame({
         extractionSchema: openDocument.extractionSchema,
         persistedExtraction: openDocument.latestAttempt,
         latestReviewedExtraction: openDocument.latestReviewed,
+        onOpenExtraction: (extractionId: string) => onNavigate({
+          kind: 'document',
+          projectContextId: openDocument.projectContext.projectContextId,
+          sourceDocumentId: openDocument.sourceDocument.sourceDocumentId,
+          extractionId,
+        }),
         tabBarSlot,
       },
-    [openDocument, tabBarSlot],
+    [openDocument, tabBarSlot, onNavigate],
   )
 
   // Keeps open tabs in sync with routes reached other than a tab-strip or

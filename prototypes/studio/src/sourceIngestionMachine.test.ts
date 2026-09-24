@@ -1,3 +1,4 @@
+import { sourceName } from './sourceIngestionMachine'
 import { createActor } from 'xstate'
 import { describe, expect, it, vi } from 'vitest'
 import type { SourceDocumentIngestionResponse } from '../shared/sourceDocumentIngestion.contract'
@@ -37,7 +38,9 @@ describe('sourceIngestionMachine', () => {
             fail = false
             throw new Error('parser unavailable')
           }
-          return result('51000000-0000-4000-8001-000000000009', source.file.name)
+          return result('51000000-0000-4000-8001-000000000009',
+            sourceName(source),
+          )
         },
         onIngested: vi.fn(),
         toFailureMessage: (error) => String(error),
@@ -81,7 +84,7 @@ describe('sourceIngestionMachine', () => {
     // An acknowledged Source Document leaves the queue in the same transition
     // that reports it, so only the failure is still held.
     expect(
-      actor.getSnapshot().context.items.map(({ file, status }) => [file.name, status]),
+      actor.getSnapshot().context.items.map((source) => [sourceName(source), source.status]),
     ).toEqual([['B.pdf', 'failed']])
     expect(ingested).toHaveBeenCalledTimes(2)
 

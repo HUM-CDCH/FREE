@@ -1,3 +1,5 @@
+import { ReprocessSourceModal } from './ReprocessSourceModal'
+import { sourceName } from '../sourceIngestionMachine'
 import { useEffect, useRef, useState } from 'react'
 import type { NavigableRoute, ProjectResource } from '../projectNavigation'
 import type { SourceLayout } from '../sourceIngestionMachine'
@@ -206,6 +208,10 @@ export default function ProjectContextPage({
   } = useProjectContexts()
   const [renaming, setRenaming] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [reprocessingSource, setReprocessingSource] = useState<{
+    sourceDocumentId: string
+    name: string
+  } | null>(null)
   const [deletingSource, setDeletingSource] = useState<{
     sourceDocumentId: string
     name: string
@@ -264,8 +270,8 @@ export default function ProjectContextPage({
       : queued
           .map((source) =>
             source.status === 'failed'
-              ? `${source.file.name}: failed. ${source.failure}`
-              : `${source.file.name}: ${source.status}.`,
+              ? `${sourceName(source)}: failed. ${source.failure}`
+              : `${sourceName(source)}: ${source.status}.`,
           )
           .join(' ')
 
@@ -716,7 +722,7 @@ export default function ProjectContextPage({
                     <PdfIcon />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-xs font-semibold text-ink">
-                        {source.file.name}
+                        {sourceName(source)}
                       </span>
                       {source.status === 'failed' ? (
                         <span className="block text-[11px] leading-snug text-danger">
@@ -736,7 +742,7 @@ export default function ProjectContextPage({
                       source.validationFailure === undefined && (
                       <Button
                         onClick={() => retrySource(source.ingestionKey)}
-                        aria-label={`Retry ${source.file.name}`}
+                        aria-label={`Retry ${sourceName(source)}`}
                       >
                         Retry
                       </Button>
@@ -803,6 +809,22 @@ export default function ProjectContextPage({
                         >
                           <DownloadIcon />
                           Download
+                        </button>
+                        <button
+                          className="flex w-full rounded-xl px-3 py-2 text-left hover:bg-white/10"
+                          type="button"
+                          aria-label={`Reprocess ${document.name}`}
+                          onClick={(event) => {
+                            event.currentTarget
+                              .closest('details')
+                              ?.removeAttribute('open')
+                            setReprocessingSource({
+                              sourceDocumentId: document.sourceDocumentId,
+                              name: document.name,
+                            })
+                          }}
+                        >
+                          Reprocess
                         </button>
                         <button
                           className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-danger hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
@@ -872,6 +894,12 @@ export default function ProjectContextPage({
             setDeleting(false)
             deleteTrigger.current?.focus()
           }}
+        />
+      )}
+      {reprocessingSource && (
+        <ReprocessSourceModal
+          source={{ ...reprocessingSource, projectContextId }}
+          onClose={() => setReprocessingSource(null)}
         />
       )}
       {deletingSource && (

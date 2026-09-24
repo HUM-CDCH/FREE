@@ -1,3 +1,7 @@
+import {
+  sourceDocumentReprocessResponseSchema,
+  type SourceDocumentReprocessRequest,
+} from '../../shared/sourceDocumentReprocess.contract'
 import { authenticatedFetch } from '../auth/authenticatedFetch.ts'
 import type { z } from 'zod'
 import {
@@ -171,5 +175,22 @@ export function getDocumentReopenSnapshot(
     `/api/project-contexts/${projectContextId}/source-documents/${sourceDocumentId}/reopen${query}`,
     documentReopenResponseSchema,
     signal,
+  )
+}
+
+export async function reprocessSourceDocument(
+  projectContextId: string,
+  sourceDocumentId: string,
+  input: SourceDocumentReprocessRequest,
+) {
+  return sourceDocumentReprocessResponseSchema.parse(
+    await read(
+      `/api/project-contexts/${projectContextId}/source-documents/${sourceDocumentId}/reprocess`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      },
+    ),
   )
 }

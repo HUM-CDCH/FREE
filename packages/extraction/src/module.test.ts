@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { describe, it } from 'node:test'
+import { parsedDocumentFromKeiExp } from '../../../prototypes/studio/api/_kei_exp.js'
+import measuredTable from '../../../prototypes/studio/test/fixtures/kei-exp/ellekilde-table-v5.json' with { type: 'json' }
 import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
 import type { ExtractionInputReader, ExtractionPersistence } from './dependencies.js'
 import { ExtractionError } from './errors.js'
@@ -416,4 +418,26 @@ describe('review of an Extraction with document-level schema fields', () => {
     const finalized = await module.finalizeReview(extractionId, [decision])
     assert.equal(finalized.disposition, 'reviewed')
   })
+})
+
+
+it('resolves cell references in both extraction wire formats and rejects a cell absent from the pinned revision', async () => {
+  const manifest = { result_version: 5 as const, generation: 'g1', recipe: { source_sha256: 'a'.repeat(64), transcriber: 'native' },
+    page_count: 1, started: null, seconds: 0, status: 'success' as const, incomplete: null, pages: { '1': { sha256: 'b'.repeat(64), complete: true } } }
+  const page = { generation: 'g1', page: 1, size_pt: measuredTable.size_pt as [number, number],
+    segments: [measuredTable.segment], complete: true, warnings: [] }
+  const { keiExpPageSchema } = await import('../../../prototypes/studio/api/_kei_exp.js')
+  const translated = parsedDocumentFromKeiExp(runId, manifest, [keiExpPageSchema.parse(page)],
+    { sha256: 'a'.repeat(64), originalFilename: 'table.pdf', byteSize: 1 }, new Date())
+  const document = translated.document as unknown as typeof parsedDocument
+  const generic = artifact({ generation: 'g1', evidence: [keiExpEvidence({ cell: 'r1_c0', precision: 'cell' })] })
+  const genericResult = await harness([json({ ...ack, generation: 'g1' }, 202), polled(generic)], 'ARTICLE', document).run()
+  assert.equal(genericResult.evidence?.[0].evidenceAnchorId, 'a_p1_s0_r1_c0')
+  const grounded = keiExpGroundedArtifact({ run_id: runId, model: 'selected-model', schema, generation: 'g1' })
+  grounded.evidence = grounded.evidence.slice(0, 1).map(link => ({ ...link, segment: 'p1_s0', page: 1, cell: 'r1_c0', precision: 'cell' }))
+  const groundedResult = await harness([json({ ...ack, generation: 'g1' }, 202), polled(grounded)], 'CATALOG', document, 'numbered-catalogue-de@1').run()
+  assert.equal(groundedResult.evidence?.[0].evidenceAnchorId, 'a_p1_s0_r1_c0')
+  assert.equal(groundedResult.evidence?.[0].grounding?.precision, 'cell')
+  generic.evidence[0].cell = 'r99_c99'
+  await assert.rejects(harness([json({ ...ack, generation: 'g1' }, 202), polled(generic)], 'ARTICLE', document).run(), { code: 'invalid_model_output' })
 })

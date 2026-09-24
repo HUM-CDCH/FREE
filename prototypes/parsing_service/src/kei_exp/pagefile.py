@@ -17,12 +17,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from kei_exp.canonical import canonical_json
 from kei_exp.geometry import PixelBox, PointBox
 
-RESULT_VERSION = 4  # in the manifest and the recipe; bumped when the files can change for the same inputs
+RESULT_VERSION = 5  # in the manifest and the recipe; bumped when the files can change for the same inputs
+# 5: native table cells with offsets into the unchanged parent text and physical-page geometry
 # 4: a generation identity in the manifest and every page file, the sha256 of every page file in the manifest with a
 #    digest over them, units named by kind, the crop transform as named pairs beside the record's diagnostics, and
 #    the extent of a segment's evidence made explicit
@@ -69,6 +70,45 @@ class Unit(_Base):
         return self
 
 
+class TableCell(_Base):
+    cell_id: str
+    row: int = Field(ge=0)
+    column: int = Field(ge=0)
+    rowspan: int = Field(ge=1)
+    colspan: int = Field(ge=1)
+    role: str | None
+    text: str
+    start: int = Field(ge=0)
+    end: int = Field(ge=0)
+    bbox_pt: PointBox | None
+
+    @model_validator(mode="after")
+    def _identity(self) -> Self:
+        if self.cell_id != f"r{self.row}_c{self.column}" or self.end < self.start:
+            raise ValueError("invalid table cell identity or text range")
+        return self
+
+
+class PageTable(_Base):
+    rows: int = Field(ge=0)
+    columns: int = Field(ge=0)
+    cells: list[TableCell]
+    producer: str
+
+    @model_validator(mode="after")
+    def _grid(self) -> Self:
+        occupied: set[tuple[int, int]] = set()
+        for cell in self.cells:
+            if cell.row + cell.rowspan > self.rows or cell.column + cell.colspan > self.columns:
+                raise ValueError("table cell extends beyond its grid")
+            positions = {(r, c) for r in range(cell.row, cell.row + cell.rowspan)
+                         for c in range(cell.column, cell.column + cell.colspan)}
+            if occupied & positions:
+                raise ValueError("overlapping table cells")
+            occupied |= positions
+        return self
+
+
 class PageSegment(_Base):
     """One immutable piece of evidence on the PDF page; frozen, since spans index its text."""
     model_config = ConfigDict(frozen=True, extra="forbid", allow_inf_nan=False)
@@ -87,11 +127,16 @@ class PageSegment(_Base):
     bbox_pt: PointBox                                   # derived through the image's transform and the unit's placement
     extent: Literal["block", "input"]  # block: the engine's box of one block; input: the whole input, the transcriber
                                        # returned no boxes, and bbox_pt is the input's extent, deliberately coarse
+    table: PageTable | None = None      # absent on version 4; cells refine, never replace, this segment
 
     @model_validator(mode="after")
     def _extent_follows_the_box(self) -> Self:
         if (self.extent == "input") != (self.bbox_px is None):
             raise ValueError(f"a segment of extent {self.extent!r} with bbox_px {self.bbox_px}: input means no engine box")
+        if self.table:
+            for cell in self.table.cells:
+                if cell.end > len(self.text) or self.text[cell.start:cell.end] != cell.text:
+                    raise ValueError("table cell text does not match its parent segment")
         return self
 
 
@@ -104,6 +149,17 @@ class PageResult(_Base):
     markdown: str
     complete: bool                     # no record of this page is incomplete: the seam's facts are the one definition
     warnings: list[str]
+
+    @model_validator(mode="after")
+    def _cell_geometry(self) -> Self:
+        width, height = self.size_pt
+        for segment in self.segments:
+            for cell in segment.table.cells if segment.table else []:
+                if cell.bbox_pt is not None:
+                    x0, y0, x1, y1 = cell.bbox_pt
+                    if not (0 <= x0 < x1 <= width and 0 <= y0 < y1 <= height):
+                        raise ValueError("table cell geometry is outside its physical page")
+        return self
 
 
 class PageEntry(_Base):
@@ -169,7 +225,7 @@ def read_manifest(directory: Path) -> Result:
         manifest = Result.model_validate_json(raw)
     except ValidationError as error:
         raise ResultError(f"{path} is not a valid manifest: {error}") from error
-    if manifest.result_version != RESULT_VERSION:
+    if manifest.result_version not in (4, RESULT_VERSION):
         raise ResultError(f"{path} was written at result_version {manifest.result_version}, not the {RESULT_VERSION} "
                           "this reader reads")
     return manifest

@@ -127,6 +127,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => ({
   },
 }))
 const reopened: DocumentWorkspaceProps = {
+  onOpenExtraction: vi.fn(),
   // The real tab-strip slot (DocumentTabBar.tsx) that the workspace's PDF
   // controls portal into; document.body stands in since these tests render
   // DocumentWorkspace without its AppFrame shell.

@@ -513,17 +513,22 @@ async function loadDocumentExtractions(
     })).sort((left, right) =>
     right.scheduledAt.getTime() - left.scheduledAt.getTime() ||
     right.id.localeCompare(left.id))
-  const selected = input.extractionId
-    ? candidates.find((candidate) => candidate.id === input.extractionId) ?? null
-    : candidates[0] ?? null
-  if (input.extractionId && !selected) return null
-  const representationId = selected?.sourceRepresentationRevisionId ??
-    (await orm.public.SourceRepresentationRevision.where({
+  const currentRepresentationId = (await orm.public.SourceRepresentationRevision.where({
       sourceDocumentId: input.sourceDocumentId,
     }).select('id').orderBy([
       (revision) => revision.revisionNumber.desc(),
       (revision) => revision.id.desc(),
     ]).first())?.id
+  const selected = input.extractionId
+    ? (candidates.find((candidate) => candidate.id === input.extractionId) ??
+      null)
+    : (candidates.find(
+        (candidate) =>
+          candidate.sourceRepresentationRevisionId === currentRepresentationId,
+      ) ?? null)
+  if (input.extractionId && !selected) return null
+  const representationId =
+    selected?.sourceRepresentationRevisionId ?? currentRepresentationId
   if (!representationId) return null
   const reviewedRows = await orm.public.Extraction.where({
     sourceDocumentId: input.sourceDocumentId,
@@ -1577,8 +1582,7 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
     const digest = JSON.stringify(submitted)
     if (submitted.length !== authority.reviewDecisions.length)
       return { status: 'invalid' }
-    let status:
-      | 'not-found'
+    let status: 'not-found'
       | 'invalid'
       | 'conflict'
       | 'replayed'

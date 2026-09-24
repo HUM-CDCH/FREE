@@ -60,6 +60,7 @@ type Event =
   | { type: 'NAVIGATE'; route: NavigableRoute }
   | { type: 'ROUTE_CHANGED'; route: Route }
   | { type: 'RETRY' }
+  | { type: 'SOURCE_REPROCESSED' }
   | { type: 'RESOURCE_FAILED' }
   | { type: 'DOCUMENT_CONTAINED' }
   | { type: 'DOCUMENT_NOT_CONTAINED' }
@@ -235,6 +236,11 @@ export const navigationMachine = setup({
   initial: 'routing',
   // Every route change re-enters `routing`, which stops a superseded read.
   on: {
+    SOURCE_REPROCESSED: {
+      guard: ({ context }) =>
+        context.route.kind === 'document' && !context.route.extractionId,
+      target: '.opening',
+    },
     NAVIGATE: {
       target: '.routing',
       actions: [{ type: 'pushRoute' }, { type: 'setRoute' }],

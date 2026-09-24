@@ -13,6 +13,7 @@ export type ResultPath = readonly (string | number)[]
 export type EvidenceLink = Readonly<{
   resultPath: ResultPath
   evidenceAnchorId: string
+  precision?: 'cell' | 'segment' | 'input'
   /** The value occurs as a bounded token in the linked anchor. Absent on
    *  boolean values and on links stored before this check existed. */
   verbatim?: boolean
@@ -37,7 +38,7 @@ export type EvidenceGrounding = Readonly<{
   keySpans: readonly TextSpan[]
   alternatives: readonly (readonly TextSpan[])[]
   heading: string | null
-  precision: 'segment' | 'input'
+  precision: 'cell' | 'segment' | 'input'
   raw: string
   /** The document's own glossary expansion of `raw`, with both glossary spans; the record keeps the raw value. */
   normalized: Readonly<{ value: string; rule: 'glossary'; keySpan: TextSpan; expansionSpan: TextSpan }> | null

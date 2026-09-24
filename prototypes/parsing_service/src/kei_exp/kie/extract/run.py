@@ -48,7 +48,7 @@ from kei_exp.kie.recipe import load_recipe
 from kei_exp.kie.segmentation import obtain
 
 EXTRACTION_VERSION = 1
-PROMPT_VERSION = 5  # Calls are routed by role (fields, reasoning); thinking is switched off in the chat template.
+PROMPT_VERSION = 7  # Shared table context and bounded claim-specific grounding batches.
 
 
 class Options(BaseModel):
@@ -57,7 +57,7 @@ class Options(BaseModel):
     models: dict[str, str] | None = None  # role (fields, reasoning) -> extraction model key; deployment defaults
     model: str | None = None  # legacy: every stage on the instruction server, asking for this model id
     discovery_chars: int = Field(default=48_000, ge=1_000)  # text per discovery call
-    record_chars: int = Field(default=24_000, ge=1_000)     # text per record or document call
+    record_chars: int = Field(default=24_000, ge=1_000)     # text per record/document call; full grounding request
     catalog: CatalogOptions | None = None  # a recipe: structural segmentation and grounded result version 2
 
     @model_validator(mode="after")
@@ -152,7 +152,8 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     records: list[dict] = []
     links: list[Link] = []
     for number, (group, fields) in enumerate(slices):
-        found_links, grounding_calls, grounding_issues = verify(group, fields, schema, chat, record=number)
+        found_links, grounding_calls, grounding_issues = verify(group, fields, schema, chat, record=number,
+                                                               budget=options.record_chars)
         links += found_links
         calls += grounding_calls
         issues += grounding_issues

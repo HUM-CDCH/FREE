@@ -1,15 +1,26 @@
 import { assign, fromPromise, setup } from 'xstate'
-import type { SourceDocumentIngestionResponse } from '../shared/sourceDocumentIngestion.contract'
+import type { SourceDocumentReprocessResponse } from '../shared/sourceDocumentReprocess.contract'
 
 /** How the PDF's pages are read: single PDF pages, or scanned two-page spreads split into book pages. */
 export type SourceLayout = 'pages' | 'spreads'
 
 type AddedSource = {
   projectContextId: string
-  file: File
   ingestionKey: string
   layout: SourceLayout
   validationFailure?: string
+} & (
+  | { kind?: 'upload'; file: File }
+  | {
+      kind: 'reprocess'
+      sourceDocumentId: string
+      expectedRepresentationId: string
+      name: string
+    }
+)
+
+export function sourceName(source: SourceIngestionItem): string {
+  return source.kind === 'reprocess' ? source.name : source.file.name
 }
 
 export type SourceIngestionItem = AddedSource & {
@@ -17,10 +28,10 @@ export type SourceIngestionItem = AddedSource & {
   failure?: string
 }
 
-type Ingest = (item: SourceIngestionItem) => Promise<SourceDocumentIngestionResponse>
+type Ingest = (item: SourceIngestionItem) => Promise<SourceDocumentReprocessResponse>
 type Ingested = {
   item: SourceIngestionItem
-  result: SourceDocumentIngestionResponse
+  result: SourceDocumentReprocessResponse
 }
 
 export const sourceIngestionMachine = setup({

@@ -3,7 +3,9 @@ import type { ReactNode } from 'react'
 import { useCallback, useEffect } from 'react'
 import AppFrame from './AppFrame'
 import { ProjectContextsProvider } from './projectContexts/ProjectContextsProvider'
-import { useProjectContextRouteState } from './projectContexts/useProjectContexts'
+import {
+  useProjectContexts,
+  useProjectContextRouteState } from './projectContexts/useProjectContexts'
 import {
   browserNavigationDeps,
   navigationMachine,
@@ -42,6 +44,15 @@ export function ProjectRoutes() {
     (nextRoute: NavigableRoute) =>
       actor.send({ type: 'NAVIGATE', route: nextRoute }),
     [actor],
+  )
+  const { sourceRevisions } = useProjectContexts()
+  const publishedRevision =
+    route.kind === 'document' && !route.extractionId
+      ? sourceRevisions[route.sourceDocumentId]
+      : undefined
+  useEffect(() => {
+    if (publishedRevision) actor.send({ type: 'SOURCE_REPROCESSED' })
+  }, [actor, publishedRevision],
   )
   const routedProjectContext = useProjectContextRouteState(route)
   const { branch: routedBranch, documentContained: routedDocumentContained } =

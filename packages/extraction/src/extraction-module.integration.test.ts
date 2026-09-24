@@ -610,6 +610,44 @@ if (!disposableDatabaseUrl) {
       assert.equal(unchanged?.reviewedAt, null)
     })
 
+    it('reprocessing advances the current source while historical extraction and review pins survive', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const document = project.documents[0]!
+      const { module } = createRuntime(project.researcherAccountId)
+      const completed = await module.runSingle(freshInput(project))
+      const prepared = await module.prepareReview(completed.extraction.extractionId)
+      await module.finalizeReview(completed.extraction.extractionId, prepared.reviewDecisions)
+      const store = createResearcherProjectStore(project.researcherAccountId, db)
+      const annotation = await db.orm.public.AnnotationSetRevision.create({
+        sourceDocumentId: document.sourceDocumentId, sourceRepresentationRevisionId: document.sourceRepresentationRevisionId,
+        revisionNumber: 1, snapshot: [{ text: 'original note' }],
+      })
+      const revised = await store.reprocessSourceDocument(project.projectContextId, document.sourceDocumentId, {
+        ingestionKey: randomUUID(), expectedRepresentationId: document.sourceRepresentationRevisionId,
+        requestFingerprint: 'f'.repeat(64), contentSha256: sha256(strToU8(document.filename)),
+        mediaType: 'application/pdf', originalName: document.filename, ...document.storedPackage,
+        contractVersion: 'parsed_document.v2', preprocessId: 'reprocessed', parserName: 'test', parserVersion: '5',
+        ensureRetained: async descriptor => { assert.ok(await packages.available(descriptor)) },
+      })
+      assert.equal(revised?.revisionNumber, 2)
+      const current = await module.readDocumentExtractions({ sourceDocumentId: document.sourceDocumentId })
+      assert.equal(current?.sourceRepresentationRevisionId, revised?.sourceRepresentationId)
+      assert.equal(current?.latestAttempt, null)
+      assert.equal((await store.getDocumentReopenSnapshot(project.projectContextId, document.sourceDocumentId))?.annotationSet, null)
+      const pinned = await store.getDocumentReopenSnapshot(project.projectContextId, document.sourceDocumentId, {
+        sourceRepresentationRevisionId: document.sourceRepresentationRevisionId, schemaRevisionId: project.schemaRevisionId,
+      })
+      assert.equal(pinned?.annotationSet?.annotationSetId, annotation.id)
+      const historical = await module.readDocumentExtractions({ sourceDocumentId: document.sourceDocumentId, extractionId: completed.extraction.extractionId })
+      assert.equal(historical?.sourceRepresentationRevisionId, document.sourceRepresentationRevisionId)
+      assert.equal(historical?.latestAttempt?.sourceRepresentationRevisionId, document.sourceRepresentationRevisionId)
+      const reviewed = await module.prepareReview(completed.extraction.extractionId)
+      assert.ok(reviewed.extraction.reviewedAt)
+      assert.deepEqual(reviewed.reviewDecisions, prepared.reviewDecisions)
+      assert.deepEqual(reviewed.extraction.evidence, prepared.extraction.evidence)
+    })
+
     it('persists and reopens a partial remote Catalog result without local stage diagnostics', async (t) => {
       t.after(cleanup)
       const project = await seedProject()

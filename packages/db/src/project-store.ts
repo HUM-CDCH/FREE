@@ -267,6 +267,28 @@ type PersistedSourceDocument = IngestedSourceDocument & {
   descriptor: CanonicalPackageDescriptor
 }
 
+export type ReprocessedSourceDocument = Omit<
+  IngestedSourceDocument,
+  'revisionNumber'
+> & {
+  revisionNumber: number
+  descriptor: CanonicalPackageDescriptor
+}
+
+export type ReprocessSourceDocumentInput = IngestSourceDocumentInput & {
+  expectedRepresentationId: string
+  requestFingerprint: string
+}
+
+export class ReprocessConflictError extends Error {
+  constructor() {
+    super(
+      'The Source Document changed or the reprocessing key was reused with different options. Reload before reprocessing.',
+    )
+    this.name = 'ReprocessConflictError'
+  }
+}
+
 export class IngestionKeyConflictError extends Error {
   constructor() {
     super('The ingestion key already belongs to another Source Document.')
@@ -572,6 +594,17 @@ export type ResearcherProjectStore = {
     projectContextId: string,
     input: IngestSourceDocumentInput,
   ): Promise<PersistedSourceDocument | null>
+  findReprocessedSourceDocument(
+    projectContextId: string,
+    sourceDocumentId: string,
+    requestKey: string,
+    requestFingerprint: string,
+  ): Promise<ReprocessedSourceDocument | null>
+  reprocessSourceDocument(
+    projectContextId: string,
+    sourceDocumentId: string,
+    input: ReprocessSourceDocumentInput,
+  ): Promise<ReprocessedSourceDocument | null>
   createBatchSchemaSuggestion(
     projectContextId: string,
     sourceDocumentIds: readonly string[],
@@ -1479,6 +1512,122 @@ export function createResearcherProjectStore(
         if (winner) await input.ensureRetained(winner.descriptor)
         if (!winner) throw new IngestionKeyConflictError()
         return winner
+      }
+    },
+    async findReprocessedSourceDocument(
+      projectContextId,
+      sourceDocumentId,
+      requestKey,
+      requestFingerprint,
+    ) {
+      if (
+        !(await ownsProjectContext(
+          database.orm,
+          researcherAccountId,
+          projectContextId,
+        ))
+      )
+        return null
+      const document = await database.orm.public.SourceDocument.select(
+        'id',
+        'originalName',
+        'createdAt',
+      ).first({ id: sourceDocumentId, projectContextId })
+      if (!document) return null
+      const revision =
+        await database.orm.public.SourceRepresentationRevision.select(
+          'id',
+          'revisionNumber',
+          'artifactReference',
+          'artifactSha256',
+          'reprocessFingerprint',
+        ).first({ sourceDocumentId, reprocessKey: requestKey })
+      if (!revision) return null
+      if (revision.reprocessFingerprint !== requestFingerprint)
+        throw new ReprocessConflictError()
+      return {
+        ...ingestedSourceDocument(
+          document as StoredIngestedSourceDocument,
+          revision as StoredSourceRepresentation,
+        ),
+        revisionNumber: revision.revisionNumber,
+      }
+    },
+    async reprocessSourceDocument(projectContextId, sourceDocumentId, input) {
+      const replay = () =>
+        this.findReprocessedSourceDocument(
+          projectContextId,
+          sourceDocumentId,
+          input.ingestionKey,
+          input.requestFingerprint,
+        )
+      const previous = await replay()
+      if (previous) {
+        await input.ensureRetained(previous.descriptor)
+        return previous
+      }
+      await input.ensureRetained(input)
+      try {
+        return await database.transaction(async ({ orm }) => {
+          if (
+            !(await ownsProjectContext(
+              orm,
+              researcherAccountId,
+              projectContextId,
+            ))
+          )
+            return null
+          const document = await orm.public.SourceDocument.select(
+            'id',
+            'originalName',
+            'createdAt',
+            'contentSha256',
+          ).first({ id: sourceDocumentId, projectContextId })
+          if (!document) return null
+          if (document.contentSha256 !== input.contentSha256)
+            throw new ReprocessConflictError()
+          const current = await orm.public.SourceRepresentationRevision.where({
+            sourceDocumentId,
+          })
+            .select('id', 'revisionNumber')
+            .orderBy((revision) => revision.revisionNumber.desc())
+            .first()
+          if (!current || current.id !== input.expectedRepresentationId)
+            throw new ReprocessConflictError()
+          const revision = await orm.public.SourceRepresentationRevision.create(
+            {
+              sourceDocumentId,
+              revisionNumber: current.revisionNumber + 1,
+              artifactReference: input.artifactReference,
+              artifactSha256: input.artifactSha256,
+              contractVersion: input.contractVersion,
+              preprocessId: input.preprocessId,
+              parserName: input.parserName,
+              parserVersion: input.parserVersion,
+              reprocessKey: input.ingestionKey,
+              reprocessFingerprint: input.requestFingerprint,
+            },
+          )
+          return {
+            ...ingestedSourceDocument(
+              document as StoredIngestedSourceDocument,
+              revision as StoredSourceRepresentation,
+            ),
+            revisionNumber: revision.revisionNumber,
+          }
+        })
+      } catch (error) {
+        if (
+          !uniqueConstraint(error) &&
+          !(error instanceof ReprocessConflictError)
+        )
+          throw error
+        const winner = await replay()
+        if (winner) {
+          await input.ensureRetained(winner.descriptor)
+          return winner
+        }
+        throw new ReprocessConflictError()
       }
     },
     async createBatchSchemaSuggestion(projectContextId, sourceDocumentIds) {

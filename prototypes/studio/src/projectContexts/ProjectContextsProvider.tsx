@@ -7,6 +7,7 @@ import {
   deleteSourceDocument,
   getProjectContextWithDocuments,
   ingestSourceDocument,
+  reprocessSourceDocument,
   listProjectContexts,
   renameProjectContext,
   provisionalSummary,
@@ -20,7 +21,7 @@ import {
   type ProjectContextsValue,
   type WriteResult,
 } from './useProjectContexts'
-import type { SourceDocumentIngestionResponse } from '../../shared/sourceDocumentIngestion.contract'
+import type { SourceDocumentReprocessResponse } from '../../shared/sourceDocumentReprocess.contract'
 import { sourceDocumentFilenameFailure } from '../../shared/sourceDocumentFilename'
 
 function withSourceDocumentCount(
@@ -49,6 +50,9 @@ function withSourceDocumentCount(
  * them honest.
  */
 export function ProjectContextsProvider({ children }: { children: ReactNode }) {
+  const [sourceRevisions, setSourceRevisions] = useState<
+    Record<string, string>
+  >({})
   const [projects, setProjects] = useState<ProjectContext[]>([])
   const [recentActivity, setRecentActivity] = useState<
     ProjectContextActivityEvent[]
@@ -247,7 +251,7 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
   // Document. Only this branch's read is fenced: researchers browse other
   // Project Contexts while the queue runs, and their reads are not stale.
   const acknowledgeSourceDocument = useCallback(
-    (projectContextId: string, document: SourceDocumentIngestionResponse) => {
+    (projectContextId: string, document: SourceDocumentReprocessResponse) => {
       const branch = branchesRef.current[projectContextId]
       if (branch?.status === 'loading')
         branchGenerations.current[projectContextId] =
@@ -293,15 +297,33 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
       ingest: (source) =>
         // The server owns ingestion once POSTed; actor shutdown only ignores
         // its result.
-        ingestSourceDocument(
+        source.kind === 'reprocess'
+          ? reprocessSourceDocument(
+              source.projectContextId,
+              source.sourceDocumentId,
+              {
+                requestKey: source.ingestionKey,
+                expectedRepresentationId: source.expectedRepresentationId,
+                layout: source.layout,
+              },
+            )
+          : ingestSourceDocument(
           source.projectContextId,
           source.file,
           source.ingestionKey,
           source.layout,
         ),
       toFailureMessage: (error) => failure(error).message,
-      onIngested: ({ item, result }) =>
-        acknowledgeSourceDocument(item.projectContextId, result),
+      onIngested: ({ item, result }) => {
+        acknowledgeSourceDocument(item.projectContextId, result)
+        if (item.kind === 'reprocess') {
+          setSourceRevisions((current) => ({
+            ...current,
+            [item.sourceDocumentId]: result.sourceRepresentationId,
+          }))
+          reloadList.current()
+        }
+      },
     },
   })
 
@@ -317,6 +339,18 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
             sourceDocumentFilenameFailure(source.file.name) ?? undefined,
         })),
       }),
+    [sendIngestion],
+  )
+
+  const reprocessSource = useCallback<ProjectContextsValue['reprocessSource']>(
+    (source) => {
+      sendIngestion({
+        type: 'sources.added',
+        items: [
+          { ...source, kind: 'reprocess', ingestionKey: crypto.randomUUID() },
+        ],
+      })
+    },
     [sendIngestion],
   )
 
@@ -396,6 +430,8 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
         deleteSourceDocument: deleteSource,
         acknowledgeSourceDocument,
         ingestingSources: ingestion.context.items,
+        reprocessSource,
+        sourceRevisions,
         addSources,
         retrySource,
       }}

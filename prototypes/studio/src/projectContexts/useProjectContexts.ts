@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect } from 'react'
 import type { Route } from '../projectNavigation'
 import type { SourceIngestionItem, SourceLayout } from '../sourceIngestionMachine'
-import type { SourceDocumentIngestionResponse } from '../../shared/sourceDocumentIngestion.contract'
+import type { SourceDocumentReprocessResponse } from '../../shared/sourceDocumentReprocess.contract'
 import type {
   ProjectContext,
   ProjectContextActivityEvent,
@@ -60,7 +60,7 @@ export type ProjectContextsValue = {
    */
   acknowledgeSourceDocument: (
     projectContextId: string,
-    document: SourceDocumentIngestionResponse,
+    document: SourceDocumentReprocessResponse,
   ) => void
   /**
    * Source Documents being ingested right now, across every Project Context.
@@ -75,6 +75,14 @@ export type ProjectContextsValue = {
       layout?: SourceLayout
     }[],
   ) => void
+  reprocessSource: (source: {
+    projectContextId: string
+    sourceDocumentId: string
+    expectedRepresentationId: string
+    name: string
+    layout: SourceLayout
+  }) => void
+  sourceRevisions: Readonly<Record<string, string>>
   retrySource: (ingestionKey: string) => void
 }
 

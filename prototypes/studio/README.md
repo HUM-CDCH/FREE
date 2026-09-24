@@ -67,3 +67,21 @@ docker compose exec studio codex login status
 
 Codex home and the container keyring use the existing persistent Studio
 volumes, so rebuilding the image does not discard the login.
+
+## Reprocessing a Source Document
+
+Use **Reprocess** in a Source Document menu and select single pages or two-page
+spreads. Studio parses the retained PDF and publishes the next Source
+Representation Revision after the complete canonical package is retained.
+The request pins the expected current revision; concurrent changes return a
+conflict, and a retry with the same request key replays its published revision.
+
+Existing Extractions, Review Decisions and Annotations retain their original
+source revision. Opening the document without an Extraction identity selects
+its current revision; opening a historical Extraction uses its original source.
+Run a new Extraction to use upgraded cell Evidence. Ordinary re-uploading still
+deduplicates by PDF content and does not reprocess it.
+
+Apply database migration `20260923T1946_source_reprocessing` before serving this
+version. This action currently uses the same request and in-memory queue
+lifecycle as uploads; closing the browser does not provide durable queue recovery.

@@ -99,6 +99,8 @@ model SourceRepresentationRevision {
   preprocessId           String
   parserName             String
   parserVersion          String
+  reprocessKey           Uuid?
+  reprocessFingerprint   String?
   createdAt              Timestamptz6               @default(now())
   sourceDocument         SourceDocument             @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
   annotationSetRevisions AnnotationSetRevision[]
@@ -110,6 +112,7 @@ model SourceRepresentationRevision {
   extractionJobs         ExtractionJob[]
 
   @@unique([sourceDocumentId, revisionNumber])
+  @@unique([sourceDocumentId, reprocessKey])
   @@unique([id, sourceDocumentId])
 }
 

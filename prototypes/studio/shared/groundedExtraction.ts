@@ -26,7 +26,7 @@ export const evidenceGroundingSchema = z
     keySpans: z.array(textSpanSchema),
     alternatives: z.array(z.array(textSpanSchema)),
     heading: z.string().nullable(),
-    precision: z.enum(['segment', 'input']),
+    precision: z.enum(['cell', 'segment', 'input']),
     raw: z.string(),
     // The document's own glossary expansion of `raw`; the Extraction Result keeps the raw value.
     normalized: z
@@ -40,6 +40,7 @@ export const evidenceLinkSchema = z
   .object({
     resultPath: resultPathSchema,
     evidenceAnchorId: z.string().min(1),
+    precision: z.enum(['cell', 'segment', 'input']).optional(),
     // Grounding's lexical checks; absent on booleans and on older links.
     verbatim: z.boolean().optional(),
     lexicalHits: z.number().int().nonnegative().optional(),

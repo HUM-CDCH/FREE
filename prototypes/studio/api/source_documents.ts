@@ -65,7 +65,7 @@ type IngestionStore = Pick<
   | 'discardCanonicalPackage'
 >
 
-type Dependencies = {
+export type Dependencies = {
   packageStore?: PackageStore
   fetcher?: typeof fetch
   parsingServiceBase?: string
@@ -439,9 +439,9 @@ async function acceptedResult(
   return { manifest: manifest.data, pages }
 }
 
-async function discardPublishedPackage(
+export async function discardPublishedPackage(
   saved: CanonicalPackage,
-  store: IngestionStore,
+  store: Pick<ResearcherProjectStore, 'discardCanonicalPackage'>,
 ): Promise<void> {
   if (saved.published !== true) return
   const descriptor = {
@@ -453,10 +453,14 @@ async function discardPublishedPackage(
   })
 }
 
-export function createSourceDocumentIngestion(
-  store: IngestionStore,
+export async function parseSourceDocument(
+  pdf: Uint8Array,
+  originalName: string,
+  ingestionKey: string,
+  pageSource: 'pdf' | 'ingest',
+  store: Pick<ResearcherProjectStore, 'discardCanonicalPackage'>,
   dependencies: Dependencies = {},
-): (request: Request) => Promise<Response> {
+) {
   const packageStore = dependencies.packageStore ?? canonicalPackageStore
   const base =
     dependencies.parsingServiceBase ??
@@ -474,6 +478,112 @@ export function createSourceDocumentIngestion(
       new Promise<void>((resolve) => setTimeout(resolve, milliseconds)))
   const now = dependencies.now ?? Date.now
 
+  let saved: CanonicalPackage | undefined
+  try {
+    const contentSha256 = createHash('sha256').update(pdf).digest('hex')
+    const parser: Parser = {
+      fetcher: fetcher(dependencies),
+      base,
+      signal: AbortSignal.timeout(timeoutMs),
+    }
+
+    const runId = await submittedRun(
+      parser,
+      new Uint8Array(pdf),
+      originalName,
+      model,
+      contentSha256,
+      pageSource,
+    )
+    await completedRun(parser, runId, timeoutMs, pollIntervalMs, sleep, now)
+    const { manifest, pages } = await acceptedResult(parser, runId)
+    let translated: TranslatedDocument
+    try {
+      translated = parsedDocumentFromKeiExp(
+        runId,
+        manifest,
+        pages,
+        {
+          sha256: contentSha256,
+          originalFilename: originalName,
+          byteSize: pdf.byteLength,
+        },
+        new Date(now()),
+      )
+    } catch (cause) {
+      throw new ApiError(
+        502,
+        'source_ingestion_failed',
+        'The parsed Source Document could not be translated.',
+        { cause },
+      )
+    }
+    // The package's Source Document is FREE's own upload: kei-exp's recorded
+    // hash was checked against it at submission and in the manifest.
+    const packageBytes = packCanonicalPackage({
+      pdf,
+      document: translated.document,
+      markdown: translated.markdown,
+    })
+    try {
+      saved = await packageStore.save(packageBytes)
+    } catch (cause) {
+      throw new ApiError(
+        502,
+        'source_artifact_unavailable',
+        'The parsed Source Document could not be packaged.',
+        { cause },
+      )
+    }
+    const requestPackage = saved
+    let parsed: ReturnType<typeof provenance>
+    try {
+      parsed = provenance(saved.document)
+    } catch (cause) {
+      throw new ApiError(
+        502,
+        'source_artifact_unavailable',
+        'The retained canonical package has invalid provenance.',
+        { cause },
+      )
+    }
+    if (parsed.contentSha256 !== contentSha256)
+      throw new ApiError(
+        502,
+        'source_artifact_unavailable',
+        'The retained canonical package belongs to another Source Document.',
+      )
+    const input: IngestSourceDocumentInput = {
+      ingestionKey,
+      contentSha256,
+      mediaType: 'application/pdf',
+      originalName,
+      artifactReference: saved.artifactReference,
+      artifactSha256: saved.artifactSha256,
+      contractVersion: parsed.contractVersion,
+      preprocessId: parsed.preprocessId,
+      parserName: parsed.parserName,
+      parserVersion: parsed.parserVersion,
+      ensureRetained: async (descriptor) => {
+        if (await packageStore.available(descriptor)) return
+        if (!sameDescriptor(descriptor, requestPackage))
+          throw new Error('The durable canonical package is unavailable.')
+        const retained = await packageStore.save(packageBytes)
+        if (!sameDescriptor(descriptor, retained))
+          throw new Error('The canonical package could not be retained.')
+      },
+    }
+    return { saved, input, pageCount: parsed.pageCount }
+  } catch (error) {
+    if (saved) await discardPublishedPackage(saved, store)
+    throw error
+  }
+}
+
+export function createSourceDocumentIngestion(
+  store: IngestionStore,
+  dependencies: Dependencies = {},
+): (request: Request) => Promise<Response> {
   return async function postSourceDocument(
     request: Request,
   ): Promise<Response> {
@@ -549,99 +659,16 @@ export function createSourceDocumentIngestion(
           'invalid_request',
           'The uploaded file must be a PDF.',
         )
-      const contentSha256 = createHash('sha256').update(pdf).digest('hex')
-      const parser: Parser = {
-        fetcher: fetcher(dependencies),
-        base,
-        signal: AbortSignal.timeout(timeoutMs),
-      }
-
-      const runId = await submittedRun(
-        parser,
+      const parsed = await parseSourceDocument(
         pdf,
         originalName,
-        model,
-        contentSha256,
-        pageSource,
-      )
-      await completedRun(parser, runId, timeoutMs, pollIntervalMs, sleep, now)
-      const { manifest, pages } = await acceptedResult(parser, runId)
-      let translated: TranslatedDocument
-      try {
-        translated = parsedDocumentFromKeiExp(
-          runId,
-          manifest,
-          pages,
-          {
-            sha256: contentSha256,
-            originalFilename: originalName,
-            byteSize: pdf.byteLength,
-          },
-          new Date(now()),
-        )
-      } catch (cause) {
-        throw new ApiError(
-          502,
-          'source_ingestion_failed',
-          'The parsed Source Document could not be translated.',
-          { cause },
-        )
-      }
-      // The package's Source Document is FREE's own upload: kei-exp's recorded
-      // hash was checked against it at submission and in the manifest.
-      const packageBytes = packCanonicalPackage({
-        pdf,
-        document: translated.document,
-        markdown: translated.markdown,
-      })
-      try {
-        saved = await packageStore.save(packageBytes)
-      } catch (cause) {
-        throw new ApiError(
-          502,
-          'source_artifact_unavailable',
-          'The parsed Source Document could not be packaged.',
-          { cause },
-        )
-      }
-      const requestPackage = saved
-      let parsed: ReturnType<typeof provenance>
-      try {
-        parsed = provenance(saved.document)
-      } catch (cause) {
-        throw new ApiError(
-          502,
-          'source_artifact_unavailable',
-          'The retained canonical package has invalid provenance.',
-          { cause },
-        )
-      }
-      if (parsed.contentSha256 !== contentSha256)
-        throw new ApiError(
-          502,
-          'source_artifact_unavailable',
-          'The retained canonical package belongs to another Source Document.',
-        )
-      const input: IngestSourceDocumentInput = {
         ingestionKey,
-        contentSha256,
-        mediaType: 'application/pdf',
-        originalName,
-        artifactReference: saved.artifactReference,
-        artifactSha256: saved.artifactSha256,
-        contractVersion: parsed.contractVersion,
-        preprocessId: parsed.preprocessId,
-        parserName: parsed.parserName,
-        parserVersion: parsed.parserVersion,
-        ensureRetained: async (descriptor) => {
-          if (await packageStore.available(descriptor)) return
-          if (!sameDescriptor(descriptor, requestPackage))
-            throw new Error('The durable canonical package is unavailable.')
-          const retained = await packageStore.save(packageBytes)
-          if (!sameDescriptor(descriptor, retained))
-            throw new Error('The canonical package could not be retained.')
-        },
-      }
+        pageSource,
+        store,
+        dependencies,
+      )
+      saved = parsed.saved
+      const input = parsed.input
       const persisted = await store
         .ingestSourceDocument(id, input)
         .catch((cause) => {

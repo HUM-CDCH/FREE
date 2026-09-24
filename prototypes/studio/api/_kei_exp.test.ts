@@ -317,3 +317,81 @@ describe('kei-exp translation', () => {
     expect(() => verifiedPage(tampered, 1, edited)).toThrow(/says page 2/)
   })
 })
+
+it('publishes v5 native cells with distinct anchors and unchanged parent text', () => {
+  const text =
+    'nummer\tbeskrivelse\t\n24-8\tOverarmsknogle\t\n24-17\tOverarmsknogle'
+  const values = [
+    ['nummer', 'beskrivelse'],
+    ['24-8', 'Overarmsknogle'],
+    ['24-17', 'Overarmsknogle'],
+  ]
+  let offset = 0
+  const cells = values.flatMap((row, r) =>
+    row.map((value, c) => {
+      const start = text.indexOf(value, offset)
+      offset = start + value.length
+      return {
+        cell_id: `r${r}_c${c}`,
+        row: r,
+        column: c,
+        rowspan: 1,
+        colspan: 1,
+        role: r === 0 ? 'column_header' : 'data',
+        text: value,
+        start,
+        end: offset,
+        bbox_pt: [10 + c * 100, 10 + r * 20, 95 + c * 100, 28 + r * 20] as [
+          number,
+          number,
+          number,
+          number,
+        ],
+      }
+    }),
+  )
+  const { manifest, pages } = suryaRun([
+    segment({
+      label: 'Table',
+      text,
+      bbox_pt: [10, 10, 210, 80],
+      table: { rows: 3, columns: 2, producer: 'docling', cells },
+    }),
+  ])
+  manifest.result_version = 5
+  const { document, markdown } = translate(manifest, pages)
+  expect(document.tables).toHaveLength(1)
+  expect(document.tables[0].cells).toHaveLength(6)
+  expect(
+    document.evidence_index.anchors.map((anchor) => anchor.anchor_id),
+  ).toContain('a_p1_s0_r2_c1')
+  expect(
+    document.evidence_index.anchors.filter(
+      (anchor) => anchor.kind === 'table_cell',
+    ),
+  ).toHaveLength(6)
+  expect(decoder.decode(markdown)).toContain(text)
+  expectBoxesWithinPages(document)
+  cells[2].bbox_pt = [0, 0, 0, 0]
+  expect(() => translate(manifest, pages)).toThrow()
+})
+
+it('retains the real Ellekilde page 3 table and all 23 measured cell anchors', async () => {
+  const measured = JSON.parse(
+    await readFile(resolve(FIXTURE, 'ellekilde-table-v5.json'), 'utf8'),
+  )
+  const { manifest, pages } = suryaRun([measured.segment])
+  manifest.result_version = 5
+  pages[0].size_pt = measured.size_pt
+  const { document, markdown } = translate(manifest, pages)
+  const table = document.tables[0]
+  expect([table.rows, table.cols, table.cells.length]).toEqual([9, 3, 23])
+  expect(table.cells.find((cell) => cell.cell_id === 'r1_c0')?.text).toBe(
+    '24-8',
+  )
+  const repeated = table.cells.filter((cell) => cell.text === 'Overarmsknogle')
+  expect(repeated.map((cell) => cell.cell_id)).toEqual(['r1_c1', 'r7_c1'])
+  expect(repeated[0].bbox).not.toEqual(repeated[1].bbox)
+  expect(decoder.decode(markdown)).toContain(measured.segment.text)
+  expectBoxesWithinPages(document)
+})

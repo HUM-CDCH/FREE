@@ -4,12 +4,13 @@ Discovery asks the model which labelled passages open a record and cuts the pass
 those starts; only the final chunk may close the records with an `end`, since an earlier chunk cannot know what
 follows it. Each record is extracted with one structured-output call under a guardrail. Verification is
 deterministic first: a value that occurs as a bounded token in exactly one of the record's passages is linked
-without a model; the rest go to one grounding call per record that may answer only with an evidence label it
+without a model; the rest go to bounded grounding calls that may answer only with an evidence label each claim
 was shown, or NONE. A label outside the shown set links nothing. The merge orders a record's fields as the
 schema does and adds the document-level and filename fields.
 """
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from collections.abc import Iterator, Sequence
@@ -20,6 +21,7 @@ from kei_exp.kie.extract.evidence import Evidence, Passage, text_of
 from kei_exp.kie.extract.llm import Chat, ModelOutputError, Reply, parse_json
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.schema import Schema, conform, describe, json_schema, notes, records_schema
+from kei_exp.pagefile import TableCell
 
 GUARDRAIL = ("You extract structured data from a source document. Use only the requested output fields. Copy "
              "values from the source as written; do not invent unsupported information. A value the source does "
@@ -59,7 +61,9 @@ Output: {"starts":["B2","B5"],"end":null}
 GROUNDING = ("Ground every claim listed under \"### Claims\" in the passages listed under \"### Evidence\". Return "
              "JSON with one key per claim label whose value is exactly one evidence label that directly supports "
              "the claim in the meaning of its field, or NONE when no passage supports it. Each claim names its "
-             "field: the same string in an unrelated detail is not evidence. Never invent a label.")
+             "field: the same string in an unrelated detail is not evidence. For tables, use the column headers "
+             "and the claim's sibling fields to select the correct row. Prefer the individual cell supporting "
+             "the value; row context alone is not evidence for that cell's value. Never invent a label.")
 NONE = "NONE"
 
 
@@ -86,6 +90,8 @@ class Link:
     verbatim: bool                      # the value occurs as a bounded token in the passage
     hits: int                           # passages of the record containing the value; above one is ambiguous
     linked_by: str                      # lexical | model
+    cell: str | None = None             # local cell identity within segment, only with measured geometry
+    precision: str = "segment"
 
 
 @dataclass(frozen=True)
@@ -325,55 +331,150 @@ def contains(haystack: str, value: Any) -> bool:
     return False
 
 
-def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int) -> tuple[
+@dataclass(frozen=True)
+class _Candidate:
+    passage: Passage
+    cell: TableCell | None = None
+
+    @property
+    def text(self) -> str:
+        return self.cell.text if self.cell else self.passage.text
+
+    def shown(self) -> str:
+        if self.cell is None:
+            return self.text.strip()
+        return f"Cell {self.passage.id}/{self.cell.cell_id}: {self.text!r}"
+
+
+def _grounding_evidence(labelled: Sequence[tuple[str, _Candidate]]) -> str:
+    """Selectable evidence, then shared table context. Each context cell is printed at most once."""
+    lines = [f"{label}: {candidate.shown()}" for label, candidate in labelled]
+    tables: dict[str, Passage] = {}
+    rows: dict[str, set[int]] = {}
+    for _, candidate in labelled:
+        if candidate.cell is not None:
+            tables[candidate.passage.id] = candidate.passage
+            rows.setdefault(candidate.passage.id, set()).add(candidate.cell.row)
+    for identity, passage in tables.items():
+        assert passage.table is not None
+        lines.append(f"Table {identity} row/header context (not selectable evidence labels):")
+        for cell in passage.table.cells:
+            if cell.role in {"column_header", "row_section"} or any(
+                    cell.row <= row < cell.row + cell.rowspan for row in rows[identity]):
+                lines.append(f"{cell.cell_id} row={cell.row} column={cell.column} "
+                             f"rowspan={cell.rowspan} colspan={cell.colspan} {cell.role}: {cell.text!r}")
+    return "\n".join(lines)
+
+
+def _candidates(passages: Sequence[Passage]) -> list[_Candidate]:
+    candidates = []
+    for passage in passages:
+        candidates.append(_Candidate(passage))
+        if passage.table:
+            candidates.extend(_Candidate(passage, cell) for cell in passage.table.cells if cell.text.strip())
+    return candidates
+
+
+def _hits(candidates: Sequence[_Candidate], value: Any) -> list[_Candidate]:
+    found = [candidate for candidate in candidates if contains(candidate.text, value)]
+    cell_parents = {candidate.passage.id for candidate in found if candidate.cell is not None}
+    return [candidate for candidate in found if candidate.cell is not None or candidate.passage.id not in cell_parents]
+
+
+def _siblings(fields: dict, path: tuple[str | int, ...]) -> str:
+    parent: Any = fields
+    for part in path[:-1]:
+        parent = parent[part]
+    if not isinstance(parent, dict):
+        return ""
+    siblings = {key: value for key, value in parent.items() if isinstance(value, (str, int, float, bool))}
+    return f"Sibling fields: {json.dumps(siblings, ensure_ascii=False)}" if siblings else ""
+
+
+def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int,
+           budget: int = 24_000) -> tuple[
         list[Link], list[Call], list[Issue]]:
-    """Evidence for every populated value of one record: code first, then one grounding call for the rest. A
-    record without passages has nothing to verify against: an issue, not a call over an empty label set."""
+    """Code first, then claim batches bounded by system, user and reply-schema characters.
+
+    Every batch retains all passages for coarse/non-verbatim support, and all matching cells for its claims.
+    An oversized single claim stays ungrounded with a diagnostic; evidence is never truncated to fit.
+    This is a character cap like the other generic stages, not a served-token context guarantee.
+    """
     prefix: tuple[str | int, ...] = ("records", record)
     if not passages:
         return [], [], [Issue("no_evidence", "the record has no passages to verify against", record)]
     links: list[Link] = []
+    candidates = _candidates(passages)
     pending: list[tuple[tuple[str | int, ...], Any, int]] = []
     for path, value in leaves(fields):
-        hits = [passage for passage in passages if contains(passage.text, value)]
+        hits = _hits(candidates, value)
         if len(hits) == 1:
             links.append(_link((*prefix, *path), hits[0], True, 1, "lexical"))
         else:
             pending.append(((*prefix, *path), value, len(hits)))
     if not pending:
         return links, [], []
-    labels = [f"E{n}" for n in range(1, len(passages) + 1)]
-    claims = [f"C{n}" for n in range(1, len(pending) + 1)]
-    lines = [f"{claim} ({describe(schema.record_nodes, path[2:])}): {_text(value)}"
-             for claim, (path, value, _) in zip(claims, pending, strict=True)]
-    user = "### Claims\n" + "\n".join(lines) + "\n\n### Evidence\n" + "\n".join(
-        f"{label}: {passage.text.strip()}" for label, passage in zip(labels, passages, strict=True))
-    reply_schema = {"type": "object", "properties": {claim: {"type": "string", "enum": [*labels, NONE]}
-                                                     for claim in claims},
-                    "required": claims, "additionalProperties": False}
-    answer, attempts = _complete(chat, stage="grounding", record=record, system=GROUNDING, user=user,
-                                 schema=reply_schema)
+    labelled = {f"E{n}": candidate for n, candidate in enumerate(candidates, 1)}
+    claims = {f"C{n}": claim for n, claim in enumerate(pending, 1)}
+    eligible = {claim: [label for label, candidate in labelled.items()
+                        if candidate.cell is None or contains(candidate.text, value)]
+                for claim, (_, value, _) in claims.items()}
+    batches = [list(claims)]
+    calls: list[Call] = []
     issues: list[Issue] = []
-    if not attempts[-1].ok:
-        issues.append(Issue("call_failed", attempts[-1].error or "grounding failed", record))
-        return links, attempts, issues
-    given = answer if isinstance(answer, dict) else {}
-    for claim, (path, value, hits) in zip(claims, pending, strict=True):
-        label = given.get(claim)
-        if label is None:
-            issues.append(Issue("missing_claim", f"the model did not answer {claim}", record, path))
-        elif label == NONE:
+    while batches:
+        batch = batches.pop(0)
+        lines = []
+        previous_parent = None
+        for claim in batch:
+            path, value, _ = claims[claim]
+            if path[:-1] != previous_parent:
+                lines.append(_siblings(fields, path[2:]))
+                previous_parent = path[:-1]
+            lines.append(f"{claim} ({describe(schema.record_nodes, path[2:])}): {_text(value)}")
+        shown = {label for claim in batch for label in eligible[claim]}
+        user = "### Claims\n" + "\n".join(lines) + "\n\n### Evidence\n" + _grounding_evidence(
+            [(label, candidate) for label, candidate in labelled.items() if label in shown])
+        reply_schema = {"type": "object", "properties": {
+            claim: {"type": "string", "enum": [*eligible[claim], NONE]} for claim in batch},
+            "required": batch, "additionalProperties": False}
+        size = len(GROUNDING) + len(user) + len(json.dumps(reply_schema, ensure_ascii=False))
+        if size > budget:
+            if len(batch) > 1:
+                middle = len(batch) // 2
+                batches[0:0] = [batch[:middle], batch[middle:]]
+            else:
+                issues.append(Issue("grounding_exceeds_budget",
+                                    f"{size} characters exceed {budget}; complete evidence was not sent",
+                                    record, claims[batch[0]][0]))
             continue
-        elif label not in labels:
-            issues.append(Issue("unknown_label", f"{claim} was linked to {label!r}, which was not shown", record, path))
-        else:
-            passage = passages[labels.index(label)]
-            links.append(_link(path, passage, contains(passage.text, value), hits, "model"))
-    return links, attempts, issues
+        answer, attempts = _complete(chat, stage="grounding", record=record, system=GROUNDING, user=user,
+                                    schema=reply_schema)
+        calls += attempts
+        if not attempts[-1].ok:
+            issues.append(Issue("call_failed", attempts[-1].error or "grounding failed", record))
+            continue
+        given = answer if isinstance(answer, dict) else {}
+        for claim in batch:
+            path, value, hits = claims[claim]
+            label = given.get(claim)
+            if label is None:
+                issues.append(Issue("missing_claim", f"the model did not answer {claim}", record, path))
+            elif label == NONE:
+                continue
+            elif label not in eligible[claim]:
+                issues.append(Issue("unknown_label", f"{claim} was linked to {label!r}, which was not offered", record, path))
+            else:
+                candidate = labelled[label]
+                links.append(_link(path, candidate, contains(candidate.text, value), hits, "model"))
+    return links, calls, issues
 
 
-def _link(path: tuple[str | int, ...], passage: Passage, verbatim: bool, hits: int, linked_by: str) -> Link:
-    return Link(path, passage.id, passage.page, passage.bbox_pt, verbatim, hits, linked_by)
+def _link(path: tuple[str | int, ...], candidate: _Candidate, verbatim: bool, hits: int, linked_by: str) -> Link:
+    passage, cell = candidate.passage, candidate.cell
+    precise = cell is not None and cell.bbox_pt is not None
+    return Link(path, passage.id, passage.page, cell.bbox_pt if precise else passage.bbox_pt,
+                verbatim, hits, linked_by, cell.cell_id if precise else None, "cell" if precise else passage.precision)
 
 
 def merge(fields: dict, document: dict, filename: str, schema: Schema) -> dict:

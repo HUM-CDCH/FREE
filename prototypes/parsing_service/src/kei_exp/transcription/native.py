@@ -3,6 +3,7 @@
 # pyright: reportPrivateImportUsage=false
 from html import escape
 from itertools import groupby
+from math import isfinite
 from pathlib import Path
 
 import pypdfium2 as pdfium
@@ -26,6 +27,7 @@ from kei_exp._pdfium import pdfium_lock
 from kei_exp.cut import Crop
 from kei_exp.progress import Emit
 from kei_exp.transcription.types import ConversionError, Execution, PageRecord, Transcription
+from kei_exp.transcription.tables import table_of_html
 
 
 def has_native_text(path: Path, pages: tuple[int, int] | None = None) -> bool:
@@ -158,9 +160,45 @@ def blocks_of(document: DoclingDocument, page_no: int) -> list[dict]:
         else:
             continue
         box = provenance.bbox.to_top_left_origin(page.size.height)
-        blocks.append({"html": html, "label": BLOCK_LABELS.get(item.label, str(item.label)),
-                       "bbox": [box.l, box.t, box.r, box.b], "confidence": None, "error": False, "skipped": False})
+        block = {"html": html, "label": BLOCK_LABELS.get(item.label, str(item.label)),
+                 "bbox": [box.l, box.t, box.r, box.b], "confidence": None, "error": False, "skipped": False}
+        if isinstance(item, TableItem):
+            block["table"] = _table_of(item, document, page_no, html)
+        blocks.append(block)
     return blocks
+
+
+def _table_of(item: TableItem, document: DoclingDocument, page_no: int, html: str) -> dict | None:
+    table = table_of_html(html)
+    if table is None:
+        return None
+    page = document.pages[page_no]
+    sources: dict[tuple[int, int], list] = {}
+    for source in item.data.table_cells:
+        sources.setdefault((source.start_row_offset_idx, source.start_col_offset_idx), []).append(source)
+    for cell in table["cells"]:
+        candidates = sources.get((cell["row"], cell["column"]), [])
+        if len(candidates) != 1:
+            continue
+        source = candidates[0]
+        if (source.row_span, source.col_span) != (cell["rowspan"], cell["colspan"]):
+            continue
+        box = source.bbox
+        # Rich cells may carry their geometry on a referenced document item.
+        if reference := getattr(source, "ref", None):
+            resolved = reference.resolve(document)
+            provenances = [p for p in getattr(resolved, "prov", []) if p.page_no == page_no]
+            box = provenances[0].bbox if len(provenances) == 1 else None
+        if box is None:
+            continue
+        box = box.to_top_left_origin(page.size.height)
+        values = [box.l, box.t, box.r, box.b]
+        if all(isfinite(v) for v in values) and 0 <= box.l < box.r <= page.size.width \
+                and 0 <= box.t < box.b <= page.size.height:
+            cell["bbox_pt"] = values
+        cell["role"] = ("column_header" if source.column_header else "row_header" if source.row_header
+                        else "row_section" if source.row_section else "data")
+    return table
 
 
 def _items(document: DoclingDocument, page_no: int):

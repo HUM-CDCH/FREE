@@ -324,6 +324,62 @@ const documentRow = (page: Page, name: string) =>
   rail(page).getByRole('button', { name, exact: true })
 
 test.describe('rail navigation', () => {
+  test('reprocesses a retained PDF with an explicit layout and preserves the retry key', async ({
+    page,
+  }) => {
+    await stubStudio(page)
+    const requests: Array<Record<string, unknown>> = []
+    await page.route('**/reprocess', async (route) => {
+      requests.push(route.request().postDataJSON())
+      if (requests.length === 1)
+        return route.fulfill({
+          status: 503,
+          json: {
+            error: {
+              code: 'source_ingestion_failed',
+              message: 'Parser temporarily unavailable.',
+            },
+          },
+        })
+      return route.fulfill({
+        status: 201,
+        json: {
+          sourceDocumentId: BERETNING,
+          name: 'Beretning_Ellekilde_8_13.pdf',
+          createdAt: '2026-07-31T12:01:00.000Z',
+          sourceRepresentationId: REPRESENTATIONS[BERETNING],
+          revisionNumber: 2,
+          pageCount: 6,
+        },
+      })
+    })
+    await gotoAuthenticated(page, `/projects/${ELLEKILDE}`)
+    const action = page.getByRole('button', {
+      name: 'Reprocess Beretning_Ellekilde_8_13.pdf',
+      exact: true,
+      includeHidden: true,
+    })
+    const menu = page.locator('details').filter({ has: action })
+    await menu.locator('summary').click()
+    await action.click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toContainText(
+      'Existing extractions and reviews keep their original evidence',
+    )
+    await dialog.getByLabel('PDF layout').selectOption('spreads')
+    await dialog.getByRole('button', { name: 'Reprocess', exact: true }).click()
+    await expect(
+      page.getByText('Parser temporarily unavailable.', { exact: true }),
+    ).toBeVisible()
+    await page.getByRole('button', { name: /Retry/ }).click()
+    await expect.poll(() => requests.length).toBe(2)
+    expect(requests[0]).toEqual(requests[1])
+    expect(requests[0]).toMatchObject({
+      expectedRepresentationId: REPRESENTATIONS[BERETNING],
+      layout: 'spreads',
+    })
+  })
+
   test('a failed Project Context write preserves the keyboard draft and retries cleanly', async ({
     page,
   }) => {
