@@ -1,5 +1,10 @@
 # Procrastinate-backed Source Document ingestion
 
+**Superseded (not implemented) by
+[2026-09-24-unified-durable-execution.md](2026-09-24-unified-durable-execution.md):**
+one Postgres and one job technology (DBOS) replace the two Procrastinate
+schemas proposed here.
+
 Date: 2026-09-24. Claude (Opus 5.5) and Codex (gpt-6-astra) wrote independent
 drafts, which were merged using the user's decisions and cross-reviewed. This
 replaces [2026-09-23-durable-source-ingestion.md](2026-09-23-durable-source-ingestion.md),
