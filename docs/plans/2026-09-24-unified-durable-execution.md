@@ -1,6 +1,9 @@
 # FREE on DBOS: durable jobs and AI execution
 
-Status: **eighth revision, 2026-09-25; runtime implementation has not started.**
+Status: **eighth revision, 2026-09-25; M1 done; M0R 1–4 passed 2026-09-26
+([m0r](2026-09-24-unified-durable-execution-evidence/m0r/README.md),
+[ARM64](2026-09-24-unified-durable-execution-evidence/m0r-arm64/README.md));
+M2–M6 in progress on `feat/dbos-m2-m6`.**
 The eighth revision sizes kei's scheduling for the Spark (decision 14). While a
 big book converts, a small document's ingestion and extraction must not wait
 for it. kei's one queue becomes lanes that match its model servers: large and
@@ -34,7 +37,7 @@ batch-suggestion retry, and required quiescence before deleting cancelled
 history. The fourth revision's browser-held keys, per-researcher
 configuration, all providers and reload recovery remain. Historical decisions
 and M0 findings are retained below; the active design supersedes conflicting
-historical advice. M0R items 2–4 and the provider half of 5 remain pending.
+historical advice. The provider half of M0R 5 is an M5 acceptance test.
 Commands, scripts, results and review decisions are retained in
 [the evidence record](2026-09-24-unified-durable-execution-evidence/README.md).
 The [2026-09-25 risk probes](2026-09-24-unified-durable-execution-evidence/risk-checks/README.md)
@@ -746,7 +749,8 @@ quiescence checks.
   Studio only picks one.
 
 - **Other workflows start directly.** The `studio` queue provides transactional
-  admission and active deduplication, not a new resource cap. Measure its chat
+  admission and active deduplication, not a new resource cap. It polls every
+  100 ms (`minPollingIntervalMs`, M0R 3). Measure its chat
   dequeue latency in M0R. The suggestion queue limits scheduling. A cancelled
   TypeScript call stops about 1 s later through `cancelSignal`, but its slot
   is not physical exclusion; conditional outcomes protect publication.
@@ -759,7 +763,7 @@ quiescence checks.
 - **No admission caps.** None exist today besides the 50-member batch limit,
   which stays. HEAD already dropped kei's cap of 32.
 - **kei deadlines.** `workflowTimeoutMS` applies to kei `extract` (10 min
-  Article, 3 h Catalog) and kei `convert` (budget fixed by M0R), measured from
+  Article, 3 h Catalog) and kei `convert` (per-page budget, M0R 4), measured from
   kei dequeue. Studio parents have no deadline; they end with their child.
   The conversion budget grows with pages. On the Spark, cutting took 2.7 s
   per page on the CPU before the first OCR request, and OCR about 2 s per
@@ -1234,8 +1238,14 @@ handlers or pages is an acceptance test of the milestone that builds it
    - All five review probes reproduce their 5.0.2/0.3.7/3.0.0 results.
      `version-probe.mjs` covers the two behaviours the sixth revision relies
      on (item 5).
-   - Pending: the same run on ARM64 (Spark) with Node 24.
-2. **In-process lifecycle.**
+   - Passed on ARM64 (Spark, Node 24.21.0) 2026-09-26: all five probes match
+     x86_64 ([m0r-arm64](2026-09-24-unified-durable-execution-evidence/m0r-arm64/README.md)).
+2. **In-process lifecycle.** Passed 2026-09-26 ([m0r](2026-09-24-unified-durable-execution-evidence/m0r/README.md)).
+   Consequences: Studio declares `@dbos-inc/dbos-sdk` and `@dbos-inc/vercel-ai`
+   as its own dependencies and keeps them external (`ssr: { external: [...] }`
+   in `vite.server.config.ts`); a second `DBOS.launch()` in one process is
+   silently accepted, so `server/dbos.ts` guards it; unnamed workflows get
+   bundler-mangled names (`job$1`), so every workflow has an explicit `name`.
    - Launch and shutdown in `host.ts`.
    - In development, a server-code change restarts the Studio process (Compose
      watch `sync+restart`) and DBOS launches once per process.
@@ -1246,7 +1256,9 @@ handlers or pages is an acceptance test of the milestone that builds it
      after `vite build --config vite.server.config.ts`). DBOS cannot be
      bundled: keep `@dbos-inc/*` external to the SSR build, and give every
      workflow an explicit `name`.
-3. **Admission.**
+3. **Admission.** Passed 2026-09-26. Default queue polling adds p50 0.4–0.6 s
+   and p95 0.8 s per dequeue; `minPollingIntervalMs: 100` on `studio` gives
+   p50 ~55 ms, p95 ~92 ms, so the `studio` queue sets it.
    - Rollback after domain insert/enqueue leaves neither; commit creates both.
      Kill immediately before/after commit and verify recovery.
    - Two simultaneous identical turn IDs create one question and replay once.
@@ -1256,7 +1268,10 @@ handlers or pages is an acceptance test of the milestone that builds it
      `studio`; Studio owns and runs the admitted workflow.
    - Verify `return-existing` only outside caller-owned transactions; measure
      chat dequeue latency on the unrestricted queue.
-4. **kei queues.**
+4. **kei queues.** Passed 2026-09-26 on all four lanes. The conversion budget
+   is `max(600_000, 3 × (20_000 + 6_300 × pages))` ms (6.3 s/page from the
+   rev-8 numbers, factor 3, 10-min floor), provisional until the ~2000-page
+   M0R 6 run.
    - On each lane, cancel right after claim and mid-step, then enqueue another
      job. It must not start until the blocked cancelled native step exits;
      the other lanes keep running.

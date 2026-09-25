@@ -175,3 +175,12 @@ The eighth revision (kei lanes, decision 14) rests on these files:
 - `rev8-plan-review-prompt.md` and `rev8-plan-review-answer.md`: the Codex
   `gpt-6-astra` read-only review of the written eighth revision (1 P1, 2 P2,
   1 P3, all accepted; see the plan's review log).
+
+## M0R 1–4 (2026-09-26)
+
+- [`m0r/`](m0r/README.md): items 2 (in-process lifecycle and the production
+  bundle), 3 (admission with `applicationName`, `return-existing`, dequeue
+  latency, kills around commit) and 4 (the four kei lanes, deadlines, database
+  clock stamps, kei boot boundary, conversion budget), on x86_64.
+- [`m0r-arm64/`](m0r-arm64/README.md): item 1's five probes rerun on the
+  Spark (aarch64, Node 24.21.0) in throwaway containers; all match x86_64.
