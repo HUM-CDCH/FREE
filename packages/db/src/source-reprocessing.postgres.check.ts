@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { after, test } from 'node:test'
 import { validateDisposableTestDatabaseTarget } from './database-url.js'
+import { withHeldSourceDocumentLock } from './postgres-test-helpers.js'
 
 const url = process.env.PROJECT_STORE_POSTGRES_URL
 if (!url)
@@ -126,6 +127,60 @@ test('reprocessing atomically appends, preserves history, and arbitrates concurr
     3,
   )
   // Delete database rows directly: the test descriptors do not name real packages.
+  await db.orm.public.SourceRepresentationRevision.where({
+    sourceDocumentId: first.sourceDocumentId,
+  }).delete()
+  await db.orm.public.SourceDocument.where({
+    id: first.sourceDocumentId,
+  }).delete()
+  await db.orm.public.ProjectContext.where({
+    id: project.projectContextId,
+  }).delete()
+  await db.orm.public.ResearcherAccount.where({ id: account.id }).delete()
+})
+
+test('reprocess publication waits for a held Source Document row lock', async () => {
+  const account = await db.orm.public.ResearcherAccount.create({
+    tenantId: randomUUID(),
+    objectId: randomUUID(),
+    displayName: 'Reprocess lock validation',
+  })
+  const store = createResearcherProjectStore(account.id, db)
+  const project = await store.createProjectContext('Lock evidence')
+  const base = {
+    ingestionKey: randomUUID(),
+    contentSha256: 'd'.repeat(64),
+    mediaType: 'application/pdf',
+    originalName: 'locked.pdf',
+    artifactReference: 'e'.repeat(64),
+    artifactSha256: 'e'.repeat(64),
+    contractVersion: 'parsed_document.v2',
+    preprocessId: 'native-v5',
+    parserName: 'kei-exp',
+    parserVersion: '5',
+    ensureRetained: async () => {},
+  }
+  const first = await store.ingestSourceDocument(project.projectContextId, base)
+  assert.ok(first)
+  let orderMarker = 'held'
+  const revised = await withHeldSourceDocumentLock(
+    url!,
+    first.sourceDocumentId,
+    () =>
+      store.reprocessSourceDocument(project.projectContextId, first.sourceDocumentId, {
+        ...base,
+        ingestionKey: randomUUID(),
+        expectedRepresentationId: first.sourceRepresentationId,
+        requestFingerprint: 'f'.repeat(64),
+      }),
+    async () => {
+      // Runs while publication is blocked on the row lock: it has not published yet.
+      orderMarker = 'blocked-before-publish'
+    },
+  )
+  assert.equal(orderMarker, 'blocked-before-publish')
+  assert.equal(revised?.revisionNumber, 2)
+  // Leave no rows: project-store.postgres.check.ts asserts empty tables on the same database.
   await db.orm.public.SourceRepresentationRevision.where({
     sourceDocumentId: first.sourceDocumentId,
   }).delete()

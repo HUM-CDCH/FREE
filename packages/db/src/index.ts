@@ -12,5 +12,6 @@ export type {
   ResearcherAccountStore,
 } from './researcher-account-store.js'
 export * from './project-store.js'
+export { lockSourceDocumentRow } from './row-lock.js'
 export { db } from './prisma/db.js'
 export type { Database, DatabaseOrm } from './prisma/db.js'

@@ -4,6 +4,7 @@ import {
 } from './artifact-store.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { db, type Database } from './prisma/db.js'
+import { lockSourceDocumentRow } from './row-lock.js'
 
 type DatabaseTransaction = Parameters<
   Parameters<Database['transaction']>[0]
@@ -1577,6 +1578,8 @@ export function createResearcherProjectStore(
             ))
           )
             return null
+          // Serialize with run admission: both decide on the latest revision under this lock.
+          if (!(await lockSourceDocumentRow(orm, sourceDocumentId))) return null
           const document = await orm.public.SourceDocument.select(
             'id',
             'originalName',
