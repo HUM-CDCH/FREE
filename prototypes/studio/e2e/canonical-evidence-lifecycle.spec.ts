@@ -559,7 +559,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     freshPage.getByText('Running extraction…'),
   ).toBeVisible()
   await expect(freshPage.getByRole('button', { name: 'Export' })).toHaveCount(0)
-  await expect(freshPage.getByRole('button', { name: 'Rerun' })).toHaveCount(0)
+  await expect(freshPage.getByRole('button', { name: /^Run (Article|Catalog) extraction/ })).toHaveCount(0)
   await expect(freshPage.getByRole('button', { name: 'Save Review' })).toHaveCount(0)
 
   await freshPage.goto(e2eStudioPath('/projects'))
@@ -606,7 +606,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(freshPage.getByText(firstSchemaRevisionId, { exact: true })).toBeVisible()
   await expect(freshPage.getByText('Previous schema')).toBeVisible()
   await expect(freshPage.getByText('Review applies to Schema Revision 1')).toBeVisible()
-  await expect(freshPage.getByRole('button', { name: 'Run with current schema' })).toHaveCount(0)
+  await expect(freshPage.getByRole('button', { name: /^Run (Article|Catalog) extraction with current schema$/ })).toHaveCount(0)
   await freshPage.getByRole('tab', { name: 'Review' }).click()
   await expect(
     freshPage.getByRole('tabpanel', { name: /Results/ }),
@@ -640,8 +640,10 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
 
   incompleteNextResult = true
   await freshPage.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
+  // The failed attempt's Results action names the strategy just selected in the toolbar.
   await freshPage.getByRole('button', {
-    name: strategy === 'CATALOG' ? '▶ Run extraction' : 'Retry extraction',
+    name: strategy === 'CATALOG' ? 'Run Catalog extraction' : 'Run Article extraction',
+    exact: true,
   }).click()
   await expect(freshPage.getByText('Incomplete Extraction', { exact: true })).toBeVisible()
   await expect(freshPage.getByRole('button', { name: 'Export' })).toBeEnabled()
@@ -781,8 +783,9 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(freshPage.getByText('Running extraction…')).toBeHidden({ timeout: 30_000 })
   await expect(status).toContainText('Completed')
   await expect(status).toContainText('Review applies to Schema Revision 3')
-  await expect(status.getByRole('button', { name: 'Run with current schema' })).toBeEnabled()
-  await expect(freshPage.getByRole('button', { name: 'Rerun' })).toHaveCount(0)
+  // The toolbar's one-shot selection is back at Article, whatever strategy this Extraction ran with.
+  await expect(status.getByRole('button', { name: 'Run Article extraction with current schema' })).toBeEnabled()
+  await expect(freshPage.getByRole('button', { name: /^Run (Article|Catalog) extraction$/ })).toHaveCount(0)
   await expect(freshPage.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
   await activateWithKeyboard(freshPage, freshPage.getByRole('button', { name: /Approve remaining/ }))
   await expect(freshPage.getByText('Review saved', { exact: true })).toBeVisible()

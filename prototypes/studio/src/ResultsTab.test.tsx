@@ -5,7 +5,7 @@ import { useCallback, useState } from 'react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { exportExtractionResult } from 'extraction-result-export'
-import ResultsTab from './ResultsTab'
+import ResultsTab, { type RunExtractionStrategy } from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
 import type { ExtractionAttempt, ReviewDecisionInput } from '../shared/extraction.contract'
 import type { EvidenceLink } from '../shared/groundedExtraction'
@@ -61,9 +61,12 @@ function controller(
   }
 }
 
+const articleRun: RunExtractionStrategy = { strategy: 'ARTICLE' }
+
 const defaultRunProps = {
   onRunExtraction: async () => undefined,
   runExtractionDisabled: false,
+  runExtractionStrategy: articleRun,
 }
 
 const articleAttempt: ExtractionAttempt = {
@@ -452,10 +455,10 @@ describe('ResultsTab grounded values', () => {
     )
 
     expect(screen.getByText('Extraction cancelled')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Run a new extraction' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run Article extraction' })).toBeInTheDocument()
   })
 
-  it('renders Catalog diagnostics behind Run details and offers a generic rerun', () => {
+  it('renders Catalog diagnostics behind Run details and offers a run of the toolbar strategy', () => {
     const catalogAttempt: ExtractionAttempt = {
       ...articleAttempt,
       strategy: 'CATALOG',
@@ -492,7 +495,7 @@ describe('ResultsTab grounded values', () => {
 
     // Incomplete banner is visible without opening diagnostics.
     expect(screen.getByText('Incomplete Extraction')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Rerun' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run Article extraction' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Run details' }))
     // Stage and record diagnostics render inside the bounded disclosure.
     expect(screen.getByTestId('catalog-record-diagnostics')).toBeInTheDocument()
@@ -530,7 +533,7 @@ describe('ResultsTab grounded values', () => {
     expect(screen.queryByText('Field model')).not.toBeInTheDocument()
   })
 
-  it('offers Retry extraction for a failed Catalog attempt', () => {
+  it('offers a run of the toolbar strategy for a failed Catalog attempt', () => {
     const failed: ExtractionAttempt = {
       ...articleAttempt,
       strategy: 'CATALOG',
@@ -553,7 +556,7 @@ describe('ResultsTab grounded values', () => {
         sourceDocumentName="Catalog.pdf"
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Retry extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Run Article extraction' }))
     expect(onRunExtraction).toHaveBeenCalledOnce()
   })
 
@@ -1159,7 +1162,7 @@ describe('ResultsTab extraction status', () => {
     expect(screen.getByText(/"place": "string"/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Cancel extraction' }))
     expect(requestCancellation).toHaveBeenCalledOnce()
-    expect(screen.queryByRole('button', { name: 'Run with current schema' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /with current schema$/ })).not.toBeInTheDocument()
   })
 
   it('disables both cancellation controls once requested and shows a cancellation failure apart', () => {
@@ -1228,7 +1231,7 @@ describe('ResultsTab extraction status', () => {
     expect(reconnect).toHaveBeenCalledOnce()
   })
 
-  it('offers one Run with current schema action for a completed previous-schema result and keeps review open', () => {
+  it('offers one with-current-schema run action for a completed previous-schema result and keeps review open', () => {
     const onRunExtraction = vi.fn()
     const setDecision = vi.fn()
     const attempt: ExtractionAttempt = {
@@ -1241,6 +1244,7 @@ describe('ResultsTab extraction status', () => {
       <ResultsTab
         onRunExtraction={onRunExtraction}
         runExtractionDisabled={false}
+        runExtractionStrategy={articleRun}
         controller={controller(
           { status: 'ready', result: attempt.resultPayload!, evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 0 },
           attempt,
@@ -1264,8 +1268,8 @@ describe('ResultsTab extraction status', () => {
     expect(screen.getByText('Completed')).toBeInTheDocument()
     expect(screen.getByText('Previous schema')).toBeInTheDocument()
     expect(screen.getByText('Review applies to Schema Revision 3')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: /rerun|run with|re-run/i })).toHaveLength(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Run with current schema' }))
+    expect(screen.getAllByRole('button', { name: /^Run (Article|Catalog) extraction/ })).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Run Article extraction with current schema' }))
     expect(onRunExtraction).toHaveBeenCalledOnce()
     expect(screen.queryByText('Extraction Schema updated')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Reject place' }))
@@ -1297,11 +1301,11 @@ describe('ResultsTab extraction status', () => {
 
     expect(screen.getByText('Previous schema')).toBeInTheDocument()
     expect(screen.getByText('Review applies to Schema Revision 3')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Run with current schema' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /with current schema$/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Reject / })).not.toBeInTheDocument()
   })
 
-  it('marks a same-revision result as current and keeps the plain Rerun', () => {
+  it('marks a same-revision result as current and keeps the plain run action', () => {
     render(
       <ResultsTab
         {...defaultRunProps}
@@ -1315,8 +1319,104 @@ describe('ResultsTab extraction status', () => {
     )
     expect(screen.queryByText('Previous schema')).not.toBeInTheDocument()
     expect(screen.getByText('Using Schema Revision 3 · Current revision: 3')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Rerun' })).toBeEnabled()
-    expect(screen.queryByRole('button', { name: 'Run with current schema' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run Article extraction' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: /with current schema$/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('ResultsTab run actions', () => {
+  // Every run action starts the toolbar's current selection afresh, whatever
+  // the displayed attempt ran with, so each one names that selection.
+  const catalogAttempt: ExtractionAttempt = { ...articleAttempt, strategy: 'CATALOG', complete: true }
+  const failedCatalogAttempt: ExtractionAttempt = {
+    ...catalogAttempt,
+    outcome: 'FAILED',
+    complete: null,
+    failure: { code: 'catalog_no_records', message: 'Catalog discovery returned no records.' },
+    resultPayload: null,
+    evidenceLinks: null,
+    reviewable: false,
+  }
+  const completed: ExtractionController['state'] = {
+    status: 'ready', result: catalogAttempt.resultPayload!, evidenceLinks: [], ungroundedCount: 0,
+  }
+  const surfaces = [
+    { surface: 'completed result', suffix: '', props: { controller: controller(completed, catalogAttempt) } },
+    {
+      surface: 'previous-schema result',
+      suffix: ' with current schema',
+      props: {
+        controller: controller(completed, catalogAttempt),
+        currentSchemaRevision: { schemaRevisionId: '99999999-9999-4999-8999-999999999999', revisionNumber: 4 },
+      },
+    },
+    {
+      surface: 'failed attempt',
+      suffix: '',
+      props: { controller: controller({ status: 'error', message: 'Catalog discovery returned no records.' }, failedCatalogAttempt) },
+    },
+    { surface: 'cancelled attempt', suffix: '', props: { controller: controller({ status: 'cancelled' }) } },
+    { surface: 'document without results', suffix: '', props: { controller: controller({ status: 'idle' }) } },
+  ]
+  const selections: Array<{ selection: string; run: RunExtractionStrategy; name: string; boundaries: string | null }> = [
+    { selection: 'Article', run: articleRun, name: 'Run Article extraction', boundaries: null },
+    {
+      selection: 'Catalog with Model discovery',
+      run: { strategy: 'CATALOG', boundaries: 'Model discovery' },
+      name: 'Run Catalog extraction',
+      boundaries: 'Boundaries: Model discovery',
+    },
+    {
+      selection: 'Catalog with a recipe',
+      run: { strategy: 'CATALOG', boundaries: 'Numbered catalogue (German)' },
+      name: 'Run Catalog extraction',
+      boundaries: 'Boundaries: Numbered catalogue (German)',
+    },
+  ]
+
+  it.each(surfaces.flatMap((surface) => selections.map((selection) => ({ ...surface, ...selection }))))(
+    'names the $selection selection on the run action for a $surface',
+    ({ props, suffix, run, name, boundaries }) => {
+      const onRunExtraction = vi.fn()
+      render(
+        <ResultsTab
+          {...defaultRunProps}
+          {...props}
+          onRunExtraction={onRunExtraction}
+          runExtractionStrategy={run}
+          schemaReady
+          documentMarkdown="# Source"
+          sourceDocumentName="Catalog.pdf"
+        />,
+      )
+
+      const action = screen.getByRole('button', { name: name + suffix })
+      if (boundaries === null) {
+        expect(action).not.toHaveAccessibleDescription()
+        expect(screen.queryByText(/^Boundaries:/)).not.toBeInTheDocument()
+      } else {
+        expect(action).toHaveAccessibleDescription(boundaries)
+        expect(screen.getByText(boundaries)).toBeVisible()
+      }
+      fireEvent.click(action)
+      expect(onRunExtraction).toHaveBeenCalledOnce()
+    },
+  )
+
+  it('keeps Generate a schema first, without boundaries, until a schema is ready', () => {
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        runExtractionStrategy={{ strategy: 'CATALOG', boundaries: 'Model discovery' }}
+        controller={controller({ status: 'idle' })}
+        schemaReady={false}
+        documentMarkdown="# Source"
+        sourceDocumentName="Catalog.pdf"
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Generate a schema first' })).toBeInTheDocument()
+    expect(screen.queryByText(/^Boundaries:/)).not.toBeInTheDocument()
   })
 })
 

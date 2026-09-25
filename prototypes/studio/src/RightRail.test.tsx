@@ -90,6 +90,7 @@ function renderRail({
       extraction={defaultController}
       onRunExtraction={vi.fn()}
       runExtractionDisabled={false}
+      runExtractionStrategy={{ strategy: 'ARTICLE' }}
       inspection={defaultInspection}
       currentSchemaRevision={null}
       sourceDocumentName="test.pdf"

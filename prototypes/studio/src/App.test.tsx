@@ -8,6 +8,7 @@ import DocumentWorkspace, { type DocumentWorkspaceProps } from './App'
 import { subscribeToAuthenticationRequired } from './auth/authenticatedFetch.ts'
 import parsedDocument from './assets/parsed_document.v2.json'
 import type { SchemaNode } from 'extraction/schema'
+import type { ExtractionAttempt } from '../shared/extraction.contract'
 
 const {
   destroyLoadingTask,
@@ -1035,7 +1036,7 @@ describe('reopened Source Document workspace', () => {
     if (runSurface === 'results')
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     const run = screen.getByRole('button', {
-      name: runSurface === 'toolbar' ? '↻ Re-run extraction' : 'Rerun',
+      name: runSurface === 'toolbar' ? '↻ Re-run extraction' : 'Run Article extraction',
     })
     fireEvent.click(run)
     if (runSurface === 'toolbar') {
@@ -1138,10 +1139,10 @@ describe('reopened Source Document workspace', () => {
     )
     expect(screen.getByText('Previous schema')).toBeInTheDocument()
     expect(screen.getByText('Review applies to Schema Revision 1')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Rerun' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Run (Article|Catalog) extraction$/ })).not.toBeInTheDocument()
     expect(screen.getByText('Ellekilde')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Run with current schema' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Run Article extraction with current schema' }))
     await waitFor(() => expect(extractionRequests).toHaveLength(1))
     expect(extractionRequests[0]!.schemaRevisionId).toBe(savedSchemaRevisionId)
     extractionResponse.resolve(Response.json({
@@ -1220,6 +1221,161 @@ describe('reopened Source Document workspace', () => {
       expect(screen.getByLabelText('Extraction strategy')).toHaveValue('ARTICLE'),
     )
     expect(screen.queryByLabelText('Record boundaries')).not.toBeInTheDocument()
+  })
+
+  describe('Results-tab run action after a Catalog attempt', () => {
+    // Every Results-tab run action posts the toolbar's one-shot selection, so
+    // after any Catalog attempt it names and posts the Article default until
+    // the researcher selects Catalog again.
+    const catalogAttempts: Record<'FAILED' | 'SUCCEEDED', ExtractionAttempt> = {
+      FAILED: {
+        extractionId: '51000000-0000-4000-8006-000000000041',
+        sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+        sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+        schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+        strategy: 'CATALOG', executionStatus: 'FAILED', outcome: null, complete: null,
+        modelAttribution: null, diagnostics: null,
+        failure: { code: 'catalog_discovery_failed', message: 'Discovery failed.' },
+        resultPayload: null, evidenceLinks: null, reviewable: false, batchExtractionId: null,
+        createdAt: '2026-08-12T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+      },
+      SUCCEEDED: {
+        extractionId: '51000000-0000-4000-8006-000000000042',
+        sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+        sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+        schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+        strategy: 'CATALOG', executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
+        modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+        diagnostics: {
+          phase: 'grounding', durationMs: 1, modelCalls: 1,
+          finishReason: 'stop', inputTokens: 1, outputTokens: 1,
+          grounding: null, catalog: null,
+        },
+        failure: null, resultPayload: { records: [{ place: 'Catalogued' }] }, evidenceLinks: [],
+        reviewable: true, batchExtractionId: null,
+        createdAt: '2026-08-12T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+      },
+    }
+
+    /** The exact body a run from this workspace posts for a toolbar selection. */
+    const posted = (strategy: 'ARTICLE' | 'CATALOG', catalogRecipe?: string) => ({
+      id: expect.any(String),
+      sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+      schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+      strategy,
+      ...(catalogRecipe ? { catalogRecipe } : {}),
+    })
+
+    /** Answers every run with a terminal attempt of the posted strategy and keeps each request body. */
+    function stubRuns(outcome: 'FAILED' | 'SUCCEEDED') {
+      const bodies: Array<{ id: string; strategy: 'ARTICLE' | 'CATALOG' }> = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((input: string | URL | Request, init?: RequestInit) => {
+          const url = String(input)
+          if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+          if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+          if (url.startsWith('/api/schema-revisions?'))
+            return Promise.resolve(Response.json({ revisions: [] }))
+          if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+            const body = JSON.parse(String(init.body)) as { id: string; strategy: 'ARTICLE' | 'CATALOG' }
+            bodies.push(body)
+            return Promise.resolve(Response.json(
+              { ...catalogAttempts[outcome], extractionId: body.id, strategy: body.strategy },
+              { status: 201 },
+            ))
+          }
+          return Promise.resolve(new Response('pdf'))
+        }),
+      )
+      return bodies
+    }
+
+    async function renderWorkspace(persistedExtraction: DocumentWorkspaceProps['persistedExtraction']) {
+      render(<DocumentWorkspace {...reopened} persistedExtraction={persistedExtraction} />)
+      await waitFor(() =>
+        expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+      )
+    }
+
+    /** Starts a Catalog run from the toolbar; acknowledging it resets the one-shot selection. */
+    async function runCatalogFromToolbar(bodies: unknown[], recipe?: string) {
+      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+      if (recipe)
+        fireEvent.change(screen.getByLabelText('Record boundaries'), { target: { value: recipe } })
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      await waitFor(() => expect(bodies).toHaveLength(1))
+      expect(bodies[0]).toEqual(posted('CATALOG', recipe))
+      await waitFor(() =>
+        expect(screen.getByLabelText('Extraction strategy')).toHaveValue('ARTICLE'),
+      )
+    }
+
+    /** Opens Results and finds its run action by the exact name it must carry. */
+    function resultsRunAction(name: string) {
+      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+      return screen.getByRole('button', { name })
+    }
+
+    it.each([
+      ['fails', 'FAILED'],
+      ['succeeds', 'SUCCEEDED'],
+    ] as const)('names and posts Article after a Catalog run that %s', async (_label, outcome) => {
+      const bodies = stubRuns(outcome)
+      await renderWorkspace(null)
+      await runCatalogFromToolbar(bodies)
+      if (outcome === 'SUCCEEDED')
+        fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+
+      const action = resultsRunAction('Run Article extraction')
+      expect(action).not.toHaveAccessibleDescription()
+      fireEvent.click(action)
+      await waitFor(() => expect(bodies).toHaveLength(2))
+      expect(bodies[1]).toEqual(posted('ARTICLE'))
+    })
+
+    it.each([
+      ['failed', 'FAILED', 'Extraction failed'],
+      ['completed', 'SUCCEEDED', 'Catalogued'],
+    ] as const)('names and posts Article after reopening a %s Catalog attempt', async (_label, outcome, shown) => {
+      const bodies = stubRuns(outcome)
+      await renderWorkspace({
+        ...catalogAttempts[outcome],
+        sourceRepresentation: reopened.persistedExtraction!.sourceRepresentation,
+        extractionSchema: reopened.persistedExtraction!.extractionSchema,
+      })
+      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('ARTICLE')
+
+      const action = resultsRunAction('Run Article extraction')
+      // Results shows the reopened Catalog attempt, not an empty workspace's run action.
+      expect(screen.getByText(shown)).toBeVisible()
+      expect(action).not.toHaveAccessibleDescription()
+      fireEvent.click(action)
+      await waitFor(() => expect(bodies).toHaveLength(1))
+      expect(bodies[0]).toEqual(posted('ARTICLE'))
+    })
+
+    it.each([
+      ['selects the recipe again', 'numbered-catalogue-de@1', 'Numbered catalogue (German)'],
+      ['keeps Model discovery', undefined, 'Model discovery'],
+    ] as const)('after a recipe run, names and posts Catalog as the researcher %s', async (_label, recipe, boundaries) => {
+      const bodies = stubRuns('FAILED')
+      await renderWorkspace(null)
+      await runCatalogFromToolbar(bodies, 'numbered-catalogue-de@1')
+      // The recipe is one-shot like the strategy: selecting Catalog again starts at Model discovery.
+      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+      expect(screen.getByLabelText('Record boundaries')).toHaveValue('')
+      expect(resultsRunAction('Run Catalog extraction')).toHaveAccessibleDescription('Boundaries: Model discovery')
+      if (recipe)
+        fireEvent.change(screen.getByLabelText('Record boundaries'), { target: { value: recipe } })
+
+      const action = screen.getByRole('button', { name: 'Run Catalog extraction' })
+      expect(action).toHaveAccessibleDescription(`Boundaries: ${boundaries}`)
+      expect(screen.getByText(`Boundaries: ${boundaries}`)).toBeVisible()
+      fireEvent.click(action)
+      await waitFor(() => expect(bodies).toHaveLength(2))
+      expect(bodies[1]).toEqual(posted('CATALOG', recipe))
+    })
   })
 
   describe('Extraction Model Choice', () => {

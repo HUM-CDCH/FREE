@@ -10,6 +10,7 @@ import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
+import type { RunExtractionStrategy } from './ResultsTab'
 import { useDurableCurrentSchemaRevision } from './useCurrentSchemaRevision'
 import { requestSchema } from './api'
 import {
@@ -692,6 +693,17 @@ export function DocumentWorkspace({
     : extraction.hasResults
       ? '↻ Re-run extraction'
       : '▶ Run extraction'
+  // The one-shot selection runExtraction posts, named on every Results-tab run
+  // action so none of them promises to repeat the inspected attempt.
+  const runExtractionStrategy: RunExtractionStrategy =
+    nextExtractionStrategy === 'CATALOG'
+      ? {
+          strategy: 'CATALOG',
+          boundaries:
+            CATALOG_RECIPES.find((recipe) => recipe.id === nextCatalogRecipe)?.label ??
+            'Model discovery',
+        }
+      : { strategy: 'ARTICLE' }
 
   const hintText =
     running
@@ -902,6 +914,7 @@ export function DocumentWorkspace({
               extraction={extraction}
               onRunExtraction={runExtraction}
               runExtractionDisabled={runExtractionUnavailable}
+              runExtractionStrategy={runExtractionStrategy}
               inspection={{
                 attempt: inspectedAttempt,
                 readOnly: inspectionReadOnly,

@@ -202,7 +202,7 @@ describe('useBatchExtractionReviewGrid', () => {
       const original = attempt()
       const controller = useExtraction({ schemaReady: true, indexing: false, initialAttempt: original,
         reviewTarget: { sourceRepresentationId: original.sourceRepresentationRevisionId, schemaRevisionId: original.schemaRevisionId }, onTerminal: vi.fn(), onError: vi.fn() })
-      return <ResultsTab controller={controller} onRunExtraction={async () => {}} runExtractionDisabled={false} schemaReady
+      return <ResultsTab controller={controller} onRunExtraction={async () => {}} runExtractionDisabled={false} runExtractionStrategy={{ strategy: 'ARTICLE' }} schemaReady
         pinnedSchema={{ recordDescription: 'Source', schemaNodes }} documentMarkdown="Grounded" sourceDocumentName="Source" />
     }
     render(view === 'grid' ? <Grid batch={batch()} schemaNodes={schemaNodes} documentName={() => 'Source'} onBack={() => {}} onOpenMember={() => {}} /> : <DocumentReview />)
@@ -340,7 +340,7 @@ describe('useBatchExtractionReviewGrid', () => {
       const original = attempt()
       const controller = useExtraction({ schemaReady: true, indexing: false, initialAttempt: original,
         reviewTarget: { sourceRepresentationId: original.sourceRepresentationRevisionId, schemaRevisionId: original.schemaRevisionId }, onTerminal: vi.fn(), onError: vi.fn() })
-      return <ResultsTab controller={controller} onRunExtraction={async () => {}} runExtractionDisabled={false} schemaReady
+      return <ResultsTab controller={controller} onRunExtraction={async () => {}} runExtractionDisabled={false} runExtractionStrategy={{ strategy: 'ARTICLE' }} schemaReady
         pinnedSchema={{ recordDescription: 'Source', schemaNodes }} documentMarkdown="Grounded" sourceDocumentName="Source" />
     }
     {
@@ -811,7 +811,7 @@ it.each(['grid', 'document'] as const)('automatically saves a complete %s review
       reviewTarget: { sourceRepresentationId: original.sourceRepresentationRevisionId, schemaRevisionId: original.schemaRevisionId },
       onTerminal: () => {}, onError: () => {},
     })
-    return <ResultsTab controller={controller} onRunExtraction={async () => {}} runExtractionDisabled={false}
+    return <ResultsTab controller={controller} onRunExtraction={async () => {}} runExtractionDisabled={false} runExtractionStrategy={{ strategy: 'ARTICLE' }}
       schemaReady pinnedSchema={{ recordDescription: 'Source', schemaNodes }} documentMarkdown="Grounded" sourceDocumentName="Source" />
   }
   const scene = view === 'grid'
