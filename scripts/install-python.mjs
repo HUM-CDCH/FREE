@@ -6,12 +6,19 @@ export function shouldInstallPython(environment = process.env) {
   return environment.FREE_SKIP_PYTHON !== '1'
 }
 
-export function installPythonCommand() {
-  return {
-    command: 'uv',
-    arguments: ['sync', '--frozen'],
-    cwd: fileURLToPath(new URL('../prototypes/parsing_service/', import.meta.url)),
-  }
+/**
+ * On Windows `uv` may be a `.cmd`/`.bat` shim, which `spawn` without a shell
+ * cannot resolve (libuv ignores PATHEXT), so run it through `cmd.exe`.
+ */
+export function installPythonCommand(platform = process.platform) {
+  const cwd = fileURLToPath(new URL('../prototypes/parsing_service/', import.meta.url))
+  if (platform === 'win32')
+    return {
+      command: process.env.ComSpec ?? 'cmd.exe',
+      arguments: ['/d', '/s', '/c', 'uv sync --frozen'],
+      cwd,
+    }
+  return { command: 'uv', arguments: ['sync', '--frozen'], cwd }
 }
 
 export async function installPython(environment = process.env) {

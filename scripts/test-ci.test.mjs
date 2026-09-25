@@ -139,6 +139,11 @@ describe('CI without Python', () => {
     )
     assert.ok(!scripts['test:unit:node'].includes('parsing-service'))
     assert.ok(!scripts['test:postgres:node'].includes('parsing-service'))
+    assert.ok(scripts.postinstall.includes('install:python'))
+    const parsing = JSON.parse(
+      readFileSync(new URL('../prototypes/parsing_service/package.json', import.meta.url), 'utf8'),
+    )
+    assert.equal(parsing.scripts['install:python'], 'node ../../scripts/install-python.mjs')
   })
 })
 

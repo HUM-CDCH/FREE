@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+Status: **done 2026-09-25: 266ad88, 57e063d plus this fix wave; proof is the PR's verify run.**
+
 **Goal:** GitHub's `verify` job installs no Python environment and runs the deterministic tiers that need none (typecheck, lint, Node unit tiers, safety, db and extraction PostgreSQL, browser E2E with the scripted model server), while every local command keeps its full scope.
 
 **Architecture:** One job variable, `FREE_SKIP_PYTHON=1`, is read in two places: the parsing service's `install:python` hook (a small Node script that skips `uv sync --frozen`) and `scripts/test-ci.mjs` (which runs the new `test:all:node` aggregate instead of `test:all`, and stops requiring the parsing database). Root scripts gain `test:unit:node`, `test:postgres:node` and `test:all:node`; the existing `test:unit` and `test:postgres` reuse the node chains and append the Parsing Service tiers, so nothing is listed twice. The workflow drops the uv install and the parsing database.

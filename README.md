@@ -125,16 +125,18 @@ mutating checks:
 and `test:ci`: they depend on a live model or mutate the default development
 stack. GitHub's Linux `verify` job runs `test:ci` with `FREE_SKIP_PYTHON=1`:
 it installs no Python environment (the CUDA PyTorch wheels do not fit the
-hosted runner), so the Parsing Service tiers and `test:service` run locally
-against a disposable database, as the dated records in `docs/validation/`
-show. `FREE_SKIP_PYTHON=1` also makes `pnpm install` skip the parsing
-service's `uv sync --frozen`; leave it unset on development and deployment
-hosts.
+hosted runner), so the Parsing Service tiers and `test:service` run locally,
+as the dated records in `docs/validation/` show: the PostgreSQL tier against
+a disposable database, the fast tier with none, and `test:service` against the
+stack it starts itself. `FREE_SKIP_PYTHON=1` also makes `pnpm install` skip
+the parsing service's `uv sync --frozen`; leave it unset on development and
+deployment hosts.
 
 `test:service` may download Docling layout weights on first use. Supply both
 `FREE_REAL_EXTRACT_URL` (a chat-completions URL) and
-`FREE_REAL_EXTRACT_MODEL` to run the same workflow against a real model; that
-optional run is outside deterministic CI.
+`FREE_REAL_EXTRACT_MODEL` to run the same workflow against a real model.
+`test:service` itself is outside CI now (it runs locally, inside `test:all`);
+the real-model variant is outside `test:all` as well.
 
 Detailed prerequisites, environment variables, and database target rules are
 in the [local development runbook](docs/operations/local-development.md).

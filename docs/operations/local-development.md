@@ -15,7 +15,9 @@ application-facing proxy behavior is identical.
 ## Prerequisites
 
 - Node.js 24 and pnpm 10.9 (`pnpm install` at the root also syncs Python
-  services through `uv`).
+  services through `uv`). `FREE_SKIP_PYTHON=1` is CI-only: it makes
+  `pnpm install` skip the parsing service's `uv sync --frozen`. Leave it unset
+  on development and deployment hosts.
 - Docker Desktop with Docker Compose v2.40.0 or later (Compose Watch,
   optional profile dependencies, `!reset`, and `gw_priority` are used). The
   launcher checks this before starting the host stack.
@@ -145,15 +147,16 @@ deliberately according to their infrastructure and mutation boundaries:
 | `pnpm test:e2e` | Requires Docker and Playwright's browser. By default it removes any prior `free-studio-e2e` test stack, creates isolated PostgreSQL and interactive mock-OIDC containers, migrates the test database, starts Studio on a test loopback port, and removes the stack and volumes afterward. Browser sign-in runs through that mock OIDC service; the default development stack is not used. |
 | `pnpm test:service` | Creates its own PostgreSQL and mock-OIDC stack, starts the included real Python API and worker, uploads a generated two-entry PDF through authenticated FREE, extracts Article and Catalog results, saves review, and checks service restart persistence. Only the model HTTP response is scripted. The first native conversion may download Docling weights. Set both `FREE_REAL_EXTRACT_URL` and `FREE_REAL_EXTRACT_MODEL` for a separate real-model run. |
 | `pnpm test:all` | Runs typecheck, lint, unit, safety, PostgreSQL integration, E2E, and `test:service` sequentially. The caller must provide the Docker/browser prerequisites and three fresh PostgreSQL targets (the two Studio targets must be migrated) required by `test:postgres`. |
-| `pnpm test:ci` | Requires `CI=true` and the fixed CI URLs `free_test_project_store`, `free_test_extraction`, and `free_test_parsing` on PostgreSQL at `127.0.0.1:5432`. It requires `DATABASE_URL` to equal `EXTRACTION_TEST_DATABASE_URL`, migrates both targets, then runs `test:all`. |
+| `pnpm test:all:node` | Runs typecheck, lint, the Node unit tiers, safety, the `db` and `extraction` PostgreSQL integration tiers, and E2E sequentially: `test:all` without the Parsing Service tiers and `test:service`, so it needs no Python environment. The caller must provide the Docker/browser prerequisites and the two fresh, migrated Studio PostgreSQL targets (`PROJECT_STORE_POSTGRES_URL` and `EXTRACTION_TEST_DATABASE_URL`). |
+| `pnpm test:ci` | Requires `CI=true` and the fixed CI URLs `free_test_project_store` and `free_test_extraction` on PostgreSQL at `127.0.0.1:5432`. It also requires the fixed `free_test_parsing` URL unless `FREE_SKIP_PYTHON=1`; a parsing URL that is present is always validated. It requires `DATABASE_URL` to equal `EXTRACTION_TEST_DATABASE_URL`, migrates both Studio targets, then runs `test:all:node` when `FREE_SKIP_PYTHON=1` (GitHub's `verify` job) and `test:all` otherwise. |
 | `pnpm test:live-model` | Requires Ollama at `FREE_LIVE_OLLAMA_URL` (default `http://127.0.0.1:11434`) with `FREE_LIVE_OLLAMA_MODEL` (default `qwen3.8:latest`). It also runs the real Docling conversion smoke check, which may download models into the local cache. |
 | `pnpm test:system` | Requires Docker, `mkcert`, the default local Compose topology, and an Ollama endpoint reachable from its containers (`FREE_TEST_OLLAMA_BASE_URL`, default `http://host.docker.internal:11434`; model `FREE_TEST_OLLAMA_MODEL`, default `qwen3.8:latest`). It starts the stack if needed, creates an authenticated account and research workflow, replaces shared model configuration, restarts the stack to prove durability, deletes its Project Context, and leaves the stack running. Use only against disposable local development data. |
 | `pnpm typecheck` | Runs the workspace TypeScript checks without services or data mutation. |
 | `pnpm lint` | Runs ESLint over Studio without services or data mutation. |
 
-`test:live-model` and `test:system` are intentionally excluded from the two
-aggregates because they require an external model or mutate the default local
-stack. The GitHub `verify` workflow runs `test:ci` on Linux, so the POSIX
+`test:live-model` and `test:system` are intentionally excluded from the three
+aggregates (`test:all`, `test:all:node`, and `test:ci`) because they require an
+external model or mutate the default local stack. The GitHub `verify` workflow runs `test:ci` on Linux, so the POSIX
 session-secret permission check is part of the required deterministic gate.
 
 ## Host-run tooling
