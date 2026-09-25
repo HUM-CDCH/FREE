@@ -10,6 +10,7 @@ import {
   type CanonicalPackageStore,
   type Database,
   type DatabaseOrm,
+  type DatabaseTransaction,
 } from 'db'
 import { ExtractionError } from './errors.js'
 import { persistSuggestedBatch } from './postgres-suggested-batch.js'
@@ -412,14 +413,16 @@ async function scheduleInteractiveExtraction(
       // A new identity is admitted only on the document's current revision, decided under the
       // Source Document row lock that reprocess publication also takes: Read Committed would
       // otherwise let a reprocess commit between this read and the insert.
-      if (!(await lockSourceDocumentRow(orm, job.sourceDocumentId))) return 'missing' as const
+      if (!(await lockSourceDocumentRow(transaction, job.sourceDocumentId))) return 'missing' as const
       const current = await orm.public.SourceRepresentationRevision.where({
         sourceDocumentId: job.sourceDocumentId,
       })
         .select('id')
         .orderBy((revision) => revision.revisionNumber.desc())
         .first()
-      if (current?.id !== job.sourceRepresentationRevisionId) return 'superseded' as const
+      // No revision left means the document vanished while this waited for the lock.
+      if (!current) return 'missing' as const
+      if (current.id !== job.sourceRepresentationRevisionId) return 'superseded' as const
       await orm.public.ExtractionJob.create({
         ...job,
         kind: 'INTERACTIVE',
@@ -796,10 +799,6 @@ async function reviewDigest(orm: DatabaseOrm, extractionId: string): Promise<str
     .orderBy((review) => review.revisionNumber.desc())
     .first())?.decisionDigest ?? null
 }
-type DatabaseTransaction = Parameters<
-  Parameters<Database['transaction']>[0]
->[0]
-
 async function ownsResearcherJob(
   transaction: DatabaseTransaction,
   researcherAccountId: string,
@@ -1581,7 +1580,8 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
     const batchExtractionId =
       input.repetition === 'create-new' ? randomUUID() : selectionId(input)
     try {
-      const opened = await this.database.transaction(async ({ orm }) => {
+      const opened = await this.database.transaction(async (transaction) => {
+        const { orm } = transaction
         if (
           !(await orm.public.ProjectContext.select('id').first({
             id: input.projectContextId,
@@ -1622,16 +1622,18 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
           sourceDocumentId: string
           sourceRepresentationRevisionId: string
         }> = []
+        // canonicalIds' sorted order is the deadlock guard: batches sharing members lock alike.
         for (const sourceDocumentId of canonicalIds(
           input.sourceDocumentIds,
         )) {
-          if (!(await lockSourceDocumentRow(orm, sourceDocumentId))) return 'missing' as const
           if (
             !(await orm.public.SourceDocument.select('id').first({
               id: sourceDocumentId,
               projectContextId: input.projectContextId,
             }))
           )
+            return 'missing' as const
+          if (!(await lockSourceDocumentRow(transaction, sourceDocumentId)))
             return 'missing' as const
           const representation =
             await orm.public.SourceRepresentationRevision.where({

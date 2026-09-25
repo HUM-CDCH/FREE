@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+Date: 2026-09-25. Status: **implemented on branch fix/superseded-revision-admission (8684e8a..6d4f508 plus this fix wave).**
+
 **Goal:** A new interactive Extraction is admitted only on the document's current Source Representation Revision, decided under a Source Document row lock that reprocess publication also takes, and a stale request gets HTTP 409 `source_representation_superseded`.
 
 **Architecture:** One helper in `packages/db` takes a transaction-held lock on a Source Document row (a no-op ORM update: the Prisma Next runtime executes only prepared builder statements and the builder has no `FOR UPDATE` clause). Reprocess publication, single-run admission and batch admission call it before they read the document's latest revision, so the two writers are serialized and the check-then-insert window under Read Committed closes. The rule runs only for a new Extraction identity, after ownership and replay resolution, so identical repeats still replay. The Studio API maps the new error code to 409; the client already shows run-creation errors.
@@ -27,7 +29,7 @@
 1. **An identical repeat of an already admitted run, sent after a reprocess, must replay and never answer 409.** Task 2's test "replays an identical request after a reprocess" pins it.
 2. **A run admitted before a reprocess must survive as a historical attempt with executable inputs.** Task 2's test "keeps a run admitted before a reprocess" pins it.
 3. **A stale request must leave no row behind:** no `ExtractionJob`, and a repeat with a fresh ID must still be refused, not replayed from a phantom row. Task 2's first test asserts the missing row.
-4. **Two documents locked in different orders must not deadlock:** batch admission locks in canonical sorted order, and a single run locks one row. Task 3's test runs a batch and a reprocess of one of its members concurrently and expects both to finish.
+4. **Two documents locked in different orders must not deadlock:** the guard is `canonicalIds`' sorted order, in which batch admission locks its members (pinned by the batch ordering test "rejects duplicate members, atomically pins valid members…", which asserts sorted members, and by the comment on the member loop); a single run or a reprocess locks one row. Task 3's test that runs a batch and a reprocess of one of its members concurrently is a liveness smoke test: both finish, and the member pins either revision.
 5. **A foreign or unknown document must still read as missing, not as superseded:** the lock helper's `false` return maps to the existing `missing` path. Task 2's test "conceals a foreign document" pins it.
 
 ---

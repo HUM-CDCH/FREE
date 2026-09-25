@@ -85,7 +85,9 @@ Postgres integration tier, `packages/extraction/src/extraction-module.integratio
 
 ## Out of scope
 
-The client refresh of pinned routes on reprocess (a background refresh that keeps the workspace on failure); the Prisma Next telemetry env line in the e2e harness and in deployment; exposing the persisted `catalogRecipe` on failed attempts (M4); the four cosmetic notes on the M1 verification record.
+The client refresh of pinned routes on reprocess (a background refresh that keeps the workspace on failure); the Prisma Next telemetry env line in the e2e harness and in deployment; exposing the persisted `catalogRecipe` on failed attempts (M4); the four cosmetic notes on the M1 verification record. A stale tab that still offers Run gets the 409, and the client then shows its error card and hides the earlier results until the researcher navigates away (`useExtraction.ts:417-421`, `ResultsTab.tsx:678`, `:959`); the deferred client follow-up owns this.
+
+**Known limits:** an identical repeat queued behind a reprocess in a three-way race answers 409 instead of replaying; unreachable from Studio, which never re-posts an ID; revisit in M4.
 
 ## Review log
 

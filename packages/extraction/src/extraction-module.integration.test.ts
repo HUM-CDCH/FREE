@@ -684,15 +684,36 @@ if (!disposableDatabaseUrl) {
       await assert.rejects(module.runSingle({ ...input, strategy: 'CATALOG' }), rejectsWithCode('extraction_id_conflict'))
     })
 
-    it('keeps a run admitted before a reprocess as a historical attempt', async (t) => {
+    it('keeps a run admitted before a reprocess and executes it on its original revision', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
       const document = project.documents[0]!
-      const { module } = createRuntime(project.researcherAccountId)
-      const completed = await module.runSingle(freshInput(project))
+      const { runtime } = createRuntime(project.researcherAccountId)
+      const scheduledModule = runtime.forResearcher(project.researcherAccountId)
+      const input = freshInput(project)
+      const queued = await scheduledModule.runSingle(input)
+      assert.equal(queued.extraction.executionStatus, 'QUEUED')
       await addRepresentation(document, 'article-v2.pdf')
-      const historical = await module.readDocumentExtractions({ sourceDocumentId: document.sourceDocumentId, extractionId: completed.extraction.extractionId })
-      assert.equal(historical?.latestAttempt?.sourceRepresentationRevisionId, document.sourceRepresentationRevisionId)
+      const controller = new AbortController()
+      const running = runtime.run(controller.signal)
+      let executed
+      try {
+        const deadline = Date.now() + 5_000
+        for (;;) {
+          executed = await scheduledModule.readExtractionAttempt(input.extractionId)
+          if (executed?.executionStatus === 'COMPLETED' || executed?.executionStatus === 'FAILED') break
+          if (Date.now() >= deadline)
+            throw new Error(`Timed out waiting for Extraction ${input.extractionId}.`)
+          const turn = Promise.withResolvers<void>()
+          setImmediate(turn.resolve)
+          await turn.promise
+        }
+      } finally {
+        controller.abort()
+        await running
+      }
+      assert.equal(executed?.executionStatus, 'COMPLETED')
+      assert.equal(executed?.sourceRepresentationRevisionId, document.sourceRepresentationRevisionId)
     })
 
     it('refuses a run that was admitted while a reprocess published a newer revision', async (t) => {
@@ -703,7 +724,7 @@ if (!disposableDatabaseUrl) {
       const input = freshInput(project)
       await assert.rejects(
         withHeldSourceDocumentLock(
-          process.env.EXTRACTION_TEST_DATABASE_URL!,
+          disposableDatabaseUrl,
           document.sourceDocumentId,
           () => module.runSingle(input),
           async (run) => {
@@ -728,7 +749,7 @@ if (!disposableDatabaseUrl) {
       const { module } = createRuntime(project.researcherAccountId)
       const revisionTwo = randomUUID()
       const scheduled = await withHeldSourceDocumentLock(
-        process.env.EXTRACTION_TEST_DATABASE_URL!,
+        disposableDatabaseUrl,
         document.sourceDocumentId,
         () => module.scheduleBatch({
           projectContextId: project.projectContextId,
@@ -775,12 +796,22 @@ if (!disposableDatabaseUrl) {
       ])
       assert.ok(scheduled)
       assert.ok(revised)
+      // Either order is valid; the member pins whichever revision was current when it locked.
+      const member = scheduled.batch.members.find(
+        (candidate) => candidate.sourceDocumentId === two.sourceDocumentId,
+      )
+      assert.ok(
+        member?.sourceRepresentationRevisionId === two.sourceRepresentationRevisionId ||
+          member?.sourceRepresentationRevisionId === revised.sourceRepresentationId,
+      )
     })
 
     it('conceals a foreign document behind the same missing answer', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
       const foreign = await seedProject()
+      // Supersede the foreign revision: checking currency before ownership would answer superseded.
+      await addRepresentation(foreign.documents[0]!, 'foreign-v2.pdf')
       const { module } = createRuntime(project.researcherAccountId)
       await assert.rejects(
         module.runSingle({ ...freshInput(project), sourceRepresentationRevisionId: foreign.documents[0]!.sourceRepresentationRevisionId }),

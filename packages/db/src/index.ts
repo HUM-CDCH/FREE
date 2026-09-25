@@ -14,4 +14,4 @@ export type {
 export * from './project-store.js'
 export { lockSourceDocumentRow } from './row-lock.js'
 export { db } from './prisma/db.js'
-export type { Database, DatabaseOrm } from './prisma/db.js'
+export type { Database, DatabaseOrm, DatabaseTransaction } from './prisma/db.js'
