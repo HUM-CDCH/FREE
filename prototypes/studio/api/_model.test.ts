@@ -5,7 +5,6 @@ import {
   streamChatWithModel,
 } from './_model.js'
 import type { ExecutionTarget } from './_provider.js'
-import { DELETE as clearLlmInspector } from './llm_inspector.js'
 
 const { generateTextMock, streamTextMock } = vi.hoisted(() => ({
   generateTextMock: vi.fn(),
@@ -52,7 +51,6 @@ function stubNuExtractResponse(content: string, finishReason = 'stop') {
 afterEach(() => {
   vi.unstubAllGlobals()
   generateTextMock.mockReset()
-  clearLlmInspector()
 })
 
 describe('generateSchemaWithModel', () => {

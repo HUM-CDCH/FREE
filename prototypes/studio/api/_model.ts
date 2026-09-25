@@ -19,7 +19,6 @@ import {
 } from './_http.js'
 import { parseTemplate } from './_model_output.js'
 import { readModelConfig } from './_model_config.js'
-import { inspectHttpExchange, inspectTarget } from './_llm_inspector.js'
 import {
   appendProviderResource,
   resolveCapabilityRoute,
@@ -86,7 +85,7 @@ async function operationTarget(
     ...dependencies,
     readConfig: dependencies.readConfig ?? (() => readModelConfig()),
   })
-  return inspectTarget(operation, resolved)
+  return resolved
 }
 
 export async function streamChatWithModel(
@@ -146,7 +145,7 @@ export async function generateSchemaWithModel(
           temperature,
           signal,
         })
-      : await generateWithNuExtract('schema-suggestion', resolved, {
+      : await generateWithNuExtract(resolved, {
           mode: 'template-generation',
           documentParts: [{ type: 'text', text: guidance }, ...documentParts.parts],
           temperature,
@@ -252,7 +251,6 @@ async function generateWithGenericJsonPrompt(
  * `template-generation` leads the document content in the message itself.
  */
 async function generateWithNuExtract(
-  operation: ModelOperation,
   target: NuExtractExecutionTarget,
   input: {
     readonly mode: NuExtractMode
@@ -273,20 +271,15 @@ async function generateWithNuExtract(
   })
   let response: Response
   try {
-    response = await inspectHttpExchange(
-      operation,
-      target,
-      { url, method: 'POST', body: JSON.parse(requestBody) },
-      () => requestFetch(url, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          ...(target.authorization === null ? {} : { authorization: target.authorization }),
-        },
-        body: requestBody,
-        signal: input.signal,
-      }),
-    )
+    response = await requestFetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(target.authorization === null ? {} : { authorization: target.authorization }),
+      },
+      body: requestBody,
+      signal: input.signal,
+    })
   } catch (error) {
     throw asModelOperationError(error, 'NuExtract generation failed.')
   }

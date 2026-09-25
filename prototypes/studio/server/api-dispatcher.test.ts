@@ -5,7 +5,6 @@ import {
   createApiDispatcher,
   createApiHandlerRegistry,
   dispatchApiRequest,
-  dispatchDevelopmentApiRequest,
   isSourceDocumentIngestionPath,
 } from './api-dispatcher.js'
 
@@ -183,21 +182,6 @@ describe('eager API dispatcher', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ status: 'ok' })
     expect(apiHandlerName('/api/llm_inspector')).toBeNull()
-  })
-
-  it('adds the inspector only to the explicit development registry', async () => {
-    const response = await dispatchDevelopmentApiRequest(
-      new Request('https://studio.example/api/llm_inspector'),
-      STORE,
-    )
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ traces: [] })
-
-    const production = await dispatchApiRequest(
-      new Request('https://studio.example/api/llm_inspector'),
-      STORE,
-    )
-    expect(production.status).toBe(404)
   })
 
   it('recognizes only the source-document collection as an ingestion path', () => {
