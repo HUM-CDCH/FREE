@@ -2,7 +2,7 @@
   "name": "parsing-service",
   "private": true,
   "scripts": {
-    "install:python": "uv sync --frozen",
+    "install:python": "node ../../scripts/install-python.mjs",
     "test": "uv run --no-sync pytest -q -m \"not postgres and not live_model\"",
     "test:postgres": "uv run --no-sync pytest -q -m \"postgres and not live_model\"",
     "test:live-model": "uv run --no-sync pytest -q -m \"live_model and not postgres\"",

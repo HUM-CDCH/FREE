@@ -35,6 +35,14 @@ function validateFixedTarget(name, value, expectedDatabase, expectedValue) {
     throw new Error(`${name} must be the fixed disposable CI database URL.`)
 }
 
+export function skipsPython(environment) {
+  return environment.FREE_SKIP_PYTHON === '1'
+}
+
+export function ciTestScript(environment) {
+  return skipsPython(environment) ? 'test:all:node' : 'test:all'
+}
+
 export function validateCiEnvironment(environment) {
   if (environment.CI !== 'true')
     throw new Error('pnpm test:ci requires CI=true.')
@@ -42,7 +50,9 @@ export function validateCiEnvironment(environment) {
   const databaseUrl = required(environment, 'DATABASE_URL')
   const extractionUrl = required(environment, 'EXTRACTION_TEST_DATABASE_URL')
   const projectStoreUrl = required(environment, 'PROJECT_STORE_POSTGRES_URL')
-  const parsingUrl = required(environment, 'PARSING_TEST_DATABASE_URL')
+  const parsingUrl = skipsPython(environment)
+    ? environment.PARSING_TEST_DATABASE_URL ?? null
+    : required(environment, 'PARSING_TEST_DATABASE_URL')
 
   if (databaseUrl !== extractionUrl)
     throw new Error(
@@ -63,12 +73,13 @@ export function validateCiEnvironment(environment) {
     'free_test_project_store',
     CI_DATABASE_URLS.projectStore,
   )
-  validateFixedTarget(
-    'PARSING_TEST_DATABASE_URL',
-    parsingUrl,
-    'free_test_parsing',
-    CI_DATABASE_URLS.parsing,
-  )
+  if (parsingUrl !== null)
+    validateFixedTarget(
+      'PARSING_TEST_DATABASE_URL',
+      parsingUrl,
+      'free_test_parsing',
+      CI_DATABASE_URLS.parsing,
+    )
 
   return { databaseUrl, extractionUrl, projectStoreUrl, parsingUrl }
 }
@@ -105,7 +116,7 @@ export async function runCi(environment = process.env) {
     ...environment,
     DATABASE_URL: extractionUrl,
   })
-  await runPnpm(['test:all'], environment)
+  await runPnpm([ciTestScript(environment)], environment)
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1])

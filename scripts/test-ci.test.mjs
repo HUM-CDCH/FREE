@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import {
   CI_DATABASE_URLS,
+  ciTestScript,
+  skipsPython,
   validateCiEnvironment,
 } from './test-ci.mjs'
 
@@ -87,5 +90,54 @@ describe('CI database environment', () => {
       () => validateCiEnvironment(parsing),
       /PARSING_TEST_DATABASE_URL must be the fixed disposable CI database URL/,
     )
+  })
+})
+
+describe('CI without Python', () => {
+  it('chooses the node aggregate only under the variable', () => {
+    assert.equal(ciTestScript(validEnvironment()), 'test:all')
+    assert.equal(ciTestScript({ ...validEnvironment(), FREE_SKIP_PYTHON: '1' }), 'test:all:node')
+    assert.equal(ciTestScript({ ...validEnvironment(), FREE_SKIP_PYTHON: 'true' }), 'test:all')
+    assert.equal(skipsPython({ FREE_SKIP_PYTHON: '1' }), true)
+    assert.equal(skipsPython({}), false)
+  })
+
+  it('accepts a missing parsing database only when skipping Python', () => {
+    const skipping = { ...validEnvironment(), FREE_SKIP_PYTHON: '1' }
+    delete skipping.PARSING_TEST_DATABASE_URL
+    assert.deepEqual(validateCiEnvironment(skipping), {
+      databaseUrl: CI_DATABASE_URLS.extraction,
+      extractionUrl: CI_DATABASE_URLS.extraction,
+      projectStoreUrl: CI_DATABASE_URLS.projectStore,
+      parsingUrl: null,
+    })
+    const notSkipping = validEnvironment()
+    delete notSkipping.PARSING_TEST_DATABASE_URL
+    assert.throws(() => validateCiEnvironment(notSkipping), /PARSING_TEST_DATABASE_URL is required/)
+  })
+
+  it('still validates a parsing URL that is present when skipping Python', () => {
+    const stale = { ...validEnvironment(), FREE_SKIP_PYTHON: '1' }
+    stale.PARSING_TEST_DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:5432/free'
+    assert.throws(
+      () => validateCiEnvironment(stale),
+      /PARSING_TEST_DATABASE_URL must be the fixed disposable CI database URL/,
+    )
+  })
+
+  it('the full chains end with the Parsing Service tiers', () => {
+    const { scripts } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+    assert.equal(scripts['test:unit'], 'pnpm test:unit:node && pnpm --filter parsing-service test')
+    assert.equal(scripts['test:postgres'], 'pnpm test:postgres:node && pnpm --filter parsing-service test:postgres')
+    assert.equal(
+      scripts['test:all:node'],
+      'pnpm typecheck && pnpm lint && pnpm test:unit:node && pnpm test:safety && pnpm test:postgres:node && pnpm test:e2e',
+    )
+    assert.equal(
+      scripts['test:all'],
+      'pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:safety && pnpm test:postgres && pnpm test:e2e && pnpm test:service',
+    )
+    assert.ok(!scripts['test:unit:node'].includes('parsing-service'))
+    assert.ok(!scripts['test:postgres:node'].includes('parsing-service'))
   })
 })
