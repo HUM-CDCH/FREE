@@ -114,7 +114,8 @@ mutating checks:
 | `pnpm test:e2e` | Playwright browser tests; creates and removes its own Docker PostgreSQL and mock-OIDC stack, migrates it, and starts Studio locally |
 | `pnpm test:service` | Isolated authenticated FREE workflow using the real Python API/worker and native PDF parsing; scripts only the extraction model boundary; checks evidence, review, and restart persistence |
 | `pnpm test:all` | All deterministic tiers: typecheck, lint, unit, safety, caller-provisioned PostgreSQL integration, E2E, and the real-service workflow |
-| `pnpm test:ci` | CI-only aggregate; verifies the fixed disposable CI targets, migrates them, and runs `test:all` |
+| `pnpm test:all:node` | The deterministic tiers that need no Python environment: typecheck, lint, Node unit (`test:unit:node`), safety, db and extraction PostgreSQL (`test:postgres:node`), and E2E |
+| `pnpm test:ci` | CI-only aggregate; verifies the fixed disposable CI targets, migrates them, and runs `test:all:node` when `FREE_SKIP_PYTHON=1` (GitHub's job), otherwise `test:all` |
 | `pnpm test:live-model` | Real Ollama and Docling smoke checks; requires the configured Ollama model and may download Docling models |
 | `pnpm test:system` | Mutating black-box contract check against the default local Compose stack and a reachable Ollama model; may start and restart the stack, changes its development database/model configuration, and leaves the stack running |
 | `pnpm typecheck` | TypeScript checks only; no services or data mutation |
@@ -122,13 +123,20 @@ mutating checks:
 
 `test:live-model` and `test:system` remain deliberately outside `test:all`
 and `test:ci`: they depend on a live model or mutate the default development
-stack. GitHub's Linux `verify` job runs `test:ci`, including the POSIX-only
-session-secret permission assertion.
+stack. GitHub's Linux `verify` job runs `test:ci` with `FREE_SKIP_PYTHON=1`:
+it installs no Python environment (the CUDA PyTorch wheels do not fit the
+hosted runner), so the Parsing Service tiers and `test:service` run locally,
+as the dated records in `docs/validation/` show: the PostgreSQL tier against
+a disposable database, the fast tier with none, and `test:service` against the
+stack it starts itself. `FREE_SKIP_PYTHON=1` also makes `pnpm install` skip
+the parsing service's `uv sync --frozen`; leave it unset on development and
+deployment hosts.
 
 `test:service` may download Docling layout weights on first use. Supply both
 `FREE_REAL_EXTRACT_URL` (a chat-completions URL) and
-`FREE_REAL_EXTRACT_MODEL` to run the same workflow against a real model; that
-optional run is outside deterministic CI.
+`FREE_REAL_EXTRACT_MODEL` to run the same workflow against a real model.
+`test:service` itself is outside CI now (it runs locally, inside `test:all`);
+the real-model variant is outside `test:all` as well.
 
 Detailed prerequisites, environment variables, and database target rules are
 in the [local development runbook](docs/operations/local-development.md).
