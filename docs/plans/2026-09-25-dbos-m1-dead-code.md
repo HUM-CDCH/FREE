@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-Status: **done 2026-09-25: implemented through 13eb18e; verification in docs/validation/2026-09-25-dbos-m1-verification.md.**
+Status: **implementation complete 2026-09-25; verification incomplete. At the tested commit ec8820d every deterministic tier passes except `test:e2e` and `test:e2e:base-path`, which fail on one lifecycle assertion that exposes a pre-existing product behaviour needing a product decision (F6 in docs/validation/2026-09-25-dbos-m1-verification.md).**
 
 ## Remaining review work
 
