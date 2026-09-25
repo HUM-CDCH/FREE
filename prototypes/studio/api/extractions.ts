@@ -50,6 +50,7 @@ function asTransportError(error: unknown): unknown {
     case 'extraction_id_conflict':
     case 'invalid_extraction_pins':
     case 'review_conflict':
+    case 'source_representation_superseded':
       return new ApiError(409, error.code, error.message, { cause: error })
     case 'invalid_schema_revision':
     case 'not_reviewable':

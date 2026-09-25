@@ -1,6 +1,6 @@
 # Superseded Source Representation admission rule — design
 
-Date: 2026-09-25. Status: **approved design; implementation plan pending.** Branch `fix/superseded-revision-admission` from `feat/kei-exp-parser` (d44cf79, after the DBOS M1 merge, PR #138).
+Date: 2026-09-25. Status: **implemented on branch fix/superseded-revision-admission.** Branch `fix/superseded-revision-admission` from `feat/kei-exp-parser` (d44cf79, after the DBOS M1 merge, PR #138).
 
 ## Context
 
