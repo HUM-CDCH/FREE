@@ -1226,6 +1226,7 @@ describe('ResultsTab extraction status', () => {
       />,
     )
 
+    expect(screen.getByText('Running')).toBeInTheDocument()
     expect(screen.getByText('Unable to update status. The extraction may still be running.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Reconnect' }))
     expect(reconnect).toHaveBeenCalledOnce()

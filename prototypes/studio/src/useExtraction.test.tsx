@@ -184,6 +184,8 @@ describe('useExtraction server-owned lifecycle', () => {
     let run!: Promise<ExtractionAttempt | null | undefined>
     act(() => { run = result.current.runExtraction() })
     await act(() => vi.advanceTimersByTimeAsync(2_000))
+    // The state alone also fits the initial QUEUED attempt; the status proves the first read was applied.
+    expect(result.current.attempt?.executionStatus).toBe('RUNNING')
     expect(result.current.state).toEqual({ status: 'running', step: 'extraction' })
     expect(result.current.review.available).toBe(false)
 

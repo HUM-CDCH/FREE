@@ -82,7 +82,8 @@ describe('generateSchemaWithModel', () => {
     )
     const [url, init] = request.mock.calls[0]!
     expect(url).toBe('http://nuextract_model:8000/v1/chat/completions')
-    expect(init.headers).toMatchObject({ authorization: 'Bearer secret' })
+    expect(init.method).toBe('POST')
+    expect(init.headers).toEqual({ 'content-type': 'application/json', authorization: 'Bearer secret' })
     const body = JSON.parse(init.body as string)
     expect(body).toMatchObject({
       model: 'numind/NuExtract3-FP8',
@@ -95,10 +96,31 @@ describe('generateSchemaWithModel', () => {
     expect(text).not.toContain('【')
   })
 
+  it('sends no authorization header for a target without a credential', async () => {
+    const request = stubNuExtractResponse('{"_description":"One grave record.","grave":[{"name":"verbatim-string"}]}')
+    await generateSchemaWithModel(
+      { document, instruction: '' },
+      { ...nuextractTarget, authorization: null },
+    )
+    expect(request.mock.calls[0]![1].headers).toEqual({ 'content-type': 'application/json' })
+  })
+
   it('maps a failed NuExtract call to a model operation failure', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response('overloaded', { status: 503 })))
     await expect(generateSchemaWithModel({ document, instruction: '' }, nuextractTarget))
       .rejects.toMatchObject({ status: 502, code: 'model_operation_failed' })
+  })
+
+  it('maps a rejected NuExtract request to a model operation failure that keeps its cause', async () => {
+    const failure = new TypeError('fetch failed')
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValueOnce(failure))
+    await expect(generateSchemaWithModel({ document, instruction: '' }, nuextractTarget))
+      .rejects.toMatchObject({
+        status: 502,
+        code: 'model_operation_failed',
+        message: 'NuExtract generation failed.',
+        cause: failure,
+      })
   })
 
   it('passes cancellation to the NuExtract request', async () => {
