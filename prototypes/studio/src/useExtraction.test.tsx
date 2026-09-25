@@ -60,6 +60,14 @@ function attempt(
   }
 }
 
+/** A QUEUED or RUNNING attempt: a job carries no values, attribution or diagnostics until it completes. */
+function jobAttempt(overrides: Partial<ExtractionAttempt> = {}): ExtractionAttempt {
+  return attempt({
+    executionStatus: 'RUNNING', outcome: null, complete: null, modelAttribution: null,
+    diagnostics: null, resultPayload: null, evidenceLinks: null, reviewable: false, ...overrides,
+  })
+}
+
 function options(initialAttempt: ExtractionAttempt | null = null) {
   return {
     schemaReady: true,
@@ -153,7 +161,7 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(result.current.review.saving).toBe(false)
   })
 
-  it('polls a queued job through provisional values to completion', async () => {
+  it('polls a queued job to completion', async () => {
     vi.useFakeTimers()
     const queued = attempt({
       executionStatus: 'QUEUED',
@@ -165,13 +173,7 @@ describe('useExtraction server-owned lifecycle', () => {
       evidenceLinks: null,
       reviewable: false,
     })
-    const provisional = attempt({
-      executionStatus: 'RUNNING',
-      outcome: null,
-      resultPayload: { records: [{ place: 'Rome' }] },
-      evidenceLinks: null,
-      reviewable: false,
-    })
+    const provisional = jobAttempt()
     vi.mocked(api.requestExtraction).mockResolvedValue(queued)
     vi.mocked(api.readExtraction)
       .mockResolvedValueOnce({ extraction: provisional, pendingReviewDecisions: null })
@@ -182,10 +184,7 @@ describe('useExtraction server-owned lifecycle', () => {
     let run!: Promise<ExtractionAttempt | null | undefined>
     act(() => { run = result.current.runExtraction() })
     await act(() => vi.advanceTimersByTimeAsync(2_000))
-    expect(result.current.state).toMatchObject({
-      status: 'ready',
-      result: { records: [{ place: 'Rome' }] },
-    })
+    expect(result.current.state).toEqual({ status: 'running', step: 'extraction' })
     expect(result.current.review.available).toBe(false)
 
     await act(async () => {
@@ -197,19 +196,14 @@ describe('useExtraction server-owned lifecycle', () => {
     vi.useRealTimers()
   })
 
-  it('keeps a checkpointed restored job cancellable', async () => {
-    const restored = attempt({
-      executionStatus: 'RUNNING',
-      outcome: null,
-      evidenceLinks: null,
-      reviewable: false,
-    })
+  it('keeps a restored running job cancellable', async () => {
+    const restored = jobAttempt()
     vi.mocked(api.cancelExtraction).mockResolvedValue(undefined)
     const { result, unmount } = renderHook(() =>
       useExtraction(options(restored)),
     )
 
-    expect(result.current.state.status).toBe('ready')
+    expect(result.current.state.status).toBe('running')
     await act(() => result.current.requestCancellation())
 
     expect(api.cancelExtraction).toHaveBeenCalledWith(restored.extractionId)
@@ -218,12 +212,7 @@ describe('useExtraction server-owned lifecycle', () => {
 
   it('keeps polling through transient schema hydration for a restored job', async () => {
     vi.useFakeTimers()
-    const restored = attempt({
-      executionStatus: 'RUNNING',
-      outcome: null,
-      evidenceLinks: null,
-      reviewable: false,
-    })
+    const restored = jobAttempt()
     vi.mocked(api.readExtraction).mockResolvedValue({
       extraction: attempt(),
       pendingReviewDecisions: [],
@@ -265,12 +254,7 @@ describe('useExtraction server-owned lifecycle', () => {
   it('ignores a stale restored-job read after its document changes', async () => {
     vi.useFakeTimers()
     const nextRepresentationId = '55555555-5555-4555-8555-555555555555'
-    const restored = attempt({
-      executionStatus: 'RUNNING',
-      outcome: null,
-      evidenceLinks: null,
-      reviewable: false,
-    })
+    const restored = jobAttempt()
     const replacement = attempt({
       extractionId: '66666666-6666-4666-8666-666666666666',
       sourceRepresentationRevisionId: nextRepresentationId,
@@ -445,22 +429,8 @@ describe('useExtraction server-owned lifecycle', () => {
   it('monitors a restored previous-schema run after a document switch and offers its review', async () => {
     vi.useFakeTimers()
     const previousRevisionId = '66666666-6666-4666-8666-666666666666'
-    const restored = attempt({
-      extractionId: '77777777-7777-4777-8777-777777777777',
-      schemaRevisionId: previousRevisionId,
-      executionStatus: 'RUNNING',
-      outcome: null,
-      evidenceLinks: null,
-      reviewable: false,
-    })
-    const finished = attempt({
-      ...restored,
-      executionStatus: 'COMPLETED',
-      outcome: 'SUCCEEDED',
-      resultPayload: { records: [{ title: 'Grounded' }] },
-      evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' }],
-      reviewable: true,
-    })
+    const restored = jobAttempt({ extractionId: '77777777-7777-4777-8777-777777777777', schemaRevisionId: previousRevisionId })
+    const finished = attempt({ extractionId: restored.extractionId, schemaRevisionId: previousRevisionId, resultPayload: { records: [{ title: 'Grounded' }] }, evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' }], reviewable: true })
     const pending = [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1', reviewedOccurrenceIds: ['occurrence-1'], action: 'APPROVED' as const, reviewedValue: null }]
     vi.mocked(api.readExtraction).mockResolvedValue({ extraction: finished, pendingReviewDecisions: pending })
     const onTerminal = vi.fn()
@@ -471,7 +441,7 @@ describe('useExtraction server-owned lifecycle', () => {
     )
 
     hook.rerender({ initialAttempt: restored, documentKey: 'second' })
-    expect(hook.result.current.state.status).toBe('ready')
+    expect(hook.result.current.state.status).toBe('running')
     expect(hook.result.current.attempt?.extractionId).toBe(restored.extractionId)
     await act(() => vi.advanceTimersByTimeAsync(2_000))
 

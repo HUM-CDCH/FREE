@@ -175,38 +175,6 @@ describe('ResultsTab grounded values', () => {
     expect(Object.keys(result.records[0])).toEqual(['year', 'title'])
   })
 
-  it('shows checkpointed values while Evidence linking keeps export and review disabled', () => {
-    const provisional: ExtractionAttempt = {
-      ...articleAttempt,
-      executionStatus: 'RUNNING',
-      outcome: null,
-      evidenceLinks: null,
-      reviewable: false,
-      reviewedAt: null,
-      reviewDecisions: [],
-    }
-    render(
-      <ResultsTab
-        {...defaultRunProps}
-        controller={controller({
-          status: 'ready',
-          result: provisional.resultPayload!,
-          evidenceLinks: [],
-          ungroundedCount: 0,
-        }, provisional)}
-        schemaReady
-        exportSchema={currentExportSchema}
-        documentMarkdown="# Source"
-        sourceDocumentName="source.pdf"
-      />,
-    )
-
-    expect(screen.getByText('Values extracted · linking Evidence…')).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Rerun' })).toBeDisabled()
-    expect(screen.queryByRole('button', { name: 'Save Review' })).not.toBeInTheDocument()
-  })
-
   it('renders markup-like schema names and extracted values as inert text', () => {
     const fieldName = '<script>field-secret</script>'
     const value = '<img src=x onerror="value-secret">'
@@ -1242,18 +1210,19 @@ describe('ResultsTab extraction status', () => {
       <ResultsTab
         {...defaultRunProps}
         controller={{
-          ...controller({ status: 'ready', result: { records: [{ place: 'Rome' }] }, evidenceLinks: [], ungroundedCount: 0 }, { ...articleAttempt, executionStatus: 'RUNNING', outcome: null, resultPayload: { records: [{ place: 'Rome' }] }, evidenceLinks: null, reviewable: false }),
+          ...controller({ status: 'running', step: 'extraction' }, {
+            ...articleAttempt, executionStatus: 'RUNNING', outcome: null, complete: null,
+            modelAttribution: null, diagnostics: null, resultPayload: null, evidenceLinks: null, reviewable: false,
+          }),
           monitorError: 'Unable to update status. The extraction may still be running.',
           reconnect,
         }}
         schemaReady
         documentMarkdown="# Source"
-        sourceDocumentName="provisional.pdf"
+        sourceDocumentName="running.pdf"
       />,
     )
 
-    expect(screen.getByText('Running · provisional results')).toBeInTheDocument()
-    expect(screen.getByText('Values extracted · linking Evidence…')).toBeInTheDocument()
     expect(screen.getByText('Unable to update status. The extraction may still be running.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Reconnect' }))
     expect(reconnect).toHaveBeenCalledOnce()

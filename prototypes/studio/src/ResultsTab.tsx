@@ -322,10 +322,6 @@ function statusLabel(state: ExtractionState, attempt: ExtractionAttempt | null):
           ? 'Running'
           : 'Starting'
     case 'ready':
-      if (attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING')
-        return 'Running · provisional results'
-      if (attempt?.executionStatus === 'FAILED') return 'Failed · partial results'
-      if (attempt?.outcome === 'CANCELLED') return 'Cancelled · partial results'
       return attempt?.complete === false ? 'Completed · incomplete' : 'Completed'
   }
 }
@@ -534,7 +530,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
   const displayResult = useMemo(() => pinnedSchema
     ? orderResultFields(unorderedResult, pinnedSchema.schemaNodes)
     : unorderedResult, [unorderedResult, pinnedSchema])
-  const provisional = attempt !== null && attempt.executionStatus !== 'COMPLETED'
   const activeAttempt =
     attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
   const stats = useMemo(
@@ -639,13 +634,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
       {state.status === 'ready' && stats && (
         <>
           <div className="shrink-0 border-b border-line bg-surface px-3 py-2">
-            {provisional && (
-              <p className="mb-2 text-[11.5px] font-semibold text-ink-muted" role="status">
-                {attempt?.executionStatus === 'FAILED'
-                  ? `Evidence linking stopped: ${attempt.failure?.message ?? 'the Extraction failed.'}`
-                  : 'Values extracted · linking Evidence…'}
-              </p>
-            )}
             <div className="flex flex-wrap gap-1.5">
               {/* {summaryItem(
                 'Status',
@@ -670,7 +658,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
               <div className="flex min-w-0 flex-wrap gap-1.5">
                 <ExtractionResultExportControl
                   schema={exportSchema}
-                  disabled={displayResult === null || provisional}
+                  disabled={displayResult === null}
                   onExport={async (format, choices) => {
                     if (displayResult === null || exportSchema === null) return
                     await exportExtractionResult(displayResult, {

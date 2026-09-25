@@ -328,18 +328,11 @@ export const extractionAttemptSchema = z
           attempt.reviewedAt === null && attempt.reviewDecisions.length === 0 &&
           (attempt.outcome === 'FAILED' ? attempt.failure !== null : attempt.failure === null)
     )
-    const checkpointFields = [
-      attempt.complete,
-      attempt.modelAttribution,
-      attempt.diagnostics,
-      attempt.resultPayload,
-    ]
-    const checkpointed = checkpointFields.every((value) => value !== null)
-    const emptyCheckpoint = checkpointFields.every((value) => value === null)
     const jobShape = !completed && attempt.outcome === null &&
       attempt.evidenceLinks === null && !attempt.reviewable &&
       attempt.reviewedAt === null && attempt.reviewDecisions.length === 0 &&
-      (checkpointed || emptyCheckpoint) &&
+      attempt.complete === null && attempt.modelAttribution === null &&
+      attempt.diagnostics === null && attempt.resultPayload === null &&
       (attempt.executionStatus === 'FAILED'
         ? attempt.failure !== null
         : attempt.failure === null)

@@ -40,7 +40,7 @@ const completed = {
 } as const
 
 describe('Article lifecycle contracts', () => {
-  it('accepts queued and checkpointed running jobs but rejects partial checkpoints', () => {
+  it('accepts queued and running jobs only while they carry no values', () => {
     const queued = {
       ...completed,
       executionStatus: 'QUEUED',
@@ -53,6 +53,7 @@ describe('Article lifecycle contracts', () => {
       reviewable: false,
     }
     expect(extractionAttemptSchema.safeParse(queued).success).toBe(true)
+    expect(extractionAttemptSchema.safeParse({ ...queued, executionStatus: 'RUNNING' }).success).toBe(true)
     expect(extractionAttemptSchema.safeParse({
       ...queued,
       executionStatus: 'RUNNING',
@@ -60,7 +61,7 @@ describe('Article lifecycle contracts', () => {
       modelAttribution: completed.modelAttribution,
       diagnostics: completed.diagnostics,
       resultPayload: completed.resultPayload,
-    }).success).toBe(true)
+    }).success).toBe(false)
     expect(extractionAttemptSchema.safeParse({
       ...queued,
       executionStatus: 'RUNNING',

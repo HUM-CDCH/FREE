@@ -21,7 +21,6 @@ it('relays the remote artifact and reports terminal promotion failure', async ()
       kind: 'fresh', extractionId, sourceRepresentationRevisionId,
       schemaRevisionId, strategy: 'ARTICLE',
     },
-    checkpoint: null,
     lease,
   }
   const events: string[] = []
@@ -36,7 +35,6 @@ it('relays the remote artifact and reports terminal promotion failure', async ()
       return job
     },
     async renew() { return 'owned' },
-    async checkpoint() { events.push('checkpoint'); return true },
     async complete() { events.push('complete'); throw new Error('promotion failed') },
     async fail(_id, _lease, failure) {
       events.push('fail')
@@ -78,7 +76,6 @@ it('reports remote execution failure without promoting a result', async () => {
       sourceRepresentationRevisionId: randomUUID(),
       schemaRevisionId: randomUUID(), strategy: 'ARTICLE',
     },
-    checkpoint: null,
     lease: { owner: randomUUID(), version: 1, expiresAt: new Date(Date.now() + 60_000) },
   }
   let available = true
@@ -92,7 +89,6 @@ it('reports remote execution failure without promoting a result', async () => {
       return job
     },
     async renew() { return 'owned' },
-    async checkpoint() { return false },
     async complete() { assert.fail('failed work must not be promoted') },
     async fail(_id, _lease, failure) {
       failurePhase = failure.phase
@@ -120,7 +116,6 @@ it('records the reason kei-exp gave and still scrubs an unexpected failure', asy
         sourceRepresentationRevisionId: randomUUID(),
         schemaRevisionId: randomUUID(), strategy: 'ARTICLE',
       },
-      checkpoint: null,
       lease: { owner: randomUUID(), version: 1, expiresAt: new Date(Date.now() + 60_000) },
     }
     let available = true
@@ -134,7 +129,6 @@ it('records the reason kei-exp gave and still scrubs an unexpected failure', asy
         return job
       },
       async renew() { return 'owned' },
-      async checkpoint() { return false },
       async complete() { assert.fail('failed work must not be promoted') },
       async fail(_id, _lease, failure) {
         recorded = failure
@@ -188,12 +182,6 @@ it('does not promote a remote artifact after cancellation of a reclaimed job', a
       schemaRevisionId,
       strategy: 'ARTICLE' as const,
     },
-    checkpoint: {
-      complete: true,
-      modelAttribution: terminal.modelAttribution!,
-      diagnostics: { ...terminal.diagnostics, phase: 'grounding' as const },
-      result: terminal.result!,
-    },
     lease: { owner: randomUUID(), version: 1, expiresAt: new Date(Date.now() + 60_000) },
   }
   let available = true
@@ -208,7 +196,6 @@ it('does not promote a remote artifact after cancellation of a reclaimed job', a
       return job
     },
     async renew() { return 'cancelled' },
-    async checkpoint() { return true },
     async complete() { assert.fail('cancelled work must not be promoted') },
     async fail(_id, _lease, failure) {
       failureCode = failure.code
@@ -238,7 +225,6 @@ it('fails instead of stranding a job when terminal promotion loses its lease', a
       sourceRepresentationRevisionId,
       schemaRevisionId, strategy: 'ARTICLE',
     },
-    checkpoint: null,
     lease: { owner: randomUUID(), version: 1, expiresAt: new Date(Date.now() + 60_000) },
   }
   let available = true
@@ -253,7 +239,6 @@ it('fails instead of stranding a job when terminal promotion loses its lease', a
       return job
     },
     async renew() { return 'owned' },
-    async checkpoint() { return true },
     async complete() { return false },
     async fail(_id, _lease, failure) {
       failureCode = failure.code

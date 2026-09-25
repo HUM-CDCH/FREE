@@ -1203,6 +1203,28 @@ if (!disposableDatabaseUrl) {
       )
     })
 
+    it('reads a job holding legacy checkpoint columns as having no values yet', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const { module } = createRuntime(project.researcherAccountId)
+      const input = freshInput(project)
+      await module.runSingle(input)
+      // Rows written before e88b08f could hold checkpointed values; nothing writes them any more.
+      await db.orm.public.ExtractionJob.where({ id: input.extractionId }).updateAll({
+        executionStatus: 'RUNNING',
+        complete: true,
+        modelAttribution: { provider: 'kei-exp', modelId: 'legacy' },
+        diagnostics: { phase: 'grounding' },
+        resultPayload: { records: [{ place: 'Rome' }] },
+      })
+      const attempt = await module.readExtractionAttempt(input.extractionId)
+      assert.equal(attempt?.executionStatus, 'RUNNING')
+      assert.equal(attempt?.result, null)
+      assert.equal(attempt?.complete, null)
+      assert.equal(attempt?.modelAttribution, null)
+      assert.equal(attempt?.diagnostics, null)
+    })
+
     it('stores batch model choices on every job and completed Extraction and includes them in selection identity', async (t) => {
       t.after(cleanup)
       const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])

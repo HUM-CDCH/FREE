@@ -369,11 +369,15 @@ describe('/api/extractions transport', () => {
     })
   })
 
-  it('reads provisional job values without granting review authority', async () => {
-    const provisional = {
+  it('reads a running job without values or review authority', async () => {
+    const running = {
       ...attemptSnapshot,
       executionStatus: 'RUNNING' as const,
       outcome: null,
+      complete: null,
+      modelAttribution: null,
+      diagnostics: null,
+      result: null,
       evidence: null,
       failure: null,
       reviewable: false,
@@ -381,7 +385,7 @@ describe('/api/extractions transport', () => {
       reviewDecisions: [],
     }
     const module = extractionModule({
-      readExtractionAttempt: vi.fn(async () => provisional),
+      readExtractionAttempt: vi.fn(async () => running),
     })
     const response = await handlerFor(module)(
       new Request(`http://test/api/extractions/${EXTRACTION}`),
@@ -392,13 +396,14 @@ describe('/api/extractions transport', () => {
       extraction: {
         executionStatus: 'RUNNING',
         outcome: null,
-        resultPayload: snapshot.result,
+        resultPayload: null,
         evidenceLinks: null,
         reviewable: false,
       },
       pendingReviewDecisions: null,
     })
     expect(module.prepareReview).not.toHaveBeenCalled()
+    expect(module.readReviewDraft).not.toHaveBeenCalled()
   })
 
   it('uses bounded cancellation and domain-error HTTP mappings', async () => {

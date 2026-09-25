@@ -19,7 +19,6 @@ import type {
   ExtractionInputReader,
   ExtractionPersistence,
   ExtractionJobFailure,
-  ExtractionValueCheckpoint,
   InternalExtractionJobStore,
   PersistedReviewResult,
   LoadedExtractionInputs,
@@ -256,10 +255,6 @@ async function loadExtractionAttempt(
     'strategy',
     'requestedModels',
     'executionStatus',
-    'complete',
-    'modelAttribution',
-    'diagnostics',
-    'resultPayload',
     'failure',
     'batchExtractionId',
     'createdAt',
@@ -296,10 +291,10 @@ async function loadExtractionAttempt(
     requestedModels: modelChoice(row.requestedModels),
     executionStatus: row.executionStatus,
     outcome: null,
-    complete: row.complete,
-    modelAttribution: row.modelAttribution as ExtractionAttemptSnapshot['modelAttribution'],
-    diagnostics: row.diagnostics as ExtractionAttemptSnapshot['diagnostics'],
-    result: row.resultPayload as ExtractionAttemptSnapshot['result'],
+    complete: null,
+    modelAttribution: null,
+    diagnostics: null,
+    result: null,
     evidence: null,
     failure: row.failure as ExtractionAttemptSnapshot['failure'],
     reviewable: false,
@@ -1022,7 +1017,6 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
       }).select(
         'id', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'catalogRecipe', 'requestedModels',
         'batchExtractionId', 'leaseVersion', 'startedAt', 'createdAt',
-        'complete', 'modelAttribution', 'diagnostics', 'resultPayload',
       ).orderBy([
         (job) => job.createdAt.asc(),
         (job) => job.id.asc(),
@@ -1033,7 +1027,7 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
       }).select(
         'id', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'catalogRecipe', 'requestedModels',
         'batchExtractionId', 'leaseVersion', 'leaseExpiresAt', 'startedAt', 'createdAt',
-        'cancelRequestedAt', 'complete', 'modelAttribution', 'diagnostics', 'resultPayload',
+        'cancelRequestedAt',
       ).orderBy([
         (job) => job.createdAt.asc(),
         (job) => job.id.asc(),
@@ -1056,7 +1050,7 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
           failure: {
             code: 'cancelled',
             message: 'Extraction cancelled.',
-            phase: candidate.resultPayload === null ? 'extracting' : 'grounding',
+            phase: 'extracting',
           },
           finishedAt: now,
           leaseOwner: null,
@@ -1113,20 +1107,8 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
             catalogRecipe: candidate.catalogRecipe,
             models: modelChoice(candidate.requestedModels),
           }
-      const checkpoint = candidate.resultPayload !== null &&
-          candidate.complete !== null &&
-          candidate.modelAttribution !== null &&
-          candidate.diagnostics !== null
-        ? {
-            result: candidate.resultPayload as Readonly<Record<string, unknown>>,
-            complete: candidate.complete,
-            modelAttribution: candidate.modelAttribution as ExtractionValueCheckpoint['modelAttribution'],
-            diagnostics: candidate.diagnostics as ExtractionValueCheckpoint['diagnostics'],
-          }
-        : null
       return {
         input,
-        checkpoint,
         lease: { owner, version, expiresAt: leaseExpiresAt },
       }
     }
@@ -1155,26 +1137,6 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
       leaseVersion: lease.version,
     }).updateAll({ leaseExpiresAt: expiresAt })
     return updated.length === 1 ? 'owned' : 'lost'
-  }
-
-  async checkpoint(
-    id: string,
-    lease: ClaimedExtractionJob['lease'],
-    checkpoint: ExtractionValueCheckpoint,
-  ): Promise<boolean> {
-    const updated = await this.database.orm.public.ExtractionJob.where({
-      id,
-      executionStatus: 'RUNNING',
-      leaseOwner: lease.owner,
-      leaseVersion: lease.version,
-      cancelRequestedAt: null,
-    }).updateAll({
-      complete: checkpoint.complete,
-      modelAttribution: checkpoint.modelAttribution,
-      diagnostics: checkpoint.diagnostics,
-      resultPayload: checkpoint.result,
-    })
-    return updated.length === 1
   }
 
   async complete(
@@ -1218,10 +1180,6 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
         cancelRequestedAt: null,
       }).updateAll({
         executionStatus: 'COMPLETED',
-        complete: null,
-        modelAttribution: null,
-        diagnostics: null,
-        resultPayload: null,
         failure: null,
         finishedAt,
         leaseOwner: null,
