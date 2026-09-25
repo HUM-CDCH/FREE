@@ -194,34 +194,6 @@ def test_an_ingest_setting_that_cannot_apply_is_refused_before_admission(
     assert not [path for path in runs.RUNS.iterdir() if not path.name.startswith(".")]
 
 
-def test_the_source_pdf_is_served_back_byte_for_byte(client: TestClient, digital_pdf: Path) -> None:
-    """`source_sha256` in the params and in the result's recipe identifies the input bytes; a consumer that
-    holds the hash must be able to fetch those very bytes again, so the run's own copy is served as it is."""
-    with digital_pdf.open("rb") as handle:
-        response = client.post("/api/runs", files={"pdf": ("main.pdf", handle, "application/pdf")},
-                               data={"model": "granite_vision", "cut": "none", "debug": "false"})
-    assert response.status_code == 202, response.text
-    run_id = response.json()["id"]
-    served = client.get(f"/api/runs/{run_id}/source.pdf")
-    assert served.status_code == 200, served.text
-    assert served.headers["content-type"] == "application/pdf"
-    assert served.content == digital_pdf.read_bytes()
-    assert sha256_file(digital_pdf) == response.json()["params"]["source_sha256"]
-
-
-def test_a_historical_run_without_its_source_pdf_answers_404(client: TestClient) -> None:
-    """A run directory that kept no `input.pdf` (a historical run whose upload was reclaimed) has no source to
-    serve: 404, rather than an empty or partial body a consumer could hash."""
-    directory = runs.RUNS / "20260101-000000-surya-abcd"
-    directory.mkdir(parents=True)
-    runs.write_json(directory / "params.json", {"id": directory.name, "created": "2026-01-01T00:00:00+00:00",
-                                                "source_name": "old.pdf", "page_count": 2, "transcriber": "surya",
-                                                "model": "surya", "cut": "auto", "crop_dpi": 250,
-                                                "layout_model": "layout_heron_101", "page_source": "pdf"})
-    assert client.get(f"/api/runs/{directory.name}/source.pdf").status_code == 404
-    assert client.get("/api/runs/20260101-000000-surya-none/source.pdf").status_code == 404  # no such run
-
-
 def test_a_full_slot_answers_429(client: TestClient, digital_pdf: Path, monkeypatch) -> None:
     monkeypatch.setattr(api, "ADMISSION_LIMIT", 0)
     with digital_pdf.open("rb") as handle:

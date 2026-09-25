@@ -53,12 +53,12 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   splitter settings such as gutter overrides; both are recorded in the parse
   recipe.
   `GET /api/runs/{id}` is the authoritative job status.
-- A completed parse exposes `/source.pdf`, `/result`, `/pages/{page}` and
-  `/output.md` below `/api/runs/{id}`. The canonical result is version 5:
-  a manifest plus hashed page files bound to one generation. Native Docling tables
-  retain cells with row/column spans, raw parent-text offsets, and measured page
-  boxes when available. Readers still verify original version 4 files. Scan
-  tables remain coarse until cell geometry has been independently evaluated.
+- A completed parse exposes `/result` and `/pages/{page}` below `/api/runs/{id}`.
+  The canonical result is version 5: a manifest plus hashed page files bound to
+  one generation. Native Docling tables retain cells with row/column spans, raw
+  parent-text offsets, and measured page boxes when available. Readers still
+  verify original version 4 files. Scan tables remain coarse until cell geometry
+  has been independently evaluated.
 - `POST /api/runs/{id}/extract` accepts `{schema, options}` against a complete
   parse. `GET /api/runs/{id}/extractions/{extraction_id}` returns its status and
   final result. Changing the schema reruns Extraction without rerunning OCR.

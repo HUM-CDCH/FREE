@@ -51,11 +51,9 @@ def test_identifiable_legacy_runs_remain_readable(directory, monkeypatch, marker
 def test_published_artifacts_do_not_need_the_store(directory, monkeypatch):
     monkeypatch.setattr(store, "record", unavailable)
     (directory / "result" / "pages").mkdir(parents=True)
-    artifacts = {"output.md": "# Accepted\n", "result/result.json": '{"schema_version":4}',
-                 "result/pages/1.json": '{"page":1}'}
+    artifacts = {"result/result.json": '{"schema_version":4}', "result/pages/1.json": '{"page":1}'}
     client = TestClient(api.app)
-    for path, route in [("output.md", "output.md"), ("result/result.json", "result"),
-                        ("result/pages/1.json", "pages/1")]:
+    for path, route in [("result/result.json", "result"), ("result/pages/1.json", "pages/1")]:
         (directory / path).write_text(artifacts[path])
         response = client.get(f"/api/runs/run-live/{route}")
         assert response.status_code == 200 and response.content == artifacts[path].encode()

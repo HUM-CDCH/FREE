@@ -253,24 +253,6 @@ def get_run(run_id: str) -> dict:
     return {**found, "params": runs.read_json(directory / "params.json")}
 
 
-@app.get("/api/runs/{run_id}/output.md")
-def run_output(run_id: str) -> FileResponse:
-    path = run_dir(run_id) / "output.md"
-    if not path.exists():
-        raise HTTPException(404, "no output yet")
-    return FileResponse(path, media_type="text/markdown; charset=utf-8")
-
-
-@app.get("/api/runs/{run_id}/source.pdf")
-def run_source(run_id: str) -> FileResponse:
-    """The run's own copy of the input PDF: the bytes `source_sha256` names, in the params and in the result's
-    recipe. Served for any run directory that still has one, whether the store knows the run or not."""
-    path = run_dir(run_id) / "input.pdf"
-    if not path.is_file():
-        raise HTTPException(404, "this run kept no source PDF")
-    return FileResponse(path, media_type="application/pdf")
-
-
 @app.get("/api/runs/{run_id}/result")
 def run_result(run_id: str) -> FileResponse:
     """The manifest of the accepted result (kei_exp.result.Result), published once the run has an outcome."""
