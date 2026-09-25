@@ -22,6 +22,10 @@ artifacts/architecture/site/
 .playwright-mcp/
 .omo/**
 
+# Local code-analysis output (Understand-Anything, CodeBoarding), regenerated per machine
+.ua/
+.codeboarding/
+
 # Agent scratch and local e2e output
 .scratch/
 .claude/worktrees/
