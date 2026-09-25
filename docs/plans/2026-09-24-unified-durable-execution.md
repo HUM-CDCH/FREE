@@ -1,6 +1,14 @@
 # FREE on DBOS: durable jobs and AI execution
 
-Status: **sixth revision, 2026-09-25; runtime implementation has not started.**
+Status: **seventh revision, 2026-09-25; runtime implementation has not started.**
+The seventh revision folds the Model Configuration page redesign into M2
+(user, 2026-09-25, decisions 12 and 13). The page follows the researcher's
+work in three steps. The Single/Routes mode goes, and the NuExtract protocol is
+derived instead of stored. A per-account Ingestion Model Choice picks kei's OCR
+and layout models for new ingestions and reprocessing, wired through M3 and M4.
+M1 is unchanged. The decision was made on a throwaway prototype kept on branch
+`prototype/model-config-b1`.
+
 The sixth revision bumps the pins to `@dbos-inc/dbos-sdk` 5.1.10,
 `@dbos-inc/vercel-ai` 0.4.4 and `dbos` 3.1.0 after every review probe
 reproduced on them (M0R 1, passed). It narrows the chat sanitizer to what
@@ -82,6 +90,17 @@ that every other researcher's documents are sent to.
     DBOS queue deduplication joins active work.
 11. **Deleting a source preserves the batch proposal and draft as valid.**
     Remove the source from the selection without automatic regeneration.
+12. **The Model Configuration page follows the researcher's work** (prototype
+    variant B1). It has Models and Connections tabs. Models has three steps,
+    reading documents, schema and chat, and extracting data, and names no
+    service. The Interaction Route is labelled *Assistant model*, and Schema
+    Suggestion follows it until given its own model: an unset Schema
+    Suggestion Route inherits the Interaction Route. There is no Single/Routes
+    mode. The NuExtract protocol is detected from the connection and model,
+    never chosen.
+13. **An Ingestion Model Choice picks kei's OCR and layout models.** It belongs
+    to the Researcher Account, like the Extraction Model Choice, and applies to
+    new ingestions and reprocessing only. Existing revisions never change.
 
 ## Rules
 
@@ -157,14 +176,16 @@ transactional enqueue, deduplication, cancellation, stream replay,
 | Worker `output.md` generation | canonical manifest/pages only; standalone CLI output stays |
 | `_keyring.ts`, `ConfigFileSystem`, the reset path, the keyring packages, every server-side credential path, the in-process write barrier, the static `model_config` / `model_probe` modules, the one-CLI-connection-per-kind rule | per-researcher configuration in PostgreSQL; keys in the researcher's browser and in Studio's memory; CLI providers as deployment connections |
 | Client-sent chat history and the fixed chat ID | `ChatTurn` rows |
+| The page's Single/Routes mode (`configurationMode()`, `setSingleConnection`, `setSingleModel`, `setRouteModel`, `setNuextractProtocol`, the single-model editor); the stored NuExtract `protocol` and its checks; Studio's `KEI_EXP_MODEL`; kei's `/api/server` and `/api/layout-models` | one route setter; the protocol derived from connection and model ID; the per-account Ingestion Model Choice and one `GET /api/ingestion-models` listing |
 | Targeted Catalog retry; extraction checkpoints and provisional UI; four tables nothing writes; the LLM inspector; ten kei routes with no production caller; legacy readers | nothing: dead today, or legacy after the reset (M1–M3) |
 
 **What this adds.**
 - One new domain table, `ChatTurn`, beside the per-researcher configuration
   table.
 - An in-memory key cache.
-- Five small routes: `GET` and `DELETE /api/model-operations`, `GET
-  /api/chat/<revision ID>` with its `/stream`, and `PUT /api/model-keys`.
+- Six small routes: `GET` and `DELETE /api/model-operations`, `GET
+  /api/chat/<revision ID>` with its `/stream`, `PUT /api/model-keys`, and
+  `GET /api/ingestion-models`, which forwards kei's new listing of that name.
 
 A transcript that survives a reload is research content, so it lives in FREE's
 tables rather than in DBOS history, whose interactive retention target is 24 h.
@@ -668,10 +689,11 @@ invisible and are collected after reference and quiescence checks.
     repeats the whole extraction, as today.
   - Python has no transport-retry loop for DBOS to replace. Its only resend is
     the unsupported-format retry (`kie/extract/llm.py:97-99`), which stays.
-- **Read API.** It keeps five routes, with their path confinement and
+- **Read API.** It keeps six routes, with their path confinement and
   manifest/page/hash checks:
   - `GET /api/models` (Compose health);
   - `/api/extraction-models`;
+  - `/api/ingestion-models` (new in M2);
   - `/api/runs/{id}/result`;
   - `/api/runs/{id}/pages/{n}`;
   - `/api/runs/{id}/extractions/{xid}`.
@@ -683,21 +705,26 @@ invisible and are collected after reference and quiescence checks.
 ## Model configuration and keys
 
 - **Ownership.** Each Researcher Account owns one configuration: its Model
-  Connections, both Capability Routes and its Extraction Model Choice.
+  Connections, both Capability Routes, its Extraction Model Choice and its
+  Ingestion Model Choice.
   - `model_config` and `model_probe` become researcher-scoped handlers instead
     of static modules (`server/api-dispatcher.ts:43-48`). A researcher reads
     and changes only their own configuration.
   - Every Studio model call, background ones included, resolves the
     configuration of the Project Context's owner; workflows carry only IDs.
     kei's parsing, OCR and extraction models stay deployment-configured
-    (`KEI_*`), and the Extraction Model Choice only selects among them.
+    (`KEI_*`); the Extraction and Ingestion Model Choices only select among
+    them.
   - The account is mandatory, so the accountless fallbacks go, such as
     `readModelConfig()` in `operationTarget` (`api/_model.ts:87`).
   - An Extraction is still requested on the Extraction Model Choice current
     when it starts, which is now the owner's.
 - **Deployment connections** stay operator-defined, read-only and shared by
-  every researcher. An unset route still falls back to the deployment's
-  default route.
+  every researcher. An unset Interaction Route still falls back to the
+  deployment's default route. An unset Schema Suggestion Route follows the
+  Interaction Route (decision 12), so it resolves `schemaSuggestion ??
+  interaction ?? defaultRoute`. Today each route resolves on its own
+  (`api/_provider.ts:681-684`).
   - The vLLM servers come from `FREE_DEPLOYMENT_*`
     (`api/_deployment_models.ts`).
   - The CLI providers run on the server's own CLI login (the CLI auth homes).
@@ -712,8 +739,8 @@ invisible and are collected after reference and quiescence checks.
     personal-CLI branches.
 - **Configuration storage.** `ModelConfiguration(researcherAccountId,
   document, updatedAt)`, cascading from the account.
-  - The document holds the researcher's connections, routes and Extraction
-    Model Choice. For each connection it records only whether the connection
+  - The document holds the researcher's connections, routes, Extraction Model
+    Choice and Ingestion Model Choice. For each connection it records only whether the connection
     uses a key (`hasKey`), never the key. Managed kinds (OpenAI, Anthropic,
     Google) always do.
   - One transaction applies a draft, serialized by a lock on the researcher's
@@ -723,6 +750,53 @@ invisible and are collected after reference and quiescence checks.
     (`shared/modelConfig.contract.ts:87`), and the response loses
     `credentialStates` (`:114-117,147`).
   - There are no revisions and no pins.
+- **Ingestion Model Choice** (decision 13).
+  - Per role, it names the kei model a new parse runs on. `ocr` is the
+    transcriber for scanned pages, a `kei_exp.models.MODELS` key. `layout` is
+    the Docling detector that cuts scanned pages into regions, a
+    `LAYOUT_MODELS` key (`kei_exp/cut.py:28`). A page with a text layer uses
+    neither (`kie/stages/ocr.py:77-82`). An omitted role keeps kei's default. It names no Model Connection. A
+    Project Context uses its owner's choice.
+  - It applies to new ingestions and reprocessing only. Completed-content
+    replay returns the existing parse even after the choice has changed, so
+    reprocessing is how a researcher applies a new choice.
+  - kei lists the options with `GET /api/ingestion-models`, shaped like
+    `/api/extraction-models`: the default per role, then the models of each
+    role. An OCR model is `serving` only while the OCR server has it loaded
+    (`loaded_model(VLLM_URL)`), since that server loads one model; `serving`
+    is what the listing observed, not a promise. Layout detectors are presets
+    that run inside kei and are always selectable; each loads on first use
+    (`cut.py:85-86`). Studio forwards the listing, beside
+    `api/extraction_models.ts`. It replaces `/api/server` and
+    `/api/layout-models`, which M1 deletes as unused.
+  - A listing failure blocks neither ingestion nor other configuration edits.
+    A saved choice that the listing no longer offers stays saved and shown,
+    as `ExtractionModelSelect.tsx` does for extraction models today.
+  - Admission freezes the owner's explicit choices into the workflow input,
+    so a recovered attempt runs the models it was admitted with. kei resolves
+    a role left unchosen once, in its own checkpointed step when `convert`
+    starts, from the same default definition its listing reports. A recovered
+    attempt reuses that step, while queued work follows the deployment's
+    current default. An operator who swaps the OCR server's model also swaps
+    that default, so an older default would only fail the serving check.
+  - kei keeps today's checks: an unknown key is refused, and whether the OCR
+    server serves the model is decided when the conversion runs. The parse
+    recipe already records the transcriber and layout model
+    (`result.py:59-68`).
+  - Deduplication and replay keep their identities, and the models never
+    enter a dedup key or fingerprint. A same-content upload joins the active
+    attempt with that attempt's models, whatever the joiner's choice. A
+    repeated reprocess request key compares only today's fingerprint
+    (`api/source_reprocess.ts:72-74`) and reuses the admitted models; it never
+    resolves the configuration again. A new request key captures the current
+    choice.
+- **NuExtract protocol** (decision 12). The Schema Suggestion route stores no
+  `protocol`. Studio uses NuExtract's protocol exactly when the route's
+  connection supports it (vLLM, `supportsNuextract`) and its model ID names
+  NuExtract (`/nuextract/i`). This removes the contract field
+  (`shared/modelConfig.contract.ts:36-40`), its validation
+  (`api/_model_config.ts:123-130`) and the page's checkbox. The stored check in
+  `api/_provider.ts:701-703` becomes the derivation.
 - **Keys: bring your own, never stored by Studio.** A researcher's API keys
   stay in their browser. Studio keeps a copy only in process memory, never in
   PostgreSQL, on disk, in logs or in DBOS.
@@ -790,6 +864,12 @@ invisible and are collected after reference and quiescence checks.
       with `hasKey` never does. This replaces today's catches that turn a
       store error into an anonymous request (`api/_provider.ts:659`,
       `api/model_probe.ts:68`).
+    - The NuExtract protocol has no SDK model. `generateWithNuExtract`
+      (`api/_model.ts:280`) fetches vLLM directly, with an `authorization`
+      string resolved together with the route (`api/_provider.ts:628-635`).
+      It gets the same boundary: its target names the connection, not a
+      credential, and the key read, the wait, `cancelSignal` and error
+      sanitizing all happen inside the attempt.
   - **Probes** always carry the key typed or stored in the page; the server
     never looks one up for a probe.
   - **Validation errors.** `model_keys` and `model_probe` answer a malformed
@@ -815,6 +895,47 @@ invisible and are collected after reference and quiescence checks.
     - Accounts that share one browser profile share its storage. The
       per-account namespace keeps them apart for the app, not against a
       script.
+- **The page** (decision 12; reference prototype on branch
+  `prototype/model-config-b1`, `src/providerConfig/prototype/`, variant B1).
+  - Models and Connections tabs share one draft and one Apply.
+  - Models has three steps, and a step at its defaults is one sentence with a
+    Change link. "Use defaults" removes the step's stored choice. One line per
+    step says where its options come from: any of the researcher's
+    connections, or the models this deployment runs.
+    1. *Reading documents*: text recognition and page regions for scanned
+       pages, the Ingestion Model Choice.
+    2. *Schema & chat*: the *Assistant model* (the Interaction Route).
+       Schema Suggestion inherits it while its route is unset. "Use a
+       different model" stores its own route, which stays an override even
+       when it equals the Assistant model; "Use the assistant model" unsets
+       it again. The prototype inferred following from equality, and this
+       plan supersedes it.
+    3. *Extracting data*: field values and reasoning, the Extraction Model
+       Choice.
+  - There is no Single/Routes mode. A route is `{connectionId, modelId}`, or
+    unset (the deployment default, or for Schema Suggestion the Assistant
+    model), and one draft function, `assign(task,
+    target | null)`, sets it. This deletes the mode state,
+    `configurationMode()`, `setSingleConnection`, `setSingleModel`,
+    `setRouteModel` and `setNuextractProtocol`
+    (`src/providerConfig/useProviderConfigDraft.ts`), and the single-model
+    branch of `ProviderRoutesEditor.tsx`.
+  - One control picks a route's connection and model together. It groups
+    models by connection, searches, and accepts an exact model ID. The page
+    probes every eligible connection when it opens, instead of when a model
+    list first opens (`openModelList`):
+    - a deployment connection, with no credential (`api/model_probe.ts:38`);
+    - a connection without `hasKey`, anonymously;
+    - a `hasKey` connection only with this browser's key for that account,
+      provider and base. Without one it is not probed.
+
+    An edit or unmount supersedes scheduled probes and stale results, as
+    `useProbeLifecycle.ts` does today. `ModelCombobox.tsx`, `ExtractionModelSelect.tsx` and
+    `ProviderRoutesEditor.tsx` have no other user and give way to it.
+  - Connections is a list with a detail pane. Deployment connections,
+    including the CLI ones, are read-only. A connection's provider is fixed
+    once it is added. Its key is one line: saved in this browser, with Replace
+    and Remove, or an input.
 - **Reset.** Validation on write keeps the stored document valid, and future
   shape changes become migrations, so the fail-closed reset path goes.
 - **Deletions:**
@@ -838,12 +959,18 @@ invisible and are collected after reference and quiescence checks.
     held by the researcher's browser). ADR 0006 assumed one researcher on
     localhost with an OS keyring, called hosted deployment unsupported, and
     allowed any researcher-supplied API base for that reason.
-  - Amend ADR 0007, whose routes are machine-wide, and ADR 0011: the page
-    edits the signed-in researcher's configuration, and the reset paragraph
-    goes.
+  - Amend ADR 0007, whose routes are machine-wide and whose Schema Suggestion
+    route stores the NuExtract protocol; the protocol is now derived. Amend
+    ADR 0011: the page edits the signed-in researcher's configuration in three
+    steps without a Single/Routes mode, and the reset paragraph goes. ADR 0013
+    also records the Ingestion Model Choice.
   - In CONTEXT.md, Model Connection, Capability Route and Extraction Model
     Choice become owned by a Researcher Account, deployment connections
-    excepted. A Project Context uses its owner's configuration.
+    excepted. A Project Context uses its owner's configuration. Add the
+    Ingestion Model Choice. The Schema Suggestion Route uses the NuExtract
+    protocol when its model is NuExtract on a vLLM connection, and when
+    unset follows the Interaction Route. *Assistant
+    model* is the page's name for the Interaction Route.
 
 ## Cutover (clean slate)
 
@@ -894,6 +1021,11 @@ this pre-production reset as its only exception.
   takes that ID and returns 204 when its history has expired.
 - Model operations retain client IDs/base revisions, listing and owner-checked
   cancellation. Browser-key contracts remain as specified above.
+
+- Model configuration: the account's document gains `ingestionModels:
+  {ocr?, layout?}`, and `routes.schemaSuggestion` loses `protocol`. kei and
+  Studio gain `GET /api/ingestion-models`. kei's `convert` input takes
+  optional `model` and `layout_model` keys.
 
 Update schemas, handlers, browser consumers and tests together; add no legacy
 aliases or compatibility readers for this pre-production cutover.
@@ -992,6 +1124,8 @@ handlers or pages is an acceptance test of the milestone that builds it
   `e2e/real-service.spec.ts`. Keep the `kei_exp/jobs/` readers that M3
   deletes (`records`, `extractions_of`, `events_after`, `tokens.read_after`).
   Until M3, `kei_event` rows and `tokens.jsonl` then have no production reader.
+  M2 replaces `/api/server` and `/api/layout-models` with one purpose-built
+  `GET /api/ingestion-models`; M1 still deletes both.
 - **Stale assertion.** Fix `result_version == 4`
   (`tests/test_service_smoke.py:248`).
 
@@ -1001,7 +1135,9 @@ handlers or pages is an acceptance test of the milestone that builds it
     API's database environment;
   - add `source-inbox` and `FREE_DEPLOYMENT_CLI_PROVIDERS`, with both CLI
     kinds in the local development overlay;
-  - make `parsing_worker` wait for Studio's healthcheck;
+  - make `parsing_worker` wait for Studio's healthcheck, after removing
+    Studio's own `depends_on: parsing_worker` (`compose.yaml:137,142`), which
+    would otherwise form a cycle;
   - in Studio's development watch, use `sync+restart` for server code (`api/`,
     `server/`, `shared/`, `packages/`) and keep `sync` for `src/`.
 - **Studio entrypoint.** After `db:init`, create the kei role
@@ -1049,6 +1185,20 @@ handlers or pages is an acceptance test of the milestone that builds it
   - Update `model_probe.ts`, `model_config.ts`, their tests and
     `e2e/model-configuration.spec.ts`, which gains a two-account case.
   - Remove the keyring packaging; update lockfiles.
+- **Model Configuration page** (seventh revision). The prototype branch is a
+  reference to read, not code to merge.
+  - Contract: the per-account document gains `ingestionModels`, and the Schema
+    Suggestion route loses `protocol` with its checks. The provider derives
+    the protocol instead. The route resolver implements Schema Suggestion's
+    inheritance.
+  - kei's `GET /api/ingestion-models` and Studio's forwarding route.
+  - The draft's single route setter replaces the mode and its setters. Write
+    it together with this milestone's credential and key-clearing changes to
+    `useProviderConfigDraft.ts`, so the hook is rewritten once.
+  - The page as specified under *The page*.
+  - Rewrite `e2e/model-configuration.spec.ts` once, for the steps and the
+    two-account case.
+  - The Ingestion Model Choice is stored from M2 and used from M4.
 - **`scripts/free.mjs`.** Drop `parsing_db` from stop/restart.
 - **`tests/safety.test.mjs`.** Cover kei's restricted URL, a parsing API
   without database access, and the app shell's CSP.
@@ -1056,6 +1206,8 @@ handlers or pages is an acceptance test of the milestone that builds it
   - A key sent for one API base is never used for another, and a draft base
     change never probes the new base with the old key. Sign-out and key
     removal clear the cache.
+  - Opening the page sends each probe exactly the credential the rules allow,
+    checked by inspecting the requests.
   - A stale tab's handoff under another signed-in account is rejected. A
     malformed key or probe request echoes nothing.
   - No account's call uses another account's key or connection. One
@@ -1066,6 +1218,15 @@ handlers or pages is an acceptance test of the milestone that builds it
   - The app shell's CSP allows the PDF viewer and its worker, and refuses
     inline script.
   - kei's role is denied on `public` and `dbos`.
+  - A NuExtract model on a vLLM connection runs Schema Suggestion with the
+    NuExtract protocol, and no other route ever uses it. Test all four
+    combinations of vLLM or not and NuExtract model ID or not.
+  - An unset Schema Suggestion route follows the Assistant model. An explicit
+    one stays explicit across a reload, even when it equals the Assistant
+    model. "Use defaults" removes a step's stored choice.
+  - The ingestion listing marks OCR models the OCR server does not serve, and
+    the page cannot choose one. A saved choice it no longer lists stays
+    saved, and a listing failure blocks no other edit.
 
 **M3: kei on DBOS.**
 - **Dependencies.** Replace Procrastinate with `dbos` in `pyproject.toml` and
@@ -1073,6 +1234,13 @@ handlers or pages is an acceptance test of the milestone that builds it
 - **New code.** `src/kei_exp/workflows/` holds the registration, the queue,
   `convert`, `extract`, `deleteRuns` and the portable contracts.
   `failures.py` holds `classify`. The cooperative checks read the DBOS status.
+- **Ingestion model inputs.** `convert` takes optional `model` and
+  `layout_model` keys. It resolves an omitted one in its first checkpointed
+  step, from the definition the listing reports. The OCR default moves from
+  Studio's `KEI_EXP_MODEL` (`compose.yaml:117`) to kei's `KEI_OCR_MODEL`,
+  still `surya`, set on the parsing API and worker through one shared Compose
+  anchor. The layout default stays `layout_heron_101`. A test checks that the
+  listing's defaults equal the ones `convert` applies.
 - **Deleted jobs code:**
   - `src/kei_exp/jobs/` except `hold_slot`, and the kei tables;
   - `POST /api/runs`, `GET /api/runs/{id}` and `POST …/extract`;
@@ -1119,7 +1287,9 @@ handlers or pages is an acceptance test of the milestone that builds it
   project/attempt staging. Delete ingestion-key requests/DTOs, browser key
   minting and all follower machinery. Keep reprocess request keys and
   expected-head checks. Share verify/translate/package functions and delete
-  HTTP kei polling.
+  HTTP kei polling. Admission resolves the owner's Ingestion Model Choice into
+  the workflow input and passes it to `convert`. Delete `KEI_EXP_MODEL` and
+  `DEFAULT_MODEL` (`api/source_documents.ts:38,472`).
 - **Reads.** Derive execution status; revise public contracts together with
   callers, with no compatibility aliases. Keep completed result/review and
   evidence pin behavior. Extraction cancel now reaches kei.
@@ -1144,6 +1314,13 @@ handlers or pages is an acceptance test of the milestone that builds it
     Empty selection retains the draft and disables Run/Retry.
   - Pending Extractions count as batch members but do not replace a previously
     reviewed result. A batch rerun creates new identities.
+  - An ingestion recovered after its owner changed the Ingestion Model Choice
+    runs the models it was admitted with. A re-upload of completed content
+    returns the existing parse, and a reprocess uses the new choice.
+  - Two same-content uploads under different choices join one attempt with
+    its first admitted models. A repeated reprocess POST after the choice
+    changed replays the original attempt, including after publication and
+    after history retention.
 
 **M5: interactive work on DBOS.**
 - **Workflows.** Add `suggestSchema`, `proposeSchemaEdit` and `chatTurn` with
@@ -1214,6 +1391,9 @@ handlers or pages is an acceptance test of the milestone that builds it
   - A replayed step whose call is checkpointed never waits for a key. A
     cancel during the wait never reaches the provider, and a cancel during a
     provider call stops it about 1 s later.
+  - A Schema Suggestion over the NuExtract protocol on a keyed vLLM
+    connection passes the same key-wait, cancellation and no-key-in-history
+    checks as the SDK models.
 
 **M6: garbage collection, documentation, test wiring and cutover.**
 - **Garbage collection.** Add the `collectGarbage` schedule and kei
@@ -1224,7 +1404,8 @@ handlers or pages is an acceptance test of the milestone that builds it
 - **ADRs.**
   - Write `docs/adr/0012-one-durable-execution-layer.md`, linking this plan.
   - Write ADR 0013 (per-researcher model configuration, with keys held by the
-    researcher's browser), superseding 0006. Amend 0007 and 0011.
+    researcher's browser, and the Ingestion Model Choice), superseding 0006.
+    Amend 0007 and 0011 as *Decision records* says.
   - Mark the Procrastinate plan and
     `prototypes/parsing_service/docs/job-backend.md` superseded.
 - **README.**
@@ -1235,17 +1416,22 @@ handlers or pages is an acceptance test of the milestone that builds it
     - keys stay in the researcher's browser, and Studio holds them only in
       memory while a call runs;
     - deployment connections, including `FREE_DEPLOYMENT_CLI_PROVIDERS`;
+    - the Ingestion Model Choice, which applies to new ingestions and
+      reprocessing only;
     - no reset.
   - #8: DBOS schemas migrate at launch.
   - #10: browser-held researcher keys, no OS-keyring dependency, and the
     one-time reset note; deployment secrets remain operator-provided.
   - Extraction execution: cancellation reaches kei.
 - **Other docs.**
-  - CONTEXT.md's configuration terms;
+  - CONTEXT.md's configuration terms, as *Decision records* lists them;
   - the Parsing README and CLAUDE, Studio CLAUDE and
     `docs/architecture/current.c4`;
   - the OpenSpec specs for model-connection configuration, capability-route
-    resolution, source-document ingestion and schema chat edit.
+    resolution, source-document ingestion and schema chat edit;
+  - CONTEXT.md's Model Attribution, reconciled with interactive work, which
+    stores none (*No pins*). A replayed result never gains attribution
+    reconstructed from today's route.
 - **Operations docs.**
   - Backup set: a `free` dump, `parsing-runs`, `studio-data` and the CLI homes.
     No backup holds a researcher key.
@@ -1280,7 +1466,8 @@ handlers or pages is an acceptance test of the milestone that builds it
   model-configuration write barrier, targeted Catalog retry, inspector hooks,
   `/events`, `cancel_requested`, `free-document-chat`, `result_version` 4,
   `options.model`, `ExtractionJob`, `BatchExtractionMember`, ingestion keys,
-  follower workflows, admission waits, and per-source suggestion progress.
+  follower workflows, admission waits, per-source suggestion progress,
+  `configurationMode`, a stored NuExtract `protocol`, and `KEI_EXP_MODEL`.
   Historical records and evidence probes are not runtime residue.
 - **Fast and safety.** `pnpm typecheck`, `pnpm lint`, `pnpm test`,
   `pnpm test:safety`.
@@ -1307,7 +1494,10 @@ handlers or pages is an acceptance test of the milestone that builds it
   - the PDF viewer under the app shell's CSP.
 - **Manual.** Run `pnpm dev` through upload, reprocess, extraction and cancel,
   batch retry, schema-edit acceptance, and chat across a reload and a restart,
-  with two accounts. Inspect both DBOS schemas.
+  with two accounts. Inspect both DBOS schemas. On the GPU deployment, ingest
+  a scanned PDF under a non-default OCR and layout choice and check that its
+  recipe names them. The e2e real service has no OCR server
+  (`e2e/realService.ts:168`), so it cannot prove this.
 
 A compile pass or a mocked SDK call does not prove recovery, isolation or
 physical exclusion.
@@ -1413,6 +1603,15 @@ physical exclusion.
   M0R keeps pre-implementation probes only (adding the production-bundle
   check); checks that need FREE's own code became acceptance lists of M2,
   M4, M5 and M6.
+- **Seventh revision (2026-09-25).** Folds the Model Configuration page
+  redesign into M2 after a throwaway prototype; the user picked variant B1
+  (branch `prototype/model-config-b1`). The page has three workflow steps, no
+  Single/Routes mode and one route setter. The NuExtract protocol is derived
+  from connection and model. A per-account Ingestion Model Choice is wired
+  through kei's `convert` input (M3) and ingestion admission (M4). M1 is
+  unchanged. A Codex review then made an unset Schema Suggestion Route
+  inherit the Interaction Route and froze ingestion models at admission. It
+  also brought the raw NuExtract call inside the key boundary.
 
 ## M0 findings (2026-09-24)
 
@@ -1560,3 +1759,43 @@ age-only cancellation cleanup are not implementation instructions.
   FREE; the installed project skills are loaded on demand instead. All five
   review probes and the new `version-probe.mjs` passed on the new pins; see
   [the evidence record](2026-09-24-unified-durable-execution-evidence/README.md).
+- **2026-09-25, Model Configuration prototype (user request):** the user found
+  the page too complicated. A throwaway prototype, on branch
+  `prototype/model-config-b1`, put today's page beside six redesigns against an
+  in-memory fake server.
+  - The Single/Routes mode was the main source of complexity. `ModelConfig`
+    has no mode, so it existed only in the page, doubled the route setters and
+    warned when the routes differed.
+  - User decisions: variant B1; the label *Assistant model*; NuExtract
+    auto-detection; ingestion models on the page, for new ingestions and
+    reprocessing only.
+  - Rejected: B2's split by where models run, because deployment servers are
+    routable connections too. The assistant could run on "Deployment
+    NuExtract" while it was listed under "From your connections".
+- **2026-09-25, Codex `gpt-6-astra` read-only review of the seventh
+  revision:** 5 P1 and 3 P2, no P0. Every claim was checked against source.
+  All 8 were accepted, one with a different fix.
+  - **Defaults (P1, different fix):** Codex had Studio write kei's defaults
+    into the admission input. Instead, explicit choices are frozen at
+    admission, and kei resolves an omitted role in a checkpointed first step
+    of `convert`. Admission then never depends on the listing, and queued work
+    follows an operator's OCR swap.
+  - **Replay (P1):** same-content joiners take the active attempt's models.
+    Reprocess replay reuses the admitted models, and its fingerprint stays
+    unchanged.
+  - **Inheritance (P1):** an unset Schema Suggestion Route inherits the
+    Interaction Route. The prototype inferred it from equality, which could
+    not keep an explicit override equal to the Assistant model.
+  - **NuExtract keys (P1, predates this revision):** the raw NuExtract fetch
+    carried a pre-resolved `authorization`. It now shares the attempt's key
+    boundary.
+  - **Compose (P1):** the sixth revision's worker-waits-for-Studio edge would
+    have formed a cycle with Studio's `depends_on: parsing_worker`.
+    `KEI_OCR_MODEL` is wired to both parsing processes.
+  - **P2:**
+    - the listing's availability wording, and the fact that layout only
+      reaches scanned pages;
+    - probe eligibility when the page opens;
+    - the read-route count and the recipe citation;
+    - a manual OCR-selection check;
+    - Model Attribution in CONTEXT.md.
