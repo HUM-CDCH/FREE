@@ -1,6 +1,18 @@
 {
   "version": 1,
   "skills": {
+    "dbos-python": {
+      "source": "dbos-inc/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/dbos-python/SKILL.md",
+      "computedHash": "b23a6b11c2f872ba88b68b6ceebb86b8e5371c4d4d270197f5711838f3c42e41"
+    },
+    "dbos-typescript": {
+      "source": "dbos-inc/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/dbos-typescript/SKILL.md",
+      "computedHash": "35be7824706df3d49c0b9014f586d0b6b6a9c53124308554cc43a9c88974420c"
+    },
     "xstate-v5": {
       "source": "statelyai/skills",
       "sourceType": "github",
