@@ -451,69 +451,6 @@ def test_step_timings_belong_only_to_the_latest_attempt(client: TestClient):
     assert [timing["step"] for timing in restarted["step_timings"]] == ["prepare"]
 
 
-def test_run_page_boxes_reads_live_region_events_for_a_database_run(client: TestClient, digital_pdf: Path) -> None:
-    """A durable run writes no events.jsonl; its pre-publication region events live in the store instead, and
-    `run_page_boxes` must read them from there rather than from a file that will never exist for this run —
-    otherwise the boxes overlay stays empty for the whole run instead of filling in live."""
-    with digital_pdf.open("rb") as handle:
-        run_id = client.post("/api/runs", files={"pdf": ("main.pdf", handle, "application/pdf")},
-                             data={"model": "granite_vision", "cut": "none", "debug": "false"}).json()["id"]
-    emit = DurableEmit(run_id, attempt=1)
-    emit({"type": "region", "page": 1, "unit": 0, "crop": 1, "order": 0, "kind": "text",
-          "bbox": [10.0, 20.0, 30.0, 40.0], "width": 100, "height": 200, "ink": 0.5})
-    emit.flush()
-
-    body = client.get(f"/api/runs/{run_id}/pages/1/boxes").json()
-    assert body["published"] is False  # no result yet
-    assert len(body["regions"]) == 1
-    region = body["regions"][0]
-    assert (region["crop"], region["unit"], region["kind"]) == (1, 0, "text")
-    assert region["bbox"] == [10.0, 20.0, 30.0, 40.0]
-
-
-def test_run_page_boxes_survives_an_unreachable_store(client: TestClient, digital_pdf: Path) -> None:
-    """`run_page_boxes` re-opened FIX 1's failure mode by adding an unguarded `store.record(run_id)`: a
-    historical, file-only run needs no database at all, and an unreachable store must degrade the overlay to
-    the file fallback rather than 500. Pointed at a refused port, like the equivalent FIX 1 test."""
-    directory = runs.RUNS / "20260101-000000-surya-abcd"
-    directory.mkdir(parents=True)
-    (directory / "input.pdf").write_bytes(digital_pdf.read_bytes())
-    runs.write_json(directory / "params.json", {"id": directory.name, "created": "2026-01-01T00:00:00+00:00",
-                                                "source_name": "old.pdf", "page_count": 2, "transcriber": "surya",
-                                                "model": "surya", "cut": "auto", "crop_dpi": 250,
-                                                "layout_model": "layout_heron_101", "page_source": "pdf"})
-    store.close_pool()
-    store.pool("postgresql://kei:kei@127.0.0.1:1/kei")  # refused: nothing listens there
-    try:
-        response = client.get(f"/api/runs/{directory.name}/pages/1/boxes")
-        assert response.status_code == 200
-        assert response.json()["published"] is False
-    finally:
-        store.close_pool()
-
-
-def test_run_page_boxes_does_not_query_events_once_the_page_is_published(
-        client: TestClient, digital_pdf: Path, monkeypatch) -> None:
-    """`page_geometry` never reads `events` once a result exists (kei_exp/boxes.py); a published page must
-    cost the store nothing, not pull a streaming run's whole token history on every poll to find events it
-    will throw away."""
-    with digital_pdf.open("rb") as handle:
-        run_id = client.post("/api/runs", files={"pdf": ("main.pdf", handle, "application/pdf")},
-                             data={"model": "granite_vision", "cut": "none", "debug": "false"}).json()["id"]
-    pages_dir = runs.RUNS / run_id / "result" / "pages"
-    pages_dir.mkdir(parents=True)
-    runs.write_json(pages_dir / "1.json", {"units": [], "segments": []})
-
-    def must_not_be_called(*_args, **_kwargs):
-        raise AssertionError("events_after must not be called once the page result is published")
-    monkeypatch.setattr(store, "events_after", must_not_be_called)
-    monkeypatch.setattr(store, "record", must_not_be_called)
-
-    response = client.get(f"/api/runs/{run_id}/pages/1/boxes")
-    assert response.status_code == 200
-    assert response.json()["published"] is True
-
-
 def test_events_stream_stops_without_inventing_a_missing_status_event(
         client: TestClient, digital_pdf: Path) -> None:
     """A finished job without an event closes the stream; its outcome remains available from GET /runs/id."""

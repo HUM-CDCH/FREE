@@ -26,10 +26,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 
 from kei_exp import runs
-from kei_exp.boxes import page_geometry
 from kei_exp.canonical import sha256_file
 from kei_exp.cut import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS
-from kei_exp.files import load_dotenv, publish
+from kei_exp.files import load_dotenv
 from kei_exp.jobs import store, tokens
 from kei_exp.jobs.app import ADMISSION_LIMIT, DATABASE_URL, SLOT, deferring_installed
 from kei_exp.kie.extract import models as extraction_models
@@ -38,7 +37,7 @@ from kei_exp.kie.extract.run import ExtractRequest
 from kei_exp.kie.stages.ocr import TRANSCRIBERS, check_ingest, check_knobs
 from kei_exp.models import MODELS
 from kei_exp.pagefile import ResultError, read_manifest
-from kei_exp.pages import PageSource, PdfPages, RenderablePage
+from kei_exp.pages import PdfPages
 from kei_exp.progress import Event
 from kei_exp.runtime import loaded_model
 from kei_exp.transcription.types import DEFAULT_URL, RunParams
@@ -49,32 +48,6 @@ VLLM_URL = os.environ.get("KEI_VLLM_URL", DEFAULT_URL)
 # reaches the queue. Neither is a judgement about the document's content, which is the worker's business.
 MAX_UPLOAD_BYTES = int(os.environ.get("KEI_MAX_UPLOAD_BYTES", str(200 * 1024 * 1024)))
 MAX_PAGES = int(os.environ.get("KEI_MAX_PAGES", "2000"))
-PREVIEW_DPI = 100
-MAX_PREVIEW_DPI = 300  # the viewer zooms into 8 pt type; 300 dpi of an A3 spread is a 5,000 px PNG
-
-
-def _requested_page(pages: PageSource, number: int) -> RenderablePage:
-    """Only a failed page lookup is a 404; rendering and artifact failures keep their diagnostics."""
-    try:
-        return pages.page(number)
-    except IndexError as error:
-        raise HTTPException(404, "no such page") from error
-
-
-def render_page(run: Path, number: int, dpi: int = PREVIEW_DPI) -> Path:
-    """A colour-allowed preview of a PDF page."""
-    with PdfPages(run / "input.pdf") as pages:
-        page = _requested_page(pages, number)  # validate even when a cached image already exists
-        target = run / "pages" / f"page-{number}@{dpi}.png"
-        if not target.exists():
-            image = page.render(dpi, grayscale=False)
-            try:
-                target.parent.mkdir(exist_ok=True)
-                with publish(target) as part:
-                    image.save(part, "PNG")
-            finally:
-                image.close()
-    return target
 
 
 @asynccontextmanager
@@ -435,13 +408,6 @@ def run_result(run_id: str) -> FileResponse:
     return FileResponse(path, media_type="application/json")
 
 
-@app.get("/api/runs/{run_id}/pages/{number}.png")
-def run_page(run_id: str, number: int, dpi: int = PREVIEW_DPI) -> FileResponse:
-    if not 1 <= dpi <= MAX_PREVIEW_DPI:
-        raise HTTPException(400, f"dpi must be between 1 and {MAX_PREVIEW_DPI}")
-    return FileResponse(render_page(run_dir(run_id), number, dpi), media_type="image/png")
-
-
 @app.get("/api/runs/{run_id}/pages/{number}")
 def run_page_result(run_id: str, number: int) -> FileResponse:
     """The accepted result of one PDF page (kei_exp.result.PageResult): its units, crops and segments."""
@@ -449,25 +415,6 @@ def run_page_result(run_id: str, number: int) -> FileResponse:
     if not path.exists():
         raise HTTPException(404, "no result for this page yet")
     return FileResponse(path, media_type="application/json")
-
-
-@app.get("/api/runs/{run_id}/pages/{number}/boxes")
-def run_page_boxes(run_id: str, number: int) -> dict:
-    """The crops of a PDF page and the segments found in them, in page points (see kei_exp.boxes)."""
-    directory = run_dir(run_id)
-    with PdfPages(directory / "input.pdf") as pages:
-        size = _requested_page(pages, number).get_size()
-    result = runs.read_json(directory / "result" / "pages" / f"{number}.json") or None
-    if result is not None:
-        return page_geometry(number, size, result, [])  # published: page_geometry never reads events for it
-    # Not yet published: a durable run writes no events.jsonl, so its region events live in the store instead.
-    try:
-        row = store.record(run_id)
-    except store.Unavailable:
-        row = None  # unreachable is exactly like a run the store never recorded: fall back to the files
-    events = (_committed(run_id, -1, event_type="region") if row is not None
-             else runs.logged_events(directory))
-    return page_geometry(number, size, result, events)
 
 
 def _extraction_status(row: store.ExtractionRow) -> dict:
