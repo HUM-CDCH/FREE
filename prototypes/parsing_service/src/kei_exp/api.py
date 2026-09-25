@@ -1,35 +1,32 @@
-"""HTTP front for the run store: routes over `kei_exp.runs`, progress relayed as SSE.
+"""HTTP front for the run store: routes over `kei_exp.runs`.
 
 Run: uv run uvicorn kei_exp.api:app --port 8001   (vLLM holds :8000)
 Env: KEI_VLLM_URL (chat completions URL, default DEFAULT_URL), KEI_MAX_UPLOAD_BYTES, KEI_MAX_PAGES;
 the run directory is KEI_RUNS, read by `runs`.
 
-Nothing here keeps run state. A route validates what HTTP gave it, asks `runs` for a job, a summary or a replay,
+Nothing here keeps run state. A route validates what HTTP gave it, asks `runs` for a job or a summary,
 and renders the answer; the queue, the worker, the timing and the files on disk belong to that module, so a run
 that starts on one request and is watched from another is one owner's business rather than a shared global.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import secrets
 import shutil
-from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
-from fastapi.concurrency import run_in_threadpool
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse
 
 from kei_exp import runs
 from kei_exp.canonical import sha256_file
 from kei_exp.cut import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS
 from kei_exp.files import load_dotenv
-from kei_exp.jobs import store, tokens
+from kei_exp.jobs import store
 from kei_exp.jobs.app import ADMISSION_LIMIT, DATABASE_URL, SLOT, deferring_installed
 from kei_exp.kie.extract import models as extraction_models
 from kei_exp.kie.extract.models import ROLES
@@ -38,7 +35,6 @@ from kei_exp.kie.stages.ocr import TRANSCRIBERS, check_ingest, check_knobs
 from kei_exp.models import MODELS
 from kei_exp.pagefile import ResultError, read_manifest
 from kei_exp.pages import PdfPages
-from kei_exp.progress import Event
 from kei_exp.runtime import loaded_model
 from kei_exp.transcription.types import DEFAULT_URL, RunParams
 
@@ -235,20 +231,6 @@ def create_run(
     return {"id": run_id, "status": "queued", "params": record_json, "page_count": count}
 
 
-@app.get("/api/runs")
-def list_runs() -> list[dict]:
-    """Every run, newest first. A database outage cannot provide a complete listing."""
-    try:
-        recorded = [runs.summary_of(row) for row in store.records()]
-    except store.Unavailable as error:
-        raise HTTPException(503, "the run store is unavailable", headers={"Retry-After": "1"}) from error
-    known = {summary["id"] for summary in recorded}
-    for directory in sorted(runs.RUNS.iterdir()) if runs.RUNS.exists() else []:
-        if directory.is_dir() and directory.name not in known and (found := runs.summary(directory)):
-            recorded.append(found)
-    return sorted(recorded, key=lambda summary: summary["created"] or "", reverse=True)
-
-
 def run_dir(run_id: str) -> Path:
     directory = runs.directory_of(run_id)
     if directory is None:
@@ -269,116 +251,6 @@ def get_run(run_id: str) -> dict:
     if found is None:
         raise HTTPException(404, "no such run")
     return {**found, "params": runs.read_json(directory / "params.json")}
-
-
-def _same_input(a: Event, b: Event) -> bool:
-    return (a["page"], a.get("unit"), a.get("crop")) == (b["page"], b.get("unit"), b.get("crop"))
-
-
-def _position(event: Event) -> tuple[int, int]:
-    return event["seq"], event.get("token_offset", 0)
-
-
-def _committed(run_id: str, after: int, **selection: str) -> list[Event]:
-    """Every event the store holds after `after`, read one bounded page at a time.
-
-    `store.events_after` answers at most `store.EVENT_PAGE` events, so a caller that wants the whole history
-    asks again from the last sequence it received until a page comes back short. `selection` passes an
-    `event_type` through unchanged.
-    """
-    events: list[Event] = []
-    while True:
-        page = store.events_after(run_id, after, **selection)
-        events += page
-        if len(page) < store.EVENT_PAGE:
-            return events
-        after = page[-1]["seq"]
-
-
-def _cursor(value: str) -> tuple[int, int]:
-    parts = value.split(":")
-    seq, offset = int(parts[0]), int(parts[1]) if len(parts) == 2 else 0
-    if len(parts) > 2 or seq < -1 or offset < 0:
-        raise ValueError("invalid event cursor")
-    return seq, offset
-
-
-def sse(event: Event) -> str:
-    cursor = f"{event['seq']}:{event['token_offset']}" if "token_offset" in event else str(event["seq"])
-    return f"id: {cursor}\nevent: {event['type']}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
-
-
-@app.get("/api/runs/{run_id}/events")
-async def run_events(run_id: str, after: str = "-1",
-                     last_event_id: Annotated[str | None, Header()] = None) -> StreamingResponse:
-    """The run's events after the one the client has: `after`, or the Last-Event-ID a browser resends when it
-    reconnects (a coalesced token event carries its last token's id), whichever is later."""
-    directory = run_dir(run_id)
-    try:
-        start = _cursor(str(after))
-    except ValueError as error:
-        raise HTTPException(422, "invalid event cursor") from error
-    if last_event_id is not None:
-        try:
-            start = max(start, _cursor(last_event_id))
-        except ValueError:
-            pass  # not one of ours: the browser resends whatever id it last saw
-    try:
-        row = await run_in_threadpool(store.record, run_id)
-    except store.Unavailable as error:
-        if not runs.is_legacy(directory):
-            raise HTTPException(503, "the run store is unavailable", headers={"Retry-After": "1"}) from error
-        row = None
-    if row is None and not runs.is_legacy(directory):
-        raise HTTPException(404, "no such run")
-
-    async def stream() -> AsyncIterator[str]:
-        if row is None:  # positively identified as a historical file-only run
-            for event in runs.replay(directory, start[0]):
-                yield sse(event)
-            return
-        cursor = start
-        token_offset = start[1]
-        while True:
-            try:
-                batch = await run_in_threadpool(_committed, run_id, cursor[0])
-                current = await run_in_threadpool(store.record, run_id)
-                terminal = current is not None and current.job_status in store.TERMINAL
-                if current is not None and (current.finished is not None or terminal):
-                    # Completion may have committed after the first event query. Drain that commit before
-                    # closing, including on reconnect. Never synthesize a terminal event.
-                    batch += await run_in_threadpool(_committed, run_id,
-                                                     batch[-1]["seq"] if batch else cursor[0])
-            except store.Unavailable:
-                # Headers are already sent. End without an outcome or an ID so EventSource can reconnect.
-                yield ": run store unavailable; reconnect\n\n"
-                return
-            previews, token_offset = await run_in_threadpool(
-                tokens.read_after, directory / "tokens.jsonl", token_offset,
-                batch[-1]["seq"] if batch else cursor[0])
-            batch += [event for event in previews if _position(event) > cursor]
-            batch.sort(key=_position)
-            if batch:
-                cursor = _position(batch[-1])
-                token_offset = max(token_offset, cursor[1])
-            # Consecutive tokens of one input (a page, its unit and its crop) collapse into a single event per poll.
-            merged: list[Event] = []
-            for event in batch:
-                last = merged[-1] if merged else None
-                if (event["type"] == "token" and last and last["type"] == "token"
-                        and _same_input(last, event) and last.get("attempt") == event.get("attempt")):
-                    merged[-1] = {**event, "text": last["text"] + event["text"]}
-                else:
-                    merged.append(event)
-            for event in merged:
-                yield sse(event)
-            if terminal or any(event["type"] == "status" and event.get("status") in ("done", "failed", "cancelled")
-                               for event in batch):
-                return
-            await asyncio.sleep(0.1)
-
-    return StreamingResponse(stream(), media_type="text/event-stream",
-                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @app.get("/api/runs/{run_id}/output.md")

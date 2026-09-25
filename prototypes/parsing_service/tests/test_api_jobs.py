@@ -1,12 +1,11 @@
 """The API over the durable store: a 202 means committed, a full slot is a 429, an unreachable store is a 503,
-and a run recorded before this change is still listed and still replays from its files.
+and a run recorded before this change is still readable from its files.
 
 Admission is deliberately cheap: it validates the request and the PDF's own limits, records what was asked for
 and commits. It reads no text layer and asks no model server anything — the worker resolves the recipe and
 checks the server when the run actually runs.
 """
 import json
-import threading
 from pathlib import Path
 
 import pytest
@@ -281,29 +280,8 @@ def test_an_unmigrated_database_is_refused_without_stranding_a_run_directory(
     assert not [path for path in runs.RUNS.iterdir() if path.is_dir()]  # safe to clean up: nothing committed
 
 
-def test_a_historical_file_only_run_is_still_listed_and_replayed(client: TestClient) -> None:
-    directory = runs.RUNS / "20260101-000000-surya-abcd"
-    directory.mkdir(parents=True)
-    runs.write_json(directory / "params.json", {"id": directory.name, "created": "2026-01-01T00:00:00+00:00",
-                                                "source_name": "old.pdf", "page_count": 2, "transcriber": "surya",
-                                                "model": "surya", "cut": "auto", "crop_dpi": 250,
-                                                "layout_model": "layout_heron_101", "page_source": "pdf"})
-    runs.write_json(directory / "status.json", {"status": "done", "started": "2026-01-01T00:00:00+00:00",
-                                               "finished": "2026-01-01T00:01:00+00:00", "error": None,
-                                               "duration_seconds": 60.0, "step_timings": None,
-                                               "current_step": None, "input_tokens": 5, "output_tokens": 7})
-    (directory / "events.jsonl").write_text(
-        json.dumps({"seq": 0, "type": "log", "text": "from the file"}) + "\n"
-        + json.dumps({"seq": 1, "type": "status", "status": "done", "error": None}) + "\n", encoding="utf-8")
-    listed = client.get("/api/runs").json()
-    assert [run["id"] for run in listed] == [directory.name]
-    assert listed[0]["status"] == "done" and listed[0]["output_tokens"] == 7
-    stream = client.get(f"/api/runs/{directory.name}/events").text
-    assert "from the file" in stream and '"status": "done"' in stream
-
-
 def test_read_routes_survive_an_unreachable_store(client: TestClient) -> None:
-    """A complete list needs the database; an identifiable historical run remains readable on its own."""
+    """An identifiable historical run remains readable while the database is unreachable."""
     directory = runs.RUNS / "20260101-000000-surya-abcd"
     directory.mkdir(parents=True)
     runs.write_json(directory / "params.json", {"id": directory.name, "created": "2026-01-01T00:00:00+00:00",
@@ -321,25 +299,17 @@ def test_read_routes_survive_an_unreachable_store(client: TestClient) -> None:
     store.close_pool()
     store.pool("postgresql://kei:kei@127.0.0.1:1/kei")  # refused: nothing listens there
     try:
-        listed = client.get("/api/runs")
-        assert listed.status_code == 503
-
         detail = client.get(f"/api/runs/{directory.name}")
         assert detail.status_code == 200
         assert detail.json()["status"] == "done"
-
-        stream = client.get(f"/api/runs/{directory.name}/events")
-        assert stream.status_code == 200
-        assert "from the file" in stream.text and '"status": "done"' in stream.text
     finally:
         store.close_pool()
 
 
 def test_a_historical_run_that_never_finished_gets_a_synthesised_terminal_status(client: TestClient) -> None:
     """A run recorded before this backend existed, whose API died mid-flight: `status.json` never reached a
-    terminal status and the log never wrote a status event either. `replay()` must still end the stream with a
-    synthesised one, `GET /api/runs/{id}` must report the run as failed with the UNRECORDED reason, and the run
-    must be readable without either file being rewritten to say so."""
+    terminal status. `GET /api/runs/{id}` must report the run as failed with the UNRECORDED reason, without
+    either file being rewritten to say so."""
     directory = runs.RUNS / "20260101-000000-surya-dead"
     directory.mkdir(parents=True)
     runs.write_json(directory / "params.json", {"id": directory.name, "created": "2026-01-01T00:00:00+00:00",
@@ -352,13 +322,6 @@ def test_a_historical_run_that_never_finished_gets_a_synthesised_terminal_status
         + json.dumps({"seq": 1, "type": "log", "text": "still going"}) + "\n", encoding="utf-8")
     before = (directory / "status.json").read_bytes()
 
-    stream = client.get(f"/api/runs/{directory.name}/events").text
-    blocks = [block for block in stream.split("\n\n") if block.strip()]
-    assert blocks, "expected at least one SSE event"
-    last = blocks[-1]
-    assert "event: status" in last
-    assert '"status": "failed"' in last and runs.UNRECORDED in last
-
     body = client.get(f"/api/runs/{directory.name}").json()
     assert body["status"] == "failed"
     assert body["error"] == runs.UNRECORDED
@@ -368,11 +331,10 @@ def test_a_historical_run_that_never_finished_gets_a_synthesised_terminal_status
     assert json.loads(after)["status"] == "running"
 
 
-def test_a_database_run_is_listed_with_its_job_status(client: TestClient, digital_pdf: Path) -> None:
+def test_a_database_run_reports_its_job_status(client: TestClient, digital_pdf: Path) -> None:
     with digital_pdf.open("rb") as handle:
         run_id = client.post("/api/runs", files={"pdf": ("main.pdf", handle, "application/pdf")},
                              data={"model": "granite_vision", "cut": "none", "debug": "false"}).json()["id"]
-    assert [run["id"] for run in client.get("/api/runs").json()] == [run_id]
     assert client.get(f"/api/runs/{run_id}").json()["status"] == "queued"
     with store.connection() as conn:
         conn.execute("UPDATE procrastinate_jobs SET status = 'doing'")
@@ -418,10 +380,10 @@ def test_step_timings_survive_completion_and_reopening_the_store(client: TestCli
         conn.execute("UPDATE procrastinate_jobs SET status = %s WHERE id = %s", (outcome, job_id))
     store.close_pool()
     store.open_pool(database)
-    for saved in [client.get("/api/runs/timed").json(), client.get("/api/runs").json()[0]]:
-        assert saved["step_timings"] == completed["step_timings"]
-        assert saved["duration_seconds"] == completed["duration_seconds"]
-        assert saved["current_step"] is None
+    saved = client.get("/api/runs/timed").json()
+    assert saved["step_timings"] == completed["step_timings"]
+    assert saved["duration_seconds"] == completed["duration_seconds"]
+    assert saved["current_step"] is None
 
 
 def test_step_timings_belong_only_to_the_latest_attempt(client: TestClient):
@@ -449,55 +411,6 @@ def test_step_timings_belong_only_to_the_latest_attempt(client: TestClient):
     restarted = client.get(f"/api/runs/{params['id']}").json()
     assert restarted["current_step"] == "prepare"
     assert [timing["step"] for timing in restarted["step_timings"]] == ["prepare"]
-
-
-def test_events_stream_stops_without_inventing_a_missing_status_event(
-        client: TestClient, digital_pdf: Path) -> None:
-    """A finished job without an event closes the stream; its outcome remains available from GET /runs/id."""
-    with digital_pdf.open("rb") as handle:
-        run_id = client.post("/api/runs", files={"pdf": ("main.pdf", handle, "application/pdf")},
-                             data={"model": "granite_vision", "cut": "none", "debug": "false"}).json()["id"]
-    store.finish_run(run_id)
-    with store.connection() as conn:
-        conn.execute("UPDATE procrastinate_jobs SET status = 'failed' WHERE id = "
-                     "(SELECT job_id FROM kei_run_job WHERE run_id = %s)", (run_id,))
-        conn.commit()
-
-    outcome: dict = {}
-
-    def fetch() -> None:
-        outcome["response"] = client.get(f"/api/runs/{run_id}/events")
-
-    thread = threading.Thread(target=fetch)
-    thread.start()
-    thread.join(timeout=10)
-    assert not thread.is_alive(), "GET .../events never returned: the SSE loop polled forever"
-    response = outcome["response"]
-    assert response.status_code == 200
-    assert response.text == ""
-    assert store.events_after(run_id, -1) == []
-    assert client.get(f"/api/runs/{run_id}").json()["status"] == "failed"
-
-
-def test_the_event_stream_delivers_a_history_longer_than_one_page(client: TestClient, digital_pdf: Path) -> None:
-    """`store.events_after` answers at most `store.EVENT_PAGE` events, so the SSE loop reads pages until a
-    short one. A finished run is where a bounded read shows: the loop closes the stream as soon as it sees the
-    terminal job status, so whatever it has not read by then — a long document's pages and regions run to
-    thousands of events — would simply never be sent."""
-    with digital_pdf.open("rb") as handle:
-        run_id = client.post("/api/runs", files={"pdf": ("main.pdf", handle, "application/pdf")},
-                             data={"model": "granite_vision", "cut": "none", "debug": "false"}).json()["id"]
-    total = 2 * store.EVENT_PAGE + 7
-    store.append_events(run_id, 1, [{"type": "log", "text": f"line {number}"} for number in range(total)])
-    store.finish_run(run_id)
-    with store.connection() as conn:
-        conn.execute("UPDATE procrastinate_jobs SET status = 'succeeded' WHERE id = "
-                     "(SELECT job_id FROM kei_run_job WHERE run_id = %s)", (run_id,))
-        conn.commit()
-
-    response = client.get(f"/api/runs/{run_id}/events")
-    assert [line[4:] for line in response.text.splitlines() if line.startswith("id: ")] == \
-        [str(seq) for seq in range(total)]
 
 
 def test_the_api_no_longer_has_a_queue_or_a_registry() -> None:

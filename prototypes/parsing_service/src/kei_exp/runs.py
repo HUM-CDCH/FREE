@@ -15,14 +15,12 @@ import json
 import math
 import os
 import secrets
-from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
 from kei_exp.cut import DEFAULT_LAYOUT_MODEL
 from kei_exp.files import load_dotenv, publish
 from kei_exp.kie.stages.ocr import resolve
-from kei_exp.progress import Event
 from kei_exp.transcription.types import DEFAULT_URL, Execution, RunParams
 
 load_dotenv()
@@ -175,35 +173,3 @@ def summary(directory: Path) -> dict | None:
 def is_legacy(directory: Path) -> bool:
     """Only the old backend wrote these files; params.json alone also belongs to durable admissions."""
     return (directory / "status.json").is_file() or (directory / "events.jsonl").is_file()
-
-
-def logged_events(directory: Path) -> list[Event]:
-    """Read complete JSONL entries, tolerating a partial append left by a failed write."""
-    path = directory / "events.jsonl"
-    if not path.exists():
-        return []
-    events = []
-    for line in path.read_bytes().splitlines():
-        try:
-            event = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(event, dict) and isinstance(event.get("seq"), int) and "type" in event:
-            events.append(event)
-    return events
-
-
-def replay(directory: Path, after: int) -> Iterator[Event]:
-    """The events of a file-only run after `after`, from its log, ending with a status event whatever happened."""
-    if not is_legacy(directory):
-        return
-    logged = logged_events(directory)
-    yield from (event for event in logged if event["seq"] > after)
-    if any(event["type"] == "status" for event in logged):
-        return
-    status = read_json(directory / "status.json")
-    if status.get("status") not in TERMINAL:
-        status = {"status": "failed", "error": UNRECORDED}
-    seq = max((event["seq"] for event in logged), default=-1) + 1
-    if seq > after:
-        yield {"seq": seq, "type": "status", "status": status.get("status"), "error": status.get("error")}

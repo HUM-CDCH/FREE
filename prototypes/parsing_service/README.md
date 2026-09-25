@@ -52,7 +52,7 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   spreads). With `ingest`, an optional `ingest` JSON form field carries
   splitter settings such as gutter overrides; both are recorded in the parse
   recipe.
-  `GET /api/runs/{id}` is the authoritative job status; `/events` supplies SSE.
+  `GET /api/runs/{id}` is the authoritative job status.
 - A completed parse exposes `/source.pdf`, `/result`, `/pages/{page}` and
   `/output.md` below `/api/runs/{id}`. The canonical result is version 5:
   a manifest plus hashed page files bound to one generation. Native Docling tables

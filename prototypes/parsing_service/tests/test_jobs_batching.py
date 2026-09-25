@@ -1,4 +1,5 @@
 """Token-file batching boundaries, ordering and failures without a database or model server."""
+import json
 import logging
 import threading
 from contextlib import closing
@@ -294,3 +295,14 @@ def test_a_recovery_seen_only_by_a_token_still_lets_the_next_outage_be_logged(bu
         emit({"type": "status", "status": "done"})                 # a second, distinct outage: its own line
     assert committed == []
     assert len(caplog.records) == 2
+
+
+def test_a_partial_file_line_waits_for_its_newline(tmp_path):
+    path = tmp_path / "tokens.jsonl"
+    line = json.dumps({"type": "token", "page": 1, "text": "é", "seq": -1}, ensure_ascii=False).encode()
+    path.write_bytes(line[:-3])
+    assert tokens.read_after(path, 0, -1) == ([], 0)
+    with path.open("ab") as file:
+        file.write(line[-3:] + b"\n")
+    read, offset = tokens.read_after(path, 0, -1)
+    assert read[0]["text"] == "é" and offset == len(line) + 1
