@@ -1,0 +1,23 @@
+import {DBOS} from '@dbos-inc/dbos-sdk';
+import {durableCalls,readDurableStream} from '@dbos-inc/vercel-ai';
+import {wrapLanguageModel} from 'ai';
+import {Client} from 'pg';
+const root = process.env.FREE_REVIEW_ROOT;
+if (!root) throw new Error('Set FREE_REVIEW_ROOT to the FREE checkout');
+const {validateDisposableTestDatabaseTarget}=await import(root+'/packages/db/src/database-url.ts');
+const url='postgresql://postgres:review-disposable-only@127.0.0.1:5432/free_test_dbos_review';validateDisposableTestDatabaseTarget(url);
+const pg=new Client({connectionString:url});await pg.connect();
+DBOS.setConfig({name:'stream-review',applicationVersion:'stream-review@1',executorID:'stream-review',systemDatabaseUrl:url,logLevel:'error',enableOTLP:false});
+let calls=0;
+const model=wrapLanguageModel({model:{specificationVersion:'v4',provider:'synthetic',modelId:'synthetic',supportedUrls:{},doGenerate:async()=>{throw Error('unused');},doStream:async()=>{
+ calls++;return {stream:new ReadableStream({start(c){c.enqueue({type:'stream-start',warnings:[]});c.enqueue({type:'text-start',id:'x'});c.enqueue({type:'text-delta',id:'x',delta:'partial'});c.enqueue({type:'error',error:new Error('SYNTHETIC_SECRET_DO_NOT_PERSIST')});c.close();}})};
+}},middleware:durableCalls({name:'chat',durableStream:'ui',retriesAllowed:true,maxAttempts:3,intervalSeconds:0.01})});
+const turn=DBOS.registerWorkflow(async()=>{try{const r=await model.doStream({prompt:[]});for await(const part of r.stream){}return {ok:true};}catch(e){return {ok:false,error:'Sanitized chat failure'};}},{name:'turn'});
+await DBOS.launch();
+const h=await DBOS.startWorkflow(turn,{workflowID:'stream-error-probe'})();
+console.log('STREAM_RESULT',JSON.stringify(await h.getResult()));
+const errors=await pg.query("select error from dbos.operation_outputs where workflow_uuid='stream-error-probe'");
+console.log('STREAM_CHECKPOINT',JSON.stringify({providerCalls:calls,outerCatchSanitizedButStepContainsSecret:errors.rows.some(r=>String(r.error).includes('SYNTHETIC_SECRET_DO_NOT_PERSIST'))}));
+const chunks=[];for await(const c of readDurableStream({workflowID:h.workflowID,key:'ui'})) chunks.push(c);
+console.log('STREAM_REPLAY',JSON.stringify(chunks.map(c=>({type:c.type,...(c.type==='error'?{errorText:c.errorText}:{}),...(c.type==='finish'?{finishReason:c.finishReason}:{})}))));
+await DBOS.shutdown();await pg.end();

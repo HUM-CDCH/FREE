@@ -1,388 +1,1365 @@
-# One Postgres, one job technology: FREE on DBOS
+# FREE on DBOS: durable jobs and AI execution
 
-Status: approved 2026-09-24 after Codex (`gpt-6-astra`) review round 1. M0 spike done (findings below); **paused before M1 for a fresh review of the plan and of alternatives.**
+Status: **fifth revision, 2026-09-25; runtime implementation has not started.**
+This revision applies the DBOS simplification review, PostgreSQL experiments
+and Claude Code Opus 5.5 (`claude-opus-5-5`, medium) sparring review. It replaces
+start-before-commit with transactional enqueue, merges extraction admission
+and results, removes upload keys and selective batch-suggestion retry, and
+requires quiescence before deleting cancelled history.
+
+The fourth revision's browser-held keys, per-researcher configuration, all
+providers and reload recovery remain. Historical decisions and M0 findings
+are retained below; the active design in this revision supersedes conflicting
+historical advice. Individual review probes passed, but the complete M0R gate
+remains pending. Commands, scripts, results and review decisions are retained
+in [the evidence record](2026-09-24-unified-durable-execution-evidence/README.md).
 Supersedes `docs/plans/2026-09-24-procrastinate-source-ingestion.md` (not
 implemented).
 
 ## Context
 
-FREE runs **three** durable job mechanisms plus one non-durable long poll. The
-2026-09-24 plan would add a fourth:
+FREE runs three durable job mechanisms plus one non-durable long poll:
 
 | Mechanism | Where | Verified problems |
 |---|---|---|
-| kei Procrastinate 3.9.0 (`convert_run`, `extract_run`) | Python, `parsing_db/kei` | no cancel route; no idempotency; raw-SQL `doing→todo` recovery (`jobs/worker.py:80-101`); status LEFT JOINs job rows |
-| `ExtractionJob` lease worker | TS, in the Studio web process (`packages/extraction/src/job-worker.ts`) | a Studio restart reruns from scratch and **orphans** the kei extraction, which keeps holding kei's only slot; cancel only stops Studio's polling; a 503 retry can admit a duplicate (`kei-exp.ts:276`) |
-| `BatchSchemaSuggestion` pump | TS singleton (`api/_project_operations.ts`) | kicked only by HTTP handlers (including GETs); never at boot |
-| Source ingestion | a 30-min polling POST (`api/source_documents.ts:337`) | not durable; the run id is never stored |
+| kei Procrastinate 3.9.0 (`convert_run`, `extract_run`) | Python, `parsing_db` | no cancel route; no idempotency; raw-SQL `doing→todo` recovery; status joins job rows |
+| `ExtractionJob` lease worker | TS, Studio web process (`packages/extraction/src/job-worker.ts`) | a restart reruns from scratch and orphans kei work; cancel only stops polling; a 503 retry can admit a duplicate |
+| `BatchSchemaSuggestion` pump | TS singleton (`api/_project_operations.ts`) | kicked by HTTP handlers, including GETs; never at boot |
+| Source ingestion | thirty-minute polling POST (`api/source_documents.ts`) | request-owned; the key is checked only after a full parse, so a retry parses again |
 
-**Outcome:**
-- One PostgreSQL server and one durable-execution technology (DBOS).
-- Two DBOS apps, each owning its own system schema:
-  - `studio` (TypeScript), in `free.dbos`;
-  - `kei` (Python), in kei's own schema.
-- Studio drives kei through a `DBOSClient`, using deterministic workflow ids.
+Chat turns, single Schema Suggestions and schema edits are request-scoped and
+store nothing on the server:
+- chat history lives in React state (`src/ChatTab.tsx:40`);
+- `generate_schema` returns a template, which the browser saves
+  (`src/currentSchemaRevision.ts:417`);
+- an edit proposal lives in `useSchemaProposalReview` state
+  (`src/useSchemaProposalReview.ts:38`).
 
-All existing background work is ported **with the same behaviour**. These
-things fall out of the port:
-- one scheduler model;
-- cancel reaches kei, and there are no orphaned runs;
-- no lost handoff between a committed row and its workflow (commit, idempotent enqueue, reconcile);
-- no lease loops;
-- Studio orchestration survives a restart.
+A reload loses all three.
 
-**What this does *not* buy:** throughput, which stays model-bound on one GPU;
-and atomicity for files, HTTP artifact reads and model calls. Those stay
-idempotent steps.
+Model configuration is one deployment-wide document. `model_config` and
+`model_probe` are static API modules (`server/api-dispatcher.ts:43-48`) that
+any signed-in researcher can call. So any researcher can re-point the routes
+that every other researcher's documents are sent to.
 
-## Decisions (user, 2026-09-24)
+## Decisions (user, 2026-09-24–25)
 
-1. **DBOS in both apps.** Rejected alternatives:
-   - one Procrastinate with an HTTP relay;
-   - Studio orchestrating a stateless kei;
-   - Hatchet or Temporal;
-   - Absurd;
-   - a hand-rolled queue;
-   - a TS port of Procrastinate's worker.
-2. **Scope:** unification with the same behaviour. Follow-ups:
-   - (A) the ingestion UX: 202, cards that survive a refresh, parallel uploads, cancel/retry buttons, deletion obligations, budgets;
-   - (B) lanes: a native CPU lane, an extraction lane, page-class priority, queue rank.
-3. **Studio workflows run in a separate `studio_worker` compose service.**
-4. **Credentials move to PostgreSQL**, encrypted with `FREE_CREDENTIAL_KEY`.
-5. **App-owned DBOS schemas on one Postgres server** (the Codex P0). kei's role touches only its own schema.
+1. **DBOS in both apps.** The earlier rejections stand: a Procrastinate HTTP
+   relay, a stateless kei, Hatchet/Temporal, Absurd, a hand-written scheduler.
+2. **DBOS runs inside the Studio server process;** there is no `studio_worker`.
+3. **App-owned system schemas on one PostgreSQL server:** Studio in `dbos`,
+   kei in `kei_dbos`, both in database `free`. kei's role owns only its schema,
+   because kei parses untrusted PDFs and must not be able to rewrite Studio's
+   workflow inputs.
+4. **Background and interactive model work run as DBOS workflows.** Chat
+   turns, schema generation and schema edit proposals must survive a browser
+   reload as well as a Studio restart; the reload matters more.
+5. **Clean-slate cutover.** Nothing on baratheon needs to survive. Reset the
+   databases and research volumes once; add no data migration, compatibility
+   readers or rollback import.
+6. **Model configuration belongs to each Researcher Account; keys stay with
+   the researcher.** Each researcher keeps their own connections, routes and
+   Extraction Model Choice in PostgreSQL. A connection can be a hosted
+   provider with the researcher's own key, or their own Ollama, vLLM or
+   OpenAI-compatible server. The keys themselves stay in the researcher's
+   browser, and Studio holds a copy only in memory while it needs one (user,
+   2026-09-25). Operators still describe deployment connections in the
+   environment, and every researcher can use them.
+7. **All eight provider kinds stay; FREE will be open-sourced.** The Codex and
+   Claude Code CLI providers serve power users who run FREE locally. They run
+   on the server's own CLI login, so they become deployment connections that
+   the operator enables.
+8. **Live chat streaming stays.** DBOS owns stream replay and recovery.
+9. **Manual batch-suggestion retry reruns every remaining source.** Completed
+   source steps are reused only during recovery of the same attempt.
+10. **Upload keys go.** Project/content identity handles completed replay;
+    DBOS queue deduplication joins active work.
+11. **Deleting a source preserves the batch proposal and draft as valid.**
+    Remove the source from the selection without automatic regeneration.
+
+## Rules
+
+- **DBOS is the execution authority:** scheduling, status, checkpoints,
+  retries, timeouts, recovery and the temporary results of interactive work,
+  such as an unreviewed edit proposal. FREE keeps outcomes with research
+  meaning: Source Documents and revisions, Schema Revisions, Extractions,
+  reviews, batch definitions and merged proposals, chat
+  transcripts, and typed failures shown to researchers.
+- **Status is derived, never mirrored.** A row records admission and its
+  outcome; while it has no outcome, reads take its status from DBOS. A workflow
+  cannot record its own cancellation (every DBOS call after a cancel throws),
+  so the cancellation handler records the domain outcome before cancelling.
+- **Workflow IDs identify attempts.** Reusing an existing ID returns the same
+  execution while its history exists (M0 #1); individual steps are at-least-once
+  after a crash. Row-backed replays compare stored inputs and return the stored
+  outcome without re-enqueueing, even after DBOS retention. No-row operations
+  compare recorded input/fingerprints while history exists. Conflicting reuse
+  is 409. Ingestion instead uses completed content identity plus active dedup.
+- **Domain writes are idempotent.** A stable identity or conditional terminal
+  update protects every publication across the commit-to-checkpoint window.
+  No new result row or revision is appended by replaying a completed write.
+- **Ownership is checked in PostgreSQL.** Every start records
+  `authenticatedUser` (the Researcher Account) and `workflowAttributes`
+  (`projectContextId`, plus `sourceDocumentId`,
+  `sourceRepresentationRevisionId` or `extractionSchemaId` where relevant).
+  They let a read find a scope's workflows. Only a PostgreSQL ownership check
+  authorizes a status, list, result, stream or cancel request; a workflow ID
+  alone is not authorization.
+- **Secrets never enter DBOS.** Workflow inputs carry connection IDs, never
+  keys. A provider attempt reads the owner's key from Studio's memory only
+  when it starts. DBOS records
+  a step's thrown error with every enumerable property and cause
+  (`serialize-error`; `ApiError.cause` is enumerable, `api/_http.ts:11`), so
+  provider errors are replaced by sanitized ones inside the step boundary. For
+  chat, that boundary belongs to `durableCalls`, which also checkpoints a
+  successful call's request body, response headers and provider metadata. So
+  the sanitizer wraps the provider model inside it and strips those too.
+- **A new mechanism must delete more than it adds.** No admission triggers,
+  relays, reconcilers, publication fences, tombstones, credential revisions,
+  cleanup-intent tables or deletion barriers.
+
+Everything below uses features of the M0 pins (`@dbos-inc/dbos-sdk` 5.0.2,
+`dbos` 3.0.0):
+- `enqueueInTransaction` on the domain transaction's `pg` connection;
+- queue deduplication, with `return-existing` outside caller-owned transactions;
+- `authenticatedUser` and `workflowAttributes` on start;
+- `listWorkflows` filters on attributes (JSONB containment on an indexed
+  column), status and ID prefixes, with sort, limit and loaded outputs;
+- `readDurableStream` replay from offset 0 (`@dbos-inc/vercel-ai` 0.3.7);
+- `cancelWorkflow(s)` and `deleteWorkflows`;
+- scheduled workflows and `DBOS.patch()`;
+- Python step `should_retry`;
+- queue `worker_concurrency`.
+
+## What this removes
+
+| Removed | Replaced by |
+|---|---|
+| `job-worker.ts`; claim/renew/checkpoint (`postgres-persistence.ts:1075-1254`); wake wiring (`runtime.ts:43-71`); `_extraction_runtime.ts`; the development host's runtime loop | `runExtraction`, enqueued atomically with its Extraction row |
+| The batch pump, its four `kick()` call sites (two are GETs), and the lease columns and methods (`packages/db/src/project-store.ts:2090-2291`) | `suggestSchemaBatch` on queue `suggest` |
+| `src/kei_exp/jobs/` (1,380 lines) except `hold_slot`; Procrastinate, `parsing_db`, `parsing_migrate`; the kei tables; token JSONL and SSE; raw recovery SQL | kei DBOS workflows |
+| kei HTTP submission and polling (`kei-exp.ts:253-327`, `source_documents.ts:274-387`) and their duplicated timeouts | `submitToKei` / `pollKei` steps; `workflowTimeoutMS` at kei |
+| HEAD's reconciler; the later revisions' triggers, `enqueuePayload`, `StudioModelOperation`, tombstones, pins, cleanup intent, quiescence acknowledgement and barrier | transactional enqueue or workflow-first starts, derived status, reference garbage collection |
+| `studio_worker` and its readiness checks | DBOS in the Studio process; a Studio client only for transactional enqueue |
+| `ExtractionJob`, `BatchExtractionMember`, their joins and duplicate result fields | one Extraction row from admission through review |
+| Ingestion keys, key-binding conflicts and follower workflows | project/content replay and active queue deduplication |
+| Per-source suggestion statuses, definitions, failures and progress UI; selective retry | membership pins, DBOS step checkpoints and whole-batch retry |
+| Worker `output.md` generation | canonical manifest/pages only; standalone CLI output stays |
+| `_keyring.ts`, `ConfigFileSystem`, the reset path, the keyring packages, every server-side credential path, the in-process write barrier, the static `model_config` / `model_probe` modules, the one-CLI-connection-per-kind rule | per-researcher configuration in PostgreSQL; keys in the researcher's browser and in Studio's memory; CLI providers as deployment connections |
+| Client-sent chat history and the fixed chat ID | `ChatTurn` rows |
+| Targeted Catalog retry; extraction checkpoints and provisional UI; four tables nothing writes; the LLM inspector; ten kei routes with no production caller; legacy readers | nothing: dead today, or legacy after the reset (M1–M3) |
+
+**What this adds.**
+- One new domain table, `ChatTurn`, beside the per-researcher configuration
+  table.
+- An in-memory key cache.
+- Five small routes: `GET` and `DELETE /api/model-operations`, `GET
+  /api/chat/<revision ID>` with its `/stream`, and `PUT /api/model-keys`.
+
+A transcript that survives a reload is research content, so it lives in FREE's
+tables rather than in DBOS history, whose interactive retention target is 24 h.
 
 ## Target architecture
 
+```text
+db (postgres:17), database free
+  public     domain rows and chat turns; per-researcher model configuration
+             (no keys)
+  dbos       Studio's DBOS system schema                    Studio role
+  kei_dbos   kei's DBOS system schema                       kei role only
+
+studio           web server and DBOS in one process: every Studio workflow and
+                 schedule, plus clients for Studio admission and kei handoff.
+                 The entrypoint
+                 runs Prisma migrations and idempotent kei role/schema setup.
+parsing_service  minimal read API (manifest, pages, artifacts, model catalog);
+                 no database
+parsing_worker   kei DBOS worker: convert, extract, deleteRuns on queue "kei";
+                 lifetime slot flock; starts after Studio is healthy
+volumes          source-inbox (new; studio rw, parsing_worker ro); parsing-runs,
+                 studio-data and the CLI auth homes unchanged
 ```
-db (postgres:17)  database free
-  public     Studio tables incl. SourceIngestion, ModelCredential   role postgres
-  dbos       DBOS app "studio" system schema                        role postgres
-  kei_dbos   DBOS app "kei" system schema (or db `kei` on the same   role kei (owner; nothing else)
-             server if dbos-py cannot name a schema — M0)
 
-migrate          Studio image, one-shot: Prisma Next migrate -> studio DBOS schema -> kei role + schema
-parsing_migrate  kei image, one-shot: kei DBOS schema migration (as kei)
-studio           web. Enqueues Studio workflows in its domain transactions; best-effort cancels
-studio_worker    DBOS app "studio" + DBOSClient(kei): ingestSource, reprocessSource,
-                 runExtraction, suggestSchemaBatch, reconcile, sweepInbox, retention
-parsing_service  kei API: artifacts + model catalogs; no database
-parsing_worker   DBOS app "kei": convert, extract on queue "kei" (concurrency 1, FIFO); flock'd slot
-volumes: source-inbox (new; studio rw, studio_worker rw, parsing_worker ro) + existing
-```
+`parsing_db`, the `parsing-postgres` volume and `parsing_migrate` go away.
+`DBOS.launch()` migrates each system schema (the default), so no migration
+service is added. `submitToKei` retries until kei has migrated `kei_dbos`.
 
-**Rules**
+## Workflows
 
-1. **Execution state lives in DBOS; outcomes live in domain rows.**
-   - Every operation has a Studio row (`SourceIngestion`, `ExtractionJob`, `BatchSchemaSuggestion`), which is the outcome authority.
-   - Code reads DBOS state only for *non-terminal* rows: the reconciler, and progress.
-2. **Workflow inputs are ids of committed rows.**
-   - Studio workflows take the row id, plus an attempt number where relevant.
-   - Step 1 re-reads the row and exits if it is missing or already terminal.
-   - Credentials and research content never enter Studio workflow payloads.
-3. **Deterministic, attempt-scoped workflow ids.** `ingest:<ingestionId>`, `extract:<jobId>`, `suggest:<batchId>:<attempt>`, `kei-convert:<ingestionId>`, `kei-extract:<jobId>`.
-4. **Commit, then enqueue; the reconciler relays** (user decision after M0 item 6: Prisma Next 0.16 cannot run `dbos.enqueue_workflow` inside its transactions).
-   - The web handler commits the domain row, then calls `DBOSClient.enqueue` with the row's deterministic workflow id. M0 proved re-enqueueing an existing id is a no-op in every state.
-   - If the process dies between the two, `reconcile` enqueues every non-terminal row that has had no workflow for 30 s. The worst case is about a minute of delay after a crash.
-   - `server/dbos.ts` is the only module that enqueues or cancels. There is no SQL adapter, and nothing depends on the `dbos.enqueue_workflow` signature.
-   - Handing work to kei is an idempotent step. No transaction crosses the two apps.
-5. **An explicit cross-language contract.**
-   - kei workflows take and return portable JSON, with `{ok: true, …} | {ok: false, code, reason, retryable}`. Timestamps cross as ISO-8601 strings (a Python `datetime` arrives as one; M0 item 11).
-   - Exceptions mean crashes.
-   - Fixtures in `prototypes/parsing_service/tests/fixtures/contracts/` are checked by both pytest and node:test.
-6. **The acceptance boundary is Studio's commit.**
-   - kei artifacts become visible only when a Studio transaction commits under the operation's row lock, after re-checking status, ownership and the reprocess head.
-   - kei's in-conversion cancel checks only save compute. kei keeps today's fail-open post-conversion policy (`jobs/tasks.py:156`).
+| Workflow | ID | Admission | Output |
+|---|---|---|---|
+| `ingestSource` | `ingest:<projectContextId>:<attemptId>` | workflow-first on `studio`; active dedup by project/SHA-256 | Source Document and revision IDs, or a typed failure |
+| `reprocessSource` | `reprocess:<sourceDocumentId>:<requestKey>` | workflow-first | revision ID, or a typed failure |
+| `runExtraction` | `extract:<extractionId>` | same transaction as Extraction admission | outcome on the Extraction row |
+| `suggestSchemaBatch` | `suggest:<batchId>:<attempt>` | same transaction as create/retry | merged proposal/draft, or a typed failure |
+| `suggestSchema` | `suggestion:<operationId>` | workflow-first | `{template, raw, pages}`, or a typed failure |
+| `proposeSchemaEdit` | `edit:<operationId>` | workflow-first | proposal and base revision, or a typed failure |
+| `chatTurn` | `chat:<turnId>` | same transaction as the question; active dedup by source revision | answer/failure on the row; durable stream `ui` |
+| `collectGarbage` | 10-minute schedule | — | — |
+| kei `convert` | `kei-convert:<parent workflow ID>` | enqueued by `submitToKei` | manifest summary |
+| kei `extract` | `kei-extract:<extractionId>` | enqueued by `submitToKei` | run/extraction IDs, artifact SHA-256, model attribution |
+| kei `deleteRuns` | `kei-gc:<schedule time>` | enqueued by `collectGarbage` | deleted run/history IDs |
 
-### Queues (same behaviour as today)
+**Admission: one transaction.** Keep synchronous validation, ownership and
+input-conflict checks. Row-backed operations insert/update domain rows and call
+`DBOSClient.enqueueInTransaction` before committing on the same connection.
+- **Binding.** Acquire a `pg` pool client; bind Prisma Next's public
+  `postgres({contractJson, pg: client})` facade to it; use its transaction's ORM
+  and pass that client to DBOS. Release it after commit/rollback without
+  closing the shared pool. This was verified on Prisma Next 0.16 and DBOS
+  5.0.2; no raw SQL enqueue function, datasource plugin or trigger is needed
+  ([DBOS client reference](https://docs.dbos.dev/typescript/reference/client)).
+- **Queues.** Extraction and chat use the unrestricted `studio` queue;
+  suggestions use `suggest`. A batch's rows and all member enqueues commit
+  together. Work cannot dequeue before commit. Rollback leaves neither row
+  nor workflow; delete the admission wait and no-op outcome entirely.
+- **Replays.** Read an existing row and compare its immutable request inputs.
+  For concurrent first requests, insert the domain row before enqueue. A
+  conflict on that operation's primary key rolls back, then reloads and
+  applies the same comparison. Unrelated constraint errors are not replays.
+  Extraction's uncertain-admission UI can keep reconciling by reading.
+- **Chat exclusion.** Use deduplication ID
+  `chat:<sourceRepresentationRevisionId>` with rejection policy. A different
+  turn while one is active returns 409 and rolls back its question. The source
+  revision is immutable, not a moving chat head. `return-existing` is not
+  supported inside a caller-owned transaction in the pinned SDK.
+- **No-row operations.** Ingestion, reprocess, generation and edit proposals
+  use workflow-first admission. Ingestion uses nontransactional queue
+  `return-existing`; it creates no follower or key-binding row.
+- **Client IDs.** Keep client-minted Extraction, operation, turn and reprocess
+  IDs. Unknown outcomes reuse the ID; a confirmed failure requires a new
+  action/ID. Ingestion has no client key: each request either finds completed
+  content, joins active work, or starts a server-minted attempt.
 
-| App | Queue | Limit | Workflows | Parity note |
-|---|---|---|---|---|
-| kei | `kei` | global 1, FIFO | `convert`, `extract` | today's single slot; today's queue is FIFO across parse and extraction, so no kei-side priority |
-| studio | `studio-extract` | global 1, priority (interactive 1, batch 10; FIFO ties) | `runExtraction` | today one worker claims INTERACTIVE before BATCH_MEMBER, oldest first (`postgres-persistence.ts:1075`); the timeout starts at dequeue, i.e. at "claim" |
-| studio | `studio-ingest` | none | `ingestSource`, `reprocessSource` | the browser still serializes uploads |
-| studio | `studio-suggest` | global 1 | `suggestSchemaBatch` | the same as the one pump |
-| studio | scheduled | — | `reconcile` (every minute), `sweepInbox` (daily), `retention` (daily) | new backstops |
+**Status and ownership.** Every read first checks, in PostgreSQL, that the
+account owns the Project Context and that the named Source Document, Source
+Representation Revision or Extraction Schema still exists. The workflow's
+`authenticatedUser` and attributes locate the scope but never authorize it. A
+deleted scope is therefore gone at once, even before garbage collection removes
+its workflows.
 
-kei's admission cap of 32 (`jobs/store.py:207,321`) is dropped. With Studio
-submitting one extraction at a time and the browser submitting one upload at a
-time, kei's queue can't grow unbounded. Budgets belong to follow-up A.
+An outcome on the row wins. Otherwise the DBOS status maps as follows:
+- `ENQUEUED` or `DELAYED` → `QUEUED`;
+- `PENDING` → `RUNNING`;
+- `SUCCESS` → re-read the row (its outcome was just written); a surviving row
+  still without an outcome is `FAILED/interrupted`, never perpetual running;
+- `ERROR`, `CANCELLED`, `MAX_RECOVERY_ATTEMPTS_EXCEEDED`, or no workflow left
+  after retention → `FAILED` with code `interrupted`.
 
-### Workflows
+For workflow-first operations, the workflow's output is the outcome. Public
+contracts keep their status fields, computed on read. List endpoints fetch
+statuses in one `listWorkflows({workflowIDs})` call. A DBOS/store outage is
+503 with retry semantics, not a fabricated missing workflow or failed result.
 
-**`kei.convert(request)`** (dequeued FIFO)
-- `run_id` is derived from the workflow id and the request's `created_at`, so a replay reuses the same directory.
-- Steps:
-  1. `prepare`, idempotent: create the run directory, copy and verify `source-inbox/<file>` → `input.pdf`, write `params.json`, and validate the size, page count ≤ 2000 and the page range.
-  2. `convert`, **one step**: model probe, `ocr.resolve`, `kie.runner.convert`, `output.md`. A replay re-probes and re-resolves, which fixes the stale-checkpoint finding. `should_retry` = `classify`, moved to `kei_exp/failures.py` (it imports `store.Unavailable` today, `tasks.py:61`). Up to 3 executions, backing off from 5 s, like today's `RetryStrategy`.
-  3. Return `{ok, run_id, generation, page_count, source_sha256, page_source}`, with the generation read from the published manifest.
-- A crash after publication but before the checkpoint republishes a newer generation, atomically. Studio finalizes only the generation returned by the completed workflow.
-- Cancel checks sit between pages (best-effort).
+**Studio → kei handoff** (ingestion, reprocess, extraction):
+- **`submitToKei`** enqueues the deterministic kei ID through the kei
+  `DBOSClient`. It passes portable arguments, an explicit priority,
+  `workflowTimeoutMS` and the parent's attributes. It is idempotent (M0 #1).
+- **`pollKei`** waits in steps of at most 30 s (M0 #2). Recovery re-polls the
+  same child. kei `CANCELLED`, `ERROR`, recovery exhaustion and `{ok: false}`
+  become typed failures.
+- **Unexpected parent failure.** A parent that fails unexpectedly after
+  `submitToKei` cancels its kei child before rethrowing.
+- **Contract.** Portable JSON `{ok: true, ...} | {ok: false, code, reason,
+  retryable}` with ISO dates (M0 #11). Shared fixtures in
+  `prototypes/parsing_service/tests/fixtures/contracts/` are checked by pytest
+  and node:test. No PDF, page or artifact bytes enter workflow history.
+- **Acceptance.** Studio's transaction is the acceptance boundary: lock the
+  row, recheck ownership, the cancel outcome and the expected head, then
+  commit. kei's fail-open post-conversion policy stays.
 
-**`kei.extract(request)`**
-- **One step**: manifest `success`, the generation pin (`StaleGeneration`), model and recipe checks, `kie/extract/run.py:extract`, then publish the artifact.
-- Returns `{ok, artifact: {path, sha256}, models}`.
-- Cancel checks sit between records.
-- It works on legacy run directories: it reads only files, never `kei_run`.
+## Background work
 
-**Studio → kei handoff steps**, shared by the ingest and extraction workflows
-- `submitToKei`: re-check that the row is still RUNNING (a cancelled operation never admits a child), then `keiClient.enqueue` with the deterministic id and portable args. Idempotent (M0).
-- `pollKei` in a loop: each step waits at most 30 s on `retrieveWorkflow(id).getResult()`. A Studio cancel or timeout therefore takes effect within 30 s, and a Studio restart just re-polls.
-- If kei ended CANCELLED, ERROR or MAX_RECOVERY, the step maps that to a typed failure.
+**One Extraction row.** Remove `ExtractionJob` and `BatchExtractionMember`.
+An admitted Extraction contains its input pins, requested models/recipe,
+optional batch ID and nullable terminal outcome; result fields start empty.
+- Pending Extraction rows are the batch's intended selection. Enforce
+  `unique(batchExtractionId, sourceDocumentId)`, the composite source/revision
+  FK, and the batch/schema/strategy FK. There is no job/member/result cycle.
+- Completion updates that row; failure and cancellation use the same
+  no-outcome predicate. Keep accepted evidence, diagnostics, attribution,
+  review drafts and finalized reviews on their existing Extraction identity.
+- Derive batch progress from surviving Extractions and their DBOS status.
+  Pending rows are not reviewable results and must not displace the pinned
+  latest-reviewed Extraction when reopening a document. Rerun creates a new
+  batch; targeted member retry is removed.
 
-**`studio.runExtraction(jobId)`** replaces `ExtractionJobWorker`.
-- Steps: `start` (RUNNING, `startedAt`), then `submitToKei`, then `pollKei`, then `complete`.
-- `complete`: GET the artifact from kei; validate it with the `kei-exp.ts` validation; then, in a transaction that takes a `FOR UPDATE` row lock and requires the row to be RUNNING, insert the `Extraction` and set COMPLETED. Otherwise discard.
-- Typed failures run `fail()` with today's codes.
-- Timeout: 10 min for Article, 3 h for Catalog (`job-worker.ts:143-149`), passed as `workflowTimeoutMS` (`timeoutMS` is silently ignored; M0 item 7).
+**`runExtraction(extractionId)`** runs these steps:
+1. load admitted input pins;
+2. `submitToKei` with priority 1 (interactive) or 10 (batch), and a
+   dequeue-relative timeout of 10 min (Article) or 3 h (Catalog);
+3. `pollKei`;
+4. fetch and validate the artifact through the existing read API checks;
+5. lock the Extraction and publish only if no outcome exists. Replay returns
+   the accepted outcome instead of creating another result.
 
-**`studio.suggestSchemaBatch(batchId, attempt)`** replaces the pump, keeping its semantics (`_project_operations.ts:74-253`).
-- One step per unfinished source. It **continues after an individual source fails** and records that failure.
-- Then `merge`, with its own model timeout.
-- The batch FAILS if any source failed.
-- Retry, in the existing handler: one transaction runs `attempt += 1`, resets only unfinished sources (`project-store.ts:1796`) and enqueues `suggest:<batchId>:<attempt>`.
-- The worker reads model configuration and credentials fresh in each step.
+Typed failures use today's codes and the same conditional terminal update.
+If deletion removed the row/source, exit without publication; a zero-row
+update is a no-op and does not fail surviving batch members. Batch admission
+uses deterministic member Extraction IDs and enqueues all members atomically.
 
-**`studio.ingestSource(ingestionId)` / `reprocessSource(ingestionId)`** replace the in-request poll. The web handler:
-1. Validates as today: MIME, magic bytes, 100 MiB, ownership.
-2. Stages the PDF into `source-inbox` (temp file, then atomic rename).
-3. In **one transaction**, finds the latest `SourceIngestion` attempt for `(project, kind, key)`:
-   - a different fingerprint gives **409** (today's `IngestionKeyConflictError`; the reprocess fingerprint stays `source_reprocess.ts:71`);
-   - a non-terminal attempt is joined;
-   - SUCCEEDED gives today's replay response (**201** for an upload, **200** for a reprocess replay);
-   - FAILED inserts attempt n+1 and enqueues it (like today's retry, which submits a new kei run).
-4. Awaits the workflow with a 30-min cap.
-5. Maps the result through today's full response matrix: 201/200/400/404/409/413/422/502/503/504, the error codes, and the `no-store` headers.
+**`suggestSchemaBatch(batchId, attempt)`** runs on queue `suggest` (global 1).
+- Keep membership pins, the attempt number, merged proposal/draft, draft
+  version and terminal outcome. Remove per-source execution statuses,
+  definitions, failures and timestamps, their publication methods and UI.
+- Admission snapshots all current member revision pins in sorted order into
+  workflow input in the same transaction as enqueue. One named DBOS step per
+  source generates/validates; one step merges; one conditional transaction
+  publishes the final proposal and draft. Recovery reuses those checkpoints.
+- All terminal writes require the current attempt and no terminal outcome.
+  A step first checks whether its attempt was interrupted or its scope was
+  deleted. No missing-source result can overwrite a preserved draft.
+- Failures block merge, including `model_key_required`. An explicit retry
+  resends browser keys, increments the attempt, clears its failure/outcome
+  and enqueues a new workflow over **all surviving pins**. It is allowed only
+  after a terminal attempt and before confirmation. It never reuses a prior
+  attempt's source checkpoints. Retry carries `expectedAttempt`: under the
+  row lock, advance it once; a replay finding exactly that successor returns
+  it, and a later attempt is a conflict. This prevents an uncertain POST from
+  launching another whole batch after the first retry has already finished.
+  Existing confirmed schemas/batches remain immutable; another extraction run
+  creates a new batch.
+- Retain an existing draft while retry runs, but disable editing and Run until
+  the attempt settles. A successful retry deliberately replaces the proposal
+  and draft and increments draftVersion once; a failed/interrupted attempt
+  preserves them. Run requires a valid draft, at least one surviving member
+  and no active attempt, rather than requiring the latest attempt to have
+  succeeded.
+- Source deletion semantics are specified below. Selection identity and
+  coverage describe the original selection/generation, not a validation of
+  today's surviving membership.
 
-The workflow:
-1. `start`.
-2. `submitToKei`, then `pollKei`.
-3. `finalize`: fetch the manifest and pages, verify (`_kei_exp.ts:189-211`, `:477-497`), translate, and pack and save (`artifact-store.ts:151,232`). Then run `store.ingestSourceDocument` / `reprocessSourceDocument` in a transaction that locks the `SourceIngestion` row and sets SUCCEEDED with the result ids. That transaction also re-checks ownership and the expected head (`project-store.ts:1595`). A lost race discards the package, as today (`source_documents.ts:682`, `source_reprocess.ts:133`).
-4. `cleanupInbox`.
+**`ingestSource`** drops ingestion keys from the request, response, browser
+state and Source Document storage. Keep upload validation (ownership, MIME,
+magic bytes, 100 MiB) and uniqueness on `(projectContextId, contentSha256)`.
+- First return a completed-content replay from the project without parsing.
+- Otherwise mint an attempt ID and atomically stage verified bytes at
+  `source-inbox/<projectContextId>/<attemptId>.pdf` (temporary write, rename).
+  Enqueue on `studio` with deduplication ID `ingest:<projectId>:<sha256>` and
+  `duplicationPolicy: 'return-existing'`. Use the returned workflow ID/result.
+  If another attempt won, delete only this request's unused staging file.
+  An uncertain enqueue leaves its file for GC rather than risking live input.
+- Active deduplication is not permanent replay. The workflow's first step
+  rechecks completed content, covering completion between the request's
+  precheck and enqueue. The unique content constraint remains the publication
+  backstop. A failed/cancelled attempt releases dedup, so resubmission can
+  start a new attempt without a key or alias record.
+- Await the returned result for the existing thirty-minute HTTP deadline.
+  A 504 detaches; it does not cancel. Re-uploading after a reload rejoins the
+  active attempt or returns the completed document.
+- Then `submitToKei` (`kei-convert`, priority 1), `pollKei`, verify manifest and
+  pages, translate/package, and commit under the existing ownership and
+  content constraints. A replayed commit returns the same document/revision.
+  Delete only the attempt's own staging file after use; GC handles crashes
+  before enqueue and terminal failures that leave files.
 
-Content-hash dedup across keys stays inside the store (`project-store.ts:1430`).
+**`reprocessSource`** retains its separate request key, fingerprint and
+expected-head checks, before start and at commit. It shares conversion and
+verification helpers, not ingestion's identity rules. A commit replay returns
+its previously created revision rather than appending another revision.
 
-**Intentional behaviour change:** a timed-out request (504) no longer stops the
-work, so the Source Document can appear later. Update the timeout case in
-`source_documents.test.ts:766` accordingly; every other handler assertion stays.
+## Interactive model work
 
-### Cancellation, terminal outcomes, recovery
+A reload, a dropped connection and a Studio restart all recover the same way.
+The page reads what the server holds and reattaches to what still runs. Each
+user action carries a client-minted ID (Admission, above).
 
-- **Extraction cancel** (`DELETE /api/extractions/:id`, INTERACTIVE only, as today).
-  - One transaction sets QUEUED or RUNNING → FAILED `cancelled` and records `cancelRequestedAt`. This is the same end state as today, reached sooner.
-  - After the commit, best-effort `cancelWorkflow` on `extract:<id>` and `kei-extract:<id>`.
-  - `complete()` refuses a row that is no longer RUNNING.
-- **`studio.reconcile`** (scheduled, single instance) is the backstop for every engine-terminal path. It scans only non-terminal rows and active kei workflows:
-  0. A non-terminal row with no Studio workflow after a 30 s grace is enqueued under its deterministic id (the commit-then-enqueue relay, Rule 4).
-  1. A non-terminal row whose Studio workflow ended CANCELLED, ERROR, timeout or MAX_RECOVERY is set to FAILED with a typed code (`timeout`, `interrupted`, `recovery_exhausted`).
-  2. A Studio workflow that is PENDING or ENQUEUED but whose row is terminal or deleted is cancelled.
-  3. A kei workflow that is ENQUEUED or PENDING (via `keiClient.listWorkflows`) whose owning row, parsed from its id, is terminal or missing is cancelled.
-  4. It never deletes anything, and a DB error skips the tick.
-- **Deletion.** Project and source cascades delete the operation rows. Running workflows then find no row at their next step and exit, discarding staged packages. The reconciler cancels their kei children.
-- **`sweepInbox`** deletes inbox files older than 24 h that no non-terminal `SourceIngestion` references. It deletes nothing if the reference query fails.
-- **kei worker.**
-  - It takes a flock on `runs/.worker-<slot>.lock` before `DBOS.launch()` and holds it for its lifetime. It reuses `hold_slot` (`jobs/worker.py:42-57`). SIGSTOP keeps ownership.
-  - Its executor id is fixed at `kei-<slot>`, and a restart recovers its PENDING workflows.
-  - This replaces `reconcile` and the raw SQL.
-- **studio_worker.** Executor id `studio-worker`, one replica, `restart: unless-stopped`.
-- **Versions and retention.**
-  - `applicationVersion` is pinned per app (`studio@1`, `kei@1`). Bump it for any replay-affecting change to a workflow's code or its contract, and a bump requires draining that app first.
-  - The `retention` workflow removes DBOS workflow rows older than 30 days in both schemas. The window must be longer than the longest workflow (3 h).
-  - Pool sizes are capped: 5 each for the Studio DBOS pool, the kei client, the web and kei. That keeps the total well under `max_connections`.
+- **Generation (`suggestSchema`).** `generate_schema` gains an
+  `operation_id` and the base Schema Revision it starts from (none for a
+  first generation). One `DBOS.runStep` wraps `generateSchemaWithModel`.
+  - A live tab saves the result exactly as today, through `generate()`
+    (`src/currentSchemaRevision.ts:417`) and the save coordinator. Today's
+    conflict rules and origins therefore stay: the save uses the tab's
+    acknowledged head (`src/schemaSaveCoordinator.ts:82-104`), and editing
+    during a regeneration remains allowed.
+  - A reloaded page saves a finished generation only while its base is still
+    the current revision, or while there is still no Extraction Schema.
+    Otherwise it drops the generation, as reloading drops a conflicted save
+    today, so a stale result never lands on newer work.
+  - The save expects the base as its head. So two tabs that load at once
+    cannot both save it; the second conflicts, as today.
+  - A server-side save step would have to pick a head without the tab's
+    acknowledgement, and would repeat after a crash between its commit and
+    its checkpoint.
+- **Edit proposals (`proposeSchemaEdit`).** `edit_schema` gains an
+  `operation_id`. One `DBOS.runStep` wraps `proposeSchemaEdit` with its
+  bounded repair. The output is the proposal and its base Schema Revision.
+  Nothing is saved until the researcher applies it through the existing
+  revision path.
+- **Typed results.** Both steps return expected failures (today's
+  `ApiError`s) as typed results instead of throwing, so the handlers
+  reproduce today's status codes. DBOS revives a recorded error only as a
+  plain `Error`.
+- **Finding work after a reload.** `GET /api/model-operations` takes a
+  Project Context and an Extraction Schema.
+  - A first generation, made before any Extraction Schema exists, records
+    `extractionSchemaId: null` explicitly. The route then matches it, because
+    DBOS filters attributes by JSONB containment.
+  - It returns the account's generation and edit operations for that scope,
+    newest first, from one `listWorkflows` call: prefixes `suggestion:` and
+    `edit:`, the scope attributes, `loadInput`, `loadOutput` and a limit of 20.
+- **What the schema panel does on load.**
+  - It shows a running operation with its instruction, and polls every 2 s
+    until the operation settles.
+  - It saves a finished generation whose base is still current, as above.
+  - It reopens the review bar for the newest finished proposal whose base is
+    the current revision, but only while the draft is clean. The restored
+    proposal replays onto the base revision's nodes and keeps today's
+    draft-version guard (`src/useSchemaProposalReview.ts:87-94`).
+- **Discard and cancel.** `DELETE /api/model-operations/<workflow ID>`
+  (owner-checked) cancels a running operation; the schema panel's cancel and
+  `cancelGeneration` call it.
+  - For a finished proposal, it deletes that proposal and every older finished
+    proposal on the same base, so an older one cannot reappear and a newer
+    one from another tab survives. That is how Discard persists. Finished
+    history is settled, so the delete is safe at once.
+  - Deleting a workflow also deletes its deduplication record. A retry of the
+    same POST still in flight from another tab could therefore run the edit
+    once more and show one more proposal. That costs one model call and
+    loses nothing, so no dismissal record is kept.
+  - A client abort only detaches.
+- **Chat (`chatTurn`).** A transcript that must survive a reload is research
+  content, so it moves into FREE's tables. Each turn is one `ChatTurn(id,
+  sourceRepresentationRevisionId, question, answer, failure, createdAt)` row,
+  cascading with its revision.
+  - **Request.** `POST /api/chat` carries the immutable source revision, turn
+    ID and new question, never client history. Insert the question and enqueue
+    atomically with per-revision deduplication (Admission). Same-ID replay
+    returns its stream/outcome; different content is 409. A second distinct
+    active turn is 409; the browser refreshes the transcript instead of
+    silently attaching the new question to another turn.
 
-### Credentials
+  - **Workflow.**
+    - The first step loads the admitted question and earlier answered turns.
+    - `streamText` then runs at workflow scope with
+      `wrapLanguageModel({model, middleware: durableCalls({name: 'chat',
+      durableStream: 'ui', retriesAllowed: true, maxAttempts: 3,
+      timeoutMS})})` and `maxRetries: 0`
+      ([integration](https://docs.dbos.dev/integrations/vercel-ai)). The fixed
+      step name keeps replay valid if the route changes between attempts.
+      `model` is the provider model wrapped in the sanitizer. It maps thrown
+      errors and stream error parts, and drops the request body, response
+      headers and provider metadata that `durableCalls` would otherwise
+      record (`@dbos-inc/vercel-ai` `src/middleware.ts:518-531`). It runs
+      inside `durableCalls`' step and stream.
+    - The last step records a successful answer only if no answer/failure
+      exists. On provider failure, record a sanitized typed failure, then
+      throw a fresh sanitized Error without `cause`, nested errors or response
+      objects. Returning a typed failure as workflow success makes the native
+      stream emit an ordinary finish (verified). Partial text is never saved
+      as a successful answer. Cancellation writes its outcome externally;
+      deleted rows and losing terminal writes do not republish anything.
+  - **Chat ID.** The Source Representation Revision ID becomes the chat ID,
+    replacing the fixed `free-document-chat` (`src/ChatTab.tsx:67`).
+    `POST /api/chat` returns `createUIMessageStreamResponse({stream:
+    readDurableStream({workflowID, key: 'ui', messageId: turnId})})`. The
+    turn ID is the assistant message's stable ID, live and on replay.
+  - **Reload.**
+    - `GET /api/chat/<revision ID>` returns the transcript and the newest
+      unanswered turn's ID, if any. Reconnect using that exact ID through
+      `GET /api/chat/<revision ID>/stream?turnId=<id>`; authorize the turn's
+      membership in the owned revision on every request.
+    - Serve the named workflow's stream even if it became terminal after the
+      transcript read. If its history is gone, return 204. Re-read the
+      transcript after 204 and every stream end, so a completed answer or
+      domain failure wins over provisional text.
+    - Replay from offset 0 with the stable turn ID. The integration skips
+      superseded attempts for a new reader. On a dropped connection, reconnect
+      this way instead of ending the turn; a Studio restart kills the socket.
+    - Remove custom `data-dbos-superseded` handling. In pinned 0.3.7,
+      `shouldRetry` refuses an in-process retry after content has been emitted
+      (`middleware.ts:145-148`); restart recovery uses a new reader. A future
+      change to this constraint must revalidate stream replay.
 
-- **Storage.** `public.ModelCredential(connectionId, revision, ciphertext, iv, authTag, createdAt)`, PK `(connectionId, revision)`, AES-256-GCM.
-  - A random 12-byte IV per write; AAD = `connectionId:revision`.
-  - The key is `FREE_CREDENTIAL_KEY` (64 hex characters), given to `studio` and `studio_worker` only.
-- **Consistent snapshot** (the Codex split-store finding).
-  - Every connection in `model-config.json` names its `credentialRevision`.
-  - Apply order: insert the new revision, then write the config naming it, then delete the superseded revisions.
-  - Readers resolve the revision named by the config they read.
-  - An earlier config shape fails closed and offers the confirmed reset, as today.
-- **Interface.**
-  - `CredentialStore` (`api/_keyring.ts`) keeps its interface; the new implementation is `api/_credentials.ts`.
-  - A wrong key or tampered ciphertext gives `503 credential_store_unavailable`, logged with a distinct reason, and replaces `keyring_unavailable` everywhere.
-  - Rotation is out of scope: re-enter the credentials.
-- **Removed:** `@napi-rs/keyring`, `dbus-daemon`, `gnome-keyring`, and the entrypoint unlock plus the `XDG_RUNTIME_DIR`/`DBUS_*` variables.
+  - **Unanswered turns.** A question whose workflow ended without an answer
+    (after a cancel, or when recovery is exhausted) shows as unanswered.
+    Asking again starts a new turn.
+- **What DBOS history holds.**
+  - The workflows read document text from the immutable Source Representation
+    Revision outside any step, so their inputs carry only IDs, questions and
+    instructions.
+  - `durableCalls` would also checkpoint the provider request body, which
+    contains the document (`@dbos-inc/vercel-ai` `src/middleware.ts:211`).
+    The sanitizer drops it, so a chat turn's history holds the transcript
+    and the answer, not the document.
+  - Settled interactive workflows have a 24-hour history retention target. That is enough to recover
+    a turn, or to return an unsaved generation or an unreviewed proposal.
+    Transcripts and saved revisions live in FREE's tables. Background work
+    has a 30-day target. Cancellation can extend retention until quiescence
+    is established (garbage collection, below).
+- **No pins.** Every attempt resolves the current route and key of the
+  Project Context's owner, as every call does today. Interactive results carry
+  no stored attribution, so a recovered attempt on a changed route changes no
+  record.
+- **Retries and timeouts.** One retry owner per path: the AI SDK's defaults in
+  the JSON steps, and DBOS (`durableCalls`) for chat. Each call keeps a
+  10-minute timeout, as batch calls have today.
+- **Scope.** The schema panel's message log (instruction echoes, and apply or
+  discard notes) stays in the page. What survives a reload is the latest
+  operation: a running one, an unsaved generation or an unreviewed proposal.
+  `promptOnlyRoutes`, NuExtract and schema-edit repair keep their code inside
+  the steps.
+
+## Cancellation
+
+- **Extraction cancel** (interactive Extractions, as today). One transaction
+  writes the failure `cancelled` if the Extraction has no outcome. Then
+  `DBOS.cancelWorkflow('extract:<id>')` runs, and the kei client cancels
+  `kei-extract:<id>`.
+- **Propagation is retried.** A crash between the commit and the two cancels,
+  or a `submitToKei` that finishes after the cancel, leaves a live kei child.
+  `collectGarbage` cancels live Studio workflows whose domain row/attempt
+  already has a terminal outcome, and live kei workflows whose Studio parent
+  is terminal. Repeated cancellation must target live statuses only, so it
+  does not keep advancing a cancelled workflow's timestamp.
+- **kei's cooperative checks** (`jobs/tasks.py:94,98,166`, between pages and
+  records) read the DBOS workflow status instead of `kei_run.cancel_requested`,
+  which nothing in production sets today. A native call that is already
+  running finishes first.
+- **Physical exclusion.**
+  - kei's queue has global and worker concurrency 1. dbos 3.0.0 counts worker
+    concurrency from the in-memory set of active workflows
+    (`_queue.py:740-768`, `_core.py:1055-1070`). A cancelled workflow whose
+    step still runs therefore keeps the slot until the step returns.
+  - The flock excludes a second process.
+  - One regression test covers this; no extra lock.
+
+## Deletion and garbage collection
+
+Project deletion cascades its owned graph. Source deletion removes the source's
+revisions, Extractions and reviews, and only its membership in surviving
+batches/suggestions. Use cascading source/revision FKs, including the composite
+suggestion membership pin; remove the obsolete member/job Restrict cycle.
+`ChatTurn` cascades with its revision. The existing Restrict failure is confirmed
+by a real PostgreSQL `23503` probe, not a hypothetical fake-store gap.
+
+**Suggestion preservation.** Lock affected suggestion rows before deleting
+membership. Mark an active attempt interrupted in the deletion transaction,
+without modifying its proposal, draft or draft version. Its immutable workflow
+input can still name the old selection, but its conditional publication now
+cannot succeed. After commit cancel the affected attempt IDs as well as the
+scope's workflows in both apps. Scheduled cancellation repair covers a crash
+in between. No automatic regeneration or invalid-proposal state is added.
+The existing valid draft stays editable/usable with surviving sources; an
+empty selection disables Run/Retry but keeps the draft. Membership changes do
+not recompute the immutable original selection key or historical coverage.
+
+After deletion commits, discard the deleted rows' canonical packages through
+`discardPackagesIfUnreferenced` and return 204. Ownership checks make the scope
+unreadable immediately; execution and file cleanup can finish later.
+
+`collectGarbage` runs every 10 minutes:
+- **Packages:** remove unreferenced canonical packages older than 24 h using
+  the existing rename-and-recheck. Preserve every surviving revision's package.
+- **kei runs and history:** Studio checks domain references and both workflow
+  schemas. A run referenced by a revision's `preprocessId`, a live kei workflow
+  or a child of a live Studio parent is protected. This covers a completed
+  conversion waiting for Studio publication. Pass eligible run/history IDs to
+  kei `deleteRuns` on queue `kei` at priority 0. It rechecks its own workflow
+  statuses and performs deletions while holding the same physical worker slot.
+  kei never receives permission to query Studio's domain or system schema.
+  Run directories must also be older than 24 h. Queue exclusion, not priority
+  or elapsed age, prevents cleanup overlapping a cancelled native step.
+- **Staged uploads:** remove attempt files older than 24 h only if their
+  project/attempt workflow is absent or terminal. This includes crashes after
+  staging but before enqueue and losing dedup candidates. Protect active
+  attempts and their kei children; filenames never identify a shared file by
+  content alone.
+- **Orphaned execution:** cancel live workflows whose scope disappeared, live
+  Studio workflows with a terminal domain outcome, and live kei children of
+  terminal Studio parents. No workflow may publish into a deleted scope.
+- **History retention:** 24 h after terminal completion for interactive work,
+  30 days for background work; deleted scopes bypass age, not quiescence.
+  Never delete kei history referenced by a live Studio parent. All kei history
+  deletion runs through `deleteRuns`, including deleted-scope cleanup.
+- **Cancelled Studio history:** capture `bootTimestamp` using the database
+  clock before launch, only after the previous Studio process has terminated.
+  Delete cancelled history only when `updatedAt < bootTimestamp` and its age
+  or deleted-scope rule permits it. Cancellation updates this timestamp using
+  the database clock (verified). Current-process cancellations wait for a
+  later process restart. No in-place DBOS shutdown/relaunch is supported.
+  `SUCCESS`/`ERROR` executions can use ordinary terminal retention.
+
+A failed reference/status query deletes nothing. DBOS payload tables lack
+foreign keys, so deleting history while a cancelled step can still checkpoint
+would leak orphan rows. A 24-hour cancellation age does not prove that step
+stopped. Cleanup can wait behind a hung kei step or until a Studio restart;
+there is no fixed 24-hour deletion guarantee. Late unpublished files remain
+invisible and are collected after reference and quiescence checks.
+
+## Queues, deadlines and upgrades
+
+| App | Queue | Policy | Workflows |
+|---|---|---|---|
+| kei | `kei` | global 1, worker 1, priority: interactive extraction and conversion 1, batch extraction 10, `deleteRuns` 0; FIFO ties | `convert`, `extract`, `deleteRuns` |
+| studio | `studio` | unrestricted; dedup per chat source revision and per ingestion project/content | `runExtraction`, `chatTurn`, `ingestSource` |
+| studio | `suggest` | global 1 | `suggestSchemaBatch` |
+
+- **Other workflows start directly.** The `studio` queue provides transactional
+  admission and active deduplication, not a new resource cap. Measure its chat
+  dequeue latency in M0R. The suggestion queue limits scheduling, but cancelled
+  TypeScript calls may still finish; conditional outcomes protect publication.
+- **No admission caps.** None exist today besides the 50-member batch limit,
+  which stays. HEAD already dropped kei's cap of 32.
+- **kei deadlines.** `workflowTimeoutMS` applies to `kei-extract` (10 min
+  Article, 3 h Catalog) and `kei-convert` (budget fixed by M0R), measured from
+  kei dequeue. Studio parents have no deadline; they end with their child.
+- **Versions.** `studio@1` and `kei@1` stay fixed. Code changes that alter a
+  workflow's step sequence use `DBOS.patch()` / `deprecatePatch()` (Python:
+  `patch` / `deprecate_patch`). Both SDKs require patching to be enabled in
+  their configuration: `enablePatching` in TypeScript and `enable_patching` in
+  Python. Bump a version only for an incompatible contract change, after
+  draining.
+- **Pools.** Studio domain, Studio DBOS, Studio admission client, kei client and
+  kei worker; measure the total. Transactional enqueue uses the already-acquired
+  domain client. Do not assume M0's old pool count still applies.
+
+## kei worker
+
+- **Startup.** `kei-worker worker` takes `runs/.worker-<slot>.lock` before
+  `DBOS.launch()` and holds it for its lifetime (`hold_slot`,
+  `jobs/worker.py:38-57`). Its executor ID is fixed at `kei-<slot>`, and a
+  restart recovers pending work.
+- **`convert`** has two steps.
+  - `prepare` creates the run directory, copies and verifies the staged PDF,
+    writes `params.json` and validates at most 2000 pages. It returns the run
+    ID, which replay reuses.
+  - `convert` probes, runs `ocr.resolve` and the native conversion. Remove
+    worker `output.md` generation; standalone CLI output stays. It uses
+    `retries_allowed=True`, `max_attempts=3` and a 5 s
+    backoff (today's `RetryStrategy`), with a boolean `should_retry`
+    predicate: `isinstance(classify(e), TransientBackendError)`. `classify`
+    itself returns an exception, which DBOS would treat as always true.
+
+  It returns `{ok, run_id, generation, page_count, source_sha256, page_source}`
+  from the published manifest.
+- **`extract`** is one step with the same retry policy: manifest success, the
+  generation pin, model and recipe checks, `run.py:extract`, then idempotent
+  artifact publication.
+- **`classify`** moves from `jobs/tasks.py` to `kei_exp/failures.py`.
+- **Per-model-call checkpoints are deferred.**
+  - `_Run.call` mutates run state in place (`kie/extract/grounded.py:132-155`),
+    so step boundaries there mean a refactor that deletes nothing. A crash
+    repeats the whole extraction, as today.
+  - Python has no transport-retry loop for DBOS to replace. Its only resend is
+    the unsupported-format retry (`kie/extract/llm.py:97-99`), which stays.
+- **Read API.** It keeps five routes, with their path confinement and
+  manifest/page/hash checks:
+  - `GET /api/models` (Compose health);
+  - `/api/extraction-models`;
+  - `/api/runs/{id}/result`;
+  - `/api/runs/{id}/pages/{n}`;
+  - `/api/runs/{id}/extractions/{xid}`.
+
+  Replacing this API with a shared filesystem mount is deferred: catalog
+  ownership and safe file reads remain real consumers, and duplicating their
+  validation in TypeScript has not demonstrated a net deletion.
+
+## Model configuration and keys
+
+- **Ownership.** Each Researcher Account owns one configuration: its Model
+  Connections, both Capability Routes and its Extraction Model Choice.
+  - `model_config` and `model_probe` become researcher-scoped handlers instead
+    of static modules (`server/api-dispatcher.ts:43-48`). A researcher reads
+    and changes only their own configuration.
+  - Every Studio model call, background ones included, resolves the
+    configuration of the Project Context's owner; workflows carry only IDs.
+    kei's parsing, OCR and extraction models stay deployment-configured
+    (`KEI_*`), and the Extraction Model Choice only selects among them.
+  - The account is mandatory, so the accountless fallbacks go, such as
+    `readModelConfig()` in `operationTarget` (`api/_model.ts:87`).
+  - An Extraction is still requested on the Extraction Model Choice current
+    when it starts, which is now the owner's.
+- **Deployment connections** stay operator-defined, read-only and shared by
+  every researcher. An unset route still falls back to the deployment's
+  default route.
+  - The vLLM servers come from `FREE_DEPLOYMENT_*`
+    (`api/_deployment_models.ts`).
+  - The CLI providers run on the server's own CLI login (the CLI auth homes).
+    The operator enables them with `FREE_DEPLOYMENT_CLI_PROVIDERS`
+    (`codex-cli`, `claude-code`), and the local development overlay enables
+    both for power users who run FREE themselves.
+  - Researchers can no longer define a CLI connection. Apply and Probe both
+    reject one. Today a probe of an unsaved CLI connection runs without any
+    check (`api/model_probe.ts:51`). An enabled CLI provider joins
+    `DEPLOYMENT_IDS` and is probed only through its deployment ID. This
+    deletes the one-per-kind check (`api/_model_config.ts:83-93`) and the
+    personal-CLI branches.
+- **Configuration storage.** `ModelConfiguration(researcherAccountId,
+  document, updatedAt)`, cascading from the account.
+  - The document holds the researcher's connections, routes and Extraction
+    Model Choice. For each connection it records only whether the connection
+    uses a key (`hasKey`), never the key. Managed kinds (OpenAI, Anthropic,
+    Google) always do.
+  - One transaction applies a draft, serialized by a lock on the researcher's
+    configuration row. This replaces the in-process write barrier
+    (`api/model_config.ts:20-41`).
+  - The update request loses its credential actions
+    (`shared/modelConfig.contract.ts:87`), and the response loses
+    `credentialStates` (`:114-117,147`).
+  - There are no revisions and no pins.
+- **Keys: bring your own, never stored by Studio.** A researcher's API keys
+  stay in their browser. Studio keeps a copy only in process memory, never in
+  PostgreSQL, on disk, in logs or in DBOS.
+  - **Browser.**
+    - The Model Configuration page keeps each key in `localStorage`, under
+      the signed-in account and bound to the connection's ID and API base.
+      The page reads keys from there when it needs them and keeps no other
+      copy.
+    - Changing a connection's base or provider, in a draft as well as on
+      Apply, clears its key at once and cancels any scheduled probe. Today a
+      draft keeps the typed key and probes the new base with it after 500 ms
+      (`src/providerConfig/useProviderConfigDraft.ts:48-58`,
+      `useProbeLifecycle.ts:60-72`).
+    - Signing out clears this browser's keys and Studio's copy for the
+      account. Another signed-in browser of the same account sends its own
+      copy again the next time it talks to Studio. A key removed in one
+      browser can likewise come back from another browser that still holds
+      it.
+  - **Handoff.** The page sends its keys with `PUT /api/model-keys`
+    (researcher-scoped and write-only; entries merge, and a `null` removes
+    one). It sends them:
+    - on load;
+    - after Apply;
+    - when a response shows a new Studio boot ID. Every API response carries
+      `X-FREE-Studio-Boot`, a UUID drawn at startup. The check lives in
+      `src/auth/authenticatedFetch.ts`, so every page has it: the chat
+      reconnect, the schema panel's poll and the batch panel's 2 s refresh
+      (`src/projectContexts/BatchExtractionsPanel.tsx:440-455`);
+    - once more after a `model_key_required` response. This is a confirmed
+      terminal failure: retry uses a new operation/turn ID or batch attempt,
+      never the failed workflow ID.
+  - **Handoff checks.**
+    - The request names the account the page believes is signed in. Studio
+      rejects it if the session's account differs, so a stale tab on a
+      shared browser cannot file one account's keys under another.
+    - Studio accepts a key only for one of the account's own connections, at
+      that connection's current provider and base.
+  - **Cache.** An in-memory map from account and connection to the key and
+    the provider and base it was sent for.
+    - A cached key is used only while the owner's configuration, read at the
+      call, still has that connection at that provider and base. A stale entry
+      left by a racing request is therefore harmless.
+    - Entries go when the researcher removes the key, when Apply removes or
+      re-addresses the connection, at sign-out (`POST /auth/logout`,
+      `server/app.ts:497`) and at process exit.
+    - Removal stops new calls; a call already under way finishes.
+    - Studio runs in one process (Decision 2), so one map is enough.
+  - **Use.**
+    - A wrapper model reads the key lazily, inside each provider attempt, and
+      builds the provider client per call, as the Ollama adapter already does
+      (`api/_provider.ts:422-440`). Replaying a checkpointed step therefore
+      never needs a key, and workflow-scope code never reads one.
+    - For a `hasKey` connection with no cached key, the attempt waits up to
+      60 s for a page to resend it. The wait ends early on an abort or on the
+      workflow's cancellation, and no provider call starts after either.
+    - The attempt then fails with `model_key_required`, marked
+      `isRetryable: false`. So neither `durableCalls`
+      (`@dbos-inc/vercel-ai` `src/internal.ts:35-45,73-80`) nor the AI SDK
+      retries it.
+    - With a page open, a Studio restart therefore goes unnoticed: the next
+      request sees the new boot ID and resends the keys. Background work with
+      no page open fails after the wait, and the researcher retries it.
+    - A connection without `hasKey` calls its server anonymously, and one
+      with `hasKey` never does. This replaces today's catches that turn a
+      store error into an anonymous request (`api/_provider.ts:659`,
+      `api/model_probe.ts:68`).
+  - **Probes** always carry the key typed or stored in the page; the server
+    never looks one up for a probe.
+  - **Validation errors.** `model_keys` and `model_probe` answer a malformed
+    body with a fixed error and no validation details. Neither logs its body
+    or a raw validation cause, because Zod issue paths and messages can echo
+    a key placed under an unexpected property name
+    (`api/_model_config.ts:143-146`, `api/_http.ts:88`).
+  - **Trust.** Studio still sees a key while it makes a call. This protects
+    keys from database dumps, backups and passive access, but not from an
+    operator who changes Studio's code. The documentation says so.
+  - **XSS.** A key in browser storage can be read by any script on Studio's
+    origin.
+    - Studio renders no raw HTML (no `dangerouslySetInnerHTML` in `src/`), but
+      only the sign-in pages send a Content-Security-Policy
+      (`server/app.ts:288,309`).
+    - The production app shell (`server/static.ts:98-101`) therefore gains a
+      strict policy. Scripts and pdf.js's worker may load only from Studio's
+      own origin, inline script is refused and framing is denied.
+      `index.html` has a single module script, and the worker is a bundled
+      URL (`src/App.tsx:8,31`). The sign-in relay keeps its own script-hash
+      policy (`server/app.ts:289`).
+    - pdf.js stays patched, since it renders untrusted PDFs in that origin.
+    - Accounts that share one browser profile share its storage. The
+      per-account namespace keeps them apart for the app, not against a
+      script.
+- **Reset.** Validation on write keeps the stored document valid, and future
+  shape changes become migrations, so the fail-closed reset path goes.
+- **Deletions:**
+  - `_keyring.ts`, `ConfigFileSystem` and the JSON read/write/fsync/rename
+    code;
+  - every server-side credential path: `credentialStates`, `requireKeyring`,
+    `requireManagedCredentials`, `clearImplicitOptionalCredentials`, the
+    post-commit cleanup (`api/_model_config.ts:451-459`) and the keyring
+    branches of `savedCredential` and `resolvedCredential`;
+  - the write barrier, the static registration of `model_config` and
+    `model_probe`, the CLI singleton check and personal-CLI branches, and the
+    accountless configuration fallbacks;
+  - `DELETE /api/model_config` with its UI and tests;
+  - the `@napi-rs/keyring` and `env-paths` dependencies;
+  - apt `dbus-daemon` and `gnome-keyring` (`prototypes/studio/Dockerfile:5-9`),
+    and the `XDG_RUNTIME_DIR` / `DBUS_*` settings (`Dockerfile:61-63`);
+  - the entrypoint's D-Bus start and empty-password keyring unlock
+    (`docker/studio-entrypoint.sh:7-8,12-21`), keeping `CODEX_HOME`.
+- **Decision records.**
+  - Supersede ADR 0006 with ADR 0013 (per-researcher configuration, with keys
+    held by the researcher's browser). ADR 0006 assumed one researcher on
+    localhost with an OS keyring, called hosted deployment unsupported, and
+    allowed any researcher-supplied API base for that reason.
+  - Amend ADR 0007, whose routes are machine-wide, and ADR 0011: the page
+    edits the signed-in researcher's configuration, and the reset paragraph
+    goes.
+  - In CONTEXT.md, Model Connection, Capability Route and Extraction Model
+    Choice become owned by a Researcher Account, deployment connections
+    excepted. A Project Context uses its owner's configuration.
+
+## Cutover (clean slate)
+
+A manual, one-time step on baratheon. The reset tooling keeps its loopback-only
+restriction. README #10 ("Production is never reset") gains a dated note naming
+this pre-production reset as its only exception.
+
+1. Build the new images while the old stack serves.
+2. Stop the stack. Take one `pg_dump` of `free` and `parsing_db` for inspection;
+   there is no restore path.
+3. Reset the storage:
+   - remove `parsing_db` and its volume;
+   - drop and recreate `free`;
+   - empty `parsing-runs` and `studio-data`;
+   - delete the obsolete `model-config.json`.
+
+   Keep the CLI auth homes: `studio-config`'s `codex` directory and
+   `studio-claude`.
+4. Start the new stack with the operator's `FREE_DEPLOYMENT_CLI_PROVIDERS`.
+   The baseline, the kei role and schema, and both DBOS schemas are created
+   at startup.
+5. Each researcher re-enters their own connections, enters their keys in
+   their browser, and re-uploads their source PDFs.
+6. Smoke-test:
+   - upload;
+   - extraction and cancel;
+   - batch suggestion;
+   - chat, generation and a schema edit across a browser reload and across a
+     Studio kill;
+   - a second account sees none of the first's configuration, operations or
+     chat;
+   - project deletion followed by `collectGarbage`.
+
+## Public contract changes
+
+- Extraction admission/status/result use one `extractionId`; remove separate
+  job/member identities and targeted-retry variants. Execution status remains
+  derived, while completed evidence and review contracts retain their pins.
+- Ingestion loses `ingestionKey` everywhere. Existing-content responses replay
+  by project/hash. Reprocess keeps its request key and expected-head contract.
+- Suggestion sources expose membership pins only; remove per-source progress,
+  definitions and errors. Drop stored transient SOURCES/MERGING phases; keep
+  final READY/HETEROGENEOUS meaning with the proposal outcome. Retry regenerates
+  the complete remaining selection and carries `expectedAttempt` for replay.
+  Valid draft readiness is independent of the latest attempt's failure.
+- Chat requests carry revision/turn/question, with 409 for a different active
+  turn. Transcript reads supply an exact reconnect turn ID; the stream route
+  takes that ID and returns 204 when its history has expired.
+- Model operations retain client IDs/base revisions, listing and owner-checked
+  cancellation. Browser-key contracts remain as specified above.
+
+Update schemas, handlers, browser consumers and tests together; add no legacy
+aliases or compatibility readers for this pre-production cutover.
 
 ## Milestones
 
-One branch and one cutover, with no temporary adapters. Each milestone ends
-with its test tier green.
+One branch and one cutover, with no temporary execution backends. Until the
+cutover, the new migration baseline is edited in place; forward migrations
+resume after it. Finish each milestone's test tier before the next.
 
-**M0: throwaway spike (gate).**
-- Setup: in the scratchpad, against a disposable loopback `free_test_dbos_spike`, with `@dbos-inc/dbos-sdk@5.0.2` (Node 24) and `dbos==3.0.0` (Python 3.13), also run inside the ARM64 kei image.
-- Verify:
-  1. A TS `DBOSClient` pointed at kei's schema enqueues a portable Python workflow. Re-enqueueing the same id while ENQUEUED, PENDING, SUCCESS, ERROR or CANCELLED behaves predictably, and a named-args call works (`enqueueWorkflowWithOptionsPortable`).
-  2. Bounded `getResult` polling inside a step; cancelling the awaiting Studio workflow takes effect within one poll.
-  3. Killing the kei worker mid-step, then restarting it with the same executor id, re-runs that step. The flock blocks a second process.
-  4. Dbos-py either supports a custom system schema name (`kei_dbos`) or needs a separate database.
-  5. A step whose side effect committed (a Prisma write, a rename, an enqueue) before its checkpoint is re-executed on replay (at-least-once).
-  6. `dbos.enqueue_workflow` through Prisma Next `raw` inside `database.transaction`: rollback, commit, a duplicate id, and parameters for portable args, app name, version, priority, timeout and dedup.
-  7. Timeouts start at dequeue and survive a restart. Priority direction and FIFO ties hold across recovery.
-  8. Recovery is scoped per app and executor.
-  9. The `kei` role can launch, owns only its schema, and is denied on `free.public` and `free.dbos`.
-  10. The retention/GC API exists in both SDKs.
-  11. Portable JSON works for Python dates, optional fields and multi-MB results.
-  12. A wrong-version startup fails safely.
-  13. Connection counts per process are as budgeted.
-- Any failure: stop and bring it to the user. The fallback is one Procrastinate with an HTTP relay.
+**M0: original throwaway spike — historical, completed.** Findings are
+preserved below (TS DBOS 5.0.2, Python DBOS 3.0.0, x86_64). It did not test
+in-process launch, interactive durability, derived status or garbage
+collection.
 
-**M1: platform.**
-- **Compose** (`compose.yaml`, `compose.override.yaml`, `compose.prod.yaml`, `compose.gpu.yaml`):
-  - remove `parsing_db` and `parsing-postgres`;
-  - repurpose `parsing_migrate`;
-  - add `migrate`, `studio_worker` and `source-inbox`;
-  - all apps depend on both migrate services;
-  - `parsing_service` loses its database environment variables and the `kei-jobs schema &&` entrypoint.
-- **`studio_worker`** gets:
-  - `extra_hosts host.docker.internal:host-gateway` (`compose.yaml:132`);
-  - the deployment-model environment from the GPU overlay;
-  - `CLAUDE_CODE_OAUTH_TOKEN`;
-  - the `studio-data`, `studio-config` (`CODEX_HOME`) and `studio-claude` volumes;
-  - no proxy network and no published ports.
-- **Migrate:**
-  - move `db:init` out of `docker/studio-entrypoint.sh`;
-  - create the `kei` role and schema idempotently with a `DO` block. The password comes from `FREE_PARSING_POSTGRES_PASSWORD`, renamed `FREE_KEI_POSTGRES_PASSWORD`.
-  - Migrate reruns on every `up`, and a failed migrate blocks every app.
-- **`scripts/free.mjs`:**
-  - `studio_worker` joins the stop and restart handling (`:445-462`);
-  - keep build-before-stop;
-  - wait on the readiness of both workers;
-  - `FREE_CREDENTIAL_KEY`: dev uses a fixed value; prod requires 64 hex characters (like `:547`);
-  - password renames.
-- **`packages/db`:**
-  - `contract.prisma`: add `SourceIngestion` (project FK with cascade, kind, key, attempt, fingerprint, input fields, reprocess target and expected representation, status, failure, result ids, timestamps; unique `(projectContextId, kind, key, attempt)`) and the revisioned `ModelCredential`;
-  - drop the `ExtractionJob` lease and checkpoint columns and claim indexes, and the `BatchSchemaSuggestion` lease columns;
-  - add a `BatchSchemaSuggestion.attempt` column.
-  - A new migration after `20260923T1946_source_reprocessing` marks non-terminal jobs and batches FAILED with code `platform_cutover` and `retryable`.
-  - Regenerate the artifacts, and fix the stale `migrations/app/refs/db.json`.
-- **Credentials:**
-  - `api/_credentials.ts`, then update every caller and test: `_provider.ts`, `_model_config.ts` (plus the credential revision in the config shape), `model_probe.ts`, `_model_config.test.ts`, `model_probe.test.ts`, `e2e/model-configuration.spec.ts`;
-  - remove the Dockerfile packages and the dependency, and update `pnpm-lock.yaml`.
-- **Safety tests** (`tests/safety.test.mjs:155,168-185,232,258`):
-  - kei's URL points at `kei@db`;
-  - `studio_worker` isolation;
-  - no database environment variables on `parsing_service`;
-  - prod requires the key, and a wrong key fails at startup;
-  - migrate rerun behaviour.
+**M0R: complete gate pending; focused review probes passed.** The evidence
+record below confirms individual SDK/database behaviors, not the complete
+Studio/browser/provider integration. Use disposable loopback `free_test_*`
+databases and scripted model endpoints; no live credentials or research
+content. Record versions, commands and outcomes. A failed check revises this
+plan; it never adds a custom scheduler or fallback.
 
-**M2: kei on DBOS.**
-- **Dependencies and packaging:**
-  - `pyproject.toml` + `uv.lock`: `procrastinate` → `dbos==3.0.0`;
-  - the `kei-jobs` entry point becomes `kei-worker` (`worker`, `migrate`);
-  - update `prototypes/parsing_service/package.json:12-13`.
-- **New `src/kei_exp/workflows/`:**
-  - `app.py`: config, queue, executor id, version, schema;
-  - `convert.py`, `extract.py`;
-  - `contracts.py`: pydantic models matching the fixtures.
-- **New modules:**
-  - `src/kei_exp/worker.py`: flock, then `DBOS.launch()`, listening to the `kei` queue only;
-  - `src/kei_exp/failures.py`: `classify`.
-- **Pipeline threading:** a `should_stop()` callback through `kie/runner.py`, `kie/stages/ocr.py`, the transcription loops and the Catalog record loop. Progress goes through `DBOS.set_event("progress", …)` from the existing emit points.
-- **Delete:**
-  - `src/kei_exp/jobs/`;
-  - `tokens.jsonl` and SSE;
-  - the `kei_*` tables;
-  - the legacy file-only runs in `runs.py`.
-- **`api.py`:**
-  - drop the admission, status, list, SSE and extraction admission/status routes;
-  - keep the artifact and catalog routes;
-  - add `GET /api/runs/{id}/extractions/{xid}/result`.
-- **Tests:**
-  - replace `test_jobs_*` and `test_api_jobs.py` with `test_workflows_{convert,extract}.py`, `test_worker_recovery.py` (kill/restart, SIGSTOP, a crash after publication before the checkpoint), `test_contracts.py`, and `test_legacy_run_extract.py` (an extraction on a pre-cutover run directory fixture);
-  - rewrite `tests/test_service_smoke.py:221,285` to use workflows instead of `POST /api/runs` and SSE;
-  - keep the `free_test_parsing_*` guard.
+1. **Versions.** Pin `@dbos-inc/dbos-sdk` 5.0.2,
+   `@dbos-inc/vercel-ai` 0.3.7 (peers `^4.21 || ^5`, `ai ^7`) and `dbos` 3.0.0.
+   Run on Node 24 and on ARM64.
+2. **In-process lifecycle.**
+   - Launch and shutdown in `host.ts`.
+   - In development, a server-code change restarts the Studio process (Compose
+     watch `sync+restart`) and DBOS launches once per process.
+     `shutdown({deregister: true})` would not wait for running workflows, so
+     relaunching in place could overlap old and recovered executions.
+   - `kill -9` followed by a restart recovers a pending workflow.
+3. **Admission and publication.**
+   - Rollback after domain insert/enqueue leaves neither; commit creates both.
+     Kill immediately before/after commit and verify recovery.
+   - Two simultaneous identical turn IDs create one question and replay once.
+     Different payloads under one ID conflict. Different turns for one source
+     revision admit one and reject one without an orphan question.
+   - Verify `return-existing` only outside caller-owned transactions; measure
+     chat dequeue latency on the unrestricted queue.
+   - Kill after domain publication but before checkpoint: Extraction, ingestion,
+     reprocess, batch draft and chat answer writes remain idempotent.
+   - Cancel racing completion has one winner. A confirmed failure uses a new
+     operation ID/attempt; a row-backed replay after history GC never reruns.
 
-**M3: Studio worker and extractions.**
-- **New `prototypes/studio/server/worker.ts`**, with a build entry point: config, stores, provider runtime, registration of the workflows and schedules, `DBOS.setConfig` (name, executor id, version, `systemDatabaseSchemaName: 'dbos'`, `listenQueues`, pool size), plus the `keiClient`. `DBOS.shutdown()` on SIGTERM.
-- **New `server/dbos.ts`:** the web's `DBOSClient`, `enqueueAfterCommit(workflow, id, args)` and best-effort cancel.
-- **New `packages/extraction/src/workflows.ts`** (`runExtraction`) and a shared `kei-handoff.ts` (`submitToKei`, `pollKei`).
-- **Host wiring:** `server/host.ts:62,110-116` and `server/developmentHost.ts` lose the runtime. In dev, `studio_worker` runs under tsx `--watch`.
-- **`postgres-persistence.ts`:** `scheduleInteractiveExtraction`, `scheduleBatch` and `postgres-suggested-batch.ts` return the committed ids, and their callers enqueue after the commit. Delete `claim`/`renew`/`checkpoint` (`:1075-1236`). `complete` gains the lock and the RUNNING guard.
-- **`kei-exp.ts`:** keep the catalog GET, the artifact GET and the validation; delete POST and polling.
-- **Delete:**
-  - `job-worker.ts`;
-  - the `runtime.ts` wake;
-  - `api/_extraction_runtime.ts`, after re-homing the exports its importers use: `api/extraction_models.ts`, `api/document_reopen.ts`, `api/batch_schema_suggestions.ts`, `api/extractions.ts`, `api/batch_extractions.ts`.
-- **Tests:** update `_extraction_runtime.test.ts` (removed), `extractions.test.ts`, `batch_extractions.test.ts`, `durable_operations.test.ts`, `extraction_models.test.ts`, `server/researcher-project-ownership.test.ts` and `vite.config.test.ts`.
+4. **Interactive durability.**
+   - Reload the page mid-`suggestSchema`, mid-`proposeSchemaEdit` and
+     mid-`chatTurn`, and separately kill Studio at the same points. The page
+     must find each operation.
+   - A finished generation is saved at most once, and only onto its base,
+     whether by the reloaded page or by a surviving tab. It is dropped when
+     newer work exists. The review bar returns.
+   - The transcript returns and partial text replays once under the turn ID.
+     New readers skip superseded attempts. A partial provider failure produces
+     an error finish and persisted failure, never a saved partial answer or an
+     in-process retry that appends replacement text.
+   - An answer that finishes between the transcript read and the reconnect
+     still appears, with the turn ID as its message ID.
+   - A repeated POST after a dropped connection returns the same result.
+     Exact-turn reconnect works across completion and returns 204 for expired
+     history, followed by the authoritative transcript.
+   - Change the route between attempts.
+   - Test one HTTP and one CLI provider through `durableCalls`.
+   - A second account can list, read, stream or cancel none of the first's
+     operations or turns. Ownership holds on every reconnect, including after
+     the project is deleted.
+   - Plant a synthetic key in a provider error's cause chain, both in a JSON
+     step and inside `durableCalls`. Plant one in a successful response's
+     headers and provider metadata too. No input, output, error or stream
+     record may contain the key.
+   - Measure a chat turn's checkpoint size. It should hold the history and
+     the answer, not the document.
+5. **kei.**
+   - Cancel right after claim and mid-step, then enqueue a job and a
+     `deleteRuns`; nothing may overlap.
+   - Check priorities, FIFO ties and dequeue-relative deadlines on the real
+     queue.
+   - Measure the conversion budget.
+6. **Ingestion and batches.**
+   - A lost response/restart and a re-upload join active project/content work;
+     a 504 preserves work. Completed-content replay happens before parsing.
+   - Simultaneous same-project/same-content uploads use one active workflow.
+     Identical PDFs in different projects have independent staging files.
+   - Completion between precheck/enqueue is replayed by the workflow's content
+     check. Failed/cancelled attempts can be retried without client keys.
+   - Stage then crash before enqueue; crash after enqueue; lose a dedup race:
+     GC removes only unused/terminal files and never the active attempt's PDF.
+   - Manual suggestion retry reruns all surviving pins; crash recovery of the
+     same attempt skips checkpointed sources. No per-source progress rows.
+     Repeating a retry POST with the same expected attempt returns its one
+     successor, even if that successor finished before the repeated request.
+   - Delete a source before, during and after suggestion publication: no FK
+     error, preserved draft stays valid, surviving extraction results/reviews
+     stay pinned. Late success/failure cannot overwrite an interrupted attempt.
+     Empty selection retains the draft and disables Run/Retry.
+   - Pending Extractions count as batch members but do not replace a previously
+     reviewed result. A batch rerun creates new identities.
+7. **Garbage collection.**
+   - In-flight runs/packages and children of live Studio parents survive.
+   - Hold a cancelled native step blocked, then enqueue work and cleanup:
+     neither starts until that step exits. No late orphan checkpoint remains.
+   - Current-process cancelled Studio history survives GC regardless of age;
+     a fully terminated process followed by restart permits eligible cleanup
+     using the database-clock boot boundary. No in-place relaunch.
+   - Cancel publication then crash before DBOS cancel; the next sweep cancels
+     Studio work with terminal domain outcomes and any late kei submission.
+   - Delete a project, then apply reference, retention and quiescence rules in
+     both schemas. Failed reference/status queries delete nothing.
 
-**M4: Schema-suggestion batches.**
-- **New `prototypes/studio/workflows/suggestSchemaBatch.ts`.**
-- **Delete** the pump and every `kick()` (`batch_schema_suggestions.ts:136,149,168,266`). Reads never start work any more.
-- **Simplify** `createInternalProjectWorkerStore` (`project-store.ts:2090-2292`) to plain domain functions.
+8. **Keys and isolation.**
+   - Plant a key and run chat, generation, a batch suggestion and a probe.
+     Neither a full `pg_dump` of `free`, nor the volumes, nor the logs may
+     contain it.
+   - Restart Studio mid-call with the page open, including between two
+     polls. The new boot ID triggers the resend and the recovered call
+     continues. With no page open, the call fails with `model_key_required`
+     after the wait, and neither model retry owner retries it. Resending keys
+     then retrying starts a new operation/turn ID or batch attempt.
+   - A replayed step whose call is checkpointed never waits for a key. A
+     cancel during the wait never reaches the provider.
+   - A key sent for one API base is never used for another, and a draft base
+     change never probes the new base with the old key. Sign-out and key
+     removal clear the cache.
+   - A stale tab's handoff under another signed-in account is rejected. A
+     malformed key or probe request echoes nothing.
+   - No account's call uses another account's key or connection. One
+     account's concurrent applies serialize.
+   - A `hasKey` connection with no cached key never calls its server
+     anonymously.
+   - Apply and Probe reject a researcher-defined CLI connection.
+   - The app shell's CSP allows the PDF viewer and its worker, and refuses
+     inline script.
+   - kei's role is denied on `public` and `dbos`.
 
-**M5: Ingestion and reprocess.**
-- **New `workflows/{ingestSource,reprocessSource}.ts`**, plus a `source-ingestion-store.ts` in `packages/db`.
-- **Move** verify/translate/package (`source_documents.ts:393-581`) into shared functions.
-- **Handlers** (`source_documents.ts:583-698`, `source_reprocess.ts`): stage, transact, await and map. Delete `submittedRun`, `completedRun` and `parsingRequest`.
-- **Unchanged:** the browser machine and the transport.
+**M1: dead code (no schema change; can merge first).**
+- **Targeted Catalog retry, end to end.** `catalog.ts`; retry admission and
+  identity (`postgres-persistence.ts:333-407`); the contract request variants;
+  the executor branch (`module.ts:198`, which always throws `invalid_retry`);
+  the `useExtraction.ts` and ResultsTab controls; their tests.
+- **Extraction checkpoints.** `checkpoint()` has had no caller since e88b08f.
+  The provisional-results UI reads checkpoint fields that nothing writes
+  (`ResultsTab.tsx:466-468,678,789-793`;
+  `shared/extraction.contract.ts:383-394`).
+- **`extraction_in_progress`.** The code is declared but never thrown.
+- **The LLM inspector.**
+  - `_llm_inspector.ts`, `api/llm_inspector.ts`, `src/llmInspector/` and
+    `shared/llmInspector.contract.ts`;
+  - their tests and the `e2e/developer-ui.spec.ts` cases;
+  - the `_model.ts` hooks, the `src/main.tsx` mount, and the
+    `server/api-dispatcher.ts` / `server/app.ts` registration.
+- **Parsing routes with no production caller, and their tests:**
+  - `/api/server`, `/api/layout-models`, `GET /api/runs`;
+  - `…/events`, `…/output.md`, `…/source.pdf`, `…/pages/{n}.png`;
+  - `…/pages/{n}/boxes` and `boxes.py`;
+  - `GET …/extractions` and `…/debug/{name}`.
 
-**M6: Docs, test wiring, CI.**
-- **New ADR** `docs/adr/0012-one-durable-execution-layer.md`, recording the decisions and the rejected options, and the plan copy. Mark the Procrastinate plan superseded.
-- **Update:**
-  - `README.md`: contract #7 and #10, and the extraction-execution section (cancel now reaches the service);
-  - `docs/operations/{deployment,local-development}.md`: the backup set is the `free` dump + `parsing-runs` + `studio-data` + `studio-config` + `studio-claude`, with the credential key held separately. Also: reset wipes workflow state; the version/drain rule; `dbos workflow list`; the cutover runbook.
-  - `docs/architecture/current.c4` and its README, `prototypes/parsing_service/{README,CLAUDE}.md`, and `job-backend.md` (mark it superseded);
-  - the openspec `durable-extraction-jobs` text.
-- **Test wiring:**
-  - `e2e/realService.ts:150-231`, `playwright*.config.ts`, `e2e/playwrightWebServer.ts`, `playwrightStack.ts` and `playwright.compose.yaml` start migrate and both workers where specs need background work;
-  - wire `source-reprocessing.postgres.check.ts` into `packages/db/package.json:13`;
-  - `.github/workflows/verify.yml` and `scripts/test-ci.mjs` migrate both DBOS schemas into the test databases.
+  Point `e2e/realService.ts`'s readiness probe at `/api/models`, and adapt
+  `e2e/real-service.spec.ts`.
+- **Stale assertion.** Fix `result_version == 4`
+  (`tests/test_service_smoke.py:248`).
+
+**M2: platform, baseline and configuration.**
+- **Compose** (all overlays):
+  - remove `parsing_db`, `parsing-postgres`, `parsing_migrate` and the parsing
+    API's database environment;
+  - add `source-inbox` and `FREE_DEPLOYMENT_CLI_PROVIDERS`, with both CLI
+    kinds in the local development overlay;
+  - make `parsing_worker` wait for Studio's healthcheck;
+  - in Studio's development watch, use `sync+restart` for server code (`api/`,
+    `server/`, `shared/`, `packages/`) and keep `sync` for `src/`.
+- **Studio entrypoint.** After `db:init`, create the kei role
+  (`FREE_KEI_POSTGRES_PASSWORD`) and `kei_dbos` idempotently.
+- **`packages/db` baseline.** Replace the ten migrations with one baseline.
+  - It omits:
+    - `SchemaSuggestion`, `SchemaSuggestionInput`, `ConversationalSchemaEdit`
+      and `PromptRevision`, which no production code writes, together with
+      their `SchemaRevision` columns;
+    - the Catalog-retry columns;
+    - `ExtractionJob` and `BatchExtractionMember`, not just their lease or
+      checkpoint columns;
+    - ingestion keys and their uniqueness constraint (retain project/content
+      uniqueness);
+    - per-source suggestion execution/result columns and transient phase
+      mirrors;
+    - the never-written `BatchExtraction.failure` and `finishedAt`.
+  - Extraction gains admission inputs and a nullable terminal outcome; its
+    result/review fields remain. Add batch/source uniqueness and preserve
+    composite source and batch pins, with source deletion cascades.
+  - Add suggestion `attempt` and its nullable terminal outcome, `ChatTurn`,
+    the per-account configuration table and cascading suggestion membership.
+    No credential table is added.
+  - Delete the two historical migration tests and regenerate
+    `migrations/app/refs/db.json`.
+- **Configuration and keys.** Move the configuration to PostgreSQL, one per
+  account, and the keys to the browser.
+  - Make `model_config` and `model_probe` researcher-scoped.
+  - Add the page's key store and `PUT /api/model-keys` with its account
+    check, the in-memory cache and the lazy key wrapper, `hasKey` and
+    `model_key_required`.
+  - Add the `X-FREE-Studio-Boot` header and the resend in
+    `authenticatedFetch.ts`, the draft's key clearing on a base or provider
+    change, and fixed validation errors for `model_keys` and `model_probe`.
+  - Drop the credential actions and `credentialStates` from the contract
+    and from `useProviderConfigDraft.ts`.
+  - Add the app shell's strict CSP in `server/static.ts`. The Vite dev server
+    may keep a looser policy for its injected client.
+  - Route resolution in `_provider.ts` takes the owner's account, and so do
+    the Extraction Model Choice readers (`extractions.ts`,
+    `batch_extractions.ts`, `batch_schema_suggestions.ts`).
+  - Add the CLI deployment connections. The Model Configuration page lists
+    them read-only and drops the CLI kinds from its "New connection" list
+    (`src/providerConfig/ProviderConfigPage.tsx:250-252`).
+  - Update `model_probe.ts`, `model_config.ts`, their tests and
+    `e2e/model-configuration.spec.ts`, which gains a two-account case.
+  - Remove the keyring packaging; update lockfiles.
+- **`scripts/free.mjs`.** Drop `parsing_db` from stop/restart.
+- **`tests/safety.test.mjs`.** Cover kei's restricted URL, a parsing API
+  without database access, and the app shell's CSP.
+
+**M3: kei on DBOS.**
+- **Dependencies.** Replace Procrastinate with `dbos` in `pyproject.toml` and
+  `uv.lock`; `kei-worker worker` replaces `kei-jobs`.
+- **New code.** `src/kei_exp/workflows/` holds the registration, the queue,
+  `convert`, `extract`, `deleteRuns` and the portable contracts.
+  `failures.py` holds `classify`. The cooperative checks read the DBOS status.
+- **Deleted jobs code:**
+  - `src/kei_exp/jobs/` except `hold_slot`, and the kei tables;
+  - `POST /api/runs`, `GET /api/runs/{id}` and `POST …/extract`;
+  - `DurableEmit` and `tokens.jsonl`;
+  - the raw recovery SQL and worker-only `output.md` production;
+  - the file-only projections in `runs.py`: `TERMINAL`, `UNRECORDED`,
+    `_legacy_duration`, `summary`, `is_legacy`, `logged_events`, `replay`.
+- **Deleted legacy readers:**
+  - v4 manifests: `pagefile.py:228` and Studio's `_kei_exp.ts:86` union; the
+    fixture `prototypes/studio/test/fixtures/kei-exp/result.json` is rewritten
+    as v5;
+  - the `options.model` branch (`kie/extract/run.py:58,63-68`,
+    `kie/extract/models.py:109-117`), which Studio never sends.
+
+  Extraction artifacts v1 and v2 both stay; both are produced today.
+- **Tests.** Workflow, kill/restart, SIGSTOP, contract-fixture and
+  publication-crash tests. Service smoke tests admit through DBOS.
+
+**M4: Studio background work on DBOS.**
+- **`server/dbos.ts`** holds:
+  - the configuration (app `studio`, schema `dbos`, version, executor);
+  - one launch per process in `host.ts` and `developmentHost.ts`, replacing
+    `extractionRuntime.run/close`; the development host drops its runtime
+    reload (`server/developmentHost.ts:34-60`);
+  - the Studio admission and kei handoff clients;
+  - `studio`/`suggest` queues and schedule registration;
+  - the database-clock boot timestamp used for cancelled Studio history;
+  - the ownership and status-derivation helpers.
+- **`packages/extraction`** gains `workflows.ts` and `kei-handoff.ts`.
+  Admission inserts Extraction rows and enqueues on the same transaction.
+  Add the small pool-client binding in `packages/db/src/prisma/db.ts`; keep
+  PostgreSQL ownership and immutable-input replay checks in the admission.
+  Completion updates the admitted Extraction; batch reads derive membership
+  from those rows. Remove job/member DTOs and redundant joins.
+  Delete `job-worker.ts`, claim/renew/checkpoint, the wake wiring, and the
+  lease and status-mirror columns. Delete `_extraction_runtime.ts`, rehoming
+  the exports used by `extraction_models.ts`, `document_reopen.ts`,
+  `batch_schema_suggestions.ts`, `extractions.ts` and `batch_extractions.ts`.
+- **Batch schema suggestion.** Add `suggestSchemaBatch`, atomic input snapshot
+  and whole-batch retry. Delete the pump, `kick()` calls, lease methods and
+  per-source execution/result state and UI. Preserve valid drafts when a
+  source is deleted, with conditional attempt publication and explicit retry.
+- **Ingestion and reprocess.** Add project/content replay, queue dedup and
+  project/attempt staging. Delete ingestion-key requests/DTOs, browser key
+  minting and all follower machinery. Keep reprocess request keys and
+  expected-head checks. Share verify/translate/package functions and delete
+  HTTP kei polling.
+- **Reads.** Derive execution status; revise public contracts together with
+  callers, with no compatibility aliases. Keep completed result/review and
+  evidence pin behavior. Extraction cancel now reaches kei.
+
+**M5: interactive work on DBOS.**
+- **Workflows.** Add `suggestSchema`, `proposeSchemaEdit` and `chatTurn` with
+  its answer write. Use `@dbos-inc/vercel-ai` for chat only, with the error
+  sanitizer inside `durableCalls`.
+- **Handlers.**
+  - Operation and turn IDs, with a 409 on conflicting reuse.
+  - Atomic question/enqueue with per-source-revision active dedup, a 409 for
+    another active turn, and same-turn primary-key-conflict replay.
+  - Owner checks and conditional answer/failure writes. A typed chat failure
+    is followed by a sanitized throw, not a successful workflow return.
+  - `GET` and `DELETE /api/model-operations`, `GET /api/chat/<revision ID>`
+    and `/stream?turnId=<id>` for exact-turn reconnect.
+- **Browser.**
+  - `src/api.ts` repeats the same POST after a network failure or a
+    502/503/504.
+  - A new user action, including "try again" after a confirmed failure, mints
+    a new ID. Ingestion retry sends the file again without any client key.
+  - `generate_schema` carries the operation ID and the base revision. On
+    load, the schema panel restores a running operation, saves a finished
+    generation whose base is still current, and reopens an unreviewed
+    proposal.
+  - `ChatTab.tsx` loads the transcript, sends only the new question, uses the
+    revision ID as its chat ID, reconnects to the returned turn ID on load
+    and after a dropped stream, and rereads the transcript after 204/end.
+    Delete the proposed custom superseded-chunk handler.
+  - Aborts that come from a user action call the cancel route.
+  - A new Studio boot ID resends the page's keys before recovery continues.
+    `model_key_required` is already a terminal failure: resend, then retry
+    with a new operation ID/attempt. Do not re-POST its failed ID forever.
+
+**M6: garbage collection, documentation, test wiring and cutover.**
+- **Garbage collection.** Add the `collectGarbage` schedule and kei
+  `deleteRuns` for both kei files and history. Deletion handlers also record
+  interruption of affected suggestion attempts before removing membership.
+  Apply the Studio boot boundary to cancelled history and repair missed
+  cancellation calls; do not add tombstones, barriers or a status reconciler.
+- **ADRs.**
+  - Write `docs/adr/0012-one-durable-execution-layer.md`, linking this plan.
+  - Write ADR 0013 (per-researcher model configuration, with keys held by the
+    researcher's browser), superseding 0006. Amend 0007 and 0011.
+  - Mark the Procrastinate plan and
+    `prototypes/parsing_service/docs/job-backend.md` superseded.
+- **README.**
+  - #5: describe the unified Extraction record and remove the unimplemented
+    Prompt Revision persistence promise with its unused table.
+  - #7:
+    - per-researcher configuration in PostgreSQL;
+    - keys stay in the researcher's browser, and Studio holds them only in
+      memory while a call runs;
+    - deployment connections, including `FREE_DEPLOYMENT_CLI_PROVIDERS`;
+    - no reset.
+  - #8: DBOS schemas migrate at launch.
+  - #10: browser-held researcher keys, no OS-keyring dependency, and the
+    one-time reset note; deployment secrets remain operator-provided.
+  - Extraction execution: cancellation reaches kei.
+- **Other docs.**
+  - CONTEXT.md's configuration terms;
+  - the Parsing README and CLAUDE, Studio CLAUDE and
+    `docs/architecture/current.c4`;
+  - the OpenSpec specs for model-connection configuration, capability-route
+    resolution, source-document ingestion and schema chat edit.
+- **Operations docs.**
+  - Backup set: a `free` dump, `parsing-runs`, `studio-data` and the CLI homes.
+    No backup holds a researcher key.
+  - DBOS inspection of both schemas.
+  - Patch and version rules.
+  - The cutover runbook.
+- **Test wiring.**
+  - `e2e/realService.ts`, the Playwright stack and configs, and
+    `e2e/playwright.compose.yaml` start the kei worker.
+  - `.github/workflows/verify.yml` and `scripts/test-ci.mjs` migrate the
+    guarded test schemas.
+  - `packages/db/package.json` runs `source-reprocessing.postgres.check.ts`.
 
 ## Verification
 
-- **Checks:** `pnpm typecheck && pnpm lint && pnpm test && pnpm test:safety`.
-- **`pnpm test:postgres`:**
-  - the `SourceIngestion` replay matrix: same key with different bytes gives 409; a different key with the same bytes dedups; a reprocess fingerprint mismatch; concurrent retries; a replay after deletion;
-  - commit-then-enqueue: a rolled-back row is never enqueued; a crash between commit and enqueue is picked up by `reconcile` within one tick; a double enqueue runs once;
+- **Residue search.** Search production code, dependencies, generated
+  contracts, tests and operational docs for Procrastinate, lease/claim/renew/
+  wake, `kick()`, `checkpoint(`, `ConfigFileSystem`, keyring/D-Bus, the
+  model-configuration write barrier, targeted Catalog retry, inspector hooks,
+  `/events`, `cancel_requested`, `free-document-chat`, `result_version` 4,
+  `options.model`, `ExtractionJob`, `BatchExtractionMember`, ingestion keys,
+  follower workflows, admission waits, and per-source suggestion progress.
+  Historical records and evidence probes are not runtime residue.
+- **Fast and safety.** `pnpm typecheck`, `pnpm lint`, `pnpm test`,
+  `pnpm test:safety`.
+- **PostgreSQL** (`pnpm test:postgres`):
+  - atomic admission, concurrent replay, active-chat exclusion and rollback;
+  - derived status and idempotent publication across checkpoint gaps;
   - cancel racing `complete`;
-  - interactive before batch with FIFO ties;
-  - suggestion parity: it continues after a source fails; retry keeps completed sources; the merge timeout;
-  - reconciler rows 1–3;
-  - kei's negative permissions;
-  - credential revision snapshots, and wrong-key/tamper;
-  - the Parsing Service workflow, recovery and legacy-run tests.
-- **`pnpm test:e2e`** and **`pnpm test:service`** (real kei worker plus Studio web and worker):
-  1. a native PDF parses end to end with unchanged Evidence;
-  2. killing `parsing_worker` mid-convert, then restarting it, publishes the returned generation, and Studio commits one Source Document;
-  3. killing `studio_worker` while it polls, then restarting it, produces no second kei extraction;
-  4. cancel stops kei, and no orphan holds the slot;
-  5. cancel before `submitToKei` never enqueues kei;
-  6. a request dropped mid-parse still commits;
-  7. a deleted project cancels its kei work within one reconcile tick.
-- **Manual:** `pnpm dev` through upload, refresh, extraction, cancel, and a suggestion batch; `dbos workflow list` against both schemas.
+  - both deletions, preserved suggestion drafts and surviving batch members,
+    then garbage collection under quiescence and reference guards;
+  - per-account configuration isolation, and no key in any table;
+  - one answer per chat turn when an answer races a cancel;
+  - expected-head races, ingestion content/dedup races, whole-batch retry
+    versus same-attempt checkpoint replay;
+  - kei role denial.
+- **Real service and E2E** (`pnpm test:e2e`, `pnpm test:service`):
+  - native PDF Evidence parity;
+  - Studio and kei kill/restart with no duplicate kei work;
+  - priorities and deadlines;
+  - cancelling a blocked native step;
+  - a page reload mid-chat, mid-generation and mid-edit;
+  - a Studio restart with the page open, where the keys are resent and the
+    call continues;
+  - chat reconnect and re-POST recovery;
+  - the PDF viewer under the app shell's CSP.
+- **Manual.** Run `pnpm dev` through upload, reprocess, extraction and cancel,
+  batch retry, schema-edit acceptance, and chat across a reload and a restart,
+  with two accounts. Inspect both DBOS schemas.
 
-## Rollout (cutover runbook)
-
-1. **Build the new images.** The old stack keeps serving.
-2. **Stop `studio`.** This is the admission fence: it stops the web, the old in-process extraction worker and the pump. In-flight long POSTs die, and their kei runs finish unreferenced.
-3. **Wait until Procrastinate has no `todo` or `doing` jobs**, then stop the parsing API and worker.
-4. **Back up:** `pg_dump` both `free` and `kei`, plus the volumes.
-5. **`up` the new stack.** Migrate marks the leftovers `platform_cutover`.
-6. **Verify:** an extraction on a pre-cutover document; re-enter the Model Connection credentials.
-7. **Rollback:** the old images, a restore of the `free` dump, and the retained `parsing-postgres` volume. Delete that volume only after verification.
+A compile pass or a mocked SDK call does not prove recovery, isolation or
+physical exclusion.
 
 ## Risks
 
-- **DBOS cross-language maturity and at-least-once steps.** Gated by M0; every step is idempotent by design, and both SDK versions are pinned and upgraded together.
-- **One server shares resources with authentication and review.** Mitigated by pool caps and retention, with DBOS polling measured in M0.
-- **Credential re-entry at cutover.** Losing the key means re-entering the credentials.
-- **Shared CLI homes between `studio` and `studio_worker`:** watch for token-refresh races.
-- **Native Docling conversion is still one uninterruptible call:** stopping the worker is the documented escape.
+- **One Studio process.** A restart interrupts in-flight calls; unfinished
+  steps can repeat on recovery. Chat reconnects and replays the current
+  attempt. Exactly-once provider execution is not claimed.
+- **Research content in DBOS history.** Settled chat/proposal history has a
+  24-hour retention target and background history 30 days. Live parents and
+  unquiesced cancellations can extend it; scope deletion can shorten age but
+  never bypass quiescence. Dumps include this history and ChatTurn transcripts.
+- **Cleanup can wait.** A hung native step blocks kei's queue and cleanup.
+  Cancelled Studio history can remain until a later restart. This trades a
+  bounded deletion promise for safe cleanup without a new execution barrier.
+- **Whole-batch retry costs.** Explicit suggestion retry repeats every remaining
+  source call; per-source progress/results disappear after DBOS retention.
+  Only the merged research proposal, draft and membership pins persist.
+- **Researcher-supplied API bases (pre-existing).** Studio connects to any base
+  a researcher enters; ADR 0006 allowed that for one local researcher.
+  Per-researcher configuration stops one researcher from redirecting
+  another's documents. A researcher can still make Studio call hosts on its
+  network, and a hosted deployment may want an allowlist (out of scope).
+- **Keys in use.** Studio sees each key while it calls the provider. An
+  operator who changes Studio's code could capture keys; nothing stored can
+  leak them.
+- **Keys in the browser.** A script injected into Studio's origin could read
+  them. The CSP, React's escaping and a patched pdf.js are the defence. Keys
+  are entered once per browser.
+- **Personal keys across a restart.** Background work on a personal key
+  fails after a Studio restart unless the researcher's page is open to resend
+  it; the researcher retries it.
+- **Shared CLI login.** A CLI deployment connection runs every researcher's
+  calls on the operator's one login, with its billing and rate limits.
+- **Coarse kei steps.** A crash repeats a whole conversion or extraction, up to
+  3 h of GPU time.
+- **One server, one kei worker.** No throughput gain is claimed.
+- **CLI token refresh** remains a provider risk.
 
-## Out of scope (follow-ups)
+## Out of scope
 
-- **A:** the ingestion UX on top of `SourceIngestion`: 202, hydration, parallel uploads, cancel/retry UI, deletion obligations, budgets.
-- **B:** lanes (`kei-native`, `kei-ocr`, `kei-extract`), page-class priority, queue rank.
-- **Page- and record-level steps.** Resume *inside* a conversion or Catalog run; today and after this plan, a crash reruns the step.
-- **Existing bug:** extraction retry jobs throw `invalid_retry` (`module.ts:198`).
+- Operator-provided keys for hosted providers. Deployment connections cover
+  vLLM and the CLI providers.
+- An allowlist for researcher-supplied API bases.
+- Sharing a Project Context between researchers.
+- Persisting the schema panel's message log; more than one chat thread per
+  revision; carrying a transcript over to a reprocessed revision.
+- Asynchronous ingestion (202, status URLs, hydration) and listing in-flight
+  ingestions after a reload; re-uploading the file rejoins active content work
+  instead. Parallel uploads and new retry controls.
+- Per-model-call Python checkpoints, and kei progress events or token
+  streaming.
+- kei lanes, page-class priority, fairness beyond explicit priority, a debug
+  dashboard, and agents/MCP/embeddings.
+- Calling providers straight from the browser. That would keep keys away from
+  Studio entirely, but it would take model work out of DBOS and lose reload
+  recovery.
+
+## Revision history
+
+- **HEAD (approved).** Behaviour-preserving port, commit-then-enqueue with a
+  reconciler relay, and credentials revisioned in PostgreSQL.
+- **Staged and working-copy revisions (2026-09-24).** Widened the scope to
+  durable interactive AI, trigger-based atomic admission, `StudioModelOperation`,
+  pinned credential revisions, 202 ingestion and a deletion barrier. Three
+  read-only `gpt-6-sol` checks refined them. The working copy is preserved as
+  git blob `c1fcf5a6` (`git show c1fcf5a6`).
+- **Third revision (2026-09-24).** Applies the user's decisions on data,
+  interactive durability and credentials. After a fresh review it replaces:
+  - triggers with start-before-commit and workflow-first starts;
+  - the fence with workflow ownership and derived status;
+  - the barrier with reference garbage collection;
+  - the worker service with DBOS in the Studio process.
+
+  It drops pinning, the reconciler, asynchronous ingestion and per-call Python
+  checkpoints.
+- **Fourth revision (2026-09-24, browser-key update 2026-09-25).** Applies later user decisions:
+  - Interactive work survives a browser reload. It adds `ChatTurn`
+    transcripts and an operation listing. The listing restores running work,
+    finished generations whose base is still current, and unreviewed
+    proposals.
+  - Model configuration belongs to each Researcher Account. This also stops
+    one researcher from re-pointing another's routes.
+  - Keys stay in the researcher's browser (user, 2026-09-25). Studio holds
+    them only in memory, which removes the credential table, the encryption
+    and its key. An earlier draft of this revision stored them encrypted in
+    PostgreSQL.
+  - All providers stay for an open-source release. The CLI providers become
+    operator-enabled deployment connections.
+
+- **Fifth revision (2026-09-25).** Applies the approved simplification review:
+  transactional admission; one Extraction row including batch membership;
+  upload content replay/dedup without keys/followers; whole-batch suggestion
+  retry; proposals preserved on source deletion; per-revision chat exclusion,
+  exact-turn replay and truthful stream failures; quiescent cancellation GC;
+  no worker Markdown output. Preserves the fourth revision's browser-key work.
 
 ## M0 findings (2026-09-24)
 
 The spike ran on x86_64 against a throwaway `postgres:17`. It used
 `@dbos-inc/dbos-sdk@5.0.2` (Node 24.21) and `dbos==3.0.0` (Python 3.13). The
-code stays in the session scratchpad and is not kept.
+code stays in the session scratchpad and is not kept. These are historical
+observations, not the active design: M0 #6's Prisma limitation was disproved
+by the fifth-revision client-binding probe; M0 #2's reconciler reference is
+superseded by explicit cancellation and scheduled cancellation repair.
 
 | # | Result | Evidence |
 |---|---|---|
@@ -402,6 +1379,11 @@ code stays in the session scratchpad and is not kept.
 | ARM64 | Packaging only | The TS SDK is pure JS. `greenlet`, `sqlalchemy`, `psycopg-binary` and `pyyaml` have `cp313` aarch64 manylinux wheels. The runtime check on Spark happens at deploy. |
 
 ## Review log
+
+Earlier entries record decisions at that time; conflicting advice is
+superseded by the fifth revision and its evidence record. In particular,
+start-before-commit, upload-key followers, encrypted server credentials and
+age-only cancellation cleanup are not implementation instructions.
 
 - **2026-09-24, Codex `gpt-6-astra` read-only review of the first draft:** 1 P0, 12 P1, 1 P2.
   - **P0 (kei's DML on a shared `dbos` schema could rewrite Studio checkpoints):** resolved by the user's decision for app-owned schemas on one server.
@@ -424,3 +1406,84 @@ code stays in the session scratchpad and is not kept.
     - the throughput gain (none claimed);
     - atomicity limits (stated);
     - the backup wording (fixed).
+- **2026-09-24, fresh review of the expanded revision (Claude; Codex `gpt-6-astra` read-only, independent brief):** both reviews agreed on the four largest cuts.
+  - **Accepted:**
+    - workflow-first starts, or starts after commit, instead of admission triggers;
+    - derived status instead of status mirrors and the reconciler;
+    - reference garbage collection instead of the deletion barrier;
+    - DBOS in the Studio process;
+    - no credential revisions or pins;
+    - queues cut to real resource limits;
+    - deletion of the targeted Catalog retry, the LLM inspector and the unused kei routes;
+    - coarse Python steps;
+    - a clean-slate cutover (user decision).
+  - **Changed by the user's decisions:** interactive work stays durable, built from DBOS primitives instead of a fence table: operation IDs, `authenticatedUser`, and `durableCalls` for chat.
+  - **Corrections to the expanded revision:**
+    - Python has no transport-retry loop for DBOS to replace (`llm.py:97-99` is format negotiation);
+    - nothing in production sets `cancel_requested`;
+    - `/events` has no consumer;
+    - four tables have no production writer;
+    - Studio has no admission caps to preserve.
+  - **Kept against the review:**
+    - the separate kei schema, because kei parses untrusted PDFs;
+    - bounded 30 s cross-schema polls.
+- **2026-09-24, Codex `gpt-6-astra` read-only adversarial review of the third revision:** 9 P1 and 3 P2, no P0. The foreign-key, middleware, `classify` and extraction-UI claims were checked against source; all 12 were accepted.
+  - **Workflow history:**
+    - delete only settled history, because the payload tables lost their foreign keys in migration 109 and a late checkpoint would be orphaned;
+    - protect the kei children of live Studio parents from GC.
+  - **Cancel propagation:** retry it by cancelling live kei work whose parent is terminal.
+  - **Retries and admission:**
+    - a retry after a confirmed failure mints a new key;
+    - start before commit, since the extraction UI reconciles by reading, not by re-posting;
+    - content-addressed staging, with a post-start `sha256` comparison.
+  - **Batches:** a checkpointed source list per batch attempt, attempt-guarded publications, and retry only from terminal states.
+  - **Ownership:** checked in PostgreSQL on every access.
+  - **Development:** a process restart instead of an in-place DBOS relaunch.
+  - **Smaller fixes (P2):**
+    - chat checkpoints include the document text, so interactive history is kept 24 h;
+    - a boolean `should_retry`;
+    - patching flags.
+- **2026-09-24, Codex `gpt-6-astra` read-only adversarial review of the fourth revision:** 7 P1 and 4 P2, no P0. The error-serialization, store-replay, probe and save-coordinator claims were checked against source; all 11 were accepted, two with a simpler fix than proposed.
+  - **Secrets:**
+    - sanitize provider errors inside the step boundary, which for chat lies inside `durableCalls`, because DBOS serializes enumerable causes;
+    - read a connection and its ciphertext in one snapshot;
+    - fail closed for optional-key providers too.
+  - **Generation:** keep the browser's save and bind it to the operation ID (`SchemaRevision.operationId`). That preserves today's conflict rules and editing during regeneration. Codex proposed a conflict-checked server-side save; the tab's acknowledged head and the commit-to-checkpoint replay window make that harder.
+  - **Chat:**
+    - commit the question before starting the turn;
+    - reconnect to the newest unanswered turn, running or just finished, and re-read after a 204;
+    - use the turn ID as the message ID.
+  - **Ingestion:** a same-bytes upload under a new key starts its own follower workflow (`DBOS.getResult`), so every key stays bound; Codex proposed a key-binding record. Staged files are left to garbage collection, which also fixes a same-bytes staging race in the third revision.
+  - **CLI:** Apply and Probe reject researcher-defined CLI connections.
+  - **Smaller fixes (P2):**
+    - an explicit `extractionSchemaId: null` scope for first generations;
+    - a proposal is restored only onto a clean draft;
+    - Discard deletes every finished proposal on the same base.
+  - **Deletions it found:** the accountless configuration fallbacks and the personal-CLI branches.
+- **2026-09-24, Codex `gpt-6-astra` read-only check of those fixes:** 3 P1 and 5 P2, no P0. The accumulator, save-coordinator and awaited-cancel claims were checked against source. Seven were accepted; one was answered.
+  - **Generation:** an unsaved generation carries its base revision and is saved after a reload only while that base is still current, since it could otherwise overwrite newer work. The expected-head check then prevents a double save, so the `SchemaRevision.operationId` binding from the previous round goes. It could not follow the coordinator's coalesced saves anyway.
+  - **Secrets:** the chat sanitizer also drops the request body, response headers and provider metadata that `durableCalls` checkpoints on success. As a side effect, a chat turn's DBOS history no longer holds the document.
+  - **Chat:** back to start-before-commit, because a crash between commit and start stranded the question.
+  - **Ingestion:**
+    - staging is per content and key (`<sha256>.<ingestion key>.pdf`), so no two workflows share a file, reuse cannot race garbage collection, and each workflow deletes its own file again;
+    - a failed or cancelled leader becomes the follower's typed failure.
+  - **Discard:** deletes the discarded proposal and older ones on the same base, never a newer one. A retry in flight across a Discard may rerun one edit; that is accepted rather than adding a dismissal record.
+  - **Answered:** an existing-content replay leaves its key unbound, and a follower's binding lasts 30 days. Today's replay path behaves the same, and keys are minted per upload.
+- **2026-09-25, keys kept out of Studio's storage (user decision), then a Codex `gpt-6-astra` read-only check of that design:** 4 P1 and 2 P2, no P0. The draft-probe, retry-classification and cancel claims were checked against source, and all 6 were accepted.
+  - **Draft probes:** changing a draft's base or provider clears its key and cancels the scheduled probe. Today the typed key is probed against the new base after 500 ms.
+  - **Waiting for a key:**
+    - the key is read lazily inside each provider attempt, so replaying a checkpointed step never needs one;
+    - the wait is 60 s, ends on cancellation, and fails with `isRetryable: false`, so `durableCalls` does not retry it.
+  - **Resending keys:** every response carries `X-FREE-Studio-Boot`, and `authenticatedFetch` resends keys when it changes. That covers a restart between two polls. The Chat tab also reconnects after a dropped stream.
+  - **Races:** a cached key is used only while the connection still has that base, so stale entries are harmless without a lock. Removal stops new calls only.
+  - **Accounts (P2):** the handoff names its account and a mismatch is rejected. Sign-out semantics across browsers are stated.
+  - **Echo (P2):** the key and probe endpoints return fixed validation errors and log nothing.
+
+- **2026-09-25, DBOS simplification review with Claude Code Opus 5.5, medium:**
+  focused PostgreSQL/SDK experiments reproduced poisoned admission, chat error
+  serialization/finish defects and the source-deletion FK failure. Transactional
+  enqueue through Prisma Next, active dedup, concurrent question admission and
+  cancelled-step queue exclusion passed. The user retained streaming, chose
+  whole-batch retry, dropped upload keys, and kept proposals valid after source
+  deletion. See [commands, results and sparring decisions](2026-09-24-unified-durable-execution-evidence/README.md).
+  The full browser/provider/ARM64/deployment gate remains pending.
