@@ -154,3 +154,24 @@ Corrections and rejected proposals:
 The final plan also preserves the concurrent browser-key revision. Its
 60-second wait, lazy per-attempt key lookup, boot-ID resending and account
 checks supersede the earlier encrypted-server-credential premise.
+
+## Eighth revision (2026-09-25)
+
+The eighth revision (kei lanes, decision 14) rests on these files:
+
+- `fair_queue_probe.py`: DBOS 3.1.0 on SQLite. Per-account partitions give
+  random per-poll sharing; plain priority and FIFO starve a second book. It
+  informed the deferral of fairness.
+- `rev8-review-brief.md`: the brief for Codex `gpt-6-astra`'s read-only
+  review of the first proposal (A–D), which the user ran in a T3 thread. The
+  brief records a proposal that was rejected. Findings and outcomes are in the
+  plan's review log.
+- `rev8-sparring-prompt.md` and `rev8-sparring-answer.md`: the Codex
+  `gpt-6-astra` sparring round on the lane plan.
+- `rev8-tests/`: measurements on the Spark's production model servers from
+  throwaway containers, with synthetic documents (OCR contention, extraction
+  contention, Catalog chunking). `rev8-tests/README.md` has the tables, the
+  method and what remains untested.
+- `rev8-plan-review-prompt.md` and `rev8-plan-review-answer.md`: the Codex
+  `gpt-6-astra` read-only review of the written eighth revision (1 P1, 2 P2,
+  1 P3, all accepted; see the plan's review log).

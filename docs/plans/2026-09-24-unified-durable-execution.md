@@ -1,6 +1,16 @@
 # FREE on DBOS: durable jobs and AI execution
 
-Status: **seventh revision, 2026-09-25; runtime implementation has not started.**
+Status: **eighth revision, 2026-09-25; runtime implementation has not started.**
+The eighth revision sizes kei's scheduling for the Spark (decision 14). While a
+big book converts, a small document's ingestion and extraction must not wait
+for it. kei's one queue becomes lanes that match its model servers: large and
+small conversion, a two-slot extraction queue and a cleanup queue. Cleanup
+safety moves from queue exclusion to a kei boot boundary. Measurements on the
+Spark back the choice ([rev-8 tests](2026-09-24-unified-durable-execution-evidence/rev8-tests/README.md)).
+A per-page conversion fan-out and per-user fair sharing were reviewed and
+deferred. The user settled the threshold and the variation; Catalog chunking
+remains open (*Open decision*, below).
+
 The seventh revision folds the Model Configuration page redesign into M2
 (user, 2026-09-25, decisions 12 and 13). The page follows the researcher's
 work in three steps. The Single/Routes mode goes, and the NuExtract protocol is
@@ -101,6 +111,28 @@ that every other researcher's documents are sent to.
 13. **An Ingestion Model Choice picks kei's OCR and layout models.** It belongs
     to the Researcher Account, like the Extraction Model Choice, and applies to
     new ingestions and reprocessing only. Existing revisions never change.
+14. **A big book must not hold up small work on the Spark.** While a book
+    converts, the same or another researcher can ingest a small document and
+    extract from it. kei's queues follow its model servers (*Queues*), and a
+    book's OCR leaves room at the OCR server for a small document's requests.
+    Pausing or preempting running work is not a goal. Two books do not share:
+    the second waits. Concurrent uploads from one browser tab stay out of
+    scope; another tab or researcher is not blocked.
+
+**Settled after the Spark tests (user, 2026-09-25).**
+- **Small-document threshold: 30 pages** (`SMALL_DOCUMENT_PAGES`, *Queues*).
+- **`SURYA_INFERENCE_PARALLEL` shipped ahead of DBOS.** `compose.gpu.yaml`
+  derives it and `ocr_model`'s `--max-num-seqs` from one `OCR_MAX_NUM_SEQS`
+  (default 4), and `tests/safety.test.mjs` asserts they match.
+- **Output variation under concurrency is acceptable** (*Risks*). No setting
+  removes it on these models: vLLM 0.29.1 refuses `VLLM_BATCH_INVARIANT` for
+  their gated-delta-net layers (M0R 6).
+
+**Open decision (user).**
+- **Parallel Catalog chunks.** Running a Catalog's entries in four chunks is
+  4.1× faster and changes no prompt. With the variation accepted and no
+  invariant mode available, nothing technical blocks it. It can join M3 or
+  follow the migration (*kei worker*).
 
 ## Rules
 
@@ -205,8 +237,9 @@ studio           web server and DBOS in one process: every Studio workflow and
                  runs Prisma migrations and idempotent kei role/schema setup.
 parsing_service  minimal read API (manifest, pages, artifacts, model catalog);
                  no database
-parsing_worker   kei DBOS worker: convert, extract, deleteRuns on queue "kei";
-                 lifetime slot flock; starts after Studio is healthy
+parsing_worker   kei DBOS worker: convert on kei-convert-large/-small, extract
+                 on kei-extract, deleteRuns on kei-gc; lifetime slot flock;
+                 starts after Studio is healthy
 volumes          source-inbox (new; studio rw, parsing_worker ro); parsing-runs,
                  studio-data and the CLI auth homes unchanged
 ```
@@ -227,9 +260,9 @@ service is added. `submitToKei` retries until kei has migrated `kei_dbos`.
 | `proposeSchemaEdit` | `edit:<operationId>` | workflow-first | proposal and base revision, or a typed failure |
 | `chatTurn` | `chat:<turnId>` | same transaction as the question; active dedup by source revision | answer/failure on the row; durable stream `ui` |
 | `collectGarbage` | 10-minute schedule | — | — |
-| kei `convert` | `kei-convert:<parent workflow ID>` | enqueued by `submitToKei` | manifest summary |
-| kei `extract` | `kei-extract:<extractionId>` | enqueued by `submitToKei` | run/extraction IDs, artifact SHA-256, model attribution |
-| kei `deleteRuns` | `kei-gc:<schedule time>` | enqueued by `collectGarbage` | deleted run/history IDs |
+| kei `convert` | `kei-convert:<parent workflow ID>` | enqueued by `submitToKei` on the lane fixed at admission | manifest summary |
+| kei `extract` | `kei-extract:<extractionId>` | enqueued by `submitToKei` on `kei-extract` | run/extraction IDs, artifact SHA-256, model attribution |
+| kei `deleteRuns` | `kei-gc:<schedule time>` | enqueued by `collectGarbage` on `kei-gc` | deleted run/history IDs |
 
 **Admission: one transaction.** Keep synchronous validation, ownership and
 input-conflict checks. Row-backed operations insert/update domain rows and call
@@ -284,8 +317,24 @@ statuses in one `listWorkflows({workflowIDs})` call. A DBOS/store outage is
 
 **Studio → kei handoff** (ingestion, reprocess, extraction):
 - **`submitToKei`** enqueues the deterministic kei ID through the kei
-  `DBOSClient`. It passes portable arguments, an explicit priority,
+  `DBOSClient`. It passes the queue, portable arguments, an explicit priority,
   `workflowTimeoutMS` and the parent's attributes. It is idempotent (M0 #1).
+- **Conversion lane.** Admission counts the PDF's pages and records the lane
+  in the workflow input, so recovery and replay keep it. At most
+  `SMALL_DOCUMENT_PAGES` (30) pages go to `kei-convert-small`, and more go to
+  `kei-convert-large`.
+  - **Ingestion.** A count-only pdf.js helper reads `numPages` from the
+    staged bytes and destroys the document, even when opening fails. It does
+    not reuse `api/_pdf.ts`, which opens outside its error handling and
+    renders every page (`_pdf.ts:71-78`).
+  - **Unknown count.** A PDF that pdf.js cannot open goes to
+    `kei-convert-large` rather than being rejected. kei's PDFium still
+    decides readability, so the count adds no rejection path. Such a PDF
+    loses the small-document promise.
+  - **Reprocessing** reads the stored package page count, as
+    `source_reprocess.ts:89` does today.
+  - The count only picks the lane; kei's `prepare` still enforces the
+    2000-page limit.
 - **`pollKei`** waits in steps of at most 30 s (M0 #2). Recovery re-polls the
   same child. kei `CANCELLED`, `ERROR`, recovery exhaustion and `{ok: false}`
   become typed failures.
@@ -317,8 +366,9 @@ optional batch ID and nullable terminal outcome; result fields start empty.
 
 **`runExtraction(extractionId)`** runs these steps:
 1. load admitted input pins;
-2. `submitToKei` with priority 1 (interactive) or 10 (batch), and a
-   dequeue-relative timeout of 10 min (Article) or 3 h (Catalog);
+2. `submitToKei` on `kei-extract` with priority 1 (interactive) or 10
+   (batch), and a dequeue-relative timeout of 10 min (Article) or 3 h
+   (Catalog);
 3. `pollKei`;
 4. fetch and validate the artifact through the existing read API checks;
 5. lock the Extraction and publish only if no outcome exists. Replay returns
@@ -378,9 +428,10 @@ magic bytes, 100 MiB) and uniqueness on `(projectContextId, contentSha256)`.
 - Await the returned result for the existing thirty-minute HTTP deadline.
   A 504 detaches; it does not cancel. Re-uploading after a reload rejoins the
   active attempt or returns the completed document.
-- Then `submitToKei` (`kei-convert`, priority 1), `pollKei`, verify manifest and
-  pages, translate/package, and commit under the existing ownership and
-  content constraints. A replayed commit returns the same document/revision.
+- Then `submitToKei` (the admitted conversion lane), `pollKei`, verify
+  manifest and pages, translate/package, and commit under the existing
+  ownership and content constraints. A replayed commit returns the same
+  document/revision.
   Delete only the attempt's own staging file after use; GC handles crashes
   before enqueue and terminal failures that leave files.
 
@@ -555,13 +606,20 @@ user action carries a client-minted ID (Admission, above).
   about 1 s after the cancel instead of running to completion. The signal
   reaches code inside a `durableCalls` step (version probe). Conditional
   outcomes, not the abort, still protect publication.
-- **Physical exclusion.**
-  - kei's queue has global and worker concurrency 1. dbos 3.1.0 (as 3.0.0)
-    counts worker concurrency from the in-memory set of active workflows
-    (`_queue.py:740-768`, `_core.py:1056-1071`). A cancelled workflow whose
-    step still runs therefore keeps the slot until the step returns.
-  - The flock excludes a second process.
-  - One regression test covers this; no extra lock.
+- **Physical capacity.**
+  - Each kei queue sets its worker concurrency equal to its global limit.
+    dbos 3.1.0 counts global and partition limits from `PENDING` rows, which
+    a cancel changes at once. It counts worker concurrency from the in-memory
+    set of active workflows (`_queue.py:740-768`, `_core.py:1056-1071`;
+    `_sys_db.py:4682`). A cancelled workflow whose step still runs therefore
+    keeps its lane's slot until the step returns. A rev-8 review probe
+    reproduced this: with only global limits, cancelling one of four blocked
+    steps let a fifth start.
+  - The flock excludes a second process, so worker limits are the whole
+    capacity.
+  - Lanes run side by side by design; nothing excludes a conversion from an
+    extraction. Cleanup no longer relies on exclusion (*Deletion*).
+  - One regression test per queue covers this; no extra lock.
 
 ## Deletion and garbage collection
 
@@ -594,11 +652,27 @@ unreadable immediately; execution and file cleanup can finish later.
   schemas. A run referenced by a revision's `preprocessId`, a live kei workflow
   or a child of a live Studio parent is protected. This covers a completed
   conversion waiting for Studio publication. Pass eligible run/history IDs to
-  kei `deleteRuns` on queue `kei` at priority 0. It rechecks its own workflow
-  statuses and performs deletions while holding the same physical worker slot.
-  kei never receives permission to query Studio's domain or system schema.
-  Run directories must also be older than 24 h. Queue exclusion, not priority
-  or elapsed age, prevents cleanup overlapping a cancelled native step.
+  kei `deleteRuns` on `kei-gc` (global and worker 1). It rechecks its own
+  workflow statuses. kei never receives permission to query Studio's domain
+  or system schema. Run directories must also be older than 24 h.
+  - **kei boot boundary.** Lanes run beside cleanup, so exclusion no longer
+    protects a cancelled native step. After taking the flock (the previous
+    process has exited) and before `DBOS.launch()`, kei reads
+    `keiBootTimestamp` from the database clock. A run whose kei workflows all
+    ended `SUCCESS` or `ERROR` is eligible, because their steps returned. Any
+    other terminal status is eligible only once that workflow's `updatedAt <
+    keiBootTimestamp`: `CANCELLED` (explicit or deadline, both stamped from
+    the database clock) and `MAX_RECOVERY_ATTEMPTS_EXCEEDED`. Until a kei
+    restart, a native step may still write files or checkpoints, and no
+    elapsed age proves otherwise.
+  - **Late handoffs.** A cancelled Studio parent can still finish a
+    `submitToKei` already under way (*Cancellation*), so an unreferenced run
+    can gain a kei reader after cleanup checked it. `runExtraction` records the
+    run it hands to kei as the workflow attribute `keiRunId`. A run stays
+    protected while any Studio workflow with that attribute is live, or ended
+    in anything but `SUCCESS` or `ERROR` at or after Studio's
+    `bootTimestamp`. After that, cleanup rechecks the run's kei children
+    before passing it on. Conversions write new runs and read no old ones.
 - **Staged uploads:** remove attempt files older than 24 h only if their
   project/attempt workflow is absent or terminal. This includes crashes after
   staging but before enqueue and losing dedup candidates. Protect active
@@ -622,17 +696,52 @@ unreadable immediately; execution and file cleanup can finish later.
 A failed reference/status query deletes nothing. DBOS payload tables lack
 foreign keys, so deleting history while a cancelled step can still checkpoint
 would leak orphan rows. A 24-hour cancellation age does not prove that step
-stopped. Cleanup can wait behind a hung kei step or until a Studio restart;
-there is no fixed 24-hour deletion guarantee. Late unpublished files remain
-invisible and are collected after reference and quiescence checks.
+stopped. Cleanup of cancelled work waits for a Studio or kei restart, and
+kei restarts at every deploy. Runs that ended normally are cleaned on the
+usual schedule. There is no fixed 24-hour deletion guarantee. Late
+unpublished files remain invisible and are collected after reference and
+quiescence checks.
 
 ## Queues, deadlines and upgrades
 
 | App | Queue | Policy | Workflows |
 |---|---|---|---|
-| kei | `kei` | global 1, worker 1, priority: interactive extraction and conversion 1, batch extraction 10, `deleteRuns` 0; FIFO ties | `convert`, `extract`, `deleteRuns` |
+| kei | `kei-convert-large` | global 1, worker 1; FIFO | `convert` of documents over `SMALL_DOCUMENT_PAGES` |
+| kei | `kei-convert-small` | global 1, worker 1; FIFO | `convert` of the rest |
+| kei | `kei-extract` | global 2, worker 2; priority interactive 1, batch 10; FIFO ties | `extract` |
+| kei | `kei-gc` | global 1, worker 1 | `deleteRuns` |
 | studio | `studio` | unrestricted; dedup per chat source revision and per ingestion project/content | `runExtraction`, `chatTurn`, `ingestSource` |
 | studio | `suggest` | global 1 | `suggestSchemaBatch` |
+
+- **Why these lanes** (decision 14; measured on the Spark,
+  [rev-8 tests](2026-09-24-unified-durable-execution-evidence/rev8-tests/README.md)).
+  Each vLLM server runs 4 requests (`--max-num-seqs 4`).
+  - **Conversion.** Surya's client sends `SURYA_INFERENCE_PARALLEL` requests
+    at once. The measured baseline is the deployment before 2026-09-25, which
+    set neither that nor `VLLM_GPU_TYPE`. Surya then guessed 32 from a GPU
+    table (`surya/inference/backends/vllm.py:101-113`), and a book left 28
+    requests waiting in vLLM. Pinned to 4 (shipped; *kei worker*), a 40-page
+    book takes the same time (250 s against 254 s). A
+    3-page document added during the book's OCR then takes 40.8 s instead of
+    99.8 s (32.8 s alone), and the book 275 s. vLLM serves waiting requests
+    in arrival order, so the small document's requests are next once the
+    book holds only 4. At 3/2/1 client threads the book takes 290/365/688 s,
+    so no slot is reserved.
+  - **Extraction.** A Catalog extraction sends one request at a time
+    (`kie/extract/grounded.py:190-195`), using 1 of NuExtract's 4 slots. A
+    small extraction beside a 200-entry Catalog took 7.75 s (8.5 s alone,
+    Catalog) and 22 s (13.8 s alone, Article). The Catalog stayed at 433–443 s
+    against 434 s. One slot would make a small extraction wait up to the
+    Catalog's 3 h deadline.
+  - **Cleanup** has its own queue, so it never takes a conversion or
+    extraction slot.
+- **Lane is not fairness.** Two large books run one after the other, and two
+  small documents too. Per-account sharing through DBOS partitions (random
+  per-poll order; `fair_queue_probe.py`) is deferred: priority would then
+  apply only within one account, and a worker limit is still required.
+- **`SMALL_DOCUMENT_PAGES`** is one constant in the handoff module: 30 (user,
+  2026-09-25). kei registers the queues;
+  Studio only picks one.
 
 - **Other workflows start directly.** The `studio` queue provides transactional
   admission and active deduplication, not a new resource cap. Measure its chat
@@ -642,14 +751,18 @@ invisible and are collected after reference and quiescence checks.
 - **Ownership.** Every `DBOSClient` sets `applicationName`: `studio` for the
   admission client, `kei` for the kei handoff client. A client without one
   creates workflows that no application owns, and any application may
-  dequeue those. Only kei registers the `kei` queue; a client's
+  dequeue those. Only kei registers the kei queues; a client's
   `registerQueue` defaults to `always_update` and would overwrite kei's
   configuration.
 - **No admission caps.** None exist today besides the 50-member batch limit,
   which stays. HEAD already dropped kei's cap of 32.
-- **kei deadlines.** `workflowTimeoutMS` applies to `kei-extract` (10 min
-  Article, 3 h Catalog) and `kei-convert` (budget fixed by M0R), measured from
+- **kei deadlines.** `workflowTimeoutMS` applies to kei `extract` (10 min
+  Article, 3 h Catalog) and kei `convert` (budget fixed by M0R), measured from
   kei dequeue. Studio parents have no deadline; they end with their child.
+  The conversion budget grows with pages. On the Spark, cutting took 2.7 s
+  per page on the CPU before the first OCR request, and OCR about 2 s per
+  crop (73 crops for 40 pages). A 2000-page scan would take roughly 3.5 h. So
+  the budget is per page, set from the M0R 4 and M0R 6 measurements.
 - **Versions.** `studio@1` and `kei@1` stay fixed. Code changes that alter a
   workflow's step sequence use `DBOS.patch()` / `deprecatePatch()` (Python:
   `patch` / `deprecate_patch`). Both SDKs require patching to be enabled in
@@ -683,6 +796,42 @@ invisible and are collected after reference and quiescence checks.
   generation pin, model and recipe checks, `run.py:extract`, then idempotent
   artifact publication.
 - **`classify`** moves from `jobs/tasks.py` to `kei_exp/failures.py`.
+- **Queues.** The worker registers the four kei queues after `DBOS.launch()`,
+  each with worker concurrency equal to its global limit (*Cancellation*).
+- **OCR client width (shipped 2026-09-25).** `compose.gpu.yaml` sets
+  `SURYA_INFERENCE_PARALLEL` on the parsing worker and API from the same
+  `OCR_MAX_NUM_SEQS` (default 4) as `ocr_model`'s `--max-num-seqs`, so the two
+  change together. The safety test asserts it. On its own it changes nothing
+  until lanes run side by side.
+- **Two conversions in one process.** The lanes let a large and a small
+  conversion run at once. The Spark tests found no conflict, under three
+  conditions:
+  - Surya's `configure()` writes process-global settings (`surya.py:215`).
+    Only one Surya record exists, so both conversions write the same values.
+    A second Surya record needs per-call settings first; a test fails if two
+    records differ in what `configure()` sets.
+  - The pdfium lock covers a whole document only on the `cut=none` path
+    (`surya.py:236`). Studio always sends `cut=auto`, which renders page by
+    page. A small document injected while a book was being cut finished in
+    33.8 s, against 32.8 s alone.
+  - Each conversion has its own run directory. Two extractions of one run
+    write different artifact files, and both compute the same segmentation
+    before publishing it by rename (M3 test).
+  - Not yet measured: memory with a 2000-page book beside a small document,
+    and `page_source=ingest` spreads (M0R 6).
+- **Cutting precedes OCR.** `SuryaOcr.transcribe` receives every crop of the
+  document at once (`transcription/surya.py:288-296`), so a 2000-page book
+  spends about 90 min cutting on the CPU and holds all crops in memory before
+  its first OCR request. This is unchanged (*Risks*). Streaming crops into OCR
+  is a later improvement, not part of this migration.
+- **Parallel Catalog chunks are deferred** (*Open decision*). Tested on a
+  200-entry Catalog: four contiguous chunks under the full headings and
+  glossary took 106 s against 434 s. The same chunks run one after another
+  gave records identical to the unsplit run. Run in parallel, they changed
+  19–21 borderline `fundart` values, against 0–1 between two unsplit runs.
+  The cause is vLLM batching, not the split. If adopted, it stays inside the
+  one `extract` step as a thread pool with one `_Run` per chunk, and the
+  bodies merge in block order. Article extraction is not chunked.
 - **Per-model-call checkpoints are deferred.**
   - `_Run.call` mutates run state in place (`kie/extract/grounded.py:132-155`),
     so step boundaries there mean a refactor that deletes nothing. A crash
@@ -1042,9 +1191,10 @@ in-process launch, interactive durability, derived status or garbage
 collection.
 
 **M0R: pre-implementation probes, the gate before M2.** M1 only removes dead
-code and does not wait for it. Each probe runs in a throwaway harness against
+code and does not wait for it. Items 1–5 run in a throwaway harness against
 disposable loopback `free_test_*` databases and scripted model endpoints; no
-live credentials or research content. Record versions, commands and outcomes
+live credentials or research content. Item 6 measures the Spark's own model
+servers with synthetic documents. Record versions, commands and outcomes
 in the evidence record. A failed probe revises this plan; it never adds a
 custom scheduler or fallback. A check that needs FREE's own workflows,
 handlers or pages is an acceptance test of the milestone that builds it
@@ -1078,19 +1228,43 @@ handlers or pages is an acceptance test of the milestone that builds it
      `studio`; Studio owns and runs the admitted workflow.
    - Verify `return-existing` only outside caller-owned transactions; measure
      chat dequeue latency on the unrestricted queue.
-4. **kei queue.**
-   - Cancel right after claim and mid-step, then enqueue a job and a
-     `deleteRuns`; nothing may overlap, and neither starts until the blocked
-     cancelled native step exits.
-   - Check priorities, FIFO ties and dequeue-relative deadlines on the `kei`
-     queue configuration.
-   - Measure the conversion budget; it fixes `kei-convert`'s deadline (M3).
+4. **kei queues.**
+   - On each lane, cancel right after claim and mid-step, then enqueue another
+     job. It must not start until the blocked cancelled native step exits;
+     the other lanes keep running.
+   - `deleteRuns` leaves a run with a cancelled workflow alone until a kei
+     restart, then removes it. Check that a Python-side cancel and a deadline
+     both set `updatedAt` from the database clock.
+   - Check priorities, FIFO ties and dequeue-relative deadlines on
+     `kei-extract`, and deadlines on both conversion lanes.
+   - Measure the conversion budget per page; it fixes the lanes' deadline
+     (M3).
 5. **Model calls.**
    - Stream one HTTP and one CLI provider through `durableCalls`.
    - Passed 2026-09-25 (version probe): a successful stream checkpoints no
      request body or response headers but does record provider metadata.
      `DBOS.stepStatus.cancelSignal` reaches a wrapper model inside the step
      and fires about 1 s after the cancel, before any provider call.
+6. **Spark scheduling.** These run on the Spark's live model servers from a
+   throwaway container of the parsing image, with synthetic documents only.
+   They restart nothing unless the user approves.
+   - Passed 2026-09-25 ([rev-8 tests](2026-09-24-unified-durable-execution-evidence/rev8-tests/README.md)):
+     - a book and a small document through today's `ocr.resolve` and
+       `convert`, at Surya widths default, 4, 3, 2 and 1;
+     - a small document injected during the book's cutting and OCR;
+     - two extractions side by side;
+     - Catalog chunks run in parallel and one after another.
+     - The KV cache peaked at 10% with no preemptions.
+     - `VLLM_BATCH_INVARIANT=1` on a separate NuExtract server (production
+       untouched): vLLM 0.29.1 fails at startup with "batch_invariant mode
+       is not supported for GDN_ATTN". Both extraction models are
+       `Qwen3_5ForConditionalGeneration` with gated-delta-net layers
+       (NuExtract 24 of 32, Qwen 48 of 64), so neither can use it.
+   - Pending:
+     - a book near 2000 pages (memory, cut time, deadline);
+     - `page_source=ingest` spreads;
+     - Studio chat and schema generation during a kei extraction on
+       `extraction_model`.
 
 **M1: dead code (no schema change; can merge first).** Task plan:
 [2026-09-25-dbos-m1-dead-code.md](2026-09-25-dbos-m1-dead-code.md).
@@ -1231,9 +1405,10 @@ handlers or pages is an acceptance test of the milestone that builds it
 **M3: kei on DBOS.**
 - **Dependencies.** Replace Procrastinate with `dbos` in `pyproject.toml` and
   `uv.lock`; `kei-worker worker` replaces `kei-jobs`.
-- **New code.** `src/kei_exp/workflows/` holds the registration, the queue,
-  `convert`, `extract`, `deleteRuns` and the portable contracts.
-  `failures.py` holds `classify`. The cooperative checks read the DBOS status.
+- **New code.** `src/kei_exp/workflows/` holds the registration, the four
+  queues, `convert`, `extract`, `deleteRuns` with the kei boot boundary, and
+  the portable contracts. `failures.py` holds `classify`. The cooperative
+  checks read the DBOS status.
 - **Ingestion model inputs.** `convert` takes optional `model` and
   `layout_model` keys. It resolves an omitted one in its first checkpointed
   step, from the definition the listing reports. The OCR default moves from
@@ -1258,6 +1433,13 @@ handlers or pages is an acceptance test of the milestone that builds it
   Extraction artifacts v1 and v2 both stay; both are produced today.
 - **Tests.** Workflow, kill/restart, SIGSTOP, contract-fixture and
   publication-crash tests. Service smoke tests admit through DBOS.
+  - Lanes: a large and a small conversion in one worker produce the same
+    manifests as each alone. A cancelled step keeps its lane's slot, and
+    only that lane's.
+  - Two extractions of one run each publish their artifact, and the shared
+    segmentation stays valid.
+  - A test over `MODELS` fails if two Surya records would make `configure()`
+    set different values.
 
 **M4: Studio background work on DBOS.**
 - **`server/dbos.ts`** holds:
@@ -1289,7 +1471,8 @@ handlers or pages is an acceptance test of the milestone that builds it
   expected-head checks. Share verify/translate/package functions and delete
   HTTP kei polling. Admission resolves the owner's Ingestion Model Choice into
   the workflow input and passes it to `convert`. Delete `KEI_EXP_MODEL` and
-  `DEFAULT_MODEL` (`api/source_documents.ts:38,472`).
+  `DEFAULT_MODEL` (`api/source_documents.ts:38,472`). Admission also counts
+  pages and fixes the conversion lane (*Studio → kei handoff*).
 - **Reads.** Derive execution status; revise public contracts together with
   callers, with no compatibility aliases. Keep completed result/review and
   evidence pin behavior. Extraction cancel now reaches kei.
@@ -1321,6 +1504,13 @@ handlers or pages is an acceptance test of the milestone that builds it
     its first admitted models. A repeated reprocess POST after the choice
     changed replays the original attempt, including after publication and
     after history retention.
+  - A small document uploaded, or extracted, while a large conversion runs
+    completes without waiting for it. A recovered or replayed ingestion keeps
+    its admitted lane. A reprocess picks the lane from the revision's page
+    count.
+  - A PDF that pdf.js cannot open but PDFium can converts on
+    `kei-convert-large`; one neither can open fails in kei as today.
+    `runExtraction` records `keiRunId`.
 
 **M5: interactive work on DBOS.**
 - **Workflows.** Add `suggestSchema`, `proposeSchemaEdit` and `chatTurn` with
@@ -1448,6 +1638,17 @@ handlers or pages is an acceptance test of the milestone that builds it
   - In-flight runs/packages and children of live Studio parents survive.
   - After a blocked cancelled native step exits and cleanup runs, no late
     orphan checkpoint remains.
+  - A run with a cancelled kei workflow survives every sweep while that kei
+    process lives, and is removed after a kei restart. Runs that ended
+    normally are removed without one. A conversion running in another lane
+    never loses files to a sweep.
+  - Late handoff: hold an extraction's `submitToKei` enqueue, delete its
+    source, let the parent be cancelled, and run GC. The run survives until
+    a Studio restart, and the late kei extraction never overlaps its
+    deletion.
+  - Recovery exhaustion: crash the kei worker until a workflow reaches
+    `MAX_RECOVERY_ATTEMPTS_EXCEEDED`. Its run survives GC in that process
+    and is removed after the next kei restart.
   - Current-process cancelled Studio history survives GC regardless of age;
     a fully terminated process followed by restart permits eligible cleanup
     using the database-clock boot boundary. No in-place relaunch.
@@ -1486,6 +1687,8 @@ handlers or pages is an acceptance test of the milestone that builds it
   - native PDF Evidence parity;
   - Studio and kei kill/restart with no duplicate kei work;
   - priorities and deadlines;
+  - lanes: a small ingestion and extraction finish while a large conversion
+    runs;
   - cancelling a blocked native step;
   - a page reload mid-chat, mid-generation and mid-edit;
   - a Studio restart with the page open, where the keys are resent and the
@@ -1496,8 +1699,9 @@ handlers or pages is an acceptance test of the milestone that builds it
   batch retry, schema-edit acceptance, and chat across a reload and a restart,
   with two accounts. Inspect both DBOS schemas. On the GPU deployment, ingest
   a scanned PDF under a non-default OCR and layout choice and check that its
-  recipe names them. The e2e real service has no OCR server
-  (`e2e/realService.ts:168`), so it cannot prove this.
+  recipe names them. Then upload a small scanned PDF while a large scan
+  converts, and extract from it. The e2e real service has no OCR server
+  (`e2e/realService.ts:168`), so it cannot prove either.
 
 A compile pass or a mocked SDK call does not prove recovery, isolation or
 physical exclusion.
@@ -1511,9 +1715,23 @@ physical exclusion.
   24-hour retention target and background history 30 days. Live parents and
   unquiesced cancellations can extend it; scope deletion can shorten age but
   never bypass quiescence. Dumps include this history and ChatTurn transcripts.
-- **Cleanup can wait.** A hung native step blocks kei's queue and cleanup.
-  Cancelled Studio history can remain until a later restart. This trades a
-  bounded deletion promise for safe cleanup without a new execution barrier.
+- **Cleanup can wait.** A hung native step blocks its lane. Cancelled Studio
+  history and cancelled kei runs can remain until a later restart of their
+  process. This trades a bounded deletion promise for safe cleanup without a
+  new execution barrier.
+- **Output varies under concurrency.** vLLM's batching changes arithmetic
+  enough to flip borderline answers. On a synthetic Catalog, about 10% of
+  `fundart` values (a trailing dot, or a value against null) differed when
+  NuExtract served four requests at once. Serial runs differed in 0–1 of 200.
+  This already happens whenever Studio and kei share a server. Two extraction
+  slots make it more frequent, and parallel Catalog chunks would make it
+  routine. The user accepts it. vLLM's batch-invariant mode does not support
+  these models (M0R 6).
+- **Cutting before OCR.** A 2000-page scan spends about 90 min cutting on the
+  CPU and holds all its crops in memory before OCR starts. Its budget and
+  memory beside a small conversion are measured in M0R 6.
+- **Lanes add no throughput.** A small document beside a book costs the book
+  about 10% (250 s to 275 s) and adds about 8 s to the small one.
 - **Whole-batch retry costs.** Explicit suggestion retry repeats every remaining
   source call; per-source progress/results disappear after DBOS retention.
   Only the merged research proposal, draft and membership pins persist.
@@ -1535,7 +1753,9 @@ physical exclusion.
   calls on the operator's one login, with its billing and rate limits.
 - **Coarse kei steps.** A crash repeats a whole conversion or extraction, up to
   3 h of GPU time.
-- **One server, one kei worker.** No throughput gain is claimed.
+- **One server, one kei worker.** No throughput gain is claimed. Studio's own
+  calls to the extraction servers sit outside kei's queues, so their effect
+  on kei extraction is measured, not bounded (M0R 6).
 - **CLI token refresh** remains a provider risk.
 
 ## Out of scope
@@ -1551,8 +1771,16 @@ physical exclusion.
   instead. Parallel uploads and new retry controls.
 - Per-model-call Python checkpoints, and kei progress events or token
   streaming.
-- kei lanes, page-class priority, fairness beyond explicit priority, a debug
-  dashboard, and agents/MCP/embeddings.
+- Fair sharing between accounts, and pausing or preempting running work.
+  Lanes by page count are in scope (decision 14).
+- A per-page conversion fan-out. The rev-8 review rejected it:
+  - page children would each call `write_result`, which starts a new
+    generation and deletes other pages' files (`result.py:237`);
+  - a waiting parent would hold a slot in its children's queue;
+  - cancellation, deadlines and cleanup would need a tree contract.
+  Streaming crops into OCR inside one job would remove the cutting delay
+  without these problems. It is a later improvement.
+- Chunked Article extraction, a debug dashboard, and agents/MCP/embeddings.
 - Calling providers straight from the browser. That would keep keys away from
   Studio entirely, but it would take model work out of DBOS and lose reload
   recovery.
@@ -1612,6 +1840,15 @@ physical exclusion.
   unchanged. A Codex review then made an unset Schema Suggestion Route
   inherit the Interaction Route and froze ingestion models at admission. It
   also brought the raw NuExtract call inside the key boundary.
+- **Eighth revision (2026-09-25).** Sizes kei's scheduling for the Spark
+  (decision 14). The one `kei` queue becomes `kei-convert-large`,
+  `kei-convert-small`, `kei-extract` (two slots) and `kei-gc`, each with a
+  worker limit. Studio fixes the conversion lane at admission from the page
+  count. `SURYA_INFERENCE_PARALLEL=4` stops a book from flooding the OCR
+  server. `deleteRuns` gets a kei boot boundary instead of queue exclusion.
+  Rejected on the way: a per-page conversion fan-out, and per-account fair
+  sharing through DBOS partitions. Catalog chunking is deferred behind the
+  output-variation question. Spark measurements back every number.
 
 ## M0 findings (2026-09-24)
 
@@ -1799,3 +2036,81 @@ age-only cancellation cleanup are not implementation instructions.
     - the read-route count and the recipe citation;
     - a manual OCR-selection check;
     - Model Attribution in CONTEXT.md.
+- **2026-09-25, the workload goal (user):** the user asked whether DBOS can
+  use Redis and whether it fits prioritising, pausing, retrying and resuming
+  work on the Spark. Redis cannot be a DBOS system database (PostgreSQL or
+  SQLite only). Priority does not preempt. The seventh revision's single
+  `kei` queue made a small extraction wait for a book's conversion, even
+  though the two use different vLLM servers. A first proposal (A–D) added a
+  queue per server, a per-page conversion fan-out, a client-width rule and
+  per-account partitions (`fair_queue_probe.py`). Hatchet and Temporal
+  (whose fairness keys became generally available in May 2026) were
+  reconsidered for fairness and rejected again: DBOS runs in-process, and
+  admission enqueues inside the domain transaction.
+- **2026-09-25, Codex `gpt-6-astra` read-only review of A–D**
+  ([brief](2026-09-24-unified-durable-execution-evidence/rev8-review-brief.md),
+  run by the user in T3): 4 P1, 6 P2, 1 P3. Claude checked each claim against
+  source; all 11 were accepted.
+  - **`deleteRuns` (P1):** its safety came from queue exclusion. It now uses
+    a kei boot boundary.
+  - **Worker limit (P1):** global and partition limits count `PENDING` rows,
+    so every kei queue also sets a worker limit.
+  - **Fan-out (2 P1, 1 P2):** per-page children would each run `write_result`
+    and delete each other's pages, a parent would hold its children's slot,
+    and the tree needs a deadline and cancel contract. The fan-out was
+    dropped.
+  - **Partitions (P2):** they give random sharing and lose cross-account
+    priority. Fairness is deferred.
+  - **Claims withdrawn:**
+    - text-layer routing is per document (P2);
+    - Surya's width is a GPU-table guess of 32, not the server's 4 (P2);
+    - `resume_workflow(queue_name=)` exists in 3.1.0 (P3).
+  - **Same-tab uploads (P2):** the browser uploads one file at a time. The
+    user kept this out of scope.
+  - **Probe (P2):** its metrics were flawed. The Spark measurements replace
+    it.
+- **2026-09-25, Codex `gpt-6-astra` read-only sparring round on the lane
+  plan:** it kept the lanes and rejected any fixed wait bound, which the
+  measurements now replace. All four points below were accepted.
+  - Classify before enqueue, including reprocessing: pages are counted at
+    admission (pdf.js), and the lane is kept in the workflow input.
+  - Check shared state. Surya's `configure()` is safe with one record. The
+    pdfium lock covers a whole document only for `cut=none`.
+  - One extraction slot would block short work, so `kei-extract` gets two.
+  - Keep routine cleanup of runs that ended normally, and defer only
+    cancelled ones to a restart.
+- **2026-09-25, Spark measurements (user-approved):** run on production
+  model servers from throwaway containers, with synthetic documents. Nothing
+  was restarted. Results, harness and raw data are in
+  [rev8-tests](2026-09-24-unified-durable-execution-evidence/rev8-tests/README.md);
+  the numbers are quoted under *Queues*, *kei worker* and *Risks*. The user
+  noted that chunking Article extraction is harder, and that Catalog
+  chunking needed testing first. It works, and is deferred behind the
+  output-variation decision.
+- **2026-09-25, batch-invariant test (user-approved):** the user accepted
+  the output variation, set the small-document threshold to 30 pages and
+  shipped `SURYA_INFERENCE_PARALLEL` in Compose. `VLLM_BATCH_INVARIANT=1` was
+  tried on a second NuExtract server beside production, from the same image
+  and arguments. vLLM 0.29.1 refused it for gated-delta-net attention, and
+  both extraction models use it. The test server was removed.
+- **2026-09-25, Codex `gpt-6-astra` read-only review of the eighth
+  revision:** 1 P1, 2 P2, 1 P3. Claude checked each against source; all 4
+  were accepted.
+  - **Late handoff (P1, new with the lanes):** a cancelled extraction parent
+    can finish `submitToKei` after cleanup checked its run. The single queue
+    used to order that extraction behind `deleteRuns`; the lanes let the two
+    overlap. Runs are now protected through a `keiRunId` attribute and
+    Studio's boot boundary.
+  - **Page count (P2):** `api/_pdf.ts` opens outside its error handling and
+    renders every page. A count-only helper replaces it, and a PDF pdf.js
+    cannot open goes to the large lane instead of being rejected.
+  - **Recovery exhaustion (P2):** `MAX_RECOVERY_ATTEMPTS_EXCEEDED` fell
+    outside both cleanup rules. Every status other than `SUCCESS` or `ERROR`
+    now waits for a kei restart.
+  - **Wording (P3):** the Surya numbers are labelled as the pre-change
+    baseline.
+  - Confirmed correct:
+    - cancel and deadline stamps come from the database clock;
+    - worker limits hold on all four queues, including after recovery;
+    - Compose renders at widths 4 and 2, with no dangling anchor;
+    - the plan's numbers match the evidence.

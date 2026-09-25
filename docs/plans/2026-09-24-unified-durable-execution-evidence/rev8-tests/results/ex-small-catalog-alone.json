@@ -1,0 +1,44 @@
+{
+  "label": "ex-small-catalog-alone",
+  "busy_before": {
+    "qwen": {
+      "running": 0.0,
+      "waiting": 0.0,
+      "kv": 0.0,
+      "preemptions": 0.0
+    },
+    "nuextract": {
+      "running": 0.0,
+      "waiting": 0.0,
+      "kv": 0.0,
+      "preemptions": 0.0
+    }
+  },
+  "results": {
+    "doc": {
+      "run": "catalogue-small",
+      "strategy": "catalog",
+      "start": 0.09,
+      "records": 4,
+      "calls": 4,
+      "complete": true,
+      "issues": [],
+      "end": 8.57,
+      "seconds": 8.48,
+      "servers": {
+        "qwen": {
+          "running_mean": 0.0,
+          "running_max": 0.0,
+          "waiting_max": 0.0,
+          "preemptions": 0.0
+        },
+        "nuextract": {
+          "running_mean": 0.94,
+          "running_max": 1.0,
+          "waiting_max": 0.0,
+          "preemptions": 0.0
+        }
+      }
+    }
+  }
+}

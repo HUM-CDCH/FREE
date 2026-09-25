@@ -1,0 +1,78 @@
+{
+  "label": "book-alone-p2",
+  "surya_parallel": "2",
+  "busy_before": {
+    "running": 0.0,
+    "waiting": 0.0,
+    "kv": 0.0,
+    "preemptions": 0.0
+  },
+  "results": {
+    "warmup": {
+      "pdf": "small1.pdf",
+      "start": 0.02,
+      "phases": [
+        {
+          "t": 0.02,
+          "name": "cut",
+          "total": 1
+        },
+        {
+          "t": 2.33,
+          "name": "ocr",
+          "total": 1
+        },
+        {
+          "t": 11.39,
+          "name": "export",
+          "total": null
+        }
+      ],
+      "chars": 1072,
+      "end": 11.47,
+      "seconds": 11.45,
+      "server": {
+        "samples": 23,
+        "running_mean": 0.7,
+        "running_max": 1.0,
+        "waiting_mean": 0.0,
+        "waiting_max": 0.0,
+        "kv_max": 0.017,
+        "preemptions": 0.0
+      }
+    },
+    "doc": {
+      "pdf": "book40.pdf",
+      "start": 11.47,
+      "phases": [
+        {
+          "t": 11.48,
+          "name": "cut",
+          "total": 40
+        },
+        {
+          "t": 118.98,
+          "name": "ocr",
+          "total": 73
+        },
+        {
+          "t": 376.03,
+          "name": "export",
+          "total": null
+        }
+      ],
+      "chars": 68843,
+      "end": 376.23,
+      "seconds": 364.76,
+      "server": {
+        "samples": 718,
+        "running_mean": 1.37,
+        "running_max": 2.0,
+        "waiting_mean": 0.0,
+        "waiting_max": 0.0,
+        "kv_max": 0.03,
+        "preemptions": 0.0
+      }
+    }
+  }
+}
