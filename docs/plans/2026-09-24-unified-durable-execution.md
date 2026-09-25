@@ -1,18 +1,24 @@
 # FREE on DBOS: durable jobs and AI execution
 
-Status: **fifth revision, 2026-09-25; runtime implementation has not started.**
-This revision applies the DBOS simplification review, PostgreSQL experiments
-and Claude Code Opus 5.5 (`claude-opus-5-5`, medium) sparring review. It replaces
-start-before-commit with transactional enqueue, merges extraction admission
-and results, removes upload keys and selective batch-suggestion retry, and
-requires quiescence before deleting cancelled history.
+Status: **sixth revision, 2026-09-25; runtime implementation has not started.**
+The sixth revision bumps the pins to `@dbos-inc/dbos-sdk` 5.1.10,
+`@dbos-inc/vercel-ai` 0.4.4 and `dbos` 3.1.0 after every review probe
+reproduced on them (M0R 1, passed). It narrows the chat sanitizer to what
+0.4.4 still records, uses `DBOS.stepStatus.cancelSignal` for cancellation of
+Studio model calls, and splits M0R: only pre-implementation probes gate M2,
+and checks that need FREE's own code are acceptance tests of M2, M4, M5 and M6.
 
-The fourth revision's browser-held keys, per-researcher configuration, all
-providers and reload recovery remain. Historical decisions and M0 findings
-are retained below; the active design in this revision supersedes conflicting
-historical advice. Individual review probes passed, but the complete M0R gate
-remains pending. Commands, scripts, results and review decisions are retained
-in [the evidence record](2026-09-24-unified-durable-execution-evidence/README.md).
+The fifth revision applied the DBOS simplification review, PostgreSQL
+experiments and Claude Code Opus 5.5 (`claude-opus-5-5`, medium) sparring
+review. It replaced start-before-commit with transactional enqueue, merged
+extraction admission and results, removed upload keys and selective
+batch-suggestion retry, and required quiescence before deleting cancelled
+history. The fourth revision's browser-held keys, per-researcher
+configuration, all providers and reload recovery remain. Historical decisions
+and M0 findings are retained below; the active design supersedes conflicting
+historical advice. M0R items 2–4 and the provider half of 5 remain pending.
+Commands, scripts, results and review decisions are retained in
+[the evidence record](2026-09-24-unified-durable-execution-evidence/README.md).
 Supersedes `docs/plans/2026-09-24-procrastinate-source-ingestion.md` (not
 implemented).
 
@@ -111,22 +117,26 @@ that every other researcher's documents are sent to.
   a step's thrown error with every enumerable property and cause
   (`serialize-error`; `ApiError.cause` is enumerable, `api/_http.ts:11`), so
   provider errors are replaced by sanitized ones inside the step boundary. For
-  chat, that boundary belongs to `durableCalls`, which also checkpoints a
-  successful call's request body, response headers and provider metadata. So
-  the sanitizer wraps the provider model inside it and strips those too.
+  chat, that boundary belongs to `durableCalls`. In 0.4.4 a successful stream
+  checkpoints no request body or response headers but still records provider
+  metadata (version probe). So the sanitizer wraps the provider model inside
+  `durableCalls`, maps its errors and strips its provider metadata.
 - **A new mechanism must delete more than it adds.** No admission triggers,
   relays, reconcilers, publication fences, tombstones, credential revisions,
   cleanup-intent tables or deletion barriers.
 
-Everything below uses features of the M0 pins (`@dbos-inc/dbos-sdk` 5.0.2,
-`dbos` 3.0.0):
+Everything below uses features of the pins (`@dbos-inc/dbos-sdk` 5.1.10,
+`@dbos-inc/vercel-ai` 0.4.4, `dbos` 3.1.0). The evidence probes re-verified
+transactional enqueue, deduplication, cancellation, stream replay,
+`cancelSignal` and worker concurrency on these pins on 2026-09-25:
 - `enqueueInTransaction` on the domain transaction's `pg` connection;
 - queue deduplication, with `return-existing` outside caller-owned transactions;
 - `authenticatedUser` and `workflowAttributes` on start;
 - `listWorkflows` filters on attributes (JSONB containment on an indexed
   column), status and ID prefixes, with sort, limit and loaded outputs;
-- `readDurableStream` replay from offset 0 (`@dbos-inc/vercel-ai` 0.3.7);
+- `readDurableStream` replay from offset 0 (`@dbos-inc/vercel-ai`);
 - `cancelWorkflow(s)` and `deleteWorkflows`;
+- `DBOS.stepStatus.cancelSignal` (5.1), which fires about 1 s after a cancel;
 - scheduled workflows and `DBOS.patch()`;
 - Python step `should_retry`;
 - queue `worker_concurrency`.
@@ -206,8 +216,8 @@ input-conflict checks. Row-backed operations insert/update domain rows and call
 - **Binding.** Acquire a `pg` pool client; bind Prisma Next's public
   `postgres({contractJson, pg: client})` facade to it; use its transaction's ORM
   and pass that client to DBOS. Release it after commit/rollback without
-  closing the shared pool. This was verified on Prisma Next 0.16 and DBOS
-  5.0.2; no raw SQL enqueue function, datasource plugin or trigger is needed
+  closing the shared pool. This was verified on Prisma Next 0.16 with DBOS
+  5.0.2 and 5.1.10; no raw SQL enqueue function, datasource plugin or trigger is needed
   ([DBOS client reference](https://docs.dbos.dev/typescript/reference/client)).
 - **Queues.** Extraction and chat use the unrestricted `studio` queue;
   suggestions use `suggest`. A batch's rows and all member enqueues commit
@@ -438,10 +448,11 @@ user action carries a client-minted ID (Admission, above).
       ([integration](https://docs.dbos.dev/integrations/vercel-ai)). The fixed
       step name keeps replay valid if the route changes between attempts.
       `model` is the provider model wrapped in the sanitizer. It maps thrown
-      errors and stream error parts, and drops the request body, response
-      headers and provider metadata that `durableCalls` would otherwise
-      record (`@dbos-inc/vercel-ai` `src/middleware.ts:518-531`). It runs
-      inside `durableCalls`' step and stream.
+      errors and stream error parts, and drops the provider metadata that
+      `durableCalls` would otherwise record (`@dbos-inc/vercel-ai`
+      `src/middleware.ts:533-543`). 0.4.4 already omits the request body and
+      response headers; the version probe confirms both. It runs inside
+      `durableCalls`' step and stream.
     - The last step records a successful answer only if no answer/failure
       exists. On provider failure, record a sanitized typed failure, then
       throw a fresh sanitized Error without `cause`, nested errors or response
@@ -466,9 +477,9 @@ user action carries a client-minted ID (Admission, above).
     - Replay from offset 0 with the stable turn ID. The integration skips
       superseded attempts for a new reader. On a dropped connection, reconnect
       this way instead of ending the turn; a Studio restart kills the socket.
-    - Remove custom `data-dbos-superseded` handling. In pinned 0.3.7,
+    - Remove custom `data-dbos-superseded` handling. In pinned 0.4.4,
       `shouldRetry` refuses an in-process retry after content has been emitted
-      (`middleware.ts:145-148`); restart recovery uses a new reader. A future
+      (`middleware.ts:146-151`); restart recovery uses a new reader. A future
       change to this constraint must revalidate stream replay.
 
   - **Unanswered turns.** A question whose workflow ended without an answer
@@ -478,10 +489,11 @@ user action carries a client-minted ID (Admission, above).
   - The workflows read document text from the immutable Source Representation
     Revision outside any step, so their inputs carry only IDs, questions and
     instructions.
-  - `durableCalls` would also checkpoint the provider request body, which
-    contains the document (`@dbos-inc/vercel-ai` `src/middleware.ts:211`).
-    The sanitizer drops it, so a chat turn's history holds the transcript
-    and the answer, not the document.
+  - `durableCalls` 0.4.4 does not checkpoint a stream's provider request
+    body, which contains the document (`@dbos-inc/vercel-ai`
+    `src/middleware.ts:533-543`; version probe). A chat turn's history
+    therefore holds the transcript and the answer, not the document. Any
+    later `@dbos-inc/vercel-ai` bump reruns the version probe.
   - Settled interactive workflows have a 24-hour history retention target. That is enough to recover
     a turn, or to return an unsaved generation or an unreviewed proposal.
     Transcripts and saved revisions live in FREE's tables. Background work
@@ -516,10 +528,16 @@ user action carries a client-minted ID (Admission, above).
   records) read the DBOS workflow status instead of `kei_run.cancel_requested`,
   which nothing in production sets today. A native call that is already
   running finishes first.
+- **Studio model calls.** The key wrapper passes
+  `AbortSignal.any([callSignal, DBOS.stepStatus.cancelSignal])` to the
+  provider, so a cancelled chat, generation, proposal or suggestion call stops
+  about 1 s after the cancel instead of running to completion. The signal
+  reaches code inside a `durableCalls` step (version probe). Conditional
+  outcomes, not the abort, still protect publication.
 - **Physical exclusion.**
-  - kei's queue has global and worker concurrency 1. dbos 3.0.0 counts worker
-    concurrency from the in-memory set of active workflows
-    (`_queue.py:740-768`, `_core.py:1055-1070`). A cancelled workflow whose
+  - kei's queue has global and worker concurrency 1. dbos 3.1.0 (as 3.0.0)
+    counts worker concurrency from the in-memory set of active workflows
+    (`_queue.py:740-768`, `_core.py:1056-1071`). A cancelled workflow whose
     step still runs therefore keeps the slot until the step returns.
   - The flock excludes a second process.
   - One regression test covers this; no extra lock.
@@ -597,8 +615,15 @@ invisible and are collected after reference and quiescence checks.
 
 - **Other workflows start directly.** The `studio` queue provides transactional
   admission and active deduplication, not a new resource cap. Measure its chat
-  dequeue latency in M0R. The suggestion queue limits scheduling, but cancelled
-  TypeScript calls may still finish; conditional outcomes protect publication.
+  dequeue latency in M0R. The suggestion queue limits scheduling. A cancelled
+  TypeScript call stops about 1 s later through `cancelSignal`, but its slot
+  is not physical exclusion; conditional outcomes protect publication.
+- **Ownership.** Every `DBOSClient` sets `applicationName`: `studio` for the
+  admission client, `kei` for the kei handoff client. A client without one
+  creates workflows that no application owns, and any application may
+  dequeue those. Only kei registers the `kei` queue; a client's
+  `registerQueue` defaults to `always_update` and would overwrite kei's
+  configuration.
 - **No admission caps.** None exist today besides the 50-member batch limit,
   which stays. HEAD already dropped kei's cap of 32.
 - **kei deadlines.** `workflowTimeoutMS` applies to `kei-extract` (10 min
@@ -752,10 +777,11 @@ invisible and are collected after reference and quiescence checks.
       never needs a key, and workflow-scope code never reads one.
     - For a `hasKey` connection with no cached key, the attempt waits up to
       60 s for a page to resend it. The wait ends early on an abort or on the
-      workflow's cancellation, and no provider call starts after either.
+      workflow's cancellation (`DBOS.stepStatus.cancelSignal`), and no
+      provider call starts after either (version probe).
     - The attempt then fails with `model_key_required`, marked
       `isRetryable: false`. So neither `durableCalls`
-      (`@dbos-inc/vercel-ai` `src/internal.ts:35-45,73-80`) nor the AI SDK
+      (`@dbos-inc/vercel-ai` `src/internal.ts:35-48,73-79`) nor the AI SDK
       retries it.
     - With a page open, a Studio restart therefore goes unnoticed: the next
       request sees the new boot ID and resends the keys. Background work with
@@ -883,136 +909,74 @@ preserved below (TS DBOS 5.0.2, Python DBOS 3.0.0, x86_64). It did not test
 in-process launch, interactive durability, derived status or garbage
 collection.
 
-**M0R: complete gate pending; focused review probes passed.** The evidence
-record below confirms individual SDK/database behaviors, not the complete
-Studio/browser/provider integration. Use disposable loopback `free_test_*`
-databases and scripted model endpoints; no live credentials or research
-content. Record versions, commands and outcomes. A failed check revises this
-plan; it never adds a custom scheduler or fallback.
+**M0R: pre-implementation probes, the gate before M2.** M1 only removes dead
+code and does not wait for it. Each probe runs in a throwaway harness against
+disposable loopback `free_test_*` databases and scripted model endpoints; no
+live credentials or research content. Record versions, commands and outcomes
+in the evidence record. A failed probe revises this plan; it never adds a
+custom scheduler or fallback. A check that needs FREE's own workflows,
+handlers or pages is an acceptance test of the milestone that builds it
+(listed under M2, M4, M5 and M6); no harness result replaces it.
 
-1. **Versions.** Pin `@dbos-inc/dbos-sdk` 5.0.2,
-   `@dbos-inc/vercel-ai` 0.3.7 (peers `^4.21 || ^5`, `ai ^7`) and `dbos` 3.0.0.
-   Run on Node 24 and on ARM64.
+1. **Versions: passed 2026-09-25 on x86_64.**
+   - Pins: `@dbos-inc/dbos-sdk` 5.1.10, `@dbos-inc/vercel-ai` 0.4.4 (peers
+     `^4.21 || ^5`, `ai ^7`; probed with Studio's `ai` 7.0.93) and `dbos` 3.1.0.
+   - All five review probes reproduce their 5.0.2/0.3.7/3.0.0 results.
+     `version-probe.mjs` covers the two behaviours the sixth revision relies
+     on (item 5).
+   - Pending: the same run on ARM64 (Spark) with Node 24.
 2. **In-process lifecycle.**
    - Launch and shutdown in `host.ts`.
    - In development, a server-code change restarts the Studio process (Compose
      watch `sync+restart`) and DBOS launches once per process.
      `shutdown({deregister: true})` would not wait for running workflows, so
      relaunching in place could overlap old and recovered executions.
-   - `kill -9` followed by a restart recovers a pending workflow.
-3. **Admission and publication.**
+   - `kill -9` followed by a restart recovers a pending workflow, in the
+     development host and in the production bundle (`node dist/server/index.js`
+     after `vite build --config vite.server.config.ts`). DBOS cannot be
+     bundled: keep `@dbos-inc/*` external to the SSR build, and give every
+     workflow an explicit `name`.
+3. **Admission.**
    - Rollback after domain insert/enqueue leaves neither; commit creates both.
      Kill immediately before/after commit and verify recovery.
    - Two simultaneous identical turn IDs create one question and replay once.
      Different payloads under one ID conflict. Different turns for one source
      revision admit one and reject one without an orphan question.
+   - Repeat both with the admission client's `applicationName` set to
+     `studio`; Studio owns and runs the admitted workflow.
    - Verify `return-existing` only outside caller-owned transactions; measure
      chat dequeue latency on the unrestricted queue.
-   - Kill after domain publication but before checkpoint: Extraction, ingestion,
-     reprocess, batch draft and chat answer writes remain idempotent.
-   - Cancel racing completion has one winner. A confirmed failure uses a new
-     operation ID/attempt; a row-backed replay after history GC never reruns.
-
-4. **Interactive durability.**
-   - Reload the page mid-`suggestSchema`, mid-`proposeSchemaEdit` and
-     mid-`chatTurn`, and separately kill Studio at the same points. The page
-     must find each operation.
-   - A finished generation is saved at most once, and only onto its base,
-     whether by the reloaded page or by a surviving tab. It is dropped when
-     newer work exists. The review bar returns.
-   - The transcript returns and partial text replays once under the turn ID.
-     New readers skip superseded attempts. A partial provider failure produces
-     an error finish and persisted failure, never a saved partial answer or an
-     in-process retry that appends replacement text.
-   - An answer that finishes between the transcript read and the reconnect
-     still appears, with the turn ID as its message ID.
-   - A repeated POST after a dropped connection returns the same result.
-     Exact-turn reconnect works across completion and returns 204 for expired
-     history, followed by the authoritative transcript.
-   - Change the route between attempts.
-   - Test one HTTP and one CLI provider through `durableCalls`.
-   - A second account can list, read, stream or cancel none of the first's
-     operations or turns. Ownership holds on every reconnect, including after
-     the project is deleted.
-   - Plant a synthetic key in a provider error's cause chain, both in a JSON
-     step and inside `durableCalls`. Plant one in a successful response's
-     headers and provider metadata too. No input, output, error or stream
-     record may contain the key.
-   - Measure a chat turn's checkpoint size. It should hold the history and
-     the answer, not the document.
-5. **kei.**
+4. **kei queue.**
    - Cancel right after claim and mid-step, then enqueue a job and a
-     `deleteRuns`; nothing may overlap.
-   - Check priorities, FIFO ties and dequeue-relative deadlines on the real
-     queue.
-   - Measure the conversion budget.
-6. **Ingestion and batches.**
-   - A lost response/restart and a re-upload join active project/content work;
-     a 504 preserves work. Completed-content replay happens before parsing.
-   - Simultaneous same-project/same-content uploads use one active workflow.
-     Identical PDFs in different projects have independent staging files.
-   - Completion between precheck/enqueue is replayed by the workflow's content
-     check. Failed/cancelled attempts can be retried without client keys.
-   - Stage then crash before enqueue; crash after enqueue; lose a dedup race:
-     GC removes only unused/terminal files and never the active attempt's PDF.
-   - Manual suggestion retry reruns all surviving pins; crash recovery of the
-     same attempt skips checkpointed sources. No per-source progress rows.
-     Repeating a retry POST with the same expected attempt returns its one
-     successor, even if that successor finished before the repeated request.
-   - Delete a source before, during and after suggestion publication: no FK
-     error, preserved draft stays valid, surviving extraction results/reviews
-     stay pinned. Late success/failure cannot overwrite an interrupted attempt.
-     Empty selection retains the draft and disables Run/Retry.
-   - Pending Extractions count as batch members but do not replace a previously
-     reviewed result. A batch rerun creates new identities.
-7. **Garbage collection.**
-   - In-flight runs/packages and children of live Studio parents survive.
-   - Hold a cancelled native step blocked, then enqueue work and cleanup:
-     neither starts until that step exits. No late orphan checkpoint remains.
-   - Current-process cancelled Studio history survives GC regardless of age;
-     a fully terminated process followed by restart permits eligible cleanup
-     using the database-clock boot boundary. No in-place relaunch.
-   - Cancel publication then crash before DBOS cancel; the next sweep cancels
-     Studio work with terminal domain outcomes and any late kei submission.
-   - Delete a project, then apply reference, retention and quiescence rules in
-     both schemas. Failed reference/status queries delete nothing.
+     `deleteRuns`; nothing may overlap, and neither starts until the blocked
+     cancelled native step exits.
+   - Check priorities, FIFO ties and dequeue-relative deadlines on the `kei`
+     queue configuration.
+   - Measure the conversion budget; it fixes `kei-convert`'s deadline (M3).
+5. **Model calls.**
+   - Stream one HTTP and one CLI provider through `durableCalls`.
+   - Passed 2026-09-25 (version probe): a successful stream checkpoints no
+     request body or response headers but does record provider metadata.
+     `DBOS.stepStatus.cancelSignal` reaches a wrapper model inside the step
+     and fires about 1 s after the cancel, before any provider call.
 
-8. **Keys and isolation.**
-   - Plant a key and run chat, generation, a batch suggestion and a probe.
-     Neither a full `pg_dump` of `free`, nor the volumes, nor the logs may
-     contain it.
-   - Restart Studio mid-call with the page open, including between two
-     polls. The new boot ID triggers the resend and the recovered call
-     continues. With no page open, the call fails with `model_key_required`
-     after the wait, and neither model retry owner retries it. Resending keys
-     then retrying starts a new operation/turn ID or batch attempt.
-   - A replayed step whose call is checkpointed never waits for a key. A
-     cancel during the wait never reaches the provider.
-   - A key sent for one API base is never used for another, and a draft base
-     change never probes the new base with the old key. Sign-out and key
-     removal clear the cache.
-   - A stale tab's handoff under another signed-in account is rejected. A
-     malformed key or probe request echoes nothing.
-   - No account's call uses another account's key or connection. One
-     account's concurrent applies serialize.
-   - A `hasKey` connection with no cached key never calls its server
-     anonymously.
-   - Apply and Probe reject a researcher-defined CLI connection.
-   - The app shell's CSP allows the PDF viewer and its worker, and refuses
-     inline script.
-   - kei's role is denied on `public` and `dbos`.
-
-**M1: dead code (no schema change; can merge first).**
+**M1: dead code (no schema change; can merge first).** Task plan:
+[2026-09-25-dbos-m1-dead-code.md](2026-09-25-dbos-m1-dead-code.md).
 - **Targeted Catalog retry, end to end.** `catalog.ts`; retry admission and
   identity (`postgres-persistence.ts:333-407`); the contract request variants;
   the executor branch (`module.ts:198`, which always throws `invalid_retry`);
-  the `useExtraction.ts` and ResultsTab controls; their tests.
+  the `useExtraction.ts` and ResultsTab controls; their tests. Also the
+  read-side `diagnostics.retry` and `retryOfId`. A failed Catalog attempt
+  gets the generic Rerun/Retry instead (user, 2026-09-25).
 - **Extraction checkpoints.** `checkpoint()` has had no caller since e88b08f.
   The provisional-results UI reads checkpoint fields that nothing writes
   (`ResultsTab.tsx:466-468,678,789-793`;
-  `shared/extraction.contract.ts:383-394`).
+  `shared/extraction.contract.ts:383-394`). Archive the implemented OpenSpec
+  change `preview-extraction-before-grounding` as superseded, without syncing
+  its specs (user, 2026-09-25).
 - **`extraction_in_progress`.** The code is declared but never thrown.
-- **The LLM inspector.**
+- **The LLM inspector** (user, 2026-09-25: supersedes its 2026-08-28 restore
+  in 5187dfe; the CLI providers restored with it stay).
   - `_llm_inspector.ts`, `api/llm_inspector.ts`, `src/llmInspector/` and
     `shared/llmInspector.contract.ts`;
   - their tests and the `e2e/developer-ui.spec.ts` cases;
@@ -1025,7 +989,9 @@ plan; it never adds a custom scheduler or fallback.
   - `GET …/extractions` and `…/debug/{name}`.
 
   Point `e2e/realService.ts`'s readiness probe at `/api/models`, and adapt
-  `e2e/real-service.spec.ts`.
+  `e2e/real-service.spec.ts`. Keep the `kei_exp/jobs/` readers that M3
+  deletes (`records`, `extractions_of`, `events_after`, `tokens.read_after`).
+  Until M3, `kei_event` rows and `tokens.jsonl` then have no production reader.
 - **Stale assertion.** Fix `result_version == 4`
   (`tests/test_service_smoke.py:248`).
 
@@ -1086,6 +1052,20 @@ plan; it never adds a custom scheduler or fallback.
 - **`scripts/free.mjs`.** Drop `parsing_db` from stop/restart.
 - **`tests/safety.test.mjs`.** Cover kei's restricted URL, a parsing API
   without database access, and the app shell's CSP.
+- **Acceptance** (moved from M0R, sixth revision):
+  - A key sent for one API base is never used for another, and a draft base
+    change never probes the new base with the old key. Sign-out and key
+    removal clear the cache.
+  - A stale tab's handoff under another signed-in account is rejected. A
+    malformed key or probe request echoes nothing.
+  - No account's call uses another account's key or connection. One
+    account's concurrent applies serialize.
+  - A `hasKey` connection with no cached key never calls its server
+    anonymously.
+  - Apply and Probe reject a researcher-defined CLI connection.
+  - The app shell's CSP allows the PDF viewer and its worker, and refuses
+    inline script.
+  - kei's role is denied on `public` and `dbos`.
 
 **M3: kei on DBOS.**
 - **Dependencies.** Replace Procrastinate with `dbos` in `pyproject.toml` and
@@ -1143,6 +1123,27 @@ plan; it never adds a custom scheduler or fallback.
 - **Reads.** Derive execution status; revise public contracts together with
   callers, with no compatibility aliases. Keep completed result/review and
   evidence pin behavior. Extraction cancel now reaches kei.
+- **Acceptance** (moved from M0R, sixth revision):
+  - Kill after domain publication but before checkpoint: Extraction,
+    ingestion, reprocess and batch draft writes remain idempotent.
+  - Cancel racing completion has one winner. A confirmed failure uses a new
+    operation ID/attempt; a row-backed replay after history GC never reruns.
+  - A lost response/restart and a re-upload join active project/content work;
+    a 504 preserves work. Completed-content replay happens before parsing.
+  - Simultaneous same-project/same-content uploads use one active workflow.
+    Identical PDFs in different projects have independent staging files.
+  - Completion between precheck/enqueue is replayed by the workflow's content
+    check. Failed/cancelled attempts can be retried without client keys.
+  - Manual suggestion retry reruns all surviving pins; crash recovery of the
+    same attempt skips checkpointed sources. No per-source progress rows.
+    Repeating a retry POST with the same expected attempt returns its one
+    successor, even if that successor finished before the repeated request.
+  - Delete a source before, during and after suggestion publication: no FK
+    error, preserved draft stays valid, surviving extraction results/reviews
+    stay pinned. Late success/failure cannot overwrite an interrupted attempt.
+    Empty selection retains the draft and disables Run/Retry.
+  - Pending Extractions count as batch members but do not replace a previously
+    reviewed result. A batch rerun creates new identities.
 
 **M5: interactive work on DBOS.**
 - **Workflows.** Add `suggestSchema`, `proposeSchemaEdit` and `chatTurn` with
@@ -1173,6 +1174,46 @@ plan; it never adds a custom scheduler or fallback.
   - A new Studio boot ID resends the page's keys before recovery continues.
     `model_key_required` is already a terminal failure: resend, then retry
     with a new operation ID/attempt. Do not re-POST its failed ID forever.
+- **Acceptance** (moved from M0R, sixth revision):
+  - Kill after the chat answer write but before its checkpoint: the answer is
+    written once.
+  - Reload the page mid-`suggestSchema`, mid-`proposeSchemaEdit` and
+    mid-`chatTurn`, and separately kill Studio at the same points. The page
+    must find each operation.
+  - A finished generation is saved at most once, and only onto its base,
+    whether by the reloaded page or by a surviving tab. It is dropped when
+    newer work exists. The review bar returns.
+  - The transcript returns and partial text replays once under the turn ID.
+    New readers skip superseded attempts. A partial provider failure produces
+    an error finish and persisted failure, never a saved partial answer or an
+    in-process retry that appends replacement text.
+  - An answer that finishes between the transcript read and the reconnect
+    still appears, with the turn ID as its message ID.
+  - A repeated POST after a dropped connection returns the same result.
+    Exact-turn reconnect works across completion and returns 204 for expired
+    history, followed by the authoritative transcript.
+  - Change the route between attempts.
+  - One HTTP and one CLI provider complete a chat turn end to end.
+  - A second account can list, read, stream or cancel none of the first's
+    operations or turns. Ownership holds on every reconnect, including after
+    the project is deleted.
+  - Plant a synthetic key in a provider error's cause chain, both in a JSON
+    step and inside `durableCalls`. Plant one in a successful response's
+    headers and provider metadata too. No input, output, error or stream
+    record may contain the key.
+  - Measure a chat turn's checkpoint size. It should hold the history and
+    the answer, not the document.
+  - Plant a key and run chat, generation, a batch suggestion and a probe.
+    Neither a full `pg_dump` of `free`, nor the volumes, nor the logs may
+    contain it.
+  - Restart Studio mid-call with the page open, including between two
+    polls. The new boot ID triggers the resend and the recovered call
+    continues. With no page open, the call fails with `model_key_required`
+    after the wait, and neither model retry owner retries it. Resending keys
+    then retrying starts a new operation/turn ID or batch attempt.
+  - A replayed step whose call is checkpointed never waits for a key. A
+    cancel during the wait never reaches the provider, and a cancel during a
+    provider call stops it about 1 s later.
 
 **M6: garbage collection, documentation, test wiring and cutover.**
 - **Garbage collection.** Add the `collectGarbage` schedule and kei
@@ -1217,6 +1258,19 @@ plan; it never adds a custom scheduler or fallback.
   - `.github/workflows/verify.yml` and `scripts/test-ci.mjs` migrate the
     guarded test schemas.
   - `packages/db/package.json` runs `source-reprocessing.postgres.check.ts`.
+- **Acceptance** (moved from M0R, sixth revision):
+  - In-flight runs/packages and children of live Studio parents survive.
+  - After a blocked cancelled native step exits and cleanup runs, no late
+    orphan checkpoint remains.
+  - Current-process cancelled Studio history survives GC regardless of age;
+    a fully terminated process followed by restart permits eligible cleanup
+    using the database-clock boot boundary. No in-place relaunch.
+  - Cancel publication then crash before DBOS cancel; the next sweep cancels
+    Studio work with terminal domain outcomes and any late kei submission.
+  - Delete a project, then apply reference, retention and quiescence rules in
+    both schemas. Failed reference/status queries delete nothing.
+  - Stage then crash before enqueue; crash after enqueue; lose a dedup race:
+    GC removes only unused/terminal files and never the active attempt's PDF.
 
 ## Verification
 
@@ -1351,6 +1405,14 @@ physical exclusion.
   retry; proposals preserved on source deletion; per-revision chat exclusion,
   exact-turn replay and truthful stream failures; quiescent cancellation GC;
   no worker Markdown output. Preserves the fourth revision's browser-key work.
+- **Sixth revision (2026-09-25).** Bumps the pins to 5.1.10 / 0.4.4 / 3.1.0
+  after all review probes reproduced on them. 0.4.4 no longer checkpoints a
+  stream's request body or response headers, so the chat sanitizer maps errors
+  and strips provider metadata only. The key wait and cancelled Studio model
+  calls use `DBOS.stepStatus.cancelSignal`. Clients set `applicationName`.
+  M0R keeps pre-implementation probes only (adding the production-bundle
+  check); checks that need FREE's own code became acceptance lists of M2,
+  M4, M5 and M6.
 
 ## M0 findings (2026-09-24)
 
@@ -1487,3 +1549,14 @@ age-only cancellation cleanup are not implementation instructions.
   whole-batch retry, dropped upload keys, and kept proposals valid after source
   deletion. See [commands, results and sparring decisions](2026-09-24-unified-durable-execution-evidence/README.md).
   The full browser/provider/ARM64/deployment gate remains pending.
+- **2026-09-25, DBOS prompting pages and agent skills against the pins (user
+  request), then the M0R 1 rerun:** the pages describe TS 5.1 and Python 3.1,
+  released 2026-09-24, one release past the fifth revision's pins. Accepted:
+  bump the pins; narrow the sanitizer to what 0.4.4 records; use
+  `cancelSignal` for the key wait and Studio calls; keep DBOS external to
+  Studio's Vite SSR build; set `applicationName` on every client; register
+  `kei` only from kei. Not adopted: pasting the prompts into `CLAUDE.md`,
+  whose generic rules (one file, jest, always `DBOS.runStep`) conflict with
+  FREE; the installed project skills are loaded on demand instead. All five
+  review probes and the new `version-probe.mjs` passed on the new pins; see
+  [the evidence record](2026-09-24-unified-durable-execution-evidence/README.md).

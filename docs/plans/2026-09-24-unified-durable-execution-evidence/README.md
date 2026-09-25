@@ -1,7 +1,8 @@
 # DBOS plan review evidence — 2026-09-24–25
 
-Status: **focused probes passed; runtime migration and full M0R are pending.**
-This record supports the [fifth-revision plan](../2026-09-24-unified-durable-execution.md).
+Status: **focused probes passed on the sixth-revision pins (M0R 1, 2026-09-25);
+runtime migration and M0R 2–5 are pending.**
+This record supports the [sixth-revision plan](../2026-09-24-unified-durable-execution.md).
 It retains historical experiments against the pre-cutover schema, not a second
 runtime or a permanent test suite. Move applicable assertions into integration
 tests during implementation; the baseline-change gate replaces the old FK
@@ -11,6 +12,13 @@ failure assertion with the required deletion behavior.
 
 The review used Node 24.21.0, Prisma Next 0.16.0, PostgreSQL 17, TypeScript
 DBOS 5.0.2, `@dbos-inc/vercel-ai` 0.3.7, AI SDK 7.0.0 and Python DBOS 3.0.0.
+
+**M0R 1 rerun (2026-09-25).** All five probes were rerun in one fresh container
+on the sixth-revision pins: TypeScript DBOS 5.1.10, `@dbos-inc/vercel-ai`
+0.4.4, AI SDK 7.0.93 (Studio's lockfile version), `pg` 8.22.0, Python DBOS
+3.1.0 and PostgreSQL 17.11, on x86_64. Every probe reproduced the result in
+the table below. The new `version-probe.mjs` covers the behaviours the sixth
+revision adds. No ARM64 run has been made yet.
 Only disposable loopback `free_test_*` databases, synthetic rows and a synthetic
 model were used. No live provider, GPU, browser, ARM64 or deployment result is
 claimed. The experiment containers were removed after use.
@@ -32,6 +40,7 @@ checks passed. No application runtime files were changed by this plan revision.
 | `stream-probe.mjs` | One provider call; outer sanitized return still leaves the synthetic secret in the recorded step error; replay ends with ordinary `finish` | Sanitize inside middleware; record failure then throw rather than returning workflow success |
 | `queue_probe.py` | Following work remains ENQUEUED while the cancelled native step is blocked; it starts after that step ends | Worker concurrency plus flock serializes kei execution and cleanup |
 | `fk-probe.mts` | Actual `deleteSourceDocument` fails with SQLSTATE 23503 on `batchSchemaSuggestionSource_sourceRepresentationRevisionId_fkey` | Replace restrictive membership FK and specify preservation/cascade semantics |
+| `version-probe.mjs` (5.1.10/0.4.4 only) | A successful `durableCalls` stream leaves its synthetic request body and response header in no `dbos` table, but its provider metadata is in `operation_outputs`. Inside the step, `DBOS.stepStatus.cancelSignal` exists and fires 1001 ms after `cancelWorkflow`; no provider call follows, and the workflow ends CANCELLED | The sanitizer strips provider metadata and maps errors only; the key wait and Studio calls abort on `cancelSignal` |
 
 Source inspection also confirmed that DBOS 5.0.2 rejects
 `duplicationPolicy: 'return-existing'` in caller-owned transactions, and that
@@ -65,7 +74,7 @@ cp docs/plans/2026-09-24-unified-durable-execution-evidence/*.mjs "$FREE_REVIEW_
 cp docs/plans/2026-09-24-unified-durable-execution-evidence/*.mts "$FREE_REVIEW_DIR/"
 cp docs/plans/2026-09-24-unified-durable-execution-evidence/*.py "$FREE_REVIEW_DIR/"
 npm install --prefix "$FREE_REVIEW_DIR" --ignore-scripts --no-audit --no-fund --save-exact \
-  @dbos-inc/dbos-sdk@5.0.2 @dbos-inc/vercel-ai@0.3.7 ai@7.0.0 pg@8.22.0
+  @dbos-inc/dbos-sdk@5.1.10 @dbos-inc/vercel-ai@0.4.4 ai@7.0.93 pg@8.22.0
 
 FREE_REVIEW_CONTAINER="free-dbos-review-$(date +%s)"
 docker run --rm -d --name "$FREE_REVIEW_CONTAINER" \
@@ -83,10 +92,12 @@ docker exec "$FREE_REVIEW_CONTAINER" pg_isready -U postgres
 
 docker exec "$FREE_REVIEW_CONTAINER" createdb -U postgres free_test_dbos_races
 docker exec "$FREE_REVIEW_CONTAINER" createdb -U postgres free_test_dbos_fk
+docker exec "$FREE_REVIEW_CONTAINER" createdb -U postgres free_test_dbos_version
 node "$FREE_REVIEW_DIR/probe.mjs"
 node "$FREE_REVIEW_DIR/admission-races.mjs"
 node "$FREE_REVIEW_DIR/stream-probe.mjs"
-uv run --no-project --python 3.13 --with 'dbos==3.0.0' \
+node "$FREE_REVIEW_DIR/version-probe.mjs"
+uv run --no-project --python 3.13 --with 'dbos==3.1.0' \
   python "$FREE_REVIEW_DIR/queue_probe.py"
 DATABASE_URL='postgresql://postgres:review-disposable-only@127.0.0.1:5432/free_test_dbos_fk' \
   pnpm --filter db db:init > "$FREE_REVIEW_DIR/migrations.log"
