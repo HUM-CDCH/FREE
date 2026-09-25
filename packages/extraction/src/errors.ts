@@ -3,7 +3,6 @@ export type ExtractionErrorCode =
   | 'invalid_request'
   | 'invalid_extraction_pins'
   | 'extraction_id_conflict'
-  | 'extraction_in_progress'
   | 'invalid_source_representation'
   | 'invalid_schema_revision'
   | 'invalid_model_output'
@@ -18,7 +17,6 @@ export type ExtractionErrorCode =
   | 'batch_failed'
   | 'catalog_discovery_failed'
   | 'catalog_no_records'
-  | 'invalid_retry'
   | 'cancelled'
 
 export class ExtractionError extends Error {

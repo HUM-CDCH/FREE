@@ -311,7 +311,7 @@ describe('/api/extractions transport', () => {
     expect(body.diagnostics!.catalog).not.toHaveProperty('documentValues')
   })
 
-  it('maps targeted retry requests to retry inputs without caller pins', async () => {
+  it('refuses a targeted retry body from a stale page before scheduling anything', async () => {
     const module = extractionModule()
     const handle = handlerFor(module)
     const response = await handle(
@@ -324,28 +324,8 @@ describe('/api/extractions transport', () => {
       }),
     )
 
-    expect(response.status).toBe(201)
-    expect(module.runSingle).toHaveBeenCalledWith(
-      {
-        kind: 'retry',
-        extractionId: EXTRACTION,
-        retryOfId: '51000000-0000-4000-8006-000000000099',
-        retryDocument: false,
-        rediscover: true,
-        retryRecordStartBlockIds: ['heading-a'],
-      },
-      expect.anything(),
-    )
-
-    // Mixing retry identity with fresh pins stays rejected at the contract.
-    const mixed = await handle(
-      request({
-        id: EXTRACTION,
-        retryOfId: '51000000-0000-4000-8006-000000000099',
-        schemaRevisionId: '51000000-0000-4000-8006-000000000001',
-      }),
-    )
-    expect(mixed.status).toBe(422)
+    expect(response.status).toBe(422)
+    expect(module.runSingle).not.toHaveBeenCalled()
   })
 
   it('reads canonical review preparation and finalizes submitted decisions', async () => {

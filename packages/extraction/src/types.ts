@@ -253,16 +253,7 @@ export type FreshExtractionInput = Readonly<{
   models?: ExtractionModelChoice | null
 }>
 
-export type RetryExtractionInput = Readonly<{
-  kind: 'retry'
-  extractionId: string
-  retryOfId: string
-  retryDocument: boolean
-  rediscover: boolean
-  retryRecordStartBlockIds: readonly string[]
-}>
-
-export type RunSingleInput = FreshExtractionInput | RetryExtractionInput
+export type RunSingleInput = FreshExtractionInput
 export type RunSingleResult = Readonly<{
   disposition: ExtractionDisposition
   extraction: ExtractionAttemptSnapshot

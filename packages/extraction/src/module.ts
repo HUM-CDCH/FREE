@@ -195,8 +195,6 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
 /** Relay one claimed job to kei-exp; persistence and leases remain owned by FREE. */
 export function createExtractionJobExecutor({ inputs: reader, keiExp }: ExtractionJobExecutorDependencies): ExtractionJobExecutor {
   return async (input, signal) => {
-    if (input.kind === 'retry')
-      throw new ExtractionError('invalid_retry', 'kei-exp does not support targeted Catalog retries. Start a new Extraction.')
     signal.throwIfAborted()
     const inputs = await reader.loadExtractionInputs(input.sourceRepresentationRevisionId, input.schemaRevisionId)
     if (!inputs) throw new ExtractionError('invalid_extraction_pins', 'The Source Representation Revision and Schema Revision do not share one Project Context.')

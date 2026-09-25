@@ -191,7 +191,7 @@ describe('Article lifecycle contracts', () => {
     ).toBe(false)
   })
 
-  it('separates fresh requests from strict targeted retry selections', () => {
+  it('accepts fresh requests and refuses retry fields', () => {
     const normalized = extractionRequestSchema.parse({
       id: 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA',
       sourceRepresentationRevisionId: 'BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB',
@@ -209,35 +209,6 @@ describe('Article lifecycle contracts', () => {
         schemaRevisionId: id('4'),
         strategy: 'ARTICLE',
         retryOfId: id('5'),
-      }).success,
-    ).toBe(false)
-
-    const retry = extractionRequestSchema.safeParse({
-      id: id('1'),
-      retryOfId: id('5'),
-      retryRecordStartBlockIds: ['block-1'],
-    })
-    expect(retry.success).toBe(true)
-    expect(retry.success && retry.data).toMatchObject({
-      retryOfId: id('5'),
-      retryDocument: false,
-      rediscover: false,
-      retryRecordStartBlockIds: ['block-1'],
-    })
-
-    // A retry never carries caller pins, and record identities must be unique.
-    expect(
-      extractionRequestSchema.safeParse({
-        id: id('1'),
-        retryOfId: id('5'),
-        schemaRevisionId: id('4'),
-      }).success,
-    ).toBe(false)
-    expect(
-      extractionRequestSchema.safeParse({
-        id: id('1'),
-        retryOfId: id('5'),
-        retryRecordStartBlockIds: ['block-1', 'block-1'],
       }).success,
     ).toBe(false)
   })
@@ -297,8 +268,6 @@ describe('Extraction Model Choice contracts', () => {
     for (const models of [{ fields: 'nuextract', reasoning: 'instruct' }, {}, 'instruct'])
       expect(extractionRequestSchema.safeParse({ ...fresh, models }).success).toBe(false)
     expect(extractionRequestSchema.safeParse({ ...fresh, model: 'instruct' }).success).toBe(false)
-    expect(extractionRequestSchema.safeParse({ id: id('1'), retryOfId: id('5'), models: { fields: 'nuextract' } }).success)
-      .toBe(false)
   })
 
   it('accepts a choice of kei-exp model keys for either role, and nothing else', () => {

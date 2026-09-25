@@ -48,7 +48,6 @@ function asTransportError(error: unknown): unknown {
         { cause: error },
       )
     case 'extraction_id_conflict':
-    case 'extraction_in_progress':
     case 'invalid_extraction_pins':
     case 'review_conflict':
       return new ApiError(409, error.code, error.message, { cause: error })
@@ -56,7 +55,6 @@ function asTransportError(error: unknown): unknown {
     case 'not_reviewable':
       return new ApiError(422, 'invalid_review', error.message, { cause: error })
     case 'invalid_request':
-    case 'invalid_retry':
     case 'invalid_review':
       return new ApiError(422, error.code, error.message, { cause: error })
     default:
@@ -82,27 +80,16 @@ export function createResearcherApiHandlers(
         'invalid_request',
         'The Extraction request is invalid.',
       )
-    const models = parsed.data.retryOfId === undefined ? await extractionModels() : null
-    const input =
-      'retryOfId' in parsed.data && parsed.data.retryOfId !== undefined
-        ? {
-            kind: 'retry' as const,
-            extractionId: parsed.data.id,
-            retryOfId: parsed.data.retryOfId,
-            retryDocument: parsed.data.retryDocument,
-            rediscover: parsed.data.rediscover,
-            retryRecordStartBlockIds: parsed.data.retryRecordStartBlockIds,
-          }
-        : {
-            kind: 'fresh' as const,
-            extractionId: parsed.data.id,
-            sourceRepresentationRevisionId:
-              parsed.data.sourceRepresentationRevisionId!,
-            schemaRevisionId: parsed.data.schemaRevisionId!,
-            strategy: parsed.data.strategy!,
-            ...(parsed.data.catalogRecipe ? { catalogRecipe: parsed.data.catalogRecipe } : {}),
-            ...(models ? { models } : {}),
-          }
+    const models = await extractionModels()
+    const input = {
+      kind: 'fresh' as const,
+      extractionId: parsed.data.id,
+      sourceRepresentationRevisionId: parsed.data.sourceRepresentationRevisionId,
+      schemaRevisionId: parsed.data.schemaRevisionId,
+      strategy: parsed.data.strategy,
+      ...(parsed.data.catalogRecipe ? { catalogRecipe: parsed.data.catalogRecipe } : {}),
+      ...(models ? { models } : {}),
+    }
     const completed = await module.runSingle(input, request.signal)
     return json(extractionAttemptDto(completed.extraction), {
       status: completed.disposition === 'created' ? 201 : 200,

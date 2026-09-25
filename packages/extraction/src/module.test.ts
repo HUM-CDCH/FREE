@@ -363,11 +363,10 @@ describe('kei-exp extraction relay', () => {
     assert.deepEqual(result.diagnostics.unverifiedFields, ['archive'])
   })
 
-  it('keeps batch identity and rejects unsupported targeted retries', async () => {
+  it('keeps batch identity', async () => {
     const h = harness([json(ack, 202), polled(artifact())])
     const result = await h.execute({ ...h.input, kind: 'batch-member', batchExtractionId: 'batch' }, new AbortController().signal)
     assert.equal(result.batchExtractionId, 'batch')
-    await assert.rejects(h.execute({ kind: 'retry', extractionId: 'retry', retryOfId: 'parent', retryDocument: false, rediscover: true, retryRecordStartBlockIds: [] }, new AbortController().signal), { code: 'invalid_retry' })
   })
 })
 

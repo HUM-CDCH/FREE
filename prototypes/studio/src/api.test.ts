@@ -31,7 +31,6 @@ function readyController(): ExtractionController {
     canRun: true,
     hasResults: true,
     runExtraction: async () => null,
-    retryExtraction: async () => null,
     requestCancellation: async () => {},
     cancellationRequested: false,
     cancellationError: null,

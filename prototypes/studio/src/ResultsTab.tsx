@@ -6,7 +6,7 @@ import { Overline, Spinner, Button, ModalDialog, Pill } from './ui'
 import { isRecord } from '../shared/template'
 import { schemaDefinitionToTemplate, type SchemaDefinition } from 'extraction/schema'
 import { resultStats } from './resultStats'
-import { extractionStateFromAttempt, type ExtractionController, type ExtractionRetryInput } from './useExtraction'
+import { extractionStateFromAttempt, type ExtractionController } from './useExtraction'
 import type { ExtractionState } from './extraction'
 import type { ExtractionAttempt, ReviewDecisionAction } from '../shared/extraction.contract'
 import type { EvidenceLink } from '../shared/groundedExtraction'
@@ -254,136 +254,6 @@ function ExtractionDiagnostics({ attempt }: { attempt: ExtractionAttempt }) {
   )
 }
 
-const emptyRetrySelection: ExtractionRetryInput = {
-  retryDocument: false,
-  rediscover: false,
-  retryRecordStartBlockIds: [],
-}
-
-function CatalogRetryControls({
-  controller,
-  attempt,
-}: {
-  controller: ExtractionController
-  attempt: ExtractionAttempt
-}) {
-  const catalog = attempt.strategy === 'CATALOG'
-    ? attempt.diagnostics?.catalog ?? null
-    : null
-  const [selection, setSelection] = useState<ExtractionRetryInput>(emptyRetrySelection)
-  const active =
-    attempt.executionStatus === 'QUEUED' || attempt.executionStatus === 'RUNNING'
-
-  if (!catalog || active || attempt.outcome === 'CANCELLED') return null
-  const documentStage = catalog.stages.find((stage) => stage.stage === 'document-values')
-  const discoveryStage = catalog.stages.find((stage) => stage.stage === 'discovery')
-  // The server accepts document retries only for a failed document-values stage.
-  const retryDocument = documentStage?.outcome === 'failed'
-  const rediscover =
-    discoveryStage?.outcome === 'failed' ||
-    discoveryStage?.finishReason === 'length'
-  const records = catalog.records.filter(
-    (record) => record.outcome === 'failed' || record.outcome === 'not_attempted',
-  )
-  const canGroundOnly = attempt.outcome === 'SUCCEEDED' && attempt.resultPayload !== null
-  if (!retryDocument && !rediscover && records.length === 0 && !canGroundOnly) return null
-
-  const selectedCount = selection.retryRecordStartBlockIds.length
-  const canRetrySelected = selection.retryDocument || selection.rediscover || selectedCount > 0
-  const submit = (next: ExtractionRetryInput) => {
-    void controller.retryExtraction(next)
-  }
-
-  return (
-    <section
-      aria-label="Targeted Catalog retry"
-      className="mt-3 border-t border-line pt-2.5"
-    >
-        <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
-          Retry failed Catalog components
-        </p>
-        <p className="mt-1.5 text-[11.5px] leading-snug text-ink-muted">
-          Select failed or truncated work to execute again. Leave every box clear for grounding only; successful components are reused.
-        </p>
-        <div className="mt-2 space-y-1.5 text-[11.5px] text-ink">
-          {retryDocument && (
-            <label className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                aria-label="Retry failed or truncated document metadata"
-                checked={selection.retryDocument}
-                disabled={active}
-                onChange={(event) =>
-                  setSelection((current) => ({ ...current, retryDocument: event.target.checked }))
-                }
-              />
-              <span>Document metadata (failed or truncated)</span>
-            </label>
-          )}
-          {rediscover && (
-            <label className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                aria-label="Rediscover Catalog record boundaries"
-                checked={selection.rediscover}
-                disabled={active}
-                onChange={(event) =>
-                  setSelection((current) => ({ ...current, rediscover: event.target.checked }))
-                }
-              />
-              <span>Rediscover record boundaries (and rerun dependent records)</span>
-            </label>
-          )}
-          {records.map((record) => {
-            const id = record.boundary.startBlockId
-            const checked = selection.retryRecordStartBlockIds.includes(id)
-            return (
-              <label key={id} className="flex items-start gap-2">
-                <input
-                  type="checkbox"
-                  aria-label={`Retry record ${record.ordinal + 1}: ${record.boundary.headingText}`}
-                  checked={checked}
-                  disabled={active}
-                  onChange={(event) =>
-                    setSelection((current) => ({
-                      ...current,
-                      retryRecordStartBlockIds: event.target.checked
-                        ? [...current.retryRecordStartBlockIds, id]
-                        : current.retryRecordStartBlockIds.filter((candidate) => candidate !== id),
-                    }))
-                  }
-                />
-                <span>
-                  Record {record.ordinal + 1}: {record.boundary.headingText} ({outcomeLabel(record.outcome)})
-                </span>
-              </label>
-            )
-          })}
-        </div>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={active || !canRetrySelected}
-            onClick={() => submit(selection)}
-          >
-            Retry selected components
-          </Button>
-          {canGroundOnly && (
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={active}
-              onClick={() => submit(emptyRetrySelection)}
-            >
-              Grounding only
-            </Button>
-          )}
-        </div>
-    </section>
-  )
-}
-
 function InfoIcon() {
   return (
     <svg aria-hidden="true" width="14" height="14" viewBox="0 0 20 20" fill="none">
@@ -394,15 +264,7 @@ function InfoIcon() {
   )
 }
 
-function AttemptDetails({
-  controller,
-  attempt,
-  readOnly,
-}: {
-  controller: ExtractionController
-  attempt: ExtractionAttempt
-  readOnly: boolean
-}) {
+function AttemptDetails({ attempt }: { attempt: ExtractionAttempt }) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   return (
@@ -438,9 +300,6 @@ function AttemptDetails({
           </div>
           <div className="scrollbar-subtle mt-1.5 max-h-64 overflow-y-auto pr-1">
             <ExtractionDiagnostics attempt={attempt} />
-            {!readOnly && attempt.strategy === 'CATALOG' && (
-              <CatalogRetryControls key={attempt.extractionId} controller={controller} attempt={attempt} />
-            )}
           </div>
         </ModalDialog>
       )}
@@ -764,13 +623,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
     <div className="scrollbar-subtle flex h-full min-h-0 flex-col overflow-y-auto">
       <div className="flex items-center justify-between px-4 py-2.5">
         <Overline as="h2">Extraction results</Overline>
-        {attempt && (
-          <AttemptDetails
-            controller={controller}
-            attempt={attempt}
-            readOnly={readOnly || Boolean(inspectedAttempt)}
-          />
-        )}
+        {attempt && <AttemptDetails attempt={attempt} />}
       </div>
       <ExtractionStatus
         controller={controller}
@@ -854,7 +707,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                     )}
                   </>
                 )}
-                {!readOnly && !previousSchema && attempt?.strategy !== 'CATALOG' && (
+                {!readOnly && !previousSchema && (
                   <Button variant="secondary" size="sm" disabled={runExtractionDisabled || activeAttempt} onClick={() => void onRunExtraction()}>
                     Rerun
                   </Button>
@@ -1077,7 +930,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
         <div className="m-3.25 rounded-xl border border-danger/40 bg-surface px-4 py-3">
           <p className="text-[13px] font-semibold text-danger">Extraction failed</p>
           <p className="mt-1 wrap-anywhere text-[12px] leading-snug text-ink-muted">{state.message}</p>
-          {!readOnly && attempt?.strategy !== 'CATALOG' && (
+          {!readOnly && (
             <Button variant="primary" size="md" className="mt-2.5" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()}>
               Retry extraction
             </Button>

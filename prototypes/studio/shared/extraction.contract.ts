@@ -67,7 +67,7 @@ export type ExtractionRetrySelection = z.infer<
   typeof extractionRetrySelectionSchema
 >
 
-const extractionFreshRequestSchema = z
+export const extractionRequestSchema = z
   .object({
     id: requestUuid,
     sourceRepresentationRevisionId: requestUuid,
@@ -76,49 +76,12 @@ const extractionFreshRequestSchema = z
     catalogRecipe: catalogRecipeSchema.optional(),
     // The server applies the configured Extraction Model Choice.
     models: z.never().optional(),
-    retryOfId: z.never().optional(),
-    retryDocument: z.never().optional(),
-    rediscover: z.never().optional(),
-    retryRecordStartBlockIds: z.never().optional(),
   })
   .strict()
   .refine((request) => request.catalogRecipe === undefined || request.strategy === 'CATALOG', {
     path: ['catalogRecipe'],
     message: 'A recipe applies to a Catalog Extraction only.',
   })
-
-const extractionRetryRequestSchema = z
-  .object({
-    id: requestUuid,
-    retryOfId: requestUuid,
-    retryDocument: z.boolean().default(false),
-    rediscover: z.boolean().default(false),
-    // Bounded by the server-side CATALOG_RECORD_LIMIT.
-    retryRecordStartBlockIds: z.array(z.string().min(1)).max(100).default([]),
-    // A retry inherits its parent's pins and strategy, so they are never sent.
-    sourceRepresentationRevisionId: z.never().optional(),
-    schemaRevisionId: z.never().optional(),
-    strategy: z.never().optional(),
-    catalogRecipe: z.never().optional(),
-    models: z.never().optional(),
-  })
-  .strict()
-  .superRefine((request, context) => {
-    if (
-      new Set(request.retryRecordStartBlockIds).size !==
-      request.retryRecordStartBlockIds.length
-    )
-      context.addIssue({
-        code: 'custom',
-        path: ['retryRecordStartBlockIds'],
-        message: 'Retry record identities must be unique.',
-      })
-  })
-
-export const extractionRequestSchema = z.union([
-  extractionFreshRequestSchema,
-  extractionRetryRequestSchema,
-])
 
 export type ExtractionRequest = z.infer<typeof extractionRequestSchema>
 export type ExtractionRequestInput = z.input<typeof extractionRequestSchema>

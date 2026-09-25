@@ -367,52 +367,6 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(result.current.attempt?.requestedModels).toEqual({ reasoning: 'instruct' })
   })
 
-  it('submits targeted Catalog retries only for a Catalog parent', async () => {
-    const article = attempt()
-    const { result: articleHook } = renderHook(() =>
-      useExtraction(options(article)),
-    )
-    await act(() =>
-      articleHook.current.retryExtraction({
-        retryDocument: false,
-        rediscover: false,
-        retryRecordStartBlockIds: ['h1'],
-      }),
-    )
-    expect(api.requestExtraction).not.toHaveBeenCalled()
-
-    const catalog = attempt({
-      strategy: 'CATALOG',
-      executionStatus: 'FAILED',
-      outcome: null,
-      evidenceLinks: null,
-      reviewable: false,
-      diagnostics: {
-        ...attempt().diagnostics!,
-        catalog: { stages: [], records: [] },
-      },
-    })
-    vi.mocked(api.requestExtraction).mockResolvedValue(catalog)
-    const { result } = renderHook(() => useExtraction(options(catalog)))
-    await act(() =>
-      result.current.retryExtraction({
-        retryDocument: false,
-        rediscover: true,
-        retryRecordStartBlockIds: ['h1'],
-      }),
-    )
-    expect(api.requestExtraction).toHaveBeenCalledWith(
-      {
-        id: expect.any(String),
-        retryOfId: catalog.extractionId,
-        retryDocument: false,
-        rediscover: true,
-        retryRecordStartBlockIds: ['h1'],
-      },
-      expect.any(AbortSignal),
-    )
-  })
-
   it('runs with an explicit acknowledged target before the next render', async () => {
     const acknowledgedTarget = {
       sourceRepresentationId: representationId,

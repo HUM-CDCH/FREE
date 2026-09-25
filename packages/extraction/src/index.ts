@@ -13,7 +13,6 @@ export type {
   CatalogStage,
   CatalogStageDiagnostics,
   ExtractionRetrySelection,
-  RetryExtractionInput,
   BatchExtractionResultItem,
   BatchExtractionResults,
   BatchExtractionSnapshot,
