@@ -39,7 +39,7 @@
 - Modify: `packages/db/src/index.ts` (export the helper)
 - Modify: `packages/db/src/project-store.ts:1571-1600` (`reprocessSourceDocument`: lock before the expected-head read)
 - Modify: `packages/db/src/postgres-test-helpers.ts` (add `withHeldSourceDocumentLock`)
-- Modify: `packages/db/package.json:13` (`test:postgres` also runs the reprocess check)
+- Modify: `packages/db/package.json` (`exports` gains `./postgres-test-helpers`; `test:postgres` also runs the reprocess check)
 - Test: `packages/db/src/source-reprocessing.postgres.check.ts`
 
 **Interfaces:**
@@ -211,13 +211,21 @@ export async function withHeldSourceDocumentLock<T>(
 Run: `pnpm --filter db exec tsx --test src/source-reprocessing.postgres.check.ts`
 Expected: PASS, both tests. Then `pnpm --filter db typecheck` and `pnpm --filter db test`: clean.
 
-- [ ] **Step 7: Wire the reprocess check into the tier**
+- [ ] **Step 7: Wire the reprocess check into the tier and export the helper**
 
 In `packages/db/package.json`, change line 13 to:
 
 ```json
     "test:postgres": "tsx --test src/project-store.postgres.check.ts src/source-reprocessing.postgres.check.ts",
 ```
+
+and add to its `exports` map, after `"./database-url"`:
+
+```json
+    "./postgres-test-helpers": "./src/postgres-test-helpers.ts"
+```
+
+so Tasks 2 and 3 can import `withHeldSourceDocumentLock` from `db/postgres-test-helpers`.
 
 Run: `pnpm --filter db test:postgres`. Expected: PASS (both files).
 
@@ -327,7 +335,7 @@ In `extraction-module.integration.test.ts`, inside the same `describe` as the re
     })
 ```
 
-Add `import { withHeldSourceDocumentLock } from 'db/postgres-test-helpers'` next to the existing `db/database-url` import. If the `db` package does not yet export that subpath, add `"./postgres-test-helpers": "./src/postgres-test-helpers.ts"` to `packages/db/package.json` `exports` (Task 1 left `exports` unchanged; this is the first consumer).
+Add `import { withHeldSourceDocumentLock } from 'db/postgres-test-helpers'` next to the existing `db/database-url` import (Task 1 exported that subpath).
 
 - [ ] **Step 2: Run them to see them fail**
 
@@ -398,11 +406,9 @@ Run: `pnpm --filter extraction typecheck` and `pnpm --filter extraction test`. E
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/extraction/src/errors.ts packages/extraction/src/postgres-persistence.ts packages/extraction/src/extraction-module.integration.test.ts packages/db/package.json
+git add packages/extraction/src/errors.ts packages/extraction/src/postgres-persistence.ts packages/extraction/src/extraction-module.integration.test.ts
 git commit -m "feat(extraction): admit a new run only on the document's current source revision"
 ```
-
-(`packages/db/package.json` only if Step 1 added the `exports` entry.)
 
 ---
 
