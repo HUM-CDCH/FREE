@@ -197,7 +197,11 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       send(keiExpAccepted({ id, run_id: runId, generation: 'g1' }), 202)
     })
   })
-  await new Promise<void>(resolveListen => modelServer.listen(41_750, '127.0.0.1', resolveListen))
+  // Each Playwright config gives this fixture its own port and points Studio's KEI_EXP_URL at it.
+  const keiExpUrl = process.env.FREE_PLAYWRIGHT_KEI_EXP_URL
+  if (!keiExpUrl) throw new Error('Run this spec with a Playwright config that sets FREE_PLAYWRIGHT_KEI_EXP_URL.')
+  const keiExp = new URL(keiExpUrl)
+  await new Promise<void>(resolveListen => modelServer.listen(Number(keiExp.port), keiExp.hostname, resolveListen))
   const address = modelServer.address()
   if (!address || typeof address === 'string') throw new Error('The kei-exp fixture did not start.')
   const connectionId = randomUUID()
