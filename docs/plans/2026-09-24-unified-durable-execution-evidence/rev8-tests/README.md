@@ -64,6 +64,10 @@ Records compared by `entry_no` over five fields:
 | parallel split vs parallel split | 7 |
 
 - Splitting preserves the prompts: headings and glossary stay whole, and every `bezirk`/`kreis` matched.
+- The harness's split (`extract_contention.py split`) takes two shortcuts that the M3 design removes. It
+  restarts entry numbering in each chunk, which affects only issue/call record indexes. It also runs the
+  document-level call once per chunk; the test schema has no document fields, so that call made no
+  request and did not affect the results.
 - The differences come from vLLM batching several requests together. They are all borderline `fundart`
   values: trailing dots, or null against a value, in both directions.
 - Any concurrency on one server can therefore change borderline answers.

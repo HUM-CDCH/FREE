@@ -8,8 +8,8 @@ small conversion, a two-slot extraction queue and a cleanup queue. Cleanup
 safety moves from queue exclusion to a kei boot boundary. Measurements on the
 Spark back the choice ([rev-8 tests](2026-09-24-unified-durable-execution-evidence/rev8-tests/README.md)).
 A per-page conversion fan-out and per-user fair sharing were reviewed and
-deferred. The user settled the threshold and the variation; Catalog chunking
-remains open (*Open decision*, below).
+deferred. The user settled the threshold and the variation, and moved parallel
+Catalog chunks into M3.
 
 The seventh revision folds the Model Configuration page redesign into M2
 (user, 2026-09-25, decisions 12 and 13). The page follows the researcher's
@@ -127,12 +127,8 @@ that every other researcher's documents are sent to.
 - **Output variation under concurrency is acceptable** (*Risks*). No setting
   removes it on these models: vLLM 0.29.1 refuses `VLLM_BATCH_INVARIANT` for
   their gated-delta-net layers (M0R 6).
-
-**Open decision (user).**
-- **Parallel Catalog chunks.** Running a Catalog's entries in four chunks is
-  4.1× faster and changes no prompt. With the variation accepted and no
-  invariant mode available, nothing technical blocks it. It can join M3 or
-  follow the migration (*kei worker*).
+- **Parallel Catalog chunks join M3** (*kei worker*). Running a Catalog's
+  entries in four chunks was 4.1× faster and changes no prompt.
 
 ## Rules
 
@@ -824,14 +820,37 @@ quiescence checks.
   spends about 90 min cutting on the CPU and holds all crops in memory before
   its first OCR request. This is unchanged (*Risks*). Streaming crops into OCR
   is a later improvement, not part of this migration.
-- **Parallel Catalog chunks are deferred** (*Open decision*). Tested on a
-  200-entry Catalog: four contiguous chunks under the full headings and
-  glossary took 106 s against 434 s. The same chunks run one after another
-  gave records identical to the unsplit run. Run in parallel, they changed
-  19–21 borderline `fundart` values, against 0–1 between two unsplit runs.
-  The cause is vLLM batching, not the split. If adopted, it stays inside the
-  one `extract` step as a thread pool with one `_Run` per chunk, and the
-  bodies merge in block order. Article extraction is not chunked.
+- **Parallel Catalog chunks** (M3; user, 2026-09-25). A Catalog extraction
+  sends one request at a time, so it leaves 3 of the fields server's 4 slots
+  idle. It now runs its entries in `KEI_CATALOG_CHUNKS` contiguous chunks at
+  once.
+  - **Setting.** Compose derives `KEI_CATALOG_CHUNKS` from the same
+    `NUEXTRACT_MAX_NUM_SEQS` (default 4) as `nuextract_model`'s
+    `--max-num-seqs`, as for OCR.
+  - **Once for the whole document:** the segmentation, the budget checks, the
+    bindings and the document-level fields. `_document` makes its one call
+    when the schema has document fields (`grounded.py:684-707`), and every
+    chunk's records merge the same result.
+  - **Per chunk:** a thread with its own `_Run`, because `_Run.call` mutates
+    run state (`grounded.py:132-155`). Every chunk keeps the full headings
+    and glossary. Entries keep their document-wide index, so issues and calls
+    name the right record.
+  - **Merge** in entry order: records, evidence, proposals, rejections,
+    competitors, calls and issues. The run is refused if any chunk refused.
+    Coverage comes from the segmentation once. The artifact records the
+    chunk count.
+  - **Unchanged:** it is still one `extract` step, a failure retries the
+    whole step, and cancellation is checked between entries as today.
+    Article extraction is not chunked.
+  - **Evidence** (200-entry Catalog): 106 s against 434 s. The same chunks run
+    one after another gave records identical to the unsplit run. Run in
+    parallel, they changed 19–21 borderline `fundart` values, against 0–1
+    between two unsplit runs. The cause is vLLM batching, which the user
+    accepts (*Risks*).
+  - **With two extraction slots,** two chunked Catalogs send up to 8 requests
+    to a 4-slot server. vLLM queues the rest in arrival order, so a small
+    extraction's request waits behind those already queued, about one round.
+    This is measured in M3, not assumed.
 - **Per-model-call checkpoints are deferred.**
   - `_Run.call` mutates run state in place (`kie/extract/grounded.py:132-155`),
     so step boundaries there mean a refactor that deletes nothing. A crash
@@ -1409,6 +1428,10 @@ handlers or pages is an acceptance test of the milestone that builds it
   queues, `convert`, `extract`, `deleteRuns` with the kei boot boundary, and
   the portable contracts. `failures.py` holds `classify`. The cooperative
   checks read the DBOS status.
+- **Parallel Catalog chunks** (*kei worker*). `extract_grounded` splits into a
+  document prelude, per-chunk entry work and a merge. Compose adds
+  `NUEXTRACT_MAX_NUM_SEQS` for `nuextract_model` and `KEI_CATALOG_CHUNKS`,
+  and the safety test asserts they match.
 - **Ingestion model inputs.** `convert` takes optional `model` and
   `layout_model` keys. It resolves an omitted one in its first checkpointed
   step, from the definition the listing reports. The OCR default moves from
@@ -1440,8 +1463,14 @@ handlers or pages is an acceptance test of the milestone that builds it
     segmentation stays valid.
   - A test over `MODELS` fails if two Surya records would make `configure()`
     set different values.
-
-**M4: Studio background work on DBOS.**
+  - Catalog chunks, with a deterministic scripted model: chunked and unsplit
+    runs give the same artifact apart from call order and the chunk count.
+    Covered: records, evidence, issues with document-wide record numbers,
+    and document fields extracted once. A refusal in one chunk refuses the
+    run; a failed chunk fails the step.
+  - On the Spark (M0R 6 harness): a 200-entry Catalog finishes in about a
+    quarter of the time, and a small extraction beside it finishes within
+    seconds of its time alone.
 - **`server/dbos.ts`** holds:
   - the configuration (app `studio`, schema `dbos`, version, executor);
   - one launch per process in `host.ts` and `developmentHost.ts`, replacing
@@ -1724,7 +1753,7 @@ physical exclusion.
   `fundart` values (a trailing dot, or a value against null) differed when
   NuExtract served four requests at once. Serial runs differed in 0–1 of 200.
   This already happens whenever Studio and kei share a server. Two extraction
-  slots make it more frequent, and parallel Catalog chunks would make it
+  slots make it more frequent, and parallel Catalog chunks (M3) make it
   routine. The user accepts it. vLLM's batch-invariant mode does not support
   these models (M0R 6).
 - **Cutting before OCR.** A 2000-page scan spends about 90 min cutting on the
@@ -1847,8 +1876,8 @@ physical exclusion.
   count. `SURYA_INFERENCE_PARALLEL=4` stops a book from flooding the OCR
   server. `deleteRuns` gets a kei boot boundary instead of queue exclusion.
   Rejected on the way: a per-page conversion fan-out, and per-account fair
-  sharing through DBOS partitions. Catalog chunking is deferred behind the
-  output-variation question. Spark measurements back every number.
+  sharing through DBOS partitions. Parallel Catalog chunks join M3 once the
+  user accepted the output variation. Spark measurements back every number.
 
 ## M0 findings (2026-09-24)
 
@@ -2114,3 +2143,9 @@ age-only cancellation cleanup are not implementation instructions.
     - worker limits hold on all four queues, including after recovery;
     - Compose renders at widths 4 and 2, with no dangling anchor;
     - the plan's numbers match the evidence.
+- **2026-09-25, parallel Catalog chunks into M3 (user):** after the
+  batch-invariant test, the user put chunking into M3. Two things the test
+  harness got wrong are fixed in the M3 design: document-level fields are
+  extracted once, not once per chunk, and entries keep document-wide
+  numbering. The chunk count follows NuExtract's `--max-num-seqs` through
+  Compose, as the OCR width does.
