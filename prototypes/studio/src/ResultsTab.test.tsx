@@ -1404,6 +1404,39 @@ describe('ResultsTab run actions', () => {
     },
   )
 
+  // Without a run handler the view starts no Extraction (its Source
+  // Representation is an earlier one), so no surface offers a run.
+  it.each(surfaces)('offers no run action for a $surface without a run handler', ({ props }) => {
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        {...props}
+        onRunExtraction={undefined}
+        schemaReady
+        documentMarkdown="# Source"
+        sourceDocumentName="Catalog.pdf"
+      />,
+    )
+
+    expect(screen.queryAllByRole('button', { name: /^Run (Article|Catalog) extraction/ })).toEqual([])
+  })
+
+  it('offers no Generate a schema first without a run handler', () => {
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        onRunExtraction={undefined}
+        controller={controller({ status: 'idle' })}
+        schemaReady={false}
+        documentMarkdown="# Source"
+        sourceDocumentName="Catalog.pdf"
+      />,
+    )
+
+    expect(screen.getByText('No results yet')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Generate a schema first' })).not.toBeInTheDocument()
+  })
+
   it('keeps Generate a schema first, without boundaries, until a schema is ready', () => {
     render(
       <ResultsTab

@@ -138,6 +138,7 @@ const reopened: DocumentWorkspaceProps = {
     '/api/project-contexts/51000000-0000-4000-8000-000000000001/source-representations/51000000-0000-4000-8002-000000000001/pdf',
   filename: 'Beretning.pdf',
   sourceRepresentationId: '51000000-0000-4000-8002-000000000001',
+  sourceRepresentationCurrent: true,
   markdownUrl:
     '/api/project-contexts/51000000-0000-4000-8000-000000000001/source-representations/51000000-0000-4000-8002-000000000001/markdown',
   parsedDocumentUrl:
@@ -1801,6 +1802,274 @@ describe('reopened Source Document workspace', () => {
 
 })
 
+
+describe('an Extraction reopened on a superseded Source Representation', () => {
+  // Reprocessing published `reopened`'s Source Representation after this one,
+  // and a Schema Revision after the one `reopened`'s attempts ran with.
+  const earlierRepresentationId = '51000000-0000-4000-8002-000000000002'
+  const earlierResource = (artifact: 'pdf' | 'markdown' | 'source') =>
+    `/api/project-contexts/${reopened.projectContextId}/source-representations/${earlierRepresentationId}/${artifact}`
+  const currentSchema = {
+    ...reopened.extractionSchema!,
+    schemaRevisionId: '51000000-0000-4000-8005-000000000003',
+    revisionNumber: 2,
+  }
+  const earlierSourceRunTitle =
+    'This view shows an Extraction on an earlier Source Representation. Go back to the current one to run a new Extraction.'
+  const unfinished = {
+    complete: null, modelAttribution: null, diagnostics: null,
+    resultPayload: null, evidenceLinks: null, reviewable: false,
+  } as const
+
+  /** One Extraction as the attempt contract carries it. */
+  const attemptOn = (
+    sourceRepresentationRevisionId: string,
+    overrides: Partial<ExtractionAttempt> = {},
+  ): ExtractionAttempt => ({
+    extractionId: '51000000-0000-4000-8006-000000000051',
+    sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+    sourceRepresentationRevisionId,
+    schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+    strategy: 'ARTICLE', executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
+    modelAttribution: { provider: 'ollama', modelId: 'fixture' },
+    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null },
+    failure: null, resultPayload: { place: 'Ellekilde' }, evidenceLinks: [],
+    reviewable: true, batchExtractionId: null,
+    createdAt: '2026-07-31T12:03:00.000Z', reviewedAt: null, reviewDecisions: [],
+    ...overrides,
+  })
+
+  /** The attempt as a reopen pins it to the earlier source and its own Schema Revision. */
+  const reopenedOnEarlierSource = (attempt: ExtractionAttempt) => ({
+    ...attempt,
+    sourceRepresentation: {
+      revisionNumber: 1,
+      resources: {
+        sourcePdfUrl: earlierResource('pdf'),
+        markdownUrl: earlierResource('markdown'),
+        parsedDocumentUrl: earlierResource('source'),
+      },
+    },
+    extractionSchema: {
+      ...reopened.persistedExtraction!.extractionSchema,
+      revisionNumber: attempt.schemaRevisionId === currentSchema.schemaRevisionId ? 2 : 1,
+    },
+  })
+
+  /** What AppFrame opens for `?extractionId=` of an Extraction on the earlier source. */
+  function pinnedView(attempt: ExtractionAttempt): DocumentWorkspaceProps {
+    const pinned = reopenedOnEarlierSource(attempt)
+    return {
+      ...reopened,
+      sourceRepresentationId: earlierRepresentationId,
+      sourceRepresentationCurrent: false,
+      pdfUrl: earlierResource('pdf'),
+      markdownUrl: earlierResource('markdown'),
+      parsedDocumentUrl: earlierResource('source'),
+      extractionSchema: currentSchema,
+      persistedExtraction: pinned,
+      latestReviewedExtraction: attempt.reviewedAt ? pinned : null,
+    }
+  }
+
+  /** Serves the workspace's reads (`reads`, by URL) and keeps every posted run and cancellation. */
+  function stubWorkspace(reads: Record<string, unknown> = {}) {
+    const runs: Array<{ id: string; sourceRepresentationRevisionId: string; schemaRevisionId: string }> = []
+    const cancellations: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+        if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+        if (url.startsWith('/api/schema-revisions?'))
+          return Promise.resolve(Response.json({ revisions: [] }))
+        if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+          const run = JSON.parse(String(init.body)) as (typeof runs)[number]
+          runs.push(run)
+          // A terminal answer, so no monitor outlives the test.
+          return Promise.resolve(Response.json(attemptOn(run.sourceRepresentationRevisionId, {
+            ...unfinished,
+            extractionId: run.id,
+            schemaRevisionId: run.schemaRevisionId,
+            executionStatus: 'FAILED',
+            outcome: null,
+            failure: { code: 'extraction_failed', message: 'Extraction failed.' },
+          }), { status: 201 }))
+        }
+        if (url.startsWith('/api/extractions/') && init?.method === 'DELETE') {
+          cancellations.push(url)
+          return Promise.resolve(Response.json({ extractionId: url.split('/').at(-1) }, { status: 202 }))
+        }
+        if (url in reads) return Promise.resolve(Response.json(reads[url]))
+        return Promise.resolve(new Response('pdf'))
+      }),
+    )
+    return { runs, cancellations }
+  }
+
+  async function renderView(view: DocumentWorkspaceProps) {
+    const mounted = render(<DocumentWorkspace {...view} />)
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+    return mounted
+  }
+
+  const resultsRunActions = () =>
+    screen.queryAllByRole('button', { name: /^Run (Article|Catalog) extraction/ })
+
+  it.each([
+    [
+      'a reviewed result on a previous Schema Revision',
+      attemptOn(earlierRepresentationId, { reviewedAt: '2026-08-01T00:00:00.000Z' }),
+      'Review applies to Schema Revision 1',
+    ],
+    [
+      'a result on the Current Schema Revision',
+      attemptOn(earlierRepresentationId, { schemaRevisionId: currentSchema.schemaRevisionId }),
+      'Using Schema Revision 2 · Current revision: 2',
+    ],
+    [
+      'a failed attempt',
+      attemptOn(earlierRepresentationId, {
+        ...unfinished,
+        executionStatus: 'FAILED',
+        outcome: null,
+        failure: { code: 'extraction_failed', message: 'The model was unreachable.' },
+      }),
+      'Extraction failed',
+    ],
+    [
+      'a cancelled attempt',
+      attemptOn(earlierRepresentationId, { ...unfinished, outcome: 'CANCELLED' }),
+      'Extraction cancelled',
+    ],
+  ] as const)('offers no new run from %s', async (_label, attempt, shown) => {
+    stubWorkspace()
+    await renderView(pinnedView(attempt))
+
+    const run = screen.getByRole('button', { name: /^(↻ Re-run|▶ Run) extraction$/ })
+    expect(run).toBeDisabled()
+    expect(run).toHaveAttribute('title', earlierSourceRunTitle)
+    expect(screen.queryByText(/^Press Run extraction/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(screen.getByText(shown, { exact: true })).toBeVisible()
+    expect(resultsRunActions()).toEqual([])
+  })
+
+  it('keeps Review of an unreviewed result open', async () => {
+    const attempt = attemptOn(earlierRepresentationId, {
+      schemaRevisionId: currentSchema.schemaRevisionId,
+      resultPayload: { records: [{ place: 'Ellekilde' }] },
+      evidenceLinks: [{ resultPath: ['records', 0, 'place'], evidenceAnchorId: 'bundled-anchor' }],
+    })
+    stubWorkspace({
+      [`/api/extractions/${attempt.extractionId}`]: {
+        extraction: attempt,
+        pendingReviewDecisions: [{
+          resultPath: ['records', 0, 'place'],
+          evidenceAnchorId: 'bundled-anchor',
+          reviewedOccurrenceIds: ['bundled-occurrence'],
+          action: 'APPROVED',
+          reviewedValue: null,
+        }],
+      },
+    })
+    await renderView(pinnedView(attempt))
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Approve remaining (1)' })).toBeEnabled(),
+    )
+    expect(screen.getByRole('button', { name: 'Reject place' })).toBeEnabled()
+    expect(resultsRunActions()).toEqual([])
+    expect(screen.getByRole('button', { name: '↻ Re-run extraction' })).toBeDisabled()
+  })
+
+  it('still cancels a running Extraction', async () => {
+    const attempt = attemptOn(earlierRepresentationId, {
+      ...unfinished,
+      executionStatus: 'RUNNING',
+      outcome: null,
+    })
+    const { cancellations } = stubWorkspace()
+    await renderView(pinnedView(attempt))
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(screen.getAllByRole('button', { name: 'Cancel extraction' })).toHaveLength(2)
+    const cancel = screen.getByTitle('Cancel the active Extraction')
+    expect(cancel).toBeEnabled()
+    fireEvent.click(cancel)
+    await waitFor(() =>
+      expect(cancellations).toEqual([`/api/extractions/${attempt.extractionId}`]),
+    )
+  })
+
+  it.each([
+    ['the plain view of the current Source Representation', reopened],
+    [
+      'an Extraction pinned on the current Source Representation',
+      {
+        ...reopened,
+        persistedExtraction: {
+          ...reopened.persistedExtraction!,
+          extractionId: '51000000-0000-4000-8006-000000000061',
+          batchExtractionId: '51000000-0000-4000-8007-000000000001',
+        },
+      },
+    ],
+  ] as const)('keeps the run actions of %s', async (_label, view) => {
+    const { runs } = stubWorkspace()
+    await renderView(view)
+
+    const run = screen.getByRole('button', { name: '↻ Re-run extraction' })
+    expect(run).toBeEnabled()
+    expect(run).toHaveAttribute('title', 'Run one values extraction across the whole Source Document')
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Run Article extraction' }))
+    await waitFor(() => expect(runs).toHaveLength(1))
+    expect(runs[0]).toMatchObject({ sourceRepresentationRevisionId: reopened.sourceRepresentationId })
+  })
+
+  it('offers the run again once Back reopens the current Source Representation, and posts that one', async () => {
+    const reviewed = attemptOn(earlierRepresentationId, { reviewedAt: '2026-08-01T00:00:00.000Z' })
+    const { runs } = stubWorkspace()
+    const { rerender } = await renderView(pinnedView(reviewed))
+    expect(screen.getByRole('button', { name: '↻ Re-run extraction' })).toBeDisabled()
+
+    // The plain route: the current Source Representation, its newer unreviewed
+    // attempt, and the reviewed one still on the earlier source.
+    rerender(
+      <DocumentWorkspace
+        {...reopened}
+        extractionSchema={currentSchema}
+        persistedExtraction={{
+          ...reopened.persistedExtraction!,
+          extractionId: '51000000-0000-4000-8006-000000000052',
+          schemaRevisionId: currentSchema.schemaRevisionId,
+          extractionSchema: { ...reopened.persistedExtraction!.extractionSchema, revisionNumber: 2 },
+        }}
+        latestReviewedExtraction={reopenedOnEarlierSource(reviewed)}
+      />,
+    )
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+    expect(screen.getByRole('button', { name: 'Open latest reviewed' })).toBeInTheDocument()
+    const run = screen.getByRole('button', { name: '↻ Re-run extraction' })
+    expect(run).toBeEnabled()
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(screen.getByRole('button', { name: 'Run Article extraction' })).toBeEnabled()
+
+    fireEvent.click(run)
+    await waitFor(() => expect(runs).toHaveLength(1))
+    expect(runs[0]).toMatchObject({
+      sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+      schemaRevisionId: currentSchema.schemaRevisionId,
+    })
+  })
+})
 
 describe('updated latest reviewed extraction', () => {
   it('refreshes the historical choice after rerender', async () => {

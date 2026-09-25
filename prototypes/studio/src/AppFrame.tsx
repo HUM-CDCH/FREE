@@ -216,6 +216,7 @@ export default function AppFrame({
         filename: openDocument.sourceDocument.name,
         sourceRepresentationId:
           openDocument.sourceRepresentation.sourceRepresentationId,
+        sourceRepresentationCurrent: openDocument.sourceRepresentation.current,
         markdownUrl: openDocument.sourceRepresentation.resources.markdownUrl,
         parsedDocumentUrl:
           openDocument.sourceRepresentation.resources.parsedDocumentUrl,

@@ -26,6 +26,7 @@ vi.mock('./App', () => ({
     markdownUrl,
     parsedDocumentUrl,
     sourceRepresentationId,
+    sourceRepresentationCurrent,
     extractionSchema,
     persistedExtraction,
     onInitialResourceLoadFailure,
@@ -43,6 +44,9 @@ vi.mock('./App', () => ({
       <p data-testid="workspace-resources">
         {sourceRepresentationId} · {pdfUrl} · {markdownUrl} ·{' '}
         {parsedDocumentUrl}
+      </p>
+      <p data-testid="workspace-source-current">
+        {sourceRepresentationCurrent ? 'current' : 'superseded'}
       </p>
       <p data-testid="workspace-schema">
         {JSON.stringify(extractionSchema?.schemaNodes ?? null)}
@@ -97,6 +101,7 @@ function snapshot(sourceDocument = beretning, projectContext = project) {
     sourceRepresentation: {
       sourceRepresentationId: representationId,
       revisionNumber: 2,
+      current: true,
       resources: {
         sourcePdfUrl: `/api/project-contexts/${projectContext.projectContextId}/source-representations/${representationId}/pdf`,
         markdownUrl: `/api/project-contexts/${projectContext.projectContextId}/source-representations/${representationId}/markdown`,
@@ -2281,6 +2286,42 @@ describe('routed Source Document reopening', () => {
     expect(
       await screen.findByText(/place.*SUCCEEDED/),
     ).toBeInTheDocument()
+  })
+
+  it('tells the workspace whether its Source Representation is current, per reopen', async () => {
+    const extractionId = '51000000-0000-4000-8006-000000000001'
+    const reopens: string[] = []
+    const rest = studioFetch()
+    history.replaceState(null, '', `${documentPath()}?extractionId=${extractionId}`)
+    renderRoutes(
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (!url.includes('/reopen')) return rest(input)
+        reopens.push(url)
+        const reopened = hydratedSnapshot()
+        // Only the pinned reopen names a superseded Source Representation.
+        return Response.json(
+          url.endsWith(`/reopen?extractionId=${extractionId}`)
+            ? {
+                ...reopened,
+                sourceRepresentation: { ...reopened.sourceRepresentation, current: false },
+              }
+            : reopened,
+        )
+      }),
+    )
+
+    expect(
+      await screen.findByTestId('workspace-source-current'),
+    ).toHaveTextContent(/^superseded$/)
+    back(documentPath())
+    await waitFor(() =>
+      expect(screen.getByTestId('workspace-source-current')).toHaveTextContent(/^current$/),
+    )
+    expect(reopens).toEqual([
+      expect.stringMatching(new RegExp(`/reopen\\?extractionId=${extractionId}$`)),
+      expect.stringMatching(/\/reopen$/),
+    ])
   })
 
   it('keeps the workspace on the current head while displaying a historical latest attempt', async () => {

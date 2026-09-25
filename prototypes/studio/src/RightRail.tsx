@@ -41,7 +41,8 @@ type RightRailProps = {
   onGenerateInstructions?: (instruction: string) => void
   onClearDraft: () => void | Promise<void>
   extraction: ExtractionController
-  onRunExtraction: () => void | Promise<void>
+  /** Absent when the open view starts no Extraction; Results then offers no run. */
+  onRunExtraction?: () => void | Promise<void>
   runExtractionDisabled: boolean
   runExtractionStrategy: RunExtractionStrategy
   inspection: ExtractionInspection

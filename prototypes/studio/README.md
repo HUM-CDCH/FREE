@@ -79,8 +79,9 @@ conflict, and a retry with the same request key replays its published revision.
 Existing Extractions, Review Decisions and Annotations retain their original
 source revision. Opening the document without an Extraction identity selects
 its current revision; opening a historical Extraction uses its original source.
-Run a new Extraction to use upgraded cell Evidence. Ordinary re-uploading still
-deduplicates by PDF content and does not reprocess it.
+Run a new Extraction on the current revision to use upgraded cell Evidence; an
+Extraction opened on an earlier revision offers no new run. Ordinary
+re-uploading still deduplicates by PDF content and does not reprocess it.
 
 Apply database migration `20260923T1946_source_reprocessing` before serving this
 version. This action currently uses the same request and in-memory queue

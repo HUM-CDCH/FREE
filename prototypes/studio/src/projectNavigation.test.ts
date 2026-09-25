@@ -162,6 +162,7 @@ const snapshotOf = (documentId: string) =>
     sourceRepresentation: {
       sourceRepresentationId: '00000000-0000-4000-8000-0000000000a1',
       revisionNumber: 1,
+      current: true,
       resources: {
         sourcePdfUrl: `/api/project-contexts/${projectContextId}/source-representations/${documentId}/pdf`,
         markdownUrl: `/api/project-contexts/${projectContextId}/source-representations/${documentId}/markdown`,

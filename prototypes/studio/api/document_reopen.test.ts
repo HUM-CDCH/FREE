@@ -10,6 +10,8 @@ const representationId = '33333333-3333-4333-8333-333333333333'
 const schemaRevisionId = '55555555-5555-4555-8555-555555555555'
 const extractionId = '99999999-9999-4999-8999-999999999999'
 const extractionSchemaId = '77777777-7777-4777-8777-777777777777'
+/** The revision that reprocessing publishes after `representationId`. */
+const reprocessedRepresentationId = '44444444-4444-4444-8444-444444444444'
 const definition = {
   recordDescription: 'One title record.',
   schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
@@ -173,6 +175,59 @@ describe('document reopen ExtractionModule projection', () => {
     ).toContain(
       `/api/project-contexts/${projectId}/source-representations/${representationId}/pdf?v=2026-08-10T01%3A00%3A00.000Z`,
     )
+  })
+
+  it.each([
+    { reopen: 'a plain reopen without Extractions', query: '', attempt: null, head: representationId, current: true },
+    { reopen: 'a plain reopen', query: '', attempt: extraction, head: representationId, current: true },
+    {
+      reopen: 'a reopen by an Extraction on the current revision',
+      query: `?extractionId=${extractionId}`,
+      attempt: extraction,
+      head: representationId,
+      current: true,
+    },
+    {
+      reopen: 'a reopen by an Extraction on a superseded revision',
+      query: `?extractionId=${extractionId}`,
+      attempt: extraction,
+      head: reprocessedRepresentationId,
+      current: false,
+    },
+  ])('states whether $reopen opens the current Source Representation', async ({ query, attempt, head, current }) => {
+    const pinned = snapshot()
+    // The unpinned read is the Source Document's current snapshot.
+    const currentSnapshot: DocumentReopenSnapshot = head === representationId
+      ? pinned
+      : {
+          ...pinned,
+          sourceRepresentation: {
+            sourceRepresentationId: head,
+            revisionNumber: 3,
+            createdAt: new Date('2026-08-11T00:00:00Z'),
+          },
+        }
+    const response = await createGetDocumentReopen(
+      {
+        getDocumentReopenSnapshot: vi.fn(async (_project: string, _document: string, pins?: unknown) =>
+          pins ? pinned : currentSnapshot),
+      },
+      extractionModule({
+        readDocumentExtractions: vi.fn(async () => ({
+          sourceRepresentationRevisionId: representationId,
+          latestAttempt: attempt,
+          latestReviewed: attempt,
+        })),
+      }),
+    )(url(query))
+    const body = documentReopenResponseSchema.parse(await response.json())
+
+    expect(response.status).toBe(200)
+    expect(body.sourceRepresentation).toMatchObject({
+      sourceRepresentationId: representationId,
+      revisionNumber: 2,
+      current,
+    })
   })
 
   it('asks the module for a requested Extraction and pins the source snapshot read', async () => {

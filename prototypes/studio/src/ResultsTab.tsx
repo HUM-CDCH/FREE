@@ -36,7 +36,12 @@ export type RunExtractionStrategy =
 
 type ResultsTabProps = {
   controller: ExtractionController
-  onRunExtraction: () => void | Promise<void>
+  /**
+   * Starts a fresh Extraction. Absent when the open view starts none, e.g. an
+   * Extraction reopened on an earlier Source Representation: then no run
+   * action renders at all, while review and cancellation stay as they are.
+   */
+  onRunExtraction?: () => void | Promise<void>
   runExtractionDisabled: boolean
   runExtractionStrategy: RunExtractionStrategy
   schemaReady: boolean
@@ -386,7 +391,7 @@ function ExtractionStatus({
   readOnly: boolean
   runExtractionDisabled: boolean
   runExtractionStrategy: RunExtractionStrategy
-  onRunExtraction: () => void | Promise<void>
+  onRunExtraction?: () => void | Promise<void>
 }) {
   const [schemaOpen, setSchemaOpen] = useState(false)
   const label = statusLabel(state, attempt)
@@ -455,7 +460,7 @@ function ExtractionStatus({
       {completed && previousSchema && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <p className="text-[11.5px] text-ink-muted">Review applies to {usedRevisionLabel}</p>
-          {!readOnly && (
+          {!readOnly && onRunExtraction && (
             <RunExtractionButton
               run={runExtractionStrategy}
               withCurrentSchema
@@ -734,7 +739,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
                     )}
                   </>
                 )}
-                {!readOnly && !previousSchema && (
+                {!readOnly && !previousSchema && onRunExtraction && (
                   <RunExtractionButton run={runExtractionStrategy} variant="secondary" size="sm" disabled={runExtractionDisabled || activeAttempt} onClick={() => void onRunExtraction()} />
                 )}
               </div>
@@ -955,7 +960,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
         <div className="m-3.25 rounded-xl border border-danger/40 bg-surface px-4 py-3">
           <p className="text-[13px] font-semibold text-danger">Extraction failed</p>
           <p className="mt-1 wrap-anywhere text-[12px] leading-snug text-ink-muted">{state.message}</p>
-          {!readOnly && (
+          {!readOnly && onRunExtraction && (
             <div className="mt-2.5 flex flex-wrap items-center gap-2">
               <RunExtractionButton run={runExtractionStrategy} variant="primary" size="md" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()} />
             </div>
@@ -971,7 +976,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
               ? 'Run extraction to apply the schema across the source document.'
               : 'Generate a schema in the Schema tab first, then run extraction.'}
           </p>
-          {!readOnly && (schemaReady ? (
+          {!readOnly && onRunExtraction && (schemaReady ? (
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
               <RunExtractionButton run={runExtractionStrategy} variant="primary" size="md" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()} />
             </div>
@@ -992,7 +997,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
       {state.status === 'cancelled' && (
         <div className="m-3.25 rounded-xl border border-line bg-surface px-4 py-3">
           <p className="text-[13px] font-semibold text-ink">Extraction cancelled</p>
-          {!readOnly && (
+          {!readOnly && onRunExtraction && (
             <div className="mt-2.5 flex flex-wrap items-center gap-2">
               <RunExtractionButton run={runExtractionStrategy} variant="primary" size="md" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()} />
             </div>
