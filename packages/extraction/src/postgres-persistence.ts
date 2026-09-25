@@ -3,17 +3,22 @@ import { isDeepStrictEqual } from 'node:util'
 import {
   canonicalPackageStore,
   db,
+  lockSourceDocumentRow,
   stableJson,
   stableUuid,
   uniqueConstraint,
   type CanonicalPackageStore,
   type Database,
   type DatabaseOrm,
+  type DatabaseTransaction,
 } from 'db'
 import { ExtractionError } from './errors.js'
 import { persistSuggestedBatch } from './postgres-suggested-batch.js'
 import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
 import { modelChoice } from './model-choice.js'
+
+const SUPERSEDED_MESSAGE =
+  "This document has been reprocessed. No new Extraction was started. Open the document from the project's Sources list to run on its current source revision. You can continue reviewing this earlier Extraction."
 import type {
   ClaimedExtractionJob,
   ExtractionInputReader,
@@ -405,6 +410,19 @@ async function scheduleInteractiveExtraction(
         if (project?.researcherAccountId !== researcherAccountId) return 'missing' as const
         return jobIdentityMatches(existingJob, job) ? 'replayed' as const : 'conflict' as const
       }
+      // A new identity is admitted only on the document's current revision, decided under the
+      // Source Document row lock that reprocess publication also takes: Read Committed would
+      // otherwise let a reprocess commit between this read and the insert.
+      if (!(await lockSourceDocumentRow(transaction, job.sourceDocumentId))) return 'missing' as const
+      const current = await orm.public.SourceRepresentationRevision.where({
+        sourceDocumentId: job.sourceDocumentId,
+      })
+        .select('id')
+        .orderBy((revision) => revision.revisionNumber.desc())
+        .first()
+      // No revision left means the document vanished while this waited for the lock.
+      if (!current) return 'missing' as const
+      if (current.id !== job.sourceRepresentationRevisionId) return 'superseded' as const
       await orm.public.ExtractionJob.create({
         ...job,
         kind: 'INTERACTIVE',
@@ -417,6 +435,8 @@ async function scheduleInteractiveExtraction(
         'extraction_id_conflict',
         'That Extraction ID is already bound to different inputs.',
       )
+    if (status === 'superseded')
+      throw new ExtractionError('source_representation_superseded', SUPERSEDED_MESSAGE)
     disposition = status
   } catch (error) {
     if (!uniqueConstraint(error)) throw error
@@ -779,10 +799,6 @@ async function reviewDigest(orm: DatabaseOrm, extractionId: string): Promise<str
     .orderBy((review) => review.revisionNumber.desc())
     .first())?.decisionDigest ?? null
 }
-type DatabaseTransaction = Parameters<
-  Parameters<Database['transaction']>[0]
->[0]
-
 async function ownsResearcherJob(
   transaction: DatabaseTransaction,
   researcherAccountId: string,
@@ -1564,7 +1580,8 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
     const batchExtractionId =
       input.repetition === 'create-new' ? randomUUID() : selectionId(input)
     try {
-      const opened = await this.database.transaction(async ({ orm }) => {
+      const opened = await this.database.transaction(async (transaction) => {
+        const { orm } = transaction
         if (
           !(await orm.public.ProjectContext.select('id').first({
             id: input.projectContextId,
@@ -1605,6 +1622,7 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
           sourceDocumentId: string
           sourceRepresentationRevisionId: string
         }> = []
+        // canonicalIds' sorted order is the deadlock guard: batches sharing members lock alike.
         for (const sourceDocumentId of canonicalIds(
           input.sourceDocumentIds,
         )) {
@@ -1614,6 +1632,8 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
               projectContextId: input.projectContextId,
             }))
           )
+            return 'missing' as const
+          if (!(await lockSourceDocumentRow(transaction, sourceDocumentId)))
             return 'missing' as const
           const representation =
             await orm.public.SourceRepresentationRevision.where({

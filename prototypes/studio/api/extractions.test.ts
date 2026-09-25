@@ -495,6 +495,21 @@ describe('/api/extractions transport', () => {
       },
     })
 
+    vi.mocked(module.runSingle).mockRejectedValueOnce(
+      new ExtractionError(
+        'source_representation_superseded',
+        'This document has been reprocessed. No new Extraction was started.',
+      ),
+    )
+    const superseded = await handle(request(fresh))
+    expect(superseded.status).toBe(409)
+    expect(await superseded.json()).toEqual({
+      error: {
+        code: 'source_representation_superseded',
+        message: 'This document has been reprocessed. No new Extraction was started.',
+      },
+    })
+
     vi.mocked(module.prepareReview).mockRejectedValueOnce(
       new ExtractionError('invalid_source_representation', 'Unavailable.'),
     )

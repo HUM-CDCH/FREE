@@ -6,11 +6,12 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
-    "./database-url": "./src/database-url.ts"
+    "./database-url": "./src/database-url.ts",
+    "./postgres-test-helpers": "./src/postgres-test-helpers.ts"
   },
   "scripts": {
     "test": "tsx --test src/*.test.ts",
-    "test:postgres": "tsx --test src/project-store.postgres.check.ts",
+    "test:postgres": "tsx --test --test-concurrency=1 src/project-store.postgres.check.ts src/source-reprocessing.postgres.check.ts",
     "typecheck": "tsc --noEmit",
     "contract:emit": "prisma-next contract emit",
     "db:start": "tsx src/start-development-database.ts",

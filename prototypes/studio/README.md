@@ -79,6 +79,10 @@ conflict, and a retry with the same request key replays its published revision.
 Existing Extractions, Review Decisions and Annotations retain their original
 source revision. Opening the document without an Extraction identity selects
 its current revision; opening a historical Extraction uses its original source.
+A new Extraction can be started only on the document's current source revision:
+the server answers 409 `source_representation_superseded` for a superseded one,
+and the historical view offers no run. Runs started from a Schema Suggestion keep
+the revisions saved with the suggestion; they are the one exception.
 Run a new Extraction on the current revision to use upgraded cell Evidence; an
 Extraction opened on an earlier revision offers no new run. Ordinary
 re-uploading still deduplicates by PDF content and does not reprocess it.

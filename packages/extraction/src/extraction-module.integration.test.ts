@@ -7,6 +7,7 @@ import { after, describe, it, test } from 'node:test'
 import { strToU8, zipSync } from 'fflate'
 import type { CanonicalPackageStore, Database } from 'db'
 import { validateDisposableTestDatabaseTarget } from 'db/database-url'
+import { withHeldSourceDocumentLock } from 'db/postgres-test-helpers'
 import { withBlockedUpdates } from '../../db/src/postgres-test-helpers.js'
 import type { KeiExpClient, KeiExpRequest, KeiExpArtifact } from './kei-exp.js'
 import { keiExpArtifact, keiExpEvidence, keiExpGroundedArtifact } from './kei-exp-fixture.js'
@@ -646,6 +647,176 @@ if (!disposableDatabaseUrl) {
       assert.ok(reviewed.extraction.reviewedAt)
       assert.deepEqual(reviewed.reviewDecisions, prepared.reviewDecisions)
       assert.deepEqual(reviewed.extraction.evidence, prepared.extraction.evidence)
+    })
+
+    it('refuses a new Extraction on a superseded Source Representation Revision and writes no job', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const document = project.documents[0]!
+      await addRepresentation(document, 'article-v2.pdf')
+      const { module } = createRuntime(project.researcherAccountId)
+      const input = freshInput(project)
+      await assert.rejects(module.runSingle(input), rejectsWithCode('source_representation_superseded'))
+      assert.equal(await db.orm.public.ExtractionJob.select('id').first({ id: input.extractionId }), null)
+      await assert.rejects(module.runSingle(freshInput(project)), rejectsWithCode('source_representation_superseded'))
+    })
+
+    it('admits a new Extraction on the current Source Representation Revision', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const revisionTwo = await addRepresentation(project.documents[0]!, 'article-v2.pdf')
+      const { module } = createRuntime(project.researcherAccountId)
+      const admitted = await module.runSingle({ ...freshInput(project), sourceRepresentationRevisionId: revisionTwo })
+      assert.equal(admitted.disposition, 'created')
+      assert.equal(admitted.extraction.sourceRepresentationRevisionId, revisionTwo)
+    })
+
+    it('replays an identical request after a reprocess instead of refusing it', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const { module } = createRuntime(project.researcherAccountId)
+      const input = freshInput(project)
+      const first = await module.runSingle(input)
+      await addRepresentation(project.documents[0]!, 'article-v2.pdf')
+      const again = await module.runSingle(input)
+      assert.equal(again.disposition, 'replayed')
+      assert.equal(again.extraction.extractionId, first.extraction.extractionId)
+      await assert.rejects(module.runSingle({ ...input, strategy: 'CATALOG' }), rejectsWithCode('extraction_id_conflict'))
+    })
+
+    it('keeps a run admitted before a reprocess and executes it on its original revision', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const document = project.documents[0]!
+      const { runtime } = createRuntime(project.researcherAccountId)
+      const scheduledModule = runtime.forResearcher(project.researcherAccountId)
+      const input = freshInput(project)
+      const queued = await scheduledModule.runSingle(input)
+      assert.equal(queued.extraction.executionStatus, 'QUEUED')
+      await addRepresentation(document, 'article-v2.pdf')
+      const controller = new AbortController()
+      const running = runtime.run(controller.signal)
+      let executed
+      try {
+        const deadline = Date.now() + 5_000
+        for (;;) {
+          executed = await scheduledModule.readExtractionAttempt(input.extractionId)
+          if (executed?.executionStatus === 'COMPLETED' || executed?.executionStatus === 'FAILED') break
+          if (Date.now() >= deadline)
+            throw new Error(`Timed out waiting for Extraction ${input.extractionId}.`)
+          const turn = Promise.withResolvers<void>()
+          setImmediate(turn.resolve)
+          await turn.promise
+        }
+      } finally {
+        controller.abort()
+        await running
+      }
+      assert.equal(executed?.executionStatus, 'COMPLETED')
+      assert.equal(executed?.sourceRepresentationRevisionId, document.sourceRepresentationRevisionId)
+    })
+
+    it('refuses a run that was admitted while a reprocess published a newer revision', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const document = project.documents[0]!
+      const { module } = createRuntime(project.researcherAccountId)
+      const input = freshInput(project)
+      await assert.rejects(
+        withHeldSourceDocumentLock(
+          disposableDatabaseUrl,
+          document.sourceDocumentId,
+          () => module.runSingle(input),
+          async (run) => {
+            await run(
+              `INSERT INTO "sourceRepresentationRevision"
+                 (id, "sourceDocumentId", "revisionNumber", "artifactReference", "artifactSha256",
+                  "contractVersion", "preprocessId", "parserName", "parserVersion")
+               VALUES ($1, $2, 2, $3, $3, 'parsed_document.v2', $4, 'test', '1')`,
+              [randomUUID(), document.sourceDocumentId, 'c'.repeat(64), `race-${randomUUID()}`],
+            )
+          },
+        ),
+        rejectsWithCode('source_representation_superseded'),
+      )
+      assert.equal(await db.orm.public.ExtractionJob.select('id').first({ id: input.extractionId }), null)
+    })
+
+    it('a batch admitted behind a reprocess pins the newly published revision', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const document = project.documents[0]!
+      const { module } = createRuntime(project.researcherAccountId)
+      const revisionTwo = randomUUID()
+      const scheduled = await withHeldSourceDocumentLock(
+        disposableDatabaseUrl,
+        document.sourceDocumentId,
+        () => module.scheduleBatch({
+          projectContextId: project.projectContextId,
+          schemaRevisionId: project.schemaRevisionId,
+          sourceDocumentIds: [document.sourceDocumentId],
+          strategy: 'ARTICLE',
+          repetition: 'create-new',
+        }),
+        async (run) => {
+          await run(
+            `INSERT INTO "sourceRepresentationRevision"
+               (id, "sourceDocumentId", "revisionNumber", "artifactReference", "artifactSha256",
+                "contractVersion", "preprocessId", "parserName", "parserVersion")
+             VALUES ($1, $2, 2, $3, $3, 'parsed_document.v2', $4, 'test', '1')`,
+            [revisionTwo, document.sourceDocumentId, 'c'.repeat(64), `race-${randomUUID()}`],
+          )
+        },
+      )
+      assert.ok(scheduled)
+      assert.equal(scheduled.batch.members[0]?.sourceRepresentationRevisionId, revisionTwo)
+    })
+
+    it('a batch and a reprocess of one of its members both finish', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])
+      const [one, two] = project.documents as [SeededDocument, SeededDocument]
+      const { module } = createRuntime(project.researcherAccountId)
+      const store = createResearcherProjectStore(project.researcherAccountId, db)
+      const [scheduled, revised] = await Promise.all([
+        module.scheduleBatch({
+          projectContextId: project.projectContextId,
+          schemaRevisionId: project.schemaRevisionId,
+          sourceDocumentIds: [two.sourceDocumentId, one.sourceDocumentId],
+          strategy: 'ARTICLE',
+          repetition: 'create-new',
+        }),
+        store.reprocessSourceDocument(project.projectContextId, two.sourceDocumentId, {
+          ingestionKey: randomUUID(), expectedRepresentationId: two.sourceRepresentationRevisionId,
+          requestFingerprint: 'f'.repeat(64), contentSha256: sha256(strToU8(two.filename)),
+          mediaType: 'application/pdf', originalName: two.filename, ...two.storedPackage,
+          contractVersion: 'parsed_document.v2', preprocessId: 'reprocessed', parserName: 'test', parserVersion: '5',
+          ensureRetained: async () => {},
+        }),
+      ])
+      assert.ok(scheduled)
+      assert.ok(revised)
+      // Either order is valid; the member pins whichever revision was current when it locked.
+      const member = scheduled.batch.members.find(
+        (candidate) => candidate.sourceDocumentId === two.sourceDocumentId,
+      )
+      assert.ok(
+        member?.sourceRepresentationRevisionId === two.sourceRepresentationRevisionId ||
+          member?.sourceRepresentationRevisionId === revised.sourceRepresentationId,
+      )
+    })
+
+    it('conceals a foreign document behind the same missing answer', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const foreign = await seedProject()
+      // Supersede the foreign revision: checking currency before ownership would answer superseded.
+      await addRepresentation(foreign.documents[0]!, 'foreign-v2.pdf')
+      const { module } = createRuntime(project.researcherAccountId)
+      await assert.rejects(
+        module.runSingle({ ...freshInput(project), sourceRepresentationRevisionId: foreign.documents[0]!.sourceRepresentationRevisionId }),
+        rejectsWithCode('not_found'),
+      )
     })
 
     it('persists and reopens a partial remote Catalog result without local stage diagnostics', async (t) => {
