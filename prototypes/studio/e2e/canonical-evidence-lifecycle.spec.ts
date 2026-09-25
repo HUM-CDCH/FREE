@@ -597,8 +597,14 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     sourceRepresentationRevisionId: firstRepresentationId,
     schemaRevisionId: firstSchemaRevisionId,
   })
-  await expect(freshPage.getByLabel('Extraction snapshot')).toBeVisible()
-  await freshPage.getByLabel('Extraction snapshot').selectOption(String(reviewed?.id))
+  // The reviewed Extraction ran on an earlier Source Representation Revision, so the document offers to open it on
+  // its own source rather than as a snapshot of the current one.
+  await expect(freshPage.getByLabel('Extraction snapshot')).toHaveCount(0)
+  const pinnedPdf = freshPage.waitForResponse((response) =>
+    new URL(response.url()).pathname.endsWith(`/source-representations/${firstRepresentationId}/pdf`))
+  await freshPage.getByRole('button', { name: 'Open latest reviewed', exact: true }).click()
+  await expect(freshPage).toHaveURL(`${url}?extractionId=${reviewed!.id}`)
+  expect((await pinnedPdf).ok()).toBe(true)
   await expect(freshPage.locator('iframe[title="Pinned Source Document"]')).toHaveCount(0)
   await expect(freshPage.locator('.pdfViewer .page')).toHaveCount(6)
   await freshPage.getByRole('button', { name: 'View used schema' }).click()
@@ -616,7 +622,10 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     path: testInfo.outputPath('canonical-fresh-context-review.png'),
     fullPage: true,
   })
-  await freshPage.getByLabel('Extraction snapshot').selectOption(newerExtractionId)
+  // Back returns to the current Source Representation Revision and its newer, unreviewed attempt.
+  await freshPage.goBack()
+  await expect(freshPage).toHaveURL(url)
+  await expect(freshPage.getByRole('button', { name: 'Open latest reviewed', exact: true })).toBeVisible()
   await expect(freshPage.locator('iframe[title="Pinned Source Document"]')).toHaveCount(0)
   omitGrounding = false
   blockNextResult = true
