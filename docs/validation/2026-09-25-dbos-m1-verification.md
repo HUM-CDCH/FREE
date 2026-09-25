@@ -1,33 +1,46 @@
-# DBOS M1 verification — ec8820d — 2026-09-25
+# DBOS M1 verification — fa62304 — 2026-09-25
 
-Status: tested at `ec8820d`, after the final-review fix wave on `13eb18e`.
-M1's implementation is complete; its verification is not. Every deterministic
-tier passes except `test:e2e` and `test:e2e:base-path`. Both now fail at the
-same lifecycle assertion. It exposes a product behaviour that predates M1
-([F6](#f6--the-historical-review-offers-a-new-run-on-its-superseded-source)),
-and that needs a product decision. The fix wave resolved F3 and F4, and it
-changed only tests and the Playwright harness. This is not an all-green
-certification.
+Status: verification is complete for every deterministic tier at `fa62304`.
+Each tier passes there, either run at that commit or carried forward to it
+because its package is unchanged. `fa62304` is the product-code fix for
+[F6](#f6--resolved-in-fa62304-the-historical-review-offered-a-new-run-on-its-superseded-source).
+At `ec8820d`, `test:e2e` and `test:e2e:base-path` failed at one lifecycle
+assertion, which exposed a pre-existing product behaviour; at `fa62304` both
+pass. The fix wave before it resolved F3 and F4, and it changed only tests and
+the Playwright harness. The live-model tiers remain gaps; see
+[Live-model gaps](#live-model-gaps). The one later code commit, `4ab1ac4`,
+changes only a comment (see [Scope and environment](#scope-and-environment)).
 
 ## Scope and environment
 
-- Tested commit: `ec8820dfe95cc8b1676a1fbffdbd1b7fa24e479d` on
-  `chore/dbos-m1-dead-code`, the head of the
-  [M1 plan](../plans/2026-09-25-dbos-m1-dead-code.md)'s code commits. Change
-  boundary: `7461937..ec8820d`. Task numbers follow that plan; Tasks 11 and 12
-  are its "Catalog action" and "Missing legacy cases" review items.
-  - `13eb18e` is the last commit that changes product code. It was this
-    record's first tested commit. `93028ab` changed only documentation.
-  - The final-review fix wave changed only Studio tests and the Playwright
-    harness:
-    - `eb14a28`: the lifecycle spec follows the historical-review flow;
-    - `7d2ea8a`: base-path ports and fixture URL;
-    - `ec8820d`: unit-test assertions for the running state and the NuExtract
-      transport.
-  - `git diff --name-only 13eb18e..ec8820d` lists, under Studio's `src/`, `api/`,
-    `server/` and `shared/`, only `*.test.*` files.
-- Working tree: clean for every run at `ec8820d`. The `13eb18e` runs had only an
-  uncommitted, docs-only edit of the M1 plan.
+- Tested commit: `fa62304d772069bf0125bbc2c3fae4ea0f129098` on
+  `chore/dbos-m1-dead-code`, the last commit the tiers ran on. Change boundary:
+  `7461937..fa62304`. Task numbers follow the
+  [M1 plan](../plans/2026-09-25-dbos-m1-dead-code.md); Tasks 11 and 12 are its
+  "Catalog action" and "Missing legacy cases" review items, Task 13 is the F6
+  fix, and Task 14 is this re-verification.
+  - `fa62304` (Task 13) changes product code, unlike the fix wave before it.
+    All of it is under `prototypes/studio`: the reopen handler and its
+    contract, `App.tsx`, `AppFrame.tsx`, `RightRail.tsx`, `ResultsTab.tsx`,
+    their tests and the README. `git diff --stat 10836ba..fa62304` lists 12
+    files, all there.
+  - Earlier tested commits, kept so that the record stays reproducible:
+    - `13eb18e` was this record's first tested commit, and the last commit
+      before `fa62304` that changes product code. `93028ab` and `10836ba`
+      changed only documentation.
+    - `ec8820d` was its second, after the final-review fix wave. That wave
+      changed only Studio tests and the Playwright harness;
+      `git diff --name-only 13eb18e..ec8820d` lists, under Studio's `src/`,
+      `api/`, `server/` and `shared/`, only `*.test.*` files:
+      - `eb14a28`: the lifecycle spec follows the historical-review flow;
+      - `7d2ea8a`: base-path ports and fixture URL;
+      - `ec8820d`: unit-test assertions for the running state and the
+        NuExtract transport.
+  - After the tested commit, `4ab1ac4` changes one harness comment and nothing
+    else; its diff ends this section. The commit that adds this revision of
+    the record changes only documentation.
+- Working tree: clean for every run at `fa62304` and at `ec8820d`. The
+  `13eb18e` runs had only an uncommitted, docs-only edit of the M1 plan.
 - Host: Ubuntu 24.04.5 LTS, Linux 6.8.0, x86_64, 24 CPUs, 62 GiB RAM, one NVIDIA
   RTX 4090. `test:service` pins `CUDA_VISIBLE_DEVICES=''`. The Python smoke's
   worker may use the GPU.
@@ -51,7 +64,7 @@ certification.
   - The Playwright harnesses started and removed their own Compose stacks
     (`postgres:17`, `ghcr.io/navikt/mock-oauth2-server:2.2.1`), with
     `free_test_studio`, `free_test_studio_base_path` and `free_test_real_service`.
-- Playwright harness ports at `ec8820d`:
+- Playwright harness ports, unchanged since `7d2ea8a`:
   - default suite: Studio 41749, mock OIDC 41748, PostgreSQL 45432, lifecycle
     fixture 41750;
   - base-path: Studio 41751, mock OIDC 41752, PostgreSQL 45433, lifecycle
@@ -61,6 +74,11 @@ certification.
 
   Each config declares its lifecycle fixture URL once. It passes that URL to
   Studio as `KEI_EXP_URL` and to the spec as `FREE_PLAYWRIGHT_KEI_EXP_URL`.
+  The default and base-path suites' ports are distinct, but both suites write
+  to `prototypes/studio/test-results/` and `test-results/config-home`, so they
+  must run sequentially. The real-service harness writes to
+  `artifacts/service-tests/` instead. Every browser run this record cites ran
+  on its own.
 - Docling weights were already in the Hugging Face cache
   (`docling-project/docling-layout-heron`, `-heron-101`, `-egret-xlarge`,
   `docling-models`).
@@ -70,57 +88,93 @@ certification.
 - The model boundary was scripted or absent in every run. No live model took
   part; see [Live-model gaps](#live-model-gaps).
 
+After the tested commit, `4ab1ac4` (`test(e2e): say the base-path harness must
+run sequentially`) corrects the base-path config's comment, which said that
+the two suites could run side by side. The change is comment-only, so no tier
+ran again for it:
+
+```diff
+--- a/prototypes/studio/playwright.base-path.config.ts
++++ b/prototypes/studio/playwright.base-path.config.ts
+@@ -18,5 +18,6 @@ const basePath = '/free'
+ process.env.FREE_PLAYWRIGHT_BASE_PATH = basePath
+ // The lifecycle spec's fake kei-exp listens here, and Studio's KEI_EXP_URL points at it. The default suite's
+-// fixture keeps 41750, so both suites can run side by side.
++// fixture keeps 41750, so the two suites' ports are distinct. The suites still share the output directories
++// test-results/ and test-results/config-home, so they must run sequentially.
+ const keiExpUrl = 'http://127.0.0.1:41753'
+ process.env.FREE_PLAYWRIGHT_KEI_EXP_URL = keiExpUrl
+```
+
 ## Results
 
-"Run now" means run at `ec8820d`, with the log named in `final-fix-logs/` (see
-[Final state](#final-state)). "Carried forward" means the `13eb18e` run stays
-valid, because `git diff --stat 13eb18e..ec8820d -- <package>` prints nothing
-for its package (`carry-forward-diff-stat.log`). pytest counts exclude marker
-deselection, which is the tier boundary rather than a skip.
+Each row holds for `fa62304` in one of three ways. The log directories are
+listed under [Final state](#final-state).
+
+- **Reused:** Task 13 ran the tier at `fa62304` on a clean tree, and its log is
+  in `task-13-logs/`. Each such log's header reads
+  `# commit: fa62304d772069bf0125bbc2c3fae4ea0f129098` with an empty
+  `# worktree status (short):` line, and each run started between 19:52:48 and
+  19:57:30, after the commit at 19:52:23
+  (`task-14-logs/reused-logs-provenance.log`).
+- **Run now:** run at `fa62304` on a clean tree for this revision, with the log
+  in `task-14-logs/`.
+- **Carried forward:** the run at the row's commit stays valid, because
+  `git diff --stat <its commit>..fa62304 -- <package>` prints nothing
+  (`task-14-logs/carry-forward-diff-stat.log`, one command per row). Nothing
+  outside `prototypes/studio` and `docs` changed since `13eb18e`.
+
+pytest counts exclude marker deselection, which is the tier boundary rather
+than a skip.
 
 | Tier | Command | Commit | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| Scripts | `node --test scripts/free.test.mjs scripts/test-ci.test.mjs` | 13eb18e | 48/48 pass | carried forward: `scripts/` unchanged |
-| Studio configuration | `pnpm --filter studio-configuration test` | 13eb18e | 4/4 pass | carried forward: `packages/studio-configuration` unchanged |
-| Studio unit | `pnpm --filter studio test` | ec8820d | 94 files, 1061/1061 pass | run now (`studio-test.log`). `13eb18e` had 1059; `ec8820d` adds two NuExtract transport tests. |
-| db unit | `pnpm --filter db test` | 13eb18e | 55/55 pass | carried forward: `packages/db` unchanged |
-| Extraction unit | `pnpm --filter extraction test` | 13eb18e | 37/37 pass | carried forward: `packages/extraction` unchanged |
-| Result export unit | `pnpm --filter extraction-result-export test` | 13eb18e | 33/33 pass | carried forward: `packages/extraction-result-export` unchanged |
-| Parsing fast | `pnpm --filter parsing-service test` | 3e3f888 | 809 passed, 73 skipped, 127 deselected | reused from Task 5's run at `3e3f888`: `git diff --stat 3e3f888..ec8820d -- prototypes/parsing_service` prints nothing. The skip-reason listing at `13eb18e` (same command, `PYTEST_ADDOPTS=-rs`) reproduced the same counts. |
-| Studio typecheck | `pnpm --filter studio typecheck` | ec8820d | clean | run now (`studio-typecheck.log`) |
-| db typecheck | `pnpm --filter db typecheck` | 13eb18e | clean | carried forward |
-| Extraction typecheck | `pnpm --filter extraction typecheck` | 13eb18e | clean | carried forward |
-| Result export typecheck | `pnpm --filter extraction-result-export typecheck` | 13eb18e | clean | carried forward |
-| Lint | `pnpm --filter studio lint` | ec8820d | 0 errors, 3 warnings | run now (`studio-lint.log`) |
-| Safety | `pnpm test:safety` | ec8820d | 14/14 pass, none skipped | run now (`test-safety.log`). It reads `prototypes/studio/Dockerfile`, so its result could not be carried forward. |
-| db PostgreSQL | `PROJECT_STORE_POSTGRES_URL=… pnpm --filter db test:postgres` | 13eb18e | 3/3 pass (one test, two subtests) | carried forward |
-| Extraction PostgreSQL | `EXTRACTION_TEST_DATABASE_URL=… pnpm --filter extraction test:postgres` | 13eb18e | 28/28 pass | carried forward |
-| Parsing PostgreSQL | `PARSING_TEST_DATABASE_URL=… PARSING_FIXTURE_DIR=… pnpm --filter parsing-service test:postgres` | 13eb18e | 107 passed, 0 skipped, 902 deselected | carried forward |
-| Studio build | `pnpm --filter studio build` | ec8820d | pass: `tsc -b`, client and SSR bundles; no inspector strings in `dist/` | run now (`studio-build.log`, which also holds the inspector-string scan) |
-| Browser E2E | `pnpm test:e2e` | ec8820d | **fail**: 49 passed, 1 failed, 1 did not run (51 tests) | run now (`studio-test-e2e.log`): [F6](#f6--the-historical-review-offers-a-new-run-on-its-superseded-source). At `13eb18e`, two runs: [F1](#f1--e2e-run-1-mock-oidc-sign-in-failed), [F2](#f2--e2e-run-1-the-lifecycle-fixture-port-was-taken), [F3](#f3--resolved-in-eb14a28-stale-extraction-snapshot-expectation). |
-| Base-path E2E | `pnpm --filter studio test:e2e:base-path` | ec8820d | **fail**: 0 passed, 1 failed, 1 did not run (2 tests) | run now (`studio-test-e2e-base-path.log`): [F6](#f6--the-historical-review-offers-a-new-run-on-its-superseded-source). At `13eb18e`: [F4](#f4--resolved-in-7d2ea8a-base-path-studio-and-the-lifecycle-fixture-shared-12700141750). |
-| Real service | `pnpm test:service` | ec8820d | 2/2 pass | run now (`studio-test-service.log`). No file this harness shares changed, so the `13eb18e` pass was still valid; it was run again for direct evidence. |
-| Python smoke | `PARSING_TEST_DATABASE_URL=… uv run --no-sync pytest -q tests/test_service_smoke.py` (from `prototypes/parsing_service`) | 13eb18e | 1/1 pass | carried forward: `prototypes/parsing_service` unchanged |
+| Scripts | `node --test scripts/free.test.mjs scripts/test-ci.test.mjs` | 13eb18e | 48/48 pass | carried forward: `scripts` unchanged (`carry-forward-diff-stat.log`) |
+| Studio configuration | `pnpm --filter studio-configuration test` | 13eb18e | 4/4 pass | carried forward: `packages/studio-configuration` unchanged (`carry-forward-diff-stat.log`) |
+| Studio unit | `pnpm --filter studio test` | fa62304 | 94 files, 1081/1081 pass | reused: `task-13-logs/final-studio-test.log` (`# commit: fa62304d77…`, clean tree). `ec8820d` had 1061; `fa62304` adds 20 tests: 4 API, 9 App, 6 ResultsTab and 1 ProjectNavigation. |
+| db unit | `pnpm --filter db test` | 13eb18e | 55/55 pass | carried forward: `packages/db` unchanged (`carry-forward-diff-stat.log`) |
+| Extraction unit | `pnpm --filter extraction test` | 13eb18e | 37/37 pass | carried forward: `packages/extraction` unchanged, and so are the three Studio files its `module.test.ts` imports (`carry-forward-diff-stat.log`, S1) |
+| Result export unit | `pnpm --filter extraction-result-export test` | 13eb18e | 33/33 pass | carried forward: `packages/extraction-result-export` unchanged (`carry-forward-diff-stat.log`) |
+| Parsing fast | `pnpm --filter parsing-service test` | 3e3f888 | 809 passed, 73 skipped, 127 deselected | carried forward from Task 5's run at `3e3f888`: `prototypes/parsing_service` unchanged since then (`carry-forward-diff-stat.log`). The skip-reason listing at `13eb18e` (same command, `PYTEST_ADDOPTS=-rs`) reproduced the same counts. |
+| Studio typecheck | `pnpm --filter studio typecheck` | fa62304 | clean | reused: `task-13-logs/final-studio-typecheck.log` (`# commit: fa62304d77…`, clean tree) |
+| db typecheck | `pnpm --filter db typecheck` | 13eb18e | clean | carried forward: `packages/db` unchanged (`carry-forward-diff-stat.log`) |
+| Extraction typecheck | `pnpm --filter extraction typecheck` | 13eb18e | clean | carried forward: `packages/extraction` and the three Studio files it imports unchanged (`carry-forward-diff-stat.log`, S1) |
+| Result export typecheck | `pnpm --filter extraction-result-export typecheck` | 13eb18e | clean | carried forward: `packages/extraction-result-export` unchanged (`carry-forward-diff-stat.log`) |
+| Lint | `pnpm --filter studio lint` | fa62304 | 0 errors, 3 warnings | reused: `task-13-logs/final-studio-lint.log` (`# commit: fa62304d77…`, clean tree) |
+| Safety | `pnpm test:safety` | fa62304 | 14/14 pass, none skipped | run now (`task-14-logs/test-safety.log`). It reads `prototypes/studio/Dockerfile`, so its result could not be carried forward. |
+| db PostgreSQL | `PROJECT_STORE_POSTGRES_URL=… pnpm --filter db test:postgres` | 13eb18e | 3/3 pass (one test, two subtests) | carried forward: `packages/db` unchanged (`carry-forward-diff-stat.log`) |
+| Extraction PostgreSQL | `EXTRACTION_TEST_DATABASE_URL=… pnpm --filter extraction test:postgres` | 13eb18e | 28/28 pass | carried forward: `packages/extraction` unchanged (`carry-forward-diff-stat.log`) |
+| Parsing PostgreSQL | `PARSING_TEST_DATABASE_URL=… PARSING_FIXTURE_DIR=… pnpm --filter parsing-service test:postgres` | 13eb18e | 107 passed, 0 skipped, 902 deselected | carried forward: `prototypes/parsing_service` unchanged (`carry-forward-diff-stat.log`) |
+| Studio build | `pnpm --filter studio build` | fa62304 | pass: `tsc -b`, client and SSR bundles; no inspector strings in `dist/` | run now (`task-14-logs/studio-build.log`). The inspector-string scan has its own log, `studio-dist-inspector-scan.log`: grep exit 1, no match in the 33 files the build wrote. |
+| Browser E2E | `pnpm test:e2e` | fa62304 | 51/51 pass | reused: `task-13-logs/final-test-e2e.log` (`# commit: fa62304d77…`, clean tree). At `ec8820d`: 49 passed, 1 failed, 1 did not run ([F6](#f6--resolved-in-fa62304-the-historical-review-offered-a-new-run-on-its-superseded-source)). At `13eb18e`, two runs: [F1](#f1--e2e-run-1-mock-oidc-sign-in-failed), [F2](#f2--e2e-run-1-the-lifecycle-fixture-port-was-taken), [F3](#f3--resolved-in-eb14a28-stale-extraction-snapshot-expectation). |
+| Base-path E2E | `pnpm --filter studio test:e2e:base-path` | fa62304 | 2/2 pass | reused: `task-13-logs/final-test-e2e-base-path.log` (`# commit: fa62304d77…`, clean tree). At `ec8820d`: 0 passed, 1 failed, 1 did not run ([F6](#f6--resolved-in-fa62304-the-historical-review-offered-a-new-run-on-its-superseded-source)). At `13eb18e`: [F4](#f4--resolved-in-7d2ea8a-base-path-studio-and-the-lifecycle-fixture-shared-12700141750). |
+| Real service | `pnpm test:service` | fa62304 | 2/2 pass | run now (`task-14-logs/studio-test-service.log`). The spec drives Studio and parses its reopen response with the strict contract, to which `fa62304` added a required field. |
+| Python smoke | `PARSING_TEST_DATABASE_URL=… uv run --no-sync pytest -q tests/test_service_smoke.py` (from `prototypes/parsing_service`) | 13eb18e | 1/1 pass | carried forward: `prototypes/parsing_service` unchanged (`carry-forward-diff-stat.log`) |
 
-Together these cover the components of `pnpm typecheck`, `pnpm lint`,
-`pnpm test:unit`, `pnpm test:safety` and `pnpm test:postgres`. `pnpm test:all`
-would still stop at `test:e2e`.
+Together these cover every component of `pnpm test:all` (`typecheck`, `lint`,
+`test:unit`, `test:safety`, `test:postgres`, `test:e2e` and `test:service`),
+and also the base-path suite, the build and the Python smoke. `pnpm test:all`
+itself was not run as one command.
 
-`git diff --stat 13eb18e..ec8820d` prints nothing for `packages/db`,
-`packages/extraction`, `packages/extraction-result-export`,
-`packages/studio-configuration`, `prototypes/parsing_service`, `scripts`,
-`tests`, `docker` and the Compose files. It also prints nothing for any file of
-the real-service harness: `playwright.service.config.ts`,
-`e2e/playwrightStack.ts`, `e2e/realService.ts`, `e2e/real-service.spec.ts`,
-`e2e/auth.ts` and the Compose file of the Playwright stack. Every tier of
-`prototypes/studio`, and the safety tier that reads its Dockerfile, ran again.
+`git diff --stat 13eb18e..fa62304` prints nothing outside `prototypes/studio`
+and `docs`. That covers `packages/*`, `prototypes/parsing_service`, `scripts`,
+`tests`, `docker`, the Compose files, and the root package manifest and
+lockfile. It also prints nothing for the three Studio files that
+`packages/extraction/src/module.test.ts` imports: `api/_kei_exp.ts`,
+`test/fixtures/kei-exp/ellekilde-table-v5.json` and
+`src/assets/parsed_document.v2.json`. Every deterministic tier of
+`prototypes/studio`, and the safety tier that reads its Dockerfile, ran at
+`fa62304`: Task 13 ran typecheck, lint, unit and both browser suites, and this
+revision ran the build, the real-service spec and safety.
 
 The real-service spec rewritten in M1 (Task 2: boot probe on `/api/models`;
-Task 5: extraction ids read from disk) passed both tests again: 17.8 s and
-12.3 s (19.9 s and 12.4 s at `13eb18e`). It used the real Python API and worker,
-native Docling parsing, restarts, and the harness's scripted model server. The
-Python smoke converted the generated eight-page native PDF with a real
-`kei-jobs worker` in 16.4 s, with no model server.
+Task 5: extraction ids read from disk) passed both tests at `fa62304`: 17.6 s
+and 12.3 s (17.8 s and 12.3 s at `ec8820d`; 19.9 s and 12.4 s at `13eb18e`). It
+used the real Python API and worker, native Docling parsing, restarts, and the
+harness's scripted model server. It parses Studio's reopen response with the
+strict contract, so it also checks the field that `fa62304` added. The Python
+smoke, carried forward from `13eb18e`, converted the generated eight-page
+native PDF with a real `kei-jobs worker` in 16.4 s, with no model server.
 
 Supplementary runs at `13eb18e`, recorded for classification or coverage and not
 counted as tier results:
@@ -162,15 +216,16 @@ Known pre-existing items:
   - whenever fixture-backed or Docling live tests run: Docling's
     `force_full_page_ocr` and `generate_table_images` deprecations. These make
     the Parsing PostgreSQL tier report 5 warnings instead of 2.
-- The 3 `react-hooks/exhaustive-deps` lint warnings recur at `ec8820d`,
+- The 3 `react-hooks/exhaustive-deps` lint warnings recur at `fa62304`,
   unchanged: `useBatchExtractionReviewGrid.ts:133`, `useExtraction.ts:257` and
   `:369`.
-- Vite's chunk-size warning recurs: `App-*.js` is 673.70 kB (200.38 kB gzip),
-  over the 500 kB limit. At `ec8820d` the bundle is `App-DwcYMXj5.js`, as at
-  `13eb18e`, because no product code changed.
+- Vite's chunk-size warning recurs: at `fa62304`, `App-zTBYmDvH.js` is
+  673.96 kB (200.49 kB gzip), over the 500 kB limit. At `13eb18e` and
+  `ec8820d` it was `App-DwcYMXj5.js`, 673.70 kB (200.38 kB gzip); `fa62304`
+  changes product code, so the bundle's hash changed.
 - The `src/auth/AuthApplication.test.tsx` cross-file `sessionStorage` flake did
   not recur in the one Studio unit run at `13eb18e`, nor in the one at
-  `ec8820d`.
+  `ec8820d`, nor in Task 13's final run at `fa62304`.
 
 ## Failures
 
@@ -191,7 +246,8 @@ development asset list and the dispatcher choice. The root cause is not
 established: the handler discards the error, and Playwright does not capture
 Studio's stdout.
 
-It did not recur at `ec8820d`, in the one run of the default suite there.
+It did not recur at `ec8820d` or at `fa62304`, in the one tier run of the
+default suite at each.
 
 ### F2 — e2e run 1: the lifecycle fixture port was taken
 
@@ -205,9 +261,9 @@ suite binds that port. The port was free before and after the run, and run 2
 bound it. It lies inside this host's ephemeral port range (32768–60999). The
 holder was not identified.
 
-It did not recur at `ec8820d`. The default suite keeps this port; `7d2ea8a`
-declares it once, in `playwright.config.ts`, and the spec now reads it from
-`FREE_PLAYWRIGHT_KEI_EXP_URL`.
+It did not recur at `ec8820d` or at `fa62304`. The default suite keeps this
+port; `7d2ea8a` declares it once, in `playwright.config.ts`, and the spec now
+reads it from `FREE_PLAYWRIGHT_KEI_EXP_URL`.
 
 ### F3 — resolved in eb14a28: stale "Extraction snapshot" expectation
 
@@ -256,7 +312,9 @@ under `/` and `/free`. It then stops at F6's assertion, which is line 619 at
 `ec8820d` and was line 609 at `13eb18e`. That assertion is the fourth Task 11
 label edit, and it now executes. In the diagnostic runs, both transitions
 passed in both strategies under `/` and `/free`, and so did Task 11's other
-label edits (lines 566, 656–660 and 800–801 at `ec8820d`).
+label edits (lines 566, 656–660 and 800–801 at `ec8820d`). At `fa62304`, with
+the spec unchanged since `ec8820d`, both tier runs pass all of these steps,
+F6's assertion included, in both strategies under `/` and `/free`.
 
 ### F4 — resolved in 7d2ea8a: base-path Studio and the lifecycle fixture shared 127.0.0.1:41750
 
@@ -291,13 +349,16 @@ Nothing failed before that line.
   does.
 - Each config declares its fixture URL once and exports it as
   `FREE_PLAYWRIGHT_KEI_EXP_URL`. The spec listens on that URL instead of a
-  hard-coded port. The default suite keeps 41750, so the two suites no longer
-  collide.
+  hard-coded port. The default suite keeps 41750, so the two suites' ports no
+  longer collide. The suites still share `prototypes/studio/test-results/` and
+  `test-results/config-home`, so they must run sequentially; `4ab1ac4`
+  corrects the config comment that said they could run side by side.
 
 At `ec8820d`, the base-path ARTICLE test starts cleanly and runs under `/free`
 until F6: sign-in, the Studio shell, extraction, review, export and the
 historical-review navigation. In the diagnostic runs, both strategies passed
-every other step under `/free`.
+every other step under `/free`. At `fa62304` the base-path tier passes both
+strategies (2/2).
 
 ### F5 — fixture-gated golden equivalence test
 
@@ -322,16 +383,17 @@ Classification: **pre-existing on the base**:
 Without the private fixtures the test skips, which is why the canonical tier
 and CI do not see it.
 
-### F6 — the historical review offers a new run on its superseded source
+### F6 — resolved in fa62304: the historical review offered a new run on its superseded source
 
-Open. At `ec8820d`, `test:e2e` and `test:e2e:base-path` fail at
-`canonical-evidence-lifecycle.spec.ts:619` in the ARTICLE test, and the CATALOG
-test, in the same serial group, does not run. After **Open latest reviewed**,
-the assertion expects no `Run … extraction with current schema` action for the
-reviewed Extraction. The page offers one: "Run Article extraction with current
-schema".
+Resolved by `fa62304`; see **Resolution** below. At `ec8820d`, `test:e2e` and
+`test:e2e:base-path` failed at `canonical-evidence-lifecycle.spec.ts:619` in
+the ARTICLE test, and the CATALOG test, in the same serial group, did not run.
+After **Open latest reviewed**, the assertion expects no
+`Run … extraction with current schema` action for the reviewed Extraction. The
+page offered one: "Run Article extraction with current schema".
 
-What the product does (unchanged since `13eb18e`):
+What the product did up to `ec8820d` (unchanged since `13eb18e`; line numbers
+at `ec8820d`):
 
 - **Open latest reviewed** (`App.tsx:745-752`) navigates to the document route
   with the reviewed Extraction's `?extractionId=` (`AppFrame.tsx:230-235`).
@@ -340,8 +402,8 @@ What the product does (unchanged since `13eb18e`):
   - The inspected attempt and the latest attempt are then the same, so the view
     is not read-only (`App.tsx:583`).
 - For a completed result on a previous Schema Revision, the Extraction status
-  offers this run unless the view is read-only (`ResultsTab.tsx:455-469`).
-  The header also offers `↻ Re-run extraction`. Both call `runExtraction`,
+  offered this run unless the view was read-only (`ResultsTab.tsx:455-469`).
+  The header also offered `↻ Re-run extraction`. Both call `runExtraction`,
   which posts the open route's Source Representation Revision
   (`App.tsx:627-656`).
 - The probe clicked the offered run:
@@ -352,10 +414,12 @@ What the product does (unchanged since `13eb18e`):
     and the older, unreviewed attempt. The document's latest attempt is chosen
     on its current revision only
     (`packages/extraction/src/postgres-persistence.ts:449-462`), so ordinary
-    navigation never shows the new result.
-- The Studio README says that "opening a historical Extraction uses its
+    navigation did not show the new result while it stayed unreviewed. Once
+    reviewed, it would surface through **Open latest reviewed**. After
+    `fa62304`, the historical view offers no such run at all.
+- The Studio README said that "opening a historical Extraction uses its
   original source. Run a new Extraction to use upgraded cell Evidence." A run
-  started from this view uses the superseded source instead.
+  started from this view used the superseded source instead.
 
 Classification: **pre-existing product behaviour on the base `7461937`**, not
 caused by M1. It was established from code and history; it was not re-run on a
@@ -363,25 +427,61 @@ base checkout.
 
 - The assertion dates from `2f59838` (2026-09-07). The reviewed Extraction was
   then inspected read-only through the snapshot select, which offered no run.
-- `36d9f50` replaced that case with the navigation above, where the run is
+- `36d9f50` replaced that case with the navigation above, where the run was
   offered. The spec could not reach the assertion until F3 was fixed.
 - On the base, the same condition offered "Run with current schema", with the
   same read-only rule and run target. M1's Task 11 only renamed the action, and
   this assertion's label, to name the strategy.
 
-The assertion is left failing on purpose. The fix wave may not change product
-code, and removing or inverting the assertion would drop its purpose.
-
-A product decision is needed. One option is a product fix: the historical
-review offers no run, or a run from it uses the current source. The other is to
-accept the behaviour as intended; the assertion should then expect the action.
-
+The fix wave left the assertion failing on purpose: it could not change product
+code, and removing or inverting the assertion would have dropped its purpose.
 With the assertion made soft, every later lifecycle step passed in both
-strategies, under `/` and `/free` (the diagnostic runs above).
+strategies, under `/` and `/free` (the diagnostic runs above). The user then
+chose a product fix over accepting the behaviour.
+
+**Resolution.** `fa62304` (Task 13) offers no new run on a historical
+Extraction whose Source Representation Revision is no longer the document's
+current one. Line numbers are at `fa62304`:
+
+- The reopen response states whether the pinned revision is current, in a
+  strict, required `sourceRepresentation.current`
+  (`shared/projectContext.contract.ts:194`). `api/document_reopen.ts:130-131`
+  sets it by comparing the pinned revision with the document's current one.
+- When it is false, `App.tsx` disables the toolbar's run button, whose title
+  says why (`:691`, `:856`). The Results tab gets no run handler, so it renders
+  no run action (`:926`). The hint says to go back to the current Source
+  Representation instead of pressing Run extraction (`:720`), and
+  `runExtraction` returns early (`:634`).
+- Review, cancel, export and the schema views are unchanged. A view on the
+  current revision, including an `?extractionId=` pin of a current batch
+  member, keeps its run actions.
+- The README (`:81-83`) now says: "Run a new Extraction on the current revision
+  to use upgraded cell Evidence; an Extraction opened on an earlier revision
+  offers no new run."
+
+The spec is unchanged (`git diff 10836ba..fa62304 -- prototypes/studio/e2e` is
+empty), and line 619 still expects no run action. Both browser tiers pass at
+`fa62304` (Results: `test:e2e` 51/51, `test:e2e:base-path` 2/2). Task 13 also
+ran the lifecycle spec on its own, from the worktree root on a clean tree, as
+acceptance evidence that is not counted as a tier result:
+
+| Run | Command | Result | Log |
+| --- | --- | --- | --- |
+| Lifecycle under `/` | `pnpm --filter studio exec playwright test e2e/canonical-evidence-lifecycle.spec.ts` | 2 passed: ARTICLE 37.0 s, CATALOG 36.6 s | `task-13-logs/final-e2e-lifecycle-default.log` |
+| Lifecycle under `/free` | the same, with `--config playwright.base-path.config.ts` | 2 passed: ARTICLE 39.9 s, CATALOG 39.4 s | `task-13-logs/final-e2e-lifecycle-base-path.log` |
+
+Two limits stay outside the decided scope, which covers runs only and relies on
+a flag the server reports at reopen:
+
+- The flag is a reopen-time fact. An `?extractionId=` view opened on the
+  current revision keeps offering runs if its document is reprocessed in the
+  same session, until the view is reopened.
+- `POST /api/extractions` still accepts a superseded revision; only Studio's UI
+  stops offering it.
 
 ## Skips
 
-- Parsing fast (the reused result): 73 skipped, every one with "optional
+- Parsing fast (the carried-forward result): 73 skipped, every one with "optional
   upstream fixture … is absent; set PARSING_FIXTURE_DIR to supply the
   originals". 72 need `Beier1988_GAC_02_Catalogue7.pdf` and one needs `main.pdf`.
   By file: `test_models.py` 33, `test_pages.py` 19, `test_equivalence.py` 7,
@@ -392,6 +492,8 @@ strategies, under `/` and `/free` (the diagnostic runs above).
 - Browser E2E and base-path: the CATALOG lifecycle test "did not run" in every
   tier run, at `13eb18e` and at `ec8820d`, because its serial group had already
   failed. The fix wave's diagnostic runs ran it on its own (`--grep CATALOG`).
+  At `fa62304` it ran and passed in both tiers. Neither browser tier nor the
+  real-service spec skipped anything there.
 - Node and tsx tiers: none skipped.
 - Live-model and untiered runs: see below.
 
@@ -461,15 +563,24 @@ files are the same seven (`residue-grep.log`).
 
 - Every harness removed its own Compose containers, volumes and network. No
   `.playwright-stack-*` lifecycle state remains.
-- `free_test_project_store` remains on the disposable tmpfs container.
+- `free_test_project_store` remains on the disposable tmpfs container, beside
+  `free_test_parsing` and `free_test_extraction`.
 - Test output is retained, git-ignored:
-  - `prototypes/studio/test-results/` holds the last lifecycle failure's
-    context (F6);
-  - `artifacts/service-tests/` holds the real-service results and logs.
+  - `prototypes/studio/test-results/` holds the lifecycle spec's screenshots
+    from Task 13's base-path tier run at `fa62304`, which passed; the F6
+    failure context is gone.
+  - `artifacts/service-tests/` holds the real-service results and logs of the
+    `fa62304` run.
 - The command logs for this record are kept, git-ignored, in the M1 worktree
   under `.superpowers/sdd/2026-09-25-dbos-m1-dead-code/`:
   - `task-10-logs/` for the `13eb18e` runs;
-  - `final-fix-logs/` for the `ec8820d` runs, the carry-forward proof and the
-    fix wave's diagnostic runs.
-- No product code was changed for this record. The fix wave changed test code
-  and the Playwright harness only (`eb14a28`, `7d2ea8a`, `ec8820d`).
+  - `final-fix-logs/` for the `ec8820d` runs, that wave's carry-forward proof
+    and its diagnostic runs;
+  - `task-13-logs/` for Task 13's runs at `fa62304`: the reused tiers and the
+    lifecycle acceptance runs;
+  - `task-14-logs/` for this revision's runs at `fa62304`, the carry-forward
+    proof, the provenance of the reused logs and the diff of `4ab1ac4`.
+- Since `13eb18e`, product code changed only in `fa62304`, the F6 fix, under
+  `prototypes/studio`. The fix wave changed test code and the Playwright
+  harness only (`eb14a28`, `7d2ea8a`, `ec8820d`), and `4ab1ac4` changes one
+  harness comment. No product code was changed for this record.

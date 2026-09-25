@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-Status: **implementation complete 2026-09-25; verification incomplete. At the tested commit ec8820d every deterministic tier passes except `test:e2e` and `test:e2e:base-path`, which fail on one lifecycle assertion that exposes a pre-existing product behaviour needing a product decision (F6 in docs/validation/2026-09-25-dbos-m1-verification.md).**
+Status: **done 2026-09-25: implemented through fa62304; verification in docs/validation/2026-09-25-dbos-m1-verification.md.**
 
 ## Remaining review work
 
@@ -11,7 +11,7 @@ Tasks 1–8 are committed, including diagnostics filtering, checkpoint removal, 
 - [x] **Catalog action (Task 6 follow-up):** in `App.tsx` → `RightRail.tsx` → `ResultsTab.tsx`, name the current toolbar strategy (`Run Article extraction` / `Run Catalog extraction`) and show the selected Catalog recipe or `Model discovery`. Keep the fresh-run handler and current-schema behavior. Extend `App.test.tsx` to check the next POST after Catalog success/failure and reopening, including selecting a recipe again. No new retry API, persisted state or dialog.
 - [x] **Missing legacy cases (Tasks 7–8 follow-up):** extend the existing PostgreSQL checkpoint test to FAILED with a valid failure; extend the existing API read test to FAILED. Add a completed API read with legacy `diagnostics.retry: null`. Require 200 and the strict response contract, with job values null and failure/result preserved as appropriate. Keep these deliberate legacy fixtures during residue checks; the reader implementation is already present.
 - [x] **Finish Task 9 in progress:** review the direct-fetch change and run the retained `_model.test.ts` request/authorization/body/abort assertions and Studio build. Do not add another transport or live-provider harness.
-- [ ] **Close Task 10 with evidence:** reuse valid existing logs; run only missing/failing tiers or those affected by subsequent changes. Before merge, record the tested commit, commands, results and skips for the deterministic tiers, including the rewritten real-service spec and Python smoke. Both need Docling weights and disposable PostgreSQL; the e2e harness starts its scripted model server and the smoke needs none. Run required tiers elsewhere if necessary; collection/typecheck is not a pass. Report additional live-model gaps separately.
+- [x] **Close Task 10 with evidence:** reuse valid existing logs; run only missing/failing tiers or those affected by subsequent changes. Before merge, record the tested commit, commands, results and skips for the deterministic tiers, including the rewritten real-service spec and Python smoke. Both need Docling weights and disposable PostgreSQL; the e2e harness starts its scripted model server and the smoke needs none. Run required tiers elsewhere if necessary; collection/typecheck is not a pass. Report additional live-model gaps separately.
 
 Deployment still requires the operator precondition below. Separate task commits help review, but rollback must include dependent tasks in reverse order or M1 together.
 
