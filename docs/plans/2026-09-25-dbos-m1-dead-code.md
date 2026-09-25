@@ -2,7 +2,18 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-Status: **not started, 2026-09-25.**
+Status: **in progress, reviewed 2026-09-25 against `chore/dbos-m1-dead-code` at `8bd3015` plus its working changes.**
+
+## Remaining review work
+
+Tasks 1–8 are committed, including diagnostics filtering, checkpoint removal, the legacy RUNNING-row test and the RUNNING API read test. Task 9's direct NuExtract fetch is already in the working tree, with its request/abort tests retained. Do not reimplement these. The original steps below remain the implementation record; this checklist supersedes their corresponding instructions.
+
+- [ ] **Catalog action (Task 6 follow-up):** in `App.tsx` → `RightRail.tsx` → `ResultsTab.tsx`, name the current toolbar strategy (`Run Article extraction` / `Run Catalog extraction`) and show the selected Catalog recipe or `Model discovery`. Keep the fresh-run handler and current-schema behavior. Extend `App.test.tsx` to check the next POST after Catalog success/failure and reopening, including selecting a recipe again. No new retry API, persisted state or dialog.
+- [ ] **Missing legacy cases (Tasks 7–8 follow-up):** extend the existing PostgreSQL checkpoint test to FAILED with a valid failure; extend the existing API read test to FAILED. Add a completed API read with legacy `diagnostics.retry: null`. Require 200 and the strict response contract, with job values null and failure/result preserved as appropriate. Keep these deliberate legacy fixtures during residue checks; the reader implementation is already present.
+- [ ] **Finish Task 9 in progress:** review the direct-fetch change and run the retained `_model.test.ts` request/authorization/body/abort assertions and Studio build. Do not add another transport or live-provider harness.
+- [ ] **Close Task 10 with evidence:** reuse valid existing logs; run only missing/failing tiers or those affected by subsequent changes. Before merge, record the tested commit, commands, results and skips for the deterministic tiers, including the rewritten real-service spec and Python smoke. Both need Docling weights and disposable PostgreSQL; the e2e harness starts its scripted model server and the smoke needs none. Run required tiers elsewhere if necessary; collection/typecheck is not a pass. Report additional live-model gaps separately.
+
+Deployment still requires the operator precondition below. Separate task commits help review, but rollback must include dependent tasks in reverse order or M1 together.
 
 **Goal:** Remove the code that M1 of the DBOS plan identifies as having no production caller, with no schema change, as one PR that can merge before M2.
 
@@ -38,12 +49,12 @@ Status: **not started, 2026-09-25.**
   Check that port 5432 is free first; never stop another service to free it. The commands below assume both
   variables are exported.
 - **Commits:** one per task, conventional prefix (`refactor:`/`test:`/`docs:`), message ending with the session's attribution line. Never `git stash`, `reset` or `commit --amend` another task's work.
-- **Deployment precondition (Task 6):** before this PR runs against a database that holds data, the operator checks that no queued or running retry job exists. After Task 6, `claim()` would run such a row as a fresh Catalog Extraction:
+- **Deployment precondition (Task 6):** block new Extraction submissions, cancel/drain legacy retry jobs with the old code, and wait for terminal status. Stop the old Studio processes before the final SQL check; keep admission blocked until the new code is running. After Task 6, `claim()` would interpret these rows as fresh work:
   ```sql
   select count(*) from "extractionJob"
   where "retryOfId" is not null and "executionStatus" in ('QUEUED', 'RUNNING');
   ```
-  A non-zero count means: cancel those Extractions first.
+  Require zero before starting the new Studio worker; a cancellation request alone is insufficient. M1 can deploy before M2's clean-slate reset.
 
 ## User decisions for this plan (2026-09-25)
 

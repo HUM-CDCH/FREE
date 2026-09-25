@@ -1,0 +1,14 @@
+{"migration": {"ok": true, "migrationsApplied": 10}}
+{"checkout": "2605692bd394c87ff82cdb515bfe9ae3b38fc2ee", "node": "v24.21.0", "postgres": "17.11 (Debian 17.11-1.pgdg13+2)"}
+{"probe":"1a-first-generation-current","result":{"statuses":["created","created"],"schemas":2}}
+{"probe":"1a-first-generation-row-lock","result":{"statuses":["conflict","created"]}}
+{"probe":"1b-live-generation","result":{"writes":[{"expected":1,"description":"Researcher edit while generation runs."},{"expected":2,"description":"Late model replacement."}],"finalRevision":3}}
+{"probe":"3-m2-before-m4","result":{"sqlState":"42P01"}}
+{"probe":"2-gc-references-first","result":{"oldEnough":true,"referencedRunDeleted":true}}
+{"probe":"2-gc-terminal-first","result":{"referencedRunPreserved":true}}
+{"probe":"2-gc-unreferenced-control","result":{"eligibleRunRemoved":true}}
+{"probe":"4-boot-header-only","result":{"firstStatus":409,"providerCalls":0,"keyArrivedAfterFailure":true}}
+{"probe":"4-key-before-action","result":{"firstStatus":200,"providerCalls":1}}
+{"probe":"5-backup-current-list","result":{"queuedReferenceRestored":true,"stagedPdfMissing":true}}
+{"probe":"5-backup-with-inbox","result":{"stagedPdfRestoredExactly":true}}
+Disposable databases removed.

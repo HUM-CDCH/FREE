@@ -37,6 +37,9 @@ and M0 findings are retained below; the active design supersedes conflicting
 historical advice. M0R items 2–4 and the provider half of 5 remain pending.
 Commands, scripts, results and review decisions are retained in
 [the evidence record](2026-09-24-unified-durable-execution-evidence/README.md).
+The [2026-09-25 risk probes](2026-09-24-unified-durable-execution-evidence/risk-checks/README.md)
+validate the small corrections below; no new cross-tab synchronization is
+required for tomorrow's build.
 Supersedes `docs/plans/2026-09-24-procrastinate-source-ingestion.md` (not
 implemented).
 
@@ -454,8 +457,9 @@ user action carries a client-minted ID (Admission, above).
     the current revision, or while there is still no Extraction Schema.
     Otherwise it drops the generation, as reloading drops a conflicted save
     today, so a stale result never lands on newer work.
-  - The save expects the base as its head. So two tabs that load at once
-    cannot both save it; the second conflicts, as today.
+  - Recovery saves to an existing schema expect the base as their head.
+    First-schema initialization is not serialized today; cross-tab exclusion
+    is not a next-day release gate (a project-row lock sufficed in the probe).
   - A server-side save step would have to pick a head without the tab's
     acknowledgement, and would repeat after a crash between its commit and
     its checkpoint.
@@ -645,7 +649,9 @@ unreadable immediately; execution and file cleanup can finish later.
 - **Packages:** remove unreferenced canonical packages older than 24 h using
   the existing rename-and-recheck. Preserve every surviving revision's package.
 - **kei runs and history:** Studio checks domain references and both workflow
-  schemas. A run referenced by a revision's `preprocessId`, a live kei workflow
+  schemas. Check parent terminality before reading fresh domain references;
+  never combine an earlier no-reference result with a later terminal status.
+  A run referenced by a revision's `preprocessId`, a live kei workflow
   or a child of a live Studio parent is protected. This covers a completed
   conversion waiting for Studio publication. Pass eligible run/history IDs to
   kei `deleteRuns` on `kei-gc` (global and worker 1). It rechecks its own
@@ -988,6 +994,7 @@ quiescence checks.
     one). It sends them:
     - on load;
     - after Apply;
+    - before starting new model work, awaiting the handoff before its POST;
     - when a response shows a new Studio boot ID. Every API response carries
       `X-FREE-Studio-Boot`, a UUID drawn at startup. The check lives in
       `src/auth/authenticatedFetch.ts`, so every page has it: the chat
@@ -1202,7 +1209,9 @@ aliases or compatibility readers for this pre-production cutover.
 
 One branch and one cutover, with no temporary execution backends. Until the
 cutover, the new migration baseline is edited in place; forward migrations
-resume after it. Finish each milestone's test tier before the next.
+resume after it. M2–M4 form one integration boundary: run component checks
+between them and the full-stack gate after M4. Do not deploy the incomplete
+middle state. Later milestones finish their test tier before the next.
 
 **M0: original throwaway spike — historical, completed.** Findings are
 preserved below (TS DBOS 5.0.2, Python DBOS 3.0.0, x86_64). It did not test
@@ -1576,9 +1585,9 @@ handlers or pages is an acceptance test of the milestone that builds it
   - Reload the page mid-`suggestSchema`, mid-`proposeSchemaEdit` and
     mid-`chatTurn`, and separately kill Studio at the same points. The page
     must find each operation.
-  - A finished generation is saved at most once, and only onto its base,
-    whether by the reloaded page or by a surviving tab. It is dropped when
-    newer work exists. The review bar returns.
+  - A reloaded page saves a finished generation only onto its base, dropping
+    it when newer work exists. A surviving tab keeps today's acknowledged-head
+    save behavior, including edits during generation. The review bar returns.
   - The transcript returns and partial text replays once under the turn ID.
     New readers skip superseded attempts. A partial provider failure produces
     an error finish and persisted failure, never a saved partial answer or an
@@ -1652,7 +1661,8 @@ handlers or pages is an acceptance test of the milestone that builds it
     stores none (*No pins*). A replayed result never gains attribution
     reconstructed from today's route.
 - **Operations docs.**
-  - Backup set: a `free` dump, `parsing-runs`, `studio-data` and the CLI homes.
+  - Backup set: a `free` dump, `source-inbox`, `parsing-runs`, `studio-data`
+    and the CLI homes.
     No backup holds a researcher key.
   - DBOS inspection of both schemas.
   - Patch and version rules.
