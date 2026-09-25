@@ -141,3 +141,14 @@ describe('CI without Python', () => {
     assert.ok(!scripts['test:postgres:node'].includes('parsing-service'))
   })
 })
+
+describe('verify workflow', () => {
+  it('skips Python and installs no uv', () => {
+    const workflow = readFileSync(new URL('../.github/workflows/verify.yml', import.meta.url), 'utf8')
+    assert.match(workflow, /^\s+FREE_SKIP_PYTHON: '1'$/m)
+    assert.doesNotMatch(workflow, /setup-uv/)
+    assert.doesNotMatch(workflow, /PARSING_TEST_DATABASE_URL/)
+    assert.doesNotMatch(workflow, /free_test_parsing/)
+    assert.match(workflow, /run: pnpm test:ci$/m)
+  })
+})
