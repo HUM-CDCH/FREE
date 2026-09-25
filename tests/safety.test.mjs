@@ -206,6 +206,11 @@ function assertOwnedParsingTopology(config, gpu) {
     // The worker asks for the model each server serves: vLLM's model id is the repo it was started with.
     assert.equal(services.extraction_model.command[0], services.parsing_worker.environment.KEI_EXTRACT_MODEL)
     assert.equal(services.nuextract_model.command[0], services.parsing_worker.environment.KEI_NUEXTRACT_MODEL)
+    // Surya sends as many OCR requests at once as the OCR server runs; unset, it guesses 32 from a GPU table and a
+    // book leaves 28 waiting in vLLM, ahead of any small document's requests.
+    const ocrSeqs = services.ocr_model.command[services.ocr_model.command.indexOf('--max-num-seqs') + 1]
+    for (const name of ['parsing_service', 'parsing_worker'])
+      assert.equal(services[name].environment.SURYA_INFERENCE_PARALLEL, ocrSeqs, name)
     // One vLLM engine profiles the GPU's free memory at a time: OCR, then NuExtract, then the instruction model.
     assert.equal(services.nuextract_model.depends_on.ocr_model.condition, 'service_healthy')
     assert.equal(services.extraction_model.depends_on.nuextract_model.condition, 'service_healthy')
@@ -221,6 +226,7 @@ function assertOwnedParsingTopology(config, gpu) {
   } else {
     // Without the servers, Studio offers no deployment default.
     assert.equal(services.studio.environment.FREE_DEPLOYMENT_INSTRUCT_URL, undefined)
+    assert.equal(services.parsing_worker.environment.SURYA_INFERENCE_PARALLEL, undefined)
   }
   assert.equal(config.volumes['postgres-data'].name.endsWith('_postgres-data'), true)
   assert.equal(config.volumes['parsing-runs'].name.endsWith('_parsing-runs'), true)

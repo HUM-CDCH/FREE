@@ -127,7 +127,9 @@ image must also support that architecture and FP8 on the target GPU.
 
 `OCR_KV_CACHE_BYTES` sizes the OCR server's KV cache; with a cache size set,
 vLLM ignores `OCR_GPU_MEMORY_UTILIZATION`. The default context is 24,576 tokens with up to
-four simultaneous sequences. `EXTRACT_MAX_MODEL_LEN` (default 32,768 tokens)
+`OCR_MAX_NUM_SEQS` (default 4) simultaneous sequences. The same value sets the parsing
+processes' `SURYA_INFERENCE_PARALLEL`, so Surya sends no more requests at once than the
+server runs. Otherwise a book's queued requests would sit ahead of a small document's. `EXTRACT_MAX_MODEL_LEN` (default 32,768 tokens)
 and `EXTRACT_KV_CACHE_BYTES` (default 8G) size the extraction server; it
 loads the text model only. `KEI_NUEXTRACT_MODEL` (default
 `numind/NuExtract3-FP8`), `NUEXTRACT_MAX_MODEL_LEN` and
