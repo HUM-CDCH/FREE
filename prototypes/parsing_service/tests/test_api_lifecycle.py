@@ -57,3 +57,11 @@ def test_published_artifacts_do_not_need_the_store(directory, monkeypatch):
         (directory / path).write_text(artifacts[path])
         response = client.get(f"/api/runs/run-live/{route}")
         assert response.status_code == 200 and response.content == artifacts[path].encode()
+
+
+def test_models_answers_without_the_store(monkeypatch):
+    """`/api/models` is the only readiness and health probe (Compose healthcheck, e2e boot): it reads no store."""
+    monkeypatch.setattr(store, "record", unavailable)
+    response = TestClient(api.app).get("/api/models")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list) and response.json()

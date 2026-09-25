@@ -70,13 +70,6 @@ def list_models() -> list[dict]:
             for key, record in MODELS.items()]
 
 
-@app.get("/api/server")
-def server_info() -> dict:
-    reachable, repo = loaded_model(VLLM_URL)
-    key = next((key for key, record in MODELS.items() if record.repo == repo), None)
-    return {"url": VLLM_URL, "reachable": reachable, "loaded_repo": repo, "loaded_model": key}
-
-
 @app.get("/api/extraction-models")
 def list_extraction_models() -> dict:
     """The extraction models this deployment serves, each with the roles it may take and whether its server answers
@@ -87,12 +80,6 @@ def list_extraction_models() -> dict:
         models.append({"key": key, "repo": record.repo, "roles": [role for role in ROLES if role in record.roles],
                        "reachable": reachable, "serving": repo == record.repo})
     return {"defaults": extraction_models.DEFAULTS, "models": models}
-
-
-@app.get("/api/layout-models")
-def list_layout_models() -> list[dict]:
-    return [{"key": key, "name": name, "default": key == DEFAULT_LAYOUT_MODEL}
-            for key, name in LAYOUT_MODELS.items()]
 
 
 def _stage(pdf: UploadFile, target: Path) -> None:
@@ -342,10 +329,3 @@ def get_extraction(run_id: str, extraction_id: str) -> dict:
     return {**status, "run_id": run_id, "result": result}
 
 
-@app.get("/api/runs/{run_id}/debug/{name}")
-def run_debug(run_id: str, name: str) -> FileResponse:
-    directory = run_dir(run_id) / "debug"
-    path = (directory / name).resolve()
-    if not path.is_relative_to(directory.resolve()) or not path.is_file():
-        raise HTTPException(404, "no such debug file")
-    return FileResponse(path)
