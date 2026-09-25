@@ -276,7 +276,7 @@ export function createExtractionJobExecutor({ inputs: reader, keiExp }: Extracti
         modelCalls: artifact.calls.length, inputTokens: artifact.tokens.input, outputTokens: artifact.tokens.output,
         finishReason: null, ungroundedPaths: artifact.ungrounded, groundingIssues: artifact.issues,
         // Document-level fields: extracted into every record, grounded in none of them.
-        groundingBatches: [], unverifiedFields: artifact.unverified, catalog: null, retry: null,
+        groundingBatches: [], unverifiedFields: artifact.unverified, catalog: null,
         models: { fields: artifact.models.fields, reasoning: artifact.models.reasoning },
         ...(grounded
           ? {
@@ -296,7 +296,7 @@ export function createExtractionJobExecutor({ inputs: reader, keiExp }: Extracti
             }
           : {}),
       },
-      failure: null, reviewable: true, retryOfId: null,
+      failure: null, reviewable: true,
       batchExtractionId: input.kind === 'batch-member' ? input.batchExtractionId : null,
     }
   }

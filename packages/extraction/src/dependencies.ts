@@ -46,7 +46,6 @@ export type TerminalExtraction = Readonly<{
   result: Readonly<Record<string, unknown>> | null
   evidence: readonly EvidenceLink[] | null
   reviewable: boolean
-  retryOfId: string | null
   batchExtractionId: string | null
 }>
 

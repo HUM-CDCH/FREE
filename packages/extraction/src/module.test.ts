@@ -76,7 +76,7 @@ describe('kei-exp extraction relay', () => {
     assert.equal(result.reviewable, true)
     assert.equal(result.outcome, 'SUCCEEDED')
     assert.deepEqual(result.modelAttribution, { provider: 'kei-exp', modelId: 'selected-model' })
-    assert.deepEqual(result.diagnostics, { phase: 'persisting', durationMs: 1250, modelCalls: 3, inputTokens: 20, outputTokens: 10, finishReason: null, ungroundedPaths: [], groundingIssues: issues, groundingBatches: [], unverifiedFields: [], catalog: null, retry: null, models: { fields: 'selected-model', reasoning: 'selected-model' } })
+    assert.deepEqual(result.diagnostics, { phase: 'persisting', durationMs: 1250, modelCalls: 3, inputTokens: 20, outputTokens: 10, finishReason: null, ungroundedPaths: [], groundingIssues: issues, groundingBatches: [], unverifiedFields: [], catalog: null, models: { fields: 'selected-model', reasoning: 'selected-model' } })
   })
 
   it('sends a Catalog recipe and maps the version 2 artifact without dropping what review needs', async () => {
@@ -394,11 +394,11 @@ describe('review of an Extraction with document-level schema fields', () => {
     diagnostics: {
       phase: 'persisting', durationMs: 1, modelCalls: 1, finishReason: null, inputTokens: null,
       outputTokens: null, ungroundedPaths: [], groundingIssues: [], groundingBatches: [],
-      unverifiedFields: ['archive'], catalog: null, retry: null,
+      unverifiedFields: ['archive'], catalog: null,
     },
     result: { records: [{ title: 'Alpha', archive: 'Rigsarkivet' }] },
     evidence: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'bundled-anchor', verbatim: true, lexicalHits: 1, linkedBy: 'lexical' }],
-    failure: null, reviewable: true, retryOfId: null, batchExtractionId: null,
+    failure: null, reviewable: true, batchExtractionId: null,
     createdAt: new Date(), reviewedAt: null, reviewDecisions: [],
   }
   const persistence = {

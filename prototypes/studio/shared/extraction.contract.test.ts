@@ -28,13 +28,11 @@ const completed = {
     outputTokens: null,
     grounding: null,
     catalog: null,
-    retry: null,
   },
   failure: null,
   resultPayload: { records: [{}] },
   evidenceLinks: [],
   reviewable: true,
-  retryOfId: null,
   batchExtractionId: null,
   createdAt: '2026-08-10T00:00:00.000Z',
   reviewedAt: null,
@@ -211,6 +209,14 @@ describe('Article lifecycle contracts', () => {
         retryOfId: id('5'),
       }).success,
     ).toBe(false)
+  })
+
+  it('carries no retry lineage on attempts or diagnostics', () => {
+    expect(extractionAttemptSchema.safeParse({ ...completed, retryOfId: null }).success).toBe(false)
+    expect(extractionAttemptSchema.safeParse({
+      ...completed,
+      diagnostics: { ...completed.diagnostics, retry: null },
+    }).success).toBe(false)
   })
 })
 

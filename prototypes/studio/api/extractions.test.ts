@@ -62,7 +62,6 @@ const snapshot: ExtractionSnapshot = {
     ],
     unverifiedFields: [],
     catalog: null,
-    retry: null,
   },
   result: { records: [{ title: 'Alpha' }] },
   evidence: [
@@ -70,7 +69,6 @@ const snapshot: ExtractionSnapshot = {
   ],
   failure: null,
   reviewable: true,
-  retryOfId: null,
   batchExtractionId: null,
   createdAt: new Date('2026-08-20T10:00:00.000Z'),
   reviewedAt: null,
@@ -325,6 +323,7 @@ describe('/api/extractions transport', () => {
     )
 
     expect(response.status).toBe(422)
+    expect(await response.json()).toMatchObject({ error: { code: 'invalid_request' } })
     expect(module.runSingle).not.toHaveBeenCalled()
   })
 

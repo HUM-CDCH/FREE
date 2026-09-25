@@ -168,7 +168,7 @@ async function loadExtraction(orm: DatabaseOrm, extractionId: string): Promise<E
   const row = await orm.public.Extraction.select(
     'id', 'sourceDocumentId', 'sourceRepresentationRevisionId', 'schemaRevisionId',
     'strategy', 'requestedModels', 'outcome', 'complete', 'modelAttribution', 'diagnostics', 'failure',
-    'resultPayload', 'evidenceLinks', 'reviewable', 'retryOfId', 'batchExtractionId',
+    'resultPayload', 'evidenceLinks', 'reviewable', 'batchExtractionId',
     'createdAt', 'reviewedAt',
   ).first({ id: extractionId })
   if (!row) return null
@@ -215,7 +215,6 @@ async function loadExtraction(orm: DatabaseOrm, extractionId: string): Promise<E
     evidence: row.evidenceLinks as ExtractionSnapshot['evidence'],
     failure: row.failure as ExtractionSnapshot['failure'],
     reviewable: row.reviewable,
-    retryOfId: row.retryOfId,
     batchExtractionId: row.batchExtractionId,
     createdAt: row.createdAt,
     reviewedAt: row.reviewedAt,
@@ -262,7 +261,6 @@ async function loadExtractionAttempt(
     'diagnostics',
     'resultPayload',
     'failure',
-    'retryOfId',
     'batchExtractionId',
     'createdAt',
   ).first({ id: extractionId })
@@ -305,7 +303,6 @@ async function loadExtractionAttempt(
     evidence: null,
     failure: row.failure as ExtractionAttemptSnapshot['failure'],
     reviewable: false,
-    retryOfId: row.retryOfId,
     batchExtractionId: row.batchExtractionId,
     createdAt: row.createdAt,
     reviewedAt: null,
@@ -1211,7 +1208,6 @@ class PostgresExtractionJobStore implements InternalExtractionJobStore, Extracti
         resultPayload: input.result,
         evidenceLinks: input.evidence,
         reviewable: input.reviewable,
-        retryOfId: input.retryOfId,
         batchExtractionId: input.batchExtractionId,
       })
       const updated = await orm.public.ExtractionJob.where({

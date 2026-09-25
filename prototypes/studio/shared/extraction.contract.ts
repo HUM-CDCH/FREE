@@ -54,19 +54,6 @@ export const extractionModelListingSchema = z
   .strict()
 export type ExtractionModelListing = z.infer<typeof extractionModelListingSchema>
 
-export const extractionRetrySelectionSchema = z
-  .object({
-    retryOfId: requestUuid,
-    retryDocument: z.boolean(),
-    rediscover: z.boolean(),
-    retryRecordStartBlockIds: z.array(z.string().min(1)),
-  })
-  .strict()
-
-export type ExtractionRetrySelection = z.infer<
-  typeof extractionRetrySelectionSchema
->
-
 export const extractionRequestSchema = z
   .object({
     id: requestUuid,
@@ -286,7 +273,6 @@ export const extractionDiagnosticsSchema = z
     outputTokens: z.number().int().nonnegative().nullable(),
     grounding: groundingDiagnosticsSchema.nullable(),
     catalog: catalogDiagnosticsSchema.nullable(),
-    retry: extractionRetrySelectionSchema.nullable(),
     grounded: groundedDiagnosticsSchema.nullable().optional(),
     /** The model each role ran on, as kei-exp resolved the run's choice over its deployment defaults. */
     models: extractionModelsUsedSchema.nullable().optional(),
@@ -323,7 +309,6 @@ export const extractionAttemptSchema = z
     resultPayload: z.record(z.string(), z.json()).nullable(),
     evidenceLinks: z.array(evidenceLinkSchema).nullable(),
     reviewable: z.boolean(),
-    retryOfId: z.uuid().nullable(),
     batchExtractionId: z.uuid().nullable(),
     createdAt: z.iso.datetime(),
     reviewedAt: z.iso.datetime().nullable(),

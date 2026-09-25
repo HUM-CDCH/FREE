@@ -81,13 +81,11 @@ const articleAttempt: ExtractionAttempt = {
     finishReason: 'length', inputTokens: 10, outputTokens: 20,
     grounding: null,
     catalog: null,
-    retry: null,
   },
   failure: null,
   resultPayload: { records: [{ place: 'First place' }] },
   evidenceLinks: [],
   reviewable: true,
-  retryOfId: null,
   batchExtractionId: null,
   createdAt: '2026-08-10T00:00:00.000Z',
   reviewedAt: null,
@@ -611,17 +609,10 @@ describe('ResultsTab grounded values', () => {
             { ...catalogCall, ordinal: 1, boundary: catalogBoundary(1, 'Second entry') },
           ],
         },
-        retry: {
-          retryOfId: '55555555-5555-4555-8555-555555555555',
-          retryDocument: false,
-          rediscover: false,
-          retryRecordStartBlockIds: ['h1'],
-        },
       },
       resultPayload: {
         records: [{ place: 'First place' }, { place: 'Second place' }],
       },
-      retryOfId: '55555555-5555-4555-8555-555555555555',
     }
     render(
       <ResultsTab
@@ -640,8 +631,6 @@ describe('ResultsTab grounded values', () => {
     expect(screen.getByLabelText('Catalog stage record-values: succeeded, executed')).toBeInTheDocument()
     expect(screen.getByLabelText('Catalog record 1: succeeded, reused, First entry')).toBeInTheDocument()
     expect(screen.getByLabelText('Catalog record 2: succeeded, executed, Second entry')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Retry record 1: First entry')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Retry record 2: Second entry')).not.toBeInTheDocument()
   })
 
   it('exports the current displayed result to Excel with nested and scalar-array schema paths', () => {

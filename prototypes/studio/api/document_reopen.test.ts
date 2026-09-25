@@ -40,7 +40,6 @@ const extraction: ExtractionAttemptSnapshot = {
     groundingBatches: [],
     unverifiedFields: [],
     catalog: null,
-    retry: null,
   },
   result: { records: [{ title: 'Ellekilde' }] },
   evidence: [
@@ -48,7 +47,6 @@ const extraction: ExtractionAttemptSnapshot = {
   ],
   failure: null,
   reviewable: true,
-  retryOfId: null,
   batchExtractionId: null,
   createdAt: new Date('2026-08-10T01:00:00Z'),
   reviewedAt: new Date('2026-08-10T01:30:00Z'),

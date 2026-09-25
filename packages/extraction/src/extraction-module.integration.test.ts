@@ -1182,6 +1182,27 @@ if (!disposableDatabaseUrl) {
       assert.deepEqual(reopened?.latestAttempt?.requestedModels, models)
     })
 
+    it('refuses to replay a legacy job whose retryOfId still pins it as a retry', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const { module } = createRuntime(project.researcherAccountId)
+      // A first Extraction, completed normally: its job row is the retry pin's FK target.
+      const first = await module.runSingle(freshInput(project))
+      assert.equal(first.extraction.executionStatus, 'COMPLETED')
+      // A second job under its own id, then planted with a retryOfId the way a pre-migration
+      // row would carry one: no code path creates this shape any more.
+      const legacyId = randomUUID()
+      await module.runSingle(freshInput(project, legacyId))
+      const planted = await db.orm.public.ExtractionJob.where({ id: legacyId }).updateAll({
+        retryOfId: first.extraction.extractionId,
+      })
+      assert.equal(planted.length, 1)
+      await assert.rejects(
+        module.runSingle(freshInput(project, legacyId)),
+        rejectsWithCode('extraction_id_conflict'),
+      )
+    })
+
     it('stores batch model choices on every job and completed Extraction and includes them in selection identity', async (t) => {
       t.after(cleanup)
       const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])

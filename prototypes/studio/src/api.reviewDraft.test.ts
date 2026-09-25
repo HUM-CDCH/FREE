@@ -15,10 +15,10 @@ it('restores and retries a document decision after its real API request receives
     extractionId: id, sourceDocumentId: id, sourceRepresentationRevisionId: id, schemaRevisionId: id,
     strategy: 'ARTICLE', executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
     modelAttribution: { provider: 'ollama', modelId: 'fixture' },
-    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null, retry: null },
+    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null },
     failure: null, resultPayload: { records: [{ title: 'Original' }] },
     evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor' }],
-    reviewable: true, retryOfId: null, batchExtractionId: null, createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+    reviewable: true, batchExtractionId: null, createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
   }
   const pending = [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor', reviewedOccurrenceIds: ['occurrence'], action: 'APPROVED' as const, reviewedValue: null }]
   let authenticated = false

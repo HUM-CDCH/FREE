@@ -12,7 +12,6 @@ export type {
   CatalogRecordDiagnostics,
   CatalogStage,
   CatalogStageDiagnostics,
-  ExtractionRetrySelection,
   BatchExtractionResultItem,
   BatchExtractionResults,
   BatchExtractionSnapshot,

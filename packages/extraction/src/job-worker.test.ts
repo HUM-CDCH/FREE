@@ -52,10 +52,10 @@ it('relays the remote artifact and reports terminal promotion failure', async ()
     diagnostics: {
       phase: 'persisting', durationMs: 1, modelCalls: 1, finishReason: 'stop',
       inputTokens: 1, outputTokens: 1, ungroundedPaths: [], groundingIssues: [],
-      groundingBatches: [], unverifiedFields: [], catalog: null, retry: null,
+      groundingBatches: [], unverifiedFields: [], catalog: null,
     },
     failure: null, result: { records: [] }, evidence: [], reviewable: true,
-    retryOfId: null, batchExtractionId: null,
+    batchExtractionId: null,
   }
   const worker = new ExtractionJobWorker(store,
     async () => terminal,
@@ -175,10 +175,10 @@ it('does not promote a remote artifact after cancellation of a reclaimed job', a
     diagnostics: {
       phase: 'persisting', durationMs: 1, modelCalls: 1, finishReason: 'stop',
       inputTokens: 1, outputTokens: 1, ungroundedPaths: [], groundingIssues: [],
-      groundingBatches: [], unverifiedFields: [], catalog: null, retry: null,
+      groundingBatches: [], unverifiedFields: [], catalog: null,
     },
     failure: null, result: { records: [] }, evidence: [], reviewable: true,
-    retryOfId: null, batchExtractionId: null,
+    batchExtractionId: null,
   }
   const job = {
     input: {
@@ -272,10 +272,10 @@ it('fails instead of stranding a job when terminal promotion loses its lease', a
     diagnostics: {
       phase: 'grounding', durationMs: 1, modelCalls: 1, finishReason: 'stop',
       inputTokens: 1, outputTokens: 1, ungroundedPaths: [], groundingIssues: [],
-      groundingBatches: [], unverifiedFields: [], catalog: null, retry: null,
+      groundingBatches: [], unverifiedFields: [], catalog: null,
     },
     failure: null, result: { records: [] }, evidence: [], reviewable: true,
-    retryOfId: null, batchExtractionId: null,
+    batchExtractionId: null,
   }
   const worker = new ExtractionJobWorker(store, async () => terminal)
   const stop = new AbortController()
