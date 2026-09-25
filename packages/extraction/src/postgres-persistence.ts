@@ -1625,6 +1625,7 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
         for (const sourceDocumentId of canonicalIds(
           input.sourceDocumentIds,
         )) {
+          if (!(await lockSourceDocumentRow(orm, sourceDocumentId))) return 'missing' as const
           if (
             !(await orm.public.SourceDocument.select('id').first({
               id: sourceDocumentId,

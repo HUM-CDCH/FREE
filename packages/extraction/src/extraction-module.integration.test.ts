@@ -721,6 +721,62 @@ if (!disposableDatabaseUrl) {
       assert.equal(await db.orm.public.ExtractionJob.select('id').first({ id: input.extractionId }), null)
     })
 
+    it('a batch admitted behind a reprocess pins the newly published revision', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const document = project.documents[0]!
+      const { module } = createRuntime(project.researcherAccountId)
+      const revisionTwo = randomUUID()
+      const scheduled = await withHeldSourceDocumentLock(
+        process.env.EXTRACTION_TEST_DATABASE_URL!,
+        document.sourceDocumentId,
+        () => module.scheduleBatch({
+          projectContextId: project.projectContextId,
+          schemaRevisionId: project.schemaRevisionId,
+          sourceDocumentIds: [document.sourceDocumentId],
+          strategy: 'ARTICLE',
+          repetition: 'create-new',
+        }),
+        async (run) => {
+          await run(
+            `INSERT INTO "sourceRepresentationRevision"
+               (id, "sourceDocumentId", "revisionNumber", "artifactReference", "artifactSha256",
+                "contractVersion", "preprocessId", "parserName", "parserVersion")
+             VALUES ($1, $2, 2, $3, $3, 'parsed_document.v2', $4, 'test', '1')`,
+            [revisionTwo, document.sourceDocumentId, 'c'.repeat(64), `race-${randomUUID()}`],
+          )
+        },
+      )
+      assert.ok(scheduled)
+      assert.equal(scheduled.batch.members[0]?.sourceRepresentationRevisionId, revisionTwo)
+    })
+
+    it('a batch and a reprocess of one of its members both finish', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])
+      const [one, two] = project.documents as [SeededDocument, SeededDocument]
+      const { module } = createRuntime(project.researcherAccountId)
+      const store = createResearcherProjectStore(project.researcherAccountId, db)
+      const [scheduled, revised] = await Promise.all([
+        module.scheduleBatch({
+          projectContextId: project.projectContextId,
+          schemaRevisionId: project.schemaRevisionId,
+          sourceDocumentIds: [two.sourceDocumentId, one.sourceDocumentId],
+          strategy: 'ARTICLE',
+          repetition: 'create-new',
+        }),
+        store.reprocessSourceDocument(project.projectContextId, two.sourceDocumentId, {
+          ingestionKey: randomUUID(), expectedRepresentationId: two.sourceRepresentationRevisionId,
+          requestFingerprint: 'f'.repeat(64), contentSha256: sha256(strToU8(two.filename)),
+          mediaType: 'application/pdf', originalName: two.filename, ...two.storedPackage,
+          contractVersion: 'parsed_document.v2', preprocessId: 'reprocessed', parserName: 'test', parserVersion: '5',
+          ensureRetained: async () => {},
+        }),
+      ])
+      assert.ok(scheduled)
+      assert.ok(revised)
+    })
+
     it('conceals a foreign document behind the same missing answer', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
