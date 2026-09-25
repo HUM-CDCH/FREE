@@ -1,8 +1,9 @@
 # DBOS M1 verification — fa62304 — 2026-09-25
 
 Status: verification is complete for every deterministic tier at `fa62304`.
-Each tier passes there, either run at that commit or carried forward to it
-because its package is unchanged. `fa62304` is the product-code fix for
+Each tier passes there (typecheck: clean), either run at that commit or
+carried forward to it because its package is unchanged. `fa62304` is the
+product-code fix for
 [F6](#f6--resolved-in-fa62304-the-historical-review-offered-a-new-run-on-its-superseded-source).
 At `ec8820d`, `test:e2e` and `test:e2e:base-path` failed at one lifecycle
 assertion, which exposed a pre-existing product behaviour; at `fa62304` both
@@ -78,7 +79,8 @@ changes only a comment (see [Scope and environment](#scope-and-environment)).
   to `prototypes/studio/test-results/` and `test-results/config-home`, so they
   must run sequentially. The real-service harness writes to
   `artifacts/service-tests/` instead. Every browser run this record cites ran
-  on its own.
+  on its own: by the `# started:` and `# finished:` headers of their logs, no
+  two runs overlap (`task-14-logs/browser-run-windows.log`).
 - Docling weights were already in the Hugging Face cache
   (`docling-project/docling-layout-heron`, `-heron-101`, `-egret-xlarge`,
   `docling-models`).
@@ -119,7 +121,8 @@ listed under [Final state](#final-state).
   (`task-14-logs/reused-logs-provenance.log`).
 - **Run now:** run at `fa62304` on a clean tree for this revision, with the log
   in `task-14-logs/`.
-- **Carried forward:** the run at the row's commit stays valid, because
+- **Carried forward:** the run at the row's commit, whose log in
+  `task-10-logs/` the row names, stays valid, because
   `git diff --stat <its commit>..fa62304 -- <package>` prints nothing
   (`task-14-logs/carry-forward-diff-stat.log`, one command per row). Nothing
   outside `prototypes/studio` and `docs` changed since `13eb18e`.
@@ -129,27 +132,27 @@ than a skip.
 
 | Tier | Command | Commit | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| Scripts | `node --test scripts/free.test.mjs scripts/test-ci.test.mjs` | 13eb18e | 48/48 pass | carried forward: `scripts` unchanged (`carry-forward-diff-stat.log`) |
-| Studio configuration | `pnpm --filter studio-configuration test` | 13eb18e | 4/4 pass | carried forward: `packages/studio-configuration` unchanged (`carry-forward-diff-stat.log`) |
-| Studio unit | `pnpm --filter studio test` | fa62304 | 94 files, 1081/1081 pass | reused: `task-13-logs/final-studio-test.log` (`# commit: fa62304d77…`, clean tree). `ec8820d` had 1061; `fa62304` adds 20 tests: 4 API, 9 App, 6 ResultsTab and 1 ProjectNavigation. |
-| db unit | `pnpm --filter db test` | 13eb18e | 55/55 pass | carried forward: `packages/db` unchanged (`carry-forward-diff-stat.log`) |
-| Extraction unit | `pnpm --filter extraction test` | 13eb18e | 37/37 pass | carried forward: `packages/extraction` unchanged, and so are the three Studio files its `module.test.ts` imports (`carry-forward-diff-stat.log`, S1) |
-| Result export unit | `pnpm --filter extraction-result-export test` | 13eb18e | 33/33 pass | carried forward: `packages/extraction-result-export` unchanged (`carry-forward-diff-stat.log`) |
-| Parsing fast | `pnpm --filter parsing-service test` | 3e3f888 | 809 passed, 73 skipped, 127 deselected | carried forward from Task 5's run at `3e3f888`: `prototypes/parsing_service` unchanged since then (`carry-forward-diff-stat.log`). The skip-reason listing at `13eb18e` (same command, `PYTEST_ADDOPTS=-rs`) reproduced the same counts. |
+| Scripts | `node --test scripts/free.test.mjs scripts/test-ci.test.mjs` | 13eb18e | 48/48 pass | carried forward from `task-10-logs/scripts-node-test.log`: `scripts` unchanged (`carry-forward-diff-stat.log`) |
+| Studio configuration | `pnpm --filter studio-configuration test` | 13eb18e | 4/4 pass | carried forward from `task-10-logs/studio-configuration-test.log`: `packages/studio-configuration` unchanged (`carry-forward-diff-stat.log`) |
+| Studio unit | `pnpm --filter studio test` | fa62304 | 94 files, 1081/1081 pass | reused: `task-13-logs/final-studio-test.log` (`# commit: fa62304d77…`, clean tree). `ec8820d` had 1061 (`final-fix-logs/studio-test.log`), and so did `10836ba` (`task-13-logs/baseline-studio-test.log`). `fa62304` adds 20 tests, which `task-13-report.md:176` breaks down as 4 API, 9 App, 6 ResultsTab and 1 ProjectNavigation. |
+| db unit | `pnpm --filter db test` | 13eb18e | 55/55 pass | carried forward from `task-10-logs/db-test.log`: `packages/db` unchanged (`carry-forward-diff-stat.log`) |
+| Extraction unit | `pnpm --filter extraction test` | 13eb18e | 37/37 pass | carried forward from `task-10-logs/extraction-test.log`: `packages/extraction` unchanged, and so are the three Studio files its `module.test.ts` imports (`carry-forward-diff-stat.log`, S1) |
+| Result export unit | `pnpm --filter extraction-result-export test` | 13eb18e | 33/33 pass | carried forward from `task-10-logs/extraction-result-export-test.log`: `packages/extraction-result-export` unchanged (`carry-forward-diff-stat.log`) |
+| Parsing fast | `pnpm --filter parsing-service test` | 13eb18e | 809 passed, 73 skipped, 127 deselected | carried forward from `task-10-logs/parsing-test-fast-skip-listing.log`: the same command with `PYTEST_ADDOPTS=-rs` and `PARSING_FIXTURE_DIR` unset, exit 0. `prototypes/parsing_service` is unchanged since `13eb18e`; `carry-forward-diff-stat.log` holds that command under the Parsing PostgreSQL and Python smoke rows. Task 5's run at `3e3f888` had the same counts (`task-5-report.md:141`, no log), and the package is unchanged since then too. |
 | Studio typecheck | `pnpm --filter studio typecheck` | fa62304 | clean | reused: `task-13-logs/final-studio-typecheck.log` (`# commit: fa62304d77…`, clean tree) |
-| db typecheck | `pnpm --filter db typecheck` | 13eb18e | clean | carried forward: `packages/db` unchanged (`carry-forward-diff-stat.log`) |
-| Extraction typecheck | `pnpm --filter extraction typecheck` | 13eb18e | clean | carried forward: `packages/extraction` and the three Studio files it imports unchanged (`carry-forward-diff-stat.log`, S1) |
-| Result export typecheck | `pnpm --filter extraction-result-export typecheck` | 13eb18e | clean | carried forward: `packages/extraction-result-export` unchanged (`carry-forward-diff-stat.log`) |
+| db typecheck | `pnpm --filter db typecheck` | 13eb18e | clean | carried forward from `task-10-logs/db-typecheck.log`: `packages/db` unchanged (`carry-forward-diff-stat.log`) |
+| Extraction typecheck | `pnpm --filter extraction typecheck` | 13eb18e | clean | carried forward from `task-10-logs/extraction-typecheck.log`: `packages/extraction` and the three Studio files it imports unchanged (`carry-forward-diff-stat.log`, S1) |
+| Result export typecheck | `pnpm --filter extraction-result-export typecheck` | 13eb18e | clean | carried forward from `task-10-logs/extraction-result-export-typecheck.log`: `packages/extraction-result-export` unchanged (`carry-forward-diff-stat.log`) |
 | Lint | `pnpm --filter studio lint` | fa62304 | 0 errors, 3 warnings | reused: `task-13-logs/final-studio-lint.log` (`# commit: fa62304d77…`, clean tree) |
 | Safety | `pnpm test:safety` | fa62304 | 14/14 pass, none skipped | run now (`task-14-logs/test-safety.log`). It reads `prototypes/studio/Dockerfile`, so its result could not be carried forward. |
-| db PostgreSQL | `PROJECT_STORE_POSTGRES_URL=… pnpm --filter db test:postgres` | 13eb18e | 3/3 pass (one test, two subtests) | carried forward: `packages/db` unchanged (`carry-forward-diff-stat.log`) |
-| Extraction PostgreSQL | `EXTRACTION_TEST_DATABASE_URL=… pnpm --filter extraction test:postgres` | 13eb18e | 28/28 pass | carried forward: `packages/extraction` unchanged (`carry-forward-diff-stat.log`) |
-| Parsing PostgreSQL | `PARSING_TEST_DATABASE_URL=… PARSING_FIXTURE_DIR=… pnpm --filter parsing-service test:postgres` | 13eb18e | 107 passed, 0 skipped, 902 deselected | carried forward: `prototypes/parsing_service` unchanged (`carry-forward-diff-stat.log`) |
+| db PostgreSQL | `PROJECT_STORE_POSTGRES_URL=… pnpm --filter db test:postgres` | 13eb18e | 3/3 pass (one test, two subtests) | carried forward from `task-10-logs/db-test-postgres.log`: `packages/db` unchanged (`carry-forward-diff-stat.log`) |
+| Extraction PostgreSQL | `EXTRACTION_TEST_DATABASE_URL=… pnpm --filter extraction test:postgres` | 13eb18e | 28/28 pass | carried forward from `task-10-logs/extraction-test-postgres.log`: `packages/extraction` unchanged (`carry-forward-diff-stat.log`) |
+| Parsing PostgreSQL | `PARSING_TEST_DATABASE_URL=… PARSING_FIXTURE_DIR=… pnpm --filter parsing-service test:postgres` | 13eb18e | 107 passed, 0 skipped, 902 deselected | carried forward from `task-10-logs/parsing-test-postgres.log`: `prototypes/parsing_service` unchanged (`carry-forward-diff-stat.log`) |
 | Studio build | `pnpm --filter studio build` | fa62304 | pass: `tsc -b`, client and SSR bundles; no inspector strings in `dist/` | run now (`task-14-logs/studio-build.log`). The inspector-string scan has its own log, `studio-dist-inspector-scan.log`: grep exit 1, no match in the 33 files the build wrote. |
 | Browser E2E | `pnpm test:e2e` | fa62304 | 51/51 pass | reused: `task-13-logs/final-test-e2e.log` (`# commit: fa62304d77…`, clean tree). At `ec8820d`: 49 passed, 1 failed, 1 did not run ([F6](#f6--resolved-in-fa62304-the-historical-review-offered-a-new-run-on-its-superseded-source)). At `13eb18e`, two runs: [F1](#f1--e2e-run-1-mock-oidc-sign-in-failed), [F2](#f2--e2e-run-1-the-lifecycle-fixture-port-was-taken), [F3](#f3--resolved-in-eb14a28-stale-extraction-snapshot-expectation). |
 | Base-path E2E | `pnpm --filter studio test:e2e:base-path` | fa62304 | 2/2 pass | reused: `task-13-logs/final-test-e2e-base-path.log` (`# commit: fa62304d77…`, clean tree). At `ec8820d`: 0 passed, 1 failed, 1 did not run ([F6](#f6--resolved-in-fa62304-the-historical-review-offered-a-new-run-on-its-superseded-source)). At `13eb18e`: [F4](#f4--resolved-in-7d2ea8a-base-path-studio-and-the-lifecycle-fixture-shared-12700141750). |
 | Real service | `pnpm test:service` | fa62304 | 2/2 pass | run now (`task-14-logs/studio-test-service.log`). The spec drives Studio and parses its reopen response with the strict contract, to which `fa62304` added a required field. |
-| Python smoke | `PARSING_TEST_DATABASE_URL=… uv run --no-sync pytest -q tests/test_service_smoke.py` (from `prototypes/parsing_service`) | 13eb18e | 1/1 pass | carried forward: `prototypes/parsing_service` unchanged (`carry-forward-diff-stat.log`) |
+| Python smoke | `PARSING_TEST_DATABASE_URL=… uv run --no-sync pytest -q tests/test_service_smoke.py` (from `prototypes/parsing_service`) | 13eb18e | 1/1 pass | carried forward from `task-10-logs/python-smoke.log`: `prototypes/parsing_service` unchanged (`carry-forward-diff-stat.log`) |
 
 Together these cover every component of `pnpm test:all` (`typecheck`, `lint`,
 `test:unit`, `test:safety`, `test:postgres`, `test:e2e` and `test:service`),
@@ -226,6 +229,16 @@ Known pre-existing items:
 - The `src/auth/AuthApplication.test.tsx` cross-file `sessionStorage` flake did
   not recur in the one Studio unit run at `13eb18e`, nor in the one at
   `ec8820d`, nor in Task 13's final run at `fa62304`.
+- Two messages recur in the browser logs and fail nothing. In every default and
+  base-path run, Studio's web server prints Prisma Next's telemetry notice
+  (`Prisma Next collects anonymous CLI usage data, enabled by default.`). Every
+  `test:e2e` run prints a
+  `persistence_unavailable: Error: connection refused: …` stack trace from the
+  failure that `e2e/project-navigation.spec.ts:1198` ("bounds a persistence
+  failure and retries the same route") injects at `:1206`. Both appear at
+  `13eb18e` (`task-10-logs/studio-test-e2e-run2.log`), at `ec8820d`
+  (`final-fix-logs/studio-test-e2e.log`) and at `fa62304`
+  (`task-13-logs/final-test-e2e.log`).
 
 ## Failures
 
@@ -455,7 +468,7 @@ current one. Line numbers are at `fa62304`:
 - Review, cancel, export and the schema views are unchanged. A view on the
   current revision, including an `?extractionId=` pin of a current batch
   member, keeps its run actions.
-- The README (`:81-83`) now says: "Run a new Extraction on the current revision
+- The README (`:82-83`) now says: "Run a new Extraction on the current revision
   to use upgraded cell Evidence; an Extraction opened on an earlier revision
   offers no new run."
 
@@ -559,6 +572,13 @@ grep also descends into the git-ignored `prototypes/parsing_service/.venv/` and
 (Docling, torch, pygments, surya) and compiled bytecode. Its hits in tracked
 files are the same seven (`residue-grep.log`).
 
+This result is carried forward to `fa62304`. Within the search's paths, none of
+the 469 lines that `ec8820d..fa62304` adds or removes matches the pattern, and
+none of the files the table cites changed, so every hit keeps its line number.
+`git grep` over the tracked files prints the same seven lines at `ec8820d` and
+at `fa62304` (`task-14-logs/residue-carry-forward.log`; the `ec8820d` logs above
+are in `final-fix-logs/`). `4ab1ac4` changes only a comment.
+
 ## Final state
 
 - Every harness removed its own Compose containers, volumes and network. No
@@ -579,7 +599,8 @@ files are the same seven (`residue-grep.log`).
   - `task-13-logs/` for Task 13's runs at `fa62304`: the reused tiers and the
     lifecycle acceptance runs;
   - `task-14-logs/` for this revision's runs at `fa62304`, the carry-forward
-    proof, the provenance of the reused logs and the diff of `4ab1ac4`.
+    proofs for the packages and the residue search, the provenance of the
+    reused logs, the browser-run windows and the diff of `4ab1ac4`.
 - Since `13eb18e`, product code changed only in `fa62304`, the F6 fix, under
   `prototypes/studio`. The fix wave changed test code and the Playwright
   harness only (`eb14a28`, `7d2ea8a`, `ec8820d`), and `4ab1ac4` changes one
