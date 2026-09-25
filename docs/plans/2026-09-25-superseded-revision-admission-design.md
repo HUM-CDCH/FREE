@@ -17,7 +17,7 @@ A Codex (gpt-6-astra) read-only sparring round on 2026-09-25 (`.superpowers/sdd/
 
 - Scope: **the server rule and its HTTP mapping only.** The client refresh on reprocess and the Prisma telemetry line are deferred.
 - Guarantee: **lock the Source Document row.** Admission and reprocess publication take a transaction-held lock on the same row; batch admission locks member rows in stable order; there is a defined winner.
-- Lock mechanism: **`SELECT … FOR UPDATE`** through the transaction's SQL builder (a pure lock, no write). Task 1 verifies that the raw statement executes inside a Prisma Next transaction; the fallback is a no-op ORM update of the document row, which takes the same lock but writes.
+- Lock mechanism: the user chose **`SELECT … FOR UPDATE`** with a no-op ORM update as the fallback. Verified while planning: the Prisma Next 0.16 runtime executes only prepared builder statements (`RuntimeQueryable.executePrepared`), and the builder's `raw` is an expression fragment with no lock clause, so product code cannot issue `FOR UPDATE`. **The lock is therefore the no-op update** of the document row (`SourceDocument.originalName` set to its own value), which takes the same row-level lock. Tests hold `FOR UPDATE` from a second `pg` connection, as the existing helpers do.
 - Suggested batches: **permitted.** Runs started from a Schema Suggestion keep the revisions saved with the suggestion, as a documented exception.
 
 ## The rule
@@ -45,7 +45,7 @@ Under PostgreSQL's default Read Committed, a read inside the admission transacti
 
 Whichever transaction takes the lock first wins; the other blocks until it commits and then sees the committed state. Admission that commits before a reprocess keeps its job: the run was admitted while its revision was current. Artifact retention, model calls and other slow work stay outside these transactions, as today.
 
-The helper lives in `packages/db` (proposed `packages/db/src/row-lock.ts`, `lockSourceDocumentRow(transaction, sourceDocumentId)`), because both packages hold a `PostgresTransactionContext` whose `sql` builder exposes the raw tag (`@prisma-next/sql-builder`, `Db.raw`). Task 1 proves the statement executes and blocks inside a transaction; if the raw tag cannot execute a statement, the helper becomes `orm.public.SourceDocument.where({ id }).update({ originalName: <same value> })`, and the design note says so.
+The helper lives in `packages/db` (`packages/db/src/row-lock.ts`, `lockSourceDocumentRow(orm, sourceDocumentId): Promise<boolean>`, exported from `db`), because both packages call it with the transaction's `orm`. It reads the row, returns `false` when the document does not exist (callers keep their missing path), and otherwise runs `orm.public.SourceDocument.where({ id }).update({ originalName: <the value just read> })`. Task 1 proves it blocks a concurrent locker inside a transaction.
 
 ## Suggested batches: the documented exception
 
