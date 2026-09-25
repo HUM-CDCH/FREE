@@ -1209,7 +1209,8 @@ if (!disposableDatabaseUrl) {
       const { module } = createRuntime(project.researcherAccountId)
       const input = freshInput(project)
       await module.runSingle(input)
-      // Rows written before e88b08f could hold checkpointed values; nothing writes them any more.
+      // Legacy-row fixture: rows written before e88b08f could hold checkpointed values on RUNNING or FAILED
+      // jobs; nothing writes them any more.
       await db.orm.public.ExtractionJob.where({ id: input.extractionId }).updateAll({
         executionStatus: 'RUNNING',
         complete: true,
@@ -1223,6 +1224,27 @@ if (!disposableDatabaseUrl) {
       assert.equal(attempt?.complete, null)
       assert.equal(attempt?.modelAttribution, null)
       assert.equal(attempt?.diagnostics, null)
+
+      const failedInput = freshInput(project)
+      await module.runSingle(failedInput)
+      // Legacy-row fixture: a FAILED job can hold the same stale checkpoint values, plus a failure in the
+      // shape `fail()` still writes today (code/message/phase); the checkpoint columns must still read null.
+      const failure = { code: 'legacy_failure', message: 'Legacy job failure.', phase: 'grounding' as const }
+      await db.orm.public.ExtractionJob.where({ id: failedInput.extractionId }).updateAll({
+        executionStatus: 'FAILED',
+        complete: true,
+        modelAttribution: { provider: 'kei-exp', modelId: 'legacy' },
+        diagnostics: { phase: 'grounding' },
+        resultPayload: { records: [{ place: 'Rome' }] },
+        failure,
+      })
+      const failedAttempt = await module.readExtractionAttempt(failedInput.extractionId)
+      assert.equal(failedAttempt?.executionStatus, 'FAILED')
+      assert.equal(failedAttempt?.result, null)
+      assert.equal(failedAttempt?.complete, null)
+      assert.equal(failedAttempt?.modelAttribution, null)
+      assert.equal(failedAttempt?.diagnostics, null)
+      assert.deepEqual(failedAttempt?.failure, failure)
     })
 
     it('stores batch model choices on every job and completed Extraction and includes them in selection identity', async (t) => {

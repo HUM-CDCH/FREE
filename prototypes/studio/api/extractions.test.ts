@@ -7,7 +7,7 @@ import {
 } from 'extraction'
 import { createResearcherApiHandlers } from './extractions.js'
 import type * as ExtractionRuntimeModule from './_extraction_runtime.js'
-import { extractionAttemptSchema, type ExtractionModelChoice } from '../shared/extraction.contract.js'
+import { extractionAttemptSchema, extractionReadResponseSchema, type ExtractionModelChoice } from '../shared/extraction.contract.js'
 
 const runtime = vi.hoisted(() => ({
   createResearcherExtractions: vi.fn(),
@@ -369,7 +369,7 @@ describe('/api/extractions transport', () => {
     })
   })
 
-  it('reads a running job without values or review authority', async () => {
+  it('reads a running or failed job without values or review authority', async () => {
     const running = {
       ...attemptSnapshot,
       executionStatus: 'RUNNING' as const,
@@ -384,15 +384,15 @@ describe('/api/extractions transport', () => {
       reviewedAt: null,
       reviewDecisions: [],
     }
-    const module = extractionModule({
+    const runningModule = extractionModule({
       readExtractionAttempt: vi.fn(async () => running),
     })
-    const response = await handlerFor(module)(
+    const runningResponse = await handlerFor(runningModule)(
       new Request(`http://test/api/extractions/${EXTRACTION}`),
     )
 
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({
+    expect(runningResponse.status).toBe(200)
+    expect(await runningResponse.json()).toMatchObject({
       extraction: {
         executionStatus: 'RUNNING',
         outcome: null,
@@ -402,8 +402,71 @@ describe('/api/extractions transport', () => {
       },
       pendingReviewDecisions: null,
     })
-    expect(module.prepareReview).not.toHaveBeenCalled()
-    expect(module.readReviewDraft).not.toHaveBeenCalled()
+    expect(runningModule.prepareReview).not.toHaveBeenCalled()
+    expect(runningModule.readReviewDraft).not.toHaveBeenCalled()
+
+    // Legacy-row fixture: a FAILED job carries the same null checkpoint values, plus a failure the reader
+    // passes through unfiltered (`postgres-persistence.ts`'s non-completed branch).
+    const failure = { code: 'legacy_failure', message: 'Legacy job failure.', phase: 'grounding' as const }
+    const failed = {
+      ...running,
+      executionStatus: 'FAILED' as const,
+      failure,
+    }
+    const failedModule = extractionModule({
+      readExtractionAttempt: vi.fn(async () => failed),
+    })
+    const failedResponse = await handlerFor(failedModule)(
+      new Request(`http://test/api/extractions/${EXTRACTION}`),
+    )
+
+    expect(failedResponse.status).toBe(200)
+    // The strict contract: extractionReadResponseSchema is what `read()` itself parses before responding.
+    const failedBody = extractionReadResponseSchema.parse(await failedResponse.json())
+    expect(failedBody).toMatchObject({
+      extraction: {
+        executionStatus: 'FAILED',
+        outcome: null,
+        resultPayload: null,
+        evidenceLinks: null,
+        reviewable: false,
+        failure: { code: failure.code, message: failure.message },
+      },
+      pendingReviewDecisions: null,
+    })
+    expect(failedModule.prepareReview).not.toHaveBeenCalled()
+    expect(failedModule.readReviewDraft).not.toHaveBeenCalled()
+  })
+
+  it('reads a completed job whose stored diagnostics still hold the legacy retry key', async () => {
+    // Legacy-row fixture: Task 7 removed `diagnostics.retry` from the ExtractionDiagnostics type, but a
+    // COMPLETED row written before it can still hold `"retry": null` in its stored diagnostics JSON. Cast
+    // to simulate that stored shape without widening ExtractionDiagnostics itself.
+    const legacyDiagnostics = {
+      ...attemptSnapshot.diagnostics,
+      retry: null,
+    } as unknown as typeof attemptSnapshot.diagnostics
+    const legacyCompleted = { ...attemptSnapshot, diagnostics: legacyDiagnostics }
+    const module = extractionModule({
+      readExtractionAttempt: vi.fn(async () => legacyCompleted),
+    })
+    const response = await handlerFor(module)(
+      new Request(`http://test/api/extractions/${EXTRACTION}`),
+    )
+
+    expect(response.status).toBe(200)
+    const body = extractionReadResponseSchema.parse(await response.json())
+    expect(body.extraction.diagnostics).not.toHaveProperty('retry')
+    expect(body.extraction.resultPayload).toEqual(attemptSnapshot.result)
+    expect(body.pendingReviewDecisions).toEqual([
+      {
+        resultPath: ['records', 0, 'title'],
+        evidenceAnchorId: 'anchor-alpha',
+        reviewedOccurrenceIds: ['occurrence-alpha'],
+        action: 'APPROVED',
+        reviewedValue: null,
+      },
+    ])
   })
 
   it('uses bounded cancellation and domain-error HTTP mappings', async () => {
