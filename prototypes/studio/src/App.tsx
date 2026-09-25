@@ -10,6 +10,7 @@ import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
+import type { RunExtractionStrategy } from './ResultsTab'
 import { useDurableCurrentSchemaRevision } from './useCurrentSchemaRevision'
 import { requestSchema } from './api'
 import {
@@ -109,6 +110,11 @@ export type DocumentWorkspaceProps = {
   filename: string
   projectContextId: string
   sourceRepresentationId: string
+  /** Whether `sourceRepresentationId` is the Source Document's current Source
+      Representation Revision. An Extraction opened on an earlier one starts no
+      new run: a run posts the open revision, and the document route shows
+      attempts on its current one only. */
+  sourceRepresentationCurrent: boolean
   markdownUrl: string
   parsedDocumentUrl: string
   extractionSchema: DocumentSnapshot['extractionSchema']
@@ -132,6 +138,7 @@ export function DocumentWorkspace({
   filename,
   projectContextId,
   sourceRepresentationId,
+  sourceRepresentationCurrent,
   markdownUrl,
   parsedDocumentUrl,
   extractionSchema,
@@ -624,7 +631,7 @@ export function DocumentWorkspace({
   })
 
   async function runExtraction() {
-    if (savingForRun || running) return
+    if (savingForRun || running || !sourceRepresentationCurrent) return
     setSavingForRun(true)
     const targetSourceRepresentationId = sourceRepresentationId
     try {
@@ -681,6 +688,7 @@ export function DocumentWorkspace({
     savingForRun ||
     running ||
     !sourceRepresentationId ||
+    !sourceRepresentationCurrent ||
     !schemaReady ||
     indexing ||
     schemaSnap.save?.status === 'conflict' ||
@@ -692,15 +700,28 @@ export function DocumentWorkspace({
     : extraction.hasResults
       ? '↻ Re-run extraction'
       : '▶ Run extraction'
+  // The one-shot selection runExtraction posts, named on every Results-tab run
+  // action so none of them promises to repeat the inspected attempt.
+  const runExtractionStrategy: RunExtractionStrategy =
+    nextExtractionStrategy === 'CATALOG'
+      ? {
+          strategy: 'CATALOG',
+          boundaries:
+            CATALOG_RECIPES.find((recipe) => recipe.id === nextCatalogRecipe)?.label ??
+            'Model discovery',
+        }
+      : { strategy: 'ARTICLE' }
 
   const hintText =
     running
       ? 'Extraction is running. Follow its status in the Results tab'
       : extraction.hasResults
       ? 'View the extracted JSON in the Results tab'
-      : schemaReady
-        ? 'Press Run extraction to apply the schema across the whole document'
-        : 'Open the Schema tab to generate the extraction schema for this document'
+      : !sourceRepresentationCurrent
+        ? 'Go back to the current Source Representation to run a new Extraction'
+        : schemaReady
+          ? 'Press Run extraction to apply the schema across the whole document'
+          : 'Open the Schema tab to generate the extraction schema for this document'
 
   return (
     <div
@@ -832,11 +853,13 @@ export function DocumentWorkspace({
                 ? extraction.cancellationRequested
                   ? 'Waiting for the Extraction to stop'
                   : 'Cancel the active Extraction'
-                : schemaReady
-                  ? nextExtractionStrategy === 'CATALOG'
-                    ? 'Find catalogue entries and extract one record per entry'
-                    : 'Run one values extraction across the whole Source Document'
-                  : 'Generate a schema in the Schema tab first'
+                : !sourceRepresentationCurrent
+                  ? 'This view shows an Extraction on an earlier Source Representation. Go back to the current one to run a new Extraction.'
+                  : schemaReady
+                    ? nextExtractionStrategy === 'CATALOG'
+                      ? 'Find catalogue entries and extract one record per entry'
+                      : 'Run one values extraction across the whole Source Document'
+                    : 'Generate a schema in the Schema tab first'
             }
             onClick={() =>
               running
@@ -900,8 +923,9 @@ export function DocumentWorkspace({
               onGenerateInstructions={handleGenerate}
               onClearDraft={resetSchema}
               extraction={extraction}
-              onRunExtraction={runExtraction}
+              onRunExtraction={sourceRepresentationCurrent ? runExtraction : undefined}
               runExtractionDisabled={runExtractionUnavailable}
+              runExtractionStrategy={runExtractionStrategy}
               inspection={{
                 attempt: inspectedAttempt,
                 readOnly: inspectionReadOnly,

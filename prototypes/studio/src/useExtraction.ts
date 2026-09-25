@@ -11,7 +11,6 @@ import {
 import type { ExtractionState } from './extraction'
 import {
   type ExtractionAttempt,
-  type ExtractionRetrySelection,
   type ExtractionStrategy,
   type ReviewDecisionAction,
   type ReviewDecisionInput,
@@ -26,16 +25,12 @@ export const EXTRACTION_UNAVAILABLE =
   'Extraction status is unavailable: it was not found or access was denied.'
 
 
-export type ExtractionRetryInput = Omit<ExtractionRetrySelection, 'retryOfId'>
-
-type ExtractionRunRequest =
-  | Readonly<{
-      sourceRepresentationRevisionId: string
-      schemaRevisionId: string
-      strategy: ExtractionStrategy
-      catalogRecipe?: string
-    }>
-  | Readonly<{ retryOfId: string } & ExtractionRetryInput>
+type ExtractionRunRequest = Readonly<{
+  sourceRepresentationRevisionId: string
+  schemaRevisionId: string
+  strategy: ExtractionStrategy
+  catalogRecipe?: string
+}>
 
 export type ReviewTarget = {
   sourceRepresentationId: string
@@ -451,12 +446,6 @@ export function useExtraction({
     })
   }
 
-  async function retryExtraction(selection: ExtractionRetryInput) {
-    const parent = attempt
-    if (!parent || parent.strategy !== 'CATALOG') return null
-    return runRequest(true, { retryOfId: parent.extractionId, ...selection })
-  }
-
   async function acceptResult() {
     const scope = saveScopeRef.current
     if (!attempt || !canAccept || scope.saving) return
@@ -546,7 +535,6 @@ export function useExtraction({
     canRun,
     hasResults,
     runExtraction,
-    retryExtraction,
     requestCancellation,
     cancellationRequested,
     cancellationError,

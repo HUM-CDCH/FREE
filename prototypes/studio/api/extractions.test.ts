@@ -7,7 +7,7 @@ import {
 } from 'extraction'
 import { createResearcherApiHandlers } from './extractions.js'
 import type * as ExtractionRuntimeModule from './_extraction_runtime.js'
-import { extractionAttemptSchema, type ExtractionModelChoice } from '../shared/extraction.contract.js'
+import { extractionAttemptSchema, extractionReadResponseSchema, type ExtractionModelChoice } from '../shared/extraction.contract.js'
 
 const runtime = vi.hoisted(() => ({
   createResearcherExtractions: vi.fn(),
@@ -62,7 +62,6 @@ const snapshot: ExtractionSnapshot = {
     ],
     unverifiedFields: [],
     catalog: null,
-    retry: null,
   },
   result: { records: [{ title: 'Alpha' }] },
   evidence: [
@@ -70,7 +69,6 @@ const snapshot: ExtractionSnapshot = {
   ],
   failure: null,
   reviewable: true,
-  retryOfId: null,
   batchExtractionId: null,
   createdAt: new Date('2026-08-20T10:00:00.000Z'),
   reviewedAt: null,
@@ -311,7 +309,7 @@ describe('/api/extractions transport', () => {
     expect(body.diagnostics!.catalog).not.toHaveProperty('documentValues')
   })
 
-  it('maps targeted retry requests to retry inputs without caller pins', async () => {
+  it('refuses a targeted retry body from a stale page before scheduling anything', async () => {
     const module = extractionModule()
     const handle = handlerFor(module)
     const response = await handle(
@@ -324,28 +322,9 @@ describe('/api/extractions transport', () => {
       }),
     )
 
-    expect(response.status).toBe(201)
-    expect(module.runSingle).toHaveBeenCalledWith(
-      {
-        kind: 'retry',
-        extractionId: EXTRACTION,
-        retryOfId: '51000000-0000-4000-8006-000000000099',
-        retryDocument: false,
-        rediscover: true,
-        retryRecordStartBlockIds: ['heading-a'],
-      },
-      expect.anything(),
-    )
-
-    // Mixing retry identity with fresh pins stays rejected at the contract.
-    const mixed = await handle(
-      request({
-        id: EXTRACTION,
-        retryOfId: '51000000-0000-4000-8006-000000000099',
-        schemaRevisionId: '51000000-0000-4000-8006-000000000001',
-      }),
-    )
-    expect(mixed.status).toBe(422)
+    expect(response.status).toBe(422)
+    expect(await response.json()).toMatchObject({ error: { code: 'invalid_request' } })
+    expect(module.runSingle).not.toHaveBeenCalled()
   })
 
   it('reads canonical review preparation and finalizes submitted decisions', async () => {
@@ -390,36 +369,104 @@ describe('/api/extractions transport', () => {
     })
   })
 
-  it('reads provisional job values without granting review authority', async () => {
-    const provisional = {
+  it('reads a running or failed job without values or review authority', async () => {
+    const running = {
       ...attemptSnapshot,
       executionStatus: 'RUNNING' as const,
       outcome: null,
+      complete: null,
+      modelAttribution: null,
+      diagnostics: null,
+      result: null,
       evidence: null,
       failure: null,
       reviewable: false,
       reviewedAt: null,
       reviewDecisions: [],
     }
+    const runningModule = extractionModule({
+      readExtractionAttempt: vi.fn(async () => running),
+    })
+    const runningResponse = await handlerFor(runningModule)(
+      new Request(`http://test/api/extractions/${EXTRACTION}`),
+    )
+
+    expect(runningResponse.status).toBe(200)
+    expect(await runningResponse.json()).toMatchObject({
+      extraction: {
+        executionStatus: 'RUNNING',
+        outcome: null,
+        resultPayload: null,
+        evidenceLinks: null,
+        reviewable: false,
+      },
+      pendingReviewDecisions: null,
+    })
+    expect(runningModule.prepareReview).not.toHaveBeenCalled()
+    expect(runningModule.readReviewDraft).not.toHaveBeenCalled()
+
+    // Legacy-row fixture: a FAILED job carries the same null checkpoint values, plus a failure the reader
+    // passes through unfiltered (`postgres-persistence.ts`'s non-completed branch).
+    const failure = { code: 'legacy_failure', message: 'Legacy job failure.', phase: 'grounding' as const }
+    const failed = {
+      ...running,
+      executionStatus: 'FAILED' as const,
+      failure,
+    }
+    const failedModule = extractionModule({
+      readExtractionAttempt: vi.fn(async () => failed),
+    })
+    const failedResponse = await handlerFor(failedModule)(
+      new Request(`http://test/api/extractions/${EXTRACTION}`),
+    )
+
+    expect(failedResponse.status).toBe(200)
+    // The strict contract: extractionReadResponseSchema is what `read()` itself parses before responding.
+    const failedBody = extractionReadResponseSchema.parse(await failedResponse.json())
+    expect(failedBody).toMatchObject({
+      extraction: {
+        executionStatus: 'FAILED',
+        outcome: null,
+        resultPayload: null,
+        evidenceLinks: null,
+        reviewable: false,
+        failure: { code: failure.code, message: failure.message },
+      },
+      pendingReviewDecisions: null,
+    })
+    expect(failedModule.prepareReview).not.toHaveBeenCalled()
+    expect(failedModule.readReviewDraft).not.toHaveBeenCalled()
+  })
+
+  it('reads a completed job whose stored diagnostics still hold the legacy retry key', async () => {
+    // Legacy-row fixture: Task 7 removed `diagnostics.retry` from the ExtractionDiagnostics type, but a
+    // COMPLETED row written before it can still hold `"retry": null` in its stored diagnostics JSON. Cast
+    // to simulate that stored shape without widening ExtractionDiagnostics itself.
+    const legacyDiagnostics = {
+      ...attemptSnapshot.diagnostics,
+      retry: null,
+    } as unknown as typeof attemptSnapshot.diagnostics
+    const legacyCompleted = { ...attemptSnapshot, diagnostics: legacyDiagnostics }
     const module = extractionModule({
-      readExtractionAttempt: vi.fn(async () => provisional),
+      readExtractionAttempt: vi.fn(async () => legacyCompleted),
     })
     const response = await handlerFor(module)(
       new Request(`http://test/api/extractions/${EXTRACTION}`),
     )
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({
-      extraction: {
-        executionStatus: 'RUNNING',
-        outcome: null,
-        resultPayload: snapshot.result,
-        evidenceLinks: null,
-        reviewable: false,
+    const body = extractionReadResponseSchema.parse(await response.json())
+    expect(body.extraction.diagnostics).not.toHaveProperty('retry')
+    expect(body.extraction.resultPayload).toEqual(attemptSnapshot.result)
+    expect(body.pendingReviewDecisions).toEqual([
+      {
+        resultPath: ['records', 0, 'title'],
+        evidenceAnchorId: 'anchor-alpha',
+        reviewedOccurrenceIds: ['occurrence-alpha'],
+        action: 'APPROVED',
+        reviewedValue: null,
       },
-      pendingReviewDecisions: null,
-    })
-    expect(module.prepareReview).not.toHaveBeenCalled()
+    ])
   })
 
   it('uses bounded cancellation and domain-error HTTP mappings', async () => {

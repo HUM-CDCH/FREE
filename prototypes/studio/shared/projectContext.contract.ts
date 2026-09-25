@@ -186,6 +186,12 @@ export const documentReopenResponseSchema = z
       .object({
         sourceRepresentationId: canonicalUuidSchema,
         revisionNumber,
+        /**
+         * Whether this is the Source Document's current Source Representation
+         * Revision. A reopen by `extractionId` opens that Extraction's own
+         * revision, which reprocessing may have superseded.
+         */
+        current: z.boolean(),
         resources: sourceRepresentationResourcesSchema,
       })
       .strict(),

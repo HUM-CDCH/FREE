@@ -8,6 +8,7 @@ import DocumentWorkspace, { type DocumentWorkspaceProps } from './App'
 import { subscribeToAuthenticationRequired } from './auth/authenticatedFetch.ts'
 import parsedDocument from './assets/parsed_document.v2.json'
 import type { SchemaNode } from 'extraction/schema'
+import type { ExtractionAttempt } from '../shared/extraction.contract'
 
 const {
   destroyLoadingTask,
@@ -137,6 +138,7 @@ const reopened: DocumentWorkspaceProps = {
     '/api/project-contexts/51000000-0000-4000-8000-000000000001/source-representations/51000000-0000-4000-8002-000000000001/pdf',
   filename: 'Beretning.pdf',
   sourceRepresentationId: '51000000-0000-4000-8002-000000000001',
+  sourceRepresentationCurrent: true,
   markdownUrl:
     '/api/project-contexts/51000000-0000-4000-8000-000000000001/source-representations/51000000-0000-4000-8002-000000000001/markdown',
   parsedDocumentUrl:
@@ -160,13 +162,12 @@ const reopened: DocumentWorkspaceProps = {
     executionStatus: 'COMPLETED',
     outcome: 'SUCCEEDED',
     complete: true,
-    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null, retry: null },
+    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null },
     failure: null,
     resultPayload: { place: 'Ellekilde' },
     evidenceLinks: [],
     modelAttribution: { provider: 'ollama', modelId: 'fixture' },
     reviewable: true,
-    retryOfId: null,
     batchExtractionId: null,
     reviewDecisions: [],
     sourceRepresentation: {
@@ -1036,7 +1037,7 @@ describe('reopened Source Document workspace', () => {
     if (runSurface === 'results')
       fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     const run = screen.getByRole('button', {
-      name: runSurface === 'toolbar' ? '↻ Re-run extraction' : 'Rerun',
+      name: runSurface === 'toolbar' ? '↻ Re-run extraction' : 'Run Article extraction',
     })
     fireEvent.click(run)
     if (runSurface === 'toolbar') {
@@ -1062,10 +1063,9 @@ describe('reopened Source Document workspace', () => {
         finishReason: 'stop', inputTokens: 1, outputTokens: 1,
         grounding: null,
         catalog: null,
-        retry: null,
       },
       failure: null, resultPayload: { records: [{ place: 'Article' }] },
-      evidenceLinks: [], reviewable: true, retryOfId: null, batchExtractionId: null,
+      evidenceLinks: [], reviewable: true, batchExtractionId: null,
       createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
     }))
     expect(
@@ -1140,10 +1140,10 @@ describe('reopened Source Document workspace', () => {
     )
     expect(screen.getByText('Previous schema')).toBeInTheDocument()
     expect(screen.getByText('Review applies to Schema Revision 1')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Rerun' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Run (Article|Catalog) extraction$/ })).not.toBeInTheDocument()
     expect(screen.getByText('Ellekilde')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Run with current schema' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Run Article extraction with current schema' }))
     await waitFor(() => expect(extractionRequests).toHaveLength(1))
     expect(extractionRequests[0]!.schemaRevisionId).toBe(savedSchemaRevisionId)
     extractionResponse.resolve(Response.json({
@@ -1153,7 +1153,7 @@ describe('reopened Source Document workspace', () => {
       schemaRevisionId: savedSchemaRevisionId,
       strategy: 'ARTICLE', executionStatus: 'RUNNING', outcome: null, complete: null,
       modelAttribution: null, diagnostics: null, failure: null, resultPayload: null,
-      evidenceLinks: null, reviewable: false, retryOfId: null, batchExtractionId: null,
+      evidenceLinks: null, reviewable: false, batchExtractionId: null,
       createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
     }, { status: 201 }))
     expect(await screen.findByText('Using Schema Revision 2 · Current revision: 2', undefined, { timeout: 4_000 })).toBeInTheDocument()
@@ -1190,7 +1190,7 @@ describe('reopened Source Document workspace', () => {
             diagnostics: null,
             failure: { code: 'catalog_discovery_failed', message: 'Discovery failed.' },
             resultPayload: null, evidenceLinks: null, reviewable: false,
-            retryOfId: null, batchExtractionId: null,
+            batchExtractionId: null,
             createdAt: '2026-08-12T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
           }, { status: 201 }))
         }
@@ -1224,6 +1224,161 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByLabelText('Record boundaries')).not.toBeInTheDocument()
   })
 
+  describe('Results-tab run action after a Catalog attempt', () => {
+    // Every Results-tab run action posts the toolbar's one-shot selection, so
+    // after any Catalog attempt it names and posts the Article default until
+    // the researcher selects Catalog again.
+    const catalogAttempts: Record<'FAILED' | 'SUCCEEDED', ExtractionAttempt> = {
+      FAILED: {
+        extractionId: '51000000-0000-4000-8006-000000000041',
+        sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+        sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+        schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+        strategy: 'CATALOG', executionStatus: 'FAILED', outcome: null, complete: null,
+        modelAttribution: null, diagnostics: null,
+        failure: { code: 'catalog_discovery_failed', message: 'Discovery failed.' },
+        resultPayload: null, evidenceLinks: null, reviewable: false, batchExtractionId: null,
+        createdAt: '2026-08-12T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+      },
+      SUCCEEDED: {
+        extractionId: '51000000-0000-4000-8006-000000000042',
+        sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+        sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+        schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+        strategy: 'CATALOG', executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
+        modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+        diagnostics: {
+          phase: 'grounding', durationMs: 1, modelCalls: 1,
+          finishReason: 'stop', inputTokens: 1, outputTokens: 1,
+          grounding: null, catalog: null,
+        },
+        failure: null, resultPayload: { records: [{ place: 'Catalogued' }] }, evidenceLinks: [],
+        reviewable: true, batchExtractionId: null,
+        createdAt: '2026-08-12T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+      },
+    }
+
+    /** The exact body a run from this workspace posts for a toolbar selection. */
+    const posted = (strategy: 'ARTICLE' | 'CATALOG', catalogRecipe?: string) => ({
+      id: expect.any(String),
+      sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+      schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+      strategy,
+      ...(catalogRecipe ? { catalogRecipe } : {}),
+    })
+
+    /** Answers every run with a terminal attempt of the posted strategy and keeps each request body. */
+    function stubRuns(outcome: 'FAILED' | 'SUCCEEDED') {
+      const bodies: Array<{ id: string; strategy: 'ARTICLE' | 'CATALOG' }> = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((input: string | URL | Request, init?: RequestInit) => {
+          const url = String(input)
+          if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+          if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+          if (url.startsWith('/api/schema-revisions?'))
+            return Promise.resolve(Response.json({ revisions: [] }))
+          if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+            const body = JSON.parse(String(init.body)) as { id: string; strategy: 'ARTICLE' | 'CATALOG' }
+            bodies.push(body)
+            return Promise.resolve(Response.json(
+              { ...catalogAttempts[outcome], extractionId: body.id, strategy: body.strategy },
+              { status: 201 },
+            ))
+          }
+          return Promise.resolve(new Response('pdf'))
+        }),
+      )
+      return bodies
+    }
+
+    async function renderWorkspace(persistedExtraction: DocumentWorkspaceProps['persistedExtraction']) {
+      render(<DocumentWorkspace {...reopened} persistedExtraction={persistedExtraction} />)
+      await waitFor(() =>
+        expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+      )
+    }
+
+    /** Starts a Catalog run from the toolbar; acknowledging it resets the one-shot selection. */
+    async function runCatalogFromToolbar(bodies: unknown[], recipe?: string) {
+      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+      if (recipe)
+        fireEvent.change(screen.getByLabelText('Record boundaries'), { target: { value: recipe } })
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      await waitFor(() => expect(bodies).toHaveLength(1))
+      expect(bodies[0]).toEqual(posted('CATALOG', recipe))
+      await waitFor(() =>
+        expect(screen.getByLabelText('Extraction strategy')).toHaveValue('ARTICLE'),
+      )
+    }
+
+    /** Opens Results and finds its run action by the exact name it must carry. */
+    function resultsRunAction(name: string) {
+      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+      return screen.getByRole('button', { name })
+    }
+
+    it.each([
+      ['fails', 'FAILED'],
+      ['succeeds', 'SUCCEEDED'],
+    ] as const)('names and posts Article after a Catalog run that %s', async (_label, outcome) => {
+      const bodies = stubRuns(outcome)
+      await renderWorkspace(null)
+      await runCatalogFromToolbar(bodies)
+      if (outcome === 'SUCCEEDED')
+        fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+
+      const action = resultsRunAction('Run Article extraction')
+      expect(action).not.toHaveAccessibleDescription()
+      fireEvent.click(action)
+      await waitFor(() => expect(bodies).toHaveLength(2))
+      expect(bodies[1]).toEqual(posted('ARTICLE'))
+    })
+
+    it.each([
+      ['failed', 'FAILED', 'Extraction failed'],
+      ['completed', 'SUCCEEDED', 'Catalogued'],
+    ] as const)('names and posts Article after reopening a %s Catalog attempt', async (_label, outcome, shown) => {
+      const bodies = stubRuns(outcome)
+      await renderWorkspace({
+        ...catalogAttempts[outcome],
+        sourceRepresentation: reopened.persistedExtraction!.sourceRepresentation,
+        extractionSchema: reopened.persistedExtraction!.extractionSchema,
+      })
+      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('ARTICLE')
+
+      const action = resultsRunAction('Run Article extraction')
+      // Results shows the reopened Catalog attempt, not an empty workspace's run action.
+      expect(screen.getByText(shown)).toBeVisible()
+      expect(action).not.toHaveAccessibleDescription()
+      fireEvent.click(action)
+      await waitFor(() => expect(bodies).toHaveLength(1))
+      expect(bodies[0]).toEqual(posted('ARTICLE'))
+    })
+
+    it.each([
+      ['selects the recipe again', 'numbered-catalogue-de@1', 'Numbered catalogue (German)'],
+      ['keeps Model discovery', undefined, 'Model discovery'],
+    ] as const)('after a recipe run, names and posts Catalog as the researcher %s', async (_label, recipe, boundaries) => {
+      const bodies = stubRuns('FAILED')
+      await renderWorkspace(null)
+      await runCatalogFromToolbar(bodies, 'numbered-catalogue-de@1')
+      // The recipe is one-shot like the strategy: selecting Catalog again starts at Model discovery.
+      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+      expect(screen.getByLabelText('Record boundaries')).toHaveValue('')
+      expect(resultsRunAction('Run Catalog extraction')).toHaveAccessibleDescription('Boundaries: Model discovery')
+      if (recipe)
+        fireEvent.change(screen.getByLabelText('Record boundaries'), { target: { value: recipe } })
+
+      const action = screen.getByRole('button', { name: 'Run Catalog extraction' })
+      expect(action).toHaveAccessibleDescription(`Boundaries: ${boundaries}`)
+      expect(screen.getByText(`Boundaries: ${boundaries}`)).toBeVisible()
+      fireEvent.click(action)
+      await waitFor(() => expect(bodies).toHaveLength(2))
+      expect(bodies[1]).toEqual(posted('CATALOG', recipe))
+    })
+  })
+
   describe('Extraction Model Choice', () => {
     const listing = {
       defaults: { fields: 'nuextract', reasoning: 'instruct' },
@@ -1240,7 +1395,7 @@ describe('reopened Source Document workspace', () => {
       strategy: 'ARTICLE', requestedModels: body.models ?? null, executionStatus, outcome: null, complete: null,
       modelAttribution: null, diagnostics: null,
       failure: executionStatus === 'FAILED' ? { code: 'extraction_failed', message: 'kei-exp returned HTTP 422.' } : null,
-      resultPayload: null, evidenceLinks: null, reviewable: false, retryOfId: null, batchExtractionId: null,
+      resultPayload: null, evidenceLinks: null, reviewable: false, batchExtractionId: null,
       createdAt: '2026-08-12T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
     })
     function stubFetch(models: () => Response, executionStatus: 'RUNNING' | 'FAILED') {
@@ -1387,7 +1542,6 @@ describe('reopened Source Document workspace', () => {
       resultPayload: null,
       evidenceLinks: null,
       reviewable: false,
-      retryOfId: null,
       batchExtractionId: null,
       createdAt: reopened.persistedExtraction!.createdAt,
       reviewedAt: null,
@@ -1499,12 +1653,12 @@ describe('reopened Source Document workspace', () => {
             outcome: 'SUCCEEDED',
             complete: true,
             modelAttribution: { provider: 'ollama', modelId: 'test-model' },
-            diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null, catalog: null, retry: null },
+            diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null, catalog: null },
             failure: null,
             resultPayload: { records: [{ number: '24-1' }] },
             evidenceLinks: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor' }],
             reviewable: true,
-            retryOfId: null, batchExtractionId: null,
+            batchExtractionId: null,
             createdAt: '2026-08-10T00:00:00.000Z',
             reviewedAt: null,
             reviewDecisions: [],
@@ -1520,10 +1674,10 @@ describe('reopened Source Document workspace', () => {
               schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
               strategy: 'ARTICLE', executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
               modelAttribution: { provider: 'ollama', modelId: 'test-model' },
-              diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null, catalog: null, retry: null },
+              diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null, catalog: null },
               failure: null, resultPayload: { records: [{ number: '24-1' }] },
               evidenceLinks: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor' }],
-              reviewable: true, retryOfId: null, batchExtractionId: null,
+              reviewable: true, batchExtractionId: null,
               createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null,
               reviewDecisions: [],
             },
@@ -1549,10 +1703,10 @@ describe('reopened Source Document workspace', () => {
             schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
             strategy: 'ARTICLE', executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
             modelAttribution: { provider: 'ollama', modelId: 'test-model' },
-            diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null, catalog: null, retry: null },
+            diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null, catalog: null },
             failure: null, resultPayload: { records: [{ number: '24-1' }] },
             evidenceLinks: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor' }],
-            reviewable: true, retryOfId: null, batchExtractionId: null, createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: '2026-08-10T00:01:00.000Z',
+            reviewable: true, batchExtractionId: null, createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: '2026-08-10T00:01:00.000Z',
             reviewDecisions: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor', reviewedOccurrenceIds: ['bundled-occurrence'], action: 'APPROVED', reviewedValue: null, createdAt: '2026-08-10T00:01:00.000Z' }],
           })
         }
@@ -1619,14 +1773,14 @@ describe('reopened Source Document workspace', () => {
             strategy: 'ARTICLE',
             executionStatus,
             outcome,
-            complete: failedJob ? true : null,
-            modelAttribution: failedJob ? { provider: 'ollama', modelId: 'test-model' } : null,
-            diagnostics: { phase: 'extracting', durationMs: 1, modelCalls: 1, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null, retry: null },
+            complete: null,
+            modelAttribution: null,
+            diagnostics: failedJob ? null : { phase: 'extracting', durationMs: 1, modelCalls: 1, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null },
             failure: failedJob ? { code: 'extraction_failed', message: 'Extraction failed.' } : null,
-            resultPayload: failedJob ? { records: [{ place: 'Checkpointed' }] } : null,
+            resultPayload: null,
             evidenceLinks: null,
             reviewable: false,
-            retryOfId: null, batchExtractionId: null,
+            batchExtractionId: null,
             createdAt: '2026-08-10T00:00:00.000Z',
             reviewedAt: null,
             reviewDecisions: [],
@@ -1648,6 +1802,274 @@ describe('reopened Source Document workspace', () => {
 
 })
 
+
+describe('an Extraction reopened on a superseded Source Representation', () => {
+  // Reprocessing published `reopened`'s Source Representation after this one,
+  // and a Schema Revision after the one `reopened`'s attempts ran with.
+  const earlierRepresentationId = '51000000-0000-4000-8002-000000000002'
+  const earlierResource = (artifact: 'pdf' | 'markdown' | 'source') =>
+    `/api/project-contexts/${reopened.projectContextId}/source-representations/${earlierRepresentationId}/${artifact}`
+  const currentSchema = {
+    ...reopened.extractionSchema!,
+    schemaRevisionId: '51000000-0000-4000-8005-000000000003',
+    revisionNumber: 2,
+  }
+  const earlierSourceRunTitle =
+    'This view shows an Extraction on an earlier Source Representation. Go back to the current one to run a new Extraction.'
+  const unfinished = {
+    complete: null, modelAttribution: null, diagnostics: null,
+    resultPayload: null, evidenceLinks: null, reviewable: false,
+  } as const
+
+  /** One Extraction as the attempt contract carries it. */
+  const attemptOn = (
+    sourceRepresentationRevisionId: string,
+    overrides: Partial<ExtractionAttempt> = {},
+  ): ExtractionAttempt => ({
+    extractionId: '51000000-0000-4000-8006-000000000051',
+    sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+    sourceRepresentationRevisionId,
+    schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+    strategy: 'ARTICLE', executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
+    modelAttribution: { provider: 'ollama', modelId: 'fixture' },
+    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null },
+    failure: null, resultPayload: { place: 'Ellekilde' }, evidenceLinks: [],
+    reviewable: true, batchExtractionId: null,
+    createdAt: '2026-07-31T12:03:00.000Z', reviewedAt: null, reviewDecisions: [],
+    ...overrides,
+  })
+
+  /** The attempt as a reopen pins it to the earlier source and its own Schema Revision. */
+  const reopenedOnEarlierSource = (attempt: ExtractionAttempt) => ({
+    ...attempt,
+    sourceRepresentation: {
+      revisionNumber: 1,
+      resources: {
+        sourcePdfUrl: earlierResource('pdf'),
+        markdownUrl: earlierResource('markdown'),
+        parsedDocumentUrl: earlierResource('source'),
+      },
+    },
+    extractionSchema: {
+      ...reopened.persistedExtraction!.extractionSchema,
+      revisionNumber: attempt.schemaRevisionId === currentSchema.schemaRevisionId ? 2 : 1,
+    },
+  })
+
+  /** What AppFrame opens for `?extractionId=` of an Extraction on the earlier source. */
+  function pinnedView(attempt: ExtractionAttempt): DocumentWorkspaceProps {
+    const pinned = reopenedOnEarlierSource(attempt)
+    return {
+      ...reopened,
+      sourceRepresentationId: earlierRepresentationId,
+      sourceRepresentationCurrent: false,
+      pdfUrl: earlierResource('pdf'),
+      markdownUrl: earlierResource('markdown'),
+      parsedDocumentUrl: earlierResource('source'),
+      extractionSchema: currentSchema,
+      persistedExtraction: pinned,
+      latestReviewedExtraction: attempt.reviewedAt ? pinned : null,
+    }
+  }
+
+  /** Serves the workspace's reads (`reads`, by URL) and keeps every posted run and cancellation. */
+  function stubWorkspace(reads: Record<string, unknown> = {}) {
+    const runs: Array<{ id: string; sourceRepresentationRevisionId: string; schemaRevisionId: string }> = []
+    const cancellations: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+        if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+        if (url.startsWith('/api/schema-revisions?'))
+          return Promise.resolve(Response.json({ revisions: [] }))
+        if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+          const run = JSON.parse(String(init.body)) as (typeof runs)[number]
+          runs.push(run)
+          // A terminal answer, so no monitor outlives the test.
+          return Promise.resolve(Response.json(attemptOn(run.sourceRepresentationRevisionId, {
+            ...unfinished,
+            extractionId: run.id,
+            schemaRevisionId: run.schemaRevisionId,
+            executionStatus: 'FAILED',
+            outcome: null,
+            failure: { code: 'extraction_failed', message: 'Extraction failed.' },
+          }), { status: 201 }))
+        }
+        if (url.startsWith('/api/extractions/') && init?.method === 'DELETE') {
+          cancellations.push(url)
+          return Promise.resolve(Response.json({ extractionId: url.split('/').at(-1) }, { status: 202 }))
+        }
+        if (url in reads) return Promise.resolve(Response.json(reads[url]))
+        return Promise.resolve(new Response('pdf'))
+      }),
+    )
+    return { runs, cancellations }
+  }
+
+  async function renderView(view: DocumentWorkspaceProps) {
+    const mounted = render(<DocumentWorkspace {...view} />)
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+    return mounted
+  }
+
+  const resultsRunActions = () =>
+    screen.queryAllByRole('button', { name: /^Run (Article|Catalog) extraction/ })
+
+  it.each([
+    [
+      'a reviewed result on a previous Schema Revision',
+      attemptOn(earlierRepresentationId, { reviewedAt: '2026-08-01T00:00:00.000Z' }),
+      'Review applies to Schema Revision 1',
+    ],
+    [
+      'a result on the Current Schema Revision',
+      attemptOn(earlierRepresentationId, { schemaRevisionId: currentSchema.schemaRevisionId }),
+      'Using Schema Revision 2 · Current revision: 2',
+    ],
+    [
+      'a failed attempt',
+      attemptOn(earlierRepresentationId, {
+        ...unfinished,
+        executionStatus: 'FAILED',
+        outcome: null,
+        failure: { code: 'extraction_failed', message: 'The model was unreachable.' },
+      }),
+      'Extraction failed',
+    ],
+    [
+      'a cancelled attempt',
+      attemptOn(earlierRepresentationId, { ...unfinished, outcome: 'CANCELLED' }),
+      'Extraction cancelled',
+    ],
+  ] as const)('offers no new run from %s', async (_label, attempt, shown) => {
+    stubWorkspace()
+    await renderView(pinnedView(attempt))
+
+    const run = screen.getByRole('button', { name: /^(↻ Re-run|▶ Run) extraction$/ })
+    expect(run).toBeDisabled()
+    expect(run).toHaveAttribute('title', earlierSourceRunTitle)
+    expect(screen.queryByText(/^Press Run extraction/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(screen.getByText(shown, { exact: true })).toBeVisible()
+    expect(resultsRunActions()).toEqual([])
+  })
+
+  it('keeps Review of an unreviewed result open', async () => {
+    const attempt = attemptOn(earlierRepresentationId, {
+      schemaRevisionId: currentSchema.schemaRevisionId,
+      resultPayload: { records: [{ place: 'Ellekilde' }] },
+      evidenceLinks: [{ resultPath: ['records', 0, 'place'], evidenceAnchorId: 'bundled-anchor' }],
+    })
+    stubWorkspace({
+      [`/api/extractions/${attempt.extractionId}`]: {
+        extraction: attempt,
+        pendingReviewDecisions: [{
+          resultPath: ['records', 0, 'place'],
+          evidenceAnchorId: 'bundled-anchor',
+          reviewedOccurrenceIds: ['bundled-occurrence'],
+          action: 'APPROVED',
+          reviewedValue: null,
+        }],
+      },
+    })
+    await renderView(pinnedView(attempt))
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Approve remaining (1)' })).toBeEnabled(),
+    )
+    expect(screen.getByRole('button', { name: 'Reject place' })).toBeEnabled()
+    expect(resultsRunActions()).toEqual([])
+    expect(screen.getByRole('button', { name: '↻ Re-run extraction' })).toBeDisabled()
+  })
+
+  it('still cancels a running Extraction', async () => {
+    const attempt = attemptOn(earlierRepresentationId, {
+      ...unfinished,
+      executionStatus: 'RUNNING',
+      outcome: null,
+    })
+    const { cancellations } = stubWorkspace()
+    await renderView(pinnedView(attempt))
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(screen.getAllByRole('button', { name: 'Cancel extraction' })).toHaveLength(2)
+    const cancel = screen.getByTitle('Cancel the active Extraction')
+    expect(cancel).toBeEnabled()
+    fireEvent.click(cancel)
+    await waitFor(() =>
+      expect(cancellations).toEqual([`/api/extractions/${attempt.extractionId}`]),
+    )
+  })
+
+  it.each([
+    ['the plain view of the current Source Representation', reopened],
+    [
+      'an Extraction pinned on the current Source Representation',
+      {
+        ...reopened,
+        persistedExtraction: {
+          ...reopened.persistedExtraction!,
+          extractionId: '51000000-0000-4000-8006-000000000061',
+          batchExtractionId: '51000000-0000-4000-8007-000000000001',
+        },
+      },
+    ],
+  ] as const)('keeps the run actions of %s', async (_label, view) => {
+    const { runs } = stubWorkspace()
+    await renderView(view)
+
+    const run = screen.getByRole('button', { name: '↻ Re-run extraction' })
+    expect(run).toBeEnabled()
+    expect(run).toHaveAttribute('title', 'Run one values extraction across the whole Source Document')
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Run Article extraction' }))
+    await waitFor(() => expect(runs).toHaveLength(1))
+    expect(runs[0]).toMatchObject({ sourceRepresentationRevisionId: reopened.sourceRepresentationId })
+  })
+
+  it('offers the run again once Back reopens the current Source Representation, and posts that one', async () => {
+    const reviewed = attemptOn(earlierRepresentationId, { reviewedAt: '2026-08-01T00:00:00.000Z' })
+    const { runs } = stubWorkspace()
+    const { rerender } = await renderView(pinnedView(reviewed))
+    expect(screen.getByRole('button', { name: '↻ Re-run extraction' })).toBeDisabled()
+
+    // The plain route: the current Source Representation, its newer unreviewed
+    // attempt, and the reviewed one still on the earlier source.
+    rerender(
+      <DocumentWorkspace
+        {...reopened}
+        extractionSchema={currentSchema}
+        persistedExtraction={{
+          ...reopened.persistedExtraction!,
+          extractionId: '51000000-0000-4000-8006-000000000052',
+          schemaRevisionId: currentSchema.schemaRevisionId,
+          extractionSchema: { ...reopened.persistedExtraction!.extractionSchema, revisionNumber: 2 },
+        }}
+        latestReviewedExtraction={reopenedOnEarlierSource(reviewed)}
+      />,
+    )
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+    expect(screen.getByRole('button', { name: 'Open latest reviewed' })).toBeInTheDocument()
+    const run = screen.getByRole('button', { name: '↻ Re-run extraction' })
+    expect(run).toBeEnabled()
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(screen.getByRole('button', { name: 'Run Article extraction' })).toBeEnabled()
+
+    fireEvent.click(run)
+    await waitFor(() => expect(runs).toHaveLength(1))
+    expect(runs[0]).toMatchObject({
+      sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+      schemaRevisionId: currentSchema.schemaRevisionId,
+    })
+  })
+})
 
 describe('updated latest reviewed extraction', () => {
   it('refreshes the historical choice after rerender', async () => {

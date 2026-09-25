@@ -141,11 +141,7 @@ export class ExtractionJobWorker {
     }
     const timer = setInterval(() => void renew(), LEASE_RENEW_MS)
     const timeout = AbortSignal.timeout(
-      job.input.kind !== 'retry' && job.input.strategy === 'CATALOG'
-        ? CATALOG_MEMBER_TIMEOUT_MS
-        : job.input.kind === 'retry'
-          ? CATALOG_MEMBER_TIMEOUT_MS
-          : MEMBER_TIMEOUT_MS,
+      job.input.strategy === 'CATALOG' ? CATALOG_MEMBER_TIMEOUT_MS : MEMBER_TIMEOUT_MS,
     )
     const signal = AbortSignal.any([outerSignal, controller.signal, timeout])
     try {

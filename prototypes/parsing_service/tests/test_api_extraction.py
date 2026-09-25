@@ -61,8 +61,6 @@ def test_a_finished_run_admits_an_extraction_and_answers_202(client, tmp_path):
     # The generation the 202 reports is the one the job is pinned to, not merely the one the route happened to
     # read: a result rewritten before the job runs is refused rather than silently extracted from.
     assert row.generation == body["generation"] == read_manifest(tmp_path / "run-p" / "result").generation
-    listed = client.get("/api/runs/run-p/extractions").json()
-    assert [item["id"] for item in listed] == [body["id"]] and listed[0]["status"] == "queued"
 
 
 def test_the_status_route_serves_the_artifact_once_the_job_is_done(client, tmp_path, monkeypatch):
@@ -103,8 +101,6 @@ def test_a_retrying_job_shows_neither_the_failed_attempts_finish_nor_its_error(c
             conn.commit()
         retrying = client.get(f"/api/runs/run-p/extractions/{extraction_id}").json()
         assert retrying["status"] == status and retrying["finished"] is None and retrying["error"] is None
-        listed = client.get("/api/runs/run-p/extractions").json()
-        assert listed[0]["finished"] is None and listed[0]["error"] is None
 
 
 def run_the_queue(database: str) -> None:
@@ -158,7 +154,6 @@ def test_the_worker_retries_a_transient_failure_and_the_client_only_ever_sees_a_
     queued = client.get(f"/api/runs/run-p/extractions/{extraction_id}").json()
     assert queued["status"] == "queued" and queued["finished"] is None and queued["error"] is None
     assert queued["result"] is None
-    assert client.get("/api/runs/run-p/extractions").json()[0]["error"] is None
 
     def due() -> bool:  # the strategy's own delay, waited out on the row it wrote, not on a duration
         with store.connection() as conn:
@@ -185,7 +180,6 @@ def test_an_extraction_is_read_only_under_its_own_run(client):
     extraction_id = client.post("/api/runs/run-p/extract", json={"schema": TREE}).json()["id"]
     assert client.get(f"/api/runs/run-h/extractions/{extraction_id}").status_code == 404
     assert client.get("/api/runs/run-p/extractions/x-nope").status_code == 404
-    assert client.get("/api/runs/no-such-run/extractions").status_code == 404
 
 
 def test_a_historical_file_only_run_cannot_be_extracted(client):
@@ -220,8 +214,5 @@ def test_an_unreachable_store_answers_503(client, monkeypatch):
         raise store.Unavailable("refused")
     monkeypatch.setattr(store, "admit_extraction", down)
     monkeypatch.setattr(store, "extraction", down)
-    monkeypatch.setattr(store, "extractions_of", down)
     assert client.post("/api/runs/run-p/extract", json={"schema": TREE}).status_code == 503
     assert client.get("/api/runs/run-p/extractions/x-1").status_code == 503
-    listing = client.get("/api/runs/run-p/extractions")
-    assert (listing.status_code, listing.headers.get("retry-after")) == (503, "1")

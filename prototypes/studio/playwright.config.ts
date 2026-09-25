@@ -15,6 +15,9 @@ const stack = configurePlaywrightStack({
 const e2eConfigHome = resolve(import.meta.dirname, 'test-results/config-home')
 const e2ePort = stack.applicationPort
 const e2eOrigin = `http://localhost:${e2ePort}`
+// The lifecycle spec's fake kei-exp listens here, and Studio's KEI_EXP_URL points at it.
+const keiExpUrl = 'http://127.0.0.1:41750'
+process.env.FREE_PLAYWRIGHT_KEI_EXP_URL = keiExpUrl
 
 export default defineConfig({
   testDir: './e2e',
@@ -27,7 +30,7 @@ export default defineConfig({
     url: e2eOrigin,
     env: {
       DATABASE_URL: stack.databaseUrl,
-      KEI_EXP_URL: 'http://127.0.0.1:41750',
+      KEI_EXP_URL: keiExpUrl,
       FREE_PLAYWRIGHT_LIFECYCLE_ID: stack.lifecycleId,
       STUDIO_ORIGIN: e2eOrigin,
       STUDIO_BASE_PATH: '/',

@@ -39,7 +39,6 @@ function transportDiagnostics(
           records: diagnostics.catalog.records,
         }
       : null,
-    retry: diagnostics.retry ?? null,
     ...(diagnostics.grounded ? { grounded: diagnostics.grounded } : {}),
     ...(diagnostics.models ? { models: diagnostics.models } : {}),
   }
@@ -69,7 +68,6 @@ export function extractionAttemptDto(extraction: ExtractionAttemptSnapshot) {
     resultPayload: extraction.result,
     evidenceLinks: extraction.evidence,
     reviewable: extraction.reviewable,
-    retryOfId: extraction.retryOfId,
     batchExtractionId: extraction.batchExtractionId,
     createdAt: extraction.createdAt.toISOString(),
     reviewedAt: extraction.reviewedAt?.toISOString() ?? null,

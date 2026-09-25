@@ -84,15 +84,16 @@ test('PDF upload, real parse worker, extraction, evidence and review survive ser
       completedIds.push(id)
     }
 
-    const remote = await (await fetch(`${service.url}/api/runs/${runId}/extractions`)).json()
-    expect(remote).toHaveLength(2)
-    const acceptedArtifacts = await Promise.all(remote.map(async (job: { id: string }) => {
-      const polled = await (await fetch(`${service.url}/api/runs/${runId}/extractions/${job.id}`)).json()
+    // kei-exp names each extraction's directory by its id; Studio does not keep that id.
+    const extractionIds = await readdir(join(service.runs, runId, 'extractions'))
+    expect(extractionIds).toHaveLength(2)
+    const acceptedArtifacts = await Promise.all(extractionIds.map(async (extractionId) => {
+      const polled = await (await fetch(`${service.url}/api/runs/${runId}/extractions/${extractionId}`)).json()
       expect(polled.status).toBe('done')
       expect(polled.result.model).toBe(service.model)
       // One scripted server takes both roles, so each role reports the same model.
       expect(polled.result.models).toEqual({ fields: service.model, reasoning: service.model })
-      const disk = JSON.parse(await readFile(join(service.runs, runId, 'extractions', job.id, 'result.json'), 'utf8'))
+      const disk = JSON.parse(await readFile(join(service.runs, runId, 'extractions', extractionId, 'result.json'), 'utf8'))
       expect(polled.result).toEqual(disk)
       return polled
     }))
@@ -198,14 +199,14 @@ test('a recipe Catalog extraction segments entries, inherits headings, follows c
     } })
     expect(review.ok(), await review.text()).toBeTruthy()
 
-    const [job] = await (await fetch(`${service.url}/api/runs/${runId}/extractions`)).json()
-    const accepted = await (await fetch(`${service.url}/api/runs/${runId}/extractions/${job.id}`)).json()
+    const [extractionId] = await readdir(join(service.runs, runId, 'extractions'))
+    const accepted = await (await fetch(`${service.url}/api/runs/${runId}/extractions/${extractionId}`)).json()
     expect(accepted.result.extraction_version).toBe(2)
     expect(accepted.result.budget.tokenizer.source).toBe('vllm:/tokenize')
     const segmentations = await readdir(join(service.runs, runId, 'segmentations'))
     expect(segmentations).toHaveLength(1)
     await service.restart()
-    expect(await (await fetch(`${service.url}/api/runs/${runId}/extractions/${job.id}`)).json()).toEqual(accepted)
+    expect(await (await fetch(`${service.url}/api/runs/${runId}/extractions/${extractionId}`)).json()).toEqual(accepted)
     expect(await readdir(join(service.runs, runId, 'segmentations'))).toEqual(segmentations)
     expect(service.modelCalls()).toBe(2)
     const durable = extractionReadResponseSchema.parse(await (await page.request.get(`/api/extractions/${id}`)).json())

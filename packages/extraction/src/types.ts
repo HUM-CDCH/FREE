@@ -153,13 +153,6 @@ export type CatalogDiagnostics = Readonly<{
   documentValues: Readonly<Record<string, unknown>> | null
 }>
 
-export type ExtractionRetrySelection = Readonly<{
-  retryOfId: string
-  retryDocument: boolean
-  rediscover: boolean
-  retryRecordStartBlockIds: readonly string[]
-}>
-
 export type ExtractionDiagnostics = Readonly<{
   phase: 'loading' | 'extracting' | 'grounding' | 'persisting'
   durationMs: number
@@ -175,7 +168,6 @@ export type ExtractionDiagnostics = Readonly<{
    *  ungrounded values — no passage was ever expected to carry them. */
   unverifiedFields: readonly string[]
   catalog: CatalogDiagnostics | null
-  retry: ExtractionRetrySelection | null
   /** The recipe path's review material and separated completeness; absent on version 1 results. */
   grounded?: GroundedDiagnostics | null
   /** The model each role ran on; absent on results from before kei-exp routed calls by role. */
@@ -207,7 +199,6 @@ export type ExtractionSnapshot = Readonly<{
   evidence: readonly EvidenceLink[] | null
   failure: ExtractionFailure | null
   reviewable: boolean
-  retryOfId: string | null
   batchExtractionId: string | null
   createdAt: Date
   reviewedAt: Date | null
@@ -234,7 +225,6 @@ export type ExtractionAttemptSnapshot = Readonly<{
   evidence: readonly EvidenceLink[] | null
   failure: ExtractionFailure | null
   reviewable: boolean
-  retryOfId: string | null
   batchExtractionId: string | null
   createdAt: Date
   reviewedAt: Date | null
@@ -253,16 +243,7 @@ export type FreshExtractionInput = Readonly<{
   models?: ExtractionModelChoice | null
 }>
 
-export type RetryExtractionInput = Readonly<{
-  kind: 'retry'
-  extractionId: string
-  retryOfId: string
-  retryDocument: boolean
-  rediscover: boolean
-  retryRecordStartBlockIds: readonly string[]
-}>
-
-export type RunSingleInput = FreshExtractionInput | RetryExtractionInput
+export type RunSingleInput = FreshExtractionInput
 export type RunSingleResult = Readonly<{
   disposition: ExtractionDisposition
   extraction: ExtractionAttemptSnapshot

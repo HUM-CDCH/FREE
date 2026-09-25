@@ -1182,6 +1182,71 @@ if (!disposableDatabaseUrl) {
       assert.deepEqual(reopened?.latestAttempt?.requestedModels, models)
     })
 
+    it('refuses to replay a legacy job whose retryOfId still pins it as a retry', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const { module } = createRuntime(project.researcherAccountId)
+      // A first Extraction, completed normally: its job row is the retry pin's FK target.
+      const first = await module.runSingle(freshInput(project))
+      assert.equal(first.extraction.executionStatus, 'COMPLETED')
+      // A second job under its own id, then planted with a retryOfId the way a pre-migration
+      // row would carry one: no code path creates this shape any more.
+      const legacyId = randomUUID()
+      await module.runSingle(freshInput(project, legacyId))
+      const planted = await db.orm.public.ExtractionJob.where({ id: legacyId }).updateAll({
+        retryOfId: first.extraction.extractionId,
+      })
+      assert.equal(planted.length, 1)
+      await assert.rejects(
+        module.runSingle(freshInput(project, legacyId)),
+        rejectsWithCode('extraction_id_conflict'),
+      )
+    })
+
+    it('reads a job holding legacy checkpoint columns as having no values yet', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const { module } = createRuntime(project.researcherAccountId)
+      const input = freshInput(project)
+      await module.runSingle(input)
+      // Legacy-row fixture: rows written before e88b08f could hold checkpointed values on RUNNING or FAILED
+      // jobs; nothing writes them any more.
+      await db.orm.public.ExtractionJob.where({ id: input.extractionId }).updateAll({
+        executionStatus: 'RUNNING',
+        complete: true,
+        modelAttribution: { provider: 'kei-exp', modelId: 'legacy' },
+        diagnostics: { phase: 'grounding' },
+        resultPayload: { records: [{ place: 'Rome' }] },
+      })
+      const attempt = await module.readExtractionAttempt(input.extractionId)
+      assert.equal(attempt?.executionStatus, 'RUNNING')
+      assert.equal(attempt?.result, null)
+      assert.equal(attempt?.complete, null)
+      assert.equal(attempt?.modelAttribution, null)
+      assert.equal(attempt?.diagnostics, null)
+
+      const failedInput = freshInput(project)
+      await module.runSingle(failedInput)
+      // Legacy-row fixture: a FAILED job can hold the same stale checkpoint values, plus a failure in the
+      // shape `fail()` still writes today (code/message/phase); the checkpoint columns must still read null.
+      const failure = { code: 'legacy_failure', message: 'Legacy job failure.', phase: 'grounding' as const }
+      await db.orm.public.ExtractionJob.where({ id: failedInput.extractionId }).updateAll({
+        executionStatus: 'FAILED',
+        complete: true,
+        modelAttribution: { provider: 'kei-exp', modelId: 'legacy' },
+        diagnostics: { phase: 'grounding' },
+        resultPayload: { records: [{ place: 'Rome' }] },
+        failure,
+      })
+      const failedAttempt = await module.readExtractionAttempt(failedInput.extractionId)
+      assert.equal(failedAttempt?.executionStatus, 'FAILED')
+      assert.equal(failedAttempt?.result, null)
+      assert.equal(failedAttempt?.complete, null)
+      assert.equal(failedAttempt?.modelAttribution, null)
+      assert.equal(failedAttempt?.diagnostics, null)
+      assert.deepEqual(failedAttempt?.failure, failure)
+    })
+
     it('stores batch model choices on every job and completed Extraction and includes them in selection identity', async (t) => {
       t.after(cleanup)
       const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])

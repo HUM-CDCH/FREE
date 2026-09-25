@@ -42,7 +42,7 @@ model {
   }
 
   parsing_service = system 'Parsing Service' 'Included Python service for PDF parsing, extraction, grounding, and durable jobs.' {
-    http_api = container 'FastAPI HTTP API' '`POST /api/runs`, run and extraction polling, canonical page manifests, source PDF, and Markdown routes.' 'FastAPI'
+    http_api = container 'FastAPI HTTP API' '`POST /api/runs`, run and extraction polling, and canonical page manifests.' 'FastAPI'
     parser = container 'Durable worker' 'Claims parsing and extraction jobs; publishes canonical pages, Markdown, records, and grounded evidence.' 'Python, Procrastinate, Docling'
     jobs = datastore 'Parsing job database' 'Durable admission, lifecycle events, retries, and extraction identity.' 'PostgreSQL 17'
     models = container 'OCR and extraction models' 'Surya served by vLLM for scanned PDFs; Ollama for schema-guided extraction.' 'vLLM, Ollama'
@@ -93,7 +93,7 @@ model {
   parsing_service.parser -> parsing_service.jobs 'Claims jobs, records lifecycle, and retries transient failures'
   parsing_service.parser -> parsing_service.models 'Calls OCR or extraction models as required'
   parsing_service.parser -> parsing_service.task_cache 'Publishes canonical pages and extraction artifacts'
-  parsing_service.http_api -> parsing_service.task_cache 'Serves canonical artifacts and source PDFs'
+  parsing_service.http_api -> parsing_service.task_cache 'Serves canonical artifacts'
 }
 
 views {
@@ -214,7 +214,7 @@ views {
     loop 'until parsing completes' {
       studio.handlers -> parsing_service.http_api 'GET /api/runs/:runId'
     }
-    studio.handlers -> parsing_service.http_api 'Read result manifest, source PDF, and canonical pages'
+    studio.handlers -> parsing_service.http_api 'Read result manifest and canonical pages'
     parsing_service.http_api -> studio.handlers 'Return generation-pinned canonical artifacts'
     studio.handlers -> package_store 'Retain and validate the canonical package'
     studio.handlers -> studio.project_store 'Create Source Document and revision 1'

@@ -46,7 +46,6 @@ export type TerminalExtraction = Readonly<{
   result: Readonly<Record<string, unknown>> | null
   evidence: readonly EvidenceLink[] | null
   reviewable: boolean
-  retryOfId: string | null
   batchExtractionId: string | null
 }>
 
@@ -101,16 +100,8 @@ export type ExtractionJobInput =
   | RunSingleInput
   | (BatchMemberExtractionInput & Readonly<{ kind: 'batch-member' }>)
 
-export type ExtractionValueCheckpoint = Readonly<{
-  complete: boolean
-  modelAttribution: ExtractionModelAttribution
-  diagnostics: ExtractionDiagnostics
-  result: Readonly<Record<string, unknown>>
-}>
-
 export type ClaimedExtractionJob = Readonly<{
   input: ExtractionJobInput
-  checkpoint: ExtractionValueCheckpoint | null
   lease: Readonly<{ owner: string; version: number; expiresAt: Date }>
 }>
 
@@ -123,7 +114,6 @@ export type ExtractionJobFailure = Readonly<{
 export interface InternalExtractionJobStore {
   claim(owner: string, now: Date, leaseExpiresAt: Date): Promise<ClaimedExtractionJob | null>
   renew(extractionId: string, lease: ClaimedExtractionJob['lease'], leaseExpiresAt: Date): Promise<'owned' | 'cancelled' | 'lost'>
-  checkpoint(extractionId: string, lease: ClaimedExtractionJob['lease'], checkpoint: ExtractionValueCheckpoint): Promise<boolean>
   complete(extractionId: string, lease: ClaimedExtractionJob['lease'], extraction: TerminalExtraction, finishedAt: Date): Promise<boolean>
   fail(extractionId: string, lease: ClaimedExtractionJob['lease'], failure: ExtractionJobFailure, finishedAt: Date): Promise<boolean>
 }

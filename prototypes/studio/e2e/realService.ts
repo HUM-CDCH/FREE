@@ -202,7 +202,7 @@ export async function startRealService(logFile: string) {
       if (api.child.exitCode !== null || worker.child.exitCode !== null)
         throw new Error(`Real Parsing Service exited; see ${logFile}.`)
       try {
-        const response = await fetch(`${url}/api/runs`, { signal: AbortSignal.timeout(1000) })
+        const response = await fetch(`${url}/api/models`, { signal: AbortSignal.timeout(1000) })
         if (response.ok) return
       } catch { /* The owned API has not started listening yet. */ }
       await delay(200)

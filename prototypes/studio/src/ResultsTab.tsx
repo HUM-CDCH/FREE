@@ -1,12 +1,12 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { exportExtractionResult } from 'extraction-result-export'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
 import ResultValue, { singularItemLabel } from './ui/ResultValue'
-import { Overline, Spinner, Button, ModalDialog, Pill } from './ui'
+import { Overline, Spinner, Button, ModalDialog, Pill, type ButtonProps } from './ui'
 import { isRecord } from '../shared/template'
 import { schemaDefinitionToTemplate, type SchemaDefinition } from 'extraction/schema'
 import { resultStats } from './resultStats'
-import { extractionStateFromAttempt, type ExtractionController, type ExtractionRetryInput } from './useExtraction'
+import { extractionStateFromAttempt, type ExtractionController } from './useExtraction'
 import type { ExtractionState } from './extraction'
 import type { ExtractionAttempt, ReviewDecisionAction } from '../shared/extraction.contract'
 import type { EvidenceLink } from '../shared/groundedExtraction'
@@ -24,10 +24,26 @@ type PinnedSchema = SchemaDefinition & {
   schemaRevisionId?: string
 }
 
+/**
+ * What every run action here starts: the toolbar's current Extraction Strategy
+ * and, for Catalog, its record boundaries (a recipe's label or Model
+ * discovery). A run never repeats the displayed attempt, so the actions name
+ * this selection instead of that attempt's strategy.
+ */
+export type RunExtractionStrategy =
+  | { strategy: 'ARTICLE' }
+  | { strategy: 'CATALOG'; boundaries: string }
+
 type ResultsTabProps = {
   controller: ExtractionController
-  onRunExtraction: () => void | Promise<void>
+  /**
+   * Starts a fresh Extraction. Absent when the open view starts none, e.g. an
+   * Extraction reopened on an earlier Source Representation: then no run
+   * action renders at all, while review and cancellation stay as they are.
+   */
+  onRunExtraction?: () => void | Promise<void>
   runExtractionDisabled: boolean
+  runExtractionStrategy: RunExtractionStrategy
   schemaReady: boolean
   documentMarkdown: string | null
   sourceDocumentName: string
@@ -254,136 +270,6 @@ function ExtractionDiagnostics({ attempt }: { attempt: ExtractionAttempt }) {
   )
 }
 
-const emptyRetrySelection: ExtractionRetryInput = {
-  retryDocument: false,
-  rediscover: false,
-  retryRecordStartBlockIds: [],
-}
-
-function CatalogRetryControls({
-  controller,
-  attempt,
-}: {
-  controller: ExtractionController
-  attempt: ExtractionAttempt
-}) {
-  const catalog = attempt.strategy === 'CATALOG'
-    ? attempt.diagnostics?.catalog ?? null
-    : null
-  const [selection, setSelection] = useState<ExtractionRetryInput>(emptyRetrySelection)
-  const active =
-    attempt.executionStatus === 'QUEUED' || attempt.executionStatus === 'RUNNING'
-
-  if (!catalog || active || attempt.outcome === 'CANCELLED') return null
-  const documentStage = catalog.stages.find((stage) => stage.stage === 'document-values')
-  const discoveryStage = catalog.stages.find((stage) => stage.stage === 'discovery')
-  // The server accepts document retries only for a failed document-values stage.
-  const retryDocument = documentStage?.outcome === 'failed'
-  const rediscover =
-    discoveryStage?.outcome === 'failed' ||
-    discoveryStage?.finishReason === 'length'
-  const records = catalog.records.filter(
-    (record) => record.outcome === 'failed' || record.outcome === 'not_attempted',
-  )
-  const canGroundOnly = attempt.outcome === 'SUCCEEDED' && attempt.resultPayload !== null
-  if (!retryDocument && !rediscover && records.length === 0 && !canGroundOnly) return null
-
-  const selectedCount = selection.retryRecordStartBlockIds.length
-  const canRetrySelected = selection.retryDocument || selection.rediscover || selectedCount > 0
-  const submit = (next: ExtractionRetryInput) => {
-    void controller.retryExtraction(next)
-  }
-
-  return (
-    <section
-      aria-label="Targeted Catalog retry"
-      className="mt-3 border-t border-line pt-2.5"
-    >
-        <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
-          Retry failed Catalog components
-        </p>
-        <p className="mt-1.5 text-[11.5px] leading-snug text-ink-muted">
-          Select failed or truncated work to execute again. Leave every box clear for grounding only; successful components are reused.
-        </p>
-        <div className="mt-2 space-y-1.5 text-[11.5px] text-ink">
-          {retryDocument && (
-            <label className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                aria-label="Retry failed or truncated document metadata"
-                checked={selection.retryDocument}
-                disabled={active}
-                onChange={(event) =>
-                  setSelection((current) => ({ ...current, retryDocument: event.target.checked }))
-                }
-              />
-              <span>Document metadata (failed or truncated)</span>
-            </label>
-          )}
-          {rediscover && (
-            <label className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                aria-label="Rediscover Catalog record boundaries"
-                checked={selection.rediscover}
-                disabled={active}
-                onChange={(event) =>
-                  setSelection((current) => ({ ...current, rediscover: event.target.checked }))
-                }
-              />
-              <span>Rediscover record boundaries (and rerun dependent records)</span>
-            </label>
-          )}
-          {records.map((record) => {
-            const id = record.boundary.startBlockId
-            const checked = selection.retryRecordStartBlockIds.includes(id)
-            return (
-              <label key={id} className="flex items-start gap-2">
-                <input
-                  type="checkbox"
-                  aria-label={`Retry record ${record.ordinal + 1}: ${record.boundary.headingText}`}
-                  checked={checked}
-                  disabled={active}
-                  onChange={(event) =>
-                    setSelection((current) => ({
-                      ...current,
-                      retryRecordStartBlockIds: event.target.checked
-                        ? [...current.retryRecordStartBlockIds, id]
-                        : current.retryRecordStartBlockIds.filter((candidate) => candidate !== id),
-                    }))
-                  }
-                />
-                <span>
-                  Record {record.ordinal + 1}: {record.boundary.headingText} ({outcomeLabel(record.outcome)})
-                </span>
-              </label>
-            )
-          })}
-        </div>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={active || !canRetrySelected}
-            onClick={() => submit(selection)}
-          >
-            Retry selected components
-          </Button>
-          {canGroundOnly && (
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={active}
-              onClick={() => submit(emptyRetrySelection)}
-            >
-              Grounding only
-            </Button>
-          )}
-        </div>
-    </section>
-  )
-}
-
 function InfoIcon() {
   return (
     <svg aria-hidden="true" width="14" height="14" viewBox="0 0 20 20" fill="none">
@@ -394,15 +280,7 @@ function InfoIcon() {
   )
 }
 
-function AttemptDetails({
-  controller,
-  attempt,
-  readOnly,
-}: {
-  controller: ExtractionController
-  attempt: ExtractionAttempt
-  readOnly: boolean
-}) {
+function AttemptDetails({ attempt }: { attempt: ExtractionAttempt }) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   return (
@@ -438,9 +316,6 @@ function AttemptDetails({
           </div>
           <div className="scrollbar-subtle mt-1.5 max-h-64 overflow-y-auto pr-1">
             <ExtractionDiagnostics attempt={attempt} />
-            {!readOnly && attempt.strategy === 'CATALOG' && (
-              <CatalogRetryControls key={attempt.extractionId} controller={controller} attempt={attempt} />
-            )}
           </div>
         </ModalDialog>
       )}
@@ -463,12 +338,33 @@ function statusLabel(state: ExtractionState, attempt: ExtractionAttempt | null):
           ? 'Running'
           : 'Starting'
     case 'ready':
-      if (attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING')
-        return 'Running · provisional results'
-      if (attempt?.executionStatus === 'FAILED') return 'Failed · partial results'
-      if (attempt?.outcome === 'CANCELLED') return 'Cancelled · partial results'
       return attempt?.complete === false ? 'Completed · incomplete' : 'Completed'
   }
+}
+
+/**
+ * A run action named for the fresh Extraction it starts. For Catalog, the
+ * record boundaries follow it as visible text that also describes the button.
+ */
+function RunExtractionButton({
+  run,
+  withCurrentSchema = false,
+  ...button
+}: Omit<ButtonProps, 'children'> & { run: RunExtractionStrategy; withCurrentSchema?: boolean }) {
+  const boundariesId = useId()
+  const strategy = run.strategy === 'CATALOG' ? 'Catalog' : 'Article'
+  return (
+    <>
+      <Button {...button} aria-describedby={run.strategy === 'CATALOG' ? boundariesId : undefined}>
+        {`Run ${strategy} extraction${withCurrentSchema ? ' with current schema' : ''}`}
+      </Button>
+      {run.strategy === 'CATALOG' && (
+        <span id={boundariesId} className="self-center text-[11px] text-ink-muted">
+          Boundaries: {run.boundaries}
+        </span>
+      )}
+    </>
+  )
 }
 
 /**
@@ -484,6 +380,7 @@ function ExtractionStatus({
   currentSchemaRevision,
   readOnly,
   runExtractionDisabled,
+  runExtractionStrategy,
   onRunExtraction,
 }: {
   controller: ExtractionController
@@ -493,7 +390,8 @@ function ExtractionStatus({
   currentSchemaRevision: { schemaRevisionId: string; revisionNumber: number } | null
   readOnly: boolean
   runExtractionDisabled: boolean
-  onRunExtraction: () => void | Promise<void>
+  runExtractionStrategy: RunExtractionStrategy
+  onRunExtraction?: () => void | Promise<void>
 }) {
   const [schemaOpen, setSchemaOpen] = useState(false)
   const label = statusLabel(state, attempt)
@@ -562,16 +460,16 @@ function ExtractionStatus({
       {completed && previousSchema && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <p className="text-[11.5px] text-ink-muted">Review applies to {usedRevisionLabel}</p>
-          {!readOnly && (
-            <Button
+          {!readOnly && onRunExtraction && (
+            <RunExtractionButton
+              run={runExtractionStrategy}
+              withCurrentSchema
               variant="secondary"
               size="sm"
               className={pressable}
               disabled={runExtractionDisabled}
               onClick={() => void onRunExtraction()}
-            >
-              Run with current schema
-            </Button>
+            />
           )}
         </div>
       )}
@@ -608,10 +506,10 @@ function getAtPath(obj: unknown, path: string[]): unknown {
   )
 }
 
-function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence, onResultPathChange }: ResultsTabProps) {
+function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExtractionStrategy, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, currentSchemaRevision = null, inspectedAttempt, readOnly = false, onSelectEvidence, onResultPathChange }: ResultsTabProps) {
   const attempt = inspectedAttempt ?? controller.attempt
-  // The header's single "Run with current schema" action replaces the
-  // toolbar's Rerun whenever the result predates the Current Schema Revision.
+  // The header's single "… with current schema" run action replaces the
+  // summary row's plain one whenever the result predates the Current Schema Revision.
   const previousSchema =
     attempt !== null &&
     currentSchemaRevision !== null &&
@@ -675,7 +573,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
   const displayResult = useMemo(() => pinnedSchema
     ? orderResultFields(unorderedResult, pinnedSchema.schemaNodes)
     : unorderedResult, [unorderedResult, pinnedSchema])
-  const provisional = attempt !== null && attempt.executionStatus !== 'COMPLETED'
   const activeAttempt =
     attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
   const stats = useMemo(
@@ -764,13 +661,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
     <div className="scrollbar-subtle flex h-full min-h-0 flex-col overflow-y-auto">
       <div className="flex items-center justify-between px-4 py-2.5">
         <Overline as="h2">Extraction results</Overline>
-        {attempt && (
-          <AttemptDetails
-            controller={controller}
-            attempt={attempt}
-            readOnly={readOnly || Boolean(inspectedAttempt)}
-          />
-        )}
+        {attempt && <AttemptDetails attempt={attempt} />}
       </div>
       <ExtractionStatus
         controller={controller}
@@ -780,19 +671,13 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
         currentSchemaRevision={currentSchemaRevision}
         readOnly={readOnly || Boolean(inspectedAttempt)}
         runExtractionDisabled={runExtractionDisabled}
+        runExtractionStrategy={runExtractionStrategy}
         onRunExtraction={onRunExtraction}
       />
 
       {state.status === 'ready' && stats && (
         <>
           <div className="shrink-0 border-b border-line bg-surface px-3 py-2">
-            {provisional && (
-              <p className="mb-2 text-[11.5px] font-semibold text-ink-muted" role="status">
-                {attempt?.executionStatus === 'FAILED'
-                  ? `Evidence linking stopped: ${attempt.failure?.message ?? 'the Extraction failed.'}`
-                  : 'Values extracted · linking Evidence…'}
-              </p>
-            )}
             <div className="flex flex-wrap gap-1.5">
               {/* {summaryItem(
                 'Status',
@@ -817,7 +702,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
               <div className="flex min-w-0 flex-wrap gap-1.5">
                 <ExtractionResultExportControl
                   schema={exportSchema}
-                  disabled={displayResult === null || provisional}
+                  disabled={displayResult === null}
                   onExport={async (format, choices) => {
                     if (displayResult === null || exportSchema === null) return
                     await exportExtractionResult(displayResult, {
@@ -854,10 +739,8 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                     )}
                   </>
                 )}
-                {!readOnly && !previousSchema && attempt?.strategy !== 'CATALOG' && (
-                  <Button variant="secondary" size="sm" disabled={runExtractionDisabled || activeAttempt} onClick={() => void onRunExtraction()}>
-                    Rerun
-                  </Button>
+                {!readOnly && !previousSchema && onRunExtraction && (
+                  <RunExtractionButton run={runExtractionStrategy} variant="secondary" size="sm" disabled={runExtractionDisabled || activeAttempt} onClick={() => void onRunExtraction()} />
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-3" role="tablist" aria-label="Result view">
@@ -1077,10 +960,10 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
         <div className="m-3.25 rounded-xl border border-danger/40 bg-surface px-4 py-3">
           <p className="text-[13px] font-semibold text-danger">Extraction failed</p>
           <p className="mt-1 wrap-anywhere text-[12px] leading-snug text-ink-muted">{state.message}</p>
-          {!readOnly && attempt?.strategy !== 'CATALOG' && (
-            <Button variant="primary" size="md" className="mt-2.5" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()}>
-              Retry extraction
-            </Button>
+          {!readOnly && onRunExtraction && (
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              <RunExtractionButton run={runExtractionStrategy} variant="primary" size="md" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()} />
+            </div>
           )}
         </div>
       )}
@@ -1093,7 +976,11 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
               ? 'Run extraction to apply the schema across the source document.'
               : 'Generate a schema in the Schema tab first, then run extraction.'}
           </p>
-          {!readOnly && (
+          {!readOnly && onRunExtraction && (schemaReady ? (
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+              <RunExtractionButton run={runExtractionStrategy} variant="primary" size="md" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()} />
+            </div>
+          ) : (
             <Button
               variant="primary"
               size="md"
@@ -1101,18 +988,20 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
               disabled={runExtractionDisabled}
               onClick={() => void onRunExtraction()}
             >
-              {schemaReady ? 'Run extraction' : 'Generate a schema first'}
+              Generate a schema first
             </Button>
-          )}
+          ))}
         </div>
       )}
 
       {state.status === 'cancelled' && (
         <div className="m-3.25 rounded-xl border border-line bg-surface px-4 py-3">
           <p className="text-[13px] font-semibold text-ink">Extraction cancelled</p>
-          {!readOnly && <Button variant="primary" size="md" className="mt-2.5" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()}>
-            Run a new extraction
-          </Button>}
+          {!readOnly && onRunExtraction && (
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              <RunExtractionButton run={runExtractionStrategy} variant="primary" size="md" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()} />
+            </div>
+          )}
         </div>
       )}
     </div>

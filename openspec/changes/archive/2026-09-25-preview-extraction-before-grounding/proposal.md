@@ -1,3 +1,8 @@
+> **Superseded 2026-09-25; specs not synced.** e88b08f delegated extraction to kei-exp and removed every
+> checkpoint write, so provisional values stopped appearing. M1 of
+> `docs/plans/2026-09-24-unified-durable-execution.md` removed the remaining code; M4 replaces Extraction Jobs
+> with DBOS workflows. Kept for the record only.
+
 ## Why
 
 Interactive Extraction currently keeps the request open until values, Evidence linking, and terminal persistence finish, so researchers cannot inspect extracted values early and navigation cancels server work. Batch Extraction already has durable scheduling, but its separate worker and persistence adapter duplicate execution concerns without supporting interactive retry identity.

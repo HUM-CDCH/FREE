@@ -10,7 +10,7 @@ import { useSyncExternalStore } from 'react'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
-import ResultsTab from './ResultsTab'
+import ResultsTab, { type RunExtractionStrategy } from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import EvidenceTab from './EvidenceTab'
@@ -41,8 +41,10 @@ type RightRailProps = {
   onGenerateInstructions?: (instruction: string) => void
   onClearDraft: () => void | Promise<void>
   extraction: ExtractionController
-  onRunExtraction: () => void | Promise<void>
+  /** Absent when the open view starts no Extraction; Results then offers no run. */
+  onRunExtraction?: () => void | Promise<void>
   runExtractionDisabled: boolean
+  runExtractionStrategy: RunExtractionStrategy
   inspection: ExtractionInspection
   /** Acknowledged Current Schema Revision, for the Results panel's comparison. */
   currentSchemaRevision: { schemaRevisionId: string; revisionNumber: number } | null
@@ -77,6 +79,7 @@ function RightRail({
   extraction,
   onRunExtraction,
   runExtractionDisabled,
+  runExtractionStrategy,
   inspection,
   currentSchemaRevision,
   sourceDocumentName,
@@ -207,6 +210,7 @@ function RightRail({
           controller={extraction}
           onRunExtraction={onRunExtraction}
           runExtractionDisabled={runExtractionDisabled}
+          runExtractionStrategy={runExtractionStrategy}
           inspectedAttempt={inspection.readOnly ? inspection.attempt ?? undefined : undefined}
           readOnly={inspection.readOnly}
           schemaReady={schemaReady}

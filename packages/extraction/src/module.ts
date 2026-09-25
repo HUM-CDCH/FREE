@@ -195,8 +195,6 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
 /** Relay one claimed job to kei-exp; persistence and leases remain owned by FREE. */
 export function createExtractionJobExecutor({ inputs: reader, keiExp }: ExtractionJobExecutorDependencies): ExtractionJobExecutor {
   return async (input, signal) => {
-    if (input.kind === 'retry')
-      throw new ExtractionError('invalid_retry', 'kei-exp does not support targeted Catalog retries. Start a new Extraction.')
     signal.throwIfAborted()
     const inputs = await reader.loadExtractionInputs(input.sourceRepresentationRevisionId, input.schemaRevisionId)
     if (!inputs) throw new ExtractionError('invalid_extraction_pins', 'The Source Representation Revision and Schema Revision do not share one Project Context.')
@@ -278,7 +276,7 @@ export function createExtractionJobExecutor({ inputs: reader, keiExp }: Extracti
         modelCalls: artifact.calls.length, inputTokens: artifact.tokens.input, outputTokens: artifact.tokens.output,
         finishReason: null, ungroundedPaths: artifact.ungrounded, groundingIssues: artifact.issues,
         // Document-level fields: extracted into every record, grounded in none of them.
-        groundingBatches: [], unverifiedFields: artifact.unverified, catalog: null, retry: null,
+        groundingBatches: [], unverifiedFields: artifact.unverified, catalog: null,
         models: { fields: artifact.models.fields, reasoning: artifact.models.reasoning },
         ...(grounded
           ? {
@@ -298,7 +296,7 @@ export function createExtractionJobExecutor({ inputs: reader, keiExp }: Extracti
             }
           : {}),
       },
-      failure: null, reviewable: true, retryOfId: null,
+      failure: null, reviewable: true,
       batchExtractionId: input.kind === 'batch-member' ? input.batchExtractionId : null,
     }
   }

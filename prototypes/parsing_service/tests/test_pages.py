@@ -1,5 +1,5 @@
 """The converter over the KIE ingest's book pages: page-source renders, whole pages as crops, the cut over book pages,
-`--page-source ingest` through convert() with its cache, and the API's previews and geometry of a run over book pages.
+`--page-source ingest` through convert() with its cache, and the API's summary of a run over book pages.
 The layout model runs on CPU, no GPU and no server: the transcriber is a fake. One workspace for the module: the
 fixture spread is ingested once, with the layout model, and every later conversion reuses that ingest."""
 import json
@@ -15,7 +15,6 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from kei_exp import api, runs
-from kei_exp.boxes import page_geometry
 from kei_exp.geometry import CropTransform, PointBox
 from kei_exp.jobs import schema, store
 from kei_exp.kie.model import IngestArtifact, Placement
@@ -191,11 +190,11 @@ def test_the_page_result_names_the_pdf_page_its_two_units_and_their_crops(conver
     # spread past the gutter.
     result = page_file(converted.result_dir, 1)
     assert [unit["index"] for unit in result["units"]] == [1, 2]
-    geometry = page_geometry(1, SPREAD_PT, result, [])
-    assert [(region["crop"], region["unit"]) for region in geometry["regions"]] == [(1, 1), (2, 1), (3, 2), (4, 2)]
-    assert geometry["published"] is True and len(geometry["blocks"]) == 4
-    third = geometry["regions"][2]  # the first crop of book page 2, on the spread
-    assert 594.2 < third["bbox"][0] < 700, third
+    crops = [(crop, unit["index"]) for unit in result["units"] for crop in unit["crops"]]
+    assert [(crop["crop"], unit) for crop, unit in crops] == [(1, 1), (2, 1), (3, 2), (4, 2)]
+    assert len(result["segments"]) == 4
+    third = crops[2][0]  # the first crop of book page 2, on the spread
+    assert 594.2 < third["bbox_pt"][0] < 700, third
 
 
 def test_a_block_of_a_column_crop_is_placed_through_the_crop_transform_and_the_placement(converted, book):
@@ -206,8 +205,7 @@ def test_a_block_of_a_column_crop_is_placed_through_the_crop_transform_and_the_p
     crop, segment = unit["crops"][0], result["segments"][2]  # crop 3, the first of book page 2, and its one block
     assert (unit["index"], crop["crop"], segment["unit"], segment["crop"]) == (2, 3, 2, 3)
     assert segment["bbox_px"] == [10, 20, 30, 40] and segment["extent"] == "block"
-    block = page_geometry(1, SPREAD_PT, result, [])["blocks"][2]["bbox"]
-    assert block == segment["bbox_pt"]  # the viewer's block is the page file's box
+    block = list(segment["bbox_pt"])
     # Not `third["bbox"][0] + 7.2`: the scan is placed with a -0.11 degree rotation, so the crop's bbox_pt is the
     # bounding box of its rotated rectangle. That box is 678 pt tall and starts about 1.3 pt (678 pt times the sine
     # of 0.11 degrees) before the crop's own top-left corner, and a block 10 px into the crop is not 7.2 pt into it.
@@ -346,8 +344,8 @@ def test_a_page_range_names_spreads_and_selects_their_book_pages(two_spreads):
     assert two_spreads.markdown == "text\n\ntext"
     assert [(number, region.kind) for number, region, _ in two_spreads.crops] == [(3, "page"), (4, "page")]
     assert not (two_spreads.result_dir / "pages" / "1.json").exists()  # only the selected spread has a result
-    geometry = page_geometry(2, SPREAD_PT, page_file(two_spreads.result_dir, 2), [])
-    assert [(region["crop"], region["unit"], region["kind"]) for region in geometry["regions"]] == [
+    result = page_file(two_spreads.result_dir, 2)
+    assert [(crop["crop"], unit["index"], crop["kind"]) for unit in result["units"] for crop in unit["crops"]] == [
         (1, 3, "page"), (2, 4, "page")]
 
 
@@ -358,14 +356,12 @@ def test_a_whole_page_block_is_placed_through_the_recorded_transform_and_the_pla
     # corner where a pure translation would, so each block is checked as its crop pixels through the transform and
     # the page's placement, the invariant the writer applied.
     result = page_file(two_spreads.result_dir, 2)
-    geometry = page_geometry(2, SPREAD_PT, result, [])
     assert [unit["index"] for unit in result["units"]] == [3, 4]
-    for unit, segment, block in zip(result["units"], result["segments"], geometry["blocks"], strict=True):
+    for unit, segment in zip(result["units"], result["segments"], strict=True):
         (crop,) = unit["crops"]
         assert (segment["unit"], segment["crop"], segment["bbox_px"]) == (unit["index"], crop["crop"], [10, 20, 30, 40])
-        assert block["bbox"] == segment["bbox_pt"]
-        print("ROTATION2", unit["index"], crop["bbox_pt"], crop["image_px"], crop["pt_per_px"], block["bbox"])
-        assert close(block["bbox"], placed(two_spreads.book, unit, crop, segment)), (block, crop)
+        print("ROTATION2", unit["index"], crop["bbox_pt"], crop["image_px"], crop["pt_per_px"], segment["bbox_pt"])
+        assert close(segment["bbox_pt"], placed(two_spreads.book, unit, crop, segment)), (segment, crop)
     left = result["units"][0]["crops"][0]
     assert left["image_px"][0] == 825 and abs(left["pt_per_px"][0] - 0.72029) < 1e-5, left
     assert result["segments"][1]["bbox_pt"][0] > 594.24, result["segments"][1]  # book page 4 past the gutter
@@ -392,8 +388,7 @@ def test_an_unknown_page_source_is_refused(scan_pdf):
         resolve(RunParams(pdf=scan_pdf, model="fake", page_source="bogus"))
 
 
-# The API: a run over book pages previews its PDF pages (the spreads) and counts them; page numbers keep one
-# meaning throughout, so there is no book-page preview and no page unit in the summary.
+# The API: a run over book pages counts its PDF pages (the spreads); there is no page unit in the summary.
 
 
 @pytest.fixture(scope="module")
@@ -423,22 +418,10 @@ def run(api_run, monkeypatch) -> Path:
     return api_run
 
 
-def test_a_run_over_book_pages_previews_its_spreads(run):
-    assert api.render_page(run, 1, 50) == run / "pages" / "page-1@50.png"
-    with Image.open(run / "pages" / "page-1@50.png") as preview:
-        assert preview.width > 2 * preview.height / 1.5, preview.size  # the spread, not a book page
-
-
 def test_the_summary_counts_pdf_pages_and_has_no_page_unit(run):
     summary = runs.summary(run)
     assert summary["page_count"] == 1 and summary["pages"] is None and summary["page_source"] == "ingest"
     assert "page_unit" not in summary
-
-
-def test_page_two_of_a_one_spread_pdf_is_404(run):
-    with pytest.raises(api.HTTPException) as caught:  # page 2 of a one-spread PDF must be 404
-        api.render_page(run, 2)
-    assert caught.value.status_code == 404
 
 
 @pytest.fixture

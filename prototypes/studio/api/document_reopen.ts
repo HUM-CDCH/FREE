@@ -101,6 +101,7 @@ async function reopenResponse(
   schemaFor: (
     extraction: ExtractionAttemptSnapshot | null,
   ) => Promise<DocumentReopenSnapshot['extractionSchema']>,
+  currentSourceRepresentationId: string,
 ) {
   const { sourceRepresentation: representation } = snapshot
   // A local reset can recreate a seeded representation ID with new artifacts.
@@ -126,6 +127,8 @@ async function reopenResponse(
     sourceRepresentation: {
       sourceRepresentationId: representation.sourceRepresentationId,
       revisionNumber: representation.revisionNumber,
+      current:
+        representation.sourceRepresentationId === currentSourceRepresentationId,
       resources: representationResources(
         snapshot.projectContext.projectContextId,
         representation.sourceRepresentationId,
@@ -286,6 +289,8 @@ export function createGetDocumentReopen(
           { ...snapshot, extractionSchema: currentSnapshot.extractionSchema },
           documentExtractions,
           schemaFor,
+          // The unpinned read names the document's current revision.
+          currentSnapshot.sourceRepresentation.sourceRepresentationId,
         ),
         { headers: noStore },
       )

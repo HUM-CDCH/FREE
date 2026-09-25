@@ -197,7 +197,11 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       send(keiExpAccepted({ id, run_id: runId, generation: 'g1' }), 202)
     })
   })
-  await new Promise<void>(resolveListen => modelServer.listen(41_750, '127.0.0.1', resolveListen))
+  // Each Playwright config gives this fixture its own port and points Studio's KEI_EXP_URL at it.
+  const keiExpUrl = process.env.FREE_PLAYWRIGHT_KEI_EXP_URL
+  if (!keiExpUrl) throw new Error('Run this spec with a Playwright config that sets FREE_PLAYWRIGHT_KEI_EXP_URL.')
+  const keiExp = new URL(keiExpUrl)
+  await new Promise<void>(resolveListen => modelServer.listen(Number(keiExp.port), keiExp.hostname, resolveListen))
   const address = modelServer.address()
   if (!address || typeof address === 'string') throw new Error('The kei-exp fixture did not start.')
   const connectionId = randomUUID()
@@ -559,7 +563,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     freshPage.getByText('Running extraction…'),
   ).toBeVisible()
   await expect(freshPage.getByRole('button', { name: 'Export' })).toHaveCount(0)
-  await expect(freshPage.getByRole('button', { name: 'Rerun' })).toHaveCount(0)
+  await expect(freshPage.getByRole('button', { name: /^Run (Article|Catalog) extraction/ })).toHaveCount(0)
   await expect(freshPage.getByRole('button', { name: 'Save Review' })).toHaveCount(0)
 
   await freshPage.goto(e2eStudioPath('/projects'))
@@ -597,8 +601,14 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     sourceRepresentationRevisionId: firstRepresentationId,
     schemaRevisionId: firstSchemaRevisionId,
   })
-  await expect(freshPage.getByLabel('Extraction snapshot')).toBeVisible()
-  await freshPage.getByLabel('Extraction snapshot').selectOption(String(reviewed?.id))
+  // The reviewed Extraction ran on an earlier Source Representation Revision, so the document offers to open it on
+  // its own source rather than as a snapshot of the current one.
+  await expect(freshPage.getByLabel('Extraction snapshot')).toHaveCount(0)
+  const pinnedPdf = freshPage.waitForResponse((response) =>
+    new URL(response.url()).pathname.endsWith(`/source-representations/${firstRepresentationId}/pdf`))
+  await freshPage.getByRole('button', { name: 'Open latest reviewed', exact: true }).click()
+  await expect(freshPage).toHaveURL(`${url}?extractionId=${reviewed!.id}`)
+  expect((await pinnedPdf).ok()).toBe(true)
   await expect(freshPage.locator('iframe[title="Pinned Source Document"]')).toHaveCount(0)
   await expect(freshPage.locator('.pdfViewer .page')).toHaveCount(6)
   await freshPage.getByRole('button', { name: 'View used schema' }).click()
@@ -606,7 +616,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(freshPage.getByText(firstSchemaRevisionId, { exact: true })).toBeVisible()
   await expect(freshPage.getByText('Previous schema')).toBeVisible()
   await expect(freshPage.getByText('Review applies to Schema Revision 1')).toBeVisible()
-  await expect(freshPage.getByRole('button', { name: 'Run with current schema' })).toHaveCount(0)
+  await expect(freshPage.getByRole('button', { name: /^Run (Article|Catalog) extraction with current schema$/ })).toHaveCount(0)
   await freshPage.getByRole('tab', { name: 'Review' }).click()
   await expect(
     freshPage.getByRole('tabpanel', { name: /Results/ }),
@@ -616,7 +626,10 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     path: testInfo.outputPath('canonical-fresh-context-review.png'),
     fullPage: true,
   })
-  await freshPage.getByLabel('Extraction snapshot').selectOption(newerExtractionId)
+  // Back returns to the current Source Representation Revision and its newer, unreviewed attempt.
+  await freshPage.goBack()
+  await expect(freshPage).toHaveURL(url)
+  await expect(freshPage.getByRole('button', { name: 'Open latest reviewed', exact: true })).toBeVisible()
   await expect(freshPage.locator('iframe[title="Pinned Source Document"]')).toHaveCount(0)
   omitGrounding = false
   blockNextResult = true
@@ -640,8 +653,10 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
 
   incompleteNextResult = true
   await freshPage.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
+  // The failed attempt's Results action names the strategy just selected in the toolbar.
   await freshPage.getByRole('button', {
-    name: strategy === 'CATALOG' ? '▶ Run extraction' : 'Retry extraction',
+    name: strategy === 'CATALOG' ? 'Run Catalog extraction' : 'Run Article extraction',
+    exact: true,
   }).click()
   await expect(freshPage.getByText('Incomplete Extraction', { exact: true })).toBeVisible()
   await expect(freshPage.getByRole('button', { name: 'Export' })).toBeEnabled()
@@ -781,8 +796,9 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await expect(freshPage.getByText('Running extraction…')).toBeHidden({ timeout: 30_000 })
   await expect(status).toContainText('Completed')
   await expect(status).toContainText('Review applies to Schema Revision 3')
-  await expect(status.getByRole('button', { name: 'Run with current schema' })).toBeEnabled()
-  await expect(freshPage.getByRole('button', { name: 'Rerun' })).toHaveCount(0)
+  // The toolbar's one-shot selection is back at Article, whatever strategy this Extraction ran with.
+  await expect(status.getByRole('button', { name: 'Run Article extraction with current schema' })).toBeEnabled()
+  await expect(freshPage.getByRole('button', { name: /^Run (Article|Catalog) extraction$/ })).toHaveCount(0)
   await expect(freshPage.getByRole('tab', { name: /Results/ })).toHaveAttribute('aria-selected', 'true')
   await activateWithKeyboard(freshPage, freshPage.getByRole('button', { name: /Approve remaining/ }))
   await expect(freshPage.getByText('Review saved', { exact: true })).toBeVisible()

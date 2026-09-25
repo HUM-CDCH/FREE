@@ -1294,7 +1294,7 @@ handlers or pages is an acceptance test of the milestone that builds it
      - Studio chat and schema generation during a kei extraction on
        `extraction_model`.
 
-**M1: dead code (no schema change; can merge first).** Task plan:
+**M1: dead code (no schema change) — done 2026-09-25.** Task plan:
 [2026-09-25-dbos-m1-dead-code.md](2026-09-25-dbos-m1-dead-code.md).
 - **Targeted Catalog retry, end to end.** `catalog.ts`; retry admission and
   identity (`postgres-persistence.ts:333-407`); the contract request variants;

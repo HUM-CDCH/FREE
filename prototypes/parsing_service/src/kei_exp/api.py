@@ -1,36 +1,32 @@
-"""HTTP front for the run store: routes over `kei_exp.runs`, progress relayed as SSE.
+"""HTTP front for the run store: routes over `kei_exp.runs`.
 
 Run: uv run uvicorn kei_exp.api:app --port 8001   (vLLM holds :8000)
 Env: KEI_VLLM_URL (chat completions URL, default DEFAULT_URL), KEI_MAX_UPLOAD_BYTES, KEI_MAX_PAGES;
 the run directory is KEI_RUNS, read by `runs`.
 
-Nothing here keeps run state. A route validates what HTTP gave it, asks `runs` for a job, a summary or a replay,
+Nothing here keeps run state. A route validates what HTTP gave it, asks `runs` for a job or a summary,
 and renders the answer; the queue, the worker, the timing and the files on disk belong to that module, so a run
 that starts on one request and is watched from another is one owner's business rather than a shared global.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import secrets
 import shutil
-from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
-from fastapi.concurrency import run_in_threadpool
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse
 
 from kei_exp import runs
-from kei_exp.boxes import page_geometry
 from kei_exp.canonical import sha256_file
 from kei_exp.cut import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS
-from kei_exp.files import load_dotenv, publish
-from kei_exp.jobs import store, tokens
+from kei_exp.files import load_dotenv
+from kei_exp.jobs import store
 from kei_exp.jobs.app import ADMISSION_LIMIT, DATABASE_URL, SLOT, deferring_installed
 from kei_exp.kie.extract import models as extraction_models
 from kei_exp.kie.extract.models import ROLES
@@ -38,8 +34,7 @@ from kei_exp.kie.extract.run import ExtractRequest
 from kei_exp.kie.stages.ocr import TRANSCRIBERS, check_ingest, check_knobs
 from kei_exp.models import MODELS
 from kei_exp.pagefile import ResultError, read_manifest
-from kei_exp.pages import PageSource, PdfPages, RenderablePage
-from kei_exp.progress import Event
+from kei_exp.pages import PdfPages
 from kei_exp.runtime import loaded_model
 from kei_exp.transcription.types import DEFAULT_URL, RunParams
 
@@ -49,32 +44,6 @@ VLLM_URL = os.environ.get("KEI_VLLM_URL", DEFAULT_URL)
 # reaches the queue. Neither is a judgement about the document's content, which is the worker's business.
 MAX_UPLOAD_BYTES = int(os.environ.get("KEI_MAX_UPLOAD_BYTES", str(200 * 1024 * 1024)))
 MAX_PAGES = int(os.environ.get("KEI_MAX_PAGES", "2000"))
-PREVIEW_DPI = 100
-MAX_PREVIEW_DPI = 300  # the viewer zooms into 8 pt type; 300 dpi of an A3 spread is a 5,000 px PNG
-
-
-def _requested_page(pages: PageSource, number: int) -> RenderablePage:
-    """Only a failed page lookup is a 404; rendering and artifact failures keep their diagnostics."""
-    try:
-        return pages.page(number)
-    except IndexError as error:
-        raise HTTPException(404, "no such page") from error
-
-
-def render_page(run: Path, number: int, dpi: int = PREVIEW_DPI) -> Path:
-    """A colour-allowed preview of a PDF page."""
-    with PdfPages(run / "input.pdf") as pages:
-        page = _requested_page(pages, number)  # validate even when a cached image already exists
-        target = run / "pages" / f"page-{number}@{dpi}.png"
-        if not target.exists():
-            image = page.render(dpi, grayscale=False)
-            try:
-                target.parent.mkdir(exist_ok=True)
-                with publish(target) as part:
-                    image.save(part, "PNG")
-            finally:
-                image.close()
-    return target
 
 
 @asynccontextmanager
@@ -101,13 +70,6 @@ def list_models() -> list[dict]:
             for key, record in MODELS.items()]
 
 
-@app.get("/api/server")
-def server_info() -> dict:
-    reachable, repo = loaded_model(VLLM_URL)
-    key = next((key for key, record in MODELS.items() if record.repo == repo), None)
-    return {"url": VLLM_URL, "reachable": reachable, "loaded_repo": repo, "loaded_model": key}
-
-
 @app.get("/api/extraction-models")
 def list_extraction_models() -> dict:
     """The extraction models this deployment serves, each with the roles it may take and whether its server answers
@@ -118,12 +80,6 @@ def list_extraction_models() -> dict:
         models.append({"key": key, "repo": record.repo, "roles": [role for role in ROLES if role in record.roles],
                        "reachable": reachable, "serving": repo == record.repo})
     return {"defaults": extraction_models.DEFAULTS, "models": models}
-
-
-@app.get("/api/layout-models")
-def list_layout_models() -> list[dict]:
-    return [{"key": key, "name": name, "default": key == DEFAULT_LAYOUT_MODEL}
-            for key, name in LAYOUT_MODELS.items()]
 
 
 def _stage(pdf: UploadFile, target: Path) -> None:
@@ -262,20 +218,6 @@ def create_run(
     return {"id": run_id, "status": "queued", "params": record_json, "page_count": count}
 
 
-@app.get("/api/runs")
-def list_runs() -> list[dict]:
-    """Every run, newest first. A database outage cannot provide a complete listing."""
-    try:
-        recorded = [runs.summary_of(row) for row in store.records()]
-    except store.Unavailable as error:
-        raise HTTPException(503, "the run store is unavailable", headers={"Retry-After": "1"}) from error
-    known = {summary["id"] for summary in recorded}
-    for directory in sorted(runs.RUNS.iterdir()) if runs.RUNS.exists() else []:
-        if directory.is_dir() and directory.name not in known and (found := runs.summary(directory)):
-            recorded.append(found)
-    return sorted(recorded, key=lambda summary: summary["created"] or "", reverse=True)
-
-
 def run_dir(run_id: str) -> Path:
     directory = runs.directory_of(run_id)
     if directory is None:
@@ -298,134 +240,6 @@ def get_run(run_id: str) -> dict:
     return {**found, "params": runs.read_json(directory / "params.json")}
 
 
-def _same_input(a: Event, b: Event) -> bool:
-    return (a["page"], a.get("unit"), a.get("crop")) == (b["page"], b.get("unit"), b.get("crop"))
-
-
-def _position(event: Event) -> tuple[int, int]:
-    return event["seq"], event.get("token_offset", 0)
-
-
-def _committed(run_id: str, after: int, **selection: str) -> list[Event]:
-    """Every event the store holds after `after`, read one bounded page at a time.
-
-    `store.events_after` answers at most `store.EVENT_PAGE` events, so a caller that wants the whole history
-    asks again from the last sequence it received until a page comes back short. `selection` passes an
-    `event_type` through unchanged.
-    """
-    events: list[Event] = []
-    while True:
-        page = store.events_after(run_id, after, **selection)
-        events += page
-        if len(page) < store.EVENT_PAGE:
-            return events
-        after = page[-1]["seq"]
-
-
-def _cursor(value: str) -> tuple[int, int]:
-    parts = value.split(":")
-    seq, offset = int(parts[0]), int(parts[1]) if len(parts) == 2 else 0
-    if len(parts) > 2 or seq < -1 or offset < 0:
-        raise ValueError("invalid event cursor")
-    return seq, offset
-
-
-def sse(event: Event) -> str:
-    cursor = f"{event['seq']}:{event['token_offset']}" if "token_offset" in event else str(event["seq"])
-    return f"id: {cursor}\nevent: {event['type']}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
-
-
-@app.get("/api/runs/{run_id}/events")
-async def run_events(run_id: str, after: str = "-1",
-                     last_event_id: Annotated[str | None, Header()] = None) -> StreamingResponse:
-    """The run's events after the one the client has: `after`, or the Last-Event-ID a browser resends when it
-    reconnects (a coalesced token event carries its last token's id), whichever is later."""
-    directory = run_dir(run_id)
-    try:
-        start = _cursor(str(after))
-    except ValueError as error:
-        raise HTTPException(422, "invalid event cursor") from error
-    if last_event_id is not None:
-        try:
-            start = max(start, _cursor(last_event_id))
-        except ValueError:
-            pass  # not one of ours: the browser resends whatever id it last saw
-    try:
-        row = await run_in_threadpool(store.record, run_id)
-    except store.Unavailable as error:
-        if not runs.is_legacy(directory):
-            raise HTTPException(503, "the run store is unavailable", headers={"Retry-After": "1"}) from error
-        row = None
-    if row is None and not runs.is_legacy(directory):
-        raise HTTPException(404, "no such run")
-
-    async def stream() -> AsyncIterator[str]:
-        if row is None:  # positively identified as a historical file-only run
-            for event in runs.replay(directory, start[0]):
-                yield sse(event)
-            return
-        cursor = start
-        token_offset = start[1]
-        while True:
-            try:
-                batch = await run_in_threadpool(_committed, run_id, cursor[0])
-                current = await run_in_threadpool(store.record, run_id)
-                terminal = current is not None and current.job_status in store.TERMINAL
-                if current is not None and (current.finished is not None or terminal):
-                    # Completion may have committed after the first event query. Drain that commit before
-                    # closing, including on reconnect. Never synthesize a terminal event.
-                    batch += await run_in_threadpool(_committed, run_id,
-                                                     batch[-1]["seq"] if batch else cursor[0])
-            except store.Unavailable:
-                # Headers are already sent. End without an outcome or an ID so EventSource can reconnect.
-                yield ": run store unavailable; reconnect\n\n"
-                return
-            previews, token_offset = await run_in_threadpool(
-                tokens.read_after, directory / "tokens.jsonl", token_offset,
-                batch[-1]["seq"] if batch else cursor[0])
-            batch += [event for event in previews if _position(event) > cursor]
-            batch.sort(key=_position)
-            if batch:
-                cursor = _position(batch[-1])
-                token_offset = max(token_offset, cursor[1])
-            # Consecutive tokens of one input (a page, its unit and its crop) collapse into a single event per poll.
-            merged: list[Event] = []
-            for event in batch:
-                last = merged[-1] if merged else None
-                if (event["type"] == "token" and last and last["type"] == "token"
-                        and _same_input(last, event) and last.get("attempt") == event.get("attempt")):
-                    merged[-1] = {**event, "text": last["text"] + event["text"]}
-                else:
-                    merged.append(event)
-            for event in merged:
-                yield sse(event)
-            if terminal or any(event["type"] == "status" and event.get("status") in ("done", "failed", "cancelled")
-                               for event in batch):
-                return
-            await asyncio.sleep(0.1)
-
-    return StreamingResponse(stream(), media_type="text/event-stream",
-                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
-
-
-@app.get("/api/runs/{run_id}/output.md")
-def run_output(run_id: str) -> FileResponse:
-    path = run_dir(run_id) / "output.md"
-    if not path.exists():
-        raise HTTPException(404, "no output yet")
-    return FileResponse(path, media_type="text/markdown; charset=utf-8")
-
-
-@app.get("/api/runs/{run_id}/source.pdf")
-def run_source(run_id: str) -> FileResponse:
-    """The run's own copy of the input PDF: the bytes `source_sha256` names, in the params and in the result's
-    recipe. Served for any run directory that still has one, whether the store knows the run or not."""
-    path = run_dir(run_id) / "input.pdf"
-    if not path.is_file():
-        raise HTTPException(404, "this run kept no source PDF")
-    return FileResponse(path, media_type="application/pdf")
-
-
 @app.get("/api/runs/{run_id}/result")
 def run_result(run_id: str) -> FileResponse:
     """The manifest of the accepted result (kei_exp.result.Result), published once the run has an outcome."""
@@ -435,13 +249,6 @@ def run_result(run_id: str) -> FileResponse:
     return FileResponse(path, media_type="application/json")
 
 
-@app.get("/api/runs/{run_id}/pages/{number}.png")
-def run_page(run_id: str, number: int, dpi: int = PREVIEW_DPI) -> FileResponse:
-    if not 1 <= dpi <= MAX_PREVIEW_DPI:
-        raise HTTPException(400, f"dpi must be between 1 and {MAX_PREVIEW_DPI}")
-    return FileResponse(render_page(run_dir(run_id), number, dpi), media_type="image/png")
-
-
 @app.get("/api/runs/{run_id}/pages/{number}")
 def run_page_result(run_id: str, number: int) -> FileResponse:
     """The accepted result of one PDF page (kei_exp.result.PageResult): its units, crops and segments."""
@@ -449,25 +256,6 @@ def run_page_result(run_id: str, number: int) -> FileResponse:
     if not path.exists():
         raise HTTPException(404, "no result for this page yet")
     return FileResponse(path, media_type="application/json")
-
-
-@app.get("/api/runs/{run_id}/pages/{number}/boxes")
-def run_page_boxes(run_id: str, number: int) -> dict:
-    """The crops of a PDF page and the segments found in them, in page points (see kei_exp.boxes)."""
-    directory = run_dir(run_id)
-    with PdfPages(directory / "input.pdf") as pages:
-        size = _requested_page(pages, number).get_size()
-    result = runs.read_json(directory / "result" / "pages" / f"{number}.json") or None
-    if result is not None:
-        return page_geometry(number, size, result, [])  # published: page_geometry never reads events for it
-    # Not yet published: a durable run writes no events.jsonl, so its region events live in the store instead.
-    try:
-        row = store.record(run_id)
-    except store.Unavailable:
-        row = None  # unreachable is exactly like a run the store never recorded: fall back to the files
-    events = (_committed(run_id, -1, event_type="region") if row is not None
-             else runs.logged_events(directory))
-    return page_geometry(number, size, result, events)
 
 
 def _extraction_status(row: store.ExtractionRow) -> dict:
@@ -514,15 +302,6 @@ def create_extraction(run_id: str, request: ExtractRequest) -> dict:
     return {"id": extraction_id, "run_id": run_id, "status": "queued", "generation": manifest.generation}
 
 
-@app.get("/api/runs/{run_id}/extractions")
-def list_extractions(run_id: str) -> list[dict]:
-    run_dir(run_id)
-    try:
-        return [_extraction_status(row) for row in store.extractions_of(run_id)]
-    except store.Unavailable as error:
-        raise HTTPException(503, "the run store is unavailable", headers={"Retry-After": "1"}) from error
-
-
 @app.get("/api/runs/{run_id}/extractions/{extraction_id}")
 def get_extraction(run_id: str, extraction_id: str) -> dict:
     """What a client polls: the job's status, and the artifact once it is done."""
@@ -539,12 +318,3 @@ def get_extraction(run_id: str, extraction_id: str) -> dict:
     if status["status"] == "done" and artifact.is_file():
         result = json.loads(artifact.read_text(encoding="utf-8"))
     return {**status, "run_id": run_id, "result": result}
-
-
-@app.get("/api/runs/{run_id}/debug/{name}")
-def run_debug(run_id: str, name: str) -> FileResponse:
-    directory = run_dir(run_id) / "debug"
-    path = (directory / name).resolve()
-    if not path.is_relative_to(directory.resolve()) or not path.is_file():
-        raise HTTPException(404, "no such debug file")
-    return FileResponse(path)

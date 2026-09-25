@@ -250,8 +250,8 @@ def test_cancellation_preserves_the_attempts_recorded_timings(prepared: Path, mo
 def test_retry_exhaustion_still_emits_a_terminal_status_event(prepared: Path, monkeypatch) -> None:
     """`convert_run` marks `execute()`'s last attempt so a transient failure gets the run's terminal status
     event even though it is classified retryable — without this, a run whose retries Procrastinate exhausted
-    left no status event, and `GET /api/runs/{id}/events`'s loop (which used to stop only on a status event)
-    polled it forever."""
+    left no status event, and the former event stream (which stopped only on a status event) polled it
+    forever."""
     def always_unreachable(execution, emit):
         raise requests.ConnectionError("refused")
     monkeypatch.setattr(tasks, "convert", always_unreachable)

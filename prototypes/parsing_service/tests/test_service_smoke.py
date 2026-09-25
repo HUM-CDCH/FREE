@@ -3,15 +3,15 @@
 What it stands up is the deployment's own trio rather than a stand-in for it: the session's throwaway
 PostgreSQL with the schema applied, this process serving the API through `TestClient` (whose lifespan installs
 the deferring connector exactly as a served API's does), and one real `kei-jobs worker` child sharing that
-database, the runs root and the slot. The run is submitted over HTTP and every artifact it is judged on is
+database, the runs root and the slot. The run is submitted over HTTP and its result and page files are
 fetched back over HTTP; nothing is called in process and no adapter is faked.
 
 What it proves is the client contract a consumer builds on (README, "Client contract"), in the order a client
 meets it: a submission is accepted and queued with its source identified by hash; the worker finishes it; the
-source PDF comes back byte for byte; the manifest and every page file verify against each other through the
+source PDF is kept byte for byte; the manifest and every page file verify against each other through the
 shared reader (`kei_exp.pagefile`), covering every page of the document; every segment's evidence lies on the
-page it claims; the Markdown carries the pages in order; the event stream ends with the run's terminal status
-and the store holds no token events; and a submission with no `debug` field writes no `debug/` directory.
+page it claims; the Markdown carries the pages in order; the store's lifecycle events end with the run's terminal
+status and hold no token; and a submission with no `debug` field writes no `debug/` directory.
 
 No model server takes part: the document is born-digital, so the worker resolves the native Docling path.
 
@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
-import json
 import os
 import signal
 import subprocess
@@ -43,7 +42,7 @@ from fastapi.testclient import TestClient
 
 from kei_exp import api, runs
 from kei_exp.jobs import schema, store
-from kei_exp.pagefile import PageResult, read_manifest, read_page
+from kei_exp.pagefile import RESULT_VERSION, PageResult, read_manifest, read_page
 from tests.helpers import slot as slot_helper
 
 pytestmark = [pytest.mark.slow, pytest.mark.live_model]
@@ -191,13 +190,8 @@ def _locate(page: PageResult, markdown: str) -> int | None:
     return None
 
 
-def _sse(body: str) -> list[dict]:
-    """The events of an SSE response, in the order they were sent (`api.sse` writes one line of JSON each)."""
-    return [json.loads(line.removeprefix("data: ")) for line in body.splitlines() if line.startswith("data: ")]
-
-
 def _persisted(run_id: str) -> list[dict]:
-    """Every event the store holds for `run_id`, read one bounded page at a time, as `api._committed` does."""
+    """Every event the store holds for `run_id`, read one bounded page at a time, as the worker's readers do."""
     events: list[dict] = []
     after = -1
     while True:
@@ -231,10 +225,9 @@ def test_a_document_is_parsed_and_its_evidence_served_over_http(service: Service
     summary = _terminal(service, run_id, CONVERSION_TIMEOUT)
     assert summary["status"] == "done", summary.get("error")
 
-    # The source comes back byte for byte: a consumer holding `source_sha256` can re-hash what it parsed.
-    served = client.get(f"/api/runs/{run_id}/source.pdf")
-    assert served.status_code == 200, served.text
-    assert served.content == source and hashlib.sha256(served.content).hexdigest() == source_sha256
+    # The source is kept byte for byte: a consumer holding `source_sha256` can re-hash what was parsed.
+    kept = (runs_root / run_id / "input.pdf").read_bytes()
+    assert kept == source and hashlib.sha256(kept).hexdigest() == source_sha256
 
     # The manifest and the page files, verified the way a consumer verifies them: the bytes the routes served
     # are written to this client's own directory and read back through the shared reader, which proves each
@@ -245,7 +238,7 @@ def test_a_document_is_parsed_and_its_evidence_served_over_http(service: Service
     assert result.status_code == 200, result.text
     (fetched / "result.json").write_bytes(result.content)
     manifest = read_manifest(fetched)
-    assert manifest.result_version == 4  # the version this client contract is written for
+    assert manifest.result_version == RESULT_VERSION  # the version this client contract is written for
     assert manifest.status == "success" and manifest.incomplete is None
     assert manifest.page_count == page_count
     assert sorted(manifest.pages) == list(range(1, page_count + 1))
@@ -271,25 +264,15 @@ def test_a_document_is_parsed_and_its_evidence_served_over_http(service: Service
         blocks += sum(1 for segment in page.segments if segment.extent == "block")
     assert blocks, "no page published a block segment: this parse grounded nothing on the engine's own boxes"
 
-    # Text order: the document's Markdown carries the pages in page order, as the page files number them.
-    output = client.get(f"/api/runs/{run_id}/output.md")
-    assert output.status_code == 200, output.text
-    markdown = _flat(output.text)
+    # Text order: the run's Markdown carries the pages in page order, as the page files number them.
+    markdown = _flat((runs_root / run_id / "output.md").read_text(encoding="utf-8"))
     opening, closing = _locate(pages[1], markdown), _locate(pages[page_count], markdown)
-    assert opening is not None, "no phrase of page 1's segments occurs exactly once in output.md"
-    assert closing is not None, f"no phrase of page {page_count}'s segments occurs exactly once in output.md"
-    assert opening < closing, f"page {page_count}'s text precedes page 1's in output.md"
+    assert opening is not None, "no phrase of page 1's segments occurs exactly once in the run's output.md"
+    assert closing is not None, f"no phrase of page {page_count}'s segments occurs exactly once in the run's output.md"
+    assert opening < closing, f"page {page_count}'s text precedes page 1's in the run's output.md"
 
-    # The stream a client watches ends with the run's own terminal status, and no token was ever persisted:
-    # the store holds O(stages) lifecycle events, not O(tokens) (the plan's rule 3).
-    stream = client.get(f"/api/runs/{run_id}/events", params={"after": "-1"})
-    assert stream.status_code == 200, stream.text
-    events = _sse(stream.text)
-    assert events, stream.text
-    assert events[-1]["type"] == "status" and events[-1]["status"] == "done", events[-1]
     persisted = _persisted(run_id)
-    # Non-empty and ending in that same status: the history the store holds is this run's, so the absence of
-    # tokens below is a fact about what was written and not about having looked in the wrong place.
+    # The store holds O(stages) lifecycle events for this run, ending in its terminal status, and no token.
     assert persisted and persisted[-1]["type"] == "status" and persisted[-1]["status"] == "done"
     assert [event for event in persisted if event["type"] == "token"] == []
     assert not [line for line in service.log if "Traceback" in line], "".join(service.log)

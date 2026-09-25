@@ -28,13 +28,11 @@ const completed = {
     outputTokens: null,
     grounding: null,
     catalog: null,
-    retry: null,
   },
   failure: null,
   resultPayload: { records: [{}] },
   evidenceLinks: [],
   reviewable: true,
-  retryOfId: null,
   batchExtractionId: null,
   createdAt: '2026-08-10T00:00:00.000Z',
   reviewedAt: null,
@@ -42,7 +40,7 @@ const completed = {
 } as const
 
 describe('Article lifecycle contracts', () => {
-  it('accepts queued and checkpointed running jobs but rejects partial checkpoints', () => {
+  it('accepts queued and running jobs only while they carry no values', () => {
     const queued = {
       ...completed,
       executionStatus: 'QUEUED',
@@ -55,6 +53,7 @@ describe('Article lifecycle contracts', () => {
       reviewable: false,
     }
     expect(extractionAttemptSchema.safeParse(queued).success).toBe(true)
+    expect(extractionAttemptSchema.safeParse({ ...queued, executionStatus: 'RUNNING' }).success).toBe(true)
     expect(extractionAttemptSchema.safeParse({
       ...queued,
       executionStatus: 'RUNNING',
@@ -62,7 +61,7 @@ describe('Article lifecycle contracts', () => {
       modelAttribution: completed.modelAttribution,
       diagnostics: completed.diagnostics,
       resultPayload: completed.resultPayload,
-    }).success).toBe(true)
+    }).success).toBe(false)
     expect(extractionAttemptSchema.safeParse({
       ...queued,
       executionStatus: 'RUNNING',
@@ -191,7 +190,7 @@ describe('Article lifecycle contracts', () => {
     ).toBe(false)
   })
 
-  it('separates fresh requests from strict targeted retry selections', () => {
+  it('accepts fresh requests and refuses retry fields', () => {
     const normalized = extractionRequestSchema.parse({
       id: 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA',
       sourceRepresentationRevisionId: 'BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB',
@@ -211,35 +210,14 @@ describe('Article lifecycle contracts', () => {
         retryOfId: id('5'),
       }).success,
     ).toBe(false)
+  })
 
-    const retry = extractionRequestSchema.safeParse({
-      id: id('1'),
-      retryOfId: id('5'),
-      retryRecordStartBlockIds: ['block-1'],
-    })
-    expect(retry.success).toBe(true)
-    expect(retry.success && retry.data).toMatchObject({
-      retryOfId: id('5'),
-      retryDocument: false,
-      rediscover: false,
-      retryRecordStartBlockIds: ['block-1'],
-    })
-
-    // A retry never carries caller pins, and record identities must be unique.
-    expect(
-      extractionRequestSchema.safeParse({
-        id: id('1'),
-        retryOfId: id('5'),
-        schemaRevisionId: id('4'),
-      }).success,
-    ).toBe(false)
-    expect(
-      extractionRequestSchema.safeParse({
-        id: id('1'),
-        retryOfId: id('5'),
-        retryRecordStartBlockIds: ['block-1', 'block-1'],
-      }).success,
-    ).toBe(false)
+  it('carries no retry lineage on attempts or diagnostics', () => {
+    expect(extractionAttemptSchema.safeParse({ ...completed, retryOfId: null }).success).toBe(false)
+    expect(extractionAttemptSchema.safeParse({
+      ...completed,
+      diagnostics: { ...completed.diagnostics, retry: null },
+    }).success).toBe(false)
   })
 })
 
@@ -297,8 +275,6 @@ describe('Extraction Model Choice contracts', () => {
     for (const models of [{ fields: 'nuextract', reasoning: 'instruct' }, {}, 'instruct'])
       expect(extractionRequestSchema.safeParse({ ...fresh, models }).success).toBe(false)
     expect(extractionRequestSchema.safeParse({ ...fresh, model: 'instruct' }).success).toBe(false)
-    expect(extractionRequestSchema.safeParse({ id: id('1'), retryOfId: id('5'), models: { fields: 'nuextract' } }).success)
-      .toBe(false)
   })
 
   it('accepts a choice of kei-exp model keys for either role, and nothing else', () => {

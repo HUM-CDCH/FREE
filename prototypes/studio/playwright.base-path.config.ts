@@ -6,7 +6,7 @@ import {
 } from './e2e/playwrightStack.js'
 
 const stack = configurePlaywrightStack({
-  applicationPort: 41_750,
+  applicationPort: 41_751,
   composeProject: 'free-studio-e2e-base-path',
   databaseName: 'free_test_studio_base_path',
   oidcPort: 41_752,
@@ -16,6 +16,11 @@ const port = stack.applicationPort
 const origin = `http://localhost:${port}`
 const basePath = '/free'
 process.env.FREE_PLAYWRIGHT_BASE_PATH = basePath
+// The lifecycle spec's fake kei-exp listens here, and Studio's KEI_EXP_URL points at it. The default suite's
+// fixture keeps 41750, so the two suites' ports are distinct. The suites still share the output directories
+// test-results/ and test-results/config-home, so they must run sequentially.
+const keiExpUrl = 'http://127.0.0.1:41753'
+process.env.FREE_PLAYWRIGHT_KEI_EXP_URL = keiExpUrl
 
 export default defineConfig({
   testDir: './e2e',
@@ -28,6 +33,7 @@ export default defineConfig({
     url: `${origin}${basePath}/auth/signed-out`,
     env: {
       DATABASE_URL: stack.databaseUrl,
+      KEI_EXP_URL: keiExpUrl,
       FREE_PLAYWRIGHT_LIFECYCLE_ID: stack.lifecycleId,
       STUDIO_ORIGIN: origin,
       STUDIO_BASE_PATH: basePath,

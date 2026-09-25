@@ -54,20 +54,7 @@ export const extractionModelListingSchema = z
   .strict()
 export type ExtractionModelListing = z.infer<typeof extractionModelListingSchema>
 
-export const extractionRetrySelectionSchema = z
-  .object({
-    retryOfId: requestUuid,
-    retryDocument: z.boolean(),
-    rediscover: z.boolean(),
-    retryRecordStartBlockIds: z.array(z.string().min(1)),
-  })
-  .strict()
-
-export type ExtractionRetrySelection = z.infer<
-  typeof extractionRetrySelectionSchema
->
-
-const extractionFreshRequestSchema = z
+export const extractionRequestSchema = z
   .object({
     id: requestUuid,
     sourceRepresentationRevisionId: requestUuid,
@@ -76,49 +63,12 @@ const extractionFreshRequestSchema = z
     catalogRecipe: catalogRecipeSchema.optional(),
     // The server applies the configured Extraction Model Choice.
     models: z.never().optional(),
-    retryOfId: z.never().optional(),
-    retryDocument: z.never().optional(),
-    rediscover: z.never().optional(),
-    retryRecordStartBlockIds: z.never().optional(),
   })
   .strict()
   .refine((request) => request.catalogRecipe === undefined || request.strategy === 'CATALOG', {
     path: ['catalogRecipe'],
     message: 'A recipe applies to a Catalog Extraction only.',
   })
-
-const extractionRetryRequestSchema = z
-  .object({
-    id: requestUuid,
-    retryOfId: requestUuid,
-    retryDocument: z.boolean().default(false),
-    rediscover: z.boolean().default(false),
-    // Bounded by the server-side CATALOG_RECORD_LIMIT.
-    retryRecordStartBlockIds: z.array(z.string().min(1)).max(100).default([]),
-    // A retry inherits its parent's pins and strategy, so they are never sent.
-    sourceRepresentationRevisionId: z.never().optional(),
-    schemaRevisionId: z.never().optional(),
-    strategy: z.never().optional(),
-    catalogRecipe: z.never().optional(),
-    models: z.never().optional(),
-  })
-  .strict()
-  .superRefine((request, context) => {
-    if (
-      new Set(request.retryRecordStartBlockIds).size !==
-      request.retryRecordStartBlockIds.length
-    )
-      context.addIssue({
-        code: 'custom',
-        path: ['retryRecordStartBlockIds'],
-        message: 'Retry record identities must be unique.',
-      })
-  })
-
-export const extractionRequestSchema = z.union([
-  extractionFreshRequestSchema,
-  extractionRetryRequestSchema,
-])
 
 export type ExtractionRequest = z.infer<typeof extractionRequestSchema>
 export type ExtractionRequestInput = z.input<typeof extractionRequestSchema>
@@ -323,7 +273,6 @@ export const extractionDiagnosticsSchema = z
     outputTokens: z.number().int().nonnegative().nullable(),
     grounding: groundingDiagnosticsSchema.nullable(),
     catalog: catalogDiagnosticsSchema.nullable(),
-    retry: extractionRetrySelectionSchema.nullable(),
     grounded: groundedDiagnosticsSchema.nullable().optional(),
     /** The model each role ran on, as kei-exp resolved the run's choice over its deployment defaults. */
     models: extractionModelsUsedSchema.nullable().optional(),
@@ -360,7 +309,6 @@ export const extractionAttemptSchema = z
     resultPayload: z.record(z.string(), z.json()).nullable(),
     evidenceLinks: z.array(evidenceLinkSchema).nullable(),
     reviewable: z.boolean(),
-    retryOfId: z.uuid().nullable(),
     batchExtractionId: z.uuid().nullable(),
     createdAt: z.iso.datetime(),
     reviewedAt: z.iso.datetime().nullable(),
@@ -380,18 +328,11 @@ export const extractionAttemptSchema = z
           attempt.reviewedAt === null && attempt.reviewDecisions.length === 0 &&
           (attempt.outcome === 'FAILED' ? attempt.failure !== null : attempt.failure === null)
     )
-    const checkpointFields = [
-      attempt.complete,
-      attempt.modelAttribution,
-      attempt.diagnostics,
-      attempt.resultPayload,
-    ]
-    const checkpointed = checkpointFields.every((value) => value !== null)
-    const emptyCheckpoint = checkpointFields.every((value) => value === null)
     const jobShape = !completed && attempt.outcome === null &&
       attempt.evidenceLinks === null && !attempt.reviewable &&
       attempt.reviewedAt === null && attempt.reviewDecisions.length === 0 &&
-      (checkpointed || emptyCheckpoint) &&
+      attempt.complete === null && attempt.modelAttribution === null &&
+      attempt.diagnostics === null && attempt.resultPayload === null &&
       (attempt.executionStatus === 'FAILED'
         ? attempt.failure !== null
         : attempt.failure === null)
