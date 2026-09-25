@@ -302,15 +302,6 @@ def create_extraction(run_id: str, request: ExtractRequest) -> dict:
     return {"id": extraction_id, "run_id": run_id, "status": "queued", "generation": manifest.generation}
 
 
-@app.get("/api/runs/{run_id}/extractions")
-def list_extractions(run_id: str) -> list[dict]:
-    run_dir(run_id)
-    try:
-        return [_extraction_status(row) for row in store.extractions_of(run_id)]
-    except store.Unavailable as error:
-        raise HTTPException(503, "the run store is unavailable", headers={"Retry-After": "1"}) from error
-
-
 @app.get("/api/runs/{run_id}/extractions/{extraction_id}")
 def get_extraction(run_id: str, extraction_id: str) -> dict:
     """What a client polls: the job's status, and the artifact once it is done."""
@@ -327,5 +318,3 @@ def get_extraction(run_id: str, extraction_id: str) -> dict:
     if status["status"] == "done" and artifact.is_file():
         result = json.loads(artifact.read_text(encoding="utf-8"))
     return {**status, "run_id": run_id, "result": result}
-
-
