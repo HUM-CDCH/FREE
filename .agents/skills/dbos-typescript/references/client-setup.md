@@ -1,0 +1,135 @@
+---
+title: Initialize DBOSClient for External Access
+impact: MEDIUM
+impactDescription: Enables external applications to interact with DBOS workflows
+tags: client, external, setup, initialization, schedule, debounce, version
+---
+
+## Initialize DBOSClient for External Access
+
+Use `DBOSClient` to interact with DBOS from external applications like API servers, CLI tools, or separate services. `DBOSClient` connects directly to the DBOS system database.
+
+**Incorrect (using DBOS directly from an external app):**
+
+```typescript
+// DBOS requires full setup with launch() - too heavy for external clients
+DBOS.setConfig({ name: "my-app" });
+await DBOS.launch();
+```
+
+**Correct (using DBOSClient):**
+
+```typescript
+import { DBOSClient } from "@dbos-inc/dbos-sdk";
+
+const client = await DBOSClient.create({
+  systemDatabaseUrl: process.env.DBOS_SYSTEM_DATABASE_URL!,
+  applicationName: "my-app", // Set if multiple applications share the system database
+});
+
+try {
+  // Send a message to a workflow
+  await client.send(workflowID, "notification", "topic");
+
+  // Get an event from a workflow.
+  // getEvent, getResult, and waitFirst accept an optional pollingIntervalMs
+  // to set the interval between system-database polls while waiting.
+  const event = await client.getEvent<string>(workflowID, "status");
+
+  // Read a stream from a workflow
+  for await (const value of client.readStream(workflowID, "results")) {
+    console.log(value);
+  }
+
+  // Retrieve a workflow handle
+  const handle = client.retrieveWorkflow<string>(workflowID);
+  const result = await handle.getResult();
+
+  // List workflows
+  const workflows = await client.listWorkflows({ status: "ERROR" });
+
+  // Workflow management
+  await client.cancelWorkflow(workflowID);
+  await client.resumeWorkflow(workflowID);
+  await client.forkWorkflow(workflowID, stepID, { applicationVersion: "2.0.0" });
+
+  // Update queued workflows in place
+  await client.setWorkflowPriority(workflowID, 1);
+  await client.setWorkflowDelay(workflowID, { delaySeconds: 10 });
+
+  // Manage database-backed queues
+  await client.registerQueue("email", { globalConcurrency: 10 });
+  const q = await client.retrieveQueue("email");
+  await client.deleteQueue("email");
+
+  // Wait for first of multiple workflows
+  const first = await client.waitFirst(handles);
+} finally {
+  await client.destroy();
+}
+```
+
+Constructor options:
+- `systemDatabaseUrl`: Connection string to the Postgres system database (required)
+- `systemDatabasePool`: Optional custom `node-postgres` connection pool
+- `systemDatabasePoolSize`: Maximum size for the system database connection pool. Defaults to 10. Ignored if you pass a custom `systemDatabasePool`.
+- `systemDatabasePollingConcurrency`: Maximum number of concurrent database-backed polling reads from wait operations. Defaults to half the pool size (minimum 1).
+- `serializer`: Optional custom serializer (must match the DBOS application's serializer)
+- `systemDatabaseSchemaName`: Optional Postgres schema name (default: `"dbos"`)
+- `applicationName`: The application on whose behalf the client acts. Enqueued workflows, registered queues, and created schedules are owned by it, and listing operations default to its rows. Always set it if multiple applications share a system database (see `advanced-shared-database.md`)
+- `observabilityQueryTimeoutMs`: Statement timeout for listing queries (default 30000); exceeding it throws `DBOSQueryTimeoutError`
+- `logger`: A custom logger implementing the `DLogger` interface, to which the client directs all its logging, replacing the built-in console logger.
+
+**DBOS 5.0 compatibility:** Upgrade clients together with your DBOS processes. A 5.0 client requires the 5.0 system database schema, so launch a DBOS 5.0 process (or run `npx dbos schema`) before using it, and a 4.x client cannot read inputs or results of workflows created by 5.0.
+
+## Schedule Management
+
+Manage workflow schedules from outside the DBOS application. Uses workflow names as strings instead of function references:
+
+```typescript
+await client.createSchedule({
+  scheduleName: "my-task",
+  workflowName: "myPeriodicTask",
+  schedule: "*/5 * * * *",
+  context: "my context",
+});
+
+const schedules = await client.listSchedules({ status: "ACTIVE" });
+const schedule = await client.getSchedule("my-task");
+await client.pauseSchedule("my-task");
+await client.resumeSchedule("my-task");
+const start = new Date(Date.now() - 60 * 60 * 1000);
+const handles = await client.backfillSchedule("my-task", start, new Date());
+const handle = await client.triggerSchedule("my-task");
+await client.deleteSchedule("my-task");
+
+// Atomic batch create/update
+await client.applySchedules([
+  { scheduleName: "my-task", workflowName: "myPeriodicTask", schedule: "*/5 * * * *" },
+]);
+```
+
+## Debouncing
+
+```typescript
+import { DBOSClient, DebouncerClient } from "@dbos-inc/dbos-sdk";
+
+const debouncer = new DebouncerClient(client, {
+  workflowName: "processInput",
+  debounceTimeoutMs: 120000,
+});
+
+async function onUserInput(userId: string, userInput: string) {
+  await debouncer.debounce(userId, 60000, userInput);  // Wait 60s idle
+}
+```
+
+## Version Management
+
+```typescript
+const versions = await client.listApplicationVersions();
+const latest = await client.getLatestApplicationVersion();
+await client.setLatestApplicationVersion("1.0.0");  // Rollback
+```
+
+Reference: [DBOS Client](https://docs.dbos.dev/typescript/reference/client)

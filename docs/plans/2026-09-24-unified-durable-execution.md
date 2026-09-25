@@ -1,6 +1,24 @@
 # FREE on DBOS: durable jobs and AI execution
 
-Status: **sixth revision, 2026-09-25; runtime implementation has not started.**
+Status: **eighth revision, 2026-09-25; runtime implementation has not started.**
+The eighth revision sizes kei's scheduling for the Spark (decision 14). While a
+big book converts, a small document's ingestion and extraction must not wait
+for it. kei's one queue becomes lanes that match its model servers: large and
+small conversion, a two-slot extraction queue and a cleanup queue. Cleanup
+safety moves from queue exclusion to a kei boot boundary. Measurements on the
+Spark back the choice ([rev-8 tests](2026-09-24-unified-durable-execution-evidence/rev8-tests/README.md)).
+A per-page conversion fan-out and per-user fair sharing were reviewed and
+deferred. The user settled the threshold and the variation, and moved parallel
+Catalog chunks into M3.
+
+The seventh revision folds the Model Configuration page redesign into M2
+(user, 2026-09-25, decisions 12 and 13). The page follows the researcher's
+work in three steps. The Single/Routes mode goes, and the NuExtract protocol is
+derived instead of stored. A per-account Ingestion Model Choice picks kei's OCR
+and layout models for new ingestions and reprocessing, wired through M3 and M4.
+M1 is unchanged. The decision was made on a throwaway prototype kept on branch
+`prototype/model-config-b1`.
+
 The sixth revision bumps the pins to `@dbos-inc/dbos-sdk` 5.1.10,
 `@dbos-inc/vercel-ai` 0.4.4 and `dbos` 3.1.0 after every review probe
 reproduced on them (M0R 1, passed). It narrows the chat sanitizer to what
@@ -19,6 +37,9 @@ and M0 findings are retained below; the active design supersedes conflicting
 historical advice. M0R items 2–4 and the provider half of 5 remain pending.
 Commands, scripts, results and review decisions are retained in
 [the evidence record](2026-09-24-unified-durable-execution-evidence/README.md).
+The [2026-09-25 risk probes](2026-09-24-unified-durable-execution-evidence/risk-checks/README.md)
+validate the small corrections below; no new cross-tab synchronization is
+required for tomorrow's build.
 Supersedes `docs/plans/2026-09-24-procrastinate-source-ingestion.md` (not
 implemented).
 
@@ -82,6 +103,35 @@ that every other researcher's documents are sent to.
     DBOS queue deduplication joins active work.
 11. **Deleting a source preserves the batch proposal and draft as valid.**
     Remove the source from the selection without automatic regeneration.
+12. **The Model Configuration page follows the researcher's work** (prototype
+    variant B1). It has Models and Connections tabs. Models has three steps,
+    reading documents, schema and chat, and extracting data, and names no
+    service. The Interaction Route is labelled *Assistant model*, and Schema
+    Suggestion follows it until given its own model: an unset Schema
+    Suggestion Route inherits the Interaction Route. There is no Single/Routes
+    mode. The NuExtract protocol is detected from the connection and model,
+    never chosen.
+13. **An Ingestion Model Choice picks kei's OCR and layout models.** It belongs
+    to the Researcher Account, like the Extraction Model Choice, and applies to
+    new ingestions and reprocessing only. Existing revisions never change.
+14. **A big book must not hold up small work on the Spark.** While a book
+    converts, the same or another researcher can ingest a small document and
+    extract from it. kei's queues follow its model servers (*Queues*), and a
+    book's OCR leaves room at the OCR server for a small document's requests.
+    Pausing or preempting running work is not a goal. Two books do not share:
+    the second waits. Concurrent uploads from one browser tab stay out of
+    scope; another tab or researcher is not blocked.
+
+**Settled after the Spark tests (user, 2026-09-25).**
+- **Small-document threshold: 30 pages** (`SMALL_DOCUMENT_PAGES`, *Queues*).
+- **`SURYA_INFERENCE_PARALLEL` shipped ahead of DBOS.** `compose.gpu.yaml`
+  derives it and `ocr_model`'s `--max-num-seqs` from one `OCR_MAX_NUM_SEQS`
+  (default 4), and `tests/safety.test.mjs` asserts they match.
+- **Output variation under concurrency is acceptable** (*Risks*). No setting
+  removes it on these models: vLLM 0.29.1 refuses `VLLM_BATCH_INVARIANT` for
+  their gated-delta-net layers (M0R 6).
+- **Parallel Catalog chunks join M3** (*kei worker*). Running a Catalog's
+  entries in four chunks was 4.1× faster and changes no prompt.
 
 ## Rules
 
@@ -157,14 +207,16 @@ transactional enqueue, deduplication, cancellation, stream replay,
 | Worker `output.md` generation | canonical manifest/pages only; standalone CLI output stays |
 | `_keyring.ts`, `ConfigFileSystem`, the reset path, the keyring packages, every server-side credential path, the in-process write barrier, the static `model_config` / `model_probe` modules, the one-CLI-connection-per-kind rule | per-researcher configuration in PostgreSQL; keys in the researcher's browser and in Studio's memory; CLI providers as deployment connections |
 | Client-sent chat history and the fixed chat ID | `ChatTurn` rows |
+| The page's Single/Routes mode (`configurationMode()`, `setSingleConnection`, `setSingleModel`, `setRouteModel`, `setNuextractProtocol`, the single-model editor); the stored NuExtract `protocol` and its checks; Studio's `KEI_EXP_MODEL`; kei's `/api/server` and `/api/layout-models` | one route setter; the protocol derived from connection and model ID; the per-account Ingestion Model Choice and one `GET /api/ingestion-models` listing |
 | Targeted Catalog retry; extraction checkpoints and provisional UI; four tables nothing writes; the LLM inspector; ten kei routes with no production caller; legacy readers | nothing: dead today, or legacy after the reset (M1–M3) |
 
 **What this adds.**
 - One new domain table, `ChatTurn`, beside the per-researcher configuration
   table.
 - An in-memory key cache.
-- Five small routes: `GET` and `DELETE /api/model-operations`, `GET
-  /api/chat/<revision ID>` with its `/stream`, and `PUT /api/model-keys`.
+- Six small routes: `GET` and `DELETE /api/model-operations`, `GET
+  /api/chat/<revision ID>` with its `/stream`, `PUT /api/model-keys`, and
+  `GET /api/ingestion-models`, which forwards kei's new listing of that name.
 
 A transcript that survives a reload is research content, so it lives in FREE's
 tables rather than in DBOS history, whose interactive retention target is 24 h.
@@ -184,8 +236,9 @@ studio           web server and DBOS in one process: every Studio workflow and
                  runs Prisma migrations and idempotent kei role/schema setup.
 parsing_service  minimal read API (manifest, pages, artifacts, model catalog);
                  no database
-parsing_worker   kei DBOS worker: convert, extract, deleteRuns on queue "kei";
-                 lifetime slot flock; starts after Studio is healthy
+parsing_worker   kei DBOS worker: convert on kei-convert-large/-small, extract
+                 on kei-extract, deleteRuns on kei-gc; lifetime slot flock;
+                 starts after Studio is healthy
 volumes          source-inbox (new; studio rw, parsing_worker ro); parsing-runs,
                  studio-data and the CLI auth homes unchanged
 ```
@@ -206,9 +259,9 @@ service is added. `submitToKei` retries until kei has migrated `kei_dbos`.
 | `proposeSchemaEdit` | `edit:<operationId>` | workflow-first | proposal and base revision, or a typed failure |
 | `chatTurn` | `chat:<turnId>` | same transaction as the question; active dedup by source revision | answer/failure on the row; durable stream `ui` |
 | `collectGarbage` | 10-minute schedule | — | — |
-| kei `convert` | `kei-convert:<parent workflow ID>` | enqueued by `submitToKei` | manifest summary |
-| kei `extract` | `kei-extract:<extractionId>` | enqueued by `submitToKei` | run/extraction IDs, artifact SHA-256, model attribution |
-| kei `deleteRuns` | `kei-gc:<schedule time>` | enqueued by `collectGarbage` | deleted run/history IDs |
+| kei `convert` | `kei-convert:<parent workflow ID>` | enqueued by `submitToKei` on the lane fixed at admission | manifest summary |
+| kei `extract` | `kei-extract:<extractionId>` | enqueued by `submitToKei` on `kei-extract` | run/extraction IDs, artifact SHA-256, model attribution |
+| kei `deleteRuns` | `kei-gc:<schedule time>` | enqueued by `collectGarbage` on `kei-gc` | deleted run/history IDs |
 
 **Admission: one transaction.** Keep synchronous validation, ownership and
 input-conflict checks. Row-backed operations insert/update domain rows and call
@@ -263,8 +316,24 @@ statuses in one `listWorkflows({workflowIDs})` call. A DBOS/store outage is
 
 **Studio → kei handoff** (ingestion, reprocess, extraction):
 - **`submitToKei`** enqueues the deterministic kei ID through the kei
-  `DBOSClient`. It passes portable arguments, an explicit priority,
+  `DBOSClient`. It passes the queue, portable arguments, an explicit priority,
   `workflowTimeoutMS` and the parent's attributes. It is idempotent (M0 #1).
+- **Conversion lane.** Admission counts the PDF's pages and records the lane
+  in the workflow input, so recovery and replay keep it. At most
+  `SMALL_DOCUMENT_PAGES` (30) pages go to `kei-convert-small`, and more go to
+  `kei-convert-large`.
+  - **Ingestion.** A count-only pdf.js helper reads `numPages` from the
+    staged bytes and destroys the document, even when opening fails. It does
+    not reuse `api/_pdf.ts`, which opens outside its error handling and
+    renders every page (`_pdf.ts:71-78`).
+  - **Unknown count.** A PDF that pdf.js cannot open goes to
+    `kei-convert-large` rather than being rejected. kei's PDFium still
+    decides readability, so the count adds no rejection path. Such a PDF
+    loses the small-document promise.
+  - **Reprocessing** reads the stored package page count, as
+    `source_reprocess.ts:89` does today.
+  - The count only picks the lane; kei's `prepare` still enforces the
+    2000-page limit.
 - **`pollKei`** waits in steps of at most 30 s (M0 #2). Recovery re-polls the
   same child. kei `CANCELLED`, `ERROR`, recovery exhaustion and `{ok: false}`
   become typed failures.
@@ -296,8 +365,9 @@ optional batch ID and nullable terminal outcome; result fields start empty.
 
 **`runExtraction(extractionId)`** runs these steps:
 1. load admitted input pins;
-2. `submitToKei` with priority 1 (interactive) or 10 (batch), and a
-   dequeue-relative timeout of 10 min (Article) or 3 h (Catalog);
+2. `submitToKei` on `kei-extract` with priority 1 (interactive) or 10
+   (batch), and a dequeue-relative timeout of 10 min (Article) or 3 h
+   (Catalog);
 3. `pollKei`;
 4. fetch and validate the artifact through the existing read API checks;
 5. lock the Extraction and publish only if no outcome exists. Replay returns
@@ -357,9 +427,10 @@ magic bytes, 100 MiB) and uniqueness on `(projectContextId, contentSha256)`.
 - Await the returned result for the existing thirty-minute HTTP deadline.
   A 504 detaches; it does not cancel. Re-uploading after a reload rejoins the
   active attempt or returns the completed document.
-- Then `submitToKei` (`kei-convert`, priority 1), `pollKei`, verify manifest and
-  pages, translate/package, and commit under the existing ownership and
-  content constraints. A replayed commit returns the same document/revision.
+- Then `submitToKei` (the admitted conversion lane), `pollKei`, verify
+  manifest and pages, translate/package, and commit under the existing
+  ownership and content constraints. A replayed commit returns the same
+  document/revision.
   Delete only the attempt's own staging file after use; GC handles crashes
   before enqueue and terminal failures that leave files.
 
@@ -386,8 +457,9 @@ user action carries a client-minted ID (Admission, above).
     the current revision, or while there is still no Extraction Schema.
     Otherwise it drops the generation, as reloading drops a conflicted save
     today, so a stale result never lands on newer work.
-  - The save expects the base as its head. So two tabs that load at once
-    cannot both save it; the second conflicts, as today.
+  - Recovery saves to an existing schema expect the base as their head.
+    First-schema initialization is not serialized today; cross-tab exclusion
+    is not a next-day release gate (a project-row lock sufficed in the probe).
   - A server-side save step would have to pick a head without the tab's
     acknowledgement, and would repeat after a crash between its commit and
     its checkpoint.
@@ -534,13 +606,20 @@ user action carries a client-minted ID (Admission, above).
   about 1 s after the cancel instead of running to completion. The signal
   reaches code inside a `durableCalls` step (version probe). Conditional
   outcomes, not the abort, still protect publication.
-- **Physical exclusion.**
-  - kei's queue has global and worker concurrency 1. dbos 3.1.0 (as 3.0.0)
-    counts worker concurrency from the in-memory set of active workflows
-    (`_queue.py:740-768`, `_core.py:1056-1071`). A cancelled workflow whose
-    step still runs therefore keeps the slot until the step returns.
-  - The flock excludes a second process.
-  - One regression test covers this; no extra lock.
+- **Physical capacity.**
+  - Each kei queue sets its worker concurrency equal to its global limit.
+    dbos 3.1.0 counts global and partition limits from `PENDING` rows, which
+    a cancel changes at once. It counts worker concurrency from the in-memory
+    set of active workflows (`_queue.py:740-768`, `_core.py:1056-1071`;
+    `_sys_db.py:4682`). A cancelled workflow whose step still runs therefore
+    keeps its lane's slot until the step returns. A rev-8 review probe
+    reproduced this: with only global limits, cancelling one of four blocked
+    steps let a fifth start.
+  - The flock excludes a second process, so worker limits are the whole
+    capacity.
+  - Lanes run side by side by design; nothing excludes a conversion from an
+    extraction. Cleanup no longer relies on exclusion (*Deletion*).
+  - One regression test per queue covers this; no extra lock.
 
 ## Deletion and garbage collection
 
@@ -570,14 +649,32 @@ unreadable immediately; execution and file cleanup can finish later.
 - **Packages:** remove unreferenced canonical packages older than 24 h using
   the existing rename-and-recheck. Preserve every surviving revision's package.
 - **kei runs and history:** Studio checks domain references and both workflow
-  schemas. A run referenced by a revision's `preprocessId`, a live kei workflow
+  schemas. Check parent terminality before reading fresh domain references;
+  never combine an earlier no-reference result with a later terminal status.
+  A run referenced by a revision's `preprocessId`, a live kei workflow
   or a child of a live Studio parent is protected. This covers a completed
   conversion waiting for Studio publication. Pass eligible run/history IDs to
-  kei `deleteRuns` on queue `kei` at priority 0. It rechecks its own workflow
-  statuses and performs deletions while holding the same physical worker slot.
-  kei never receives permission to query Studio's domain or system schema.
-  Run directories must also be older than 24 h. Queue exclusion, not priority
-  or elapsed age, prevents cleanup overlapping a cancelled native step.
+  kei `deleteRuns` on `kei-gc` (global and worker 1). It rechecks its own
+  workflow statuses. kei never receives permission to query Studio's domain
+  or system schema. Run directories must also be older than 24 h.
+  - **kei boot boundary.** Lanes run beside cleanup, so exclusion no longer
+    protects a cancelled native step. After taking the flock (the previous
+    process has exited) and before `DBOS.launch()`, kei reads
+    `keiBootTimestamp` from the database clock. A run whose kei workflows all
+    ended `SUCCESS` or `ERROR` is eligible, because their steps returned. Any
+    other terminal status is eligible only once that workflow's `updatedAt <
+    keiBootTimestamp`: `CANCELLED` (explicit or deadline, both stamped from
+    the database clock) and `MAX_RECOVERY_ATTEMPTS_EXCEEDED`. Until a kei
+    restart, a native step may still write files or checkpoints, and no
+    elapsed age proves otherwise.
+  - **Late handoffs.** A cancelled Studio parent can still finish a
+    `submitToKei` already under way (*Cancellation*), so an unreferenced run
+    can gain a kei reader after cleanup checked it. `runExtraction` records the
+    run it hands to kei as the workflow attribute `keiRunId`. A run stays
+    protected while any Studio workflow with that attribute is live, or ended
+    in anything but `SUCCESS` or `ERROR` at or after Studio's
+    `bootTimestamp`. After that, cleanup rechecks the run's kei children
+    before passing it on. Conversions write new runs and read no old ones.
 - **Staged uploads:** remove attempt files older than 24 h only if their
   project/attempt workflow is absent or terminal. This includes crashes after
   staging but before enqueue and losing dedup candidates. Protect active
@@ -601,17 +698,52 @@ unreadable immediately; execution and file cleanup can finish later.
 A failed reference/status query deletes nothing. DBOS payload tables lack
 foreign keys, so deleting history while a cancelled step can still checkpoint
 would leak orphan rows. A 24-hour cancellation age does not prove that step
-stopped. Cleanup can wait behind a hung kei step or until a Studio restart;
-there is no fixed 24-hour deletion guarantee. Late unpublished files remain
-invisible and are collected after reference and quiescence checks.
+stopped. Cleanup of cancelled work waits for a Studio or kei restart, and
+kei restarts at every deploy. Runs that ended normally are cleaned on the
+usual schedule. There is no fixed 24-hour deletion guarantee. Late
+unpublished files remain invisible and are collected after reference and
+quiescence checks.
 
 ## Queues, deadlines and upgrades
 
 | App | Queue | Policy | Workflows |
 |---|---|---|---|
-| kei | `kei` | global 1, worker 1, priority: interactive extraction and conversion 1, batch extraction 10, `deleteRuns` 0; FIFO ties | `convert`, `extract`, `deleteRuns` |
+| kei | `kei-convert-large` | global 1, worker 1; FIFO | `convert` of documents over `SMALL_DOCUMENT_PAGES` |
+| kei | `kei-convert-small` | global 1, worker 1; FIFO | `convert` of the rest |
+| kei | `kei-extract` | global 2, worker 2; priority interactive 1, batch 10; FIFO ties | `extract` |
+| kei | `kei-gc` | global 1, worker 1 | `deleteRuns` |
 | studio | `studio` | unrestricted; dedup per chat source revision and per ingestion project/content | `runExtraction`, `chatTurn`, `ingestSource` |
 | studio | `suggest` | global 1 | `suggestSchemaBatch` |
+
+- **Why these lanes** (decision 14; measured on the Spark,
+  [rev-8 tests](2026-09-24-unified-durable-execution-evidence/rev8-tests/README.md)).
+  Each vLLM server runs 4 requests (`--max-num-seqs 4`).
+  - **Conversion.** Surya's client sends `SURYA_INFERENCE_PARALLEL` requests
+    at once. The measured baseline is the deployment before 2026-09-25, which
+    set neither that nor `VLLM_GPU_TYPE`. Surya then guessed 32 from a GPU
+    table (`surya/inference/backends/vllm.py:101-113`), and a book left 28
+    requests waiting in vLLM. Pinned to 4 (shipped; *kei worker*), a 40-page
+    book takes the same time (250 s against 254 s). A
+    3-page document added during the book's OCR then takes 40.8 s instead of
+    99.8 s (32.8 s alone), and the book 275 s. vLLM serves waiting requests
+    in arrival order, so the small document's requests are next once the
+    book holds only 4. At 3/2/1 client threads the book takes 290/365/688 s,
+    so no slot is reserved.
+  - **Extraction.** A Catalog extraction sends one request at a time
+    (`kie/extract/grounded.py:190-195`), using 1 of NuExtract's 4 slots. A
+    small extraction beside a 200-entry Catalog took 7.75 s (8.5 s alone,
+    Catalog) and 22 s (13.8 s alone, Article). The Catalog stayed at 433–443 s
+    against 434 s. One slot would make a small extraction wait up to the
+    Catalog's 3 h deadline.
+  - **Cleanup** has its own queue, so it never takes a conversion or
+    extraction slot.
+- **Lane is not fairness.** Two large books run one after the other, and two
+  small documents too. Per-account sharing through DBOS partitions (random
+  per-poll order; `fair_queue_probe.py`) is deferred: priority would then
+  apply only within one account, and a worker limit is still required.
+- **`SMALL_DOCUMENT_PAGES`** is one constant in the handoff module: 30 (user,
+  2026-09-25). kei registers the queues;
+  Studio only picks one.
 
 - **Other workflows start directly.** The `studio` queue provides transactional
   admission and active deduplication, not a new resource cap. Measure its chat
@@ -621,14 +753,18 @@ invisible and are collected after reference and quiescence checks.
 - **Ownership.** Every `DBOSClient` sets `applicationName`: `studio` for the
   admission client, `kei` for the kei handoff client. A client without one
   creates workflows that no application owns, and any application may
-  dequeue those. Only kei registers the `kei` queue; a client's
+  dequeue those. Only kei registers the kei queues; a client's
   `registerQueue` defaults to `always_update` and would overwrite kei's
   configuration.
 - **No admission caps.** None exist today besides the 50-member batch limit,
   which stays. HEAD already dropped kei's cap of 32.
-- **kei deadlines.** `workflowTimeoutMS` applies to `kei-extract` (10 min
-  Article, 3 h Catalog) and `kei-convert` (budget fixed by M0R), measured from
+- **kei deadlines.** `workflowTimeoutMS` applies to kei `extract` (10 min
+  Article, 3 h Catalog) and kei `convert` (budget fixed by M0R), measured from
   kei dequeue. Studio parents have no deadline; they end with their child.
+  The conversion budget grows with pages. On the Spark, cutting took 2.7 s
+  per page on the CPU before the first OCR request, and OCR about 2 s per
+  crop (73 crops for 40 pages). A 2000-page scan would take roughly 3.5 h. So
+  the budget is per page, set from the M0R 4 and M0R 6 measurements.
 - **Versions.** `studio@1` and `kei@1` stay fixed. Code changes that alter a
   workflow's step sequence use `DBOS.patch()` / `deprecatePatch()` (Python:
   `patch` / `deprecate_patch`). Both SDKs require patching to be enabled in
@@ -662,16 +798,76 @@ invisible and are collected after reference and quiescence checks.
   generation pin, model and recipe checks, `run.py:extract`, then idempotent
   artifact publication.
 - **`classify`** moves from `jobs/tasks.py` to `kei_exp/failures.py`.
+- **Queues.** The worker registers the four kei queues after `DBOS.launch()`,
+  each with worker concurrency equal to its global limit (*Cancellation*).
+- **OCR client width (shipped 2026-09-25).** `compose.gpu.yaml` sets
+  `SURYA_INFERENCE_PARALLEL` on the parsing worker and API from the same
+  `OCR_MAX_NUM_SEQS` (default 4) as `ocr_model`'s `--max-num-seqs`, so the two
+  change together. The safety test asserts it. On its own it changes nothing
+  until lanes run side by side.
+- **Two conversions in one process.** The lanes let a large and a small
+  conversion run at once. The Spark tests found no conflict, under three
+  conditions:
+  - Surya's `configure()` writes process-global settings (`surya.py:215`).
+    Only one Surya record exists, so both conversions write the same values.
+    A second Surya record needs per-call settings first; a test fails if two
+    records differ in what `configure()` sets.
+  - The pdfium lock covers a whole document only on the `cut=none` path
+    (`surya.py:236`). Studio always sends `cut=auto`, which renders page by
+    page. A small document injected while a book was being cut finished in
+    33.8 s, against 32.8 s alone.
+  - Each conversion has its own run directory. Two extractions of one run
+    write different artifact files, and both compute the same segmentation
+    before publishing it by rename (M3 test).
+  - Not yet measured: memory with a 2000-page book beside a small document,
+    and `page_source=ingest` spreads (M0R 6).
+- **Cutting precedes OCR.** `SuryaOcr.transcribe` receives every crop of the
+  document at once (`transcription/surya.py:288-296`), so a 2000-page book
+  spends about 90 min cutting on the CPU and holds all crops in memory before
+  its first OCR request. This is unchanged (*Risks*). Streaming crops into OCR
+  is a later improvement, not part of this migration.
+- **Parallel Catalog chunks** (M3; user, 2026-09-25). A Catalog extraction
+  sends one request at a time, so it leaves 3 of the fields server's 4 slots
+  idle. It now runs its entries in `KEI_CATALOG_CHUNKS` contiguous chunks at
+  once.
+  - **Setting.** Compose derives `KEI_CATALOG_CHUNKS` from the same
+    `NUEXTRACT_MAX_NUM_SEQS` (default 4) as `nuextract_model`'s
+    `--max-num-seqs`, as for OCR.
+  - **Once for the whole document:** the segmentation, the budget checks, the
+    bindings and the document-level fields. `_document` makes its one call
+    when the schema has document fields (`grounded.py:684-707`), and every
+    chunk's records merge the same result.
+  - **Per chunk:** a thread with its own `_Run`, because `_Run.call` mutates
+    run state (`grounded.py:132-155`). Every chunk keeps the full headings
+    and glossary. Entries keep their document-wide index, so issues and calls
+    name the right record.
+  - **Merge** in entry order: records, evidence, proposals, rejections,
+    competitors, calls and issues. The run is refused if any chunk refused.
+    Coverage comes from the segmentation once. The artifact records the
+    chunk count.
+  - **Unchanged:** it is still one `extract` step, a failure retries the
+    whole step, and cancellation is checked between entries as today.
+    Article extraction is not chunked.
+  - **Evidence** (200-entry Catalog): 106 s against 434 s. The same chunks run
+    one after another gave records identical to the unsplit run. Run in
+    parallel, they changed 19–21 borderline `fundart` values, against 0–1
+    between two unsplit runs. The cause is vLLM batching, which the user
+    accepts (*Risks*).
+  - **With two extraction slots,** two chunked Catalogs send up to 8 requests
+    to a 4-slot server. vLLM queues the rest in arrival order, so a small
+    extraction's request waits behind those already queued, about one round.
+    This is measured in M3, not assumed.
 - **Per-model-call checkpoints are deferred.**
   - `_Run.call` mutates run state in place (`kie/extract/grounded.py:132-155`),
     so step boundaries there mean a refactor that deletes nothing. A crash
     repeats the whole extraction, as today.
   - Python has no transport-retry loop for DBOS to replace. Its only resend is
     the unsupported-format retry (`kie/extract/llm.py:97-99`), which stays.
-- **Read API.** It keeps five routes, with their path confinement and
+- **Read API.** It keeps six routes, with their path confinement and
   manifest/page/hash checks:
   - `GET /api/models` (Compose health);
   - `/api/extraction-models`;
+  - `/api/ingestion-models` (new in M2);
   - `/api/runs/{id}/result`;
   - `/api/runs/{id}/pages/{n}`;
   - `/api/runs/{id}/extractions/{xid}`.
@@ -683,21 +879,26 @@ invisible and are collected after reference and quiescence checks.
 ## Model configuration and keys
 
 - **Ownership.** Each Researcher Account owns one configuration: its Model
-  Connections, both Capability Routes and its Extraction Model Choice.
+  Connections, both Capability Routes, its Extraction Model Choice and its
+  Ingestion Model Choice.
   - `model_config` and `model_probe` become researcher-scoped handlers instead
     of static modules (`server/api-dispatcher.ts:43-48`). A researcher reads
     and changes only their own configuration.
   - Every Studio model call, background ones included, resolves the
     configuration of the Project Context's owner; workflows carry only IDs.
     kei's parsing, OCR and extraction models stay deployment-configured
-    (`KEI_*`), and the Extraction Model Choice only selects among them.
+    (`KEI_*`); the Extraction and Ingestion Model Choices only select among
+    them.
   - The account is mandatory, so the accountless fallbacks go, such as
     `readModelConfig()` in `operationTarget` (`api/_model.ts:87`).
   - An Extraction is still requested on the Extraction Model Choice current
     when it starts, which is now the owner's.
 - **Deployment connections** stay operator-defined, read-only and shared by
-  every researcher. An unset route still falls back to the deployment's
-  default route.
+  every researcher. An unset Interaction Route still falls back to the
+  deployment's default route. An unset Schema Suggestion Route follows the
+  Interaction Route (decision 12), so it resolves `schemaSuggestion ??
+  interaction ?? defaultRoute`. Today each route resolves on its own
+  (`api/_provider.ts:681-684`).
   - The vLLM servers come from `FREE_DEPLOYMENT_*`
     (`api/_deployment_models.ts`).
   - The CLI providers run on the server's own CLI login (the CLI auth homes).
@@ -712,8 +913,8 @@ invisible and are collected after reference and quiescence checks.
     personal-CLI branches.
 - **Configuration storage.** `ModelConfiguration(researcherAccountId,
   document, updatedAt)`, cascading from the account.
-  - The document holds the researcher's connections, routes and Extraction
-    Model Choice. For each connection it records only whether the connection
+  - The document holds the researcher's connections, routes, Extraction Model
+    Choice and Ingestion Model Choice. For each connection it records only whether the connection
     uses a key (`hasKey`), never the key. Managed kinds (OpenAI, Anthropic,
     Google) always do.
   - One transaction applies a draft, serialized by a lock on the researcher's
@@ -723,6 +924,53 @@ invisible and are collected after reference and quiescence checks.
     (`shared/modelConfig.contract.ts:87`), and the response loses
     `credentialStates` (`:114-117,147`).
   - There are no revisions and no pins.
+- **Ingestion Model Choice** (decision 13).
+  - Per role, it names the kei model a new parse runs on. `ocr` is the
+    transcriber for scanned pages, a `kei_exp.models.MODELS` key. `layout` is
+    the Docling detector that cuts scanned pages into regions, a
+    `LAYOUT_MODELS` key (`kei_exp/cut.py:28`). A page with a text layer uses
+    neither (`kie/stages/ocr.py:77-82`). An omitted role keeps kei's default. It names no Model Connection. A
+    Project Context uses its owner's choice.
+  - It applies to new ingestions and reprocessing only. Completed-content
+    replay returns the existing parse even after the choice has changed, so
+    reprocessing is how a researcher applies a new choice.
+  - kei lists the options with `GET /api/ingestion-models`, shaped like
+    `/api/extraction-models`: the default per role, then the models of each
+    role. An OCR model is `serving` only while the OCR server has it loaded
+    (`loaded_model(VLLM_URL)`), since that server loads one model; `serving`
+    is what the listing observed, not a promise. Layout detectors are presets
+    that run inside kei and are always selectable; each loads on first use
+    (`cut.py:85-86`). Studio forwards the listing, beside
+    `api/extraction_models.ts`. It replaces `/api/server` and
+    `/api/layout-models`, which M1 deletes as unused.
+  - A listing failure blocks neither ingestion nor other configuration edits.
+    A saved choice that the listing no longer offers stays saved and shown,
+    as `ExtractionModelSelect.tsx` does for extraction models today.
+  - Admission freezes the owner's explicit choices into the workflow input,
+    so a recovered attempt runs the models it was admitted with. kei resolves
+    a role left unchosen once, in its own checkpointed step when `convert`
+    starts, from the same default definition its listing reports. A recovered
+    attempt reuses that step, while queued work follows the deployment's
+    current default. An operator who swaps the OCR server's model also swaps
+    that default, so an older default would only fail the serving check.
+  - kei keeps today's checks: an unknown key is refused, and whether the OCR
+    server serves the model is decided when the conversion runs. The parse
+    recipe already records the transcriber and layout model
+    (`result.py:59-68`).
+  - Deduplication and replay keep their identities, and the models never
+    enter a dedup key or fingerprint. A same-content upload joins the active
+    attempt with that attempt's models, whatever the joiner's choice. A
+    repeated reprocess request key compares only today's fingerprint
+    (`api/source_reprocess.ts:72-74`) and reuses the admitted models; it never
+    resolves the configuration again. A new request key captures the current
+    choice.
+- **NuExtract protocol** (decision 12). The Schema Suggestion route stores no
+  `protocol`. Studio uses NuExtract's protocol exactly when the route's
+  connection supports it (vLLM, `supportsNuextract`) and its model ID names
+  NuExtract (`/nuextract/i`). This removes the contract field
+  (`shared/modelConfig.contract.ts:36-40`), its validation
+  (`api/_model_config.ts:123-130`) and the page's checkbox. The stored check in
+  `api/_provider.ts:701-703` becomes the derivation.
 - **Keys: bring your own, never stored by Studio.** A researcher's API keys
   stay in their browser. Studio keeps a copy only in process memory, never in
   PostgreSQL, on disk, in logs or in DBOS.
@@ -746,6 +994,7 @@ invisible and are collected after reference and quiescence checks.
     one). It sends them:
     - on load;
     - after Apply;
+    - before starting new model work, awaiting the handoff before its POST;
     - when a response shows a new Studio boot ID. Every API response carries
       `X-FREE-Studio-Boot`, a UUID drawn at startup. The check lives in
       `src/auth/authenticatedFetch.ts`, so every page has it: the chat
@@ -790,6 +1039,12 @@ invisible and are collected after reference and quiescence checks.
       with `hasKey` never does. This replaces today's catches that turn a
       store error into an anonymous request (`api/_provider.ts:659`,
       `api/model_probe.ts:68`).
+    - The NuExtract protocol has no SDK model. `generateWithNuExtract`
+      (`api/_model.ts:280`) fetches vLLM directly, with an `authorization`
+      string resolved together with the route (`api/_provider.ts:628-635`).
+      It gets the same boundary: its target names the connection, not a
+      credential, and the key read, the wait, `cancelSignal` and error
+      sanitizing all happen inside the attempt.
   - **Probes** always carry the key typed or stored in the page; the server
     never looks one up for a probe.
   - **Validation errors.** `model_keys` and `model_probe` answer a malformed
@@ -815,6 +1070,47 @@ invisible and are collected after reference and quiescence checks.
     - Accounts that share one browser profile share its storage. The
       per-account namespace keeps them apart for the app, not against a
       script.
+- **The page** (decision 12; reference prototype on branch
+  `prototype/model-config-b1`, `src/providerConfig/prototype/`, variant B1).
+  - Models and Connections tabs share one draft and one Apply.
+  - Models has three steps, and a step at its defaults is one sentence with a
+    Change link. "Use defaults" removes the step's stored choice. One line per
+    step says where its options come from: any of the researcher's
+    connections, or the models this deployment runs.
+    1. *Reading documents*: text recognition and page regions for scanned
+       pages, the Ingestion Model Choice.
+    2. *Schema & chat*: the *Assistant model* (the Interaction Route).
+       Schema Suggestion inherits it while its route is unset. "Use a
+       different model" stores its own route, which stays an override even
+       when it equals the Assistant model; "Use the assistant model" unsets
+       it again. The prototype inferred following from equality, and this
+       plan supersedes it.
+    3. *Extracting data*: field values and reasoning, the Extraction Model
+       Choice.
+  - There is no Single/Routes mode. A route is `{connectionId, modelId}`, or
+    unset (the deployment default, or for Schema Suggestion the Assistant
+    model), and one draft function, `assign(task,
+    target | null)`, sets it. This deletes the mode state,
+    `configurationMode()`, `setSingleConnection`, `setSingleModel`,
+    `setRouteModel` and `setNuextractProtocol`
+    (`src/providerConfig/useProviderConfigDraft.ts`), and the single-model
+    branch of `ProviderRoutesEditor.tsx`.
+  - One control picks a route's connection and model together. It groups
+    models by connection, searches, and accepts an exact model ID. The page
+    probes every eligible connection when it opens, instead of when a model
+    list first opens (`openModelList`):
+    - a deployment connection, with no credential (`api/model_probe.ts:38`);
+    - a connection without `hasKey`, anonymously;
+    - a `hasKey` connection only with this browser's key for that account,
+      provider and base. Without one it is not probed.
+
+    An edit or unmount supersedes scheduled probes and stale results, as
+    `useProbeLifecycle.ts` does today. `ModelCombobox.tsx`, `ExtractionModelSelect.tsx` and
+    `ProviderRoutesEditor.tsx` have no other user and give way to it.
+  - Connections is a list with a detail pane. Deployment connections,
+    including the CLI ones, are read-only. A connection's provider is fixed
+    once it is added. Its key is one line: saved in this browser, with Replace
+    and Remove, or an input.
 - **Reset.** Validation on write keeps the stored document valid, and future
   shape changes become migrations, so the fail-closed reset path goes.
 - **Deletions:**
@@ -838,12 +1134,18 @@ invisible and are collected after reference and quiescence checks.
     held by the researcher's browser). ADR 0006 assumed one researcher on
     localhost with an OS keyring, called hosted deployment unsupported, and
     allowed any researcher-supplied API base for that reason.
-  - Amend ADR 0007, whose routes are machine-wide, and ADR 0011: the page
-    edits the signed-in researcher's configuration, and the reset paragraph
-    goes.
+  - Amend ADR 0007, whose routes are machine-wide and whose Schema Suggestion
+    route stores the NuExtract protocol; the protocol is now derived. Amend
+    ADR 0011: the page edits the signed-in researcher's configuration in three
+    steps without a Single/Routes mode, and the reset paragraph goes. ADR 0013
+    also records the Ingestion Model Choice.
   - In CONTEXT.md, Model Connection, Capability Route and Extraction Model
     Choice become owned by a Researcher Account, deployment connections
-    excepted. A Project Context uses its owner's configuration.
+    excepted. A Project Context uses its owner's configuration. Add the
+    Ingestion Model Choice. The Schema Suggestion Route uses the NuExtract
+    protocol when its model is NuExtract on a vLLM connection, and when
+    unset follows the Interaction Route. *Assistant
+    model* is the page's name for the Interaction Route.
 
 ## Cutover (clean slate)
 
@@ -895,6 +1197,11 @@ this pre-production reset as its only exception.
 - Model operations retain client IDs/base revisions, listing and owner-checked
   cancellation. Browser-key contracts remain as specified above.
 
+- Model configuration: the account's document gains `ingestionModels:
+  {ocr?, layout?}`, and `routes.schemaSuggestion` loses `protocol`. kei and
+  Studio gain `GET /api/ingestion-models`. kei's `convert` input takes
+  optional `model` and `layout_model` keys.
+
 Update schemas, handlers, browser consumers and tests together; add no legacy
 aliases or compatibility readers for this pre-production cutover.
 
@@ -902,7 +1209,9 @@ aliases or compatibility readers for this pre-production cutover.
 
 One branch and one cutover, with no temporary execution backends. Until the
 cutover, the new migration baseline is edited in place; forward migrations
-resume after it. Finish each milestone's test tier before the next.
+resume after it. M2–M4 form one integration boundary: run component checks
+between them and the full-stack gate after M4. Do not deploy the incomplete
+middle state. Later milestones finish their test tier before the next.
 
 **M0: original throwaway spike — historical, completed.** Findings are
 preserved below (TS DBOS 5.0.2, Python DBOS 3.0.0, x86_64). It did not test
@@ -910,9 +1219,10 @@ in-process launch, interactive durability, derived status or garbage
 collection.
 
 **M0R: pre-implementation probes, the gate before M2.** M1 only removes dead
-code and does not wait for it. Each probe runs in a throwaway harness against
+code and does not wait for it. Items 1–5 run in a throwaway harness against
 disposable loopback `free_test_*` databases and scripted model endpoints; no
-live credentials or research content. Record versions, commands and outcomes
+live credentials or research content. Item 6 measures the Spark's own model
+servers with synthetic documents. Record versions, commands and outcomes
 in the evidence record. A failed probe revises this plan; it never adds a
 custom scheduler or fallback. A check that needs FREE's own workflows,
 handlers or pages is an acceptance test of the milestone that builds it
@@ -946,19 +1256,43 @@ handlers or pages is an acceptance test of the milestone that builds it
      `studio`; Studio owns and runs the admitted workflow.
    - Verify `return-existing` only outside caller-owned transactions; measure
      chat dequeue latency on the unrestricted queue.
-4. **kei queue.**
-   - Cancel right after claim and mid-step, then enqueue a job and a
-     `deleteRuns`; nothing may overlap, and neither starts until the blocked
-     cancelled native step exits.
-   - Check priorities, FIFO ties and dequeue-relative deadlines on the `kei`
-     queue configuration.
-   - Measure the conversion budget; it fixes `kei-convert`'s deadline (M3).
+4. **kei queues.**
+   - On each lane, cancel right after claim and mid-step, then enqueue another
+     job. It must not start until the blocked cancelled native step exits;
+     the other lanes keep running.
+   - `deleteRuns` leaves a run with a cancelled workflow alone until a kei
+     restart, then removes it. Check that a Python-side cancel and a deadline
+     both set `updatedAt` from the database clock.
+   - Check priorities, FIFO ties and dequeue-relative deadlines on
+     `kei-extract`, and deadlines on both conversion lanes.
+   - Measure the conversion budget per page; it fixes the lanes' deadline
+     (M3).
 5. **Model calls.**
    - Stream one HTTP and one CLI provider through `durableCalls`.
    - Passed 2026-09-25 (version probe): a successful stream checkpoints no
      request body or response headers but does record provider metadata.
      `DBOS.stepStatus.cancelSignal` reaches a wrapper model inside the step
      and fires about 1 s after the cancel, before any provider call.
+6. **Spark scheduling.** These run on the Spark's live model servers from a
+   throwaway container of the parsing image, with synthetic documents only.
+   They restart nothing unless the user approves.
+   - Passed 2026-09-25 ([rev-8 tests](2026-09-24-unified-durable-execution-evidence/rev8-tests/README.md)):
+     - a book and a small document through today's `ocr.resolve` and
+       `convert`, at Surya widths default, 4, 3, 2 and 1;
+     - a small document injected during the book's cutting and OCR;
+     - two extractions side by side;
+     - Catalog chunks run in parallel and one after another.
+     - The KV cache peaked at 10% with no preemptions.
+     - `VLLM_BATCH_INVARIANT=1` on a separate NuExtract server (production
+       untouched): vLLM 0.29.1 fails at startup with "batch_invariant mode
+       is not supported for GDN_ATTN". Both extraction models are
+       `Qwen3_5ForConditionalGeneration` with gated-delta-net layers
+       (NuExtract 24 of 32, Qwen 48 of 64), so neither can use it.
+   - Pending:
+     - a book near 2000 pages (memory, cut time, deadline);
+     - `page_source=ingest` spreads;
+     - Studio chat and schema generation during a kei extraction on
+       `extraction_model`.
 
 **M1: dead code (no schema change) — done 2026-09-25.** Task plan:
 [2026-09-25-dbos-m1-dead-code.md](2026-09-25-dbos-m1-dead-code.md).
@@ -992,6 +1326,8 @@ handlers or pages is an acceptance test of the milestone that builds it
   `e2e/real-service.spec.ts`. Keep the `kei_exp/jobs/` readers that M3
   deletes (`records`, `extractions_of`, `events_after`, `tokens.read_after`).
   Until M3, `kei_event` rows and `tokens.jsonl` then have no production reader.
+  M2 replaces `/api/server` and `/api/layout-models` with one purpose-built
+  `GET /api/ingestion-models`; M1 still deletes both.
 - **Stale assertion.** Fix `result_version == 4`
   (`tests/test_service_smoke.py:248`).
 
@@ -1001,7 +1337,9 @@ handlers or pages is an acceptance test of the milestone that builds it
     API's database environment;
   - add `source-inbox` and `FREE_DEPLOYMENT_CLI_PROVIDERS`, with both CLI
     kinds in the local development overlay;
-  - make `parsing_worker` wait for Studio's healthcheck;
+  - make `parsing_worker` wait for Studio's healthcheck, after removing
+    Studio's own `depends_on: parsing_worker` (`compose.yaml:137,142`), which
+    would otherwise form a cycle;
   - in Studio's development watch, use `sync+restart` for server code (`api/`,
     `server/`, `shared/`, `packages/`) and keep `sync` for `src/`.
 - **Studio entrypoint.** After `db:init`, create the kei role
@@ -1049,6 +1387,20 @@ handlers or pages is an acceptance test of the milestone that builds it
   - Update `model_probe.ts`, `model_config.ts`, their tests and
     `e2e/model-configuration.spec.ts`, which gains a two-account case.
   - Remove the keyring packaging; update lockfiles.
+- **Model Configuration page** (seventh revision). The prototype branch is a
+  reference to read, not code to merge.
+  - Contract: the per-account document gains `ingestionModels`, and the Schema
+    Suggestion route loses `protocol` with its checks. The provider derives
+    the protocol instead. The route resolver implements Schema Suggestion's
+    inheritance.
+  - kei's `GET /api/ingestion-models` and Studio's forwarding route.
+  - The draft's single route setter replaces the mode and its setters. Write
+    it together with this milestone's credential and key-clearing changes to
+    `useProviderConfigDraft.ts`, so the hook is rewritten once.
+  - The page as specified under *The page*.
+  - Rewrite `e2e/model-configuration.spec.ts` once, for the steps and the
+    two-account case.
+  - The Ingestion Model Choice is stored from M2 and used from M4.
 - **`scripts/free.mjs`.** Drop `parsing_db` from stop/restart.
 - **`tests/safety.test.mjs`.** Cover kei's restricted URL, a parsing API
   without database access, and the app shell's CSP.
@@ -1056,6 +1408,8 @@ handlers or pages is an acceptance test of the milestone that builds it
   - A key sent for one API base is never used for another, and a draft base
     change never probes the new base with the old key. Sign-out and key
     removal clear the cache.
+  - Opening the page sends each probe exactly the credential the rules allow,
+    checked by inspecting the requests.
   - A stale tab's handoff under another signed-in account is rejected. A
     malformed key or probe request echoes nothing.
   - No account's call uses another account's key or connection. One
@@ -1066,13 +1420,34 @@ handlers or pages is an acceptance test of the milestone that builds it
   - The app shell's CSP allows the PDF viewer and its worker, and refuses
     inline script.
   - kei's role is denied on `public` and `dbos`.
+  - A NuExtract model on a vLLM connection runs Schema Suggestion with the
+    NuExtract protocol, and no other route ever uses it. Test all four
+    combinations of vLLM or not and NuExtract model ID or not.
+  - An unset Schema Suggestion route follows the Assistant model. An explicit
+    one stays explicit across a reload, even when it equals the Assistant
+    model. "Use defaults" removes a step's stored choice.
+  - The ingestion listing marks OCR models the OCR server does not serve, and
+    the page cannot choose one. A saved choice it no longer lists stays
+    saved, and a listing failure blocks no other edit.
 
 **M3: kei on DBOS.**
 - **Dependencies.** Replace Procrastinate with `dbos` in `pyproject.toml` and
   `uv.lock`; `kei-worker worker` replaces `kei-jobs`.
-- **New code.** `src/kei_exp/workflows/` holds the registration, the queue,
-  `convert`, `extract`, `deleteRuns` and the portable contracts.
-  `failures.py` holds `classify`. The cooperative checks read the DBOS status.
+- **New code.** `src/kei_exp/workflows/` holds the registration, the four
+  queues, `convert`, `extract`, `deleteRuns` with the kei boot boundary, and
+  the portable contracts. `failures.py` holds `classify`. The cooperative
+  checks read the DBOS status.
+- **Parallel Catalog chunks** (*kei worker*). `extract_grounded` splits into a
+  document prelude, per-chunk entry work and a merge. Compose adds
+  `NUEXTRACT_MAX_NUM_SEQS` for `nuextract_model` and `KEI_CATALOG_CHUNKS`,
+  and the safety test asserts they match.
+- **Ingestion model inputs.** `convert` takes optional `model` and
+  `layout_model` keys. It resolves an omitted one in its first checkpointed
+  step, from the definition the listing reports. The OCR default moves from
+  Studio's `KEI_EXP_MODEL` (`compose.yaml:117`) to kei's `KEI_OCR_MODEL`,
+  still `surya`, set on the parsing API and worker through one shared Compose
+  anchor. The layout default stays `layout_heron_101`. A test checks that the
+  listing's defaults equal the ones `convert` applies.
 - **Deleted jobs code:**
   - `src/kei_exp/jobs/` except `hold_slot`, and the kei tables;
   - `POST /api/runs`, `GET /api/runs/{id}` and `POST …/extract`;
@@ -1090,8 +1465,21 @@ handlers or pages is an acceptance test of the milestone that builds it
   Extraction artifacts v1 and v2 both stay; both are produced today.
 - **Tests.** Workflow, kill/restart, SIGSTOP, contract-fixture and
   publication-crash tests. Service smoke tests admit through DBOS.
-
-**M4: Studio background work on DBOS.**
+  - Lanes: a large and a small conversion in one worker produce the same
+    manifests as each alone. A cancelled step keeps its lane's slot, and
+    only that lane's.
+  - Two extractions of one run each publish their artifact, and the shared
+    segmentation stays valid.
+  - A test over `MODELS` fails if two Surya records would make `configure()`
+    set different values.
+  - Catalog chunks, with a deterministic scripted model: chunked and unsplit
+    runs give the same artifact apart from call order and the chunk count.
+    Covered: records, evidence, issues with document-wide record numbers,
+    and document fields extracted once. A refusal in one chunk refuses the
+    run; a failed chunk fails the step.
+  - On the Spark (M0R 6 harness): a 200-entry Catalog finishes in about a
+    quarter of the time, and a small extraction beside it finishes within
+    seconds of its time alone.
 - **`server/dbos.ts`** holds:
   - the configuration (app `studio`, schema `dbos`, version, executor);
   - one launch per process in `host.ts` and `developmentHost.ts`, replacing
@@ -1119,7 +1507,10 @@ handlers or pages is an acceptance test of the milestone that builds it
   project/attempt staging. Delete ingestion-key requests/DTOs, browser key
   minting and all follower machinery. Keep reprocess request keys and
   expected-head checks. Share verify/translate/package functions and delete
-  HTTP kei polling.
+  HTTP kei polling. Admission resolves the owner's Ingestion Model Choice into
+  the workflow input and passes it to `convert`. Delete `KEI_EXP_MODEL` and
+  `DEFAULT_MODEL` (`api/source_documents.ts:38,472`). Admission also counts
+  pages and fixes the conversion lane (*Studio → kei handoff*).
 - **Reads.** Derive execution status; revise public contracts together with
   callers, with no compatibility aliases. Keep completed result/review and
   evidence pin behavior. Extraction cancel now reaches kei.
@@ -1144,6 +1535,20 @@ handlers or pages is an acceptance test of the milestone that builds it
     Empty selection retains the draft and disables Run/Retry.
   - Pending Extractions count as batch members but do not replace a previously
     reviewed result. A batch rerun creates new identities.
+  - An ingestion recovered after its owner changed the Ingestion Model Choice
+    runs the models it was admitted with. A re-upload of completed content
+    returns the existing parse, and a reprocess uses the new choice.
+  - Two same-content uploads under different choices join one attempt with
+    its first admitted models. A repeated reprocess POST after the choice
+    changed replays the original attempt, including after publication and
+    after history retention.
+  - A small document uploaded, or extracted, while a large conversion runs
+    completes without waiting for it. A recovered or replayed ingestion keeps
+    its admitted lane. A reprocess picks the lane from the revision's page
+    count.
+  - A PDF that pdf.js cannot open but PDFium can converts on
+    `kei-convert-large`; one neither can open fails in kei as today.
+    `runExtraction` records `keiRunId`.
 
 **M5: interactive work on DBOS.**
 - **Workflows.** Add `suggestSchema`, `proposeSchemaEdit` and `chatTurn` with
@@ -1180,9 +1585,9 @@ handlers or pages is an acceptance test of the milestone that builds it
   - Reload the page mid-`suggestSchema`, mid-`proposeSchemaEdit` and
     mid-`chatTurn`, and separately kill Studio at the same points. The page
     must find each operation.
-  - A finished generation is saved at most once, and only onto its base,
-    whether by the reloaded page or by a surviving tab. It is dropped when
-    newer work exists. The review bar returns.
+  - A reloaded page saves a finished generation only onto its base, dropping
+    it when newer work exists. A surviving tab keeps today's acknowledged-head
+    save behavior, including edits during generation. The review bar returns.
   - The transcript returns and partial text replays once under the turn ID.
     New readers skip superseded attempts. A partial provider failure produces
     an error finish and persisted failure, never a saved partial answer or an
@@ -1214,6 +1619,9 @@ handlers or pages is an acceptance test of the milestone that builds it
   - A replayed step whose call is checkpointed never waits for a key. A
     cancel during the wait never reaches the provider, and a cancel during a
     provider call stops it about 1 s later.
+  - A Schema Suggestion over the NuExtract protocol on a keyed vLLM
+    connection passes the same key-wait, cancellation and no-key-in-history
+    checks as the SDK models.
 
 **M6: garbage collection, documentation, test wiring and cutover.**
 - **Garbage collection.** Add the `collectGarbage` schedule and kei
@@ -1224,7 +1632,8 @@ handlers or pages is an acceptance test of the milestone that builds it
 - **ADRs.**
   - Write `docs/adr/0012-one-durable-execution-layer.md`, linking this plan.
   - Write ADR 0013 (per-researcher model configuration, with keys held by the
-    researcher's browser), superseding 0006. Amend 0007 and 0011.
+    researcher's browser, and the Ingestion Model Choice), superseding 0006.
+    Amend 0007 and 0011 as *Decision records* says.
   - Mark the Procrastinate plan and
     `prototypes/parsing_service/docs/job-backend.md` superseded.
 - **README.**
@@ -1235,19 +1644,25 @@ handlers or pages is an acceptance test of the milestone that builds it
     - keys stay in the researcher's browser, and Studio holds them only in
       memory while a call runs;
     - deployment connections, including `FREE_DEPLOYMENT_CLI_PROVIDERS`;
+    - the Ingestion Model Choice, which applies to new ingestions and
+      reprocessing only;
     - no reset.
   - #8: DBOS schemas migrate at launch.
   - #10: browser-held researcher keys, no OS-keyring dependency, and the
     one-time reset note; deployment secrets remain operator-provided.
   - Extraction execution: cancellation reaches kei.
 - **Other docs.**
-  - CONTEXT.md's configuration terms;
+  - CONTEXT.md's configuration terms, as *Decision records* lists them;
   - the Parsing README and CLAUDE, Studio CLAUDE and
     `docs/architecture/current.c4`;
   - the OpenSpec specs for model-connection configuration, capability-route
-    resolution, source-document ingestion and schema chat edit.
+    resolution, source-document ingestion and schema chat edit;
+  - CONTEXT.md's Model Attribution, reconciled with interactive work, which
+    stores none (*No pins*). A replayed result never gains attribution
+    reconstructed from today's route.
 - **Operations docs.**
-  - Backup set: a `free` dump, `parsing-runs`, `studio-data` and the CLI homes.
+  - Backup set: a `free` dump, `source-inbox`, `parsing-runs`, `studio-data`
+    and the CLI homes.
     No backup holds a researcher key.
   - DBOS inspection of both schemas.
   - Patch and version rules.
@@ -1262,6 +1677,17 @@ handlers or pages is an acceptance test of the milestone that builds it
   - In-flight runs/packages and children of live Studio parents survive.
   - After a blocked cancelled native step exits and cleanup runs, no late
     orphan checkpoint remains.
+  - A run with a cancelled kei workflow survives every sweep while that kei
+    process lives, and is removed after a kei restart. Runs that ended
+    normally are removed without one. A conversion running in another lane
+    never loses files to a sweep.
+  - Late handoff: hold an extraction's `submitToKei` enqueue, delete its
+    source, let the parent be cancelled, and run GC. The run survives until
+    a Studio restart, and the late kei extraction never overlaps its
+    deletion.
+  - Recovery exhaustion: crash the kei worker until a workflow reaches
+    `MAX_RECOVERY_ATTEMPTS_EXCEEDED`. Its run survives GC in that process
+    and is removed after the next kei restart.
   - Current-process cancelled Studio history survives GC regardless of age;
     a fully terminated process followed by restart permits eligible cleanup
     using the database-clock boot boundary. No in-place relaunch.
@@ -1280,7 +1706,8 @@ handlers or pages is an acceptance test of the milestone that builds it
   model-configuration write barrier, targeted Catalog retry, inspector hooks,
   `/events`, `cancel_requested`, `free-document-chat`, `result_version` 4,
   `options.model`, `ExtractionJob`, `BatchExtractionMember`, ingestion keys,
-  follower workflows, admission waits, and per-source suggestion progress.
+  follower workflows, admission waits, per-source suggestion progress,
+  `configurationMode`, a stored NuExtract `protocol`, and `KEI_EXP_MODEL`.
   Historical records and evidence probes are not runtime residue.
 - **Fast and safety.** `pnpm typecheck`, `pnpm lint`, `pnpm test`,
   `pnpm test:safety`.
@@ -1299,6 +1726,8 @@ handlers or pages is an acceptance test of the milestone that builds it
   - native PDF Evidence parity;
   - Studio and kei kill/restart with no duplicate kei work;
   - priorities and deadlines;
+  - lanes: a small ingestion and extraction finish while a large conversion
+    runs;
   - cancelling a blocked native step;
   - a page reload mid-chat, mid-generation and mid-edit;
   - a Studio restart with the page open, where the keys are resent and the
@@ -1307,7 +1736,11 @@ handlers or pages is an acceptance test of the milestone that builds it
   - the PDF viewer under the app shell's CSP.
 - **Manual.** Run `pnpm dev` through upload, reprocess, extraction and cancel,
   batch retry, schema-edit acceptance, and chat across a reload and a restart,
-  with two accounts. Inspect both DBOS schemas.
+  with two accounts. Inspect both DBOS schemas. On the GPU deployment, ingest
+  a scanned PDF under a non-default OCR and layout choice and check that its
+  recipe names them. Then upload a small scanned PDF while a large scan
+  converts, and extract from it. The e2e real service has no OCR server
+  (`e2e/realService.ts:168`), so it cannot prove either.
 
 A compile pass or a mocked SDK call does not prove recovery, isolation or
 physical exclusion.
@@ -1321,9 +1754,23 @@ physical exclusion.
   24-hour retention target and background history 30 days. Live parents and
   unquiesced cancellations can extend it; scope deletion can shorten age but
   never bypass quiescence. Dumps include this history and ChatTurn transcripts.
-- **Cleanup can wait.** A hung native step blocks kei's queue and cleanup.
-  Cancelled Studio history can remain until a later restart. This trades a
-  bounded deletion promise for safe cleanup without a new execution barrier.
+- **Cleanup can wait.** A hung native step blocks its lane. Cancelled Studio
+  history and cancelled kei runs can remain until a later restart of their
+  process. This trades a bounded deletion promise for safe cleanup without a
+  new execution barrier.
+- **Output varies under concurrency.** vLLM's batching changes arithmetic
+  enough to flip borderline answers. On a synthetic Catalog, about 10% of
+  `fundart` values (a trailing dot, or a value against null) differed when
+  NuExtract served four requests at once. Serial runs differed in 0–1 of 200.
+  This already happens whenever Studio and kei share a server. Two extraction
+  slots make it more frequent, and parallel Catalog chunks (M3) make it
+  routine. The user accepts it. vLLM's batch-invariant mode does not support
+  these models (M0R 6).
+- **Cutting before OCR.** A 2000-page scan spends about 90 min cutting on the
+  CPU and holds all its crops in memory before OCR starts. Its budget and
+  memory beside a small conversion are measured in M0R 6.
+- **Lanes add no throughput.** A small document beside a book costs the book
+  about 10% (250 s to 275 s) and adds about 8 s to the small one.
 - **Whole-batch retry costs.** Explicit suggestion retry repeats every remaining
   source call; per-source progress/results disappear after DBOS retention.
   Only the merged research proposal, draft and membership pins persist.
@@ -1345,7 +1792,9 @@ physical exclusion.
   calls on the operator's one login, with its billing and rate limits.
 - **Coarse kei steps.** A crash repeats a whole conversion or extraction, up to
   3 h of GPU time.
-- **One server, one kei worker.** No throughput gain is claimed.
+- **One server, one kei worker.** No throughput gain is claimed. Studio's own
+  calls to the extraction servers sit outside kei's queues, so their effect
+  on kei extraction is measured, not bounded (M0R 6).
 - **CLI token refresh** remains a provider risk.
 
 ## Out of scope
@@ -1361,8 +1810,16 @@ physical exclusion.
   instead. Parallel uploads and new retry controls.
 - Per-model-call Python checkpoints, and kei progress events or token
   streaming.
-- kei lanes, page-class priority, fairness beyond explicit priority, a debug
-  dashboard, and agents/MCP/embeddings.
+- Fair sharing between accounts, and pausing or preempting running work.
+  Lanes by page count are in scope (decision 14).
+- A per-page conversion fan-out. The rev-8 review rejected it:
+  - page children would each call `write_result`, which starts a new
+    generation and deletes other pages' files (`result.py:237`);
+  - a waiting parent would hold a slot in its children's queue;
+  - cancellation, deadlines and cleanup would need a tree contract.
+  Streaming crops into OCR inside one job would remove the cutting delay
+  without these problems. It is a later improvement.
+- Chunked Article extraction, a debug dashboard, and agents/MCP/embeddings.
 - Calling providers straight from the browser. That would keep keys away from
   Studio entirely, but it would take model work out of DBOS and lose reload
   recovery.
@@ -1413,6 +1870,24 @@ physical exclusion.
   M0R keeps pre-implementation probes only (adding the production-bundle
   check); checks that need FREE's own code became acceptance lists of M2,
   M4, M5 and M6.
+- **Seventh revision (2026-09-25).** Folds the Model Configuration page
+  redesign into M2 after a throwaway prototype; the user picked variant B1
+  (branch `prototype/model-config-b1`). The page has three workflow steps, no
+  Single/Routes mode and one route setter. The NuExtract protocol is derived
+  from connection and model. A per-account Ingestion Model Choice is wired
+  through kei's `convert` input (M3) and ingestion admission (M4). M1 is
+  unchanged. A Codex review then made an unset Schema Suggestion Route
+  inherit the Interaction Route and froze ingestion models at admission. It
+  also brought the raw NuExtract call inside the key boundary.
+- **Eighth revision (2026-09-25).** Sizes kei's scheduling for the Spark
+  (decision 14). The one `kei` queue becomes `kei-convert-large`,
+  `kei-convert-small`, `kei-extract` (two slots) and `kei-gc`, each with a
+  worker limit. Studio fixes the conversion lane at admission from the page
+  count. `SURYA_INFERENCE_PARALLEL=4` stops a book from flooding the OCR
+  server. `deleteRuns` gets a kei boot boundary instead of queue exclusion.
+  Rejected on the way: a per-page conversion fan-out, and per-account fair
+  sharing through DBOS partitions. Parallel Catalog chunks join M3 once the
+  user accepted the output variation. Spark measurements back every number.
 
 ## M0 findings (2026-09-24)
 
@@ -1560,3 +2035,127 @@ age-only cancellation cleanup are not implementation instructions.
   FREE; the installed project skills are loaded on demand instead. All five
   review probes and the new `version-probe.mjs` passed on the new pins; see
   [the evidence record](2026-09-24-unified-durable-execution-evidence/README.md).
+- **2026-09-25, Model Configuration prototype (user request):** the user found
+  the page too complicated. A throwaway prototype, on branch
+  `prototype/model-config-b1`, put today's page beside six redesigns against an
+  in-memory fake server.
+  - The Single/Routes mode was the main source of complexity. `ModelConfig`
+    has no mode, so it existed only in the page, doubled the route setters and
+    warned when the routes differed.
+  - User decisions: variant B1; the label *Assistant model*; NuExtract
+    auto-detection; ingestion models on the page, for new ingestions and
+    reprocessing only.
+  - Rejected: B2's split by where models run, because deployment servers are
+    routable connections too. The assistant could run on "Deployment
+    NuExtract" while it was listed under "From your connections".
+- **2026-09-25, Codex `gpt-6-astra` read-only review of the seventh
+  revision:** 5 P1 and 3 P2, no P0. Every claim was checked against source.
+  All 8 were accepted, one with a different fix.
+  - **Defaults (P1, different fix):** Codex had Studio write kei's defaults
+    into the admission input. Instead, explicit choices are frozen at
+    admission, and kei resolves an omitted role in a checkpointed first step
+    of `convert`. Admission then never depends on the listing, and queued work
+    follows an operator's OCR swap.
+  - **Replay (P1):** same-content joiners take the active attempt's models.
+    Reprocess replay reuses the admitted models, and its fingerprint stays
+    unchanged.
+  - **Inheritance (P1):** an unset Schema Suggestion Route inherits the
+    Interaction Route. The prototype inferred it from equality, which could
+    not keep an explicit override equal to the Assistant model.
+  - **NuExtract keys (P1, predates this revision):** the raw NuExtract fetch
+    carried a pre-resolved `authorization`. It now shares the attempt's key
+    boundary.
+  - **Compose (P1):** the sixth revision's worker-waits-for-Studio edge would
+    have formed a cycle with Studio's `depends_on: parsing_worker`.
+    `KEI_OCR_MODEL` is wired to both parsing processes.
+  - **P2:**
+    - the listing's availability wording, and the fact that layout only
+      reaches scanned pages;
+    - probe eligibility when the page opens;
+    - the read-route count and the recipe citation;
+    - a manual OCR-selection check;
+    - Model Attribution in CONTEXT.md.
+- **2026-09-25, the workload goal (user):** the user asked whether DBOS can
+  use Redis and whether it fits prioritising, pausing, retrying and resuming
+  work on the Spark. Redis cannot be a DBOS system database (PostgreSQL or
+  SQLite only). Priority does not preempt. The seventh revision's single
+  `kei` queue made a small extraction wait for a book's conversion, even
+  though the two use different vLLM servers. A first proposal (A–D) added a
+  queue per server, a per-page conversion fan-out, a client-width rule and
+  per-account partitions (`fair_queue_probe.py`). Hatchet and Temporal
+  (whose fairness keys became generally available in May 2026) were
+  reconsidered for fairness and rejected again: DBOS runs in-process, and
+  admission enqueues inside the domain transaction.
+- **2026-09-25, Codex `gpt-6-astra` read-only review of A–D**
+  ([brief](2026-09-24-unified-durable-execution-evidence/rev8-review-brief.md),
+  run by the user in T3): 4 P1, 6 P2, 1 P3. Claude checked each claim against
+  source; all 11 were accepted.
+  - **`deleteRuns` (P1):** its safety came from queue exclusion. It now uses
+    a kei boot boundary.
+  - **Worker limit (P1):** global and partition limits count `PENDING` rows,
+    so every kei queue also sets a worker limit.
+  - **Fan-out (2 P1, 1 P2):** per-page children would each run `write_result`
+    and delete each other's pages, a parent would hold its children's slot,
+    and the tree needs a deadline and cancel contract. The fan-out was
+    dropped.
+  - **Partitions (P2):** they give random sharing and lose cross-account
+    priority. Fairness is deferred.
+  - **Claims withdrawn:**
+    - text-layer routing is per document (P2);
+    - Surya's width is a GPU-table guess of 32, not the server's 4 (P2);
+    - `resume_workflow(queue_name=)` exists in 3.1.0 (P3).
+  - **Same-tab uploads (P2):** the browser uploads one file at a time. The
+    user kept this out of scope.
+  - **Probe (P2):** its metrics were flawed. The Spark measurements replace
+    it.
+- **2026-09-25, Codex `gpt-6-astra` read-only sparring round on the lane
+  plan:** it kept the lanes and rejected any fixed wait bound, which the
+  measurements now replace. All four points below were accepted.
+  - Classify before enqueue, including reprocessing: pages are counted at
+    admission (pdf.js), and the lane is kept in the workflow input.
+  - Check shared state. Surya's `configure()` is safe with one record. The
+    pdfium lock covers a whole document only for `cut=none`.
+  - One extraction slot would block short work, so `kei-extract` gets two.
+  - Keep routine cleanup of runs that ended normally, and defer only
+    cancelled ones to a restart.
+- **2026-09-25, Spark measurements (user-approved):** run on production
+  model servers from throwaway containers, with synthetic documents. Nothing
+  was restarted. Results, harness and raw data are in
+  [rev8-tests](2026-09-24-unified-durable-execution-evidence/rev8-tests/README.md);
+  the numbers are quoted under *Queues*, *kei worker* and *Risks*. The user
+  noted that chunking Article extraction is harder, and that Catalog
+  chunking needed testing first. It works, and is deferred behind the
+  output-variation decision.
+- **2026-09-25, batch-invariant test (user-approved):** the user accepted
+  the output variation, set the small-document threshold to 30 pages and
+  shipped `SURYA_INFERENCE_PARALLEL` in Compose. `VLLM_BATCH_INVARIANT=1` was
+  tried on a second NuExtract server beside production, from the same image
+  and arguments. vLLM 0.29.1 refused it for gated-delta-net attention, and
+  both extraction models use it. The test server was removed.
+- **2026-09-25, Codex `gpt-6-astra` read-only review of the eighth
+  revision:** 1 P1, 2 P2, 1 P3. Claude checked each against source; all 4
+  were accepted.
+  - **Late handoff (P1, new with the lanes):** a cancelled extraction parent
+    can finish `submitToKei` after cleanup checked its run. The single queue
+    used to order that extraction behind `deleteRuns`; the lanes let the two
+    overlap. Runs are now protected through a `keiRunId` attribute and
+    Studio's boot boundary.
+  - **Page count (P2):** `api/_pdf.ts` opens outside its error handling and
+    renders every page. A count-only helper replaces it, and a PDF pdf.js
+    cannot open goes to the large lane instead of being rejected.
+  - **Recovery exhaustion (P2):** `MAX_RECOVERY_ATTEMPTS_EXCEEDED` fell
+    outside both cleanup rules. Every status other than `SUCCESS` or `ERROR`
+    now waits for a kei restart.
+  - **Wording (P3):** the Surya numbers are labelled as the pre-change
+    baseline.
+  - Confirmed correct:
+    - cancel and deadline stamps come from the database clock;
+    - worker limits hold on all four queues, including after recovery;
+    - Compose renders at widths 4 and 2, with no dangling anchor;
+    - the plan's numbers match the evidence.
+- **2026-09-25, parallel Catalog chunks into M3 (user):** after the
+  batch-invariant test, the user put chunking into M3. Two things the test
+  harness got wrong are fixed in the M3 design: document-level fields are
+  extracted once, not once per chunk, and entries keep document-wide
+  numbering. The chunk count follows NuExtract's `--max-num-seqs` through
+  Compose, as the OCR width does.

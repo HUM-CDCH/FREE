@@ -1,0 +1,111 @@
+{
+  "label": "inject-ocr30-p4",
+  "surya_parallel": "4",
+  "busy_before": {
+    "running": 0.0,
+    "waiting": 0.0,
+    "kv": 0.0,
+    "preemptions": 0.0
+  },
+  "results": {
+    "warmup": {
+      "pdf": "small1.pdf",
+      "start": 0.02,
+      "phases": [
+        {
+          "t": 0.02,
+          "name": "cut",
+          "total": 1
+        },
+        {
+          "t": 2.43,
+          "name": "ocr",
+          "total": 1
+        },
+        {
+          "t": 11.54,
+          "name": "export",
+          "total": null
+        }
+      ],
+      "chars": 1072,
+      "end": 11.63,
+      "seconds": 11.61,
+      "server": {
+        "samples": 23,
+        "running_mean": 0.7,
+        "running_max": 1.0,
+        "waiting_mean": 0.0,
+        "waiting_max": 0.0,
+        "kv_max": 0.017,
+        "preemptions": 0.0
+      }
+    },
+    "book": {
+      "pdf": "book40.pdf",
+      "start": 11.63,
+      "phases": [
+        {
+          "t": 11.63,
+          "name": "cut",
+          "total": 40
+        },
+        {
+          "t": 119.79,
+          "name": "ocr",
+          "total": 73
+        },
+        {
+          "t": 286.85,
+          "name": "export",
+          "total": null
+        }
+      ],
+      "chars": 68912,
+      "end": 287.05,
+      "seconds": 275.42,
+      "server": {
+        "samples": 542,
+        "running_mean": 2.33,
+        "running_max": 4.0,
+        "waiting_mean": 0.33,
+        "waiting_max": 3.0,
+        "kv_max": 0.083,
+        "preemptions": 0.0
+      }
+    },
+    "small": {
+      "pdf": "small3.pdf",
+      "start": 149.79,
+      "phases": [
+        {
+          "t": 149.79,
+          "name": "cut",
+          "total": 3
+        },
+        {
+          "t": 154.27,
+          "name": "ocr",
+          "total": 3
+        },
+        {
+          "t": 190.54,
+          "name": "export",
+          "total": null
+        }
+      ],
+      "chars": 11354,
+      "end": 190.63,
+      "seconds": 40.84,
+      "server": {
+        "samples": 80,
+        "running_mean": 3.98,
+        "running_max": 4.0,
+        "waiting_mean": 2.23,
+        "waiting_max": 3.0,
+        "kv_max": 0.083,
+        "preemptions": 0.0
+      }
+    }
+  }
+}

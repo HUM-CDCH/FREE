@@ -38,9 +38,12 @@ x-vllm: &vllm
     - app
 
 # The parsing processes learn of the NuExtract server only where it runs.
-x-nuextract-env: &nuextract-env
+# Surya sends as many OCR requests at once as ocr_model runs (--max-num-seqs). Unset, it guesses 32 from a GPU
+# table, and a book leaves 28 requests waiting in vLLM ahead of a small document's.
+x-parsing-gpu-env: &parsing-gpu-env
   KEI_NUEXTRACT_URL: http://nuextract_model:8000/v1/chat/completions
   KEI_NUEXTRACT_MODEL: "${KEI_NUEXTRACT_MODEL:-numind/NuExtract3-FP8}"
+  SURYA_INFERENCE_PARALLEL: "${OCR_MAX_NUM_SEQS:-4}"
 
 services:
   ocr_model:
@@ -58,7 +61,7 @@ services:
       - --max-model-len
       - "24576"
       - --max-num-seqs
-      - "4"
+      - "${OCR_MAX_NUM_SEQS:-4}"
 
   # Extraction's template extractor, for the fields role. Text only. The repo
   # ships its processor code, which --trust-remote-code runs.
@@ -116,12 +119,12 @@ services:
         condition: service_healthy
 
   parsing_service:
-    environment: *nuextract-env
+    environment: *parsing-gpu-env
 
   # A restarted worker reclaims durable extraction jobs, so it starts once the
   # last extraction server (after OCR and NuExtract) is serving.
   parsing_worker:
-    environment: *nuextract-env
+    environment: *parsing-gpu-env
     depends_on:
       ocr_model:
         condition: service_healthy

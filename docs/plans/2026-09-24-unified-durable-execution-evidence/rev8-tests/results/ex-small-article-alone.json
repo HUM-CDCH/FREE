@@ -1,0 +1,44 @@
+{
+  "label": "ex-small-article-alone",
+  "busy_before": {
+    "qwen": {
+      "running": 0.0,
+      "waiting": 0.0,
+      "kv": 0.0,
+      "preemptions": 0.0
+    },
+    "nuextract": {
+      "running": 0.0,
+      "waiting": 0.0,
+      "kv": 0.0,
+      "preemptions": 0.0
+    }
+  },
+  "results": {
+    "doc": {
+      "run": "catalogue-small",
+      "strategy": "article",
+      "start": 0.02,
+      "records": 4,
+      "calls": 5,
+      "complete": true,
+      "issues": [],
+      "end": 13.82,
+      "seconds": 13.8,
+      "servers": {
+        "qwen": {
+          "running_mean": 0.48,
+          "running_max": 1.0,
+          "waiting_max": 0.0,
+          "preemptions": 0.0
+        },
+        "nuextract": {
+          "running_mean": 0.33,
+          "running_max": 1.0,
+          "waiting_max": 0.0,
+          "preemptions": 0.0
+        }
+      }
+    }
+  }
+}

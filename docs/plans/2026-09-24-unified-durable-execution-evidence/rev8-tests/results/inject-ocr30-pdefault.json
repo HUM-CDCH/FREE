@@ -1,0 +1,111 @@
+{
+  "label": "inject-ocr30-pdefault",
+  "surya_parallel": "default",
+  "busy_before": {
+    "running": 0.0,
+    "waiting": 0.0,
+    "kv": 0.0,
+    "preemptions": 0.0
+  },
+  "results": {
+    "warmup": {
+      "pdf": "small1.pdf",
+      "start": 0.02,
+      "phases": [
+        {
+          "t": 0.02,
+          "name": "cut",
+          "total": 1
+        },
+        {
+          "t": 2.41,
+          "name": "ocr",
+          "total": 1
+        },
+        {
+          "t": 11.43,
+          "name": "export",
+          "total": null
+        }
+      ],
+      "chars": 1072,
+      "end": 11.51,
+      "seconds": 11.49,
+      "server": {
+        "samples": 23,
+        "running_mean": 0.7,
+        "running_max": 1.0,
+        "waiting_mean": 0.0,
+        "waiting_max": 0.0,
+        "kv_max": 0.017,
+        "preemptions": 0.0
+      }
+    },
+    "book": {
+      "pdf": "book40.pdf",
+      "start": 11.51,
+      "phases": [
+        {
+          "t": 11.52,
+          "name": "cut",
+          "total": 40
+        },
+        {
+          "t": 119.66,
+          "name": "ocr",
+          "total": 73
+        },
+        {
+          "t": 317.75,
+          "name": "export",
+          "total": null
+        }
+      ],
+      "chars": 68915,
+      "end": 317.96,
+      "seconds": 306.45,
+      "server": {
+        "samples": 601,
+        "running_mean": 2.53,
+        "running_max": 4.0,
+        "waiting_mean": 13.91,
+        "waiting_max": 31.0,
+        "kv_max": 0.1,
+        "preemptions": 0.0
+      }
+    },
+    "small": {
+      "pdf": "small3.pdf",
+      "start": 149.66,
+      "phases": [
+        {
+          "t": 149.66,
+          "name": "cut",
+          "total": 3
+        },
+        {
+          "t": 154.24,
+          "name": "ocr",
+          "total": 3
+        },
+        {
+          "t": 249.39,
+          "name": "export",
+          "total": null
+        }
+      ],
+      "chars": 11385,
+      "end": 249.48,
+      "seconds": 99.82,
+      "server": {
+        "samples": 195,
+        "running_mean": 4.0,
+        "running_max": 4.0,
+        "waiting_mean": 28.51,
+        "waiting_max": 31.0,
+        "kv_max": 0.1,
+        "preemptions": 0.0
+      }
+    }
+  }
+}
