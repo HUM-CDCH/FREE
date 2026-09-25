@@ -17,7 +17,8 @@ const origin = `http://localhost:${port}`
 const basePath = '/free'
 process.env.FREE_PLAYWRIGHT_BASE_PATH = basePath
 // The lifecycle spec's fake kei-exp listens here, and Studio's KEI_EXP_URL points at it. The default suite's
-// fixture keeps 41750, so both suites can run side by side.
+// fixture keeps 41750, so the two suites' ports are distinct. The suites still share the output directories
+// test-results/ and test-results/config-home, so they must run sequentially.
 const keiExpUrl = 'http://127.0.0.1:41753'
 process.env.FREE_PLAYWRIGHT_KEI_EXP_URL = keiExpUrl
 
