@@ -4,6 +4,7 @@ export type ExtractionErrorCode =
   | 'invalid_extraction_pins'
   | 'extraction_id_conflict'
   | 'invalid_source_representation'
+  | 'source_representation_superseded'
   | 'invalid_schema_revision'
   | 'invalid_model_output'
   | 'model_unavailable'

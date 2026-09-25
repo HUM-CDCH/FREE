@@ -7,6 +7,7 @@ import { after, describe, it, test } from 'node:test'
 import { strToU8, zipSync } from 'fflate'
 import type { CanonicalPackageStore, Database } from 'db'
 import { validateDisposableTestDatabaseTarget } from 'db/database-url'
+import { withHeldSourceDocumentLock } from 'db/postgres-test-helpers'
 import { withBlockedUpdates } from '../../db/src/postgres-test-helpers.js'
 import type { KeiExpClient, KeiExpRequest, KeiExpArtifact } from './kei-exp.js'
 import { keiExpArtifact, keiExpEvidence, keiExpGroundedArtifact } from './kei-exp-fixture.js'
@@ -646,6 +647,89 @@ if (!disposableDatabaseUrl) {
       assert.ok(reviewed.extraction.reviewedAt)
       assert.deepEqual(reviewed.reviewDecisions, prepared.reviewDecisions)
       assert.deepEqual(reviewed.extraction.evidence, prepared.extraction.evidence)
+    })
+
+    it('refuses a new Extraction on a superseded Source Representation Revision and writes no job', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const document = project.documents[0]!
+      await addRepresentation(document, 'article-v2.pdf')
+      const { module } = createRuntime(project.researcherAccountId)
+      const input = freshInput(project)
+      await assert.rejects(module.runSingle(input), rejectsWithCode('source_representation_superseded'))
+      assert.equal(await db.orm.public.ExtractionJob.select('id').first({ id: input.extractionId }), null)
+      await assert.rejects(module.runSingle(freshInput(project)), rejectsWithCode('source_representation_superseded'))
+    })
+
+    it('admits a new Extraction on the current Source Representation Revision', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const revisionTwo = await addRepresentation(project.documents[0]!, 'article-v2.pdf')
+      const { module } = createRuntime(project.researcherAccountId)
+      const admitted = await module.runSingle({ ...freshInput(project), sourceRepresentationRevisionId: revisionTwo })
+      assert.equal(admitted.disposition, 'created')
+      assert.equal(admitted.extraction.sourceRepresentationRevisionId, revisionTwo)
+    })
+
+    it('replays an identical request after a reprocess instead of refusing it', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const { module } = createRuntime(project.researcherAccountId)
+      const input = freshInput(project)
+      const first = await module.runSingle(input)
+      await addRepresentation(project.documents[0]!, 'article-v2.pdf')
+      const again = await module.runSingle(input)
+      assert.equal(again.disposition, 'replayed')
+      assert.equal(again.extraction.extractionId, first.extraction.extractionId)
+      await assert.rejects(module.runSingle({ ...input, strategy: 'CATALOG' }), rejectsWithCode('extraction_id_conflict'))
+    })
+
+    it('keeps a run admitted before a reprocess as a historical attempt', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const document = project.documents[0]!
+      const { module } = createRuntime(project.researcherAccountId)
+      const completed = await module.runSingle(freshInput(project))
+      await addRepresentation(document, 'article-v2.pdf')
+      const historical = await module.readDocumentExtractions({ sourceDocumentId: document.sourceDocumentId, extractionId: completed.extraction.extractionId })
+      assert.equal(historical?.latestAttempt?.sourceRepresentationRevisionId, document.sourceRepresentationRevisionId)
+    })
+
+    it('refuses a run that was admitted while a reprocess published a newer revision', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const document = project.documents[0]!
+      const { module } = createRuntime(project.researcherAccountId)
+      const input = freshInput(project)
+      await assert.rejects(
+        withHeldSourceDocumentLock(
+          process.env.EXTRACTION_TEST_DATABASE_URL!,
+          document.sourceDocumentId,
+          () => module.runSingle(input),
+          async (run) => {
+            await run(
+              `INSERT INTO "sourceRepresentationRevision"
+                 (id, "sourceDocumentId", "revisionNumber", "artifactReference", "artifactSha256",
+                  "contractVersion", "preprocessId", "parserName", "parserVersion")
+               VALUES ($1, $2, 2, $3, $3, 'parsed_document.v2', $4, 'test', '1')`,
+              [randomUUID(), document.sourceDocumentId, 'c'.repeat(64), `race-${randomUUID()}`],
+            )
+          },
+        ),
+        rejectsWithCode('source_representation_superseded'),
+      )
+      assert.equal(await db.orm.public.ExtractionJob.select('id').first({ id: input.extractionId }), null)
+    })
+
+    it('conceals a foreign document behind the same missing answer', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const foreign = await seedProject()
+      const { module } = createRuntime(project.researcherAccountId)
+      await assert.rejects(
+        module.runSingle({ ...freshInput(project), sourceRepresentationRevisionId: foreign.documents[0]!.sourceRepresentationRevisionId }),
+        rejectsWithCode('not_found'),
+      )
     })
 
     it('persists and reopens a partial remote Catalog result without local stage diagnostics', async (t) => {
