@@ -149,7 +149,7 @@ function developmentServer(options: {
   const use = vi.fn()
   const logger = { error: vi.fn(), info: vi.fn(), warn: vi.fn() }
   const dbos = options.dbos ?? studioDbosModule()
-  const workflows = { registerStudioWorkflows: vi.fn() }
+  const workflows = { registerStudioWorkflows: vi.fn(), applyStudioSchedules: vi.fn(async () => undefined) }
   const ssrLoadModule = vi.fn(async (path: string) => {
     if (path === '/server/dbos.ts') return dbos
     if (path === '/server/workflows.ts') return workflows
@@ -304,10 +304,12 @@ describe('Vite Hono integration', () => {
     expect(launch).toEqual({
       databaseUrl: DEVELOPMENT_DATABASE_URL,
       register: expect.any(Function),
+      schedule: expect.any(Function),
     })
     expect(launch.register).toBe(
       development.workflows.registerStudioWorkflows,
     )
+    expect(launch.schedule).toBe(development.workflows.applyStudioSchedules)
     expect(order).toEqual(['dbos launched', 'composed'])
   })
 

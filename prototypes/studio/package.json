@@ -19,6 +19,7 @@
     "test:e2e:base-path": "playwright test --config playwright.base-path.config.ts",
     "typecheck": "tsc -b --pretty false",
     "start": "node dist/server/index.js",
+    "gc:now": "tsx server/collectGarbageNow.ts",
     "preview": "vite preview"
   },
   "dependencies": {

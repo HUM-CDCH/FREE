@@ -24,10 +24,11 @@ type StudioDbosModule = {
   launchStudioDbos(options: {
     databaseUrl: string
     register: () => void
+    schedule?: () => Promise<void>
   }): Promise<unknown>
   shutdownStudioDbos(): Promise<void>
 }
-type StudioWorkflowsModule = { registerStudioWorkflows(): void }
+type StudioWorkflowsModule = { registerStudioWorkflows(): void; applyStudioSchedules(): Promise<void> }
 
 export type DevelopmentHost<T> = {
   composition(): Promise<T>
@@ -70,6 +71,7 @@ export async function createDevelopmentHost<T>(
       await dbosModule.launchStudioDbos({
         databaseUrl,
         register: workflows.registerStudioWorkflows,
+        schedule: workflows.applyStudioSchedules,
       })
     })()
     return launched

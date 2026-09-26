@@ -5,17 +5,19 @@ const registerWorkflow = vi.hoisted(() =>
     (workflow) => workflow,
   ),
 )
+const applySchedules = vi.hoisted(() => vi.fn(async () => undefined))
 
 // Only registration is observed: the rest of the SDK (DBOSClient, which server/dbos.ts imports and server/app.ts reaches
 // through it) stays real. DBOS's statics are not enumerable, so the stand-in inherits them instead of spreading them.
 vi.mock('@dbos-inc/dbos-sdk', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@dbos-inc/dbos-sdk')>()
-  return { ...actual, DBOS: Object.assign(Object.create(actual.DBOS) as typeof actual.DBOS, { registerWorkflow }) }
+  return { ...actual, DBOS: Object.assign(Object.create(actual.DBOS) as typeof actual.DBOS, { registerWorkflow, applySchedules }) }
 })
 
 beforeEach(() => {
   vi.resetModules()
   registerWorkflow.mockClear()
+  applySchedules.mockClear()
 })
 
 describe('Studio workflow registration', () => {
@@ -31,7 +33,19 @@ describe('Studio workflow registration', () => {
     const names = registerWorkflow.mock.calls.map(([, config]) => config?.name)
     for (const name of names) expect(name).toEqual(expect.any(String))
     expect(names).toEqual([...STUDIO_WORKFLOW_NAMES])
-    expect(names).toEqual(['runExtraction', 'suggestSchemaBatch', 'ingestSource', 'reprocessSource', 'suggestSchema', 'proposeSchemaEdit'])
+    expect(names).toEqual(['runExtraction', 'suggestSchemaBatch', 'ingestSource', 'reprocessSource', 'suggestSchema', 'proposeSchemaEdit', 'collectGarbage'])
+  })
+
+  it('applies the named ten-minute schedule on gc without backfill', async () => {
+    const { registerStudioWorkflows, applyStudioSchedules } = await import('./workflows.js')
+    await expect(applyStudioSchedules()).rejects.toThrow('after registerStudioWorkflows')
+    registerStudioWorkflows()
+    await applyStudioSchedules()
+    const handle = registerWorkflow.mock.results.at(-1)?.value
+    expect(applySchedules).toHaveBeenCalledWith([{
+      scheduleName: 'collectGarbage', workflowFn: handle, schedule: '*/10 * * * *',
+      queueName: 'gc', automaticBackfill: false,
+    }])
   })
 
   it('the extraction queue is Studio\'s studio queue', async () => {
