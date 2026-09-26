@@ -63,7 +63,6 @@ export async function seedSuggestionSources(
     await db.orm.public.SourceDocument.create({
       id: sourceDocumentId,
       projectContextId,
-      ingestionKey: randomUUID(),
       contentSha256: sha,
       mediaType: 'application/pdf',
       originalName: `${letter}.pdf`,

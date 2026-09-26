@@ -30,13 +30,13 @@ const DOCUMENT = '51000000-0000-4000-8001-000000000001'
 const OTHER_DOCUMENT = '51000000-0000-4000-8001-000000000002'
 const SHARED_PACKAGE = 'a'.repeat(64)
 const OWN_PACKAGE = 'b'.repeat(64)
+const SOURCE_CONTENT_KEY = 'sourceDocument_projectContextId_contentSha256_key'
 
 const nodes = (name: string) => [{ id: `node-${name}`, name, type: 'string' }]
 
 const ingestion = (
   overrides: Partial<IngestSourceDocumentInput> = {},
 ): IngestSourceDocumentInput => ({
-  ingestionKey: '51000000-0000-4000-9000-000000000001',
   contentSha256: 'c'.repeat(64),
   mediaType: 'application/pdf',
   originalName: 'Ellekilde.pdf',
@@ -52,8 +52,9 @@ const ingestion = (
 function fakeDatabase(
   options: {
     raceOnCreate?: boolean
-    raceOnIngestion?: boolean
     raceOnContent?: boolean
+    /** A unique violation on the Source Document insert that is not the content constraint. */
+    otherUniqueViolation?: boolean
     failRepresentationCreate?: boolean
   } = {},
 ) {
@@ -245,21 +246,27 @@ function fakeDatabase(
           rows.some(
             (row) =>
               row.projectContextId === input.projectContextId &&
-              (row.ingestionKey === input.ingestionKey ||
-                row.contentSha256 === input.contentSha256),
+              row.contentSha256 === input.contentSha256,
           )
         )
           throw Object.assign(new Error('unique constraint'), {
             sqlState: '23505',
+            constraint: SOURCE_CONTENT_KEY,
+          })
+        if (table === 'SourceDocument' && options.otherUniqueViolation)
+          throw Object.assign(new Error('unique constraint'), {
+            sqlState: '23505',
+            constraint: 'sourceDocument_pkey',
           })
         if (
           table === 'SourceDocument' &&
-          (options.raceOnIngestion || options.raceOnContent) &&
+          options.raceOnContent &&
           !ingestionRaced
         ) {
           ingestionRaced = true
           throw Object.assign(new Error('unique constraint'), {
             sqlState: '23505',
+            constraint: SOURCE_CONTENT_KEY,
             ingestionInput: input,
           })
         }
@@ -476,9 +483,6 @@ function fakeDatabase(
           const sourceDocumentId = '51000000-0000-4000-8001-000000000099'
           tables.SourceDocument.push({
             ...racedInput,
-            ...(options.raceOnContent
-              ? { ingestionKey: '51000000-0000-4000-9000-000000000099' }
-              : {}),
             id: sourceDocumentId,
             createdAt: new Date('2026-08-01T12:05:00Z'),
           })
@@ -1038,11 +1042,11 @@ describe('ResearcherProjectStore Source Document ingestion', () => {
 
     assert.equal(result?.name, 'Ellekilde.pdf')
     assert.equal(result?.revisionNumber, 1)
+    assert.equal(result?.disposition, 'created')
     assert.equal(database.tables.SourceDocument.length, 3)
     assert.equal(database.tables.SourceRepresentationRevision.length, 4)
     assert.deepEqual(database.tables.SourceDocument.at(-1), {
       projectContextId: EMPTY_PROJECT,
-      ingestionKey: '51000000-0000-4000-9000-000000000001',
       contentSha256: 'c'.repeat(64),
       mediaType: 'application/pdf',
       originalName: 'Ellekilde.pdf',
@@ -1134,7 +1138,7 @@ describe('ResearcherProjectStore Source Document ingestion', () => {
       }),
     )
 
-    assert.deepEqual(replay, first)
+    assert.deepEqual(replay, { ...first, disposition: 'replayed' })
     assert.deepEqual(retained, {
       artifactReference: 'd'.repeat(64),
       artifactSha256: 'd'.repeat(64),
@@ -1143,8 +1147,8 @@ describe('ResearcherProjectStore Source Document ingestion', () => {
     assert.equal(database.tables.SourceRepresentationRevision.length, 4)
   })
 
-  it('returns and reasserts a concurrent unique-key winner', async () => {
-    const racedDatabase = fakeDatabase({ raceOnIngestion: true })
+  it('returns and reasserts a concurrent same-content winner as replayed', async () => {
+    const racedDatabase = fakeDatabase({ raceOnContent: true })
     const race = createResearcherProjectStore(RESEARCHER_A, racedDatabase as never)
     let retained: unknown
     const winner = await race.ingestSourceDocument(
@@ -1165,6 +1169,7 @@ describe('ResearcherProjectStore Source Document ingestion', () => {
       winner?.sourceRepresentationId,
       '51000000-0000-4000-8002-000000000099',
     )
+    assert.equal(winner?.disposition, 'replayed')
     assert.deepEqual(retained, {
       artifactReference: 'd'.repeat(64),
       artifactSha256: 'd'.repeat(64),
@@ -1173,33 +1178,28 @@ describe('ResearcherProjectStore Source Document ingestion', () => {
     assert.equal(racedDatabase.tables.SourceRepresentationRevision.length, 4)
   })
 
-  it('returns the first durable identity and name for equal bytes under distinct keys and names', async () => {
+  it('does not treat a unique violation on another constraint as a replay', async () => {
+    const database = fakeDatabase({ otherUniqueViolation: true })
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+
+    await assert.rejects(
+      store.ingestSourceDocument(EMPTY_PROJECT, ingestion()),
+      (error: { constraint?: string }) => error.constraint === 'sourceDocument_pkey',
+    )
+    assert.equal(database.tables.SourceDocument.length, 2)
+  })
+
+  it('returns the first durable identity and name for equal bytes under distinct names', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)
     const first = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
     const second = await store.ingestSourceDocument(
       EMPTY_PROJECT,
-      ingestion({
-        ingestionKey: '51000000-0000-4000-9000-000000000002',
-        originalName: 'renamed.pdf',
-      }),
+      ingestion({ originalName: 'renamed.pdf' }),
     )
 
-    assert.deepEqual(second, first)
+    assert.deepEqual(second, { ...first, disposition: 'replayed' })
     assert.equal(second?.name, 'Ellekilde.pdf')
-    assert.equal(database.tables.SourceDocument.length, 3)
-    assert.equal(database.tables.SourceRepresentationRevision.length, 4)
-  })
-
-  it('returns a concurrent same-content winner created under a different key', async () => {
-    const database = fakeDatabase({ raceOnContent: true })
-    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
-    const winner = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
-
-    assert.equal(
-      winner?.sourceDocumentId,
-      '51000000-0000-4000-8001-000000000099',
-    )
     assert.equal(database.tables.SourceDocument.length, 3)
     assert.equal(database.tables.SourceRepresentationRevision.length, 4)
   })
@@ -1210,10 +1210,7 @@ describe('ResearcherProjectStore Source Document ingestion', () => {
     const first = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
     const second = await store.ingestSourceDocument(
       EMPTY_PROJECT,
-      ingestion({
-        ingestionKey: '51000000-0000-4000-9000-000000000002',
-        contentSha256: 'f'.repeat(64),
-      }),
+      ingestion({ contentSha256: 'f'.repeat(64) }),
     )
 
     assert.notEqual(second?.sourceDocumentId, first?.sourceDocumentId)
@@ -1221,7 +1218,7 @@ describe('ResearcherProjectStore Source Document ingestion', () => {
     assert.equal(database.tables.SourceDocument.length, 4)
   })
 
-  it('scopes identical ingestion keys to each account-owned Project Context', async () => {
+  it('scopes identical content to each account-owned Project Context', async () => {
     const database = fakeDatabase()
     const storeA = createResearcherProjectStore(RESEARCHER_A, database as never)
     const storeB = createResearcherProjectStore(RESEARCHER_B, database as never)
@@ -1237,8 +1234,7 @@ describe('ResearcherProjectStore Source Document ingestion', () => {
     assert.notEqual(first?.sourceDocumentId, second?.sourceDocumentId)
     assert.deepEqual(
       database.tables.SourceDocument.filter(
-        (row) =>
-          row.ingestionKey === '51000000-0000-4000-9000-000000000001',
+        (row) => row.contentSha256 === 'c'.repeat(64),
       ).map((row) => row.projectContextId),
       [PROJECT, OTHER_PROJECT],
     )
@@ -1262,21 +1258,21 @@ describe('ResearcherProjectStore Source Document ingestion', () => {
     )
   })
 
-  it('rejects one ingestion key reused for different content', async () => {
+  it('finds published content only in an owned Project Context', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)
-    await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
+    assert.equal(await store.findSourceDocumentByContent(EMPTY_PROJECT, 'c'.repeat(64)), null)
+    const published = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
+    assert.ok(published)
+    const { disposition: _disposition, ...document } = published
 
-    await assert.rejects(
-      store.ingestSourceDocument(
-        EMPTY_PROJECT,
-        ingestion({
-          contentSha256: 'f'.repeat(64),
-          artifactReference: 'f'.repeat(64),
-          artifactSha256: 'f'.repeat(64),
-        }),
-      ),
-      /already belongs to another Source Document/,
+    assert.deepEqual(await store.findSourceDocumentByContent(EMPTY_PROJECT, 'c'.repeat(64)), document)
+    assert.equal(await store.findSourceDocumentByContent(EMPTY_PROJECT, 'f'.repeat(64)), null)
+    assert.equal(await store.findSourceDocumentByContent(PROJECT, 'c'.repeat(64)), null)
+    assert.equal(
+      await createResearcherProjectStore(RESEARCHER_B, database as never)
+        .findSourceDocumentByContent(EMPTY_PROJECT, 'c'.repeat(64)),
+      null,
     )
   })
 })
@@ -1334,14 +1330,14 @@ describe('ResearcherProjectStore Schema Revisions', () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
-    assert.equal(await store.deleteSourceDocument(PROJECT, DOCUMENT), true)
+    assert.deepEqual(await store.deleteSourceDocument(PROJECT, DOCUMENT), { interruptedAttempts: [] })
     assert.deepEqual(
       database.tables.SourceDocument.map((row) => row.id),
       [OTHER_DOCUMENT],
     )
     assert.equal(
       await store.deleteSourceDocument(PROJECT, OTHER_DOCUMENT),
-      false,
+      null,
     )
   })
 
@@ -1488,7 +1484,8 @@ describe('source reprocessing', () => {
     const first = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
     assert.ok(first)
     const input = {
-      ...ingestion({ ingestionKey: '51000000-0000-4000-9000-000000000002' }),
+      ...ingestion(),
+      requestKey: '51000000-0000-4000-9000-000000000002',
       expectedRepresentationId: first.sourceRepresentationId,
       requestFingerprint: 'f'.repeat(64),
     }
@@ -1517,7 +1514,7 @@ describe('source reprocessing', () => {
     await assert.rejects(
       store.reprocessSourceDocument(EMPTY_PROJECT, first.sourceDocumentId, {
         ...input,
-        ingestionKey: '51000000-0000-4000-9000-000000000003',
+        requestKey: '51000000-0000-4000-9000-000000000003',
       }),
       /changed/,
     )
@@ -1534,7 +1531,7 @@ describe('source reprocessing', () => {
       ).findReprocessedSourceDocument(
         EMPTY_PROJECT,
         first.sourceDocumentId,
-        input.ingestionKey,
+        input.requestKey,
         input.requestFingerprint,
       ),
       null,

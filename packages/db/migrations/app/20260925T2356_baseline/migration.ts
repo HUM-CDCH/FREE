@@ -354,10 +354,6 @@ export default class M extends Migration<never, End> {
             notNull: true,
             codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
           }),
-          col('ingestionKey', '"uuid"', {
-            notNull: true,
-            codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
-          }),
           col('mediaType', 'text', { notNull: true, codecRef: { codecId: 'pg/text@1' } }),
           col('originalName', 'text', { codecRef: { codecId: 'pg/text@1' } }),
           col('projectContextId', '"uuid"', {
@@ -467,12 +463,6 @@ export default class M extends Migration<never, End> {
         table: 'schemaRevision',
         constraint: 'schemaRevision_extractionSchemaId_revisionNumber_key',
         columns: ['extractionSchemaId', 'revisionNumber'],
-      }),
-      this.addUnique({
-        schema: 'public',
-        table: 'sourceDocument',
-        constraint: 'sourceDocument_projectContextId_ingestionKey_key',
-        columns: ['projectContextId', 'ingestionKey'],
       }),
       this.addUnique({
         schema: 'public',

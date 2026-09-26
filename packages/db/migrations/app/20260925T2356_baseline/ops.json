@@ -509,7 +509,7 @@
     "execute": [
       {
         "description": "create table \"sourceDocument\"",
-        "sql": "CREATE TABLE \"public\".\"sourceDocument\" (\n  \"contentSha256\" text NOT NULL,\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"ingestionKey\" \"uuid\" NOT NULL,\n  \"mediaType\" text NOT NULL,\n  \"originalName\" text,\n  \"projectContextId\" \"uuid\" NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "sql": "CREATE TABLE \"public\".\"sourceDocument\" (\n  \"contentSha256\" text NOT NULL,\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  \"mediaType\" text NOT NULL,\n  \"originalName\" text,\n  \"projectContextId\" \"uuid\" NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
         "params": []
       }
     ],
@@ -1062,48 +1062,6 @@
           "schemaRevision_extractionSchemaId_revisionNumber_key",
           "public",
           "\"public\".\"schemaRevision\""
-        ]
-      }
-    ]
-  },
-  {
-    "id": "unique.sourceDocument.sourceDocument_projectContextId_ingestionKey_key",
-    "label": "Add unique constraint on \"sourceDocument\" (projectContextId, ingestionKey)",
-    "operationClass": "additive",
-    "target": {
-      "id": "postgres",
-      "details": {
-        "schema": "public",
-        "objectType": "unique",
-        "name": "sourceDocument_projectContextId_ingestionKey_key",
-        "table": "sourceDocument"
-      }
-    },
-    "precheck": [
-      {
-        "description": "ensure constraint \"sourceDocument_projectContextId_ingestionKey_key\" does not exist",
-        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
-        "params": [
-          "sourceDocument_projectContextId_ingestionKey_key",
-          "public",
-          "\"public\".\"sourceDocument\""
-        ]
-      }
-    ],
-    "execute": [
-      {
-        "description": "add unique constraint \"sourceDocument_projectContextId_ingestionKey_key\"",
-        "sql": "ALTER TABLE \"public\".\"sourceDocument\" ADD CONSTRAINT \"sourceDocument_projectContextId_ingestionKey_key\" UNIQUE (\"projectContextId\", \"ingestionKey\")"
-      }
-    ],
-    "postcheck": [
-      {
-        "description": "verify constraint \"sourceDocument_projectContextId_ingestionKey_key\" exists",
-        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
-        "params": [
-          "sourceDocument_projectContextId_ingestionKey_key",
-          "public",
-          "\"public\".\"sourceDocument\""
         ]
       }
     ]

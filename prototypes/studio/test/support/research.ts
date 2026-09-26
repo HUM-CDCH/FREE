@@ -69,7 +69,6 @@ export async function seedResearch(packages: CanonicalPackageStore): Promise<See
   await db.orm.public.SourceDocument.create({
     id: sourceDocumentId,
     projectContextId,
-    ingestionKey: randomUUID(),
     contentSha256: sourceSha256,
     mediaType: 'application/pdf',
     originalName: 'main.pdf',

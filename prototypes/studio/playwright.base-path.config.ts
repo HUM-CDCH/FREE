@@ -1,3 +1,6 @@
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { defineConfig } from '@playwright/test'
 import {
   configurePlaywrightStack,
@@ -20,6 +23,9 @@ process.env.FREE_PLAYWRIGHT_BASE_PATH = basePath
 // playwright.config.ts). The suites still share the output directory test-results/, so they must run sequentially.
 const keiExpUrl = 'http://127.0.0.1:29753'
 process.env.FREE_PLAYWRIGHT_KEI_EXP_URL = keiExpUrl
+// Studio stages uploads for kei in its source inbox (FREE_SOURCE_INBOX): one directory per run. Workers load this
+// config too; they inherit the variable, so only the runner makes the directory.
+process.env.FREE_PLAYWRIGHT_SOURCE_INBOX ??= mkdtempSync(join(tmpdir(), 'free-e2e-source-inbox-'))
 
 export default defineConfig({
   testDir: './e2e',
@@ -33,6 +39,7 @@ export default defineConfig({
     env: {
       DATABASE_URL: stack.databaseUrl,
       KEI_EXP_URL: keiExpUrl,
+      FREE_SOURCE_INBOX: process.env.FREE_PLAYWRIGHT_SOURCE_INBOX,
       FREE_PLAYWRIGHT_LIFECYCLE_ID: stack.lifecycleId,
       STUDIO_ORIGIN: origin,
       STUDIO_BASE_PATH: basePath,

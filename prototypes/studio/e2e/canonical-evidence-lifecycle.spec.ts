@@ -257,7 +257,6 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await db.orm.public.SourceDocument.create({
     id: sourceDocumentId,
     projectContextId,
-    ingestionKey: sourceDocumentId,
     contentSha256: firstPackage.sourceHash,
     mediaType: 'application/pdf',
     originalName: 'article-lifecycle.pdf',
@@ -324,7 +323,6 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await db.orm.public.SourceDocument.create({
     id: otherSourceDocumentId,
     projectContextId,
-    ingestionKey: otherSourceDocumentId,
     contentSha256: otherPackage.sourceHash,
     mediaType: 'application/pdf',
     originalName: 'different-document.pdf',

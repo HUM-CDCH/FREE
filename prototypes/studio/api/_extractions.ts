@@ -13,10 +13,13 @@ import { createKeiHandoff, keiExtractWorkflowId } from 'extraction/kei-handoff'
 import { studioDbos } from '../server/dbos.js'
 import { extractionAttemptSchema } from '../shared/extraction.contract.js'
 
+/** kei's API: its read routes serve converted runs, published extraction artifacts and the model listings. */
+export const KEI_EXP_URL = process.env.KEI_EXP_URL ?? 'http://127.0.0.1:8001'
+
 /** The one kei-exp read client: runExtraction reads published artifacts through it, and Studio lists the deployment's
  *  extraction and ingestion models with it. It names no model: a run's Extraction Model Choice travels in its kei
  *  workflow input, and the models that actually ran are read back from the artifact. */
-export const keiExpClient = createKeiExpClient({ url: process.env.KEI_EXP_URL ?? 'http://127.0.0.1:8001' })
+export const keiExpClient = createKeiExpClient({ url: KEI_EXP_URL })
 
 /**
  * Admission, status reads and cancel through Studio's launched DBOS. Every call resolves the launch when it runs: a

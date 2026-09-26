@@ -92,7 +92,6 @@ const ids = {
   batchB: '21000000-0000-4007-8000-000000000001',
   batchSuggestionA: '11000000-0000-4008-8000-000000000001',
   batchSuggestionB: '21000000-0000-4008-8000-000000000001',
-  ingestion: '11000000-0000-4009-8000-000000000001',
   operationB: '21000000-0000-400a-8000-000000000001',
 } as const
 
@@ -173,17 +172,11 @@ type ArtifactReader = (
   artifact: 'pdf' | 'markdown' | 'source',
 ) => Promise<{ bytes: Uint8Array; mediaType: string }>
 
-type TestPackageStore = {
-  save: Mock<
-    (
-      bytes: Uint8Array,
-    ) => Promise<
-      typeof sharedDescriptor & { document: unknown; published?: boolean }
-    >
-  >
-  available: Mock<
-    (descriptor: typeof sharedDescriptor) => Promise<boolean>
-  >
+type IngestionSpies = {
+  /** Staging, counting and enqueueing: a refused upload reaches none of them. */
+  countPages: Mock<(pdf: Uint8Array) => Promise<number | null>>
+  enqueue: Mock<() => Promise<never>>
+  listWorkflows: Mock<() => Promise<never>>
 }
 
 type ModelSpies = {
@@ -211,8 +204,7 @@ type TwoAccountStores = {
   stores: Map<string, ResearcherProjectStore>
   relationships: Relationship[]
   readArtifact: Mock<ArtifactReader>
-  parsingFetch: Mock<typeof fetch>
-  packageStore: TestPackageStore
+  ingestion: IngestionSpies
   models: ModelSpies
   extractionModules: Record<string, ExtractionModule>
   extractionEffects: ExtractionEffects
@@ -352,7 +344,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
           relationship.documentId !== sourceDocumentId ||
           !relationship.documentPresent
         )
-          return false
+          return null
         relationship.documentPresent = false
         if (
           !relationships.some(
@@ -360,7 +352,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
           )
         )
           packagePresent = false
-        return true
+        return { interruptedAttempts: [] }
       }),
       listRecentActivity: vi.fn(async () => []),
       listProjectContexts: vi.fn(async () => {
@@ -432,6 +424,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
         },
       ),
       discardCanonicalPackage: vi.fn(async () => {}),
+      findSourceDocumentByContent: vi.fn(async () => null),
       ingestSourceDocument: vi.fn(async () => null),
       createBatchSchemaSuggestion: vi.fn(async () => null),
       getBatchSchemaSuggestion: vi.fn(async () => null),
@@ -544,14 +537,16 @@ function twoAccountStoreFixture(): TwoAccountStores {
       return { bytes: pdfBytes, mediaType: 'application/pdf' }
     },
   )
-  const parsingFetch = vi.fn<typeof fetch>(async () => {
-    throw new Error('A cross-owner ingestion must not reach Parsing Service.')
-  })
-  const packageStore = {
-    save: vi.fn(async () => {
-      throw new Error('A cross-owner ingestion must not save a package.')
+  const ingestion: IngestionSpies = {
+    countPages: vi.fn(async () => {
+      throw new Error('A cross-owner ingestion must not count pages.')
     }),
-    available: vi.fn(async () => false),
+    enqueue: vi.fn(async () => {
+      throw new Error('A cross-owner ingestion must not start a workflow.')
+    }),
+    listWorkflows: vi.fn(async () => {
+      throw new Error('A cross-owner ingestion must not await a workflow.')
+    }),
   }
   const models: ModelSpies = {
     generateSchema: vi.fn(async () => {
@@ -717,8 +712,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
     stores,
     relationships,
     readArtifact,
-    parsingFetch,
-    packageStore,
+    ingestion,
     models,
     extractionModules,
     extractionEffects,
@@ -740,8 +734,12 @@ function ownershipRegistry(fixture: TwoAccountStores) {
     })),
     '../api/source_documents.ts': researcherModule((store) => ({
       POST: createSourceDocumentIngestion(store, {
-        fetcher: fixture.parsingFetch,
-        packageStore: fixture.packageStore,
+        admission: {
+          enqueue: fixture.ingestion.enqueue,
+          listWorkflows: fixture.ingestion.listWorkflows,
+        },
+        countPages: fixture.ingestion.countPages,
+        inboxRoot: '/nonexistent/free-source-inbox',
       }),
       DELETE: createSourceDocumentDeletion(store),
     })),
@@ -912,7 +910,6 @@ function ingestionRequest(): RequestInit {
     'file',
     new File([pdfBytes], 'private.pdf', { type: 'application/pdf' }),
   )
-  form.set('ingestionKey', ids.ingestion)
   return { method: 'POST', body: form }
 }
 
@@ -1024,7 +1021,7 @@ describe('two-account project and source API isolation', () => {
     expect(fixture.createStore).toHaveBeenCalledWith(ids.accountB)
   })
 
-  it('rejects cross-owner ingest and deletion before parsing, package writes, or mutation', async () => {
+  it('rejects cross-owner ingest and deletion before staging, a workflow, or mutation', async () => {
     const fixture = await appFixture()
     const aliceStore = fixture.stores.get(ids.accountA)!
 
@@ -1037,8 +1034,10 @@ describe('two-account project and source API isolation', () => {
       ),
       forbiddenB,
     )
-    expect(fixture.parsingFetch).not.toHaveBeenCalled()
-    expect(fixture.packageStore.save).not.toHaveBeenCalled()
+    expect(aliceStore.findSourceDocumentByContent).not.toHaveBeenCalled()
+    expect(fixture.ingestion.countPages).not.toHaveBeenCalled()
+    expect(fixture.ingestion.enqueue).not.toHaveBeenCalled()
+    expect(fixture.ingestion.listWorkflows).not.toHaveBeenCalled()
     expect(aliceStore.ingestSourceDocument).not.toHaveBeenCalled()
     expect(aliceStore.discardCanonicalPackage).not.toHaveBeenCalled()
 

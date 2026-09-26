@@ -67,7 +67,6 @@ model ProjectContext {
 model SourceDocument {
   id                     Uuid                           @id @default(uuid())
   projectContextId       Uuid
-  ingestionKey           Uuid
   contentSha256          String
   mediaType              String
   originalName           String?
@@ -76,7 +75,6 @@ model SourceDocument {
   representations        SourceRepresentationRevision[]
   annotationSetRevisions AnnotationSetRevision[]
 
-  @@unique([projectContextId, ingestionKey])
   @@unique([projectContextId, contentSha256])
 }
 

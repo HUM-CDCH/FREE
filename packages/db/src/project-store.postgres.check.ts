@@ -9,10 +9,8 @@ import { withBlockedUpdates } from './postgres-test-helpers.js'
  * `pnpm --filter db test:postgres` fails loudly when it has no database, so a
  * green run always means the cascade actually ran.
  *
- * Give it a freshly created database every run. Ingestion keys are globally
- * unique and fixed here, and the check only cleans up when it passes, so
- * re-running against a database a previous failure dirtied reports
- * `IngestionKeyConflictError` instead of the original failure.
+ * Give it a freshly created database every run: it expects no account and no
+ * Project Context before it starts, and it only cleans up when it passes.
  */
 const databaseUrl = process.env.PROJECT_STORE_POSTGRES_URL
 
@@ -24,15 +22,18 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
   validateDisposableTestDatabaseTarget(databaseUrl)
   process.env.DATABASE_URL = databaseUrl
 
+  // Imported only now: these modules build the pool from DATABASE_URL when they load.
   const [
     { db, pool },
     {
       createInternalProjectWorkerStore,
       createResearcherProjectStore,
     },
+    { isUniqueViolation },
   ] = await Promise.all([
     import('./prisma/db.js'),
     import('./project-store.js'),
+    import('./pool-client-transaction.js'),
   ])
   after(async () => {
     await db.close()
@@ -72,7 +73,6 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     }),
   )
   const ingestion = {
-    ingestionKey: '51000000-0000-4000-9000-000000000001',
     contentSha256: 'a'.repeat(64),
     mediaType: 'application/pdf',
     originalName: 'doomed.pdf',
@@ -87,7 +87,6 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
   await assert.rejects(
     survivorStore.ingestSourceDocument(survivor.projectContextId, {
       ...ingestion,
-      ingestionKey: '51000000-0000-4000-9000-000000000099',
       ensureRetained: async () => {
         throw new Error('package unavailable')
       },
@@ -96,7 +95,7 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
   )
   assert.equal(
     await db.orm.public.SourceDocument.select('id').first({
-      ingestionKey: '51000000-0000-4000-9000-000000000099',
+      projectContextId: survivor.projectContextId,
     }),
     null,
   )
@@ -104,12 +103,35 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     store.ingestSourceDocument(project.projectContextId, ingestion),
     store.ingestSourceDocument(project.projectContextId, {
       ...ingestion,
-      ingestionKey: '51000000-0000-4000-9000-000000000002',
       originalName: 'same-bytes-renamed.pdf',
     }),
   ])
   assert.ok(ingested)
-  assert.deepEqual(concurrentReplay, ingested)
+  assert.ok(concurrentReplay)
+  // One insert won; the other met the (project, content) constraint and read the winner.
+  assert.deepEqual(
+    [ingested.disposition, concurrentReplay.disposition].sort(),
+    ['created', 'replayed'],
+  )
+  const { disposition: _ingestedDisposition, ...ingestedDocument } = ingested
+  const { disposition: _replayDisposition, ...replayedDocument } = concurrentReplay
+  assert.deepEqual(replayedDocument, ingestedDocument)
+  assert.deepEqual(
+    await store.findSourceDocumentByContent(project.projectContextId, ingestion.contentSha256),
+    ingestedDocument,
+  )
+  assert.equal(
+    await survivorStore.findSourceDocumentByContent(project.projectContextId, ingestion.contentSha256),
+    null,
+  )
+  // The publication backstop names this constraint: a second insert of the content is a replay, nothing else is.
+  const duplicate = await db.transaction(({ orm }) => orm.public.SourceDocument.create({
+    projectContextId: project.projectContextId,
+    contentSha256: ingestion.contentSha256,
+    mediaType: 'application/pdf',
+    originalName: 'duplicate.pdf',
+  })).then(() => null, (error: unknown) => error)
+  assert.ok(isUniqueViolation(duplicate, 'sourceDocument_projectContextId_contentSha256_key'), String(duplicate))
   assert.equal(ingested.revisionNumber, 1)
   assert.equal(
     (
@@ -129,13 +151,12 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
   )
   assert.deepEqual(
     await store.ingestSourceDocument(project.projectContextId, ingestion),
-    ingested,
+    { ...ingestedDocument, disposition: 'replayed' },
   )
   const sameNameDifferentContent = await store.ingestSourceDocument(
     project.projectContextId,
     {
       ...ingestion,
-      ingestionKey: '51000000-0000-4000-9000-000000000003',
       contentSha256: 'b'.repeat(64),
       artifactReference: 'f'.repeat(64),
       artifactSha256: 'f'.repeat(64),
@@ -154,7 +175,6 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     survivor.projectContextId,
     {
       ...ingestion,
-      ingestionKey: '51000000-0000-4000-9000-000000000004',
       originalName: 'survivor.pdf',
     },
   )
