@@ -60,11 +60,11 @@ def converted(kei, workflow_id="kei-convert:ingest:p:a"):
 
 
 def staging(kei, workflow_id):
-    """A `.prepare-<run>` staging directory as a conversion stopped inside prepare_run leaves it."""
+    """A `.prepare-<run>` staging directory as a conversion stopped inside prepare_run leaves it. Written just now:
+    its conversion's status alone decides, not its age."""
     directory = kei.runs / f".prepare-{runs.run_id_for(workflow_id)}"
     directory.mkdir()
     (directory / "input.pdf").write_bytes(b"%PDF-")
-    age(directory)
     return directory
 
 
