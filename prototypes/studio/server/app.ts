@@ -70,6 +70,7 @@ const PUBLIC_ASSETS: Readonly<Record<string, true>> = {
 const VITE_DEVELOPMENT_ASSETS: Readonly<Record<string, true>> = {
   '/@react-refresh': true,
   '/src/main.tsx': true,
+  '/src/zodWithoutEval.ts': true,
   '/src/index.css': true,
   '/src/pdf-viewer.css': true,
   '/src/auth/AuthApplication.tsx': true,

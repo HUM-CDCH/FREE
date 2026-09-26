@@ -335,6 +335,29 @@ test('kei role: only Studio receives the kei password, after migrations', () => 
   assert.ok(init < keiRole && keiRole < exec, 'the kei role is ensured after migrations and before Studio starts')
 })
 
+test('app shell: the production policy is strict about script, workers and framing', async () => {
+  const { APP_SHELL_CONTENT_SECURITY_POLICY } = await import('../prototypes/studio/server/contentSecurityPolicy.ts')
+  const policy = new Map(
+    APP_SHELL_CONTENT_SECURITY_POLICY.split(';')
+      .map((directive) => directive.trim().split(/\s+/))
+      .filter(([name]) => name)
+      .map(([name, ...sources]) => [name, sources]),
+  )
+  assert.deepEqual(policy.get('script-src'), ["'self'"])
+  assert.deepEqual(policy.get('worker-src'), ["'self'"])
+  assert.deepEqual(policy.get('frame-ancestors'), ["'none'"])
+  assert.deepEqual(policy.get('object-src'), ["'none'"])
+  for (const source of policy.get('script-src'))
+    assert.ok(
+      source !== "'unsafe-inline'" && source !== "'unsafe-eval'" && !/^'sha(256|384|512)-/.test(source),
+      `script-src must not allow ${source}`,
+    )
+  assert.equal(policy.has('form-action'), false)
+
+  const staticClient = readFileSync(resolve(ROOT, 'prototypes/studio/server/static.ts'), 'utf8')
+  assert.ok(staticClient.includes('APP_SHELL_CONTENT_SECURITY_POLICY'), 'the app shell response sends the policy')
+})
+
 test('development: Studio watches shared configuration and rebuild-owned database inputs', () => {
   const result = spawnSync(
     'docker',

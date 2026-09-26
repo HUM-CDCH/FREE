@@ -1,3 +1,5 @@
+// First, so Zod is configured before any module that builds a schema is evaluated.
+import './zodWithoutEval.ts'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import AuthApplication from './auth/AuthApplication.tsx'

@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { APP_SHELL_CONTENT_SECURITY_POLICY } from './contentSecurityPolicy.js'
 import { createStaticClientHandler } from './static.js'
 
 let container = ''
@@ -18,6 +19,7 @@ beforeEach(async () => {
   await writeFile(join(root, 'favicon.png'), 'png')
   await writeFile(join(root, 'assets', 'index-AbCd1234.js'), 'hashed-client')
   await writeFile(join(root, 'assets', 'runtime.js'), 'unversioned-client')
+  await writeFile(join(root, 'assets', 'app-abc12345.js'), 'app-client')
   await writeFile(join(container, 'secret.txt'), 'must-not-be-served')
 })
 
@@ -75,6 +77,22 @@ describe('production static client handler', () => {
     expect(icon.headers.get('cache-control')).toBe('no-cache')
     expect(icon.headers.get('content-length')).toBe(String('png'.length))
     expect(await icon.text()).toBe('')
+  })
+
+  it('the index response carries the app shell policy and assets do not', async () => {
+    const handle = createStaticClientHandler(root, '/')
+    for (const pathname of ['/', '/projects/project-id']) {
+      const index = await handle(new Request(`https://studio.example${pathname}`))
+      expect(index.status).toBe(200)
+      expect(index.headers.get('content-security-policy')).toBe(
+        APP_SHELL_CONTENT_SECURITY_POLICY,
+      )
+    }
+    const asset = await handle(
+      new Request('https://studio.example/assets/app-abc12345.js'),
+    )
+    expect(asset.status).toBe(200)
+    expect(asset.headers.get('content-security-policy')).toBeNull()
   })
 
   it('rejects traversal, malformed paths, missing files, and unsafe methods', async () => {

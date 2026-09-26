@@ -11,6 +11,7 @@ import { Readable } from 'node:stream'
 import { canonicalStudioBasePath } from 'studio-configuration'
 import { applyStudioBaseTag } from '../shared/studioBasePath.js'
 import type { ClientHandler } from './app.js'
+import { APP_SHELL_CONTENT_SECURITY_POLICY } from './contentSecurityPolicy.js'
 
 const MIME_TYPE: Readonly<Record<string, string>> = {
   '.css': 'text/css; charset=utf-8',
@@ -98,6 +99,7 @@ async function indexResponse(
   const headers = new Headers({
     'Cache-Control': REVALIDATE,
     'Content-Length': String(body.byteLength),
+    'Content-Security-Policy': APP_SHELL_CONTENT_SECURITY_POLICY,
     'Content-Type': MIME_TYPE['.html'],
     'X-Content-Type-Options': 'nosniff',
   })

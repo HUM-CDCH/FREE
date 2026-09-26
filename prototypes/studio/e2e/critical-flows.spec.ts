@@ -6,6 +6,7 @@ import { createGetProjectContexts } from '../api/project_contexts.js'
 import { projectContextFixture } from '../api/project_contexts.fixture.js'
 import { gotoAuthenticated } from './auth.js'
 import { activateWithKeyboard } from './accessibility.js'
+import { openBundledDocument, routeBundledDocument } from './bundledDocument.js'
 
 const sourcePdf = fileURLToPath(
   new URL('../../../examples/Beretning_Ellekilde_8_13.pdf', import.meta.url),
@@ -28,48 +29,9 @@ const schemaResponse = {
 }
 
 test('bundled parsed document renders its page-scoped PDF @deterministic', async ({ page }) => {
-  const store = projectContextFixture()
-  const projectContexts = createGetProjectContexts(store)
-  const reopen = createGetDocumentReopen(store, emptyExtractions)
-  await page.route('**/api/project-contexts**', async (route) => {
-    const request = new Request(route.request().url())
-    const response = await (request.url.endsWith('/reopen')
-      ? reopen(request)
-      : projectContexts(request))
-    await route.fulfill({
-      status: response.status,
-      headers: Object.fromEntries(response.headers),
-      body: await response.text(),
-    })
-  })
-  await page.route(
-    '**/api/project-contexts/*/source-representations/**',
-    (route) => {
-      const path = new URL(route.request().url()).pathname
-      if (path.endsWith('/pdf'))
-        return route.fulfill({ path: sourcePdf, contentType: 'application/pdf' })
-      if (path.endsWith('/source'))
-        return route.fulfill({
-          body: parsedDocument,
-          contentType: 'application/json',
-        })
-      return route.fulfill({ body: '# Source Document\n\nGrav 8' })
-    },
-  )
+  await routeBundledDocument(page)
   await gotoAuthenticated(page, '/')
-  await activateWithKeyboard(
-    page,
-    page.getByRole('button', {
-      name: /Source Documents in Ellekilde, TAK 1355$/,
-    }),
-  )
-  await activateWithKeyboard(
-    page,
-    page.getByRole('navigation', { name: 'Projects' }).getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }),
-  )
-  await expect(page.getByText('6 pages', { exact: true })).toBeVisible({
-    timeout: 15_000,
-  })
+  await openBundledDocument(page)
   await expect(page.locator('iframe[title="Pinned Source Document"]')).toHaveCount(0)
   await expect(page.locator('.pdfViewer .page')).toHaveCount(6)
 })
