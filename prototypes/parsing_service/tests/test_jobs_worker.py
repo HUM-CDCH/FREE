@@ -11,9 +11,9 @@ import time
 
 import pytest
 
+from kei_exp import runs
 from kei_exp.jobs import schema, store, worker
 from kei_exp.jobs.app import deferring_installed
-from tests.helpers import slot as slot_helper
 
 
 @pytest.fixture
@@ -22,55 +22,12 @@ def ready(database: str, tmp_path, monkeypatch) -> str:
     store.close_pool()
     store.pool(database)
     monkeypatch.setenv("KEI_RUNS", str(tmp_path))
-    monkeypatch.setattr(worker, "LOCK_DIR", tmp_path)
+    monkeypatch.setattr(runs, "RUNS", tmp_path)
     try:
         with deferring_installed(database):
             yield database
     finally:
         store.close_pool()
-
-
-def test_one_process_at_a_time_holds_a_slot(ready: str) -> None:
-    with worker.hold_slot("slot-1"):
-        with pytest.raises(worker.SlotTaken), worker.hold_slot("slot-1"):
-            pass
-        with worker.hold_slot("slot-2"):  # a neighbour's slot is its own lock
-            pass
-
-
-def test_the_lock_is_released_when_the_holder_exits(ready: str, tmp_path) -> None:
-    holder = slot_helper.holder("slot-1", tmp_path)
-    try:
-        holder.wait_started(timeout=20)
-        with pytest.raises(worker.SlotTaken), worker.hold_slot("slot-1"):
-            pass
-        holder.kill()      # killed and reaped: the kernel drops the lock with the process
-        holder.reap()
-        with worker.hold_slot("slot-1"):
-            pass
-    finally:
-        if holder.process.poll() is None:
-            holder.kill()
-            holder.reap()
-
-
-def test_a_stopped_holder_keeps_its_slot(ready: str, tmp_path) -> None:
-    """A merely stopped worker is the supervisor's to kill, never a replacement's to step over."""
-    holder = slot_helper.holder("slot-1", tmp_path)
-    try:
-        holder.wait_started(timeout=20)
-        holder.pause()
-        try:
-            with pytest.raises(worker.SlotTaken), worker.hold_slot("slot-1"):
-                pass
-        finally:
-            holder.resume()
-            holder.kill()
-            holder.reap()
-    finally:
-        if holder.process.poll() is None:
-            holder.kill()
-            holder.reap()
 
 
 def test_reconciliation_requeues_only_this_slots_interrupted_jobs(ready: str) -> None:

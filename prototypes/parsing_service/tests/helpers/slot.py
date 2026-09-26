@@ -7,14 +7,11 @@ import time
 from pathlib import Path
 
 HOLDER = (
-    "import sys, time;"
-    "sys.path.insert(0, 'src');"
-    "from kei_exp.jobs import worker;"
-    "worker.LOCK_DIR = __import__('pathlib').Path(sys.argv[2]);"
-    "ctx = worker.hold_slot(sys.argv[1]);"
-    "ctx.__enter__();"
-    "print('held', flush=True);"
-    "time.sleep(600)"
+    "import pathlib, sys, time;"
+    "from kei_exp import runs; from kei_exp.workflows import slot;"
+    "runs.RUNS = pathlib.Path(sys.argv[2]);"
+    "ctx = slot.hold_slot(sys.argv[1]); ctx.__enter__();"
+    "print('held', flush=True); time.sleep(600)"
 )
 
 

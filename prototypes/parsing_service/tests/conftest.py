@@ -99,6 +99,15 @@ def database(postgres: str) -> Iterator[str]:
             pass
 
 
+@pytest.fixture
+def kei(database: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """kei's DBOS worker in this process on a fresh database (tests/helpers/kei.py). Release every blocked step
+    before the test ends: DBOS.destroy() does not wait for step threads."""
+    from tests.helpers import kei as kei_helper
+    with kei_helper.launched(database, tmp_path, monkeypatch) as launched:
+        yield launched
+
+
 @pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(items):
     """Fixture closure makes every database dependency visible before marker selection."""

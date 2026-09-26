@@ -26,6 +26,8 @@ from kei_exp.transcription.types import DEFAULT_URL, Execution, RunParams
 
 load_dotenv()
 RUNS = Path(os.environ.get("KEI_RUNS", "runs"))
+# Staged source PDFs Studio writes and kei reads only (the source-inbox volume, M4).
+INBOX = Path(os.environ.get("KEI_SOURCE_INBOX", "source-inbox"))
 TERMINAL = ("done", "failed")
 STATUS_OF = {"todo": "queued", "doing": "running", "succeeded": "done", "failed": "failed",
              "cancelled": "cancelled", "aborted": "cancelled"}

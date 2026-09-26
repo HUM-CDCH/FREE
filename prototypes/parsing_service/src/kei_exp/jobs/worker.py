@@ -14,47 +14,17 @@ Env: KEI_SLOT, KEI_RUNS (the lock lives beside the runs), KEI_DATABASE_URL.
 """
 from __future__ import annotations
 
-import fcntl
 import logging
 import os
-from collections.abc import Iterator
-from contextlib import contextmanager
-from pathlib import Path
 
 import procrastinate
 
 from kei_exp.jobs import store
 from kei_exp.jobs.app import DATABASE_URL, SLOT, app, queue_of
 from kei_exp.jobs.events import DurableEmit
+from kei_exp.workflows.slot import hold_slot
 
 logger = logging.getLogger(__name__)
-LOCK_DIR = Path(os.environ.get("KEI_RUNS", "runs"))
-
-
-class SlotTaken(RuntimeError):
-    """Another live process holds this slot. It is the supervisor's to end, never this process's to step over."""
-
-
-def lock_path(slot: str) -> Path:
-    return LOCK_DIR / f".slot-{slot}.lock"
-
-
-@contextmanager
-def hold_slot(slot: str) -> Iterator[None]:
-    """Hold `slot` exclusively for the block, or raise `SlotTaken`."""
-    path = lock_path(slot)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    handle = os.open(path, os.O_CREAT | os.O_RDWR, 0o644)
-    try:
-        try:
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError as error:
-            raise SlotTaken(f"slot {slot} is held by another process ({path})") from error
-        os.ftruncate(handle, 0)
-        os.write(handle, f"{os.getpid()}\n".encode())
-        yield
-    finally:
-        os.close(handle)  # the lock goes with the descriptor, and the descriptor goes with the process
 
 
 def reconcile(slot: str) -> list[str]:

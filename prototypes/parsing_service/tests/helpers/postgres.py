@@ -73,6 +73,14 @@ def checked_conninfo(value: str) -> dict[str, str]:
     return fields
 
 
+def url(conninfo: str, *, user: str | None = None, password: str | None = None) -> str:
+    """The guarded target as a postgresql:// URL, which DBOS and psycopg both take."""
+    from urllib.parse import quote
+    fields = checked_conninfo(conninfo)
+    user, password = user or fields["user"], password if password is not None else fields.get("password", "")
+    return f"postgresql://{quote(user)}:{quote(password)}@{fields['hostaddr']}:{fields['port']}/{fields['dbname']}"
+
+
 def server() -> Iterator[Server]:
     """Use the caller's explicitly configured test database; never start or remove a container."""
     import psycopg
