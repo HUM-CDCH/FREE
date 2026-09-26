@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { CanonicalPackageStore } from '../../../packages/db/src/artifact-store.js'
 import type {
   ResearcherProjectStore,
   SchemaRevisionRecord,
@@ -62,15 +61,6 @@ function contextStore(
   }
 }
 
-function markdownReader(): Pick<CanonicalPackageStore, 'read'> {
-  return {
-    read: vi.fn(async () => ({
-      bytes: new TextEncoder().encode('# Canonical report'),
-      mediaType: 'text/markdown; charset=utf-8',
-    })),
-  }
-}
-
 function sourceForm(): FormData {
   const form = new FormData()
   form.append('project_context_id', PROJECT)
@@ -110,8 +100,11 @@ function editForm(): FormData {
   form.append('extraction_schema_id', SCHEMA)
   form.append('schema_revision_id', SCHEMA_REVISION)
   form.append('instruction', 'Add title')
+  form.append('operation_id', OPERATION)
   return form
 }
+
+const PROPOSED = { status: 'proposed', fields: {}, additions: [], issues: [] }
 
 afterEach(() => vi.clearAllMocks())
 
@@ -143,61 +136,39 @@ describe('Studio API endpoints', () => {
     expect(generateSchemaWithModel).not.toHaveBeenCalled()
   })
 
-  it('edits the persisted owner-scoped revision rather than browser-authored nodes', async () => {
-    vi.mocked(generateSchemaEditJson).mockResolvedValue({
-      text: '{"fields":{},"additions":[]}',
-    })
+  it('starts a durable edit proposal over the persisted owner-scoped revision, never browser-authored nodes', async () => {
     const store = contextStore()
-    const request = formRequest('edit_schema', editForm())
-    const response = await createPostEditSchema(
-      store,
-      markdownReader(),
-    )(request)
+    const client = operations({ ok: true, baseSchemaRevisionId: SCHEMA_REVISION, response: PROPOSED })
+    const response = await createPostEditSchema(store, () => client)(formRequest('edit_schema', editForm()))
 
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({
-      status: 'proposed',
-      fields: {},
-      additions: [],
-      issues: [],
-    })
-    expect(store.getSourceRepresentation).toHaveBeenCalledWith(
-      PROJECT,
-      SOURCE_REVISION,
+    await expect(response.json()).resolves.toEqual(PROPOSED)
+    expect(store.getSourceRepresentation).toHaveBeenCalledWith(PROJECT, SOURCE_REVISION)
+    expect(store.getSchemaRevision).toHaveBeenCalledWith(PROJECT, SCHEMA, SCHEMA_REVISION)
+    // The handler reads neither the schema tree nor the document: the workflow does, outside history.
+    expect(client.enqueue).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        workflowName: 'proposeSchemaEdit', workflowID: `edit:${OPERATION}`, authenticatedUser: ACCOUNT,
+        attributes: { projectContextId: PROJECT, extractionSchemaId: SCHEMA, sourceDocumentId: DOCUMENT, sourceRepresentationRevisionId: SOURCE_REVISION },
+      }),
+      expect.objectContaining({ owner: ACCOUNT, baseSchemaRevisionId: SCHEMA_REVISION, instruction: 'Add title' }),
     )
-    expect(store.getSchemaRevision).toHaveBeenCalledWith(
-      PROJECT,
-      SCHEMA,
-      SCHEMA_REVISION,
-    )
-    expect(generateSchemaEditJson).toHaveBeenCalledOnce()
-    expect(vi.mocked(generateSchemaEditJson).mock.calls[0]?.[0]).toEqual({ researcherAccountId: ACCOUNT })
-    // The request's signal ends the edit, and with it any wait for a key, when the browser leaves.
-    expect(vi.mocked(generateSchemaEditJson).mock.calls[0]?.[3]).toBe(request.signal)
+    expect(generateSchemaEditJson).not.toHaveBeenCalled()
   })
 
-  it('edits a persisted owner-scoped revision without inventing a source context', async () => {
-    vi.mocked(generateSchemaEditJson).mockResolvedValue({
-      text: '{"fields":{},"additions":[]}',
-    })
+  it('starts a schema-only edit proposal without inventing a source context', async () => {
     const form = editForm()
     form.delete('source_representation_revision_id')
     const store = contextStore()
-    const reader = markdownReader()
-    const response = await createPostEditSchema(
-      store,
-      reader,
-    )(formRequest('edit_schema', form))
+    const client = operations({ ok: true, baseSchemaRevisionId: SCHEMA_REVISION, response: PROPOSED })
+    const response = await createPostEditSchema(store, () => client)(formRequest('edit_schema', form))
 
     expect(response.status).toBe(200)
-    expect(store.getSchemaRevision).toHaveBeenCalledWith(
-      PROJECT,
-      SCHEMA,
-      SCHEMA_REVISION,
-    )
     expect(store.getSourceRepresentation).not.toHaveBeenCalled()
-    expect(reader.read).not.toHaveBeenCalled()
-    expect(generateSchemaEditJson).toHaveBeenCalledOnce()
+    expect(client.enqueue).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ attributes: { projectContextId: PROJECT, extractionSchemaId: SCHEMA } }),
+      expect.objectContaining({ sourceRepresentationRevisionId: null }),
+    )
   })
 
   it('rejects browser-authored source and schema context', async () => {
@@ -216,22 +187,20 @@ describe('Studio API endpoints', () => {
     const editing = editForm()
     editing.append('current_nodes', '[]')
     const editStore = contextStore()
+    const editClient = operations()
     expect(
       (
-        await createPostEditSchema(
-          editStore,
-          markdownReader(),
-        )(formRequest('edit_schema', editing))
+        await createPostEditSchema(editStore, () => editClient)(formRequest('edit_schema', editing))
       ).status,
     ).toBe(400)
     expect(editStore.getSchemaRevision).not.toHaveBeenCalled()
+    expect(editClient.enqueue).not.toHaveBeenCalled()
 
     expect(generateSchemaWithModel).not.toHaveBeenCalled()
     expect(generateSchemaEditJson).not.toHaveBeenCalled()
   })
 
   it('returns 404 for cross-owner and mixed pins before artifact or model access', async () => {
-    const reader = markdownReader()
     const missingSource = contextStore({
       getSourceRepresentation: vi.fn(async () => null),
     })
@@ -246,15 +215,13 @@ describe('Studio API endpoints', () => {
     const mixed = contextStore({
       getSchemaRevision: vi.fn(async () => null),
     })
+    const mixedClient = operations()
     expect(
       (
-        await createPostEditSchema(
-          mixed,
-          reader,
-        )(formRequest('edit_schema', editForm()))
+        await createPostEditSchema(mixed, () => mixedClient)(formRequest('edit_schema', editForm()))
       ).status,
     ).toBe(404)
-    expect(reader.read).not.toHaveBeenCalled()
+    expect(mixedClient.enqueue).not.toHaveBeenCalled()
     expect(generateSchemaWithModel).not.toHaveBeenCalled()
     expect(generateSchemaEditJson).not.toHaveBeenCalled()
   })

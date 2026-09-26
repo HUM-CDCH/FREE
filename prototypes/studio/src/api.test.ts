@@ -267,7 +267,7 @@ describe('model work hands the keys over first', () => {
     handoff.resolve(jsonResponse({ accepted: [] }))
     await schema
 
-    await requestSchemaEdit(schemaContext, 'Add title')
+    await requestSchemaEdit(schemaContext, 'Add title', undefined, '51000000-0000-4000-8009-0000000000f3')
     expect(requests).toEqual([
       'PUT /api/model-keys',
       'POST /api/generate_schema',
@@ -279,7 +279,7 @@ describe('model work hands the keys over first', () => {
     failHandoff = true
     requests.length = 0
     await requestSchema(context, undefined, { operationId: '51000000-0000-4000-8009-0000000000f1', base: null })
-    await requestSchemaEdit(schemaContext, 'Add title')
+    await requestSchemaEdit(schemaContext, 'Add title', undefined, '51000000-0000-4000-8009-0000000000f3')
     expect(requests).toEqual([
       'PUT /api/model-keys',
       'POST /api/generate_schema',
@@ -366,6 +366,8 @@ describe('requestSchemaEdit', () => {
         schemaRevisionId: '51000000-0000-4000-8004-000000000001',
       },
       'Add title',
+      undefined,
+      '51000000-0000-4000-8009-0000000000f3',
     )
 
     expect(Object.fromEntries(submittedBody!)).toEqual({
@@ -375,6 +377,7 @@ describe('requestSchemaEdit', () => {
       extraction_schema_id: '51000000-0000-4000-8003-000000000001',
       schema_revision_id: '51000000-0000-4000-8004-000000000001',
       instruction: 'Add title',
+      operation_id: '51000000-0000-4000-8009-0000000000f3',
     })
   })
 })

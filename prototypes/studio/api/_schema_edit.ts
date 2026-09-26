@@ -8,10 +8,6 @@ import {
   type SchemaEditResponse,
 } from '../shared/schemaEdit.contract.js'
 import type {
-  CanonicalPackageDescriptor,
-  CanonicalPackageStore,
-} from '../../../packages/db/src/artifact-store.js'
-import type {
   ResearcherProjectStore,
   SchemaRevisionRecord,
 } from '../../../packages/db/src/project-store.js'
@@ -64,15 +60,6 @@ type SchemaRevisionStore = Pick<
   'getSchemaRevision'
 >
 
-type SchemaContextStore = Pick<
-  ResearcherProjectStore,
-  'getSourceRepresentation' | 'getSchemaRevision'
->
-
-type CanonicalMarkdownReader = Pick<CanonicalPackageStore, 'read'>
-
-const markdownDecoder = new TextDecoder('utf-8', { fatal: true })
-
 export function formContextIdentity(form: FormData, name: string): string {
   const value = form.get(name)
   if (typeof value !== 'string' || !canonicalUuidSchema.safeParse(value).success)
@@ -82,20 +69,6 @@ export function formContextIdentity(form: FormData, name: string): string {
       `${name} must be a canonical lowercase UUID.`,
     )
   return value
-}
-
-async function readCanonicalMarkdown(
-  reader: CanonicalMarkdownReader,
-  descriptor: CanonicalPackageDescriptor,
-): Promise<string> {
-  try {
-    return markdownDecoder.decode((await reader.read(descriptor, 'markdown')).bytes)
-  } catch (cause) {
-    throw persistenceUnavailable(
-      cause,
-      'Source Document artifact is unavailable.',
-    )
-  }
 }
 
 /** The owner check for a source revision, without reading its package: the Source Document it belongs to. The
@@ -154,44 +127,6 @@ export async function loadOwnedSchemaRevision(
       'Project model context was not found.',
     )
   return revision
-}
-
-export async function loadOwnedSchemaModelContext(
-  store: SchemaContextStore,
-  reader: CanonicalMarkdownReader,
-  pins: {
-    projectContextId: string
-    sourceRepresentationRevisionId: string
-    extractionSchemaId: string
-    schemaRevisionId: string
-  },
-): Promise<{
-  documentMarkdown: string
-  revision: SchemaRevisionRecord
-}> {
-  const [descriptor, revision] = await Promise.all([
-    store.getSourceRepresentation(
-      pins.projectContextId,
-      pins.sourceRepresentationRevisionId,
-    ),
-    store.getSchemaRevision(
-      pins.projectContextId,
-      pins.extractionSchemaId,
-      pins.schemaRevisionId,
-    ),
-  ]).catch((cause) => {
-    throw persistenceUnavailable(cause)
-  })
-  if (!descriptor || !revision)
-    throw new ApiError(
-      404,
-      'not_found',
-      'Project model context was not found.',
-    )
-  return {
-    documentMarkdown: await readCanonicalMarkdown(reader, descriptor),
-    revision,
-  }
 }
 
 export async function proposeSchemaEdit(

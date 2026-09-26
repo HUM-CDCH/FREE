@@ -777,6 +777,8 @@ export type InternalProjectWorkerStore = {
   projectContextOwner(projectContextId: string): Promise<string | null>
   /** The revision's canonical Markdown as text, or null when the revision is gone. */
   readRevisionMarkdown(sourceRepresentationRevisionId: string): Promise<string | null>
+  /** A schema revision's tree, or null when the revision is gone or belongs to another Extraction Schema. */
+  readSchemaRevisionTree(extractionSchemaId: string, schemaRevisionId: string): Promise<unknown | null>
   /** 'current' while `attempt` is the suggestion's attempt and has no outcome; 'stopped' after a retry, an
    *  interruption, a publication or the suggestion's deletion. */
   suggestionAttemptState(batchSchemaSuggestionId: string, attempt: number): Promise<'current' | 'stopped'>
@@ -2150,6 +2152,10 @@ export function createInternalProjectWorkerStore(
       ).first({ id: sourceRepresentationRevisionId })
       if (!revision) return null
       return new TextDecoder().decode((await packages.read(revision, 'markdown')).bytes)
+    },
+    async readSchemaRevisionTree(extractionSchemaId, schemaRevisionId) {
+      const row = await database.orm.public.SchemaRevision.select('schemaTree').first({ id: schemaRevisionId, extractionSchemaId })
+      return row?.schemaTree ?? null
     },
     async suggestionAttemptState(batchSchemaSuggestionId, attempt) {
       return (await database.transaction(({ orm }) => lockCurrentAttempt(orm, batchSchemaSuggestionId, attempt)))

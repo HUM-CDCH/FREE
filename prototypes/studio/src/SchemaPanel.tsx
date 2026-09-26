@@ -536,6 +536,8 @@ function SchemaPanel({
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const chatAbortRef = useRef<AbortController | null>(null)
+  /** The running edit's operation ID: Stop cancels it on the server (Task 6) and Discard names it (Task 7). */
+  const editOperationRef = useRef<string | null>(null)
   useEffect(() => () => {
     chatAbortRef.current?.abort()
     chatAbortRef.current = null
@@ -937,6 +939,9 @@ function SchemaPanel({
     setChatLoading(true)
     const controller = new AbortController()
     chatAbortRef.current = controller
+    // A new user action, a new ID (spec, *Client IDs*): Studio replays the same one if the POST is repeated.
+    const operationId = crypto.randomUUID()
+    editOperationRef.current = operationId
 
     const versionBeforeFlush = schema.snapshot().draftVersion
     try {
@@ -962,6 +967,7 @@ function SchemaPanel({
         modelContext,
         userMsg,
         controller.signal,
+        operationId,
       )
       const currentAfterResponse = schema.snapshot()
       if (
@@ -1005,6 +1011,7 @@ function SchemaPanel({
     } finally {
       if (chatAbortRef.current === controller) {
         chatAbortRef.current = null
+        editOperationRef.current = null
         setChatLoading(false)
       }
     }

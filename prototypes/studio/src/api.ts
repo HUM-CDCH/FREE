@@ -281,7 +281,8 @@ function decodeSchemaEdit(data: unknown): SchemaEditResponse {
 export async function requestSchemaEdit(
   context: SchemaModelContext,
   instruction: string,
-  signal?: AbortSignal,
+  signal: AbortSignal | undefined,
+  operationId: string,
 ): Promise<SchemaEditResponse> {
   const form = new FormData()
   form.append('project_context_id', context.projectContextId)
@@ -293,6 +294,8 @@ export async function requestSchemaEdit(
       context.sourceRepresentationRevisionId,
     )
   form.append('instruction', instruction)
+  // The operation ID makes the POST repeatable and names the proposal a reloaded page can reopen.
+  form.append('operation_id', operationId)
   await ensureModelKeysSent()
   return postForm('/edit_schema', form, decodeSchemaEdit, signal)
 }

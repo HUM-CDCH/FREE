@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import pg from 'pg'
-import type { CanonicalPackageStore } from 'db'
+import { db, type CanonicalPackageStore } from 'db'
 import type { ModelKeyCache } from '../../api/_model_keys.js'
 import { applyAccountModelConfig } from '../../api/_model_config.js'
 import { removeSuggestionSources, seedSuggestionSources, type SeededSuggestionSources } from './suggestionWorkflow.js'
@@ -27,6 +27,21 @@ export async function seedInteractiveScope(packages: CanonicalPackageStore): Pro
     sourceRepresentationRevisionId: source.sourceRepresentationRevisionId,
     seeded,
   }
+}
+
+/** An Extraction Schema with one revision (empty fields) in the scope's project: the base an edit proposal applies to. */
+export async function seedSchemaRevision(scope: InteractiveScope): Promise<{ extractionSchemaId: string; schemaRevisionId: string }> {
+  const extractionSchemaId = randomUUID()
+  const schemaRevisionId = randomUUID()
+  await db.orm.public.ExtractionSchema.create({ id: extractionSchemaId, projectContextId: scope.projectContextId, name: 'Interactive schema' })
+  await db.orm.public.SchemaRevision.create({
+    id: schemaRevisionId,
+    extractionSchemaId,
+    revisionNumber: 1,
+    origin: 'RESEARCHER_EDIT',
+    schemaTree: { recordDescription: 'One catalogue entry.', schemaNodes: [] },
+  })
+  return { extractionSchemaId, schemaRevisionId }
 }
 
 export async function removeInteractiveScope(scope: InteractiveScope): Promise<void> {

@@ -532,6 +532,23 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     assert.equal('getSourceRepresentation' in worker, false)
   })
 
+  it("the worker store reads a schema revision's tree by schema and revision, or null", async () => {
+    const database = fakeDatabase()
+    const worker = createInternalProjectWorkerStore(database as never)
+    database.tables.SchemaRevision.push({
+      id: '51000000-0000-4000-8004-000000000077',
+      extractionSchemaId: SCHEMA,
+      revisionNumber: 7,
+      origin: 'RESEARCHER_EDIT',
+      schemaTree: nodes('tree-seven'),
+      createdAt: new Date('2026-08-01T12:00:00Z'),
+    })
+
+    assert.deepEqual(await worker.readSchemaRevisionTree(SCHEMA, '51000000-0000-4000-8004-000000000077'), nodes('tree-seven'))
+    assert.equal(await worker.readSchemaRevisionTree('51000000-0000-4000-8003-000000000099', '51000000-0000-4000-8004-000000000077'), null)
+    assert.equal(await worker.readSchemaRevisionTree(SCHEMA, '51000000-0000-4000-8004-000000000078'), null)
+  })
+
   it('rejects Project Context creation for a nonexistent account owner', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(

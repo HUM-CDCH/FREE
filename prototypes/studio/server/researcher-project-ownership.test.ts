@@ -720,11 +720,13 @@ function ownershipRegistry(fixture: TwoAccountStores) {
       }) as never),
     })),
     '../api/edit_schema.ts': researcherModule((store) => ({
-      POST: createPostEditSchema(
-        store,
-        { read: fixture.readArtifact },
-        fixture.models.editSchema,
-      ),
+      POST: createPostEditSchema(store, () => ({
+        enqueue: fixture.models.editSchema,
+        getWorkflow: fixture.models.editSchema,
+        listWorkflows: fixture.models.editSchema,
+        cancelWorkflow: fixture.models.editSchema,
+        deleteWorkflows: fixture.models.editSchema,
+      }) as never),
     })),
     '../api/document_reopen.ts': researcherModule(
       createDocumentReopenHandlers,
@@ -1128,6 +1130,7 @@ describe('two-account schema, revision, suggestion, and editing isolation', () =
     editForm.set('extraction_schema_id', ids.schemaB)
     editForm.set('schema_revision_id', ids.revisionB)
     editForm.set('instruction', 'Do not mutate Bob schema.')
+    editForm.set('operation_id', '11000000-0000-4009-8000-0000000000f2')
     const readsBeforeEdit = fixture.readArtifact.mock.calls.length
     await expectPrivateNotFound(
       await api(fixture, ids.accountA, '/api/edit_schema', {

@@ -168,6 +168,23 @@ afterEach(() => {
 })
 
 describe.sequential('SchemaPanel schema proposal review', () => {
+  it('each edit request carries a new operation ID', async () => {
+    renderPanel()
+    const input = screen.getByPlaceholderText('Describe a change to the schema…')
+    for (const turn of [1, 2]) {
+      requestSchemaEdit.mockResolvedValueOnce({ status: 'refused', message: 'no' })
+      fireEvent.change(input, { target: { value: `Update fields ${turn}` } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+      await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledTimes(turn))
+      await screen.findByText(`Request refused: no`, { exact: false }, { timeout: 2_000 }).catch(() => undefined)
+    }
+
+    const ids = requestSchemaEdit.mock.calls.map((call) => call[3] as string)
+    expect(ids).toHaveLength(2)
+    for (const id of ids) expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(ids[0]).not.toBe(ids[1])
+  })
+
   it('renames the durable schema from the schema/chat header', async () => {
     const onRenameSchema = vi.fn(async () => null)
     const setup = renderPanel({}, { schemaName: 'Places', onRenameSchema })
@@ -199,6 +216,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       modelContext,
       'Update fields',
       expect.any(AbortSignal),
+      expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
     )
 
     const row = screen.getByText('title').parentElement!
