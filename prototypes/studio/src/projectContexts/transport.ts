@@ -1,4 +1,5 @@
 import {
+  REPROCESS_TERMINAL_HEADER,
   sourceDocumentReprocessResponseSchema,
   type SourceDocumentReprocessRequest,
 } from '../../shared/sourceDocumentReprocess.contract'
@@ -57,12 +58,14 @@ export type DocumentSnapshot = z.output<typeof documentReopenResponseSchema>
 export class ProjectContextRequestError extends Error {
   readonly status: number
   readonly failure: ProjectContextFailure | null
+  readonly terminalOutcome: boolean
 
-  constructor(status: number, failure: ProjectContextFailure | null) {
+  constructor(status: number, failure: ProjectContextFailure | null, terminalOutcome = false) {
     super(failure?.message ?? 'Project Context request failed.')
     this.name = 'ProjectContextRequestError'
     this.status = status
     this.failure = failure
+    this.terminalOutcome = terminalOutcome
   }
 }
 
@@ -72,7 +75,10 @@ async function read(url: string, init?: RequestInit): Promise<unknown> {
     response.status === 204 ? null : await response.json().catch(() => null)
   if (!response.ok) {
     const error = projectContextErrorResponseSchema.safeParse(body)
-    throw new ProjectContextRequestError(response.status, error.success ? error.data.error : null)
+    throw new ProjectContextRequestError(
+      response.status, error.success ? error.data.error : null,
+      response.headers.get(REPROCESS_TERMINAL_HEADER) === '1',
+    )
   }
   return body
 }
@@ -86,7 +92,7 @@ const UNCERTAIN_STATUSES = new Set([502, 503, 504])
  * confirmed, and a retry is a new action (spec, *Client IDs*).
  */
 export function uncertainFailure(error: unknown): boolean {
-  return !(error instanceof ProjectContextRequestError) || UNCERTAIN_STATUSES.has(error.status)
+  return !(error instanceof ProjectContextRequestError) || (!error.terminalOutcome && UNCERTAIN_STATUSES.has(error.status))
 }
 
 async function request<T>(

@@ -7,7 +7,7 @@ import {
   type ResearcherProjectStore,
 } from '../../../packages/db/src/project-store.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
-import { sourceDocumentReprocessRequestSchema } from '../shared/sourceDocumentReprocess.contract.js'
+import { REPROCESS_TERMINAL_HEADER, sourceDocumentReprocessRequestSchema } from '../shared/sourceDocumentReprocess.contract.js'
 import { awaitWorkflowOutcome, STUDIO_QUEUE, studioDbos } from '../server/dbos.js'
 import {
   ApiError,
@@ -138,10 +138,15 @@ export function createSourceDocumentReprocessing(
       })
       if (awaited.state === 'timed-out')
         throw new ApiError(504, 'source_ingestion_timeout', 'Source Document parsing did not finish within thirty minutes.')
+      const terminalFailure = (status: number, code: string, message: string) => {
+        const response = noStoreError(new ApiError(status, code, message))
+        response.headers.set(REPROCESS_TERMINAL_HEADER, '1')
+        return response
+      }
       if (awaited.state === 'stopped')
-        throw new ApiError(502, 'source_ingestion_failed', 'Source Document parsing stopped before it finished.')
+        return terminalFailure(502, 'source_ingestion_failed', 'Source Document parsing stopped before it finished.')
       if (!awaited.output.ok)
-        throw new ApiError(awaited.output.status, awaited.output.code, awaited.output.message)
+        return terminalFailure(awaited.output.status, awaited.output.code, awaited.output.message)
       return json({ ...awaited.output.revision, pageCount: awaited.output.pageCount }, { status: 201, headers: noStore })
     } catch (error) {
       return noStoreError(

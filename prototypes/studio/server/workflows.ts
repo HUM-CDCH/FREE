@@ -22,20 +22,8 @@ import { studioDbos } from './dbos.js'
  *  under one build must be recoverable by another. */
 export const STUDIO_WORKFLOW_NAMES: readonly string[] = [RUN_EXTRACTION, SUGGEST_SCHEMA_BATCH, INGEST_SOURCE, REPROCESS_SOURCE]
 
-/** What ingestSource runs on: DBOS steps, the kei handoff and read API, the source inbox, the package store and the
- *  owner's own store (the Studio acceptance boundary is the owner-checked publication). */
-export function ingestionWorkflowPorts(): IngestionWorkflowPorts {
-  return {
-    steps: dbosSteps,
-    kei: createKeiHandoff(studioDbos().kei),
-    readBase: KEI_EXP_URL,
-    inboxRoot: sourceInboxRoot(),
-    packageStore: canonicalPackageStore,
-    storeFor: (owner) => createResearcherProjectStore(owner),
-  }
-}
-
-export function reprocessWorkflowPorts(): ReprocessWorkflowPorts {
+/** Both source conversion workflows use the same kei handoff, inbox, package store and owner-scoped store. */
+export function sourceConversionWorkflowPorts(): IngestionWorkflowPorts & ReprocessWorkflowPorts {
   return {
     steps: dbosSteps,
     kei: createKeiHandoff(studioDbos().kei),
@@ -60,6 +48,6 @@ export function registerStudioWorkflows(): void {
     generate: generateSchemaWithModel,
     store: workerSuggestionStore(createInternalProjectWorkerStore()),
   }))
-  registerIngestionWorkflow(ingestionWorkflowPorts)
-  registerReprocessWorkflow(reprocessWorkflowPorts)
+  registerIngestionWorkflow(sourceConversionWorkflowPorts)
+  registerReprocessWorkflow(sourceConversionWorkflowPorts)
 }

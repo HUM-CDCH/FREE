@@ -67,17 +67,17 @@ export async function reprocessSourceWorkflow(input: ReprocessInput, ports: Repr
   if (!staged) return { ok: false, status: 404, code: 'not_found', message: 'Source Document was not found.' }
 
   const child = keiConvertWorkflowId(`reprocess:${input.sourceDocumentId}:${input.requestKey}`)
-  await steps.step('submitToKei', () => kei.submit({
-    workflow: 'convert', workflowId: child, queueName: input.lane, priority: CONVERSION_PRIORITY,
-    timeoutMs: conversionTimeoutMs(input.pageCount), authenticatedUser: input.owner,
-    attributes: { projectContextId: input.projectContextId, sourceDocumentId: input.sourceDocumentId,
-      sourceRepresentationRevisionId: input.expectedRepresentationId },
-    request: { source, source_sha256: staged, source_name: input.originalName,
-      page_source: input.pageSource, ingest: null, model: input.models.ocr, layout_model: input.models.layout,
-      cut: 'auto', debug: false },
-  }), SUBMIT_TO_KEI_RETRY)
   let outcome: ReprocessOutcome
   try {
+    await steps.step('submitToKei', () => kei.submit({
+      workflow: 'convert', workflowId: child, queueName: input.lane, priority: CONVERSION_PRIORITY,
+      timeoutMs: conversionTimeoutMs(input.pageCount), authenticatedUser: input.owner,
+      attributes: { projectContextId: input.projectContextId, sourceDocumentId: input.sourceDocumentId,
+        sourceRepresentationRevisionId: input.expectedRepresentationId },
+      request: { source, source_sha256: staged, source_name: input.originalName,
+        page_source: input.pageSource, ingest: null, model: input.models.ocr, layout_model: input.models.layout,
+        cut: 'auto', debug: false },
+    }), SUBMIT_TO_KEI_RETRY)
     let polled: KeiPoll
     do polled = await steps.step('pollKei', () => kei.poll(child, steps.cancelSignal()))
     while (polled.state === 'live')

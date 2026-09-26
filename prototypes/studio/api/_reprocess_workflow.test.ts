@@ -33,13 +33,14 @@ let inbox: string
 beforeEach(async () => { inbox = await mkdtemp(join(tmpdir(), 'free-reprocess-')) })
 afterEach(async () => { vi.restoreAllMocks(); await rm(inbox, { recursive: true, force: true }) })
 
-function harness(options: { poll?: KeiPoll; publish?: () => unknown; beforeStep?: (name: string) => void } = {}) {
+function harness(options: { poll?: KeiPoll; publish?: () => unknown; beforeStep?: (name: string) => void;
+  submit?: () => Promise<void> } = {}) {
   const names: string[] = []
   const steps: WorkflowSteps = {
     async step(name, run) { names.push(name); options.beforeStep?.(name); return run() },
     cancelSignal: () => undefined,
   }
-  const kei = { submit: vi.fn(async () => {}), poll: vi.fn(async () => options.poll ?? ok), cancel: vi.fn(async () => {}) }
+  const kei = { submit: vi.fn(options.submit ?? (async () => {})), poll: vi.fn(async () => options.poll ?? ok), cancel: vi.fn(async () => {}) }
   const store = {
     getSourceRepresentation: vi.fn(async () => DESCRIPTOR),
     reprocessSourceDocument: vi.fn(async (_project: string, _document: string, input: { ensureRetained(descriptor: typeof DESCRIPTOR): Promise<void> }) => {
@@ -103,5 +104,13 @@ describe('reprocessSource', () => {
     await expect(h.run()).rejects.toThrow('database unavailable')
     expect(h.kei.cancel).toHaveBeenCalledWith(CHILD)
     expect(await readStagedSource(inbox, SOURCE)).toEqual(PDF)
+  })
+
+  it('cancels a child whose submission committed but lost its acknowledgement', async () => {
+    let admitted = false
+    const h = harness({ submit: async () => { admitted = true; throw new Error('acknowledgement lost') } })
+    await expect(h.run()).rejects.toThrow('acknowledgement lost')
+    expect(admitted).toBe(true)
+    expect(h.kei.cancel).toHaveBeenCalledWith(CHILD)
   })
 })

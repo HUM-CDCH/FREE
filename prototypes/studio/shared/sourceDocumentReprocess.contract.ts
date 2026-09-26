@@ -2,6 +2,9 @@ import { z } from 'zod'
 import { canonicalUuidSchema } from './projectContext.contract.js'
 import { sourceDocumentIngestionResponseSchema } from './sourceDocumentIngestion.contract.js'
 
+/** Marks a known terminal reprocess outcome so Retry starts a new action; an HTTP timeout leaves the key intact. */
+export const REPROCESS_TERMINAL_HEADER = 'X-FREE-Reprocess-Terminal'
+
 export const sourceDocumentReprocessRequestSchema = z
   .object({
     requestKey: canonicalUuidSchema,

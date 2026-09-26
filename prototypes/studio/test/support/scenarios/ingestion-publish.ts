@@ -5,7 +5,7 @@ import { createCanonicalPackageStore } from '../../../../../packages/db/src/arti
 import { registerIngestionWorkflow, type IngestionStore } from '../../../api/_ingestion_workflow.js'
 import { createSourceDocumentIngestion } from '../../../api/source_documents.js'
 import { awaitWorkflowOutcome, launchStudioDbos, shutdownStudioDbos, studioDbos } from '../../../server/dbos.js'
-import { ingestionWorkflowPorts } from '../../../server/workflows.js'
+import { sourceConversionWorkflowPorts } from '../../../server/workflows.js'
 import { ingestionStoreFor, uploadRequest } from '../ingestion.js'
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
@@ -45,7 +45,7 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
     executorId: required(env, 'FREE_TEST_EXECUTOR'),
     register: () =>
       registerIngestionWorkflow(() => {
-        const ports = ingestionWorkflowPorts()
+        const ports = sourceConversionWorkflowPorts()
         const kei = createKeiHandoff(studioDbos().kei, { pollIntervalMs: 100 })
         return {
           ...ports,

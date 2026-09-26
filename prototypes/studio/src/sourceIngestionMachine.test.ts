@@ -3,6 +3,7 @@ import { createActor } from 'xstate'
 import { describe, expect, it, vi } from 'vitest'
 import type { SourceDocumentIngestionResponse } from '../shared/sourceDocumentIngestion.contract'
 import { sourceIngestionMachine } from './sourceIngestionMachine'
+import { ProjectContextRequestError, uncertainFailure } from './projectContexts/transport'
 
 const projectContextId = '51000000-0000-4000-8000-000000000001'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
@@ -130,6 +131,30 @@ describe('sourceIngestionMachine', () => {
     expect(keys[2]).not.toBe('key-1')
     expect(keys[2]).toMatch(UUID)
     expect(actor.getSnapshot().context.items[0]).toMatchObject({ itemId: 'item-r', requestKey: keys[2] })
+  })
+
+  it('a terminal server timeout starts a new reprocess key while an unmarked timeout rejoins', async () => {
+    const keys: string[] = []
+    let terminal = false
+    const actor = createActor(sourceIngestionMachine, { input: {
+      ingest: async (source) => {
+        if (source.kind === 'reprocess') keys.push(source.requestKey)
+        throw new ProjectContextRequestError(504,
+          { code: 'source_ingestion_timeout', message: 'The conversion timed out.' }, terminal)
+      },
+      onIngested: vi.fn(), toFailureMessage: String, isUncertain: uncertainFailure,
+    } }).start()
+    actor.send({ type: 'sources.added', items: [reprocess('item-terminal', 'first-key')] })
+    await vi.waitFor(() => expect(actor.getSnapshot().context.items[0]?.status).toBe('failed'))
+    terminal = true
+    actor.send({ type: 'source.retry', itemId: 'item-terminal' })
+    await vi.waitFor(() => expect(keys).toHaveLength(2))
+    expect(keys).toEqual(['first-key', 'first-key'])
+    await vi.waitFor(() => expect(actor.getSnapshot().context.items[0]?.status).toBe('failed'))
+    actor.send({ type: 'source.retry', itemId: 'item-terminal' })
+    await vi.waitFor(() => expect(keys).toHaveLength(3))
+    expect(keys[2]).not.toBe('first-key')
+    actor.stop()
   })
 
   it('processes sequentially, continues after failure, and retries the failed item', async () => {

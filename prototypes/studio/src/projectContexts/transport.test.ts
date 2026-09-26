@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { REPROCESS_TERMINAL_HEADER } from '../../shared/sourceDocumentReprocess.contract.js'
 import {
   ingestSourceDocument,
   ProjectContextRequestError,
@@ -83,6 +84,17 @@ describe('a failed request', () => {
       expect(toProjectContextFailure(error).code).toBe('persistence_unavailable')
     }
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') }))
+    expect(uncertainFailure(await reprocess().catch((cause: unknown) => cause))).toBe(true)
+  })
+
+  it('treats a marked terminal 502 or 504 as confirmed while an unmarked timeout stays uncertain', async () => {
+    for (const status of [502, 504]) {
+      vi.stubGlobal('fetch', vi.fn(async () => Response.json({ error: {
+        code: 'source_ingestion_failed', message: 'The workflow ended.',
+      } }, { status, headers: { [REPROCESS_TERMINAL_HEADER]: '1' } })))
+      expect(uncertainFailure(await reprocess().catch((cause: unknown) => cause))).toBe(false)
+    }
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('gateway timeout', { status: 504 })))
     expect(uncertainFailure(await reprocess().catch((cause: unknown) => cause))).toBe(true)
   })
 })

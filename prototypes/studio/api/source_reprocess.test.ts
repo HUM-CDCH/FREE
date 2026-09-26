@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { ReprocessConflictError } from '../../../packages/db/src/project-store.js'
+import { REPROCESS_TERMINAL_HEADER } from '../shared/sourceDocumentReprocess.contract.js'
+import { reprocessSourceDocument, uncertainFailure } from '../src/projectContexts/transport.js'
 import type { ReprocessInput, ReprocessOutcome } from './_reprocess_workflow.js'
 import { createSourceDocumentReprocessing } from './source_reprocess.js'
 
@@ -10,7 +12,7 @@ const KEY = '33333333-3333-4333-8333-333333333333'
 const HEAD = '44444444-4444-4444-8444-444444444444'
 const OWNER = '55555555-5555-4555-8555-555555555555'
 const DESCRIPTOR = { artifactReference: 'a'.repeat(64), artifactSha256: 'a'.repeat(64) }
-const BODY = { requestKey: KEY, expectedRepresentationId: HEAD, layout: 'pages' }
+const BODY = { requestKey: KEY, expectedRepresentationId: HEAD, layout: 'pages' } as const
 const fingerprint = createHash('sha256').update(JSON.stringify([DOCUMENT, HEAD, 'pages'])).digest('hex')
 const published = { sourceDocumentId: DOCUMENT, name: 'report.pdf', createdAt: new Date('2026-09-26T10:00:00Z'),
   sourceRepresentationId: '66666666-6666-4666-8666-666666666666', revisionNumber: 2, descriptor: DESCRIPTOR }
@@ -32,6 +34,7 @@ function harness(options: {
   outcome?: ReprocessOutcome
   pending?: boolean
   timeout?: boolean
+  status?: string
 } = {}) {
   let recorded = options.known
   let reads = 0
@@ -43,7 +46,7 @@ function harness(options: {
     listWorkflows: vi.fn(async (query: { loadInput?: boolean }) => {
       reads += 1
       if (!recorded) return []
-      return [{ status: options.pending || options.timeout ? 'PENDING' : 'SUCCESS',
+      return [{ status: options.status ?? (options.pending || options.timeout ? 'PENDING' : 'SUCCESS'),
         input: query.loadInput ? [{ requestFingerprint: recorded }] : undefined,
         output: query.loadInput ? undefined : options.outcome ?? outcome }]
     }),
@@ -108,7 +111,24 @@ describe('Source Document reprocess admission', () => {
     const h = harness({ known: fingerprint, pending: true, timeout: true })
     const response = await h.handler(request())
     expect(response.status).toBe(504)
+    expect(response.headers.get(REPROCESS_TERMINAL_HEADER)).toBeNull()
     expect(h.admission.enqueue).not.toHaveBeenCalled()
+  })
+
+  it('a known terminal 502 or 504 tells the browser Retry to mint a new key', async () => {
+    for (const scenario of [
+      { status: 'ERROR', outcome: undefined },
+      { status: 'SUCCESS', outcome: { ok: false, status: 504, code: 'source_ingestion_timeout', message: 'kei deadline' } as const },
+    ]) {
+      const h = harness({ known: fingerprint, ...scenario })
+      const response = await h.handler(request())
+      expect([502, 504]).toContain(response.status)
+      expect(response.headers.get(REPROCESS_TERMINAL_HEADER)).toBe('1')
+      vi.stubGlobal('fetch', vi.fn(async () => response.clone()))
+      const error = await reprocessSourceDocument(PROJECT, DOCUMENT, BODY).catch((cause: unknown) => cause)
+      expect(uncertainFailure(error)).toBe(false)
+      vi.unstubAllGlobals()
+    }
   })
 
   it('maps an owner-store key conflict to 409', async () => {
