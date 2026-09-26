@@ -39,6 +39,7 @@ const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
     /^\/api\/project-contexts\/[^/]+\/source-representations\/[^/]+\/(?:pdf|markdown|source)$/,
     'source_representations',
   ],
+  [/^\/api\/model-operations(?:\/[^/]+)?$/, 'model_operations'],
 ]
 
 const STATIC_API: Readonly<Record<string, true>> = {

@@ -47,6 +47,7 @@ describe('eager API dispatcher', () => {
       batch_extractions: scopedModule(),
       batch_schema_suggestions: scopedModule(),
       source_representations: scopedModule(),
+      model_operations: scopedModule(),
     })
 
     for (const [pathname, handler] of [
@@ -84,6 +85,11 @@ describe('eager API dispatcher', () => {
         '/api/project-contexts/project/source-representations/representation/pdf',
         'source_representations',
       ],
+      ['/api/model-operations', 'model_operations'],
+      [
+        '/api/model-operations/suggestion%3A51000000-0000-4000-8009-0000000000f1',
+        'model_operations',
+      ],
     ] as const)
       expect(apiHandlerName(pathname, registry)).toBe(handler)
 
@@ -99,6 +105,7 @@ describe('eager API dispatcher', () => {
       '/api/source-representations/representation/pdf',
       '/api/project-contexts/project/source-representations/representation/pdf/anything',
       '/api/source-representations/representation/pdf/anything',
+      '/api/model-operations/edit%3Aid/anything',
       '/api/../package.json',
       '/api/',
     ])

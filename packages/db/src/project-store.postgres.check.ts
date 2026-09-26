@@ -178,6 +178,14 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     projectContextId: project.projectContextId,
     name: 'Schema',
   })
+  await t.test("modelOperationScopeExists is true only for the account's project and, when named, a schema of that project", async () => {
+    assert.equal(await store.modelOperationScopeExists(project.projectContextId, null), true)
+    assert.equal(await store.modelOperationScopeExists(project.projectContextId, schema.id), true)
+    assert.equal(await store.modelOperationScopeExists(project.projectContextId, '52000000-0000-4000-8000-0000000000aa'), false)
+    assert.equal(await store.modelOperationScopeExists(survivor.projectContextId, null), false)
+    assert.equal(await survivorStore.modelOperationScopeExists(project.projectContextId, null), false)
+    assert.equal(await survivorStore.modelOperationScopeExists(survivor.projectContextId, schema.id), false)
+  })
   await db.orm.public.SchemaRevision.create({
     extractionSchemaId: schema.id,
     revisionNumber: 1,
@@ -263,6 +271,7 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     assert.equal(await workerStore.failBatchSchemaSuggestionAttempt(batchSuggestion.id, 2, { code: 'late', message: 'Late.' }), 'stopped')
   })
   assert.equal(await store.deleteProjectContext(project.projectContextId), true)
+  assert.equal(await store.modelOperationScopeExists(project.projectContextId, null), false)
 
   assert.deepEqual(
     (await db.orm.public.ProjectContext.select('id').all()).map(({ id }) => id),

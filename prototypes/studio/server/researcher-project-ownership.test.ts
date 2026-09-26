@@ -5,6 +5,7 @@ import {
   type ResearcherAccountStore,
   type ResearcherProjectStore,
 } from 'db'
+import type { WorkflowStatus } from '@dbos-inc/dbos-sdk'
 import { describe, expect, it, vi, type Mock } from 'vitest'
 import { ExtractionError, type ExtractionModule } from 'extraction'
 import parsedDocument from '../src/assets/parsed_document.v2.json'
@@ -24,6 +25,7 @@ import {
 import { createSchemaRevisionHandlers } from '../api/schema_revisions.js'
 import { createPostGenerateSchema } from '../api/generate_schema.js'
 import { createPostEditSchema } from '../api/edit_schema.js'
+import { createModelOperationHandlers } from '../api/model_operations.js'
 import {
   createResearcherApiHandlers as createDocumentReopenHandlers,
 } from '../api/document_reopen.js'
@@ -91,6 +93,7 @@ const ids = {
   batchSuggestionA: '11000000-0000-4008-8000-000000000001',
   batchSuggestionB: '21000000-0000-4008-8000-000000000001',
   ingestion: '11000000-0000-4009-8000-000000000001',
+  operationB: '21000000-0000-400a-8000-000000000001',
 } as const
 
 const objectIds = {
@@ -187,6 +190,13 @@ type ModelSpies = {
   /** The model-operation client a cross-owner Schema Suggestion must never reach. */
   generateSchema: Mock<() => Promise<never>>
   editSchema: Mock<() => Promise<never>>
+  /** The client behind /api/model-operations: it locates Bob's one workflow and refuses every other call. */
+  modelOperations: {
+    getWorkflow: Mock<(workflowId: string) => Promise<WorkflowStatus | undefined>>
+    listWorkflows: Mock<() => Promise<never>>
+    cancelWorkflow: Mock<() => Promise<never>>
+    deleteWorkflows: Mock<() => Promise<never>>
+  }
 }
 
 type ExtractionEffects = {
@@ -499,6 +509,16 @@ function twoAccountStoreFixture(): TwoAccountStores {
           return storedRevision(relationship)
         },
       ),
+      modelOperationScopeExists: vi.fn(
+        async (projectContextId, extractionSchemaId) => {
+          const relationship = owned(accountId, projectContextId)
+          return Boolean(
+            relationship &&
+              (extractionSchemaId === null ||
+                relationship.schemaId === extractionSchemaId),
+          )
+        },
+      ),
     }
     stores.set(accountId, store)
   }
@@ -540,6 +560,32 @@ function twoAccountStoreFixture(): TwoAccountStores {
     editSchema: vi.fn(async () => {
       throw new Error('A cross-owner schema edit must not execute a model.')
     }),
+    modelOperations: {
+      getWorkflow: vi.fn(async (workflowId: string) =>
+        workflowId === `edit:${ids.operationB}`
+          ? {
+              workflowID: workflowId,
+              status: 'PENDING',
+              workflowName: 'proposeSchemaEdit',
+              workflowClassName: '',
+              authenticatedUser: ids.accountB,
+              attributes: { projectContextId: ids.projectB, extractionSchemaId: ids.schemaB },
+              input: [{ operationId: ids.operationB, owner: ids.accountB, projectContextId: ids.projectB, extractionSchemaId: ids.schemaB, baseSchemaRevisionId: ids.revisionB, sourceRepresentationRevisionId: null, instruction: 'Bob private edit', temperature: null }],
+              createdAt: CREATED_AT.getTime(),
+              priority: 0,
+            }
+          : undefined,
+      ),
+      listWorkflows: vi.fn(async () => {
+        throw new Error('A cross-owner listing must not read DBOS.')
+      }),
+      cancelWorkflow: vi.fn(async () => {
+        throw new Error('A cross-owner cancel must not reach DBOS.')
+      }),
+      deleteWorkflows: vi.fn(async () => {
+        throw new Error('A cross-owner discard must not reach DBOS.')
+      }),
+    },
   }
   const extractionEffects: ExtractionEffects = {
     singleExecutions: [],
@@ -728,6 +774,12 @@ function ownershipRegistry(fixture: TwoAccountStores) {
         deleteWorkflows: fixture.models.editSchema,
       }) as never),
     })),
+    '../api/model_operations.ts': researcherModule((store) =>
+      createModelOperationHandlers(store, () => ({
+        enqueue: fixture.models.modelOperations.listWorkflows,
+        ...fixture.models.modelOperations,
+      }) as never),
+    ),
     '../api/document_reopen.ts': researcherModule(
       createDocumentReopenHandlers,
     ),
@@ -1101,6 +1153,48 @@ describe('two-account schema, revision, suggestion, and editing isolation', () =
       1,
       schemaDefinition,
     )
+  })
+
+  it("rejects listing, cancelling and discarding another account's model operations, reading DBOS only to locate the workflow", async () => {
+    const fixture = await appFixture()
+    const aliceStore = fixture.stores.get(ids.accountA)!
+    const spies = fixture.models.modelOperations
+    const bobsEdit = encodeURIComponent(`edit:${ids.operationB}`)
+
+    await expectPrivateNotFound(
+      await api(fixture, ids.accountA, `/api/model-operations?projectContextId=${ids.projectB}`),
+      forbiddenB,
+    )
+    await expectPrivateNotFound(
+      await api(
+        fixture,
+        ids.accountA,
+        `/api/model-operations?projectContextId=${ids.projectA}&extractionSchemaId=${ids.schemaB}`,
+      ),
+      forbiddenB,
+    )
+    expect(aliceStore.modelOperationScopeExists).toHaveBeenNthCalledWith(1, ids.projectB, null)
+    expect(aliceStore.modelOperationScopeExists).toHaveBeenNthCalledWith(2, ids.projectA, ids.schemaB)
+    expect(spies.listWorkflows).not.toHaveBeenCalled()
+
+    await expectPrivateNotFound(
+      await api(fixture, ids.accountA, `/api/model-operations/${bobsEdit}`, { method: 'DELETE' }),
+      forbiddenB,
+    )
+    expect(spies.getWorkflow).toHaveBeenCalledExactlyOnceWith(`edit:${ids.operationB}`)
+    expect(spies.cancelWorkflow).not.toHaveBeenCalled()
+    expect(spies.deleteWorkflows).not.toHaveBeenCalled()
+
+    // Bob's own cancel passes the scope check and reaches DBOS; the fake refuses, which the handler answers as 503.
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const own = await api(fixture, ids.accountB, `/api/model-operations/${bobsEdit}`, { method: 'DELETE' })
+      expect(own.status).toBe(503)
+    } finally {
+      error.mockRestore()
+    }
+    expect(fixture.stores.get(ids.accountB)!.modelOperationScopeExists).toHaveBeenCalledExactlyOnceWith(ids.projectB, ids.schemaB)
+    expect(spies.cancelWorkflow).toHaveBeenCalledExactlyOnceWith(`edit:${ids.operationB}`)
   })
 
   it('rejects mixed source and schema pins before artifact reads or model execution', async () => {

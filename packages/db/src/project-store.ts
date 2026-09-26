@@ -767,6 +767,9 @@ export type ResearcherProjectStore = {
     extractionSchemaId: string,
     schemaRevisionId: string,
   ): Promise<SchemaRevisionRecord | null>
+  /** Whether the account owns the Project Context and, when named, the Extraction Schema still exists in it: the
+   *  scope a model-operation listing or cancel is authorized against (spec, *Status and ownership*). */
+  modelOperationScopeExists(projectContextId: string, extractionSchemaId: string | null): Promise<boolean>
 }
 
 export type InternalProjectWorkerStore = {
@@ -2128,6 +2131,15 @@ export function createResearcherProjectStore(
         ...revisionFields,
       ).first({ id: schemaRevisionId, extractionSchemaId })
       return row ? schemaRevision(row as StoredSchemaRevision) : null
+    },
+    async modelOperationScopeExists(projectContextId, extractionSchemaId) {
+      return database.transaction(async ({ orm }) => {
+        if (!(await ownsProjectContext(orm, researcherAccountId, projectContextId))) return false
+        if (extractionSchemaId === null) return true
+        return Boolean(
+          await orm.public.ExtractionSchema.select('id').first({ id: extractionSchemaId, projectContextId }),
+        )
+      })
     },
   }
 }

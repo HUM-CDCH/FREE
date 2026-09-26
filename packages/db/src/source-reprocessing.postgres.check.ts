@@ -74,7 +74,7 @@ test('reprocessing atomically appends, preserves history, and arbitrates concurr
       project.projectContextId,
       first.sourceRepresentationId,
     ),
-    first.descriptor,
+    { ...first.descriptor, sourceDocumentId: first.sourceDocumentId },
   )
   const next = {
     ...input,
