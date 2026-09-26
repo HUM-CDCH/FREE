@@ -27,6 +27,7 @@ function ready(
     batchSchemaSuggestionId: '51000000-0000-4000-8008-000000000001',
     projectContextId: '51000000-0000-4000-8000-000000000001',
     selectionKey: 'a'.repeat(64),
+    attempt: 1,
     executionStatus: 'COMPLETED',
     phase: 'READY',
     proposal: definition,
@@ -36,8 +37,6 @@ function ready(
     failure: null,
     confirmedSchemaRevisionId: null,
     batchExtractionId: null,
-    startedAt: '2026-08-15T10:00:00.000Z',
-    finishedAt: '2026-08-15T10:00:01.000Z',
     createdAt: '2026-08-15T10:00:00.000Z',
     sources: [],
   }
@@ -110,7 +109,7 @@ describe('batchSchemaSuggestionMachine', () => {
       suggestion: {
         ...ready(),
         executionStatus: 'FAILED',
-        phase: 'SOURCES',
+        phase: null,
         draft: null,
         proposal: null,
         failure: { code: 'model_failed', message: 'bounded failure' },
@@ -121,6 +120,85 @@ describe('batchSchemaSuggestionMachine', () => {
     await vi.waitFor(() =>
       expect(actor.getSnapshot().matches({ drafting: 'clean' })).toBe(true),
     )
+  })
+
+  it('retries the attempt it shows: the retry names that attempt as expectedAttempt', async () => {
+    const retry = vi.fn<BatchSchemaSuggestionOperations['retry']>(async () => ({
+      ...ready(),
+      attempt: 4,
+      executionStatus: 'QUEUED',
+    }))
+    const actor = createActor(batchSchemaSuggestionMachine, {
+      input: operations({ retry }),
+    }).start()
+    actor.send({
+      type: 'selection.changed',
+      sourceDocumentIds: ['51000000-0000-4000-8001-000000000001'],
+      suggestion: {
+        ...ready(),
+        attempt: 3,
+        executionStatus: 'FAILED',
+        phase: null,
+        draft: null,
+        proposal: null,
+        failure: { code: 'model_key_required', message: 'No key.' },
+      },
+    })
+    expect(actor.getSnapshot().matches('failed')).toBe(true)
+    actor.send({ type: 'suggestion.retry' })
+    await vi.waitFor(() => expect(actor.getSnapshot().matches('suggesting')).toBe(true))
+    expect(retry).toHaveBeenCalledWith('51000000-0000-4000-8008-000000000001', 3)
+    actor.stop()
+  })
+
+  it('keeps a retained draft runnable after a failed attempt, and read-only while one runs', () => {
+    const actor = createActor(batchSchemaSuggestionMachine, {
+      input: operations(),
+    }).start()
+    const failed: BatchSchemaSuggestion = {
+      ...ready(),
+      attempt: 2,
+      executionStatus: 'FAILED',
+      failure: { code: 'source_suggestion_failed', message: 'Failed.' },
+    }
+    actor.send({
+      type: 'selection.changed',
+      sourceDocumentIds: ['51000000-0000-4000-8001-000000000001'],
+      suggestion: failed,
+    })
+    expect(actor.getSnapshot().matches({ drafting: 'clean' })).toBe(true)
+    expect(actor.getSnapshot().can({ type: 'run.requested', strategy: 'ARTICLE' })).toBe(true)
+    expect(actor.getSnapshot().can({ type: 'suggestion.retry' })).toBe(true)
+
+    actor.send({ type: 'suggestion.updated', suggestion: { ...failed, attempt: 3, executionStatus: 'RUNNING', failure: null } })
+    expect(actor.getSnapshot().matches('suggesting')).toBe(true)
+    expect(actor.getSnapshot().context.draft).toEqual(firstDefinition)
+    expect(actor.getSnapshot().can({ type: 'run.requested', strategy: 'ARTICLE' })).toBe(false)
+    expect(actor.getSnapshot().can({ type: 'proposal.changed', definition: secondDefinition })).toBe(false)
+    actor.stop()
+  })
+
+  it('a retry refused as stale waits in conflict for the saved suggestion to be reloaded', async () => {
+    const stale = new Error('The suggestion was regenerated since this page read it.')
+    const actor = createActor(batchSchemaSuggestionMachine, {
+      input: operations({
+        retry: async () => {
+          throw stale
+        },
+        isConflict: (error) => error === stale,
+      }),
+    }).start()
+    actor.send({
+      type: 'selection.changed',
+      sourceDocumentIds: ['51000000-0000-4000-8001-000000000001'],
+      suggestion: ready(),
+    })
+    actor.send({ type: 'suggestion.retry' })
+    await vi.waitFor(() => expect(actor.getSnapshot().matches('conflict')).toBe(true))
+    expect(actor.getSnapshot().context.error).toBe(stale.message)
+    actor.send({ type: 'suggestion.updated', suggestion: { ...ready(), attempt: 2 } })
+    expect(actor.getSnapshot().matches({ drafting: 'clean' })).toBe(true)
+    actor.stop()
   })
 
   it('serializes a newer edit behind the in-flight save', async () => {

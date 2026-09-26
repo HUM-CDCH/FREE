@@ -60,6 +60,7 @@ function readySuggestionDto(
     batchSchemaSuggestionId: '74000000-0000-4000-8008-000000000001',
     projectContextId: id.project,
     selectionKey: 'a'.repeat(64),
+    attempt: 1,
     executionStatus: 'COMPLETED',
     phase: 'READY',
     proposal: schemaTree,
@@ -73,8 +74,6 @@ function readySuggestionDto(
     failure: null,
     confirmedSchemaRevisionId: null,
     batchExtractionId: null,
-    startedAt: '2026-08-19T10:00:00.000Z',
-    finishedAt: '2026-08-19T10:00:01.000Z',
     createdAt: '2026-08-19T10:00:00.000Z',
     sources: [
       [id.beretning, id.beretningRevision],
@@ -82,11 +81,6 @@ function readySuggestionDto(
     ].map(([sourceDocumentId, sourceRepresentationRevisionId]) => ({
       sourceDocumentId,
       sourceRepresentationRevisionId,
-      executionStatus: 'COMPLETED',
-      definition: schemaTree,
-      failure: null,
-      startedAt: '2026-08-19T10:00:00.000Z',
-      finishedAt: '2026-08-19T10:00:01.000Z',
     })),
   }
 }

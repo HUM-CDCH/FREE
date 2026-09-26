@@ -15,6 +15,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { exportBatchExtractionResults } from 'extraction-result-export'
 import BatchExtractionsPanel from './BatchExtractionsPanel'
 import type { NavigableRoute } from '../projectNavigation'
+import {
+  resetModelKeyResendForTesting,
+  subscribeToModelKeyResend,
+} from '../auth/authenticatedFetch'
+import { setModelKeyAccount } from '../modelKeys/modelKeyHandoff'
+import { saveModelKey } from '../modelKeys/modelKeyStore'
 
 vi.mock('extraction-result-export', async (importOriginal) => ({
   ...(await importOriginal<typeof import('extraction-result-export')>()),
@@ -100,6 +106,7 @@ function readySuggestion(overrides: Record<string, unknown> = {}) {
     batchSchemaSuggestionId,
     projectContextId,
     selectionKey: 'a'.repeat(64),
+    attempt: 1,
     executionStatus: 'COMPLETED',
     phase: 'READY',
     proposal: suggestedDefinition,
@@ -109,17 +116,10 @@ function readySuggestion(overrides: Record<string, unknown> = {}) {
     failure: null,
     confirmedSchemaRevisionId: null,
     batchExtractionId: null,
-    startedAt: '2026-08-15T10:00:00.000Z',
-    finishedAt: '2026-08-15T10:00:01.000Z',
     createdAt: '2026-08-15T10:00:00.000Z',
     sources: batch.members.map((member) => ({
       sourceDocumentId: member.sourceDocumentId,
       sourceRepresentationRevisionId: member.sourceRepresentationRevisionId,
-      executionStatus: 'COMPLETED',
-      definition: suggestedDefinition,
-      failure: null,
-      startedAt: '2026-08-15T10:00:00.000Z',
-      finishedAt: '2026-08-15T10:00:01.000Z',
     })),
     ...overrides,
   }
@@ -181,7 +181,40 @@ afterEach(() => {
   cleanup()
   vi.useRealTimers()
   vi.unstubAllGlobals()
+  setModelKeyAccount(null)
+  resetModelKeyResendForTesting()
+  localStorage.clear()
 })
+
+/** Opens a new Batch Extraction over every Source Document and chooses suggested fields; the panel then adopts the
+ *  listed suggestion whose pins match the selection. */
+async function openSuggestedFields() {
+  fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+  await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
+  fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+    target: { value: '__suggest_common_fields__' },
+  })
+  return screen.findByLabelText('Suggested common fields')
+}
+
+/** A fetch stub answering the panel's reads with `suggestions()`, and `other` for anything else it is given. */
+function suggestionFetch(
+  suggestions: () => unknown[],
+  other: (url: string, init?: RequestInit) => Response | Promise<Response> | undefined = () => undefined,
+) {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    if (url.startsWith('/api/batch-extractions?'))
+      return response({ batchExtractions: [] })
+    if (url.startsWith('/api/batch-schema-suggestions?'))
+      return response({ batchSchemaSuggestions: suggestions() })
+    if (url.startsWith('/api/extraction-schemas?'))
+      return response({ extractionSchemas: [] })
+    const answer = await other(url, init)
+    if (answer) return answer
+    throw new Error(`Unexpected request: ${url}`)
+  })
+}
 
 describe('BatchExtractionsPanel', () => {
   it('does not abort a slow poll to start the next interval refresh', async () => {
@@ -1291,132 +1324,147 @@ describe('BatchExtractionsPanel', () => {
     ).toBeInTheDocument()
   })
 
-  it('identifies each Source Document with terminal status and a sanitized failure category', async () => {
-    const failedSuggestion = readySuggestion({
+  it('shows the retained proposal and no per-source progress', async () => {
+    // Attempt 2 failed; attempt 1's proposal and draft stay, and the latest failure does not make the draft unrunnable.
+    const failed = readySuggestion({
+      attempt: 2,
       executionStatus: 'FAILED',
-      phase: 'SOURCES',
-      proposal: null,
-      draft: null,
       failure: {
-        code: 'invalid_model_output',
-        message:
-          'Fields could not be suggested for every selected Source Document. Try again.',
+        code: 'source_suggestion_failed',
+        message: 'Fields could not be suggested for every selected Source Document.',
       },
-      sources: [
-        {
-          sourceDocumentId: failedDocumentId,
-          sourceRepresentationRevisionId:
-            '51000000-0000-4000-8002-000000000001',
-          executionStatus: 'FAILED',
-          definition: null,
-          failure: {
-            code: 'invalid_model_output',
-            message: 'provider secret must never reach the researcher',
-          },
-          startedAt: '2026-08-15T10:00:00.000Z',
-          finishedAt: '2026-08-15T10:00:01.000Z',
-        },
-      ],
     })
-    let suggestions: unknown[] = []
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input)
-        if (url.startsWith('/api/batch-extractions?'))
-          return response({ batchExtractions: [] })
-        if (url.startsWith('/api/batch-schema-suggestions?'))
-          return response({ batchSchemaSuggestions: suggestions })
-        if (url.startsWith('/api/extraction-schemas?'))
-          return response({ extractionSchemas: [] })
-        if (url === '/api/batch-schema-suggestions' && init?.method === 'POST') {
-          suggestions = [failedSuggestion]
-          return response({ batchSchemaSuggestion: failedSuggestion })
-        }
-        throw new Error(`Unexpected request: ${url}`)
-      }),
-    )
+    vi.stubGlobal('fetch', suggestionFetch(() => [failed]))
     renderPanel()
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'New Batch Extraction' }),
+    const suggested = await openSuggestedFields()
+    expect(within(suggested).getByText('place')).toBeVisible()
+    expect(
+      within(suggested).getByText('Fields could not be suggested for every selected Source Document.'),
+    ).toBeVisible()
+    expect(within(suggested).getByRole('button', { name: 'Try again' })).toBeEnabled()
+    expect(screen.queryByLabelText('Source suggestion progress')).not.toBeInTheDocument()
+    expect(screen.queryByText(/merging common fields|complete ·|Queued|Running/)).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Run 2 Source Documents' })).toBeEnabled(),
     )
-    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
-    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
-      target: { value: '__suggest_common_fields__' },
-    })
-    fireEvent.click(screen.getAllByRole('checkbox')[0])
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Suggest common fields' }),
-    )
-
-    const progress = await screen.findByLabelText('Source suggestion progress')
-    expect(within(progress).getByText('0 of 1 complete · 1 failed')).toBeVisible()
-    expect(within(progress).getByText('Failed.pdf')).toBeVisible()
-    expect(within(progress).getByText('Failed — Invalid model output')).toBeVisible()
-    expect(screen.queryByText(/provider secret/)).not.toBeInTheDocument()
   })
 
-  it('a model_key_required source failure reads "Model key not available"', async () => {
-    const failure = {
-      code: 'model_key_required',
-      message: 'Studio does not hold the key for this Model Connection.',
-    }
-    const failedSuggestion = readySuggestion({
+  it('disables editing and Run while an attempt runs and keeps the draft', async () => {
+    const suggestions: unknown[] = [readySuggestion({ attempt: 2, executionStatus: 'RUNNING' })]
+    const fetch = suggestionFetch(() => suggestions)
+    vi.stubGlobal('fetch', fetch)
+    renderPanel()
+
+    const suggested = await openSuggestedFields()
+    expect(within(suggested).getByText('place')).toBeVisible()
+    expect(within(suggested).getByText('Suggesting common fields…')).toBeVisible()
+    expect(within(suggested).queryByTitle('Edit place')).not.toBeInTheDocument()
+    expect(within(suggested).queryByRole('button', { name: /Regenerate/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run 2 Source Documents' })).toBeDisabled()
+    expect(
+      fetch.mock.calls.filter(([, init]) => init?.method === 'PATCH' || init?.method === 'POST'),
+    ).toEqual([])
+  })
+
+  it('a model_key_required failure resends this browser\'s keys once, and Try again posts the next expected attempt', async () => {
+    const account = '10000000-0000-4000-8000-000000000001'
+    saveModelKey(
+      account,
+      { id: '11111111-1111-4111-8111-111111111111', provider: 'openai-compatible', baseUrl: 'https://a.example/v1' },
+      'sk-test-batch-suggestion',
+    )
+    setModelKeyAccount(account)
+    const resends = vi.fn()
+    subscribeToModelKeyResend(resends)
+    const keyless = readySuggestion({
       executionStatus: 'FAILED',
-      phase: 'SOURCES',
+      phase: null,
       proposal: null,
+      coverage: null,
       draft: null,
-      failure,
-      sources: [
-        {
-          sourceDocumentId: failedDocumentId,
-          sourceRepresentationRevisionId:
-            '51000000-0000-4000-8002-000000000001',
-          executionStatus: 'FAILED',
-          definition: null,
-          failure,
-          startedAt: '2026-08-15T10:00:00.000Z',
-          finishedAt: '2026-08-15T10:00:01.000Z',
-        },
-      ],
+      failure: {
+        code: 'model_key_required',
+        message: 'Studio does not hold the key for this Model Connection.',
+      },
     })
-    let suggestions: unknown[] = []
+    const requests: Array<{ request: string; body?: unknown }> = []
+    let suggestions: unknown[] = [keyless]
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input)
-        if (url.startsWith('/api/batch-extractions?'))
-          return response({ batchExtractions: [] })
-        if (url.startsWith('/api/batch-schema-suggestions?'))
-          return response({ batchSchemaSuggestions: suggestions })
-        if (url.startsWith('/api/extraction-schemas?'))
-          return response({ extractionSchemas: [] })
-        if (url === '/api/batch-schema-suggestions' && init?.method === 'POST') {
-          suggestions = [failedSuggestion]
-          return response({ batchSchemaSuggestion: failedSuggestion })
-        }
-        throw new Error(`Unexpected request: ${url}`)
-      }),
+      suggestionFetch(
+        () => suggestions,
+        (url, init) => {
+          if (url === '/api/model-keys' && init?.method === 'PUT') {
+            requests.push({ request: 'PUT /api/model-keys' })
+            return response({ accepted: [] })
+          }
+          if (url.startsWith(`/api/batch-schema-suggestions/${batchSchemaSuggestionId}/retry?`) && init?.method === 'POST') {
+            requests.push({ request: 'POST retry', body: JSON.parse(String(init.body)) })
+            suggestions = [readySuggestion({ ...keyless, attempt: 2, executionStatus: 'QUEUED', failure: null })]
+            return response({ batchSchemaSuggestion: suggestions[0] })
+          }
+          return undefined
+        },
+      ),
     )
     renderPanel()
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'New Batch Extraction' }),
-    )
-    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
-    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
-      target: { value: '__suggest_common_fields__' },
-    })
-    fireEvent.click(screen.getAllByRole('checkbox')[0])
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Suggest common fields' }),
-    )
+    const suggested = await openSuggestedFields()
+    expect(within(suggested).getByText('Model key not available')).toBeVisible()
+    await waitFor(() => expect(resends).toHaveBeenCalledOnce())
 
-    const progress = await screen.findByLabelText('Source suggestion progress')
-    expect(
-      within(progress).getByText('Failed — Model key not available'),
-    ).toBeVisible()
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Try again' }))
+    await waitFor(() =>
+      expect(requests).toEqual([
+        { request: 'PUT /api/model-keys' },
+        { request: 'POST retry', body: { expectedAttempt: 1 } },
+      ]),
+    )
+    expect(await screen.findByText('Suggesting common fields…')).toBeVisible()
+    // Every reread of the failed attempt, and the retry's answer, left it at one resend.
+    expect(resends).toHaveBeenCalledOnce()
+  })
+
+  it('an empty selection keeps the draft and disables Run and Try again', async () => {
+    // Another tab deleted both members: the next save answers the suggestion without pins, its attempt interrupted.
+    const orphaned = (draft: unknown) =>
+      readySuggestion({
+        executionStatus: 'FAILED',
+        failure: { code: 'interrupted', message: 'This work stopped before it finished. Start it again.' },
+        draft,
+        draftVersion: 1,
+        sources: [],
+      })
+    let suggestions: unknown[] = [readySuggestion()]
+    vi.stubGlobal(
+      'fetch',
+      suggestionFetch(
+        () => suggestions,
+        (url, init) => {
+          if (url.startsWith(`/api/batch-schema-suggestions/${batchSchemaSuggestionId}/draft?`) && init?.method === 'PATCH') {
+            const body = JSON.parse(String(init.body)) as { recordDescription: string; schemaNodes: unknown[] }
+            suggestions = [orphaned({ recordDescription: body.recordDescription, schemaNodes: body.schemaNodes })]
+            return response({ batchSchemaSuggestion: suggestions[0] })
+          }
+          return undefined
+        },
+      ),
+    )
+    renderPanel()
+
+    const suggested = await openSuggestedFields()
+    fireEvent.click(within(suggested).getByTitle('Edit place'))
+    fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
+      target: { value: 'location' },
+    })
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Save' }))
+
+    expect(await within(suggested).findByText('This work stopped before it finished. Start it again.', {}, { timeout: 2_000 })).toBeVisible()
+    expect(within(suggested).getByText('location')).toBeVisible()
+    expect(within(suggested).getByRole('button', { name: 'Try again' })).toBeDisabled()
+    expect(within(suggested).queryByRole('button', { name: /Regenerate/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run 2 Source Documents' })).toBeDisabled()
   })
 
   it('keeps a created suggestion when an older list response resolves last', async () => {
@@ -1526,12 +1574,13 @@ describe('BatchExtractionsPanel', () => {
           recordDescription: 'One retried record.',
           schemaNodes: [{ id: 'year', name: 'year', type: 'number' }],
         }
+        expect(JSON.parse(String(init.body))).toEqual({ expectedAttempt: 1 })
         suggestions = [
           readySuggestion({
+            attempt: 2,
             proposal: retriedDefinition,
             draft: retriedDefinition,
             draftVersion: 1,
-            finishedAt: '2026-08-15T10:00:02.000Z',
           }),
         ]
         return response({ batchSchemaSuggestion: suggestions[0] })
@@ -1802,60 +1851,24 @@ describe('BatchExtractionsPanel', () => {
     await waitFor(() => expect(run).toBeEnabled())
   })
 
-  it('shows and regenerates a previously confirmed suggestion', async () => {
+  it('shows a previously confirmed suggestion read-only, with nothing to regenerate', async () => {
+    // A confirmed suggestion is immutable: another run of its fields starts from its Extraction Schema.
     const confirmed = readySuggestion({
       confirmedSchemaRevisionId: schemaRevisionId,
       batchExtractionId,
     })
-    const retried = readySuggestion({
-      executionStatus: 'QUEUED',
-      phase: 'MERGING',
-      proposal: null,
-      coverage: null,
-      draft: null,
-    })
-    const fetch = vi.fn(
-      async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input)
-        if (url.startsWith('/api/batch-extractions?'))
-          return response({ batchExtractions: [] })
-        if (url.startsWith('/api/batch-schema-suggestions?'))
-          return response({ batchSchemaSuggestions: [confirmed] })
-        if (url.startsWith('/api/extraction-schemas?'))
-          return response({ extractionSchemas: [] })
-        if (
-          url.startsWith(
-            `/api/batch-schema-suggestions/${batchSchemaSuggestionId}/retry?`,
-          ) &&
-          init?.method === 'POST'
-        )
-          return response({ batchSchemaSuggestion: retried })
-        throw new Error(`Unexpected request: ${url}`)
-      },
-    )
+    const fetch = suggestionFetch(() => [confirmed])
     vi.stubGlobal('fetch', fetch)
     renderPanel()
 
-    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
-    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
-    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
-      target: { value: '__suggest_common_fields__' },
-    })
-
-    const suggested = await screen.findByLabelText('Suggested common fields')
+    const suggested = await openSuggestedFields()
     expect(within(suggested).getByText('place')).toBeVisible()
     expect(
       screen.getByRole('button', { name: 'Run 2 Source Documents' }),
     ).toBeDisabled()
-    fireEvent.click(within(suggested).getByRole('button', { name: 'Regenerate' }))
-    await waitFor(() =>
-      expect(
-        fetch.mock.calls.some(
-          ([url, init]) =>
-            String(url).includes('/retry?') && init?.method === 'POST',
-        ),
-      ).toBe(true),
-    )
+    expect(within(suggested).queryByRole('button', { name: /Regenerate|Try again/ })).not.toBeInTheDocument()
+    expect(within(suggested).queryByTitle('Edit place')).not.toBeInTheDocument()
+    expect(fetch.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
   })
 
   it('confirms a saved suggestion atomically through one durable run action', async () => {

@@ -229,7 +229,7 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
   const batchSuggestion = await db.orm.public.BatchSchemaSuggestion.create({
     projectContextId: project.projectContextId,
     selectionKey: 'atomic-suggestion-check',
-    executionStatus: 'COMPLETED',
+    outcome: 'SUCCEEDED',
     phase: 'READY',
     draft: { name: 'original' },
     draftVersion: 1,
@@ -251,45 +251,16 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     assert.equal(saved?.draftVersion, 2)
     assert.deepEqual(saved?.draft, { name: ['first', 'second'][winner] })
   })
-  await t.test('only one worker can claim a queued suggestion', async () => {
-    await db.orm.public.BatchSchemaSuggestion.where({ id: batchSuggestion.id }).update({ executionStatus: 'QUEUED' })
-    const now = new Date()
-    const expiresAt = new Date(now.getTime() + 60_000)
-    const claims = await withBlockedUpdates(databaseUrl, 'BatchSchemaSuggestion', batchSuggestion.id, 2,
-      () => Promise.all(['worker-a', 'worker-b'].map((owner) =>
-        workerStore.claimBatchSchemaSuggestion(owner, now, expiresAt),
-      )),
+  await t.test('two executions of one attempt\'s publication write one outcome and one draft version', async () => {
+    await db.orm.public.BatchSchemaSuggestion.where({ id: batchSuggestion.id }).update({ attempt: 2, outcome: null })
+    const proposal = { phase: 'READY' as const, proposal: { name: 'proposed' }, coverage: [], draft: { name: 'proposed' } }
+    const results = await withBlockedUpdates(databaseUrl, 'BatchSchemaSuggestion', batchSuggestion.id, 2,
+      () => Promise.all([1, 2].map(() => workerStore.publishBatchSchemaSuggestion(batchSuggestion.id, 2, proposal))),
     )
-    assert.equal(claims.filter(Boolean).length, 1)
-    const winner = claims.find((claim) => claim !== null)!
-    const saved = await store.getBatchSchemaSuggestion(project.projectContextId, batchSuggestion.id)
-    assert.equal(saved?.executionStatus, 'RUNNING')
-    assert.equal(await workerStore.renewBatchSchemaSuggestionLease(batchSuggestion.id, winner.lease, expiresAt), true)
-
-    const later = new Date(expiresAt.getTime() + 1)
-    const reclaimed = await workerStore.claimBatchSchemaSuggestion('replacement', later, new Date(later.getTime() + 60_000))
-    assert.ok(reclaimed)
-    assert.equal(reclaimed.lease.version, winner.lease.version + 1)
-    for (const [lease, accepted] of [[winner.lease, false], [reclaimed.lease, true]] as const) {
-      assert.equal(await workerStore.renewBatchSchemaSuggestionLease(batchSuggestion.id, lease, expiresAt), accepted)
-      assert.equal(await workerStore.startBatchSchemaSuggestionSource(batchSuggestion.id, document.id, lease, later), accepted)
-      assert.equal(await workerStore.completeBatchSchemaSuggestionSource(
-        batchSuggestion.id, document.id, lease, { definition: { field: lease.owner } }, later,
-      ), accepted)
-      assert.equal(await workerStore.startBatchSchemaSuggestionMerge(batchSuggestion.id, lease), accepted)
-      assert.equal(await workerStore.completeBatchSchemaSuggestionMerge(
-        batchSuggestion.id, lease, { heterogeneous: true }, later,
-      ), accepted)
-    }
-    const completed = await store.getBatchSchemaSuggestion(project.projectContextId, batchSuggestion.id)
-    assert.equal(completed?.phase, 'HETEROGENEOUS')
-    assert.deepEqual(completed?.sources[0]?.definition, { field: 'replacement' })
-    assert.equal(await workerStore.failBatchSchemaSuggestion(batchSuggestion.id, winner.lease, {}, later), false)
-    assert.equal(await workerStore.failBatchSchemaSuggestion(batchSuggestion.id, reclaimed.lease, {}, later), false)
-    assert.equal((await store.retryBatchSchemaSuggestion(project.projectContextId, batchSuggestion.id))?.status, 'retried')
-    const retry = await workerStore.claimBatchSchemaSuggestion('retry', later, expiresAt)
-    assert.ok(retry)
-    assert.equal(await workerStore.failBatchSchemaSuggestion(batchSuggestion.id, retry.lease, { code: 'model_failed' }, later), true)
+    assert.deepEqual([...results].sort(), ['published', 'stopped'])
+    const saved = await db.orm.public.BatchSchemaSuggestion.select('outcome', 'draft', 'draftVersion').first({ id: batchSuggestion.id })
+    assert.deepEqual(saved, { outcome: 'SUCCEEDED', draft: { name: 'proposed' }, draftVersion: 3 })
+    assert.equal(await workerStore.failBatchSchemaSuggestionAttempt(batchSuggestion.id, 2, { code: 'late', message: 'Late.' }), 'stopped')
   })
   assert.equal(await store.deleteProjectContext(project.projectContextId), true)
 
@@ -312,6 +283,8 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     db.orm.public.Extraction,
     db.orm.public.ExtractionReview,
     db.orm.public.ReviewDecision,
+    db.orm.public.BatchSchemaSuggestion,
+    db.orm.public.BatchSchemaSuggestionSource,
   ])
     assert.deepEqual(await table.all(), [])
 

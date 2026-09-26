@@ -11,6 +11,7 @@ import {
 } from '../schemaRevisions'
 import type { SchemaRevision } from '../../shared/schemaRevision.contract'
 import { Button } from '../ui'
+import { requestModelKeyResend } from '../auth/authenticatedFetch'
 import {
   BATCH_EXTRACTION_SELECTION_LIMIT,
   type BatchExtraction,
@@ -55,9 +56,10 @@ type SourceDocument = {
   pageCount: number | null
 }
 
+/** A proposal's identity: every publication increments the draft version, and a retry starts the next attempt. */
 type SuggestionDraftVersion = Pick<
   BatchSchemaSuggestion,
-  'draftVersion' | 'finishedAt'
+  'draftVersion' | 'attempt'
 >
 
 type ExtractionSchemas = Awaited<ReturnType<typeof listExtractionSchemas>>
@@ -101,80 +103,10 @@ function runnableSuggestionDefinition(value: unknown): boolean {
   }
 }
 
-const suggestionFailureCategories: Readonly<Record<string, string>> = {
-  invalid_model_config: 'Model configuration error',
-  model_operation_failed: 'Model request failed',
-  invalid_model_output: 'Invalid model output',
-  model_key_required: 'Model key not available',
-  unexpected_failure: 'Unexpected failure',
-}
-
-function SuggestionSourceProgress({
-  suggestion,
-  documentName,
-}: {
-  suggestion: BatchSchemaSuggestion
-  documentName(sourceDocumentId: string): string
-}) {
-  const counts = suggestion.sources.reduce(
-    (current, source) => ({
-      ...current,
-      [source.executionStatus]: current[source.executionStatus] + 1,
-    }),
-    { QUEUED: 0, RUNNING: 0, COMPLETED: 0, FAILED: 0 },
-  )
-  const progress = [
-    `${counts.COMPLETED} of ${suggestion.sources.length} complete`,
-    counts.RUNNING ? `${counts.RUNNING} running` : null,
-    counts.QUEUED ? `${counts.QUEUED} queued` : null,
-    counts.FAILED ? `${counts.FAILED} failed` : null,
-    suggestion.phase === 'MERGING' ? 'merging common fields' : null,
-  ].filter((part): part is string => part !== null)
-  return (
-    <div className="space-y-2" aria-label="Source suggestion progress">
-      <p className="text-[11px] text-ink-muted" role="status">
-        {progress.join(' · ')}
-      </p>
-      <ul className="space-y-1 text-[11px]">
-        {suggestion.sources.map((source) => {
-          const status =
-            source.executionStatus === 'COMPLETED'
-              ? 'Complete'
-              : source.executionStatus === 'RUNNING'
-                ? 'Running'
-                : source.executionStatus === 'FAILED'
-                  ? 'Failed'
-                  : 'Queued'
-          const category = source.failure
-            ? suggestionFailureCategories[source.failure.code] ??
-              'Unexpected failure'
-            : null
-          return (
-            <li
-              className="flex items-baseline justify-between gap-3"
-              key={source.sourceDocumentId}
-            >
-              <span className="min-w-0 truncate text-ink-muted">
-                {documentName(source.sourceDocumentId)}
-              </span>
-              <span
-                className={
-                  source.executionStatus === 'FAILED'
-                    ? 'shrink-0 font-semibold text-danger'
-                    : source.executionStatus === 'COMPLETED'
-                      ? 'shrink-0 font-semibold text-green'
-                      : 'shrink-0 font-semibold text-ink-faint'
-                }
-              >
-                {status}
-                {category ? ` — ${category}` : ''}
-              </span>
-            </li>
-          )
-        })}
-      </ul>
-    </div>
-  )
+/** The suggestion's own failure, as one line. A missing key is named, because the page has just resent its keys and a
+ *  retry can succeed; any other failure is FREE's own sanitized message. */
+function suggestionFailureText(failure: { code: string; message: string }): string {
+  return failure.code === 'model_key_required' ? 'Model key not available' : failure.message
 }
 
 /**
@@ -306,6 +238,20 @@ export default function BatchExtractionsPanel({
           }
         : null
   const draftConflict = suggestion.matches('conflict')
+  const suggestionHasMembers = (activeSuggestion?.sources.length ?? 0) > 0
+
+  // A background attempt that found no key reports model_key_required inside a 200 read, which authenticatedFetch's
+  // 409 hook never sees: resend this page's keys once per such attempt, so the researcher's retry can succeed.
+  const keysResentFor = useRef(new Set<string>())
+  useEffect(() => {
+    const keyless = [...(suggestions.value ?? []), ...(activeSuggestion ? [activeSuggestion] : [])]
+      .filter((candidate) => candidate.failure?.code === 'model_key_required')
+      .map((candidate) => `${candidate.batchSchemaSuggestionId}:${candidate.attempt}`)
+      .filter((attempt) => !keysResentFor.current.has(attempt))
+    if (keyless.length === 0) return
+    for (const attempt of keyless) keysResentFor.current.add(attempt)
+    requestModelKeyResend()
+  }, [activeSuggestion, suggestions.value])
 
   const documentName = useCallback(
     (sourceDocumentId: string) =>
@@ -622,7 +568,7 @@ export default function BatchExtractionsPanel({
   }
 
   const regenerateSuggestedFields = () => {
-    if (!activeSuggestion || selected.size === 0 || overSelectionLimit) return
+    if (!activeSuggestion || !suggestionHasMembers || selected.size === 0 || overSelectionLimit) return
     setRunFailure(null)
     setRunNotice(null)
     sendSuggestion({ type: 'suggestion.retry' })
@@ -761,6 +707,8 @@ export default function BatchExtractionsPanel({
     !openingAnyBatch &&
     (schemaRevisionId === SUGGEST_SCHEMA
       ? confirmedSuggestion === null &&
+        // Pins cascade with their Source Documents: a draft whose members were all deleted has nothing to run on.
+        suggestionHasMembers &&
         suggestedFields?.status === 'ready' &&
         suggestion.can({ type: 'run.requested', strategy: batchStrategy }) &&
         !suggestionHasPendingLocalEdit &&
@@ -1008,13 +956,20 @@ export default function BatchExtractionsPanel({
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-[11px] text-danger" role="alert">
-                        {activeSuggestion?.failure?.message ??
-                          suggestion.context.error}
+                        {activeSuggestion?.failure
+                          ? suggestionFailureText(activeSuggestion.failure)
+                          : suggestion.context.error}
                       </p>
-                      {suggestion.matches('failed') && (
+                      {(suggestion.matches('failed') ||
+                        (activeSuggestion?.executionStatus === 'FAILED' &&
+                          suggestion.can({ type: 'suggestion.retry' }))) && (
                         <Button
                           size="sm"
-                          disabled={selected.size === 0 || overSelectionLimit}
+                          disabled={
+                            selected.size === 0 ||
+                            overSelectionLimit ||
+                            !suggestionHasMembers
+                          }
                           onClick={() =>
                             sendSuggestion({ type: 'suggestion.retry' })
                           }
@@ -1024,12 +979,6 @@ export default function BatchExtractionsPanel({
                       )}
                     </div>
                   </div>
-                )}
-                {activeSuggestion && activeSuggestion.sources.length > 0 && (
-                  <SuggestionSourceProgress
-                    suggestion={activeSuggestion}
-                    documentName={documentName}
-                  />
                 )}
                 {draftConflict && (
                   <div className="flex flex-wrap items-center gap-2">
@@ -1057,7 +1006,7 @@ export default function BatchExtractionsPanel({
                 {suggestedFields?.status === 'ready' && (
                   <div
                     className="h-[32rem] overflow-hidden rounded-md border border-line bg-surface"
-                    aria-busy={preparingSuggestedBatch}
+                    aria-busy={preparingSuggestedBatch || suggestingFields}
                     inert={preparingSuggestedBatch ? true : undefined}
                   >
                     <SuggestedSchemaEditor
@@ -1065,11 +1014,12 @@ export default function BatchExtractionsPanel({
                       proposal={suggestedFields}
                       proposalVersion={{
                         draftVersion: activeSuggestion?.draftVersion ?? 0,
-                        finishedAt: activeSuggestion?.finishedAt ?? null,
+                        attempt: activeSuggestion?.attempt ?? 1,
                       }}
                       sourceDocumentName={`${selected.size} selected Source Document${selected.size === 1 ? '' : 's'}`}
-                      readOnly={confirmedSuggestion !== null}
-                      showRegenerate={confirmedSuggestion === null}
+                      // The retained draft is read-only while an attempt that would replace it runs.
+                      readOnly={confirmedSuggestion !== null || suggestingFields}
+                      showRegenerate={confirmedSuggestion === null && suggestionHasMembers}
                       onGenerateInstructions={regenerateSuggestedFields}
                       onProposalEdit={updateSuggestedDefinition}
                       onPendingLocalEditChange={
@@ -1077,16 +1027,6 @@ export default function BatchExtractionsPanel({
                       }
                     />
                   </div>
-                )}
-                {suggestedFields?.status === 'ready' && confirmedSuggestion && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={selected.size === 0 || overSelectionLimit}
-                    onClick={regenerateSuggestedFields}
-                  >
-                    Regenerate
-                  </Button>
                 )}
               </section>
             )}
@@ -1362,7 +1302,7 @@ function SuggestedSchemaEditor({
     const previous = proposalVersionRef.current
     if (
       previous.draftVersion === proposalVersion.draftVersion &&
-      previous.finishedAt === proposalVersion.finishedAt
+      previous.attempt === proposalVersion.attempt
     )
       return
     proposalVersionRef.current = proposalVersion

@@ -6,7 +6,12 @@ const registerWorkflow = vi.hoisted(() =>
   ),
 )
 
-vi.mock('@dbos-inc/dbos-sdk', () => ({ DBOS: { registerWorkflow } }))
+// Only registration is observed: the rest of the SDK (DBOSClient, which server/dbos.ts imports and server/app.ts reaches
+// through it) stays real. DBOS's statics are not enumerable, so the stand-in inherits them instead of spreading them.
+vi.mock('@dbos-inc/dbos-sdk', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@dbos-inc/dbos-sdk')>()
+  return { ...actual, DBOS: Object.assign(Object.create(actual.DBOS) as typeof actual.DBOS, { registerWorkflow }) }
+})
 
 beforeEach(() => {
   vi.resetModules()
@@ -26,6 +31,7 @@ describe('Studio workflow registration', () => {
     const names = registerWorkflow.mock.calls.map(([, config]) => config?.name)
     for (const name of names) expect(name).toEqual(expect.any(String))
     expect(names).toEqual([...STUDIO_WORKFLOW_NAMES])
+    expect(names).toEqual(['runExtraction', 'suggestSchemaBatch'])
   })
 
   it('the extraction queue is Studio\'s studio queue', async () => {
@@ -34,6 +40,13 @@ describe('Studio workflow registration', () => {
       import('./dbos.js'),
     ])
     expect(EXTRACTION_QUEUE).toBe(STUDIO_QUEUE)
+  })
+
+  it('packages/db admits batch suggestion attempts under the registered workflow\'s name, on Studio\'s suggest queue', async () => {
+    const [{ SUGGEST_SCHEMA_BATCH_NAME, SUGGEST_QUEUE_NAME }, { SUGGEST_SCHEMA_BATCH }, { SUGGEST_QUEUE }] =
+      await Promise.all([import('db'), import('../api/_batch_suggestion_workflow.js'), import('./dbos.js')])
+    expect(SUGGEST_SCHEMA_BATCH_NAME).toBe(SUGGEST_SCHEMA_BATCH)
+    expect(SUGGEST_QUEUE_NAME).toBe(SUGGEST_QUEUE)
   })
 
   it('importing the application registers no workflow', async () => {

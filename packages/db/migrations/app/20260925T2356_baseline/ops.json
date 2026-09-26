@@ -119,7 +119,7 @@
     "execute": [
       {
         "description": "create table \"batchSchemaSuggestion\"",
-        "sql": "CREATE TABLE \"public\".\"batchSchemaSuggestion\" (\n  \"batchExtractionId\" \"uuid\",\n  \"confirmedSchemaRevisionId\" \"uuid\",\n  \"coverage\" jsonb,\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"draft\" jsonb,\n  \"draftVersion\" int4 DEFAULT 0 NOT NULL,\n  \"executionStatus\" text DEFAULT 'QUEUED' NOT NULL,\n  \"failure\" jsonb,\n  \"finishedAt\" timestamptz(6),\n  \"id\" \"uuid\" NOT NULL,\n  \"leaseExpiresAt\" timestamptz(6),\n  \"leaseOwner\" text,\n  \"leaseVersion\" int4 DEFAULT 0 NOT NULL,\n  \"phase\" text DEFAULT 'SOURCES' NOT NULL,\n  \"projectContextId\" \"uuid\" NOT NULL,\n  \"proposal\" jsonb,\n  \"selectionKey\" text NOT NULL,\n  \"startedAt\" timestamptz(6),\n  PRIMARY KEY (\"id\")\n)",
+        "sql": "CREATE TABLE \"public\".\"batchSchemaSuggestion\" (\n  \"attempt\" int4 DEFAULT 1 NOT NULL,\n  \"batchExtractionId\" \"uuid\",\n  \"confirmedSchemaRevisionId\" \"uuid\",\n  \"coverage\" jsonb,\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"draft\" jsonb,\n  \"draftVersion\" int4 DEFAULT 0 NOT NULL,\n  \"failure\" jsonb,\n  \"id\" \"uuid\" NOT NULL,\n  \"outcome\" text,\n  \"phase\" text,\n  \"projectContextId\" \"uuid\" NOT NULL,\n  \"proposal\" jsonb,\n  \"selectionKey\" text NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
         "params": []
       }
     ],
@@ -158,7 +158,7 @@
     "execute": [
       {
         "description": "create table \"batchSchemaSuggestionSource\"",
-        "sql": "CREATE TABLE \"public\".\"batchSchemaSuggestionSource\" (\n  \"batchSchemaSuggestionId\" \"uuid\" NOT NULL,\n  \"definition\" jsonb,\n  \"executionStatus\" text DEFAULT 'QUEUED' NOT NULL,\n  \"failure\" jsonb,\n  \"finishedAt\" timestamptz(6),\n  \"sourceDocumentId\" \"uuid\" NOT NULL,\n  \"sourceRepresentationRevisionId\" \"uuid\" NOT NULL,\n  \"startedAt\" timestamptz(6),\n  PRIMARY KEY (\"batchSchemaSuggestionId\", \"sourceDocumentId\")\n)",
+        "sql": "CREATE TABLE \"public\".\"batchSchemaSuggestionSource\" (\n  \"batchSchemaSuggestionId\" \"uuid\" NOT NULL,\n  \"sourceDocumentId\" \"uuid\" NOT NULL,\n  \"sourceRepresentationRevisionId\" \"uuid\" NOT NULL,\n  PRIMARY KEY (\"batchSchemaSuggestionId\", \"sourceDocumentId\")\n)",
         "params": []
       }
     ],
@@ -1277,24 +1277,24 @@
     ]
   },
   {
-    "id": "checkConstraint.batchSchemaSuggestion.batchSchemaSuggestion_executionStatus_check",
-    "label": "Add check constraint \"batchSchemaSuggestion_executionStatus_check\" on \"batchSchemaSuggestion\".\"executionStatus\"",
+    "id": "checkConstraint.batchSchemaSuggestion.batchSchemaSuggestion_outcome_check",
+    "label": "Add check constraint \"batchSchemaSuggestion_outcome_check\" on \"batchSchemaSuggestion\".\"outcome\"",
     "operationClass": "additive",
     "target": {
       "id": "postgres",
       "details": {
         "schema": "public",
         "objectType": "checkConstraint",
-        "name": "batchSchemaSuggestion_executionStatus_check",
+        "name": "batchSchemaSuggestion_outcome_check",
         "table": "batchSchemaSuggestion"
       }
     },
     "precheck": [
       {
-        "description": "ensure constraint \"batchSchemaSuggestion_executionStatus_check\" does not exist",
+        "description": "ensure constraint \"batchSchemaSuggestion_outcome_check\" does not exist",
         "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
         "params": [
-          "batchSchemaSuggestion_executionStatus_check",
+          "batchSchemaSuggestion_outcome_check",
           "public",
           "\"public\".\"batchSchemaSuggestion\""
         ]
@@ -1302,16 +1302,16 @@
     ],
     "execute": [
       {
-        "description": "add check constraint \"batchSchemaSuggestion_executionStatus_check\"",
-        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_executionStatus_check\" CHECK (\"executionStatus\" IN ('QUEUED', 'RUNNING', 'COMPLETED', 'FAILED'))"
+        "description": "add check constraint \"batchSchemaSuggestion_outcome_check\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_outcome_check\" CHECK (\"outcome\" IN ('SUCCEEDED', 'FAILED'))"
       }
     ],
     "postcheck": [
       {
-        "description": "verify constraint \"batchSchemaSuggestion_executionStatus_check\" exists",
+        "description": "verify constraint \"batchSchemaSuggestion_outcome_check\" exists",
         "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
         "params": [
-          "batchSchemaSuggestion_executionStatus_check",
+          "batchSchemaSuggestion_outcome_check",
           "public",
           "\"public\".\"batchSchemaSuggestion\""
         ]
@@ -1345,7 +1345,7 @@
     "execute": [
       {
         "description": "add check constraint \"batchSchemaSuggestion_phase_check\"",
-        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_phase_check\" CHECK (\"phase\" IN ('SOURCES', 'MERGING', 'READY', 'HETEROGENEOUS'))"
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_phase_check\" CHECK (\"phase\" IN ('READY', 'HETEROGENEOUS'))"
       }
     ],
     "postcheck": [
@@ -1356,48 +1356,6 @@
           "batchSchemaSuggestion_phase_check",
           "public",
           "\"public\".\"batchSchemaSuggestion\""
-        ]
-      }
-    ]
-  },
-  {
-    "id": "checkConstraint.batchSchemaSuggestionSource.batchSchemaSuggestionSource_executionStatus_check",
-    "label": "Add check constraint \"batchSchemaSuggestionSource_executionStatus_check\" on \"batchSchemaSuggestionSource\".\"executionStatus\"",
-    "operationClass": "additive",
-    "target": {
-      "id": "postgres",
-      "details": {
-        "schema": "public",
-        "objectType": "checkConstraint",
-        "name": "batchSchemaSuggestionSource_executionStatus_check",
-        "table": "batchSchemaSuggestionSource"
-      }
-    },
-    "precheck": [
-      {
-        "description": "ensure constraint \"batchSchemaSuggestionSource_executionStatus_check\" does not exist",
-        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
-        "params": [
-          "batchSchemaSuggestionSource_executionStatus_check",
-          "public",
-          "\"public\".\"batchSchemaSuggestionSource\""
-        ]
-      }
-    ],
-    "execute": [
-      {
-        "description": "add check constraint \"batchSchemaSuggestionSource_executionStatus_check\"",
-        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestionSource\" ADD CONSTRAINT \"batchSchemaSuggestionSource_executionStatus_check\" CHECK (\"executionStatus\" IN ('QUEUED', 'RUNNING', 'COMPLETED', 'FAILED'))"
-      }
-    ],
-    "postcheck": [
-      {
-        "description": "verify constraint \"batchSchemaSuggestionSource_executionStatus_check\" exists",
-        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
-        "params": [
-          "batchSchemaSuggestionSource_executionStatus_check",
-          "public",
-          "\"public\".\"batchSchemaSuggestionSource\""
         ]
       }
     ]
@@ -1715,44 +1673,6 @@
     ]
   },
   {
-    "id": "index.batchSchemaSuggestion.batchSchemaSuggestion_executionStatus_leaseExpiresAt_idx",
-    "label": "Create index \"batchSchemaSuggestion_executionStatus_leaseExpiresAt_idx\" on \"batchSchemaSuggestion\"",
-    "operationClass": "additive",
-    "target": {
-      "id": "postgres",
-      "details": {
-        "schema": "public",
-        "objectType": "index",
-        "name": "batchSchemaSuggestion_executionStatus_leaseExpiresAt_idx",
-        "table": "batchSchemaSuggestion"
-      }
-    },
-    "precheck": [
-      {
-        "description": "ensure index \"batchSchemaSuggestion_executionStatus_leaseExpiresAt_idx\" does not exist",
-        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
-        "params": [
-          "\"public\".\"batchSchemaSuggestion_executionStatus_leaseExpiresAt_idx\""
-        ]
-      }
-    ],
-    "execute": [
-      {
-        "description": "create index \"batchSchemaSuggestion_executionStatus_leaseExpiresAt_idx\"",
-        "sql": "CREATE INDEX \"batchSchemaSuggestion_executionStatus_leaseExpiresAt_idx\" ON \"public\".\"batchSchemaSuggestion\" (\"executionStatus\", \"leaseExpiresAt\")"
-      }
-    ],
-    "postcheck": [
-      {
-        "description": "verify index \"batchSchemaSuggestion_executionStatus_leaseExpiresAt_idx\" exists",
-        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
-        "params": [
-          "\"public\".\"batchSchemaSuggestion_executionStatus_leaseExpiresAt_idx\""
-        ]
-      }
-    ]
-  },
-  {
     "id": "index.batchSchemaSuggestion.batchSchemaSuggestion_projectContextId_idx",
     "label": "Create index \"batchSchemaSuggestion_projectContextId_idx\" on \"batchSchemaSuggestion\"",
     "operationClass": "additive",
@@ -1824,44 +1744,6 @@
         "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
         "params": [
           "\"public\".\"batchSchemaSuggestionSource_batchSchemaSuggestionId_idx\""
-        ]
-      }
-    ]
-  },
-  {
-    "id": "index.batchSchemaSuggestionSource.batchSchemaSuggestionSource_sourceRepresentationRevisionId_idx",
-    "label": "Create index \"batchSchemaSuggestionSource_sourceRepresentationRevisionId_idx\" on \"batchSchemaSuggestionSource\"",
-    "operationClass": "additive",
-    "target": {
-      "id": "postgres",
-      "details": {
-        "schema": "public",
-        "objectType": "index",
-        "name": "batchSchemaSuggestionSource_sourceRepresentationRevisionId_idx",
-        "table": "batchSchemaSuggestionSource"
-      }
-    },
-    "precheck": [
-      {
-        "description": "ensure index \"batchSchemaSuggestionSource_sourceRepresentationRevisionId_idx\" does not exist",
-        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
-        "params": [
-          "\"public\".\"batchSchemaSuggestionSource_sourceRepresentationRevisionId_idx\""
-        ]
-      }
-    ],
-    "execute": [
-      {
-        "description": "create index \"batchSchemaSuggestionSource_sourceRepresentationRevisionId_idx\"",
-        "sql": "CREATE INDEX \"batchSchemaSuggestionSource_sourceRepresentationRevisionId_idx\" ON \"public\".\"batchSchemaSuggestionSource\" (\"sourceRepresentationRevisionId\")"
-      }
-    ],
-    "postcheck": [
-      {
-        "description": "verify index \"batchSchemaSuggestionSource_sourceRepresentationRevisionId_idx\" exists",
-        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
-        "params": [
-          "\"public\".\"batchSchemaSuggestionSource_sourceRepresentationRevisionId_idx\""
         ]
       }
     ]
@@ -2613,24 +2495,24 @@
     ]
   },
   {
-    "id": "foreignKey.batchSchemaSuggestionSource.batchSchemaSuggestionSource_sourceRepresentationRevisionId_fkey",
-    "label": "Add foreign key \"batchSchemaSuggestionSource_sourceRepresentationRevisionId_fkey\" on \"batchSchemaSuggestionSource\"",
+    "id": "foreignKey.batchSchemaSuggestionSource.batch_suggestion_source_representation_fkey",
+    "label": "Add foreign key \"batch_suggestion_source_representation_fkey\" on \"batchSchemaSuggestionSource\"",
     "operationClass": "additive",
     "target": {
       "id": "postgres",
       "details": {
         "schema": "public",
         "objectType": "foreignKey",
-        "name": "batchSchemaSuggestionSource_sourceRepresentationRevisionId_fkey",
+        "name": "batch_suggestion_source_representation_fkey",
         "table": "batchSchemaSuggestionSource"
       }
     },
     "precheck": [
       {
-        "description": "ensure FK \"batchSchemaSuggestionSource_sourceRepresentationRevisionId_fkey\" does not exist",
+        "description": "ensure FK \"batch_suggestion_source_representation_fkey\" does not exist",
         "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
         "params": [
-          "batchSchemaSuggestionSource_sourceRepresentationRevisionId_fkey",
+          "batch_suggestion_source_representation_fkey",
           "public",
           "\"public\".\"batchSchemaSuggestionSource\""
         ]
@@ -2638,16 +2520,16 @@
     ],
     "execute": [
       {
-        "description": "add FK \"batchSchemaSuggestionSource_sourceRepresentationRevisionId_fkey\"",
-        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestionSource\"\nADD CONSTRAINT \"batchSchemaSuggestionSource_sourceRepresentationRevisionId_fkey\"\nFOREIGN KEY (\"sourceRepresentationRevisionId\")\nREFERENCES \"public\".\"sourceRepresentationRevision\" (\"id\")\nON DELETE RESTRICT"
+        "description": "add FK \"batch_suggestion_source_representation_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestionSource\"\nADD CONSTRAINT \"batch_suggestion_source_representation_fkey\"\nFOREIGN KEY (\"sourceRepresentationRevisionId\", \"sourceDocumentId\")\nREFERENCES \"public\".\"sourceRepresentationRevision\" (\"id\", \"sourceDocumentId\")\nON DELETE CASCADE"
       }
     ],
     "postcheck": [
       {
-        "description": "verify FK \"batchSchemaSuggestionSource_sourceRepresentationRevisionId_fkey\" exists",
+        "description": "verify FK \"batch_suggestion_source_representation_fkey\" exists",
         "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
         "params": [
-          "batchSchemaSuggestionSource_sourceRepresentationRevisionId_fkey",
+          "batch_suggestion_source_representation_fkey",
           "public",
           "\"public\".\"batchSchemaSuggestionSource\""
         ]

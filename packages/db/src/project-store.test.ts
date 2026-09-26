@@ -526,7 +526,8 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
 
     assert.equal(researcher.researcherAccountId, RESEARCHER_A)
     assert.equal('isPackageReferenced' in researcher, false)
-    assert.equal('claimBatchSchemaSuggestion' in researcher, false)
+    assert.equal('publishBatchSchemaSuggestion' in researcher, false)
+    assert.equal('readRevisionMarkdown' in researcher, false)
     assert.equal('createProjectContext' in worker, false)
     assert.equal('getSourceRepresentation' in worker, false)
   })

@@ -14,6 +14,7 @@ import {
   batchSchemaSuggestionDraftRequestSchema,
   batchSchemaSuggestionListResponseSchema,
   batchSchemaSuggestionResponseSchema,
+  batchSchemaSuggestionRetryRequestSchema,
   batchSchemaSuggestionRunRequestSchema,
   type BatchSchemaSuggestion,
   type BatchSchemaSuggestionFailure,
@@ -191,9 +192,12 @@ export async function runBatchSchemaSuggestion(
   ).batchSchemaSuggestion
 }
 
+/** Starts the attempt after `expectedAttempt` over every surviving pin. Repeating the POST (an uncertain answer)
+ *  returns that same successor rather than starting another; an older attempt answers 409 attempt_conflict. */
 export async function retryBatchSchemaSuggestion(
   projectContextId: string,
   batchSchemaSuggestionId: string,
+  expectedAttempt: number,
   signal?: AbortSignal,
 ): Promise<BatchSchemaSuggestion> {
   const query = new URLSearchParams({ projectContextId })
@@ -201,7 +205,8 @@ export async function retryBatchSchemaSuggestion(
   return batchSchemaSuggestionResponseSchema.parse(
     await read(`/api/batch-schema-suggestions/${batchSchemaSuggestionId}/retry?${query}`, {
       method: 'POST',
-      headers: { accept: 'application/json' },
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify(batchSchemaSuggestionRetryRequestSchema.parse({ expectedAttempt })),
       signal,
     }),
   ).batchSchemaSuggestion

@@ -33,6 +33,11 @@ export const batchSchemaSuggestionRunRequestSchema = z
   .object({ strategy: extractionStrategySchema })
   .strict()
 
+/** A retry names the attempt it follows, so a repeated POST replays its successor instead of starting another. */
+export const batchSchemaSuggestionRetryRequestSchema = z
+  .object({ expectedAttempt: z.number().int().positive() })
+  .strict()
+
 const coverageSchema = z
   .object({
     nodeId: z.string().min(1),
@@ -45,15 +50,11 @@ const operationFailureSchema = z
   .object({ code: z.string().min(1), message: z.string().min(1) })
   .strict()
 
+/** A member pin only: per-source progress, definitions and errors are not part of the contract. */
 const suggestionSourceSchema = z
   .object({
     sourceDocumentId: canonicalUuidSchema,
     sourceRepresentationRevisionId: canonicalUuidSchema,
-    executionStatus: projectOperationStatusSchema,
-    definition: schemaDefinitionSchema.nullable(),
-    failure: operationFailureSchema.nullable(),
-    startedAt: z.iso.datetime().nullable(),
-    finishedAt: z.iso.datetime().nullable(),
   })
   .strict()
 
@@ -62,17 +63,20 @@ export const batchSchemaSuggestionSchema = z
     batchSchemaSuggestionId: canonicalUuidSchema,
     projectContextId: canonicalUuidSchema,
     selectionKey: selectionKeySchema,
+    /** The current attempt; a retry names it as `expectedAttempt`. */
+    attempt: z.number().int().positive(),
+    /** Derived from the current attempt: its outcome, else its workflow's status. */
     executionStatus: projectOperationStatusSchema,
-    phase: z.enum(['SOURCES', 'MERGING', 'READY', 'HETEROGENEOUS']),
+    /** The retained proposal's meaning; null before the first proposal. */
+    phase: z.enum(['READY', 'HETEROGENEOUS']).nullable(),
     proposal: schemaDefinitionSchema.nullable(),
     coverage: z.array(coverageSchema).nullable(),
     draft: schemaDefinitionSchema.nullable(),
     draftVersion: z.number().int().nonnegative(),
+    /** The current attempt's failure. */
     failure: operationFailureSchema.nullable(),
     confirmedSchemaRevisionId: canonicalUuidSchema.nullable(),
     batchExtractionId: canonicalUuidSchema.nullable(),
-    startedAt: z.iso.datetime().nullable(),
-    finishedAt: z.iso.datetime().nullable(),
     createdAt: z.iso.datetime(),
     sources: z.array(suggestionSourceSchema),
   })
@@ -98,6 +102,7 @@ export const batchSchemaSuggestionErrorSchema = z
       'unexpected_failure',
       'draft_conflict',
       'operation_not_ready',
+      'attempt_conflict',
     ]),
     message: z.string(),
   })
