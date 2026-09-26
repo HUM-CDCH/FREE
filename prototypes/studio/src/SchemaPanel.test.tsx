@@ -3,6 +3,7 @@
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { ModelOperation } from '../shared/modelOperation.contract'
 import type { SchemaEditResponse } from '../shared/schemaEdit.contract'
 import type { SchemaRevision, SchemaRevisionSummary } from '../shared/schemaRevision.contract'
 import { nodesToTemplate, type SchemaNode } from 'extraction/schema'
@@ -18,14 +19,16 @@ import type {
   SchemaSaveState,
 } from './schemaSaveCoordinator'
 // The server-side cancel resolves unless a case says otherwise; resetAllMocks restores this implementation.
-const { requestSchemaEdit, deleteModelOperation } = vi.hoisted(() => ({
+const { requestSchemaEdit, deleteModelOperation, listModelOperations } = vi.hoisted(() => ({
   requestSchemaEdit: vi.fn(),
   deleteModelOperation: vi.fn<(workflowId: string) => Promise<void>>(async () => undefined),
+  listModelOperations: vi.fn<() => Promise<ModelOperation[]>>(async () => []),
 }))
 vi.mock('./api', async (importOriginal) => ({
   ...await importOriginal<typeof import('./api')>(),
   requestSchemaEdit,
   deleteModelOperation,
+  listModelOperations,
 }))
 
 const nodes: SchemaNode[] = [
@@ -79,12 +82,15 @@ function setupController({
   currentRevisionNumber = 2,
   getRevision,
   flushImpl,
+  durableScope = false,
 }: {
   panelNodes?: SchemaNode[]
   recordDescription?: string
   currentRevisionNumber?: number
   getRevision?: (schemaRevisionId: string) => Promise<SchemaRevision>
   flushImpl?: (call: number) => Promise<SchemaRevision | null>
+  /** A durable, clean scope: the panel lists and restores model operations on load. */
+  durableScope?: boolean
 } = {}): PanelSetup {
   const acknowledged: AcknowledgedSchemaRevision = {
     schemaRevisionId: '51000000-0000-4000-8004-000000000002',
@@ -98,6 +104,7 @@ function setupController({
   let flushCalls = 0
   const persistence: SchemaEditorPersistence = {
     extractionSchemaId: () => acknowledged.extractionSchemaId,
+    ...(durableScope ? { projectContextId: () => modelContext.projectContextId } : {}),
     initialize: async () => {
       throw new Error('Generation is not exercised here.')
     },
@@ -119,7 +126,7 @@ function setupController({
         : acknowledged
     },
     saveState() {
-      return null
+      return durableScope ? { status: 'saved', acknowledged, draft: { recordDescription, schemaNodes: panelNodes } } : null
     },
     modelContext: () => modelContext,
     listRevisions: async () => schemaHistory,
@@ -1164,6 +1171,43 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 
     expect(await screen.findByText('Cancelled.')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Describe a change to the schema…')).toBeEnabled()
+  })
+
+  it('a reloaded panel shows a running operation with its instruction, and Stop cancels it', async () => {
+    const running: ModelOperation = {
+      kind: 'generation', workflowId: 'suggestion:51000000-0000-4000-8009-0000000000f1', operationId: '51000000-0000-4000-8009-0000000000f1',
+      status: 'RUNNING', instruction: 'Catalog entries', createdAt: '2026-09-26T10:00:00.000Z', failure: null, baseSchemaRevisionId: null, template: null,
+    }
+    listModelOperations.mockResolvedValueOnce([running])
+    renderPanel({ durableScope: true })
+
+    expect(await screen.findByText('Still working on an earlier request: “Catalog entries”')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop earlier request “Catalog entries”' }))
+
+    await waitFor(() => expect(deleteModelOperation).toHaveBeenCalledExactlyOnceWith(running.workflowId))
+    expect(listModelOperations).toHaveBeenCalledExactlyOnceWith(
+      { projectContextId: modelContext.projectContextId, extractionSchemaId: modelContext.extractionSchemaId },
+      expect.any(AbortSignal),
+    )
+  })
+
+  it("a restored proposal reopens the review bar and replays onto the base revision's nodes", async () => {
+    const restored: ModelOperation = {
+      kind: 'proposal', workflowId: 'edit:51000000-0000-4000-8009-0000000000f2', operationId: '51000000-0000-4000-8009-0000000000f2',
+      status: 'SUCCEEDED', instruction: 'Rename title to heading', createdAt: '2026-09-26T10:00:00.000Z', failure: null,
+      baseSchemaRevisionId: modelContext.schemaRevisionId,
+      response: { status: 'proposed', fields: { title: { name: 'heading', type: 'string', removed: false } }, additions: [], issues: [] },
+    }
+    listModelOperations.mockResolvedValueOnce([restored])
+    const setup = renderPanel({ durableScope: true })
+
+    const apply = await screen.findByRole('button', { name: 'Apply changes' })
+    expect(screen.getByText('Reopened the proposal for “Rename title to heading”.')).toBeInTheDocument()
+    fireEvent.click(apply)
+
+    await waitFor(() => expect(setup.edits).toHaveLength(1))
+    expect(setup.edits[0]!.schemaNodes.map((node) => node.name)).toEqual(['heading', 'gender'])
+    expect(requestSchemaEdit).not.toHaveBeenCalled()
   })
 
   it('Stop on a running edit cancels edit:<operationId> on the server and says Cancelled.', async () => {

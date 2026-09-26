@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { SchemaNode } from 'extraction/schema'
+import { deleteModelOperation } from './api'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import {
   replaySchemaChanges,
@@ -11,6 +12,8 @@ export type PendingSchemaProposal = DerivedProposal & {
   original: SchemaNode[]
   originalDraftVersion: number
   originalSchemaRevisionId: string | null
+  /** The proposal's `edit:` workflow, when Studio recorded one: Discard deletes it so a reload cannot reopen it. */
+  workflowId: string | null
 }
 
 export type SchemaProposalReview = {
@@ -23,6 +26,7 @@ export type SchemaProposalReview = {
     original: SchemaNode[],
     originalDraftVersion: number,
     originalSchemaRevisionId: string | null,
+    workflowId: string | null,
   ): void
   toggle(changeId: string): void
   apply(): void
@@ -62,6 +66,7 @@ export function useSchemaProposalReview(
       original: SchemaNode[],
       originalDraftVersion: number,
       originalSchemaRevisionId: string | null,
+      workflowId: string | null,
     ) => {
       setAcceptedChangeIds(new Set(proposal.changes.map(({ id }) => id)))
       setPending({
@@ -69,6 +74,7 @@ export function useSchemaProposalReview(
         original,
         originalDraftVersion,
         originalSchemaRevisionId,
+        workflowId,
       })
     },
     [],
@@ -112,6 +118,12 @@ export function useSchemaProposalReview(
 
   const discard = useCallback(() => {
     if (!pending) return
+    // Discard persists: the proposal's workflow goes, so a reload cannot bring it back. Apply does not delete — the
+    // base moves, so the proposal no longer restores.
+    if (pending.workflowId)
+      void deleteModelOperation(pending.workflowId).catch(() =>
+        appendMessage('The proposal could not be discarded on the server; it may return after a reload.'),
+      )
     appendMessage('Okay — discarded, no changes made.')
     reset()
   }, [appendMessage, pending, reset])

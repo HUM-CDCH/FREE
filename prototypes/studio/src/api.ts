@@ -18,6 +18,7 @@ import {
   type ReviewDecisionInput,
 } from '../shared/extraction.contract'
 import { ingestionModelListingSchema, type IngestionModelListing } from '../shared/modelConfig.contract'
+import { modelOperationListingSchema, type ModelOperation } from '../shared/modelOperation.contract'
 
 export const API_BASE = '/api'
 
@@ -105,6 +106,16 @@ export async function repeatableModelPost(
     }
     await pause(REPEAT_DELAYS_MS[attempt]!, init.signal)
   }
+}
+
+/** The scope's generations and edit proposals, newest first: what a reloaded page restores from (spec, *Browser*). */
+export async function listModelOperations(
+  scope: { projectContextId: string; extractionSchemaId: string | null },
+  signal?: AbortSignal,
+): Promise<ModelOperation[]> {
+  const query = new URLSearchParams({ projectContextId: scope.projectContextId })
+  if (scope.extractionSchemaId !== null) query.set('extractionSchemaId', scope.extractionSchemaId)
+  return modelOperationListingSchema.parse(await requestJson(`/model-operations?${query}`, 'GET', null, signal)).operations
 }
 
 /** Stops a model operation (a user's Stop, or Discard of a proposal): 204 and 404 both mean it is not running. */

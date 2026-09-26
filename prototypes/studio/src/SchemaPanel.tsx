@@ -37,6 +37,7 @@ import {
 import { useSchemaInstructions } from './useSchemaInstructions'
 import { ProposalReviewBar } from './SchemaProposalReview'
 import { useSchemaProposalReview } from './useSchemaProposalReview'
+import { useModelOperationRecovery } from './useModelOperationRecovery'
 import {
   moveSchemaNodes,
   removeSchemaNode,
@@ -568,6 +569,18 @@ function SchemaPanel({
   const [recordDescriptionDraft, setRecordDescriptionDraft] = useState(
     () => snap.draft?.recordDescription ?? '',
   )
+  // What a reloaded page found (spec, *What the schema panel does on load*): running operations to show and poll, a
+  // finished generation to save onto its base, an unreviewed proposal to reopen.
+  const recovery = useModelOperationRecovery({
+    schema,
+    proposalReview,
+    busy: chatLoading || pending !== null,
+    appendMessage: appendChatMessage,
+    onReopened: (proposal) => {
+      const ancestors = schemaAncestorIds(proposal.reviewNodes, new Set(proposal.changes.map(({ id }) => id)))
+      setExpandedIds((current) => new Set([...current, ...ancestors]))
+    },
+  })
   const chatRef = useRef<HTMLDivElement>(null)
   const creatingFromHistoryRef = useRef(false)
 
@@ -990,6 +1003,7 @@ function SchemaPanel({
             original,
             originalDraftVersion,
             originalSchemaRevisionId,
+            `edit:${operationId}`,
           )
           const ancestors = schemaAncestorIds(proposal.reviewNodes, new Set(proposal.changes.map(({ id }) => id)))
           setExpandedIds((current) => new Set([...current, ...ancestors]))
@@ -1731,6 +1745,22 @@ function SchemaPanel({
           </div>
           <div ref={chatRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
             <div className="flex flex-col gap-2">
+              {recovery.running.map((operation) => (
+                <div
+                  key={operation.workflowId}
+                  className="flex items-center justify-between gap-2 rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-2 text-[12px] text-ink-muted"
+                >
+                  <span>{`Still working on an earlier request: “${operation.instruction}”`}</span>
+                  <button
+                    type="button"
+                    className="shrink-0 text-[11px] text-ink underline"
+                    aria-label={`Stop earlier request “${operation.instruction}”`}
+                    onClick={() => recovery.stop(operation.workflowId)}
+                  >
+                    Stop
+                  </button>
+                </div>
+              ))}
               {chat.map((m, i) => (
                 <div key={i} className={msgCls(m.role)}>{m.text}</div>
               ))}

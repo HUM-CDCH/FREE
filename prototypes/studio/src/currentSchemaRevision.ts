@@ -33,6 +33,8 @@ export type SchemaEditorPersistence = {
   edit(definition: SchemaDefinition): void
   /** Durable Extraction Schema identity; absent for local drafts. */
   extractionSchemaId?(): string | null
+  /** The Project Context the durable schema lives in: the scope of the model operations a reloaded page looks for. */
+  projectContextId?(): string
   initialize?(
     definition: SchemaDefinition,
     signal?: AbortSignal,
@@ -62,6 +64,7 @@ export type DurableSchemaPersistence = SchemaEditorPersistence &
     Pick<
       SchemaEditorPersistence,
       | 'extractionSchemaId'
+      | 'projectContextId'
       | 'initialize'
       | 'flush'
       | 'saveState'
@@ -103,6 +106,7 @@ function normalizeSchemaDefinition(
  * without one.
  */
 export function durableSchemaPersistence(options: {
+  projectContextId: string
   initial: AcknowledgedSchemaRevision | null
   debounceMs?: number
   append(
@@ -147,6 +151,9 @@ export function durableSchemaPersistence(options: {
   return {
     extractionSchemaId() {
       return extractionSchemaId
+    },
+    projectContextId() {
+      return options.projectContextId
     },
     initialize(definition, signal) {
       if (coordinator) return Promise.reject(new Error('A durable schema is already open.'))
@@ -248,6 +255,10 @@ export type SchemaEditorController = {
     options?: { cancel?: () => Promise<void> },
   ): Promise<void>
   cancelGeneration(): void
+  /** The durable scope a reloaded page lists model operations for; null for a local draft. */
+  operationScope(): { projectContextId: string; extractionSchemaId: string | null } | null
+  /** Saves a generation that finished while no tab waited for it, but only onto its base; true when it was saved. */
+  restoreGeneration(template: unknown, baseSchemaRevisionId: string | null): Promise<boolean>
 
   commit(
     mutator: (nodes: SchemaNode[]) => SchemaNode[],
@@ -408,6 +419,33 @@ export function createSchemaEditorController(
   function flushPersistence() {
     return persistence.flush?.() ?? Promise.resolve(null)
   }
+
+  /** Joins a generated candidate to the revision chain — onto the acknowledged head when a schema exists (the save
+   *  coordinator's expected head), else as the first revision. generate() and restoreGeneration() share it. */
+  async function adoptGenerated(definition: SchemaDefinition, signal?: AbortSignal): Promise<boolean> {
+    if ((persistence.extractionSchemaId?.() ?? null) !== null) {
+      // Keep the acknowledged current draft mounted and extractable while the generated candidate joins the revision
+      // chain. The save acknowledgement is the only event allowed to replace it.
+      persistence.edit(definition)
+      const revision = await flushPersistence()
+      if (!revision) throw new Error('A durable Extraction Schema is required.')
+      if (draft === null || !sameSchemaDefinition(draft, revision)) {
+        draft = normalizeSchemaDefinition(revision)
+        draftVersion += 1
+      }
+      extractableSchemaRevisionId = revision.schemaRevisionId
+      replacementVersion += 1
+      return true
+    }
+    if (!persistence.initialize) throw new Error('Schema generation is unavailable for this draft.')
+    const revision = await persistence.initialize(definition, signal)
+    if (signal?.aborted || disposed) return false
+    replacementVersion += 1
+    draft = definition
+    draftVersion += 1
+    extractableSchemaRevisionId = revision.schemaRevisionId
+    return true
+  }
   return {
     snapshot() {
       return snapshot
@@ -435,31 +473,7 @@ export function createSchemaEditorController(
         if (abort.signal.aborted || disposed) return
         const parsed = templateToSchemaDefinition(generatedSchema)
         const definition = normalizeSchemaDefinition(parsed)
-        if ((persistence.extractionSchemaId?.() ?? null) !== null) {
-          // Keep the acknowledged current draft mounted and extractable while
-          // the generated candidate joins the revision chain. The save
-          // acknowledgement is the only event allowed to replace it.
-          persistence.edit(definition)
-          const revision = await flushPersistence()
-          if (!revision)
-            throw new Error('A durable Extraction Schema is required.')
-          if (draft === null || !sameSchemaDefinition(draft, revision)) {
-            draft = normalizeSchemaDefinition(revision)
-            draftVersion += 1
-          }
-          extractableSchemaRevisionId = revision.schemaRevisionId
-          replacementVersion += 1
-        } else {
-          if (!persistence.initialize)
-            throw new Error('Schema generation is unavailable for this draft.')
-          const revision = await persistence.initialize(definition, abort.signal)
-          if (abort.signal.aborted || disposed) return
-          replacementVersion += 1
-          draft = definition
-          draftVersion += 1
-          extractableSchemaRevisionId = revision.schemaRevisionId
-          publish()
-        }
+        if (!(await adoptGenerated(definition, abort.signal))) return
         generating = false
         publish()
       } catch (error) {
@@ -471,6 +485,44 @@ export function createSchemaEditorController(
         publish()
       } finally {
         settle()
+      }
+    },
+    operationScope() {
+      const projectContextId = persistence.projectContextId?.() ?? null
+      return projectContextId === null ? null : { projectContextId, extractionSchemaId: persistence.extractionSchemaId?.() ?? null }
+    },
+    /** Saves a generation that finished while no tab waited for it (a reload or a restart), but only onto its base: the
+     *  base is still the acknowledged revision of a clean draft, or no Extraction Schema exists yet. Anything else — and a
+     *  conflict, meaning newer work landed first — drops it without an error (spec, *Generation*). */
+    async restoreGeneration(template, baseSchemaRevisionId) {
+      if (disposed || generating) return false
+      const save = persistence.saveState?.() ?? null
+      const onBase = baseSchemaRevisionId === null
+        ? (persistence.extractionSchemaId?.() ?? null) === null && draft === null
+        : save?.status === 'saved' && save.acknowledged.schemaRevisionId === baseSchemaRevisionId
+          && extractableSchemaRevisionId === baseSchemaRevisionId
+      if (!onBase) return false
+      let definition: SchemaDefinition
+      try {
+        definition = normalizeSchemaDefinition(templateToSchemaDefinition(template))
+      } catch {
+        return false
+      }
+      try {
+        const saved = await adoptGenerated(definition)
+        publish()
+        return saved
+      } catch {
+        if (disposed) return false
+        const current = persistence.reloadCurrent?.() ?? null
+        if (current) {
+          draft = normalizeSchemaDefinition(current)
+          draftVersion += 1
+          replacementVersion += 1
+          extractableSchemaRevisionId = current.schemaRevisionId
+        }
+        publish()
+        return false
       }
     },
     cancelGeneration() {
