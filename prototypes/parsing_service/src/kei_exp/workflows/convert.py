@@ -120,8 +120,7 @@ def _copy(source: Path, target: Path) -> str:
 
 
 def serving(execution) -> None:
-    """Refuse a served execution whose model server is not there (transient) or holds another model (not):
-    moved from jobs/tasks.py:138-153, which Task 10 deletes."""
+    """Refuse a served execution whose model server is not there (transient) or holds another model (not)."""
     if execution.model is None:
         return
     reachable, repo = runtime.loaded_model(execution.url)
@@ -141,11 +140,11 @@ def _log(event: Event) -> None:
 @DBOS.step(name="convert_run", **STEP_RETRY)
 def convert_run(workflow_id: str, params: dict) -> dict:
     check = CancelCheck(workflow_id)
-    check(force=True)  # before anything reads the PDF (jobs/tasks.py:94)
+    check(force=True)  # before anything reads the PDF
     directory = runs.RUNS / params["id"]
     execution = runs.execution_for(directory, params)
     serving(execution)
-    check(force=True)  # resolution read the text layer (jobs/tasks.py:98)
+    check(force=True)  # resolution read the text layer; the conversion is the model work
     runner.convert(execution, emit=check.sink(_log))
     manifest = read_manifest(directory / "result")
     return ConvertOk(ok=True, run_id=params["id"], generation=manifest.generation, page_count=manifest.page_count,

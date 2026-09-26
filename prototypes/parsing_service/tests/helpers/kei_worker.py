@@ -5,6 +5,8 @@ Doubles: the `fake` OCR record (tests/helpers/fake.py) served by a stand-in serv
 $KEI_TEST_CONTROL/started-<n> and waits until $KEI_TEST_CONTROL/release exists; extraction talks to the scripted
 `honest` chat and counts words. `--crash-after` SIGKILLs this process right after the first publication of that kind
 (the result manifest, or an extraction artifact); $KEI_TEST_CONTROL/crashed makes it happen once.
+
+`holder` is the ownership tests' other process: one that holds a slot's lock and nothing else.
 """
 from __future__ import annotations
 
@@ -20,6 +22,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+HOLDER = (
+    "import pathlib, sys, time;"
+    "from kei_exp import runs; from kei_exp.workflows import slot;"
+    "runs.RUNS = pathlib.Path(sys.argv[2]);"
+    "ctx = slot.hold_slot(sys.argv[1]); ctx.__enter__();"
+    "print('held', flush=True); time.sleep(600)"
+)
 
 
 def _install(control: Path, crash_after: str | None) -> contextlib.AbstractContextManager:
@@ -122,6 +131,38 @@ def spawn(slot: str, *, database_url: str, runs_root: Path, inbox: Path, control
     process = subprocess.Popen(command, cwd=ROOT, env=environment, stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT, text=True, bufsize=1)
     return WorkerProcess(process)
+
+
+class Holder:
+    """A process that holds one slot's lock and nothing else, stopped, killed and reaped as a supervisor would."""
+
+    def __init__(self, process: subprocess.Popen[str]) -> None:
+        self.process = process
+
+    def wait_started(self, timeout: float) -> None:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            assert self.process.stdout is not None
+            if (self.process.stdout.readline() or "").strip() == "held":
+                return
+            if self.process.poll() is not None:
+                raise AssertionError(f"the holder exited with {self.process.returncode}")
+        raise AssertionError(f"the holder did not take the slot within {timeout} s")
+
+    def pause(self) -> None:
+        os.kill(self.process.pid, signal.SIGSTOP)
+
+    def kill(self) -> None:
+        os.kill(self.process.pid, signal.SIGKILL)
+
+    def reap(self) -> None:
+        self.process.wait(timeout=20)
+
+
+def holder(slot: str, lock_dir: Path) -> Holder:
+    process = subprocess.Popen([sys.executable, "-c", HOLDER, slot, str(lock_dir)],
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    return Holder(process)
 
 
 if __name__ == "__main__":

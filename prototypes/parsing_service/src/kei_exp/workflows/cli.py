@@ -30,7 +30,9 @@ def _until_signalled() -> None:
 
 def serve(slot_name: str, database_url: str, *, until: Callable[[], None] = _until_signalled) -> None:
     logging.basicConfig(level=os.environ.get("KEI_LOG_LEVEL", "INFO"))
-    with slot.hold_slot(slot_name):  # first: a second process is refused before it imports the model stack
+    # First: a second process is refused before it imports the model stack (this module, slot and runs are light;
+    # `registered` is what loads docling and torch, test_worker_boot pins it).
+    with slot.hold_slot(slot_name):
         logger.info("slot %s taken by pid %s", slot_name, os.getpid())
         import kei_exp.workflows.registered  # noqa: F401 - every workflow is registered before launch
         boot.set_timestamp(boot.database_clock_ms(database_url))

@@ -1,6 +1,8 @@
 """kei-worker's startup order and the lock only a dead process releases (spec, *kei worker → Startup*)."""
 import contextlib
 import secrets
+import subprocess
+import sys
 
 import psycopg
 import pytest
@@ -9,8 +11,8 @@ from dbos import DBOS
 from kei_exp import runs
 from kei_exp.workflows import boot, cli, config, slot
 from tests.helpers import kei as kei_helper
+from tests.helpers import kei_worker
 from tests.helpers import postgres as postgres_helper
-from tests.helpers import slot as slot_helper
 
 
 @pytest.fixture
@@ -32,7 +34,7 @@ def test_one_process_at_a_time_holds_a_slot(lock_root):
 
 
 def test_a_killed_holder_releases_and_a_stopped_one_keeps_its_slot(lock_root):
-    holder = slot_helper.holder("slot-1", lock_root)
+    holder = kei_worker.holder("slot-1", lock_root)
     try:
         holder.wait_started(timeout=20)
         holder.pause()
@@ -46,6 +48,14 @@ def test_a_killed_holder_releases_and_a_stopped_one_keeps_its_slot(lock_root):
         if holder.process.poll() is None:
             holder.kill()
             holder.reap()
+
+
+def test_the_lock_is_taken_before_the_model_stack_is_imported():
+    """A second worker on a held slot is refused in a fraction of a second, not after loading docling and torch."""
+    code = ("import sys, kei_exp.workflows.cli\n"
+            "print(sorted({name.split('.')[0] for name in sys.modules} & {'docling', 'torch', 'surya'}))")
+    loaded = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout
+    assert loaded.strip() == "[]"
 
 
 def test_the_worker_locks_then_reads_the_clock_then_launches_then_registers(monkeypatch):

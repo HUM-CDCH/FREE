@@ -21,15 +21,13 @@ dependencies = [
     "torchaudio>=2.11.0",
     "torchvision>=0.29.0",
     "uvicorn[standard]>=0.53.0",
-    "procrastinate==3.9.0",
-    "psycopg[binary,pool]>=3.2",
+    "psycopg[binary]>=3.2",
     "dbos==3.1.0",
 ]
 
 [project.scripts]
 kei-exp = "kei_exp.convert:main"
 kie = "kei_exp.kie.cli:main"
-kei-jobs = "kei_exp.jobs.cli:main"
 kei-worker = "kei_exp.workflows.cli:main"
 
 [tool.uv]
