@@ -2,6 +2,7 @@
 // the running stack over HTTP exactly as a browser would; nothing imports
 // application code.
 import { spawnSync } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import { resolve } from 'node:path'
 import {
   developmentComposeEnvironment,
@@ -12,6 +13,8 @@ import {
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
 export const ROOT = resolve(import.meta.dirname, '..')
+// Each test process owns exactly one project; a second invocation cannot adopt or remove it.
+const SYSTEM_PROJECT = `free-system-m4-${randomBytes(4).toString('hex')}`
 export const ORIGIN = 'https://localhost:41843'
 export const BASE = `${ORIGIN}/free`
 export const API = `${BASE}/api`
@@ -22,7 +25,7 @@ export const OLLAMA_MODEL = process.env.FREE_TEST_OLLAMA_MODEL ?? 'qwen3.8:lates
 export function compose(args, options = {}) {
   const env = {
     ...developmentComposeEnvironment(),
-    COMPOSE_PROJECT_NAME: 'free-system-m4',
+    COMPOSE_PROJECT_NAME: SYSTEM_PROJECT,
     FREE_NGINX_PORT: '41843',
     FREE_MOCK_OIDC_PORT: '41844',
     FREE_POSTGRES_PORT: '45445',
@@ -64,7 +67,6 @@ export async function waitForHealth(timeoutMs = 300_000) {
 
 /** Start the stack the way `pnpm dev` does when it is not already running. */
 export async function ensureStackUp() {
-  if (await healthy()) return
   ensureCertificates()
   compose(['up', '-d', '--build', '--wait'])
   await waitForHealth()

@@ -16,3 +16,13 @@ services:
     environment:
       KEI_EXTRACT_URL: http://contract-model:8000/v1/chat/completions
       KEI_EXTRACT_MODEL: contract-fixture
+
+  studio:
+    environment:
+      FREE_STUDIO_PROXY_ADDRESS: 172.31.251.0/24
+
+networks:
+  proxy:
+    ipam:
+      config:
+        - subnet: 172.31.251.0/24
