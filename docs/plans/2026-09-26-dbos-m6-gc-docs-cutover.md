@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Tasks 15 and 16 are **CONTROLLER-RUN**: never dispatch them to an implementer subagent.
 
-Status: **not started (plan written 2026-09-26 against `feat/dbos-m2-m6` at f539911: M4 Tasks 1–4 committed, M4 Task 5 in the working tree, M4 Tasks 6–14 and all of M5 still to run; assumes the M4 and M5 plans are complete — both Task 14s recorded — before Task 1 starts).**
+Status: **not started (plan written 2026-09-26 against `feat/dbos-m2-m6` at f539911: M4 Tasks 1–4 committed, M4 Task 5 in the working tree, M4 Tasks 6–14 and all of M5 still to run; assumes the M4 and M5 plans are complete — both Task 14s recorded — before Task 1 starts; revised 2026-09-26 for the user's decision 15, which deletes the document chat in M5 (Ruling 3), and for the user's answers on the cutover (Ruling 7)).**
 
 **Goal:** Deliver milestone M6 of the DBOS plan on `feat/dbos-m2-m6`: a `collectGarbage` workflow on a ten-minute schedule removes unreferenced canonical packages, staged sources, kei runs and both workflow histories under reference, retention and quiescence rules, and repairs missed cancellations; the M3 worker minors are fixed; `test:system` and CI wiring are brought up to date; every product, decision, operations, architecture and OpenSpec document describes the DBOS runtime; then the controller cuts the DGX Spark over (clean slate) and runs the end-to-end smoke test there, recording the evidence.
 
@@ -10,16 +10,17 @@ Status: **not started (plan written 2026-09-26 against `feat/dbos-m2-m6` at f539
 
 **Tech Stack:** Studio (TypeScript, Vitest 4, Playwright, Hono), `@dbos-inc/dbos-sdk` 5.1.10, `packages/db` (Prisma Next 0.16, `pg`, `tsx --test`), `packages/extraction` (`tsx --test`), kei (`kei_exp.workflows`, Python 3.13, `dbos` 3.1.0, pytest), Docker Compose, LikeC4 (`pnpm architecture:check`), the DGX Spark (`baratheon`, aarch64 GB10) over SSH.
 
-**Spec:** [docs/plans/2026-09-24-unified-durable-execution.md](2026-09-24-unified-durable-execution.md). Read *Decisions* (2, 3, 5, 6, 7, 13), *Rules*, *Target architecture*, *Workflows* (the `collectGarbage` and kei `deleteRuns` rows, *Status and ownership*), *Cancellation* (*Propagation is retried*, *kei's cooperative checks*), **Deletion and garbage collection (all)**, *Queues, deadlines and upgrades* (the `kei-gc` row, *Ownership*, *Versions*, *Pools*), *kei worker* (*Startup*), *Model configuration and keys* (*Decision records*, *Trust*, *XSS*), **Cutover (clean slate)**, **Milestones → M6 (all)**, *Verification*, *Risks*. Also read the M4 plan ([2026-09-26-dbos-m4-studio-background.md](2026-09-26-dbos-m4-studio-background.md): Rulings 1, 11, 12; Plan decisions 11, 15, 16, 17; Task 12; *Deferred to M5 and M6*), the M5 plan ([2026-09-26-dbos-m5-interactive.md](2026-09-26-dbos-m5-interactive.md): *Deferred to M6 and later*), the M3 plan's *Deferred to M4 and later* and kei's `workflows/gc.py`, `boot.py` and `tests/test_delete_runs.py`.
+**Spec:** [docs/plans/2026-09-24-unified-durable-execution.md](2026-09-24-unified-durable-execution.md). Read *Decisions* (2, 3, 5, 6, 7, 13, 15 — the document chat is deleted, Ruling 3), *Rules*, *Target architecture*, *Workflows* (the `collectGarbage` and kei `deleteRuns` rows, *Status and ownership*), *Cancellation* (*Propagation is retried*, *kei's cooperative checks*), **Deletion and garbage collection (all)**, *Queues, deadlines and upgrades* (the `kei-gc` row, *Ownership*, *Versions*, *Pools*), *kei worker* (*Startup*), *Model configuration and keys* (*Decision records*, *Trust*, *XSS*), **Cutover (clean slate)**, **Milestones → M6 (all)**, *Verification*, *Risks*. Also read the M4 plan ([2026-09-26-dbos-m4-studio-background.md](2026-09-26-dbos-m4-studio-background.md): Rulings 1, 11, 12; Plan decisions 11, 15, 16, 17; Task 12; *Deferred to M5 and M6*), the M5 plan ([2026-09-26-dbos-m5-interactive.md](2026-09-26-dbos-m5-interactive.md): *Deferred to M6 and later*), the M3 plan's *Deferred to M4 and later* and kei's `workflows/gc.py`, `boot.py` and `tests/test_delete_runs.py`.
 
 ## Rulings (controller, 2026-09-26)
 
 1. **Ruling: M6 keeps `collectGarbage` (ten-minute schedule), kei `deleteRuns` driving, boot-boundary history deletion for both schemas, cancellation repair, staged-upload cleanup and package cleanup.** M4 Task 12 already writes the interruption of affected suggestion attempts inside the deletion transaction and cancels the deleted scope's work after commit (best effort); M6 does not redo it. — *Why:* spec *Milestones → M6 → Garbage collection*; M4 plan decision 16.
-2. **Ruling: the deferred documentation items routed to M6 are collected into the documentation tasks (10–13), each verified against the code before it is written.** The list: the Studio README's model-configuration section; `local-development.md`'s "syncs live"; `deployment.md`'s `FREE_KEI_POSTGRES_PASSWORD`, `FREE_DEPLOYMENT_CLI_PROVIDERS`, `source-inbox`, the obsolete `model-config.json` paragraph, `pnpm dev` needing PostgreSQL at startup, the development `postgres-data` volume recreation after a baseline edit and Studio's `CREATE` privilege for the `dbos` schema; the four OpenSpec specs; Compose comments naming `model-config.json` or the reset; the spec's M2 section still listing items that moved to M3–M5; kei's `docs/job-backend.md` and the Procrastinate plan superseded; the `OLLAMA_API_KEY` note; the Chat tab being developer-UI only.
-3. **Ruling: the Chat tab is developer-UI only (M5 ruling).** It renders only when the client is built with `VITE_SHOW_DEVELOPER_UI=true`, which only the development overlay sets (`compose.override.yaml:68`). Documentation says so; the Spark smoke drives chat through the API from a signed-in page (Task 16).
+2. **Ruling: the deferred documentation items routed to M6 are collected into the documentation tasks (10–13), each verified against the code before it is written.** The list: the Studio README's model-configuration section; `local-development.md`'s "syncs live"; `deployment.md`'s `FREE_KEI_POSTGRES_PASSWORD`, `FREE_DEPLOYMENT_CLI_PROVIDERS`, `source-inbox`, the obsolete `model-config.json` paragraph, `pnpm dev` needing PostgreSQL at startup, the development `postgres-data` volume recreation after a baseline edit and Studio's `CREATE` privilege for the `dbos` schema; the four OpenSpec specs; Compose comments naming `model-config.json` or the reset; the spec's M2 section still listing items that moved to M3–M5; kei's `docs/job-backend.md` and the Procrastinate plan superseded; the `OLLAMA_API_KEY` note; the document-chat mentions M5 leaves behind (Ruling 3).
+3. **Ruling (user decision 15, 2026-09-26): the document chat is deleted, so M6 has no chat item.** M5 Task 1 deletes `/api/chat`, `streamChatWithModel` and `ChatTab.tsx`; there is no `chatTurn` workflow, no `ChatTurn` table, no chat route and no `@dbos-inc/vercel-ai`. The schema tab's durable interactive work is schema generation (`suggestSchema`, workflow ID prefix `suggestion:`) and edit proposals (`proposeSchemaEdit`, prefix `edit:`), both rowless and scoped only by their attributes. Hence: garbage collection knows two interactive prefixes and no chat row (Tasks 3, 5); the documentation tasks remove the document-chat mentions M5 leaves in `CONTEXT.md` (~:149), ADR 0007 (:9) and the `capability-route-resolution` OpenSpec spec, write no chat into any new text, and annotate the DBOS spec's remaining chat sections with a pointer to decision 15 (Tasks 10, 11, 13); the Spark smoke replaces its chat turn with an edit proposal across a reload and a Studio kill (Task 16 S7). This supersedes the first version's Ruling 3 (the Chat tab as developer-UI only). — *Cost if wrong:* the chat is rebuilt later from the spec's *Chat* sections, which stay (annotated), with its GC prefix and row check added back.
 4. **Ruling: the operations runbook states that the lock file moved from `.slot-<n>.lock` to `.worker-<n>.lock`**, so the old `kei-jobs` process must be stopped before the new worker starts; that the fail-open cancel-check warning is logged once per step; the backup set (a `free` dump, `source-inbox`, `parsing-runs`, `studio-data`, the CLI homes; no researcher key in any backup); DBOS inspection of both schemas; and the patch and version rules.
 5. **Ruling: residual M3 review minors are fixed here (Task 2):** `cli.py`'s `except Exception` becomes `BaseException` on a launch failure; DBOS's own "failed to launch" log is redacted like the worker's own message; cancellation is checked between the grounding batches inside `verify`.
 6. **Ruling: the cutover and the Spark end-to-end test are CONTROLLER-RUN (Tasks 15–16), and every push and every destructive or disruptive step needs the user's explicit yes at that moment**, in this session, even under the standing goal. vLLM model containers are never restarted.
+7. **Ruling (user, 2026-09-26): the cutover questions are answered.** (a) The controller pushes `feat/dbos-m2-m6` to `origin` and the **user** fetches it on the Spark (the Spark's key has a passphrase); no pull request is opened, so no GitHub `verify` run precedes the cutover. (b) `FREE_DEPLOYMENT_CLI_PROVIDERS` stays empty on the Spark: no CLI deployment connection is offered. (c) There is no second Entra account: S8's two-account check is covered by the local tests (M2's and M5's two-account and ownership tests) and recorded as not run on the Spark. (d) The Playwright MCP browser is already signed in to the Spark; the controller drives it and collects the server-side evidence over SSH. (e) The OCR check is the default OCR model `surya` with the non-default layout `layout_egret_xlarge`, and the run's recipe must name both (Task 16 S1, S9). Ruling 6 still applies: the push and every destructive step wait for the user's yes at that moment.
 
 ## Code facts this plan relies on (verified at f539911 and the M4/M5 plan interfaces)
 
@@ -37,19 +38,19 @@ Status: **not started (plan written 2026-09-26 against `feat/dbos-m2-m6` at f539
   - `kie/extract/run.py:158-165` calls `check()` once before each record's `verify(...)`; `stages.verify` (`stages.py:397-470`) may send several grounding batches per record with no check between them. `discover(..., before_call=check)` (`stages.py:154-160`) is the precedent. `workflows/cancel.py:53-59` logs the fail-open warning once per `CancelCheck`, i.e. once per step execution.
   - The lock file is `KEI_RUNS/.worker-<slot>.lock` (`workflows/slot.py:23-25`); the Procrastinate worker used `LOCK_DIR/.slot-<slot>.lock`, so the two never exclude each other.
   - `tests/test_delete_runs.py` covers `deleteRuns` with `runs`+`history` (including a simulated restart, `restart(kei)`), and `tests/test_worker_recovery.py`'s `site` fixture spawns real `kei-worker` processes whose gated native call waits for `control/release` (`tests/helpers/kei_worker.py`).
-- **Studio at f539911 and the M4/M5 plans:** `server/dbos.ts` (`launchStudioDbos({ databaseUrl, register, schema?, keiSchema?, executorId? })` reads `bootTimestampMs` from the database clock, registers, launches, registers `studio` and `suggest`, creates the `admission` and `kei` clients; `studioDbos()`, `databaseClockMs(url)`); `server/workflows.ts` (`registerStudioWorkflows(): void`, `STUDIO_WORKFLOW_NAMES`); M4 Task 3 `extraction/kei-handoff` (`KEI_QUEUE.gc = 'kei-gc'`, `keiConvertWorkflowId(parent)`, `keiExtractWorkflowId(id)`, `keiConvertOkSchema`, `createKeiHandoff(client)` with `enqueuePortable`, kei children carry their parent's attributes); M4 Task 5 `keiRunOf(preprocessId)`, `extractionAttributes()` including `keiRunId`, `WorkflowSteps`, `dbosSteps`, `isWorkflowCancellation`; M4 Task 4 `api/_source_inbox.ts` (`sourceInboxRoot()`, `uploadSourcePath(p, a)` = `<p>/<a>.pdf`, `reprocessSourcePath(p, d, k)` = `<p>/reprocess-<d>-<k>.pdf`, temporaries `<target>.<uuid>.tmp`, `removeStagedSource`); M4 Task 12 `cancelScopeWork`; the kei stand-in (`packages/extraction/src/testing/kei-stand-in.ts`) registers only `convert` and `extract`; the Studio PostgreSQL tier and crash harness (`test/support/postgres.ts`, `crash.ts`, `workflowChild.ts`, `scenarios/`); M5's `ChatTurn(answer, failure)`; M4's `Extraction.outcome` (nullable) and `BatchSchemaSuggestion.attempt`/`outcome`.
+- **Studio at f539911 and the M4/M5 plans:** `server/dbos.ts` (`launchStudioDbos({ databaseUrl, register, schema?, keiSchema?, executorId? })` reads `bootTimestampMs` from the database clock, registers, launches, registers `studio` and `suggest`, creates the `admission` and `kei` clients; `studioDbos()`, `databaseClockMs(url)`); `server/workflows.ts` (`registerStudioWorkflows(): void`, `STUDIO_WORKFLOW_NAMES`); M4 Task 3 `extraction/kei-handoff` (`KEI_QUEUE.gc = 'kei-gc'`, `keiConvertWorkflowId(parent)`, `keiExtractWorkflowId(id)`, `keiConvertOkSchema`, `createKeiHandoff(client)` with `enqueuePortable`, kei children carry their parent's attributes); M4 Task 5 `keiRunOf(preprocessId)`, `extractionAttributes()` including `keiRunId`, `WorkflowSteps`, `dbosSteps`, `isWorkflowCancellation`; M4 Task 4 `api/_source_inbox.ts` (`sourceInboxRoot()`, `uploadSourcePath(p, a)` = `<p>/<a>.pdf`, `reprocessSourcePath(p, d, k)` = `<p>/reprocess-<d>-<k>.pdf`, temporaries `<target>.<uuid>.tmp`, `removeStagedSource`); M4 Task 12 `cancelScopeWork`; the kei stand-in (`packages/extraction/src/testing/kei-stand-in.ts`) registers only `convert` and `extract`; the Studio PostgreSQL tier and crash harness (`test/support/postgres.ts`, `crash.ts`, `workflowChild.ts`, `scenarios/`); M5's rowless `suggestSchema` (`suggestion:<operationId>`, attributes `{ projectContextId, sourceDocumentId, sourceRepresentationRevisionId, extractionSchemaId: string | null }`) and `proposeSchemaEdit` (`edit:<operationId>`, attributes `{ projectContextId, extractionSchemaId, sourceDocumentId?, sourceRepresentationRevisionId? }`), and no new table (decision 15); M4's `Extraction.outcome` (nullable) and `BatchSchemaSuggestion.attempt`/`outcome`.
 - **Packages:** `packages/db/src/artifact-store.ts` publishes `<sha256>.zip` under `<studio data>/source-representations` via `<sha>.<uuid>.tmp` + `link`, reuses an existing valid package without touching it (`save`, 238-265), and removes by quarantine rename to `<sha>.<uuid>.deleting`, recheck, then unlink or restore (`remove`, 267-300). Deletion handlers call `discardPackagesIfUnreferenced` after commit (`project-store.ts:816-826`).
 - **Tests and CI:** `.github/workflows/verify.yml` and `scripts/test-ci.mjs` migrate `free_test_project_store` and `free_test_extraction` (= `DATABASE_URL`) and run `test:all:node`, whose `test:postgres:node` already includes `pnpm --filter studio test:postgres` (M4 Task 1); `packages/db`'s `test:postgres` already runs `source-reprocessing.postgres.check.ts` (`packages/db/package.json:14`); `pnpm test:e2e` uses the TypeScript kei stand-in and `pnpm test:service` the real `kei-worker` (M4 Ruling 12, Task 13). `tests/contract.test.mjs` (`pnpm test:system`): `helpers.mjs:59` and `contract.test.mjs:216-217` run `docker compose up`/`down` without `--profile mock-oidc`, so a stack it starts has no identity provider; `contract.test.mjs:170` expects a synchronous `outcome: 'SUCCEEDED'` from `POST /api/extractions`; the development overlay publishes `db` on `127.0.0.1:5432`, the same port as the disposable `free-m1-pg` container.
 - **Documents (stale lines verified):** `README.md:49-53` (#5, "schema and prompt revisions"), `:58-76` (#7, deployment-wide configuration and the reset), `:77-80` (#8), `:85-90` (#10, "OS credential store"), `:159-162` ("sync live"), `:204-221` (Extraction execution, "no remote cancellation"); `CONTEXT.md:132-157` (deployment-wide Model Connection, Capability Route and Extraction Model Choice; no Ingestion Model Choice; Model Attribution); `docs/adr/0006`, `0007`, `0011` (`model-config.json`, keyring, reset); `docs/operations/deployment.md:31-35, 61-107, 237-272, 294-331, 341-359`; `docs/operations/local-development.md:3-13, 36-81, 124-137, 162-172`; `docs/architecture/current.c4` (Procrastinate, parsing job database, `batch_worker`, `model_config` with the keyring) and its `README.md`; `prototypes/studio/README.md:45-69` (`model-config.json`, the credential store, Single model mode, "container keyring") and `:88-90`; `prototypes/parsing_service/docs/job-backend.md` (no superseded header); `docs/plans/2026-09-24-procrastinate-source-ingestion.md` **already** carries its superseded header; no Compose file names `model-config.json` or the reset (`grep` at f539911 printed nothing).
-- **The Spark (controller's record):** `geba@baratheon.cdch-dgxspark.lan.ku.dk`, aarch64 GB10, checkout `~/Projects/FREE` on `feat/kei-exp-parser`, deployed with `node scripts/free.mjs production` and `FREE_NGINX=container` at `https://baratheon.cdch-dgxspark.lan.ku.dk:11434/free` with real Entra; secrets in `~/free-secrets`; generated secrets in `.env` (never print it); non-interactive SSH lacks `~/.local/bin` and nvm's Node 24 on `PATH`; the key on the Spark has a passphrase, so fetch over an agent-forwarded session (`ssh -A`) with `GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=15" git fetch origin <branch>` then `git merge --ff-only`; a redeploy recreates only services whose config hash changed, and Studio restarts whenever a parsing service is recreated; the temporary TLS certificate is self-signed.
+- **The Spark (controller's record):** `geba@baratheon.cdch-dgxspark.lan.ku.dk`, aarch64 GB10, checkout `~/Projects/FREE` on `feat/kei-exp-parser`, deployed with `node scripts/free.mjs production` and `FREE_NGINX=container` at `https://baratheon.cdch-dgxspark.lan.ku.dk:11434/free` with real Entra; secrets in `~/free-secrets`; generated secrets in `.env` (never print it); non-interactive SSH lacks `~/.local/bin` and nvm's Node 24 on `PATH`; the key on the Spark has a passphrase, so the user fetches there (Ruling 7), e.g. over an agent-forwarded session (`ssh -A`) with `GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=15" git fetch origin <branch>` then `git merge --ff-only`; a redeploy recreates only services whose config hash changed, and Studio restarts whenever a parsing service is recreated; the temporary TLS certificate is self-signed.
 
 ## Global Constraints
 
 - **Worktree and branch:** `/home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6` on `feat/dbos-m2-m6`. Other agents write under `docs/plans/2026-09-24-unified-durable-execution-evidence/m0r*/`: never touch, stage or commit anything there. Stage explicit paths, never `git add -A .` at the root.
-- **Preconditions (Task 1 checks them and stops if any fails):** `grep -c "M5: interactive work on DBOS — done" docs/plans/2026-09-24-unified-durable-execution.md` prints 1; `grep -n "chatTurn\|runExtraction\|ingestSource\|reprocessSource\|suggestSchemaBatch" prototypes/studio/server/workflows.ts` lists M4's and M5's names; `grep -n "export function cancelScopeWork" prototypes/studio/api/_scope_cancellation.ts` finds it; `grep -n "keiRunId" packages/extraction/src/workflows.ts` finds it; `ls prototypes/studio/e2e/realService.ts prototypes/studio/playwright.recovery.config.ts packages/extraction/src/testing/kei-stand-in-client.ts` succeeds.
-- **Pins:** unchanged (`@dbos-inc/dbos-sdk` 5.1.10, `@dbos-inc/vercel-ai` 0.4.4, `dbos` 3.1.0). M6 adds no dependency.
+- **Preconditions (Task 1 checks them and stops if any fails):** `grep -c "M5: interactive work on DBOS — done" docs/plans/2026-09-24-unified-durable-execution.md` prints 1; `grep -niE "suggest_?schema|propose_?schema_?edit|run_?extraction|ingest_?source|reprocess_?source" prototypes/studio/server/workflows.ts` lists M4's and M5's names; `ls prototypes/studio/api/chat.ts prototypes/studio/src/ChatTab.tsx` fails and `grep -rnE "ChatTurn|chatTurn|streamChatWithModel" prototypes/studio packages/db/src --exclude-dir=node_modules` prints nothing (M5 Task 1 deleted the chat; decision 15); `grep -n "export function cancelScopeWork" prototypes/studio/api/_scope_cancellation.ts` finds it; `grep -n "keiRunId" packages/extraction/src/workflows.ts` finds it; `ls prototypes/studio/e2e/realService.ts prototypes/studio/playwright.recovery.config.ts packages/extraction/src/testing/kei-stand-in-client.ts` succeeds.
+- **Pins:** unchanged (`@dbos-inc/dbos-sdk` 5.1.10, `dbos` 3.1.0). M6 adds no dependency; `@dbos-inc/vercel-ai` is not installed (decision 15, M5 Ruling 2).
 - **Names (fixed):** workflow `collectGarbage` (registered only by `registerStudioWorkflows()`, explicit `name`); schedule `collectGarbage`, cron `*/10 * * * *`, `automaticBackfill: false`, queue `gc` (`globalConcurrency: 1`); kei `deleteRuns` enqueued portably by Studio's kei client as application `kei` on `kei-gc` under `kei-gc:<scheduledTime ISO>`; the operator command `pnpm --filter studio gc:now`.
-- **Policy (fixed, `GC_POLICY`):** interactive history (`suggestion:`, `edit:`, `chat:`) 24 h after completion; background history (`extract:`, `suggest:`, `ingest:`, `reprocess:`, `kei-extract:`) 30 days; the sweeps' own history (`sched-collectGarbage-*`, `kei-gc:*`) 24 h; packages, staged sources and their leftovers 24 h after their last modification; at most 1000 Studio histories deleted per sweep. Deleted scopes bypass age, never quiescence. No production setting shortens any of these; tests backdate file times (`utimes`) and, in disposable test schemas only, `completed_at`.
+- **Policy (fixed, `GC_POLICY`):** interactive history (`suggestion:`, `edit:`) 24 h after completion; background history (`extract:`, `suggest:`, `ingest:`, `reprocess:`, `kei-extract:`) 30 days; the sweeps' own history (`sched-collectGarbage-*`, `kei-gc:*`) 24 h; packages, staged sources and their leftovers 24 h after their last modification; at most 1000 Studio histories deleted per sweep. Deleted scopes bypass age, never quiescence. No production setting shortens any of these; tests backdate file times (`utimes`) and, in disposable test schemas only, `completed_at`.
 - **Rules the spec forbids breaking:** no new table, trigger, tombstone, cleanup-intent row, deletion barrier or status reconciler (spec *Rules*, *M6*). A failed status or reference read deletes nothing. A repeated cancel targets live statuses only. Studio never computes a kei run ID and never reads kei's run directory; kei never reads Studio's schemas.
 - **Never print secrets.** No test, script or runbook step prints a database URL with its password, `FREE_KEI_POSTGRES_PASSWORD`, `.env`, a planted key, a session cookie or an Entra credential. Logs from GC name error classes, never messages.
 - **Deletions:** implementer subagents may not run `git rm` without the user's authorization. Run plain `rm`, then `git add -A <those exact paths>`.
@@ -472,12 +473,12 @@ Deploy nothing before Task 14 is recorded; Task 15 is the only deployment.
 - Modify: `packages/db/src/index.ts` (exports), `packages/db/package.json` (`test:postgres` gains the check)
 
 **Interfaces:**
-- Consumes: M4's `Extraction.outcome` (nullable), `BatchSchemaSuggestion.attempt`/`outcome`; M5's `ChatTurn.answer`/`failure`; `SourceRepresentationRevision.preprocessId`/`artifactReference`.
+- Consumes: M4's `Extraction.outcome` (nullable), `BatchSchemaSuggestion.attempt`/`outcome`; `SourceRepresentationRevision.preprocessId`/`artifactReference`. M5 adds no table (spec decision 15: no `ChatTurn`); its `suggestion:` and `edit:` workflows are rowless and are scoped by their attributes only.
 - Produces (exported from `db`):
   ```ts
   export type ScopeIds = Readonly<{
     projectContextIds: readonly string[]; sourceDocumentIds: readonly string[]; sourceRepresentationRevisionIds: readonly string[]
-    extractionSchemaIds: readonly string[]; batchSchemaSuggestionIds: readonly string[]; extractionIds: readonly string[]; chatTurnIds: readonly string[]
+    extractionSchemaIds: readonly string[]; batchSchemaSuggestionIds: readonly string[]; extractionIds: readonly string[]
   }>
   export const EMPTY_SCOPE_IDS: ScopeIds
   export type ScopeSnapshot = Readonly<{
@@ -485,7 +486,6 @@ Deploy nothing before Task 14 is recorded; Task 15 is the only deployment.
     extractionSchemas: ReadonlySet<string>
     suggestions: ReadonlyMap<string, Readonly<{ attempt: number; settled: boolean }>>   // settled: the current attempt has an outcome
     extractions: ReadonlyMap<string, Readonly<{ settled: boolean }>>                    // settled: outcome is not null
-    chatTurns: ReadonlyMap<string, Readonly<{ settled: boolean }>>                      // settled: an answer or a failure
   }>
   export type GarbageReferences = Readonly<{
     scopes(ids: ScopeIds): Promise<ScopeSnapshot>                          // an ID absent from the snapshot no longer exists
@@ -497,7 +497,7 @@ Deploy nothing before Task 14 is recorded; Task 15 is the only deployment.
   ```
 
 - [ ] **Step 1: Write the failing check** (`garbage-references.postgres.check.ts`, in the pattern of `model-configuration.postgres.check.ts`: `PROJECT_STORE_POSTGRES_URL`, the disposable-target guard, dynamic imports after setting `DATABASE_URL`, its own account deleted in `after`)
-  - `scopes reports existing rows and the state of suggestions, Extractions and chat turns` (seed through the ORM: an account, a project, a document, a revision with `preprocessId: 'kei-exp:run-abc:g1'` and `artifactReference` = `artifactSha256` = 64 hex digits, an Extraction Schema, a suggestion at `attempt: 2` with an outcome, an Extraction with `outcome: null`, a chat turn with an answer; `scopes()` with those IDs and one random UUID per kind: every seeded ID is present, the random ones absent; `suggestions.get(id)` is `{ attempt: 2, settled: true }`, `extractions.get(id).settled === false`, `chatTurns.get(id).settled === true`).
+  - `scopes reports existing rows and the state of suggestions and Extractions` (seed through the ORM: an account, a project, a document, a revision with `preprocessId: 'kei-exp:run-abc:g1'` and `artifactReference` = `artifactSha256` = 64 hex digits, an Extraction Schema, a suggestion at `attempt: 2` with an outcome, an Extraction with `outcome: null`; `scopes()` with those IDs and one random UUID per kind: every seeded ID is present, the random ones absent; `suggestions.get(id)` is `{ attempt: 2, settled: true }`, `extractions.get(id).settled === false`).
   - `after the project is deleted, none of its scopes exist` (delete the `ProjectContext` row; the same `scopes()` call returns empty sets and maps).
   - `unknown or malformed IDs are absent, and a failed read rejects` (`scopes({ ...EMPTY_SCOPE_IDS, projectContextIds: ['not-a-uuid', 'A0000000-0000-4000-8000-000000000000'] })` resolves with no project — a malformed ID must not fail the read; a `createGarbageReferences(database)` over a facade whose pool was ended **rejects** on `scopes`, `referencedPreprocessIds` and `referencedPackages` rather than resolving empty).
   - `referencedPreprocessIds and referencedPackages name what surviving revisions reference` (the seeded revision's `preprocessId` is in the set; `referencedPackages([seeded, other])` is `{seeded}`; `packageIsReferenced(other) === false`).
@@ -515,7 +515,7 @@ Deploy nothing before Task 14 is recorded; Task 15 is the only deployment.
 
   export const EMPTY_SCOPE_IDS: ScopeIds = {
     projectContextIds: [], sourceDocumentIds: [], sourceRepresentationRevisionIds: [], extractionSchemaIds: [],
-    batchSchemaSuggestionIds: [], extractionIds: [], chatTurnIds: [],
+    batchSchemaSuggestionIds: [], extractionIds: [],
   }
 
   export function createGarbageReferences(database: Database = db): GarbageReferences {
@@ -525,16 +525,15 @@ Deploy nothing before Task 14 is recorded; Task 15 is the only deployment.
         const wanted = {
           projects: ids(input.projectContextIds), documents: ids(input.sourceDocumentIds),
           revisions: ids(input.sourceRepresentationRevisionIds), schemas: ids(input.extractionSchemaIds),
-          suggestions: ids(input.batchSchemaSuggestionIds), extractions: ids(input.extractionIds), turns: ids(input.chatTurnIds),
+          suggestions: ids(input.batchSchemaSuggestionIds), extractions: ids(input.extractionIds),
         }
-        const [projects, documents, revisions, schemas, suggestions, extractions, turns] = await Promise.all([
+        const [projects, documents, revisions, schemas, suggestions, extractions] = await Promise.all([
           wanted.projects.length ? orm.ProjectContext.where((row) => row.id.in(wanted.projects)).select('id').all() : [],
           wanted.documents.length ? orm.SourceDocument.where((row) => row.id.in(wanted.documents)).select('id').all() : [],
           wanted.revisions.length ? orm.SourceRepresentationRevision.where((row) => row.id.in(wanted.revisions)).select('id').all() : [],
           wanted.schemas.length ? orm.ExtractionSchema.where((row) => row.id.in(wanted.schemas)).select('id').all() : [],
           wanted.suggestions.length ? orm.BatchSchemaSuggestion.where((row) => row.id.in(wanted.suggestions)).select('id', 'attempt', 'outcome').all() : [],
           wanted.extractions.length ? orm.Extraction.where((row) => row.id.in(wanted.extractions)).select('id', 'outcome').all() : [],
-          wanted.turns.length ? orm.ChatTurn.where((row) => row.id.in(wanted.turns)).select('id', 'answer', 'failure').all() : [],
         ])
         const idSet = (rows: readonly { id: string }[]) => new Set(rows.map((row) => row.id))
         return {
@@ -542,7 +541,6 @@ Deploy nothing before Task 14 is recorded; Task 15 is the only deployment.
           sourceRepresentationRevisions: idSet(revisions), extractionSchemas: idSet(schemas),
           suggestions: new Map(suggestions.map((row) => [row.id, { attempt: row.attempt, settled: row.outcome !== null }])),
           extractions: new Map(extractions.map((row) => [row.id, { settled: row.outcome !== null }])),
-          chatTurns: new Map(turns.map((row) => [row.id, { settled: row.answer !== null || row.failure !== null }])),
         }
       },
       async referencedPreprocessIds() {
@@ -750,7 +748,7 @@ Nothing reads or deletes here: every rule of spec *Deletion and garbage collecti
   export type WorkflowRow = Readonly<{ workflowID: string; status: string; updatedAt?: number; completedAt?: number; attributes?: Readonly<Record<string, unknown>>; output?: unknown }>
   export const LIVE_STATUSES: readonly ['ENQUEUED', 'DELAYED', 'PENDING']
   export const TERMINAL_STATUSES: readonly ['SUCCESS', 'ERROR', 'CANCELLED', 'MAX_RECOVERY_ATTEMPTS_EXCEEDED']
-  export const STUDIO_WORKFLOW_PREFIXES: readonly ['extract:', 'suggest:', 'ingest:', 'reprocess:', 'suggestion:', 'edit:', 'chat:']
+  export const STUDIO_WORKFLOW_PREFIXES: readonly ['extract:', 'suggest:', 'ingest:', 'reprocess:', 'suggestion:', 'edit:']
   export const SWEEP_PREFIX = 'sched-collectGarbage-'
   export function quiescent(row: WorkflowRow | undefined, bootTimestampMs: number): boolean
   export function keiParentOf(keiWorkflowId: string): string | null
@@ -766,16 +764,15 @@ Nothing reads or deletes here: every rule of spec *Deletion and garbage collecti
   - Rules shared by every plan:
     - `a workflow is quiescent when absent, ended, or stopped before this boot` (absent, `SUCCESS`, `ERROR` → true; `CANCELLED`/`MAX_RECOVERY_ATTEMPTS_EXCEEDED` with `updatedAt` `BOOT − 1` → true; `BOOT`, `BOOT + 1` or missing → false; `ENQUEUED`, `DELAYED`, `PENDING`, an unknown status → false).
     - `maps kei-extract and kei-convert IDs to their Studio parents and nothing else` (`kei-extract:x` → `extract:x`; `kei-convert:ingest:p:a` → `ingest:p:a`; `kei-convert:reprocess:d:k` → `reprocess:d:k`; `kei-gc:t`, `other` → null).
-    - `collects every scope an attribute or a workflow ID names` (`scopeIdsOf` over `extract:e1`, `suggest:s1:3`, `chat:t1`, attributes with each key, and `extractionSchemaId: null`, which names nothing).
+    - `collects every scope an attribute or a workflow ID names` (`scopeIdsOf` over `extract:e1`, `suggest:s1:3`, `edit:o1` (names nothing by its ID), attributes with each key, and `extractionSchemaId: null`, which names nothing).
   - Repair (spec *Orphaned execution*, *Propagation is retried*):
     - `cancels a live runExtraction whose Extraction has an outcome or no longer exists`.
     - `cancels a live suggestion attempt that is settled, superseded by a later attempt, or deleted` (`suggest:s:2` with the row at attempt 3, or settled, or absent).
-    - `cancels a live chat turn that is answered, failed or deleted`.
     - `cancels live workflow-first work only when its scope is gone; a first generation's null schema names no scope` (`ingest:`, `reprocess:`, `suggestion:`, `edit:` with an existing scope stay; a missing project, document, revision or non-null schema cancels; `extractionSchemaId: null` never does).
     - `cancels a live kei child whose parent is terminal, absent, or cancelled in this sweep` (A7 "any late kei submission").
     - `leaves live work alone while its domain row is open and its scope exists`.
   - Studio history (spec *History retention*, *Cancelled Studio history*):
-    - `deletes settled interactive history after 24 h and background history after 30 days` (`completedAt` at `NOW − 25 h` for `chat:`/`suggestion:`/`edit:` → deleted; `extract:` at `NOW − 25 h` → kept, at `NOW − 31 d` → deleted).
+    - `deletes settled interactive history after 24 h and background history after 30 days` (`completedAt` at `NOW − 25 h` for `suggestion:`/`edit:` → deleted; `extract:` at `NOW − 25 h` → kept, at `NOW − 31 d` → deleted).
     - `deletes a deleted scope's settled history at any age` (A8).
     - `keeps history cancelled in this process at any age, even for a deleted scope` (A6: `CANCELLED`, `updatedAt: BOOT + 1`, `completedAt: NOW − 60 d`, project absent → kept).
     - `deletes history cancelled before this boot once its age or deleted scope allows` (A6).
@@ -814,16 +811,15 @@ Nothing reads or deletes here: every rule of spec *Deletion and garbage collecti
   }
   export const LIVE_STATUSES = ['ENQUEUED', 'DELAYED', 'PENDING'] as const
   export const TERMINAL_STATUSES = ['SUCCESS', 'ERROR', 'CANCELLED', 'MAX_RECOVERY_ATTEMPTS_EXCEEDED'] as const
-  export const STUDIO_WORKFLOW_PREFIXES = ['extract:', 'suggest:', 'ingest:', 'reprocess:', 'suggestion:', 'edit:', 'chat:'] as const
+  export const STUDIO_WORKFLOW_PREFIXES = ['extract:', 'suggest:', 'ingest:', 'reprocess:', 'suggestion:', 'edit:'] as const
   export const SWEEP_PREFIX = 'sched-collectGarbage-'
-  const INTERACTIVE_PREFIXES = ['suggestion:', 'edit:', 'chat:']
+  const INTERACTIVE_PREFIXES = ['suggestion:', 'edit:']
   const LIVE = new Set<string>(LIVE_STATUSES)
   const TERMINAL = new Set<string>(TERMINAL_STATUSES)
   const ENDED = new Set(['SUCCESS', 'ERROR'])
   const STOPPED = new Set(['CANCELLED', 'MAX_RECOVERY_ATTEMPTS_EXCEEDED'])
   const EXTRACT = /^extract:([^:]+)$/
   const SUGGEST = /^suggest:([^:]+):(\d+)$/
-  const CHAT = /^chat:([^:]+)$/
 
   /** Whether a Studio workflow can run no more steps: gone, ended, or stopped (both stamped from the database clock)
    *  before this process booted. A step of a workflow cancelled in this process may still be running and checkpoint
@@ -856,28 +852,26 @@ Nothing reads or deletes here: every rule of spec *Deletion and garbage collecti
 
   /** The row a row-backed workflow publishes into is gone. */
   function rowGone(row: WorkflowRow, scopes: ScopeSnapshot): boolean {
-    const extraction = EXTRACT.exec(row.workflowID), suggestion = SUGGEST.exec(row.workflowID), turn = CHAT.exec(row.workflowID)
+    const extraction = EXTRACT.exec(row.workflowID), suggestion = SUGGEST.exec(row.workflowID)
     if (extraction) return !scopes.extractions.has(extraction[1]!)
     if (suggestion) return !scopes.suggestions.has(suggestion[1]!)
-    if (turn) return !scopes.chatTurns.has(turn[1]!)
     return false
   }
 
   /** The domain already holds this attempt's outcome, or never will (spec, *Propagation is retried*). */
   function settled(row: WorkflowRow, scopes: ScopeSnapshot): boolean {
-    const extraction = EXTRACT.exec(row.workflowID), suggestion = SUGGEST.exec(row.workflowID), turn = CHAT.exec(row.workflowID)
+    const extraction = EXTRACT.exec(row.workflowID), suggestion = SUGGEST.exec(row.workflowID)
     if (extraction) return scopes.extractions.get(extraction[1]!)?.settled ?? true
     if (suggestion) {
       const current = scopes.suggestions.get(suggestion[1]!)
       return !current || current.attempt !== Number(suggestion[2]) || current.settled
     }
-    if (turn) return scopes.chatTurns.get(turn[1]!)?.settled ?? true
     return false
   }
 
   export function scopeIdsOf(rows: readonly WorkflowRow[]): ScopeIds {
     const projects = new Set<string>(), documents = new Set<string>(), revisions = new Set<string>(), schemas = new Set<string>()
-    const suggestions = new Set<string>(), extractions = new Set<string>(), turns = new Set<string>()
+    const suggestions = new Set<string>(), extractions = new Set<string>()
     const add = (set: Set<string>, value: unknown) => { if (typeof value === 'string') set.add(value) }
     for (const row of rows) {
       const attributes = row.attributes ?? {}
@@ -888,13 +882,11 @@ Nothing reads or deletes here: every rule of spec *Deletion and garbage collecti
       add(suggestions, attributes.batchSchemaSuggestionId)
       add(extractions, EXTRACT.exec(row.workflowID)?.[1])
       add(suggestions, SUGGEST.exec(row.workflowID)?.[1])
-      add(turns, CHAT.exec(row.workflowID)?.[1])
     }
     const sorted = (set: Set<string>) => [...set].sort()
     return {
       projectContextIds: sorted(projects), sourceDocumentIds: sorted(documents), sourceRepresentationRevisionIds: sorted(revisions),
       extractionSchemaIds: sorted(schemas), batchSchemaSuggestionIds: sorted(suggestions), extractionIds: sorted(extractions),
-      chatTurnIds: sorted(turns),
     }
   }
 
@@ -1546,7 +1538,7 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
 
 **Files:**
 - Create: `docs/adr/0012-one-durable-execution-layer.md`, `docs/adr/0013-per-researcher-model-configuration.md`
-- Modify: `docs/adr/0006-machine-wide-local-model-configuration.md`, `docs/adr/0007-two-explicit-model-capability-routes.md`, `docs/adr/0011-one-model-configuration-page.md`, `prototypes/parsing_service/docs/job-backend.md`, `docs/plans/2026-09-24-unified-durable-execution.md` (the M2 section's note only)
+- Modify: `docs/adr/0006-machine-wide-local-model-configuration.md`, `docs/adr/0007-two-explicit-model-capability-routes.md`, `docs/adr/0011-one-model-configuration-page.md`, `prototypes/parsing_service/docs/job-backend.md`, `docs/plans/2026-09-24-unified-durable-execution.md` (the M2 section's note and five decision-15 annotations only)
 
 - [ ] **Step 1: The failing check**
 
@@ -1556,6 +1548,8 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
   grep -L "Superseded by \[0013\]" docs/adr/0006-machine-wide-local-model-configuration.md                # prints the file today
   grep -L "Superseded" prototypes/parsing_service/docs/job-backend.md                                      # prints the file today
   grep -n "Superseded (not" docs/plans/2026-09-24-procrastinate-source-ingestion.md                        # already there: keep
+  grep -c "decision 15" docs/adr/0007-two-explicit-model-capability-routes.md                             # 0 today
+  grep -c "^> \*\*Not built (decision 15" docs/plans/2026-09-24-unified-durable-execution.md            # 0 today
   ```
 
 - [ ] **Step 2: Write ADR 0012** (`docs/adr/0012-one-durable-execution-layer.md`)
@@ -1575,8 +1569,8 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
   `ExtractionJob` rows in its web process; a restart reran an extraction from
   scratch and orphaned the Parsing Service's work. Batch Schema Suggestions ran
   from a pump that HTTP handlers kicked. An upload held a thirty-minute request
-  open. Chat, schema generation and edit proposals lived in the page, so a
-  reload lost them.
+  open. Schema generation and edit proposals lived in the page, so a reload
+  lost them.
 
   ## Decision
 
@@ -1586,14 +1580,15 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
     restricted role). Both schemas live in database `free`.
   - FREE's tables keep outcomes with research meaning. Execution status is
     derived from DBOS on read, never mirrored.
-  - Row-backed work (Extractions, Batch Extractions, suggestion attempts, chat
-    turns) is enqueued in the same transaction as its rows. Other work starts
+  - Row-backed work (Extractions, Batch Extractions, suggestion attempts) is
+    enqueued in the same transaction as its rows. Other work starts
     workflow-first under a client-minted or server-minted ID.
   - Studio hands conversions and extractions to the Parsing Service by portable
     enqueue on its lanes: a large and a small conversion lane, a two-slot
     extraction lane and a cleanup lane.
-  - Schema Suggestion, schema edit proposals and chat run as workflows; a chat
-    answer streams from DBOS, so a reload reconnects to it.
+  - Schema Suggestion and schema edit proposals run as workflows, so a reload
+    or a Studio restart finds them again. The document chat, which no page
+    had shown since August 2026, was deleted rather than made durable.
   - A ten-minute `collectGarbage` schedule removes canonical packages, staged
     sources, Parsing Service runs and both workflow histories by reference,
     retention and quiescence. Cancelled work is cleaned up only after the
@@ -1684,7 +1679,7 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
 - [ ] **Step 4: Amend 0006, 0007, 0011; mark `job-backend.md`; annotate the spec's M2 section**
 
   - `0006`: insert after the title: `> **Superseded by [0013](0013-per-researcher-model-configuration.md)** (2026-09-26): model configuration belongs to each Researcher Account in PostgreSQL, keys stay in the researcher's browser, and hosted deployment is supported. The text below is the historical decision.`
-  - `0007`: extend the existing blockquote with a second paragraph: `> Amended by [0013](0013-per-researcher-model-configuration.md): both routes belong to each Researcher Account; an unset Schema Suggestion Route follows the Interaction Route; and the NuExtract protocol is derived from the connection (vLLM) and the model ID (NuExtract), never stored or chosen.`
+  - `0007`: extend the existing blockquote with a second paragraph: `> Amended by [0013](0013-per-researcher-model-configuration.md): both routes belong to each Researcher Account; an unset Schema Suggestion Route follows the Interaction Route; and the NuExtract protocol is derived from the connection (vLLM) and the model ID (NuExtract), never stored or chosen.` and a third: `> Amended by the DBOS plan's decision 15 (2026-09-26): the document chat was deleted, so the Interaction Route serves conversational Extraction Schema editing (edit proposals) only.`
   - `0011`: the status line becomes `Date: 2026-09-23. Status: accepted; amends [0007](…) and the Studio part of [0010](…); amended by [0013](0013-per-researcher-model-configuration.md).` Delete the paragraph that begins "There is no migration: a `model-config.json` saved by an earlier Studio fails closed" and append:
     ```markdown
     ## Amendment (0013, 2026-09-26)
@@ -1698,7 +1693,13 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
     and `DELETE /api/model_config` are gone, and nothing is kept in a keyring.
     ```
   - `prototypes/parsing_service/docs/job-backend.md`: insert after the title: `> **Superseded (2026-09-26)** by [ADR 0012](../../../docs/adr/0012-one-durable-execution-layer.md): the Parsing Service runs on DBOS (\`kei_exp.workflows\`); Procrastinate and its job database are gone. This record is kept for its measurements.`
-  - `docs/plans/2026-09-24-unified-durable-execution.md`: directly under the line that starts `**M2: platform, baseline and configuration — done`, insert: `> Some items below moved to later milestones: the Compose removals, \`source-inbox\` and the worker waiting for Studio (M3/M4), \`scripts/free.mjs\`'s \`parsing_db\` and two safety tests (M3), the baseline's job, member, ingestion-key and suggestion edits (M4) and \`ChatTurn\` (M5), and the key wrapper's \`cancelSignal\` (M4/M5). The [M2 plan's deferral table](2026-09-26-dbos-m2-platform-configuration.md#deferred-to-later-milestones-spec-m2-items-this-plan-does-not-do) lists each with its milestone.`
+  - `docs/plans/2026-09-24-unified-durable-execution.md`: directly under the line that starts `**M2: platform, baseline and configuration — done`, insert: `> Some items below moved to later milestones: the Compose removals, \`source-inbox\` and the worker waiting for Studio (M3/M4), \`scripts/free.mjs\`'s \`parsing_db\` and two safety tests (M3), the baseline's job, member, ingestion-key and suggestion edits (M4; \`ChatTurn\` was dropped by decision 15), and the key wrapper's \`cancelSignal\` (M4/M5). The [M2 plan's deferral table](2026-09-26-dbos-m2-platform-configuration.md#deferred-to-later-milestones-spec-m2-items-this-plan-does-not-do) lists each with its milestone.`
+  - `docs/plans/2026-09-24-unified-durable-execution.md`, decision 15's pointers: decision 15 already says "the chat items elsewhere in this plan are superseded"; mark the five places a reader acts on. Each is one blockquote line of its own (blank lines around it), starting `> **Not built (decision 15, 2026-09-26):**`, inserted at the place named; the chat text itself stays as the design a later rebuild would start from:
+    1. *Pins* — directly after the paragraph that begins "Everything below uses features of the pins" (and its bullet list): `> **Not built (decision 15, 2026-09-26):** \`@dbos-inc/vercel-ai\` and its \`readDurableStream\` served only the document chat, which M5 deleted; neither is installed or used.`
+    2. *Rules → Secrets never enter DBOS* — directly after that bullet (before "**A new mechanism must delete more than it adds.**", as a paragraph between the two bullets): `> **Not built (decision 15, 2026-09-26):** the sentences from "For chat, that boundary belongs to \`durableCalls\`" to the end of the bullet describe the deleted document chat; generation and edit proposals sanitize inside their own steps.`
+    3. *Interactive model work → Chat* — directly before the bullet that starts "**Chat (\`chatTurn\`).**": `> **Not built (decision 15, 2026-09-26):** the document chat was deleted in M5 instead of made durable: no \`chatTurn\` workflow, \`ChatTurn\` table, chat routes or \`ChatTab\`. The schema tab's durable interactive work is *Generation* and *Edit proposals* above.`
+    4. *Public contract changes* — directly under the heading: `> **Not built (decision 15, 2026-09-26):** the chat-request bullet below; \`/api/chat\` was deleted with no alias, and the dispatcher answers it 404.`
+    5. *Verification* — directly under the heading: `> **Not built (decision 15, 2026-09-26):** the chat items below (active-chat exclusion, one answer per chat turn, a reload mid-chat, chat reconnect and re-POST recovery, chat across a reload and a restart) are not verified; generation and edit proposals are. \`free-document-chat\` stays in the residue search.`
 
 - [ ] **Step 5: Run the check and commit**
 
@@ -1707,6 +1708,8 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
   grep -L "Superseded by \[0013\]" docs/adr/0006-machine-wide-local-model-configuration.md          # prints nothing
   grep -L "Superseded" prototypes/parsing_service/docs/job-backend.md                                 # prints nothing
   grep -n "There is no migration" docs/adr/0011-one-model-configuration-page.md                       # prints nothing
+  grep -c "decision 15" docs/adr/0007-two-explicit-model-capability-routes.md                         # 1
+  grep -c "^> \*\*Not built (decision 15" docs/plans/2026-09-24-unified-durable-execution.md        # 5
   git add docs/adr prototypes/parsing_service/docs/job-backend.md docs/plans/2026-09-24-unified-durable-execution.md
   git commit -m "docs(adr): record one durable execution layer and per-researcher model configuration"
   ```
@@ -1720,7 +1723,7 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
 
   ```bash
   cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6
-  grep -nE "prompt revisions|deployment-wide|credential store|OS credential|confirmed reset|keyring|model-config\.json|Single model|no remote cancellation|Polling waits|sync live|in-memory queue" \
+  grep -niE "prompt revisions|deployment-wide|credential store|OS credential|confirmed reset|keyring|model-config\.json|Single model|no remote cancellation|Polling waits|sync live|in-memory queue|document chat|chat turn|chat transcript" \
     README.md CONTEXT.md prototypes/studio/README.md prototypes/studio/CLAUDE.md prototypes/parsing_service/README.md prototypes/parsing_service/CLAUDE.md
   ```
   Expected today: many hits. After this task: none.
@@ -1728,7 +1731,7 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
 - [ ] **Step 2: `README.md`**
 
   - Product contract #5 becomes:
-    > 5. **Durable, versioned state.** Project Contexts, source documents and their representation revisions, schema revisions, extractions, chat transcripts, and review decisions survive ordinary restarts. One Extraction record carries a run from admission to its outcome and on to its reviews; it stays pinned to the source-representation and schema revisions it used, so newer revisions can make it stale without rewriting its history. Work in progress survives too: it runs as DBOS workflows inside Studio and the Parsing Service, which resume after a restart, and its status is derived from them rather than stored twice.
+    > 5. **Durable, versioned state.** Project Contexts, source documents and their representation revisions, schema revisions, extractions, and review decisions survive ordinary restarts. One Extraction record carries a run from admission to its outcome and on to its reviews; it stays pinned to the source-representation and schema revisions it used, so newer revisions can make it stale without rewriting its history. Work in progress survives too: it runs as DBOS workflows inside Studio and the Parsing Service, which resume after a restart, and its status is derived from them rather than stored twice.
   - #7 becomes (keep today's two sentences on output formatting, from "For those provider calls, output formatting is automatic" through "Output formatting has no route override.", where marked):
     > 7. **Model-provider surface.** Each Researcher Account owns its model configuration, stored in PostgreSQL: its Model Connections, the Assistant model (the Interaction Route) and the Schema Suggestion Route, the Extraction Model Choice and the Ingestion Model Choice. A Project Context uses its owner's configuration. The Model Configuration page supports Ollama, OpenAI, Anthropic, Google, vLLM and OpenAI-compatible connections. A researcher's API keys stay in their own browser; Studio holds a copy only in memory while it needs one, and never in PostgreSQL, on disk, in logs or in workflow history. The deployment's own model servers are read-only deployment connections that every researcher can use: its vLLM servers with the GPU overlay, and the Codex CLI and Claude Code providers when the operator enables them with `FREE_DEPLOYMENT_CLI_PROVIDERS`; those run on the server's own CLI login. An unset Assistant model runs on the deployment's instruction model, and an unset Schema Suggestion Route follows the Assistant model. The Ingestion Model Choice picks the Parsing Service's OCR and layout models for new ingestions and reprocessing only; existing revisions never change. Extraction execution is delegated to the included Parsing Service; FREE uses the configured provider directly for Schema Suggestion and Interaction. ⟨today's output-formatting sentences⟩ On a vLLM connection, Schema Suggestion uses the NuExtract protocol whenever the model is NuExtract; nothing selects it by hand. The configuration is validated whenever it is saved, so there is no reset.
   - #8 becomes:
@@ -1738,8 +1741,7 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
   - *Quickstart*: "Migrations finish before the replacement processes start, and source changes then sync live." becomes "Migrations finish before the replacement processes start. Afterwards, a browser-code change reloads in place and a server-code change restarts Studio (Compose Watch)."
   - *Extraction execution*: replace from "Polling waits up to ten minutes" to the end of the paragraph with: "Each Extraction runs as a durable workflow: Studio hands it to the Parsing Service's worker on its extraction lane, whose deadline is ten minutes for Article and three hours for Catalog, counted from when the worker starts it. Cancelling an Extraction records the cancellation and stops the Parsing Service's work too. A failed extraction carries the Parsing Service's own reason. There is no targeted Catalog retry; start a new Extraction to rerun."
   - *Verification* table: the `pnpm test:postgres` row names the Studio PostgreSQL tier ("Studio's DBOS workflows, db, extraction and Parsing Service PostgreSQL checks against caller-provisioned disposable loopback `free_test_*` databases; the DBOS checks create and drop their own schemas").
-  - Add one sentence at the end of *Start*: "Document chat is a developer view: it appears only in builds made with `VITE_SHOW_DEVELOPER_UI=true`, which the development overlay sets."
-- [ ] **Step 3: `CONTEXT.md`** (replace the entries named; add the two new ones after **Extraction Model Choice**)
+- [ ] **Step 3: `CONTEXT.md`** (replace the entries named; add the new **Ingestion Model Choice** after **Extraction Model Choice**; `CONTEXT.md:149`'s "document chat" goes with the **Interaction Route** entry, and there is no **Chat Turn** entry: decision 15)
 
   ```markdown
   **Model Connection**:
@@ -1763,15 +1765,11 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
   _Avoid_: OCR setting, parser model
 
   **Interaction Route**:
-  The Capability Route used for document chat and conversational Extraction Schema editing. The Model Configuration page calls it the *Assistant model*.
+  The Capability Route used for conversational Extraction Schema editing: the schema panel's "Describe a change to the schema…" and the edit proposals it returns. The Model Configuration page calls it the *Assistant model*.
   _Avoid_: chat model, chat route
 
-  **Chat Turn**:
-  One question about a Source Representation Revision and its answer or failure. Turns are kept in FREE's tables, so a transcript survives a reload; a transcript belongs to one revision and does not carry over to a reprocessed one.
-  _Avoid_: message, conversation
-
   **Model Attribution**:
-  A sanitized snapshot of the Model Connection, model, and execution profile used for a specific piece of model work. Extractions record it. Interactive model work — chat answers, generated schemas and schema edit proposals — records none, so a recovered or replayed result never gains an attribution reconstructed from today's routes. It never contains credentials and does not replace source-backed Evidence.
+  A sanitized snapshot of the Model Connection, model, and execution profile used for a specific piece of model work. Extractions record it. Interactive model work — generated schemas and schema edit proposals — records none, so a recovered or replayed result never gains an attribution reconstructed from today's routes. It never contains credentials and does not replace source-backed Evidence.
   _Avoid_: model provenance, current model, evidence
   ```
 
@@ -1805,10 +1803,9 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
     ## DBOS
 
     - `server/dbos.ts` launches DBOS once per process; never call `DBOS.launch()` elsewhere, and never register a workflow at module import (the API dispatcher and several tests import every handler). `registerStudioWorkflows()` registers each workflow with an explicit `name` (bundlers rename functions).
-    - `@dbos-inc/dbos-sdk` and `@dbos-inc/vercel-ai` stay external to the server bundle (`vite.server.config.ts`).
+    - `@dbos-inc/dbos-sdk` stays external to the server bundle (`vite.server.config.ts`).
     - A change to a workflow's step sequence goes behind `DBOS.patch()`; `studio@1` changes only after draining. Workflow inputs carry IDs, never keys or document text.
     - The development host keeps the first DBOS launch across recompositions; after editing a workflow module restart Studio (Compose Watch does).
-    - Document chat is developer UI: the Chat tab renders only with `VITE_SHOW_DEVELOPER_UI=true`.
     ```
   - `prototypes/parsing_service/README.md`: confirm the worker section describes `kei-worker worker`, the four lanes, `KEI_SYSTEM_DATABASE_URL`, the `.worker-<slot>.lock` and the boot timestamp (M3 wrote it); add after it: "Studio's `collectGarbage` names the conversions whose runs nothing references and the kei history that may go; `deleteRuns` deletes each run only once no kei workflow that could still write it is live or stopped since this worker booted, then that conversion's history. kei never reads Studio's schemas."
   - `prototypes/parsing_service/CLAUDE.md`: "…this internal service owns parsing, extraction, canonical evidence and durable jobs." becomes "…canonical evidence, and its DBOS worker (`kei_exp.workflows`, schema `kei_dbos`, its own restricted role)." and add: "A change to a workflow's steps goes behind `DBOS.patch()` (`enable_patching` is on); `kei@1` changes only after draining."
@@ -1816,7 +1813,7 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
 - [ ] **Step 5: Run the check and commit**
 
   ```bash
-  grep -nE "prompt revisions|deployment-wide|credential store|OS credential|confirmed reset|keyring|model-config\.json|Single model|no remote cancellation|Polling waits|sync live|in-memory queue" \
+  grep -niE "prompt revisions|deployment-wide|credential store|OS credential|confirmed reset|keyring|model-config\.json|Single model|no remote cancellation|Polling waits|sync live|in-memory queue|document chat|chat turn|chat transcript" \
     README.md CONTEXT.md prototypes/studio/README.md prototypes/studio/CLAUDE.md prototypes/parsing_service/README.md prototypes/parsing_service/CLAUDE.md
   # prints nothing
   git add README.md CONTEXT.md prototypes/studio/README.md prototypes/studio/CLAUDE.md prototypes/parsing_service/README.md prototypes/parsing_service/CLAUDE.md
@@ -1875,7 +1872,7 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
 
     | Schema | Owner | Holds |
     | --- | --- | --- |
-    | `public` | Studio | Research state, each account's model configuration (no keys), chat turns |
+    | `public` | Studio | Research state and each account's model configuration (no keys) |
     | `dbos` | Studio | Studio's workflows; queues `studio`, `suggest` and `gc`; the `collectGarbage` schedule |
     | `kei_dbos` | role `kei` | The Parsing Service's workflows; lanes `kei-convert-large`, `kei-convert-small`, `kei-extract`, `kei-gc` |
 
@@ -1902,7 +1899,7 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
 
     Stop `studio` and `parsing_worker` first, so nothing writes while the backup runs. The backup set is:
 
-    - `pg_dump -Fc free` (all three schemas; it includes chat transcripts and workflow history — interactive results for up to about a day, background inputs for up to about 30 days);
+    - `pg_dump -Fc free` (all three schemas; it includes workflow history — interactive results for up to about a day, background inputs for up to about 30 days);
     - the `source-inbox`, `parsing-runs` and `studio-data` volumes;
     - the CLI homes: `studio-config` (the Codex login under `codex/`) and `studio-claude`;
     - outside Compose: `.env` and the secret files it names.
@@ -1920,7 +1917,7 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
     5. In `.env`, add `FREE_KEI_POSTGRES_PASSWORD` (`openssl rand -hex 32`), set `FREE_DEPLOYMENT_CLI_PROVIDERS` if wanted, and remove `FREE_PARSING_POSTGRES_PASSWORD`.
     6. Start: `node scripts/free.mjs production`. The baseline migration, the `kei` role and schema, and both DBOS schemas are created at startup.
     7. Check: the health route; `\dn` lists `public`, `dbos` and `kei_dbos`; `SET ROLE kei; SELECT 1 FROM public."ProjectContext"` is denied; `dbos.workflow_schedules` has `collectGarbage`; the worker logged `serving`.
-    8. Smoke-test: upload; an extraction and a cancel; a Batch Schema Suggestion; a generation, a schema edit and a chat question across a reload and a Studio restart; a second account sees none of the first's configuration, operations or chat; delete a project and run `gc:now`.
+    8. Smoke-test: upload; an extraction and a cancel; a Batch Schema Suggestion; a generation and a schema edit proposal across a reload and a Studio restart; a second account, where one exists, sees none of the first's configuration or operations; delete a project and run `gc:now`.
 
     Never restart a model server as part of this: if `docker compose config --hash '*'` shows a model server's hash changed, stop and decide first.
     ~~~
@@ -1942,7 +1939,7 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
   In `model { … }`, replace the `studio` and `parsing_service` blocks and the datastores after them with:
   ```
   studio = system 'Studio Application' 'React UI plus a production Hono Node host on one authenticated same-origin boundary; DBOS runs inside the same process.' {
-    ui = container 'React UI' 'Source Document viewer, browser annotations, schema editor, Extraction Results, Evidence, the Model Configuration page, and (developer UI only) document chat.' 'React'
+    ui = container 'React UI' 'Source Document viewer, browser annotations, schema editor, Extraction Results, Evidence and the Model Configuration page.' 'React'
     key_store = component 'Browser key store' 'Each researcher''s API keys in localStorage, per account, connection and API base.' 'TypeScript, localStorage'
     browser_http = component 'Browser HTTP adapter' '`src/api.ts`, `src/projectContexts.ts` and `src/schemaRevisions.ts` send same-origin requests; `authenticatedFetch` resends keys when the Studio boot ID changes.' 'TypeScript'
     handlers = container 'Hono Node host' '`server/*.ts` authenticates and scopes browser requests, serves the built client, and dispatches `api/*.ts` same-origin handlers.' 'Hono, Node.js'
@@ -1952,7 +1949,7 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
     key_cache = component 'Key cache' 'Researcher keys in Studio''s memory only, per account and connection.' 'TypeScript'
     extraction_module = component 'Extraction module' '`packages/extraction` admits an Extraction row and its `runExtraction` workflow in one transaction, hands the work to the Parsing Service''s lanes, and owns review and PostgreSQL persistence.' 'TypeScript, Prisma Next'
     garbage = component 'Garbage collection' '`collectGarbage` repairs missed cancels and removes packages, staged sources, Parsing Service runs and workflow history by reference, retention and quiescence.' 'TypeScript, DBOS'
-    project_store = component 'ProjectStore' '`packages/db` owns Project Store reads and writes, including each account''s model configuration and chat turns; handlers hold no SQL.' 'TypeScript, Prisma Next'
+    project_store = component 'ProjectStore' '`packages/db` owns Project Store reads and writes, including each account''s model configuration; handlers hold no SQL.' 'TypeScript, Prisma Next'
   }
 
   parsing_service = system 'Parsing Service' 'Included Python service for PDF parsing, extraction and grounding; its DBOS worker runs the work Studio enqueues.' {
@@ -1962,7 +1959,7 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
     task_cache = datastore 'Canonical service runs' 'Run directories: the verified source copy, generation-pinned page artifacts and extraction outputs; deleted by deleteRuns once nothing references them.'
   }
 
-  project_db = datastore 'PostgreSQL free' 'Schema `public`: Researcher Accounts, their model configuration (no keys) and account-owned research state including chat turns. Schemas `dbos` (Studio) and `kei_dbos` (the Parsing Service, its own role): DBOS system state.' 'PostgreSQL 17, Prisma Next, DBOS'
+  project_db = datastore 'PostgreSQL free' 'Schema `public`: Researcher Accounts, their model configuration (no keys) and account-owned research state. Schemas `dbos` (Studio) and `kei_dbos` (the Parsing Service, its own role): DBOS system state.' 'PostgreSQL 17, Prisma Next, DBOS'
   package_store = datastore 'Canonical ingestion packages' 'Content-addressed portable packages in the `FREE Studio` data directory. The Project Store keeps only the package reference.' 'Operating system data directory'
   source_inbox = datastore 'Source inbox' 'Staged source PDFs named by project and attempt: written by Studio, read by the Parsing Service''s worker.' 'Docker volume'
   model_connections = external 'Model Connections' 'Researchers'' own HTTP model providers, and the deployment''s vLLM servers and enabled CLI providers.'
@@ -1981,12 +1978,12 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
   studio.handlers -> studio.key_cache 'Keeps keys sent with PUT /api/model-keys; clears them at sign-out'
   studio.handlers -> studio.provider_registry 'Probes a connection'
   studio.handlers -> studio.extraction_module 'Admits and reopens Extractions; records versioned reviews; admits and reads batches'
-  studio.handlers -> studio.project_store 'Reads a snapshot; manages Project Contexts, Source Documents, schemas, model configuration and chat turns'
+  studio.handlers -> studio.project_store 'Reads a snapshot; manages Project Contexts, Source Documents, schemas and model configuration'
   studio.handlers -> source_inbox 'Stages an uploaded PDF under its project and attempt'
   studio.handlers -> package_store 'Reads the pdf, markdown and source entries; discards the packages a deletion left unreferenced'
   studio.durable -> project_db 'Checkpoints Studio workflows in dbos; enqueues kei work in kei_dbos'
   studio.durable -> studio.extraction_module 'Runs runExtraction'
-  studio.durable -> studio.provider_registry 'Runs Schema Suggestion, edit proposals and chat turns'
+  studio.durable -> studio.provider_registry 'Runs Schema Suggestion and edit proposals'
   studio.durable -> studio.garbage 'Runs collectGarbage every ten minutes'
   studio.durable -> parsing_service.http_api 'Reads converted manifests and pages'
   studio.project_store -> project_db 'Reads and writes through Prisma Next'
@@ -2005,7 +2002,7 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
   parsing_service.parser -> parsing_service.task_cache 'Publishes canonical pages and extraction artifacts; deletes unreferenced runs'
   parsing_service.http_api -> parsing_service.task_cache 'Serves canonical artifacts'
   ```
-  Views: in `current_context` and `current_modules`, replace `model_config` with `source_inbox` in the `include` lists, and in `current_context`'s description replace "Model configuration and credentials remain deployment-wide shared state." with "Each Researcher Account owns its model configuration; keys stay in researchers' browsers and in Studio's memory." and "The Parsing Service job database and run directory are durable" with "The run directory and the source inbox are durable". In `local_compose_topology` and `local_entra_topology`, `studio.handlers -> parsing_service.http_api 'Submit and poll parsing tasks'` becomes `studio.durable -> parsing_service.http_api 'Read converted manifests and pages'`. In `schema_guided_extraction`, the generation and edit steps go through `studio.durable` (`studio.handlers -> studio.durable 'Start suggestSchema and wait for it'`, `studio.durable -> studio.provider_registry 'Resolve the owner''s Schema Suggestion Route'`, and likewise `proposeSchemaEdit` with the Interaction Route), and the extraction steps become:
+  Views: in `current_context` and `current_modules`, replace `model_config` with `source_inbox` in the `include` lists, and in `current_context`'s description replace "Model configuration and credentials remain deployment-wide shared state." with "Each Researcher Account owns its model configuration; keys stay in researchers' browsers and in Studio's memory." and "The Parsing Service job database and run directory are durable" with "The run directory and the source inbox are durable". In `local_compose_topology` and `local_entra_topology`, `studio.handlers -> parsing_service.http_api 'Submit and poll parsing tasks'` becomes `studio.durable -> parsing_service.http_api 'Read converted manifests and pages'`. In `schema_guided_extraction`, the generation and edit steps go through `studio.durable` (`studio.handlers -> studio.durable 'Start suggestSchema and wait for it'`, `studio.durable -> studio.provider_registry 'Resolve the owner''s Schema Suggestion Route'`, and likewise `proposeSchemaEdit` with the Interaction Route); in its description, "The Interaction Route serves chat and conversational schema edits." becomes "The Interaction Route serves conversational schema edits." (decision 15); and the extraction steps become:
   ```
     studio.ui -> studio.handlers 'POST /api/extractions with the pinned Source Representation and Schema Revision'
     studio.handlers -> studio.extraction_module 'Admit the Extraction row and runExtraction in one transaction'
@@ -2096,7 +2093,8 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
   grep -nE "job database|job PostgreSQL|schema initializer|Parsing PostgreSQL|job store|Reset model configuration|deployment-wide|credential state|sync live" docs/operations/deployment.md
   grep -nE "FREE_PARSING_POSTGRES_PASSWORD|kei-jobs|model-config\.json" docs/operations/deployment.md
   grep -nE "Procrastinate|jobs = datastore|batch_worker|model_config =|keyring|POST /api/runs" docs/architecture/current.c4
-  # the first, second and fourth print nothing; the third prints only lines of the cutover runbook section, which names
+  grep -niE "document chat|chat turn|chat transcript|serves chat" docs/operations docs/architecture -r
+  # the first, second, fourth and fifth print nothing; the third prints only lines of the cutover runbook section, which names
   # the old password, the old worker and the obsolete file on purpose
   pnpm architecture:check
   git add docs/operations docs/architecture .env.example
@@ -2129,6 +2127,7 @@ Edited in place (Plan decision 10). Each spec keeps its file and its `## Purpose
   ```bash
   cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6
   grep -nE "machine-wide|model-config\.json|keyring|credential store|keyring_unavailable|Single model|nuextractRaw|Extraction Route|POST /tasks|one-hour grace|Seven provider kinds|duplicate CLI" openspec/specs/{model-connection-configuration,capability-route-resolution,source-document-ingestion,schema-chat-edit}/spec.md
+  grep -niE "document.chat" openspec/specs/capability-route-resolution/spec.md    # hits at 8, 16, 18, 48, 77, 79, 81 today
   ```
   Expected today: many hits. After: none.
 
@@ -2143,11 +2142,11 @@ Edited in place (Plan decision 10). Each spec keeps its file and its `## Purpose
   8. **The Model Configuration page follows the researcher's work.** The page SHALL have Models and Connections tabs sharing one draft and one Apply. Models SHALL have three steps: *Reading documents* (the Ingestion Model Choice), *Schema & chat* (the *Assistant model*, which is the Interaction Route; Schema Suggestion follows it until given its own route, and an explicit Schema Suggestion route stays explicit even when equal to it) and *Extracting data* (the Extraction Model Choice). "Use defaults" SHALL remove a step's stored choice. There SHALL be no Single/Routes mode. Scenarios: *An unset Schema Suggestion route follows the Assistant model*; *An explicit route stays explicit across a reload*; *Use defaults removes the stored choice*; *A manual model ID is displayed* (today's scenario).
   9. **The Ingestion Model Choice lists what the deployment serves.** The page SHALL offer OCR models from `GET /api/ingestion-models`, marking one the OCR server does not serve as not selectable, and layout presets, which are always selectable. A saved choice the listing no longer offers SHALL stay saved and shown; a listing failure SHALL block no other edit. Scenarios: *An OCR model the server does not serve cannot be chosen*; *A saved choice the listing dropped stays*; *A listing failure blocks nothing else*.
 - [ ] **Step 3: `capability-route-resolution`** — Purpose: "Maps every Studio model operation to its Project Context owner's route, with the deployment's defaults for unset routes." Requirements:
-  1. **Two Capability Routes per Researcher Account.** Schema Suggestion SHALL resolve the Schema Suggestion Route; document chat and conversational schema editing SHALL resolve the Interaction Route. Extraction runs in the Parsing Service on the Extraction Model Choice and resolves no Capability Route. Every operation, background work included, SHALL resolve the Project Context owner's configuration when it starts. Scenarios: *Schema Suggestion is routed*; *Chat and schema editing are routed*; *Another account's routes are never consulted*.
+  1. **Two Capability Routes per Researcher Account.** Schema Suggestion SHALL resolve the Schema Suggestion Route; conversational Extraction Schema editing (edit proposals) SHALL resolve the Interaction Route. Extraction runs in the Parsing Service on the Extraction Model Choice and resolves no Capability Route. Every operation, background work included, SHALL resolve the Project Context owner's configuration when it starts. Scenarios: *Schema Suggestion is routed*; *Schema editing is routed*; *Another account's routes are never consulted*.
   2. **Resolution uses one exact target, with named defaults.** An unset Interaction Route SHALL resolve to the deployment's instruction model when the deployment serves one; an unset Schema Suggestion Route SHALL resolve `schemaSuggestion ?? interaction ?? default`. Nothing else substitutes. (Keep *The selected model was entered manually* and *Environment settings are present*.) Scenarios: *An unset Schema Suggestion Route follows the Interaction Route*; *With no route and no deployment default the operation fails with `invalid_model_config`*.
   3. **The NuExtract protocol is derived.** Schema Suggestion SHALL use the NuExtract protocol exactly when the route's connection is vLLM and its model ID names NuExtract (`/nuextract/i`); no route stores or selects a protocol, and no other route uses it. Scenario: *All four combinations of vLLM or not and NuExtract model or not* (only vLLM + NuExtract uses the protocol).
-  4. (Keep **Interaction context uses canonical Source Document Markdown** and **Explicit unsupported temperature fails before model invocation** unchanged.)
-  5. **A recovered operation resolves again and records no attribution.** A workflow SHALL carry only IDs; each attempt resolves the owner's current route and key. Interactive results (generations, edit proposals, chat answers) record no Model Attribution. Scenario: *A route changed between two attempts runs the second attempt on the new route*.
+  4. (Keep **Explicit unsupported temperature fails before model invocation** unchanged. Keep **Interaction context uses canonical Source Document Markdown** without the document chat (decision 15): delete its first sentence ("Document chat SHALL include …") and the scenario *Document chat has a Source Document*; "Neither Interaction operation SHALL send raw Docling output or choose a route based on input media." becomes "It SHALL NOT send raw Docling output or choose a route based on input media.", and *Schema editing has a Source Document source* gains "- **AND** it does not send raw Docling output".)
+  5. **A recovered operation resolves again and records no attribution.** A workflow SHALL carry only IDs; each attempt resolves the owner's current route and key. Interactive results (generations and edit proposals) record no Model Attribution. Scenario: *A route changed between two attempts runs the second attempt on the new route*.
 - [ ] **Step 4: `source-document-ingestion`** — Purpose: "Upload a PDF Source Document into a Project Context, parse it durably in the Parsing Service, and publish it once per project and content." Replace the whole requirement set (the `POST /tasks` service it describes no longer exists) with:
   1. **Upload validation preserves the PDF trust boundary.** Studio SHALL accept one PDF per request under the owner's Project Context, stream it with an exact 100 MiB cap, and require a PDF MIME hint (when present) and `%PDF-` magic bytes. (Keep today's scenarios for exactly 100 MiB, over 100 MiB, a disallowed MIME hint, absent magic and a declared oversized envelope, re-worded from "task creation" to "the upload".)
   2. **Completed content replays before parsing.** A PDF whose SHA-256 already has a Source Document in the same Project Context SHALL return that document without staging, converting or starting a workflow; the same bytes in another Project Context are independent. Scenarios: *Re-uploading a completed PDF returns the existing document*; *Identical PDFs in two projects are parsed independently*.
@@ -2163,6 +2162,8 @@ Edited in place (Plan decision 10). Each spec keeps its file and its `## Purpose
   ```bash
   grep -nE "machine-wide|model-config\.json|keyring|credential store|keyring_unavailable|Single model|nuextractRaw|Extraction Route|POST /tasks|one-hour grace|Seven provider kinds|duplicate CLI" openspec/specs/{model-connection-configuration,capability-route-resolution,source-document-ingestion,schema-chat-edit}/spec.md
   # prints nothing
+  grep -niE "document.chat" openspec/specs/capability-route-resolution/spec.md
+  # prints nothing (decision 15)
   grep -c "^#### Scenario" openspec/specs/{model-connection-configuration,capability-route-resolution,source-document-ingestion,schema-chat-edit}/spec.md
   # every requirement has at least one scenario: compare with grep -c "^### Requirement"
   git add openspec/specs
@@ -2173,18 +2174,18 @@ Edited in place (Plan decision 10). Each spec keeps its file and its `## Purpose
 
 **Files:**
 - Create: `docs/validation/<YYYY-MM-DD>-dbos-m6-verification.md`
-- Create: `docs/plans/2026-09-24-unified-durable-execution-evidence/m6-spark/make_scans.py`, `chat-smoke.js`, `queries.sql`, `planted-key-scan.sh`, `README.md` (a stub Task 16 fills)
+- Create: `docs/plans/2026-09-24-unified-durable-execution-evidence/m6-spark/make_scans.py`, `queries.sql`, `planted-key-scan.sh`, `README.md` (a stub Task 16 fills)
 - Modify: this plan's `Status:` line
 
 - [ ] **Step 1: Residue search** (spec *Verification*)
 
   ```bash
   cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6
-  grep -rniE "procrastinate|leaseOwner|leaseExpiresAt|leaseVersion|claimBatch|renewLease|wakeAfter|kick\(|checkpoint\(|ConfigFileSystem|keyring|dbus|write barrier|writeBarrier|retryOfId|llmInspector|llm_inspector|/events|cancel_requested|free-document-chat|result_version.{0,4}4|options\.model|ExtractionJob|BatchExtractionMember|ingestionKey|follower|admission wait|SuggestionSourceProgress|configurationMode|nuextractRaw|KEI_EXP_MODEL" \
+  grep -rniE "procrastinate|leaseOwner|leaseExpiresAt|leaseVersion|claimBatch|renewLease|wakeAfter|kick\(|checkpoint\(|ConfigFileSystem|keyring|dbus|write barrier|writeBarrier|retryOfId|llmInspector|llm_inspector|/events|cancel_requested|free-document-chat|result_version.{0,4}4|options\.model|ExtractionJob|BatchExtractionMember|ingestionKey|follower|admission wait|SuggestionSourceProgress|configurationMode|nuextractRaw|KEI_EXP_MODEL|ChatTurn|chatTurn|streamChatWithModel|ChatTab|vercel-ai" \
     prototypes packages scripts docker compose*.yaml tests .github .env.example docs/operations docs/architecture README.md CONTEXT.md openspec/specs \
     --exclude-dir=node_modules --exclude-dir=.venv
   ```
-  Record every hit with its reason, as the M3 record did. Expected exceptions only: tests that assert an absence (`tests/safety.test.mjs`, `prototypes/parsing_service/tests/test_api_reads.py`, `scripts/free.test.mjs`, the M2–M5 absence tests), the 422 request-body tests that post a removed field, and the cutover runbook in `docs/operations/deployment.md` (it names `kei-jobs` and `model-config.json` on purpose). ADRs, `docs/plans/`, `docs/validation/` and `openspec/changes/archive/` are historical records, not residue.
+  Record every hit with its reason, as the M3 record did. Expected exceptions only: tests that assert an absence (`tests/safety.test.mjs`, `prototypes/parsing_service/tests/test_api_reads.py`, `scripts/free.test.mjs`, the M2–M5 absence tests, including any M5 test that pins `@dbos-inc/vercel-ai`'s absence from `ssr.external`), the 422 request-body tests that post a removed field, and the cutover runbook in `docs/operations/deployment.md` (it names `kei-jobs` and `model-config.json` on purpose). ADRs, `docs/plans/`, `docs/validation/` and `openspec/changes/archive/` are historical records, not residue.
   Structural check (spec *Rules*: no tombstones, barriers, cleanup-intent tables or reconcilers): `git diff <the M5 record's tested commit>..HEAD -- packages/db/src/prisma/contract.prisma packages/db/migrations` prints nothing.
 
 - [ ] **Step 2: Run every tier**
@@ -2245,44 +2246,6 @@ Edited in place (Plan decision 10). Each spec keeps its file and its `## Purpose
       main(Path(sys.argv[1]))
   ```
   Run it into `/tmp/free-m6-spark/` and record the page counts (41, 3, 2). The PDFs are not committed.
-  `m6-spark/chat-smoke.js` — run inside the signed-in FREE page (the browser console, or Playwright MCP `browser_evaluate`); chat is developer UI (Ruling 3), so the smoke drives the routes the Chat tab uses; it returns lengths and statuses, never a cookie:
-  ```js
-  // Defines window.freeChatSmoke in the signed-in page. Same-origin fetches carry the session cookie and Origin.
-  window.freeChatSmoke = {
-    api: `${location.origin}${location.pathname.split('/').slice(0, 2).join('/')}/api`,
-    async read(response, ms) {
-      const reader = response.body.getReader(), decoder = new TextDecoder()
-      let text = ''
-      const deadline = Date.now() + ms
-      while (Date.now() < deadline) {
-        const next = await Promise.race([reader.read(), new Promise((r) => setTimeout(() => r({ timeout: true }), deadline - Date.now()))])
-        if (next.timeout || next.done) break
-        text += decoder.decode(next.value)
-      }
-      await reader.cancel().catch(() => {})
-      return text
-    },
-    /** Asks, reads the stream for `readMs`, then drops it (as a reload would). */
-    async ask({ projectContextId, sourceRepresentationRevisionId, question, turnId = crypto.randomUUID(), readMs = 3000 }) {
-      const response = await fetch(`${this.api}/chat`, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ projectContextId, sourceRepresentationRevisionId, turnId, question }),
-      })
-      return { status: response.status, turnId, streamedChars: (await this.read(response, readMs)).length }
-    },
-    async transcript(sourceRepresentationRevisionId) {
-      const response = await fetch(`${this.api}/chat/${sourceRepresentationRevisionId}`)
-      const body = await response.json()
-      return { status: response.status, reconnectTurnId: body.reconnectTurnId ?? null,
-        turns: (body.turns ?? []).map((turn) => ({ turnId: turn.turnId, status: turn.status, answerChars: turn.answer?.length ?? 0 })) }
-    },
-    async reconnect(sourceRepresentationRevisionId, turnId, readMs = 120000) {
-      const response = await fetch(`${this.api}/chat/${sourceRepresentationRevisionId}/stream?turnId=${encodeURIComponent(turnId)}`)
-      return { status: response.status, streamedChars: response.status === 204 ? 0 : (await this.read(response, readMs)).length }
-    },
-  }
-  ```
-  (Adjust the field names to M5's `chatTranscriptSchema` if they differ; `node --check` the file.)
   `m6-spark/queries.sql` — the read-only queries Task 16 runs with `psql -v name=value -f`: Studio and kei workflows of one project (`attributes @> jsonb_build_object('projectContextId', :'project')`), lane order (`SELECT workflow_uuid, queue_name, status, to_timestamp(completed_at/1000.0) FROM kei_dbos.workflow_status WHERE workflow_uuid LIKE 'kei-%' ORDER BY created_at DESC LIMIT 20`), the schedule (`SELECT * FROM dbos.workflow_schedules`), connection counts (`SELECT usename, application_name, state, count(*) FROM pg_stat_activity WHERE datname = 'free' GROUP BY 1, 2, 3`), orphan payload rows in both schemas (the query of `orphanPayloadRows`, written out for `dbos` and `kei_dbos`), and the role check (`SET ROLE kei; SELECT 1 FROM public."ProjectContext" LIMIT 1;` expected to fail with 42501).
   `m6-spark/planted-key-scan.sh`:
   ```bash
@@ -2323,9 +2286,7 @@ PROJECT=$(docker compose -f compose.yaml -f compose.prod.yaml ps --format '{{.Pr
 ```
 
 - [ ] **Step 1: Preconditions (local).** Task 14 is recorded with every tier green (or each gap explained and accepted by the user); the user has read this plan's rulings list; the working tree is clean.
-- [ ] **Step 2: ⛔ Get the branch to the Spark.** Ask the user which way, and wait for yes:
-  - (a) `git push origin feat/dbos-m2-m6` (GitHub; the Spark then fetches it). Show `git log --oneline origin/feat/kei-exp-parser..feat/dbos-m2-m6 | wc -l` and the branch tip first. Optionally (a separate ⛔) open a **draft** PR against `feat/kei-exp-parser` so GitHub's `verify` job runs `test:ci` on the branch — the only way to see CI (Task 9 changed no workflow, but the tiers grew).
-  - (b) Push only to the Spark's checkout: `git push geba@baratheon.cdch-dgxspark.lan.ku.dk:Projects/FREE feat/dbos-m2-m6:feat/dbos-m2-m6` (a non-checked-out branch of a non-bare repository; nothing reaches GitHub).
+- [ ] **Step 2: ⛔ Push the branch to `origin`** (Ruling 7a: GitHub, no pull request; Ruling 6: the user's yes at this moment). Show `git log --oneline origin/feat/kei-exp-parser..feat/dbos-m2-m6 | wc -l` and the branch tip, wait for yes, then `git push origin feat/dbos-m2-m6`. Record the pushed SHA; Step 4 checks the Spark against it.
 - [ ] **Step 3: Pre-flight on the Spark (read-only).** Record in the evidence README:
   ```bash
   git status --short; git branch --show-current; git log -1 --oneline
@@ -2336,14 +2297,19 @@ PROJECT=$(docker compose -f compose.yaml -f compose.prod.yaml ps --format '{{.Pr
   grep -o '^[A-Z_]*=' .env | sort          # names only, never values
   ```
   Stop and report if the checkout has local changes, if free disk is under about 60 GB, or if any `parsing_worker`/`kei-jobs` container is restarting.
-- [ ] **Step 4: ⛔ Switch the checkout and prepare `.env`** (non-destructive to data; changes production's configuration). After yes:
+- [ ] **Step 4: The user fetches the branch; ⛔ then prepare `.env`** (non-destructive to data; changes production's configuration). The user fetches on the Spark (Ruling 7a: the Spark's key has a passphrase), for example in their own `ssh -A` session:
   ```bash
-  GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=15" git fetch origin feat/dbos-m2-m6     # (a); skip for (b)
+  cd ~/Projects/FREE
+  GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=15" git fetch origin feat/dbos-m2-m6
   git switch feat/dbos-m2-m6 2>/dev/null || git switch -c feat/dbos-m2-m6 --track origin/feat/dbos-m2-m6
-  git merge --ff-only origin/feat/dbos-m2-m6                                                     # (a) only
-  grep -q '^FREE_KEI_POSTGRES_PASSWORD=' .env || printf 'FREE_KEI_POSTGRES_PASSWORD=%s\n' "$(openssl rand -hex 32)" >> .env
+  git merge --ff-only origin/feat/dbos-m2-m6
   ```
-  `FREE_DEPLOYMENT_CLI_PROVIDERS`: append the value the user chose (Ruling list), or nothing. Leave `FREE_PARSING_POSTGRES_PASSWORD` in `.env` until Step 7 succeeds (the old stack's `parsing_db` still reads it); remove it in Step 9.
+  The controller then checks, read-only, that `git branch --show-current` prints `feat/dbos-m2-m6`, `git log -1 --format=%H` prints Step 2's SHA and `git status --short` prints nothing; otherwise stop and report. After the user's yes:
+  ```bash
+  grep -q '^FREE_KEI_POSTGRES_PASSWORD=' .env || printf 'FREE_KEI_POSTGRES_PASSWORD=%s\n' "$(openssl rand -hex 32)" >> .env
+  grep -c '^FREE_DEPLOYMENT_CLI_PROVIDERS=.' .env      # must print 0: no CLI deployment connection (Ruling 7b)
+  ```
+  If the second command prints 1, stop and ask before changing it. Leave `FREE_PARSING_POSTGRES_PASSWORD` in `.env` until Step 7 succeeds (the old stack's `parsing_db` still reads it); remove it in Step 9.
 - [ ] **Step 5: Model servers stay untouched (read-only check).** `$DC config --hash '*'` and compare each `ocr_model`, `nuextract_model` and `extraction_model` hash with the running container's label from Step 3. If any differs, **stop**: starting the new stack would recreate that model server. Report which one and why (the rendered difference: `$DC config ocr_model` against the old checkout's rendering) and wait for the user's decision.
 - [ ] **Step 6: Build while the old stack serves.** `$DC build studio parsing_service parsing_worker` (a failed build changes nothing that runs). Record the duration.
 - [ ] **Step 7: ⛔ Stop, dump, reset (destructive).** Show the user the exact commands below with the container and volume names Step 3 printed, and wait for yes.
@@ -2387,20 +2353,20 @@ PROJECT=$(docker compose -f compose.yaml -f compose.prod.yaml ps --format '{{.Pr
 
 ### Task 16: CONTROLLER-RUN — the end-to-end smoke on the Spark, and the milestone record
 
-**Never dispatched to a subagent.** Drivers: the user signs in with Entra (the controller never handles Entra credentials). Preferred: the user signs in once inside the Playwright MCP browser (`mcp__plugin_playwright_playwright__*`), after which the controller drives the UI and runs `chat-smoke.js` with `browser_evaluate`; otherwise the user drives the UI from the numbered steps while the controller gathers the server-side evidence over SSH. Every item records **what was done, by whom, and the evidence** in `m6-spark/README.md`. ⛔ marks a step that disrupts the running service.
+**Never dispatched to a subagent.** Driver (Ruling 7d): the Playwright MCP browser (`mcp__plugin_playwright_playwright__*`) is already signed in to the Spark; the controller drives the UI there, uses `browser_evaluate` only for same-origin JSON reads, and gathers the server-side evidence over SSH (`queries.sql`, logs). The controller never handles Entra credentials: if the session has expired, the user signs in again in that browser. Every item records **what was done, by whom, and the evidence** in `m6-spark/README.md`. ⛔ marks a step that disrupts the running service.
 
-- [ ] **S1 Sign-in and configuration.** The user signs in. Models tab: the deployment's connections are listed read-only; set *Reading documents* to OCR `surya` (explicit) and layout `layout_egret_xlarge` (non-default); leave the Assistant model unset (the deployment's instruction model). Evidence: `GET /api/ingestion-models` shows `surya` serving and the other OCR models not serving and not selectable (a screenshot of the step, and the JSON from `browser_evaluate(fetch(...))`).
+- [ ] **S1 Session and configuration.** The browser is signed in (Ruling 7d). Models tab: the deployment's vLLM connections are listed read-only and no CLI connection is (Ruling 7b); set *Reading documents* to OCR `surya` (the default OCR model) and layout `layout_egret_xlarge` (non-default) (Ruling 7e); leave the Assistant model unset (the deployment's instruction model). Evidence: `GET /api/ingestion-models` shows `surya` serving and the other OCR models not serving and not selectable (a screenshot of the step, and the JSON from `browser_evaluate(fetch(...))`).
 - [ ] **S2 Upload.** Create project *M6 smoke A*; upload `examples/Beretning_Ellekilde_8_13.pdf` (native, 6 pages). Evidence (`queries.sql`): `ingest:<project>:<attempt>` `SUCCESS` on queue `studio`; `kei-convert:ingest:<project>:<attempt>` `SUCCESS` on `kei-convert-small`.
 - [ ] **S3 Extraction and cancel.** Draft a small schema; run an Article extraction to `COMPLETED` (Evidence links visible). Start a Catalog extraction on the same document and press Cancel within a few seconds. Evidence: the attempt reads cancelled; `extract:<id>` and `kei-extract:<id>` are `CANCELLED` within 5 s of each other.
 - [ ] **S4 Batch suggestion.** Upload `examples/graves/Brondbylund_3_TAK_1506.pdf` into the same project; run a Batch Schema Suggestion over both documents. Evidence: the proposal is ready; `suggest:<id>:1` `SUCCESS` on queue `suggest`.
 - [ ] **S5 Generation and schema edit across a reload.** Generate a schema; reload the page while it runs; the panel shows "Still working …" and then saves the result. Ask for a schema edit; reload while it runs; the review bar returns; Discard; reload; it stays discarded. Evidence: `suggestion:<op>` and `edit:<op>` rows `SUCCESS`, each with one model call in Studio's log.
 - [ ] **S6 ⛔ A Studio kill mid-generation.** Start a generation; then `docker kill -s KILL "${PROJECT}-studio-1" && docker start "${PROJECT}-studio-1"`. The page recovers (the boot ID changes; keys would be resent) and the generation saves once. Evidence: the `suggestion:<op>` row has `recovery_attempts >= 2` and ends `SUCCESS`; the Schema Revision count grew by one.
-- [ ] **S7 Chat across a reload and a Studio kill** (developer UI only, so through the API: Ruling 3). In the signed-in page, load `chat-smoke.js`; `ask({ … question: 'Which sites does this report name?' })` with `readMs: 2000`; reload; load the script again; `transcript(rev)` shows the turn `RUNNING` with `reconnectTurnId`; `reconnect(rev, turnId)` streams the rest; `transcript` shows it `ANSWERED` once. Then ⛔ ask again, kill Studio as in S6 while it streams, and after it is back `reconnect` and `transcript` show the answer once. Evidence: the transcript JSON (IDs, statuses, lengths), `chat:<turn>` rows.
-- [ ] **S8 Two accounts.** Only if the user has a second Entra identity assigned to the application (ask): sign in with it in a private window; its Model Configuration is empty; its project list is empty; through `browser_evaluate`, `GET /api/model-operations?projectContextId=<A's project>&extractionSchemaId=<A's schema>`, `GET /api/chat/<A's revision>` and `DELETE /api/model-operations/<A's edit: workflow ID>` all answer 404. If no second identity exists, record it as not run on the Spark; M2's and M5's two-account e2e tests cover it.
-- [ ] **S9 A scanned PDF under the non-default layout choice.** Upload `/tmp/free-m6-spark/layout2-scan.pdf` into project *M6 smoke B*. Evidence: its revision's `preprocessId` names run `R`; `$DC exec -T parsing_service python -c "import json, urllib.request; m = json.load(urllib.request.urlopen('http://127.0.0.1:8001/api/runs/R/result')); print(m['recipe']['model'], m['recipe']['layout_model'])"` prints `surya layout_egret_xlarge`. The OCR half of the spec's "non-default OCR and layout choice" cannot be exercised here: the OCR server serves one model, and swapping it would restart a vLLM server (Ruling 6); the listing check in S1 stands in for it.
+- [ ] **S7 ⛔ An edit proposal across a reload and a Studio kill** (replaces the chat turn: decision 15, Ruling 3; with S5 and S6, generation and edit proposals each cross a reload and a kill). Ask for a schema edit ("Add a field for the site's municipality"); reload while it runs: the panel shows the running proposal with its instruction and polls it. While it still runs, kill Studio as in S6. Once Studio is back the page recovers and the review bar opens once, with the proposal on the current base revision; Discard it and reload: it stays discarded. If the proposal settles before the kill lands, repeat with a longer instruction and record the number of tries. Evidence: the `edit:<op>` row has `recovery_attempts >= 2` and ends `SUCCESS`; `GET /api/model-operations?projectContextId=<project>&extractionSchemaId=<schema>` through `browser_evaluate` lists it once before Discard and not after; Studio's log shows no provider error body.
+- [ ] **S8 Two accounts: not run on the Spark** (Ruling 7c: there is no second Entra account). Record it as not run, naming the local tests that cover it: M2's two-account model-configuration e2e test, M5's model-operation ownership tests (a second account cannot list, read or cancel the first's operations: 404, never 403) and `server/researcher-project-ownership.test.ts`.
+- [ ] **S9 A scanned PDF under the non-default layout choice.** Upload `/tmp/free-m6-spark/layout2-scan.pdf` into project *M6 smoke B*. Evidence: its revision's `preprocessId` names run `R`; `$DC exec -T parsing_service python -c "import json, urllib.request; m = json.load(urllib.request.urlopen('http://127.0.0.1:8001/api/runs/R/result')); print(m['recipe']['model'], m['recipe']['layout_model'])"` prints `surya layout_egret_xlarge` (Ruling 7e: the recipe must name both). The OCR half of the spec's "non-default OCR and layout choice" cannot be exercised here: the OCR server serves one model, and swapping it would restart a vLLM server (Ruling 6); the listing check in S1 stands in for it.
 - [ ] **S10 Lanes: a small scan while a large scan converts.** In one tab upload `large41-scan.pdf` into *M6 smoke B*; when `queries.sql` shows its `kei-convert:` row `PENDING` on `kei-convert-large`, upload `small3-scan.pdf` from a second tab; when it completes, run an Article extraction on it. Evidence: the small conversion ran on `kei-convert-small`, and both its conversion and its extraction completed before the large conversion (`completed_at` order), which completes too.
 - [ ] **S11 The app shell's CSP and the PDF viewer.** From the controller's machine: `curl -sS -k -D - -o /dev/null https://baratheon.cdch-dgxspark.lan.ku.dk:11434/free/ | grep -i content-security-policy` (the temporary certificate is self-signed; `-k` only for this header read) — record the header. Open a document: the PDF viewer renders its pages; `browser_console_messages` shows no Content-Security-Policy violation.
-- [ ] **S12 A planted key reaches no dump, volume or log.** Locally generate `KEY=FREE_SYNTHETIC_KEY_$(openssl rand -hex 12)` (never commit it). In Connections add an OpenAI-compatible connection *Planted* with base `http://extraction_model:8000/v1` (the deployment's instruction server, which ignores the key) and key `$KEY`; its probe runs on page open. Point the Assistant model at *Planted* with the instruction model's ID; run a generation, a Batch Schema Suggestion retry and one chat turn (S7's script). Then on the Spark: `KEY=… PROJECT=$PROJECT COMPOSE="$DC" bash planted-key-scan.sh` prints `pg_dump matches: 0; volume files: 0; log lines: 0`. Remove the *Planted* connection and its key, and unset the Assistant model again.
+- [ ] **S12 A planted key reaches no dump, volume or log.** Locally generate `KEY=FREE_SYNTHETIC_KEY_$(openssl rand -hex 12)` (never commit it). In Connections add an OpenAI-compatible connection *Planted* with base `http://extraction_model:8000/v1` (the deployment's instruction server, which ignores the key) and key `$KEY`; its probe runs on page open. Point the Assistant model at *Planted* with the instruction model's ID; run a generation, a schema edit proposal and a Batch Schema Suggestion retry. Then on the Spark: `KEY=… PROJECT=$PROJECT COMPOSE="$DC" bash planted-key-scan.sh` prints `pg_dump matches: 0; volume files: 0; log lines: 0`. Remove the *Planted* connection and its key, and unset the Assistant model again.
 - [ ] **S13 Project deletion, then garbage collection.** Right before deleting, start one more Catalog extraction in *M6 smoke A* and cancel it (cancelled in *this* Studio process; S3's was cancelled before the S6/S7 restarts). Delete *M6 smoke A*. Run `$DC exec -T studio pnpm --filter studio gc:now`. Evidence: `failedPhases: []`; no `SUCCESS`/`ERROR` Studio row with that `projectContextId` remains, and neither does S3's cancelled `extract:` row (it was updated before this boot); the fresh cancelled `extract:` row remains (the boot boundary); the `kei-gc:` workflow is `SUCCESS` and keeps the project's runs (younger than 24 h, and the fresh extraction's run is still protected by its holder): its output lists them under `kept_runs`, or the request did not name them. ⛔ Ask the user whether the controller may re-check after 24 hours **and** a restart of both Studio and the kei worker (a deploy restarts both): then the project's runs and their conversions' histories are gone (`$DC exec -T parsing_worker ls /app/runs`), which completes S13.
 - [ ] **S14 Both schemas.** `queries.sql`'s status counts for `dbos` and `kei_dbos`, the schedule row, the connection counts during an extraction, and `orphanPayloadRows` for both schemas (0).
 - [ ] **Record and close the milestone.** Fill `m6-spark/README.md`; write `docs/validation/<YYYY-MM-DD>-dbos-m6-spark-cutover.md` summarizing S1–S14 (result, evidence link, gaps with reasons); in the DBOS plan replace `**M6: garbage collection, documentation, test wiring and cutover.**` with `**M6: garbage collection, documentation, test wiring and cutover — done YYYY-MM-DD.** Task plan: [2026-09-26-dbos-m6-gc-docs-cutover.md](2026-09-26-dbos-m6-gc-docs-cutover.md); Spark: [record](../validation/<file>).` and change the plan's opening `Status:` line to say M1–M6 are done and the cutover ran on that date; add the date to README #10's cutover sentence; set this plan's status to `done YYYY-MM-DD`. Commit (controller); pushing that commit is another ⛔.
@@ -2455,14 +2421,18 @@ Other M6 items and where they are built or proved:
 | Cutover (spec *Cutover (clean slate)*, steps 1–5) | Task 15 |
 | Smoke test (spec *Cutover* step 6) and *Verification → Manual* on the GPU deployment | Task 16 S1–S14 |
 | *Verification*: residue search; *Pools* measurement | Task 14 (local), Task 15 Step 9 (Spark, with the kei worker) |
+| Decision 15 (the document chat is deleted): no chat prefix or row in garbage collection; the document-chat mentions in `CONTEXT.md`, ADR 0007 and the `capability-route-resolution` spec removed; the DBOS spec's remaining chat sections annotated | Tasks 3, 5 (`_garbage_plan.test.ts` › `deletes settled interactive history after 24 h …` over `suggestion:`/`edit:`); Tasks 10, 11, 13 (their checks); Task 14 residue search (`ChatTurn`, `chatTurn`, `streamChatWithModel`, `ChatTab`, `vercel-ai`) |
+| Interactive work across a reload and a Studio kill on the Spark (generation and edit proposal) | Task 16 S5, S6, S7 |
+| The user's cutover answers (Ruling 7): push to `origin` and the user's fetch; no CLI providers; S8 local-only; the signed-in Playwright browser; the OCR check | Task 15 Steps 2, 4; Task 16 intro, S1, S8, S9 |
 
 ## Deferred and out of scope
 
 | Item | Where it goes | Why |
 |---|---|---|
-| M0R 6 pending: a book near 2000 pages (memory, cut time, the conversion deadline formula), `page_source=ingest` spreads, Studio chat during a kei extraction on `extraction_model` | Spark, separate (user's call) | not M6 acceptance; needs long GPU time on the production servers |
+| M0R 6 pending: a book near 2000 pages (memory, cut time, the conversion deadline formula), `page_source=ingest` spreads, Studio schema generation during a kei extraction on `extraction_model` (its chat half went with decision 15) | Spark, separate (user's call) | not M6 acceptance; needs long GPU time on the production servers |
 | Removal of the smoke's runs 24 h after S13 | Task 16 S13's follow-up, if the user allows it | runs younger than 24 h are kept by design |
 | Merging `feat/dbos-m2-m6` (PR, review, `finishing-a-development-branch`) | after Task 16, the user's decision | the branch is complete only once the Spark smoke is recorded |
-| A GitHub `verify` run on the branch | Task 15 Step 2's optional draft PR | CI runs only on pull requests and `dev` |
+| A GitHub `verify` run on the branch | the merge pull request (no PR before the cutover: Ruling 7a) | CI runs only on pull requests and `dev` |
+| S8 (two accounts) on the Spark | not run (Ruling 7c) | no second Entra account; the local two-account and ownership tests cover it |
 | Fair sharing between accounts; per-page conversion fan-out; per-model-call Python checkpoints; streaming crops into OCR | out of scope | spec *Out of scope* |
 
