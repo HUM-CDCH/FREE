@@ -2,12 +2,14 @@
 the step that was running; a stopped worker keeps its slot; a crash between a publication and its checkpoint leaves
 one consistent result (spec, *kei worker*, *Rules → Domain writes are idempotent*). No test in this module launches
 DBOS in the test process: that would be a second executor on the same queues."""
+import fcntl
 import hashlib
 import json
 import os
 import signal
 import subprocess
 import sys
+import time
 
 import pytest
 from dbos import DBOSClient
@@ -90,6 +92,54 @@ def test_a_killed_worker_is_replaced_and_its_conversion_recovered(site):
     assert steps(kei(), workflow_id) == ["resolve_models", "prepare_run", "convert_run"]  # each recorded once
     assert sorted(path.name for path in paths["control"].glob("started-*")) == ["started-1", "started-2"]
     assert kei().row(workflow_id)["recovery_attempts"] == 2  # the first worker's dequeue, then the recovery
+
+
+def slot_is_free(path) -> bool:
+    """Whether another process could take the slot now; never keeps it."""
+    handle = os.open(path, os.O_RDWR)
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return False
+    else:
+        return True
+    finally:
+        os.close(handle)
+
+
+def test_a_terminated_worker_exits_before_its_slot_is_free_and_its_conversion_is_recovered(site):
+    """A deploy's SIGTERM mid-step: DBOS.destroy() does not wait for the step's thread, so the worker must exit while it
+    still holds its slot. Otherwise a replacement could take the slot, read a later boot timestamp and let deleteRuns
+    remove a run the old step is still writing (spec, *kei worker*, the boot boundary)."""
+    paths, start, kei, _ = site
+    lock = paths["runs"] / ".worker-slot-1.lock"
+    first = start()
+    sha = kei_helper.stage_pdf(paths["inbox"], "a.pdf", mask())
+    workflow_id = "kei-convert:ingest:p:a"
+    kei().enqueue("convert", config.CONVERT_SMALL, workflow_id,
+                  kei_helper.convert_request("a.pdf", sha, model="fake", cut="none"))
+    kei_helper.until(lambda: (paths["control"] / "started-1").exists(), 120, "the conversion's native call")
+    assert not slot_is_free(lock)
+    first.terminate()  # the native call is still waiting for `release`, which never comes
+    free_while_running = 0
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
+        free = slot_is_free(lock)  # asked first: a process that exits in between is not counted as running
+        if first.process.poll() is not None:
+            break
+        free_while_running += free
+        time.sleep(0.01)
+    assert free_while_running == 0, "the slot was free while the terminated worker still ran"
+    assert first.process.returncode == 0, "".join(first.log)  # it exited, its step still in its native call
+    assert slot_is_free(lock)
+    assert kei().client.retrieve_workflow(workflow_id).get_status().status == "PENDING"  # nothing recorded after destroy
+    start()
+    kei_helper.until(lambda: (paths["control"] / "started-2").exists(), 120, "the recovered native call")
+    (paths["control"] / "release").touch()
+    status = final(kei(), workflow_id)
+    assert status.status == "SUCCESS" and status.output["ok"] is True
+    assert steps(kei(), workflow_id) == ["resolve_models", "prepare_run", "convert_run"]
+    assert kei().row(workflow_id)["recovery_attempts"] == 2
 
 
 def test_a_stopped_worker_keeps_its_slot_and_gets_no_replacement(site):

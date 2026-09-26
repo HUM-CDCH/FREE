@@ -30,7 +30,15 @@ def _until_signalled() -> None:
     stop.wait()
 
 
-def serve(slot_name: str, database_url: str, *, until: Callable[[], None] = _until_signalled) -> None:
+def _exit_hard(code: int) -> None:
+    logging.shutdown()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)
+
+
+def serve(slot_name: str, database_url: str, *, until: Callable[[], None] = _until_signalled,
+          exit_process: Callable[[int], None] = _exit_hard) -> None:
     logging.basicConfig(level=os.environ.get("KEI_LOG_LEVEL", "INFO"))
     # First: a second process is refused before it imports the model stack (this module, slot and runs are light;
     # `registered` is what loads docling and torch, test_worker_boot pins it).
@@ -46,6 +54,11 @@ def serve(slot_name: str, database_url: str, *, until: Callable[[], None] = _unt
             until()
         finally:
             DBOS.destroy()
+        # destroy() does not wait for running steps, and their threads are not daemons: returning would free the slot
+        # while they write on. Exiting here, still holding it, ends them with the process, and only then does the
+        # kernel free the lock (spec, *kei worker*: held for the worker's lifetime; the boot boundary relies on it).
+        # Nothing is recorded after destroy, so the interrupted steps' workflows stay PENDING and recovery runs them.
+        exit_process(0)
 
 
 def redacted(message: str, database_url: str) -> str:

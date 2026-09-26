@@ -86,8 +86,10 @@ def test_the_worker_locks_then_reads_the_clock_then_launches_then_registers(monk
     monkeypatch.setattr(cli, "DBOS", FakeDBOS)
     monkeypatch.setattr(config, "register_queues", lambda **_: order.append("queues"))
     monkeypatch.setattr(boot, "_timestamp_ms", None)  # restored after the test: serve sets it
-    cli.serve("slot-7", "postgresql://x", until=lambda: order.append("serving"))
-    assert order == ["flock", "clock", "configure", "launch", "queues", "serving", "destroy", "release"]
+    cli.serve("slot-7", "postgresql://x", until=lambda: order.append("serving"),
+              exit_process=lambda code: order.append(f"exit {code}"))
+    # The process exits while it still holds the slot: no step thread outlives the lock (test_worker_recovery).
+    assert order == ["flock", "clock", "configure", "launch", "queues", "serving", "destroy", "exit 0", "release"]
     assert boot.timestamp_ms() == 1234
 
 
@@ -126,8 +128,9 @@ def test_dbos_is_destroyed_when_launch_or_the_lanes_fail(monkeypatch, failing):
     monkeypatch.setattr(cli, "DBOS", FakeDBOS)
     monkeypatch.setattr(config, "register_queues", lambda **_: step("queues"))
     with pytest.raises(RuntimeError, match=f"{failing} failed"):
-        cli.serve("slot-7", "postgresql://x", until=lambda: order.append("serving"))
-    assert "serving" not in order and order[-2:] == ["destroy", "release"]
+        cli.serve("slot-7", "postgresql://x", until=lambda: order.append("serving"),
+                  exit_process=lambda code: order.append(f"exit {code}"))
+    assert "serving" not in order and order[-2:] == ["destroy", "release"]  # main() reports it, redacted
 
 
 def test_the_worker_refuses_to_start_without_its_database_url(monkeypatch, capsys):

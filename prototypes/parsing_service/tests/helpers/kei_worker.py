@@ -105,6 +105,10 @@ class WorkerProcess:
         os.kill(self.process.pid, signal.SIGKILL)
         self.process.wait(timeout=20)
 
+    def terminate(self) -> None:
+        """What a deploy sends: SIGTERM, then the worker's own shutdown."""
+        os.kill(self.process.pid, signal.SIGTERM)
+
     def pause(self) -> None:
         os.kill(self.process.pid, signal.SIGSTOP)
 
