@@ -67,6 +67,12 @@ const EXTRACTION_KEY = 'extraction_pkey'
 const BATCH_KEY = 'batchExtraction_pkey'
 
 const extractWorkflowId = (extractionId: string) => `extract:${extractionId}`
+/**
+ * The statuses of work admitted just now: each workflow was enqueued in the transaction that committed its row, so it
+ * is QUEUED (an outcome on the row still wins). A created admission answers with them, so a DBOS read cannot turn a
+ * committed admission into a failure the client would retry with a new identity.
+ */
+const JUST_ADMITTED: WorkflowStatuses = async (workflowIds) => new Map(workflowIds.map((id) => [id, 'ENQUEUED']))
 
 const encodeReviewedValue = (value: unknown) =>
   value === null ? null : { value }
@@ -164,8 +170,10 @@ function settledAttempt(row: AttemptRow): DerivedAttempt | null {
 
 /**
  * Status is derived, never mirrored (spec, *Status and ownership*): an outcome on the row wins; the other rows take
- * their `extract:<id>` workflow's DBOS status in one call. A SUCCESS workflow wrote its outcome just now, so its row is
- * read again, and a row that still has none is interrupted, never perpetually running. A DBOS outage rejects.
+ * their `extract:<id>` workflow's DBOS status in one call. A row whose workflow is no longer live is read again: a
+ * SUCCESS workflow wrote its outcome just now, and a cancel writes its outcome before it stops the workflow, so an
+ * outcome committed between the two reads still wins. A row that still has none is interrupted, never perpetually
+ * running. A DBOS outage rejects.
  */
 async function deriveAttempts(
   orm: DatabaseOrm,
@@ -176,7 +184,10 @@ async function deriveAttempts(
   const current = unsettled.length === 0
     ? new Map<string, string>()
     : await statuses(unsettled.map((row) => extractWorkflowId(row.id)))
-  const reread = unsettled.filter((row) => executionOf(current.get(extractWorkflowId(row.id))) === 'REREAD')
+  const reread = unsettled.filter((row) => {
+    const execution = executionOf(current.get(extractWorkflowId(row.id)))
+    return execution === 'REREAD' || execution === 'INTERRUPTED'
+  })
   const reloaded = new Map(
     (reread.length === 0 ? [] : await readAttemptRows(orm, reread.map((row) => row.id))).map((row) => [row.id, row]),
   )
@@ -1193,11 +1204,10 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
     const { orm } = this.database
     const [row] = await readAttemptRows(orm, [input.extractionId])
     if (!row) return null
-    // A created Extraction's workflow was enqueued in the transaction that just committed it: it is QUEUED unless it
-    // already has an outcome. A replay reads its status like any other read.
-    const attempt = disposition === 'created'
-      ? settledAttempt(row) ?? { row, executionStatus: 'QUEUED' as const, failure: null }
-      : (await deriveAttempts(orm, this.execution.statuses, [row])).get(row.id)!
+    // A created Extraction answers as just admitted; a replay reads its status like any other read.
+    const attempt = (await deriveAttempts(
+      orm, disposition === 'created' ? JUST_ADMITTED : this.execution.statuses, [row],
+    )).get(row.id)!
     return { disposition, extraction: await attemptSnapshot(orm, attempt) }
   }
 
@@ -1317,11 +1327,12 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
   private async readBatchForResearcher(
     projectContextId: string,
     batchExtractionId: string,
+    statuses: WorkflowStatuses = this.execution.statuses,
   ): Promise<DurableBatchExtraction | null> {
     const owned = await this.database.transaction((transaction) =>
       ownsResearcherBatch(transaction, this.researcherAccountId, projectContextId, batchExtractionId))
     if (!owned) return null
-    return loadBatch(this.database.orm, this.execution.statuses, projectContextId, batchExtractionId)
+    return loadBatch(this.database.orm, statuses, projectContextId, batchExtractionId)
   }
 
   /**
@@ -1435,6 +1446,7 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
       const batch = await this.readBatchForResearcher(
         input.projectContextId,
         batchExtractionId,
+        JUST_ADMITTED,
       )
       if (!batch)
         throw new Error('Persisted Batch Extraction could not be read.')
@@ -1477,8 +1489,8 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
       {
         execution: this.execution,
         admitBatchMember,
-        loadBatch: (orm, projectContextId, batchExtractionId) =>
-          loadBatch(orm, this.execution.statuses, projectContextId, batchExtractionId),
+        loadBatch: (orm, projectContextId, batchExtractionId, created) =>
+          loadBatch(orm, created ? JUST_ADMITTED : this.execution.statuses, projectContextId, batchExtractionId),
         replayed: (error) => SUGGESTED_BATCH_KEYS.some((key) => isUniqueViolation(error, key)),
         semanticSuggestionTree,
         snapshot,

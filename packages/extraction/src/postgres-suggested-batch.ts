@@ -23,10 +23,12 @@ export async function persistSuggestedBatch(
   helpers: Readonly<{
     execution: ExtractionExecution
     admitBatchMember: AdmitBatchMember
+    /** `created`: the handoff committed just now, so its members answer as just admitted, not from DBOS. */
     loadBatch: (
       orm: Database['orm'],
       projectContextId: string,
       batchExtractionId: string,
+      created: boolean,
     ) => Promise<DurableBatchExtraction | null>
     /** A unique violation on this handoff's own identities: a concurrent handoff of the suggestion committed first. */
     replayed: (error: unknown) => boolean
@@ -173,7 +175,7 @@ export async function persistSuggestedBatch(
     return suggestion?.batchExtractionId ?? null
   })
   const batch = batchExtractionId
-    ? await loadBatch(database.orm, input.projectContextId, batchExtractionId)
+    ? await loadBatch(database.orm, input.projectContextId, batchExtractionId, status === 'created')
     : null
   if (!batch)
     throw new Error('Confirmed Batch Schema Suggestion could not be read.')

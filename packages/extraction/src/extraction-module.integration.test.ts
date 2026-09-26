@@ -10,7 +10,7 @@ import { strToU8, zipSync } from 'fflate'
 import pg from 'pg'
 import type { CanonicalPackageStore, Database } from 'db'
 import { validateDisposableTestDatabaseTarget } from 'db/database-url'
-import { withHeldSourceDocumentLock } from 'db/postgres-test-helpers'
+import { withBlockedUpdates, withHeldSourceDocumentLock } from 'db/postgres-test-helpers'
 import type { ExtractionExecution, TerminalExtraction } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import { createKeiExpClient } from './kei-exp.js'
@@ -1102,6 +1102,58 @@ if (!disposableDatabaseUrl) {
       assert.ok(submitted.every((submission) => submission.priority === 10))
     })
 
+    it('a committed batch answers with its admitted members even when DBOS cannot be read, and a retry adds no batch', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])
+      const outage = new Error('connect ECONNREFUSED: DBOS is unavailable')
+      const unreadable: ExtractionExecution = { ...execution, statuses: async () => { throw outage } }
+      const module = createExtractionModule(
+        createResearcherExtractionPersistence(project.researcherAccountId, unreadable, { database: db as Database, packages }),
+      )
+      const batches = async () =>
+        (await db.orm.public.BatchExtraction.where({ projectContextId: project.projectContextId }).select('id').all()).length
+      const input = {
+        projectContextId: project.projectContextId,
+        schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE' as const,
+        sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId),
+      }
+      for (const repetition of ['create-new', 'reuse-equal-selection'] as const) {
+        const before = await batches()
+        const created = await module.scheduleBatch({ ...input, repetition })
+        assert.equal(created.disposition, 'created')
+        assert.equal(created.batch.executionStatus, 'QUEUED')
+        assert.deepEqual(created.batch.members.map((member) => member.executionStatus), ['QUEUED', 'QUEUED'])
+        assert.equal(await batches(), before + 1)
+      }
+      // A replay reads its status like any read, so the outage still answers; it creates nothing.
+      await assert.rejects(module.scheduleBatch({ ...input, repetition: 'reuse-equal-selection' }), (error: unknown) => error === outage)
+      assert.equal(await batches(), 2)
+
+      // A suggested batch's handoff answers the same way.
+      const batchSchemaSuggestionId = randomUUID()
+      await db.orm.public.BatchSchemaSuggestion.create({
+        id: batchSchemaSuggestionId,
+        projectContextId: project.projectContextId,
+        selectionKey: sha256(strToU8(batchSchemaSuggestionId)),
+      })
+      for (const document of project.documents)
+        await db.orm.public.BatchSchemaSuggestionSource.create({
+          batchSchemaSuggestionId,
+          sourceDocumentId: document.sourceDocumentId,
+          sourceRepresentationRevisionId: document.sourceRepresentationRevisionId,
+        })
+      await db.orm.public.BatchSchemaSuggestion.where({ id: batchSchemaSuggestionId }).update({
+        executionStatus: 'COMPLETED', phase: 'READY', draft: ARTICLE_SCHEMA, draftVersion: 1, finishedAt: new Date(),
+      })
+      const handedOff = await module.scheduleSuggestedBatch({
+        projectContextId: project.projectContextId, batchSchemaSuggestionId, strategy: 'ARTICLE',
+      })
+      assert.equal(handedOff.disposition, 'created')
+      assert.deepEqual(handedOff.batch.members.map((member) => member.executionStatus), ['QUEUED', 'QUEUED'])
+      assert.equal(await batches(), 3)
+    })
+
     it('a batch rerun creates new Extraction identities', async (t) => {
       t.after(cleanup)
       const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])
@@ -1234,23 +1286,84 @@ if (!disposableDatabaseUrl) {
       const project = await seedProject()
       const module = scheduler(project.researcherAccountId)
       const store = createExtractionStore({ database: db as Database, packages })
+      const probe = new pg.Client({ connectionString: disposableDatabaseUrl })
+      await probe.connect()
+      t.after(() => probe.end())
+      /** Waits until `count` backends wait on the Extraction row lock with their conditional UPDATE. */
+      const blockedWriters = (count: number) => eventually(async () => {
+        await probe.query('SELECT pg_stat_clear_snapshot()')
+        const { rows } = await probe.query<{ count: number }>(
+          `SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname = current_database()
+             AND wait_event_type = 'Lock' AND query ILIKE '%UPDATE%"extraction"%'`)
+        return rows[0]!.count
+      }, (blocked) => blocked >= count, `${count} blocked Extraction writes`)
       kei.holding = true
+      const winners: string[] = []
       for (let iteration = 0; iteration < 20; iteration += 1) {
         const input = freshInput(project)
         await module.runSingle(input)
-        const [cancelled, completed] = await Promise.all([
-          module.cancelSingle(input.extractionId),
-          store.settle(input.extractionId, { outcome: 'SUCCEEDED', extraction: succeeded(input.extractionId, project) }),
-        ])
-        const cancelWon = cancelled === 'cancellation-requested'
-        assert.equal(cancelWon, completed !== 'settled', `iteration ${iteration}: exactly one wrote`)
+        await heldByKei(input.extractionId)
+        const cancel = () => module.cancelSingle(input.extractionId)
+        const complete = () =>
+          store.settle(input.extractionId, { outcome: 'SUCCEEDED', extraction: succeeded(input.extractionId, project) })
+        // A second connection holds the row, so both conditional UPDATEs queue on its lock and really collide; the
+        // writer that queued first (alternating) takes the lock first, and the other re-checks `outcome IS NULL`.
+        const collide = async (): Promise<[string, string]> => {
+          if (iteration % 2 === 0) {
+            const first = cancel()
+            await blockedWriters(1)
+            return Promise.all([first, complete()])
+          }
+          const first = complete()
+          await blockedWriters(1)
+          return Promise.all([cancel(), first])
+        }
+        const written: [string, string] =
+          await withBlockedUpdates(disposableDatabaseUrl, 'Extraction', input.extractionId, 2, collide)
+        const [cancelled, completed] = written
+        const cancelWon: boolean = cancelled === 'cancellation-requested'
+        assert.equal(cancelWon, completed === 'already-settled', `iteration ${iteration}: exactly one wrote`)
         assert.equal(completed === 'settled' || completed === 'already-settled', true)
+        winners.push(cancelWon ? 'cancel' : 'completion')
         const row = await extractionRow(input.extractionId)
         assert.equal(row?.outcome, cancelWon ? 'CANCELLED' : 'SUCCEEDED')
         // No second write: a later attempt at either finds the outcome.
-        assert.equal(await store.settle(input.extractionId, { outcome: 'SUCCEEDED', extraction: succeeded(input.extractionId, project) }), 'already-settled')
-        assert.equal(await module.cancelSingle(input.extractionId), 'not-found')
+        assert.equal(await complete(), 'already-settled')
+        assert.equal(await cancel(), 'not-found')
       }
+      // Both branches ran: a cancel that won and a completion that won.
+      assert.ok(winners.includes('cancel'), winners.join(','))
+      assert.ok(winners.includes('completion'), winners.join(','))
+    })
+
+    it('a status read racing a cancel shows the cancellation, not an interruption', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const cancelling = scheduler(project.researcherAccountId)
+      kei.holding = true
+      const input = freshInput(project)
+      await cancelling.runSingle(input)
+      await heldByKei(input.extractionId)
+      // The read loads the row (no outcome yet); the cancel commits and stops the workflow before the read asks DBOS.
+      let raced = false
+      const racing: ExtractionExecution = {
+        ...execution,
+        async statuses(workflowIds) {
+          if (!raced) {
+            raced = true
+            assert.equal(await cancelling.cancelSingle(input.extractionId), 'cancellation-requested')
+            assert.equal((await studioWorkflow(input.extractionId))?.status, 'CANCELLED')
+          }
+          return execution.statuses(workflowIds)
+        },
+      }
+      const reader = createExtractionModule(
+        createResearcherExtractionPersistence(project.researcherAccountId, racing, { database: db as Database, packages }),
+      )
+      const read = await reader.readExtractionAttempt(input.extractionId)
+      assert.ok(raced)
+      assert.equal(read?.executionStatus, 'FAILED')
+      assert.deepEqual(read?.failure, { code: 'cancelled', message: 'Extraction cancelled.', phase: 'extracting' })
     })
 
     it('a replay of a failed Extraction returns its failure, even after its workflow history was deleted, and enqueues nothing', async (t) => {
