@@ -40,8 +40,8 @@ class ConvertInput(_Contract):
 class ConvertOk(_Contract):
     ok: Literal[True]
     run_id: RunId
-    generation: str
-    page_count: int
+    generation: str = Field(min_length=1)
+    page_count: int = Field(ge=1)
     source_sha256: Sha256
     page_source: Literal["pdf", "ingest"]
 
@@ -56,7 +56,7 @@ class ExtractOk(_Contract):
     ok: Literal[True]
     run_id: RunId
     extraction_id: RunId
-    generation: str
+    generation: str = Field(min_length=1)
     artifact_sha256: Sha256
     model: str                   # the fields model: the model that read the values
     models: dict[str, str]       # per role

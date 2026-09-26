@@ -45,6 +45,17 @@ def test_each_output_fixture_validates(name):
     assert OUTPUTS[name].model_validate(data).model_dump(mode="json") == data
 
 
+@pytest.mark.parametrize(("name", "change"), [
+    ("convert.output.ok", {"page_count": 0}),
+    ("convert.output.ok", {"generation": ""}),
+    ("extract.output.ok", {"generation": ""}),
+])
+def test_an_output_without_pages_or_a_generation_is_refused(name, change):
+    """As strict as ExtractInput and Studio's zod mirror (M4): a published parse has a page and names its generation."""
+    with pytest.raises(ValidationError):
+        OUTPUTS[name].model_validate({**fixture(name), **change})
+
+
 def test_the_failure_codes_are_the_contracts():
     assert contracts.Failure.model_fields["code"].annotation.__args__ == CODES
 
