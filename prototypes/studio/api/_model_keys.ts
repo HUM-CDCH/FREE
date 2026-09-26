@@ -126,9 +126,11 @@ export function createModelKeyCache(): ModelKeyCache {
 
 /**
  * The key for one provider attempt: from the cache, or after waiting up to `waitMs` for a page to resend it. The wait
- * ends early when `signal` aborts, and nothing after it runs. Under `durableCalls` (M5) the library, not FREE, calls
- * the model, so no caller can add DBOS's `DBOS.stepStatus.cancelSignal` to `signal`: the keyed-model wrapper
- * (`keyedModel`'s key function) must compose it with the attempt's own signal before calling this.
+ * ends early when `signal` aborts, and nothing after it runs. In M4 FREE calls the model itself, so a workflow step
+ * composes DBOS's `DBOS.stepStatus.cancelSignal` into the call's signal (`modelSignal`,
+ * `api/_batch_suggestion_workflow.ts`), which reaches here as the attempt's `abortSignal`. Under `durableCalls` (M5)
+ * the library, not FREE, calls the model, so no caller can add it: the keyed-model wrapper (`keyedModel`'s key
+ * function) must then compose it with the attempt's own signal before calling this.
  */
 export async function requireModelKey(
   cache: ModelKeyCache,

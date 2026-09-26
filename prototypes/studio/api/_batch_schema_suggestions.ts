@@ -59,7 +59,7 @@ export function validateEditableSuggestion(
   }
 }
 
-type FieldCoverage = {
+export type FieldCoverage = {
   nodeId: string
   present: number
   total: number
