@@ -21,6 +21,7 @@ import {
   projectContextNameLimit,
   projectContextWriteRequestSchema,
 } from '../shared/projectContext.contract.js'
+import { cancelScopeWork } from './_scope_cancellation.js'
 import { decodeParsedDocument } from 'extraction/parsed-document'
 
 type ProjectContextReadStore = Pick<
@@ -163,6 +164,7 @@ export function createProjectContextWrites(
     ResearcherProjectStore,
     'createProjectContext' | 'renameProjectContext' | 'deleteProjectContext'
   >,
+  cancelWork: typeof cancelScopeWork = cancelScopeWork,
 ) {
   const POST = async (request: Request): Promise<Response> => {
     try {
@@ -209,6 +211,9 @@ export function createProjectContextWrites(
       })
       if (!deleted)
         throw new ApiError(404, 'not_found', 'Project Context was not found.')
+      await cancelWork({ projectContextId: id }).catch(() => {
+        console.warn('Could not stop all Project Context work after deletion; garbage collection will retry.')
+      })
       return new Response(null, { status: 204, headers: noStore })
     } catch (error) {
       return noStoreError(error)

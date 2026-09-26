@@ -1444,7 +1444,7 @@ if (!disposableDatabaseUrl) {
         stableUuid('batch-member-extraction', stableJson([batchExtractionId, document.sourceDocumentId]))
       await heldByKei(memberOf(deleted))
       await heldByKei(memberOf(kept))
-      assert.equal(await store.deleteSourceDocument(project.projectContextId, deleted.sourceDocumentId), true)
+      assert.deepEqual(await store.deleteSourceDocument(project.projectContextId, deleted.sourceDocumentId), { interruptedAttempts: [] })
       assert.equal(await extractionRow(memberOf(deleted)), null)
       kei.releaseAll()
       await eventually(() => studioWorkflow(memberOf(deleted)), (workflow) => workflow?.status === 'SUCCESS',
@@ -1457,6 +1457,35 @@ if (!disposableDatabaseUrl) {
       assert.equal(await createExtractionStore({ database: db as Database, packages }).settle(memberOf(deleted), {
         outcome: 'FAILED', failure: { code: 'extraction_failed', message: 'late', phase: 'extracting' },
       }), 'missing')
+    })
+
+    it('deleting one batch source preserves another member\'s result, revision pin and finalized review', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['deleted.pdf', 'kept.pdf'])
+      const [deleted, kept] = project.documents as [SeededDocument, SeededDocument]
+      const module = scheduler(project.researcherAccountId)
+      const store = createResearcherProjectStore(project.researcherAccountId, db)
+      const scheduled = await module.scheduleBatch({
+        projectContextId: project.projectContextId, schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE', sourceDocumentIds: [deleted.sourceDocumentId, kept.sourceDocumentId], repetition: 'create-new',
+      })
+      const batchExtractionId = scheduled.batch.batchExtractionId
+      await waitForBatch(module, project.projectContextId, batchExtractionId,
+        (candidate) => candidate.executionStatus === 'COMPLETED')
+      const keptId = stableUuid('batch-member-extraction', stableJson([batchExtractionId, kept.sourceDocumentId]))
+      const prepared = await module.prepareReview(keptId)
+      await module.finalizeReview(keptId, prepared.reviewDecisions)
+      const keptBefore = await db.orm.public.Extraction.select('id', 'sourceRepresentationRevisionId', 'outcome').first({ id: keptId })
+      const reviewsBefore = await db.orm.public.ExtractionReview.where({ extractionId: keptId })
+        .select('id', 'decisionDigest').all()
+      assert.ok(reviewsBefore.length > 0)
+
+      assert.deepEqual(await store.deleteSourceDocument(project.projectContextId, deleted.sourceDocumentId), { interruptedAttempts: [] })
+      assert.deepEqual(await db.orm.public.Extraction.select('id', 'sourceRepresentationRevisionId', 'outcome').first({ id: keptId }), keptBefore)
+      assert.deepEqual(await db.orm.public.ExtractionReview.where({ extractionId: keptId })
+        .select('id', 'decisionDigest').all(), reviewsBefore)
+      const batch = await module.readBatch({ projectContextId: project.projectContextId, batchExtractionId })
+      assert.deepEqual(batch.members.map((member) => member.sourceDocumentId), [kept.sourceDocumentId])
     })
 
     it('runExtraction records keiRunId from the pinned revision', async (t) => {

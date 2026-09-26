@@ -335,7 +335,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
           relationship.documentId !== sourceDocumentId ||
           !relationship.documentPresent
         )
-          return false
+          return null
         relationship.documentPresent = false
         if (
           !relationships.some(
@@ -343,7 +343,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
           )
         )
           packagePresent = false
-        return true
+        return { interruptedAttempts: [] }
       }),
       listRecentActivity: vi.fn(async () => []),
       listProjectContexts: vi.fn(async () => {

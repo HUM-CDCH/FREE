@@ -511,6 +511,7 @@ async function lockCurrentAttempt(orm: Orm, batchSchemaSuggestionId: string, att
     id: batchSchemaSuggestionId,
     attempt,
     outcome: null,
+    confirmedSchemaRevisionId: null,
   }).updateAll({ id: batchSchemaSuggestionId })
   return locked.length === 1
 }
@@ -652,7 +653,7 @@ export type ResearcherProjectStore = {
   deleteSourceDocument(
     projectContextId: string,
     sourceDocumentId: string,
-  ): Promise<boolean>
+  ): Promise<{ interruptedAttempts: readonly { batchSchemaSuggestionId: string; attempt: number }[] } | null>
   listProjectContexts(limit: number): Promise<ProjectContextListItem[]>
   /** Newest-first persisted events across every owned Project Context. */
   listRecentActivity(limit: number): Promise<ProjectContextActivityEvent[]>
@@ -1035,6 +1036,25 @@ export function createResearcherProjectStore(
           projectContextId,
         })
         if (!document) return null
+        // Serialize with retry, Run and publication before the pin cascade. Their writes lock the same suggestion row.
+        const pins = await orm.public.BatchSchemaSuggestionSource.where({ sourceDocumentId })
+          .select('batchSchemaSuggestionId').all()
+        const suggestionIds = [...new Set(pins.map((pin) => pin.batchSchemaSuggestionId))].sort()
+        const interruptedAttempts: { batchSchemaSuggestionId: string; attempt: number }[] = []
+        for (const id of suggestionIds) {
+          if (!(await lockSuggestionRow(orm, projectContextId, id))) continue
+          const row = await orm.public.BatchSchemaSuggestion.select(
+            'attempt', 'outcome', 'confirmedSchemaRevisionId',
+          ).first({ id })
+          if (!row || row.outcome !== null || row.confirmedSchemaRevisionId !== null) continue
+          const interrupted = await orm.public.BatchSchemaSuggestion.where({
+            id, attempt: row.attempt, outcome: null, confirmedSchemaRevisionId: null,
+          }).updateAll({
+            outcome: 'FAILED',
+            failure: { code: 'interrupted', message: 'A selected Source Document was deleted while its fields were being suggested.' },
+          })
+          if (interrupted.length === 1) interruptedAttempts.push({ batchSchemaSuggestionId: id, attempt: row.attempt })
+        }
         const representations =
           await orm.public.SourceRepresentationRevision.where({
             sourceDocumentId,
@@ -1045,14 +1065,17 @@ export function createResearcherProjectStore(
           id: sourceDocumentId,
           projectContextId,
         }).delete()
-        return representations.map((row) => ({
-          artifactReference: row.artifactReference,
-          artifactSha256: row.artifactSha256,
-        }))
+        return {
+          descriptors: representations.map((row) => ({
+            artifactReference: row.artifactReference,
+            artifactSha256: row.artifactSha256,
+          })),
+          interruptedAttempts,
+        }
       })
-      if (!candidates) return false
-      await discardPackagesIfUnreferenced(database, candidates)
-      return true
+      if (!candidates) return null
+      await discardPackagesIfUnreferenced(database, candidates.descriptors)
+      return { interruptedAttempts: candidates.interruptedAttempts }
     },
     async listProjectContexts(limit) {
       const rows = await database.orm.public.ProjectContext.where({

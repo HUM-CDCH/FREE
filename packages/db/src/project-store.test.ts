@@ -1312,14 +1312,14 @@ describe('ResearcherProjectStore Schema Revisions', () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
-    assert.equal(await store.deleteSourceDocument(PROJECT, DOCUMENT), true)
+    assert.deepEqual(await store.deleteSourceDocument(PROJECT, DOCUMENT), { interruptedAttempts: [] })
     assert.deepEqual(
       database.tables.SourceDocument.map((row) => row.id),
       [OTHER_DOCUMENT],
     )
     assert.equal(
       await store.deleteSourceDocument(PROJECT, OTHER_DOCUMENT),
-      false,
+      null,
     )
   })
 

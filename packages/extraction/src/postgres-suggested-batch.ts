@@ -48,12 +48,13 @@ export async function persistSuggestedBatch(
   let status: 'created' | 'replayed' | 'missing' | 'not-ready' | 'invalid'
   try {
     status = await withPoolClientTransaction(async ({ orm }, client) => {
-      const project = await orm.public.ProjectContext.select('id').first({
+      // Source/project deletion locks the project before its suggestions. Keep that order here to avoid a cycle.
+      const project = await orm.public.ProjectContext.where({
         id: input.projectContextId,
         researcherAccountId,
-      })
-      if (!project) return 'missing' as const
-      // Lock the suggestion first (a no-op update): a retry or a draft edit waits until this handoff commits.
+      }).updateAll({ id: input.projectContextId })
+      if (project.length !== 1) return 'missing' as const
+      // A retry or draft edit waits until this handoff commits.
       const locked = await orm.public.BatchSchemaSuggestion.where({
         id: input.batchSchemaSuggestionId,
         projectContextId: input.projectContextId,

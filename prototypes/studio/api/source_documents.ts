@@ -29,6 +29,7 @@ import {
 import { packagePageCount, type PackageStore } from './_kei_conversion.js'
 import { configuredIngestionModels } from './_model_config.js'
 import { countPdfPages } from './_pdf_pages.js'
+import { cancelScopeWork } from './_scope_cancellation.js'
 import {
   removeStagedSource,
   sourceInboxRoot,
@@ -253,6 +254,7 @@ export function createSourceDocumentIngestion(
 
 export function createSourceDocumentDeletion(
   store: SourceDocumentDeletionStore,
+  cancelWork: typeof cancelScopeWork = cancelScopeWork,
 ) {
   return async function deleteSourceDocument(
     request: Request,
@@ -271,6 +273,9 @@ export function createSourceDocumentDeletion(
         })
       if (!deleted)
         throw new ApiError(404, 'not_found', 'Source Document was not found.')
+      await cancelWork({ projectContextId, sourceDocumentId }, deleted.interruptedAttempts).catch(() => {
+        console.warn('Could not stop all Source Document work after deletion; garbage collection will retry.')
+      })
       return new Response(null, { status: 204, headers: noStore })
     } catch (error) {
       return noStoreError(error)

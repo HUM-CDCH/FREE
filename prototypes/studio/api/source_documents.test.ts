@@ -93,8 +93,9 @@ const enqueued = (admission: ReturnType<typeof dependencies>['admission']) => ad
 
 describe('Source Document deletion', () => {
   it('delegates authorized reference-safe deletion to the researcher store', async () => {
-    const deleteSourceDocument = vi.fn().mockResolvedValue(true)
-    const DELETE = createSourceDocumentDeletion({ deleteSourceDocument })
+    const deleteSourceDocument = vi.fn().mockResolvedValue({ interruptedAttempts: [{ batchSchemaSuggestionId: ids.source, attempt: 2 }] })
+    const cancelWork = vi.fn(async () => {})
+    const DELETE = createSourceDocumentDeletion({ deleteSourceDocument }, cancelWork)
 
     const response = await DELETE(
       new Request(`http://test/api/project-contexts/${ids.project}/source-documents/${ids.source}`, { method: 'DELETE' }),
@@ -102,10 +103,14 @@ describe('Source Document deletion', () => {
 
     expect(response.status).toBe(204)
     expect(deleteSourceDocument).toHaveBeenCalledWith(ids.project, ids.source)
+    expect(cancelWork).toHaveBeenCalledWith(
+      { projectContextId: ids.project, sourceDocumentId: ids.source },
+      [{ batchSchemaSuggestionId: ids.source, attempt: 2 }],
+    )
   })
 
   it('uses the existing not-found shape for a missing or cross-owner document', async () => {
-    const DELETE = createSourceDocumentDeletion({ deleteSourceDocument: vi.fn().mockResolvedValue(false) })
+    const DELETE = createSourceDocumentDeletion({ deleteSourceDocument: vi.fn().mockResolvedValue(null) })
 
     const response = await DELETE(
       new Request(`http://test/api/project-contexts/${ids.project}/source-documents/${ids.source}`, { method: 'DELETE' }),
@@ -113,6 +118,20 @@ describe('Source Document deletion', () => {
 
     expect(response.status).toBe(404)
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'not_found' } })
+  })
+
+  it('answers 204 after a committed deletion even when cancellation fails', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const DELETE = createSourceDocumentDeletion(
+        { deleteSourceDocument: vi.fn().mockResolvedValue({ interruptedAttempts: [] }) },
+        vi.fn(async () => { throw new Error('kei unavailable') }),
+      )
+      const response = await DELETE(new Request(
+        `http://test/api/project-contexts/${ids.project}/source-documents/${ids.source}`, { method: 'DELETE' }))
+      expect(response.status).toBe(204)
+      expect(warning).toHaveBeenCalled()
+    } finally { warning.mockRestore() }
   })
 })
 

@@ -164,6 +164,7 @@ describe('Project Context routes', () => {
     const deleteProjectContext = vi.fn(
       async (projectContextId: string) => projectContextId === DEMO_PROJECT_ID,
     )
+    const cancelWork = vi.fn(async () => {})
     const { POST, PATCH, DELETE } = createProjectContextWrites({
       async createProjectContext(name) {
         return { ...created, name }
@@ -174,7 +175,7 @@ describe('Project Context routes', () => {
           : null
       },
       deleteProjectContext,
-    })
+    }, cancelWork)
 
     const create = await POST(
       write('http://test/api/project-contexts', 'POST', '  Trimmed  '),
@@ -205,6 +206,7 @@ describe('Project Context routes', () => {
     expect(remove.status).toBe(204)
     expect(remove.headers.get('cache-control')).toBe('no-store')
     expect(deleteProjectContext).toHaveBeenCalledWith(DEMO_PROJECT_ID)
+    expect(cancelWork).toHaveBeenCalledWith({ projectContextId: DEMO_PROJECT_ID })
   })
 
   it('bounds invalid writes, unknown owners, and persistence failures', async () => {

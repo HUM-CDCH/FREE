@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { after, test } from 'node:test'
 import { DBOS, DBOSClient } from '@dbos-inc/dbos-sdk'
 import { validateDisposableTestDatabaseTarget } from './database-url.js'
+import { withBlockedUpdates } from './postgres-test-helpers.js'
 import type { TransactionalEnqueue } from './pool-client-transaction.js'
 
 /**
@@ -334,7 +335,7 @@ test('Batch Schema Suggestion attempts on PostgreSQL and DBOS', { timeout: 120_0
     assert.ok(single && 'suggestion' in single)
     const singleId = single.suggestion.batchSchemaSuggestionId
     assert.equal(await worker.publishBatchSchemaSuggestion(singleId, 1, ready('gamma')), 'published')
-    assert.equal(await researcher.deleteSourceDocument(projectContextId, sources[2]!.sourceDocumentId), true)
+    assert.deepEqual(await researcher.deleteSourceDocument(projectContextId, sources[2]!.sourceDocumentId), { interruptedAttempts: [] })
     const orphaned = await researcher.getBatchSchemaSuggestion(projectContextId, singleId)
     assert.deepEqual(orphaned?.sources, [])
     assert.deepEqual(orphaned?.draft, definition('gamma'))
@@ -346,6 +347,18 @@ test('Batch Schema Suggestion attempts on PostgreSQL and DBOS', { timeout: 120_0
     assert.equal(await worker.readRevisionMarkdown(sources[0]!.sourceRepresentationRevisionId), '# Alpha')
     assert.equal(await worker.readRevisionMarkdown(sources[2]!.sourceRepresentationRevisionId), null)
     assert.equal(await worker.projectContextOwner(projectContextId), accountId)
+  })
+
+  await t.test('two retries of the same expected attempt admit one successor', async () => {
+    const created = await researcher.createBatchSchemaSuggestion(projectContextId, [sources[0]!.sourceDocumentId])
+    assert.ok(created && 'suggestion' in created)
+    const id = created.suggestion.batchSchemaSuggestionId
+    assert.equal(await worker.failBatchSchemaSuggestionAttempt(id, 1, failure), 'published')
+    const results = await withBlockedUpdates(databaseUrl, 'BatchSchemaSuggestion', id, 2,
+      () => Promise.all([1, 2].map(() => researcher.retryBatchSchemaSuggestion(projectContextId, id, 1))),
+    )
+    assert.deepEqual(results.map((result) => result?.status).sort(), ['replayed', 'retried'])
+    assert.deepEqual(await attempts(id), [`suggest:${id}:1`, `suggest:${id}:2`])
   })
 
   await t.test('the membership table holds pins only', async () => {
