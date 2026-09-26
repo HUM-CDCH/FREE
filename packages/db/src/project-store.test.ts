@@ -304,6 +304,11 @@ function fakeDatabase(
         Object.assign(row, input)
         return row
       },
+      async updateAll(input: Row) {
+        const matching = await query.all()
+        for (const row of matching) Object.assign(row, input)
+        return matching
+      },
       async delete() {
         const doomed = await query.all()
         if (table === 'ProjectContext') {
