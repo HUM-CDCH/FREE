@@ -629,6 +629,9 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   await freshPage.getByRole('combobox', { name: 'Extraction strategy' }).selectOption(strategy)
   await freshPage.getByRole('button', { name: '↻ Re-run extraction' }).click()
   await expect(freshPage.getByText('Running extraction…')).toBeVisible()
+  // The page shows the run before its request reaches Studio; leaving now could abort the request before the
+  // Extraction exists. kei holding the result proves Studio started it.
+  await expect.poll(() => resultGate.release !== null).toBe(true)
   await freshPage.goto(e2eStudioPath('/projects'))
   await freshPage.goto(url)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
