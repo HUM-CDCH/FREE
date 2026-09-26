@@ -114,6 +114,8 @@ Task 9's recovery config already has its own values (41771/41772/45436). Once M4
 2. Task 10 Step 3's live checks need the Spark or a hosted key; the plan already allows recording them as deferred to the M6 cutover smoke. Default: defer.
 3. Learning mode: the only policy-shaped code in this plan is `recoveryView`/`planRecovery` (Task 7). The user may write those two functions themselves against Task 7's tests; otherwise the plan's version is used.
 
+**Answers (user, 2026-09-26):** (1) a **Codex read-only review after each task** (`codex exec -s read-only`, prompt from the task's brief and the filtered diff `BASE..HEAD`; Critical/Important findings get one fix round with RED→GREEN tests before the task's ledger line, Minor ones are ledgered as deferred) in addition to the whole-branch review at the end; (2) unanswered — the default holds, the live checks are recorded as deferred to the M6 cutover smoke; (3) **no learning mode**: the plan's code is used as written.
+
 ## Test tiers at the M5 seam
 
 | Tier | Tasks 1–8 | Task 9 on |
