@@ -11,13 +11,14 @@
   },
   "scripts": {
     "test": "tsx --test src/*.test.ts",
-    "test:postgres": "tsx --test --test-concurrency=1 src/project-store.postgres.check.ts src/source-reprocessing.postgres.check.ts src/model-configuration.postgres.check.ts",
+    "test:postgres": "tsx --test --test-concurrency=1 src/project-store.postgres.check.ts src/source-reprocessing.postgres.check.ts src/model-configuration.postgres.check.ts src/kei-role.postgres.check.ts",
     "typecheck": "tsc --noEmit",
     "contract:emit": "prisma-next contract emit",
     "db:start": "tsx src/start-development-database.ts",
     "db:reset": "tsx src/reset-database.ts && prisma-next migrate --yes",
     "db:init": "prisma-next migrate --yes",
-    "db:verify": "tsx src/verify-database.ts"
+    "db:verify": "tsx src/verify-database.ts",
+    "db:kei-role": "tsx src/ensure-kei-role.ts"
   },
   "keywords": [],
   "author": "",

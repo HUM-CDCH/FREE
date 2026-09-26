@@ -544,7 +544,7 @@ export function validateProductionEnvironment(
 
   appendSharedIssue('FREE_SESSION_SECRET')
 
-  for (const field of ['FREE_POSTGRES_PASSWORD', 'FREE_PARSING_POSTGRES_PASSWORD']) {
+  for (const field of ['FREE_POSTGRES_PASSWORD', 'FREE_PARSING_POSTGRES_PASSWORD', 'FREE_KEI_POSTGRES_PASSWORD']) {
     const password = environment[field]
     if (password === undefined || password === '')
       errors.push(`${field} is required in .env.`)

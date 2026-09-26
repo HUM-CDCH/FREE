@@ -98,6 +98,7 @@ const completeProductionEnvironment = (certificatePath) => ({
   FREE_SESSION_SECRET: Buffer.alloc(32, 7).toString('base64'),
   FREE_POSTGRES_PASSWORD: 'a'.repeat(64),
   FREE_PARSING_POSTGRES_PASSWORD: 'c'.repeat(64),
+  FREE_KEI_POSTGRES_PASSWORD: 'd'.repeat(64),
   FREE_ENTRA_TENANT_ID: '11111111-2222-4333-8444-555555555555',
   FREE_ENTRA_CLIENT_ID: '66666666-7777-4888-9999-aaaaaaaaaaaa',
   FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'b'.repeat(64),
@@ -258,6 +259,7 @@ test('database tooling: package exposes only supported operator commands', () =>
     'db:reset',
     'db:init',
     'db:verify',
+    'db:kei-role',
   ])
     assert.equal(typeof scripts[supported], 'string', supported)
 
@@ -314,6 +316,25 @@ test('development: mock and real Entra Compose profiles render exclusively', () 
   )
 })
 
+test('kei role: only Studio receives the kei password, after migrations', () => {
+  const services = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {})).services
+  assert.equal(typeof services.studio.environment.FREE_KEI_POSTGRES_PASSWORD, 'string')
+  assert.notEqual(services.studio.environment.FREE_KEI_POSTGRES_PASSWORD, '')
+  for (const [name, service] of Object.entries(services))
+    if (name !== 'studio')
+      assert.equal(service.environment?.FREE_KEI_POSTGRES_PASSWORD, undefined, name)
+
+  const production = readFileSync(resolve(ROOT, 'compose.prod.yaml'), 'utf8')
+  assert.ok(production.includes('FREE_KEI_POSTGRES_PASSWORD:?'), 'production must require the kei password')
+
+  const entrypoint = readFileSync(resolve(ROOT, 'docker/studio-entrypoint.sh'), 'utf8')
+  const init = entrypoint.indexOf('db:init')
+  const keiRole = entrypoint.indexOf('db:kei-role')
+  const exec = entrypoint.indexOf('exec "$@"')
+  assert.ok(init !== -1 && exec !== -1, 'the entrypoint migrates, then starts Studio')
+  assert.ok(init < keiRole && keiRole < exec, 'the kei role is ensured after migrations and before Studio starts')
+})
+
 test('development: Studio watches shared configuration and rebuild-owned database inputs', () => {
   const result = spawnSync(
     'docker',
@@ -340,28 +361,38 @@ test('development: Studio watches shared configuration and rebuild-owned databas
   )
   assert.equal(result.status, 0, result.stderr)
   const watch = JSON.parse(result.stdout).services.studio.develop.watch
-  const sharedSource = watch.find(
-    ({ path, action }) =>
-      action === 'sync' &&
-      path.replaceAll('\\', '/').endsWith('/packages/studio-configuration'),
-  )
+  const rule = (action, suffix) =>
+    watch.find(
+      ({ path, action: candidate }) =>
+        candidate === action && path.replaceAll('\\', '/').endsWith(suffix),
+    )
+
+  // Server code runs in the Studio process, so it restarts the container; browser source is carved out of that rule.
+  const studioServer = rule('sync+restart', '/prototypes/studio')
+  assert.equal(studioServer?.target, '/workspace/prototypes/studio')
+  assert.equal(studioServer?.initial_sync, true)
+  for (const ignored of ['package.json', 'src/', 'e2e/', 'node_modules/'])
+    assert.ok(studioServer.ignore.includes(ignored), `${ignored} must not travel with Studio's server code`)
+  const browserSource = rule('sync', '/prototypes/studio/src')
+  assert.equal(browserSource?.target, '/workspace/prototypes/studio/src')
+  assert.equal(browserSource?.initial_sync, true)
   assert.deepEqual(
-    {
-      target: sharedSource?.target,
-      initialSync: sharedSource?.initial_sync,
-      ignore: sharedSource?.ignore,
-    },
-    {
-      target: '/workspace/packages/studio-configuration',
-      initialSync: true,
-      ignore: ['package.json', 'node_modules/'],
-    },
+    watch.filter(({ action }) => action === 'sync'),
+    [browserSource],
+    'only browser source hot-reloads in place',
   )
-  const databaseSource = watch.find(
-    ({ path, action }) =>
-      action === 'sync' &&
-      path.replaceAll('\\', '/').endsWith('/packages/db'),
-  )
+
+  for (const name of ['studio-configuration', 'extraction', 'extraction-result-export']) {
+    const source = rule('sync+restart', `/packages/${name}`)
+    assert.deepEqual(
+      { target: source?.target, initialSync: source?.initial_sync, ignore: source?.ignore },
+      { target: `/workspace/packages/${name}`, initialSync: true, ignore: ['package.json', 'node_modules/'] },
+      name,
+    )
+  }
+  const databaseSource = rule('sync+restart', '/packages/db')
+  assert.equal(databaseSource?.target, '/workspace/packages/db')
+  assert.equal(databaseSource?.initial_sync, true)
   for (const rebuildOwnedInput of [
     'prisma-next.config.ts',
     'migrations/',
@@ -384,13 +415,7 @@ test('development: Studio watches shared configuration and rebuild-owned databas
       `${rebuildOwnedInput} must rebuild the Studio image`,
     )
   assert.ok(
-    watch.some(
-      ({ path, action }) =>
-        action === 'rebuild' &&
-        path
-          .replaceAll('\\', '/')
-          .endsWith('/packages/studio-configuration/package.json'),
-    ),
+    rebuildPaths.some((path) => path.endsWith('/packages/studio-configuration/package.json')),
     'the shared configuration manifest must rebuild the Studio image',
   )
 })

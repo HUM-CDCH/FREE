@@ -8,6 +8,7 @@ set -eu
 : "${DBUS_SESSION_BUS_ADDRESS:?DBUS_SESSION_BUS_ADDRESS must be set}"
 : "${CODEX_HOME:?CODEX_HOME must be set}"
 : "${DATABASE_URL:?DATABASE_URL must be set}"
+: "${FREE_KEI_POSTGRES_PASSWORD:?FREE_KEI_POSTGRES_PASSWORD must be set}"
 
 install -d -m 700 "$XDG_RUNTIME_DIR" "$CODEX_HOME"
 rm -f "$XDG_RUNTIME_DIR/bus"
@@ -24,5 +25,8 @@ gnome-keyring-daemon --start --components=secrets >/dev/null
 # schema directly or seeds an account; the first successful OIDC callback
 # creates the Researcher Account just in time.
 pnpm --filter db db:init
+
+# kei (the Parsing Service's DBOS worker from M3) logs in with its own role, which owns only kei_dbos.
+pnpm --filter db db:kei-role
 
 exec "$@"

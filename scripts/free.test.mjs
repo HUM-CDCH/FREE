@@ -568,6 +568,7 @@ const productionEnvironment = {
   FREE_SESSION_SECRET: Buffer.alloc(32, 7).toString('base64'),
   FREE_POSTGRES_PASSWORD: 'a'.repeat(64),
   FREE_PARSING_POSTGRES_PASSWORD: 'c'.repeat(64),
+  FREE_KEI_POSTGRES_PASSWORD: 'd'.repeat(64),
   FREE_ENTRA_TENANT_ID: '00000000-0000-4000-8000-000000000001',
   FREE_ENTRA_CLIENT_ID: '00000000-0000-4000-8000-000000000002',
   FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'AB'.repeat(32),
@@ -588,6 +589,7 @@ describe('production environment validation', () => {
       ...SHARED_STUDIO_CONFIGURATION_FIELDS,
       'FREE_POSTGRES_PASSWORD',
       'FREE_PARSING_POSTGRES_PASSWORD',
+      'FREE_KEI_POSTGRES_PASSWORD',
     ])
       assert.ok(
         errors.some((error) => error.includes(`${name} is required`)),
@@ -650,8 +652,8 @@ describe('production environment validation', () => {
     }
   })
 
-  it('rejects weak or URL-unsafe passwords for either database', () => {
-    for (const field of ['FREE_POSTGRES_PASSWORD', 'FREE_PARSING_POSTGRES_PASSWORD']) {
+  it('rejects weak or URL-unsafe passwords for every database role', () => {
+    for (const field of ['FREE_POSTGRES_PASSWORD', 'FREE_PARSING_POSTGRES_PASSWORD', 'FREE_KEI_POSTGRES_PASSWORD']) {
       const errors = validateProductionEnvironment(
         { ...productionEnvironment, [field]: 'p@ss word' },
         () => true,

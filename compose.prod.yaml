@@ -42,6 +42,7 @@ services:
     # the two blocks identical.
     environment:
       DATABASE_URL: "postgresql://postgres:${FREE_POSTGRES_PASSWORD:?FREE_POSTGRES_PASSWORD must be set to a generated hexadecimal password}@db:5432/free"
+      FREE_KEI_POSTGRES_PASSWORD: "${FREE_KEI_POSTGRES_PASSWORD:?FREE_KEI_POSTGRES_PASSWORD must be set to a generated hexadecimal password}"
       STUDIO_ORIGIN: "${STUDIO_ORIGIN:?STUDIO_ORIGIN must be set to the canonical HTTPS origin}"
       STUDIO_BASE_PATH: "${STUDIO_BASE_PATH:?STUDIO_BASE_PATH must be a canonical path such as /free}"
       FREE_SESSION_SECRET: "${FREE_SESSION_SECRET:?FREE_SESSION_SECRET must be canonical base64 decoding to at least 32 bytes}"
