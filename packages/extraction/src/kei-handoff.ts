@@ -172,7 +172,10 @@ export function settleKei<T>(poll: Exclude<KeiPoll, { state: 'live' }>, okSchema
   }
 }
 
-const NOT_READY = new Set(['42P01', '3F000', '57P03', 'ECONNREFUSED', 'ECONNRESET'])
+/** 57P01 (admin_shutdown) ends a query in flight while PostgreSQL restarts; 57P03 refuses the next connection. */
+const NOT_READY = new Set(['42P01', '3F000', '57P01', '57P03', 'ECONNREFUSED', 'ECONNRESET'])
+/** pg's own errors for a connection the server dropped mid-query ("Connection terminated unexpectedly") carry no code. */
+const CONNECTION_TERMINATED = /^Connection terminated\b/
 
 /** kei has not migrated kei_dbos yet (it starts after Studio is healthy), or the database is restarting. The walk is
  *  bounded, so a cause chain with a cycle ends. */
@@ -181,6 +184,7 @@ export function keiNotReady(error: unknown): boolean {
   for (let depth = 0; depth < 8 && current !== null && typeof current === 'object'; depth += 1) {
     const code = (current as { code?: unknown }).code
     if (typeof code === 'string' && NOT_READY.has(code)) return true
+    if (code === undefined && current instanceof Error && CONNECTION_TERMINATED.test(current.message)) return true
     current = (current as { cause?: unknown }).cause
   }
   return false

@@ -1,0 +1,207 @@
+import { createHash } from 'node:crypto'
+import { DBOS, Error as DBOSErrors, type StepConfig } from '@dbos-inc/dbos-sdk'
+import type { TerminalExtraction } from './dependencies.js'
+import { ExtractionError } from './errors.js'
+import { acceptKeiArtifact } from './kei-artifact.js'
+import {
+  EXTRACTION_TIMEOUT_MS, KEI_PRIORITY, KEI_QUEUE, KEI_RUN_ID, keiExtractOkSchema, keiExtractWorkflowId, settleKei,
+  SUBMIT_TO_KEI_RETRY, type KeiExtractInput, type KeiHandoff, type KeiOutcome, type KeiPoll,
+} from './kei-handoff.js'
+import { modelChoice } from './model-choice.js'
+import { decodePinnedDocument } from './parsed-document.js'
+import { parseExtractionSchema } from './schema.js'
+import type { ExtractionFailure, ExtractionModelChoice, ExtractionStrategy } from './types.js'
+
+export const RUN_EXTRACTION = 'runExtraction'
+
+/** The DBOS surface a workflow body uses, so its sequence is testable without DBOS. */
+export type WorkflowSteps = Readonly<{
+  step<T>(name: string, run: () => Promise<T>, config?: StepConfig): Promise<T>
+  /** DBOS.stepStatus.cancelSignal inside a step (it fires about 1 s after a cancel); undefined outside one. */
+  cancelSignal(): AbortSignal | undefined
+}>
+export const dbosSteps: WorkflowSteps = {
+  step: (name, run, config) => DBOS.runStep(run, { ...config, name }),
+  cancelSignal: () => DBOS.stepStatus?.cancelSignal,
+}
+
+/** A read of a published artifact that another attempt may get through (kei's API restarting). Ingestion and
+ *  reprocessing reuse it for their manifest and page reads. */
+export const ARTIFACT_READ_RETRY: StepConfig = {
+  retriesAllowed: true, intervalSeconds: 5, backoffRate: 2, maxAttempts: 3,
+  shouldRetry: (error) => error instanceof TypeError || (error as { transient?: unknown })?.transient === true,
+}
+
+/** What admission committed for one Extraction: its pins, its choices and the scope it belongs to. */
+export type AdmittedExtraction = Readonly<{
+  extractionId: string
+  owner: string
+  projectContextId: string
+  sourceDocumentId: string
+  sourceRepresentationRevisionId: string
+  schemaRevisionId: string
+  extractionSchemaId: string
+  strategy: ExtractionStrategy
+  catalogRecipe: string | null
+  requestedModels: ExtractionModelChoice | null
+  batchExtractionId: string | null
+  /** The pinned revision's `preprocessId`: `kei-exp:<run>:<generation>` for a representation kei made. */
+  preprocessId: string
+  schemaTree: unknown
+}>
+export type SettledExtraction =
+  | { outcome: 'SUCCEEDED'; extraction: TerminalExtraction }
+  | { outcome: 'FAILED' | 'CANCELLED'; failure: ExtractionFailure }
+export type ExtractionStore = Readonly<{
+  /** The Extraction while it has no outcome; null once it is settled or deleted. */
+  loadAdmitted(extractionId: string): Promise<AdmittedExtraction | null>
+  readPinnedDocument(sourceRepresentationRevisionId: string): Promise<unknown | null>
+  /** Locks the Extraction and writes the outcome only while it has none. */
+  settle(extractionId: string, settled: SettledExtraction): Promise<'settled' | 'already-settled' | 'missing'>
+}>
+export type ExtractionWorkflowPorts = Readonly<{
+  steps: WorkflowSteps
+  store: ExtractionStore
+  kei: KeiHandoff
+  /** The bytes of kei's published artifact (`GET /api/runs/{run}/extractions/{extraction}`). */
+  readArtifact(runId: string, extractionId: string, signal?: AbortSignal): Promise<Uint8Array>
+}>
+
+const KEI_PREPROCESS = /^kei-exp:([A-Za-z0-9][A-Za-z0-9._-]*):([^:\s]+)$/
+
+/** The kei run and parse generation a Source Representation Revision was made from (`kei-exp:<run>:<generation>`,
+ *  written by ingestion from kei's convert output). Studio reads the run ID; it never derives one. */
+export function keiRunOf(preprocessId: string): { runId: string; generation: string } | null {
+  const match = KEI_PREPROCESS.exec(preprocessId)
+  return match && KEI_RUN_ID.test(match[1]!) ? { runId: match[1]!, generation: match[2]! } : null
+}
+
+export function extractionAttributes(admitted: Pick<AdmittedExtraction,
+  'projectContextId' | 'sourceDocumentId' | 'sourceRepresentationRevisionId' | 'extractionSchemaId' | 'batchExtractionId' | 'preprocessId'>,
+): Record<string, string> {
+  const run = keiRunOf(admitted.preprocessId)
+  return {
+    projectContextId: admitted.projectContextId,
+    sourceDocumentId: admitted.sourceDocumentId,
+    sourceRepresentationRevisionId: admitted.sourceRepresentationRevisionId,
+    extractionSchemaId: admitted.extractionSchemaId,
+    ...(admitted.batchExtractionId === null ? {} : { batchExtractionId: admitted.batchExtractionId }),
+    // The run this Extraction hands to kei: M6's collectGarbage protects it while this workflow lives (*Late handoffs*).
+    ...(run === null ? {} : { keiRunId: run.runId }),
+  }
+}
+
+function keiExtractRequest(admitted: AdmittedExtraction): KeiExtractInput | ExtractionFailure {
+  const run = keiRunOf(admitted.preprocessId)
+  if (run === null)
+    return { code: 'invalid_source_representation', message: 'The pinned Source Representation does not name a kei-exp parse generation.', phase: 'loading' }
+  let schema: Record<string, unknown>
+  // Admission validated the tree; a pinned tree that no longer parses fails this Extraction rather than its workflow.
+  try { schema = parseExtractionSchema(admitted.schemaTree) as unknown as Record<string, unknown> }
+  catch { return { code: 'invalid_schema_revision', message: 'The pinned Schema Revision is invalid.', phase: 'loading' } }
+  const models = modelChoice(admitted.requestedModels)
+  const recipe = admitted.strategy === 'CATALOG' ? admitted.catalogRecipe : null
+  return {
+    run_id: run.runId,
+    generation: run.generation,
+    request: {
+      schema,
+      options: {
+        strategy: admitted.strategy === 'CATALOG' ? 'catalog' : 'article',
+        ...(models === null ? {} : { models }),
+        ...(recipe === null ? {} : { catalog: { recipe } }),
+      },
+    },
+  }
+}
+
+export function extractionFailureOf(outcome: Extract<KeiOutcome<unknown>, { ok: false }>, strategy: ExtractionStrategy): ExtractionFailure {
+  const phase = 'extracting' as const
+  switch (outcome.code) {
+    case 'stale_generation': return { code: 'invalid_source_representation', message: outcome.reason.slice(0, 512), phase }
+    case 'model_unavailable': return { code: 'model_unavailable', message: outcome.reason.slice(0, 512), phase }
+    case 'cancelled': return { code: 'cancelled', message: 'The Extraction was cancelled.', phase }
+    case 'deadline_exceeded':
+      return { code: 'extraction_failed', message: `The Extraction did not finish within its time limit (${strategy === 'CATALOG' ? '3 hours' : '10 minutes'}).`, phase }
+    case 'stopped': return { code: 'extraction_failed', message: 'The Parsing Service stopped this Extraction.', phase }
+    case 'invalid_output': return { code: 'invalid_model_output', message: outcome.reason.slice(0, 512), phase }
+    default: return { code: 'extraction_failed', message: `kei-exp could not complete the Extraction: ${outcome.reason}`.slice(0, 512), phase }
+  }
+}
+
+export function isWorkflowCancellation(error: unknown): boolean {
+  return error instanceof DBOSErrors.DBOSWorkflowCancelledError || error instanceof DBOSErrors.DBOSAwaitedWorkflowCancelledError
+}
+
+/**
+ * `runExtraction(extractionId)` (spec, *Background work*): load the admitted pins, submit to kei-extract, poll in
+ * bounded steps, then fetch, validate and publish the artifact in one step. Every terminal write is `store.settle`,
+ * which writes only while the row has no outcome: a replayed step, a cancel that won, or a deleted row makes it a
+ * no-op, never a second result and never a failure of surviving batch members.
+ */
+export async function runExtractionWorkflow(extractionId: string, ports: ExtractionWorkflowPorts): Promise<void> {
+  const { steps, store, kei } = ports
+  const admitted = await steps.step('loadAdmitted', () => store.loadAdmitted(extractionId))
+  if (admitted === null) return
+  const request = keiExtractRequest(admitted)
+  if ('code' in request) {
+    await steps.step('publishFailure', () => store.settle(extractionId, { outcome: 'FAILED', failure: request }))
+    return
+  }
+  const child = keiExtractWorkflowId(extractionId)
+  await steps.step('submitToKei', () => kei.submit({
+    workflow: 'extract',
+    workflowId: child,
+    queueName: KEI_QUEUE.extract,
+    priority: admitted.batchExtractionId === null ? KEI_PRIORITY.interactive : KEI_PRIORITY.batch,
+    timeoutMs: EXTRACTION_TIMEOUT_MS[admitted.strategy],
+    request,
+    authenticatedUser: admitted.owner,
+    attributes: extractionAttributes(admitted),
+  }), SUBMIT_TO_KEI_RETRY)
+  try {
+    const pollKei = () => steps.step('pollKei', () => kei.poll(child, steps.cancelSignal()))
+    let polled: KeiPoll = await pollKei()
+    while (polled.state === 'live') polled = await pollKei()
+    const settled = settleKei(polled, keiExtractOkSchema)
+    if (!settled.ok) {
+      const failure = extractionFailureOf(settled, admitted.strategy)
+      await steps.step('publishFailure', () => store.settle(extractionId, { outcome: 'FAILED', failure }))
+      return
+    }
+    await steps.step('publishResult', async () => {
+      const ok = settled.value
+      const invalid = (message: string) => store.settle(extractionId, {
+        outcome: 'FAILED', failure: { code: 'invalid_model_output', message, phase: 'persisting' },
+      })
+      if (ok.extraction_id !== extractionId || ok.run_id !== request.run_id || ok.generation !== request.generation)
+        return invalid('kei-exp reported an extraction of other inputs.')
+      const bytes = await ports.readArtifact(ok.run_id, extractionId, steps.cancelSignal())
+      if (createHash('sha256').update(bytes).digest('hex') !== ok.artifact_sha256)
+        return invalid('The published extraction artifact does not match the one kei-exp reported.')
+      const raw = await store.readPinnedDocument(admitted.sourceRepresentationRevisionId)
+      if (raw === null) return 'missing' as const // the revision was deleted: nothing to publish into
+      let extraction: TerminalExtraction
+      try {
+        extraction = acceptKeiArtifact(admitted, decodePinnedDocument(raw), JSON.parse(new TextDecoder().decode(bytes)), request)
+      } catch (error) {
+        if (!(error instanceof ExtractionError) && !(error instanceof SyntaxError)) throw error
+        return store.settle(extractionId, {
+          outcome: 'FAILED',
+          failure: { code: error instanceof ExtractionError ? error.code : 'invalid_model_output', message: error.message.slice(0, 512), phase: 'persisting' },
+        })
+      }
+      return store.settle(extractionId, { outcome: 'SUCCEEDED', extraction })
+    }, ARTIFACT_READ_RETRY)
+  } catch (error) {
+    if (isWorkflowCancellation(error)) throw error
+    // A parent that fails unexpectedly after submitToKei cancels its kei child before rethrowing (spec, *Studio → kei*).
+    await steps.step('cancelKeiChild', () => kei.cancel(child))
+    throw error
+  }
+}
+
+/** Registers `runExtraction` under its fixed name; only registerStudioWorkflows() calls it, before DBOS.launch(). */
+export function registerExtractionWorkflow(ports: () => ExtractionWorkflowPorts): void {
+  DBOS.registerWorkflow(async (extractionId: string) => runExtractionWorkflow(extractionId, ports()), { name: RUN_EXTRACTION })
+}

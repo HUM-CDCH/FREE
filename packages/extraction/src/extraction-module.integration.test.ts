@@ -12,6 +12,7 @@ import { withBlockedUpdates } from '../../db/src/postgres-test-helpers.js'
 import type { KeiExpClient, KeiExpRequest, KeiExpArtifact } from './kei-exp.js'
 import { keiExpArtifact, keiExpEvidence, keiExpGroundedArtifact } from './kei-exp-fixture.js'
 import { ExtractionError } from './errors.js'
+import { modelChoice } from './model-choice.js'
 import type {
   BatchExtractionSnapshot,
   ExtractionModule,
@@ -379,7 +380,9 @@ if (!disposableDatabaseUrl) {
           if (options.failArticle) throw new Error('controlled extraction failure')
           return keiExpArtifact({
             run_id: request.runId, strategy: request.strategy, model: 'deterministic', schema: request.schema,
-            options: { strategy: request.strategy, model: 'deterministic' }, started: new Date().toISOString(), seconds: 0.001,
+            // As kei dumps the options it ran under: the run's model choice, null when it chose no role.
+            options: { strategy: request.strategy, model: 'deterministic', models: modelChoice(request.models) },
+            started: new Date().toISOString(), seconds: 0.001,
             complete: true, records: [{ title: 'Alpha', ...(request.schema.schemaNodes.some(node => node.name === 'filename') ? { filename: 'article.pdf' } : {}) }],
             evidence: [keiExpEvidence({ bbox_pt: [10, 10, 100, 30], linked_by: 'model' })],
           })

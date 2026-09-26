@@ -1,7 +1,10 @@
 import type { ExtractionJobExecutor, ExtractionJobExecutorDependencies, ExtractionPersistence } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import { populatedContentPaths, resultPathKey } from './review-paths.js'
-import { decodeParsedDocument, type ParsedDocument } from './parsed-document.js'
+import { acceptKeiArtifact } from './kei-artifact.js'
+import type { KeiExtractInput } from './kei-handoff.js'
+import { modelChoice } from './model-choice.js'
+import { decodePinnedDocument, type ParsedDocument } from './parsed-document.js'
 import { isRecord, parseExtractionSchema, partitionSchemaNodes, restoreSchemaNodeOrder, schemaNodeAtPath } from './schema.js'
 import type { CancellationResult, FinalizeReviewResult, ExtractionModule, ExtractionSchemaNode, ReviewDecisionInput, RunSingleInput } from './types.js'
 
@@ -24,7 +27,7 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
       return { extraction, reviewDecisions: [] }
     const raw = await persistence.readCanonicalParsedDocument(extraction.sourceRepresentationRevisionId)
     if (!raw) throw new ExtractionError('invalid_source_representation', 'The pinned Source Representation is unavailable.')
-    const document = decodeCanonical(raw)
+    const document = decodePinnedDocument(raw)
     const occurrenceIdsByAnchor = occurrenceOwnership(document)
     const decisions = extraction.evidence.flatMap((link) => {
       const occurrences = occurrenceIdsByAnchor.get(link.evidenceAnchorId)
@@ -48,7 +51,7 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
       throw new ExtractionError('invalid_review', 'The Extraction has no reviewable Extraction Result.')
     const raw = await persistence.readCanonicalParsedDocument(extraction.sourceRepresentationRevisionId)
     if (!raw) throw new ExtractionError('invalid_source_representation', 'The pinned Source Representation is unavailable.')
-    const document = decodeCanonical(raw)
+    const document = decodePinnedDocument(raw)
     const inputs = await persistence.loadExtractionInputs(extraction.sourceRepresentationRevisionId, extraction.schemaRevisionId)
     if (!inputs) throw new ExtractionError('invalid_review', 'The Extraction has no valid pinned Schema Revision.')
     const definition = parsePinnedSchema(inputs.schemaTree)
@@ -198,107 +201,42 @@ export function createExtractionJobExecutor({ inputs: reader, keiExp }: Extracti
     signal.throwIfAborted()
     const inputs = await reader.loadExtractionInputs(input.sourceRepresentationRevisionId, input.schemaRevisionId)
     if (!inputs) throw new ExtractionError('invalid_extraction_pins', 'The Source Representation Revision and Schema Revision do not share one Project Context.')
-    const document = decodeCanonical(inputs.parsedDocument)
+    const document = decodePinnedDocument(inputs.parsedDocument)
     const schema = parsePinnedSchema(inputs.schemaTree)
+    const recipe = input.kind === 'fresh' && input.strategy === 'CATALOG' ? input.catalogRecipe ?? null : null
+    // Fresh runs and batch members carry their choice; unchosen roles use deployment defaults.
+    const models = modelChoice(input.models)
     const artifact = await keiExp.extract({
       runId: document.document.document_id,
       schema,
       strategy: input.strategy === 'CATALOG' ? 'catalog' : 'article',
-      catalogRecipe: input.kind === 'fresh' && input.strategy === 'CATALOG' ? input.catalogRecipe ?? null : null,
-      // Fresh runs and batch members carry their choice; unchosen roles use deployment defaults.
-      models: input.models ?? null,
+      catalogRecipe: recipe,
+      models,
       expectedGeneration: pinnedGeneration(document),
       signal,
     })
     signal.throwIfAborted()
-    const grounded = artifact.extraction_version === 2 ? artifact : null
-    const anchorId = (link: {
-      segment: string
-      cell?: string | null
-      page: number
-    }) => {
-      const id = `a_${link.segment}${link.cell ? `_${link.cell}` : ''}`
-      if (link.cell) {
-        const anchor = document.evidence_index.anchors.find(
-          (anchor) => anchor.anchor_id === id,
-        )
-        if (
-          anchor?.kind !== 'table_cell' ||
-          anchor.cell_id !== link.cell ||
-          anchor.logical_table_id !== `t_${link.segment}` ||
-          !anchor.producer_observations.some(
-            (observation) => observation.page_number === link.page,
-          )
-        )
-          throw new ExtractionError(
-            'invalid_model_output',
-            'Cell Evidence does not belong to the pinned Source Representation.',
-          )
-      }
-      return id
+    // kei's extract request as this relay sent it; the client pinned the artifact's generation to its acknowledgement.
+    const request: KeiExtractInput = {
+      run_id: document.document.document_id,
+      generation: pinnedGeneration(document) ?? artifact.generation,
+      request: {
+        schema: schema as unknown as Record<string, unknown>,
+        options: {
+          strategy: input.strategy === 'CATALOG' ? 'catalog' : 'article',
+          ...(models === null ? {} : { models }),
+          ...(recipe === null ? {} : { catalog: { recipe } }),
+        },
+      },
     }
-    return {
+    return acceptKeiArtifact({
       extractionId: input.extractionId,
       sourceDocumentId: inputs.sourceDocumentId,
       sourceRepresentationRevisionId: input.sourceRepresentationRevisionId,
       schemaRevisionId: input.schemaRevisionId,
       strategy: input.strategy,
-      outcome: 'SUCCEEDED',
-      complete: artifact.complete,
-      result: { records: artifact.records },
-      evidence: grounded
-        ? grounded.evidence.map((link) => ({
-            resultPath: link.path,
-            evidenceAnchorId: anchorId(link),
-            ...(link.precision ? { precision: link.precision } : {}),
-            verbatim: link.verbatim,
-            lexicalHits: link.hits,
-            grounding: {
-              linkedBy: link.linked_by, provenance: link.provenance, textSpans: link.spans, keySpans: link.key_spans,
-              alternatives: link.alternatives, heading: link.heading, precision: link.precision, raw: link.raw,
-              normalized: link.normalized && {
-                value: link.normalized.value, rule: link.normalized.rule,
-                keySpan: link.normalized.key_span, expansionSpan: link.normalized.expansion_span,
-              },
-            },
-          }))
-        : artifact.evidence.map((link) => ({
-            resultPath: link.path,
-            evidenceAnchorId: anchorId(link),
-            ...(link.precision ? { precision: link.precision } : {}),
-            verbatim: link.verbatim,
-            lexicalHits: link.hits,
-            ...(link.linked_by === 'lexical' ? { linkedBy: 'lexical' as const } : {}),
-          })),
-      modelAttribution: { provider: 'kei-exp', modelId: artifact.model },
-      diagnostics: {
-        phase: 'persisting', durationMs: Math.round(artifact.seconds * 1000),
-        modelCalls: artifact.calls.length, inputTokens: artifact.tokens.input, outputTokens: artifact.tokens.output,
-        finishReason: null, ungroundedPaths: artifact.ungrounded, groundingIssues: artifact.issues,
-        // Document-level fields: extracted into every record, grounded in none of them.
-        groundingBatches: [], unverifiedFields: artifact.unverified, catalog: null,
-        models: { fields: artifact.models.fields, reasoning: artifact.models.reasoning },
-        ...(grounded
-          ? {
-              grounded: {
-                recipe: `${grounded.segmentation.recipe.id}@${grounded.segmentation.recipe.version}`,
-                segmentationFingerprint: grounded.segmentation.fingerprint,
-                budget: { inputTokens: grounded.budget.input_tokens, outputTokens: grounded.budget.output_tokens, tokenizer: grounded.budget.tokenizer },
-                segmentationDiagnostics: grounded.segmentation.diagnostics,
-                normalization: grounded.normalization,
-                recordBlocks: grounded.record_blocks,
-                proposed: grounded.proposed,
-                rejected: grounded.rejected,
-                competitors: grounded.competitors,
-                coverage: grounded.coverage,
-                completeness: grounded.completeness,
-              },
-            }
-          : {}),
-      },
-      failure: null, reviewable: true,
       batchExtractionId: input.kind === 'batch-member' ? input.batchExtractionId : null,
-    }
+    }, document, artifact, request)
   }
 }
 
@@ -312,11 +250,6 @@ function pinnedGeneration(document: ParsedDocument): string | null {
   if (!preprocessId.startsWith(prefix) || preprocessId.length === prefix.length)
     throw new ExtractionError('invalid_source_representation', 'The pinned Source Representation does not name a kei-exp parse generation.')
   return preprocessId.slice(prefix.length)
-}
-
-function decodeCanonical(raw: unknown): ParsedDocument {
-  try { return decodeParsedDocument(raw) }
-  catch (error) { throw new ExtractionError('invalid_source_representation', 'The pinned Source Representation is not a valid ParsedDocument v2.', { cause: error }) }
 }
 
 function parsePinnedSchema(raw: unknown) {

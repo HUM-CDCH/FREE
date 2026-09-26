@@ -37,18 +37,25 @@ before(async () => {
 })
 
 after(async () => {
-  // The stand-in stops before its schema goes, or the drop waits on its connections.
-  await standIn?.stop()
-  await client?.destroy()
-  const admin = new pg.Client({ connectionString: databaseUrl })
-  await admin.connect()
+  // The stand-in stops before its schema goes, or the drop waits on its connections. A failed stop or destroy still
+  // drops the schemas and closes every connection, and its error is reported after that.
   try {
-    for (const name of [schema, unmigratedSchema]) {
-      if (!/^kei_dbos_t_[0-9a-f]{8}$/.test(name)) throw new Error(`Refusing to drop schema ${name}.`)
-      await admin.query(`DROP SCHEMA IF EXISTS "${name}" CASCADE`)
-    }
+    await standIn?.stop()
   } finally {
-    await admin.end()
+    try {
+      await client?.destroy()
+    } finally {
+      const admin = new pg.Client({ connectionString: databaseUrl })
+      await admin.connect()
+      try {
+        for (const name of [schema, unmigratedSchema]) {
+          if (!/^kei_dbos_t_[0-9a-f]{8}$/.test(name)) throw new Error(`Refusing to drop schema ${name}.`)
+          await admin.query(`DROP SCHEMA IF EXISTS "${name}" CASCADE`)
+        }
+      } finally {
+        await admin.end()
+      }
+    }
   }
 })
 
@@ -252,7 +259,9 @@ test('a failure policy answers kei\'s typed failure, and kei\'s read routes list
   assert.deepEqual(settleKei(await settled(submission.workflowId), keiExtractOkSchema), { ok: false, ...failure })
   await standIn.policy({ extract: 'auto' })
 
-  assert.equal((await fetch(`${standIn.url}/api/models`)).status, 200)
+  const models = await fetch(`${standIn.url}/api/models`)
+  assert.equal(models.status, 200)
+  assert.deepEqual(await models.json(), []) // kei answers a list of its transcription models
   const extraction = await (await fetch(`${standIn.url}/api/extraction-models`)).json()
   assert.deepEqual(extraction.defaults, { fields: 'instruct', reasoning: 'instruct' })
   const ingestion = await (await fetch(`${standIn.url}/api/ingestion-models`)).json()

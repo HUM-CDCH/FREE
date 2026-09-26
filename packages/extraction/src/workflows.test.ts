@@ -1,0 +1,337 @@
+import assert from 'node:assert/strict'
+import { createHash, randomUUID } from 'node:crypto'
+import { describe, it } from 'node:test'
+import { Error as DBOSErrors, type StepConfig } from '@dbos-inc/dbos-sdk'
+import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
+import { keiExpArtifact, keiExpEvidence } from './kei-exp-fixture.js'
+import { SUBMIT_TO_KEI_RETRY, type KeiHandoff, type KeiPoll, type KeiSubmission } from './kei-handoff.js'
+import type { ExtractionStrategy } from './types.js'
+import {
+  ARTIFACT_READ_RETRY, extractionAttributes, extractionFailureOf, keiRunOf, runExtractionWorkflow,
+  type AdmittedExtraction, type SettledExtraction,
+} from './workflows.js'
+
+const RUN = 'run-1'
+const schema = { recordDescription: 'Article records.', schemaNodes: [{ id: 'title', name: 'title', type: 'string' }] }
+
+function admittedExtraction(overrides: Partial<AdmittedExtraction> = {}): AdmittedExtraction {
+  return {
+    extractionId: randomUUID(), owner: 'researcher@example.test', projectContextId: randomUUID(),
+    sourceDocumentId: randomUUID(), sourceRepresentationRevisionId: randomUUID(), schemaRevisionId: randomUUID(),
+    extractionSchemaId: randomUUID(), strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null,
+    batchExtractionId: null, preprocessId: `kei-exp:${RUN}:g1`, schemaTree: schema, ...overrides,
+  }
+}
+const strategyOf = (strategy: ExtractionStrategy) => (strategy === 'CATALOG' ? 'catalog' : 'article')
+const artifactFor = (admitted: AdmittedExtraction, overrides: Parameters<typeof keiExpArtifact>[0] = {}) =>
+  keiExpArtifact({
+    run_id: RUN, generation: 'g1', strategy: strategyOf(admitted.strategy), model: 'fields-model', schema,
+    options: { strategy: strategyOf(admitted.strategy), model: null, models: admitted.requestedModels },
+    records: [{ title: 'Alpha' }], evidence: [keiExpEvidence()], ...overrides,
+  })
+const bytesOf = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
+const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
+function extractOk(admitted: AdmittedExtraction, bytes: Uint8Array, overrides: Record<string, unknown> = {}) {
+  return {
+    ok: true, run_id: RUN, extraction_id: admitted.extractionId, generation: 'g1', artifact_sha256: sha256(bytes),
+    model: 'fields-model', models: { fields: 'fields-model', reasoning: 'fields-model' }, ...overrides,
+  }
+}
+
+type Scenario = {
+  admitted?: AdmittedExtraction | null
+  /** What each pollKei step answers, in order; the last one repeats. Defaults to kei's success over the artifact. */
+  polls?: KeiPoll[]
+  artifact?: unknown
+  /** The bytes readArtifact serves; defaults to the artifact's JSON. */
+  bytes?: Uint8Array
+  /** The ExtractOk fields to override in the default success. */
+  ok?: Record<string, unknown>
+  pinnedDocument?: unknown
+  /** The row's outcome before the workflow runs (a cancel or a replay that won). */
+  settled?: SettledExtraction
+  settle?: (settled: SettledExtraction) => Promise<'settled' | 'already-settled' | 'missing'>
+  /** Throws for a step before it runs, as DBOS does for a step of a cancelled workflow. */
+  beforeStep?: (name: string) => void
+  poll?: KeiHandoff['poll']
+}
+function harness(scenario: Scenario = {}) {
+  const admitted = scenario.admitted === undefined ? admittedExtraction() : scenario.admitted
+  const artifact = scenario.artifact ?? (admitted && artifactFor(admitted))
+  const bytes = scenario.bytes ?? bytesOf(artifact)
+  const polls = scenario.polls ?? (admitted ? [{ state: 'SUCCESS' as const, output: extractOk(admitted, bytesOf(artifact), scenario.ok) }] : [])
+  const steps: Array<{ name: string; config?: StepConfig }> = []
+  const submissions: KeiSubmission[] = []
+  const cancels: string[] = []
+  const pollSignals: Array<AbortSignal | undefined> = []
+  const artifactReads: Array<{ runId: string; extractionId: string }> = []
+  const settles: SettledExtraction[] = []
+  const signal = new AbortController().signal
+  const row: { outcome: SettledExtraction | null } = { outcome: scenario.settled ?? null }
+  let polled = 0
+  const kei: KeiHandoff = {
+    async submit(submission) { submissions.push(submission) },
+    poll: scenario.poll ?? (async (_workflowId, pollSignal) => {
+      pollSignals.push(pollSignal)
+      return polls[Math.min(polled++, polls.length - 1)]!
+    }),
+    async cancel(workflowId) { cancels.push(workflowId) },
+  }
+  const run = () => runExtractionWorkflow(admitted?.extractionId ?? 'deleted', {
+    steps: {
+      async step(name, fn, config) {
+        steps.push({ name, config })
+        scenario.beforeStep?.(name)
+        return fn()
+      },
+      cancelSignal: () => signal,
+    },
+    store: {
+      loadAdmitted: async () => admitted,
+      readPinnedDocument: async () => (scenario.pinnedDocument === undefined ? parsedDocument : scenario.pinnedDocument),
+      settle: async (_id, settled) => {
+        settles.push(settled)
+        if (scenario.settle) return scenario.settle(settled)
+        if (row.outcome) return 'already-settled'
+        row.outcome = settled
+        return 'settled'
+      },
+    },
+    kei,
+    readArtifact: async (runId, extractionId) => {
+      artifactReads.push({ runId, extractionId })
+      return bytes
+    },
+  })
+  return {
+    admitted: admitted!, run, steps, submissions, cancels, pollSignals, artifactReads, settles, row, signal,
+    names: () => steps.map((step) => step.name),
+  }
+}
+const failureOf = (h: ReturnType<typeof harness>) => {
+  assert.equal(h.settles.length, 1)
+  const [settled] = h.settles
+  assert.ok(settled && settled.outcome !== 'SUCCEEDED')
+  return settled.failure
+}
+
+describe('runExtraction', () => {
+  it('submits an interactive Extraction to kei-extract at priority 1 and a batch member at 10, each with its strategy\'s deadline', async () => {
+    const interactive = harness()
+    await interactive.run()
+    assert.deepEqual(interactive.submissions, [{
+      workflow: 'extract', workflowId: `kei-extract:${interactive.admitted.extractionId}`, queueName: 'kei-extract',
+      priority: 1, timeoutMs: 600_000, request: interactive.submissions[0]!.request,
+      authenticatedUser: interactive.admitted.owner, attributes: extractionAttributes(interactive.admitted),
+    }])
+    assert.equal(interactive.submissions[0]!.attributes.keiRunId, RUN)
+    const member = harness({ admitted: admittedExtraction({ strategy: 'CATALOG', batchExtractionId: randomUUID() }) })
+    await member.run()
+    const [submission] = member.submissions
+    assert.equal(submission!.workflowId, `kei-extract:${member.admitted.extractionId}`)
+    assert.equal(submission!.queueName, 'kei-extract')
+    assert.equal(submission!.priority, 10)
+    assert.equal(submission!.timeoutMs, 10_800_000)
+    assert.equal(submission!.authenticatedUser, member.admitted.owner)
+    assert.deepEqual(submission!.attributes, extractionAttributes(member.admitted))
+    assert.equal(submission!.attributes.batchExtractionId, member.admitted.batchExtractionId)
+    assert.equal(member.row.outcome?.outcome, 'SUCCEEDED')
+  })
+
+  it('names the Extraction\'s scope and kei run in its attributes', () => {
+    const admitted = admittedExtraction()
+    assert.deepEqual(extractionAttributes(admitted), {
+      projectContextId: admitted.projectContextId, sourceDocumentId: admitted.sourceDocumentId,
+      sourceRepresentationRevisionId: admitted.sourceRepresentationRevisionId,
+      extractionSchemaId: admitted.extractionSchemaId, keiRunId: RUN,
+    })
+    const member = admittedExtraction({ batchExtractionId: 'batch', preprocessId: 'docling:x:y' })
+    const attributes = extractionAttributes(member)
+    assert.equal(attributes.batchExtractionId, 'batch')
+    assert.equal('keiRunId' in attributes, false)
+  })
+
+  it('builds kei\'s extract request from the admitted pins, recipe and model choice', async () => {
+    const catalog = harness({ admitted: admittedExtraction({
+      strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1', requestedModels: { fields: 'x' },
+      preprocessId: `kei-exp:${RUN}:gen-7`,
+    }) })
+    await catalog.run()
+    assert.deepEqual(catalog.submissions[0]!.request, {
+      run_id: RUN, generation: 'gen-7',
+      request: { schema, options: { strategy: 'catalog', models: { fields: 'x' }, catalog: { recipe: 'numbered-catalogue-de@1' } } },
+    })
+    // No `models` key when the choice is null or chooses no role; no `catalog` key for Article.
+    for (const requestedModels of [null, {}]) {
+      const article = harness({ admitted: admittedExtraction({ catalogRecipe: 'numbered-catalogue-de@1', requestedModels }) })
+      await article.run()
+      assert.deepEqual(article.submissions[0]!.request, { run_id: RUN, generation: 'g1', request: { schema, options: { strategy: 'article' } } })
+    }
+  })
+
+  it('the submit step retries only while kei is not ready', async () => {
+    const h = harness()
+    await h.run()
+    assert.equal(h.steps.find((step) => step.name === 'submitToKei')!.config, SUBMIT_TO_KEI_RETRY)
+  })
+
+  it('polls in bounded steps until kei finishes, then publishes the accepted artifact once', async () => {
+    const admitted = admittedExtraction()
+    const artifact = artifactFor(admitted)
+    const h = harness({
+      admitted,
+      polls: [{ state: 'live' }, { state: 'live' }, { state: 'SUCCESS', output: extractOk(admitted, bytesOf(artifact)) }],
+    })
+    await h.run()
+    assert.deepEqual(h.names(), ['loadAdmitted', 'submitToKei', 'pollKei', 'pollKei', 'pollKei', 'publishResult'])
+    assert.equal(h.steps.at(-1)!.config, ARTIFACT_READ_RETRY)
+    assert.deepEqual(h.artifactReads, [{ runId: RUN, extractionId: admitted.extractionId }])
+    assert.equal(h.settles.length, 1)
+    const settled = h.settles[0]!
+    assert.equal(settled.outcome, 'SUCCEEDED')
+    assert.ok(settled.outcome === 'SUCCEEDED')
+    assert.equal(settled.extraction.extractionId, admitted.extractionId)
+    assert.equal(settled.extraction.sourceRepresentationRevisionId, admitted.sourceRepresentationRevisionId)
+    assert.deepEqual(settled.extraction.result, { records: [{ title: 'Alpha' }] })
+    assert.deepEqual(settled.extraction.modelAttribution, { provider: 'kei-exp', modelId: 'fields-model' })
+    assert.deepEqual(h.cancels, [])
+  })
+
+  it('a replayed publication finds the Extraction settled and writes nothing new', async () => {
+    const cancelled: SettledExtraction = { outcome: 'CANCELLED', failure: { code: 'cancelled', message: 'The Extraction was cancelled.', phase: 'extracting' } }
+    const h = harness({ settled: cancelled })
+    await h.run()
+    assert.equal(h.row.outcome, cancelled)
+    assert.equal(h.settles.length, 1)
+    assert.deepEqual(h.cancels, [])
+  })
+
+  it('an Extraction deleted or settled before it runs submits nothing', async () => {
+    const h = harness({ admitted: null })
+    await h.run()
+    assert.deepEqual(h.names(), ['loadAdmitted'])
+    assert.deepEqual(h.submissions, [])
+    assert.deepEqual(h.settles, [])
+  })
+
+  it('a representation that names no kei run fails with invalid_source_representation and submits nothing', async () => {
+    const h = harness({ admitted: admittedExtraction({ preprocessId: 'docling:x:y' }) })
+    await h.run()
+    assert.deepEqual(h.submissions, [])
+    assert.deepEqual(h.names(), ['loadAdmitted', 'publishFailure'])
+    assert.equal(failureOf(h).code, 'invalid_source_representation')
+  })
+
+  it('a pinned schema that no longer parses fails with invalid_schema_revision and submits nothing', async () => {
+    const h = harness({ admitted: admittedExtraction({ schemaTree: { recordDescription: 1 } }) })
+    await h.run()
+    assert.deepEqual(h.submissions, [])
+    assert.equal(failureOf(h).code, 'invalid_schema_revision')
+  })
+
+  it('maps kei\'s failures to Studio\'s failure codes', async () => {
+    const failed = (code: string, reason: string): KeiPoll => ({ state: 'SUCCESS', output: { ok: false, code, reason, retryable: false } })
+    const cases: Array<[KeiPoll, string, string]> = [
+      [failed('stale_generation', 'the run was re-parsed'), 'invalid_source_representation', 'the run was re-parsed'],
+      [failed('model_unavailable', 'nuextract is not served'), 'model_unavailable', 'nuextract is not served'],
+      [{ state: 'CANCELLED', deadlinePassed: false }, 'cancelled', 'The Extraction was cancelled.'],
+      [failed('no_result', 'the run has no result'), 'extraction_failed', 'kei-exp could not complete the Extraction: the run has no result'],
+      [{ state: 'SUCCESS', output: { ok: true, nonsense: 1 } }, 'invalid_model_output', 'The Parsing Service answered outside its contract.'],
+      [{ state: 'ERROR', deadlinePassed: false }, 'extraction_failed', 'The Parsing Service stopped this Extraction.'],
+      [{ state: 'MAX_RECOVERY_ATTEMPTS_EXCEEDED', deadlinePassed: false }, 'extraction_failed', 'The Parsing Service stopped this Extraction.'],
+      [{ state: 'missing' }, 'extraction_failed', 'The Parsing Service stopped this Extraction.'],
+    ]
+    for (const [poll, code, message] of cases) {
+      const h = harness({ polls: [poll] })
+      await h.run()
+      assert.deepEqual(failureOf(h), { code, message, phase: 'extracting' }, code)
+      assert.equal(h.names().at(-1), 'publishFailure')
+      assert.deepEqual(h.artifactReads, [])
+    }
+    assert.equal(extractionFailureOf({ ok: false, code: 'no_result', reason: 'x'.repeat(600), retryable: false }, 'ARTICLE').message.length, 512)
+  })
+
+  it('a kei deadline becomes extraction_failed naming the time limit', async () => {
+    for (const [strategy, limit] of [['CATALOG', '3 hours'], ['ARTICLE', '10 minutes']] as const) {
+      const h = harness({ admitted: admittedExtraction({ strategy }), polls: [{ state: 'CANCELLED', deadlinePassed: true }] })
+      await h.run()
+      assert.deepEqual(failureOf(h), {
+        code: 'extraction_failed', message: `The Extraction did not finish within its time limit (${limit}).`, phase: 'extracting',
+      })
+    }
+  })
+
+  it('an artifact whose bytes do not hash to kei\'s artifact_sha256 fails with invalid_model_output', async () => {
+    const admitted = admittedExtraction()
+    const h = harness({ admitted, bytes: bytesOf({ ...artifactFor(admitted), records: [{ title: 'Tampered' }] }) })
+    await h.run()
+    assert.equal(failureOf(h).code, 'invalid_model_output')
+    assert.equal(h.names().at(-1), 'publishResult')
+  })
+
+  it('kei\'s output must name this Extraction, its run and its generation', async () => {
+    for (const ok of [{ extraction_id: randomUUID() }, { run_id: 'run-2' }, { generation: 'g2' }]) {
+      const h = harness({ ok })
+      await h.run()
+      assert.equal(failureOf(h).code, 'invalid_model_output', JSON.stringify(ok))
+      assert.deepEqual(h.artifactReads, [])
+    }
+  })
+
+  it('an artifact kei-artifact refuses, or bytes that are not JSON, fail with kei\'s output named invalid', async () => {
+    const admitted = admittedExtraction()
+    const other = harness({ admitted, artifact: artifactFor(admitted, { strategy: 'catalog' }) })
+    await other.run()
+    assert.equal(failureOf(other).code, 'invalid_model_output')
+    const garbled = new TextEncoder().encode('{"extraction_version":')
+    const h = harness({ admitted, polls: [{ state: 'SUCCESS', output: extractOk(admitted, garbled) }], bytes: garbled })
+    await h.run()
+    assert.equal(failureOf(h).code, 'invalid_model_output')
+  })
+
+  it('a pinned package that is not a ParsedDocument v2 fails with invalid_source_representation', async () => {
+    const h = harness({ pinnedDocument: { schema_version: 'parsed_document.v1' } })
+    await h.run()
+    assert.equal(failureOf(h).code, 'invalid_source_representation')
+    assert.deepEqual(h.cancels, [])
+  })
+
+  it('an unexpected failure after submission cancels the kei child before rethrowing', async () => {
+    const down = new Error('db down')
+    const h = harness({ settle: async () => { throw down } })
+    await assert.rejects(h.run(), (error: unknown) => error === down)
+    assert.deepEqual(h.names().slice(-2), ['publishResult', 'cancelKeiChild'])
+    assert.deepEqual(h.cancels, [`kei-extract:${h.admitted.extractionId}`])
+  })
+
+  it('a workflow cancellation propagates without another step', async () => {
+    const cancelled = new DBOSErrors.DBOSWorkflowCancelledError('extract:x')
+    const h = harness({ beforeStep: (name) => { if (name === 'pollKei') throw cancelled } })
+    await assert.rejects(h.run(), (error: unknown) => error === cancelled)
+    assert.deepEqual(h.names(), ['loadAdmitted', 'submitToKei', 'pollKei'])
+    assert.deepEqual(h.cancels, [])
+  })
+
+  it('an aborted poll under a cancelled workflow rethrows without cancelling the child', async () => {
+    const cancelled = new DBOSErrors.DBOSWorkflowCancelledError('extract:x')
+    const h = harness({
+      poll: async () => { throw new DOMException('This operation was aborted', 'AbortError') },
+      beforeStep: (name) => { if (name === 'cancelKeiChild') throw cancelled },
+    })
+    await assert.rejects(h.run(), (error: unknown) => error === cancelled)
+    assert.deepEqual(h.cancels, [])
+  })
+
+  it('the poll step waits on the step\'s cancel signal', async () => {
+    const h = harness({ polls: [{ state: 'live' }, { state: 'CANCELLED', deadlinePassed: false }] })
+    await h.run()
+    assert.deepEqual(h.pollSignals, [h.signal, h.signal])
+  })
+
+  it('keiRunOf reads kei-exp:<run>:<generation> and nothing else', () => {
+    assert.deepEqual(keiRunOf('kei-exp:run-1:g1'), { runId: 'run-1', generation: 'g1' })
+    assert.deepEqual(keiRunOf('kei-exp:a.b_c-d:20260926'), { runId: 'a.b_c-d', generation: '20260926' })
+    for (const id of ['kei-exp:run/x:g', 'kei-exp:run:', 'other:run:g', 'kei-exp::g', 'kei-exp:.run:g', 'kei-exp:run:g\n', 'kei-exp:run:g h', 'kei-exp:run'])
+      assert.equal(keiRunOf(id), null, JSON.stringify(id))
+  })
+})

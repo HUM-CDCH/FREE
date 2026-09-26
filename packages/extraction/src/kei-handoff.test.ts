@@ -128,10 +128,18 @@ test('a finished kei workflow settles by its output; cancelled, errored, exhaust
   assert.deepEqual(code({ state: 'SUCCESS', output: { ...ok, run_id: 'run/../x' } }), { code: 'invalid_output', retryable: false })
 })
 
-test('kei-not-ready errors are a missing table or schema, a starting server, and a refused or reset connection, anywhere in the cause chain', () => {
+test('kei-not-ready errors are a missing table or schema, a starting or restarting server, and a refused, reset or terminated connection, anywhere in the cause chain', () => {
   assert.equal(handoff.keiNotReady({ code: '42P01' }), true)
   assert.equal(handoff.keiNotReady({ code: '3F000' }), true)
   assert.equal(handoff.keiNotReady({ code: '57P03' }), true)
+  // A query in flight while PostgreSQL restarts: admin_shutdown, or pg's code-less "Connection terminated" errors.
+  assert.equal(handoff.keiNotReady({ code: '57P01' }), true)
+  assert.equal(handoff.keiNotReady(new Error('Connection terminated unexpectedly')), true)
+  assert.equal(handoff.keiNotReady(new Error('Connection terminated')), true)
+  assert.equal(handoff.keiNotReady(new Error('x', { cause: new Error('Connection terminated unexpectedly') })), true)
+  assert.equal(handoff.keiNotReady(new Error('Connection terminatedly')), false)
+  assert.equal(handoff.keiNotReady({ message: 'Connection terminated' }), false)
+  assert.equal(handoff.keiNotReady(Object.assign(new Error('Connection terminated'), { code: '23505' })), false)
   assert.equal(handoff.keiNotReady(Object.assign(new Error('x'), { cause: { code: 'ECONNREFUSED' } })), true)
   assert.equal(handoff.keiNotReady(new Error('x', { cause: new Error('y', { cause: { code: 'ECONNRESET' } }) })), true)
   assert.equal(handoff.keiNotReady({ code: '23505' }), false)

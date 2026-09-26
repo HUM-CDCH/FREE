@@ -108,7 +108,7 @@ export async function launchKeiStandIn(options: {
     const path = new URL(request.url ?? '/', 'http://kei-stand-in').pathname
     if (path.startsWith('/control/') && options.control) return options.control(request, response)
     if (request.method !== 'GET') return send(response, 404, { detail: 'Not Found' })
-    if (path === '/api/models') return send(response, 200, {})
+    if (path === '/api/models') return send(response, 200, []) // kei answers a list (api.py list_models)
     if (path === '/api/extraction-models') return send(response, 200, EXTRACTION_MODELS)
     if (path === '/api/ingestion-models') return send(response, 200, INGESTION_MODELS)
     const [api, runs, run, kind, item, ...rest] = path.split('/').slice(1)

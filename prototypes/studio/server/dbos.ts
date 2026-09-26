@@ -1,5 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises'
 import { DBOS, DBOSClient, type DBOSConfig } from '@dbos-inc/dbos-sdk'
+import { KEI_APPLICATION } from 'extraction/kei-handoff'
 import pg from 'pg'
 
 export const STUDIO_APPLICATION = 'studio'
@@ -10,7 +11,6 @@ export const STUDIO_VERSION = 'studio@1'
 export const STUDIO_EXECUTOR = 'studio'
 export const STUDIO_QUEUE = 'studio'
 export const SUGGEST_QUEUE = 'suggest'
-export const KEI_APPLICATION = 'kei'
 export const KEI_SCHEMA = 'kei_dbos'
 /**
  * DBOS's own system-database pool. It holds one connection for LISTEN, lends up to three to queue dispatch and leaves

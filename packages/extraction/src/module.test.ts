@@ -1,13 +1,11 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { describe, it } from 'node:test'
-import { parsedDocumentFromKeiExp } from '../../../prototypes/studio/api/_kei_exp.js'
-import measuredTable from '../../../prototypes/studio/test/fixtures/kei-exp/ellekilde-table-v5.json' with { type: 'json' }
 import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
 import type { ExtractionInputReader, ExtractionPersistence } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import type { ExtractionSnapshot } from './types.js'
-import { keiExpAccepted, keiExpArtifact, keiExpCall, keiExpEnvelope, keiExpEvidence, keiExpGroundedArtifact } from './kei-exp-fixture.js'
+import { keiExpAccepted, keiExpArtifact, keiExpCall, keiExpEnvelope, keiExpEvidence } from './kei-exp-fixture.js'
 import { createKeiExpClient, retryAfterMs, type KeiExpArtifact, type KeiExpStatus } from './kei-exp.js'
 import { createExtractionJobExecutor, createExtractionModule } from './module.js'
 
@@ -63,91 +61,6 @@ const polled = (result: unknown, status: KeiExpStatus = 'done', overrides: Recor
   json(keiExpEnvelope({ id: ack.id as string, run_id: runId, status, result: status === 'done' ? result : null, ...overrides }))
 
 describe('kei-exp extraction relay', () => {
-  it('posts the pinned schema and maps artifact evidence, completeness, diagnostics and attribution', async () => {
-    const h = harness([json(ack, 202), polled(artifact())])
-    const result = await h.run()
-    assert.equal(h.requests[0].url, `http://kei-exp:8001/api/runs/${encodeURIComponent(runId)}/extract`)
-    // Never a single `model`: kei-exp routes each role to its deployment default unless the run chose otherwise.
-    assert.deepEqual(JSON.parse(h.requests[0].init!.body as string), { schema, options: { strategy: 'article' } })
-    assert.equal(h.requests[1].url, `http://kei-exp:8001/api/runs/${encodeURIComponent(runId)}/extractions/${ack.id}`)
-    assert.deepEqual(result.result, { records: [{ title: 'Alpha', year: null }] })
-    assert.deepEqual(result.evidence, [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'a_p1_s0', verbatim: true, lexicalHits: 1, linkedBy: 'lexical' }])
-    assert.equal(result.complete, false)
-    assert.equal(result.reviewable, true)
-    assert.equal(result.outcome, 'SUCCEEDED')
-    assert.deepEqual(result.modelAttribution, { provider: 'kei-exp', modelId: 'selected-model' })
-    assert.deepEqual(result.diagnostics, { phase: 'persisting', durationMs: 1250, modelCalls: 3, inputTokens: 20, outputTokens: 10, finishReason: null, ungroundedPaths: [], groundingIssues: issues, groundingBatches: [], unverifiedFields: [], catalog: null, models: { fields: 'selected-model', reasoning: 'selected-model' } })
-  })
-
-  it('sends a Catalog recipe and maps the version 2 artifact without dropping what review needs', async () => {
-    const base = keiExpGroundedArtifact({ run_id: runId, model: 'selected-model', schema })
-    // A glossary expansion travels beside the raw value, spans renamed to the client's casing.
-    const glossary = { value: 'Heidekreis', rule: 'glossary' as const, key_span: { segment: 'p1_s0', start: 0, end: 5 },
-                       expansion_span: { segment: 'p1_s0', start: 8, end: 18 } }
-    const grounded = { ...base, evidence: base.evidence.map(link =>
-      link.path[2] === 'kreis' ? { ...link, normalized: glossary } : link) }
-    const h = harness([json(ack, 202), polled(grounded)], 'CATALOG', parsedDocument, 'numbered-catalogue-de@1')
-    const result = await h.run()
-    assert.deepEqual(JSON.parse(h.requests[0].init!.body as string).options,
-      { strategy: 'catalog', catalog: { recipe: 'numbered-catalogue-de@1' } })
-    assert.deepEqual(result.result, { records: grounded.records })
-    assert.equal(result.complete, false)
-    const sheet = result.evidence!.find((link) => link.resultPath[2] === 'mbl_old')!
-    assert.equal(sheet.evidenceAnchorId, 'a_p1_s2')
-    assert.deepEqual(sheet.grounding, {
-      linkedBy: 'key', provenance: 'token', textSpans: [{ segment: 'p1_s2', start: 28, end: 32 }],
-      keySpans: [{ segment: 'p1_s2', start: 23, end: 27 }], alternatives: [], heading: null, precision: 'segment',
-      raw: '1827', normalized: null,
-    })
-    const kreis = result.evidence!.find((link) => link.resultPath[2] === 'kreis')!
-    assert.equal(kreis.grounding!.provenance, 'inherited')
-    assert.deepEqual(kreis.grounding!.normalized, { value: 'Heidekreis', rule: 'glossary',
-      keySpan: { segment: 'p1_s0', start: 0, end: 5 }, expansionSpan: { segment: 'p1_s0', start: 8, end: 18 } })
-    assert.equal(kreis.evidenceAnchorId, 'a_p1_s1')
-    const report = result.diagnostics.grounded!
-    assert.equal(report.recipe, 'numbered-catalogue-de@1')
-    assert.deepEqual(report.completeness, grounded.completeness)
-    assert.deepEqual(report.normalization, { version: 1, rules: ['glossary'] })
-    assert.deepEqual(report.segmentationDiagnostics, grounded.segmentation.diagnostics)
-    assert.deepEqual(report.coverage, grounded.coverage)
-    assert.deepEqual(report.proposed, grounded.proposed)
-    assert.deepEqual(report.rejected, grounded.rejected)
-    assert.deepEqual(report.recordBlocks, grounded.record_blocks)
-    assert.deepEqual(result.diagnostics.ungroundedPaths, [])
-  })
-
-  it('refuses a version 2 artifact produced under another recipe than the one requested', async () => {
-    const other = keiExpGroundedArtifact({
-      run_id: runId, model: 'selected-model', schema,
-      segmentation: { ...keiExpGroundedArtifact().segmentation, recipe: { ...keiExpGroundedArtifact().segmentation.recipe, version: 2 } },
-    })
-    const h = harness([json(ack, 202), polled(other)], 'CATALOG', parsedDocument, 'numbered-catalogue-de@1')
-    await assert.rejects(h.run(), (error: unknown) => error instanceof ExtractionError && error.code === 'invalid_model_output')
-  })
-
-  it('relays catalog, zero/multiple records, ungrounded paths and model-linked evidence', async () => {
-    for (const records of [[], [{ title: 'A', year: 1901 }, { title: 'B', year: null }]]) {
-      const value = artifact({ strategy: 'catalog', complete: true, records, evidence: [], ungrounded: records.length ? [['records', 0, 'title']] : [] })
-      const h = harness([json(ack, 202), polled(value)], 'CATALOG')
-      const result = await h.run()
-      assert.equal(JSON.parse(h.requests[0].init!.body as string).options.strategy, 'catalog')
-      assert.deepEqual(result.result, { records })
-      assert.deepEqual(result.diagnostics.ungroundedPaths, value.ungrounded)
-      assert.deepEqual(result.modelAttribution, { provider: 'kei-exp', modelId: 'selected-model' })
-      assert.equal(result.complete, true)
-    }
-    const value = artifact({ evidence: [keiExpEvidence({ linked_by: 'model' })] })
-    assert.equal((await harness([json(ack, 202), polled(value)]).run()).evidence![0].linkedBy, undefined)
-  })
-
-  it('counts model calls and tolerates a model server that reports no token usage', async () => {
-    const value = artifact({ calls: [keiExpCall({ input_tokens: null, output_tokens: null, finish: null })], tokens: { input: null, output: null } })
-    const result = await harness([json(ack, 202), polled(value)]).run()
-    assert.equal(result.diagnostics.modelCalls, 1)
-    assert.equal(result.diagnostics.inputTokens, null)
-    assert.equal(result.diagnostics.outputTokens, null)
-  })
-
   it('waits through queued/running, 429 and 503 on both endpoints and network errors while polling', async () => {
     const h = harness([
       json({}, 503), json({}, 429), json(ack, 202),
@@ -206,21 +119,13 @@ describe('kei-exp extraction relay', () => {
       await assert.rejects(h.run(), { code: 'extraction_failed' })
       assert.equal(h.requests.length, 1)
     }
-    for (const value of [{}, artifact({ run_id: 'other' }), artifact({ generation: 'other' }), artifact({ strategy: 'catalog' }), artifact({ schema: { ...schema, recordDescription: 'Other schema' } })]) {
+    // The artifact is checked against the request by acceptKeiArtifact (kei-artifact.test.ts); the client checks only
+    // what it alone saw: the envelope, and the generation its acknowledgement named.
+    for (const value of [{}, artifact({ generation: 'other' })])
       await assert.rejects(harness([json(ack, 202), polled(value)]).run(), { code: 'invalid_model_output' })
-    }
     await assert.rejects(harness([json(ack, 202), json({ nonsense: true })]).run(), { code: 'invalid_model_output' })
     await assert.rejects(harness([json({ ...ack, run_id: 'other' }, 202)]).run(), { code: 'invalid_model_output' })
     await assert.rejects(harness([new Response('not json')]).run(), { code: 'invalid_model_output' })
-  })
-
-  it('rejects results without model attribution before they can become unreadable saved results', async () => {
-    for (const model of [null, '', undefined]) {
-      await assert.rejects(
-        harness([json(ack, 202), polled({ ...artifact(), model })]).run(),
-        { code: 'invalid_model_output' },
-      )
-    }
   })
 
   it('fails with kei-exp\'s reason when the extraction failed, and distinctly when it was cancelled', async () => {
@@ -316,21 +221,6 @@ describe('kei-exp extraction relay', () => {
     }
   })
 
-  it('refuses an artifact produced under another Extraction Model Choice than the one requested', async () => {
-    for (const recorded of [null, { fields: 'instruct' }, { fields: 'nuextract', reasoning: 'instruct' }]) {
-      const value = artifact({ options: { strategy: 'article', model: null, models: recorded } })
-      const h = harness([json(ack, 202), polled(value)], 'ARTICLE', parsedDocument, null, { fields: 'nuextract' })
-      await assert.rejects(h.run(), { code: 'invalid_model_output' })
-    }
-    const unchosen = artifact({ options: { strategy: 'article', model: null, models: { fields: 'nuextract' } } })
-    await assert.rejects(harness([json(ack, 202), polled(unchosen)]).run(), { code: 'invalid_model_output' })
-  })
-
-  it('rejects an artifact that does not name the model of each role', async () => {
-    for (const models of [undefined, null, { fields: 'selected-model' }, { fields: '', reasoning: 'r' }])
-      await assert.rejects(harness([json(ack, 202), polled({ ...artifact(), models })]).run(), { code: 'invalid_model_output' })
-  })
-
   it('lists the deployment\'s extraction models, their roles and the default per role', async () => {
     const listing = {
       defaults: { fields: 'nuextract', reasoning: 'instruct' },
@@ -391,16 +281,6 @@ describe('kei-exp extraction relay', () => {
     await assert.rejects(client(json(withoutDefaults)).listIngestionModels(), { message: 'kei-exp returned an invalid ingestion model listing.' })
   })
 
-  it('relays the document-level field names kei-exp could not verify', async () => {
-    const result = await harness([json(ack, 202), polled(artifact({ unverified: ['archive'] }))]).run()
-    assert.deepEqual(result.diagnostics.unverifiedFields, ['archive'])
-  })
-
-  it('keeps batch identity', async () => {
-    const h = harness([json(ack, 202), polled(artifact())])
-    const result = await h.execute({ ...h.input, kind: 'batch-member', batchExtractionId: 'batch' }, new AbortController().signal)
-    assert.equal(result.batchExtractionId, 'batch')
-  })
 })
 
 describe('review of an Extraction with document-level schema fields', () => {
@@ -453,23 +333,3 @@ describe('review of an Extraction with document-level schema fields', () => {
 })
 
 
-it('resolves cell references in both extraction wire formats and rejects a cell absent from the pinned revision', async () => {
-  const manifest = { result_version: 5 as const, generation: 'g1', recipe: { source_sha256: 'a'.repeat(64), transcriber: 'native' },
-    page_count: 1, started: null, seconds: 0, status: 'success' as const, incomplete: null, pages: { '1': { sha256: 'b'.repeat(64), complete: true } } }
-  const page = { generation: 'g1', page: 1, size_pt: measuredTable.size_pt as [number, number],
-    segments: [measuredTable.segment], complete: true, warnings: [] }
-  const { keiExpPageSchema } = await import('../../../prototypes/studio/api/_kei_exp.js')
-  const translated = parsedDocumentFromKeiExp(runId, manifest, [keiExpPageSchema.parse(page)],
-    { sha256: 'a'.repeat(64), originalFilename: 'table.pdf', byteSize: 1 }, new Date())
-  const document = translated.document as unknown as typeof parsedDocument
-  const generic = artifact({ generation: 'g1', evidence: [keiExpEvidence({ cell: 'r1_c0', precision: 'cell' })] })
-  const genericResult = await harness([json({ ...ack, generation: 'g1' }, 202), polled(generic)], 'ARTICLE', document).run()
-  assert.equal(genericResult.evidence?.[0].evidenceAnchorId, 'a_p1_s0_r1_c0')
-  const grounded = keiExpGroundedArtifact({ run_id: runId, model: 'selected-model', schema, generation: 'g1' })
-  grounded.evidence = grounded.evidence.slice(0, 1).map(link => ({ ...link, segment: 'p1_s0', page: 1, cell: 'r1_c0', precision: 'cell' }))
-  const groundedResult = await harness([json({ ...ack, generation: 'g1' }, 202), polled(grounded)], 'CATALOG', document, 'numbered-catalogue-de@1').run()
-  assert.equal(groundedResult.evidence?.[0].evidenceAnchorId, 'a_p1_s0_r1_c0')
-  assert.equal(groundedResult.evidence?.[0].grounding?.precision, 'cell')
-  generic.evidence[0].cell = 'r99_c99'
-  await assert.rejects(harness([json({ ...ack, generation: 'g1' }, 202), polled(generic)], 'ARTICLE', document).run(), { code: 'invalid_model_output' })
-})
