@@ -458,6 +458,24 @@ describe('generation lifecycle', () => {
     expect(cancel).toHaveBeenCalledOnce()
   })
 
+  it('a Stop whose server cancel fails says so, and the next generation clears it', async () => {
+    const setup = setupDurable({ initial: revision(4, 'site'), debounceMs: 0 })
+    const cancel = vi.fn(async () => { throw new Error('503') })
+    void setup.controller.generate(() => new Promise<unknown>(() => {}), { cancel })
+
+    setup.controller.cancelGeneration()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(setup.controller.snapshot()).toMatchObject({
+      view: 'editing', generating: false, generationError: null,
+      cancellationError: 'The generation could not be stopped on the server; it may still be running and will show as an earlier request after a reload.',
+    })
+
+    void setup.controller.generate(() => new Promise<unknown>(() => {}))
+    expect(setup.controller.snapshot().cancellationError).toBeNull()
+  })
+
   it('restoreGeneration saves onto a clean base and drops on a conflict without an error', async () => {
     const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 0 })
 

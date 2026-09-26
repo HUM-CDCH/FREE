@@ -93,7 +93,7 @@ describe('planRecovery', () => {
 describe('recoveryView', () => {
   const acknowledged = { schemaRevisionId: R1, extractionSchemaId: 'schema-1', revisionNumber: 1, recordDescription: 'One entry.', schemaNodes: [] }
   const snapshot = (over: Partial<SchemaEditorSnapshot> = {}): SchemaEditorSnapshot => ({
-    view: 'editing', generating: false, generationError: null, draft: { recordDescription: 'One entry.', schemaNodes: [] },
+    view: 'editing', generating: false, generationError: null, cancellationError: null, draft: { recordDescription: 'One entry.', schemaNodes: [] },
     draftVersion: 0, replacementVersion: 0, save: { status: 'saved', acknowledged, draft: { recordDescription: 'One entry.', schemaNodes: [] } },
     history: [], extractionSchemaId: 'schema-1', currentRevisionNumber: 1, extractableSchemaRevisionId: R1,
     creatingFromRevisionId: null, previewingRevisionId: null, historicalPreview: null, ...over,

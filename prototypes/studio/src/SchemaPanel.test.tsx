@@ -1231,6 +1231,27 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(deleteModelOperation).toHaveBeenCalledExactlyOnceWith(`edit:${operationId}`)
   })
 
+  it('Stop whose server cancel fails still stops waiting, and says the request may still be running', async () => {
+    requestSchemaEdit.mockImplementationOnce((_context, _message, signal) =>
+      new Promise<SchemaEditResponse>((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
+      }),
+    )
+    deleteModelOperation.mockRejectedValueOnce(new Error('503'))
+    renderPanel()
+    const input = screen.getByPlaceholderText('Describe a change to the schema…')
+    fireEvent.change(input, { target: { value: 'Check fields' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    const stop = await screen.findByRole('button', { name: 'Stop schema edit request' })
+    await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledOnce())
+
+    fireEvent.click(stop)
+
+    expect(await screen.findByText('Cancelled.')).toBeInTheDocument()
+    expect(await screen.findByText('The request could not be stopped on the server; it may still be running and will show as an earlier request after a reload.')).toBeInTheDocument()
+    expect(input).toBeEnabled()
+  })
+
   it('unmounting during an edit cancels nothing on the server', async () => {
     requestSchemaEdit.mockImplementationOnce(() => new Promise<SchemaEditResponse>(() => undefined))
     renderPanel()

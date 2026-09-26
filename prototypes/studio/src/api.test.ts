@@ -382,6 +382,42 @@ describe('repeatable model POST', () => {
     expect(stub.posts()).toBe(1)
   })
 
+  it('a network failure while reading a 200 body is repeated under the same ID; malformed JSON is not', async () => {
+    const stub = stubFetch([
+      () => new Response(new ReadableStream({ start: (controller) => controller.error(new TypeError('network error')) }), { status: 200, headers: { 'content-type': 'application/json' } }),
+      () => jsonResponse({ template: { title: 'string' }, raw: '', pages: null }),
+    ])
+    const result = requestSchema(context, undefined, { operationId: OPERATION, base: null })
+    await vi.advanceTimersByTimeAsync(3_000)
+    await expect(result).resolves.toEqual({ title: 'string' })
+    expect(stub.posts()).toBe(2)
+    expect(stub.bodies.map((body) => Object.fromEntries(body).operation_id)).toEqual([OPERATION, OPERATION])
+
+    const malformed = stubFetch([() => new Response('not json', { status: 200, headers: { 'content-type': 'application/json' } })])
+    const outcome = requestSchema(context, undefined, { operationId: OPERATION, base: null }).then(() => 'resolved', (error: Error) => error.name)
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(await outcome).toBe('SyntaxError')
+    expect(malformed.posts()).toBe(1)
+  })
+
+  it('an abort during the key handoff ends the wait without a POST', async () => {
+    const requests: string[] = []
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string, init: RequestInit) => {
+      requests.push(`${init.method} ${url}`)
+      return new Promise<Response>(() => {}) // the handoff's PUT never answers
+    }))
+    const controller = new AbortController()
+    const outcome = requestSchema(context, controller.signal, { operationId: OPERATION, base: null }).then(() => 'resolved', (error: unknown) => error)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(requests).toEqual(['PUT /api/model-keys'])
+
+    controller.abort()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(await outcome).toMatchObject({ name: 'AbortError' })
+    expect(requests).toEqual(['PUT /api/model-keys'])
+  })
+
   it('deleteModelOperation encodes the workflow ID', async () => {
     const requests: string[] = []
     const statuses = [204, 404, 503]

@@ -222,6 +222,8 @@ export type SchemaEditorSnapshot = {
   /** Generation can run while the acknowledged current draft stays mounted. */
   generating: boolean
   generationError: string | null
+  /** A Stop whose server-side cancel failed: the generation may still be running and shows after a reload. */
+  cancellationError: string | null
   /** Editor payload; null until the first generation or adoption. */
   draft: SchemaDefinition | null
   /** Increments for every whole-draft mutation, including description edits. */
@@ -305,6 +307,7 @@ export function createSchemaEditorController(
     : null
   let generating = false
   let generationError: string | null = null
+  let cancellationError: string | null = null
   let generationAbort: AbortController | null = null
   let generationCancel: (() => Promise<void>) | null = null
   let extractableSchemaRevisionId =
@@ -334,6 +337,7 @@ export function createSchemaEditorController(
               : 'empty',
       generating,
       generationError,
+      cancellationError,
       draft,
       draftVersion,
       replacementVersion,
@@ -466,6 +470,7 @@ export function createSchemaEditorController(
       }
       generating = true
       generationError = null
+      cancellationError = null
       historicalPreview = null
       publish()
       try {
@@ -530,7 +535,14 @@ export function createSchemaEditorController(
       // reloaded page finds it (spec, *A client abort only detaches*).
       const cancel = generationCancel
       generationCancel = null
-      void cancel?.().catch(() => undefined)
+      cancellationError = null
+      // Stop waiting either way; a cancel Studio did not confirm is said, since the workflow may run on and the
+      // reloaded panel will show it as an earlier request with its own Stop.
+      void cancel?.().catch(() => {
+        if (disposed) return
+        cancellationError = 'The generation could not be stopped on the server; it may still be running and will show as an earlier request after a reload.'
+        publish()
+      })
       generationAbort?.abort()
       if (!generating) return
       generating = false

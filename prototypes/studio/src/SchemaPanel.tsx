@@ -1034,7 +1034,10 @@ function SchemaPanel({
   function cancelChat() {
     // A user's Stop: cancel the proposal on the server, then stop waiting. The unmount cleanup only aborts.
     const operationId = editOperationRef.current
-    if (operationId) void deleteModelOperation(`edit:${operationId}`).catch(() => undefined)
+    if (operationId)
+      void deleteModelOperation(`edit:${operationId}`).catch(() =>
+        appendChatMessage('The request could not be stopped on the server; it may still be running and will show as an earlier request after a reload.'),
+      )
     chatAbortRef.current?.abort()
   }
 
@@ -1444,6 +1447,11 @@ function SchemaPanel({
         {ready && snap.generationError && (
           <div className="mb-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
             <p className="text-[11px] text-danger">Regeneration failed: {snap.generationError} The current saved schema is unchanged.</p>
+          </div>
+        )}
+        {snap.cancellationError && (
+          <div className="mb-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
+            <p className="text-[11px] text-danger">{snap.cancellationError}</p>
           </div>
         )}
         {snap.save?.status === 'conflict' && (

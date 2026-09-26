@@ -75,6 +75,20 @@ async function uncertain(response: Response): Promise<boolean> {
   return typeof code !== 'string' || UNCERTAIN_CODES.has(code)
 }
 
+/** Waits for `promise` unless `signal` aborts first; the promise itself runs on (a shared key handoff serves others). */
+function abortable<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (!signal) return promise
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason)
+    if (signal.aborted) return onAbort()
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(
+      (value) => { signal.removeEventListener('abort', onAbort); resolve(value) },
+      (error: unknown) => { signal.removeEventListener('abort', onAbort); reject(error) },
+    )
+  })
+}
+
 function pause(ms: number, signal: AbortSignal | undefined): Promise<void> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(resolve, ms)
@@ -95,11 +109,16 @@ export async function repeatableModelPost(
   init: { headers?: HeadersInit; signal?: AbortSignal } = {},
 ): Promise<Response> {
   for (let attempt = 0; ; attempt += 1) {
-    await ensureModelKeysSent()
+    init.signal?.throwIfAborted()
+    await abortable(ensureModelKeysSent(), init.signal)
     init.signal?.throwIfAborted()
     const last = attempt === REPEAT_DELAYS_MS.length
     try {
-      const response = await authenticatedFetch(`${API_BASE}${path}`, { method: 'POST', headers: init.headers, body: body(), signal: init.signal })
+      const streamed = await authenticatedFetch(`${API_BASE}${path}`, { method: 'POST', headers: init.headers, body: body(), signal: init.signal })
+      // The body is read here so a connection dropped after the headers is repeated too; a body that arrived but does
+      // not parse is the caller's terminal failure.
+      const text = await streamed.text()
+      const response = new Response(text === '' ? null : text, { status: streamed.status, statusText: streamed.statusText, headers: streamed.headers })
       if (last || !(await uncertain(response))) return response
     } catch (error) {
       if (init.signal?.aborted || last) throw error
