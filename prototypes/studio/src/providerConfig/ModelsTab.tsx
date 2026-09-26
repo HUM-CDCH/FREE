@@ -1,4 +1,5 @@
-import { type ReactNode, useId, useState } from 'react'
+import { type ReactNode, useId, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import type { ExtractionModelListing, ExtractionModelRole } from '../../shared/extraction.contract'
 import {
   selectedRoute,
@@ -259,9 +260,19 @@ function AssistantChoice({
 }: Pick<Props, 'draft' | 'deployment' | 'probes' | 'assign'> & { routable: readonly ModelConnection[] }) {
   const { interaction, schemaSuggestion } = draft.routes
   const [different, setDifferent] = useState(false)
+  const suggestion = useRef<HTMLDivElement>(null)
+  const differentButton = useRef<HTMLButtonElement>(null)
+  // Each toggle swaps the control that was pressed for another, so focus moves to what replaced it, not to the page.
   const followAssistant = () => {
-    assign('schemaSuggestion', null)
-    setDifferent(false)
+    flushSync(() => {
+      assign('schemaSuggestion', null)
+      setDifferent(false)
+    })
+    differentButton.current?.focus()
+  }
+  const chooseDifferent = () => {
+    flushSync(() => setDifferent(true))
+    suggestion.current?.querySelector<HTMLButtonElement>('button[aria-haspopup="listbox"]')?.focus()
   }
   const deploymentDefault = deployment.defaultRoute ? `Deployment default · ${deployment.defaultRoute.modelId}` : 'No model configured'
   return (
@@ -278,7 +289,7 @@ function AssistantChoice({
       </Labeled>
       <div className="mt-3 border-t border-line pt-3">
         {schemaSuggestion !== null || different ? (
-          <div className="flex flex-col gap-1.5">
+          <div ref={suggestion} className="flex flex-col gap-1.5">
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-[11px] font-semibold text-ink-muted">Schema Suggestion</span>
               <button type="button" className="text-[11.5px] font-semibold text-ink-muted transition-colors hover:text-accent" onClick={followAssistant}>
@@ -297,7 +308,7 @@ function AssistantChoice({
         ) : (
           <div className="flex flex-wrap items-baseline gap-x-2 text-[12px] text-ink-muted">
             <p>Schema Suggestion uses the assistant model.</p>
-            <button type="button" className="font-semibold text-accent hover:underline" onClick={() => setDifferent(true)}>
+            <button ref={differentButton} type="button" className="font-semibold text-accent hover:underline" onClick={chooseDifferent}>
               Use a different model
             </button>
           </div>

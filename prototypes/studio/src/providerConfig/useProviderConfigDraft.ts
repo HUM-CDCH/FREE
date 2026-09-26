@@ -1,22 +1,21 @@
 import { useState } from 'react'
 import type { ExtractionModelRole } from '../../shared/extraction.contract'
-import type {
-  IngestionModelRole,
-  ModelConfig,
-  ModelConnection,
-  ProviderDescriptor,
-  ProviderKind,
-  Route,
-  RouteKey,
+import {
+  MODEL_KEY_MAX_LENGTH,
+  type IngestionModelRole,
+  type ModelConfig,
+  type ModelConnection,
+  type ProviderDescriptor,
+  type ProviderKind,
+  type Route,
+  type RouteKey,
 } from '../../shared/modelConfig.contract'
-import { modelKeyEntrySchema } from '../../shared/modelKeys.contract'
 import { modelKeyFor, removeModelKey, retainModelKeys, saveModelKey } from '../modelKeys/modelKeyStore'
+import { probesDiffer } from './useProbeLifecycle'
 
 /** A key typed in this draft, or `null`: this browser's key is removed on Apply. */
 export type KeyEdit = string | null
 export type ProviderConfigDraft = ReturnType<typeof useProviderConfigDraft>
-
-const MAX_KEY_LENGTH = modelKeyEntrySchema.shape.key.maxLength
 
 type DraftInputs = {
   accountId: string
@@ -101,7 +100,8 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     const next = { ...connection, ...change }
     replaceConnection(next)
     if (change.baseUrl === undefined || change.baseUrl === connection.baseUrl) {
-      scheduleProbe(next, credentialFor(next))
+      // A rename is probed again only when it blanks the name or restores one: nothing else about the probe changed.
+      if (probesDiffer(connection, next)) scheduleProbe(next, credentialFor(next))
       return
     }
     // A key belongs to one API base. A new base drops the typed key at once and supersedes the probe the old input
@@ -182,8 +182,8 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
   /** Typed keys Studio would refuse, by connection ID: this browser would not save them, so Apply waits. */
   const keyIssues: Readonly<Record<string, string>> = Object.fromEntries(
     Object.entries(keyEdits).flatMap(([id, edit]) =>
-      typeof edit === 'string' && MAX_KEY_LENGTH !== null && edit.length > MAX_KEY_LENGTH
-        ? [[id, `A key can be at most ${MAX_KEY_LENGTH} characters.`]]
+      typeof edit === 'string' && edit.length > MODEL_KEY_MAX_LENGTH
+        ? [[id, `A key can be at most ${MODEL_KEY_MAX_LENGTH} characters.`]]
         : [],
     ),
   )

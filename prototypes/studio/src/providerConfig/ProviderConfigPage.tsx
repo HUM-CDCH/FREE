@@ -8,7 +8,7 @@ import { Button } from '../ui'
 import { ConnectionsTab } from './ConnectionsTab'
 import { ModelsTab } from './ModelsTab'
 import { apiErrorText, getModelConfig, putModelConfig } from './providerConfig.data'
-import { useProbeLifecycle } from './useProbeLifecycle'
+import { probesDiffer, useProbeLifecycle } from './useProbeLifecycle'
 import { useProviderConfigDraft } from './useProviderConfigDraft'
 
 type PageProps = {
@@ -119,14 +119,16 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
     }
   }
 
-  /** Back to the saved configuration; connections the draft changed are probed again as saved. */
+  /** Back to the saved configuration. A connection is probed again as saved only when the draft changed what a probe
+   *  of it does (its address, `hasKey`, a key, or its removal); a rename alone is not. */
   function discard(): void {
     if (!draft || !saved) return
     const drafted = new Map(draft.connections.map((connection) => [connection.id, connection]))
     for (const { id } of draft.connections) if (!saved.connections.some((connection) => connection.id === id)) dispose(id)
-    const changed = saved.connections.filter(
-      (connection) => Object.hasOwn(keyEdits, connection.id) || JSON.stringify(drafted.get(connection.id)) !== JSON.stringify(connection),
-    )
+    const changed = saved.connections.filter((connection) => {
+      const before = drafted.get(connection.id)
+      return !before || Object.hasOwn(keyEdits, connection.id) || probesDiffer(before, connection)
+    })
     editor.discard()
     setReplacing(new Set())
     setError(null)

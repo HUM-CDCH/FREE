@@ -1,5 +1,11 @@
 import { z } from 'zod'
-import { providerKindSchema, uuidSchema, type ModelConnection, type ProviderKind } from './modelConfig.contract.js'
+import {
+  MODEL_KEY_MAX_LENGTH,
+  providerKindSchema,
+  uuidSchema,
+  type ModelConnection,
+  type ProviderKind,
+} from './modelConfig.contract.js'
 
 /** The provider and API base a key was saved or sent for. A key is used only while its connection still has both. */
 export type ModelKeyAddress = Readonly<{ provider: ProviderKind; baseUrl: string | null }>
@@ -13,7 +19,7 @@ export function sameModelKeyAddress(
 }
 
 export const modelKeyEntrySchema = z
-  .object({ provider: providerKindSchema, baseUrl: z.string().min(1).nullable(), key: z.string().min(1).max(8192) })
+  .object({ provider: providerKindSchema, baseUrl: z.string().min(1).nullable(), key: z.string().min(1).max(MODEL_KEY_MAX_LENGTH) })
   .strict()
 
 /** `PUT /api/model-keys`: this browser's keys for `account`, each under its connection ID; `null` removes one. */

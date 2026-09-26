@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   isValidApiBase,
-  modelProbeRequestSchema,
+  MODEL_KEY_MAX_LENGTH,
   type ModelConnection,
   type ProbeResult,
   type ProviderDescriptor,
@@ -13,6 +13,20 @@ export type ProbeView =
   | { phase: 'checking' }
   | { phase: 'done'; result: ProbeResult }
   | { phase: 'error'; message: string }
+
+/**
+ * Whether two versions of a connection would be probed differently. A probe depends on the provider, the API base and
+ * `hasKey` (which decides the credential), and on whether the connection has a name at all: a blank one is not
+ * probed. A rename alone changes nothing, so it never probes again, re-sends a key or clears a model list.
+ */
+export function probesDiffer(before: ModelConnection, after: ModelConnection): boolean {
+  return (
+    before.provider !== after.provider ||
+    before.baseUrl !== after.baseUrl ||
+    before.hasKey !== after.hasKey ||
+    !before.name.trim() !== !after.name.trim()
+  )
+}
 
 /** What a probe's state says, in one line. */
 export function probeText(probe: ProbeView | undefined): string {
@@ -60,7 +74,7 @@ export function useProbeLifecycle({ providers }: ProbeInputs) {
     const provider = providerFor(connection)
     if (credential === undefined || !provider || !connection.name.trim()) return false
     // A key Studio would refuse (longer than it accepts) is never sent; the key line says why.
-    if (typeof credential === 'string' && !modelProbeRequestSchema.shape.credential.safeParse(credential).success) return false
+    if (typeof credential === 'string' && credential.length > MODEL_KEY_MAX_LENGTH) return false
     return provider.transport !== 'http' || isValidApiBase(connection.baseUrl)
   }
 

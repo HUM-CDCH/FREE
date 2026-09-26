@@ -102,9 +102,12 @@ export type DeploymentModels = z.infer<typeof deploymentModelsSchema>
 export const modelConfigUpdateSchema = z.object({ config: modelConfigSchema }).strict()
 export type ModelConfigUpdate = z.infer<typeof modelConfigUpdateSchema>
 
+/** The longest model key Studio accepts: in a probe, in the key handoff and in this browser's key store. */
+export const MODEL_KEY_MAX_LENGTH = 8192
+
 /** A probe carries exactly the key the page typed or holds for the connection, and only when it has `hasKey`. */
 export const modelProbeRequestSchema = z
-  .object({ connection: modelConnectionSchema, credential: z.string().min(1).max(8192).optional() })
+  .object({ connection: modelConnectionSchema, credential: z.string().min(1).max(MODEL_KEY_MAX_LENGTH).optional() })
   .strict()
 export type ModelProbeRequest = z.infer<typeof modelProbeRequestSchema>
 

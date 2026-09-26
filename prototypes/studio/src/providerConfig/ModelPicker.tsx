@@ -121,7 +121,7 @@ export function ModelPicker({
         aria-describedby={`${baseId}-value`}
         // While open, a press on the trigger closes it; keeping focus in the search box stops the blur reopening it.
         onMouseDown={(event) => open && event.preventDefault()}
-        onClick={() => (open ? close(false) : show())}
+        onClick={() => (open ? close(true) : show())}
         className={TRIGGER_CLASS}
       >
         <span id={`${baseId}-value`} className="min-w-0 truncate">{display}</span>

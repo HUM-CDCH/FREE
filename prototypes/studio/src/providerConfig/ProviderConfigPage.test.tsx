@@ -124,7 +124,11 @@ type StudioOptions = {
   probe?: (body: ProbeBody) => Response | Promise<Response>
   extraction?: () => Response
   ingestion?: () => Response
-  put?: (config: ModelConfig) => Response | undefined
+  put?: (config: ModelConfig) => Response | Promise<Response> | undefined
+}
+
+function probeResponse(status: 'connected' | 'unreachable', message: string): Response {
+  return jsonResponse({ checkedAt: '2026-09-26T00:00:00.000Z', status, message, catalog: [] })
 }
 
 function connected({ connection }: ProbeBody): Response {
@@ -330,6 +334,8 @@ describe('ProviderConfigPage', () => {
     expect(schemaAndChat.queryByText(/Deployment default/)).not.toBeInTheDocument()
 
     fireEvent.click(schemaAndChat.getByRole('button', { name: 'Use a different model' }))
+    // Focus moves to the picker it revealed, not to the page.
+    expect(schemaAndChat.getByRole('button', { name: 'Schema Suggestion model' })).toHaveFocus()
     fireEvent.click(schemaAndChat.getByRole('button', { name: 'Schema Suggestion model' }))
     expect(screen.getByRole('option', { name: 'Use the assistant model' })).toHaveAttribute('aria-selected', 'true')
     fireEvent.click(screen.getByRole('button', { name: 'Schema Suggestion model' }))
@@ -347,6 +353,7 @@ describe('ProviderConfigPage', () => {
 
     fireEvent.click(reopened.getByRole('button', { name: 'Use the assistant model' }))
     expect(reopened.getByText(FOLLOWS)).toBeInTheDocument()
+    expect(reopened.getByRole('button', { name: 'Use a different model' })).toHaveFocus()
     apply()
     await waitFor(() => expect(server.puts()).toHaveLength(2))
     expect(server.puts()[1].routes).toEqual({ schemaSuggestion: null, interaction: assistant })
@@ -455,6 +462,8 @@ describe('ProviderConfigPage', () => {
     expect(deployed.getByRole('heading', { name: 'Deployment instruction model' })).toBeInTheDocument()
     expect(deployed.getByText(instruct.baseUrl!)).toBeInTheDocument()
     expect(await deployed.findByText('Connected.')).toBeInTheDocument()
+    // The list's status dot has words too, not only a colour.
+    expect(list.getByRole('button', { name: /Deployment instruction model/ })).toHaveAccessibleDescription('Connected.')
     expect(within(deployed.getByRole('list', { name: 'Models' })).getByText(QWEN)).toBeInTheDocument()
     expect(deployed.queryByRole('textbox')).not.toBeInTheDocument()
     expect(deployed.queryByRole('button')).not.toBeInTheDocument()
@@ -477,7 +486,7 @@ describe('ProviderConfigPage', () => {
     expect(fireEvent.mouseDown(screen.getByRole('menuitem', { name: /^vLLM/ }))).toBe(false)
     fireEvent.click(screen.getByRole('menuitem', { name: /^vLLM/ }))
     const added = within(screen.getByRole('region', { name: 'Connection details' }))
-    expect(added.getByRole('heading', { name: 'vLLM connection' })).toBeInTheDocument()
+    expect(added.getByRole('heading', { name: 'vLLM connection' })).toHaveFocus()
 
     const saved = openConnection('Research OpenAI')
     expect(saved.getByRole('heading', { name: 'OpenAI connection' })).toBeInTheDocument()
@@ -500,6 +509,7 @@ describe('ProviderConfigPage', () => {
     expect(saved.queryByLabelText('API key')).not.toBeInTheDocument()
     fireEvent.click(saved.getByRole('button', { name: 'Replace' }))
     const input = saved.getByLabelText('API key')
+    expect(input).toHaveFocus()
     // Masked, but not a password field: a password manager would keep another copy of the key.
     expect(input).toHaveAttribute('type', 'text')
     expect(input).toHaveAttribute('autocomplete', 'off')
@@ -507,7 +517,9 @@ describe('ProviderConfigPage', () => {
     expect(input.className).toContain('[-webkit-text-security:disc]')
     fireEvent.click(saved.getByRole('button', { name: 'Keep saved key' }))
     expect(saved.getByText('Key saved in this browser')).toBeInTheDocument()
-    expect(saved.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
+    expect(saved.getByRole('button', { name: 'Replace' })).toHaveFocus()
+    fireEvent.click(saved.getByRole('button', { name: 'Remove' }))
+    expect(saved.getByLabelText('API key')).toHaveFocus()
 
     const keyless = openConnection('Local Ollama')
     expect(keyless.getByLabelText('API key (optional)')).toHaveAttribute('placeholder', 'Used without a key')
@@ -538,6 +550,12 @@ describe('ProviderConfigPage', () => {
     expect(server.request.mock.calls.slice(opening)).toEqual([])
     expect(JSON.stringify(server.request.mock.calls)).not.toContain('sk-test-typed-old-base')
     expect(pane.getByText('Not checked yet.')).toBeInTheDocument()
+
+    // Discard restores the saved base, which is probed again with the key saved for it.
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(server.probes().slice(2)).toEqual([{ connection: openai, credential: 'sk-test-stored-old-base' }])
+    expect(pane.getByText('Connected.')).toBeInTheDocument()
   })
 
   it("Apply sends the configuration without keys, then this browser's keys; Discard restores the saved draft", async () => {
@@ -565,16 +583,19 @@ describe('ProviderConfigPage', () => {
     expect(document.body).not.toHaveTextContent('sk-test-typed')
 
     const renamed = openConnection('Local Ollama')
-    const ollamaProbes = () => server.probes().filter(({ connection }) => connection.id === OLLAMA_ID).map(({ connection }) => connection.name)
+    const probed = server.probes().length
+    vi.useFakeTimers()
     fireEvent.change(renamed.getByRole('textbox', { name: 'Name' }), { target: { value: 'Renamed Ollama' } })
-    await waitFor(() => expect(ollamaProbes().at(-1)).toBe('Renamed Ollama'), DEBOUNCED)
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
     expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
     expect(renamed.getByRole('textbox', { name: 'Name' })).toHaveValue('Local Ollama')
     expect(screen.getByRole('button', { name: 'Discard' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
-    // The restored connection is checked again as saved.
-    await waitFor(() => expect(ollamaProbes()).toEqual(['Local Ollama', 'Renamed Ollama', 'Local Ollama']))
+    // Neither the rename nor its Discard changes what a probe would do, so neither probes.
+    expect(server.probes()).toHaveLength(probed)
+    expect(renamed.getByText('Connected.')).toBeInTheDocument()
     expect(server.puts()).toHaveLength(1)
   })
 
@@ -671,5 +692,158 @@ describe('ProviderConfigPage', () => {
     apply()
     await waitFor(() => expect(server.stored().routes.interaction).toEqual({ connectionId: OLLAMA_ID, modelId: 'offline-model' }))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('a rename alone is not probed again; blanking or restoring the name is', async () => {
+    storeKey(OPENAI_ID, 'openai', OPENAI_BASE, 'sk-test-rename')
+    const server = studio(config({ connections: [openai] }))
+    await renderPage()
+    await waitFor(() => expect(server.probes()).toHaveLength(1))
+    vi.useFakeTimers()
+    const pane = openConnection('Research OpenAI')
+    const name = pane.getByRole('textbox', { name: 'Name' })
+
+    fireEvent.change(name, { target: { value: 'Renamed OpenAI' } })
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    // The key is not sent again, and the connection's status and models stay as they were.
+    expect(server.probes()).toHaveLength(1)
+    expect(pane.getByText('Connected.')).toBeInTheDocument()
+
+    // A blank name cannot be probed; a name again can.
+    fireEvent.change(name, { target: { value: ' ' } })
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(server.probes()).toHaveLength(1)
+    expect(pane.getByText('Not checked yet.')).toBeInTheDocument()
+    fireEvent.change(name, { target: { value: 'Research OpenAI' } })
+    await act(() => vi.advanceTimersByTimeAsync(499))
+    expect(server.probes()).toHaveLength(1)
+    await act(() => vi.advanceTimersByTimeAsync(1))
+    expect(server.probes()).toEqual([
+      { connection: openai, credential: 'sk-test-rename' },
+      { connection: openai, credential: 'sk-test-rename' },
+    ])
+  })
+
+  it('an edit supersedes a scheduled or running probe, and a stale result never shows', async () => {
+    const answers: ((response: Response) => void)[] = []
+    const server = studio(config({ connections: [ollama] }), {
+      probe: () => new Promise<Response>((resolve) => answers.push(resolve)),
+    })
+    const signals = () =>
+      server.request.mock.calls.filter(([url]) => String(url) === '/api/model_probe').map(([, init]) => init?.signal)
+    await renderPage()
+    await waitFor(() => expect(answers).toHaveLength(1))
+    vi.useFakeTimers()
+    const pane = openConnection('Local Ollama')
+    expect(pane.getByText('Checking…')).toBeInTheDocument()
+    const base = pane.getByRole('textbox', { name: 'Base URL' })
+
+    // The running opening probe is aborted; the edit's probe waits out the debounce.
+    fireEvent.change(base, { target: { value: 'http://127.0.0.1:11435' } })
+    expect(signals()[0]?.aborted).toBe(true)
+    await act(() => vi.advanceTimersByTimeAsync(499))
+    // A second edit inside the debounce replaces the scheduled probe.
+    fireEvent.change(base, { target: { value: 'http://127.0.0.1:11436' } })
+    await act(() => vi.advanceTimersByTimeAsync(499))
+    expect(answers).toHaveLength(1)
+    await act(() => vi.advanceTimersByTimeAsync(1))
+    expect(answers).toHaveLength(2)
+    expect(server.probes()[1].connection.baseUrl).toBe('http://127.0.0.1:11436')
+
+    fireEvent.change(base, { target: { value: 'http://127.0.0.1:11437' } })
+    expect(signals()[1]?.aborted).toBe(true)
+    await act(() => vi.advanceTimersByTimeAsync(500))
+    expect(answers).toHaveLength(3)
+
+    await act(async () => answers[2](probeResponse('connected', 'Latest connection is ready.')))
+    expect(pane.getByText('Latest connection is ready.')).toBeInTheDocument()
+    await act(async () => {
+      answers[1](probeResponse('unreachable', 'Stale provider failure.'))
+      answers[0](probeResponse('unreachable', 'Stale opening failure.'))
+    })
+    expect(screen.queryByText(/Stale/)).not.toBeInTheDocument()
+    expect(pane.getByText('Latest connection is ready.')).toBeInTheDocument()
+  })
+
+  it('removing a connection disposes its pending and late probe state', async () => {
+    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(OLLAMA_ID)
+    const answers: ((response: Response) => void)[] = []
+    const server = studio(config({ connections: [ollama, openai] }), {
+      probe: () => new Promise<Response>((resolve) => answers.push(resolve)),
+    })
+    await renderPage()
+    await waitFor(() => expect(answers).toHaveLength(1))
+    vi.useFakeTimers()
+    const list = () => within(screen.getByRole('list', { name: 'Connections' }))
+
+    // Running when the connection is deleted: aborted, and its late answer is dropped.
+    const pane = openConnection('Local Ollama')
+    fireEvent.click(pane.getByRole('button', { name: 'Delete connection' }))
+    expect(server.request.mock.calls.find(([url]) => String(url) === '/api/model_probe')?.[1]?.signal?.aborted).toBe(true)
+    // Focus goes to the connection now selected, not to the page.
+    expect(list().getByRole('button', { name: 'Research OpenAI' })).toHaveFocus()
+    await act(async () => answers[0](probeResponse('unreachable', 'Late failure of the deleted connection.')))
+
+    // Added again under the same ID, it starts clean.
+    fireEvent.click(screen.getByRole('button', { name: 'Add connection' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Ollama/ }))
+    const readded = within(screen.getByRole('region', { name: 'Connection details' }))
+    expect(readded.getByRole('heading', { name: 'Ollama connection' })).toHaveFocus()
+    expect(readded.getByText('Not checked yet.')).toBeInTheDocument()
+    expect(screen.queryByText(/Late failure/)).not.toBeInTheDocument()
+
+    // Scheduled when deleted: it never runs.
+    fireEvent.click(readded.getByRole('button', { name: 'Delete connection' }))
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(answers).toHaveLength(1)
+    expect(list().queryByRole('button', { name: /Ollama/ })).not.toBeInTheDocument()
+  })
+
+  it('a probe failure does not gate Apply', async () => {
+    const server = studio(config({ connections: [ollama] }), {
+      probe: () => probeResponse('unreachable', 'Ollama is not reachable.'),
+    })
+    await renderPage()
+    openConnections()
+    await waitFor(() =>
+      expect(within(screen.getByRole('list', { name: 'Connections' })).getByRole('button', { name: 'Local Ollama' }))
+        .toHaveAccessibleDescription('Ollama is not reachable.'))
+    fireEvent.click(screen.getByRole('tab', { name: 'Models' }))
+
+    fireEvent.click(within(step('Schema & chat')).getByRole('button', { name: 'Change' }))
+    const group = await pickerGroup('Assistant model', 'Local Ollama')
+    expect(group.getByText('Ollama is not reachable.')).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Search Assistant model' }), { key: 'Escape' })
+    await typeModel('Assistant model', 'Local Ollama', 'offline-model')
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0].routes.interaction).toEqual({ connectionId: OLLAMA_ID, modelId: 'offline-model' })
+  })
+
+  it('Apply is disabled while it applies', async () => {
+    let release: (() => void) | undefined
+    const server = studio(config({ connections: [ollama] }), {
+      put: (submitted) =>
+        new Promise<Response>((resolve) => {
+          release = () => resolve(jsonResponse({ config: submitted }))
+        }),
+    })
+    await renderPage()
+    fireEvent.click(within(step('Schema & chat')).getByRole('button', { name: 'Change' }))
+    await choose('Assistant model', 'Local Ollama', 'llama3.3')
+    apply()
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Applying…' })).toBeDisabled())
+    expect(screen.getByRole('button', { name: 'Assistant model' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Discard' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Applying…' }))
+    expect(server.puts()).toHaveLength(1)
+
+    await act(async () => release?.())
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Assistant model' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Assistant model' })).toHaveTextContent('llama3.3 · Local Ollama')
+    expect(server.puts()).toHaveLength(1)
   })
 })

@@ -120,5 +120,11 @@ describe('ModelPicker', () => {
     // It reopens without the old search.
     fireEvent.click(trigger)
     expect(screen.getByRole('combobox')).toHaveValue('')
+
+    // Closed by its trigger, focus stays on the trigger rather than dropping to the page.
+    expect(fireEvent.mouseDown(trigger)).toBe(false)
+    fireEvent.click(trigger)
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
   })
 })

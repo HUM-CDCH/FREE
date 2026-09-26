@@ -1,9 +1,10 @@
-import { type KeyboardEvent, useId, useRef, useState } from 'react'
+import { type KeyboardEvent, type RefObject, useId, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import type { DeploymentModels, ModelConfig, ModelConnection, ProviderDescriptor, ProviderKind } from '../../shared/modelConfig.contract'
 import { modelKeyFor } from '../modelKeys/modelKeyStore'
 import { Button } from '../ui'
 import { ProbeDot, ProbeStatusLine } from './ProbeStatus'
-import { probeCatalog, type ProbeView } from './useProbeLifecycle'
+import { probeCatalog, probeText, type ProbeView } from './useProbeLifecycle'
 import type { ProviderConfigDraft } from './useProviderConfigDraft'
 
 const FIELD_CLASS =
@@ -26,15 +27,38 @@ type Props = {
 /** Every connection a route may name, the deployment's first, and the selected one's details. */
 export function ConnectionsTab({ accountId, draft, deployment, providers, probes, editor, replacing, onReplacing, selected, onSelect }: Props) {
   const deployed = (connection: ModelConnection) => deployment.connections.some(({ id }) => id === connection.id)
+  const aside = useRef<HTMLElement>(null)
+  const detailHeading = useRef<HTMLHeadingElement>(null)
+  const statusId = useId()
+
+  /** A new connection opens in the detail pane, and focus goes to it. */
+  function add(kind: ProviderKind): void {
+    flushSync(() => {
+      const id = editor.addConnection(kind)
+      if (id) onSelect(id)
+    })
+    detailHeading.current?.focus()
+  }
+
+  /** A deleted connection's pane is gone, so focus goes to the connection selected in its place, or to "Add". */
+  function remove(id: string): void {
+    flushSync(() => editor.removeConnection(id))
+    const next = aside.current?.querySelector<HTMLButtonElement>('[aria-current="true"]') ?? aside.current?.querySelector<HTMLButtonElement>('button')
+    next?.focus()
+  }
+
   return (
     <div className="grid min-h-96 grid-cols-1 md:grid-cols-[15rem_minmax(0,1fr)]">
-      <aside className="flex flex-col gap-2 border-line p-3 md:border-r">
+      <aside ref={aside} className="flex flex-col gap-2 border-line p-3 md:border-r">
         <ul aria-label="Connections" className="flex flex-col gap-0.5">
           {[...deployment.connections, ...draft.connections].map((connection) => (
             <li key={connection.id}>
               <button
                 type="button"
                 aria-current={connection.id === selected?.id ? 'true' : undefined}
+                // The dot's colour in words, for assistive technology and on hover.
+                aria-describedby={`${statusId}-${connection.id}`}
+                title={probeText(probes[connection.id])}
                 onClick={() => onSelect(connection.id)}
                 className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12.5px] transition-colors ${
                   connection.id === selected?.id ? 'bg-surface font-semibold text-ink shadow-sm' : 'text-ink-muted hover:bg-surface/70'
@@ -49,22 +73,17 @@ export function ConnectionsTab({ accountId, draft, deployment, providers, probes
                   </span>
                 )}
               </button>
+              <span id={`${statusId}-${connection.id}`} className="sr-only">{probeText(probes[connection.id])}</span>
             </li>
           ))}
         </ul>
-        <AddConnectionMenu
-          providers={providers.filter(({ transport }) => transport !== 'cli')}
-          onAdd={(kind) => {
-            const id = editor.addConnection(kind)
-            if (id) onSelect(id)
-          }}
-        />
+        <AddConnectionMenu providers={providers.filter(({ transport }) => transport !== 'cli')} onAdd={add} />
       </aside>
       <section aria-label="Connection details" className="min-w-0 p-5">
         {!selected ? (
           <p className="text-[12px] text-ink-muted">No connections yet. Add one to choose a model from your own account or server.</p>
         ) : deployed(selected) ? (
-          <DeploymentConnection connection={selected} probe={probes[selected.id]} />
+          <DeploymentConnection connection={selected} probe={probes[selected.id]} headingRef={detailHeading} />
         ) : (
           <ConnectionForm
             key={selected.id}
@@ -75,6 +94,8 @@ export function ConnectionsTab({ accountId, draft, deployment, providers, probes
             editor={editor}
             replacing={replacing.has(selected.id)}
             onReplacing={(on) => onReplacing(selected.id, on)}
+            headingRef={detailHeading}
+            onDelete={() => remove(selected.id)}
           />
         )}
       </section>
@@ -92,11 +113,19 @@ function LockIcon() {
 }
 
 /** A connection the deployment runs: described by its environment, so it is shown and never edited here. */
-function DeploymentConnection({ connection, probe }: { connection: ModelConnection; probe: ProbeView | undefined }) {
+function DeploymentConnection({
+  connection,
+  probe,
+  headingRef,
+}: {
+  connection: ModelConnection
+  probe: ProbeView | undefined
+  headingRef: RefObject<HTMLHeadingElement | null>
+}) {
   const models = probeCatalog(probe)
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="text-[14px] font-bold text-ink">{connection.name}</h3>
+      <h3 ref={headingRef} tabIndex={-1} className="text-[14px] font-bold text-ink">{connection.name}</h3>
       <p className="text-[12px] text-ink-muted">Run by this deployment. It cannot be edited here.</p>
       {connection.baseUrl === null ? (
         <p className="text-[11.5px] text-ink-faint">Runs on this server's CLI login</p>
@@ -122,6 +151,8 @@ function ConnectionForm({
   editor,
   replacing,
   onReplacing,
+  headingRef,
+  onDelete,
 }: {
   accountId: string
   connection: ModelConnection
@@ -130,10 +161,14 @@ function ConnectionForm({
   editor: ProviderConfigDraft
   replacing: boolean
   onReplacing: (replacing: boolean) => void
+  headingRef: RefObject<HTMLHeadingElement | null>
+  onDelete: () => void
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <h3 className="text-[14px] font-bold text-ink">{provider?.label ?? connection.provider} connection</h3>
+      <h3 ref={headingRef} tabIndex={-1} className="text-[14px] font-bold text-ink">
+        {provider?.label ?? connection.provider} connection
+      </h3>
       <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
         <label className="flex flex-col gap-1">
           <span className="text-[11px] font-semibold text-ink-muted">Name</span>
@@ -156,7 +191,7 @@ function ConnectionForm({
       <KeyLine accountId={accountId} connection={connection} provider={provider} editor={editor} replacing={replacing} onReplacing={onReplacing} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ProbeStatusLine probe={probe} />
-        <Button variant="secondary" size="sm" className="text-danger" onClick={() => editor.removeConnection(connection.id)}>
+        <Button variant="secondary" size="sm" className="text-danger" onClick={onDelete}>
           Delete connection
         </Button>
       </div>
@@ -185,19 +220,30 @@ function KeyLine({
 }) {
   const inputId = useId()
   const issueId = useId()
+  const input = useRef<HTMLInputElement>(null)
+  const replaceButton = useRef<HTMLButtonElement>(null)
   const edit = editor.keyEdits[connection.id]
   const typed = typeof edit === 'string' ? edit : ''
   const issue = editor.keyIssues[connection.id]
   const keySaved = edit === undefined && connection.hasKey && modelKeyFor(accountId, connection) !== null
   const optional = provider?.authentication !== 'managed'
+  /** Every key action swaps the pressed control for another; focus follows to the one that replaced it. */
+  const then = (update: () => void, next: RefObject<HTMLElement | null>) => {
+    flushSync(update)
+    next.current?.focus()
+  }
 
   if (keySaved && !replacing) {
     return (
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-[12px] text-ink">Key saved in this browser</span>
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={() => onReplacing(true)}>Replace</Button>
-          <Button variant="secondary" size="sm" onClick={() => editor.removeKey(connection.id)}>Remove</Button>
+          <Button ref={replaceButton} variant="secondary" size="sm" onClick={() => then(() => onReplacing(true), input)}>
+            Replace
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => then(() => editor.removeKey(connection.id), input)}>
+            Remove
+          </Button>
         </div>
       </div>
     )
@@ -207,6 +253,7 @@ function KeyLine({
       <label htmlFor={inputId} className="text-[11px] font-semibold text-ink-muted">{optional ? 'API key (optional)' : 'API key'}</label>
       <div className="flex items-center gap-2">
         <input
+          ref={input}
           id={inputId}
           type="text"
           autoComplete="off"
@@ -224,16 +271,20 @@ function KeyLine({
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => {
-              if (typed) editor.setKey(connection.id, '')
-              onReplacing(false)
-            }}
+            onClick={() =>
+              then(() => {
+                if (typed) editor.setKey(connection.id, '')
+                onReplacing(false)
+              }, replaceButton)
+            }
           >
             Keep saved key
           </Button>
         )}
         {optional && connection.hasKey && !keySaved && typed === '' && (
-          <Button variant="secondary" size="sm" onClick={() => editor.connectWithoutKey(connection.id)}>Use without a key</Button>
+          <Button variant="secondary" size="sm" onClick={() => then(() => editor.connectWithoutKey(connection.id), input)}>
+            Use without a key
+          </Button>
         )}
       </div>
       {issue && <p id={issueId} className="text-[11.5px] text-danger">{issue}</p>}
