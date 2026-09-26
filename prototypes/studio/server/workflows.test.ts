@@ -31,7 +31,7 @@ describe('Studio workflow registration', () => {
     const names = registerWorkflow.mock.calls.map(([, config]) => config?.name)
     for (const name of names) expect(name).toEqual(expect.any(String))
     expect(names).toEqual([...STUDIO_WORKFLOW_NAMES])
-    expect(names).toEqual(['runExtraction', 'suggestSchemaBatch'])
+    expect(names).toEqual(['runExtraction', 'suggestSchemaBatch', 'suggestSchema'])
   })
 
   it('the extraction queue is Studio\'s studio queue', async () => {

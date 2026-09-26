@@ -8,6 +8,7 @@ import {
   generateSchemaWithModel,
   generateSchemaEditJson,
 } from '../api/_model'
+import type { ModelOperationClient } from '../api/_model_operation'
 import { createPostEditSchema } from '../api/edit_schema'
 import { createPostGenerateSchema } from '../api/generate_schema'
 import { GET as healthGet } from '../api/healthz'
@@ -26,9 +27,12 @@ const PROJECT = '51000000-0000-4000-8000-000000000001'
 const SOURCE_REVISION = '51000000-0000-4000-8002-000000000001'
 const SCHEMA = '51000000-0000-4000-8003-000000000001'
 const SCHEMA_REVISION = '51000000-0000-4000-8004-000000000001'
+const DOCUMENT = '51000000-0000-4000-8001-000000000001'
+const OPERATION = '51000000-0000-4000-8009-0000000000f1'
 const descriptor = {
   artifactReference: 'a'.repeat(64),
   artifactSha256: 'a'.repeat(64),
+  sourceDocumentId: DOCUMENT,
 }
 const revision: SchemaRevisionRecord = {
   schemaRevisionId: SCHEMA_REVISION,
@@ -74,6 +78,26 @@ function sourceForm(): FormData {
   return form
 }
 
+/** A generation's form: the source identity plus the client-minted operation ID. */
+function generateForm(): FormData {
+  const form = sourceForm()
+  form.append('operation_id', OPERATION)
+  return form
+}
+
+/** A model-operation client that finds its enqueued workflow again and reports it finished with `output`. */
+function operations(output: unknown = { ok: true, template: { title: 'verbatim-string' }, raw: '{"title":"verbatim-string"}', pages: null, baseSchemaRevisionId: null }) {
+  let enqueued: { workflowName: string; input: unknown } | undefined
+  const client = {
+    enqueue: vi.fn(async (options: { workflowName: string }, input: unknown) => { enqueued = { workflowName: options.workflowName, input }; return {} as never }),
+    getWorkflow: vi.fn(async () => (enqueued ? { workflowName: enqueued.workflowName, input: [enqueued.input] } : undefined)),
+    listWorkflows: vi.fn(async () => [{ workflowID: `suggestion:${OPERATION}`, status: 'SUCCESS', output }]),
+    cancelWorkflow: vi.fn(async () => {}),
+    deleteWorkflows: vi.fn(async () => {}),
+  }
+  return client as unknown as ModelOperationClient & typeof client
+}
+
 function formRequest(path: string, form: FormData): Request {
   return new Request(`http://local.test/api/${path}`, {
     method: 'POST',
@@ -99,38 +123,24 @@ describe('Studio API endpoints', () => {
     await expect(response.json()).resolves.toEqual({ status: 'ok' })
   })
 
-  it('generates a schema from owner-scoped canonical Markdown', async () => {
-    vi.mocked(generateSchemaWithModel).mockResolvedValue({
-      template: { title: 'verbatim-string' },
-      raw: '{"template":{"title":"verbatim-string"}}',
-      pages: null,
-    })
+  it('starts a durable Schema Suggestion over the owner-scoped source and answers its result', async () => {
     const store = contextStore()
-    const response = await createPostGenerateSchema(
-      store,
-      markdownReader(),
-    )(formRequest('generate_schema', sourceForm()))
+    const client = operations()
+    const response = await createPostGenerateSchema(store, () => client)(formRequest('generate_schema', generateForm()))
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({
       template: { title: 'verbatim-string' },
-      raw: '{"template":{"title":"verbatim-string"}}',
+      raw: '{"title":"verbatim-string"}',
       pages: null,
     })
-    expect(store.getSourceRepresentation).toHaveBeenCalledWith(
-      PROJECT,
-      SOURCE_REVISION,
+    expect(store.getSourceRepresentation).toHaveBeenCalledWith(PROJECT, SOURCE_REVISION)
+    // The handler never reads the document: the workflow does, outside history.
+    expect(client.enqueue).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ workflowName: 'suggestSchema', workflowID: `suggestion:${OPERATION}`, authenticatedUser: ACCOUNT }),
+      expect.objectContaining({ owner: ACCOUNT, sourceRepresentationRevisionId: SOURCE_REVISION }),
     )
-    expect(generateSchemaWithModel).toHaveBeenCalledWith(
-      { researcherAccountId: ACCOUNT },
-      expect.objectContaining({
-        document: {
-          file: null,
-          pages: null,
-          markdown: '# Canonical report',
-        },
-      }),
-    )
+    expect(generateSchemaWithModel).not.toHaveBeenCalled()
   })
 
   it('edits the persisted owner-scoped revision rather than browser-authored nodes', async () => {
@@ -191,18 +201,17 @@ describe('Studio API endpoints', () => {
   })
 
   it('rejects browser-authored source and schema context', async () => {
-    const generation = sourceForm()
+    const generation = generateForm()
     generation.append('document_markdown', '# Browser report')
     const generationStore = contextStore()
+    const generationClient = operations()
     expect(
       (
-        await createPostGenerateSchema(
-          generationStore,
-          markdownReader(),
-        )(formRequest('generate_schema', generation))
+        await createPostGenerateSchema(generationStore, () => generationClient)(formRequest('generate_schema', generation))
       ).status,
     ).toBe(400)
     expect(generationStore.getSourceRepresentation).not.toHaveBeenCalled()
+    expect(generationClient.enqueue).not.toHaveBeenCalled()
 
     const editing = editForm()
     editing.append('current_nodes', '[]')
@@ -226,14 +235,13 @@ describe('Studio API endpoints', () => {
     const missingSource = contextStore({
       getSourceRepresentation: vi.fn(async () => null),
     })
+    const missingClient = operations()
     expect(
       (
-        await createPostGenerateSchema(
-          missingSource,
-          reader,
-        )(formRequest('generate_schema', sourceForm()))
+        await createPostGenerateSchema(missingSource, () => missingClient)(formRequest('generate_schema', generateForm()))
       ).status,
     ).toBe(404)
+    expect(missingClient.enqueue).not.toHaveBeenCalled()
 
     const mixed = contextStore({
       getSchemaRevision: vi.fn(async () => null),

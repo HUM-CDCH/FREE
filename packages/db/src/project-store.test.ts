@@ -942,7 +942,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )
     assert.deepEqual(
       await storeA.getSourceRepresentation(PROJECT, ownRepresentation),
-      { artifactReference: OWN_PACKAGE, artifactSha256: OWN_PACKAGE },
+      { artifactReference: OWN_PACKAGE, artifactSha256: OWN_PACKAGE, sourceDocumentId: DOCUMENT },
     )
     assert.equal(
       await storeA.getSourceRepresentation(PROJECT, foreignRepresentation),
@@ -953,7 +953,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
         OTHER_PROJECT,
         foreignRepresentation,
       ),
-      { artifactReference: SHARED_PACKAGE, artifactSha256: SHARED_PACKAGE },
+      { artifactReference: SHARED_PACKAGE, artifactSha256: SHARED_PACKAGE, sourceDocumentId: OTHER_DOCUMENT },
     )
   })
 
@@ -1240,6 +1240,7 @@ describe('ResearcherProjectStore Source Document ingestion', () => {
       {
         artifactReference: 'e'.repeat(64),
         artifactSha256: 'e'.repeat(64),
+        sourceDocumentId: second?.sourceDocumentId,
       },
     )
   })

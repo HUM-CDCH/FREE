@@ -177,13 +177,47 @@ describe('requestSchema', () => {
       projectContextId: '51000000-0000-4000-8000-000000000001',
       sourceRepresentationRevisionId:
         '51000000-0000-4000-8002-000000000001',
-    })
+    }, undefined, { operationId: '51000000-0000-4000-8009-0000000000f1', base: null })
 
     expect(submittedUrl).toBe('/api/generate_schema')
     expect(Object.fromEntries(submittedBody!)).toEqual({
       project_context_id: '51000000-0000-4000-8000-000000000001',
       source_representation_revision_id:
         '51000000-0000-4000-8002-000000000001',
+      operation_id: '51000000-0000-4000-8009-0000000000f1',
+    })
+  })
+
+  it('requestSchema posts the operation ID and the base it starts from', async () => {
+    const bodies: FormData[] = []
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+      bodies.push(init.body as FormData)
+      return Promise.resolve(jsonResponse({ template: {}, raw: '', pages: null }))
+    }))
+    const context = {
+      projectContextId: '51000000-0000-4000-8000-000000000001',
+      sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000001',
+    }
+
+    await requestSchema(context, undefined, {
+      instruction: 'Catalog entries',
+      operationId: '51000000-0000-4000-8009-0000000000f1',
+      base: { extractionSchemaId: '51000000-0000-4000-8003-000000000001', schemaRevisionId: '51000000-0000-4000-8004-000000000001' },
+    })
+    await requestSchema(context, undefined, { operationId: '51000000-0000-4000-8009-0000000000f2', base: null })
+
+    expect(Object.fromEntries(bodies[0]!)).toEqual({
+      project_context_id: context.projectContextId,
+      source_representation_revision_id: context.sourceRepresentationRevisionId,
+      instruction: 'Catalog entries',
+      operation_id: '51000000-0000-4000-8009-0000000000f1',
+      extraction_schema_id: '51000000-0000-4000-8003-000000000001',
+      base_schema_revision_id: '51000000-0000-4000-8004-000000000001',
+    })
+    expect(Object.fromEntries(bodies[1]!)).toEqual({
+      project_context_id: context.projectContextId,
+      source_representation_revision_id: context.sourceRepresentationRevisionId,
+      operation_id: '51000000-0000-4000-8009-0000000000f2',
     })
   })
 })
@@ -227,7 +261,7 @@ describe('model work hands the keys over first', () => {
       requests.push(`${init.method} ${url}`)
       return handoff.promise
     })
-    const schema = requestSchema(context)
+    const schema = requestSchema(context, undefined, { operationId: '51000000-0000-4000-8009-0000000000f1', base: null })
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(requests).toEqual(['PUT /api/model-keys'])
     handoff.resolve(jsonResponse({ accepted: [] }))
@@ -244,7 +278,7 @@ describe('model work hands the keys over first', () => {
     // A handoff that fails still lets the model work start; Studio then waits for the key or answers model_key_required.
     failHandoff = true
     requests.length = 0
-    await requestSchema(context)
+    await requestSchema(context, undefined, { operationId: '51000000-0000-4000-8009-0000000000f1', base: null })
     await requestSchemaEdit(schemaContext, 'Add title')
     expect(requests).toEqual([
       'PUT /api/model-keys',

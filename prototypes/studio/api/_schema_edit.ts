@@ -98,17 +98,15 @@ async function readCanonicalMarkdown(
   }
 }
 
-export async function loadOwnedSourceMarkdown(
+/** The owner check for a source revision, without reading its package: the Source Document it belongs to. The
+ *  workflow reads the Markdown itself, outside history (spec, *What DBOS history holds*). */
+export async function ownedSourceScope(
   store: SourceContextStore,
-  reader: CanonicalMarkdownReader,
   projectContextId: string,
   sourceRepresentationRevisionId: string,
-): Promise<string> {
+): Promise<{ sourceDocumentId: string }> {
   const descriptor = await store
-    .getSourceRepresentation(
-      projectContextId,
-      sourceRepresentationRevisionId,
-    )
+    .getSourceRepresentation(projectContextId, sourceRepresentationRevisionId)
     .catch((cause) => {
       throw persistenceUnavailable(cause)
     })
@@ -118,7 +116,20 @@ export async function loadOwnedSourceMarkdown(
       'not_found',
       'Project model context was not found.',
     )
-  return readCanonicalMarkdown(reader, descriptor)
+  return { sourceDocumentId: descriptor.sourceDocumentId }
+}
+
+/** A generation's base, when the form names one: both fields or neither (422 otherwise). */
+export function optionalSchemaBase(form: FormData): { extractionSchemaId: string; schemaRevisionId: string } | null {
+  const hasSchema = form.get('extraction_schema_id') !== null
+  const hasRevision = form.get('base_schema_revision_id') !== null
+  if (!hasSchema && !hasRevision) return null
+  if (hasSchema !== hasRevision)
+    throw new ApiError(422, 'invalid_request', 'extraction_schema_id and base_schema_revision_id go together.')
+  return {
+    extractionSchemaId: formContextIdentity(form, 'extraction_schema_id'),
+    schemaRevisionId: formContextIdentity(form, 'base_schema_revision_id'),
+  }
 }
 
 export async function loadOwnedSchemaRevision(

@@ -15,12 +15,17 @@ export type WorkflowChildExit = {
  * Runs one scenario of test/support/scenarios/ in a Studio child process and resolves when it exits. The child is
  * `node --import tsx`, not the `tsx` CLI: the CLI forks a child that a SIGKILL of the CLI would leave running (M0R 2).
  */
-export function runWorkflowChild(scenario: string, env: NodeJS.ProcessEnv): Promise<WorkflowChildExit> {
+export function runWorkflowChild(
+  scenario: string,
+  env: NodeJS.ProcessEnv,
+  options: { /** The child, once spawned: a test that must kill it from outside (a call in flight it cannot see) uses this. */ spawned?(kill: () => void): void } = {},
+): Promise<WorkflowChildExit> {
   const child = spawn(process.execPath, ['--import', 'tsx', 'test/support/workflowChild.ts', scenario], {
     cwd: STUDIO_ROOT,
     env: { ...process.env, ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
+  options.spawned?.(() => child.kill('SIGKILL'))
   let output = ''
   child.stdout.setEncoding('utf8').on('data', (chunk: string) => (output += chunk))
   child.stderr.setEncoding('utf8').on('data', (chunk: string) => (output += chunk))

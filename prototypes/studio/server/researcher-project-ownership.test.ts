@@ -184,6 +184,7 @@ type TestPackageStore = {
 }
 
 type ModelSpies = {
+  /** The model-operation client a cross-owner Schema Suggestion must never reach. */
   generateSchema: Mock<() => Promise<never>>
   editSchema: Mock<() => Promise<never>>
 }
@@ -416,7 +417,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
           const relationship = owned(accountId, projectContextId)
           return relationship?.documentPresent &&
             relationship.representationId === sourceRepresentationId
-            ? sharedDescriptor
+            ? { ...sharedDescriptor, sourceDocumentId: relationship.documentId }
             : null
         },
       ),
@@ -710,11 +711,13 @@ function ownershipRegistry(fixture: TwoAccountStores) {
       createSchemaRevisionHandlers(store),
     ),
     '../api/generate_schema.ts': researcherModule((store) => ({
-      POST: createPostGenerateSchema(
-        store,
-        { read: fixture.readArtifact },
-        fixture.models.generateSchema,
-      ),
+      POST: createPostGenerateSchema(store, () => ({
+        enqueue: fixture.models.generateSchema,
+        getWorkflow: fixture.models.generateSchema,
+        listWorkflows: fixture.models.generateSchema,
+        cancelWorkflow: fixture.models.generateSchema,
+        deleteWorkflows: fixture.models.generateSchema,
+      }) as never),
     })),
     '../api/edit_schema.ts': researcherModule((store) => ({
       POST: createPostEditSchema(
@@ -1002,7 +1005,7 @@ describe('two-account project and source API isolation', () => {
   })
 })
 
-describe('two-account schema, revision, suggestion, editing, and chat isolation', () => {
+describe('two-account schema, revision, suggestion, and editing isolation', () => {
   it('rejects foreign project, schema, and revision combinations without mutation', async () => {
     const fixture = await appFixture()
     const aliceStore = fixture.stores.get(ids.accountA)!
@@ -1107,6 +1110,7 @@ describe('two-account schema, revision, suggestion, editing, and chat isolation'
       'source_representation_revision_id',
       ids.representationB,
     )
+    generateForm.set('operation_id', '11000000-0000-4009-8000-0000000000f1')
     const readsBeforeGenerate = fixture.readArtifact.mock.calls.length
     await expectPrivateNotFound(
       await api(fixture, ids.accountA, '/api/generate_schema', {

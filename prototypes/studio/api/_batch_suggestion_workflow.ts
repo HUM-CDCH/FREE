@@ -1,4 +1,5 @@
 import { DBOS, type StepConfig } from '@dbos-inc/dbos-sdk'
+import { MODEL_OPERATION_TIMEOUT_MS } from './_model_operation.js'
 import type { InternalProjectWorkerStore } from 'db'
 import type { WorkflowSteps } from 'extraction/workflows'
 import type { SchemaDefinition } from 'extraction/schema'
@@ -11,7 +12,6 @@ import {
 import type { generateSchemaWithModel } from './_model.js'
 
 export const SUGGEST_SCHEMA_BATCH = 'suggestSchemaBatch'
-const MODEL_OPERATION_TIMEOUT_MS = 10 * 60 * 1000
 const SOURCE_SUGGESTION_INSTRUCTION =
   'Suggest reusable extraction fields for this Source Document. Never include canonical Evidence fields: _evidence, snippets, pages, bboxes, occurrence IDs, or fuzzy matches.'
 const MERGE_INSTRUCTION =

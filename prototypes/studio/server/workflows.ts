@@ -7,10 +7,11 @@ import {
 } from '../api/_batch_suggestion_workflow.js'
 import { extractionWorkflowPorts } from '../api/_extractions.js'
 import { generateSchemaWithModel } from '../api/_model.js'
+import { registerSchemaGenerationWorkflow, SUGGEST_SCHEMA } from '../api/_schema_generation_workflow.js'
 
 /** Every Studio workflow's explicit name. A bundler renames unnamed functions (M0R 2: `job$1`), and a workflow started
  *  under one build must be recoverable by another. */
-export const STUDIO_WORKFLOW_NAMES: readonly string[] = [RUN_EXTRACTION, SUGGEST_SCHEMA_BATCH]
+export const STUDIO_WORKFLOW_NAMES: readonly string[] = [RUN_EXTRACTION, SUGGEST_SCHEMA_BATCH, SUGGEST_SCHEMA]
 
 let registered = false
 
@@ -26,4 +27,8 @@ export function registerStudioWorkflows(): void {
     generate: generateSchemaWithModel,
     store: workerSuggestionStore(createInternalProjectWorkerStore()),
   }))
+  registerSchemaGenerationWorkflow(() => {
+    const worker = createInternalProjectWorkerStore()
+    return { steps: dbosSteps, readMarkdown: (id) => worker.readRevisionMarkdown(id), generate: generateSchemaWithModel }
+  })
 }

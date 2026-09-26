@@ -134,12 +134,13 @@ async function ownedSchemaRevision(
     | null
 }
 
+/** The revision's package descriptor and the Source Document it belongs to, when the account owns its project. */
 async function ownedSourceRepresentationDescriptor(
   transaction: DatabaseTransaction,
   researcherAccountId: string,
   projectContextId: string,
   sourceRepresentationId: string,
-): Promise<CanonicalPackageDescriptor | null> {
+): Promise<(CanonicalPackageDescriptor & { sourceDocumentId: string }) | null> {
   const { sql } = transaction
   const query = sql.public.sourceRepresentationRevision
     .innerJoin(sql.public.sourceDocument, (fields, functions) =>
@@ -158,6 +159,7 @@ async function ownedSourceRepresentationDescriptor(
       artifactReference:
         fields.sourceRepresentationRevision.artifactReference,
       artifactSha256: fields.sourceRepresentationRevision.artifactSha256,
+      sourceDocumentId: fields.sourceRepresentationRevision.sourceDocumentId,
     }))
     .where((fields, functions) =>
       functions.and(
@@ -673,10 +675,11 @@ export type ResearcherProjectStore = {
       schemaRevisionId: string
     },
   ): Promise<DocumentReopenSnapshot | null>
+  /** The revision's package descriptor with its Source Document, or null when the account does not own it. */
   getSourceRepresentation(
     projectContextId: string,
     sourceRepresentationId: string,
-  ): Promise<CanonicalPackageDescriptor | null>
+  ): Promise<(CanonicalPackageDescriptor & { sourceDocumentId: string }) | null>
   /**
    * Attempts reference-safe cleanup for a package produced by this request.
    * The caller learns nothing about deployment-wide package references.

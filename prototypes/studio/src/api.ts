@@ -84,10 +84,13 @@ async function postForm<T>(
 
 // ---------- request wrappers ----------
 
+/** The acknowledged revision a generation starts from; null for a first generation. */
+export type SchemaBase = { extractionSchemaId: string; schemaRevisionId: string }
+
 export async function requestSchema(
   context: SourceModelContext,
-  signal?: AbortSignal,
-  options?: TemplateOptions,
+  signal: AbortSignal | undefined,
+  options: TemplateOptions & { operationId: string; base: SchemaBase | null },
 ): Promise<unknown> {
   const form = new FormData()
   form.append('project_context_id', context.projectContextId)
@@ -95,8 +98,14 @@ export async function requestSchema(
     'source_representation_revision_id',
     context.sourceRepresentationRevisionId,
   )
-  if (options?.instruction?.trim())
+  if (options.instruction?.trim())
     form.append('instruction', options.instruction.trim())
+  // The operation ID makes the POST repeatable; the base tells a reloaded page whether the result may still be saved.
+  form.append('operation_id', options.operationId)
+  if (options.base) {
+    form.append('extraction_schema_id', options.base.extractionSchemaId)
+    form.append('base_schema_revision_id', options.base.schemaRevisionId)
+  }
 
   await ensureModelKeysSent()
   const done = await postForm('/generate_schema', form, decodeSchemaDone, signal)

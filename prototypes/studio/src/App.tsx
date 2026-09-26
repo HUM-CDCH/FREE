@@ -461,6 +461,9 @@ export function DocumentWorkspace({
       return
     }
     const hadSchema = schemaSnap.extractionSchemaId !== null
+    // The tab's acknowledged head is the base: a reloaded page saves this generation only while it is still current.
+    const acknowledged = schema.snapshot().save?.acknowledged ?? null
+    const operationId = crypto.randomUUID() // a new user action, a new ID (spec, *Client IDs*)
     await schema.generate((signal) =>
       requestSchema(
         {
@@ -468,7 +471,11 @@ export function DocumentWorkspace({
           sourceRepresentationRevisionId: sourceRepresentationId,
         },
         signal,
-        { instruction },
+        {
+          instruction,
+          operationId,
+          base: acknowledged && { extractionSchemaId: acknowledged.extractionSchemaId, schemaRevisionId: acknowledged.schemaRevisionId },
+        },
       ),
     )
     // The first successful generation initializes the Extraction Schema;
