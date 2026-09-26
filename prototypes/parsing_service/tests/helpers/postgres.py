@@ -78,7 +78,9 @@ def url(conninfo: str, *, user: str | None = None, password: str | None = None) 
     from urllib.parse import quote
     fields = checked_conninfo(conninfo)
     user, password = user or fields["user"], password if password is not None else fields.get("password", "")
-    return f"postgresql://{quote(user)}:{quote(password)}@{fields['hostaddr']}:{fields['port']}/{fields['dbname']}"
+    host = f"[{fields['hostaddr']}]" if ":" in fields["hostaddr"] else fields["hostaddr"]
+    credentials = f"{quote(user, safe='')}:{quote(password, safe='')}"
+    return f"postgresql://{credentials}@{host}:{fields['port']}/{fields['dbname']}"
 
 
 def server() -> Iterator[Server]:
