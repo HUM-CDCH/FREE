@@ -295,7 +295,7 @@ describe('suggestSchema on PostgreSQL', () => {
     expect(holdsKey(failure, key)).toBe(false)
     expect(succeeded.status).toBe(200)
     expect(holdsKey(await succeeded.json(), key)).toBe(false)
-    expect(server.calls().slice(-2).map((call) => call.authorization)).toEqual([`Bearer ${key}`, `Bearer ${key}`])
+    expect(server.calls().slice(-2).every((call) => call.authorization === `Bearer ${key}`), 'both calls carried the planted key').toBe(true)
     expect(await databaseHolds(url, key, [schemas.schema, 'public'])).toEqual([])
     expect(output.text()).not.toContain(key)
   })
@@ -351,7 +351,7 @@ describe('suggestSchema on PostgreSQL', () => {
     server.reply({ text: TEMPLATE })
     const succeeded = await post(scope, randomUUID())
     expect(succeeded.status).toBe(200)
-    expect(server.calls().at(-1)?.authorization).toBe(`Bearer ${key}`)
+    expect(server.calls().at(-1)?.authorization === `Bearer ${key}`, 'the last call carried the planted key').toBe(true)
     expect(server.calls().length).toBe(callsBefore + 2)
 
     // A cancel during NuExtract's own fetch stops it about 1 s later, like the SDK models (A15).
@@ -413,7 +413,7 @@ describe('suggestSchema on PostgreSQL', () => {
     expect(second.code).toBe(0)
     expect(JSON.parse(readFileSync(env.FREE_TEST_OUTPUT, 'utf8'))).toMatchObject({ state: 'finished', output: { ok: true, raw: TEMPLATE } })
     expect(server.calls().length).toBe(callsBefore + 2)
-    expect(server.calls().slice(-2).map((call) => call.authorization)).toEqual([`Bearer ${key}`, `Bearer ${key}`])
+    expect(server.calls().slice(-2).every((call) => call.authorization === `Bearer ${key}`), 'both calls carried the planted key').toBe(true)
   })
 
   it('a route changed between attempts: an interrupted generation reruns on the new route', async () => {
@@ -435,7 +435,7 @@ describe('suggestSchema on PostgreSQL', () => {
       expect(JSON.parse(readFileSync(env.FREE_TEST_OUTPUT, 'utf8'))).toMatchObject({ state: 'finished', output: { ok: true, raw: TEMPLATE } })
       expect(server.calls().length).toBe(callsBefore + 1)
       expect(other.calls()).toHaveLength(1)
-      expect(other.calls()[0]?.authorization).toBe(`Bearer ${key}`)
+      expect(other.calls()[0]?.authorization === `Bearer ${key}`, 'the call on the new route carried the planted key').toBe(true)
     } finally {
       await other.close()
     }

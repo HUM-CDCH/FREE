@@ -172,7 +172,7 @@ describe('proposeSchemaEdit on PostgreSQL', () => {
       state: 'finished', output: { ok: true, baseSchemaRevisionId: base.schemaRevisionId, response: PROPOSED },
     })
     expect(server.calls().length).toBe(callsBefore + 2)
-    expect(server.calls().slice(-2).map((call) => call.authorization)).toEqual([`Bearer ${key}`, `Bearer ${key}`])
+    expect(server.calls().slice(-2).every((call) => call.authorization === `Bearer ${key}`), 'both calls carried the planted key').toBe(true)
     expect(await childStatus(env, `edit:${operationId}`)).toBe('SUCCESS')
   })
 
