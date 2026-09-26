@@ -1,7 +1,8 @@
 """Cooperative cancellation inside a step. DBOS cannot interrupt a native call, and a cancelled workflow's running step
 keeps its lane's slot until it returns, so steps ask at their boundaries: twice before model work, at every page event
-of the cut (on the step's own thread, never inside a transcriber's pool), and before every Catalog entry. A native
-call that is already running finishes first (spec, *Cancellation*)."""
+of the cut (on the step's own thread, never inside a transcriber's pool), and between the records of an extraction
+(before every Catalog entry, from its chunk threads too). A native call that is already running finishes first (spec,
+*Cancellation*)."""
 from __future__ import annotations
 
 import threading

@@ -115,9 +115,11 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     model call, so a run re-converted while the extraction sat in the queue costs no tokens. The CLI passes
     none: it extracts from whatever the directory holds at the moment it is run.
 
-    `chunks` and `before_entry` apply to a recipe's grounded Catalog (`grounded.extract_grounded`): its entries in
-    that many parallel contiguous chunks, and a hook called before every entry whose error ends the extraction. The
-    version 1 Catalog and Article paths ignore both.
+    `before_entry` is a hook whose error ends the extraction (the worker's cooperative cancellation). A recipe's
+    grounded Catalog (`grounded.extract_grounded`) calls it before every entry, and runs its entries in `chunks`
+    parallel contiguous chunks. The version 1 Catalog calls it before discovery, before each record's extraction
+    and before each record's verification; the Article, before its records call and before each record's
+    verification. Those two paths run unsplit and ignore `chunks`.
     """
     evidence = load(run_dir)
     if generation is not None and evidence.generation != generation:
@@ -130,6 +132,7 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     chat = as_router(chat)
     if options.catalog is not None:
         return _grounded(run_dir, evidence, request, chat, counter, chunks=chunks, before_entry=before_entry)
+    check = before_entry or _unchecked
     started = datetime.now(UTC).isoformat()
     clock = time.monotonic()
     calls: list[Call] = []
@@ -137,6 +140,7 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     document, document_calls, document_issues = extract_document(evidence, schema, chat, budget=options.record_chars)
     calls += document_calls
     issues += document_issues
+    check()
     if options.strategy == "article":
         found, record_calls, record_issues = extract_records(evidence.passages, schema, chat,
                                                              budget=options.record_chars)
@@ -149,6 +153,7 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
         issues += discovery_issues
         slices = []
         for number, group in enumerate(groups):
+            check()
             fields, record_calls, record_issues = extract_record(group, schema, chat, budget=options.record_chars,
                                                                  record=number)
             calls += record_calls
@@ -157,6 +162,7 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     records: list[dict] = []
     links: list[Link] = []
     for number, (group, fields) in enumerate(slices):
+        check()
         found_links, grounding_calls, grounding_issues = verify(group, fields, schema, chat, record=number,
                                                                budget=options.record_chars)
         links += found_links
@@ -205,6 +211,10 @@ def _grounded(run_dir: Path, evidence, request: ExtractRequest, chat: Router, co
     result["fingerprint"] = grounded.fingerprint(body, evidence.generation, evidence.digest, request.schema_,
                                                  options.dumped(), chat.models)
     return result
+
+
+def _unchecked() -> None:
+    """No cancellation hook: the CLI and direct callers run to the end."""
 
 
 def _total(values) -> int | None:

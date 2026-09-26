@@ -1,7 +1,10 @@
 """kei `extract`: one step over a complete parse, retried like convert_run (spec, *kei worker*): the manifest must be
 complete, the parse still the admitted generation, the models and recipe known; then the extraction and its
 artifact, published by rename to extractions/<extraction id>/result.json (rewritten whole by a re-execution).
-A Catalog runs its entries in KEI_CATALOG_CHUNKS chunks and checks cancellation before each entry."""
+Cancellation is checked before any model call and then between records on every path: a recipe's Catalog before
+each entry (its entries in KEI_CATALOG_CHUNKS chunks), the version 1 Catalog before discovery and before each record's
+extraction and verification, the Article before its records call and before each record's verification. A model call
+that is already running finishes first."""
 from __future__ import annotations
 
 import os

@@ -126,10 +126,11 @@ def converted_run(runs_root: Path, workflow_id: str, case: str = "headings") -> 
     return run_id
 
 
-def extract_request(run_id: str, generation: str) -> dict:
+def extract_request(run_id: str, generation: str, options: dict | None = None) -> dict:
+    """An `extract` input; by default the recipe's grounded Catalog."""
     from tests.test_extract_grounded import SCHEMA
-    return {"run_id": run_id, "generation": generation, "request": {"schema": SCHEMA, "options": {
-        "strategy": "catalog", "catalog": {"recipe": "numbered-catalogue-de@1"}}}}
+    options = {"strategy": "catalog", "catalog": {"recipe": "numbered-catalogue-de@1"}} if options is None else options
+    return {"run_id": run_id, "generation": generation, "request": {"schema": SCHEMA, "options": options}}
 
 
 class Gate:

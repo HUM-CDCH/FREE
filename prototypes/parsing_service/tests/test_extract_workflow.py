@@ -1,4 +1,5 @@
 """kei `extract`: one step over a complete parse, with the same retry policy as convert (spec, *kei worker*)."""
+import ast
 import hashlib
 import json
 import threading
@@ -38,6 +39,49 @@ def parsed(tmp_path, monkeypatch, scripted):
     monkeypatch.setattr(runs, "RUNS", tmp_path / "runs")
     run_id = kei_helper.converted_run(runs.RUNS, "kei-convert:ingest:p:a")
     return run_id, catalogue.GENERATION
+
+
+@pytest.fixture
+def ended(monkeypatch):
+    """How the step's extraction ended (the error, or None), recorded once it has returned: after every Catalog chunk
+    thread, and after the step's last cancellation check."""
+    outcomes: list[BaseException | None] = []
+    original = workflow.extract
+
+    def extract(*args, **kwargs):
+        try:
+            result = original(*args, **kwargs)
+        except BaseException as error:
+            outcomes.append(error)
+            raise
+        outcomes.append(None)
+        return result
+    monkeypatch.setattr(workflow, "extract", extract)
+    return outcomes
+
+
+V1 = {"catalog": {"strategy": "catalog"}, "article": {"strategy": "article"}}  # no recipe: the version 1 paths
+
+
+def stage_of(schema: dict) -> str:
+    properties = schema.get("properties", {})
+    return ("discovery" if "starts" in properties else "records" if "records" in properties
+            else "record" if "site_name" in properties else "grounding")
+
+
+def version_1(events: list[str], hold=lambda stage: None):
+    """A chat for the version 1 paths: every passage starts a record, and every record's site is a word the source
+    does not contain, so verifying it asks the model. `hold(stage)` runs inside each call."""
+    def script(system, user, schema):
+        stage = stage_of(schema)
+        events.append(stage)
+        hold(stage)
+        if stage == "discovery":
+            return {"starts": schema["properties"]["starts"]["items"]["enum"], "end": None}
+        if stage == "records":
+            return {"records": [{"site_name": "Nowhere"}, {"site_name": "Elsewhere"}]}
+        return {"site_name": "Nowhere"} if stage == "record" else {}
+    return script
 
 
 def test_the_step_publishes_the_artifact_and_names_its_digest(parsed, monkeypatch):
@@ -110,6 +154,56 @@ def test_a_failed_chunk_stops_the_other_chunks_and_publishes_nothing(parsed, scr
         workflow.extract_run(WID, run_id, generation, kei_helper.extract_request(run_id, generation)["request"])
     assert sorted(asked) == ["1.", "2.", "4."]  # entries 3 and 5 were never asked
     assert not (runs.RUNS / run_id / "extractions").exists()
+
+
+def test_the_version_1_catalog_checks_before_discovery_and_each_record_and_verification(parsed):
+    run_id, _ = parsed
+    events: list[str] = []
+    request = extraction.ExtractRequest.model_validate(kei_helper.extract_request(run_id, "g", V1["catalog"])["request"])
+    extraction.extract(runs.RUNS / run_id, request, CountingChat(version_1(events)),
+                       before_entry=lambda: events.append("check"))
+    records = events.count("record")
+    assert records > 1
+    assert events == ["check", "discovery", *["check", "record"] * records, *["check", "grounding"] * records]
+
+
+def test_the_article_checks_before_its_records_call_and_each_verification(parsed):
+    run_id, _ = parsed
+    events: list[str] = []
+    request = extraction.ExtractRequest.model_validate(kei_helper.extract_request(run_id, "g", V1["article"])["request"])
+    extraction.extract(runs.RUNS / run_id, request, CountingChat(version_1(events)),
+                       before_entry=lambda: events.append("check"))
+    assert events == ["check", "records", "check", "grounding", "check", "grounding"]
+
+
+@pytest.mark.parametrize("strategy, asked", [("catalog", ["discovery", "record"]), ("article", ["records"])])
+def test_a_version_1_check_that_raises_ends_the_extraction_before_its_next_call(parsed, strategy, asked):
+    run_id, _ = parsed
+    events: list[str] = []
+
+    def before_entry():
+        events.append("check")
+        if events.count("check") == len(asked) + 1:
+            raise KeiFailure("cancelled", "stop")
+    request = extraction.ExtractRequest.model_validate(kei_helper.extract_request(run_id, "g", V1[strategy])["request"])
+    with pytest.raises(KeiFailure, match="cancelled"):
+        extraction.extract(runs.RUNS / run_id, request, CountingChat(version_1(events)), before_entry=before_entry)
+    assert [event for event in events if event != "check"] == asked
+
+
+def test_both_workflows_give_up_after_five_recovery_attempts():
+    """dbos 3.1.0 has no public read of a workflow's recovery limit, so the decorators are read from the source."""
+    from kei_exp.workflows import convert
+    assert config.MAX_RECOVERY_ATTEMPTS == 5
+    for module, name in ((convert, "convert"), (workflow, "extract")):
+        tree = ast.parse(Path(module.__file__).read_text())
+        decorators = [decorator for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
+                      for decorator in node.decorator_list
+                      if isinstance(decorator, ast.Call) and ast.unparse(decorator.func) == "DBOS.workflow"]
+        [decorator] = decorators
+        keywords = {keyword.arg: ast.unparse(keyword.value) for keyword in decorator.keywords}
+        assert keywords["name"] == repr(name)
+        assert keywords["max_recovery_attempts"] == "config.MAX_RECOVERY_ATTEMPTS"
 
 
 @pytest.mark.parametrize("value, chunks", [(None, 1), ("4", 4), ("1", 1)])
@@ -187,7 +281,7 @@ def test_a_cancelled_catalog_stops_before_its_next_entry(kei, scripted, monkeypa
     assert len(calls) == 1  # the headings fixture has five entries; the second was never asked
 
 
-def test_a_cancelled_chunked_catalog_stops_every_chunk_before_its_next_entry(kei, scripted, monkeypatch):
+def test_a_cancelled_chunked_catalog_stops_every_chunk_before_its_next_entry(kei, scripted, ended, monkeypatch):
     """Chunk threads carry no DBOS context: the step's check must still read the workflow's status from each."""
     from dbos import DBOS
 
@@ -195,18 +289,6 @@ def test_a_cancelled_chunked_catalog_stops_every_chunk_before_its_next_entry(kei
     monkeypatch.setattr(cancel, "MIN_INTERVAL", 0.0)
     monkeypatch.setattr(workflow, "CATALOG_CHUNKS", 2)  # headings: entries [1, 2], [3, 4, 5]
     arrived, released, asked = threading.Barrier(3, timeout=30), threading.Event(), []
-    ended: list[BaseException | None] = []
-    original = workflow.extract
-
-    def extract(*args, **kwargs):  # records how the step's extraction ended, once every chunk thread has returned
-        try:
-            result = original(*args, **kwargs)
-        except BaseException as error:
-            ended.append(error)
-            raise
-        ended.append(None)
-        return result
-    monkeypatch.setattr(workflow, "extract", extract)
 
     def script(system, user, schema):
         entry = entry_text(user)[:2]
@@ -226,4 +308,30 @@ def test_a_cancelled_chunked_catalog_stops_every_chunk_before_its_next_entry(kei
     kei_helper.until(lambda: ended, 10, "the step's extraction returning")
     assert isinstance(ended[0], KeiFailure) and ended[0].code == "cancelled"
     assert sorted(asked) == ["1.", "3."]  # neither chunk asked its second entry
+    assert not (kei.runs / run_id / "extractions").exists()
+
+
+@pytest.mark.parametrize("strategy, held, asked", [
+    ("catalog", "record", ["discovery", "record"]),  # held in the first record's call; the second never asked
+    ("article", "records", ["records"]),             # held in the records call; no verification asked
+])
+def test_a_cancelled_version_1_extraction_stops_before_its_next_call(kei, scripted, ended, monkeypatch, strategy,
+                                                                     held, asked):
+    from dbos import DBOS
+
+    from kei_exp.workflows import cancel
+    monkeypatch.setattr(cancel, "MIN_INTERVAL", 0.0)
+    gate, events = kei_helper.Gate(), []
+    gate.hold(WID)
+    scripted["script"] = version_1(events, hold=lambda stage: gate() if events == [*asked[:-1], held] else None)
+    run_id = kei_helper.converted_run(kei.runs, "kei-convert:ingest:p:a")
+    kei.enqueue("extract", config.EXTRACT, WID, kei_helper.extract_request(run_id, catalogue.GENERATION, V1[strategy]),
+                priority=config.PRIORITY_INTERACTIVE)
+    kei_helper.until(lambda: WID in gate.entered, 30, f"the {held} call")
+    DBOS.cancel_workflow(WID)
+    gate.release(WID)
+    assert kei.wait(WID).status == "CANCELLED"
+    kei_helper.until(lambda: ended, 10, "the step's extraction returning")
+    assert isinstance(ended[0], KeiFailure) and ended[0].code == "cancelled"
+    assert events == asked
     assert not (kei.runs / run_id / "extractions").exists()
