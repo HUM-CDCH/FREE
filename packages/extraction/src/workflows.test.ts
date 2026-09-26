@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { describe, it } from 'node:test'
 import { Error as DBOSErrors, type StepConfig } from '@dbos-inc/dbos-sdk'
 import parsedDocument from '../../../prototypes/studio/src/assets/parsed_document.v2.json' with { type: 'json' }
+import { ExtractionError } from './errors.js'
 import { keiExpArtifact, keiExpEvidence } from './kei-exp-fixture.js'
 import { SUBMIT_TO_KEI_RETRY, type KeiHandoff, type KeiPoll, type KeiSubmission } from './kei-handoff.js'
 import type { ExtractionStrategy } from './types.js'
@@ -54,6 +55,10 @@ type Scenario = {
   /** Throws for a step before it runs, as DBOS does for a step of a cancelled workflow. */
   beforeStep?: (name: string) => void
   poll?: KeiHandoff['poll']
+  readArtifact?: () => Promise<Uint8Array>
+  readPinnedDocument?: () => Promise<unknown>
+  /** Runs a step's function this many times, as a crash between its commit and its checkpoint replays it. */
+  runsOf?: (name: string) => number
 }
 function harness(scenario: Scenario = {}) {
   const admitted = scenario.admitted === undefined ? admittedExtraction() : scenario.admitted
@@ -64,7 +69,8 @@ function harness(scenario: Scenario = {}) {
   const submissions: KeiSubmission[] = []
   const cancels: string[] = []
   const pollSignals: Array<AbortSignal | undefined> = []
-  const artifactReads: Array<{ runId: string; extractionId: string }> = []
+  const artifactReads: Array<{ runId: string; extractionId: string; signal?: AbortSignal }> = []
+  const results: Array<{ name: string; result: unknown }> = []
   const settles: SettledExtraction[] = []
   const signal = new AbortController().signal
   const row: { outcome: SettledExtraction | null } = { outcome: scenario.settled ?? null }
@@ -82,13 +88,17 @@ function harness(scenario: Scenario = {}) {
       async step(name, fn, config) {
         steps.push({ name, config })
         scenario.beforeStep?.(name)
-        return fn()
+        let result = await fn()
+        for (let run = 1; run < (scenario.runsOf?.(name) ?? 1); run += 1) result = await fn()
+        results.push({ name, result })
+        return result
       },
       cancelSignal: () => signal,
     },
     store: {
       loadAdmitted: async () => admitted,
-      readPinnedDocument: async () => (scenario.pinnedDocument === undefined ? parsedDocument : scenario.pinnedDocument),
+      readPinnedDocument: scenario.readPinnedDocument ??
+        (async () => (scenario.pinnedDocument === undefined ? parsedDocument : scenario.pinnedDocument)),
       settle: async (_id, settled) => {
         settles.push(settled)
         if (scenario.settle) return scenario.settle(settled)
@@ -98,13 +108,13 @@ function harness(scenario: Scenario = {}) {
       },
     },
     kei,
-    readArtifact: async (runId, extractionId) => {
-      artifactReads.push({ runId, extractionId })
-      return bytes
+    readArtifact: async (runId, extractionId, readSignal) => {
+      artifactReads.push({ runId, extractionId, signal: readSignal })
+      return scenario.readArtifact ? scenario.readArtifact() : bytes
     },
   })
   return {
-    admitted: admitted!, run, steps, submissions, cancels, pollSignals, artifactReads, settles, row, signal,
+    admitted: admitted!, run, steps, submissions, cancels, pollSignals, artifactReads, settles, row, signal, results,
     names: () => steps.map((step) => step.name),
   }
 }
@@ -185,7 +195,7 @@ describe('runExtraction', () => {
     await h.run()
     assert.deepEqual(h.names(), ['loadAdmitted', 'submitToKei', 'pollKei', 'pollKei', 'pollKei', 'publishResult'])
     assert.equal(h.steps.at(-1)!.config, ARTIFACT_READ_RETRY)
-    assert.deepEqual(h.artifactReads, [{ runId: RUN, extractionId: admitted.extractionId }])
+    assert.deepEqual(h.artifactReads, [{ runId: RUN, extractionId: admitted.extractionId, signal: h.signal }])
     assert.equal(h.settles.length, 1)
     const settled = h.settles[0]!
     assert.equal(settled.outcome, 'SUCCEEDED')
@@ -194,6 +204,70 @@ describe('runExtraction', () => {
     assert.equal(settled.extraction.sourceRepresentationRevisionId, admitted.sourceRepresentationRevisionId)
     assert.deepEqual(settled.extraction.result, { records: [{ title: 'Alpha' }] })
     assert.deepEqual(settled.extraction.modelAttribution, { provider: 'kei-exp', modelId: 'fields-model' })
+    assert.deepEqual(h.cancels, [])
+  })
+
+  it('the artifact read takes the step\'s cancel signal', async () => {
+    const h = harness()
+    await h.run()
+    assert.equal(h.artifactReads.length, 1)
+    assert.equal(h.artifactReads[0]!.signal, h.signal)
+  })
+
+  it('a publication replayed after its commit publishes once', async () => {
+    const h = harness({ runsOf: (name) => (name === 'publishResult' ? 2 : 1) })
+    await h.run()
+    assert.deepEqual(h.settles.map((settled) => settled.outcome), ['SUCCEEDED', 'SUCCEEDED'])
+    assert.equal(h.row.outcome?.outcome, 'SUCCEEDED')
+    assert.deepEqual(h.results.at(-1), { name: 'publishResult', result: 'already-settled' })
+    assert.deepEqual(h.cancels, [])
+  })
+
+  it('a revision deleted before publication publishes nothing and fails no step', async () => {
+    const h = harness({ pinnedDocument: null })
+    await h.run()
+    assert.deepEqual(h.settles, [])
+    assert.deepEqual(h.results.at(-1), { name: 'publishResult', result: 'missing' })
+    assert.deepEqual(h.cancels, [])
+  })
+
+  it('an Extraction deleted before its outcome is written ends without another step', async () => {
+    const h = harness({ settle: async () => 'missing' })
+    await h.run()
+    assert.equal(h.settles.length, 1)
+    assert.equal(h.names().at(-1), 'publishResult')
+    assert.deepEqual(h.cancels, [])
+  })
+
+  it('an artifact kei no longer serves fails the Extraction with a fixed message instead of stopping its workflow', async () => {
+    const h = harness({
+      readArtifact: async () => { throw new ExtractionError('extraction_failed', 'kei-exp has no published artifact for this Extraction.') },
+    })
+    await h.run()
+    assert.deepEqual(failureOf(h), {
+      code: 'extraction_failed', message: 'kei-exp has no published artifact for this Extraction.', phase: 'persisting',
+    })
+    assert.deepEqual(h.cancels, [])
+  })
+
+  it('a transient artifact read failure is thrown on for the step to retry', async () => {
+    const transient = Object.assign(new Error('kei-exp returned HTTP 503.'), { transient: true })
+    const h = harness({ readArtifact: async () => { throw transient } })
+    await assert.rejects(h.run(), (error: unknown) => error === transient)
+    assert.equal(ARTIFACT_READ_RETRY.shouldRetry!(transient), true)
+    assert.deepEqual(h.settles, [])
+  })
+
+  it('a pinned package that cannot be read fails the Extraction with invalid_source_representation', async () => {
+    const h = harness({
+      readPinnedDocument: async () => {
+        throw new ExtractionError('invalid_source_representation', 'The pinned Source Representation is unavailable.')
+      },
+    })
+    await h.run()
+    assert.deepEqual(failureOf(h), {
+      code: 'invalid_source_representation', message: 'The pinned Source Representation is unavailable.', phase: 'persisting',
+    })
     assert.deepEqual(h.cancels, [])
   })
 
@@ -286,7 +360,8 @@ describe('runExtraction', () => {
     const garbled = new TextEncoder().encode('{"extraction_version":')
     const h = harness({ admitted, polls: [{ state: 'SUCCESS', output: extractOk(admitted, garbled) }], bytes: garbled })
     await h.run()
-    assert.equal(failureOf(h).code, 'invalid_model_output')
+    // A fixed message: the JSON parser's own text never reaches a researcher.
+    assert.deepEqual(failureOf(h), { code: 'invalid_model_output', message: 'kei-exp returned invalid JSON.', phase: 'persisting' })
   })
 
   it('a pinned package that is not a ParsedDocument v2 fails with invalid_source_representation', async () => {

@@ -2,7 +2,7 @@ import type { Client, Pool, PoolClient } from 'pg'
 import postgres from '@prisma-next/postgres/runtime'
 import type { Contract } from './prisma/contract.d'
 import contractJson from './prisma/contract.json' with { type: 'json' }
-import { pool as sharedPool, type DatabaseTransaction } from './prisma/db.js'
+import { db, pool as sharedPool, type DatabaseTransaction } from './prisma/db.js'
 
 /** A Studio workflow to enqueue inside a domain transaction (DBOSClient.enqueueInTransaction's options, by name). */
 export type AdmittedWorkflow = Readonly<{
@@ -33,6 +33,7 @@ export async function withPoolClientTransaction<T>(
   work: (transaction: DatabaseTransaction, client: PoolClient) => Promise<T>,
   source: Pool = sharedPool,
 ): Promise<T> {
+  if (source === sharedPool) await markerChecked()
   const client = await source.connect()
   // pg-pool detaches its own listener from a checked-out client; without one, a server-side disconnect during the
   // admission would crash the process instead of failing the next query.
@@ -49,6 +50,25 @@ export async function withPoolClientTransaction<T>(
     client.removeListener('error', ignoreDisconnect)
     client.release(failed)
   }
+}
+
+let markerCheck: Promise<void> | undefined
+
+/**
+ * The shared `db` compares the database's migration marker with this contract on its first query and warns on a
+ * mismatch; a facade bound to one pooled client skips that check (`verifyMarker: false`), so the first admission in a
+ * process reads through `db` first. The read matches no row: only the check it triggers matters. A failed read is
+ * retried by the next admission.
+ */
+function markerChecked(): Promise<void> {
+  markerCheck ??= db.orm.public.ResearcherAccount.select('id')
+    .first({ id: '00000000-0000-0000-0000-000000000000' })
+    .then(() => undefined)
+    .catch((error: unknown) => {
+      markerCheck = undefined
+      throw error
+    })
+  return markerCheck
 }
 
 /**
@@ -77,7 +97,10 @@ function clientView(client: PoolClient): Client {
  *  `sqlState` and `constraint`, a raw pg error (DBOS's, or one from `client.query`) `code` and `constraint`, and a
  *  wrapper such as a failed commit keeps either as its `cause`. */
 export function isUniqueViolation(error: unknown, constraint?: string): boolean {
-  for (let current = error; current && typeof current === 'object'; current = (current as { cause?: unknown }).cause) {
+  // A cause chain that loops back on itself ends at the first repeat.
+  const seen = new Set<object>()
+  for (let current = error; current && typeof current === 'object' && !seen.has(current); current = (current as { cause?: unknown }).cause) {
+    seen.add(current)
     const candidate = current as { code?: unknown; sqlState?: unknown; constraint?: unknown }
     if (candidate.code === '23505' || candidate.sqlState === '23505')
       return constraint === undefined || candidate.constraint === constraint

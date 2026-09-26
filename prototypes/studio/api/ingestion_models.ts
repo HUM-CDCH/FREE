@@ -1,7 +1,7 @@
 import type { KeiExpClient } from 'extraction'
 import { ingestionModelListingSchema } from '../shared/modelConfig.contract.js'
 import { ApiError, json, noStore, noStoreError } from './_http.js'
-import { keiExpClient } from './_extraction_runtime.js'
+import { keiExpClient } from './_extractions.js'
 
 const ROUTE = '/api/ingestion-models'
 

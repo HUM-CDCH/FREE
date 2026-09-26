@@ -13,6 +13,8 @@ import { parseExtractionSchema } from './schema.js'
 import type { ExtractionFailure, ExtractionModelChoice, ExtractionStrategy } from './types.js'
 
 export const RUN_EXTRACTION = 'runExtraction'
+/** Studio's unrestricted `studio` queue (server/dbos.ts STUDIO_QUEUE; server/workflows.test.ts pins the two equal). */
+export const EXTRACTION_QUEUE = 'studio'
 
 /** The DBOS surface a workflow body uses, so its sequence is testable without DBOS. */
 export type WorkflowSteps = Readonly<{
@@ -171,25 +173,25 @@ export async function runExtractionWorkflow(extractionId: string, ports: Extract
     }
     await steps.step('publishResult', async () => {
       const ok = settled.value
-      const invalid = (message: string) => store.settle(extractionId, {
-        outcome: 'FAILED', failure: { code: 'invalid_model_output', message, phase: 'persisting' },
+      const fail = (code: string, message: string) => store.settle(extractionId, {
+        outcome: 'FAILED', failure: { code, message: message.slice(0, 512), phase: 'persisting' },
       })
       if (ok.extraction_id !== extractionId || ok.run_id !== request.run_id || ok.generation !== request.generation)
-        return invalid('kei-exp reported an extraction of other inputs.')
-      const bytes = await ports.readArtifact(ok.run_id, extractionId, steps.cancelSignal())
-      if (createHash('sha256').update(bytes).digest('hex') !== ok.artifact_sha256)
-        return invalid('The published extraction artifact does not match the one kei-exp reported.')
-      const raw = await store.readPinnedDocument(admitted.sourceRepresentationRevisionId)
-      if (raw === null) return 'missing' as const // the revision was deleted: nothing to publish into
+        return fail('invalid_model_output', 'kei-exp reported an extraction of other inputs.')
       let extraction: TerminalExtraction
       try {
+        // A transient read failure (kei's API restarting) is thrown on, for ARTIFACT_READ_RETRY to read again.
+        const bytes = await ports.readArtifact(ok.run_id, extractionId, steps.cancelSignal())
+        if (createHash('sha256').update(bytes).digest('hex') !== ok.artifact_sha256)
+          return fail('invalid_model_output', 'The published extraction artifact does not match the one kei-exp reported.')
+        const raw = await store.readPinnedDocument(admitted.sourceRepresentationRevisionId)
+        if (raw === null) return 'missing' as const // the revision was deleted: nothing to publish into
         extraction = acceptKeiArtifact(admitted, decodePinnedDocument(raw), JSON.parse(new TextDecoder().decode(bytes)), request)
       } catch (error) {
-        if (!(error instanceof ExtractionError) && !(error instanceof SyntaxError)) throw error
-        return store.settle(extractionId, {
-          outcome: 'FAILED',
-          failure: { code: error instanceof ExtractionError ? error.code : 'invalid_model_output', message: error.message.slice(0, 512), phase: 'persisting' },
-        })
+        // The parser's own text never reaches a researcher.
+        if (error instanceof SyntaxError) return fail('invalid_model_output', 'kei-exp returned invalid JSON.')
+        if (!(error instanceof ExtractionError)) throw error
+        return fail(error.code, error.message)
       }
       return store.settle(extractionId, { outcome: 'SUCCEEDED', extraction })
     }, ARTIFACT_READ_RETRY)

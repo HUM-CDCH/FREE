@@ -8,6 +8,7 @@ import {
   type Database,
   type DatabaseTransaction,
 } from './prisma/db.js'
+import { executionOf, type WorkflowStatuses } from './execution-status.js'
 import { isUniqueViolation } from './pool-client-transaction.js'
 import { lockSourceDocumentRow } from './row-lock.js'
 
@@ -825,9 +826,16 @@ async function discardPackagesIfUnreferenced(
   }
 }
 
+export type ResearcherProjectStoreOptions = Readonly<{
+  /** The DBOS status of named workflows (Studio's admission client); without it an unsettled batch member counts as
+   *  running. */
+  workflowStatuses?: WorkflowStatuses
+}>
+
 export function createResearcherProjectStore(
   researcherAccountId: string,
   database: Database = db,
+  options: ResearcherProjectStoreOptions = {},
 ): ResearcherProjectStore {
   return {
     researcherAccountId,
@@ -947,12 +955,14 @@ export function createResearcherProjectStore(
             )
               .select('id', 'sourceDocumentId', 'revisionNumber')
               .all()
+      // Only published results count: a pending, failed or cancelled Extraction extracted nothing.
       const extractions =
         documentIds.length === 0
           ? []
           : await database.orm.public.Extraction.where((extraction) =>
               extraction.sourceDocumentId.in(documentIds),
             )
+              .where({ outcome: 'SUCCEEDED' })
               .select(
                 'sourceDocumentId',
                 'sourceRepresentationRevisionId',
@@ -986,22 +996,22 @@ export function createResearcherProjectStore(
       )
         .select('id', 'projectContextId', 'createdAt')
         .all()
+      // A batch's member Extractions are its selection; one that has no outcome takes its status from DBOS.
       const members =
         batches.length === 0
           ? []
-          : await database.orm.public.BatchExtractionMember.where((member) =>
+          : await database.orm.public.Extraction.where((member) =>
               member.batchExtractionId.in(batches.map((batch) => batch.id)),
             )
-              .select('batchExtractionId', 'initialExtractionJobId')
+              .select('id', 'batchExtractionId', 'outcome')
               .all()
-      const jobs =
-        members.length === 0
-          ? []
-          : await database.orm.public.ExtractionJob.where((job) =>
-              job.id.in(members.map((member) => member.initialExtractionJobId)),
+      const unsettled = members.filter((member) => member.outcome === null)
+      const statuses =
+        unsettled.length === 0 || !options.workflowStatuses
+          ? null
+          : await options.workflowStatuses(
+              unsettled.map((member) => `extract:${member.id}`),
             )
-              .select('id', 'executionStatus')
-              .all()
 
       // The current representation of each Source Document is its highest
       // revision; its latest Extraction is the most recently created one.
@@ -1092,21 +1102,26 @@ export function createResearcherProjectStore(
       }
       const completedMembers = new Map<string, number>()
       const totalMembers = new Map<string, number>()
-      const jobById = new Map(jobs.map((job) => [job.id, job]))
       for (const member of members) {
-        const job = jobById.get(member.initialExtractionJobId)
-        if (!job) continue
+        const batchExtractionId = member.batchExtractionId
+        if (batchExtractionId === null) continue
         totalMembers.set(
-          member.batchExtractionId,
-          (totalMembers.get(member.batchExtractionId) ?? 0) + 1,
+          batchExtractionId,
+          (totalMembers.get(batchExtractionId) ?? 0) + 1,
         )
+        // Settled, or stopped without an outcome: a finished workflow (SUCCESS) wrote one just now or never will.
+        const execution =
+          member.outcome === null && statuses
+            ? executionOf(statuses.get(`extract:${member.id}`))
+            : null
         if (
-          job.executionStatus === 'COMPLETED' ||
-          job.executionStatus === 'FAILED'
+          member.outcome !== null ||
+          execution === 'INTERRUPTED' ||
+          execution === 'REREAD'
         )
           completedMembers.set(
-            member.batchExtractionId,
-            (completedMembers.get(member.batchExtractionId) ?? 0) + 1,
+            batchExtractionId,
+            (completedMembers.get(batchExtractionId) ?? 0) + 1,
           )
       }
       for (const batch of batches) {
@@ -1182,6 +1197,7 @@ export function createResearcherProjectStore(
           : await database.orm.public.Extraction.where((extraction) =>
               extraction.sourceDocumentId.in(documents.map((d) => d.id)),
             )
+              .where({ outcome: 'SUCCEEDED' })
               .select('sourceDocumentId', 'createdAt', 'reviewedAt')
               .all()
       const schemas = await database.orm.public.ExtractionSchema.where(

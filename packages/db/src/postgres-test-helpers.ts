@@ -5,13 +5,13 @@ import { validateDisposableTestDatabaseTarget } from './database-url.js'
 /** Hold writes after their reads so competing updates reach the same row. */
 export async function withBlockedUpdates<T>(
   databaseUrl: string,
-  table: 'BatchSchemaSuggestion' | 'ExtractionJob',
+  table: 'BatchSchemaSuggestion' | 'Extraction',
   id: string,
   count: number,
   operation: () => Promise<T>,
 ): Promise<T> {
   validateDisposableTestDatabaseTarget(databaseUrl)
-  const tableName = table === 'BatchSchemaSuggestion' ? 'batchSchemaSuggestion' : 'extractionJob'
+  const tableName = table === 'BatchSchemaSuggestion' ? 'batchSchemaSuggestion' : 'extraction'
   const blocker = new Client({ connectionString: databaseUrl })
   await blocker.connect()
   let result: Promise<T> | undefined

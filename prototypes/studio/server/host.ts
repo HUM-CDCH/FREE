@@ -2,7 +2,7 @@ import { resolve } from 'node:path'
 import { readFileSync } from 'node:fs'
 import type { ServerType } from '@hono/node-server'
 import { serve } from '@hono/node-server'
-import { extractionRuntime } from '../api/_extraction_runtime.js'
+import { pool } from 'db'
 import { providerRuntime as productionProviderRuntime } from '../api/_provider.js'
 import { createStudioApp } from './app.js'
 import {
@@ -16,11 +16,6 @@ import {
 } from './entraIdentityProvider.js'
 import { createStaticClientHandler } from './static.js'
 import { registerStudioWorkflows } from './workflows.js'
-
-export type StudioRuntime = {
-  run(signal: AbortSignal): Promise<void>
-  close(): Promise<void>
-}
 
 /** DBOS in this process: launched once before the listener opens, shut down after it closed. */
 export type StudioDbosLifecycle = {
@@ -36,13 +31,14 @@ export type StudioSignalTarget = {
 
 export type StudioHostDependencies = {
   clientRoot?: string
-  runtime?: StudioRuntime
   serve?: typeof serve
   signals?: StudioSignalTarget
   logger?: Pick<Console, 'error' | 'log'>
-  providerRuntime?: Pick<StudioRuntime, 'close'>
+  providerRuntime?: { close(): Promise<void> }
   identityProvider?: EntraIdentityProvider
   dbos?: StudioDbosLifecycle
+  /** Ends the domain pool (packages/db) once nothing can query it any more. */
+  closeDatabase?: () => Promise<void>
 }
 
 export type RunningStudioHost = {
@@ -74,7 +70,6 @@ export async function startStudioServer(
   config: StudioServerConfig,
   dependencies: StudioHostDependencies = {},
 ): Promise<RunningStudioHost> {
-  const runtime = dependencies.runtime ?? extractionRuntime
   const serveApplication = dependencies.serve ?? serve
   const signals = dependencies.signals ?? process
   const logger = dependencies.logger ?? console
@@ -89,6 +84,7 @@ export async function startStudioServer(
       }),
     shutdown: shutdownStudioDbos,
   }
+  const closeDatabase = dependencies.closeDatabase ?? (() => pool.end())
   const identityProvider =
     dependencies.identityProvider ??
     createMicrosoftEntraIdentityProvider({
@@ -120,7 +116,6 @@ export async function startStudioServer(
       logger.log(`FREE Studio listening on ${address}:${port}`)
     },
   )
-  const runtimeAbort = new AbortController()
   let stopping: Promise<void> | undefined
 
   const stopForSignal = () => {
@@ -132,30 +127,22 @@ export async function startStudioServer(
   signals.once('SIGINT', stopForSignal)
   signals.once('SIGTERM', stopForSignal)
 
-  const running = runtime.run(runtimeAbort.signal).catch((error: unknown) => {
-    if (!runtimeAbort.signal.aborted) {
-      logger.error(error)
-      signals.exitCode = 1
-      stopForSignal()
-    }
-  })
-
   function shutdown(): Promise<void> {
     if (stopping) return stopping
     stopping = (async () => {
       signals.off('SIGINT', stopForSignal)
       signals.off('SIGTERM', stopForSignal)
-      runtimeAbort.abort()
       // Requests still in flight may enqueue work, so DBOS stops only after the listener closed; a listener that fails
-      // to close must not leave DBOS, the runtime or the providers running.
+      // to close must not leave DBOS or the providers running. The domain pool ends last: a workflow step still
+      // running while DBOS stops queries it, and a closed pool would fail it instead of leaving it to recovery.
       try {
         await closeServer(server)
       } finally {
-        await Promise.all([
-          dbos.shutdown(),
-          runtime.close().then(() => running),
-          providerRuntime.close(),
-        ])
+        try {
+          await Promise.all([dbos.shutdown(), providerRuntime.close()])
+        } finally {
+          await closeDatabase()
+        }
       }
     })()
     return stopping

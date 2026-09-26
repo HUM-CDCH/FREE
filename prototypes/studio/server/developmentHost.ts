@@ -1,4 +1,3 @@
-import type { ExtractionRuntime } from 'extraction'
 import { normalizePath, type ViteDevServer } from 'vite'
 import { relative } from 'node:path'
 
@@ -29,19 +28,13 @@ type StudioDbosModule = {
 }
 type StudioWorkflowsModule = { registerStudioWorkflows(): void }
 
-type RunningExtractionRuntime = {
-  instance: ExtractionRuntime
-  abort: AbortController
-  finished: Promise<void>
-}
-
 export type DevelopmentHost<T> = {
   composition(): Promise<T>
 }
 
 // Owns process-wide development state: DBOS, launched once per process, the
-// Extraction worker, the currently composed application, and adoption of
-// changes in Vite's SSR module graph. The Vite plugin remains only the
+// currently composed application, and adoption of changes in Vite's SSR
+// module graph. The Vite plugin remains only the
 // transport/composition adapter.
 export async function createDevelopmentHost<T>(
   server: ViteDevServer,
@@ -49,7 +42,6 @@ export async function createDevelopmentHost<T>(
 ): Promise<DevelopmentHost<T>> {
   let dbos: StudioDbosModule | null = null
   let launched: Promise<void> | null = null
-  let running: RunningExtractionRuntime | null = null
   let current: Promise<T> | null = null
   let reload: ReturnType<typeof setTimeout> | null = null
 
@@ -90,37 +82,8 @@ export async function createDevelopmentHost<T>(
     }
   }
 
-  const stopExtractionRuntime = async () => {
-    const stopping = running
-    if (!stopping) return
-    running = null
-    stopping.abort.abort()
-    try {
-      await stopping.instance.close()
-      await stopping.finished
-    } catch (error) {
-      reportError(error)
-    }
-  }
-
-  const startExtractionRuntime = async () => {
-    if (!server.httpServer) return
-    const runtimeModule = await server.ssrLoadModule(
-      '/api/_extraction_runtime.ts',
-    )
-    const instance: ExtractionRuntime = runtimeModule.extractionRuntime
-    if (running?.instance === instance) return
-    await stopExtractionRuntime()
-    const abort = new AbortController()
-    const finished = instance.run(abort.signal).catch((error) => {
-      if (!abort.signal.aborted) reportError(error)
-    })
-    running = { instance, abort, finished }
-  }
-
   const composition = () => {
     current ??= launchDbos()
-      .then(startExtractionRuntime)
       .then(compose)
       .catch((error) => {
         // A module that failed to evaluate must not become permanent: the next
@@ -167,7 +130,6 @@ export async function createDevelopmentHost<T>(
   const host = {}
   server.httpServer?.once('close', () => {
     if (reload) clearTimeout(reload)
-    void stopExtractionRuntime()
     if (developmentProcess[DBOS_OWNER] !== host) return
     delete developmentProcess[DBOS_OWNER]
     void stopDbos()

@@ -231,10 +231,17 @@ describe('ResultsTab grounded values', () => {
     render(
       <ResultsTab
         {...defaultRunProps}
-        controller={controller({
-          status: 'running',
-          step: 'extraction',
-        })}
+        controller={controller(
+          { status: 'running', step: 'extraction' },
+          {
+            ...articleAttempt,
+            executionStatus: 'RUNNING',
+            outcome: null,
+            resultPayload: null,
+            evidenceLinks: null,
+            reviewable: false,
+          },
+        )}
         schemaReady
         documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf"
       />,
@@ -242,6 +249,25 @@ describe('ResultsTab grounded values', () => {
 
     expect(screen.getByText('Running extraction…')).toBeInTheDocument()
     expect(screen.queryByText('Report')).not.toBeInTheDocument()
+  })
+
+  it('shows a run as starting, not running, until the server acknowledges it', () => {
+    // While the request is in flight the previous, finished attempt is still the one on screen.
+    for (const previous of [null, articleAttempt]) {
+      const { unmount } = render(
+        <ResultsTab
+          {...defaultRunProps}
+          controller={controller({ status: 'running', step: 'extraction' }, previous)}
+          schemaReady
+          documentMarkdown="# Source"
+          sourceDocumentName="Ravenna letters.pdf"
+        />,
+      )
+      expect(screen.getByText('Starting extraction…')).toBeInTheDocument()
+      expect(screen.queryByText('Running extraction…')).not.toBeInTheDocument()
+      expect(screen.queryByText('Queued extraction…')).not.toBeInTheDocument()
+      unmount()
+    }
   })
 
   it('labels queued work before the worker starts it', () => {

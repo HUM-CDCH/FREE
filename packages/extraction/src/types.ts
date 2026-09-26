@@ -362,7 +362,7 @@ export type DocumentExtractionsSnapshot = Readonly<{
 
 
 export interface ExtractionModule {
-  runSingle(input: RunSingleInput, signal?: AbortSignal): Promise<RunSingleResult>
+  runSingle(input: RunSingleInput): Promise<RunSingleResult>
   readExtractionAttempt(extractionId: string): Promise<ExtractionAttemptSnapshot | null>
   cancelSingle(extractionId: string): Promise<CancellationResult>
   prepareReview(extractionId: string): Promise<ReviewPreparation>
@@ -376,12 +376,6 @@ export interface ExtractionModule {
   listBatches(input: ListBatchesInput): Promise<readonly BatchExtractionSnapshot[]>
   readBatch(input: ReadBatchInput): Promise<BatchExtractionSnapshot>
   readBatchResults(input: ReadBatchInput): Promise<BatchExtractionResults>
-}
-
-export interface ExtractionRuntime {
-  forResearcher(researcherAccountId: string): ExtractionModule
-  run(signal: AbortSignal): Promise<void>
-  close(): Promise<void>
 }
 import type { ScalarFieldType as SchemaScalarFieldType } from './allowed-values.js'
 type CatalogBoundary = {

@@ -48,14 +48,14 @@ import {
   type InMemoryEntraIdentityProvider,
 } from '../test/support/inMemoryEntraIdentityProvider.js'
 
-const extractionRuntimeMock = vi.hoisted(() => ({
+const extractionsMock = vi.hoisted(() => ({
   modules: new Map<string, unknown>(),
 }))
 const operationKickMock = vi.hoisted(() => vi.fn())
 
-vi.mock('../api/_extraction_runtime.js', () => ({
+vi.mock('../api/_extractions.js', () => ({
   createResearcherExtractions(researcherAccountId: string) {
-    const module = extractionRuntimeMock.modules.get(researcherAccountId)
+    const module = extractionsMock.modules.get(researcherAccountId)
     if (!module)
       throw new Error(
         `No test ExtractionModule for ${researcherAccountId}.`,
@@ -672,9 +672,9 @@ function twoAccountStoreFixture(): TwoAccountStores {
       }),
     }
   }
-  extractionRuntimeMock.modules.clear()
+  extractionsMock.modules.clear()
   for (const [accountId, module] of Object.entries(extractionModules))
-    extractionRuntimeMock.modules.set(accountId, module)
+    extractionsMock.modules.set(accountId, module)
   operationKickMock.mockClear()
 
   return {

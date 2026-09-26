@@ -1,36 +1,9 @@
-/** The shapes kei-exp's extraction routes really serve, in one place so that FREE's unit
- *  double and Studio's e2e fixture cannot drift from each other or from the service.
+/** The artifact kei-exp publishes for an Extraction, in one place so that FREE's unit doubles, the kei stand-in and
+ *  Studio's e2e fixture cannot drift from each other or from the service.
  *
- *  Derived field by field from kei-exp (branch `feat/parsing-service-readiness`):
- *  `src/kei_exp/kie/extract/run.py` `extract()` for the artifact, `stages.py` for `Call`,
- *  `Link` and `Issue`, and `api.py` `create_extraction` / `get_extraction` for the 202
- *  acknowledgement and the polling envelope. Test-only: nothing in the runtime imports it. */
-import type { KeiExpArtifact, KeiExpCall, KeiExpEnvelope, KeiExpEvidence, KeiExpGroundedArtifact, KeiExpStatus } from './kei-exp.js'
-
-/** `GET /api/runs/{run_id}/extractions/{id}`: the job's status, and the artifact once it is done. */
-export function keiExpEnvelope(
-  overrides: Partial<KeiExpEnvelope> & { status?: KeiExpStatus } = {},
-): Record<string, unknown> {
-  const status = overrides.status ?? 'done'
-  const terminal = status === 'done' || status === 'failed' || status === 'cancelled'
-  return {
-    id: 'x-000000000000',
-    run_id: 'run',
-    status,
-    created: '2026-09-22T00:00:00+00:00',
-    // kei-exp sets `finished` only once terminal and `error` only when failed.
-    finished: terminal ? '2026-09-22T00:00:30+00:00' : null,
-    error: status === 'failed' ? 'the model server refused the request' : null,
-    // The artifact lives under `result`, and only while `status` is `done`.
-    result: status === 'done' ? keiExpArtifact() : null,
-    ...overrides,
-  }
-}
-
-/** `POST /api/runs/{run_id}/extract`: 202 once the extraction and its job are committed. */
-export function keiExpAccepted(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return { id: 'x-000000000000', run_id: 'run', status: 'queued', generation: 'g1', ...overrides }
-}
+ *  Derived field by field from kei-exp: `src/kei_exp/kie/extract/run.py` `extract()` for the artifact and `stages.py`
+ *  for `Call`, `Link` and `Issue`. Test-only: nothing in the runtime imports it. */
+import type { KeiExpArtifact, KeiExpCall, KeiExpEvidence, KeiExpGroundedArtifact } from './kei-exp.js'
 
 export function keiExpArtifact(overrides: Partial<KeiExpArtifact> = {}): KeiExpArtifact {
   const model = overrides.model ?? 'kei-exp-default'

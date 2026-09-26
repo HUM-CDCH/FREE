@@ -34,7 +34,7 @@ describe('development host lifecycle', () => {
     expect(server.watcher.on).toHaveBeenCalledWith('unlink', expect.any(Function))
   })
 
-  it('launches neither DBOS nor the Extraction runtime without an HTTP server of its own', async () => {
+  it('launches no DBOS without an HTTP server of its own', async () => {
     vi.stubEnv('DATABASE_URL', undefined)
     const server = middlewareModeServer()
 

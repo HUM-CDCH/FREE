@@ -1,10 +1,6 @@
-import { setTimeout as delay } from 'node:timers/promises'
 import { z } from 'zod'
 import { ExtractionError } from './errors.js'
-import { anyArtifactSchema, type KeiExpAnyArtifact } from './kei-artifact.js'
-import type { ExtractionSchemaDefinition } from './schema.js'
-import { modelChoice } from './model-choice.js'
-import type { ExtractionModelChoice } from './types.js'
+import { KEI_RUN_ID } from './kei-handoff.js'
 
 /** `GET /api/extraction-models` (kei-exp `api.py` `list_extraction_models`). */
 const modelListingSchema = z.object({
@@ -23,19 +19,6 @@ const ingestionListingSchema = z.object({
   defaults: z.object({ ocr: z.string().min(1), layout: z.string().min(1) }).strict(),
   models: z.object({ ocr: z.array(ingestionOptionSchema), layout: z.array(ingestionOptionSchema) }).strict(),
 }).strict()
-const acceptedSchema = z.object({ id: z.string().min(1), run_id: z.string(), status: z.literal('queued'), generation: z.string().min(1) })
-/** What `GET /api/runs/{run_id}/extractions/{id}` answers: the job's status, and the
- *  artifact under `result` only once the status is `done`. */
-const envelopeSchema = z.object({
-  id: z.string().min(1),
-  run_id: z.string(),
-  status: z.string().min(1),
-  error: z.string().nullable().default(null),
-  created: z.string().optional(),
-  finished: z.string().nullable().optional(),
-  result: z.unknown(),
-})
-
 /** What FastAPI put in the body, so that a refusal names its cause rather than only its status:
  *  `detail` is a sentence on kei-exp's own 404/409/422/503 and a list of errors on a validation
  *  failure. An unreadable or bodyless response leaves the status to speak alone. */
@@ -51,51 +34,16 @@ async function httpFailure(response: Response): Promise<string> {
   return `kei-exp returned HTTP ${response.status}: ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`
 }
 
-/** `Retry-After` as kei-exp and any proxy in front of it send it: delta-seconds or an HTTP date.
- *  Capped, so that one absurd header cannot park a job for the rest of its deadline, and falling
- *  back to the poll interval when the header is absent or unusable. */
-export function retryAfterMs(header: string | null, fallback: number): number {
-  if (header === null) return fallback
-  const value = header.trim()
-  if (value === '') return fallback
-  const seconds = Number(value)
-  const milliseconds = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(value) - Date.now()
-  if (!Number.isFinite(milliseconds) || milliseconds < 0) return fallback
-  return Math.min(milliseconds, 60_000)
-}
-
 export type {
   KeiExpAnyArtifact, KeiExpArtifact, KeiExpCall, KeiExpEvidence, KeiExpGroundedArtifact, KeiExpGroundedEvidence,
 } from './kei-artifact.js'
 export type KeiExpModelListing = z.infer<typeof modelListingSchema>
 export type KeiExpIngestionModelListing = z.infer<typeof ingestionListingSchema>
-export type KeiExpStatus = 'queued' | 'running' | 'done' | 'failed' | 'cancelled'
-export type KeiExpEnvelope = Readonly<{
-  id: string
-  run_id: string
-  status: KeiExpStatus
-  created: string
-  finished: string | null
-  error: string | null
-  result: unknown
-}>
-export type KeiExpRequest = Readonly<{
-  runId: string
-  schema: ExtractionSchemaDefinition
-  strategy: 'catalog' | 'article'
-  /** A numbered-catalogue recipe (`id@version`) for a Catalog Extraction, chosen per Extraction; null keeps
-   *  kei-exp's generic Catalog discovery. With a recipe kei-exp answers with a version 2 artifact. */
-  catalogRecipe?: string | null
-  /** The Extraction Model Choice: per role, a model key of kei-exp's deployment. A role left out, or no choice at all,
-   *  keeps kei-exp's deployment default for it. */
-  models?: ExtractionModelChoice | null
-  /** The parse generation the caller pinned, checked against the acknowledgement before any
-   *  polling; null when the Source Representation does not come from kei-exp. */
-  expectedGeneration: string | null
-  signal: AbortSignal
-}>
 export interface KeiExpClient {
-  extract(request: KeiExpRequest): Promise<KeiExpAnyArtifact>
+  /** `GET /api/runs/{run}/extractions/{id}`: the artifact kei published, byte for byte (file-only since M3; 404 until
+   *  then). A server failure or a timeout is transient (ARTIFACT_READ_RETRY reads again); any other refusal is an
+   *  ExtractionError the Extraction fails with. */
+  readExtractionArtifact(runId: string, extractionId: string, signal?: AbortSignal): Promise<Uint8Array>
   /** The extraction models kei-exp's deployment serves, the roles each may take, and its default per role. */
   listModels(signal?: AbortSignal): Promise<KeiExpModelListing>
   /** The OCR and layout models a new parse may run on, whether kei-exp's OCR server serves each now, and the default
@@ -106,11 +54,9 @@ export interface KeiExpClient {
 export function createKeiExpClient({
   url,
   fetch: fetchRequest = globalThis.fetch,
-  pollIntervalMs = 1500,
 }: {
   url: string
   fetch?: typeof globalThis.fetch
-  pollIntervalMs?: number
 }): KeiExpClient {
   const root = url.replace(/\/$/, '')
   /** One of kei-exp's model listings; `what` names it in the failure messages. */
@@ -136,76 +82,27 @@ export function createKeiExpClient({
   return {
     listModels: (signal) => readListing('/api/extraction-models', modelListingSchema, 'extraction model', signal),
     listIngestionModels: (signal) => readListing('/api/ingestion-models', ingestionListingSchema, 'ingestion model', signal),
-    async extract(request) {
-      const signal = AbortSignal.any([
-        request.signal,
-        AbortSignal.timeout(request.strategy === 'catalog' ? 3 * 60 * 60 * 1000 : 10 * 60 * 1000),
-      ])
-      const base = `${root}/api/runs/${encodeURIComponent(request.runId)}`
-      // Keys of kei-exp's own model registry, per role; never a single legacy `model`, and never a FREE Model
-      // Connection's model id. A role left out keeps kei-exp's deployment default.
-      const models = modelChoice(request.models)
-      const recipe = request.strategy === 'catalog' ? request.catalogRecipe ?? null : null
-      const body = JSON.stringify({ schema: request.schema, options: {
-        strategy: request.strategy, ...(models === null ? {} : { models }), ...(recipe === null ? {} : { catalog: { recipe } }),
-      } })
-      /** `resumable` says whether a request that may already have reached kei-exp can simply be
-       *  sent again. Polling is; the POST is not, because kei-exp mints the extraction id per
-       *  request, so a second POST admits a second extraction that holds the run's only
-       *  admission slot for its whole model run — and kei-exp has no cancel route to stop it. */
-      async function read(endpoint: string, init: RequestInit, resumable: boolean): Promise<unknown> {
-        for (;;) {
-          signal.throwIfAborted()
-          let wait = pollIntervalMs
-          try {
-            const response = await fetchRequest(endpoint, { ...init, signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]) })
-            if (response.status === 429 || response.status === 503) {
-              // Nothing was committed: kei-exp answers these before it mints an id.
-              wait = retryAfterMs(response.headers.get('retry-after'), pollIntervalMs)
-              await response.body?.cancel()
-            } else {
-              if (!response.ok) throw new ExtractionError('extraction_failed', await httpFailure(response))
-              return await response.json()
-            }
-          } catch (error) {
-            signal.throwIfAborted()
-            if (error instanceof SyntaxError)
-              throw new ExtractionError('invalid_model_output', 'kei-exp returned invalid JSON.', { cause: error })
-            if (!(error instanceof TypeError) && !(error instanceof DOMException && ['TimeoutError', 'AbortError'].includes(error.name))) throw error
-            if (!resumable)
-              throw new ExtractionError('extraction_failed', `kei-exp could not be reached to start the Extraction: ${error.message}`, { cause: error })
-          }
-          await delay(wait, undefined, { signal })
-        }
+    async readExtractionArtifact(runId, extractionId, signal) {
+      if (!KEI_RUN_ID.test(runId) || !KEI_RUN_ID.test(extractionId))
+        throw new ExtractionError('invalid_model_output', 'kei-exp named an invalid run or extraction.')
+      let response: Response
+      try {
+        response = await fetchRequest(`${root}/api/runs/${runId}/extractions/${extractionId}`, {
+          method: 'GET', signal: AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(30_000)]),
+        })
+      } catch (error) {
+        signal?.throwIfAborted()
+        // Unreachable or slow: kei's API may be restarting, so the read is tried again.
+        throw Object.assign(new Error('kei-exp could not be reached to read the extraction artifact.', { cause: error }), { transient: true })
       }
-      const accepted = acceptedSchema.safeParse(await read(`${base}/extract`, { method: 'POST', headers: { 'content-type': 'application/json' }, body }, false))
-      if (!accepted.success || accepted.data.run_id !== request.runId)
-        throw new ExtractionError('invalid_model_output', 'kei-exp returned an invalid extraction acknowledgement.')
-      // Before the first poll, so that a re-parsed source costs no model run: the acknowledgement
-      // already names the generation kei-exp will read.
-      if (request.expectedGeneration !== null && accepted.data.generation !== request.expectedGeneration)
-        throw new ExtractionError('invalid_source_representation', `kei-exp accepted the Extraction against parse generation ${accepted.data.generation}, not the pinned ${request.expectedGeneration}.`)
-      for (;;) {
-        await delay(pollIntervalMs, undefined, { signal })
-        const envelope = envelopeSchema.safeParse(await read(`${base}/extractions/${encodeURIComponent(accepted.data.id)}`, { method: 'GET' }, true))
-        if (!envelope.success || envelope.data.id !== accepted.data.id || envelope.data.run_id !== request.runId)
-          throw new ExtractionError('invalid_model_output', 'kei-exp returned an invalid extraction status.')
-        const { status } = envelope.data
-        if (status === 'queued' || status === 'running') continue
-        if (status === 'failed')
-          throw new ExtractionError('extraction_failed', `kei-exp could not complete the Extraction: ${envelope.data.error ?? 'it reported no reason.'}`)
-        if (status === 'cancelled')
-          throw new ExtractionError('cancelled', 'kei-exp cancelled the Extraction.')
-        if (status !== 'done')
-          throw new ExtractionError('invalid_model_output', `kei-exp reported the unknown extraction status "${status}".`)
-        const artifact = anyArtifactSchema.safeParse(envelope.data.result)
-        if (!artifact.success)
-          throw new ExtractionError('invalid_model_output', 'kei-exp returned an invalid extraction artifact.')
-        // Only this client saw the acknowledgement; acceptKeiArtifact checks the artifact against every other input.
-        if (artifact.data.generation !== accepted.data.generation)
-          throw new ExtractionError('invalid_model_output', 'kei-exp returned an artifact for different extraction inputs.')
-        return artifact.data
+      if (response.status >= 500) throw Object.assign(new Error(await httpFailure(response)), { transient: true })
+      // kei answered SUCCESS with this artifact's hash, so a missing file will not appear later.
+      if (response.status === 404) {
+        await response.body?.cancel()
+        throw new ExtractionError('extraction_failed', 'kei-exp has no published artifact for this Extraction.')
       }
+      if (!response.ok) throw new ExtractionError('invalid_model_output', await httpFailure(response))
+      return new Uint8Array(await response.arrayBuffer())
     },
   }
 }

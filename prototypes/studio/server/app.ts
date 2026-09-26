@@ -3,6 +3,7 @@ import { Readable } from 'node:stream'
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 import {
   createResearcherProjectStore,
+  workflowStatusesOf,
   type ResearcherAccountStore,
   type ResearcherProjectStore,
 } from 'db'
@@ -32,6 +33,7 @@ import {
 import {
   type EntraIdentityProvider,
 } from './entraIdentityProvider.js'
+import { studioDbos } from './dbos.js'
 import { createEntraTransactionManager } from './entraTransaction.js'
 import { enforceCanonicalOrigin } from './origin.js'
 import { normalizeClientAddress } from './request-address.js'
@@ -363,7 +365,15 @@ export async function createStudioApp(
   const allowViteDevelopmentAssets = options.viteDevelopmentAssets ?? false
   const dispatcher = options.apiDispatcher ?? dispatchApiRequest
   const researcherProjectStore =
-    options.researcherProjectStore ?? createResearcherProjectStore
+    options.researcherProjectStore ??
+    ((researcherAccountId: string) =>
+      createResearcherProjectStore(researcherAccountId, undefined, {
+        // Resolved per read: an application built without a launched DBOS (its tests) never reads a status.
+        workflowStatuses: (workflowIds) =>
+          workflowStatusesOf((input) =>
+            studioDbos().admission.listWorkflows(input),
+          )(workflowIds),
+      }))
   const clientHandler = options.clientHandler ?? defaultClientHandler
   const verifyRequestPeer = options.requestPeer
   const custody = options.modelKeys ?? studioProcess

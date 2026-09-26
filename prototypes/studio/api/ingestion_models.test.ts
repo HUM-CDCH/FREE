@@ -4,7 +4,7 @@ import { ingestionModelListingSchema } from '../shared/modelConfig.contract.js'
 import { createGetIngestionModels, createResearcherApiHandlers } from './ingestion_models.js'
 
 const runtime = vi.hoisted(() => ({ listIngestionModels: vi.fn() }))
-vi.mock('./_extraction_runtime.js', () => ({ keiExpClient: { listIngestionModels: runtime.listIngestionModels } }))
+vi.mock('./_extractions.js', () => ({ keiExpClient: { listIngestionModels: runtime.listIngestionModels } }))
 
 const listing = {
   defaults: { ocr: 'surya', layout: 'layout_heron_101' },

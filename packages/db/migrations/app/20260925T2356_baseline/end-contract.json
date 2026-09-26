@@ -12,10 +12,6 @@
       "model": "BatchExtraction",
       "namespace": "public"
     },
-    "batchExtractionMember": {
-      "model": "BatchExtractionMember",
-      "namespace": "public"
-    },
     "batchSchemaSuggestion": {
       "model": "BatchSchemaSuggestion",
       "namespace": "public"
@@ -26,10 +22,6 @@
     },
     "extraction": {
       "model": "Extraction",
-      "namespace": "public"
-    },
-    "extractionJob": {
-      "model": "ExtractionJob",
       "namespace": "public"
     },
     "extractionReview": {
@@ -91,19 +83,6 @@
               {
                 "name": "HETEROGENEOUS",
                 "value": "HETEROGENEOUS"
-              }
-            ]
-          },
-          "ExtractionJobKind": {
-            "codecId": "pg/text@1",
-            "members": [
-              {
-                "name": "INTERACTIVE",
-                "value": "INTERACTIVE"
-              },
-              {
-                "name": "BATCH_MEMBER",
-                "value": "BATCH_MEMBER"
               }
             ]
           },
@@ -305,25 +284,6 @@
               }
             },
             "relations": {
-              "extractionJobs": {
-                "cardinality": "1:N",
-                "on": {
-                  "localFields": [
-                    "id",
-                    "schemaRevisionId",
-                    "strategy"
-                  ],
-                  "targetFields": [
-                    "batchExtractionId",
-                    "schemaRevisionId",
-                    "strategy"
-                  ]
-                },
-                "to": {
-                  "model": "ExtractionJob",
-                  "namespace": "public"
-                }
-              },
               "extractions": {
                 "cardinality": "1:N",
                 "on": {
@@ -340,21 +300,6 @@
                 },
                 "to": {
                   "model": "Extraction",
-                  "namespace": "public"
-                }
-              },
-              "members": {
-                "cardinality": "1:N",
-                "on": {
-                  "localFields": [
-                    "id"
-                  ],
-                  "targetFields": [
-                    "batchExtractionId"
-                  ]
-                },
-                "to": {
-                  "model": "BatchExtractionMember",
                   "namespace": "public"
                 }
               },
@@ -409,130 +354,6 @@
               },
               "namespaceId": "public",
               "table": "batchExtraction"
-            }
-          },
-          "BatchExtractionMember": {
-            "fields": {
-              "batchExtractionId": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/uuid@1",
-                  "kind": "scalar"
-                }
-              },
-              "initialExtractionJobId": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/uuid@1",
-                  "kind": "scalar"
-                }
-              },
-              "sourceDocumentId": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/uuid@1",
-                  "kind": "scalar"
-                }
-              },
-              "sourceRepresentationRevisionId": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/uuid@1",
-                  "kind": "scalar"
-                }
-              }
-            },
-            "relations": {
-              "batchExtraction": {
-                "cardinality": "N:1",
-                "on": {
-                  "localFields": [
-                    "batchExtractionId"
-                  ],
-                  "targetFields": [
-                    "id"
-                  ]
-                },
-                "to": {
-                  "model": "BatchExtraction",
-                  "namespace": "public"
-                }
-              },
-              "extractions": {
-                "cardinality": "1:N",
-                "on": {
-                  "localFields": [
-                    "batchExtractionId",
-                    "sourceDocumentId",
-                    "sourceRepresentationRevisionId"
-                  ],
-                  "targetFields": [
-                    "batchExtractionId",
-                    "sourceDocumentId",
-                    "sourceRepresentationRevisionId"
-                  ]
-                },
-                "to": {
-                  "model": "Extraction",
-                  "namespace": "public"
-                }
-              },
-              "initialExtractionJob": {
-                "cardinality": "N:1",
-                "on": {
-                  "localFields": [
-                    "initialExtractionJobId",
-                    "batchExtractionId",
-                    "sourceDocumentId",
-                    "sourceRepresentationRevisionId"
-                  ],
-                  "targetFields": [
-                    "id",
-                    "batchExtractionId",
-                    "sourceDocumentId",
-                    "sourceRepresentationRevisionId"
-                  ]
-                },
-                "to": {
-                  "model": "ExtractionJob",
-                  "namespace": "public"
-                }
-              },
-              "sourceRepresentationRevision": {
-                "cardinality": "N:1",
-                "on": {
-                  "localFields": [
-                    "sourceRepresentationRevisionId",
-                    "sourceDocumentId"
-                  ],
-                  "targetFields": [
-                    "id",
-                    "sourceDocumentId"
-                  ]
-                },
-                "to": {
-                  "model": "SourceRepresentationRevision",
-                  "namespace": "public"
-                }
-              }
-            },
-            "storage": {
-              "fields": {
-                "batchExtractionId": {
-                  "column": "batchExtractionId"
-                },
-                "initialExtractionJobId": {
-                  "column": "initialExtractionJobId"
-                },
-                "sourceDocumentId": {
-                  "column": "sourceDocumentId"
-                },
-                "sourceRepresentationRevisionId": {
-                  "column": "sourceRepresentationRevisionId"
-                }
-              },
-              "namespaceId": "public",
-              "table": "batchExtractionMember"
             }
           },
           "BatchSchemaSuggestion": {
@@ -906,6 +727,13 @@
                   "kind": "scalar"
                 }
               },
+              "catalogRecipe": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
               "complete": {
                 "nullable": true,
                 "type": {
@@ -921,7 +749,7 @@
                 }
               },
               "diagnostics": {
-                "nullable": false,
+                "nullable": true,
                 "type": {
                   "codecId": "pg/jsonb@1",
                   "kind": "scalar"
@@ -956,7 +784,7 @@
                 }
               },
               "outcome": {
-                "nullable": false,
+                "nullable": true,
                 "type": {
                   "codecId": "pg/text@1",
                   "kind": "scalar"
@@ -1059,25 +887,6 @@
                   "namespace": "public"
                 }
               },
-              "batchMember": {
-                "cardinality": "N:1",
-                "on": {
-                  "localFields": [
-                    "batchExtractionId",
-                    "sourceDocumentId",
-                    "sourceRepresentationRevisionId"
-                  ],
-                  "targetFields": [
-                    "batchExtractionId",
-                    "sourceDocumentId",
-                    "sourceRepresentationRevisionId"
-                  ]
-                },
-                "to": {
-                  "model": "BatchExtractionMember",
-                  "namespace": "public"
-                }
-              },
               "reviews": {
                 "cardinality": "1:N",
                 "on": {
@@ -1130,6 +939,9 @@
               "fields": {
                 "batchExtractionId": {
                   "column": "batchExtractionId"
+                },
+                "catalogRecipe": {
+                  "column": "catalogRecipe"
                 },
                 "complete": {
                   "column": "complete"
@@ -1188,399 +1000,6 @@
               },
               "namespaceId": "public",
               "table": "extraction"
-            }
-          },
-          "ExtractionJob": {
-            "fields": {
-              "batchExtractionId": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/uuid@1",
-                  "kind": "scalar"
-                }
-              },
-              "cancelRequestedAt": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/timestamptz@1",
-                  "kind": "scalar"
-                }
-              },
-              "catalogRecipe": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/text@1",
-                  "kind": "scalar"
-                }
-              },
-              "complete": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/bool@1",
-                  "kind": "scalar"
-                }
-              },
-              "createdAt": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/timestamptz@1",
-                  "kind": "scalar"
-                }
-              },
-              "diagnostics": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/jsonb@1",
-                  "kind": "scalar"
-                }
-              },
-              "executionStatus": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/text@1",
-                  "kind": "scalar"
-                },
-                "valueSet": {
-                  "entityKind": "enum",
-                  "entityName": "ProjectOperationStatus",
-                  "namespaceId": "public",
-                  "plane": "domain"
-                }
-              },
-              "failure": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/jsonb@1",
-                  "kind": "scalar"
-                }
-              },
-              "finishedAt": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/timestamptz@1",
-                  "kind": "scalar"
-                }
-              },
-              "id": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/uuid@1",
-                  "kind": "scalar"
-                }
-              },
-              "kind": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/text@1",
-                  "kind": "scalar"
-                },
-                "valueSet": {
-                  "entityKind": "enum",
-                  "entityName": "ExtractionJobKind",
-                  "namespaceId": "public",
-                  "plane": "domain"
-                }
-              },
-              "leaseExpiresAt": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/timestamptz@1",
-                  "kind": "scalar"
-                }
-              },
-              "leaseOwner": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/text@1",
-                  "kind": "scalar"
-                }
-              },
-              "leaseVersion": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/int4@1",
-                  "kind": "scalar"
-                }
-              },
-              "modelAttribution": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/jsonb@1",
-                  "kind": "scalar"
-                }
-              },
-              "projectContextId": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/uuid@1",
-                  "kind": "scalar"
-                }
-              },
-              "requestedModels": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/jsonb@1",
-                  "kind": "scalar"
-                }
-              },
-              "resultPayload": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/jsonb@1",
-                  "kind": "scalar"
-                }
-              },
-              "retryOfId": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/uuid@1",
-                  "kind": "scalar"
-                }
-              },
-              "schemaRevisionId": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/uuid@1",
-                  "kind": "scalar"
-                }
-              },
-              "sourceDocumentId": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/uuid@1",
-                  "kind": "scalar"
-                }
-              },
-              "sourceRepresentationRevisionId": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/uuid@1",
-                  "kind": "scalar"
-                }
-              },
-              "startedAt": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/timestamptz@1",
-                  "kind": "scalar"
-                }
-              },
-              "strategy": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/text@1",
-                  "kind": "scalar"
-                }
-              }
-            },
-            "relations": {
-              "batchExtraction": {
-                "cardinality": "N:1",
-                "on": {
-                  "localFields": [
-                    "batchExtractionId",
-                    "schemaRevisionId",
-                    "strategy"
-                  ],
-                  "targetFields": [
-                    "id",
-                    "schemaRevisionId",
-                    "strategy"
-                  ]
-                },
-                "to": {
-                  "model": "BatchExtraction",
-                  "namespace": "public"
-                }
-              },
-              "initialBatchMember": {
-                "cardinality": "1:1",
-                "on": {
-                  "localFields": [
-                    "id",
-                    "batchExtractionId",
-                    "sourceDocumentId",
-                    "sourceRepresentationRevisionId"
-                  ],
-                  "targetFields": [
-                    "initialExtractionJobId",
-                    "batchExtractionId",
-                    "sourceDocumentId",
-                    "sourceRepresentationRevisionId"
-                  ]
-                },
-                "to": {
-                  "model": "BatchExtractionMember",
-                  "namespace": "public"
-                }
-              },
-              "projectContext": {
-                "cardinality": "N:1",
-                "on": {
-                  "localFields": [
-                    "projectContextId"
-                  ],
-                  "targetFields": [
-                    "id"
-                  ]
-                },
-                "to": {
-                  "model": "ProjectContext",
-                  "namespace": "public"
-                }
-              },
-              "retries": {
-                "cardinality": "1:N",
-                "on": {
-                  "localFields": [
-                    "id",
-                    "sourceRepresentationRevisionId",
-                    "schemaRevisionId",
-                    "strategy"
-                  ],
-                  "targetFields": [
-                    "retryOfId",
-                    "sourceRepresentationRevisionId",
-                    "schemaRevisionId",
-                    "strategy"
-                  ]
-                },
-                "to": {
-                  "model": "ExtractionJob",
-                  "namespace": "public"
-                }
-              },
-              "retryOf": {
-                "cardinality": "N:1",
-                "on": {
-                  "localFields": [
-                    "retryOfId",
-                    "sourceRepresentationRevisionId",
-                    "schemaRevisionId",
-                    "strategy"
-                  ],
-                  "targetFields": [
-                    "id",
-                    "sourceRepresentationRevisionId",
-                    "schemaRevisionId",
-                    "strategy"
-                  ]
-                },
-                "to": {
-                  "model": "ExtractionJob",
-                  "namespace": "public"
-                }
-              },
-              "schemaRevision": {
-                "cardinality": "N:1",
-                "on": {
-                  "localFields": [
-                    "schemaRevisionId"
-                  ],
-                  "targetFields": [
-                    "id"
-                  ]
-                },
-                "to": {
-                  "model": "SchemaRevision",
-                  "namespace": "public"
-                }
-              },
-              "sourceRepresentationRevision": {
-                "cardinality": "N:1",
-                "on": {
-                  "localFields": [
-                    "sourceRepresentationRevisionId",
-                    "sourceDocumentId"
-                  ],
-                  "targetFields": [
-                    "id",
-                    "sourceDocumentId"
-                  ]
-                },
-                "to": {
-                  "model": "SourceRepresentationRevision",
-                  "namespace": "public"
-                }
-              }
-            },
-            "storage": {
-              "fields": {
-                "batchExtractionId": {
-                  "column": "batchExtractionId"
-                },
-                "cancelRequestedAt": {
-                  "column": "cancelRequestedAt"
-                },
-                "catalogRecipe": {
-                  "column": "catalogRecipe"
-                },
-                "complete": {
-                  "column": "complete"
-                },
-                "createdAt": {
-                  "column": "createdAt"
-                },
-                "diagnostics": {
-                  "column": "diagnostics"
-                },
-                "executionStatus": {
-                  "column": "executionStatus"
-                },
-                "failure": {
-                  "column": "failure"
-                },
-                "finishedAt": {
-                  "column": "finishedAt"
-                },
-                "id": {
-                  "column": "id"
-                },
-                "kind": {
-                  "column": "kind"
-                },
-                "leaseExpiresAt": {
-                  "column": "leaseExpiresAt"
-                },
-                "leaseOwner": {
-                  "column": "leaseOwner"
-                },
-                "leaseVersion": {
-                  "column": "leaseVersion"
-                },
-                "modelAttribution": {
-                  "column": "modelAttribution"
-                },
-                "projectContextId": {
-                  "column": "projectContextId"
-                },
-                "requestedModels": {
-                  "column": "requestedModels"
-                },
-                "resultPayload": {
-                  "column": "resultPayload"
-                },
-                "retryOfId": {
-                  "column": "retryOfId"
-                },
-                "schemaRevisionId": {
-                  "column": "schemaRevisionId"
-                },
-                "sourceDocumentId": {
-                  "column": "sourceDocumentId"
-                },
-                "sourceRepresentationRevisionId": {
-                  "column": "sourceRepresentationRevisionId"
-                },
-                "startedAt": {
-                  "column": "startedAt"
-                },
-                "strategy": {
-                  "column": "strategy"
-                }
-              },
-              "namespaceId": "public",
-              "table": "extractionJob"
             }
           },
           "ExtractionReview": {
@@ -1873,21 +1292,6 @@
                 },
                 "to": {
                   "model": "BatchSchemaSuggestion",
-                  "namespace": "public"
-                }
-              },
-              "extractionJobs": {
-                "cardinality": "1:N",
-                "on": {
-                  "localFields": [
-                    "id"
-                  ],
-                  "targetFields": [
-                    "projectContextId"
-                  ]
-                },
-                "to": {
-                  "model": "ExtractionJob",
                   "namespace": "public"
                 }
               },
@@ -2249,21 +1653,6 @@
                   "namespace": "public"
                 }
               },
-              "extractionJobs": {
-                "cardinality": "1:N",
-                "on": {
-                  "localFields": [
-                    "id"
-                  ],
-                  "targetFields": [
-                    "schemaRevisionId"
-                  ]
-                },
-                "to": {
-                  "model": "ExtractionJob",
-                  "namespace": "public"
-                }
-              },
               "extractionSchema": {
                 "cardinality": "N:1",
                 "on": {
@@ -2553,23 +1942,6 @@
                   "namespace": "public"
                 }
               },
-              "batchMembers": {
-                "cardinality": "1:N",
-                "on": {
-                  "localFields": [
-                    "id",
-                    "sourceDocumentId"
-                  ],
-                  "targetFields": [
-                    "sourceRepresentationRevisionId",
-                    "sourceDocumentId"
-                  ]
-                },
-                "to": {
-                  "model": "BatchExtractionMember",
-                  "namespace": "public"
-                }
-              },
               "batchSchemaSuggestionSources": {
                 "cardinality": "1:N",
                 "on": {
@@ -2582,23 +1954,6 @@
                 },
                 "to": {
                   "model": "BatchSchemaSuggestionSource",
-                  "namespace": "public"
-                }
-              },
-              "extractionJobs": {
-                "cardinality": "1:N",
-                "on": {
-                  "localFields": [
-                    "id",
-                    "sourceDocumentId"
-                  ],
-                  "targetFields": [
-                    "sourceRepresentationRevisionId",
-                    "sourceDocumentId"
-                  ]
-                },
-                "to": {
-                  "model": "ExtractionJob",
                   "namespace": "public"
                 }
               },
@@ -2897,142 +2252,6 @@
                     "strategy"
                   ],
                   "name": "batch_extraction_pin_key"
-                }
-              ]
-            },
-            "batchExtractionMember": {
-              "columns": {
-                "batchExtractionId": {
-                  "codecId": "pg/uuid@1",
-                  "nativeType": "uuid",
-                  "nullable": false,
-                  "typeRef": "Uuid"
-                },
-                "initialExtractionJobId": {
-                  "codecId": "pg/uuid@1",
-                  "nativeType": "uuid",
-                  "nullable": false,
-                  "typeRef": "Uuid"
-                },
-                "sourceDocumentId": {
-                  "codecId": "pg/uuid@1",
-                  "nativeType": "uuid",
-                  "nullable": false,
-                  "typeRef": "Uuid"
-                },
-                "sourceRepresentationRevisionId": {
-                  "codecId": "pg/uuid@1",
-                  "nativeType": "uuid",
-                  "nullable": false,
-                  "typeRef": "Uuid"
-                }
-              },
-              "foreignKeys": [
-                {
-                  "onDelete": "cascade",
-                  "source": {
-                    "columns": [
-                      "batchExtractionId"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "batchExtractionMember"
-                  },
-                  "target": {
-                    "columns": [
-                      "id"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "batchExtraction"
-                  }
-                },
-                {
-                  "name": "batch_member_representation_fkey",
-                  "onDelete": "cascade",
-                  "source": {
-                    "columns": [
-                      "sourceRepresentationRevisionId",
-                      "sourceDocumentId"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "batchExtractionMember"
-                  },
-                  "target": {
-                    "columns": [
-                      "id",
-                      "sourceDocumentId"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "sourceRepresentationRevision"
-                  }
-                },
-                {
-                  "name": "batch_member_initial_job_fkey",
-                  "onDelete": "restrict",
-                  "source": {
-                    "columns": [
-                      "initialExtractionJobId",
-                      "batchExtractionId",
-                      "sourceDocumentId",
-                      "sourceRepresentationRevisionId"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "batchExtractionMember"
-                  },
-                  "target": {
-                    "columns": [
-                      "id",
-                      "batchExtractionId",
-                      "sourceDocumentId",
-                      "sourceRepresentationRevisionId"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "extractionJob"
-                  }
-                }
-              ],
-              "indexes": [
-                {
-                  "columns": [
-                    "batchExtractionId"
-                  ],
-                  "name": "batchExtractionMember_batchExtractionId_idx"
-                },
-                {
-                  "columns": [
-                    "sourceRepresentationRevisionId",
-                    "sourceDocumentId"
-                  ],
-                  "name": "batch_member_representation_idx"
-                }
-              ],
-              "primaryKey": {
-                "columns": [
-                  "batchExtractionId",
-                  "sourceDocumentId"
-                ]
-              },
-              "uniques": [
-                {
-                  "columns": [
-                    "initialExtractionJobId"
-                  ]
-                },
-                {
-                  "columns": [
-                    "batchExtractionId",
-                    "sourceDocumentId",
-                    "sourceRepresentationRevisionId"
-                  ],
-                  "name": "batch_member_exact_pin_key"
-                },
-                {
-                  "columns": [
-                    "initialExtractionJobId",
-                    "batchExtractionId",
-                    "sourceDocumentId",
-                    "sourceRepresentationRevisionId"
-                  ],
-                  "name": "batch_member_initial_job_key"
                 }
               ]
             },
@@ -3417,6 +2636,11 @@
                   "nullable": true,
                   "typeRef": "Uuid"
                 },
+                "catalogRecipe": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
                 "complete": {
                   "codecId": "pg/bool@1",
                   "nativeType": "bool",
@@ -3435,7 +2659,7 @@
                 "diagnostics": {
                   "codecId": "pg/jsonb@1",
                   "nativeType": "jsonb",
-                  "nullable": false
+                  "nullable": true
                 },
                 "evidenceLinks": {
                   "codecId": "pg/jsonb@1",
@@ -3461,7 +2685,7 @@
                 "outcome": {
                   "codecId": "pg/text@1",
                   "nativeType": "text",
-                  "nullable": false,
+                  "nullable": true,
                   "valueSet": {
                     "entityKind": "valueSet",
                     "entityName": "ExtractionOutcome",
@@ -3495,6 +2719,10 @@
                 },
                 "reviewable": {
                   "codecId": "pg/bool@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": false
+                  },
                   "nativeType": "bool",
                   "nullable": false
                 },
@@ -3569,28 +2797,6 @@
                   }
                 },
                 {
-                  "name": "extraction_batch_member_fkey",
-                  "onDelete": "restrict",
-                  "source": {
-                    "columns": [
-                      "batchExtractionId",
-                      "sourceDocumentId",
-                      "sourceRepresentationRevisionId"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "extraction"
-                  },
-                  "target": {
-                    "columns": [
-                      "batchExtractionId",
-                      "sourceDocumentId",
-                      "sourceRepresentationRevisionId"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "batchExtractionMember"
-                  }
-                },
-                {
                   "onDelete": "cascade",
                   "source": {
                     "columns": [
@@ -3636,14 +2842,6 @@
                 {
                   "columns": [
                     "batchExtractionId",
-                    "sourceDocumentId",
-                    "sourceRepresentationRevisionId"
-                  ],
-                  "name": "extraction_batchExtractionId_sourceDocumentId_sourceRepresentationRevisionId_idx"
-                },
-                {
-                  "columns": [
-                    "batchExtractionId",
                     "schemaRevisionId",
                     "strategy"
                   ],
@@ -3661,372 +2859,13 @@
                     "id",
                     "sourceDocumentId"
                   ]
-                }
-              ]
-            },
-            "extractionJob": {
-              "checks": [
-                {
-                  "column": "kind",
-                  "name": "extractionJob_kind_check",
-                  "valueSet": {
-                    "entityKind": "valueSet",
-                    "entityName": "ExtractionJobKind",
-                    "namespaceId": "public",
-                    "plane": "storage"
-                  }
-                },
-                {
-                  "column": "executionStatus",
-                  "name": "extractionJob_executionStatus_check",
-                  "valueSet": {
-                    "entityKind": "valueSet",
-                    "entityName": "ProjectOperationStatus",
-                    "namespaceId": "public",
-                    "plane": "storage"
-                  }
-                }
-              ],
-              "columns": {
-                "batchExtractionId": {
-                  "codecId": "pg/uuid@1",
-                  "nativeType": "uuid",
-                  "nullable": true,
-                  "typeRef": "Uuid"
-                },
-                "cancelRequestedAt": {
-                  "codecId": "pg/timestamptz@1",
-                  "nativeType": "timestamptz",
-                  "nullable": true,
-                  "typeRef": "Timestamptz6"
-                },
-                "catalogRecipe": {
-                  "codecId": "pg/text@1",
-                  "nativeType": "text",
-                  "nullable": true
-                },
-                "complete": {
-                  "codecId": "pg/bool@1",
-                  "nativeType": "bool",
-                  "nullable": true
-                },
-                "createdAt": {
-                  "codecId": "pg/timestamptz@1",
-                  "default": {
-                    "expression": "now()",
-                    "kind": "function"
-                  },
-                  "nativeType": "timestamptz",
-                  "nullable": false,
-                  "typeRef": "Timestamptz6"
-                },
-                "diagnostics": {
-                  "codecId": "pg/jsonb@1",
-                  "nativeType": "jsonb",
-                  "nullable": true
-                },
-                "executionStatus": {
-                  "codecId": "pg/text@1",
-                  "default": {
-                    "kind": "literal",
-                    "value": "QUEUED"
-                  },
-                  "nativeType": "text",
-                  "nullable": false,
-                  "valueSet": {
-                    "entityKind": "valueSet",
-                    "entityName": "ProjectOperationStatus",
-                    "namespaceId": "public",
-                    "plane": "storage"
-                  }
-                },
-                "failure": {
-                  "codecId": "pg/jsonb@1",
-                  "nativeType": "jsonb",
-                  "nullable": true
-                },
-                "finishedAt": {
-                  "codecId": "pg/timestamptz@1",
-                  "nativeType": "timestamptz",
-                  "nullable": true,
-                  "typeRef": "Timestamptz6"
-                },
-                "id": {
-                  "codecId": "pg/uuid@1",
-                  "nativeType": "uuid",
-                  "nullable": false,
-                  "typeRef": "Uuid"
-                },
-                "kind": {
-                  "codecId": "pg/text@1",
-                  "nativeType": "text",
-                  "nullable": false,
-                  "valueSet": {
-                    "entityKind": "valueSet",
-                    "entityName": "ExtractionJobKind",
-                    "namespaceId": "public",
-                    "plane": "storage"
-                  }
-                },
-                "leaseExpiresAt": {
-                  "codecId": "pg/timestamptz@1",
-                  "nativeType": "timestamptz",
-                  "nullable": true,
-                  "typeRef": "Timestamptz6"
-                },
-                "leaseOwner": {
-                  "codecId": "pg/text@1",
-                  "nativeType": "text",
-                  "nullable": true
-                },
-                "leaseVersion": {
-                  "codecId": "pg/int4@1",
-                  "default": {
-                    "kind": "literal",
-                    "value": 0
-                  },
-                  "nativeType": "int4",
-                  "nullable": false
-                },
-                "modelAttribution": {
-                  "codecId": "pg/jsonb@1",
-                  "nativeType": "jsonb",
-                  "nullable": true
-                },
-                "projectContextId": {
-                  "codecId": "pg/uuid@1",
-                  "nativeType": "uuid",
-                  "nullable": false,
-                  "typeRef": "Uuid"
-                },
-                "requestedModels": {
-                  "codecId": "pg/jsonb@1",
-                  "nativeType": "jsonb",
-                  "nullable": true
-                },
-                "resultPayload": {
-                  "codecId": "pg/jsonb@1",
-                  "nativeType": "jsonb",
-                  "nullable": true
-                },
-                "retryOfId": {
-                  "codecId": "pg/uuid@1",
-                  "nativeType": "uuid",
-                  "nullable": true,
-                  "typeRef": "Uuid"
-                },
-                "schemaRevisionId": {
-                  "codecId": "pg/uuid@1",
-                  "nativeType": "uuid",
-                  "nullable": false,
-                  "typeRef": "Uuid"
-                },
-                "sourceDocumentId": {
-                  "codecId": "pg/uuid@1",
-                  "nativeType": "uuid",
-                  "nullable": false,
-                  "typeRef": "Uuid"
-                },
-                "sourceRepresentationRevisionId": {
-                  "codecId": "pg/uuid@1",
-                  "nativeType": "uuid",
-                  "nullable": false,
-                  "typeRef": "Uuid"
-                },
-                "startedAt": {
-                  "codecId": "pg/timestamptz@1",
-                  "nativeType": "timestamptz",
-                  "nullable": true,
-                  "typeRef": "Timestamptz6"
-                },
-                "strategy": {
-                  "codecId": "pg/text@1",
-                  "nativeType": "text",
-                  "nullable": false
-                }
-              },
-              "foreignKeys": [
-                {
-                  "onDelete": "cascade",
-                  "source": {
-                    "columns": [
-                      "projectContextId"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "extractionJob"
-                  },
-                  "target": {
-                    "columns": [
-                      "id"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "projectContext"
-                  }
-                },
-                {
-                  "name": "extraction_job_representation_fkey",
-                  "onDelete": "cascade",
-                  "source": {
-                    "columns": [
-                      "sourceRepresentationRevisionId",
-                      "sourceDocumentId"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "extractionJob"
-                  },
-                  "target": {
-                    "columns": [
-                      "id",
-                      "sourceDocumentId"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "sourceRepresentationRevision"
-                  }
-                },
-                {
-                  "onDelete": "cascade",
-                  "source": {
-                    "columns": [
-                      "schemaRevisionId"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "extractionJob"
-                  },
-                  "target": {
-                    "columns": [
-                      "id"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "schemaRevision"
-                  }
-                },
-                {
-                  "name": "extraction_job_retry_pin_fkey",
-                  "onDelete": "cascade",
-                  "source": {
-                    "columns": [
-                      "retryOfId",
-                      "sourceRepresentationRevisionId",
-                      "schemaRevisionId",
-                      "strategy"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "extractionJob"
-                  },
-                  "target": {
-                    "columns": [
-                      "id",
-                      "sourceRepresentationRevisionId",
-                      "schemaRevisionId",
-                      "strategy"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "extractionJob"
-                  }
-                },
-                {
-                  "name": "extraction_job_batch_pin_fkey",
-                  "onDelete": "cascade",
-                  "source": {
-                    "columns": [
-                      "batchExtractionId",
-                      "schemaRevisionId",
-                      "strategy"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "extractionJob"
-                  },
-                  "target": {
-                    "columns": [
-                      "id",
-                      "schemaRevisionId",
-                      "strategy"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "batchExtraction"
-                  }
-                }
-              ],
-              "indexes": [
-                {
-                  "columns": [
-                    "executionStatus",
-                    "kind",
-                    "createdAt"
-                  ]
-                },
-                {
-                  "columns": [
-                    "executionStatus",
-                    "leaseExpiresAt"
-                  ]
-                },
-                {
-                  "columns": [
-                    "sourceDocumentId",
-                    "createdAt"
-                  ]
-                },
-                {
-                  "columns": [
-                    "projectContextId"
-                  ],
-                  "name": "extractionJob_projectContextId_idx"
-                },
-                {
-                  "columns": [
-                    "schemaRevisionId"
-                  ],
-                  "name": "extractionJob_schemaRevisionId_idx"
                 },
                 {
                   "columns": [
                     "batchExtractionId",
-                    "schemaRevisionId",
-                    "strategy"
-                  ],
-                  "name": "extraction_job_batch_pin_idx"
-                },
-                {
-                  "columns": [
-                    "sourceRepresentationRevisionId",
                     "sourceDocumentId"
                   ],
-                  "name": "extraction_job_representation_idx"
-                },
-                {
-                  "columns": [
-                    "retryOfId",
-                    "sourceRepresentationRevisionId",
-                    "schemaRevisionId",
-                    "strategy"
-                  ],
-                  "name": "extraction_job_retry_pin_idx"
-                }
-              ],
-              "primaryKey": {
-                "columns": [
-                  "id"
-                ]
-              },
-              "uniques": [
-                {
-                  "columns": [
-                    "id",
-                    "batchExtractionId",
-                    "sourceDocumentId",
-                    "sourceRepresentationRevisionId"
-                  ],
-                  "name": "extraction_job_batch_member_key"
-                },
-                {
-                  "columns": [
-                    "id",
-                    "sourceRepresentationRevisionId",
-                    "schemaRevisionId",
-                    "strategy"
-                  ],
-                  "name": "extraction_job_retry_pin_key"
+                  "name": "extraction_batch_source_key"
                 }
               ]
             },
@@ -4768,13 +3607,6 @@
                 "HETEROGENEOUS"
               ]
             },
-            "ExtractionJobKind": {
-              "kind": "valueSet",
-              "values": [
-                "INTERACTIVE",
-                "BATCH_MEMBER"
-              ]
-            },
             "ExtractionOutcome": {
               "kind": "valueSet",
               "values": [
@@ -4806,7 +3638,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "sha256:bd4ea1a32aa50536235e38c133d10d26778096b5923abe9513494a9522974b8d",
+    "storageHash": "sha256:4a635e7b6e94fb26b4e0610299ed85b0ae1acd822460a3294b55f894825e3937",
     "types": {
       "Timestamptz6": {
         "codecId": "pg/timestamptz@1",

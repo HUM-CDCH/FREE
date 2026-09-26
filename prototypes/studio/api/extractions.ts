@@ -16,11 +16,12 @@ import {
   noStore,
   noStoreError,
   parseJsonRequest,
+  persistenceUnavailable,
 } from './_http.js'
 import {
   createResearcherExtractions,
   extractionAttemptDto,
-} from './_extraction_runtime.js'
+} from './_extractions.js'
 import { configuredExtractionModels } from './_model_config.js'
 
 export type ExtractionHandlerDependencies = {
@@ -34,6 +35,13 @@ const REVIEW_ROUTE = /^\/api\/extractions\/([0-9a-f-]+)\/review$/
 const DRAFT_ROUTE = /^\/api\/extractions\/([0-9a-f-]+)\/review\/draft$/
 const RESET_ROUTE = /^\/api\/extractions\/([0-9a-f-]+)\/review\/reset$/
 
+
+/** Admission and status reads reach PostgreSQL and DBOS: an outage there is 503 with retry semantics, never a
+ *  fabricated result (spec, *Status and ownership*). An ApiError or ExtractionError keeps its own answer. */
+function unavailableUnlessDomain(error: unknown): never {
+  if (error instanceof ApiError || error instanceof ExtractionError) throw error
+  throw persistenceUnavailable(error)
+}
 
 function asTransportError(error: unknown): unknown {
   if (!(error instanceof ExtractionError)) return error
@@ -91,7 +99,7 @@ export function createResearcherApiHandlers(
       ...(parsed.data.catalogRecipe ? { catalogRecipe: parsed.data.catalogRecipe } : {}),
       ...(models ? { models } : {}),
     }
-    const completed = await module.runSingle(input, request.signal)
+    const completed = await module.runSingle(input).catch(unavailableUnlessDomain)
     return json(extractionAttemptDto(completed.extraction), {
       status: completed.disposition === 'created' ? 201 : 200,
       headers: noStore,
@@ -99,7 +107,7 @@ export function createResearcherApiHandlers(
   }
 
   async function read(extractionId: string): Promise<Response> {
-    const extraction = await module.readExtractionAttempt(extractionId)
+    const extraction = await module.readExtractionAttempt(extractionId).catch(unavailableUnlessDomain)
     if (!extraction)
       throw new ApiError(404, 'not_found', 'That Extraction was not found.')
     const pendingReviewDecisions = extraction.executionStatus === 'COMPLETED'

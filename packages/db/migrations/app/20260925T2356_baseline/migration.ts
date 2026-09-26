@@ -62,29 +62,6 @@ export default class M extends Migration<never, End> {
       }),
       this.createTable({
         schema: 'public',
-        table: 'batchExtractionMember',
-        columns: [
-          col('batchExtractionId', '"uuid"', {
-            notNull: true,
-            codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
-          }),
-          col('initialExtractionJobId', '"uuid"', {
-            notNull: true,
-            codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
-          }),
-          col('sourceDocumentId', '"uuid"', {
-            notNull: true,
-            codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
-          }),
-          col('sourceRepresentationRevisionId', '"uuid"', {
-            notNull: true,
-            codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
-          }),
-        ],
-        constraints: [primaryKey(['batchExtractionId', 'sourceDocumentId'])],
-      }),
-      this.createTable({
-        schema: 'public',
         table: 'batchSchemaSuggestion',
         columns: [
           col('batchExtractionId', '"uuid"', {
@@ -183,13 +160,14 @@ export default class M extends Migration<never, End> {
           col('batchExtractionId', '"uuid"', {
             codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
           }),
+          col('catalogRecipe', 'text', { codecRef: { codecId: 'pg/text@1' } }),
           col('complete', 'bool', { codecRef: { codecId: 'pg/bool@1' } }),
           col('createdAt', 'timestamptz(6)', {
             notNull: true,
             default: fn('now()'),
             codecRef: { codecId: 'pg/timestamptz@1', typeParams: { precision: 6 } },
           }),
-          col('diagnostics', 'jsonb', { notNull: true, codecRef: { codecId: 'pg/jsonb@1' } }),
+          col('diagnostics', 'jsonb', { codecRef: { codecId: 'pg/jsonb@1' } }),
           col('evidenceLinks', 'jsonb', { codecRef: { codecId: 'pg/jsonb@1' } }),
           col('failure', 'jsonb', { codecRef: { codecId: 'pg/jsonb@1' } }),
           col('id', '"uuid"', {
@@ -197,7 +175,7 @@ export default class M extends Migration<never, End> {
             codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
           }),
           col('modelAttribution', 'jsonb', { codecRef: { codecId: 'pg/jsonb@1' } }),
-          col('outcome', 'text', { notNull: true, codecRef: { codecId: 'pg/text@1' } }),
+          col('outcome', 'text', { codecRef: { codecId: 'pg/text@1' } }),
           col('requestedModels', 'jsonb', { codecRef: { codecId: 'pg/jsonb@1' } }),
           col('resultPayload', 'jsonb', { codecRef: { codecId: 'pg/jsonb@1' } }),
           col('reviewDraft', 'jsonb', { codecRef: { codecId: 'pg/jsonb@1' } }),
@@ -206,7 +184,11 @@ export default class M extends Migration<never, End> {
             default: lit(0),
             codecRef: { codecId: 'pg/int4@1' },
           }),
-          col('reviewable', 'bool', { notNull: true, codecRef: { codecId: 'pg/bool@1' } }),
+          col('reviewable', 'bool', {
+            notNull: true,
+            default: lit(false),
+            codecRef: { codecId: 'pg/bool@1' },
+          }),
           col('reviewedAt', 'timestamptz(6)', {
             codecRef: { codecId: 'pg/timestamptz@1', typeParams: { precision: 6 } },
           }),
@@ -221,74 +203,6 @@ export default class M extends Migration<never, End> {
           col('sourceRepresentationRevisionId', '"uuid"', {
             notNull: true,
             codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
-          }),
-          col('strategy', 'text', { notNull: true, codecRef: { codecId: 'pg/text@1' } }),
-        ],
-        constraints: [primaryKey(['id'])],
-      }),
-      this.createTable({
-        schema: 'public',
-        table: 'extractionJob',
-        columns: [
-          col('batchExtractionId', '"uuid"', {
-            codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
-          }),
-          col('cancelRequestedAt', 'timestamptz(6)', {
-            codecRef: { codecId: 'pg/timestamptz@1', typeParams: { precision: 6 } },
-          }),
-          col('catalogRecipe', 'text', { codecRef: { codecId: 'pg/text@1' } }),
-          col('complete', 'bool', { codecRef: { codecId: 'pg/bool@1' } }),
-          col('createdAt', 'timestamptz(6)', {
-            notNull: true,
-            default: fn('now()'),
-            codecRef: { codecId: 'pg/timestamptz@1', typeParams: { precision: 6 } },
-          }),
-          col('diagnostics', 'jsonb', { codecRef: { codecId: 'pg/jsonb@1' } }),
-          col('executionStatus', 'text', {
-            notNull: true,
-            default: lit('QUEUED'),
-            codecRef: { codecId: 'pg/text@1' },
-          }),
-          col('failure', 'jsonb', { codecRef: { codecId: 'pg/jsonb@1' } }),
-          col('finishedAt', 'timestamptz(6)', {
-            codecRef: { codecId: 'pg/timestamptz@1', typeParams: { precision: 6 } },
-          }),
-          col('id', '"uuid"', {
-            notNull: true,
-            codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
-          }),
-          col('kind', 'text', { notNull: true, codecRef: { codecId: 'pg/text@1' } }),
-          col('leaseExpiresAt', 'timestamptz(6)', {
-            codecRef: { codecId: 'pg/timestamptz@1', typeParams: { precision: 6 } },
-          }),
-          col('leaseOwner', 'text', { codecRef: { codecId: 'pg/text@1' } }),
-          col('leaseVersion', 'int4', {
-            notNull: true,
-            default: lit(0),
-            codecRef: { codecId: 'pg/int4@1' },
-          }),
-          col('modelAttribution', 'jsonb', { codecRef: { codecId: 'pg/jsonb@1' } }),
-          col('projectContextId', '"uuid"', {
-            notNull: true,
-            codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
-          }),
-          col('requestedModels', 'jsonb', { codecRef: { codecId: 'pg/jsonb@1' } }),
-          col('resultPayload', 'jsonb', { codecRef: { codecId: 'pg/jsonb@1' } }),
-          col('retryOfId', '"uuid"', { codecRef: { codecId: 'pg/uuid@1', typeParams: {} } }),
-          col('schemaRevisionId', '"uuid"', {
-            notNull: true,
-            codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
-          }),
-          col('sourceDocumentId', '"uuid"', {
-            notNull: true,
-            codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
-          }),
-          col('sourceRepresentationRevisionId', '"uuid"', {
-            notNull: true,
-            codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
-          }),
-          col('startedAt', 'timestamptz(6)', {
-            codecRef: { codecId: 'pg/timestamptz@1', typeParams: { precision: 6 } },
           }),
           col('strategy', 'text', { notNull: true, codecRef: { codecId: 'pg/text@1' } }),
         ],
@@ -527,29 +441,6 @@ export default class M extends Migration<never, End> {
       }),
       this.addUnique({
         schema: 'public',
-        table: 'batchExtractionMember',
-        constraint: 'batchExtractionMember_initialExtractionJobId_key',
-        columns: ['initialExtractionJobId'],
-      }),
-      this.addUnique({
-        schema: 'public',
-        table: 'batchExtractionMember',
-        constraint: 'batch_member_exact_pin_key',
-        columns: ['batchExtractionId', 'sourceDocumentId', 'sourceRepresentationRevisionId'],
-      }),
-      this.addUnique({
-        schema: 'public',
-        table: 'batchExtractionMember',
-        constraint: 'batch_member_initial_job_key',
-        columns: [
-          'initialExtractionJobId',
-          'batchExtractionId',
-          'sourceDocumentId',
-          'sourceRepresentationRevisionId',
-        ],
-      }),
-      this.addUnique({
-        schema: 'public',
         table: 'batchSchemaSuggestion',
         constraint: 'batchSchemaSuggestion_selectionKey_key',
         columns: ['selectionKey'],
@@ -580,15 +471,9 @@ export default class M extends Migration<never, End> {
       }),
       this.addUnique({
         schema: 'public',
-        table: 'extractionJob',
-        constraint: 'extraction_job_batch_member_key',
-        columns: ['id', 'batchExtractionId', 'sourceDocumentId', 'sourceRepresentationRevisionId'],
-      }),
-      this.addUnique({
-        schema: 'public',
-        table: 'extractionJob',
-        constraint: 'extraction_job_retry_pin_key',
-        columns: ['id', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy'],
+        table: 'extraction',
+        constraint: 'extraction_batch_source_key',
+        columns: ['batchExtractionId', 'sourceDocumentId'],
       }),
       this.addUnique({
         schema: 'public',
@@ -674,20 +559,6 @@ export default class M extends Migration<never, End> {
       }),
       this.addCheckConstraint({
         schema: 'public',
-        table: 'extractionJob',
-        constraint: 'extractionJob_kind_check',
-        column: 'kind',
-        values: ['INTERACTIVE', 'BATCH_MEMBER'],
-      }),
-      this.addCheckConstraint({
-        schema: 'public',
-        table: 'extractionJob',
-        constraint: 'extractionJob_executionStatus_check',
-        column: 'executionStatus',
-        values: ['QUEUED', 'RUNNING', 'COMPLETED', 'FAILED'],
-      }),
-      this.addCheckConstraint({
-        schema: 'public',
         table: 'schemaRevision',
         constraint: 'schemaRevision_origin_check',
         column: 'origin',
@@ -722,18 +593,6 @@ export default class M extends Migration<never, End> {
         table: 'batchExtraction',
         index: 'batchExtraction_schemaRevisionId_idx',
         columns: ['schemaRevisionId'],
-      }),
-      this.createIndex({
-        schema: 'public',
-        table: 'batchExtractionMember',
-        index: 'batchExtractionMember_batchExtractionId_idx',
-        columns: ['batchExtractionId'],
-      }),
-      this.createIndex({
-        schema: 'public',
-        table: 'batchExtractionMember',
-        index: 'batch_member_representation_idx',
-        columns: ['sourceRepresentationRevisionId', 'sourceDocumentId'],
       }),
       this.createIndex({
         schema: 'public',
@@ -798,62 +657,8 @@ export default class M extends Migration<never, End> {
       this.createIndex({
         schema: 'public',
         table: 'extraction',
-        index: 'extraction_batchExtractionId_sourceDocumentId_sourceRepresentationRevisionId_idx',
-        columns: ['batchExtractionId', 'sourceDocumentId', 'sourceRepresentationRevisionId'],
-      }),
-      this.createIndex({
-        schema: 'public',
-        table: 'extraction',
         index: 'extraction_batch_pin_idx',
         columns: ['batchExtractionId', 'schemaRevisionId', 'strategy'],
-      }),
-      this.createIndex({
-        schema: 'public',
-        table: 'extractionJob',
-        index: 'extractionJob_executionStatus_kind_createdAt_idx',
-        columns: ['executionStatus', 'kind', 'createdAt'],
-      }),
-      this.createIndex({
-        schema: 'public',
-        table: 'extractionJob',
-        index: 'extractionJob_executionStatus_leaseExpiresAt_idx',
-        columns: ['executionStatus', 'leaseExpiresAt'],
-      }),
-      this.createIndex({
-        schema: 'public',
-        table: 'extractionJob',
-        index: 'extractionJob_sourceDocumentId_createdAt_idx',
-        columns: ['sourceDocumentId', 'createdAt'],
-      }),
-      this.createIndex({
-        schema: 'public',
-        table: 'extractionJob',
-        index: 'extractionJob_projectContextId_idx',
-        columns: ['projectContextId'],
-      }),
-      this.createIndex({
-        schema: 'public',
-        table: 'extractionJob',
-        index: 'extractionJob_schemaRevisionId_idx',
-        columns: ['schemaRevisionId'],
-      }),
-      this.createIndex({
-        schema: 'public',
-        table: 'extractionJob',
-        index: 'extraction_job_batch_pin_idx',
-        columns: ['batchExtractionId', 'schemaRevisionId', 'strategy'],
-      }),
-      this.createIndex({
-        schema: 'public',
-        table: 'extractionJob',
-        index: 'extraction_job_representation_idx',
-        columns: ['sourceRepresentationRevisionId', 'sourceDocumentId'],
-      }),
-      this.createIndex({
-        schema: 'public',
-        table: 'extractionJob',
-        index: 'extraction_job_retry_pin_idx',
-        columns: ['retryOfId', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy'],
       }),
       this.createIndex({
         schema: 'public',
@@ -939,54 +744,6 @@ export default class M extends Migration<never, End> {
       }),
       this.addForeignKey({
         schema: 'public',
-        table: 'batchExtractionMember',
-        foreignKey: {
-          name: 'batchExtractionMember_batchExtractionId_fkey',
-          columns: ['batchExtractionId'],
-          references: { schema: 'public', table: 'batchExtraction', columns: ['id'] },
-          onDelete: 'cascade',
-        },
-      }),
-      this.addForeignKey({
-        schema: 'public',
-        table: 'batchExtractionMember',
-        foreignKey: {
-          name: 'batch_member_representation_fkey',
-          columns: ['sourceRepresentationRevisionId', 'sourceDocumentId'],
-          references: {
-            schema: 'public',
-            table: 'sourceRepresentationRevision',
-            columns: ['id', 'sourceDocumentId'],
-          },
-          onDelete: 'cascade',
-        },
-      }),
-      this.addForeignKey({
-        schema: 'public',
-        table: 'batchExtractionMember',
-        foreignKey: {
-          name: 'batch_member_initial_job_fkey',
-          columns: [
-            'initialExtractionJobId',
-            'batchExtractionId',
-            'sourceDocumentId',
-            'sourceRepresentationRevisionId',
-          ],
-          references: {
-            schema: 'public',
-            table: 'extractionJob',
-            columns: [
-              'id',
-              'batchExtractionId',
-              'sourceDocumentId',
-              'sourceRepresentationRevisionId',
-            ],
-          },
-          onDelete: 'restrict',
-        },
-      }),
-      this.addForeignKey({
-        schema: 'public',
         table: 'batchSchemaSuggestion',
         foreignKey: {
           name: 'batchSchemaSuggestion_projectContextId_fkey',
@@ -1043,88 +800,12 @@ export default class M extends Migration<never, End> {
         schema: 'public',
         table: 'extraction',
         foreignKey: {
-          name: 'extraction_batch_member_fkey',
-          columns: ['batchExtractionId', 'sourceDocumentId', 'sourceRepresentationRevisionId'],
-          references: {
-            schema: 'public',
-            table: 'batchExtractionMember',
-            columns: ['batchExtractionId', 'sourceDocumentId', 'sourceRepresentationRevisionId'],
-          },
-          onDelete: 'restrict',
-        },
-      }),
-      this.addForeignKey({
-        schema: 'public',
-        table: 'extraction',
-        foreignKey: {
           name: 'extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey',
           columns: ['sourceRepresentationRevisionId', 'sourceDocumentId'],
           references: {
             schema: 'public',
             table: 'sourceRepresentationRevision',
             columns: ['id', 'sourceDocumentId'],
-          },
-          onDelete: 'cascade',
-        },
-      }),
-      this.addForeignKey({
-        schema: 'public',
-        table: 'extractionJob',
-        foreignKey: {
-          name: 'extractionJob_projectContextId_fkey',
-          columns: ['projectContextId'],
-          references: { schema: 'public', table: 'projectContext', columns: ['id'] },
-          onDelete: 'cascade',
-        },
-      }),
-      this.addForeignKey({
-        schema: 'public',
-        table: 'extractionJob',
-        foreignKey: {
-          name: 'extraction_job_representation_fkey',
-          columns: ['sourceRepresentationRevisionId', 'sourceDocumentId'],
-          references: {
-            schema: 'public',
-            table: 'sourceRepresentationRevision',
-            columns: ['id', 'sourceDocumentId'],
-          },
-          onDelete: 'cascade',
-        },
-      }),
-      this.addForeignKey({
-        schema: 'public',
-        table: 'extractionJob',
-        foreignKey: {
-          name: 'extractionJob_schemaRevisionId_fkey',
-          columns: ['schemaRevisionId'],
-          references: { schema: 'public', table: 'schemaRevision', columns: ['id'] },
-          onDelete: 'cascade',
-        },
-      }),
-      this.addForeignKey({
-        schema: 'public',
-        table: 'extractionJob',
-        foreignKey: {
-          name: 'extraction_job_retry_pin_fkey',
-          columns: ['retryOfId', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy'],
-          references: {
-            schema: 'public',
-            table: 'extractionJob',
-            columns: ['id', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy'],
-          },
-          onDelete: 'cascade',
-        },
-      }),
-      this.addForeignKey({
-        schema: 'public',
-        table: 'extractionJob',
-        foreignKey: {
-          name: 'extraction_job_batch_pin_fkey',
-          columns: ['batchExtractionId', 'schemaRevisionId', 'strategy'],
-          references: {
-            schema: 'public',
-            table: 'batchExtraction',
-            columns: ['id', 'schemaRevisionId', 'strategy'],
           },
           onDelete: 'cascade',
         },

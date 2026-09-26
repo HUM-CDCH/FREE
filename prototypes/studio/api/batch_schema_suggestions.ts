@@ -21,7 +21,7 @@ import {
 } from './_http.js'
 import { validateEditableSuggestion } from './_batch_schema_suggestions.js'
 import { projectOperations } from './_project_operations.js'
-import { createResearcherExtractions } from './_extraction_runtime.js'
+import { createResearcherExtractions } from './_extractions.js'
 import type { ExtractionHandlerDependencies } from './extractions.js'
 import { configuredExtractionModels } from './_model_config.js'
 

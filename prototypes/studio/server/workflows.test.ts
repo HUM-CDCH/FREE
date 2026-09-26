@@ -28,6 +28,14 @@ describe('Studio workflow registration', () => {
     expect(names).toEqual([...STUDIO_WORKFLOW_NAMES])
   })
 
+  it('the extraction queue is Studio\'s studio queue', async () => {
+    const [{ EXTRACTION_QUEUE }, { STUDIO_QUEUE }] = await Promise.all([
+      import('extraction'),
+      import('./dbos.js'),
+    ])
+    expect(EXTRACTION_QUEUE).toBe(STUDIO_QUEUE)
+  })
+
   it('importing the application registers no workflow', async () => {
     await import('./app.js')
 

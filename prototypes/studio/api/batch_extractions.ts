@@ -22,7 +22,7 @@ import {
   parseJsonRequest,
   persistenceUnavailable,
 } from './_http.js'
-import { createResearcherExtractions } from './_extraction_runtime.js'
+import { createResearcherExtractions } from './_extractions.js'
 import type { ExtractionHandlerDependencies } from './extractions.js'
 import { configuredExtractionModels } from './_model_config.js'
 

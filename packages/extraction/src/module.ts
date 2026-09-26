@@ -1,9 +1,6 @@
-import type { ExtractionJobExecutor, ExtractionJobExecutorDependencies, ExtractionPersistence } from './dependencies.js'
+import type { ExtractionPersistence } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import { populatedContentPaths, resultPathKey } from './review-paths.js'
-import { acceptKeiArtifact } from './kei-artifact.js'
-import type { KeiExtractInput } from './kei-handoff.js'
-import { modelChoice } from './model-choice.js'
 import { decodePinnedDocument, type ParsedDocument } from './parsed-document.js'
 import { isRecord, parseExtractionSchema, partitionSchemaNodes, restoreSchemaNodeOrder, schemaNodeAtPath } from './schema.js'
 import type { CancellationResult, FinalizeReviewResult, ExtractionModule, ExtractionSchemaNode, ReviewDecisionInput, RunSingleInput } from './types.js'
@@ -193,63 +190,6 @@ export function createExtractionModule(persistence: ExtractionPersistence): Extr
       return results
     },
   }
-}
-
-/** Relay one claimed job to kei-exp; persistence and leases remain owned by FREE. */
-export function createExtractionJobExecutor({ inputs: reader, keiExp }: ExtractionJobExecutorDependencies): ExtractionJobExecutor {
-  return async (input, signal) => {
-    signal.throwIfAborted()
-    const inputs = await reader.loadExtractionInputs(input.sourceRepresentationRevisionId, input.schemaRevisionId)
-    if (!inputs) throw new ExtractionError('invalid_extraction_pins', 'The Source Representation Revision and Schema Revision do not share one Project Context.')
-    const document = decodePinnedDocument(inputs.parsedDocument)
-    const schema = parsePinnedSchema(inputs.schemaTree)
-    const recipe = input.kind === 'fresh' && input.strategy === 'CATALOG' ? input.catalogRecipe ?? null : null
-    // Fresh runs and batch members carry their choice; unchosen roles use deployment defaults.
-    const models = modelChoice(input.models)
-    const artifact = await keiExp.extract({
-      runId: document.document.document_id,
-      schema,
-      strategy: input.strategy === 'CATALOG' ? 'catalog' : 'article',
-      catalogRecipe: recipe,
-      models,
-      expectedGeneration: pinnedGeneration(document),
-      signal,
-    })
-    signal.throwIfAborted()
-    // kei's extract request as this relay sent it; the client pinned the artifact's generation to its acknowledgement.
-    const request: KeiExtractInput = {
-      run_id: document.document.document_id,
-      generation: pinnedGeneration(document) ?? artifact.generation,
-      request: {
-        schema: schema as unknown as Record<string, unknown>,
-        options: {
-          strategy: input.strategy === 'CATALOG' ? 'catalog' : 'article',
-          ...(models === null ? {} : { models }),
-          ...(recipe === null ? {} : { catalog: { recipe } }),
-        },
-      },
-    }
-    return acceptKeiArtifact({
-      extractionId: input.extractionId,
-      sourceDocumentId: inputs.sourceDocumentId,
-      sourceRepresentationRevisionId: input.sourceRepresentationRevisionId,
-      schemaRevisionId: input.schemaRevisionId,
-      strategy: input.strategy,
-      batchExtractionId: input.kind === 'batch-member' ? input.batchExtractionId : null,
-    }, document, artifact, request)
-  }
-}
-
-/** The parse generation a kei-exp Source Representation is pinned to, read back out of its
- *  `preprocess_id` (`kei-exp:{run}:{generation}`). Null for a representation from another parser,
- *  whose revisions kei-exp's generations say nothing about. */
-function pinnedGeneration(document: ParsedDocument): string | null {
-  if (document.preprocessing.profile !== 'kei-exp') return null
-  const prefix = `kei-exp:${document.document.document_id}:`
-  const preprocessId = document.preprocessing.preprocess_id
-  if (!preprocessId.startsWith(prefix) || preprocessId.length === prefix.length)
-    throw new ExtractionError('invalid_source_representation', 'The pinned Source Representation does not name a kei-exp parse generation.')
-  return preprocessId.slice(prefix.length)
 }
 
 function parsePinnedSchema(raw: unknown) {

@@ -1,7 +1,8 @@
-import { stableJson, stableUuid, uniqueConstraint, type Database } from 'db'
+import { stableJson, stableUuid, withPoolClientTransaction, type Database } from 'db'
+import type { ExtractionExecution } from './dependencies.js'
 import { modelChoice } from './model-choice.js'
 import { ExtractionError } from './errors.js'
-import type { DurableBatchExtraction } from './postgres-persistence.js'
+import type { AdmitBatchMember, DurableBatchExtraction } from './postgres-persistence.js'
 import { parseBatchSuggestionDefinition } from './schema.js'
 import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
 import type {
@@ -9,25 +10,34 @@ import type {
   ScheduleSuggestedBatchInput,
 } from './types.js'
 
-/** Owns the atomic Schema Suggestion → Extraction Schema → Batch handoff. */
+/**
+ * Owns the atomic Schema Suggestion → Extraction Schema → Batch handoff: the confirmed schema, the batch, one pending
+ * Extraction per saved pin and each member's `runExtraction` workflow commit together on one pooled client. The members
+ * keep the revisions saved with the suggestion, without a document lock: its fields were derived from those pins
+ * (PR #140's documented exemption).
+ */
 export async function persistSuggestedBatch(
   database: Database,
   researcherAccountId: string,
   input: ScheduleSuggestedBatchInput,
   helpers: Readonly<{
+    execution: ExtractionExecution
+    admitBatchMember: AdmitBatchMember
     loadBatch: (
       orm: Database['orm'],
       projectContextId: string,
       batchExtractionId: string,
     ) => Promise<DurableBatchExtraction | null>
+    /** A unique violation on this handoff's own identities: a concurrent handoff of the suggestion committed first. */
+    replayed: (error: unknown) => boolean
     semanticSuggestionTree: (tree: unknown) => unknown
     snapshot: (batch: DurableBatchExtraction) => ScheduleBatchResult['batch']
   }>,
 ): Promise<ScheduleBatchResult | null> {
-  const { loadBatch, semanticSuggestionTree, snapshot } = helpers
+  const { execution, admitBatchMember, loadBatch, replayed, semanticSuggestionTree, snapshot } = helpers
   let status: 'created' | 'replayed' | 'missing' | 'not-ready' | 'invalid'
   try {
-    status = await database.transaction(async ({ orm }) => {
+    status = await withPoolClientTransaction(async ({ orm }, client) => {
       const project = await orm.public.ProjectContext.select('id').first({
         id: input.projectContextId,
         researcherAccountId,
@@ -71,6 +81,16 @@ export async function persistSuggestedBatch(
           members.length
       )
         return 'invalid' as const
+      // Read before any write: returning from the transaction commits it.
+      const pinned: Array<(typeof members)[number] & { preprocessId: string }> = []
+      for (const member of members) {
+        const revision = await orm.public.SourceRepresentationRevision.select('preprocessId').first({
+          id: member.sourceRepresentationRevisionId,
+          sourceDocumentId: member.sourceDocumentId,
+        })
+        if (!revision) return 'invalid' as const
+        pinned.push({ ...member, preprocessId: revision.preprocessId })
+      }
       const extractionSchemaId = stableUuid(
         'confirmed-batch-schema-suggestion',
         `${input.batchSchemaSuggestionId}:${stableJson(
@@ -110,34 +130,25 @@ export async function persistSuggestedBatch(
         schemaRevisionId,
         strategy: input.strategy,
       })
-      for (const member of members) {
-        const initialExtractionJobId = stableUuid(
-          'batch-member-extraction-job',
-          stableJson([batchExtractionId, member.sourceRepresentationRevisionId]),
-        )
-        await orm.public.ExtractionJob.create({
-          id: initialExtractionJobId,
-          kind: 'BATCH_MEMBER',
-          requestedModels: modelChoice(input.models),
+      const requestedModels = modelChoice(input.models)
+      for (const member of pinned)
+        await admitBatchMember(orm, client, execution, {
+          owner: researcherAccountId,
           projectContextId: input.projectContextId,
-          ...member,
+          extractionSchemaId,
           schemaRevisionId,
           strategy: input.strategy,
-          batchExtractionId,
-        })
-        await orm.public.BatchExtractionMember.create({
+          requestedModels,
           batchExtractionId,
           ...member,
-          initialExtractionJobId,
         })
-      }
       await orm.public.BatchSchemaSuggestion.where({
         id: input.batchSchemaSuggestionId,
       }).update({ confirmedSchemaRevisionId: schemaRevisionId, batchExtractionId })
       return 'created' as const
     })
   } catch (error) {
-    if (!uniqueConstraint(error)) throw error
+    if (!replayed(error)) throw error
     status = 'replayed'
   }
   if (status === 'missing') return null
@@ -146,7 +157,7 @@ export async function persistSuggestedBatch(
       'batch_not_ready',
       'The suggested fields are not ready to run.',
     )
-  const batch = await database.transaction(async ({ orm }) => {
+  const batchExtractionId = await database.transaction(async ({ orm }) => {
     const project = await orm.public.ProjectContext.select('id').first({
       id: input.projectContextId,
       researcherAccountId,
@@ -159,14 +170,11 @@ export async function persistSuggestedBatch(
         id: input.batchSchemaSuggestionId,
         projectContextId: input.projectContextId,
       })
-    return suggestion?.batchExtractionId
-      ? loadBatch(
-          orm,
-          input.projectContextId,
-          suggestion.batchExtractionId,
-        )
-      : null
+    return suggestion?.batchExtractionId ?? null
   })
+  const batch = batchExtractionId
+    ? await loadBatch(database.orm, input.projectContextId, batchExtractionId)
+    : null
   if (!batch)
     throw new Error('Confirmed Batch Schema Suggestion could not be read.')
   return { disposition: status, batch: snapshot(batch) }

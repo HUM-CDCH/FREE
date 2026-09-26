@@ -16,7 +16,7 @@ import { z } from 'zod'
 import {
   createResearcherExtractions,
   extractionAttemptDto,
-} from './_extraction_runtime.js'
+} from './_extractions.js'
 import {
   ApiError,
   json,

@@ -211,22 +211,12 @@ function studioModules(parts: {
   createStudioApp: (options: Record<string, unknown>) => Promise<unknown>
   viteClientFallback?: () => Response
   handleStudioNodeRequest?: () => Promise<boolean>
-  extractionRuntime?: unknown
 }) {
-  return async (path: string) =>
-    path === '/api/_extraction_runtime.ts'
-      ? {
-          extractionRuntime:
-            parts.extractionRuntime ?? {
-              run: vi.fn(async () => undefined),
-              close: vi.fn(async () => undefined),
-            },
-        }
-      : {
-          createStudioApp: parts.createStudioApp,
-          viteClientFallback: parts.viteClientFallback ?? vi.fn(),
-          handleStudioNodeRequest: parts.handleStudioNodeRequest ?? vi.fn(),
-        }
+  return async () => ({
+    createStudioApp: parts.createStudioApp,
+    viteClientFallback: parts.viteClientFallback ?? vi.fn(),
+    handleStudioNodeRequest: parts.handleStudioNodeRequest ?? vi.fn(),
+  })
 }
 
 function configureServerHook(plugin: Plugin) {
@@ -326,24 +316,16 @@ describe('Vite Hono integration', () => {
     const clientFallback = vi.fn(() => new Response(null))
     const createStudioApp = vi.fn(async () => app)
     const handleStudioNodeRequest = vi.fn(async () => true)
-    const runtime = {
-      run: vi.fn(async () => undefined),
-      close: vi.fn(async () => undefined),
-    }
     const development = developmentServer({
       ssrLoadModule: studioModules({
         createStudioApp,
         viteClientFallback: clientFallback,
         handleStudioNodeRequest,
-        extractionRuntime: runtime,
       }),
     })
     const plugin = apiFunctions('/free')
 
     await configureServerHook(plugin)(development.server)
-    expect(development.ssrLoadModule).toHaveBeenCalledWith(
-      '/api/_extraction_runtime.ts',
-    )
     expect(development.ssrLoadModule).toHaveBeenCalledWith('/server/app.ts')
     expect(createStudioApp).toHaveBeenCalledWith(expect.objectContaining({
       studioOrigin: 'http://127.0.0.1:5173',
@@ -398,15 +380,10 @@ describe('Vite Hono integration', () => {
     const apps = [{ generation: 1 }, { generation: 2 }]
     const createStudioApp = vi.fn(async () => apps[createStudioApp.mock.calls.length - 1])
     const handleStudioNodeRequest = vi.fn(async () => true)
-    const runtime = {
-      run: vi.fn(async () => undefined),
-      close: vi.fn(async () => undefined),
-    }
     const development = developmentServer({
       ssrLoadModule: studioModules({
         createStudioApp,
         handleStudioNodeRequest,
-        extractionRuntime: runtime,
       }),
     })
     development.serverModules.add('/workspace/prototypes/studio/server/app.ts')
@@ -446,10 +423,6 @@ describe('Vite Hono integration', () => {
       expect.anything(),
     )
     expect(createStudioApp).toHaveBeenCalledTimes(2)
-    // The Extraction runtime module was not re-evaluated, so the worker that
-    // was already running keeps running.
-    expect(runtime.run).toHaveBeenCalledOnce()
-    expect(runtime.close).not.toHaveBeenCalled()
     // DBOS launches once per process: recomposition re-evaluates handlers only.
     expect(development.loaded('/server/dbos.ts')).toBe(1)
     expect(development.loaded('/server/workflows.ts')).toBe(1)
@@ -574,56 +547,12 @@ describe('Vite Hono integration', () => {
     expect(createStudioApp).not.toHaveBeenCalled()
   })
 
-  it('stops the running Extraction runtime a reload replaced', async () => {
-    vi.useFakeTimers()
-    const replaced = {
-      run: vi.fn(async () => undefined),
-      close: vi.fn(async () => undefined),
-    }
-    const adopted = {
-      run: vi.fn(async () => undefined),
-      close: vi.fn(async () => undefined),
-    }
-    let extractionRuntime: unknown = replaced
-    const development = developmentServer({
-      ssrLoadModule: async (path: string) =>
-        path === '/api/_extraction_runtime.ts'
-          ? { extractionRuntime }
-          : {
-              createStudioApp: vi.fn(async () => ({})),
-              viteClientFallback: vi.fn(),
-              handleStudioNodeRequest: vi.fn(),
-            },
-    })
-    development.serverModules.add('/workspace/prototypes/studio/api/_model.ts')
-    const plugin = apiFunctions('/free')
-
-    await configureServerHook(plugin)(development.server)
-    expect(replaced.run).toHaveBeenCalledOnce()
-
-    extractionRuntime = adopted
-    development.change('/workspace/prototypes/studio/api/_model.ts')
-    await vi.advanceTimersByTimeAsync(100)
-
-    expect(replaced.close).toHaveBeenCalledOnce()
-    expect(replaced.run.mock.calls[0]![0]!.aborted).toBe(true)
-    expect(adopted.run).toHaveBeenCalledOnce()
-    expect(adopted.close).not.toHaveBeenCalled()
-  })
-
   it('recomposes after a server module fails to evaluate', async () => {
     vi.useFakeTimers()
     const createStudioApp = vi.fn(async () => ({}))
     let broken = false
     const development = developmentServer({
-      ssrLoadModule: async (path: string) => {
-        if (path === '/api/_extraction_runtime.ts')
-          return {
-            extractionRuntime: {
-              run: vi.fn(async () => undefined),
-              close: vi.fn(async () => undefined),
-            },
-          }
+      ssrLoadModule: async () => {
         if (broken) throw new Error('Unexpected token')
         return {
           createStudioApp,

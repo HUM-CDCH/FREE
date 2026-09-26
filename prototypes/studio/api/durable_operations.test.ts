@@ -11,7 +11,7 @@ const runtime = vi.hoisted(() => ({
 }))
 const operations = vi.hoisted(() => ({ kick: vi.fn() }))
 
-vi.mock('./_extraction_runtime.js', () => ({
+vi.mock('./_extractions.js', () => ({
   createResearcherExtractions: runtime.createResearcherExtractions,
 }))
 vi.mock('./_project_operations.js', () => ({

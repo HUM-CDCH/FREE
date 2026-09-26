@@ -672,7 +672,17 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
         id: '51000000-0000-4000-8006-000000000001',
         sourceDocumentId: DOCUMENT,
         sourceRepresentationRevisionId: currentRepresentation,
+        outcome: 'SUCCEEDED',
         createdAt: new Date('2026-08-03T10:00:00Z'),
+        reviewedAt: null,
+      },
+      // An admitted Extraction without an outcome has extracted nothing yet.
+      {
+        id: '51000000-0000-4000-8006-000000000002',
+        sourceDocumentId: DOCUMENT,
+        sourceRepresentationRevisionId: representations[0].id,
+        outcome: null,
+        createdAt: new Date('2026-08-03T11:00:00Z'),
         reviewedAt: null,
       },
     ]
@@ -720,10 +730,24 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )
   })
 
-  it('reports the open Batch Extraction with persisted member progress', async () => {
+  it('reports the open Batch Extraction with member progress from its Extractions and their DBOS status', async () => {
     const database = fakeDatabase()
-    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const statuses = new Map<string, string>()
+    const asked: (readonly string[])[] = []
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never, {
+      workflowStatuses: async (ids) => {
+        asked.push(ids)
+        return statuses
+      },
+    })
     const batchId = '51000000-0000-4000-8007-000000000001'
+    const member = (index: number, outcome: string | null) => ({
+      id: `51000000-0000-4000-8006-00000000010${index}`,
+      batchExtractionId: batchId,
+      // The published member is the project's fixture document; the rest stand for other selected documents.
+      sourceDocumentId: index === 1 ? DOCUMENT : `51000000-0000-4000-8001-00000000010${index}`,
+      outcome,
+    })
     database.tables.BatchExtraction = [
       {
         id: batchId,
@@ -731,26 +755,39 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
         createdAt: new Date('2026-08-05T08:00:00Z'),
       },
     ]
-    database.tables.BatchExtractionMember = [
-      { batchExtractionId: batchId, initialExtractionJobId: 'job-1' },
-      { batchExtractionId: batchId, initialExtractionJobId: 'job-2' },
-      { batchExtractionId: batchId, initialExtractionJobId: 'job-3' },
+    database.tables.Extraction = [
+      member(1, 'SUCCEEDED'),
+      member(2, 'FAILED'),
+      member(3, null),
+      member(4, null),
+      member(5, null),
     ]
-    database.tables.ExtractionJob = [
-      { id: 'job-1', executionStatus: 'COMPLETED' },
-      { id: 'job-2', executionStatus: 'FAILED' },
-      { id: 'job-3', executionStatus: 'RUNNING' },
-    ]
+    statuses.set('extract:51000000-0000-4000-8006-000000000103', 'PENDING')
+    statuses.set('extract:51000000-0000-4000-8006-000000000104', 'ENQUEUED')
+    // A member whose workflow is gone (or stopped) without an outcome is interrupted: finished, not running.
 
     const running = await store.listProjectContexts(20)
     assert.deepEqual(
       running.find((item) => item.projectContextId === PROJECT)?.summary
         .runningBatch,
-      { completedMemberCount: 2, memberCount: 3 },
+      { completedMemberCount: 3, memberCount: 5 },
+    )
+    // One status read, for the members without an outcome only.
+    assert.deepEqual(asked, [[
+      'extract:51000000-0000-4000-8006-000000000103',
+      'extract:51000000-0000-4000-8006-000000000104',
+      'extract:51000000-0000-4000-8006-000000000105',
+    ]])
+    // Pending batch members are not published Extractions.
+    assert.equal(
+      running.find((item) => item.projectContextId === PROJECT)?.summary
+        .extractionCount,
+      1,
     )
 
     // A finished batch stops reporting progress but remains activity.
-    database.tables.ExtractionJob[2].executionStatus = 'COMPLETED'
+    database.tables.Extraction[2]!.outcome = 'SUCCEEDED'
+    statuses.set('extract:51000000-0000-4000-8006-000000000104', 'SUCCESS')
     const finished = await store.listProjectContexts(20)
     const finishedSummary = finished.find(
       (item) => item.projectContextId === PROJECT,
@@ -762,6 +799,24 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )
   })
 
+  it('counts an unsettled batch member as running when no DBOS status is available', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const batchId = '51000000-0000-4000-8007-000000000001'
+    database.tables.BatchExtraction = [
+      { id: batchId, projectContextId: PROJECT, createdAt: new Date('2026-08-05T08:00:00Z') },
+    ]
+    database.tables.Extraction = [
+      { id: '51000000-0000-4000-8006-000000000101', batchExtractionId: batchId, sourceDocumentId: DOCUMENT, outcome: 'CANCELLED' },
+      { id: '51000000-0000-4000-8006-000000000102', batchExtractionId: batchId, sourceDocumentId: OTHER_DOCUMENT, outcome: null },
+    ]
+    const listed = await store.listProjectContexts(20)
+    assert.deepEqual(
+      listed.find((item) => item.projectContextId === PROJECT)?.summary.runningBatch,
+      { completedMemberCount: 1, memberCount: 2 },
+    )
+  })
+
   it('lists persisted activity newest first, bounded, across owned projects only', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)
@@ -769,6 +824,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       {
         id: '51000000-0000-4000-8006-000000000001',
         sourceDocumentId: DOCUMENT,
+        outcome: 'SUCCEEDED',
         createdAt: new Date('2026-08-03T10:00:00Z'),
         reviewedAt: new Date('2026-08-05T10:00:00Z'),
       },
@@ -776,7 +832,16 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       {
         id: '51000000-0000-4000-8006-000000000002',
         sourceDocumentId: OTHER_DOCUMENT,
+        outcome: 'SUCCEEDED',
         createdAt: new Date('2026-08-06T10:00:00Z'),
+        reviewedAt: null,
+      },
+      // Nor does an admission that has published nothing yet.
+      {
+        id: '51000000-0000-4000-8006-000000000003',
+        sourceDocumentId: DOCUMENT,
+        outcome: null,
+        createdAt: new Date('2026-08-07T10:00:00Z'),
         reviewedAt: null,
       },
     ]
