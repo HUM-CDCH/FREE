@@ -20,6 +20,16 @@ import { readStagedSource, removeStagedSource } from './_source_inbox.js'
 
 export const INGEST_SOURCE = 'ingestSource'
 
+/** One upload attempt's workflow ID: the handler enqueues it, the workflow names its kei child after it. */
+export function ingestWorkflowId(projectContextId: string, attemptId: string): string {
+  return `ingest:${projectContextId}:${attemptId}`
+}
+
+/** Active deduplication: one running attempt per project and content, released when it ends. */
+export function ingestDeduplicationId(projectContextId: string, contentSha256: string): string {
+  return `ingest:${projectContextId}:${contentSha256}`
+}
+
 /** What admission froze for one attempt. IDs, the staged file's name and the admitted choices only: no bytes. */
 export type IngestionInput = Readonly<{
   projectContextId: string
@@ -48,9 +58,11 @@ export type IngestedSourceDocumentOutput = {
   revisionNumber: 1
 }
 
+export type IngestionFailure = { ok: false; status: 404 | 422 | 502 | 504; code: string; message: string }
+
 export type IngestionOutcome =
   | { ok: true; sourceDocument: IngestedSourceDocumentOutput; pageCount: number }
-  | { ok: false; status: 404 | 422 | 502 | 504; code: string; message: string }
+  | IngestionFailure
 
 export type IngestionStore = Pick<ResearcherProjectStore, 'findSourceDocumentByContent' | 'ingestSourceDocument' | 'discardCanonicalPackage'>
 
@@ -80,7 +92,26 @@ export function ingestedOutput(document: Omit<PersistedSourceDocument, 'descript
 async function completed(store: IngestionStore, input: IngestionInput, ports: IngestionWorkflowPorts): Promise<IngestionOutcome | null> {
   const existing = await store.findSourceDocumentByContent(input.projectContextId, input.sourceSha256)
   if (!existing) return null
-  return { ok: true, sourceDocument: ingestedOutput(existing), pageCount: await packagePageCount(existing.descriptor, ports.packageStore) }
+  let pageCount: number
+  try {
+    pageCount = await packagePageCount(existing.descriptor, ports.packageStore)
+  } catch {
+    // As the request's own precheck answers it: the attempt still ends, and removes its staged file.
+    return { ok: false, status: 502, code: 'source_artifact_unavailable', message: 'The retained canonical package is unavailable.' }
+  }
+  return { ok: true, sourceDocument: ingestedOutput(existing), pageCount }
+}
+
+/**
+ * Studio's own refusal of kei's answer (a partial parse, another generation, bytes or layout, an unprovable page, a
+ * result that cannot be translated or packaged) as a typed outcome: deterministic, so the workflow ends in SUCCESS and
+ * releases deduplication. A transient failure (kei's read API unreachable or restarting) is thrown on for the step's
+ * retries. Only plain values are returned: an error instance would not survive DBOS's serialization of the step.
+ */
+function refusal(error: unknown): IngestionFailure {
+  if (!(error instanceof ApiError) || (error as { transient?: unknown }).transient === true) throw error
+  const status = error.status === 422 ? 422 : 502
+  return { ok: false, status, code: error.code, message: error.message }
 }
 
 /** kei's output must name the bytes and the page layout it was given before its result is read. */
@@ -121,8 +152,14 @@ async function publish(
 export async function ingestSourceWorkflow(input: IngestionInput, ports: IngestionWorkflowPorts): Promise<IngestionOutcome> {
   const { steps, kei } = ports
   const store = ports.storeFor(input.owner)
-  const workflowId = `ingest:${input.projectContextId}:${input.attemptId}`
+  const workflowId = ingestWorkflowId(input.projectContextId, input.attemptId)
+  // Once the outcome is decided, a staged file that cannot be removed is left for garbage collection (the workflow
+  // is terminal) rather than turning that outcome into a failure.
   const removeStaged = () => steps.step('removeStagedSource', () => removeStagedSource(ports.inboxRoot, input.source))
+    .catch((error: unknown) => {
+      if (isWorkflowCancellation(error)) throw error
+      console.warn('Could not remove a staged Source Document upload; garbage collection will.')
+    })
   // Active deduplication is not permanent replay: content published after the request's precheck replays here.
   const replay = await steps.step('replayCompletedContent', () => completed(store, input, ports))
   if (replay) {
@@ -144,6 +181,7 @@ export async function ingestSourceWorkflow(input: IngestionInput, ports: Ingesti
       cut: 'auto', debug: false,
     },
   }), SUBMIT_TO_KEI_RETRY)
+  let outcome: IngestionOutcome
   try {
     let polled: KeiPoll
     do polled = await steps.step('pollKei', () => kei.poll(child, steps.cancelSignal()))
@@ -154,23 +192,35 @@ export async function ingestSourceWorkflow(input: IngestionInput, ports: Ingesti
       return { ok: false, ...conversionFailure(settled) }
     }
     // No bytes enter DBOS history: the step reads the staged file itself and returns a package descriptor.
-    const converted = await steps.step('acceptConversion', async () => {
-      reportedForInput(settled.value, input)
-      return packageConversion({
-        readBase: ports.readBase, runId: settled.value.run_id, generation: settled.value.generation,
-        pdf: await readStagedSource(ports.inboxRoot, input.source), originalName: input.originalName,
-        signal: steps.cancelSignal(), fetcher: ports.fetcher, packageStore: ports.packageStore,
-      })
+    const accepted = await steps.step('acceptConversion', async (): Promise<ConvertedPackage | IngestionFailure> => {
+      try {
+        reportedForInput(settled.value, input)
+        return await packageConversion({
+          readBase: ports.readBase, runId: settled.value.run_id, generation: settled.value.generation,
+          pdf: await readStagedSource(ports.inboxRoot, input.source), originalName: input.originalName,
+          signal: steps.cancelSignal(), fetcher: ports.fetcher, packageStore: ports.packageStore,
+        })
+      } catch (error) {
+        return refusal(error)
+      }
     }, ARTIFACT_READ_RETRY)
-    const outcome = await steps.step('publishSourceDocument', () => publish(store, input, converted, ports.packageStore))
-    await removeStaged()
-    return outcome
+    if ('ok' in accepted) {
+      await removeStaged()
+      return accepted
+    }
+    outcome = await steps.step('publishSourceDocument', () => publish(store, input, accepted, ports.packageStore))
   } catch (error) {
     if (isWorkflowCancellation(error)) throw error
     // A parent that fails unexpectedly after submitToKei cancels its kei child before rethrowing (spec, *Studio → kei*).
-    await steps.step('cancelKeiChild', () => kei.cancel(child))
+    // A cancel that fails too is logged: the original failure is the one the workflow records.
+    await steps.step('cancelKeiChild', () => kei.cancel(child)).catch((cancelError: unknown) => {
+      if (isWorkflowCancellation(cancelError)) throw cancelError
+      console.warn('Could not cancel the kei conversion of a failed Source Document ingestion.')
+    })
     throw error
   }
+  await removeStaged()
+  return outcome
 }
 
 /** Registers `ingestSource` under its fixed name; only registerStudioWorkflows() calls it, before DBOS.launch(). */

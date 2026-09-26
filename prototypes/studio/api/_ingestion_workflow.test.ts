@@ -10,7 +10,8 @@ import type { WorkflowSteps } from 'extraction/workflows'
 import { keiReadApi } from '../test/support/keiReadApi.js'
 import { stageSource, uploadSourcePath } from './_source_inbox.js'
 import {
-  ingestSourceWorkflow, type IngestionInput, type IngestionStore, type IngestionWorkflowPorts,
+  ingestDeduplicationId, ingestSourceWorkflow, ingestWorkflowId,
+  type IngestionInput, type IngestionStore, type IngestionWorkflowPorts,
 } from './_ingestion_workflow.js'
 
 const PROJECT = '11111111-1111-4111-8111-111111111111'
@@ -53,6 +54,7 @@ beforeEach(async () => {
   await stageSource(inbox, SOURCE, PDF)
 })
 afterEach(async () => {
+  vi.restoreAllMocks()
   await rm(inbox, { recursive: true, force: true })
 })
 
@@ -62,6 +64,7 @@ function harness(scenario: {
   polls?: KeiPoll[]
   publication?: () => ReturnType<IngestionStore['ingestSourceDocument']>
   beforeStep?: (name: string) => void
+  fetcher?: typeof fetch
 } = {}) {
   const names: string[] = []
   const steps: WorkflowSteps = {
@@ -94,7 +97,8 @@ function harness(scenario: {
   }
   const storeFor = vi.fn(() => store)
   const ports: IngestionWorkflowPorts = {
-    steps, kei, readBase: 'http://kei.test', inboxRoot: inbox, packageStore, storeFor, fetcher: keiReadApi({ pdf: PDF }),
+    steps, kei, readBase: 'http://kei.test', inboxRoot: inbox, packageStore, storeFor,
+    fetcher: scenario.fetcher ?? keiReadApi({ pdf: PDF }),
   }
   return { names, kei, store, storeFor, packageStore, ports, run: (admitted = input()) => ingestSourceWorkflow(admitted, ports) }
 }
@@ -188,12 +192,72 @@ describe('ingestSource', () => {
   })
 
   it('refuses a conversion kei reports for other bytes or another page layout, before reading its result', async () => {
-    for (const reported of [{ source_sha256: '0'.repeat(64) }, { page_source: 'ingest' }]) {
+    for (const [reported, message] of [
+      [{ source_sha256: '0'.repeat(64) }, 'The Parsing Service converted another Source Document.'],
+      [{ page_source: 'ingest' }, 'The Parsing Service converted another page layout.'],
+    ] as const) {
+      await stageSource(inbox, SOURCE, PDF)
       const h = harness({ polls: [convertOk(reported)] })
-      await expect(h.run()).rejects.toMatchObject({ status: 502, code: 'source_ingestion_failed' })
+      // Studio's own refusal of kei's answer is a typed outcome: the workflow succeeds, releasing deduplication.
+      await expect(h.run()).resolves.toEqual({ ok: false, status: 502, code: 'source_ingestion_failed', message })
       expect(h.ports.fetcher).not.toHaveBeenCalled()
       expect(h.store.ingestSourceDocument).not.toHaveBeenCalled()
+      expect(h.kei.cancel).not.toHaveBeenCalled()
+      expect(h.names.at(-1)).toBe('removeStagedSource')
+      expect(await staged()).toEqual([])
     }
+  })
+
+  it("a partial parse answers 422, as before, and removes the staged file", async () => {
+    const h = harness({ fetcher: keiReadApi({ pdf: PDF, manifest: { status: 'incomplete', incomplete: 'page 1 stopped at its token cap' } }) })
+
+    await expect(h.run()).resolves.toEqual({
+      ok: false, status: 422, code: 'source_ingestion_failed', message: 'The Source Document was only partially parsed.',
+    })
+    expect(h.names).toEqual(['replayCompletedContent', 'submitToKei', 'pollKei', 'acceptConversion', 'removeStagedSource'])
+    expect(h.store.ingestSourceDocument).not.toHaveBeenCalled()
+    expect(h.kei.cancel).not.toHaveBeenCalled()
+    expect(await staged()).toEqual([])
+  })
+
+  it('a manifest of another generation, or a package that cannot be saved, is a typed 502 that removes the staged file', async () => {
+    const otherParse = harness({ fetcher: keiReadApi({ pdf: PDF, manifest: { generation: 'gen-2' } }) })
+    await expect(otherParse.run()).resolves.toEqual({
+      ok: false, status: 502, code: 'source_ingestion_failed',
+      message: 'The Parsing Service published another parse than the one it reported.',
+    })
+    expect(await staged()).toEqual([])
+
+    await stageSource(inbox, SOURCE, PDF)
+    const unsaved = harness()
+    unsaved.packageStore.save.mockRejectedValueOnce(new Error('disk full'))
+    await expect(unsaved.run()).resolves.toEqual({
+      ok: false, status: 502, code: 'source_artifact_unavailable', message: 'The parsed Source Document could not be packaged.',
+    })
+    expect(unsaved.store.ingestSourceDocument).not.toHaveBeenCalled()
+    expect(await staged()).toEqual([])
+  })
+
+  it("a transient read failure is thrown for the step's retries and still cancels the kei child", async () => {
+    const h = harness({ fetcher: keiReadApi({ pdf: PDF, respond: () => new Response('restarting', { status: 503 }) }) })
+
+    await expect(h.run()).rejects.toMatchObject({ status: 502, transient: true })
+    expect(h.names.slice(-2)).toEqual(['acceptConversion', 'cancelKeiChild'])
+    expect(h.kei.cancel).toHaveBeenCalledExactlyOnceWith(CHILD)
+    // An ERROR leaves the staged file to garbage collection.
+    expect(await staged()).toEqual([`${ATTEMPT}.pdf`])
+  })
+
+  it("a replay whose package cannot be read answers 502 and still removes the staged file", async () => {
+    const h = harness({ existing: persisted(OTHER_PACKAGE) })
+    h.packageStore.read.mockRejectedValueOnce(new Error('package missing'))
+
+    await expect(h.run()).resolves.toEqual({
+      ok: false, status: 502, code: 'source_artifact_unavailable', message: 'The retained canonical package is unavailable.',
+    })
+    expect(h.names).toEqual(['replayCompletedContent', 'removeStagedSource'])
+    expect(h.kei.submit).not.toHaveBeenCalled()
+    expect(await staged()).toEqual([])
   })
 
   it('publishes the converted package once; a publication that finds the content already published returns that document and discards this package', async () => {
@@ -246,5 +310,32 @@ describe('ingestSource', () => {
     const stopped = harness({ beforeStep: (name) => { if (name === 'pollKei') throw cancelled } })
     await expect(stopped.run()).rejects.toBe(cancelled)
     expect(stopped.kei.cancel).not.toHaveBeenCalled()
+  })
+
+  it('a cancel of the kei child that fails does not replace the original failure', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const h = harness({ publication: async () => { throw new Error('the store is unavailable') } })
+    h.kei.cancel.mockRejectedValueOnce(new Error('kei is unreachable'))
+
+    await expect(h.run()).rejects.toThrow('the store is unavailable')
+    expect(h.kei.cancel).toHaveBeenCalledExactlyOnceWith(CHILD)
+    expect(warn).toHaveBeenCalledOnce()
+  })
+
+  it('a staged file that cannot be removed after publication does not fail the published ingestion', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const h = harness({ beforeStep: (name) => { if (name === 'removeStagedSource') throw new Error('permission denied') } })
+
+    await expect(h.run()).resolves.toMatchObject({ ok: true, sourceDocument: { sourceDocumentId: DOCUMENT } })
+    expect(h.kei.cancel).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledOnce()
+    // Left for garbage collection.
+    expect(await staged()).toEqual([`${ATTEMPT}.pdf`])
+  })
+
+  it('one helper names the workflow and its deduplication ID', () => {
+    expect(ingestWorkflowId(PROJECT, ATTEMPT)).toBe(WORKFLOW)
+    expect(WORKFLOW).toBe(`ingest:${PROJECT}:${ATTEMPT}`)
+    expect(ingestDeduplicationId(PROJECT, PDF_SHA256)).toBe(`ingest:${PROJECT}:${PDF_SHA256}`)
   })
 })

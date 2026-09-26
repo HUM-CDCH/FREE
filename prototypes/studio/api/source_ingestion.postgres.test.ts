@@ -35,6 +35,15 @@ const dropped: string[] = [schemas.schema, schemas.keiSchema]
 const owners: string[] = []
 let standIn: KeiStandInProcess
 let kei: DBOSClient
+/** While set, kei's read API reports every run's result as only partially parsed. */
+let partialResults = false
+/** kei's read API as the workflow reads it: the stand-in's, with its result manifests marked partial on demand. */
+const keiReads: typeof fetch = async (input, init) => {
+  const response = await fetch(input, init)
+  if (!partialResults || !new URL(String(input)).pathname.endsWith('/result') || !response.ok) return response
+  const manifest = (await response.json()) as Record<string, unknown>
+  return Response.json({ ...manifest, status: 'incomplete', incomplete: 'page 1 stopped at its token cap' })
+}
 
 beforeAll(async () => {
   // kei first: its DBOS migrates the kei schema Studio's kei client enqueues into.
@@ -51,11 +60,13 @@ beforeAll(async () => {
         inboxRoot: inbox,
         packageStore: packages,
         storeFor: ingestionStoreFor(packages),
+        fetcher: keiReads,
       })),
   })
 })
 
 afterEach(async () => {
+  partialResults = false
   // A conversion a failed test left held would occupy its kei lane for every later test.
   await standIn.policy({ convert: 'auto' })
   for (const work of await standIn.held()) await standIn.answer(work.workflowId, { convert: 'auto' })
@@ -282,6 +293,31 @@ describe('ingestSource on PostgreSQL', () => {
     expect(attempts).toHaveLength(2)
     expect(new Set(attempts.map((row) => row.workflowID)).size).toBe(2)
     expect(await convertWorkflows(projectContextId)).toHaveLength(2)
+    expect(await sourceDocuments(projectContextId)).toHaveLength(1)
+  })
+
+  it("Studio's refusal of kei's result answers its own status, ends the workflow in SUCCESS and releases deduplication", async () => {
+    const { store } = await owned()
+    const projectContextId = await project(store)
+    const pdf = uniquePdf()
+    partialResults = true
+
+    const refused = await ingest(store, projectContextId, pdf)
+    expect(refused.status).toBe(422)
+    await expect(refused.json()).resolves.toEqual({
+      error: { code: 'source_ingestion_failed', message: 'The Source Document was only partially parsed.' },
+    })
+    const [attempt] = await ingestWorkflows(projectContextId)
+    expect(attempt).toMatchObject({
+      status: 'SUCCESS',
+      output: { ok: false, status: 422, code: 'source_ingestion_failed', message: 'The Source Document was only partially parsed.' },
+    })
+    expect(await staged(projectContextId)).toEqual([])
+    expect(await sourceDocuments(projectContextId)).toEqual([])
+
+    partialResults = false
+    await created(await ingest(store, projectContextId, pdf))
+    expect(await ingestWorkflows(projectContextId)).toHaveLength(2)
     expect(await sourceDocuments(projectContextId)).toHaveLength(1)
   })
 

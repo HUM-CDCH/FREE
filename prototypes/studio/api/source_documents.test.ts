@@ -294,6 +294,20 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     expect(await staged()).toEqual([])
   })
 
+  it('an admission client that cannot be resolved stages nothing', async () => {
+    // DBOS is not launched in this process, so the default admission client cannot be resolved.
+    const { handler, countPages } = dependencies({ overrides: { admission: undefined } })
+
+    const response = await handler(request())
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'unexpected_failure', message: 'An unexpected failure occurred.' },
+    })
+    expect(countPages).not.toHaveBeenCalled()
+    expect(await staged()).toEqual([])
+  })
+
   it('waits for the workflow and answers 201 with the document and page count', async () => {
     const { handler, admission } = dependencies({
       statuses: [{ status: 'ENQUEUED' }, { status: 'PENDING' }, { status: 'SUCCESS', output: succeeded }],

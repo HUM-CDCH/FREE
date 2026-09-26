@@ -85,8 +85,9 @@ MODELS: dict[str, Model] = {
                            "SURYA_MAX_TOKENS_LAYOUT": 3072, "SURYA_MAX_TOKENS_BLOCK_CEILING": 8192}),
 }
 
-# The OCR model a new parse runs on when its owner chose none. M3 wires KEI_OCR_MODEL through Compose and makes
-# `convert` resolve an omitted choice from this same value; until then Studio's KEI_EXP_MODEL (also surya) is sent.
+# The OCR model a new parse runs on when its owner chose none. Studio sends the owner's Ingestion Model Choice, frozen
+# when the upload was admitted, in its `convert` handoff; `convert` resolves an omitted (null) choice from this value,
+# which Compose sets from KEI_OCR_MODEL.
 DEFAULT_OCR_MODEL = os.environ.get("KEI_OCR_MODEL", "surya")
 if DEFAULT_OCR_MODEL not in MODELS:
     raise ValueError(f"KEI_OCR_MODEL names no known OCR model: {DEFAULT_OCR_MODEL!r}")

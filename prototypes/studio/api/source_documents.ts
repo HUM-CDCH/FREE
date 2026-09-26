@@ -20,7 +20,9 @@ import {
 } from './_http.js'
 import {
   INGEST_SOURCE,
+  ingestDeduplicationId,
   ingestedOutput,
+  ingestWorkflowId,
   type IngestionInput,
   type IngestionOutcome,
 } from './_ingestion_workflow.js'
@@ -183,6 +185,8 @@ export function createSourceDocumentIngestion(
         return json({ ...ingestedOutput(existing), pageCount }, { status: 201, headers: noStore })
       }
 
+      // Resolved before staging: a Studio that cannot admit leaves no file behind.
+      const admission = dependencies.admission ?? studioDbos().admission
       const attemptId = randomUUID()
       const source = uploadSourcePath(projectId, attemptId)
       const root = dependencies.inboxRoot ?? sourceInboxRoot()
@@ -191,7 +195,7 @@ export function createSourceDocumentIngestion(
       })
       // The project check above passed, so this account owns the project.
       const owner = store.researcherAccountId
-      const ours = `ingest:${projectId}:${attemptId}`
+      const ours = ingestWorkflowId(projectId, attemptId)
       let input: IngestionInput
       try {
         const pageCount = await (dependencies.countPages ?? countPdfPages)(pdf)
@@ -206,7 +210,6 @@ export function createSourceDocumentIngestion(
         await removeStagedSource(root, source).catch(() => undefined)
         throw cause instanceof ApiError ? cause : persistenceUnavailable(cause, 'Source Document ingestion could not be started.')
       }
-      const admission = dependencies.admission ?? studioDbos().admission
       let workflowId: string
       try {
         const handle = await admission.enqueue({
@@ -214,7 +217,7 @@ export function createSourceDocumentIngestion(
           queueName: STUDIO_QUEUE,
           workflowID: ours,
           // Active deduplication: a same-project, same-content attempt that is still running is joined, not repeated.
-          deduplicationID: `ingest:${projectId}:${contentSha256}`,
+          deduplicationID: ingestDeduplicationId(projectId, contentSha256),
           duplicationPolicy: 'return-existing',
           authenticatedUser: owner,
           attributes: { projectContextId: projectId },

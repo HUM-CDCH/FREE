@@ -1,6 +1,19 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { blankPdf, junkObjects } from '../test/support/pdf'
-import { countPdfPages } from './_pdf_pages'
+import { countPdfPages, PAGE_COUNT_CONCURRENCY } from './_pdf_pages'
+
+/** Every page-count worker this file starts, in order: the real worker, counted. */
+const workers = vi.hoisted(() => [] as unknown[])
+vi.mock('node:worker_threads', async (importOriginal) => {
+  const real = await importOriginal<typeof import('node:worker_threads')>()
+  class CountedWorker extends real.Worker {
+    constructor(...args: ConstructorParameters<typeof real.Worker>) {
+      super(...args)
+      workers.push(this)
+    }
+  }
+  return { ...real, Worker: CountedWorker }
+})
 
 describe('countPdfPages', () => {
   it('counts the pages of a PDF without rendering them', async () => {
@@ -40,6 +53,38 @@ describe('countPdfPages', () => {
   it('answers null once the count outlives its deadline', async () => {
     await expect(countPdfPages(junkObjects(20 * 1024 * 1024), { deadlineMs: 50 })).resolves.toBeNull()
     await expect(countPdfPages(blankPdf(3), { deadlineMs: 0 })).resolves.toBeNull()
+  })
+
+  it('runs at most PAGE_COUNT_CONCURRENCY counts at once; the next waits for a slot', async () => {
+    expect(PAGE_COUNT_CONCURRENCY).toBe(2)
+    const before = workers.length
+    const hostile = junkObjects(20 * 1024 * 1024)
+    let finished = 0
+    const running = [countPdfPages(hostile), countPdfPages(hostile)].map((count) => count.finally(() => { finished += 1 }))
+    const waiting = countPdfPages(blankPdf(3))
+    // A previous test's workers may still be terminating, so the first two can wait a moment for their slots.
+    await vi.waitFor(() => expect(workers.length - before).toBe(2))
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    // pdf.js needs about a second for each hostile count; until one finishes the third has no worker.
+    expect(finished).toBe(0)
+    expect(workers.length - before).toBe(2)
+
+    await Promise.race(running)
+    await vi.waitFor(() => expect(workers.length - before).toBe(3))
+    await expect(waiting).resolves.toBe(3)
+    await Promise.all(running)
+  })
+
+  it('a count still waiting for a slot at its deadline answers null without starting a worker', async () => {
+    const before = workers.length
+    const hostile = junkObjects(20 * 1024 * 1024)
+    const running = [countPdfPages(hostile), countPdfPages(hostile)]
+
+    await expect(countPdfPages(blankPdf(3), { deadlineMs: 50 })).resolves.toBeNull()
+    expect(workers.length - before).toBe(2)
+    await Promise.all(running)
+    // The slots were handed back: a later count runs.
+    await expect(countPdfPages(blankPdf(3))).resolves.toBe(3)
   })
 
   it("leaves the caller's bytes intact", async () => {
