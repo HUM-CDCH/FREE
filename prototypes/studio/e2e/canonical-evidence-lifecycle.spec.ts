@@ -1,15 +1,10 @@
 import { expect, test, type APIRequestContext } from '@playwright/test'
-import { createHash, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
-import {
-  createCanonicalPackageStore,
-  packCanonicalPackage,
-} from '../../../packages/db/src/artifact-store.js'
+import { createCanonicalPackageStore } from '../../../packages/db/src/artifact-store.js'
 import { db } from '../../../packages/db/src/prisma/db.js'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
 import { extractionAttemptSchema, type ExtractionAttempt } from '../shared/extraction.contract.js'
-import type { ParsedDocument } from 'extraction/parsed-document'
 import { keiExpArtifact, keiExpEvidence } from 'extraction/kei-exp-fixture'
 import type { KeiExtractInput } from 'extraction/kei-handoff'
 import { launchKeiStandIn, type KeiStandIn, type StandInDecision } from 'extraction/kei-stand-in'
@@ -19,6 +14,7 @@ import {
   e2eStudioPath,
   loginResearcher,
 } from './auth.js'
+import { canonicalPackage } from './interactiveStack.js'
 import {
   activateWithKeyboard,
   emulateBrowserZoom200,
@@ -112,9 +108,6 @@ test.afterAll(async () => {
   await standIn?.close()
 })
 
-const sha256 = (value: Uint8Array) =>
-  createHash('sha256').update(value).digest('hex')
-
 async function waitForExtraction(
   request: APIRequestContext,
   extractionId: string,
@@ -149,42 +142,6 @@ const lifecycleSchemaNodes = [
     ],
   },
 ] as const
-
-async function canonicalPackage(
-  originalFilename: string,
-  sourceDocument?: ParsedDocument,
-  pdfFilename = 'Beretning_Ellekilde_8_13.pdf',
-) {
-  const pdf = await readFile(
-    resolve(import.meta.dirname, '../../../examples', pdfFilename),
-  )
-  const sourceHash = sha256(pdf)
-  const document = structuredClone(
-    sourceDocument ??
-      JSON.parse(
-        await readFile(
-          resolve(import.meta.dirname, '../src/assets/parsed_document.v2.json'),
-          'utf8',
-        ),
-      ),
-  ) as ParsedDocument
-  document.document.content_sha256 = sourceHash
-  document.document.source.original_filename = originalFilename
-  document.document.source.byte_size = pdf.byteLength
-  for (const [index, anchor] of document.evidence_index.anchors.entries()) {
-    anchor.content_sha256 = sourceHash
-    anchor.anchor_id = `a_p1_s${index}`
-  }
-
-  return {
-    bytes: packCanonicalPackage({
-      pdf,
-      document,
-      markdown: '# Article fixture\n\nGrav 8\n',
-    }),
-    sourceHash,
-  }
-}
 
 for (const strategy of ['ARTICLE', 'CATALOG'] as const)
 test(`real ${strategy} lifecycle persists review, exports its reviewed result, and reopens newer unreviewed pins independently @deterministic`, async ({
