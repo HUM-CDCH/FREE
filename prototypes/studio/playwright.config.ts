@@ -28,7 +28,7 @@ process.env.FREE_PLAYWRIGHT_SOURCE_INBOX ??= mkdtempSync(join(tmpdir(), 'free-e2
 export default defineConfig({
   testDir: './e2e',
   // The restart spec runs on the recovery config's restartable Studio (playwright.recovery.config.ts).
-  testIgnore: ['real-service.spec.ts', 'interactive-restart.spec.ts'],
+  testIgnore: ['real-service.spec.ts', 'real-service-gc.spec.ts', 'interactive-restart.spec.ts'],
   fullyParallel: true,
   globalTeardown: './e2e/globalTeardown.ts',
   use: { baseURL: e2eOrigin },
