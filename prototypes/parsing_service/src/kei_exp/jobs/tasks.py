@@ -4,7 +4,7 @@ transient backend failures.
 What is retried and what is not is a judgement about the failure, not about the caller: a model server that
 refused the connection may answer the next attempt, while a page the model truncated, a PDF that will not parse
 and a bug in this code will fail again identically, and retrying them only spends a GPU. The classification is
-`classify`, and it is the only place that decides.
+`kei_exp.failures.classify`, and it is the only place that decides.
 
 Cancellation is cooperative, as Procrastinate's task contract requires: the flag is `kei_run.cancel_requested`,
 and this task reads it before the expensive stages and before it publishes.
@@ -13,11 +13,11 @@ from __future__ import annotations
 
 import logging
 
-import requests
 from procrastinate import RetryStrategy
 from procrastinate.exceptions import JobAborted
 
-from kei_exp import runs, runtime
+from kei_exp import failures, runs, runtime
+from kei_exp.failures import TransientBackendError
 from kei_exp.files import publish
 from kei_exp.jobs import store
 from kei_exp.jobs.app import QUEUE, app
@@ -25,54 +25,15 @@ from kei_exp.jobs.events import DurableEmit
 from kei_exp.kie.extract.models import Router, chats_for
 from kei_exp.kie.extract.run import ExtractRequest, Options, extract, publish_extraction
 from kei_exp.kie.runner import convert
-from kei_exp.transcription.types import ConversionError, IncompleteConversionError
+from kei_exp.transcription.types import ConversionError
 
 logger = logging.getLogger(__name__)
 
-# Phrases the adapters put on a ConversionError that mean the backend, not the document. They are matched rather
-# than typed because the adapters wrap Surya's and Docling's own exceptions into ConversionError by design. An
-# incomplete recognition is excluded by type (IncompleteConversionError), not by matching phrases: see classify().
-TRANSIENT = ("unreachable", "connection refused", "connection reset", "timed out", "timeout",
-             "temporarily unavailable", "service unavailable", "bad gateway", "stream disconnected")
-
-# Statuses an OpenAI-compatible server answers with when it is not ready rather than when the request is wrong:
-# a vLLM still loading its weights, a proxy with nothing behind it yet, an overloaded or restarting server. They
-# are the HTTP spelling of the phrases above, which reach classify() on a ConversionError from the conversion
-# path but on a requests.HTTPError from the extraction path (kie/extract/llm.py's raise_for_status). Every other
-# status — 400, 404, 422, and 500, which is the server failing on THIS request — fails the same way next time.
-TRANSIENT_STATUS = (429, 502, 503, 504)
-
-
-class TransientBackendError(RuntimeError):
-    """A model or network failure that another attempt may not meet: the one retried class."""
-
-
 def classify(error: BaseException) -> BaseException:
-    """`error` as a `TransientBackendError` when another attempt is worth making, else `error` itself.
-
-    `store.Unavailable` is transient: a PostgreSQL restart says nothing about the document, only that the
-    database was briefly unreachable and another attempt may find it back. Progress no longer arrives here
-    (`DurableEmit` drops the events it cannot commit), so what does is one of the lifecycle reads `execute`
-    makes before it publishes — where nothing has been computed yet, or nothing yet accepted.
-
-    A `requests.HTTPError` is the extraction path's version of the same judgement: a server that answered, but
-    with a status. `TRANSIENT_STATUS` says which statuses mean "not now" rather than "not this request".
-    """
-    if isinstance(error, (requests.ConnectionError, requests.Timeout, ConnectionError, TimeoutError,
-                          store.Unavailable)):
+    """`failures.classify`, plus the store outage only this backend meets (deleted with it)."""
+    if isinstance(error, store.Unavailable):
         return TransientBackendError(str(error))
-    if isinstance(error, requests.HTTPError):
-        # A server that answered, but with a status: only the "not now" ones are worth another attempt, and a
-        # status this error carries no response for is nothing to judge, so it is left terminal.
-        status = getattr(error.response, "status_code", None)
-        return TransientBackendError(str(error)) if status in TRANSIENT_STATUS else error
-    if isinstance(error, IncompleteConversionError):
-        return error  # about this document at this budget; another attempt at the same budget fails the same way
-    if isinstance(error, ConversionError):
-        message = str(error).lower()
-        if any(phrase in message for phrase in TRANSIENT):
-            return TransientBackendError(str(error))
-    return error
+    return failures.classify(error)
 
 
 def execute(run_id: str, attempt: int, *, last_attempt: bool = False) -> None:

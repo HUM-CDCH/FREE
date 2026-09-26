@@ -185,7 +185,7 @@ def run(execution: Execution, emit: Emit = print_event, *, book: BookPages | Non
         except Exception as error:  # noqa: BLE001 - diagnostics only; the accepted result above is already written
             logger.error("debug report not written to %s: %s", execution.debug_dir, error)
             sink({"type": "log", "text": f"Debug report not written: {error}"})
-    # IncompleteConversionError, not ConversionError: kei_exp.jobs.tasks.classify() matches on this TYPE to
+    # IncompleteConversionError, not ConversionError: kei_exp.failures.classify() matches on this TYPE to
     # keep an incomplete recognition out of the retried set. It is about this document at this budget and
     # repeats identically, unlike a refused server; typing it (rather than matching phrases in the message)
     # stops a scanned page whose OCR'd text happens to contain something like "connection timed out" from

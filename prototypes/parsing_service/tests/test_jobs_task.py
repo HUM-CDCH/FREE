@@ -17,7 +17,7 @@ from kei_exp import runs, runtime
 from kei_exp.jobs import schema, store, tasks, tokens
 from kei_exp.jobs.app import deferring_installed
 from kei_exp.kie.stages import ocr
-from kei_exp.transcription.types import ConversionError, IncompleteConversionError
+from kei_exp.transcription.types import ConversionError
 from tests.helpers.fake import FakeTranscriber, registered
 from tests.helpers.pdfs import text_pdf
 
@@ -59,59 +59,10 @@ def prepared(database: str, tmp_path: Path, monkeypatch) -> Path:
         store.close_pool()
 
 
-def test_a_transient_backend_failure_is_classified_for_retry() -> None:
-    assert isinstance(tasks.classify(requests.ConnectionError("refused")), tasks.TransientBackendError)
-    assert isinstance(tasks.classify(ConversionError("Surya failed; output not written: server unreachable")),
-                      tasks.TransientBackendError)
-
-
-def test_a_model_server_answering_429_or_5xx_while_it_loads_is_classified_for_retry() -> None:
-    """The extraction path reaches its server over HTTP, and `raise_for_status()` (kie/extract/llm.py) is how
-    its refusal arrives: a `requests.HTTPError`, which is neither a ConnectionError nor a ConversionError
-    carrying one of the TRANSIENT phrases. A vLLM still loading its weights, an Ollama behind a proxy and an
-    overloaded server answer 503/502/504/429 — the same condition a conversion's engine surfaces in words and
-    is retried for. Every other status is about this request, not about the server's availability, and must
-    not spend the retry budget: a 400 or a 422 fails the same way on the next attempt.
-    """
-    def answered(status: int) -> requests.HTTPError:
-        return requests.HTTPError(f"{status} Error: for url http://127.0.0.1:11434/v1/chat/completions",
-                                  response=SimpleNamespace(status_code=status))
-
-    for status in (429, 502, 503, 504):
-        assert isinstance(tasks.classify(answered(status)), tasks.TransientBackendError), status
-    for status in (400, 401, 404, 409, 413, 422, 500, 501):
-        error = answered(status)
-        assert tasks.classify(error) is error, status
-    unanswered = requests.HTTPError("no response was attached")  # nothing to judge: not retried
-    assert tasks.classify(unanswered) is unanswered
-
-
 def test_a_store_outage_is_classified_for_retry() -> None:
     """A synchronous emit or deferred token flush can raise `store.Unavailable`; it says nothing about
     the document, so it must be retried exactly like a refused model server."""
     assert isinstance(tasks.classify(store.Unavailable("connection refused")), tasks.TransientBackendError)
-
-
-def test_an_incomplete_recognition_is_not_retried() -> None:
-    error = IncompleteConversionError("Conversion incomplete; output not written: page 1 stopped at its cap")
-    assert tasks.classify(error) is error
-
-
-def test_incomplete_recognition_is_excluded_by_type_not_by_matching_the_word_in_the_message() -> None:
-    """Before this fix, `classify()` kept ANY message containing the word "incomplete" out of the retried set,
-    whatever its actual type — a plain `ConversionError` (not the recognition-incomplete kind) that happens to
-    quote a transient phrase alongside that word would have been wrongly treated as non-transient. Classifying
-    on `IncompleteConversionError`'s type instead means a `ConversionError` with the same word in its message
-    is judged only by the transient phrases, unaffected by that word."""
-    error = ConversionError("Surya failed; output not written: incomplete response, connection timed out")
-    assert isinstance(tasks.classify(error), tasks.TransientBackendError)
-
-
-def test_invalid_input_and_programming_errors_are_not_retried() -> None:
-    value = ValueError("the fake transcriber does not accept stream")
-    assert tasks.classify(value) is value
-    bug = AttributeError("'NoneType' object has no attribute 'page'")
-    assert tasks.classify(bug) is bug
 
 
 def test_the_retry_strategy_retries_at_five_then_ten_seconds() -> None:
