@@ -228,8 +228,8 @@ The user's decision (Ruling 1). Nothing replaces the chat, and nothing a researc
 **Files:**
 - Modify: `prototypes/studio/api/_model_keys.ts` (`withStepCancellation`; `requireModelKey` composes it; comments 13 and 127-132), `prototypes/studio/api/_model_keys.test.ts`
 - Modify: `prototypes/studio/api/_provider.ts` (add `stepCancellable`; `resolveCapabilityRoute` wraps every general model, 751), `prototypes/studio/api/_provider.test.ts`
-- Modify: `prototypes/studio/api/_model.ts` (NuExtract's signal), `prototypes/studio/api/_model.transport.test.ts`
-- Create: `prototypes/studio/api/_model_stream_calls.test.ts`
+- Modify: `prototypes/studio/api/_model.ts` (NuExtract's signal), `prototypes/studio/api/_model.test.ts` (the NuExtract fixture lives here, not in the transport test — execution ruling, 2026-09-26)
+- Create: `prototypes/studio/api/_model_stream_calls.test.ts` (execution ruling after the Codex review of Task 2: the scan resolves `ai`'s stream functions through the file's imports with the TypeScript parser and requires `onError` in each call's own options — a coarse `onError:` count let an unrelated handler in the same file mask a bare call; the walk is recursive)
 
 **Interfaces:**
 - Consumes: Task 1's `ModelOperation`.
@@ -281,7 +281,7 @@ The user's decision (Ruling 1). Nothing replaces the chat, and nothing a researc
   ```
   (Doc comments must not contain an opening parenthesis right after `streamText` or `streamObject`: write "streamText calls". After Task 1 no such call exists, so the second case passes at once; it guards later code.)
 
-  Run: `pnpm --filter studio exec vitest run api/_model_keys.test.ts api/_provider.test.ts api/_model.transport.test.ts api/_model_stream_calls.test.ts`. Expected: FAIL (missing exports); the two scan cases pass.
+  Run: `pnpm --filter studio exec vitest run api/_model_keys.test.ts api/_provider.test.ts api/_model.test.ts api/_model_stream_calls.test.ts`. Expected: FAIL (missing exports); the scan cases pass.
 
 - [ ] **Step 2: Implement**
 
@@ -343,7 +343,7 @@ The user's decision (Ruling 1). Nothing replaces the chat, and nothing a researc
 - [ ] **Step 3: Run and commit**
 
   ```bash
-  pnpm --filter studio exec vitest run api/_model_keys.test.ts api/_provider.test.ts api/_model.transport.test.ts api/_model_stream_calls.test.ts
+  pnpm --filter studio exec vitest run api/_model_keys.test.ts api/_provider.test.ts api/_model.test.ts api/_model_stream_calls.test.ts
   pnpm --filter studio typecheck && pnpm --filter studio lint && pnpm --filter studio test
   cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6
   git add prototypes/studio/api/_model_keys.ts prototypes/studio/api/_model_keys.test.ts \
