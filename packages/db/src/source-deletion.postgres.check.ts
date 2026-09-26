@@ -74,12 +74,19 @@ test('Source Document deletion preserves suggestions and interrupts affected att
     try {
       await holder.query('BEGIN')
       await holder.query('SELECT id FROM "projectContext" WHERE id = $1 FOR UPDATE', [project])
+      const holderPid = (await holder.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]!.pid
       const waitFor = async (count: number) => {
         const deadline = Date.now() + 10_000
         while (Date.now() < deadline) {
           await holder.query('SELECT pg_stat_clear_snapshot()')
-          const waiting = await holder.query<{ count: number }>(`SELECT count(*)::int AS count FROM pg_stat_activity
-            WHERE datname = current_database() AND wait_event_type = 'Lock' AND query ILIKE '%UPDATE%"projectContext"%'`)
+          const waiting = await holder.query<{ count: number }>(`WITH RECURSIVE blocked(pid) AS (
+              SELECT pid FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))
+              UNION
+              SELECT activity.pid FROM pg_stat_activity activity JOIN blocked ON blocked.pid = ANY(pg_blocking_pids(activity.pid))
+            )
+            SELECT count(*)::int AS count FROM blocked JOIN pg_stat_activity USING (pid)
+            WHERE datname = current_database() AND wait_event_type = 'Lock' AND query ILIKE '%UPDATE%"projectContext"%'`,
+            [holderPid])
           if (waiting.rows[0]!.count >= count) return
           await delay(10)
         }
