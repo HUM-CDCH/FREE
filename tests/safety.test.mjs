@@ -464,6 +464,35 @@ test('image: the shared configuration manifest precedes Studio dependency instal
   )
 })
 
+test('image: Studio installs no keyring and starts no D-Bus', () => {
+  const dockerfile = readFileSync(resolve(ROOT, 'prototypes/studio/Dockerfile'), 'utf8')
+  for (const forbidden of [
+    'gnome-keyring',
+    'dbus-daemon',
+    'XDG_RUNTIME_DIR',
+    'DBUS_SESSION_BUS_ADDRESS',
+  ]) {
+    assert.ok(!dockerfile.includes(forbidden), `the Studio image must not mention ${forbidden}`)
+  }
+  const entrypoint = readFileSync(resolve(ROOT, 'docker/studio-entrypoint.sh'), 'utf8')
+  for (const forbidden of ['dbus-daemon', 'gnome-keyring-daemon']) {
+    assert.ok(!entrypoint.includes(forbidden), `the Studio entrypoint must not start ${forbidden}`)
+  }
+  assert.match(entrypoint, /: "\$\{CODEX_HOME:\?CODEX_HOME must be set\}"/)
+  const manifest = JSON.parse(
+    readFileSync(resolve(ROOT, 'prototypes/studio/package.json'), 'utf8'),
+  )
+  for (const dependency of ['@napi-rs/keyring', 'env-paths']) {
+    for (const field of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+      assert.equal(
+        manifest[field]?.[dependency],
+        undefined,
+        `Studio must not depend on ${dependency}`,
+      )
+    }
+  }
+})
+
 test('proxy parity: the shared fragment renders and passes nginx -t for the host wrapper', (t) => {
   const template = readFileSync(
     resolve(ROOT, 'docker/nginx/free-studio-locations.inc.template'),

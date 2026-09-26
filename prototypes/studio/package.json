@@ -20,15 +20,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@azure/msal-node": "^5.6.0",
     "@ai-sdk/anthropic": "^4.0.49",
     "@ai-sdk/google": "^4.0.64",
     "@ai-sdk/openai": "^4.0.60",
     "@ai-sdk/openai-compatible": "^3.0.44",
+    "@anthropic-ai/claude-code": "2.1.263",
+    "@azure/msal-node": "^5.6.0",
     "@hono/node-server": "^2.0.12",
     "@napi-rs/canvas": "^1.0.3",
-    "@anthropic-ai/claude-code": "2.1.263",
-    "@napi-rs/keyring": "^1.2.0",
     "@openai/codex": "0.153.4",
     "@tailwindcss/vite": "^4.3.0",
     "@xstate/react": "^6.1.0",
