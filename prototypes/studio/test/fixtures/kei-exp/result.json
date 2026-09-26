@@ -1,10 +1,10 @@
 {
-  "result_version": 4,
+  "result_version": 5,
   "generation": "20260922T120315.748740Z-ae6cc6c9",
   "digest": "6648ca3d5588e4244016b4de9f82c50ecb8909b18fd0ee27d06da38ea42eca01",
-  "fingerprint": "c3a49f84c371569c47768f40217f8e71b10e67a121d5c54b98bd9f1975c21a75",
+  "fingerprint": "1bb18fb58e5001a746cce630ac24a9e2a03735629923fcf4d26802410a208524",
   "recipe": {
-    "result_version": 4,
+    "result_version": 5,
     "source_sha256": "641e16c209b792546e79ca2a660e14ecf6750c3c027ffb46a3b89f9a79770293",
     "ingest_digest": null,
     "transcriber": "native",

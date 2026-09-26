@@ -77,9 +77,8 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
 - A completed parse exposes `/result` and `/pages/{page}` below `/api/runs/{id}`.
   The canonical result is version 5: a manifest plus hashed page files bound to
   one generation. Native Docling tables retain cells with row/column spans, raw
-  parent-text offsets, and measured page boxes when available. Readers still
-  verify original version 4 files. Scan tables remain coarse until cell geometry
-  has been independently evaluated.
+  parent-text offsets, and measured page boxes when available. Scan tables
+  remain coarse until cell geometry has been independently evaluated.
 - `extract` takes `{run_id, generation, request: {schema, options}}` against a
   complete parse of that generation and publishes its artifact at
   `extractions/<extraction id>/result.json`, the extraction ID being its
@@ -95,8 +94,7 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   `options.models = {fields?, reasoning?}` chooses per run; a model that cannot
   take a role (NuExtract cannot reason) is refused before any call. NuExtract
   receives the reply schema as its template and the instructions only through
-  the chat template's kwargs. The legacy `options.model` still runs every call
-  on the instruction server under that model id.
+  the chat template's kwargs.
 - `GET /api/ingestion-models` lists the OCR and layout models a new parse may
   run on, and the default per role (`KEI_OCR_MODEL`, default `surya`, and
   `layout_heron_101`); it is shaped like `/api/extraction-models`. An OCR model

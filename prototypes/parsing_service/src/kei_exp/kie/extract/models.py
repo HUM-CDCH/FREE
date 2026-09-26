@@ -31,9 +31,9 @@ class ExtractModel:
     adapter: Literal["instruct", "nuextract"]
     roles: frozenset[Role]
 
-    def chat(self, model: str | None = None) -> Chat:
+    def chat(self) -> Chat:
         kind = OpenAIChat if self.adapter == "instruct" else NuExtractChat
-        return kind(url=self.url, model=model or self.repo)
+        return kind(url=self.url, model=self.repo)
 
 
 def registry(environ: Mapping[str, str]) -> dict[str, ExtractModel]:
@@ -68,7 +68,6 @@ def check(choice: Mapping[str, str]) -> None:
 
 
 class Choice(Protocol):  # what routing reads of `run.Options`
-    model: str | None
     models: dict[str, str] | None
 
 
@@ -107,11 +106,7 @@ def as_router(chat: Chat | Router) -> Router:
 
 
 def chats_for(options: Choice) -> Router:
-    """The clients a run talks to. A legacy `model` sends every stage to the instruction server under that id;
-    otherwise each role goes to its routed model, one client per server."""
-    if options.model:
-        chat = EXTRACT_MODELS["instruct"].chat(options.model)
-        return Router(fields=chat, reasoning=chat)
+    """The clients a run talks to: each role goes to its routed model, one client per server."""
     keys = routes(options)
     clients = {key: EXTRACT_MODELS[key].chat() for key in set(keys.values())}
     return Router(fields=clients[keys["fields"]], reasoning=clients[keys["reasoning"]])

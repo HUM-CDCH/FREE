@@ -56,15 +56,12 @@ class Options(BaseModel):
     model_config = ConfigDict(extra="forbid")
     strategy: Literal["catalog", "article"] = "catalog"  # catalog: discover records first; article: one call
     models: dict[str, str] | None = None  # role (fields, reasoning) -> extraction model key; deployment defaults
-    model: str | None = None  # legacy: every stage on the instruction server, asking for this model id
     discovery_chars: int = Field(default=48_000, ge=1_000)  # text per discovery call
     record_chars: int = Field(default=24_000, ge=1_000)     # text per record/document call; full grounding request
     catalog: CatalogOptions | None = None  # a recipe: structural segmentation and grounded result version 2
 
     @model_validator(mode="after")
     def _models_are_served(self) -> Options:
-        if self.model and self.models:
-            raise ValueError("options name either a legacy model or models per role, not both")
         extraction_models.check(self.models or {})  # an unservable route is refused at admission
         return self
 

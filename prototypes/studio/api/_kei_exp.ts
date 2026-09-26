@@ -83,7 +83,7 @@ export const keiExpPageSchema = z
   .loose()
 export const keiExpManifestSchema = z
   .object({
-    result_version: z.union([z.literal(4), z.literal(5)]),
+    result_version: z.literal(5),
     generation: z.string().min(1),
     recipe: z
       .object({
