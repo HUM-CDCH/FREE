@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Tasks 15 and 16 are **CONTROLLER-RUN**: never dispatch them to an implementer subagent.
 
-Status: **in progress (M4 and M5 complete; M6 started 2026-09-26 on feat/dbos-m2-m6 at bbfe547).**
+Status: **Tasks 1–14 done 2026-09-26; the Spark cutover (Tasks 15–16) pending.**
 
 **Goal:** Deliver milestone M6 of the DBOS plan on `feat/dbos-m2-m6`: a `collectGarbage` workflow on a ten-minute schedule removes unreferenced canonical packages, staged sources, kei runs and both workflow histories under reference, retention and quiescence rules, and repairs missed cancellations; the M3 worker minors are fixed; `test:system` and CI wiring are brought up to date; every product, decision, operations, architecture and OpenSpec document describes the DBOS runtime; then the controller cuts the DGX Spark over (clean slate) and runs the end-to-end smoke test there, recording the evidence.
 
@@ -1916,7 +1916,7 @@ Documentation tasks have no unit tests; each starts with a check that fails on t
     4. Reset the storage: remove the `parsing_db` container and its `parsing-postgres` volume; drop and recreate database `free`; empty `parsing-runs` and Studio's data directory in `studio-data` (`FREE Studio-nodejs`); delete `FREE Studio-nodejs/model-config.json` from `studio-config`, keeping `codex/`; keep `studio-claude`.
     5. In `.env`, add `FREE_KEI_POSTGRES_PASSWORD` (`openssl rand -hex 32`), set `FREE_DEPLOYMENT_CLI_PROVIDERS` if wanted, and remove `FREE_PARSING_POSTGRES_PASSWORD`.
     6. Start: `node scripts/free.mjs production`. The baseline migration, the `kei` role and schema, and both DBOS schemas are created at startup.
-    7. Check: the health route; `\dn` lists `public`, `dbos` and `kei_dbos`; `SET ROLE kei; SELECT 1 FROM public."ProjectContext"` is denied; `dbos.workflow_schedules` has `collectGarbage`; the worker logged `serving`.
+    7. Check: the health route; `\dn` lists `public`, `dbos` and `kei_dbos`; `SET ROLE kei; SELECT 1 FROM public."projectContext"` is denied; `dbos.workflow_schedules` has `collectGarbage`; the worker logged `serving`.
     8. Smoke-test: upload; an extraction and a cancel; a Batch Schema Suggestion; a generation and a schema edit proposal across a reload and a Studio restart; a second account, where one exists, sees none of the first's configuration or operations; delete a project and run `gc:now`.
 
     Never restart a model server as part of this: if `docker compose config --hash '*'` shows a model server's hash changed, stop and decide first.
@@ -2246,7 +2246,7 @@ Edited in place (Plan decision 10). Each spec keeps its file and its `## Purpose
       main(Path(sys.argv[1]))
   ```
   Run it into `/tmp/free-m6-spark/` and record the page counts (41, 3, 2). The PDFs are not committed.
-  `m6-spark/queries.sql` — the read-only queries Task 16 runs with `psql -v name=value -f`: Studio and kei workflows of one project (`attributes @> jsonb_build_object('projectContextId', :'project')`), lane order (`SELECT workflow_uuid, queue_name, status, to_timestamp(completed_at/1000.0) FROM kei_dbos.workflow_status WHERE workflow_uuid LIKE 'kei-%' ORDER BY created_at DESC LIMIT 20`), the schedule (`SELECT * FROM dbos.workflow_schedules`), connection counts (`SELECT usename, application_name, state, count(*) FROM pg_stat_activity WHERE datname = 'free' GROUP BY 1, 2, 3`), orphan payload rows in both schemas (the query of `orphanPayloadRows`, written out for `dbos` and `kei_dbos`), and the role check (`SET ROLE kei; SELECT 1 FROM public."ProjectContext" LIMIT 1;` expected to fail with 42501).
+  `m6-spark/queries.sql` — the read-only queries Task 16 runs with `psql -v project=value -f`: Studio and kei workflows of one project (`attributes @> jsonb_build_object('projectContextId', :'project')`), lane order (`SELECT workflow_uuid, queue_name, status, to_timestamp(completed_at/1000.0) FROM kei_dbos.workflow_status WHERE workflow_uuid LIKE 'kei-%' ORDER BY created_at DESC LIMIT 20`), the schedule (`SELECT * FROM dbos.workflow_schedules`), connection counts (`SELECT usename, application_name, state, count(*) FROM pg_stat_activity WHERE datname = 'free' GROUP BY 1, 2, 3`), orphan payload rows in both schemas (the query of `orphanPayloadRows`, written out for `dbos` and `kei_dbos`), and the role check (`SET ROLE kei; SELECT 1 FROM public."projectContext" LIMIT 1;` expected to fail with 42501).
   `m6-spark/planted-key-scan.sh`:
   ```bash
   #!/usr/bin/env bash
@@ -2344,7 +2344,7 @@ PROJECT=$(docker compose -f compose.yaml -f compose.prod.yaml ps --format '{{.Pr
   $DC logs --no-color --since 15m parsing_worker | grep -E "slot|serving" | tail -5
   $DC exec -T db psql -U postgres -d free -c '\dn'                           # public, dbos, kei_dbos
   $DC exec -T db psql -U postgres -d free -c 'SELECT * FROM dbos.workflow_schedules'
-  $DC exec -T db psql -U postgres -d free -v ON_ERROR_STOP=0 -c 'SET ROLE kei; SELECT 1 FROM public."ProjectContext" LIMIT 1'   # permission denied
+  $DC exec -T db psql -U postgres -d free -v ON_ERROR_STOP=0 -c 'SET ROLE kei; SELECT 1 FROM public."projectContext" LIMIT 1'   # permission denied
   $DC exec -T db psql -U postgres -d free -c "SELECT usename, application_name, state, count(*) FROM pg_stat_activity WHERE datname = 'free' GROUP BY 1, 2, 3"
   $DC exec -T studio pnpm --filter studio gc:now                             # failedPhases: []
   ```
@@ -2393,7 +2393,7 @@ Test files are under `prototypes/studio/` unless they start with `packages/` or 
 | A6 A fully terminated process followed by a restart permits eligible cleanup, using the database-clock boot boundary; no in-place relaunch | `api/garbage_acceptance.postgres.test.ts` › same test (second run); `api/_garbage_plan.test.ts` › `deletes history cancelled before this boot once its age or deleted scope allows`, `a workflow is quiescent when absent, ended, or stopped before this boot`; M4 `server/dbos.test.ts` › `launches once per process: a second call returns the first launch and never launches again`, `reads the boot timestamp from the database clock, …` | 5, 7 (M4 1) |
 | A7 Cancel publication then crash before DBOS cancel: the next sweep cancels Studio work with terminal domain outcomes | `api/garbage_acceptance.postgres.test.ts` › `a cancel written before a crash is carried to the workflow and its kei child by the next sweep`; `api/garbage_collection.postgres.test.ts` › `a sweep cancels a live runExtraction whose Extraction already has an outcome, and its kei child`; `api/_garbage_plan.test.ts` › the repair cases | 5, 6, 7 |
 | A7 … and any late kei submission | `api/garbage_acceptance.postgres.test.ts` › `late handoff: …` (the late child is cancelled by the next sweep); `api/_garbage_plan.test.ts` › `cancels a live kei child whose parent is terminal, absent, or cancelled in this sweep` | 5, 7 |
-| A8 Delete a project, then apply reference, retention and quiescence rules in both schemas | `api/garbage_acceptance.postgres.test.ts` › `after project deletion a sweep deletes the scope's settled history in both schemas, keeps its current-process cancelled history, and names only what is quiescent`; `e2e/real-service-gc.spec.ts` › `a deleted project's run, its kei history and its Studio history go in one sweep, …`; `api/_garbage_plan.test.ts` › `deletes a deleted scope's settled history at any age` | 5, 7, 8 |
+| A8 Delete a project, then apply reference, retention and quiescence rules in both schemas | `api/garbage_acceptance.postgres.test.ts` › `collects completed history while keeping a cancelled extraction until the next boot`; `e2e/real-service-gc.spec.ts` › `a deleted project loses its run and both applications' settled history in one sweep`; `api/_garbage_plan.test.ts` › `deletes a deleted scope's settled history at any age` | 5, 7, 8 |
 | A8 Failed reference/status queries delete nothing | `api/garbage_collection.postgres.test.ts` › `a failed reference read deletes nothing in its phase and the other phases still run`, `a failed status read deletes nothing`; `api/_garbage_workflow.test.ts` › `reads every status and reference of a phase before it deletes or cancels anything`, `a failed phase is reported by name …`; `packages/db/src/garbage-references.postgres.check.ts` › `unknown or malformed IDs are absent, and a failed read rejects`; `test_delete_runs.py` › `test_a_failed_status_read_deletes_nothing` | 1, 3, 6 |
 | A9 Stage then crash before enqueue: GC removes the unused file | `api/garbage_acceptance.postgres.test.ts` › `a file staged before a crash that never enqueued is removed once it is old`; `api/_garbage_plan.test.ts` › `removes an old file whose workflow is absent or terminal …` | 5, 7 |
 | A9 Crash after enqueue: never the active attempt's PDF | `api/garbage_acceptance.postgres.test.ts` › `a file whose ingestion was recovered after a crash is kept while it runs, however old`; `api/_garbage_plan.test.ts` › `keeps a file whose attempt is live, whose kei child is live, …` | 5, 7 |
@@ -2435,4 +2435,3 @@ Other M6 items and where they are built or proved:
 | A GitHub `verify` run on the branch | the merge pull request (no PR before the cutover: Ruling 7a) | CI runs only on pull requests and `dev` |
 | S8 (two accounts) on the Spark | not run (Ruling 7c) | no second Entra account; the local two-account and ownership tests cover it |
 | Fair sharing between accounts; per-page conversion fan-out; per-model-call Python checkpoints; streaming crops into OCR | out of scope | spec *Out of scope* |
-

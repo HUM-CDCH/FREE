@@ -206,32 +206,50 @@ describe('garbage collection across Studio processes', () => {
     }
   })
 
-  it('collects a deleted project\'s package and histories across both applications', async () => {
+  it('collects completed history while keeping a cancelled extraction until the next boot', async () => {
     const names = testSchemas()
     const { owner, store } = await seedOwner()
     const project = (await store.createProjectContext(`GC ${randomUUID()}`)).projectContextId
+    const revision = await seedArticleSchema(project)
+    const completedId = randomUUID()
+    const cancelledId = randomUUID()
     const data = join(scratch, 'deleted-data')
     const env = {
       DATABASE_URL: url, FREE_TEST_DBOS_SCHEMA: names.schema, FREE_TEST_KEI_SCHEMA: schemas.keiSchema,
       FREE_TEST_EXECUTOR: names.executorId, FREE_TEST_ACCOUNT: owner, FREE_TEST_PROJECT: project,
+      FREE_TEST_SCHEMA_REVISION: revision,
+      FREE_TEST_COMPLETED_EXTRACTION: completedId, FREE_TEST_CANCELLED_EXTRACTION: cancelledId,
       FREE_TEST_PDF: pdf, FREE_SOURCE_INBOX: join(scratch, 'deleted-inbox'),
       XDG_DATA_HOME: data,
       KEI_EXP_URL: standIn.url, GC_OBSERVATIONS: join(scratch, 'deleted-observations.json'),
       FREE_CRASH_MARKER: join(scratch, 'deleted-first-run'),
     }
-    await standIn.policy({ convert: 'auto' })
+    await standIn.policy({ convert: 'auto', extract: 'auto' })
     try {
       const first = await runWorkflowChild('gc-deleted-project', env)
       expect(first).toMatchObject({ code: 0, signal: null })
       const second = await runWorkflowChild('gc-deleted-project', env)
       expect(second).toMatchObject({ code: 0, signal: null })
       const observed = JSON.parse(readFileSync(env.GC_OBSERVATIONS, 'utf8')) as {
-        convertId: string; summary: GarbageSummary; studioHistory: string | null; packageAvailable: boolean
+        convertId: string; current: GarbageSummary; next: GarbageSummary
+        currentIngestStatus: string | null; currentCompletedStatus: string | null
+        currentCancelledStatus: string | null; nextCancelledStatus: string | null
+        packageAvailable: boolean
       }
-      expect(observed.summary.failedPhases).toEqual([])
-      expect(observed.summary.keiRequest?.conversions).toContain(observed.convertId)
-      expect(observed.summary.deletedStudioHistory).toBeGreaterThanOrEqual(1)
-      expect(observed.studioHistory).toBeNull()
+      expect(observed.current.failedPhases).toEqual([])
+      expect(observed.current.deletedStudioHistory).toBeGreaterThanOrEqual(2)
+      expect(observed.currentIngestStatus).toBeNull()
+      expect(observed.currentCompletedStatus).toBeNull()
+      expect(observed.currentCancelledStatus).toBe('CANCELLED')
+      expect(observed.current.keiRequest?.conversions ?? []).not.toContain(observed.convertId)
+      expect(observed.current.keiRequest?.history).toContain(`kei-extract:${completedId}`)
+      expect(observed.current.keiRequest?.history).not.toContain(`kei-extract:${cancelledId}`)
+      expect(observed.next.failedPhases).toEqual([])
+      expect(observed.next.deletedStudioHistory).toBeGreaterThanOrEqual(1)
+      expect(observed.nextCancelledStatus).toBeNull()
+      expect(observed.next.keiRequest?.conversions).toContain(observed.convertId)
+      expect(observed.next.keiRequest?.history).toContain(`kei-extract:${cancelledId}`)
+      expect(observed.next.keiRequest?.history).not.toContain(`kei-extract:${completedId}`)
       expect(observed.packageAvailable).toBe(false)
       const deadline = Date.now() + 20_000
       let requests = await standIn.deleteRunsRequests()
@@ -241,6 +259,11 @@ describe('garbage collection across Studio processes', () => {
       }
       expect(requests.some((request) => request.request.conversions.includes(observed.convertId))).toBe(true)
     } finally {
+      for (const work of await standIn.held())
+        if (work.workflow === 'extract') await standIn.answer(work.workflowId, {
+          failure: { code: 'cancelled', reason: 'test cleanup', retryable: false },
+        })
+      await standIn.policy({ convert: 'auto', extract: 'auto' })
       await dropSchemas(url, names.schema)
       await removeOwner(owner)
     }

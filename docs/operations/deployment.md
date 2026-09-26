@@ -528,7 +528,7 @@ to "production is never reset" (README #10).
 6. Start: `node scripts/free.mjs production`. The baseline migration, the
    `kei` role and schema, and both DBOS schemas are created at startup.
 7. Check: the health route; `\dn` lists `public`, `dbos` and `kei_dbos`;
-   `SET ROLE kei; SELECT 1 FROM public."ProjectContext"` is denied;
+   `SET ROLE kei; SELECT 1 FROM public."projectContext"` is denied;
    `dbos.workflow_schedules` has `collectGarbage`; the worker logged
    `serving`.
 8. Smoke-test: upload; an extraction and a cancel; a Batch Schema Suggestion;

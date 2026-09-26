@@ -1,7 +1,8 @@
 # 0012: One durable execution layer: DBOS in Studio and in the Parsing Service
 
-Date: 2026-09-26. Status: accepted; implemented on `feat/dbos-m2-m6` (M1–M6 of
-[the DBOS plan](../plans/2026-09-24-unified-durable-execution.md)). Amends the
+Date: 2026-09-26. Status: accepted; M1–M6 implemented locally on
+`feat/dbos-m2-m6`, with the Spark cutover and smoke still pending under
+[the DBOS plan](../plans/2026-09-24-unified-durable-execution.md). Amends the
 job-backend part of [0009](0009-own-parsing-and-extraction-service-in-free.md).
 
 ## Context
