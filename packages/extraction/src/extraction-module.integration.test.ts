@@ -209,6 +209,9 @@ if (!disposableDatabaseUrl) {
           const child = children.get(workflowId)
           if (child?.state.state === 'live') child.state = { state: 'CANCELLED', deadlinePassed: false }
         },
+        async requestDeleteRuns() {
+          assert.fail('An Extraction never asks kei to delete runs.')
+        },
       } satisfies KeiHandoff,
       async readArtifact(runId: string, extractionId: string) {
         const bytes = artifacts.get(`${runId}/${extractionId}`)

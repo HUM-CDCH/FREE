@@ -243,3 +243,48 @@ test('submit enqueues the child portably by name, as kei\'s application, with it
   // A copy: the parent's attributes object never becomes DBOS's.
   assert.notEqual(calls.enqueued[0]?.options.attributes, attributes)
 })
+
+test('the deleteRuns fixture parses with Studio\'s schema and round-trips', () => {
+  const request = fixture('deleteRuns.input').request
+  assert.deepEqual(handoff.keiDeleteRunsInputSchema.parse(request), request)
+  assert.deepEqual(handoff.keiDeleteRunsOkSchema.parse(fixture('deleteRuns.output')), fixture('deleteRuns.output'))
+  const enqueue = fixture('deleteRuns.input').enqueue
+  assert.equal(enqueue.workflow_name, handoff.DELETE_RUNS)
+  assert.equal(enqueue.queue_name, handoff.KEI_QUEUE.gc)
+  assert.equal(fixture('queues').workflow_id_prefixes.deleteRuns, handoff.GC_PREFIX)
+})
+
+test('a history entry that names a conversion is refused, and so is a conversion without its prefix', () => {
+  assert.equal(handoff.keiDeleteRunsInputSchema.safeParse({ conversions: [], history: ['kei-convert:x'] }).success, false)
+  assert.equal(handoff.keiDeleteRunsInputSchema.safeParse({ conversions: ['x'], history: [] }).success, false)
+  assert.equal(handoff.keiDeleteRunsInputSchema.safeParse({ conversions: ['kei-convert:'], history: [] }).success, false)
+  assert.equal(handoff.keiDeleteRunsInputSchema.safeParse({ runs: [], conversions: [], history: [] }).success, false)
+  const ok = fixture('deleteRuns.output')
+  assert.equal(handoff.keiDeleteRunsOkSchema.safeParse({ ...ok, extra: true }).success, false)
+})
+
+test('requestDeleteRuns enqueues deleteRuns portably on kei-gc as kei under the given ID', async () => {
+  const { client, calls } = fakeClient()
+  const { enqueue, request } = fixture('deleteRuns.input')
+  await handoff.createKeiHandoff(client).requestDeleteRuns(enqueue.workflow_id, request)
+  assert.deepEqual(calls.enqueued, [{
+    options: {
+      workflowName: enqueue.workflow_name, queueName: enqueue.queue_name, workflowID: enqueue.workflow_id,
+      applicationName: enqueue.application_name,
+    },
+    args: [request],
+  }])
+  assert.deepEqual(calls.enqueued[0]?.options, {
+    workflowName: 'deleteRuns', queueName: 'kei-gc', workflowID: 'kei-gc:2026-09-26T12:00:00.000Z', applicationName: 'kei',
+  })
+  // A request outside the contract never reaches kei.
+  await assert.rejects(
+    handoff.createKeiHandoff(client).requestDeleteRuns('kei-gc:x', { conversions: [], history: ['kei-convert:x'] }),
+  )
+  assert.equal(calls.enqueued.length, 1)
+})
+
+test('keiGcWorkflowId names the schedule\'s instant', () => {
+  assert.equal(handoff.keiGcWorkflowId(new Date('2026-09-26T12:00:00Z')), 'kei-gc:2026-09-26T12:00:00.000Z')
+  assert.equal(handoff.keiGcWorkflowId(new Date('2026-09-26T12:00:00Z')), fixture('deleteRuns.input').enqueue.workflow_id)
+})

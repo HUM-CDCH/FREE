@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Tasks 15 and 16 are **CONTROLLER-RUN**: never dispatch them to an implementer subagent.
 
-Status: **not started (plan written 2026-09-26 against `feat/dbos-m2-m6` at f539911: M4 Tasks 1–4 committed, M4 Task 5 in the working tree, M4 Tasks 6–14 and all of M5 still to run; assumes the M4 and M5 plans are complete — both Task 14s recorded — before Task 1 starts; revised 2026-09-26 for the user's decision 15, which deletes the document chat in M5 (Ruling 3), and for the user's answers on the cutover (Ruling 7)).**
+Status: **in progress (M4 and M5 complete; M6 started 2026-09-26 on feat/dbos-m2-m6 at bbfe547).**
 
 **Goal:** Deliver milestone M6 of the DBOS plan on `feat/dbos-m2-m6`: a `collectGarbage` workflow on a ten-minute schedule removes unreferenced canonical packages, staged sources, kei runs and both workflow histories under reference, retention and quiescence rules, and repairs missed cancellations; the M3 worker minors are fixed; `test:system` and CI wiring are brought up to date; every product, decision, operations, architecture and OpenSpec document describes the DBOS runtime; then the controller cuts the DGX Spark over (clean slate) and runs the end-to-end smoke test there, recording the evidence.
 

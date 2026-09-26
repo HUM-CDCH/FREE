@@ -1,5 +1,6 @@
 """kei `deleteRuns`: a run goes only when every kei workflow that writes it can no longer write (spec, *kei runs and
 history*, *kei boot boundary*)."""
+import hashlib
 import itertools
 import os
 import time
@@ -43,13 +44,13 @@ def age(directory, seconds=gc.MIN_AGE_SECONDS + 60):
 GC_IDS = itertools.count(1)
 
 
-def delete(kei, runs_=(), history=()):
-    return kei.output(enqueue_delete(kei, runs_, history))
+def delete(kei, conversions=(), history=()):
+    return kei.output(enqueue_delete(kei, conversions, history))
 
 
-def enqueue_delete(kei, runs_=(), history=()):
+def enqueue_delete(kei, conversions=(), history=()):
     return kei.enqueue("deleteRuns", config.GC, f"kei-gc:test-{next(GC_IDS)}",
-                       {"runs": list(runs_), "history": list(history)})
+                       {"conversions": list(conversions), "history": list(history)})
 
 
 def converted(kei, workflow_id="kei-convert:ingest:p:a"):
@@ -71,6 +72,24 @@ def staging(kei, workflow_id):
 def restart(kei):
     """What the next kei process reads after taking the slot (Task 9 restarts a real one)."""
     boot.set_timestamp(kei.db_now_ms())
+
+
+def settled_extraction(kei, workflow_id):
+    """A `kei-extract:` workflow that has ended: its input names no run, so it fails validation at once."""
+    assert kei.output(kei.enqueue("extract", config.EXTRACT, workflow_id, {"run_id": "run-none"}, priority=1))[
+        "code"] == "invalid_request"
+    return workflow_id
+
+
+def scripted_extractions(monkeypatch):
+    """Extractions answer from an honest chat double; one the returned gate holds stays inside its first call."""
+    from kei_exp.kie.extract import run as extraction
+    from kei_exp.workflows import extract as extract_workflow
+    from tests.test_extract_grounded import CountingChat, WordCounter, honest
+    gate = kei_helper.Gate()
+    monkeypatch.setattr(extract_workflow, "chats_for", lambda options: CountingChat(lambda *a: gate() or honest(*a)))
+    monkeypatch.setattr(extraction, "counter_for", lambda client: WordCounter())
+    return gate
 
 
 @pytest.fixture
@@ -114,17 +133,19 @@ def test_an_old_run_whose_conversion_succeeded_is_deleted(kei, fake):
     workflow_id = converted(kei)
     run_id = kei.output(workflow_id)["run_id"]
     age(kei.runs / run_id)
-    output = delete(kei, [run_id])
+    output = delete(kei, [workflow_id])
     contracts.DeleteRunsOk.model_validate(output)
     assert output["deleted_runs"] == [run_id] and not (kei.runs / run_id).exists()
+    assert output["deleted_history"] == [workflow_id] and DBOS.get_workflow_status(workflow_id) is None
     assert not list(kei.runs.glob(".deleting-*"))
-    assert delete(kei, [run_id])["deleted_runs"] == [run_id]  # at-least-once: repeating it is harmless
-    assert kei.steps(workflow_id) == ["resolve_models", "prepare_run", "convert_run"]  # history is only on request
+    assert delete(kei, [workflow_id]) == {  # at-least-once: repeating it is harmless
+        "ok": True, "deleted_runs": [run_id], "kept_runs": [], "deleted_history": [workflow_id], "kept_history": []}
 
 
 def test_a_young_run_is_kept(kei, fake):
-    run_id = kei.output(converted(kei))["run_id"]
-    output = delete(kei, [run_id])
+    workflow_id = converted(kei)
+    run_id = kei.output(workflow_id)["run_id"]
+    output = delete(kei, [workflow_id])
     assert (output["deleted_runs"], output["kept_runs"]) == ([], [run_id]) and (kei.runs / run_id).is_dir()
 
 
@@ -134,11 +155,11 @@ def test_a_run_with_a_cancelled_conversion_waits_for_a_kei_restart(kei, fake, co
     cancelled_conversion(kei, fake, conversions_returned, workflow_id)
     run_id = runs.run_id_for(workflow_id)
     age(kei.runs / run_id)  # after the step returned: only the boot boundary can keep the run now
-    assert delete(kei, [run_id], [workflow_id]) == {
+    assert delete(kei, [workflow_id]) == {
         "ok": True, "deleted_runs": [], "kept_runs": [run_id], "deleted_history": [], "kept_history": [workflow_id]}
     assert (kei.runs / run_id).is_dir() and DBOS.get_workflow_status(workflow_id) is not None
     restart(kei)
-    output = delete(kei, [run_id], [workflow_id])
+    output = delete(kei, [workflow_id])
     assert output["deleted_runs"] == [run_id] and output["deleted_history"] == [workflow_id]
     assert not (kei.runs / run_id).exists() and DBOS.get_workflow_status(workflow_id) is None
 
@@ -146,14 +167,10 @@ def test_a_run_with_a_cancelled_conversion_waits_for_a_kei_restart(kei, fake, co
 def test_a_run_an_unfinished_extraction_reads_is_kept(kei, monkeypatch):
     """Cancelled mid-extraction, before it published anything under extractions/: nothing in the run names it, yet
     the boot boundary still protects the run (review focus 4)."""
-    from kei_exp.kie.extract import run as extraction
     from kei_exp.workflows import extract as extract_workflow
-    from tests.test_extract_grounded import CountingChat, WordCounter, honest
     monkeypatch.setattr(cancel, "MIN_INTERVAL", 0.0)
-    gate, extraction_id, ended = kei_helper.Gate(), "kei-extract:x-9", []
+    gate, extraction_id, ended = scripted_extractions(monkeypatch), "kei-extract:x-9", []
     gate.hold(extraction_id)
-    monkeypatch.setattr(extract_workflow, "chats_for", lambda options: CountingChat(lambda *a: gate() or honest(*a)))
-    monkeypatch.setattr(extraction, "counter_for", lambda client: WordCounter())
     original = extract_workflow.extract
 
     def extract(*args, **kwargs):
@@ -162,7 +179,8 @@ def test_a_run_an_unfinished_extraction_reads_is_kept(kei, monkeypatch):
         finally:
             ended.append(True)
     monkeypatch.setattr(extract_workflow, "extract", extract)
-    run_id = kei_helper.converted_run(kei.runs, "kei-convert:ingest:p:c")
+    conversion = "kei-convert:ingest:p:c"
+    run_id = kei_helper.converted_run(kei.runs, conversion)
     kei.enqueue("extract", config.EXTRACT, extraction_id,
                 kei_helper.extract_request(run_id, "20260923T000000.000000Z-fixture0"), priority=1)
     kei_helper.until(lambda: extraction_id in gate.entered, 30, "the extraction's first call")
@@ -170,9 +188,9 @@ def test_a_run_an_unfinished_extraction_reads_is_kept(kei, monkeypatch):
     published = kei.runs / run_id / "extractions"
     try:
         assert not published.exists()  # nothing under the run names this extraction
-        assert delete(kei, [run_id])["kept_runs"] == [run_id]   # live
+        assert delete(kei, [conversion])["kept_runs"] == [run_id]   # live
         DBOS.cancel_workflow(extraction_id)
-        assert delete(kei, [run_id])["kept_runs"] == [run_id]   # cancelled after boot, step still in its call
+        assert delete(kei, [conversion])["kept_runs"] == [run_id]   # cancelled after boot, step still in its call
     finally:
         gate.release_all()
     kei_helper.until(lambda: ended, 30, "the cancelled extraction returning")
@@ -180,19 +198,30 @@ def test_a_run_an_unfinished_extraction_reads_is_kept(kei, monkeypatch):
     assert not published.exists()  # it stopped at its next entry check and published nothing
     age(kei.runs / run_id)
     restart(kei)  # the restart that proves the step has stopped
-    assert delete(kei, [run_id])["deleted_runs"] == [run_id]
+    assert delete(kei, [conversion])["deleted_runs"] == [run_id]
 
 
-def test_history_goes_only_for_workflows_that_can_no_longer_write(kei, fake):
-    done = converted(kei, "kei-convert:ingest:p:d")
-    kei.output(done)
-    live = "kei-convert:ingest:p:e"
-    fake.hold(live)
-    converted(kei, live)
-    kei_helper.until(lambda: live in fake.entered, 30, "the live conversion")
-    output = delete(kei, history=[done, live])
-    assert (output["deleted_history"], output["kept_history"]) == ([done], [live])
-    assert DBOS.get_workflow_status(done) is None and DBOS.get_workflow_status(live) is not None
+def test_history_goes_only_for_workflows_that_can_no_longer_write(kei, monkeypatch):
+    from tests.helpers import catalogue
+    gate = scripted_extractions(monkeypatch)
+    run_id = kei_helper.converted_run(kei.runs, "kei-convert:ingest:p:d")
+    done, live = "kei-extract:d-1", "kei-extract:e-1"
+    kei.output(kei.enqueue("extract", config.EXTRACT, done, kei_helper.extract_request(run_id, catalogue.GENERATION),
+                           priority=1))
+    swept = enqueue_delete(kei)
+    kei.output(swept)
+    gate.hold(live)
+    kei.enqueue("extract", config.EXTRACT, live, kei_helper.extract_request(run_id, catalogue.GENERATION), priority=1)
+    try:
+        kei_helper.until(lambda: live in gate.entered, 30, "the live extraction's first call")
+        output = delete(kei, history=[done, live, swept])
+        assert (output["deleted_history"], output["kept_history"]) == ([done, swept], [live])
+        assert output["deleted_runs"] == output["kept_runs"] == []  # history names no run
+        assert DBOS.get_workflow_status(done) is None and DBOS.get_workflow_status(swept) is None
+        assert DBOS.get_workflow_status(live) is not None
+    finally:
+        gate.release_all()
+    kei.output(live)
 
 
 def test_a_live_conversion_keeps_its_old_run(kei, fake):
@@ -203,7 +232,8 @@ def test_a_live_conversion_keeps_its_old_run(kei, fake):
     kei_helper.until(lambda: live in fake.entered, 30, "the live conversion")
     run_id = runs.run_id_for(live)
     age(kei.runs / run_id)
-    assert delete(kei, [run_id])["kept_runs"] == [run_id] and (kei.runs / run_id).is_dir()
+    output = delete(kei, [live])
+    assert (output["kept_runs"], output["kept_history"]) == ([run_id], [live]) and (kei.runs / run_id).is_dir()
 
 
 def test_prepare_leftovers_go_once_their_conversion_can_no_longer_write(kei, fake, conversions_returned,
@@ -238,10 +268,10 @@ def test_prepare_leftovers_go_once_their_conversion_can_no_longer_write(kei, fak
 @pytest.mark.parametrize("read", ["convert", "extract", "statuses"])
 def test_a_failed_status_read_deletes_nothing(kei, fake, monkeypatch, read):
     """Whichever read fails, neither the eligible run, nor the leftover staging, nor the eligible history goes."""
-    run_id = kei.output(converted(kei, "kei-convert:ingest:p:l"))["run_id"]
+    conversion = converted(kei, "kei-convert:ingest:p:l")
+    run_id = kei.output(conversion)["run_id"]
     age(kei.runs / run_id)
-    finished = converted(kei, "kei-convert:ingest:p:m")
-    kei.output(finished)
+    finished = settled_extraction(kei, "kei-extract:m-1")
     leftover = staging(kei, "kei-convert:ingest:p:gone")
     original, reads = DBOS.list_workflows, []
 
@@ -252,10 +282,11 @@ def test_a_failed_status_read_deletes_nothing(kei, fake, monkeypatch, read):
             raise psycopg.OperationalError("the database went away")
         return original(**kwargs)
     monkeypatch.setattr(gc.DBOS, "list_workflows", failing)
-    gc_id = enqueue_delete(kei, [run_id], [finished])
+    gc_id = enqueue_delete(kei, [conversion], [finished])
     assert kei.wait(gc_id).status == "ERROR"
     assert read in reads
-    assert (kei.runs / run_id).is_dir() and leftover.is_dir() and DBOS.get_workflow_status(finished) is not None
+    assert (kei.runs / run_id).is_dir() and leftover.is_dir()
+    assert DBOS.get_workflow_status(conversion) is not None and DBOS.get_workflow_status(finished) is not None
     assert not list(kei.runs.glob(".deleting-*"))
 
 
@@ -264,7 +295,8 @@ def test_an_unreadable_run_is_kept_and_stops_nothing_else(kei, fake, monkeypatch
     workflow_id = converted(kei, "kei-convert:ingest:p:n")
     run_id = kei.output(workflow_id)["run_id"]
     age(kei.runs / run_id)
-    corrupt = kei.runs / "run-corrupt"
+    corrupt_conversion = "kei-convert:ingest:p:corrupt"  # its history already deleted; its run is still there
+    corrupt = kei.runs / runs.run_id_for(corrupt_conversion)
     corrupt.mkdir()
     params = {"not json": "{", "not an object": "[1]", "no workflow": '{"workflow_id": 5}',
               "walk": '{"workflow_id": "kei-convert:ingest:p:gone"}'}[broken]
@@ -277,9 +309,9 @@ def test_an_unreadable_run_is_kept_and_stops_nothing_else(kei, fake, monkeypatch
             raise PermissionError(directory)
         return original(directory)
     monkeypatch.setattr(gc, "_last_write", last_write)
-    output = delete(kei, [corrupt.name, run_id], [workflow_id])
+    output = delete(kei, [corrupt_conversion, workflow_id])
     assert output == {"ok": True, "deleted_runs": [run_id], "kept_runs": [corrupt.name],
-                      "deleted_history": [workflow_id], "kept_history": []}
+                      "deleted_history": [workflow_id], "kept_history": [corrupt_conversion]}
     assert corrupt.is_dir() and not (kei.runs / run_id).exists() and DBOS.get_workflow_status(workflow_id) is None
 
 
@@ -291,7 +323,8 @@ def test_a_params_file_that_is_no_object_is_unreadable_not_a_crash(tmp_path, par
 
 
 def test_a_run_that_cannot_be_removed_is_kept_and_stops_nothing_else(kei, fake, monkeypatch):
-    stuck_id, gone_id = (kei.output(converted(kei, f"kei-convert:ingest:p:{name}"))["run_id"] for name in "rs")
+    stuck, gone = (converted(kei, f"kei-convert:ingest:p:{name}") for name in "rs")
+    stuck_id, gone_id = (kei.output(workflow_id)["run_id"] for workflow_id in (stuck, gone))
     age(kei.runs / stuck_id)
     age(kei.runs / gone_id)
     original = gc._remove
@@ -301,14 +334,14 @@ def test_a_run_that_cannot_be_removed_is_kept_and_stops_nothing_else(kei, fake, 
             raise PermissionError(directory)
         original(directory)
     monkeypatch.setattr(gc, "_remove", remove)
-    output = delete(kei, [stuck_id, gone_id])
+    output = delete(kei, [stuck, gone])
     assert (output["deleted_runs"], output["kept_runs"]) == ([gone_id], [stuck_id])
+    assert (output["deleted_history"], output["kept_history"]) == ([gone], [stuck])
     assert (kei.runs / stuck_id).is_dir() and not (kei.runs / gone_id).exists()
 
 
-def test_a_history_id_named_twice_is_deleted_once(kei, fake):
-    done = converted(kei, "kei-convert:ingest:p:t")
-    kei.output(done)
+def test_a_history_id_named_twice_is_deleted_once(kei):
+    done = settled_extraction(kei, "kei-extract:t-1")
     output = delete(kei, history=[done, done])
     assert (output["deleted_history"], output["kept_history"]) == ([done], [])
     assert DBOS.get_workflow_status(done) is None
@@ -322,7 +355,8 @@ def test_a_published_extraction_is_one_of_the_runs_writers(kei, monkeypatch):
     from tests.test_extract_grounded import CountingChat, WordCounter, honest
     monkeypatch.setattr(extract_workflow, "chats_for", lambda options: CountingChat(honest))
     monkeypatch.setattr(extraction, "counter_for", lambda client: WordCounter())
-    run_id = kei_helper.converted_run(kei.runs, "kei-convert:ingest:p:o")
+    conversion = "kei-convert:ingest:p:o"
+    run_id = kei_helper.converted_run(kei.runs, conversion)
     extraction_id = "kei-extract:x-5"
     kei.output(kei.enqueue("extract", config.EXTRACT, extraction_id,
                            kei_helper.extract_request(run_id, catalogue.GENERATION), priority=1))
@@ -332,11 +366,58 @@ def test_a_published_extraction_is_one_of_the_runs_writers(kei, monkeypatch):
         connection.execute("update kei_dbos.workflow_status set status = 'CANCELLED', updated_at = %s "
                            "where workflow_uuid = %s", (kei.db_now_ms(), extraction_id))
     age(kei.runs / run_id)
-    assert delete(kei, [run_id])["kept_runs"] == [run_id]
+    assert delete(kei, [conversion])["kept_runs"] == [run_id]
     restart(kei)
-    assert delete(kei, [run_id])["deleted_runs"] == [run_id]
+    assert delete(kei, [conversion])["deleted_runs"] == [run_id]
 
 
-def test_a_run_id_that_is_not_one_path_component_is_an_invalid_request(kei):
-    output = delete(kei, ["../escape"])
+def test_a_conversion_id_without_its_prefix_is_an_invalid_request(kei):
+    output = delete(kei, ["../x"])
     assert (output["ok"], output["code"]) == (False, "invalid_request")
+
+
+def test_history_refuses_a_conversion_id(kei):
+    output = delete(kei, history=["kei-convert:ingest:p:z"])
+    assert output["ok"] is False and output["code"] == "invalid_request"
+
+
+def test_a_conversion_names_its_run_and_both_go_together(kei, fake):
+    workflow_id = converted(kei)
+    run_id = kei.output(workflow_id)["run_id"]
+    age(kei.runs / run_id)
+    output = delete(kei, [workflow_id])
+    assert output["deleted_runs"] == [run_id] and output["deleted_history"] == [workflow_id]
+    assert not (kei.runs / run_id).exists() and DBOS.get_workflow_status(workflow_id) is None
+
+
+def test_a_conversion_history_stays_while_its_run_stays(kei, fake):
+    """Studio finds a run only through its conversion's history, so the history must outlive the run."""
+    workflow_id = converted(kei, "kei-convert:ingest:p:y")
+    run_id = kei.output(workflow_id)["run_id"]           # young: kept by age
+    output = delete(kei, [workflow_id])
+    assert (output["kept_runs"], output["kept_history"]) == ([run_id], [workflow_id])
+    assert DBOS.get_workflow_status(workflow_id) is not None
+
+
+def test_a_failed_conversion_leaves_a_run_that_its_conversion_names(kei, fake, monkeypatch):
+    """convert_run failed after prepare_run published the run: Studio has no run ID, only the conversion."""
+    monkeypatch.setattr(runner, "convert", lambda *a, **k: (_ for _ in ()).throw(ValueError("broken page")))
+    workflow_id = converted(kei, "kei-convert:ingest:p:f")
+    assert kei.output(workflow_id)["ok"] is False
+    run_id = runs.run_id_for(workflow_id)
+    assert (kei.runs / run_id).is_dir()
+    age(kei.runs / run_id)
+    output = delete(kei, [workflow_id])
+    assert output["deleted_runs"] == [run_id] and output["deleted_history"] == [workflow_id]
+
+
+def test_a_conversion_whose_run_was_never_written_loses_only_its_history(kei, fake):
+    unreadable = b"%PDF-1.7\n" + b"\0" * 2048  # prepare_run refuses it before it publishes a run
+    (kei.inbox / "u.pdf").write_bytes(unreadable)
+    workflow_id = "kei-convert:ingest:p:u"
+    kei.enqueue("convert", config.CONVERT_LARGE, workflow_id,
+                kei_helper.convert_request("u.pdf", hashlib.sha256(unreadable).hexdigest(), model="fake"))
+    assert kei.output(workflow_id)["code"] == "source_unreadable"
+    assert not (kei.runs / runs.run_id_for(workflow_id)).exists()
+    output = delete(kei, [workflow_id])
+    assert output["deleted_history"] == [workflow_id] and DBOS.get_workflow_status(workflow_id) is None

@@ -10,7 +10,7 @@ from collections.abc import Callable
 from typing import Annotated, Literal
 
 from dbos import error as dbos_error
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from kei_exp.failures import CODES, REASON_CHARS, KeiFailure, failure_of
 from kei_exp.runs import COMPONENT  # a file-layout rule; the DBOS-free API reads it from runs too
@@ -18,6 +18,7 @@ from kei_exp.runs import COMPONENT  # a file-layout rule; the DBOS-free API read
 CONVERT_PREFIX, EXTRACT_PREFIX, GC_PREFIX = "kei-convert:", "kei-extract:", "kei-gc:"
 FailureCode = Literal[*CODES]  # the one list is failures.CODES
 RunId = Annotated[str, Field(pattern=COMPONENT.pattern)]
+ConvertWorkflowId = Annotated[str, Field(pattern=r"^kei-convert:.+$")]
 Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 
 
@@ -63,8 +64,19 @@ class ExtractOk(_Contract):
 
 
 class DeleteRunsInput(_Contract):
-    runs: list[RunId] = Field(default_factory=list)   # a pattern per item: "../x" is a ValidationError
-    history: list[str] = Field(default_factory=list)  # kei workflow ids whose history may go
+    # A conversion's run goes, then the conversion's history once the run is gone: that history is the only index
+    # through which Studio can name the run (it never computes run_id_for), so it goes only after the run.
+    conversions: list[ConvertWorkflowId] = Field(default_factory=list)
+    history: list[str] = Field(default_factory=list)  # kei-extract: and kei-gc: workflows whose history may go
+
+    @field_validator("history")
+    @classmethod
+    def _no_conversion(cls, value: list[str]) -> list[str]:
+        # pydantic's Rust regex has no look-ahead, so the prefix is refused here rather than by a pattern.
+        named = [workflow_id for workflow_id in value if workflow_id.startswith(CONVERT_PREFIX)]
+        if named:
+            raise ValueError(f"{named[0]} is a conversion: its history goes with its run, under conversions")
+        return value
 
 
 class DeleteRunsOk(_Contract):

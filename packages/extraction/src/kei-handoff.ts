@@ -19,6 +19,8 @@ export const UNCOUNTED_PAGE_BUDGET = 2000
 export const EXTRACTION_TIMEOUT_MS = { ARTICLE: 600_000, CATALOG: 10_800_000 } as const
 const CONVERT_PREFIX = 'kei-convert:'
 const EXTRACT_PREFIX = 'kei-extract:'
+export const DELETE_RUNS = 'deleteRuns'
+export const GC_PREFIX = 'kei-gc:'
 /** One path component, kei's runs.COMPONENT; `$` without the m flag matches only at the very end in JavaScript. */
 export const KEI_RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 
@@ -37,6 +39,8 @@ export function conversionTimeoutMs(pages: number | null): number {
 
 export const keiConvertWorkflowId = (parentWorkflowId: string) => `${CONVERT_PREFIX}${parentWorkflowId}`
 export const keiExtractWorkflowId = (extractionId: string) => `${EXTRACT_PREFIX}${extractionId}`
+/** One kei cleanup per sweep: re-enqueueing the same ID is a no-op in every state (M0 #1), so a recovered sweep asks once. */
+export const keiGcWorkflowId = (scheduledTime: Date) => `${GC_PREFIX}${scheduledTime.toISOString()}`
 
 const runId = z.string().regex(KEI_RUN_ID)
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/)
@@ -58,6 +62,17 @@ export const keiExtractOkSchema = z.object({
   ok: z.literal(true), run_id: runId, extraction_id: runId, generation: z.string().min(1), artifact_sha256: sha256,
   model: z.string().min(1), models: z.record(z.string(), z.string()),
 }).strict()
+/** Studio names conversions, never runs: kei derives each run from its conversion and deletes the conversion's history
+ *  only once the run is gone, since that history is the only index through which Studio can name the run. */
+export const keiDeleteRunsInputSchema = z.object({
+  conversions: z.array(z.string().regex(/^kei-convert:.+$/)),
+  history: z.array(z.string().min(1).refine((id) => !id.startsWith(CONVERT_PREFIX),
+    "A conversion's history goes with its run: name it under conversions.")),
+}).strict()
+export const keiDeleteRunsOkSchema = z.object({
+  ok: z.literal(true), deleted_runs: z.array(z.string()), kept_runs: z.array(z.string()),
+  deleted_history: z.array(z.string()), kept_history: z.array(z.string()),
+}).strict()
 export const KEI_FAILURE_CODES = [
   'invalid_request', 'source_missing', 'source_mismatch', 'source_unreadable', 'too_many_pages', 'model_unavailable',
   'conversion_failed', 'conversion_incomplete', 'no_result', 'stale_generation', 'extraction_failed', 'cancelled',
@@ -69,6 +84,8 @@ export type KeiConvertInput = z.infer<typeof keiConvertInputSchema>
 export type KeiConvertOk = z.infer<typeof keiConvertOkSchema>
 export type KeiExtractInput = z.infer<typeof keiExtractInputSchema>
 export type KeiExtractOk = z.infer<typeof keiExtractOkSchema>
+export type KeiDeleteRunsInput = z.infer<typeof keiDeleteRunsInputSchema>
+export type KeiDeleteRunsOk = z.infer<typeof keiDeleteRunsOkSchema>
 export type KeiFailureCode = (typeof KEI_FAILURE_CODES)[number]
 
 export type KeiSubmission = Readonly<{
@@ -94,6 +111,8 @@ export type KeiHandoff = Readonly<{
   poll(workflowId: string, signal?: AbortSignal): Promise<KeiPoll>
   /** Cancels the child only while it is live: a repeated cancel moves a cancelled workflow's updated_at (M0R 4). */
   cancel(workflowId: string): Promise<void>
+  /** Enqueues kei's `deleteRuns` under `workflowId` (keiGcWorkflowId); a request outside the contract throws. */
+  requestDeleteRuns(workflowId: string, request: KeiDeleteRunsInput): Promise<void>
 }>
 
 const LIVE = new Set(['ENQUEUED', 'DELAYED', 'PENDING'])
@@ -145,6 +164,14 @@ export function createKeiHandoff(
     async cancel(workflowId) {
       const current = await status(workflowId, false)
       if (current && LIVE.has(current.status)) await client.cancelWorkflow(workflowId)
+    },
+    async requestDeleteRuns(workflowId, request) {
+      keiDeleteRunsInputSchema.parse(request)
+      // Only kei registers kei-gc (spec, *Ownership*); the client names kei's application so only kei dequeues it.
+      await client.enqueuePortable(
+        { workflowName: DELETE_RUNS, queueName: KEI_QUEUE.gc, workflowID: workflowId, applicationName: KEI_APPLICATION },
+        [request],
+      )
     },
   }
 }
