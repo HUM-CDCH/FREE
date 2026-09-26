@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-Status: **in progress (inline, 2026-09-26): executed by the controller session on `feat/dbos-m5` (from `feat/dbos-m2-m6` at e1c8ae6) while M4 finishes on `feat/dbos-m2-m6`; see *Execution addendum*. Plan written 2026-09-26 against `feat/dbos-m2-m6` at bf80322; revised 2026-09-26 after the user deleted the document chat (Ruling 1), which removed the chat workflow, table, routes and tab from this plan and added Task 1.**
+Status: **done 2026-09-26** (executed inline by the controller session on `feat/dbos-m5` from `feat/dbos-m2-m6` at e1c8ae6, M4 merged at gates 1–3; verification record: [../validation/2026-09-26-dbos-m5-verification.md](../validation/2026-09-26-dbos-m5-verification.md); see *Execution addendum*. Plan written 2026-09-26 against `feat/dbos-m2-m6` at bf80322; revised 2026-09-26 after the user deleted the document chat (Ruling 1), which removed the chat workflow, table, routes and tab from this plan and added Task 1.**
 
 **Goal:** Deliver milestone M5 of the DBOS plan on `feat/dbos-m2-m6`: Schema Suggestion (`suggestSchema`) and schema edit proposals (`proposeSchemaEdit`) run as named DBOS workflows that survive a browser reload and a Studio restart; `GET`/`DELETE /api/model-operations` let a reloaded page find, cancel or discard its work; the unreachable document chat (`/api/chat`, `ChatTab`) is deleted rather than made durable (user, 2026-09-26); no key, provider error body, provider metadata or document text enters DBOS history; every tier ends green.
 

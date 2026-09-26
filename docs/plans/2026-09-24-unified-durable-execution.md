@@ -1577,7 +1577,7 @@ handlers or pages is an acceptance test of the milestone that builds it
     `kei-convert-large`; one neither can open fails in kei as today.
     `runExtraction` records `keiRunId`.
 
-**M5: interactive work on DBOS.**
+**M5: interactive work on DBOS — done 2026-09-26.** Task plan: [2026-09-26-dbos-m5-interactive.md](2026-09-26-dbos-m5-interactive.md).
 - **Workflows.** Add `suggestSchema`, `proposeSchemaEdit` and `chatTurn` with
   its answer write. Use `@dbos-inc/vercel-ai` for chat only, with the error
   sanitizer inside `durableCalls`.
