@@ -1446,7 +1446,7 @@ handlers or pages is an acceptance test of the milestone that builds it
     the page cannot choose one. A saved choice it no longer lists stays
     saved, and a listing failure blocks no other edit.
 
-**M3: kei on DBOS — done 2026-09-26 (task plan: [2026-09-26-dbos-m3-kei-on-dbos.md](2026-09-26-dbos-m3-kei-on-dbos.md)); Spark measurement pending (Task 14).**
+**M3: kei on DBOS — done 2026-09-26 (task plan: [2026-09-26-dbos-m3-kei-on-dbos.md](2026-09-26-dbos-m3-kei-on-dbos.md)); Spark chunk measurement passed ([m3-spark](2026-09-24-unified-durable-execution-evidence/m3-spark/README.md): 200-entry Catalog 105.7 s with 4 chunks vs 434.7 s unsplit).**
 - **Dependencies.** Replace Procrastinate with `dbos` in `pyproject.toml` and
   `uv.lock`; `kei-worker worker` replaces `kei-jobs`.
 - **New code.** `src/kei_exp/workflows/` holds the registration, the four

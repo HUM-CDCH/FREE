@@ -1,0 +1,76 @@
+{
+  "label": "m3-small-art",
+  "busy_before": {
+    "qwen": {
+      "running": 0.0,
+      "waiting": 0.0,
+      "kv": 0.0,
+      "preemptions": 0.0
+    },
+    "nuextract": {
+      "running": 0.0,
+      "waiting": 0.0,
+      "kv": 0.0,
+      "preemptions": 0.0
+    }
+  },
+  "results": {
+    "doc": {
+      "run": "small",
+      "strategy": "article",
+      "chunks_asked": 1,
+      "start": 0.02,
+      "chunks": null,
+      "records": 4,
+      "calls": 5,
+      "complete": true,
+      "issues": [],
+      "extracted": [
+        {
+          "entry_no": 40,
+          "site_name": "Aue",
+          "bezirk": "S\u00fcd",
+          "kreis": "Moor",
+          "fundart": "G"
+        },
+        {
+          "entry_no": 41,
+          "site_name": "Bach",
+          "bezirk": "S\u00fcd",
+          "kreis": "Moor",
+          "fundart": "EF"
+        },
+        {
+          "entry_no": 42,
+          "site_name": "Dorf",
+          "bezirk": "S\u00fcd",
+          "kreis": "Moor",
+          "fundart": "G"
+        },
+        {
+          "entry_no": 43,
+          "site_name": "Eck",
+          "bezirk": "S\u00fcd",
+          "kreis": "Ried",
+          "fundart": "EF"
+        }
+      ],
+      "end": 13.23,
+      "seconds": 13.21,
+      "servers": {
+        "qwen": {
+          "running_mean": 0.58,
+          "running_max": 1.0,
+          "waiting_max": 0.0,
+          "preemptions": 0.0
+        },
+        "nuextract": {
+          "running_mean": 0.35,
+          "running_max": 1.0,
+          "waiting_max": 0.0,
+          "preemptions": 0.0
+        }
+      }
+    }
+  }
+}
