@@ -1,14 +1,11 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { DEPLOYMENT_CONNECTION_IDS, type ModelConnection } from '../shared/modelConfig.contract.js'
+import { describe, expect, it, vi } from 'vitest'
+import { DEPLOYMENT_CONNECTION_IDS, type ModelConfig, type ModelConnection } from '../shared/modelConfig.contract.js'
 import type { CredentialStore } from './_keyring.js'
-import { writeModelConfig } from './_model_config.js'
-import { createPostModelProbe } from './model_probe.js'
+import { inMemoryModelConfigurations } from './model_configuration.fixture.js'
+import { createResearcherApiHandlers, type ModelProbeDependencies } from './model_probe.js'
 
+const ACCOUNT = '11111111-1111-4111-8111-1111111111a1'
 const ID = '11111111-1111-4111-8111-111111111111'
-const roots: string[] = []
 const connection: ModelConnection = {
   id: ID,
   name: 'OpenAI',
@@ -16,10 +13,18 @@ const connection: ModelConnection = {
   baseUrl: 'https://gateway.example/openai/v1',
 }
 
-async function temporaryRoot(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), 'free-probe-test-'))
-  roots.push(root)
-  return root
+const saved: ModelConfig = {
+  connections: [connection],
+  routes: { schemaSuggestion: null, interaction: null },
+  extractionModels: {},
+}
+
+/** The account's probe, always over an isolated configuration store, never the process one. */
+function accountProbe(dependencies: ModelProbeDependencies) {
+  return createResearcherApiHandlers(
+    { researcherAccountId: ACCOUNT },
+    { configurations: inMemoryModelConfigurations(), ...dependencies },
+  ).POST
 }
 
 function request(body: unknown): Request {
@@ -39,10 +44,6 @@ function store(value?: string): CredentialStore {
   }
 }
 
-afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
-})
-
 describe('POST /api/model_probe', () => {
   const deployed = {
     id: DEPLOYMENT_CONNECTION_IDS.instruct, name: 'Deployment instruction model', provider: 'vllm' as const,
@@ -53,7 +54,7 @@ describe('POST /api/model_probe', () => {
   it('probes a deployment connection at the served address, never the submitted one, and without the keyring', async () => {
     const credentialStore = { ...store('never-read'), get: vi.fn(async () => 'never-read') }
     const fetch = vi.fn(async () => Response.json({ data: [{ id: 'Qwen/Qwen3.8-27B-FP8' }] }))
-    const post = createPostModelProbe({ configRoot: await temporaryRoot(), credentialStore, fetch, deployment })
+    const post = accountProbe({ credentialStore, fetch, deployment })
 
     const response = await post(request({ connection: { ...deployed, baseUrl: 'https://attacker.example/v1' } }))
 
@@ -67,7 +68,7 @@ describe('POST /api/model_probe', () => {
 
   it('refuses a credential for, or a probe of an unserved, deployment connection', async () => {
     const fetch = vi.fn()
-    const post = createPostModelProbe({ configRoot: await temporaryRoot(), fetch, deployment })
+    const post = accountProbe({ fetch, deployment })
     expect((await post(request({ connection: deployed, credential: 'x' }))).status).toBe(409)
     const unserved = { ...deployed, id: DEPLOYMENT_CONNECTION_IDS.nuextract }
     expect((await post(request({ connection: unserved }))).status).toBe(409)
@@ -76,7 +77,7 @@ describe('POST /api/model_probe', () => {
 
   it('holds a deployment probe to the same request contract as any probe', async () => {
     const fetch = vi.fn()
-    const post = createPostModelProbe({ configRoot: await temporaryRoot(), fetch, deployment })
+    const post = accountProbe({ fetch, deployment })
     for (const body of [{ connection: { id: deployed.id } }, { connection: deployed, unknown: true }]) {
       const response = await post(request(body))
       expect(response.status).toBe(400)
@@ -88,8 +89,7 @@ describe('POST /api/model_probe', () => {
   it('uses a transient credential without storing or returning it', async () => {
     const credentialStore = store()
     const fetch = vi.fn(async () => Response.json({ data: [{ id: 'gpt-manual' }] }))
-    const post = createPostModelProbe({
-      configRoot: await temporaryRoot(),
+    const post = accountProbe({
       credentialStore,
       fetch,
       now: () => new Date('2026-07-25T00:00:00Z'),
@@ -109,37 +109,22 @@ describe('POST /api/model_probe', () => {
   })
 
   it('reuses only a matching saved credential and leaves configuration unchanged', async () => {
-    const root = await temporaryRoot()
-    await writeModelConfig({
-      connections: [connection],
-      routes: { schemaSuggestion: null, interaction: null },
-      extractionModels: {},
-    }, { configRoot: root })
-    const before = await readFile(join(root, 'model-config.json'))
-    const post = createPostModelProbe({
-      configRoot: root,
+    const configurations = inMemoryModelConfigurations({ [ACCOUNT]: saved })
+    const post = accountProbe({
+      configurations,
       credentialStore: store('saved-secret'),
       fetch: async () => Response.json({ data: [] }),
     })
     const response = await post(request({ connection }))
 
     expect(response.status).toBe(200)
-    expect(await readFile(join(root, 'model-config.json'))).toEqual(before)
+    expect(configurations.documents).toEqual(new Map([[ACCOUNT, saved]]))
   })
 
   it('does not send a saved credential to a changed provider endpoint', async () => {
-    const root = await temporaryRoot()
-    await writeModelConfig(
-      {
-        connections: [connection],
-        routes: { schemaSuggestion: null, interaction: null },
-      extractionModels: {},
-      },
-      { configRoot: root },
-    )
     const fetch = vi.fn()
-    const post = createPostModelProbe({
-      configRoot: root,
+    const post = accountProbe({
+      configurations: inMemoryModelConfigurations({ [ACCOUNT]: saved }),
       credentialStore: store('saved-secret'),
       fetch,
     })
@@ -161,16 +146,8 @@ describe('POST /api/model_probe', () => {
     ['transient', 'transient-secret', undefined],
     ['stored', undefined, 'stored-secret'],
   ])('does not serialize credential-bearing upstream detail for %s credentials', async (_mode, transient, stored) => {
-    const root = await temporaryRoot()
-    if (stored !== undefined) {
-      await writeModelConfig({
-        connections: [connection],
-        routes: { schemaSuggestion: null, interaction: null },
-      extractionModels: {},
-      }, { configRoot: root })
-    }
-    const post = createPostModelProbe({
-      configRoot: root,
+    const post = accountProbe({
+      configurations: inMemoryModelConfigurations(stored === undefined ? {} : { [ACCOUNT]: saved }),
       credentialStore: store(stored),
       fetch: async () => new Response('{malformed', { status: 403 }),
     })
@@ -191,16 +168,8 @@ describe('POST /api/model_probe', () => {
     ['transient', 'transient-secret', undefined],
     ['stored', undefined, 'stored-secret'],
   ])('does not serialize credential-bearing malformed responses for %s credentials', async (_mode, transient, stored) => {
-    const root = await temporaryRoot()
-    if (stored !== undefined) {
-      await writeModelConfig({
-        connections: [connection],
-        routes: { schemaSuggestion: null, interaction: null },
-      extractionModels: {},
-      }, { configRoot: root })
-    }
-    const post = createPostModelProbe({
-      configRoot: root,
+    const post = accountProbe({
+      configurations: inMemoryModelConfigurations(stored === undefined ? {} : { [ACCOUNT]: saved }),
       credentialStore: store(stored),
       fetch: async () => new Response('{malformed'),
     })
@@ -217,8 +186,7 @@ describe('POST /api/model_probe', () => {
   })
 
   it('returns provider failures as sanitized completed 200 observations', async () => {
-    const post = createPostModelProbe({
-      configRoot: await temporaryRoot(),
+    const post = accountProbe({
       credentialStore: store(),
       fetch: async () => new Response('unauthorized', { status: 403 }),
     })
@@ -234,7 +202,7 @@ describe('POST /api/model_probe', () => {
 
 
   it('runs overlapping probes independently against each immutable draft snapshot', async () => {
-    const root = await temporaryRoot()
+    const configurations = inMemoryModelConfigurations()
     const credentialStore = store()
     const firstReply = Promise.withResolvers<Response>()
     const secondReply = Promise.withResolvers<Response>()
@@ -247,8 +215,8 @@ describe('POST /api/model_probe', () => {
         ? secondReply.promise
         : firstReply.promise
     })
-    const post = createPostModelProbe({
-      configRoot: root,
+    const post = accountProbe({
+      configurations,
       credentialStore,
       fetch,
     })
@@ -314,16 +282,11 @@ describe('POST /api/model_probe', () => {
     )
     expect(credentialStore.set).not.toHaveBeenCalled()
     expect(credentialStore.delete).not.toHaveBeenCalled()
-    await expect(readFile(join(root, 'model-config.json'))).rejects.toMatchObject(
-      { code: 'ENOENT' },
-    )
+    expect(configurations.documents.size).toBe(0)
   })
   it('rejects malformed requests before provider traffic', async () => {
     const fetch = vi.fn()
-    // configRoot is injected even though validation rejects before any read:
-    // the default resolves to the researcher's real application-config
-    // directory, and no test may depend on that path being absent.
-    const post = createPostModelProbe({ configRoot: await temporaryRoot(), fetch, credentialStore: store() })
+    const post = accountProbe({ fetch, credentialStore: store() })
     const response = await post(request({ connection, credential: '', unknown: true }))
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'invalid_request' } })
@@ -334,7 +297,7 @@ describe('POST /api/model_probe', () => {
   // they must name the probe payload's `connection`, not a `connections` array.
   it('reports semantic issues against the submitted payload shape', async () => {
     const fetch = vi.fn()
-    const post = createPostModelProbe({ configRoot: await temporaryRoot(), fetch, credentialStore: store() })
+    const post = accountProbe({ fetch, credentialStore: store() })
     const response = await post(
       request({ connection: { ...connection, baseUrl: 'https://gateway.example/openai/v1?key=x' } }),
     )

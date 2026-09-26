@@ -670,8 +670,8 @@ export type NuExtractExecutionTarget = {
 export type ExecutionTarget = GeneralExecutionTarget | NuExtractExecutionTarget
 
 export type RouteResolverDependencies = {
-  config?: ModelConfig
-  readConfig?: () => Promise<ModelConfig>
+  /** The configuration whose routes and connections the call may use: its caller's, never another account's. */
+  readConfig: () => Promise<ModelConfig>
   /** The deployment's own model servers; read from the environment when omitted. */
   deployment?: DeploymentModels
   credentialStore?: CredentialStore
@@ -702,15 +702,9 @@ const ROUTE_LABELS = { schemaSuggestion: 'Schema Suggestion', interaction: 'Inte
 export async function resolveCapabilityRoute(
   operation: ModelOperation,
   options: { temperature?: number } = {},
-  dependencies: RouteResolverDependencies = {},
+  dependencies: RouteResolverDependencies,
 ): Promise<ExecutionTarget> {
-  let config = dependencies.config
-  if (!config) {
-    if (!dependencies.readConfig) {
-      throw new ApiError(500, 'unexpected_failure', 'The model configuration reader is unavailable.')
-    }
-    config = await dependencies.readConfig()
-  }
+  const config = await dependencies.readConfig()
   const deployment = dependencies.deployment ?? deploymentModels()
   const key = operation === 'schema-suggestion' ? 'schemaSuggestion' : 'interaction'
   const label = ROUTE_LABELS[key]

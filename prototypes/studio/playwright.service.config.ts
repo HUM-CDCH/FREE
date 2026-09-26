@@ -32,8 +32,6 @@ export default defineConfig({
       FREE_PLAYWRIGHT_LIFECYCLE_ID: stack.lifecycleId,
       STUDIO_ORIGIN: origin,
       STUDIO_BASE_PATH: '/',
-      APPDATA: state,
-      XDG_CONFIG_HOME: state,
       XDG_DATA_HOME: state,
       FREE_ENTRA_REAL: '0',
       FREE_ENTRA_MOCK_ISSUER: stack.oidcIssuer,

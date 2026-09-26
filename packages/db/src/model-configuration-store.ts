@@ -10,8 +10,8 @@ export type ModelConfigurationStore = {
   read(researcherAccountId: string): Promise<unknown | null>
   /**
    * Replaces the account's document in one transaction that holds the configuration row's lock. `next` receives the
-   * committed document (null before the first apply) and returns the one to store; when it throws, nothing is
-   * written and the error propagates.
+   * committed document (null before the first apply) and returns the one to store; when it throws, or returns null
+   * or undefined, nothing is written and the apply rejects.
    */
   apply(
     researcherAccountId: string,
@@ -35,6 +35,9 @@ export function createModelConfigurationStore(database: Database = db): ModelCon
           update: { updatedAt: new Date() },
         })
         const document = await next(locked.document ?? null)
+        // A committed row always has a document; rejecting here rolls back a first apply's bare row too.
+        if (document === null || document === undefined)
+          throw new Error('A Model Configuration apply must store a document.')
         await orm.public.ModelConfiguration.where({ researcherAccountId }).update({ document, updatedAt: new Date() })
         return document
       })

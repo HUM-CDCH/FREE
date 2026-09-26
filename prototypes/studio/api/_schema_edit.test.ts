@@ -3,6 +3,13 @@ import type { SchemaNode } from 'extraction/schema'
 import { ApiError } from './_http'
 import { parseSchemaNodes, proposeSchemaEdit } from './_schema_edit'
 
+const { generateSchemaEditJson } = vi.hoisted(() => ({ generateSchemaEditJson: vi.fn() }))
+vi.mock('./_model.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./_model.js')>()),
+  generateSchemaEditJson,
+}))
+
+const CALLER = { researcherAccountId: '51000000-0000-4000-8009-00000000000c' }
 const nodes: SchemaNode[] = [
   { id: 'group', name: 'group', type: 'object', children: [{ id: 'child', name: 'child', type: 'string' }] },
 ]
@@ -27,7 +34,7 @@ describe('proposeSchemaEdit', () => {
       additions: [{ path: ['dates'], type: 'array', itemType: 'date' }],
     }))
 
-    await expect(proposeSchemaEdit([], 'add a list of dates', null, { generate })).resolves.toEqual({
+    await expect(proposeSchemaEdit([], 'add a list of dates', null, { caller: CALLER, generate })).resolves.toEqual({
       status: 'proposed',
       fields: {},
       additions: [{ path: ['dates'], type: 'array', itemType: 'date' }],
@@ -40,7 +47,7 @@ describe('proposeSchemaEdit', () => {
     const response = await proposeSchemaEdit([
       { id: 'a', name: 'same', type: 'string' },
       { id: 'b', name: 'same', type: 'number' },
-    ], 'rename', null, { generate })
+    ], 'rename', null, { caller: CALLER, generate })
 
     expect(response).toMatchObject({ status: 'refused' })
     expect(generate).not.toHaveBeenCalled()
@@ -48,6 +55,7 @@ describe('proposeSchemaEdit', () => {
 
   it('returns a valid zero-change proposal', async () => {
     const response = await proposeSchemaEdit(nodes, 'keep it', '# Source', {
+      caller: CALLER,
       generate: vi.fn().mockResolvedValue(JSON.stringify({
         fields: {
           group: { name: 'group', type: 'object', removed: false },
@@ -74,6 +82,7 @@ describe('proposeSchemaEdit', () => {
       'model_type should be encoder, decoder, or both, in detail',
       null,
       {
+        caller: CALLER,
         generate: vi.fn().mockResolvedValue(JSON.stringify({
           fields: {
             m: {
@@ -114,6 +123,7 @@ describe('proposeSchemaEdit', () => {
       'model type should be detailed, rather than just "transformer model"',
       null,
       {
+        caller: CALLER,
         generate: vi.fn().mockResolvedValue(JSON.stringify({
           fields: {
             m: {
@@ -153,6 +163,7 @@ describe('proposeSchemaEdit', () => {
       'model_type should only ever be "encoder"',
       null,
       {
+        caller: CALLER,
         generate: vi.fn()
           .mockResolvedValueOnce(JSON.stringify({
             fields: { m: { name: 'model_type', type: 'string', removed: false, allowedValues: ['encoder'] } },
@@ -177,7 +188,7 @@ describe('proposeSchemaEdit', () => {
       }))
       .mockResolvedValueOnce(JSON.stringify({ fields: {}, additions: [] }))
 
-    const response = await proposeSchemaEdit(nodes, 'rename and add', null, { generate })
+    const response = await proposeSchemaEdit(nodes, 'rename and add', null, { caller: CALLER, generate })
 
     expect(generate).toHaveBeenCalledTimes(2)
     expect(generate.mock.calls[1][0]).toContain('"child"')
@@ -204,7 +215,7 @@ describe('proposeSchemaEdit', () => {
         additions: [],
       }))
 
-    const response = await proposeSchemaEdit(nodes, 'rename child', null, { generate })
+    const response = await proposeSchemaEdit(nodes, 'rename child', null, { caller: CALLER, generate })
 
     expect(response).toMatchObject({
       status: 'proposed',
@@ -217,12 +228,13 @@ describe('proposeSchemaEdit', () => {
   })
 
   it.each(['', '[]', '{"fields":"wrong"}', 'not json'])('fails unusable output %s', async (text) => {
-    const response = await proposeSchemaEdit(nodes, 'change', null, { generate: vi.fn().mockResolvedValue(text) })
+    const response = await proposeSchemaEdit(nodes, 'change', null, { caller: CALLER, generate: vi.fn().mockResolvedValue(text) })
     expect(response).toEqual({ status: 'failed', message: 'Schema edit generation failed.' })
   })
 
   it.each(['invalid_model_output', 'model_operation_failed'])('converts %s into a failed response', async (code) => {
     const response = await proposeSchemaEdit(nodes, 'change', null, {
+      caller: CALLER,
       generate: vi.fn().mockRejectedValue(new ApiError(502, code, 'Model failure.')),
     })
 
@@ -238,6 +250,7 @@ describe('proposeSchemaEdit', () => {
     const error = new ApiError(status, code, 'Operational failure.')
 
     await expect(proposeSchemaEdit(nodes, 'change', null, {
+      caller: CALLER,
       generate: vi.fn().mockRejectedValue(error),
     })).rejects.toBe(error)
   })
@@ -250,7 +263,7 @@ describe('proposeSchemaEdit', () => {
       }))
       .mockResolvedValueOnce('')
 
-    await expect(proposeSchemaEdit(nodes, 'rename group', null, { generate })).resolves.toEqual({
+    await expect(proposeSchemaEdit(nodes, 'rename group', null, { caller: CALLER, generate })).resolves.toEqual({
       status: 'proposed',
       fields: { group: { name: 'renamed', type: 'object', removed: false } },
       additions: [],
@@ -267,12 +280,12 @@ describe('proposeSchemaEdit', () => {
       }))
       .mockRejectedValueOnce(error)
 
-    await expect(proposeSchemaEdit(nodes, 'rename group', null, { generate })).rejects.toBe(error)
+    await expect(proposeSchemaEdit(nodes, 'rename group', null, { caller: CALLER, generate })).rejects.toBe(error)
   })
 
   it('instructs the model about complete independent edits and additions', async () => {
     const generate = vi.fn().mockResolvedValue(JSON.stringify({ fields: {}, additions: [] }))
-    await proposeSchemaEdit([], 'add fields', null, { generate })
+    await proposeSchemaEdit([], 'add fields', null, { caller: CALLER, generate })
     const prompt = generate.mock.calls[0][0]
 
     expect(prompt).toContain('"new_scalar"')
@@ -282,5 +295,13 @@ describe('proposeSchemaEdit', () => {
     expect(prompt).not.toContain('unless explicitly told to rename it')
     expect(prompt).toContain('itemType is allowed only when type is array')
     expect(prompt).toContain('must not invent root path segments')
+  })
+
+  it("runs the default model call on the caller's configuration", async () => {
+    generateSchemaEditJson.mockResolvedValue({ text: JSON.stringify({ fields: {}, additions: [] }) })
+
+    await proposeSchemaEdit([], 'add fields', null, { caller: CALLER, temperature: 0.3 })
+
+    expect(generateSchemaEditJson).toHaveBeenCalledWith(CALLER, expect.any(String), 0.3, undefined)
   })
 })

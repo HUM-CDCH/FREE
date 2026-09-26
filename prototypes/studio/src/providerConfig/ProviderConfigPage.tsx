@@ -6,7 +6,7 @@ import { Button, EmptyState, Overline } from '../ui'
 import { ExtractionModelSelect } from './ExtractionModelSelect'
 import { ProviderConnectionCard, providerFieldClass } from './ProviderConnectionCard'
 import { ProviderRoutesEditor } from './ProviderRoutesEditor'
-import { apiErrorText, getModelConfig, ModelConfigApiError, putModelConfig, resetModelConfig } from './providerConfig.data'
+import { apiErrorText, getModelConfig, putModelConfig } from './providerConfig.data'
 import { useProbeLifecycle } from './useProbeLifecycle'
 import { useProviderConfigDraft } from './useProviderConfigDraft'
 
@@ -28,10 +28,6 @@ function ProviderConfigPage({
   const [loading, setLoading] = useState(true)
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // A saved document this Studio cannot read is replaced only by an explicit, confirmed reset.
-  const [unreadable, setUnreadable] = useState(false)
-  const [confirmingReset, setConfirmingReset] = useState(false)
-  const [resetting, setResetting] = useState(false)
 
   const { probes, schedule, refresh, dispose } = useProbeLifecycle({
     providers,
@@ -73,20 +69,6 @@ function ProviderConfigPage({
     setNewProvider(state.providers[0]?.kind ?? 'ollama')
   }
 
-  async function reset(): Promise<void> {
-    setResetting(true)
-    try {
-      receive(await resetModelConfig())
-      setError(null)
-      setUnreadable(false)
-    } catch (cause) {
-      setError(apiErrorText(cause))
-    } finally {
-      setResetting(false)
-      setConfirmingReset(false)
-    }
-  }
-
   useEffect(() => {
     const controller = new AbortController()
     void getModelConfig(controller.signal)
@@ -94,7 +76,6 @@ function ProviderConfigPage({
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return
         setError(apiErrorText(cause))
-        setUnreadable(cause instanceof ModelConfigApiError && cause.code === 'invalid_model_config')
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
@@ -135,21 +116,8 @@ function ProviderConfigPage({
       <div className="mx-auto max-w-4xl rounded-2xl border border-danger/40 bg-surface p-6">
         <p className="text-sm font-semibold text-danger">Model configuration could not be loaded.</p>
         {error && <p role="alert" className="mt-2 whitespace-pre-line font-mono text-xs text-danger">{error}</p>}
-        {unreadable && (
-          <p className="mt-3 text-xs text-ink-muted">
-            Resetting deletes the saved Model Connections, routes, and Extraction model choice for everyone. Saved credentials are not reused.
-          </p>
-        )}
         <div className="mt-3 flex gap-2">
           <Button ref={initialFocusRef} autoFocus variant="secondary" size="sm" onClick={onClose}>Close</Button>
-          {unreadable && !confirmingReset && (
-            <Button variant="secondary" size="sm" onClick={() => setConfirmingReset(true)}>Reset model configuration</Button>
-          )}
-          {unreadable && confirmingReset && (
-            <Button variant="primary" size="sm" disabled={resetting} onClick={() => void reset()}>
-              {resetting ? 'Resetting…' : 'Confirm reset'}
-            </Button>
-          )}
         </div>
       </div>
     )

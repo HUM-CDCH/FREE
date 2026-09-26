@@ -417,28 +417,17 @@ test('corrupt saved configuration renders the stable backend error', async ({
   page,
 }) => {
   await page.route('http://127.0.0.1:8055/**', (route) => route.abort())
-  let reset = false
-  await page.route('**/api/model_config', (route) => {
-    if (route.request().method() === 'DELETE') reset = true
-    return reset
-      ? route.fulfill({
-          json: {
-            config: { connections: [], routes: { schemaSuggestion: null, interaction: null }, extractionModels: {} },
-            credentialStates: {},
-            providers,
-            deployment,
-          },
-        })
-      : route.fulfill({
-          status: 409,
-          json: {
-            error: {
-              code: 'invalid_model_config',
-              message: 'Saved model configuration is invalid.',
-            },
-          },
-        })
-  })
+  await page.route('**/api/model_config', (route) =>
+    route.fulfill({
+      status: 500,
+      json: {
+        error: {
+          code: 'invalid_model_config',
+          message: 'Saved model configuration is invalid.',
+        },
+      },
+    }),
+  )
   await page.route('**/api/project-contexts**', (route) =>
     route.fulfill({ json: { projectContexts: [] } }),
   )
@@ -447,9 +436,4 @@ test('corrupt saved configuration renders the stable backend error', async ({
   await expect(page.getByRole('alert')).toContainText(
     'invalid_model_config: Saved model configuration is invalid.',
   )
-  await page.getByRole('button', { name: 'Reset model configuration' }).click()
-  expect(reset).toBe(false)
-  await page.getByRole('button', { name: 'Confirm reset' }).click()
-  await expect(page.getByText('No Model Connections yet.')).toBeVisible()
-  expect(reset).toBe(true)
 })

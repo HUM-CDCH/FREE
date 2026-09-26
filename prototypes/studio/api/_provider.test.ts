@@ -433,7 +433,7 @@ describe('resolveCapabilityRoute', () => {
       const config = routed()
       const createModel = vi.fn(() => ({}) as never)
       await expect(resolveCapabilityRoute(operation, {}, {
-        config, credentialStore: presentCredentialStore,
+        readConfig: async () => config, credentialStore: presentCredentialStore,
         modelFactories: { 'openai-compatible': createModel },
       })).resolves.toMatchObject({ profile: 'general', jsonOutput: 'schema', automaticOutputKey: expect.any(String) })
       expect(createModel).toHaveBeenCalledOnce()
@@ -443,7 +443,7 @@ describe('resolveCapabilityRoute', () => {
   it('passes an arbitrary saved model ID to the exact selected factory', async () => {
     const createModel = vi.fn(() => ({}) as never)
     const target = await resolveCapabilityRoute('chat', {}, {
-      config: routed(),
+      readConfig: async () => routed(),
       credentialStore: { state: async () => 'absent', get: async () => undefined, set: async () => {}, delete: async () => {} },
       modelFactories: { 'openai-compatible': createModel },
     })
@@ -464,7 +464,7 @@ describe('resolveCapabilityRoute', () => {
     const selected = { ...connection, provider, baseUrl }
     const config = routed({ connections: [selected] })
     const target = await resolveCapabilityRoute('schema-suggestion', {}, {
-      config,
+      readConfig: async () => config,
       credentialStore: presentCredentialStore,
     })
     expect(target).toMatchObject({ profile: 'general', jsonOutput, temperatureSupported })
@@ -475,7 +475,7 @@ describe('resolveCapabilityRoute', () => {
   })
 
   it('shares automatic learning within a route and isolates it across routes', async () => {
-    const dependencies = { config: routed(), credentialStore: presentCredentialStore }
+    const dependencies = { readConfig: async () => routed(), credentialStore: presentCredentialStore }
     const suggestion = await resolveCapabilityRoute('schema-suggestion', {}, dependencies)
     const again = await resolveCapabilityRoute('schema-suggestion', {}, dependencies)
     const interaction = await resolveCapabilityRoute('schema-edit', {}, dependencies)
@@ -488,7 +488,7 @@ describe('resolveCapabilityRoute', () => {
     const construct = async (provider: 'openai' | 'openai-compatible') => {
       const selected = { ...connection, provider }
       return resolveCapabilityRoute('schema-suggestion', {}, {
-        config: routed({ connections: [selected] }),
+        readConfig: async () => routed({ connections: [selected] }),
         credentialStore: presentCredentialStore,
       })
     }
@@ -504,7 +504,7 @@ describe('resolveCapabilityRoute', () => {
     const unavailableStore = { ...presentCredentialStore, get: unavailableGet }
     const optionalFactory = vi.fn(() => ({}) as never)
     await resolveCapabilityRoute('schema-suggestion', {}, {
-      config: routed(),
+      readConfig: async () => routed(),
       credentialStore: unavailableStore,
       modelFactories: { 'openai-compatible': optionalFactory },
     })
@@ -513,7 +513,7 @@ describe('resolveCapabilityRoute', () => {
     const cli = { ...connection, provider: 'codex-cli' as const, baseUrl: null }
     const externalFactory = vi.fn(() => ({}) as never)
     await resolveCapabilityRoute('schema-suggestion', {}, {
-      config: routed({ connections: [cli] }),
+      readConfig: async () => routed({ connections: [cli] }),
       credentialStore: unavailableStore,
       modelFactories: { 'codex-cli': externalFactory },
     })
@@ -522,12 +522,12 @@ describe('resolveCapabilityRoute', () => {
 
     const managed = { ...connection, provider: 'openai' as const }
     await expect(resolveCapabilityRoute('schema-suggestion', {}, {
-      config: routed({ connections: [managed] }),
+      readConfig: async () => routed({ connections: [managed] }),
       credentialStore: { ...presentCredentialStore, get: async () => undefined },
       modelFactories: { openai: vi.fn(() => ({}) as never) },
     })).rejects.toMatchObject({ status: 409, code: 'invalid_model_config' })
     await expect(resolveCapabilityRoute('schema-suggestion', {}, {
-      config: routed({ connections: [managed] }),
+      readConfig: async () => routed({ connections: [managed] }),
       credentialStore: unavailableStore,
       modelFactories: { openai: vi.fn(() => ({}) as never) },
     })).rejects.toMatchObject({ status: 503, code: 'keyring_unavailable' })
@@ -536,7 +536,7 @@ describe('resolveCapabilityRoute', () => {
   it('derives the NuExtract protocol only from a flagged vLLM Schema Suggestion Route', async () => {
     const vllm = { ...connection, provider: 'vllm' as const, baseUrl: 'http://nuextract_model:8000/v1' }
     const target = await resolveCapabilityRoute('schema-suggestion', {}, {
-      config: routed({
+      readConfig: async () => routed({
         connections: [vllm],
         routes: {
           schemaSuggestion: { connectionId: ID, modelId: 'numind/NuExtract3-FP8', protocol: 'nuextract' },
@@ -563,19 +563,19 @@ describe('resolveCapabilityRoute', () => {
     }
     const unset = routed({ connections: [], routes: { schemaSuggestion: null, interaction: null } })
     await expect(resolveCapabilityRoute('schema-suggestion', {}, {
-      config: unset, deployment, credentialStore: presentCredentialStore, modelFactories: { vllm: createModel },
+      readConfig: async () => unset, deployment, credentialStore: presentCredentialStore, modelFactories: { vllm: createModel },
     })).resolves.toMatchObject({ profile: 'general', attribution: { provider: 'vllm', modelId: 'Qwen/Qwen3.8-27B-FP8' } })
     // The deployment's own server takes no FREE-managed credential, even when the keyring holds one.
     expect(createModel).toHaveBeenCalledWith(deployment.connections[0], 'Qwen/Qwen3.8-27B-FP8', null)
 
     await expect(resolveCapabilityRoute('schema-suggestion', {}, {
-      config: unset, deployment: { connections: [], defaultRoute: null },
+      readConfig: async () => unset, deployment: { connections: [], defaultRoute: null },
     })).rejects.toMatchObject({ status: 409, code: 'invalid_model_config', message: 'The Schema Suggestion Route is not configured.' })
   })
 
   it('refuses a saved route naming a deployment connection this deployment no longer serves', async () => {
     await expect(resolveCapabilityRoute('chat', {}, {
-      config: routed({ routes: { schemaSuggestion: null, interaction: { connectionId: DEPLOYMENT_CONNECTION_IDS.instruct, modelId: 'm' } } }),
+      readConfig: async () => routed({ routes: { schemaSuggestion: null, interaction: { connectionId: DEPLOYMENT_CONNECTION_IDS.instruct, modelId: 'm' } } }),
       deployment: { connections: [], defaultRoute: null },
     })).rejects.toMatchObject({ status: 409, code: 'invalid_model_config' })
   })
@@ -606,7 +606,7 @@ describe('resolveCapabilityRoute', () => {
     const extractionFactory = vi.fn(() => ({}) as never)
     const interactionFactory = vi.fn(() => ({}) as never)
     await resolveCapabilityRoute(operation, {}, {
-      config: {
+      readConfig: async () => ({
         connections: [
           { ...connection, provider: 'ollama', baseUrl: 'http://ollama.example' },
           { ...connection, id: interactionId, provider: 'openai', baseUrl: 'https://api.openai.com/v1' },
@@ -616,7 +616,7 @@ describe('resolveCapabilityRoute', () => {
           interaction: { connectionId: interactionId, modelId: 'interaction-model' },
         },
         extractionModels: {},
-      },
+      }),
       credentialStore: presentCredentialStore,
       modelFactories: { ollama: extractionFactory, openai: interactionFactory },
     })
@@ -632,17 +632,36 @@ describe('resolveCapabilityRoute', () => {
     const cli = { ...connection, provider: 'codex-cli' as const, baseUrl: null }
     await expect(
       resolveCapabilityRoute('schema-suggestion', { temperature: 0.3 }, {
-        config: routed({ connections: [cli] }),
+        readConfig: async () => routed({ connections: [cli] }),
         modelFactories: { 'codex-cli': createModel },
       }),
     ).rejects.toMatchObject({ status: 400, code: 'unsupported_temperature' })
     expect(createModel).not.toHaveBeenCalled()
   })
 
+  it("resolving a route that names another account's connection is 409", async () => {
+    const createModel = vi.fn(() => ({}) as never)
+    // A's connection exists only in A's configuration; B's route names its ID.
+    const other: ModelConfig = routed({
+      connections: [{ ...connection, id: '22222222-2222-4222-8222-222222222222', name: 'B gateway' }],
+    })
+    await expect(resolveCapabilityRoute('chat', {}, {
+      readConfig: async () => other,
+      deployment: { connections: [], defaultRoute: null },
+      credentialStore: presentCredentialStore,
+      modelFactories: { 'openai-compatible': createModel },
+    })).rejects.toMatchObject({
+      status: 409,
+      code: 'invalid_model_config',
+      message: 'The Interaction Route names a Model Connection that does not exist.',
+    })
+    expect(createModel).not.toHaveBeenCalled()
+  })
+
   it('fails closed instead of consulting another route', async () => {
     await expect(
       resolveCapabilityRoute('chat', {}, {
-        config: routed({ routes: { schemaSuggestion: { connectionId: ID, modelId: 'model' }, interaction: null } }),
+        readConfig: async () => routed({ routes: { schemaSuggestion: { connectionId: ID, modelId: 'model' }, interaction: null } }),
         deployment: { connections: [], defaultRoute: null },
       }),
     ).rejects.toMatchObject({ status: 409, code: 'invalid_model_config' })

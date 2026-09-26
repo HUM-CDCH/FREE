@@ -27,7 +27,7 @@ import {
   type ScalarFieldType,
 } from 'extraction/allowed-values'
 import { parseUnknownJson } from './_model_output.js'
-import { generateSchemaEditJson } from './_model.js'
+import { generateSchemaEditJson, type ModelCaller } from './_model.js'
 import type { ExecutionTarget } from './_provider.js'
 import { ApiError, persistenceUnavailable } from './_http.js'
 
@@ -45,6 +45,8 @@ type Generate = (
 ) => Promise<string>
 
 type SchemaEditOptions = {
+  /** Whose configuration the default model call resolves. */
+  caller: ModelCaller
   temperature?: number
   target?: ExecutionTarget
   generate?: Generate
@@ -183,7 +185,7 @@ export async function proposeSchemaEdit(
   nodes: readonly SchemaNode[],
   instruction: string,
   documentMarkdown: string | null,
-  options: SchemaEditOptions = {},
+  options: SchemaEditOptions,
 ): Promise<SchemaEditResponse> {
   const fields = enumerateFieldPaths(nodes)
   const duplicates = duplicateFieldKeys(fields)
@@ -193,7 +195,7 @@ export async function proposeSchemaEdit(
 
   const expected = new Map(fields.map((field) => [field.id, field]))
   const generate = options.generate ?? (async (prompt, temperature, target) =>
-    (await generateSchemaEditJson(prompt, temperature, target)).text)
+    (await generateSchemaEditJson(options.caller, prompt, temperature, target)).text)
 
   try {
     const initial = await readEnvelope(await generate(

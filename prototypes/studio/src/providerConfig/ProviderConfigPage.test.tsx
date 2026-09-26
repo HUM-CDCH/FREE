@@ -614,7 +614,7 @@ describe('ProviderConfigPage', () => {
     mockFetch(() =>
       jsonResponse(
         { error: { code: 'invalid_model_config', message: 'Saved model configuration is invalid.' } },
-        409,
+        500,
       ),
     )
 
@@ -624,35 +624,5 @@ describe('ProviderConfigPage', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'invalid_model_config: Saved model configuration is invalid.',
     )
-  })
-
-  it('replaces an unreadable configuration only after a confirmed reset', async () => {
-    let saved: 'unreadable' | 'reset' = 'unreadable'
-    const request = mockFetch((url, init) => {
-      if (url === '/api/model_config' && init.method === 'DELETE') {
-        saved = 'reset'
-        return configResponse(emptyConfig, {}, deployment)
-      }
-      return saved === 'unreadable'
-        ? jsonResponse({ error: { code: 'invalid_model_config', message: 'Saved model configuration is invalid.' } }, 409)
-        : configResponse(emptyConfig, {}, deployment)
-    })
-
-    render(<ProviderConfigPage onClose={() => {}} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Reset model configuration' }))
-    expect(request.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false)
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm reset' }))
-
-    expect(await screen.findByText('Model Configuration')).toBeInTheDocument()
-    expect(screen.getByText('Deployment connections')).toBeInTheDocument()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(request.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(1)
-  })
-
-  it('offers no reset when the configuration failed to load for another reason', async () => {
-    mockFetch(() => jsonResponse({ error: { code: 'storage_failure', message: 'Unreadable.' } }, 500))
-    render(<ProviderConfigPage onClose={() => {}} />)
-    expect(await screen.findByText('Model configuration could not be loaded.')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Reset model configuration' })).not.toBeInTheDocument()
   })
 })

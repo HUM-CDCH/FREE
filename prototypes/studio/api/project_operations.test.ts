@@ -8,6 +8,7 @@ const SOURCE = '51000000-0000-4000-8000-000000000004'
 const REPRESENTATION = '51000000-0000-4000-8000-000000000005'
 const RETRIED_SOURCE = '51000000-0000-4000-8000-000000000006'
 const RETRIED_REPRESENTATION = '51000000-0000-4000-8000-000000000007'
+const OWNER = '51000000-0000-4000-8009-000000000001'
 const lease = {
   owner: 'worker',
   version: 1,
@@ -70,6 +71,7 @@ describe('Project Operations dispatcher', () => {
         startBatchSchemaSuggestionMerge: vi.fn(async () => true),
         completeBatchSchemaSuggestionMerge: completedMerge,
         failBatchSchemaSuggestion: vi.fn(async () => true),
+        projectContextOwner: vi.fn(async () => OWNER),
       } as never,
       {
         readMarkdown: vi.fn(async () => ({
@@ -149,6 +151,7 @@ describe('Project Operations dispatcher', () => {
         startBatchSchemaSuggestionMerge: vi.fn(async () => true),
         completeBatchSchemaSuggestionMerge: completeMerge,
         failBatchSchemaSuggestion: vi.fn(async () => true),
+        projectContextOwner: vi.fn(async () => OWNER),
       } as never,
       {
         readMarkdown,
@@ -174,4 +177,73 @@ describe('Project Operations dispatcher', () => {
     expect(completeSource.mock.calls[0]?.[1]).toBe(RETRIED_SOURCE)
   })
 
+  it("the pump resolves the Project Context owner's configuration", async () => {
+    const completeMerge = vi.fn(async () => true)
+    const projectContextOwner = vi.fn(async () => 'owner-account')
+    const generate = vi.fn(async () => ({
+      template: { _description: 'One record.', title: 'string' },
+      raw: '',
+      pages: null,
+    }))
+    let claimed = false
+    const operations = createProjectOperations(
+      {
+        claimBatchSchemaSuggestion: vi.fn(async () => {
+          if (claimed) return null
+          claimed = true
+          return suggestion()
+        }),
+        renewBatchSchemaSuggestionLease: vi.fn(async () => true),
+        startBatchSchemaSuggestionSource: vi.fn(async () => true),
+        completeBatchSchemaSuggestionSource: vi.fn(async () => true),
+        startBatchSchemaSuggestionMerge: vi.fn(async () => true),
+        completeBatchSchemaSuggestionMerge: completeMerge,
+        failBatchSchemaSuggestion: vi.fn(async () => true),
+        projectContextOwner,
+      } as never,
+      {
+        readMarkdown: vi.fn(async () => ({
+          bytes: new TextEncoder().encode('# Source'),
+          mediaType: 'text/markdown',
+        })),
+        generate,
+      },
+    )
+
+    operations.kick()
+    await vi.waitFor(() => expect(completeMerge).toHaveBeenCalledOnce())
+    expect(projectContextOwner).toHaveBeenCalledWith(PROJECT)
+    // Both the source suggestion and the merge run on the owner's configuration.
+    expect(generate).toHaveBeenCalledTimes(2)
+    for (const call of generate.mock.calls as unknown[][])
+      expect(call[0]).toEqual({ researcherAccountId: 'owner-account' })
+  })
+
+  it('a suggestion whose project is gone is not run', async () => {
+    const generate = vi.fn()
+    const failed = vi.fn(async () => true)
+    const startSource = vi.fn(async () => true)
+    let claims = 0
+    const claim = vi.fn(async () => (claims++ === 0 ? suggestion() : null))
+    const operations = createProjectOperations(
+      {
+        claimBatchSchemaSuggestion: claim,
+        renewBatchSchemaSuggestionLease: vi.fn(async () => true),
+        startBatchSchemaSuggestionSource: startSource,
+        completeBatchSchemaSuggestionSource: vi.fn(async () => true),
+        startBatchSchemaSuggestionMerge: vi.fn(async () => true),
+        completeBatchSchemaSuggestionMerge: vi.fn(async () => true),
+        failBatchSchemaSuggestion: failed,
+        projectContextOwner: vi.fn(async () => null),
+      } as never,
+      { readMarkdown: vi.fn(), generate },
+    )
+
+    operations.kick()
+    // The pump asks for more work only once it has finished with the claimed suggestion.
+    await vi.waitFor(() => expect(claim).toHaveBeenCalledTimes(2))
+    expect(generate).not.toHaveBeenCalled()
+    expect(startSource).not.toHaveBeenCalled()
+    expect(failed).not.toHaveBeenCalled()
+  })
 })

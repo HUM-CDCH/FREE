@@ -21,6 +21,12 @@ vi.mock('./_extraction_runtime.js', async (importOriginal) => {
   }
 })
 
+const modelConfig = vi.hoisted(() => ({ configuredExtractionModels: vi.fn() }))
+vi.mock('./_model_config.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./_model_config.js')>()),
+  configuredExtractionModels: modelConfig.configuredExtractionModels,
+}))
+
 const ACCOUNT = '51000000-0000-4000-8009-000000000001'
 const EXTRACTION = '51000000-0000-4000-8006-000000000001'
 const DOCUMENT = '51000000-0000-4000-8001-000000000001'
@@ -225,6 +231,20 @@ describe('/api/extractions transport', () => {
       extraction: attemptSnapshot,
     })
     expect((await handle(request(fresh))).status).toBe(200)
+  })
+
+  it("reads the account's configured Extraction Model Choice by default", async () => {
+    const module = extractionModule()
+    runtime.createResearcherExtractions.mockReturnValue(module)
+    modelConfig.configuredExtractionModels.mockResolvedValueOnce({ fields: 'nuextract' })
+    const post = createResearcherApiHandlers({ researcherAccountId: ACCOUNT } as ResearcherProjectStore).POST
+
+    expect((await post(request(fresh))).status).toBe(201)
+    expect(modelConfig.configuredExtractionModels).toHaveBeenCalledWith(ACCOUNT)
+    expect(module.runSingle).toHaveBeenCalledWith(
+      expect.objectContaining({ models: { fields: 'nuextract' } }),
+      expect.any(AbortSignal),
+    )
   })
 
   it('passes the Catalog recipe chosen for an Extraction to runSingle', async () => {

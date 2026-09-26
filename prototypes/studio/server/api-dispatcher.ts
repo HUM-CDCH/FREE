@@ -42,8 +42,6 @@ const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
 
 const STATIC_API: Readonly<Record<string, true>> = {
   healthz: true,
-  model_config: true,
-  model_probe: true,
 }
 
 export type ApiHandler = (request: Request) => Response | Promise<Response>

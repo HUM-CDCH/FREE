@@ -94,6 +94,21 @@ test('PostgreSQL keeps one Model Configuration per Researcher Account and serial
     assert.equal(await store.read(account.id), null)
   })
 
+  await t.test('a next that returns no document commits nothing', async () => {
+    const account = await createAccount('No document')
+    await store.apply(account.id, () => ({ models: ['kept'] }))
+    for (const empty of [null, undefined])
+      await assert.rejects(store.apply(account.id, () => empty), /must store a document/)
+    assert.deepEqual(await store.read(account.id), { models: ['kept'] })
+
+    const fresh = await createAccount('No first document')
+    await assert.rejects(store.apply(fresh.id, () => null), /must store a document/)
+    assert.equal(
+      await db.orm.public.ModelConfiguration.select('researcherAccountId').first({ researcherAccountId: fresh.id }),
+      null,
+    )
+  })
+
   async function assertConcurrentAppliesSerialize(researcherAccountId: string) {
     const entered = Promise.withResolvers<void>()
     const release = Promise.withResolvers<void>()

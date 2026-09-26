@@ -177,6 +177,17 @@ describe('eager API dispatcher', () => {
     ).toThrow(/Static API module healthz/)
   })
 
+  it('model_config and model_probe are researcher-scoped', () => {
+    expect(() =>
+      registryWith({ model_config: { GET: () => new Response(), PUT: () => new Response() } }),
+    ).toThrow(/Researcher-scoped API module model_config must not export module-level handlers/)
+    expect(() =>
+      registryWith({ model_probe: { POST: () => new Response() } }),
+    ).toThrow(/Researcher-scoped API module model_probe must not export module-level handlers/)
+    expect(apiHandlerName('/api/model_config')).toBe('model_config')
+    expect(apiHandlerName('/api/model_probe')).toBe('model_probe')
+  })
+
   it('uses the eager production registry without filesystem discovery', async () => {
     const response = await dispatchApiRequest(
       new Request('https://studio.example/api/healthz'),

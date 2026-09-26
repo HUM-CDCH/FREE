@@ -1,7 +1,4 @@
-import { randomUUID } from 'node:crypto'
-import { mkdir, open, readFile, rename, unlink } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
-import envPaths from 'env-paths'
+import { createModelConfigurationStore, type ModelConfigurationStore } from 'db'
 import { z } from 'zod'
 import {
   apiBaseIssue,
@@ -31,37 +28,9 @@ function emptyModelConfig(): ModelConfig {
 export const EMPTY_MODEL_CONFIG: ModelConfig = emptyModelConfig()
 
 
-export type ConfigFileHandle = {
-  writeFile(contents: string, options: { encoding: 'utf8' }): Promise<void>
-  sync(): Promise<void>
-  close(): Promise<void>
-}
-
-export type ConfigFileSystem = {
-  readFile(path: string): Promise<Uint8Array>
-  mkdir(path: string, options: { recursive: true }): Promise<string | undefined | void>
-  open(path: string, flags: 'wx', mode: number): Promise<ConfigFileHandle>
-  rename(from: string, to: string): Promise<void>
-  unlink(path: string): Promise<void>
-}
-
-export const nodeFileSystem: ConfigFileSystem = {
-  readFile: (path) => readFile(path),
-  mkdir,
-  open,
-  rename,
-  unlink,
-}
-
-export type ConfigStorageOptions = { configRoot?: string; fileSystem?: ConfigFileSystem }
-
-export function modelConfigPath(configRoot: string = envPaths('FREE Studio').config): string {
-  return join(configRoot, 'model-config.json')
-}
-
-function invalidModelConfig(path: string, issues: readonly ValidationIssue[], cause?: unknown): ApiError {
-  return new ApiError(409, 'invalid_model_config', 'The saved model configuration is invalid.', {
-    details: boundedValidationDetails(path, issues),
+function invalidModelConfig(issues: readonly ValidationIssue[], cause?: unknown): ApiError {
+  return new ApiError(409, 'invalid_model_config', 'The model configuration is invalid.', {
+    details: boundedValidationDetails('config', issues),
     cause,
   })
 }
@@ -147,12 +116,13 @@ function zodIssues(error: z.ZodError): ValidationIssue[] {
   }))
 }
 
-export function validateModelConfig(value: unknown, path: string): ModelConfig {
+/** The contract every stored document obeys: its shape plus the rules across connections and routes. */
+export function validateModelConfig(value: unknown): ModelConfig {
   const parsed = modelConfigSchema.safeParse(value)
-  if (!parsed.success) throw invalidModelConfig(path, zodIssues(parsed.error), parsed.error)
+  if (!parsed.success) throw invalidModelConfig(zodIssues(parsed.error), parsed.error)
 
   const issues = semanticIssues(parsed.data)
-  if (issues.length > 0) throw invalidModelConfig(path, issues)
+  if (issues.length > 0) throw invalidModelConfig(issues)
   return parsed.data
 }
 
@@ -208,85 +178,29 @@ export function parseModelProbeRequest(value: unknown): ModelProbeRequest {
   return parsed.data
 }
 
-function isMissingFile(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
+let processConfigurations: ModelConfigurationStore | undefined
+/** The process's configuration store. Each Researcher Account owns one document (decision 6). */
+export function modelConfigurations(): ModelConfigurationStore {
+  return (processConfigurations ??= createModelConfigurationStore())
 }
 
-/** An absent file is the valid empty configuration. Anything else fails closed. */
-export async function readModelConfig(options: ConfigStorageOptions = {}): Promise<ModelConfig> {
-  const fileSystem = options.fileSystem ?? nodeFileSystem
-  const path = modelConfigPath(options.configRoot)
-
-  let bytes: Uint8Array
-  try {
-    bytes = await fileSystem.readFile(path)
-  } catch (error) {
-    if (isMissingFile(error)) return emptyModelConfig()
-    throw new ApiError(500, 'storage_failure', 'The model configuration could not be read.', {
-      cause: error,
-    })
-  }
-
-  let contents: string
-  try {
-    contents = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-  } catch (error) {
-    throw invalidModelConfig(path, [{ path: '', message: 'Document must contain valid UTF-8.' }], error)
-  }
-
-  let document: unknown
-  try {
-    document = JSON.parse(contents)
-  } catch (error) {
-    throw invalidModelConfig(path, [{ path: '', message: 'Document must contain valid JSON.' }], error)
-  }
-  return validateModelConfig(document, path)
-}
-
-/**
- * Removes the saved document so the next read is the empty configuration. The
- * one way back from a document this Studio cannot read; credentials it named
- * stay in the keyring under UUIDs no new connection reuses.
- */
-export async function resetModelConfig(options: ConfigStorageOptions = {}): Promise<void> {
-  const fileSystem = options.fileSystem ?? nodeFileSystem
-  try {
-    await fileSystem.unlink(modelConfigPath(options.configRoot))
-  } catch (error) {
-    if (isMissingFile(error)) return
-    throw new ApiError(500, 'storage_failure', 'The model configuration could not be reset.', { cause: error })
-  }
-}
-
-/** Flushed sibling temporary then rename, so the document is never half-written. */
-export async function writeModelConfig(
-  config: unknown,
-  options: ConfigStorageOptions = {},
+/** The account's configuration, or the empty one before its first Apply. Validation on write keeps the stored
+ *  document valid, so one that fails here is a server fault: 500, with no details. */
+export async function readAccountModelConfig(
+  researcherAccountId: string,
+  source: ModelConfigurationStore = modelConfigurations(),
 ): Promise<ModelConfig> {
-  const fileSystem = options.fileSystem ?? nodeFileSystem
-  const path = modelConfigPath(options.configRoot)
-  const validated = validateModelConfig(config, path)
-  const directory = dirname(path)
-  const temporaryPath = join(directory, `.${basename(path)}.${randomUUID()}.tmp`)
-  let handle: ConfigFileHandle | undefined
+  const stored = await source.read(researcherAccountId)
+  if (stored === null) return emptyModelConfig()
+  return storedModelConfig(stored)
+}
 
+function storedModelConfig(stored: unknown): ModelConfig {
   try {
-    await fileSystem.mkdir(directory, { recursive: true })
-    handle = await fileSystem.open(temporaryPath, 'wx', 0o600)
-    await handle.writeFile(`${JSON.stringify(validated, null, 2)}\n`, { encoding: 'utf8' })
-    await handle.sync()
-    await handle.close()
-    handle = undefined
-    await fileSystem.rename(temporaryPath, path)
-  } catch (error) {
-    // The original failure stays authoritative; cleanup is best effort.
-    await handle?.close().catch(() => undefined)
-    await fileSystem.unlink(temporaryPath).catch(() => undefined)
-    throw new ApiError(500, 'storage_failure', 'The model configuration could not be saved.', {
-      cause: error,
-    })
+    return validateModelConfig(stored)
+  } catch {
+    throw new ApiError(500, 'invalid_model_config', 'The saved model configuration is invalid.')
   }
-  return validated
 }
 
 /**
@@ -313,7 +227,11 @@ export async function credentialStates(
   return states
 }
 
-export type ModelConfigUpdateOptions = ConfigStorageOptions & { credentialStore: CredentialStore }
+export type ModelConfigUpdateOptions = {
+  researcherAccountId: string
+  store?: ModelConfigurationStore
+  credentialStore: CredentialStore
+}
 
 async function requireKeyring<T>(operation: () => Promise<T>): Promise<T> {
   try {
@@ -419,51 +337,48 @@ async function clearImplicitOptionalCredentials(
 }
 
 /**
- * Credentials move before the JSON commit so a committed route can never name a
- * credential that was never stored. The two stores cannot commit together: a
- * failure between them leaves the new credential beside the old configuration,
- * which the next successful Apply overwrites. No rollback, no action journal.
+ * The account's configuration row stays locked from reading the previous document to committing the new one, so
+ * one account's Applies run one at a time. Credentials move inside that transaction, before the commit, so a
+ * committed route can never name a credential that was never stored. The keyring and PostgreSQL cannot commit
+ * together: a failed commit leaves the new credential beside the old configuration, which the next successful Apply
+ * overwrites. No rollback, no action journal.
  */
-export async function updateModelConfig(
+export async function updateAccountModelConfig(
   value: unknown,
-  options: ModelConfigUpdateOptions,
+  { researcherAccountId, store, credentialStore }: ModelConfigUpdateOptions,
 ): Promise<{ config: ModelConfig; credentialStates: Record<string, CredentialState> }> {
   const { config, credentials } = parseModelConfigUpdate(value)
-  const store = options.credentialStore
-  const previous = await readModelConfig(options)
+  let previous = emptyModelConfig()
 
-  const issues = updateIssues(previous, config, credentials)
-  if (issues.length > 0) throw invalidSubmitted(issues)
-  await requireManagedCredentials(config, credentials, store)
-  await clearImplicitOptionalCredentials(
-    previous,
-    config,
-    credentials,
-    store,
-  )
+  await (store ?? modelConfigurations()).apply(researcherAccountId, async (stored) => {
+    previous = stored === null ? emptyModelConfig() : storedModelConfig(stored)
+    const issues = updateIssues(previous, config, credentials)
+    if (issues.length > 0) throw invalidSubmitted(issues)
+    await requireManagedCredentials(config, credentials, credentialStore)
+    await clearImplicitOptionalCredentials(previous, config, credentials, credentialStore)
+    for (const [id, action] of Object.entries(credentials)) {
+      await requireKeyring(() => (action === null ? credentialStore.delete(id) : credentialStore.set(id, action)))
+    }
+    return config
+  })
 
-  for (const [id, action] of Object.entries(credentials)) {
-    await requireKeyring(() => (action === null ? store.delete(id) : store.set(id, action)))
-  }
-
-  const committed = await writeModelConfig(config, options)
-
-  // Past the commit the JSON is authoritative. Reusing a removed UUID cannot
+  // Past the commit the document is authoritative. Reusing a removed UUID cannot
   // reactivate a leftover credential: managed/new endpoints require an explicit
   // credential, while optional/new endpoints delete any leftover before commit.
   const submitted = new Set(config.connections.map(({ id }) => id))
   for (const { id, provider } of previous.connections) {
     if (submitted.has(id) || providerTable[provider].authentication === 'external') continue
-    await store.delete(id).catch(() => undefined)
+    await credentialStore.delete(id).catch(() => undefined)
   }
 
-  return { config: committed, credentialStates: await credentialStates(committed, store) }
+  return { config, credentialStates: await credentialStates(config, credentialStore) }
 }
 
 /** The configured Extraction Model Choice, or `null` when every role keeps kei-exp's default. */
 export async function configuredExtractionModels(
-  options: ConfigStorageOptions = {},
+  researcherAccountId: string,
+  source: ModelConfigurationStore = modelConfigurations(),
 ): Promise<ExtractionModelChoice | null> {
-  const { extractionModels } = await readModelConfig(options)
+  const { extractionModels } = await readAccountModelConfig(researcherAccountId, source)
   return extractionModels.fields || extractionModels.reasoning ? extractionModels : null
 }

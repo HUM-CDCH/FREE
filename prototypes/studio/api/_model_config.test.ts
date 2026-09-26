@@ -1,33 +1,23 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEPLOYMENT_CONNECTION_IDS, type ModelConfig } from '../shared/modelConfig.contract.js'
 import { ApiError } from './_http.js'
 import { createCredentialStore, type CredentialStore } from './_keyring.js'
 import {
   EMPTY_MODEL_CONFIG,
-  modelConfigPath,
-  nodeFileSystem,
-  readModelConfig,
+  configuredExtractionModels,
+  readAccountModelConfig,
   validateModelConfig,
-  writeModelConfig,
 } from './_model_config.js'
 import { PROVIDERS, appendProviderResource } from './_provider.js'
-import { createDeleteModelConfig, createGetModelConfig, createPutModelConfig } from './model_config.js'
+import { createResearcherApiHandlers, type ModelConfigDependencies } from './model_config.js'
+import { inMemoryModelConfigurations } from './model_configuration.fixture.js'
 
+const ACCOUNT = '00000000-0000-4000-8000-0000000000a1'
+const OTHER_ACCOUNT = '00000000-0000-4000-8000-0000000000a2'
 const VLLM_ID = '00000000-0000-4000-8000-000000000001'
 const OPENAI_ID = '00000000-0000-4000-8000-000000000002'
 const OTHER_ID = '00000000-0000-4000-8000-000000000003'
-const AT = '/config/model-config.json'
 const NO_DEPLOYMENT = { connections: [], defaultRoute: null }
-const roots: string[] = []
-
-async function temporaryRoot(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), 'free-model-config-test-'))
-  roots.push(root)
-  return root
-}
 
 function configured(overrides: Partial<ModelConfig> = {}): ModelConfig {
   return {
@@ -95,88 +85,81 @@ function putRequest(body: unknown, contentType = 'application/json'): Request {
   })
 }
 
-afterEach(async () => {
+/** The account's GET and PUT handlers, always over an isolated store, never the process one. */
+function handlers(dependencies: ModelConfigDependencies & Required<Pick<ModelConfigDependencies, 'configurations'>>) {
+  return createResearcherApiHandlers({ researcherAccountId: ACCOUNT }, dependencies)
+}
+
+afterEach(() => {
   vi.unstubAllEnvs()
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
 
 describe('model configuration storage', () => {
-  it('reads an absent file as a fresh empty configuration it does not create', async () => {
-    const root = await temporaryRoot()
+  it('an account that never applied reads the empty configuration', async () => {
+    const store = inMemoryModelConfigurations({ [OTHER_ACCOUNT]: configured() })
 
-    const first = await readModelConfig({ configRoot: root })
+    const first = await readAccountModelConfig(ACCOUNT, store)
     expect(first).toEqual(EMPTY_MODEL_CONFIG)
     first.connections.push(configured().connections[0])
 
-    await expect(readModelConfig({ configRoot: root })).resolves.toEqual(EMPTY_MODEL_CONFIG)
-    await expect(readFile(modelConfigPath(root))).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(readAccountModelConfig(ACCOUNT, store)).resolves.toEqual(EMPTY_MODEL_CONFIG)
+    expect(store.documents.has(ACCOUNT)).toBe(false)
   })
 
-  it('round-trips a saved document without transforming a supplied version prefix', async () => {
-    const root = await temporaryRoot()
-    const config = configured()
-    config.connections[1].baseUrl = 'https://gateway.example/proxy/openai/v1/'
-
-    await writeModelConfig(config, { configRoot: root })
-
-    await expect(readModelConfig({ configRoot: root })).resolves.toEqual(config)
-    if (process.platform !== 'win32')
-      expect((await stat(modelConfigPath(root))).mode & 0o777).toBe(0o600)
-    expect(appendProviderResource(config.connections[1].baseUrl, 'models')).toBe(
-      'https://gateway.example/proxy/openai/v1/models',
-    )
-  })
-
-  it.each([
-    ['malformed JSON', '{ definitely not JSON', 'Document must contain valid JSON.'],
-    ['malformed UTF-8', Buffer.from([0x7b, 0x22, 0xff, 0x22, 0x7d]), 'Document must contain valid UTF-8.'],
-  ])('fails closed on %s and leaves the bytes untouched', async (_label, corrupt, message) => {
-    const root = await temporaryRoot()
-    const path = modelConfigPath(root)
-    const bytes = Buffer.from(corrupt as string | Buffer)
-    await writeFile(path, bytes)
-
-    await expect(readModelConfig({ configRoot: root })).rejects.toMatchObject({
-      status: 409,
-      code: 'invalid_model_config',
-      details: { path, issues: [{ path: '', message }], truncated: false },
-    })
-    await expect(readFile(path)).resolves.toEqual(bytes)
-  })
-
-  it('reports an unreadable file as a storage failure rather than invalid configuration', async () => {
-    const fileSystem = {
-      ...nodeFileSystem,
-      readFile: () => Promise.reject(Object.assign(new Error('denied'), { code: 'EACCES' })),
+  it('a stored document that fails validation is a 500 that echoes nothing', async () => {
+    const hostile = {
+      connections: [{ id: 'sk-test-stored-garbage', name: 'Connection', provider: 'openai', baseUrl: 'https://api.openai.com/v1' }],
+      routes: { extraction: null, interaction: null },
     }
+    const store = inMemoryModelConfigurations({ [ACCOUNT]: hostile })
 
-    await expect(readModelConfig({ configRoot: '/config', fileSystem })).rejects.toMatchObject({
+    await expect(readAccountModelConfig(ACCOUNT, store)).rejects.toMatchObject({
       status: 500,
-      code: 'storage_failure',
+      code: 'invalid_model_config',
+      details: undefined,
+      cause: undefined,
     })
+    const response = await handlers({ configurations: store, credentialStore: fakeCredentialStore().store }).GET()
+    expect(response.status).toBe(500)
+    const text = await response.text()
+    expect(JSON.parse(text)).toEqual({
+      error: { code: 'invalid_model_config', message: 'The saved model configuration is invalid.' },
+    })
+    expect(text).not.toContain('sk-test-stored-garbage')
+    expect(store.documents.get(ACCOUNT)).toEqual(hostile)
+  })
+
+  it("configuredExtractionModels reads the given account's choice", async () => {
+    const store = inMemoryModelConfigurations({
+      [ACCOUNT]: configured({ extractionModels: { fields: 'nuextract', reasoning: 'instruct' } }),
+      [OTHER_ACCOUNT]: configured({ extractionModels: {} }),
+    })
+
+    await expect(configuredExtractionModels(ACCOUNT, store)).resolves.toEqual({ fields: 'nuextract', reasoning: 'instruct' })
+    await expect(configuredExtractionModels(OTHER_ACCOUNT, store)).resolves.toBeNull()
   })
 
   it('rejects duplicate IDs, dangling routes, and the NuExtract protocol off vLLM', () => {
     const duplicate = configured()
     duplicate.connections[1] = { ...duplicate.connections[1], id: VLLM_ID }
-    expectInvalid(() => validateModelConfig(duplicate, AT), 'connections.1.id')
+    expectInvalid(() => validateModelConfig(duplicate), 'connections.1.id')
 
     for (const route of ['schemaSuggestion', 'interaction'] as const) {
       const dangling = configured()
       dangling.routes[route] = { connectionId: OTHER_ID, modelId: 'missing' }
-      expectInvalid(() => validateModelConfig(dangling, AT), `routes.${route}.connectionId`)
+      expectInvalid(() => validateModelConfig(dangling), `routes.${route}.connectionId`)
     }
 
     const wrongProvider = configured()
     wrongProvider.routes.schemaSuggestion = { connectionId: OPENAI_ID, modelId: 'gpt', protocol: 'nuextract' }
-    expectInvalid(() => validateModelConfig(wrongProvider, AT), 'routes.schemaSuggestion.protocol')
+    expectInvalid(() => validateModelConfig(wrongProvider), 'routes.schemaSuggestion.protocol')
   })
 
   it('bounds extraction model keys as the extraction contract does', () => {
     const long = configured({ extractionModels: { fields: 'k'.repeat(129) } })
-    expectInvalid(() => validateModelConfig(long, AT), 'extractionModels.fields')
+    expectInvalid(() => validateModelConfig(long), 'extractionModels.fields')
     for (const extractionModels of [{ fields: '' }, { planner: 'instruct' }])
-      expect(() => validateModelConfig(configured({ extractionModels } as never), AT)).toThrow(ApiError)
+      expect(() => validateModelConfig(configured({ extractionModels } as never))).toThrow(ApiError)
   })
 
   it('lets routes name a deployment connection but reserves its ID', () => {
@@ -186,12 +169,12 @@ describe('model configuration storage', () => {
         interaction: { connectionId: DEPLOYMENT_CONNECTION_IDS.instruct, modelId: 'q' },
       },
     })
-    expect(validateModelConfig(routed, AT)).toEqual(routed)
+    expect(validateModelConfig(routed)).toEqual(routed)
 
     const squatting = configured()
     squatting.connections[1] = { ...squatting.connections[1], id: DEPLOYMENT_CONNECTION_IDS.instruct }
     squatting.routes.interaction = null
-    expectInvalid(() => validateModelConfig(squatting, AT), 'connections.1.id')
+    expectInvalid(() => validateModelConfig(squatting), 'connections.1.id')
   })
 
   it('enforces null CLI bases and at most one connection per CLI kind', () => {
@@ -203,13 +186,13 @@ describe('model configuration storage', () => {
         ],
         routes: { schemaSuggestion: null, interaction: null },
       })
-      expectInvalid(() => validateModelConfig(twice, AT), 'connections.1.provider')
+      expectInvalid(() => validateModelConfig(twice), 'connections.1.provider')
 
       const withBase = configured({
         connections: [{ id: VLLM_ID, name: 'CLI', provider, baseUrl: 'https://example.test' }],
         routes: { schemaSuggestion: null, interaction: null },
       })
-      expectInvalid(() => validateModelConfig(withBase, AT), 'connections.0.baseUrl')
+      expectInvalid(() => validateModelConfig(withBase), 'connections.0.baseUrl')
     }
   })
 
@@ -226,98 +209,31 @@ describe('model configuration storage', () => {
   ])('rejects an API base with %s', (_label, baseUrl) => {
     const config = configured()
     config.connections[0] = { ...config.connections[0], baseUrl }
-    expectInvalid(() => validateModelConfig(config, AT), 'connections.0.baseUrl')
+    expectInvalid(() => validateModelConfig(config), 'connections.0.baseUrl')
   })
 
   it('rejects unknown fields, non-canonical UUIDs, and empty model IDs', () => {
     // A strict object reports unrecognized keys against the object, not the key.
-    expectInvalid(() => validateModelConfig({ ...configured(), version: 1 }, AT), '')
+    expectInvalid(() => validateModelConfig({ ...configured(), version: 1 }), '')
     expectInvalid(
-      () => validateModelConfig({ ...configured(), connections: [{ ...configured().connections[0], id: 'nope' }] }, AT),
+      () => validateModelConfig({ ...configured(), connections: [{ ...configured().connections[0], id: 'nope' }] }),
       'connections.0.id',
     )
 
     const empty = configured()
     empty.routes.interaction = { connectionId: OPENAI_ID, modelId: '' }
-    expectInvalid(() => validateModelConfig(empty, AT), 'routes.interaction.modelId')
-  })
-
-  it('leaves the prior document in place when atomic replacement fails', async () => {
-    const root = await temporaryRoot()
-    const path = modelConfigPath(root)
-    const original = '{"original":true}\n'
-    await writeFile(path, original)
-    let temporaryPath = ''
-    const order: string[] = []
-
-    const fileSystem = {
-      ...nodeFileSystem,
-      async open(target: string, flags: 'wx', mode: number) {
-        expect([flags, mode]).toEqual(['wx', 0o600])
-        temporaryPath = target
-        const handle = await nodeFileSystem.open(target, flags, mode)
-        return {
-          writeFile: (...args: Parameters<typeof handle.writeFile>) => {
-            order.push('write')
-            return handle.writeFile(...args)
-          },
-          sync: () => (order.push('sync'), handle.sync()),
-          close: () => (order.push('close'), handle.close()),
-        }
-      },
-      rename: () => Promise.reject(new Error('injected replacement failure')),
-    }
-
-    await expect(writeModelConfig(configured(), { configRoot: root, fileSystem })).rejects.toMatchObject({
-      status: 500,
-      code: 'storage_failure',
-    })
-    expect(order).toEqual(['write', 'sync', 'close'])
-    await expect(readFile(path, 'utf8')).resolves.toBe(original)
-    await expect(readFile(temporaryPath)).rejects.toMatchObject({ code: 'ENOENT' })
-  })
-})
-
-describe('DELETE /api/model_config', () => {
-  it('replaces a document of an earlier shape with the empty configuration, strictly and only on request', async () => {
-    const root = await temporaryRoot()
-    const earlier = {
-      connections: [],
-      routes: { extraction: null, interaction: null },
-    }
-    await writeFile(modelConfigPath(root), JSON.stringify(earlier))
-    const options = { configRoot: root, credentialStore: fakeCredentialStore().store, deployment: () => NO_DEPLOYMENT }
-    await expect(readModelConfig({ configRoot: root })).rejects.toMatchObject({ status: 409, code: 'invalid_model_config' })
-
-    const response = await createDeleteModelConfig(options)()
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({ config: EMPTY_MODEL_CONFIG, credentialStates: {} })
-    await expect(readFile(modelConfigPath(root))).rejects.toMatchObject({ code: 'ENOENT' })
-    expect((await createDeleteModelConfig(options)()).status).toBe(200)
-  })
-
-  it('reports a failed removal as a storage failure', async () => {
-    const fileSystem = {
-      ...nodeFileSystem,
-      unlink: () => Promise.reject(Object.assign(new Error('denied'), { code: 'EACCES' })),
-    }
-    const response = await createDeleteModelConfig({
-      configRoot: '/config', fileSystem, credentialStore: fakeCredentialStore().store,
-    })()
-    expect(response.status).toBe(500)
-    await expect(response.json()).resolves.toMatchObject({ error: { code: 'storage_failure' } })
+    expectInvalid(() => validateModelConfig(empty), 'routes.interaction.modelId')
   })
 })
 
 describe('GET /api/model_config', () => {
-  it('reports the deployment\'s own model servers from the environment, never from the file', async () => {
+  it('reports the deployment\'s own model servers from the environment, never from the stored document', async () => {
     vi.stubEnv('FREE_DEPLOYMENT_INSTRUCT_URL', 'http://extraction_model:8000/v1')
     vi.stubEnv('FREE_DEPLOYMENT_INSTRUCT_MODEL', 'Qwen/Qwen3.8-27B-FP8')
     vi.stubEnv('FREE_DEPLOYMENT_NUEXTRACT_URL', 'http://nuextract_model:8000/v1')
-    const root = await temporaryRoot()
+    const configurations = inMemoryModelConfigurations()
 
-    const response = await createGetModelConfig({ configRoot: root, credentialStore: fakeCredentialStore().store })()
+    const response = await handlers({ configurations, credentialStore: fakeCredentialStore().store }).GET()
 
     const body = await response.json()
     expect(body.config).toEqual(EMPTY_MODEL_CONFIG)
@@ -337,12 +253,12 @@ describe('GET /api/model_config', () => {
     vi.stubEnv('AI_MODEL', 'must-not-be-read')
     vi.stubEnv('AI_BASE_URL', 'https://ignored.example')
     vi.stubEnv('AI_API_KEY', 'must-not-be-read')
-    const root = await temporaryRoot()
+    const configurations = inMemoryModelConfigurations()
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
 
-    const response = await createGetModelConfig({
-      configRoot: root, credentialStore: fakeCredentialStore().store, deployment: () => NO_DEPLOYMENT,
-    })()
+    const response = await handlers({
+      configurations, credentialStore: fakeCredentialStore().store, deployment: () => NO_DEPLOYMENT,
+    }).GET()
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({
@@ -356,11 +272,10 @@ describe('GET /api/model_config', () => {
   })
 
   it('does not reach a provider even when connections are saved', async () => {
-    const root = await temporaryRoot()
-    await writeModelConfig(configured(), { configRoot: root })
+    const configurations = inMemoryModelConfigurations({ [ACCOUNT]: configured() })
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
 
-    const response = await createGetModelConfig({ configRoot: root, credentialStore: fakeCredentialStore().store })()
+    const response = await handlers({ configurations, credentialStore: fakeCredentialStore().store }).GET()
 
     expect(response.status).toBe(200)
     expect(fetchSpy).not.toHaveBeenCalled()
@@ -368,21 +283,21 @@ describe('GET /api/model_config', () => {
   })
 
   it('reports credential state per connection and degrades a failed read to unavailable', async () => {
-    const root = await temporaryRoot()
+    const configurations = inMemoryModelConfigurations()
     const config = configured({
       connections: [
         ...configured().connections,
         { id: OTHER_ID, name: 'Codex', provider: 'codex-cli', baseUrl: null },
       ],
     })
-    await writeModelConfig(config, { configRoot: root })
+    configurations.documents.set(ACCOUNT, config)
     const partial = fakeCredentialStore({ [VLLM_ID]: 'stored' })
     const store: CredentialStore = {
       ...partial.store,
       state: (id) => (id === OPENAI_ID ? Promise.reject(new Error('locked')) : partial.store.state(id)),
     }
 
-    const response = await createGetModelConfig({ configRoot: root, credentialStore: store })()
+    const response = await handlers({ configurations, credentialStore: store }).GET()
 
     // codex-cli authenticates externally, so it never appears in the map at all.
     await expect(response.json()).resolves.toMatchObject({
@@ -391,61 +306,15 @@ describe('GET /api/model_config', () => {
   })
 
   it('keeps reading configuration when the whole keyring is unavailable', async () => {
-    const root = await temporaryRoot()
-    await writeModelConfig(configured(), { configRoot: root })
+    const configurations = inMemoryModelConfigurations({ [ACCOUNT]: configured() })
 
-    const response = await createGetModelConfig({ configRoot: root, credentialStore: unavailableStore })()
+    const response = await handlers({ configurations, credentialStore: unavailableStore }).GET()
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
       config: configured(),
       credentialStates: { [VLLM_ID]: 'unavailable', [OPENAI_ID]: 'unavailable' },
     })
-  })
-
-  it('maps a corrupt saved document to the stable bounded error envelope', async () => {
-    const root = await temporaryRoot()
-    await writeFile(modelConfigPath(root), '{')
-
-    const response = await createGetModelConfig({ configRoot: root, credentialStore: fakeCredentialStore().store })()
-
-    expect(response.status).toBe(409)
-    await expect(response.json()).resolves.toEqual({
-      error: {
-        code: 'invalid_model_config',
-        message: 'The saved model configuration is invalid.',
-        details: {
-          path: modelConfigPath(root),
-          issues: [{ path: '', message: 'Document must contain valid JSON.' }],
-          truncated: false,
-        },
-      },
-    })
-  })
-
-  it('bounds validation issues from a hostile saved document', async () => {
-    const root = await temporaryRoot()
-    await writeFile(
-      modelConfigPath(root),
-      JSON.stringify({
-        connections: Array.from({ length: 25 }, (_, index) => ({
-          id: `not-a-uuid-${index}`,
-          name: 'Connection',
-          provider: 'openai',
-          baseUrl: 'https://api.openai.com/v1',
-        })),
-        routes: { schemaSuggestion: null, interaction: null },
-      }),
-    )
-
-    const response = await createGetModelConfig({ configRoot: root, credentialStore: fakeCredentialStore().store })()
-    const body = (await response.json()) as {
-      error: { details: { issues: unknown[]; truncated: boolean } }
-    }
-
-    expect(response.status).toBe(409)
-    expect(body.error.details.issues).toHaveLength(20)
-    expect(body.error.details.truncated).toBe(true)
   })
 })
 
@@ -488,7 +357,7 @@ describe('OS credential adapter', () => {
 describe('PUT /api/model_config', () => {
   it.each(['auto', 'prompt', 'schema', 'native'])('rejects the retired %s output override', async (jsonOutput) => {
     const config = configured()
-    const response = await createPutModelConfig({ credentialStore: fakeCredentialStore().store })(putRequest({
+    const response = await handlers({ configurations: inMemoryModelConfigurations(), credentialStore: fakeCredentialStore().store }).PUT(putRequest({
       config: { ...config, routes: { ...config.routes, schemaSuggestion: { ...config.routes.schemaSuggestion, jsonOutput } } },
     }))
     expect(response.status).toBe(400)
@@ -504,7 +373,7 @@ describe('PUT /api/model_config', () => {
     ['a credential key that is not a UUID', { config: EMPTY_MODEL_CONFIG, credentials: { 'not-a-uuid': 'x' } }, 'application/json'],
   ])('rejects %s as a structural 400 before reaching storage', async (_label, body, contentType) => {
     const fake = fakeCredentialStore()
-    const put = createPutModelConfig({ configRoot: await temporaryRoot(), credentialStore: fake.store })
+    const put = handlers({ configurations: inMemoryModelConfigurations(), credentialStore: fake.store }).PUT
 
     const response = await put(putRequest(body, contentType))
 
@@ -514,13 +383,13 @@ describe('PUT /api/model_config', () => {
   })
 
   it('round-trips the editable document unchanged and returns no descriptor or secret', async () => {
-    const root = await temporaryRoot()
+    const configurations = inMemoryModelConfigurations()
     const fake = fakeCredentialStore()
     const config = configured()
     // A base whose trailing slash must survive, and a model ID no probe could suggest.
     config.connections[1].baseUrl = 'https://gateway.example/proxy/openai/v1/'
     config.routes.interaction = { connectionId: OPENAI_ID, modelId: 'an opaque model id' }
-    const put = createPutModelConfig({ configRoot: root, credentialStore: fake.store })
+    const put = handlers({ configurations, credentialStore: fake.store }).PUT
 
     const response = await put(putRequest({ config, credentials: { [OPENAI_ID]: 'sk-secret' } }))
 
@@ -534,23 +403,22 @@ describe('PUT /api/model_config', () => {
     expect(JSON.stringify(body)).not.toContain('sk-secret')
 
     // The trailing slash is stored verbatim; it is insignificant at the join instead.
-    const saved = await readFile(modelConfigPath(root), 'utf8')
-    expect(saved).not.toContain('sk-secret')
-    await expect(readModelConfig({ configRoot: root })).resolves.toEqual(config)
+    expect(JSON.stringify(configurations.documents.get(ACCOUNT))).not.toContain('sk-secret')
+    await expect(readAccountModelConfig(ACCOUNT, configurations)).resolves.toEqual(config)
     expect(appendProviderResource(config.connections[1].baseUrl!, 'models')).toBe(
       'https://gateway.example/proxy/openai/v1/models',
     )
   })
 
   it('preserves, replaces, and deletes a credential from the action tri-state alone', async () => {
-    const root = await temporaryRoot()
+    const configurations = inMemoryModelConfigurations()
     const fake = fakeCredentialStore()
     // vLLM authenticates optionally, so it stays valid with no credential at all.
     const config = configured({
       connections: [configured().connections[0]],
       routes: { schemaSuggestion: { connectionId: VLLM_ID, modelId: 'vendor/model:latest' }, interaction: null },
     })
-    const put = createPutModelConfig({ configRoot: root, credentialStore: fake.store })
+    const put = handlers({ configurations, credentialStore: fake.store }).PUT
 
     await put(putRequest({ config, credentials: { [VLLM_ID]: 'first' } }))
     expect(fake.values.get(VLLM_ID)).toBe('first')
@@ -572,13 +440,12 @@ describe('PUT /api/model_config', () => {
   })
 
   it('refuses to change the provider kind of an already-saved UUID', async () => {
-    const root = await temporaryRoot()
-    await writeModelConfig(configured(), { configRoot: root })
+    const configurations = inMemoryModelConfigurations({ [ACCOUNT]: configured() })
     const fake = fakeCredentialStore({ [OPENAI_ID]: 'sk-existing' })
     const changed = configured()
     changed.connections[1] = { ...changed.connections[1], provider: 'anthropic' }
 
-    const response = await createPutModelConfig({ configRoot: root, credentialStore: fake.store })(
+    const response = await handlers({ configurations, credentialStore: fake.store }).PUT(
       putRequest({ config: changed }),
     )
 
@@ -586,12 +453,11 @@ describe('PUT /api/model_config', () => {
     const body = (await response.json()) as { error: { details: { issues: { path: string }[] } } }
     expect(body.error.details.issues.map(({ path }) => path)).toContain('config.connections.1.provider')
     // The researcher must delete the connection and create a new UUID instead.
-    await expect(readModelConfig({ configRoot: root })).resolves.toEqual(configured())
+    await expect(readAccountModelConfig(ACCOUNT, configurations)).resolves.toEqual(configured())
   })
 
   it('requires a new credential before a managed endpoint can change', async () => {
-    const root = await temporaryRoot()
-    await writeModelConfig(configured(), { configRoot: root })
+    const configurations = inMemoryModelConfigurations({ [ACCOUNT]: configured() })
     const fake = fakeCredentialStore({ [OPENAI_ID]: 'sk-existing' })
     const changed = configured()
     changed.connections[1] = {
@@ -599,10 +465,10 @@ describe('PUT /api/model_config', () => {
       baseUrl: 'https://other-gateway.example/openai/v1',
     }
 
-    const response = await createPutModelConfig({
-      configRoot: root,
+    const response = await handlers({
+      configurations,
       credentialStore: fake.store,
-    })(putRequest({ config: changed }))
+    }).PUT(putRequest({ config: changed }))
 
     expect(response.status).toBe(409)
     await expect(response.json()).resolves.toMatchObject({
@@ -612,7 +478,7 @@ describe('PUT /api/model_config', () => {
         },
       },
     })
-    await expect(readModelConfig({ configRoot: root })).resolves.toEqual(
+    await expect(readAccountModelConfig(ACCOUNT, configurations)).resolves.toEqual(
       configured(),
     )
     expect(fake.values.get(OPENAI_ID)).toBe('sk-existing')
@@ -653,9 +519,9 @@ describe('PUT /api/model_config', () => {
       `credentials.${OPENAI_ID}`,
     ],
   ])('rejects %s as a semantic 409 with bounded details', async (_label, build, issuePath) => {
-    const root = await temporaryRoot()
+    const configurations = inMemoryModelConfigurations()
     const fake = fakeCredentialStore()
-    const put = createPutModelConfig({ configRoot: root, credentialStore: fake.store })
+    const put = handlers({ configurations, credentialStore: fake.store }).PUT
 
     const response = await put(putRequest(build()))
 
@@ -664,13 +530,13 @@ describe('PUT /api/model_config', () => {
     expect(body.error.code).toBe('invalid_model_config')
     expect(body.error.details.issues.map(({ path }) => path)).toContain(issuePath)
     // Nothing was committed and no credential moved.
-    await expect(readFile(modelConfigPath(root))).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(configurations.documents.size).toBe(0)
     expect(fake.values.size).toBe(0)
   })
 
   it('maps a required keyring operation failure to 503 without any fallback', async () => {
-    const root = await temporaryRoot()
-    const put = createPutModelConfig({ configRoot: root, credentialStore: unavailableStore })
+    const configurations = inMemoryModelConfigurations()
+    const put = handlers({ configurations, credentialStore: unavailableStore }).PUT
 
     const response = await put(
       putRequest({
@@ -686,28 +552,11 @@ describe('PUT /api/model_config', () => {
       },
     })
     // No plaintext, environment, or file fallback: nothing was written.
-    await expect(readFile(modelConfigPath(root))).rejects.toMatchObject({ code: 'ENOENT' })
-  })
-
-  it('keeps the applied credential when the atomic JSON replacement fails', async () => {
-    const root = await temporaryRoot()
-    const fake = fakeCredentialStore()
-    const fileSystem = { ...nodeFileSystem, rename: () => Promise.reject(new Error('disk full')) }
-    const put = createPutModelConfig({ configRoot: root, credentialStore: fake.store, fileSystem })
-
-    const response = await put(putRequest({ config: configured(), credentials: { [OPENAI_ID]: 'sk-new' } }))
-
-    expect(response.status).toBe(500)
-    await expect(response.json()).resolves.toMatchObject({ error: { code: 'storage_failure' } })
-    // Credentials precede the commit and are never rolled back: JSON stays authoritative
-    // and the next successful Apply overwrites the pairing.
-    expect(fake.values.get(OPENAI_ID)).toBe('sk-new')
-    await expect(readFile(modelConfigPath(root))).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(configurations.documents.size).toBe(0)
   })
 
   it('commits a removal even when best-effort orphan cleanup fails', async () => {
-    const root = await temporaryRoot()
-    await writeModelConfig(configured(), { configRoot: root })
+    const configurations = inMemoryModelConfigurations({ [ACCOUNT]: configured() })
     const fake = fakeCredentialStore({ [OPENAI_ID]: 'sk-orphan' })
     const store: CredentialStore = { ...fake.store, delete: () => Promise.reject(new Error('locked')) }
     const remaining = configured({
@@ -715,23 +564,23 @@ describe('PUT /api/model_config', () => {
       routes: { schemaSuggestion: configured().routes.schemaSuggestion, interaction: null },
     })
 
-    const response = await createPutModelConfig({ configRoot: root, credentialStore: store })(
+    const response = await handlers({ configurations, credentialStore: store }).PUT(
       putRequest({ config: remaining }),
     )
 
     expect(response.status).toBe(200)
     // The removed UUID is gone from the authoritative document, so the credential
     // it left behind is inert: no saved connection can reach it.
-    await expect(readModelConfig({ configRoot: root })).resolves.toEqual(remaining)
+    await expect(readAccountModelConfig(ACCOUNT, configurations)).resolves.toEqual(remaining)
     await expect(response.json()).resolves.toMatchObject({
       credentialStates: { [VLLM_ID]: 'absent' },
     })
     expect(fake.values.get(OPENAI_ID)).toBe('sk-orphan')
 
-    const reintroduced = await createPutModelConfig({
-      configRoot: root,
+    const reintroduced = await handlers({
+      configurations,
       credentialStore: store,
-    })(putRequest({ config: configured() }))
+    }).PUT(putRequest({ config: configured() }))
     expect(reintroduced.status).toBe(409)
     await expect(reintroduced.json()).resolves.toMatchObject({
       error: {
@@ -741,110 +590,5 @@ describe('PUT /api/model_config', () => {
       },
     })
     expect(fake.values.get(OPENAI_ID)).toBe('sk-orphan')
-  })
-
-  it('serializes overlapping complete writes so the later completed document is authoritative', async () => {
-    const root = await temporaryRoot()
-    const fake = fakeCredentialStore()
-    const firstAtRename = Promise.withResolvers<void>()
-    const releaseFirstRename = Promise.withResolvers<void>()
-    let renameCount = 0
-    let committed = false
-    const fileSystem = {
-      ...nodeFileSystem,
-      async readFile(path: string) {
-        if (!committed)
-          throw Object.assign(new Error('model config not found'), {
-            code: 'ENOENT',
-          })
-        return nodeFileSystem.readFile(path)
-      },
-      async rename(from: string, to: string) {
-        renameCount += 1
-        if (renameCount === 1) {
-          firstAtRename.resolve()
-          await releaseFirstRename.promise
-        }
-        await nodeFileSystem.rename(from, to)
-        committed = true
-      },
-    }
-    const firstConfig = configured()
-    firstConfig.connections[0].name = 'First researcher local'
-    firstConfig.connections[1].name = 'First researcher remote'
-    firstConfig.routes.schemaSuggestion = {
-      connectionId: VLLM_ID,
-      modelId: 'first-suggestion',
-      protocol: 'nuextract',
-    }
-    firstConfig.routes.interaction = {
-      connectionId: OPENAI_ID,
-      modelId: 'first-interaction',
-    }
-    const secondConfig = configured()
-    secondConfig.connections[0].name = 'Second researcher local'
-    secondConfig.connections[1].name = 'Second researcher remote'
-    secondConfig.routes.schemaSuggestion = {
-      connectionId: VLLM_ID,
-      modelId: 'second-suggestion',
-      protocol: 'nuextract',
-    }
-    secondConfig.routes.interaction = {
-      connectionId: OPENAI_ID,
-      modelId: 'second-interaction',
-    }
-    const firstPut = createPutModelConfig({
-      configRoot: root,
-      credentialStore: fake.store,
-      fileSystem,
-    })
-    const secondPut = createPutModelConfig({
-      configRoot: root,
-      credentialStore: fake.store,
-      fileSystem,
-    })
-    const completionOrder: string[] = []
-
-    const firstResponse = firstPut(
-      putRequest({
-        config: firstConfig,
-        credentials: { [OPENAI_ID]: 'first-secret' },
-      }),
-    ).then((response) => {
-      completionOrder.push('first')
-      return response
-    })
-    await firstAtRename.promise
-    const secondRequest = putRequest({
-      config: secondConfig,
-      credentials: { [OPENAI_ID]: 'second-secret' },
-    })
-    const secondJson = vi.spyOn(secondRequest, 'json')
-    const secondResponse = secondPut(secondRequest).then((response) => {
-      completionOrder.push('second')
-      return response
-    })
-
-    // Queue acquisition is synchronous: while the first commit is held, the
-    // later complete request has not even crossed its body/keyring/storage path.
-    expect(secondJson).not.toHaveBeenCalled()
-    expect(fake.calls.filter((call) => call.startsWith('set:'))).toEqual([
-      `set:${OPENAI_ID}`,
-    ])
-
-    releaseFirstRename.resolve()
-    const [first, second] = await Promise.all([firstResponse, secondResponse])
-    expect(secondJson).toHaveBeenCalledTimes(1)
-
-    expect(first.status).toBe(200)
-    expect(second.status).toBe(200)
-    await expect(first.json()).resolves.toMatchObject({ config: firstConfig })
-    await expect(second.json()).resolves.toMatchObject({ config: secondConfig })
-    expect(completionOrder).toEqual(['first', 'second'])
-    expect(renameCount).toBe(2)
-    await expect(readModelConfig({ configRoot: root })).resolves.toEqual(
-      secondConfig,
-    )
-    expect(fake.values.get(OPENAI_ID)).toBe('second-secret')
   })
 })

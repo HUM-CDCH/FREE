@@ -5,16 +5,22 @@ import {
   streamChatWithModel,
 } from './_model.js'
 import type { ExecutionTarget } from './_provider.js'
+import { readAccountModelConfig } from './_model_config.js'
 
 const { generateTextMock, streamTextMock } = vi.hoisted(() => ({
   generateTextMock: vi.fn(),
   streamTextMock: vi.fn(),
+}))
+vi.mock('./_model_config.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./_model_config.js')>()),
+  readAccountModelConfig: vi.fn(),
 }))
 vi.mock('ai', async (importOriginal) => {
   const actual = await importOriginal<typeof import('ai')>()
   return { ...actual, generateText: generateTextMock, streamText: streamTextMock }
 })
 
+const CALLER = { researcherAccountId: '51000000-0000-4000-8009-00000000000a' }
 const document = { file: null, markdown: 'Grave 1', pages: null }
 const nuextractTarget: ExecutionTarget = {
   profile: 'nuextract',
@@ -51,12 +57,14 @@ function stubNuExtractResponse(content: string, finishReason = 'stop') {
 afterEach(() => {
   vi.unstubAllGlobals()
   generateTextMock.mockReset()
+  vi.mocked(readAccountModelConfig).mockReset()
 })
 
 describe('generateSchemaWithModel', () => {
   it('repairs generated model JSON on the NuExtract path', async () => {
     stubNuExtractResponse('{"_description":"One grave record.","grave":[{"name":"verbatim-string"}}]')
     const result = await generateSchemaWithModel(
+      CALLER,
       { document, instruction: '' },
       nuextractTarget,
     )
@@ -68,6 +76,7 @@ describe('generateSchemaWithModel', () => {
 
     await expect(
       generateSchemaWithModel(
+        CALLER,
         { document, instruction: '' },
         nuextractTarget,
       ),
@@ -77,6 +86,7 @@ describe('generateSchemaWithModel', () => {
   it('asks vLLM for template generation, leading the message with schema guidance', async () => {
     const request = stubNuExtractResponse('{"_description":"One grave record.","grave":[{"name":"verbatim-string"}]}')
     await generateSchemaWithModel(
+      CALLER,
       { document, instruction: '' },
       nuextractTarget,
     )
@@ -99,6 +109,7 @@ describe('generateSchemaWithModel', () => {
   it('sends no authorization header for a target without a credential', async () => {
     const request = stubNuExtractResponse('{"_description":"One grave record.","grave":[{"name":"verbatim-string"}]}')
     await generateSchemaWithModel(
+      CALLER,
       { document, instruction: '' },
       { ...nuextractTarget, authorization: null },
     )
@@ -107,14 +118,14 @@ describe('generateSchemaWithModel', () => {
 
   it('maps a failed NuExtract call to a model operation failure', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response('overloaded', { status: 503 })))
-    await expect(generateSchemaWithModel({ document, instruction: '' }, nuextractTarget))
+    await expect(generateSchemaWithModel(CALLER, { document, instruction: '' }, nuextractTarget))
       .rejects.toMatchObject({ status: 502, code: 'model_operation_failed' })
   })
 
   it('maps a rejected NuExtract request to a model operation failure that keeps its cause', async () => {
     const failure = new TypeError('fetch failed')
     vi.stubGlobal('fetch', vi.fn().mockRejectedValueOnce(failure))
-    await expect(generateSchemaWithModel({ document, instruction: '' }, nuextractTarget))
+    await expect(generateSchemaWithModel(CALLER, { document, instruction: '' }, nuextractTarget))
       .rejects.toMatchObject({
         status: 502,
         code: 'model_operation_failed',
@@ -130,6 +141,7 @@ describe('generateSchemaWithModel', () => {
     const controller = new AbortController()
 
     await generateSchemaWithModel(
+      CALLER,
       { document, instruction: '', signal: controller.signal },
       nuextractTarget,
     )
@@ -142,6 +154,7 @@ describe('generateSchemaWithModel', () => {
   it('uses the selected general target for schema suggestion', async () => {
     generateTextMock.mockResolvedValue({ text: '{"_description":"One grave record.","grave":[{"name":"verbatim-string"}]}' })
     const result = await generateSchemaWithModel(
+      CALLER,
       { document, instruction: '' },
       generalTarget,
     )
@@ -154,7 +167,7 @@ describe('generateSchemaWithModel', () => {
     const markdown = Array.from({ length: 45 }, (_, i) =>
       `<!-- FREE:PAGE ${i + 1} -->\nStart ${i + 1}\n${'Source '.repeat(1700)}\nEnd ${i + 1}\n`,
     ).join('\n')
-    await generateSchemaWithModel({ document: { ...document, markdown }, instruction: '' }, generalTarget)
+    await generateSchemaWithModel(CALLER, { document: { ...document, markdown }, instruction: '' }, generalTarget)
     const sent = JSON.stringify(generateTextMock.mock.calls[0][0].messages)
     expect(sent.length).toBeLessThan(55_000)
     for (let i = 1; i <= 45; i += 1) {
@@ -169,6 +182,7 @@ describe('generateSchemaWithModel', () => {
     const controller = new AbortController()
 
     await generateSchemaWithModel(
+      CALLER,
       { document, instruction: '', signal: controller.signal },
       generalTarget,
     )
@@ -183,7 +197,7 @@ describe('interactive model operations', () => {
   it.each(['prompt', 'schema'] as const)('does not request schema-free JSON on a %s route', async (jsonOutput) => {
     generateTextMock.mockResolvedValue({ text: '{"fields":{},"additions":[]}', finishReason: 'stop' })
 
-    const result = await generateSchemaEditJson('schema prompt', undefined, { ...generalTarget, jsonOutput })
+    const result = await generateSchemaEditJson(CALLER, 'schema prompt', undefined, { ...generalTarget, jsonOutput })
 
     expect(generateTextMock.mock.calls[0][0]).toMatchObject({
       reasoning: 'none',
@@ -196,7 +210,7 @@ describe('interactive model operations', () => {
   it('requests bounded JSON with reasoning disabled on a native route', async () => {
     generateTextMock.mockResolvedValue({ text: '{"fields":{},"additions":[]}', finishReason: 'stop' })
 
-    await generateSchemaEditJson('schema prompt', undefined, { ...generalTarget, jsonOutput: 'native' })
+    await generateSchemaEditJson(CALLER, 'schema prompt', undefined, { ...generalTarget, jsonOutput: 'native' })
 
     expect(generateTextMock.mock.calls[0][0]).toMatchObject({
       output: expect.anything(),
@@ -208,7 +222,7 @@ describe('interactive model operations', () => {
   it('rejects a length-truncated schema edit before parsing', async () => {
     generateTextMock.mockResolvedValue({ text: '{"fields":', finishReason: 'length' })
 
-    await expect(generateSchemaEditJson('schema prompt', undefined, generalTarget)).rejects.toMatchObject({
+    await expect(generateSchemaEditJson(CALLER, 'schema prompt', undefined, generalTarget)).rejects.toMatchObject({
       code: 'invalid_model_output',
     })
   })
@@ -222,10 +236,47 @@ describe('interactive model operations', () => {
         },
       }),
     })
-    const response = await streamChatWithModel([], '# Report', undefined, generalTarget)
+    const response = await streamChatWithModel(CALLER, [], '# Report', undefined, generalTarget)
     const body = await response.text()
     expect(response.status).toBe(200)
     expect(body).toContain('Chat failed.')
     expect(body).not.toContain('upstream secret')
+  })
+})
+
+describe("a model call reads its caller's configuration", () => {
+  const connectionId = '51000000-0000-4000-8009-0000000000c1'
+  const config = {
+    connections: [{ id: connectionId, name: 'Gateway', provider: 'openai-compatible' as const, baseUrl: 'https://gateway.example/v1' }],
+    routes: { schemaSuggestion: null, interaction: { connectionId, modelId: 'caller-model' } },
+    extractionModels: {},
+  }
+  // Keyring, deployment and provider stay fakes: resolution must not reach the OS or the environment.
+  const isolated = {
+    deployment: { connections: [], defaultRoute: null },
+    credentialStore: { state: async () => 'absent' as const, get: async () => undefined, set: async () => {}, delete: async () => {} },
+    modelFactories: { 'openai-compatible': () => generalTarget.profile === 'general' ? generalTarget.model : ({} as never) },
+  }
+
+  it('uses an injected reader and never the stored configuration', async () => {
+    generateTextMock.mockResolvedValue({ text: '{"fields":{},"additions":[]}', finishReason: 'stop' })
+    const readConfig = vi.fn(async () => config)
+
+    await generateSchemaEditJson(CALLER, 'schema prompt', undefined, undefined, { ...isolated, readConfig })
+
+    expect(readConfig).toHaveBeenCalledOnce()
+    expect(readConfig).toHaveBeenCalledWith()
+    expect(readAccountModelConfig).not.toHaveBeenCalled()
+  })
+
+  it("reads the caller's account by default", async () => {
+    generateTextMock.mockResolvedValue({ text: '{"fields":{},"additions":[]}', finishReason: 'stop' })
+    vi.mocked(readAccountModelConfig).mockResolvedValueOnce(config)
+
+    await generateSchemaEditJson(CALLER, 'schema prompt', undefined, undefined, isolated)
+
+    expect(readAccountModelConfig).toHaveBeenCalledOnce()
+    expect(readAccountModelConfig).toHaveBeenCalledWith(CALLER.researcherAccountId)
+    expect(generateTextMock).toHaveBeenCalledOnce()
   })
 })

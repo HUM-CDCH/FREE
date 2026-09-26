@@ -1,3 +1,4 @@
+import type { ModelConfigurationStore, ResearcherProjectStore } from 'db'
 import {
   modelProbeRequestSchema,
   type DeploymentModels,
@@ -6,22 +7,18 @@ import {
 import { DEPLOYMENT_IDS, deploymentModels } from './_deployment_models.js'
 import { ApiError, apiErrorResponse, json, parseJsonRequest } from './_http.js'
 import { systemCredentialStore, type CredentialStore } from './_keyring.js'
-import {
-  parseModelProbeRequest,
-  readModelConfig,
-  type ConfigStorageOptions,
-} from './_model_config.js'
+import { parseModelProbeRequest, readAccountModelConfig } from './_model_config.js'
 import {
   probeConnection,
   providerTable,
   type ProviderProbeDependencies,
 } from './_provider.js'
 
-export type ModelProbeDependencies = ConfigStorageOptions &
-  ProviderProbeDependencies & {
-    credentialStore?: CredentialStore
-    deployment?: () => DeploymentModels
-  }
+export type ModelProbeDependencies = ProviderProbeDependencies & {
+  configurations?: ModelConfigurationStore
+  credentialStore?: CredentialStore
+  deployment?: () => DeploymentModels
+}
 
 /**
  * A deployment connection is probed at the address the server knows, never at
@@ -43,13 +40,15 @@ function deploymentProbe(value: unknown, dependencies: ModelProbeDependencies): 
   return served
 }
 
+/** Only a connection the researcher saved, at the same provider and API base, may reuse its stored credential. */
 async function savedCredential(
+  researcherAccountId: string,
   connection: ModelConnection,
   dependencies: ModelProbeDependencies,
 ): Promise<string | null> {
   const entry = providerTable[connection.provider]
   if (entry.authentication === 'external') return null
-  const saved = (await readModelConfig(dependencies)).connections.find(
+  const saved = (await readAccountModelConfig(researcherAccountId, dependencies.configurations)).connections.find(
     ({ id, provider, baseUrl }) =>
       id === connection.id &&
       provider === connection.provider &&
@@ -72,7 +71,7 @@ async function savedCredential(
   throw new ApiError(409, 'invalid_model_config', 'The draft Model Connection requires a credential.')
 }
 
-export function createPostModelProbe(dependencies: ModelProbeDependencies = {}) {
+function createPostModelProbe(researcherAccountId: string, dependencies: ModelProbeDependencies) {
   return async function postModelProbe(request: Request): Promise<Response> {
     try {
       const body = await parseJsonRequest(request)
@@ -85,7 +84,7 @@ export function createPostModelProbe(dependencies: ModelProbeDependencies = {}) 
       }
       const credential = Object.hasOwn(parsed, 'credential')
         ? (parsed.credential ?? null)
-        : await savedCredential(parsed.connection, dependencies)
+        : await savedCredential(researcherAccountId, parsed.connection, dependencies)
       return json(await probeConnection(parsed.connection, credential, dependencies))
     } catch (error) {
       return apiErrorResponse(error)
@@ -93,4 +92,10 @@ export function createPostModelProbe(dependencies: ModelProbeDependencies = {}) 
   }
 }
 
-export const POST = createPostModelProbe()
+/** A researcher probes with only their own saved credentials. */
+export function createResearcherApiHandlers(
+  store: Pick<ResearcherProjectStore, 'researcherAccountId'>,
+  dependencies: ModelProbeDependencies = {},
+) {
+  return { POST: createPostModelProbe(store.researcherAccountId, dependencies) }
+}

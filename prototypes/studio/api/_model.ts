@@ -18,7 +18,8 @@ import {
   asModelOperationError,
 } from './_http.js'
 import { parseTemplate } from './_model_output.js'
-import { readModelConfig } from './_model_config.js'
+import { readAccountModelConfig } from './_model_config.js'
+import type { ModelConfig } from '../shared/modelConfig.contract.js'
 import {
   appendProviderResource,
   resolveCapabilityRoute,
@@ -56,7 +57,13 @@ export type SchemaModelInput = {
 
 type DocumentContentPart = DocumentFilePart | { readonly type: 'text'; readonly text: string }
 type NuExtractMode = 'template-generation'
-type ModelDependencies = RouteResolverDependencies & { fetch?: typeof fetch }
+/** Whose configuration and keys a model call uses: the Project Context's owner. Background and (from M4/M5) workflow
+ *  calls carry only this ID and resolve the rest when the call runs. */
+export type ModelCaller = Readonly<{ researcherAccountId: string }>
+type ModelDependencies = Omit<RouteResolverDependencies, 'readConfig'> & {
+  readConfig?: () => Promise<ModelConfig>
+  fetch?: typeof fetch
+}
 
 async function documentContentParts(document: DocumentInput): Promise<{
   readonly parts: readonly DocumentContentPart[]
@@ -79,23 +86,24 @@ async function operationTarget(
   operation: ModelOperation,
   temperature: number | undefined,
   target: ExecutionTarget | undefined,
+  caller: ModelCaller,
   dependencies: ModelDependencies,
 ): Promise<ExecutionTarget> {
-  const resolved = target ?? await resolveCapabilityRoute(operation, { temperature }, {
+  return target ?? resolveCapabilityRoute(operation, { temperature }, {
     ...dependencies,
-    readConfig: dependencies.readConfig ?? (() => readModelConfig()),
+    readConfig: dependencies.readConfig ?? (() => readAccountModelConfig(caller.researcherAccountId)),
   })
-  return resolved
 }
 
 export async function streamChatWithModel(
+  caller: ModelCaller,
   messages: readonly UIMessage[],
   documentMarkdown: string,
   temperature?: number,
   target?: ExecutionTarget,
   dependencies: ModelDependencies = {},
 ): Promise<Response> {
-  const resolved = await operationTarget('chat', temperature, target, dependencies)
+  const resolved = await operationTarget('chat', temperature, target, caller, dependencies)
   if (resolved.profile !== 'general') {
     throw new ApiError(409, 'invalid_model_config', 'The Interaction Route must use general execution.')
   }
@@ -120,6 +128,7 @@ export async function streamChatWithModel(
 }
 
 export async function generateSchemaWithModel(
+  caller: ModelCaller,
   { document, instruction, temperature, signal }: SchemaModelInput,
   target?: ExecutionTarget,
   dependencies: ModelDependencies = {},
@@ -128,7 +137,7 @@ export async function generateSchemaWithModel(
   readonly raw: string
   readonly pages: number | null
 }> {
-  const resolved = await operationTarget('schema-suggestion', temperature, target, dependencies)
+  const resolved = await operationTarget('schema-suggestion', temperature, target, caller, dependencies)
   const documentParts = await documentContentParts({
     ...document,
     markdown: document.markdown ? schemaSourceExcerpts(document.markdown) : document.markdown,
@@ -332,12 +341,13 @@ const chatCompletionSchema = z.object({
 })
 
 export async function generateSchemaEditJson(
+  caller: ModelCaller,
   prompt: string,
   temperature?: number,
   target?: ExecutionTarget,
   dependencies: ModelDependencies = {},
 ): Promise<{ text: string }> {
-  const resolved = await operationTarget('schema-edit', temperature, target, dependencies)
+  const resolved = await operationTarget('schema-edit', temperature, target, caller, dependencies)
   if (resolved.profile !== 'general') {
     throw new ApiError(409, 'invalid_model_config', 'The Interaction Route must use general execution.')
   }

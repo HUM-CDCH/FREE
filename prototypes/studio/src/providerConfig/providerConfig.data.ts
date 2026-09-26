@@ -93,15 +93,6 @@ export async function getModelConfig(signal?: AbortSignal): Promise<GetModelConf
   return parsed.data
 }
 
-/** Deletes the saved document, even one this Studio cannot read, and returns the empty state. */
-export async function resetModelConfig(signal?: AbortSignal): Promise<GetModelConfigResponse> {
-  const parsed = getModelConfigResponseSchema.safeParse(
-    await checkedJson(await authenticatedFetch('/api/model_config', { method: 'DELETE', signal })),
-  )
-  if (!parsed.success) throw new ModelConfigApiError(500, 'invalid_response', 'Studio returned invalid model configuration state.')
-  return parsed.data
-}
-
 export async function putModelConfig(
   config: ModelConfig,
   credentials: CredentialActions,

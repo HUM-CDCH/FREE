@@ -15,6 +15,12 @@ vi.mock('./_extraction_runtime.js', () => ({
   createResearcherExtractions: runtime.createResearcherExtractions,
 }))
 
+const modelConfig = vi.hoisted(() => ({ configuredExtractionModels: vi.fn() }))
+vi.mock('./_model_config.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./_model_config.js')>()),
+  configuredExtractionModels: modelConfig.configuredExtractionModels,
+}))
+
 const ACCOUNT = '51000000-0000-4000-8009-000000000001'
 const PROJECT = '51000000-0000-4000-8000-000000000001'
 const BATCH = '51000000-0000-4000-8007-000000000001'
@@ -148,6 +154,17 @@ describe('/api/batch-extractions transport', () => {
     const response = await handlerFor(module, { fields: 'instruct' })(open(selection))
     expect(response.status).toBe(202)
     expect(module.scheduleBatch).toHaveBeenCalledWith(expect.objectContaining({ models: { fields: 'instruct' } }))
+  })
+
+  it("reads the account's configured Extraction Model Choice by default", async () => {
+    const module = extractionModule()
+    runtime.createResearcherExtractions.mockReturnValue(module)
+    modelConfig.configuredExtractionModels.mockResolvedValueOnce({ reasoning: 'instruct' })
+    const post = createResearcherApiHandlers({ researcherAccountId: ACCOUNT } as ResearcherProjectStore).POST
+
+    expect((await post(open(selection))).status).toBe(202)
+    expect(modelConfig.configuredExtractionModels).toHaveBeenCalledWith(ACCOUNT)
+    expect(module.scheduleBatch).toHaveBeenCalledWith(expect.objectContaining({ models: { reasoning: 'instruct' } }))
   })
 
   it('lists, reads, and exports through caller-shaped module methods', async () => {

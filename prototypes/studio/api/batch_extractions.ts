@@ -77,7 +77,7 @@ export function createResearcherApiHandlers(
 ): Readonly<
   Record<string, (request: Request) => Response | Promise<Response>>
 > {
-  const extractionModels = dependencies.extractionModels ?? (() => configuredExtractionModels())
+  const extractionModels = dependencies.extractionModels ?? (() => configuredExtractionModels(store.researcherAccountId))
   const extractionModule = createResearcherExtractions(
     store.researcherAccountId,
   )

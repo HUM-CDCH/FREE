@@ -1,5 +1,4 @@
 import { defineConfig } from '@playwright/test'
-import { resolve } from 'node:path'
 import {
   configurePlaywrightStack,
   playwrightWebServerCommand,
@@ -12,7 +11,6 @@ const stack = configurePlaywrightStack({
   oidcPort: 41_748,
   postgresPort: 45_432,
 })
-const e2eConfigHome = resolve(import.meta.dirname, 'test-results/config-home')
 const e2ePort = stack.applicationPort
 const e2eOrigin = `http://localhost:${e2ePort}`
 // The lifecycle spec's fake kei-exp listens here, and Studio's KEI_EXP_URL points at it.
@@ -34,8 +32,6 @@ export default defineConfig({
       FREE_PLAYWRIGHT_LIFECYCLE_ID: stack.lifecycleId,
       STUDIO_ORIGIN: e2eOrigin,
       STUDIO_BASE_PATH: '/',
-      APPDATA: e2eConfigHome,
-      XDG_CONFIG_HOME: e2eConfigHome,
       FREE_ENTRA_REAL: '0',
       FREE_ENTRA_MOCK_ISSUER: stack.oidcIssuer,
       FREE_ENTRA_MOCK_BROWSER_ISSUER: stack.oidcIssuer,

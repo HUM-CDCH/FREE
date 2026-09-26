@@ -29,7 +29,7 @@ const FIELDS = [
 
 type EditSchemaStore = Pick<
   ResearcherProjectStore,
-  'getSourceRepresentation' | 'getSchemaRevision'
+  'researcherAccountId' | 'getSourceRepresentation' | 'getSchemaRevision'
 >
 
 type ProposeSchemaEdit = typeof proposeSchemaEdit
@@ -81,6 +81,7 @@ export function createPostEditSchema(
           context.documentMarkdown,
           {
             temperature,
+            caller: { researcherAccountId: store.researcherAccountId },
           },
         ),
       )
