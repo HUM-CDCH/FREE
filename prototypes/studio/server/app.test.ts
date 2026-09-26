@@ -8,6 +8,7 @@ import { createStudioApp, type StudioApp, type StudioAppOptions } from './app.js
 import { STUDIO_BOOT_HEADER } from '../shared/studioBoot.js'
 import type { EntraIdentityProvider } from './entraIdentityProvider.js'
 import { createInMemoryEntraIdentityProvider } from '../test/support/inMemoryEntraIdentityProvider.js'
+import { createSessionManager } from './session.js'
 
 const ORIGIN = 'https://studio.example'
 const NOW = Date.parse('2026-08-26T18:00:00.000Z')
@@ -426,6 +427,47 @@ describe('Studio key custody', () => {
     expect(response.status).toBe(302)
     expect(response.headers.get('location')).toBe(`${ORIGIN}/auth/signed-out`)
     expect(setCookies(response)).toEqual(LOGOUT_COOKIES)
+  })
+
+  it("sign-out evicts the account's keys from the signed cookie alone, with the account store down", async () => {
+    const modelKeys = custody()
+    const test = await fixture({ modelKeys })
+    const signedIn = await signIn(test)
+    vi.mocked(test.accountStore.findById).mockRejectedValue(new Error('database unavailable'))
+
+    const response = await test.app.request(`${ORIGIN}/auth/logout`, {
+      method: 'POST',
+      headers: { origin: ORIGIN, cookie: signedIn.sessionCookie! },
+    })
+
+    expect(modelKeys.keys.forgetAccount).toHaveBeenCalledExactlyOnceWith(ACCOUNT_ID)
+    expect(response.status).toBe(302)
+    expect(setCookies(response)).toEqual(LOGOUT_COOKIES)
+  })
+
+  it('a signed-out session hands off no more keys; another session of the account still does', async () => {
+    const modelKeys = custody()
+    const test = await fixture({ modelKeys })
+    const signedOut = (await signIn(test)).sessionCookie!
+    // Another browser of the same account, signed in a minute earlier.
+    const earlier = createSessionManager(SECRET, () => NOW - 60_000)
+    const other = earlier.serialize(earlier.issue(ACCOUNT_ID, NOW + 60 * 60 * 1_000)!).split(';', 1)[0]
+    const handoff = (cookie: string) => test.app.request(`${ORIGIN}/api/model-keys`, {
+      method: 'PUT',
+      headers: { origin: ORIGIN, cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ account: ACCOUNT_ID, keys: {} }),
+    })
+    await test.app.request(`${ORIGIN}/auth/logout`, { method: 'POST', headers: { origin: ORIGIN, cookie: signedOut } })
+
+    // A handoff the signed-out page sent before its sign-out, arriving after it.
+    const late = await handoff(signedOut)
+    expect(late.status).toBe(401)
+    await expect(late.json()).resolves.toMatchObject({ error: { code: 'authentication_required' } })
+    expect(late.headers.get(STUDIO_BOOT_HEADER)).toBe('boot-1')
+    expect(test.dispatcher).not.toHaveBeenCalled()
+
+    expect((await handoff(other)).status).toBe(200)
+    expect(test.dispatcher).toHaveBeenCalledOnce()
   })
 
   it('sign-out without a session evicts nothing and still clears cookies', async () => {

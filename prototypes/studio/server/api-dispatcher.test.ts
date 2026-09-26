@@ -43,6 +43,7 @@ describe('eager API dispatcher', () => {
       extraction_schemas: scopedModule(),
       extraction_models: scopedModule(),
       ingestion_models: scopedModule(),
+      model_keys: scopedModule(),
       extractions: scopedModule(),
       batch_extractions: scopedModule(),
       batch_schema_suggestions: scopedModule(),
@@ -72,6 +73,7 @@ describe('eager API dispatcher', () => {
       ['/api/extraction-schemas/schema', 'extraction_schemas'],
       ['/api/extraction-models', 'extraction_models'],
       ['/api/ingestion-models', 'ingestion_models'],
+      ['/api/model-keys', 'model_keys'],
       ['/api/extractions/extraction/review', 'extractions'],
       ['/api/extractions/extraction/review/draft', 'extractions'],
       ['/api/extractions/extraction/review/reset', 'extractions'],
@@ -94,6 +96,7 @@ describe('eager API dispatcher', () => {
       '/api/healthz/anything',
       '/api/extraction-models/instruct',
       '/api/ingestion-models/surya',
+      '/api/model-keys/connection',
       '/api/batch-extractions/batch/results/anything',
       '/api/source-representations/representation/pdf',
       '/api/project-contexts/project/source-representations/representation/pdf/anything',
@@ -177,15 +180,19 @@ describe('eager API dispatcher', () => {
     ).toThrow(/Static API module healthz/)
   })
 
-  it('model_config and model_probe are researcher-scoped', () => {
+  it('model_config, model_probe and model_keys are researcher-scoped', () => {
     expect(() =>
       registryWith({ model_config: { GET: () => new Response(), PUT: () => new Response() } }),
     ).toThrow(/Researcher-scoped API module model_config must not export module-level handlers/)
     expect(() =>
       registryWith({ model_probe: { POST: () => new Response() } }),
     ).toThrow(/Researcher-scoped API module model_probe must not export module-level handlers/)
+    expect(() =>
+      registryWith({ model_keys: { PUT: () => new Response() } }),
+    ).toThrow(/Researcher-scoped API module model_keys must not export module-level handlers/)
     expect(apiHandlerName('/api/model_config')).toBe('model_config')
     expect(apiHandlerName('/api/model_probe')).toBe('model_probe')
+    expect(apiHandlerName('/api/model-keys')).toBe('model_keys')
   })
 
   it('uses the eager production registry without filesystem discovery', async () => {

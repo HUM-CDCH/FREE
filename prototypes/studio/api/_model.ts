@@ -19,6 +19,7 @@ import {
 } from './_http.js'
 import { parseTemplate } from './_model_output.js'
 import { readAccountModelConfig } from './_model_config.js'
+import { ModelKeyRequiredError } from './_model_keys.js'
 import type { ModelConfig } from '../shared/modelConfig.contract.js'
 import {
   appendProviderResource,
@@ -60,7 +61,8 @@ type NuExtractMode = 'template-generation'
 /** Whose configuration and keys a model call uses: the Project Context's owner. Background and (from M4/M5) workflow
  *  calls carry only this ID and resolve the rest when the call runs. */
 export type ModelCaller = Readonly<{ researcherAccountId: string }>
-type ModelDependencies = Omit<RouteResolverDependencies, 'readConfig'> & {
+/** The resolver's seams, less the account: that is always the caller's, so no call can name another account's keys. */
+type ModelDependencies = Omit<RouteResolverDependencies, 'readConfig' | 'researcherAccountId'> & {
   readConfig?: () => Promise<ModelConfig>
   fetch?: typeof fetch
 }
@@ -91,15 +93,18 @@ async function operationTarget(
 ): Promise<ExecutionTarget> {
   return target ?? resolveCapabilityRoute(operation, { temperature }, {
     ...dependencies,
+    researcherAccountId: caller.researcherAccountId,
     readConfig: dependencies.readConfig ?? (() => readAccountModelConfig(caller.researcherAccountId)),
   })
 }
 
+/** `signal` is the browser's request: when it goes away the stream, and any wait for a key, ends. */
 export async function streamChatWithModel(
   caller: ModelCaller,
   messages: readonly UIMessage[],
   documentMarkdown: string,
   temperature?: number,
+  signal?: AbortSignal,
   target?: ExecutionTarget,
   dependencies: ModelDependencies = {},
 ): Promise<Response> {
@@ -115,11 +120,13 @@ export async function streamChatWithModel(
         `SOURCE DOCUMENT MARKDOWN:\n${documentMarkdown}\nEND SOURCE DOCUMENT MARKDOWN`,
       messages: await convertToModelMessages([...messages]),
       ...(temperature === undefined ? {} : { temperature }),
+      abortSignal: signal,
     })
     return createUIMessageStreamResponse({
       stream: toUIMessageStream({
         stream: result.stream,
-        onError: () => 'Chat failed.',
+        // Only a missing key is named: the page resends its keys and the researcher can try again.
+        onError: (error) => (error instanceof ModelKeyRequiredError ? error.message : 'Chat failed.'),
       }),
     })
   } catch (error) {
@@ -270,6 +277,16 @@ async function generateWithNuExtract(
   requestFetch: typeof fetch = fetch,
 ): Promise<GeneratedText> {
   const startedAt = performance.now()
+  // The key is read inside the attempt, so a missing one waits for a page to resend it; nothing is sent after an abort.
+  let authorization: string | null
+  try {
+    const key = await target.key(input.signal)
+    authorization = key === null ? null : `Bearer ${key}`
+  } catch (error) {
+    // model_key_required passes through unchanged.
+    throw asModelOperationError(error, 'NuExtract generation failed.')
+  }
+  input.signal?.throwIfAborted()
   const url = appendProviderResource(target.baseUrl, 'chat/completions')
   const requestBody = JSON.stringify({
     model: target.modelId,
@@ -284,7 +301,7 @@ async function generateWithNuExtract(
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        ...(target.authorization === null ? {} : { authorization: target.authorization }),
+        ...(authorization === null ? {} : { authorization }),
       },
       body: requestBody,
       signal: input.signal,
@@ -340,10 +357,12 @@ const chatCompletionSchema = z.object({
   }).optional(),
 })
 
+/** `signal` is the browser's request: when it goes away the call, and any wait for a key, ends. */
 export async function generateSchemaEditJson(
   caller: ModelCaller,
   prompt: string,
   temperature?: number,
+  signal?: AbortSignal,
   target?: ExecutionTarget,
   dependencies: ModelDependencies = {},
 ): Promise<{ text: string }> {
@@ -358,6 +377,7 @@ export async function generateSchemaEditJson(
       reasoning: 'none',
       messages: [{ role: 'user', content: prompt }],
       ...(temperature === undefined ? {} : { temperature }),
+      abortSignal: signal,
     })
     if (result.finishReason === 'length') {
       throw new ApiError(502, 'invalid_model_output', 'Schema edit model output was truncated.')

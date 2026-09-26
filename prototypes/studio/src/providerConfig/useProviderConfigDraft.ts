@@ -1,180 +1,195 @@
 import { useState } from 'react'
 import type { ExtractionModelRole } from '../../shared/extraction.contract'
-import type { CredentialActions, ModelConfig, ModelConnection, ProviderDescriptor, ProviderKind, RouteKey } from '../../shared/modelConfig.contract'
+import type {
+  IngestionModelRole,
+  ModelConfig,
+  ModelConnection,
+  ProviderDescriptor,
+  ProviderKind,
+  Route,
+  RouteKey,
+} from '../../shared/modelConfig.contract'
+import { modelKeyFor, removeModelKey, retainModelKeys, saveModelKey } from '../modelKeys/modelKeyStore'
 
-export type ConfigurationMode = 'single' | 'routes'
-type ProbeSchedule = (connection: ModelConnection, action: string | null | undefined) => void
+/** A key typed in this draft, or `null`: this browser's key is removed on Apply. */
+export type KeyEdit = string | null
 
 type DraftInputs = {
+  accountId: string
   providers: readonly ProviderDescriptor[]
-  scheduleProbe: ProbeSchedule
+  scheduleProbe: (connection: ModelConnection, credential: string | null | undefined) => void
+  cancelProbe: (connectionId: string) => void
   disposeProbe: (connectionId: string) => void
 }
 
-export function configurationMode(config: ModelConfig): ConfigurationMode {
-  const { schemaSuggestion, interaction } = config.routes
-  if (schemaSuggestion === null && interaction === null) return 'single'
-  if (schemaSuggestion === null || interaction === null) return 'routes'
-  return schemaSuggestion.connectionId === interaction.connectionId &&
-    schemaSuggestion.modelId === interaction.modelId
-    ? 'single'
-    : 'routes'
-}
-
-export function useProviderConfigDraft({ providers, scheduleProbe, disposeProbe }: DraftInputs) {
+export function useProviderConfigDraft({ accountId, providers, scheduleProbe, cancelProbe, disposeProbe }: DraftInputs) {
+  const [saved, setSaved] = useState<ModelConfig | null>(null)
   const [draft, setDraft] = useState<ModelConfig | null>(null)
-  const [mode, setMode] = useState<ConfigurationMode>('single')
-  const [credentialActions, setCredentialActions] = useState<CredentialActions>({})
+  const [keyEdits, setKeyEdits] = useState<Readonly<Record<string, KeyEdit>>>({})
+  const descriptor = (connection: Pick<ModelConnection, 'provider'>) => providers.find(({ kind }) => kind === connection.provider)
+  const withoutEdit = (id: string) => setKeyEdits((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)))
+  const connectionOf = (id: string) => draft?.connections.find((connection) => connection.id === id)
+  const replaceConnection = (next: ModelConnection) =>
+    setDraft((current) => current && { ...current, connections: current.connections.map((item) => (item.id === next.id ? next : item)) })
 
-  const descriptor = (connection: ModelConnection) =>
-    providers.find(({ kind }) => kind === connection.provider)
-  const actionFor = (connectionId: string): string | null | undefined =>
-    Object.hasOwn(credentialActions, connectionId) ? credentialActions[connectionId] : undefined
+  /** What a probe of `connection` may carry: nothing for a keyless connection; for one with a key, the key typed in
+   *  this draft, else this browser's key for this account at this exact provider and base. `undefined`: not probed. */
+  function credentialFor(connection: ModelConnection): string | null | undefined {
+    if (!connection.hasKey) return null
+    const edit = keyEdits[connection.id]
+    if (typeof edit === 'string') return edit
+    if (edit === null) return undefined
+    return modelKeyFor(accountId, connection) ?? undefined
+  }
 
   function initialize(config: ModelConfig): void {
+    setSaved(config)
     setDraft(config)
-    setMode(configurationMode(config))
+    setKeyEdits({})
   }
 
-  function replaceAfterApply(config: ModelConfig): void {
-    setDraft(config)
-    setCredentialActions({})
+  /** The single route setter: a route is {connectionId, modelId}, or null (the deployment default; for Schema
+   *  Suggestion, the Assistant model). */
+  function assign(task: RouteKey, target: Route | null): void {
+    setDraft((current) => current && { ...current, routes: { ...current.routes, [task]: target } })
   }
 
-  function updateConnection(
-    connection: ModelConnection,
-    change: Partial<Pick<ModelConnection, 'name' | 'baseUrl'>>,
-    probeInput: boolean,
-  ): void {
-    if (!draft) return
-    const next = { ...connection, ...change }
-    setDraft({
-      ...draft,
-      connections: draft.connections.map((item) => (item.id === connection.id ? next : item)),
+  /** '' hands the role back to the deployment's default. */
+  function setExtractionModel(role: ExtractionModelRole, key: string): void {
+    setDraft((current) => {
+      if (!current) return current
+      const extractionModels = { ...current.extractionModels }
+      if (key) extractionModels[role] = key
+      else delete extractionModels[role]
+      return { ...current, extractionModels }
     })
-    if (probeInput) scheduleProbe(next, actionFor(next.id))
   }
 
-  function changeProvider(connection: ModelConnection, kind: ProviderKind): void {
-    if (!draft) return
+  /** '' hands the role back to kei's default. Applies to new ingestions and reprocessing only. */
+  function setIngestionModel(role: IngestionModelRole, key: string): void {
+    setDraft((current) => {
+      if (!current) return current
+      const ingestionModels = { ...current.ingestionModels }
+      if (key) ingestionModels[role] = key
+      else delete ingestionModels[role]
+      return { ...current, ingestionModels }
+    })
+  }
+
+  function addConnection(kind: ProviderKind): string | null {
     const provider = providers.find((item) => item.kind === kind)
-    if (!provider) return
-    const next: ModelConnection = {
-      ...connection,
-      provider: kind,
-      name: connection.name === descriptor(connection)?.label ? provider.label : connection.name,
-      baseUrl: provider.transport === 'http' ? (provider.defaultBaseUrl ?? '') : null,
-    }
-    setDraft({
-      ...draft,
-      connections: draft.connections.map((item) => (item.id === connection.id ? next : item)),
-    })
-    const action = provider.authentication === 'external' ? undefined : actionFor(connection.id)
-    if (provider.authentication === 'external' && Object.hasOwn(credentialActions, connection.id)) {
-      const actions = { ...credentialActions }
-      delete actions[connection.id]
-      setCredentialActions(actions)
-    }
-    scheduleProbe(next, action)
-  }
-
-  function updateCredential(connection: ModelConnection, action: string | null | undefined): void {
-    const next = { ...credentialActions }
-    if (action === undefined) delete next[connection.id]
-    else next[connection.id] = action
-    setCredentialActions(next)
-    scheduleProbe(connection, action)
-  }
-
-  function addConnection(kind: ProviderKind): void {
-    if (!draft) return
-    const provider = providers.find(({ kind: candidate }) => candidate === kind)
-    if (!provider) return
+    if (!provider || provider.transport === 'cli') return null
     const connection: ModelConnection = {
       id: crypto.randomUUID(),
       name: provider.label,
-      provider: provider.kind,
-      baseUrl: provider.transport === 'http' ? (provider.defaultBaseUrl ?? '') : null,
+      provider: kind,
+      baseUrl: provider.defaultBaseUrl ?? '',
+      hasKey: provider.authentication === 'managed',
     }
-    setDraft({ ...draft, connections: [...draft.connections, connection] })
-    scheduleProbe(connection, actionFor(connection.id))
+    setDraft((current) => current && { ...current, connections: [...current.connections, connection] })
+    scheduleProbe(connection, connection.hasKey ? undefined : null)
+    return connection.id
   }
 
-  function removeConnection(connectionId: string): void {
-    if (!draft) return
-    const routes = { ...draft.routes }
-    if (routes.schemaSuggestion?.connectionId === connectionId) routes.schemaSuggestion = null
-    if (routes.interaction?.connectionId === connectionId) routes.interaction = null
-    setDraft({ ...draft, connections: draft.connections.filter(({ id }) => id !== connectionId), routes })
-    const actions = { ...credentialActions }
-    delete actions[connectionId]
-    setCredentialActions(actions)
-    disposeProbe(connectionId)
+  function updateConnection(id: string, change: Partial<Pick<ModelConnection, 'name' | 'baseUrl'>>): void {
+    const connection = connectionOf(id)
+    if (!connection) return
+    const next = { ...connection, ...change }
+    replaceConnection(next)
+    if (change.baseUrl === undefined || change.baseUrl === connection.baseUrl) return
+    // A key belongs to one API base. A new base drops the typed key at once and supersedes the probe the old input
+    // scheduled; this browser's stored key stays bound to the old base and is never sent to the new one.
+    cancelProbe(id)
+    withoutEdit(id)
+    scheduleProbe(next, next.hasKey ? modelKeyFor(accountId, next) ?? undefined : null)
   }
 
-  function setRoute(key: RouteKey, connectionId: string): void {
-    if (!draft) return
-    if (!connectionId) {
-      setDraft({ ...draft, routes: { ...draft.routes, [key]: null } })
-      return
-    }
-    setDraft({
-      ...draft,
-      routes: { ...draft.routes, [key]: { connectionId, modelId: draft.routes[key]?.modelId ?? '' } },
+  function setKey(id: string, key: string): void {
+    const connection = connectionOf(id)
+    if (!connection) return
+    const next = { ...connection, hasKey: true }
+    replaceConnection(next)
+    if (key) setKeyEdits((current) => ({ ...current, [id]: key }))
+    else withoutEdit(id)
+    scheduleProbe(next, key || (modelKeyFor(accountId, next) ?? undefined))
+  }
+
+  function removeKey(id: string): void {
+    const connection = connectionOf(id)
+    if (!connection) return
+    const managed = descriptor(connection)?.authentication === 'managed'
+    const next = { ...connection, hasKey: managed }
+    replaceConnection(next)
+    setKeyEdits((current) => ({ ...current, [id]: null }))
+    cancelProbe(id)
+    if (!managed) scheduleProbe(next, null)
+  }
+
+  /** An optional-key connection whose key is not in this browser can be used without one instead. */
+  function connectWithoutKey(id: string): void {
+    const connection = connectionOf(id)
+    if (!connection || descriptor(connection)?.authentication !== 'optional') return
+    const next = { ...connection, hasKey: false }
+    replaceConnection(next)
+    withoutEdit(id)
+    scheduleProbe(next, null)
+  }
+
+  function removeConnection(id: string): void {
+    setDraft((current) => current && {
+      ...current,
+      connections: current.connections.filter((item) => item.id !== id),
+      routes: {
+        schemaSuggestion: current.routes.schemaSuggestion?.connectionId === id ? null : current.routes.schemaSuggestion,
+        interaction: current.routes.interaction?.connectionId === id ? null : current.routes.interaction,
+      },
     })
+    withoutEdit(id)
+    disposeProbe(id)
   }
 
-  function setRouteModel(key: RouteKey, modelId: string): void {
-    if (!draft?.routes[key]) return
-    setDraft({ ...draft, routes: { ...draft.routes, [key]: { ...draft.routes[key], modelId } } })
-  }
-
-  function setSingleConnection(connectionId: string): void {
-    if (!draft) return
-    if (!connectionId) {
-      setDraft({ ...draft, routes: { schemaSuggestion: null, interaction: null } })
-      return
+  /** After Apply: the committed configuration is the new baseline and this browser's keys follow it. Returns the IDs
+   *  whose key this browser dropped, for the handoff to remove from Studio too. */
+  function commit(config: ModelConfig): string[] {
+    const dropped = new Set<string>()
+    for (const [id, edit] of Object.entries(keyEdits)) {
+      const connection = config.connections.find((item) => item.id === id)
+      if (typeof edit === 'string' && connection?.hasKey) saveModelKey(accountId, connection, edit)
+      if (edit === null) {
+        removeModelKey(accountId, id)
+        dropped.add(id)
+      }
     }
-    const modelId = draft.routes.schemaSuggestion?.modelId ?? draft.routes.interaction?.modelId ?? ''
-    const route = { connectionId, modelId }
-    setDraft({ ...draft, routes: { schemaSuggestion: route, interaction: route } })
+    for (const id of retainModelKeys(accountId, config.connections)) dropped.add(id)
+    initialize(config)
+    return [...dropped]
   }
 
-  function setSingleModel(modelId: string): void {
-    if (!draft) return
-    const current = draft.routes.schemaSuggestion ?? draft.routes.interaction
-    if (!current) return
-    const route = { connectionId: current.connectionId, modelId }
-    setDraft({ ...draft, routes: { schemaSuggestion: route, interaction: route } })
+  function discard(): void {
+    if (saved) initialize(saved)
   }
 
-  /** '' leaves the role to kei-exp's deployment default. */
-  function setExtractionModel(role: ExtractionModelRole, key: string): void {
-    if (!draft) return
-    const extractionModels = { ...draft.extractionModels }
-    if (key) extractionModels[role] = key
-    else delete extractionModels[role]
-    setDraft({ ...draft, extractionModels })
-  }
+  const dirty = draft !== null && saved !== null &&
+    (JSON.stringify(draft) !== JSON.stringify(saved) || Object.keys(keyEdits).length > 0)
 
   return {
     draft,
-    mode,
-    credentialActions,
+    saved,
+    keyEdits,
+    dirty,
     descriptor,
-    actionFor,
+    credentialFor,
     initialize,
-    replaceAfterApply,
-    setMode,
-    updateConnection,
-    changeProvider,
-    updateCredential,
-    addConnection,
-    removeConnection,
-    setRoute,
-    setRouteModel,
-    setSingleConnection,
-    setSingleModel,
+    assign,
     setExtractionModel,
+    setIngestionModel,
+    addConnection,
+    updateConnection,
+    setKey,
+    removeKey,
+    connectWithoutKey,
+    removeConnection,
+    commit,
+    discard,
   }
 }

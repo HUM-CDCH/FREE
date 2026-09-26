@@ -145,6 +145,7 @@ test('extraction: the canonical schema-guided path succeeds with evidence', { ti
             name: 'Contract Ollama',
             provider: 'ollama',
             baseUrl: OLLAMA_BASE_URL,
+            hasKey: false,
           },
         ],
         routes: {
@@ -154,7 +155,6 @@ test('extraction: the canonical schema-guided path succeeds with evidence', { ti
         extractionModels: {},
         ingestionModels: {},
       },
-      credentials: {},
     }),
   })
   assert.equal(configured.status, 200, JSON.stringify(configured.body))

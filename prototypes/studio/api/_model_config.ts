@@ -3,10 +3,8 @@ import { z } from 'zod'
 import {
   apiBaseIssue,
   modelConfigSchema,
-  type CredentialActions,
   modelConfigUpdateSchema,
   modelProbeRequestSchema,
-  type CredentialState,
   type ExtractionModelChoice,
   type ModelConfig,
   type ModelConfigUpdate,
@@ -15,8 +13,8 @@ import {
   type ProviderKind,
 } from '../shared/modelConfig.contract.js'
 import { ApiError, boundedValidationDetails, type ValidationIssue } from './_http.js'
-import type { CredentialStore } from './_keyring.js'
 import { DEPLOYMENT_IDS } from './_deployment_models.js'
+import { studioProcess, type ModelKeyCache } from './_model_keys.js'
 import { providerTable } from './_provider.js'
 
 
@@ -54,7 +52,13 @@ function semanticIssues(config: ModelConfig): ValidationIssue[] {
       connectionById.set(connection.id, connection)
     }
 
-    if (providerTable[connection.provider].transport === 'cli') {
+    const { authentication, transport } = providerTable[connection.provider]
+    if (authentication === 'managed' && !connection.hasKey)
+      issues.push({ path: `${at}.hasKey`, message: 'A hosted provider always uses a key.' })
+    if (transport === 'cli' && connection.hasKey)
+      issues.push({ path: `${at}.hasKey`, message: 'A CLI provider signs in on the server and takes no key.' })
+
+    if (transport === 'cli') {
       if (connection.baseUrl !== null) {
         issues.push({ path: `${at}.baseUrl`, message: 'CLI providers require a null API base.' })
       }
@@ -119,9 +123,7 @@ function invalidSubmitted(issues: readonly ValidationIssue[]): ApiError {
 }
 
 /** A malformed request is `400`; a well-formed one describing invalid state is `409`. */
-export function parseModelConfigUpdate(
-  value: unknown,
-): ModelConfigUpdate & { credentials: CredentialActions } {
+export function parseModelConfigUpdate(value: unknown): ModelConfigUpdate {
   const parsed = modelConfigUpdateSchema.safeParse(value)
   if (!parsed.success) {
     throw new ApiError(400, 'invalid_request', 'The request is invalid.', {
@@ -130,24 +132,23 @@ export function parseModelConfigUpdate(
     })
   }
 
-  // The submitted document is whole, so duplicate IDs, CLI singletons, API bases
-  // and dangling routes are all decidable here, by the same rules a saved one obeys.
+  // The submitted document is whole, so duplicate IDs, CLI singletons, keys, API
+  // bases and dangling routes are all decidable here, by the same rules a saved one obeys.
   const issues = semanticIssues(parsed.data.config)
   if (issues.length > 0) {
     throw invalidSubmitted(issues.map((issue) => ({ ...issue, path: `config.${issue.path}` })))
   }
-  return { config: parsed.data.config, credentials: parsed.data.credentials ?? {} }
+  return { config: parsed.data.config }
 }
 
-/** Probe request syntax is structural; connection-contract violations are semantic. */
+/**
+ * Probe request syntax is structural; connection-contract violations are semantic. A probe may carry a key, and Zod
+ * issue paths and messages can echo a key placed under an unexpected property, so a malformed probe gets one fixed
+ * answer with no details and no cause.
+ */
 export function parseModelProbeRequest(value: unknown): ModelProbeRequest {
   const parsed = modelProbeRequestSchema.safeParse(value)
-  if (!parsed.success) {
-    throw new ApiError(400, 'invalid_request', 'The request is invalid.', {
-      details: boundedValidationDetails('request', zodIssues(parsed.error)),
-      cause: parsed.error,
-    })
-  }
+  if (!parsed.success) throw new ApiError(400, 'invalid_request', 'The request is invalid.')
   const issues = semanticIssues({ ...emptyModelConfig(), connections: [parsed.data.connection] })
   if (issues.length > 0) {
     throw invalidSubmitted(
@@ -185,175 +186,34 @@ function storedModelConfig(stored: unknown): ModelConfig {
   }
 }
 
-/**
- * Externally authenticated connections are absent from the map entirely: FREE
- * manages no credential for them, and CLI login is a probe concern.
- *
- * Reporting state is best effort by design, so a keyring failure degrades to
- * `unavailable` here. The mutating paths below take the opposite policy and fail
- * with `503`, because a save that silently skipped the keyring would be a lie.
- */
-export async function credentialStates(
-  config: ModelConfig,
-  store: CredentialStore,
-): Promise<Record<string, CredentialState>> {
-  const states: Record<string, CredentialState> = {}
-  for (const connection of config.connections) {
-    if (providerTable[connection.provider].authentication === 'external') continue
-    try {
-      states[connection.id] = await store.state(connection.id)
-    } catch {
-      states[connection.id] = 'unavailable'
-    }
-  }
-  return states
-}
-
-export type ModelConfigUpdateOptions = {
-  researcherAccountId: string
-  store?: ModelConfigurationStore
-  credentialStore: CredentialStore
-}
-
-async function requireKeyring<T>(operation: () => Promise<T>): Promise<T> {
-  try {
-    return await operation()
-  } catch (cause) {
-    throw new ApiError(503, 'keyring_unavailable', 'The operating system credential store is unavailable.', {
-      cause,
-    })
-  }
-}
-
-/** Every issue decidable without the keyring, collected so one response reports them all. */
-function updateIssues(
-  previous: ModelConfig,
-  config: ModelConfig,
-  credentials: CredentialActions,
-): ValidationIssue[] {
-  const issues: ValidationIssue[] = []
-  const previousById = new Map(previous.connections.map((connection) => [connection.id, connection]))
-  const submittedById = new Map(config.connections.map((connection) => [connection.id, connection]))
-
-  config.connections.forEach((connection, index) => {
-    const before = previousById.get(connection.id)
-    if (before && before.provider !== connection.provider) {
-      issues.push({
-        path: `config.connections.${index}.provider`,
-        message: 'An existing connection cannot change provider kind. Delete it and create a new UUID.',
-      })
-    }
-    const managed =
-      providerTable[connection.provider].authentication === 'managed'
-    const credentialBoundaryChanged =
-      !before || before.baseUrl !== connection.baseUrl
-    if (
-      managed &&
-      credentialBoundaryChanged &&
-      !Object.hasOwn(credentials, connection.id)
-    )
-      issues.push({
-        path: `credentials.${connection.id}`,
-        message:
-          'A new or re-addressed managed connection requires an explicit credential.',
-      })
-  })
-
-  for (const [id, action] of Object.entries(credentials)) {
-    const connection = submittedById.get(id)
-    if (!connection) {
-      issues.push({ path: `credentials.${id}`, message: 'Credential actions must name a submitted connection.' })
-      continue
-    }
-    const { authentication } = providerTable[connection.provider]
-    if (authentication === 'external') {
-      issues.push({
-        path: `credentials.${id}`,
-        message: 'Externally authenticated providers have no FREE-managed credential.',
-      })
-    } else if (authentication === 'managed' && action === null) {
-      issues.push({ path: `credentials.${id}`, message: 'This provider requires a credential.' })
-    }
-  }
-  return issues
+/** A connection's provider is fixed once it is added: delete it and add a new one instead. */
+function providerChangeIssues(previous: ModelConfig, config: ModelConfig): ValidationIssue[] {
+  const before = new Map(previous.connections.map((connection) => [connection.id, connection.provider]))
+  return config.connections.flatMap((connection, index) =>
+    before.has(connection.id) && before.get(connection.id) !== connection.provider
+      ? [{ path: `config.connections.${index}.provider`, message: 'An existing connection cannot change provider kind. Delete it and create a new UUID.' }]
+      : [])
 }
 
 /**
- * A `managed` provider left out of the actions keeps whatever the keyring holds,
- * so this is the one validation step that has to ask the keyring.
+ * The account's configuration row stays locked from reading the previous document to committing the new one, so one
+ * account's Applies run one at a time and each sees the previous commit. The document never holds a key: Studio's
+ * copies live in `keys`, which follows the committed connections afterwards.
  */
-async function requireManagedCredentials(
-  config: ModelConfig,
-  credentials: CredentialActions,
-  store: CredentialStore,
-): Promise<void> {
-  const issues: ValidationIssue[] = []
-  for (const { id, provider } of config.connections) {
-    if (providerTable[provider].authentication !== 'managed') continue
-    if (Object.hasOwn(credentials, id)) continue
-    if ((await requireKeyring(() => store.state(id))) === 'absent') {
-      issues.push({ path: `credentials.${id}`, message: 'This provider requires a credential.' })
-    }
-  }
-  if (issues.length > 0) throw invalidSubmitted(issues)
-}
-
-async function clearImplicitOptionalCredentials(
-  previous: ModelConfig,
-  config: ModelConfig,
-  credentials: CredentialActions,
-  store: CredentialStore,
-): Promise<void> {
-  const previousById = new Map(
-    previous.connections.map((connection) => [connection.id, connection]),
-  )
-  for (const connection of config.connections) {
-    const before = previousById.get(connection.id)
-    if (
-      providerTable[connection.provider].authentication === 'optional' &&
-      !Object.hasOwn(credentials, connection.id) &&
-      (!before || before.baseUrl !== connection.baseUrl)
-    )
-      await requireKeyring(() => store.delete(connection.id))
-  }
-}
-
-/**
- * The account's configuration row stays locked from reading the previous document to committing the new one, so
- * one account's Applies run one at a time. Credentials move inside that transaction, before the commit, so a
- * committed route can never name a credential that was never stored. The keyring and PostgreSQL cannot commit
- * together: a failed commit leaves the new credential beside the old configuration, which the next successful Apply
- * overwrites. No rollback, no action journal.
- */
-export async function updateAccountModelConfig(
+export async function applyAccountModelConfig(
   value: unknown,
-  { researcherAccountId, store, credentialStore }: ModelConfigUpdateOptions,
-): Promise<{ config: ModelConfig; credentialStates: Record<string, CredentialState> }> {
-  const { config, credentials } = parseModelConfigUpdate(value)
-  let previous = emptyModelConfig()
-
-  await (store ?? modelConfigurations()).apply(researcherAccountId, async (stored) => {
-    previous = stored === null ? emptyModelConfig() : storedModelConfig(stored)
-    const issues = updateIssues(previous, config, credentials)
+  options: Readonly<{ researcherAccountId: string; store?: ModelConfigurationStore; keys?: Pick<ModelKeyCache, 'retain'> }>,
+): Promise<ModelConfig> {
+  const { config } = parseModelConfigUpdate(value)
+  await (options.store ?? modelConfigurations()).apply(options.researcherAccountId, (stored) => {
+    const previous = stored === null ? emptyModelConfig() : storedModelConfig(stored)
+    const issues = providerChangeIssues(previous, config)
     if (issues.length > 0) throw invalidSubmitted(issues)
-    await requireManagedCredentials(config, credentials, credentialStore)
-    await clearImplicitOptionalCredentials(previous, config, credentials, credentialStore)
-    for (const [id, action] of Object.entries(credentials)) {
-      await requireKeyring(() => (action === null ? credentialStore.delete(id) : credentialStore.set(id, action)))
-    }
     return config
   })
-
-  // Past the commit the document is authoritative. Reusing a removed UUID cannot
-  // reactivate a leftover credential: managed/new endpoints require an explicit
-  // credential, while optional/new endpoints delete any leftover before commit.
-  const submitted = new Set(config.connections.map(({ id }) => id))
-  for (const { id, provider } of previous.connections) {
-    if (submitted.has(id) || providerTable[provider].authentication === 'external') continue
-    await credentialStore.delete(id).catch(() => undefined)
-  }
-
-  return { config, credentialStates: await credentialStates(config, credentialStore) }
+  // A removed or re-addressed connection's cached key goes now; a call already under way finishes.
+  ;(options.keys ?? studioProcess.keys).retain(options.researcherAccountId, config.connections)
+  return config
 }
 
 /** The configured Extraction Model Choice, or `null` when every role keeps kei-exp's default. */

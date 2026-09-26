@@ -22,11 +22,24 @@ export class ModelKeyRequiredError extends ApiError {
   }
 }
 
+/** One `PUT /api/model-keys` request's writes for its account. */
+export type ModelKeyHandoff = {
+  /** Stores the key unless the account signed out since the handoff began; says whether it did. */
+  put(connectionId: string, address: ModelKeyAddress, key: string): boolean
+  remove(connectionId: string): void
+}
+
 /** Studio's in-memory copy of the keys pages hand it, per Researcher Account and Model Connection. Never persisted. */
 export type ModelKeyCache = {
   put(accountId: string, connectionId: string, address: ModelKeyAddress, key: string): void
   remove(accountId: string, connectionId: string): void
+  /** Sign-out: drops the account's keys and voids every handoff of the account begun before it. */
   forgetAccount(accountId: string): void
+  /**
+   * Begins a handoff. A handoff still reading the configuration when its account signs out would otherwise put the
+   * keys back after the eviction, so its `put` stores nothing once `forgetAccount` has run for the account.
+   */
+  handoff(accountId: string): ModelKeyHandoff
   /** Keeps only keys whose connection still exists, still has `hasKey`, and still has the key's provider and base. */
   retain(accountId: string, connections: readonly (KeyedConnection & { hasKey: boolean })[]): void
   read(accountId: string, connection: KeyedConnection): string | null
@@ -40,6 +53,7 @@ const slot = (accountId: string, connectionId: string) => `${accountId}\u0000${c
 export function createModelKeyCache(): ModelKeyCache {
   const held = new Map<string, Held>()
   const waiters = new Map<string, Set<() => void>>()
+  const signOuts = new Map<string, number>()
   const ofAccount = (accountId: string) => [...held.keys()].filter((at) => at.startsWith(`${accountId}\u0000`))
   const cache: ModelKeyCache = {
     put(accountId, connectionId, address, key) {
@@ -52,6 +66,20 @@ export function createModelKeyCache(): ModelKeyCache {
     },
     forgetAccount(accountId) {
       for (const at of ofAccount(accountId)) held.delete(at)
+      signOuts.set(accountId, (signOuts.get(accountId) ?? 0) + 1)
+    },
+    handoff(accountId) {
+      const began = signOuts.get(accountId) ?? 0
+      return {
+        put(connectionId, address, key) {
+          if ((signOuts.get(accountId) ?? 0) !== began) return false
+          cache.put(accountId, connectionId, address, key)
+          return true
+        },
+        remove(connectionId) {
+          cache.remove(accountId, connectionId)
+        },
+      }
     },
     retain(accountId, connections) {
       const current = new Map(connections.filter(({ hasKey }) => hasKey).map((connection) => [connection.id, connection]))

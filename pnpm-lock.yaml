@@ -151,9 +151,6 @@ importers:
       db:
         specifier: workspace:*
         version: link:../../packages/db
-      env-paths:
-        specifier: ^4.0.0
-        version: 4.0.0
       extraction:
         specifier: workspace:*
         version: link:../../packages/extraction

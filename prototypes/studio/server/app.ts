@@ -425,6 +425,23 @@ export async function createStudioApp(
   app.use('/api', apiBodyLimit)
   app.use('/api/*', apiBodyLimit)
 
+  // Sessions that signed out in this process, by a digest of their cookie, until they would have expired. Only key
+  // handoffs consult it: a handoff a page sent before signing out must not put its keys back after the eviction.
+  const signedOutSessions = new Map<string, number>()
+  const sessionDigest = (value: string) => createHash('sha256').update(value).digest('base64url')
+  const refuseSignedOutHandoff: MiddlewareHandler<StudioEnvironment> = async (
+    context,
+    next,
+  ) => {
+    const { value } = sessions.read(context.req.raw)
+    if (value && signedOutSessions.has(sessionDigest(value)))
+      return authenticationRequired(sessions.clear())
+    // Nothing awaits between this check and the handoff's start (`keys.handoff` in api/model_keys.ts), and a
+    // sign-out after that start voids the handoff's writes, so no key comes back either way.
+    await next()
+  }
+  app.use('/api/model-keys', refuseSignedOutHandoff)
+
   app.get('/api/auth/session', async (context) => {
     const inspected = await gate.session(context.req.raw)
     const response = noStoreResponse(Response.json(inspected.view))
@@ -510,9 +527,17 @@ export async function createStudioApp(
   })
 
   app.post('/auth/logout', async (context) => {
-    // Sign-out clears Studio's copy of this account's keys; the page clears the browser's own copy.
-    const state = await backend.inspect(context.req.raw).catch(() => null)
-    if (state?.authenticated) custody.keys.forgetAccount(state.account.id)
+    // Sign-out clears Studio's copy of this account's keys; the page clears the browser's own copy. The signed
+    // cookie alone names the account, so eviction works with the database down.
+    const { value } = sessions.read(context.req.raw)
+    const session = value ? sessions.verify(value) : null
+    if (value && session) {
+      const now = (options.now ?? Date.now)()
+      for (const [digest, expiresAt] of signedOutSessions)
+        if (expiresAt <= now) signedOutSessions.delete(digest)
+      signedOutSessions.set(sessionDigest(value), session.expiresAt)
+      custody.keys.forgetAccount(session.accountId)
+    }
     return externalRedirect(identityProvider.logoutUrl(signedOutUri), [
       transactions.clear(),
       sessions.clear(),

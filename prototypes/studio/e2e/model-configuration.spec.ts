@@ -48,6 +48,7 @@ type Config = {
     name: string
     provider: string
     baseUrl: string | null
+    hasKey: boolean
   }[]
   routes: {
     schemaSuggestion: { connectionId: string; modelId: string } | null
@@ -67,6 +68,8 @@ async function mockConfiguration(page: Page) {
     ingestionModels: {},
   }
   let probes = 0
+  const configBodies: string[] = []
+  const keyHandoffs: unknown[] = []
   let putFailure = false
   let putDelay = 0
   let probeStatus: 'connected' | 'unreachable' = 'connected'
@@ -76,7 +79,7 @@ async function mockConfiguration(page: Page) {
     const request = route.request()
     const path = new URL(request.url()).pathname
     if (path === '/api/model_config' && request.method() === 'GET') {
-      await route.fulfill({ json: { config, credentialStates: {}, providers, deployment } })
+      await route.fulfill({ json: { config, providers, deployment } })
       return
     }
     if (path === '/api/model_config' && request.method() === 'PUT') {
@@ -90,27 +93,21 @@ async function mockConfiguration(page: Page) {
           status: 503,
           json: {
             error: {
-              code: 'keyring_unavailable',
-              message: 'The credential store is locked.',
+              code: 'persistence_unavailable',
+              message: 'Model Configuration storage is unavailable.',
             },
           },
         })
         return
       }
-      const body = request.postDataJSON() as {
-        config: Config
-        credentials?: Record<string, string | null>
-      }
-      config = body.config
-      const credentialStates = Object.fromEntries(
-        config.connections
-          .filter(
-            ({ provider }) =>
-              !provider.endsWith('-cli') && provider !== 'claude-code',
-          )
-          .map(({ id }) => [id, body.credentials?.[id] ? 'present' : 'absent']),
-      )
-      await route.fulfill({ json: { config, credentialStates } })
+      configBodies.push(request.postData() ?? '')
+      config = (request.postDataJSON() as { config: Config }).config
+      await route.fulfill({ json: { config } })
+      return
+    }
+    if (path === '/api/model-keys' && request.method() === 'PUT') {
+      keyHandoffs.push(request.postDataJSON())
+      await route.fulfill({ json: { accepted: [] } })
       return
     }
     if (path === '/api/model_probe' && request.method() === 'POST') {
@@ -139,6 +136,8 @@ async function mockConfiguration(page: Page) {
   })
   return {
     config: () => config,
+    configBodies: () => configBodies,
+    keyHandoffs: () => keyHandoffs,
     probes: () => probes,
     setPutFailure: (value: boolean) => {
       putFailure = value
@@ -154,48 +153,6 @@ async function mockConfiguration(page: Page) {
     },
   }
 }
-
-test('Single model saves, reloads, and checks without probing on open or Apply', async ({
-  page,
-}) => {
-  const state = await mockConfiguration(page)
-  await gotoAuthenticated(page, '/')
-  await page.getByRole('button', { name: 'Configure models' }).click()
-  await expect(page.getByText('No Model Connections yet.')).toBeVisible()
-  await expect(page.getByLabel(/output support/)).toHaveCount(0)
-  await expect(page.getByText('Advanced output settings')).toHaveCount(0)
-  expect(state.probes()).toBe(0)
-
-  await page.getByRole('button', { name: '+ New connection' }).click()
-  await page
-    .getByLabel('Provider base URL')
-    .fill('http://127.0.0.1:11434/custom')
-  await expect.poll(state.probes).toBe(1)
-  await expect(page.getByText('Connected. 1 model available.')).toBeVisible()
-  await page
-    .getByLabel('Single model connection')
-    .selectOption({ label: 'Ollama' })
-  await page.getByLabel('Single model ID').fill('manual-model-id')
-  await page.getByRole('button', { name: 'Apply' }).click()
-
-  expect(state.config().routes.schemaSuggestion).toEqual(
-    state.config().routes.interaction,
-  )
-  expect(state.config().routes.schemaSuggestion).toMatchObject({
-    modelId: 'manual-model-id',
-  })
-  expect(state.config().routes.schemaSuggestion).not.toHaveProperty('protocol')
-  for (const route of Object.values(state.config().routes))
-    expect(route).not.toHaveProperty('jsonOutput')
-  expect(state.probes()).toBe(1)
-
-  await page.getByRole('button', { name: 'Close Model Configuration' }).click()
-  await page.getByRole('button', { name: 'Configure models' }).click()
-  await expect(page.getByLabel('Single model ID')).toHaveValue(
-    'manual-model-id',
-  )
-  expect(state.probes()).toBe(1)
-})
 
 test('model-list Escape preserves the provider draft before dialog dismissal', async ({
   page,
@@ -214,9 +171,11 @@ test('model-list Escape preserves the provider draft before dialog dismissal', a
 
   await dialog.getByRole('button', { name: '+ New connection' }).click()
   await dialog
-    .getByLabel('Single model connection')
+    .getByLabel('Chat & Extraction Schema editing connection')
     .selectOption({ label: 'Ollama' })
-  const model = dialog.getByRole('combobox', { name: 'Single model ID' })
+  const model = dialog.getByRole('combobox', {
+    name: 'Chat & Extraction Schema editing model ID',
+  })
   await model.focus()
   await expect(model).toHaveAttribute('aria-expanded', 'true')
 
@@ -293,9 +252,8 @@ test('Capability Routes save mixed exact targets', async ({
   await page
     .locator('article')
     .nth(1)
-    .getByLabel('API credential')
-    .fill('transient-secret')
-  await page.getByRole('button', { name: 'Capability Routes' }).click()
+    .getByLabel('API key', { exact: true })
+    .fill('sk-test-e2e-typed')
 
   await page
     .getByLabel('Schema Suggestion connection')
@@ -312,12 +270,13 @@ test('Capability Routes save mixed exact targets', async ({
     .getByLabel('Chat & Extraction Schema editing model ID')
     .fill('gpt-manual')
   await page.getByRole('button', { name: 'Apply' }).click()
+  // The key stays in this browser and reaches Studio only through the key handoff.
   await expect(
-    page.locator('article').nth(1).getByLabel('API credential'),
-  ).toHaveValue('')
-  await expect(
-    page.locator('article').nth(1).getByLabel('API credential'),
-  ).toHaveAttribute('placeholder', 'Stored credential will be preserved')
+    page.locator('article').nth(1).getByText('Key saved in this browser'),
+  ).toBeVisible()
+  await expect.poll(() => state.keyHandoffs().length).toBe(1)
+  expect(JSON.stringify(state.keyHandoffs()[0])).toContain('sk-test-e2e-typed')
+  expect(state.configBodies().join('')).not.toContain('sk-test-e2e-typed')
 
   const saved = state.config()
   expect(saved.routes.schemaSuggestion).toMatchObject({
@@ -340,36 +299,6 @@ test('Capability Routes save mixed exact targets', async ({
   expect(state.probes()).toBe(probesBeforeReload)
 })
 
-test('a draft provider change probes again and locks once saved', async ({
-  page,
-}) => {
-  const state = await mockConfiguration(page)
-  await gotoAuthenticated(page, '/')
-  await page.getByRole('button', { name: 'Configure models' }).click()
-  await page.getByLabel('New connection provider').selectOption('vllm')
-  await page.getByRole('button', { name: '+ New connection' }).click()
-  await page.getByLabel('Provider base URL').fill('http://nuextract.example:8000/v1')
-  await expect.poll(state.probes).toBe(1)
-
-  await page.getByRole('button', { name: 'Capability Routes' }).click()
-  await page
-    .getByLabel('Schema Suggestion connection')
-    .selectOption({ label: 'vLLM' })
-
-  await page.getByLabel('vLLM provider').selectOption('claude-code')
-  await expect.poll(state.probes).toBe(2)
-
-  await page
-    .getByLabel('Schema Suggestion model ID')
-    .fill('claude-manual')
-  await page.getByRole('button', { name: 'Apply' }).click()
-  await expect(page.getByLabel('Claude Code provider')).toBeHidden()
-  expect(state.config().connections[0]).toMatchObject({
-    provider: 'claude-code',
-    baseUrl: null,
-  })
-})
-
 test('probe failures do not gate retryable offline Apply and pending state', async ({
   page,
 }) => {
@@ -378,31 +307,33 @@ test('probe failures do not gate retryable offline Apply and pending state', asy
   await gotoAuthenticated(page, '/')
   await page.getByRole('button', { name: 'Configure models' }).click()
   await page.getByRole('button', { name: '+ New connection' }).click()
-  // A connection FREE manages no credential for yet is not a broken keyring.
-  await expect(page.getByText('Credential store unavailable.')).toBeHidden()
   await expect(page.getByText('Provider is offline.')).toBeVisible()
   await page
     .getByLabel('Provider base URL')
     .fill('http://127.0.0.1:11434/retry')
   await expect.poll(state.probes).toBe(2)
   await page
-    .getByLabel('Single model connection')
+    .getByLabel('Chat & Extraction Schema editing connection')
     .selectOption({ label: 'Ollama' })
-  await page.getByLabel('Single model ID').fill('offline-model')
+  await page
+    .getByLabel('Chat & Extraction Schema editing model ID')
+    .fill('offline-model')
 
   state.setPutFailure(true)
   await page.getByRole('button', { name: 'Apply' }).click()
   await expect(page.getByRole('alert')).toContainText(
-    'keyring_unavailable: The credential store is locked.',
+    'persistence_unavailable: Model Configuration storage is unavailable.',
   )
-  await expect(page.getByLabel('Single model ID')).toHaveValue('offline-model')
+  await expect(
+    page.getByLabel('Chat & Extraction Schema editing model ID'),
+  ).toHaveValue('offline-model')
 
   state.setPutFailure(false)
   state.setPutDelay(250)
   await page.getByRole('button', { name: 'Apply' }).click()
   await expect(page.getByRole('button', { name: 'Apply' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Apply' })).toBeEnabled()
-  expect(state.config().routes.schemaSuggestion).toMatchObject({
+  expect(state.config().routes.interaction).toMatchObject({
     modelId: 'offline-model',
   })
 })

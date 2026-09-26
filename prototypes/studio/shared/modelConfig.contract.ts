@@ -24,6 +24,9 @@ export const modelConnectionSchema = z
     name: z.string().min(1, 'Must not be empty.'),
     provider: providerKindSchema,
     baseUrl: z.string().min(1).nullable(),
+    /** Whether calls to this connection carry a key. The key stays in the researcher's browser and, while a call needs
+     *  it, in Studio's memory; never in this document. Managed providers always have one; deployment connections never. */
+    hasKey: z.boolean(),
   })
   .strict()
 export type ModelConnection = z.infer<typeof modelConnectionSchema>
@@ -93,21 +96,12 @@ export const deploymentModelsSchema = z
   .strict()
 export type DeploymentModels = z.infer<typeof deploymentModelsSchema>
 
-export const modelConfigUpdateSchema = z
-  .object({
-    config: modelConfigSchema,
-    credentials: z
-      .record(uuidSchema, z.string().min(1, 'Must not be empty.').nullable())
-      .optional(),
-  })
-  .strict()
+export const modelConfigUpdateSchema = z.object({ config: modelConfigSchema }).strict()
 export type ModelConfigUpdate = z.infer<typeof modelConfigUpdateSchema>
 
+/** A probe carries exactly the key the page typed or holds for the connection, and only when it has `hasKey`. */
 export const modelProbeRequestSchema = z
-  .object({
-    connection: modelConnectionSchema,
-    credential: z.string().min(1, 'Must not be empty.').nullable().optional(),
-  })
+  .object({ connection: modelConnectionSchema, credential: z.string().min(1).max(8192).optional() })
   .strict()
 export type ModelProbeRequest = z.infer<typeof modelProbeRequestSchema>
 
@@ -128,11 +122,6 @@ export type ProviderDescriptor = z.infer<typeof providerDescriptorSchema>
 export function usesNuextractProtocol(provider: Pick<ProviderDescriptor, 'supportsNuextract'>, modelId: string): boolean {
   return provider.supportsNuextract && /nuextract/i.test(modelId)
 }
-
-export const credentialStateSchema = z.enum(['present', 'absent', 'unavailable'])
-export type CredentialState = z.infer<typeof credentialStateSchema>
-/** Omitted ID preserves, non-empty string replaces, `null` deletes. */
-export type CredentialActions = Record<string, string | null>
 
 export const modelDescriptorSchema = z.object({ id: z.string(), label: z.string() }).strict()
 export type ModelDescriptor = z.infer<typeof modelDescriptorSchema>
@@ -159,12 +148,7 @@ export const probeResultSchema = z
   .strict()
 export type ProbeResult = z.infer<typeof probeResultSchema>
 
-export const modelConfigStateSchema = z
-  .object({
-    config: modelConfigSchema,
-    credentialStates: z.record(z.string(), credentialStateSchema),
-  })
-  .strict()
+export const modelConfigStateSchema = z.object({ config: modelConfigSchema }).strict()
 export type ModelConfigState = z.infer<typeof modelConfigStateSchema>
 
 export const getModelConfigResponseSchema = modelConfigStateSchema

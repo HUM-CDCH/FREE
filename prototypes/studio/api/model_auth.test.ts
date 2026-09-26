@@ -3,8 +3,9 @@ import type {
   ResearcherAccountStore,
   ResearcherProjectStore,
 } from 'db'
-import { describe, expect, it, vi, type Mock } from 'vitest'
-import type { ModelConfig } from '../shared/modelConfig.contract.js'
+import { generateText } from 'ai'
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
+import type { ModelConfig, ModelConnection } from '../shared/modelConfig.contract.js'
 import {
   createApiDispatcher,
   createApiHandlerRegistry,
@@ -13,9 +14,12 @@ import {
 import { createStudioApp, type StudioApp } from '../server/app.js'
 import { createInMemoryEntraIdentityProvider } from '../test/support/inMemoryEntraIdentityProvider.js'
 import { createSessionManager } from '../server/session.js'
-import type { CredentialStore } from './_keyring.js'
+import { readAccountModelConfig } from './_model_config.js'
+import { ModelKeyRequiredError, createModelKeyCache, type ModelKeyCache } from './_model_keys.js'
+import { resolveCapabilityRoute } from './_provider.js'
 import { inMemoryModelConfigurations } from './model_configuration.fixture.js'
 import { createResearcherApiHandlers as modelConfigHandlers } from './model_config.js'
+import { createPutModelKeys } from './model_keys.js'
 import { createResearcherApiHandlers as modelProbeHandlers } from './model_probe.js'
 
 const ORIGIN = 'https://studio.example'
@@ -25,18 +29,17 @@ const ACCOUNT_ID = '30000000-0000-4000-8000-000000000001'
 const OTHER_ACCOUNT_ID = '30000000-0000-4000-8000-000000000005'
 const CONNECTION_ID = '30000000-0000-4000-8000-000000000002'
 const OTHER_CONNECTION_ID = '30000000-0000-4000-8000-000000000006'
-const MANAGED_SECRET = 'sk-test-saved-write-only'
-const OTHER_SECRET = 'sk-test-other-account'
+const NO_DEPLOYMENT = { connections: [], defaultRoute: null }
 
+const researchConnection: ModelConnection = {
+  id: CONNECTION_ID,
+  name: 'Research OpenAI',
+  provider: 'openai',
+  baseUrl: 'https://gateway.example/openai/v1',
+  hasKey: true,
+}
 const config: ModelConfig = {
-  connections: [
-    {
-      id: CONNECTION_ID,
-      name: 'Research OpenAI',
-      provider: 'openai',
-      baseUrl: 'https://gateway.example/openai/v1',
-    },
-  ],
+  connections: [researchConnection],
   routes: {
     schemaSuggestion: { connectionId: CONNECTION_ID, modelId: 'gpt-research' },
     interaction: { connectionId: CONNECTION_ID, modelId: 'gpt-research' },
@@ -45,11 +48,6 @@ const config: ModelConfig = {
   ingestionModels: {},
 }
 
-type ProviderFetch = (
-  input: string | URL | Request,
-  init?: RequestInit,
-) => Promise<Response>
-
 const otherConfig: ModelConfig = {
   connections: [
     {
@@ -57,6 +55,7 @@ const otherConfig: ModelConfig = {
       name: 'Other researcher OpenAI',
       provider: 'openai',
       baseUrl: 'https://other.example/openai/v1',
+      hasKey: true,
     },
   ],
   routes: {
@@ -74,18 +73,22 @@ const EMPTY_CONFIG: ModelConfig = {
   ingestionModels: {},
 }
 
+type ProviderFetch = (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Promise<Response>
+
 type ModelAuthFixture = {
   app: StudioApp
   cookie: string
   otherCookie: string
+  cookieFor: (researcherAccountId: string, issuedAt?: number) => string
   dispatcher: Mock<ApiDispatcher>
   readConfig: Mock<(researcherAccountId: string) => Promise<unknown>>
-  credentialCalls: {
-    state: Mock<CredentialStore['state']>
-    get: Mock<NonNullable<CredentialStore['get']>>
-    set: Mock<CredentialStore['set']>
-    delete: Mock<CredentialStore['delete']>
-  }
+  /** Holds every configuration read until `release`, once `hold` is called. */
+  gate: { hold(): void; reading: Promise<void>; release(): void }
+  store: ReturnType<typeof inMemoryModelConfigurations>
+  keys: ModelKeyCache
   providerFetch: Mock<ProviderFetch>
 }
 
@@ -107,42 +110,33 @@ async function modelAuthFixture(): Promise<ModelAuthFixture> {
     findById: vi.fn(async (id) => accounts.find((candidate) => candidate.id === id) ?? null),
   }
 
-  const credentials = new Map<string, string>()
-  const state = vi.fn<CredentialStore['state']>(async (id) =>
-    credentials.has(id) ? 'present' : 'absent',
-  )
-  const get = vi.fn<NonNullable<CredentialStore['get']>>(async (id) =>
-    credentials.get(id),
-  )
-  const set = vi.fn<CredentialStore['set']>(async (id, value) => {
-    credentials.set(id, value)
-  })
-  const deleteCredential = vi.fn<CredentialStore['delete']>(async (id) => {
-    credentials.delete(id)
-  })
-  const credentialStore: CredentialStore = {
-    state,
-    get,
-    set,
-    delete: deleteCredential,
-  }
-  // One store shared by both accounts, as in the deployment.
+  // One configuration store and one key cache shared by both accounts, as in the deployment.
   const store = inMemoryModelConfigurations()
-  const readConfig = vi.fn(store.read)
+  let held: PromiseWithResolvers<void> | null = null
+  const reading = Promise.withResolvers<void>()
+  const readConfig = vi.fn(async (researcherAccountId: string) => {
+    reading.resolve()
+    await held?.promise
+    return store.read(researcherAccountId)
+  })
   const configurations = { ...store, read: readConfig }
+  const keys = createModelKeyCache()
   const providerFetch = vi.fn<ProviderFetch>(
     async () => Response.json({ data: [{ id: 'gpt-research' }] }),
   )
-  const deployment = () => ({ connections: [], defaultRoute: null })
-  const dependencies = { configurations, credentialStore, deployment }
+  const deployment = () => NO_DEPLOYMENT
   const registry = createApiHandlerRegistry({
     '../api/model_config.ts': {
       createResearcherApiHandlers: (projects: ResearcherProjectStore) =>
-        modelConfigHandlers(projects, dependencies),
+        modelConfigHandlers(projects, { configurations, deployment, keys }),
     },
     '../api/model_probe.ts': {
       createResearcherApiHandlers: (projects: ResearcherProjectStore) =>
-        modelProbeHandlers(projects, { ...dependencies, fetch: providerFetch }),
+        modelProbeHandlers(projects, { deployment, fetch: providerFetch }),
+    },
+    '../api/model_keys.ts': {
+      createResearcherApiHandlers: (projects: ResearcherProjectStore) =>
+        ({ PUT: createPutModelKeys(projects.researcherAccountId, { configurations, keys }) }),
     },
   })
   const dispatcher = vi.fn(createApiDispatcher(registry))
@@ -154,11 +148,12 @@ async function modelAuthFixture(): Promise<ModelAuthFixture> {
     accountStore,
     identityProvider: createInMemoryEntraIdentityProvider({ now: () => NOW }),
     apiDispatcher: dispatcher,
+    modelKeys: { bootId: 'boot-test', keys },
     researcherProjectStore: (researcherAccountId) =>
       ({ researcherAccountId }) as ResearcherProjectStore,
   })
-  const sessions = createSessionManager(SECRET, () => NOW)
-  const cookieFor = (researcherAccountId: string) => {
+  const cookieFor = (researcherAccountId: string, issuedAt = NOW) => {
+    const sessions = createSessionManager(SECRET, () => issuedAt)
     const payload = sessions.issue(researcherAccountId, NOW + 75 * 60 * 1_000)
     if (!payload) throw new Error('Test session could not be issued.')
     return sessions.serialize(payload).split(';', 1)[0]
@@ -168,16 +163,23 @@ async function modelAuthFixture(): Promise<ModelAuthFixture> {
     app,
     cookie: cookieFor(ACCOUNT_ID),
     otherCookie: cookieFor(OTHER_ACCOUNT_ID),
+    cookieFor,
     dispatcher,
     readConfig,
-    credentialCalls: { state, get, set, delete: deleteCredential },
+    gate: {
+      hold: () => { held = Promise.withResolvers<void>() },
+      reading: reading.promise,
+      release: () => held?.resolve(),
+    },
+    store,
+    keys,
     providerFetch,
   }
 }
 
 async function modelRequest(
   test: ModelAuthFixture,
-  path: '/api/model_config' | '/api/model_probe',
+  path: '/api/model_config' | '/api/model_probe' | '/api/model-keys',
   method: 'GET' | 'PUT' | 'POST',
   body?: unknown,
   cookie?: string,
@@ -199,28 +201,29 @@ async function modelRequest(
   )
 }
 
+const keyEntry = (connection: ModelConnection, key: string) =>
+  ({ provider: connection.provider, baseUrl: connection.baseUrl, key })
+
 function expectNoModelSideEffects(test: ModelAuthFixture): void {
   expect(test.dispatcher).not.toHaveBeenCalled()
   expect(test.readConfig).not.toHaveBeenCalled()
-  expect(test.credentialCalls.state).not.toHaveBeenCalled()
-  expect(test.credentialCalls.get).not.toHaveBeenCalled()
-  expect(test.credentialCalls.set).not.toHaveBeenCalled()
-  expect(test.credentialCalls.delete).not.toHaveBeenCalled()
   expect(test.providerFetch).not.toHaveBeenCalled()
+  expect(test.keys.read(ACCOUNT_ID, researchConnection)).toBeNull()
 }
 
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
 describe('model API authentication boundary', () => {
-  it('denies unauthenticated GET, PUT, and probe before configuration, keyring, or provider access', async () => {
+  it('denies unauthenticated GET, PUT, and probe before configuration or provider access', async () => {
     const test = await modelAuthFixture()
     const responses = await Promise.all([
       modelRequest(test, '/api/model_config', 'GET'),
-      modelRequest(test, '/api/model_config', 'PUT', {
-        config,
-        credentials: { [CONNECTION_ID]: MANAGED_SECRET },
-      }),
+      modelRequest(test, '/api/model_config', 'PUT', { config }),
       modelRequest(test, '/api/model_probe', 'POST', {
-        connection: config.connections[0],
-        credential: MANAGED_SECRET,
+        connection: researchConnection,
+        credential: 'sk-test-unauthenticated-probe',
       }),
     ])
 
@@ -233,67 +236,52 @@ describe('model API authentication boundary', () => {
     expectNoModelSideEffects(test)
   })
 
-  it('allows a fully authenticated researcher to replace, read, and probe their own state without exposing credentials', async () => {
+  it('unauthenticated model-keys PUT is 401 with no side effects', async () => {
     const test = await modelAuthFixture()
-    const put = await modelRequest(
-      test,
-      '/api/model_config',
-      'PUT',
-      { config, credentials: { [CONNECTION_ID]: MANAGED_SECRET } },
-      test.cookie,
-    )
-    const putText = await put.text()
+    const response = await modelRequest(test, '/api/model-keys', 'PUT', {
+      account: ACCOUNT_ID,
+      keys: { [CONNECTION_ID]: keyEntry(researchConnection, 'sk-test-unauthenticated') },
+    })
+
+    expect(response.status).toBe(401)
+    const text = await response.text()
+    expect(JSON.parse(text)).toMatchObject({ error: { code: 'authentication_required' } })
+    expect(text).not.toContain('sk-test-unauthenticated')
+    expectNoModelSideEffects(test)
+  })
+
+  it('allows a fully authenticated researcher to replace, read, and probe their own state without exposing keys', async () => {
+    const test = await modelAuthFixture()
+    const put = await modelRequest(test, '/api/model_config', 'PUT', { config }, test.cookie)
 
     expect(put.status).toBe(200)
-    expect(JSON.parse(putText)).toEqual({
-      config,
-      credentialStates: { [CONNECTION_ID]: 'present' },
-    })
-    expect(putText).not.toContain(MANAGED_SECRET)
+    await expect(put.json()).resolves.toEqual({ config })
     expect(test.providerFetch).not.toHaveBeenCalled()
 
-    const get = await modelRequest(
-      test,
-      '/api/model_config',
-      'GET',
-      undefined,
-      test.cookie,
-    )
-    const getText = await get.text()
+    const get = await modelRequest(test, '/api/model_config', 'GET', undefined, test.cookie)
     expect(get.status).toBe(200)
-    expect(JSON.parse(getText)).toMatchObject({
-      config,
-      credentialStates: { [CONNECTION_ID]: 'present' },
-    })
-    expect(JSON.parse(getText).providers.length).toBeGreaterThan(0)
-    expect(getText).not.toContain(MANAGED_SECRET)
-    expect(test.providerFetch).not.toHaveBeenCalled()
+    const read = await get.json()
+    expect(read).toMatchObject({ config, deployment: NO_DEPLOYMENT })
+    expect(Object.keys(read).sort()).toEqual(['config', 'deployment', 'providers'])
+    expect(read.providers.length).toBeGreaterThan(0)
 
     const probe = await modelRequest(
       test,
       '/api/model_probe',
       'POST',
-      { connection: config.connections[0] },
+      { connection: researchConnection, credential: 'sk-test-page-probe' },
       test.cookie,
     )
     const probeText = await probe.text()
     expect(probe.status).toBe(200)
-    expect(JSON.parse(probeText)).toMatchObject({
-      status: 'connected',
-      catalog: [{ id: 'gpt-research' }],
-    })
-    expect(probeText).not.toContain(MANAGED_SECRET)
+    expect(JSON.parse(probeText)).toMatchObject({ status: 'connected', catalog: [{ id: 'gpt-research' }] })
+    expect(probeText).not.toContain('sk-test-page-probe')
     expect(test.providerFetch).toHaveBeenCalledWith(
       'https://gateway.example/openai/v1/models',
       expect.objectContaining({
-        headers: expect.objectContaining({
-          authorization: `Bearer ${MANAGED_SECRET}`,
-        }),
+        headers: expect.objectContaining({ authorization: 'Bearer sk-test-page-probe' }),
       }),
     )
-    expect(test.credentialCalls.set).toHaveBeenCalledTimes(1)
-    expect(test.credentialCalls.get).toHaveBeenCalledTimes(1)
-    expect(test.credentialCalls.delete).not.toHaveBeenCalled()
   })
 
   it('each account reads only its own configuration', async () => {
@@ -301,54 +289,94 @@ describe('model API authentication boundary', () => {
     const read = async (cookie: string) => {
       const response = await modelRequest(test, '/api/model_config', 'GET', undefined, cookie)
       expect(response.status).toBe(200)
-      return (await response.json()) as { config: ModelConfig; credentialStates: Record<string, string> }
+      return (await response.json()) as { config: ModelConfig }
     }
 
-    const put = await modelRequest(
-      test,
-      '/api/model_config',
-      'PUT',
-      { config, credentials: { [CONNECTION_ID]: MANAGED_SECRET } },
-      test.cookie,
-    )
-    expect(put.status).toBe(200)
-    expect(await read(test.otherCookie)).toMatchObject({ config: EMPTY_CONFIG, credentialStates: {} })
+    expect((await modelRequest(test, '/api/model_config', 'PUT', { config }, test.cookie)).status).toBe(200)
+    expect(await read(test.otherCookie)).toMatchObject({ config: EMPTY_CONFIG })
 
-    const otherPut = await modelRequest(
-      test,
-      '/api/model_config',
-      'PUT',
-      { config: otherConfig, credentials: { [OTHER_CONNECTION_ID]: OTHER_SECRET } },
-      test.otherCookie,
-    )
-    expect(otherPut.status).toBe(200)
+    expect((await modelRequest(test, '/api/model_config', 'PUT', { config: otherConfig }, test.otherCookie)).status).toBe(200)
     expect(await read(test.otherCookie)).toMatchObject({ config: otherConfig })
     const first = await read(test.cookie)
-    expect(first).toMatchObject({ config, credentialStates: { [CONNECTION_ID]: 'present' } })
+    expect(first).toMatchObject({ config })
     expect(JSON.stringify(first)).not.toContain(OTHER_CONNECTION_ID)
     expect(new Set(test.readConfig.mock.calls.map(([id]) => id))).toEqual(new Set([ACCOUNT_ID, OTHER_ACCOUNT_ID]))
   })
 
-  it('probes a saved connection with a stored credential only for the account that saved it', async () => {
+  it("each account's key serves only its own calls", async () => {
     const test = await modelAuthFixture()
-    await modelRequest(
-      test,
-      '/api/model_config',
-      'PUT',
-      { config, credentials: { [CONNECTION_ID]: MANAGED_SECRET } },
-      test.cookie,
-    )
+    // Both accounts name one connection UUID at one address: IDs are unique per account, not across accounts.
+    const lab: ModelConnection = { id: CONNECTION_ID, name: 'Lab vLLM', provider: 'vllm', baseUrl: 'http://lab.example:8000/v1', hasKey: true }
+    const labConfig: ModelConfig = { ...EMPTY_CONFIG, connections: [lab], routes: { schemaSuggestion: null, interaction: { connectionId: lab.id, modelId: 'm' } } }
+    for (const cookie of [test.cookie, test.otherCookie])
+      expect((await modelRequest(test, '/api/model_config', 'PUT', { config: labConfig }, cookie)).status).toBe(200)
+    const request = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => Response.json({
+      id: 'x', object: 'chat.completion', created: 0, model: 'm',
+      choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    }))
+    vi.stubGlobal('fetch', request)
+    const call = async (researcherAccountId: string) => {
+      const target = await resolveCapabilityRoute('chat', {}, {
+        researcherAccountId,
+        readConfig: () => readAccountModelConfig(researcherAccountId, test.store),
+        deployment: NO_DEPLOYMENT,
+        keys: test.keys,
+        keyWaitMs: 10,
+      })
+      if (target.profile !== 'general') throw new Error('Expected general execution')
+      request.mockClear()
+      const failure = await generateText({ model: target.model, prompt: 'Hi', maxRetries: 0 }).then(() => null, (error: unknown) => error)
+      return { failure, authorization: request.mock.calls.map(([, init]) => new Headers(init?.headers).get('authorization')) }
+    }
+    const handoff = async (cookie: string, account: string, entry: ReturnType<typeof keyEntry> | null) =>
+      (await modelRequest(test, '/api/model-keys', 'PUT', { account, keys: { [lab.id]: entry } }, cookie)).json()
 
-    const probe = await modelRequest(
-      test,
-      '/api/model_probe',
-      'POST',
-      { connection: config.connections[0] },
-      test.otherCookie,
-    )
+    await expect(handoff(test.cookie, ACCOUNT_ID, keyEntry(lab, 'sk-test-account-a'))).resolves.toEqual({ accepted: [lab.id] })
+    const withoutKey = await call(OTHER_ACCOUNT_ID)
+    expect(withoutKey.failure).toBeInstanceOf(ModelKeyRequiredError)
+    expect(withoutKey.authorization).toEqual([])
 
-    expect(probe.status).toBe(409)
-    expect(await probe.text()).not.toContain(MANAGED_SECRET)
-    expect(test.providerFetch).not.toHaveBeenCalled()
+    // B's removal of "its" key for that ID leaves A's key in place.
+    await expect(handoff(test.otherCookie, OTHER_ACCOUNT_ID, null)).resolves.toEqual({ accepted: [lab.id] })
+    expect(await call(ACCOUNT_ID)).toEqual({ failure: null, authorization: ['Bearer sk-test-account-a'] })
+
+    await expect(handoff(test.otherCookie, OTHER_ACCOUNT_ID, keyEntry(lab, 'sk-test-account-b'))).resolves.toEqual({ accepted: [lab.id] })
+    expect(await call(OTHER_ACCOUNT_ID)).toEqual({ failure: null, authorization: ['Bearer sk-test-account-b'] })
+    expect(await call(ACCOUNT_ID)).toEqual({ failure: null, authorization: ['Bearer sk-test-account-a'] })
+  })
+
+  it('a handoff in flight when its session signs out stores nothing; that session hands off no more; another session of the account still can', async () => {
+    const test = await modelAuthFixture()
+    expect((await modelRequest(test, '/api/model_config', 'PUT', { config }, test.cookie)).status).toBe(200)
+    const body = { account: ACCOUNT_ID, keys: { [CONNECTION_ID]: keyEntry(researchConnection, 'sk-test-signing-out') } }
+
+    test.gate.hold()
+    const inFlight = modelRequest(test, '/api/model-keys', 'PUT', body, test.cookie)
+    await test.gate.reading
+    const logout = await test.app.request(`${ORIGIN}/auth/logout`, {
+      method: 'POST',
+      headers: { origin: ORIGIN, cookie: test.cookie },
+    })
+    expect(logout.status).toBe(302)
+    test.gate.release()
+
+    const response = await inFlight
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ accepted: [] })
+    expect(test.keys.read(ACCOUNT_ID, researchConnection)).toBeNull()
+
+    // A handoff the signed-out page sent before signing out, arriving after it.
+    const late = await modelRequest(test, '/api/model-keys', 'PUT', body, test.cookie)
+    expect(late.status).toBe(401)
+    expect(test.keys.read(ACCOUNT_ID, researchConnection)).toBeNull()
+
+    // Another browser of the same account, signed in earlier, sends its own copy again.
+    const other = test.cookieFor(ACCOUNT_ID, NOW - 60_000)
+    const again = await modelRequest(test, '/api/model-keys', 'PUT', {
+      account: ACCOUNT_ID, keys: { [CONNECTION_ID]: keyEntry(researchConnection, 'sk-test-other-browser') },
+    }, other)
+    await expect(again.json()).resolves.toEqual({ accepted: [CONNECTION_ID] })
+    expect(test.keys.read(ACCOUNT_ID, researchConnection)).toBe('sk-test-other-browser')
   })
 })

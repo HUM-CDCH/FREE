@@ -12,8 +12,11 @@ import {
   providerTable,
   resolveCapabilityRoute,
   withThinkingOff,
+  type ExecutionTarget,
+  type NuExtractExecutionTarget,
+  type RouteResolverDependencies,
 } from './_provider.js'
-import { ModelKeyRequiredError } from './_model_keys.js'
+import { ModelKeyRequiredError, createModelKeyCache } from './_model_keys.js'
 
 const ID = '11111111-1111-4111-8111-111111111111'
 const connection: ModelConnection = {
@@ -21,16 +24,14 @@ const connection: ModelConnection = {
   name: 'Gateway',
   provider: 'openai-compatible',
   baseUrl: 'https://host.example/proxy/openai/v1',
+  hasKey: false,
 }
-const presentCredentialStore = {
-  state: async () => 'present' as const,
-  get: async () => 'secret',
-  set: async () => undefined,
-  delete: async () => undefined,
-}
+const ACCOUNT = '11111111-1111-4111-8111-1111111111a1'
+const OTHER_ACCOUNT = '11111111-1111-4111-8111-1111111111a2'
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 function routed(overrides: Partial<ModelConfig> = {}): ModelConfig {
@@ -428,13 +429,162 @@ describe('probeConnection', () => {
   })
 })
 
+describe('a route reads its key inside each provider attempt', () => {
+  const keyed: ModelConnection = { ...connection, provider: 'vllm', baseUrl: 'http://lab.example:8000/v1', hasKey: true }
+  const address = { provider: keyed.provider, baseUrl: keyed.baseUrl }
+  const NO_DEPLOYMENT = { connections: [], defaultRoute: null }
+  const completion = () => Response.json({
+    id: 'x', object: 'chat.completion', created: 0, model: 'm',
+    choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+  })
+  function serve() {
+    const request = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => completion())
+    vi.stubGlobal('fetch', request)
+    return request
+  }
+  const authorizations = (request: ReturnType<typeof serve>) =>
+    request.mock.calls.map(([, init]) => new Headers(init?.headers).get('authorization'))
+  function model(target: ExecutionTarget) {
+    if (target.profile !== 'general') throw new Error('Expected general execution')
+    return target.model
+  }
+  const resolveChat = (dependencies: Partial<RouteResolverDependencies> = {}) => resolveCapabilityRoute('chat', {}, {
+    researcherAccountId: ACCOUNT,
+    readConfig: async () => routed({ connections: [keyed] }),
+    deployment: NO_DEPLOYMENT,
+    keyWaitMs: 50,
+    ...dependencies,
+  })
+
+  it('a hasKey route with no cached key waits, then fails with model_key_required without calling its server', async () => {
+    vi.useFakeTimers()
+    const request = serve()
+    const target = await resolveChat({ keys: createModelKeyCache() })
+    let settled: unknown
+    const call = generateText({ model: model(target), prompt: 'Hi' }).catch((error: unknown) => (settled = error))
+
+    await vi.advanceTimersByTimeAsync(49)
+    expect(settled).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(1)
+    await call
+
+    // Not retried by the AI SDK: one wait, then the terminal failure.
+    expect(settled).toBeInstanceOf(ModelKeyRequiredError)
+    expect(settled).toMatchObject({ status: 409, code: 'model_key_required', isRetryable: false })
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('a key sent during the wait is used for that attempt', async () => {
+    vi.useFakeTimers()
+    const request = serve()
+    const keys = createModelKeyCache()
+    const target = await resolveChat({ keys })
+    const call = generateText({ model: model(target), prompt: 'Hi', maxRetries: 0 })
+
+    await vi.advanceTimersByTimeAsync(20)
+    expect(request).not.toHaveBeenCalled()
+    keys.put(ACCOUNT, keyed.id, address, 'sk-test-late')
+    await call
+
+    expect(authorizations(request)).toEqual(['Bearer sk-test-late'])
+  })
+
+  it('a keyless connection calls its server anonymously and never reads the cache', async () => {
+    const request = serve()
+    const keys = createModelKeyCache()
+    keys.put(ACCOUNT, keyed.id, address, 'sk-test-never-used')
+    const read = vi.spyOn(keys, 'read')
+    const wait = vi.spyOn(keys, 'wait')
+    const target = await resolveChat({ keys, readConfig: async () => routed({ connections: [{ ...keyed, hasKey: false }] }) })
+
+    await generateText({ model: model(target), prompt: 'Hi', maxRetries: 0 })
+
+    expect(authorizations(request)).toEqual([null])
+    expect(read).not.toHaveBeenCalled()
+    expect(wait).not.toHaveBeenCalled()
+  })
+
+  it('a deployment connection is anonymous', async () => {
+    const request = serve()
+    const keys = createModelKeyCache()
+    const deployed: ModelConnection = {
+      id: DEPLOYMENT_CONNECTION_IDS.instruct, name: 'Deployment', provider: 'vllm', baseUrl: 'http://extraction_model:8000/v1', hasKey: false,
+    }
+    keys.put(ACCOUNT, deployed.id, { provider: 'vllm', baseUrl: deployed.baseUrl }, 'sk-test-never-used')
+    const wait = vi.spyOn(keys, 'wait')
+    const target = await resolveChat({
+      keys,
+      readConfig: async () => routed({ connections: [], routes: { schemaSuggestion: null, interaction: null } }),
+      deployment: { connections: [deployed], defaultRoute: { connectionId: deployed.id, modelId: 'm' } },
+    })
+
+    await generateText({ model: model(target), prompt: 'Hi', maxRetries: 0 })
+
+    expect(authorizations(request)).toEqual([null])
+    expect(wait).not.toHaveBeenCalled()
+  })
+
+  it("no account's call uses another account's key", async () => {
+    vi.useFakeTimers()
+    const request = serve()
+    const keys = createModelKeyCache()
+    // Both accounts name the same connection ID; only A's browser sent a key.
+    keys.put(ACCOUNT, keyed.id, address, 'sk-test-account-a')
+    const target = await resolveChat({ keys, researcherAccountId: OTHER_ACCOUNT })
+    const call = generateText({ model: model(target), prompt: 'Hi', maxRetries: 0 }).catch((error: unknown) => error)
+
+    await vi.advanceTimersByTimeAsync(50)
+
+    expect(await call).toBeInstanceOf(ModelKeyRequiredError)
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('an aborted call stops waiting for its key and never reaches the server', async () => {
+    const request = serve()
+    const target = await resolveChat({ keys: createModelKeyCache(), keyWaitMs: 60_000 })
+    const controller = new AbortController()
+    const reason = new Error('client disconnected')
+    const call = generateText({ model: model(target), prompt: 'Hi', abortSignal: controller.signal, maxRetries: 0 })
+      .catch((error: unknown) => error)
+
+    controller.abort(reason)
+
+    expect(await call).toBe(reason)
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('the NuExtract target of a hasKey connection reads the same key lazily', async () => {
+    const keys = createModelKeyCache()
+    const target = await resolveCapabilityRoute('schema-suggestion', {}, {
+      researcherAccountId: ACCOUNT,
+      readConfig: async () => routed({
+        connections: [keyed],
+        routes: { schemaSuggestion: { connectionId: keyed.id, modelId: 'numind/NuExtract3-FP8' }, interaction: null },
+      }),
+      deployment: NO_DEPLOYMENT,
+      keys,
+      keyWaitMs: 50,
+    }) as NuExtractExecutionTarget
+
+    keys.put(ACCOUNT, keyed.id, address, 'sk-test-nuextract')
+    await expect(target.key(undefined)).resolves.toBe('sk-test-nuextract')
+    keys.remove(ACCOUNT, keyed.id)
+    vi.useFakeTimers()
+    const missing = target.key(undefined).catch((error: unknown) => error)
+    await vi.advanceTimersByTimeAsync(50)
+    expect(await missing).toBeInstanceOf(ModelKeyRequiredError)
+  })
+})
+
 describe('resolveCapabilityRoute', () => {
   it.each(['schema-suggestion', 'chat', 'schema-edit'] as const)(
     'keeps an existing route usable for %s without an output setting', async (operation) => {
       const config = routed()
       const createModel = vi.fn(() => ({}) as never)
       await expect(resolveCapabilityRoute(operation, {}, {
-        readConfig: async () => config, credentialStore: presentCredentialStore,
+        researcherAccountId: ACCOUNT,
+        readConfig: async () => config,
         modelFactories: { 'openai-compatible': createModel },
       })).resolves.toMatchObject({ profile: 'general', jsonOutput: 'schema', automaticOutputKey: expect.any(String) })
       expect(createModel).toHaveBeenCalledOnce()
@@ -444,8 +594,8 @@ describe('resolveCapabilityRoute', () => {
   it('passes an arbitrary saved model ID to the exact selected factory', async () => {
     const createModel = vi.fn(() => ({}) as never)
     const target = await resolveCapabilityRoute('chat', {}, {
+      researcherAccountId: ACCOUNT,
       readConfig: async () => routed(),
-      credentialStore: { state: async () => 'absent', get: async () => undefined, set: async () => {}, delete: async () => {} },
       modelFactories: { 'openai-compatible': createModel },
     })
     expect(target).toMatchObject({ profile: 'general', jsonOutput: 'schema' })
@@ -462,11 +612,12 @@ describe('resolveCapabilityRoute', () => {
     ['openai-compatible', 'https://gateway.example/v1', 'schema', true],
     ['vllm', 'http://extraction_model:8000/v1', 'schema', true],
   ] as const)('constructs the exact %s general target', async (provider, baseUrl, jsonOutput, temperatureSupported) => {
-    const selected = { ...connection, provider, baseUrl }
+    // A hosted provider always uses a key, so its model is the keyed wrapper around the same provider model.
+    const selected = { ...connection, provider, baseUrl, hasKey: ['openai', 'anthropic', 'google'].includes(provider) }
     const config = routed({ connections: [selected] })
     const target = await resolveCapabilityRoute('schema-suggestion', {}, {
+      researcherAccountId: ACCOUNT,
       readConfig: async () => config,
-      credentialStore: presentCredentialStore,
     })
     expect(target).toMatchObject({ profile: 'general', jsonOutput, temperatureSupported })
     expect(target).toMatchObject({ automaticOutputKey: expect.any(String) })
@@ -476,7 +627,7 @@ describe('resolveCapabilityRoute', () => {
   })
 
   it('shares automatic learning within a route and isolates it across routes', async () => {
-    const dependencies = { readConfig: async () => routed(), credentialStore: presentCredentialStore }
+    const dependencies = { researcherAccountId: ACCOUNT, readConfig: async () => routed() }
     const suggestion = await resolveCapabilityRoute('schema-suggestion', {}, dependencies)
     const again = await resolveCapabilityRoute('schema-suggestion', {}, dependencies)
     const interaction = await resolveCapabilityRoute('schema-edit', {}, dependencies)
@@ -487,10 +638,10 @@ describe('resolveCapabilityRoute', () => {
 
   it('keeps native OpenAI Responses distinct from compatible Chat Completions', async () => {
     const construct = async (provider: 'openai' | 'openai-compatible') => {
-      const selected = { ...connection, provider }
+      const selected = { ...connection, provider, hasKey: provider === 'openai' }
       return resolveCapabilityRoute('schema-suggestion', {}, {
+        researcherAccountId: ACCOUNT,
         readConfig: async () => routed({ connections: [selected] }),
-        credentialStore: presentCredentialStore,
       })
     }
     const [native, compatible] = await Promise.all([construct('openai'), construct('openai-compatible')])
@@ -498,40 +649,6 @@ describe('resolveCapabilityRoute', () => {
     expect(compatible.profile === 'general' ? compatible.model : {}).toMatchObject({
       provider: 'free-openai-compatible.chat',
     })
-  })
-
-  it('resolves managed, optional, and external credential modes without fallback', async () => {
-    const unavailableGet = vi.fn(async () => { throw new Error('keyring locked') })
-    const unavailableStore = { ...presentCredentialStore, get: unavailableGet }
-    const optionalFactory = vi.fn(() => ({}) as never)
-    await resolveCapabilityRoute('schema-suggestion', {}, {
-      readConfig: async () => routed(),
-      credentialStore: unavailableStore,
-      modelFactories: { 'openai-compatible': optionalFactory },
-    })
-    expect(optionalFactory).toHaveBeenCalledWith(connection, 'manual/model', null)
-
-    const cli = { ...connection, provider: 'codex-cli' as const, baseUrl: null }
-    const externalFactory = vi.fn(() => ({}) as never)
-    await resolveCapabilityRoute('schema-suggestion', {}, {
-      readConfig: async () => routed({ connections: [cli] }),
-      credentialStore: unavailableStore,
-      modelFactories: { 'codex-cli': externalFactory },
-    })
-    expect(externalFactory).toHaveBeenCalledWith(cli, 'manual/model', null)
-    expect(unavailableGet).toHaveBeenCalledOnce()
-
-    const managed = { ...connection, provider: 'openai' as const }
-    await expect(resolveCapabilityRoute('schema-suggestion', {}, {
-      readConfig: async () => routed({ connections: [managed] }),
-      credentialStore: { ...presentCredentialStore, get: async () => undefined },
-      modelFactories: { openai: vi.fn(() => ({}) as never) },
-    })).rejects.toMatchObject({ status: 409, code: 'invalid_model_config' })
-    await expect(resolveCapabilityRoute('schema-suggestion', {}, {
-      readConfig: async () => routed({ connections: [managed] }),
-      credentialStore: unavailableStore,
-      modelFactories: { openai: vi.fn(() => ({}) as never) },
-    })).rejects.toMatchObject({ status: 503, code: 'keyring_unavailable' })
   })
 
   const NUEXTRACT = 'numind/NuExtract3-FP8'
@@ -550,12 +667,12 @@ describe('resolveCapabilityRoute', () => {
     async (provider, modelId, profile) => {
       const selected = { ...onVllm, provider }
       const target = await resolveCapabilityRoute('schema-suggestion', {}, {
+        researcherAccountId: ACCOUNT,
         readConfig: async () => routed({
           connections: [selected],
           routes: { schemaSuggestion: { connectionId: ID, modelId }, interaction: null },
         }),
         deployment: { connections: [], defaultRoute: null },
-        credentialStore: presentCredentialStore,
         modelFactories: { vllm: general, 'openai-compatible': general },
       })
       expect(target.profile).toBe(profile)
@@ -564,22 +681,24 @@ describe('resolveCapabilityRoute', () => {
           profile: 'nuextract',
           modelId: NUEXTRACT,
           baseUrl: 'http://nuextract_model:8000/v1',
-          authorization: 'Bearer secret',
+          key: expect.any(Function),
           temperatureSupported: true,
           attribution: { provider: 'vllm', modelId: NUEXTRACT },
         })
+        // A keyless connection's NuExtract target is anonymous.
+        await expect((target as NuExtractExecutionTarget).key(undefined)).resolves.toBeNull()
       }
     },
   )
 
   it.each(['chat', 'schema-edit'] as const)('no other route ever uses the NuExtract protocol (%s)', async (operation) => {
     const target = await resolveCapabilityRoute(operation, {}, {
+      researcherAccountId: ACCOUNT,
       readConfig: async () => routed({
         connections: [onVllm],
         routes: { schemaSuggestion: null, interaction: { connectionId: ID, modelId: NUEXTRACT } },
       }),
       deployment: { connections: [], defaultRoute: null },
-      credentialStore: presentCredentialStore,
       modelFactories: { vllm: general },
     })
     expect(target).toMatchObject({ profile: 'general', attribution: { provider: 'vllm', modelId: NUEXTRACT } })
@@ -587,12 +706,12 @@ describe('resolveCapabilityRoute', () => {
 
   it('an inherited NuExtract target runs the protocol', async () => {
     const target = await resolveCapabilityRoute('schema-suggestion', {}, {
+      researcherAccountId: ACCOUNT,
       readConfig: async () => routed({
         connections: [onVllm],
         routes: { schemaSuggestion: null, interaction: { connectionId: ID, modelId: NUEXTRACT } },
       }),
       deployment: { connections: [], defaultRoute: null },
-      credentialStore: presentCredentialStore,
     })
     expect(target).toMatchObject({ profile: 'nuextract', modelId: NUEXTRACT, baseUrl: onVllm.baseUrl })
   })
@@ -600,20 +719,20 @@ describe('resolveCapabilityRoute', () => {
   it('an unset Schema Suggestion route follows the Interaction Route, then the deployment default', async () => {
     const createModel = vi.fn(general)
     const deployment = {
-      connections: [{ id: DEPLOYMENT_CONNECTION_IDS.instruct, name: 'Deployment', provider: 'vllm' as const, baseUrl: 'http://extraction_model:8000/v1' }],
+      connections: [{ id: DEPLOYMENT_CONNECTION_IDS.instruct, name: 'Deployment', provider: 'vllm' as const, baseUrl: 'http://extraction_model:8000/v1', hasKey: false }],
       defaultRoute: { connectionId: DEPLOYMENT_CONNECTION_IDS.instruct, modelId: QWEN },
     }
     const dependencies = (routes: ModelConfig['routes']) => ({
+      researcherAccountId: ACCOUNT,
       readConfig: async () => routed({ routes }),
       deployment,
-      credentialStore: presentCredentialStore,
       modelFactories: { vllm: createModel, 'openai-compatible': createModel },
     })
 
     await expect(resolveCapabilityRoute('schema-suggestion', {}, dependencies({
       schemaSuggestion: null, interaction: { connectionId: ID, modelId: 'assistant-model' },
     }))).resolves.toMatchObject({ attribution: { provider: 'openai-compatible', modelId: 'assistant-model' } })
-    expect(createModel).toHaveBeenLastCalledWith(connection, 'assistant-model', 'secret')
+    expect(createModel).toHaveBeenLastCalledWith(connection, 'assistant-model', null)
 
     await expect(resolveCapabilityRoute('schema-suggestion', {}, dependencies({
       schemaSuggestion: null, interaction: null,
@@ -625,41 +744,44 @@ describe('resolveCapabilityRoute', () => {
     const second = { ...connection, id: INTERACTION_ID, name: 'Second gateway' }
     const createModel = vi.fn(general)
     const resolve = (routes: ModelConfig['routes']) => resolveCapabilityRoute('schema-suggestion', {}, {
+      researcherAccountId: ACCOUNT,
       readConfig: async () => routed({ connections: [connection, second], routes }),
       deployment: { connections: [], defaultRoute: null },
-      credentialStore: presentCredentialStore,
       modelFactories: { 'openai-compatible': createModel },
     })
     const explicit = { connectionId: ID, modelId: 'suggestion-model' }
 
     await resolve({ schemaSuggestion: explicit, interaction: { connectionId: INTERACTION_ID, modelId: 'assistant-model' } })
-    expect(createModel).toHaveBeenLastCalledWith(connection, 'suggestion-model', 'secret')
+    expect(createModel).toHaveBeenLastCalledWith(connection, 'suggestion-model', null)
 
     await resolve({ schemaSuggestion: explicit, interaction: { ...explicit } })
-    expect(createModel).toHaveBeenLastCalledWith(connection, 'suggestion-model', 'secret')
+    expect(createModel).toHaveBeenLastCalledWith(connection, 'suggestion-model', null)
     expect(createModel).toHaveBeenCalledTimes(2)
   })
 
   it('runs an unset route on the deployment default, and fails closed without one', async () => {
     const createModel = vi.fn(() => ({}) as never)
     const deployment = {
-      connections: [{ id: DEPLOYMENT_CONNECTION_IDS.instruct, name: 'Deployment', provider: 'vllm' as const, baseUrl: 'http://extraction_model:8000/v1' }],
+      connections: [{ id: DEPLOYMENT_CONNECTION_IDS.instruct, name: 'Deployment', provider: 'vllm' as const, baseUrl: 'http://extraction_model:8000/v1', hasKey: false }],
       defaultRoute: { connectionId: DEPLOYMENT_CONNECTION_IDS.instruct, modelId: 'Qwen/Qwen3.8-27B-FP8' },
     }
     const unset = routed({ connections: [], routes: { schemaSuggestion: null, interaction: null } })
     await expect(resolveCapabilityRoute('schema-suggestion', {}, {
-      readConfig: async () => unset, deployment, credentialStore: presentCredentialStore, modelFactories: { vllm: createModel },
+      researcherAccountId: ACCOUNT,
+      readConfig: async () => unset, deployment, modelFactories: { vllm: createModel },
     })).resolves.toMatchObject({ profile: 'general', attribution: { provider: 'vllm', modelId: 'Qwen/Qwen3.8-27B-FP8' } })
-    // The deployment's own server takes no FREE-managed credential, even when the keyring holds one.
+    // The deployment's own server is called anonymously.
     expect(createModel).toHaveBeenCalledWith(deployment.connections[0], 'Qwen/Qwen3.8-27B-FP8', null)
 
     await expect(resolveCapabilityRoute('schema-suggestion', {}, {
+      researcherAccountId: ACCOUNT,
       readConfig: async () => unset, deployment: { connections: [], defaultRoute: null },
     })).rejects.toMatchObject({ status: 409, code: 'invalid_model_config', message: 'No model is configured for Schema Suggestion.' })
   })
 
   it('refuses a saved route naming a deployment connection this deployment no longer serves', async () => {
     await expect(resolveCapabilityRoute('chat', {}, {
+      researcherAccountId: ACCOUNT,
       readConfig: async () => routed({ routes: { schemaSuggestion: null, interaction: { connectionId: DEPLOYMENT_CONNECTION_IDS.instruct, modelId: 'm' } } }),
       deployment: { connections: [], defaultRoute: null },
     })).rejects.toMatchObject({ status: 409, code: 'invalid_model_config' })
@@ -691,10 +813,11 @@ describe('resolveCapabilityRoute', () => {
     const extractionFactory = vi.fn(() => ({}) as never)
     const interactionFactory = vi.fn(() => ({}) as never)
     await resolveCapabilityRoute(operation, {}, {
+      researcherAccountId: ACCOUNT,
       readConfig: async () => ({
         connections: [
           { ...connection, provider: 'ollama', baseUrl: 'http://ollama.example' },
-          { ...connection, id: interactionId, provider: 'openai', baseUrl: 'https://api.openai.com/v1' },
+          { ...connection, id: interactionId, provider: 'vllm', baseUrl: 'http://vllm.example:8000/v1' },
         ],
         routes: {
           schemaSuggestion: { connectionId: ID, modelId: 'extract-model' },
@@ -703,13 +826,12 @@ describe('resolveCapabilityRoute', () => {
         extractionModels: {},
         ingestionModels: {},
       }),
-      credentialStore: presentCredentialStore,
-      modelFactories: { ollama: extractionFactory, openai: interactionFactory },
+      modelFactories: { ollama: extractionFactory, vllm: interactionFactory },
     })
     const selected = selectedRoute === 'schemaSuggestion' ? extractionFactory : interactionFactory
     const unselected = selectedRoute === 'schemaSuggestion' ? interactionFactory : extractionFactory
     expect(selected).toHaveBeenCalledOnce()
-    expect(selected).toHaveBeenCalledWith(expect.anything(), modelId, expect.anything())
+    expect(selected).toHaveBeenCalledWith(expect.anything(), modelId, null)
     expect(unselected).not.toHaveBeenCalled()
   })
 
@@ -718,6 +840,7 @@ describe('resolveCapabilityRoute', () => {
     const cli = { ...connection, provider: 'codex-cli' as const, baseUrl: null }
     await expect(
       resolveCapabilityRoute('schema-suggestion', { temperature: 0.3 }, {
+        researcherAccountId: ACCOUNT,
         readConfig: async () => routed({ connections: [cli] }),
         modelFactories: { 'codex-cli': createModel },
       }),
@@ -732,9 +855,9 @@ describe('resolveCapabilityRoute', () => {
       connections: [{ ...connection, id: '22222222-2222-4222-8222-222222222222', name: 'B gateway' }],
     })
     await expect(resolveCapabilityRoute('chat', {}, {
+      researcherAccountId: ACCOUNT,
       readConfig: async () => other,
       deployment: { connections: [], defaultRoute: null },
-      credentialStore: presentCredentialStore,
       modelFactories: { 'openai-compatible': createModel },
     })).rejects.toMatchObject({
       status: 409,
@@ -747,6 +870,7 @@ describe('resolveCapabilityRoute', () => {
   it('fails closed instead of consulting another route', async () => {
     await expect(
       resolveCapabilityRoute('chat', {}, {
+        researcherAccountId: ACCOUNT,
         readConfig: async () => routed({ routes: { schemaSuggestion: { connectionId: ID, modelId: 'model' }, interaction: null } }),
         deployment: { connections: [], defaultRoute: null },
       }),

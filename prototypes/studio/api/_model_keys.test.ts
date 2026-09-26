@@ -65,6 +65,25 @@ describe('model key cache', () => {
     expect(cache.read(OTHER_ACCOUNT, connection)).toBe('sk-test-other')
   })
 
+  it("a handoff begun before the account's sign-out stores nothing after it; other accounts and later handoffs store", () => {
+    const cache = createModelKeyCache()
+    const before = cache.handoff(ACCOUNT)
+    const other = cache.handoff(OTHER_ACCOUNT)
+
+    cache.forgetAccount(ACCOUNT)
+
+    expect(before.put(ID, address, 'sk-test-before-sign-out')).toBe(false)
+    expect(cache.read(ACCOUNT, connection)).toBeNull()
+    expect(other.put(ID, address, 'sk-test-other')).toBe(true)
+    expect(cache.read(OTHER_ACCOUNT, connection)).toBe('sk-test-other')
+    const after = cache.handoff(ACCOUNT)
+    expect(after.put(ID, address, KEY)).toBe(true)
+    expect(cache.read(ACCOUNT, connection)).toBe(KEY)
+    // Removal is always safe: it only ever takes a key away.
+    before.remove(ID)
+    expect(cache.read(ACCOUNT, connection)).toBeNull()
+  })
+
   it('retain drops keys of removed, re-addressed or keyless connections and keeps the rest', () => {
     const cache = createModelKeyCache()
     const ids = {

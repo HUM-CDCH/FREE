@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEPLOYMENT_CONNECTION_IDS, type ModelConfig } from '../shared/modelConfig.contract.js'
 import { ApiError } from './_http.js'
-import { createCredentialStore, type CredentialStore } from './_keyring.js'
+import { createModelKeyCache, type ModelKeyCache } from './_model_keys.js'
 import {
   EMPTY_MODEL_CONFIG,
   configuredExtractionModels,
@@ -24,8 +24,8 @@ const RETIRED_PROTOCOL = 'nuextract'
 function configured(overrides: Partial<ModelConfig> = {}): ModelConfig {
   return {
     connections: [
-      { id: VLLM_ID, name: 'Local vLLM', provider: 'vllm', baseUrl: 'http://127.0.0.1:8003/v1' },
-      { id: OPENAI_ID, name: 'Research OpenAI', provider: 'openai', baseUrl: 'https://gateway.example/proxy/openai/v1' },
+      { id: VLLM_ID, name: 'Local vLLM', provider: 'vllm', baseUrl: 'http://127.0.0.1:8003/v1', hasKey: false },
+      { id: OPENAI_ID, name: 'Research OpenAI', provider: 'openai', baseUrl: 'https://gateway.example/proxy/openai/v1', hasKey: true },
     ],
     routes: {
       schemaSuggestion: { connectionId: VLLM_ID, modelId: 'numind/NuExtract3-FP8' },
@@ -48,38 +48,6 @@ function expectInvalid(run: () => unknown, issuePath: string): void {
   }
 }
 
-/**
- * Isolated stand-in for the OS keyring. Every handler under test is constructed
- * with one of these, so no test can reach the researcher's real `FREE Studio`
- * entries — the machine-global resource this suite must never touch.
- */
-function fakeCredentialStore(initial: Record<string, string> = {}) {
-  const values = new Map(Object.entries(initial))
-  const calls: string[] = []
-  const store: CredentialStore = {
-    async state(id) {
-      calls.push(`state:${id}`)
-      return values.has(id) ? 'present' : 'absent'
-    },
-    async set(id, credential) {
-      calls.push(`set:${id}`)
-      values.set(id, credential)
-    },
-    async delete(id) {
-      calls.push(`delete:${id}`)
-      values.delete(id)
-    },
-  }
-  return { store, values, calls }
-}
-
-/** Stands in for a missing native binding or a locked keyring: every call rejects. */
-const unavailableStore: CredentialStore = {
-  state: () => Promise.reject(new Error('keyring unavailable')),
-  set: () => Promise.reject(new Error('keyring unavailable')),
-  delete: () => Promise.reject(new Error('keyring unavailable')),
-}
-
 function putRequest(body: unknown, contentType = 'application/json'): Request {
   return new Request('http://local.test/api/model_config', {
     method: 'PUT',
@@ -88,9 +56,9 @@ function putRequest(body: unknown, contentType = 'application/json'): Request {
   })
 }
 
-/** The account's GET and PUT handlers, always over an isolated store, never the process one. */
+/** The account's GET and PUT handlers, always over an isolated store and key cache, never the process ones. */
 function handlers(dependencies: ModelConfigDependencies & Required<Pick<ModelConfigDependencies, 'configurations'>>) {
-  return createResearcherApiHandlers({ researcherAccountId: ACCOUNT }, dependencies)
+  return createResearcherApiHandlers({ researcherAccountId: ACCOUNT }, { keys: createModelKeyCache(), ...dependencies })
 }
 
 afterEach(() => {
@@ -111,7 +79,7 @@ describe('model configuration storage', () => {
 
   it('a stored document that fails validation is a 500 that echoes nothing', async () => {
     const hostile = {
-      connections: [{ id: 'sk-test-stored-garbage', name: 'Connection', provider: 'openai', baseUrl: 'https://api.openai.com/v1' }],
+      connections: [{ id: 'sk-test-stored-garbage', name: 'Connection', provider: 'openai', baseUrl: 'https://api.openai.com/v1', hasKey: true }],
       routes: { extraction: null, interaction: null },
     }
     const store = inMemoryModelConfigurations({ [ACCOUNT]: hostile })
@@ -122,7 +90,7 @@ describe('model configuration storage', () => {
       details: undefined,
       cause: undefined,
     })
-    const response = await handlers({ configurations: store, credentialStore: fakeCredentialStore().store }).GET()
+    const response = await handlers({ configurations: store }).GET()
     expect(response.status).toBe(500)
     const text = await response.text()
     expect(JSON.parse(text)).toEqual({
@@ -180,15 +148,15 @@ describe('model configuration storage', () => {
     for (const provider of ['codex-cli', 'claude-code'] as const) {
       const twice = configured({
         connections: [
-          { id: VLLM_ID, name: 'One', provider, baseUrl: null },
-          { id: OPENAI_ID, name: 'Two', provider, baseUrl: null },
+          { id: VLLM_ID, name: 'One', provider, baseUrl: null, hasKey: false },
+          { id: OPENAI_ID, name: 'Two', provider, baseUrl: null, hasKey: false },
         ],
         routes: { schemaSuggestion: null, interaction: null },
       })
       expectInvalid(() => validateModelConfig(twice), 'connections.1.provider')
 
       const withBase = configured({
-        connections: [{ id: VLLM_ID, name: 'CLI', provider, baseUrl: 'https://example.test' }],
+        connections: [{ id: VLLM_ID, name: 'CLI', provider, baseUrl: 'https://example.test', hasKey: false }],
         routes: { schemaSuggestion: null, interaction: null },
       })
       expectInvalid(() => validateModelConfig(withBase), 'connections.0.baseUrl')
@@ -225,6 +193,32 @@ describe('model configuration storage', () => {
   })
 })
 
+describe('key rules of a stored document', () => {
+  it('a managed connection must have hasKey', () => {
+    for (const provider of ['openai', 'anthropic', 'google'] as const) {
+      const config = configured()
+      config.connections[1] = { ...config.connections[1], provider, hasKey: false }
+      expectInvalid(() => validateModelConfig(config), 'connections.1.hasKey')
+    }
+    // An optional-key provider may run with or without one.
+    for (const hasKey of [true, false]) {
+      const config = configured()
+      config.connections[0] = { ...config.connections[0], hasKey }
+      expect(validateModelConfig(config)).toEqual(config)
+    }
+  })
+
+  it('a CLI connection takes no key', () => {
+    for (const provider of ['codex-cli', 'claude-code'] as const) {
+      const config = configured({
+        connections: [{ id: VLLM_ID, name: 'CLI', provider, baseUrl: null, hasKey: true }],
+        routes: { schemaSuggestion: null, interaction: null },
+      })
+      expectInvalid(() => validateModelConfig(config), 'connections.0.hasKey')
+    }
+  })
+})
+
 describe('GET /api/model_config', () => {
   it('reports the deployment\'s own model servers from the environment, never from the stored document', async () => {
     vi.stubEnv('FREE_DEPLOYMENT_INSTRUCT_URL', 'http://extraction_model:8000/v1')
@@ -232,131 +226,44 @@ describe('GET /api/model_config', () => {
     vi.stubEnv('FREE_DEPLOYMENT_NUEXTRACT_URL', 'http://nuextract_model:8000/v1')
     const configurations = inMemoryModelConfigurations()
 
-    const response = await handlers({ configurations, credentialStore: fakeCredentialStore().store }).GET()
+    const response = await handlers({ configurations }).GET()
 
     const body = await response.json()
     expect(body.config).toEqual(EMPTY_MODEL_CONFIG)
-    expect(body.credentialStates).toEqual({})
     expect(body.deployment).toEqual({
       connections: [
-        { id: DEPLOYMENT_CONNECTION_IDS.instruct, name: 'Deployment instruction model', provider: 'vllm', baseUrl: 'http://extraction_model:8000/v1' },
-        { id: DEPLOYMENT_CONNECTION_IDS.nuextract, name: 'Deployment NuExtract', provider: 'vllm', baseUrl: 'http://nuextract_model:8000/v1' },
+        { id: DEPLOYMENT_CONNECTION_IDS.instruct, name: 'Deployment instruction model', provider: 'vllm', baseUrl: 'http://extraction_model:8000/v1', hasKey: false },
+        { id: DEPLOYMENT_CONNECTION_IDS.nuextract, name: 'Deployment NuExtract', provider: 'vllm', baseUrl: 'http://nuextract_model:8000/v1', hasKey: false },
       ],
       defaultRoute: { connectionId: DEPLOYMENT_CONNECTION_IDS.instruct, modelId: 'Qwen/Qwen3.8-27B-FP8' },
     })
   })
 
-
-  it('returns the empty configuration and every descriptor without probing or reading AI_*', async () => {
+  it('returns the configuration, every descriptor and the deployment, and nothing about keys, without probing or reading AI_*', async () => {
     vi.stubEnv('AI_PROVIDER', 'claude-code')
     vi.stubEnv('AI_MODEL', 'must-not-be-read')
     vi.stubEnv('AI_BASE_URL', 'https://ignored.example')
     vi.stubEnv('AI_API_KEY', 'must-not-be-read')
-    const configurations = inMemoryModelConfigurations()
+    const configurations = inMemoryModelConfigurations({ [ACCOUNT]: configured() })
+    const keys = createModelKeyCache()
+    keys.put(ACCOUNT, OPENAI_ID, { provider: 'openai', baseUrl: configured().connections[1].baseUrl }, 'sk-test-cached-for-get')
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
 
-    const response = await handlers({
-      configurations, credentialStore: fakeCredentialStore().store, deployment: () => NO_DEPLOYMENT,
-    }).GET()
+    const response = await handlers({ configurations, keys, deployment: () => NO_DEPLOYMENT }).GET()
 
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({
-      config: EMPTY_MODEL_CONFIG,
-      credentialStates: {},
-      providers: PROVIDERS,
-      deployment: NO_DEPLOYMENT,
-    })
+    const text = await response.text()
+    expect(JSON.parse(text)).toEqual({ config: configured(), providers: PROVIDERS, deployment: NO_DEPLOYMENT })
+    expect(text).not.toContain('sk-test-cached-for-get')
     expect(fetchSpy).not.toHaveBeenCalled()
     fetchSpy.mockRestore()
-  })
-
-  it('does not reach a provider even when connections are saved', async () => {
-    const configurations = inMemoryModelConfigurations({ [ACCOUNT]: configured() })
-    const fetchSpy = vi.spyOn(globalThis, 'fetch')
-
-    const response = await handlers({ configurations, credentialStore: fakeCredentialStore().store }).GET()
-
-    expect(response.status).toBe(200)
-    expect(fetchSpy).not.toHaveBeenCalled()
-    fetchSpy.mockRestore()
-  })
-
-  it('reports credential state per connection and degrades a failed read to unavailable', async () => {
-    const configurations = inMemoryModelConfigurations()
-    const config = configured({
-      connections: [
-        ...configured().connections,
-        { id: OTHER_ID, name: 'Codex', provider: 'codex-cli', baseUrl: null },
-      ],
-    })
-    configurations.documents.set(ACCOUNT, config)
-    const partial = fakeCredentialStore({ [VLLM_ID]: 'stored' })
-    const store: CredentialStore = {
-      ...partial.store,
-      state: (id) => (id === OPENAI_ID ? Promise.reject(new Error('locked')) : partial.store.state(id)),
-    }
-
-    const response = await handlers({ configurations, credentialStore: store }).GET()
-
-    // codex-cli authenticates externally, so it never appears in the map at all.
-    await expect(response.json()).resolves.toMatchObject({
-      credentialStates: { [VLLM_ID]: 'present', [OPENAI_ID]: 'unavailable' },
-    })
-  })
-
-  it('keeps reading configuration when the whole keyring is unavailable', async () => {
-    const configurations = inMemoryModelConfigurations({ [ACCOUNT]: configured() })
-
-    const response = await handlers({ configurations, credentialStore: unavailableStore }).GET()
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({
-      config: configured(),
-      credentialStates: { [VLLM_ID]: 'unavailable', [OPENAI_ID]: 'unavailable' },
-    })
-  })
-})
-
-describe('OS credential adapter', () => {
-  it('addresses every operation by the fixed service and the UUID-derived account', async () => {
-    const entry = {
-      getPassword: vi.fn(async () => undefined),
-      setPassword: vi.fn(async () => undefined),
-      deleteCredential: vi.fn(async () => true),
-    }
-    const openEntry = vi.fn(async () => entry)
-    const store = createCredentialStore(openEntry)
-
-    await expect(store.state(OPENAI_ID)).resolves.toBe('absent')
-    await store.set(OPENAI_ID, 'write-only-secret')
-    await store.delete(OPENAI_ID)
-
-    // Naming is asserted through the factory, so renaming or reordering the
-    // service and account arguments cannot pass unnoticed.
-    expect(openEntry.mock.calls).toEqual([
-      ['FREE Studio', `model-connection/${OPENAI_ID}`],
-      ['FREE Studio', `model-connection/${OPENAI_ID}`],
-      ['FREE Studio', `model-connection/${OPENAI_ID}`],
-    ])
-    expect(entry.setPassword).toHaveBeenCalledWith('write-only-secret')
-    expect(entry.deleteCredential).toHaveBeenCalledOnce()
-  })
-
-  it('reads a missing entry as absent when the keyring resolves null', async () => {
-    const store = createCredentialStore(async () => ({
-      getPassword: async () => null as unknown as undefined,
-      setPassword: async () => undefined,
-      deleteCredential: async () => true,
-    }))
-
-    await expect(store.state(OPENAI_ID)).resolves.toBe('absent')
   })
 })
 
 describe('PUT /api/model_config', () => {
   it.each(['auto', 'prompt', 'schema', 'native'])('rejects the retired %s output override', async (jsonOutput) => {
     const config = configured()
-    const response = await handlers({ configurations: inMemoryModelConfigurations(), credentialStore: fakeCredentialStore().store }).PUT(putRequest({
+    const response = await handlers({ configurations: inMemoryModelConfigurations() }).PUT(putRequest({
       config: { ...config, routes: { ...config.routes, schemaSuggestion: { ...config.routes.schemaSuggestion, jsonOutput } } },
     }))
     expect(response.status).toBe(400)
@@ -367,86 +274,43 @@ describe('PUT /api/model_config', () => {
     ['a wrong media type', { config: EMPTY_MODEL_CONFIG }, 'text/plain'],
     ['malformed JSON', '{ definitely not JSON', 'application/json'],
     ['an unknown top-level field', { config: EMPTY_MODEL_CONFIG, extra: 1 }, 'application/json'],
-    ['a server-owned sibling inside config', { config: { ...EMPTY_MODEL_CONFIG, credentialStates: {} } }, 'application/json'],
-    ['an empty-string credential action', { config: EMPTY_MODEL_CONFIG, credentials: { [OPENAI_ID]: '' } }, 'application/json'],
-    ['a credential key that is not a UUID', { config: EMPTY_MODEL_CONFIG, credentials: { 'not-a-uuid': 'x' } }, 'application/json'],
+    ['a server-owned sibling inside config', { config: { ...EMPTY_MODEL_CONFIG, providers: [] } }, 'application/json'],
+    ['the retired credential actions', { config: EMPTY_MODEL_CONFIG, credentials: { [OPENAI_ID]: 'sk-test-retired' } }, 'application/json'],
+    ['a connection without hasKey', { config: { ...EMPTY_MODEL_CONFIG, connections: [{ ...configured().connections[0], hasKey: undefined }] } }, 'application/json'],
+    ['a key inside a connection', { config: { ...EMPTY_MODEL_CONFIG, connections: [{ ...configured().connections[1], key: 'sk-test-inline' }] } }, 'application/json'],
   ])('rejects %s as a structural 400 before reaching storage', async (_label, body, contentType) => {
-    const fake = fakeCredentialStore()
-    const put = handlers({ configurations: inMemoryModelConfigurations(), credentialStore: fake.store }).PUT
-
-    const response = await put(putRequest(body, contentType))
+    const configurations = inMemoryModelConfigurations()
+    const response = await handlers({ configurations }).PUT(putRequest(body, contentType))
 
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'invalid_request' } })
-    expect(fake.calls).toEqual([])
+    expect(configurations.documents.size).toBe(0)
   })
 
-  it('round-trips the editable document unchanged and returns no descriptor or secret', async () => {
+  it('round-trips the editable document unchanged and returns only the configuration', async () => {
     const configurations = inMemoryModelConfigurations()
-    const fake = fakeCredentialStore()
     const config = configured()
     // A base whose trailing slash must survive, and a model ID no probe could suggest.
     config.connections[1].baseUrl = 'https://gateway.example/proxy/openai/v1/'
     config.routes.interaction = { connectionId: OPENAI_ID, modelId: 'an opaque model id' }
-    const put = handlers({ configurations, credentialStore: fake.store }).PUT
 
-    const response = await put(putRequest({ config, credentials: { [OPENAI_ID]: 'sk-secret' } }))
+    const response = await handlers({ configurations }).PUT(putRequest({ config }))
 
     expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body).toEqual({
-      config,
-      credentialStates: { [VLLM_ID]: 'absent', [OPENAI_ID]: 'present' },
-    })
-    expect(body).not.toHaveProperty('providers')
-    expect(JSON.stringify(body)).not.toContain('sk-secret')
-
+    await expect(response.json()).resolves.toEqual({ config })
     // The trailing slash is stored verbatim; it is insignificant at the join instead.
-    expect(JSON.stringify(configurations.documents.get(ACCOUNT))).not.toContain('sk-secret')
     await expect(readAccountModelConfig(ACCOUNT, configurations)).resolves.toEqual(config)
     expect(appendProviderResource(config.connections[1].baseUrl!, 'models')).toBe(
       'https://gateway.example/proxy/openai/v1/models',
     )
   })
 
-  it('preserves, replaces, and deletes a credential from the action tri-state alone', async () => {
-    const configurations = inMemoryModelConfigurations()
-    const fake = fakeCredentialStore()
-    // vLLM authenticates optionally, so it stays valid with no credential at all.
-    const config = configured({
-      connections: [configured().connections[0]],
-      routes: { schemaSuggestion: { connectionId: VLLM_ID, modelId: 'vendor/model:latest' }, interaction: null },
-    })
-    const put = handlers({ configurations, credentialStore: fake.store }).PUT
-
-    await put(putRequest({ config, credentials: { [VLLM_ID]: 'first' } }))
-    expect(fake.values.get(VLLM_ID)).toBe('first')
-
-    await put(putRequest({ config, credentials: { [VLLM_ID]: 'second' } }))
-    expect(fake.values.get(VLLM_ID)).toBe('second')
-
-    const preserved = await put(putRequest({ config }))
-    expect(fake.values.get(VLLM_ID)).toBe('second')
-    await expect(preserved.json()).resolves.toMatchObject({
-      credentialStates: { [VLLM_ID]: 'present' },
-    })
-
-    const deleted = await put(putRequest({ config, credentials: { [VLLM_ID]: null } }))
-    expect(fake.values.has(VLLM_ID)).toBe(false)
-    await expect(deleted.json()).resolves.toMatchObject({
-      credentialStates: { [VLLM_ID]: 'absent' },
-    })
-  })
-
-  it('refuses to change the provider kind of an already-saved UUID', async () => {
+  it('an existing connection cannot change provider', async () => {
     const configurations = inMemoryModelConfigurations({ [ACCOUNT]: configured() })
-    const fake = fakeCredentialStore({ [OPENAI_ID]: 'sk-existing' })
     const changed = configured()
     changed.connections[1] = { ...changed.connections[1], provider: 'anthropic' }
 
-    const response = await handlers({ configurations, credentialStore: fake.store }).PUT(
-      putRequest({ config: changed }),
-    )
+    const response = await handlers({ configurations }).PUT(putRequest({ config: changed }))
 
     expect(response.status).toBe(409)
     const body = (await response.json()) as { error: { details: { issues: { path: string }[] } } }
@@ -455,155 +319,123 @@ describe('PUT /api/model_config', () => {
     await expect(readAccountModelConfig(ACCOUNT, configurations)).resolves.toEqual(configured())
   })
 
-  it('requires a new credential before a managed endpoint can change', async () => {
-    const configurations = inMemoryModelConfigurations({ [ACCOUNT]: configured() })
-    const fake = fakeCredentialStore({ [OPENAI_ID]: 'sk-existing' })
-    const changed = configured()
-    changed.connections[1] = {
-      ...changed.connections[1],
-      baseUrl: 'https://other-gateway.example/openai/v1',
-    }
-
-    const response = await handlers({
-      configurations,
-      credentialStore: fake.store,
-    }).PUT(putRequest({ config: changed }))
-
-    expect(response.status).toBe(409)
-    await expect(response.json()).resolves.toMatchObject({
-      error: {
-        details: {
-          issues: [{ path: `credentials.${OPENAI_ID}` }],
-        },
-      },
-    })
-    await expect(readAccountModelConfig(ACCOUNT, configurations)).resolves.toEqual(
-      configured(),
-    )
-    expect(fake.values.get(OPENAI_ID)).toBe('sk-existing')
-  })
-
   it.each([
     [
       'a route left dangling by a removed connection',
-      () => ({
-        config: configured({ connections: [configured().connections[0]] }),
-        credentials: {},
-      }),
+      () => configured({ connections: [configured().connections[0]] }),
       'config.routes.interaction.connectionId',
     ],
     [
-      'an action naming a connection that was not submitted',
-      () => ({ config: configured(), credentials: { [OPENAI_ID]: 'sk', [OTHER_ID]: 'sk' } }),
-      `credentials.${OTHER_ID}`,
-    ],
-    [
-      'an action against externally authenticated CLI login',
-      () => ({
-        config: configured({
-          connections: [...configured().connections, { id: OTHER_ID, name: 'Codex', provider: 'codex-cli' as const, baseUrl: null }],
-        }),
-        credentials: { [OPENAI_ID]: 'sk', [OTHER_ID]: 'sk' },
-      }),
-      `credentials.${OTHER_ID}`,
-    ],
-    [
-      'a managed provider whose credential is explicitly deleted',
-      () => ({ config: configured(), credentials: { [OPENAI_ID]: null } }),
-      `credentials.${OPENAI_ID}`,
-    ],
-    [
-      'a managed provider preserving a credential that was never stored',
-      () => ({ config: configured() }),
-      `credentials.${OPENAI_ID}`,
+      'a managed connection without a key',
+      () => configured({ connections: [configured().connections[0], { ...configured().connections[1], hasKey: false }] }),
+      'config.connections.1.hasKey',
     ],
   ])('rejects %s as a semantic 409 with bounded details', async (_label, build, issuePath) => {
     const configurations = inMemoryModelConfigurations()
-    const fake = fakeCredentialStore()
-    const put = handlers({ configurations, credentialStore: fake.store }).PUT
-
-    const response = await put(putRequest(build()))
+    const response = await handlers({ configurations }).PUT(putRequest({ config: build() }))
 
     expect(response.status).toBe(409)
     const body = (await response.json()) as { error: { code: string; details: { issues: { path: string }[] } } }
     expect(body.error.code).toBe('invalid_model_config')
     expect(body.error.details.issues.map(({ path }) => path)).toContain(issuePath)
-    // Nothing was committed and no credential moved.
-    expect(configurations.documents.size).toBe(0)
-    expect(fake.values.size).toBe(0)
-  })
-
-  it('maps a required keyring operation failure to 503 without any fallback', async () => {
-    const configurations = inMemoryModelConfigurations()
-    const put = handlers({ configurations, credentialStore: unavailableStore }).PUT
-
-    const response = await put(
-      putRequest({
-        config: configured(),
-        credentials: { [OPENAI_ID]: 'sk' },
-      }),
-    )
-    expect(response.status).toBe(503)
-    await expect(response.json()).resolves.toEqual({
-      error: {
-        code: 'keyring_unavailable',
-        message: 'The operating system credential store is unavailable.',
-      },
-    })
-    // No plaintext, environment, or file fallback: nothing was written.
     expect(configurations.documents.size).toBe(0)
   })
 
-  it('commits a removal even when best-effort orphan cleanup fails', async () => {
-    const configurations = inMemoryModelConfigurations({ [ACCOUNT]: configured() })
-    const fake = fakeCredentialStore({ [OPENAI_ID]: 'sk-orphan' })
-    const store: CredentialStore = { ...fake.store, delete: () => Promise.reject(new Error('locked')) }
-    const remaining = configured({
-      connections: [configured().connections[0]],
-      routes: { schemaSuggestion: configured().routes.schemaSuggestion, interaction: null },
+  it('Apply drops cached keys of removed and re-addressed connections', async () => {
+    const C1 = OPENAI_ID
+    const C2 = OTHER_ID
+    const C3 = VLLM_ID
+    const baseA = 'https://a.example/v1'
+    const baseB = 'https://b.example/v1'
+    const before = configured({
+      connections: [
+        { id: C1, name: 'C1', provider: 'openai', baseUrl: baseA, hasKey: true },
+        { id: C2, name: 'C2', provider: 'openai', baseUrl: baseA, hasKey: true },
+        { id: C3, name: 'C3', provider: 'vllm', baseUrl: baseA, hasKey: true },
+      ],
+      routes: { schemaSuggestion: null, interaction: null },
     })
+    const configurations = inMemoryModelConfigurations({ [ACCOUNT]: before })
+    const keys = createModelKeyCache()
+    for (const { id, provider } of before.connections) keys.put(ACCOUNT, id, { provider, baseUrl: baseA }, `sk-test-${id}`)
+    keys.put(OTHER_ACCOUNT, C2, { provider: 'openai', baseUrl: baseA }, 'sk-test-other-account')
+    const after = { ...before, connections: [{ ...before.connections[0], baseUrl: baseB }, before.connections[2]] }
 
-    const response = await handlers({ configurations, credentialStore: store }).PUT(
-      putRequest({ config: remaining }),
-    )
+    const response = await handlers({ configurations, keys }).PUT(putRequest({ config: after }))
 
     expect(response.status).toBe(200)
-    // The removed UUID is gone from the authoritative document, so the credential
-    // it left behind is inert: no saved connection can reach it.
-    await expect(readAccountModelConfig(ACCOUNT, configurations)).resolves.toEqual(remaining)
-    await expect(response.json()).resolves.toMatchObject({
-      credentialStates: { [VLLM_ID]: 'absent' },
-    })
-    expect(fake.values.get(OPENAI_ID)).toBe('sk-orphan')
+    expect(keys.read(ACCOUNT, { id: C1, provider: 'openai', baseUrl: baseA })).toBeNull()
+    expect(keys.read(ACCOUNT, { id: C1, provider: 'openai', baseUrl: baseB })).toBeNull()
+    expect(keys.read(ACCOUNT, { id: C2, provider: 'openai', baseUrl: baseA })).toBeNull()
+    expect(keys.read(ACCOUNT, { id: C3, provider: 'vllm', baseUrl: baseA })).toBe(`sk-test-${C3}`)
+    expect(keys.read(OTHER_ACCOUNT, { id: C2, provider: 'openai', baseUrl: baseA })).toBe('sk-test-other-account')
+  })
 
-    const reintroduced = await handlers({
-      configurations,
-      credentialStore: store,
-    }).PUT(putRequest({ config: configured() }))
-    expect(reintroduced.status).toBe(409)
-    await expect(reintroduced.json()).resolves.toMatchObject({
-      error: {
-        details: {
-          issues: [{ path: `credentials.${OPENAI_ID}` }],
-        },
+  it('a rejected Apply leaves every cached key in place', async () => {
+    const configurations = inMemoryModelConfigurations({ [ACCOUNT]: configured() })
+    const keys = createModelKeyCache()
+    const address = { provider: 'openai' as const, baseUrl: configured().connections[1].baseUrl }
+    keys.put(ACCOUNT, OPENAI_ID, address, 'sk-test-kept')
+    const changed = configured()
+    changed.connections[1] = { ...changed.connections[1], provider: 'anthropic' }
+
+    expect((await handlers({ configurations, keys }).PUT(putRequest({ config: changed }))).status).toBe(409)
+    expect(keys.read(ACCOUNT, { id: OPENAI_ID, ...address })).toBe('sk-test-kept')
+  })
+
+  it("two concurrent Applies of one account serialize, each sees the previous commit, and the cache follows the last commit", async () => {
+    const store = inMemoryModelConfigurations()
+    const events: string[] = []
+    const configurations: typeof store = {
+      ...store,
+      apply: async (accountId, next) => {
+        const committed = await store.apply(accountId, next)
+        events.push(`commit:${(committed as ModelConfig).connections[0]?.baseUrl}`)
+        return committed
       },
+    }
+    const cache = createModelKeyCache()
+    const keys: Pick<ModelKeyCache, 'retain'> = {
+      retain: (accountId, connections) => {
+        events.push(`retain:${connections[0]?.baseUrl}`)
+        cache.retain(accountId, connections)
+      },
+    }
+    const baseA = 'https://a.example/v1'
+    const baseB = 'https://b.example/v1'
+    const single = (name: string, provider: 'openai' | 'anthropic', baseUrl: string) => configured({
+      connections: [{ id: OPENAI_ID, name, provider, baseUrl, hasKey: true }],
+      routes: { schemaSuggestion: null, interaction: null },
     })
-    expect(fake.values.get(OPENAI_ID)).toBe('sk-orphan')
+    const first = single('first', 'openai', baseA)
+    // Only an Apply that sees the first's commit knows this ID's provider is already fixed.
+    const conflicting = single('conflicting', 'anthropic', baseB)
+    const second = single('second', 'openai', baseB)
+    cache.put(ACCOUNT, OPENAI_ID, { provider: 'openai', baseUrl: baseA }, 'sk-test-base-a')
+    const { PUT } = handlers({ configurations, keys })
+
+    const [one, two, three] = await Promise.all([
+      PUT(putRequest({ config: first })),
+      PUT(putRequest({ config: conflicting })),
+      PUT(putRequest({ config: second })),
+    ])
+
+    expect([one.status, two.status, three.status]).toEqual([200, 409, 200])
+    expect(events).toEqual([`commit:${baseA}`, `retain:${baseA}`, `commit:${baseB}`, `retain:${baseB}`])
+    await expect(readAccountModelConfig(ACCOUNT, store)).resolves.toEqual(second)
+    expect(cache.read(ACCOUNT, { id: OPENAI_ID, provider: 'openai', baseUrl: baseA })).toBeNull()
   })
 
   it('a submitted schemaSuggestion protocol is refused as an unknown field', async () => {
     const configurations = inMemoryModelConfigurations()
-    const fake = fakeCredentialStore()
     const config = configured()
-    const response = await handlers({ configurations, credentialStore: fake.store }).PUT(putRequest({
+    const response = await handlers({ configurations }).PUT(putRequest({
       config: { ...config, routes: { ...config.routes, schemaSuggestion: { ...config.routes.schemaSuggestion, protocol: RETIRED_PROTOCOL } } },
-      credentials: { [OPENAI_ID]: 'sk-test-protocol' },
     }))
 
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'invalid_request' } })
     expect(configurations.documents.has(ACCOUNT)).toBe(false)
-    expect(fake.calls).toEqual([])
   })
 
   it('an explicit Schema Suggestion route equal to the Interaction Route is stored as submitted', async () => {
@@ -611,9 +443,7 @@ describe('PUT /api/model_config', () => {
     const route = { connectionId: OPENAI_ID, modelId: 'an opaque model id' }
     const config = configured({ routes: { schemaSuggestion: { ...route }, interaction: route } })
 
-    const response = await handlers({ configurations, credentialStore: fakeCredentialStore().store }).PUT(
-      putRequest({ config, credentials: { [OPENAI_ID]: 'sk-test-explicit-route' } }),
-    )
+    const response = await handlers({ configurations }).PUT(putRequest({ config }))
 
     expect(response.status).toBe(200)
     const stored = await readAccountModelConfig(ACCOUNT, configurations)
@@ -626,9 +456,7 @@ describe('PUT /api/model_config', () => {
     // kei refuses a key it does not serve at conversion; a saved choice the listing no longer offers stays saved.
     const config = configured({ ingestionModels: { ocr: 'retired-ocr-model', layout: 'layout_heron_101' } })
 
-    const response = await handlers({ configurations, credentialStore: fakeCredentialStore().store }).PUT(
-      putRequest({ config, credentials: { [OPENAI_ID]: 'sk-test-ingestion-choice' } }),
-    )
+    const response = await handlers({ configurations }).PUT(putRequest({ config }))
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({ config: { ingestionModels: config.ingestionModels } })
@@ -637,9 +465,7 @@ describe('PUT /api/model_config', () => {
     })
 
     for (const ingestionModels of [{ table: 'x' }, { ocr: '' }, { layout: 'k'.repeat(129) }]) {
-      const refused = await handlers({ configurations, credentialStore: fakeCredentialStore().store }).PUT(
-        putRequest({ config: { ...config, ingestionModels } }),
-      )
+      const refused = await handlers({ configurations }).PUT(putRequest({ config: { ...config, ingestionModels } }))
       expect(refused.status).toBe(400)
     }
     await expect(readAccountModelConfig(ACCOUNT, configurations)).resolves.toEqual(config)

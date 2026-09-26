@@ -243,7 +243,7 @@ describe('proposeSchemaEdit', () => {
 
   it.each([
     [409, 'invalid_model_config'],
-    [503, 'keyring_unavailable'],
+    [409, 'model_key_required'],
     [409, 'unsupported_temperature'],
     [500, 'unexpected_failure'],
   ])('preserves non-model ApiError %s %s for the HTTP adapter', async (status, code) => {
@@ -272,7 +272,7 @@ describe('proposeSchemaEdit', () => {
   })
 
   it('preserves an operational error from a retry', async () => {
-    const error = new ApiError(503, 'keyring_unavailable', 'Credential store unavailable.')
+    const error = new ApiError(409, 'model_key_required', 'Studio does not hold the key for this Model Connection.')
     const generate = vi.fn()
       .mockResolvedValueOnce(JSON.stringify({
         fields: { group: { name: 'renamed', type: 'object', removed: false } },
@@ -300,8 +300,11 @@ describe('proposeSchemaEdit', () => {
   it("runs the default model call on the caller's configuration", async () => {
     generateSchemaEditJson.mockResolvedValue({ text: JSON.stringify({ fields: {}, additions: [] }) })
 
-    await proposeSchemaEdit([], 'add fields', null, { caller: CALLER, temperature: 0.3 })
+    const controller = new AbortController()
 
-    expect(generateSchemaEditJson).toHaveBeenCalledWith(CALLER, expect.any(String), 0.3, undefined)
+    await proposeSchemaEdit([], 'add fields', null, { caller: CALLER, temperature: 0.3, signal: controller.signal })
+
+    // The request's signal ends the call, and with it any wait for a key, when the browser leaves.
+    expect(generateSchemaEditJson).toHaveBeenCalledWith(CALLER, expect.any(String), 0.3, controller.signal, undefined)
   })
 })

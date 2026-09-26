@@ -1,7 +1,10 @@
-import { type RefObject, useEffect, useState } from 'react'
+import { type RefObject, useContext, useEffect, useState } from 'react'
 import type { ExtractionModelListing } from '../../shared/extraction.contract'
-import type { CredentialState, DeploymentModels, GetModelConfigResponse, ProviderDescriptor, ProviderKind } from '../../shared/modelConfig.contract'
+import type { DeploymentModels, GetModelConfigResponse, ProviderDescriptor, ProviderKind } from '../../shared/modelConfig.contract'
 import { readExtractionModels } from '../api'
+import { ResearcherSessionContext } from '../auth/sessionContext'
+import { sendModelKeys } from '../modelKeys/modelKeyHandoff'
+import { modelKeyFor } from '../modelKeys/modelKeyStore'
 import { Button, EmptyState, Overline } from '../ui'
 import { ExtractionModelSelect } from './ExtractionModelSelect'
 import { ProviderConnectionCard, providerFieldClass } from './ProviderConnectionCard'
@@ -10,51 +13,51 @@ import { apiErrorText, getModelConfig, putModelConfig } from './providerConfig.d
 import { useProbeLifecycle } from './useProbeLifecycle'
 import { useProviderConfigDraft } from './useProviderConfigDraft'
 
-
-function ProviderConfigPage({
-  onClose,
-  initialFocusRef,
-}: {
+type PageProps = {
   onClose: () => void
   initialFocusRef?: RefObject<HTMLButtonElement | null>
-}) {
+}
+
+/** Keys are kept per Researcher Account, so the page needs the signed-in one. */
+function ProviderConfigPage(props: PageProps) {
+  const researcher = useContext(ResearcherSessionContext)
+  if (!researcher) throw new Error('Model Configuration needs a signed-in Researcher Account.')
+  return <ModelConfigurationEditor accountId={researcher.session.account.id} {...props} />
+}
+
+function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageProps & { accountId: string }) {
   const [providers, setProviders] = useState<ProviderDescriptor[]>([])
-  const [credentialStates, setCredentialStates] = useState<Record<string, CredentialState>>({})
-  const [savedIds, setSavedIds] = useState<ReadonlySet<string>>(new Set())
   const [deployment, setDeployment] = useState<DeploymentModels>({ connections: [], defaultRoute: null })
   // kei-exp's extraction models; null until listed, and for good when they cannot be.
   const [extractionListing, setExtractionListing] = useState<ExtractionModelListing | null>(null)
   const [newProvider, setNewProvider] = useState<ProviderKind>('ollama')
+  // Connections whose saved key is being replaced: their key input shows instead of the saved-key line.
+  const [replacing, setReplacing] = useState<ReadonlySet<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const { probes, schedule, refresh, dispose } = useProbeLifecycle({
-    providers,
-    credentialStates,
-  })
+  const { probes, schedule, refresh, cancel, dispose } = useProbeLifecycle({ providers })
   const {
     draft,
-    mode,
-    credentialActions,
+    keyEdits,
     descriptor,
-    actionFor,
+    credentialFor,
     initialize,
-    replaceAfterApply,
-    setMode,
-    updateConnection,
-    changeProvider,
-    updateCredential,
-    addConnection,
-    removeConnection,
-    setRoute,
-    setRouteModel,
-    setSingleConnection,
-    setSingleModel,
+    assign,
     setExtractionModel,
+    addConnection,
+    updateConnection,
+    setKey,
+    removeKey,
+    connectWithoutKey,
+    removeConnection,
+    commit,
   } = useProviderConfigDraft({
+    accountId,
     providers,
     scheduleProbe: schedule,
+    cancelProbe: cancel,
     disposeProbe: dispose,
   })
 
@@ -62,8 +65,6 @@ function ProviderConfigPage({
     initialize(state.config)
     setProviders(state.providers)
     setDeployment(state.deployment)
-    setSavedIds(new Set(state.config.connections.map(({ id }) => id)))
-    setCredentialStates(state.credentialStates)
     setNewProvider(state.providers[0]?.kind ?? 'ollama')
   }
 
@@ -94,11 +95,11 @@ function ProviderConfigPage({
     setApplying(true)
     setError(null)
     try {
-      const state = await putModelConfig(draft, credentialActions)
-      replaceAfterApply(state.config)
-      setSavedIds(new Set(state.config.connections.map(({ id }) => id)))
-      setCredentialStates(state.credentialStates)
-      // Credential actions clear only inside replaceAfterApply after success.
+      const state = await putModelConfig(draft)
+      const dropped = commit(state.config)
+      setReplacing(new Set())
+      // Studio gets this browser's keys for the committed configuration, and forgets the ones it dropped.
+      void sendModelKeys(accountId, dropped)
     } catch (cause) {
       setError(apiErrorText(cause))
     } finally {
@@ -121,7 +122,6 @@ function ProviderConfigPage({
     )
   }
 
-
   const hasConnections = draft.connections.length > 0
   const routable = [...deployment.connections, ...draft.connections]
 
@@ -129,31 +129,14 @@ function ProviderConfigPage({
     const phase = probes[connectionId]?.phase ?? 'idle'
     if (phase === 'checking' || phase === 'done') return
     const connection = routable.find(({ id }) => id === connectionId)
-    if (connection) refresh(connection, actionFor(connection.id))
+    if (connection) refresh(connection, credentialFor(connection))
   }
 
   return (
     <fieldset disabled={applying} className="mx-auto min-w-0 max-w-4xl overflow-hidden rounded-2xl border border-line bg-surface-muted shadow-page">
       <header className="flex items-center justify-between gap-3 border-b border-line bg-surface px-4 py-2.75">
         <b className="text-[13px] text-ink">Model Configuration</b>
-        <div className="flex items-center gap-3">
-          {routable.length > 0 && (
-            <div role="group" aria-label="Configuration mode" className="flex gap-0.5 rounded-lg border border-line bg-surface-muted p-0.5">
-              {(['single', 'routes'] as const).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={mode === value}
-                  onClick={() => setMode(value)}
-                  className={`rounded-md px-3 py-[5px] text-[10.5px] font-semibold ${mode === value ? 'bg-canvas text-accent shadow-sm' : 'text-ink-faint'}`}
-                >
-                  {value === 'single' ? 'Single model' : 'Capability Routes'}
-                </button>
-              ))}
-            </div>
-          )}
-          <button ref={initialFocusRef} autoFocus type="button" onClick={onClose} aria-label="Close Model Configuration" className="text-lg text-ink-faint hover:text-ink">×</button>
-        </div>
+        <button ref={initialFocusRef} autoFocus type="button" onClick={onClose} aria-label="Close Model Configuration" className="text-lg text-ink-faint hover:text-ink">×</button>
       </header>
 
       {error && <p role="alert" className="m-4 whitespace-pre-line rounded-lg border border-danger/40 bg-danger/5 px-3 py-2 font-mono text-xs text-danger">{error}</p>}
@@ -177,17 +160,13 @@ function ProviderConfigPage({
 
       {routable.length > 0 && <section className="border-b border-line bg-surface p-4.5">
         <ProviderRoutesEditor
-          mode={mode}
           draft={draft}
           connections={routable}
           defaultModelId={deployment.defaultRoute?.modelId ?? null}
           probes={probes}
           descriptor={descriptor}
           onModelListOpen={openModelList}
-          setRoute={setRoute}
-          setRouteModel={setRouteModel}
-          setSingleConnection={setSingleConnection}
-          setSingleModel={setSingleModel}
+          assign={assign}
         />
       </section>}
       <section className="p-4.5">
@@ -221,20 +200,21 @@ function ProviderConfigPage({
           {draft.connections.map((connection) => {
             const provider = descriptor(connection)
             if (!provider) return null
-            const action = actionFor(connection.id)
+            const edit = keyEdits[connection.id]
             return (
               <ProviderConnectionCard
                 key={connection.id}
                 connection={connection}
                 provider={provider}
-                providers={providers}
-                saved={savedIds.has(connection.id)}
-                credentialState={credentialStates[connection.id] ?? 'absent'}
-                credentialAction={action}
+                keySaved={edit === undefined && connection.hasKey && modelKeyFor(accountId, connection) !== null}
+                typedKey={typeof edit === 'string' ? edit : ''}
+                replacing={replacing.has(connection.id)}
                 probe={probes[connection.id] ?? { phase: 'idle' }}
-                onUpdate={(change, probeInput) => updateConnection(connection, change, probeInput)}
-                onProviderChange={(kind) => changeProvider(connection, kind)}
-                onCredentialChange={(next) => updateCredential(connection, next)}
+                onUpdate={(change) => updateConnection(connection.id, change)}
+                onReplaceKey={() => setReplacing((current) => new Set(current).add(connection.id))}
+                onKeyChange={(key) => setKey(connection.id, key)}
+                onRemoveKey={() => removeKey(connection.id)}
+                onUseWithoutKey={() => connectWithoutKey(connection.id)}
                 onRemove={() => removeConnection(connection.id)}
               />
             )

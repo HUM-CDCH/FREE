@@ -5,22 +5,35 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   DEPLOYMENT_CONNECTION_IDS,
-  type CredentialState,
   type DeploymentModels,
   type ModelConfig,
   type ProviderDescriptor,
 } from '../../shared/modelConfig.contract'
+import { ResearcherSessionContext } from '../auth/sessionContext'
 import ProviderConfigPage from './ProviderConfigPage'
 
 const OLLAMA_ID = '11111111-1111-4111-8111-111111111111'
 const OPENAI_ID = '22222222-2222-4222-8222-222222222222'
+const ACCOUNT = 'acct-a'
+const STORAGE = `free.modelKeys.v1:${ACCOUNT}`
+const SESSION = {
+  session: {
+    authenticated: true as const,
+    account: { id: ACCOUNT, displayName: 'Researcher A' },
+    expiresAt: '2026-09-26T18:00:00.000Z',
+  },
+}
+const OPENAI_BASE = 'https://api.openai.com/v1'
+const OLLAMA_BASE = 'http://127.0.0.1:11434'
+const INTERACTION_CONNECTION = 'Chat & Extraction Schema editing connection'
+const INTERACTION_MODEL = 'Chat & Extraction Schema editing model ID'
 
 const providers: ProviderDescriptor[] = [
   {
     kind: 'ollama',
     label: 'Ollama',
     transport: 'http',
-    defaultBaseUrl: 'http://127.0.0.1:11434',
+    defaultBaseUrl: OLLAMA_BASE,
     authentication: 'optional',
     supportsNuextract: false,
   },
@@ -28,7 +41,7 @@ const providers: ProviderDescriptor[] = [
     kind: 'openai',
     label: 'OpenAI',
     transport: 'http',
-    defaultBaseUrl: 'https://api.openai.com/v1',
+    defaultBaseUrl: OPENAI_BASE,
     authentication: 'managed',
     supportsNuextract: false,
   },
@@ -85,8 +98,8 @@ const providers: ProviderDescriptor[] = [
 const NO_DEPLOYMENT: DeploymentModels = { connections: [], defaultRoute: null }
 const deployment: DeploymentModels = {
   connections: [
-    { id: DEPLOYMENT_CONNECTION_IDS.instruct, name: 'Deployment instruction model', provider: 'vllm', baseUrl: 'http://extraction_model:8000/v1' },
-    { id: DEPLOYMENT_CONNECTION_IDS.nuextract, name: 'Deployment NuExtract', provider: 'vllm', baseUrl: 'http://nuextract_model:8000/v1' },
+    { id: DEPLOYMENT_CONNECTION_IDS.instruct, name: 'Deployment instruction model', provider: 'vllm', baseUrl: 'http://extraction_model:8000/v1', hasKey: false },
+    { id: DEPLOYMENT_CONNECTION_IDS.nuextract, name: 'Deployment NuExtract', provider: 'vllm', baseUrl: 'http://nuextract_model:8000/v1', hasKey: false },
   ],
   defaultRoute: { connectionId: DEPLOYMENT_CONNECTION_IDS.instruct, modelId: 'Qwen/Qwen3.8-27B-FP8' },
 }
@@ -105,17 +118,10 @@ const emptyConfig: ModelConfig = {
   ingestionModels: {},
 }
 
-function ollamaConfig(modelId = 'saved-model'): ModelConfig {
+function ollamaConfig(modelId = 'saved-model', hasKey = false): ModelConfig {
   const route = { connectionId: OLLAMA_ID, modelId }
   return {
-    connections: [
-      {
-        id: OLLAMA_ID,
-        name: 'Local Ollama',
-        provider: 'ollama',
-        baseUrl: 'http://127.0.0.1:11434',
-      },
-    ],
+    connections: [{ id: OLLAMA_ID, name: 'Local Ollama', provider: 'ollama', baseUrl: OLLAMA_BASE, hasKey }],
     routes: { schemaSuggestion: route, interaction: route },
     extractionModels: {},
     ingestionModels: {},
@@ -125,23 +131,18 @@ function ollamaConfig(modelId = 'saved-model'): ModelConfig {
 function mixedConfig(): ModelConfig {
   return {
     connections: [
-      {
-        id: OLLAMA_ID,
-        name: 'Local Ollama',
-        provider: 'ollama',
-        baseUrl: 'http://127.0.0.1:11434',
-      },
-      {
-        id: OPENAI_ID,
-        name: 'Research OpenAI',
-        provider: 'openai',
-        baseUrl: 'https://api.openai.com/v1',
-      },
+      { id: OLLAMA_ID, name: 'Local Ollama', provider: 'ollama', baseUrl: OLLAMA_BASE, hasKey: false },
+      { id: OPENAI_ID, name: 'Research OpenAI', provider: 'openai', baseUrl: OPENAI_BASE, hasKey: true },
     ],
     routes: { schemaSuggestion: null, interaction: null },
     extractionModels: {},
     ingestionModels: {},
   }
+}
+
+function storeKey(id: string, provider: string, baseUrl: string, key: string): void {
+  const stored = JSON.parse(localStorage.getItem(STORAGE) ?? '{}') as Record<string, unknown>
+  localStorage.setItem(STORAGE, JSON.stringify({ ...stored, [id]: { provider, baseUrl, key } }))
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -151,13 +152,16 @@ function jsonResponse(body: unknown, status = 200): Response {
   })
 }
 
-function configResponse(
-  config: ModelConfig,
-  credentialStates: Record<string, CredentialState> = {},
-  deploymentModels: DeploymentModels = NO_DEPLOYMENT,
-): Response {
-  return jsonResponse({ config, credentialStates, providers, deployment: deploymentModels })
+function configResponse(config: ModelConfig, deploymentModels: DeploymentModels = NO_DEPLOYMENT): Response {
+  return jsonResponse({ config, providers, deployment: deploymentModels })
 }
+
+const connectedProbe = () => jsonResponse({
+  checkedAt: '2026-07-25T00:00:00.000Z',
+  status: 'connected',
+  message: 'Connected.',
+  catalog: [],
+})
 
 type FetchHandler = (url: string, init: RequestInit) => Promise<Response> | Response
 
@@ -174,40 +178,67 @@ function mockFetch(handler: FetchHandler, listing: () => Response = () => jsonRe
   return request
 }
 
+/** Saves what it is sent, answers every probe as connected and every key handoff as accepted. */
+function savingServer(initial: ModelConfig, deploymentModels: DeploymentModels = NO_DEPLOYMENT) {
+  let stored = initial
+  const request = mockFetch((url, init) => {
+    if (url === '/api/model_config' && init.method === 'PUT') {
+      stored = requestBody(init).config as ModelConfig
+      return jsonResponse({ config: stored })
+    }
+    if (url === '/api/model_probe') return connectedProbe()
+    if (url === '/api/model-keys') return jsonResponse({ accepted: [] })
+    return configResponse(stored, deploymentModels)
+  })
+  const bodies = (url: string, method: string) =>
+    request.mock.calls.filter(([input, init]) => String(input) === url && init?.method === method).map(([, init]) => requestBody(init!))
+  return { request, bodies, stored: () => stored }
+}
+
 function requestBody(init: RequestInit): Record<string, unknown> {
   return JSON.parse(String(init.body)) as Record<string, unknown>
 }
 
+function renderConfigurationPage() {
+  return render(
+    <ResearcherSessionContext value={SESSION}>
+      <ProviderConfigPage onClose={() => {}} />
+    </ResearcherSessionContext>,
+  )
+}
+
 async function renderPage(): Promise<void> {
-  render(<ProviderConfigPage onClose={() => {}} />)
+  renderConfigurationPage()
   await waitFor(() => expect(screen.queryByText('Loading model configuration…')).not.toBeInTheDocument())
 }
+
+const card = (name: string) => screen.getAllByRole('article').find((article) => within(article).queryByDisplayValue(name))!
 
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
+  localStorage.clear()
 })
 
 describe('ProviderConfigPage', () => {
-  it('loads backend-owned state without probing and renders partial credential states', async () => {
+  it('loads backend-owned state without probing', async () => {
     const config = mixedConfig()
     const request = mockFetch((url, init) => {
       expect(url).toBe('/api/model_config')
       expect(init.method).toBeUndefined()
-      return configResponse(config, { [OPENAI_ID]: 'unavailable' })
+      return configResponse(config)
     })
 
     await renderPage()
 
     expect(screen.getByDisplayValue('Local Ollama')).toBeInTheDocument()
     expect(screen.getByDisplayValue('Research OpenAI')).toBeInTheDocument()
-    expect(screen.getByText('Credential store unavailable.')).toBeInTheDocument()
-    const cards = screen.getAllByRole('article')
-    expect(within(cards[0]).getByPlaceholderText('Enter a credential')).toHaveValue('')
+    expect(within(card('Local Ollama')).getByLabelText('API key (optional)')).toHaveValue('')
+    expect(within(card('Research OpenAI')).getByLabelText('API key')).toHaveValue('')
+    expect(screen.queryByRole('group', { name: 'Configuration mode' })).not.toBeInTheDocument()
     expect(request).toHaveBeenCalledTimes(1)
-    expect(request.mock.calls.some(([url]) => String(url) === '/api/model_probe')).toBe(false)
   })
 
   it('submits one unchanged draft, disables pending Apply, replaces it from the response, and reloads it', async () => {
@@ -217,78 +248,71 @@ describe('ProviderConfigPage', () => {
     const request = mockFetch((url, init) => {
       if (url === '/api/model_config' && init.method === 'PUT') {
         const submitted = requestBody(init).config as ModelConfig
-        expect(submitted.routes.schemaSuggestion?.modelId).toBe('manual-model')
         expect(submitted.routes.interaction?.modelId).toBe('manual-model')
+        expect(submitted.routes.schemaSuggestion?.modelId).toBe('saved-model')
         for (const route of Object.values(submitted.routes)) expect(route).not.toHaveProperty('jsonOutput')
         stored = {
           ...submitted,
-          routes: {
-            schemaSuggestion: { ...submitted.routes.schemaSuggestion!, modelId: 'normalized-model' },
-            interaction: { ...submitted.routes.interaction!, modelId: 'normalized-model' },
-          },
+          routes: { ...submitted.routes, interaction: { ...submitted.routes.interaction!, modelId: 'normalized-model' } },
         }
         return putResponse
       }
       return configResponse(stored)
     })
 
-    const first = render(<ProviderConfigPage onClose={() => {}} />)
-    await screen.findByDisplayValue('saved-model')
+    const first = renderConfigurationPage()
+    expect(await screen.findByLabelText(INTERACTION_MODEL)).toHaveValue('saved-model')
     expect(screen.queryByLabelText(/output support/)).not.toBeInTheDocument()
     expect(screen.queryByText('Advanced output settings')).not.toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Single model ID'), { target: { value: 'manual-model' } })
+    fireEvent.change(screen.getByLabelText(INTERACTION_MODEL), { target: { value: 'manual-model' } })
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Applying…' })).toBeDisabled())
-    expect(screen.getByLabelText('Single model ID')).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Capability Routes' })).toBeDisabled()
+    expect(screen.getByLabelText(INTERACTION_MODEL)).toBeDisabled()
     expect(request.mock.calls.filter(([url]) => String(url) === '/api/model_config')).toHaveLength(2)
     expect(request.mock.calls.some(([url]) => String(url) === '/api/model_probe')).toBe(false)
 
     await act(async () => {
-      finishPut?.(jsonResponse({ config: stored, credentialStates: { [OLLAMA_ID]: 'absent' } }))
+      finishPut?.(jsonResponse({ config: stored }))
       await putResponse
     })
-    expect(screen.getByLabelText('Single model ID')).toHaveValue('normalized-model')
+    expect(screen.getByLabelText(INTERACTION_MODEL)).toHaveValue('normalized-model')
 
     first.unmount()
-    render(<ProviderConfigPage onClose={() => {}} />)
-    expect(await screen.findByLabelText('Single model ID')).toHaveValue('normalized-model')
+    renderConfigurationPage()
+    expect(await screen.findByLabelText(INTERACTION_MODEL)).toHaveValue('normalized-model')
   })
 
-  it('retains a failed draft, renders the stable error, and permits an offline save retry', async () => {
+  it('retains a failed draft, renders the stable error, and permits a retry', async () => {
     let attempts = 0
     const request = mockFetch((url, init) => {
       if (url === '/api/model_config' && init.method === 'PUT') {
         attempts += 1
         if (attempts === 1) {
           return jsonResponse(
-            { error: { code: 'keyring_unavailable', message: 'The credential store is locked.' } },
+            { error: { code: 'persistence_unavailable', message: 'Model Configuration storage is unavailable.' } },
             503,
           )
         }
-        return jsonResponse({
-          config: requestBody(init).config,
-          credentialStates: { [OLLAMA_ID]: 'absent' },
-        })
+        return jsonResponse({ config: requestBody(init).config })
       }
       return configResponse(ollamaConfig())
     })
 
     await renderPage()
-    fireEvent.change(screen.getByLabelText('Single model ID'), { target: { value: 'offline-model' } })
+    fireEvent.change(screen.getByLabelText(INTERACTION_MODEL), { target: { value: 'offline-model' } })
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'keyring_unavailable: The credential store is locked.',
+      'persistence_unavailable: Model Configuration storage is unavailable.',
     )
-    expect(screen.getByLabelText('Single model ID')).toHaveValue('offline-model')
+    expect(screen.getByLabelText(INTERACTION_MODEL)).toHaveValue('offline-model')
     expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
     await waitFor(() => expect(request).toHaveBeenCalledTimes(3))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Single model ID')).toHaveValue('offline-model')
+    expect(screen.getByLabelText(INTERACTION_MODEL)).toHaveValue('offline-model')
   })
 
   // An empty model ID is the likeliest rejected Apply and `invalid_request: The
@@ -322,7 +346,7 @@ describe('ProviderConfigPage', () => {
     expect(alert).toHaveTextContent('config.routes.schemaSuggestion.modelId: Must not be empty.')
   })
 
-  it('debounces draft checks, cancels and suppresses stale results, retries immediately, and saves offline', async () => {
+  it('debounces draft checks, cancels and suppresses stale results, and saves offline', async () => {
     const probeResolvers: Array<(response: Response) => void> = []
     const putBodies: Record<string, unknown>[] = []
     const request = mockFetch((url, init) => {
@@ -331,10 +355,7 @@ describe('ProviderConfigPage', () => {
       }
       if (url === '/api/model_config' && init.method === 'PUT') {
         putBodies.push(requestBody(init))
-        return jsonResponse({
-          config: requestBody(init).config,
-          credentialStates: { [OLLAMA_ID]: 'absent' },
-        })
+        return jsonResponse({ config: requestBody(init).config })
       }
       return configResponse(emptyConfig)
     })
@@ -345,14 +366,17 @@ describe('ProviderConfigPage', () => {
     vi.useFakeTimers()
 
     fireEvent.click(screen.getByRole('button', { name: '+ New connection' }))
-    const baseInput = screen.getByDisplayValue('http://127.0.0.1:11434')
+    const baseInput = screen.getByDisplayValue(OLLAMA_BASE)
     fireEvent.change(baseInput, { target: { value: 'http://localhost:11434/first' } })
     await act(() => vi.advanceTimersByTimeAsync(499))
     expect(probeResolvers).toHaveLength(0)
     await act(() => vi.advanceTimersByTimeAsync(1))
     expect(probeResolvers).toHaveLength(1)
     expect(screen.getByText('Checking…')).toBeInTheDocument()
-    const firstSignal = request.mock.calls.find(([url]) => String(url) === '/api/model_probe')?.[1]?.signal
+    const firstProbe = request.mock.calls.find(([url]) => String(url) === '/api/model_probe')
+    const firstSignal = firstProbe?.[1]?.signal
+    // A keyless connection is probed without a key.
+    expect(requestBody(firstProbe![1]!)).not.toHaveProperty('credential')
 
     fireEvent.change(baseInput, { target: { value: 'http://localhost:11434/latest' } })
     expect(firstSignal?.aborted).toBe(true)
@@ -381,23 +405,23 @@ describe('ProviderConfigPage', () => {
     })
     expect(screen.queryByText('Stale provider failure.')).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Single model connection'), { target: { value: OLLAMA_ID } })
-    fireEvent.focus(screen.getByLabelText('Single model ID'))
+    fireEvent.change(screen.getByLabelText(INTERACTION_CONNECTION), { target: { value: OLLAMA_ID } })
+    fireEvent.focus(screen.getByLabelText(INTERACTION_MODEL))
     expect(probeResolvers).toHaveLength(2) // already probed this session; opening the list must not re-probe
     const listbox = screen.getByRole('listbox')
     expect(within(listbox).getAllByRole('option')).toHaveLength(1)
     fireEvent.mouseDown(within(listbox).getByRole('option', { name: 'Latest model' }))
-    expect(screen.getByLabelText('Single model ID')).toHaveValue('latest-model')
+    expect(screen.getByLabelText(INTERACTION_MODEL)).toHaveValue('latest-model')
 
     // reopening after a pick still shows the full catalog, not a filtered single entry
-    fireEvent.focus(screen.getByLabelText('Single model ID'))
+    fireEvent.focus(screen.getByLabelText(INTERACTION_MODEL))
     expect(within(screen.getByRole('listbox')).getAllByRole('option')).toHaveLength(1)
 
-    fireEvent.change(screen.getByLabelText('Single model ID'), { target: { value: 'manual-offline-model' } })
+    fireEvent.change(screen.getByLabelText(INTERACTION_MODEL), { target: { value: 'manual-offline-model' } })
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
     await act(async () => { await Promise.resolve() })
     expect(putBodies).toHaveLength(1)
-    expect((putBodies[0].config as ModelConfig).routes.schemaSuggestion?.modelId).toBe('manual-offline-model')
+    expect((putBodies[0].config as ModelConfig).routes.interaction?.modelId).toBe('manual-offline-model')
   })
 
   it('probes when the model list is opened for an unchecked connection, once per session', async () => {
@@ -412,7 +436,7 @@ describe('ProviderConfigPage', () => {
     await renderPage()
     expect(request.mock.calls.some(([url]) => String(url) === '/api/model_probe')).toBe(false)
 
-    fireEvent.focus(screen.getByLabelText('Single model ID'))
+    fireEvent.focus(screen.getByLabelText(INTERACTION_MODEL))
     expect(probeResolvers).toHaveLength(1)
     expect(within(screen.getByRole('listbox')).getByText('Loading models…')).toBeInTheDocument()
     await act(async () => {
@@ -430,8 +454,8 @@ describe('ProviderConfigPage', () => {
     expect(within(screen.getByRole('listbox')).getAllByRole('option')).toHaveLength(2)
 
     fireEvent.mouseDown(within(screen.getByRole('listbox')).getByRole('option', { name: 'Model A' }))
-    expect(screen.getByLabelText('Single model ID')).toHaveValue('model-a')
-    fireEvent.focus(screen.getByLabelText('Single model ID'))
+    expect(screen.getByLabelText(INTERACTION_MODEL)).toHaveValue('model-a')
+    fireEvent.focus(screen.getByLabelText(INTERACTION_MODEL))
     expect(probeResolvers).toHaveLength(1)
     expect(within(screen.getByRole('listbox')).getAllByRole('option')).toHaveLength(2)
   })
@@ -443,72 +467,140 @@ describe('ProviderConfigPage', () => {
 
     expect(screen.getByText('No Model Connections yet.')).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Configuration mode' })).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Single model connection')).not.toBeInTheDocument()
-    expect(screen.queryByText(/Capability Routes currently differ/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(INTERACTION_CONNECTION)).not.toBeInTheDocument()
   })
 
-  it('implements credential preserve, replace, and delete without retaining transient values', async () => {
-    const config = mixedConfig()
-    const putBodies: Record<string, unknown>[] = []
-    let states: Record<string, CredentialState> = { [OPENAI_ID]: 'present' }
-    const request = mockFetch((url, init) => {
-      if (url === '/api/model_config' && init.method === 'PUT') {
-        const body = requestBody(init)
-        putBodies.push(body)
-        const action = (body.credentials as Record<string, string | null> | undefined)?.[OPENAI_ID]
-        if (action === null) states = { [OPENAI_ID]: 'absent' }
-        else if (typeof action === 'string') states = { [OPENAI_ID]: 'present' }
-        return jsonResponse({ config: body.config, credentialStates: states })
-      }
-      return configResponse(config, states)
-    })
+  it('Apply stores typed keys in this browser bound to the committed base and sends them to Studio', async () => {
+    const server = savingServer(mixedConfig())
 
     await renderPage()
-    const openaiCard = screen.getAllByRole('article')[1]
-    const credential = within(openaiCard).getByLabelText('API credential')
-    expect(credential).toHaveValue('')
-    expect(credential).toHaveAttribute('placeholder', 'Stored credential will be preserved')
-
-    fireEvent.click(within(openaiCard).getByRole('button', { name: 'Remove credential' }))
+    fireEvent.change(within(card('Research OpenAI')).getByLabelText('API key'), { target: { value: 'sk-test-typed' } })
+    // The typed key is what the connection is probed with.
+    await waitFor(() => expect(server.bodies('/api/model_probe', 'POST')).toHaveLength(1))
+    expect(server.bodies('/api/model_probe', 'POST')[0]).toMatchObject({
+      connection: { id: OPENAI_ID, hasKey: true }, credential: 'sk-test-typed',
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
-    await waitFor(() => expect(putBodies).toHaveLength(1))
-    expect(putBodies[0].credentials).toEqual({ [OPENAI_ID]: null })
-    expect(credential).toHaveAttribute('placeholder', 'Enter a credential')
 
-    fireEvent.change(credential, { target: { value: 'replacement-secret' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
-    await waitFor(() => expect(putBodies).toHaveLength(2))
-    expect(putBodies[1].credentials).toEqual({ [OPENAI_ID]: 'replacement-secret' })
-    expect(credential).toHaveValue('')
-    expect(credential).toHaveAttribute('placeholder', 'Stored credential will be preserved')
-    expect(document.body).not.toHaveTextContent('replacement-secret')
+    await waitFor(() => expect(server.bodies('/api/model-keys', 'PUT')).toHaveLength(1))
+    const entry = { provider: 'openai', baseUrl: OPENAI_BASE, key: 'sk-test-typed' }
+    expect(JSON.parse(localStorage.getItem(STORAGE)!)).toEqual({ [OPENAI_ID]: entry })
+    expect(server.bodies('/api/model-keys', 'PUT')[0]).toEqual({ account: ACCOUNT, keys: { [OPENAI_ID]: entry } })
+    const order = server.request.mock.calls.map(([url, init]) => `${init?.method ?? 'GET'} ${String(url)}`)
+    expect(order.indexOf('PUT /api/model_config')).toBeLessThan(order.indexOf('PUT /api/model-keys'))
+    expect(within(card('Research OpenAI')).getByText('Key saved in this browser')).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent('sk-test-typed')
+  })
 
-    fireEvent.change(credential, { target: { value: 'discarded-secret' } })
-    fireEvent.click(within(openaiCard).getByRole('button', { name: 'Preserve stored value' }))
+  it('a draft base change clears the typed key and never probes the new base with the old key', async () => {
+    storeKey(OPENAI_ID, 'openai', OPENAI_BASE, 'sk-test-stored-old-base')
+    const server = savingServer(mixedConfig())
+
+    await renderPage()
+    vi.useFakeTimers()
+    const openai = card('Research OpenAI')
+    expect(within(openai).getByText('Key saved in this browser')).toBeInTheDocument()
+    fireEvent.click(within(openai).getByRole('button', { name: 'Replace' }))
+    fireEvent.change(within(openai).getByLabelText('API key'), { target: { value: 'sk-test-typed-old-base' } })
+    await act(() => vi.advanceTimersByTimeAsync(200))
+    fireEvent.change(within(openai).getByDisplayValue(OPENAI_BASE), { target: { value: 'https://gateway.example/v1' } })
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+
+    expect(within(openai).getByLabelText('API key')).toHaveValue('')
+    const probes = server.request.mock.calls.filter(([url]) => String(url) === '/api/model_probe')
+    expect(probes).toHaveLength(0)
+    expect(JSON.stringify(server.request.mock.calls)).not.toMatch(/sk-test-(typed|stored)-old-base/)
+    expect(within(openai).getByText('Not checked this session.')).toBeInTheDocument()
+  })
+
+  it('Remove drops this browser\'s key on Apply and tells Studio; an optional connection then uses no key', async () => {
+    storeKey(OLLAMA_ID, 'ollama', OLLAMA_BASE, 'sk-test-removed')
+    const server = savingServer(ollamaConfig('saved-model', true))
+
+    await renderPage()
+    const ollama = card('Local Ollama')
+    fireEvent.click(within(ollama).getByRole('button', { name: 'Remove' }))
+    expect(within(ollama).getByLabelText('API key (optional)')).toHaveAttribute('placeholder', 'Used without a key')
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
-    await waitFor(() => expect(putBodies).toHaveLength(3))
-    expect(putBodies[2]).not.toHaveProperty('credentials')
-    expect(document.body).not.toHaveTextContent('discarded-secret')
-    expect(request.mock.calls.filter(([url]) => String(url) === '/api/model_config')).toHaveLength(4)
+
+    await waitFor(() => expect(server.bodies('/api/model-keys', 'PUT')).toHaveLength(1))
+    expect((server.bodies('/api/model_config', 'PUT')[0].config as ModelConfig).connections[0].hasKey).toBe(false)
+    expect(localStorage.getItem(STORAGE)).toBeNull()
+    expect(server.bodies('/api/model-keys', 'PUT')[0]).toEqual({ account: ACCOUNT, keys: { [OLLAMA_ID]: null } })
+    expect(within(ollama).queryByText('Key saved in this browser')).not.toBeInTheDocument()
+    expect(within(ollama).queryByRole('button', { name: 'Use without a key' })).not.toBeInTheDocument()
+  })
+
+  it('a managed connection keeps hasKey when its key is removed', async () => {
+    storeKey(OPENAI_ID, 'openai', OPENAI_BASE, 'sk-test-managed')
+    const server = savingServer(mixedConfig())
+
+    await renderPage()
+    const openai = card('Research OpenAI')
+    fireEvent.click(within(openai).getByRole('button', { name: 'Remove' }))
+    expect(within(openai).getByLabelText('API key')).toHaveValue('')
+    expect(within(openai).queryByRole('button', { name: 'Use without a key' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+
+    await waitFor(() => expect(server.bodies('/api/model-keys', 'PUT')).toHaveLength(1))
+    const saved = server.bodies('/api/model_config', 'PUT')[0].config as ModelConfig
+    expect(saved.connections.find(({ id }) => id === OPENAI_ID)?.hasKey).toBe(true)
+    expect(localStorage.getItem(STORAGE)).toBeNull()
+    expect(server.bodies('/api/model-keys', 'PUT')[0]).toEqual({ account: ACCOUNT, keys: { [OPENAI_ID]: null } })
+  })
+
+  it('an optional-key connection without its key in this browser can be used without one', async () => {
+    const server = savingServer(ollamaConfig('saved-model', true))
+
+    await renderPage()
+    const ollama = card('Local Ollama')
+    fireEvent.click(within(ollama).getByRole('button', { name: 'Use without a key' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+
+    await waitFor(() => expect(server.bodies('/api/model_config', 'PUT')).toHaveLength(1))
+    expect((server.bodies('/api/model_config', 'PUT')[0].config as ModelConfig).connections[0].hasKey).toBe(false)
+  })
+
+  it('a hasKey connection without a key in this browser is not probed', async () => {
+    const server = savingServer({ ...mixedConfig(), routes: { schemaSuggestion: null, interaction: { connectionId: OPENAI_ID, modelId: 'gpt' } } })
+
+    await renderPage()
+    vi.useFakeTimers()
+    fireEvent.focus(screen.getByLabelText(INTERACTION_MODEL))
+    fireEvent.change(within(card('Research OpenAI')).getByDisplayValue(OPENAI_BASE), { target: { value: 'https://gateway.example/v1' } })
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+
+    expect(server.bodies('/api/model_probe', 'POST')).toEqual([])
+    expect(within(card('Research OpenAI')).getByText('Not checked this session.')).toBeInTheDocument()
+  })
+
+  it('the model_config PUT body carries no key and no credentials', async () => {
+    storeKey(OLLAMA_ID, 'ollama', OLLAMA_BASE, 'sk-test-stored-ollama')
+    const server = savingServer({ ...mixedConfig(), connections: [{ ...mixedConfig().connections[0], hasKey: true }, mixedConfig().connections[1]] })
+
+    await renderPage()
+    fireEvent.change(within(card('Research OpenAI')).getByLabelText('API key'), { target: { value: 'sk-test-typed-openai' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+
+    await waitFor(() => expect(server.bodies('/api/model-keys', 'PUT')).toHaveLength(1))
+    const [put] = server.request.mock.calls.filter(([url, init]) => String(url) === '/api/model_config' && init?.method === 'PUT')
+    const text = String(put[1]!.body)
+    expect(Object.keys(JSON.parse(text))).toEqual(['config'])
+    expect(text).not.toMatch(/sk-test|credential/)
+    expect(server.bodies('/api/model-keys', 'PUT')[0].keys).toEqual({
+      [OLLAMA_ID]: { provider: 'ollama', baseUrl: OLLAMA_BASE, key: 'sk-test-stored-ollama' },
+      [OPENAI_ID]: { provider: 'openai', baseUrl: OPENAI_BASE, key: 'sk-test-typed-openai' },
+    })
   })
 
   it('the NuExtract protocol is shown as automatic for a NuExtract model on vLLM and never offered as a choice', async () => {
     const VLLM_ID = '33333333-3333-4333-8333-333333333333'
     const NOTE = 'Uses the NuExtract protocol for this model.'
-    const putBodies: Record<string, unknown>[] = []
     const config = mixedConfig()
-    config.connections.push({ id: VLLM_ID, name: 'Lab vLLM', provider: 'vllm', baseUrl: 'http://lab.example:8000/v1' })
-    mockFetch((url, init) => {
-      if (url === '/api/model_config' && init.method === 'PUT') {
-        const body = requestBody(init)
-        putBodies.push(body)
-        return jsonResponse({ config: body.config, credentialStates: {} })
-      }
-      return configResponse(config)
-    })
+    config.connections.push({ id: VLLM_ID, name: 'Lab vLLM', provider: 'vllm', baseUrl: 'http://lab.example:8000/v1', hasKey: false })
+    const server = savingServer(config)
 
     await renderPage()
-    fireEvent.click(screen.getByRole('button', { name: 'Capability Routes' }))
     const suggestionConnection = screen.getByLabelText('Schema Suggestion connection')
     const suggestionModel = screen.getByLabelText('Schema Suggestion model ID')
     fireEvent.change(suggestionConnection, { target: { value: VLLM_ID } })
@@ -524,39 +616,23 @@ describe('ProviderConfigPage', () => {
     expect(screen.getByText(NOTE)).toBeInTheDocument()
 
     // Never on the Interaction Route, even for the same NuExtract target.
-    fireEvent.change(screen.getByLabelText('Chat & Extraction Schema editing connection'), {
-      target: { value: VLLM_ID },
-    })
-    fireEvent.change(screen.getByLabelText('Chat & Extraction Schema editing model ID'), {
-      target: { value: 'numind/NuExtract3-FP8' },
-    })
+    fireEvent.change(screen.getByLabelText(INTERACTION_CONNECTION), { target: { value: VLLM_ID } })
+    fireEvent.change(screen.getByLabelText(INTERACTION_MODEL), { target: { value: 'numind/NuExtract3-FP8' } })
     expect(screen.getAllByText(NOTE)).toHaveLength(1)
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Chat & Extraction Schema editing connection'), {
-      target: { value: OPENAI_ID },
-    })
-    fireEvent.change(screen.getByLabelText('Chat & Extraction Schema editing model ID'), {
-      target: { value: 'gpt-manual' },
-    })
+    fireEvent.change(screen.getByLabelText(INTERACTION_CONNECTION), { target: { value: OPENAI_ID } })
+    fireEvent.change(screen.getByLabelText(INTERACTION_MODEL), { target: { value: 'gpt-manual' } })
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
 
-    await waitFor(() => expect(putBodies).toHaveLength(1))
-    const saved = putBodies[0].config as ModelConfig
+    await waitFor(() => expect(server.bodies('/api/model_config', 'PUT')).toHaveLength(1))
+    const saved = server.bodies('/api/model_config', 'PUT')[0].config as ModelConfig
     expect(saved.routes.schemaSuggestion).toEqual({ connectionId: VLLM_ID, modelId: 'numind/NuExtract3-FP8' })
     expect(saved.routes.interaction).toEqual({ connectionId: OPENAI_ID, modelId: 'gpt-manual' })
   })
 
   it('sets the deployment-wide Extraction Model Choice from kei-exp\'s listing', async () => {
-    const putBodies: Record<string, unknown>[] = []
-    mockFetch((url, init) => {
-      if (url === '/api/model_config' && init.method === 'PUT') {
-        const body = requestBody(init)
-        putBodies.push(body)
-        return jsonResponse({ config: body.config, credentialStates: {} })
-      }
-      return configResponse({ ...emptyConfig, extractionModels: { reasoning: 'instruct' } })
-    })
+    const server = savingServer({ ...emptyConfig, extractionModels: { reasoning: 'instruct' } })
     const optionLabels = (label: string) =>
       Array.from((screen.getByLabelText(label) as HTMLSelectElement).options).map((option) => option.textContent)
 
@@ -572,8 +648,8 @@ describe('ProviderConfigPage', () => {
     fireEvent.change(screen.getByLabelText('Reasoning model'), { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
 
-    await waitFor(() => expect(putBodies).toHaveLength(1))
-    expect((putBodies[0].config as ModelConfig).extractionModels).toEqual({ fields: 'instruct' })
+    await waitFor(() => expect(server.bodies('/api/model_config', 'PUT')).toHaveLength(1))
+    expect((server.bodies('/api/model_config', 'PUT')[0].config as ModelConfig).extractionModels).toEqual({ fields: 'instruct' })
   })
 
   it('keeps only the Default extraction models when kei-exp cannot list them', async () => {
@@ -586,15 +662,7 @@ describe('ProviderConfigPage', () => {
   })
 
   it('offers the deployment connections read-only and names the default an unset route runs on', async () => {
-    const putBodies: Record<string, unknown>[] = []
-    mockFetch((url, init) => {
-      if (url === '/api/model_config' && init.method === 'PUT') {
-        const body = requestBody(init)
-        putBodies.push(body)
-        return jsonResponse({ config: body.config, credentialStates: {} })
-      }
-      return configResponse(emptyConfig, {}, deployment)
-    })
+    const server = savingServer(emptyConfig, deployment)
 
     await renderPage()
     const listed = within(screen.getByText('Deployment connections').parentElement!)
@@ -602,7 +670,6 @@ describe('ProviderConfigPage', () => {
     expect(listed.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('article')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Capability Routes' }))
     const suggestionConnection = screen.getByLabelText('Schema Suggestion connection')
     expect(suggestionConnection).toHaveValue('')
     expect(within(suggestionConnection).getByRole('option', { name: 'Deployment default (Qwen/Qwen3.8-27B-FP8)' })).toBeInTheDocument()
@@ -611,8 +678,8 @@ describe('ProviderConfigPage', () => {
     expect(screen.getByText('Uses the NuExtract protocol for this model.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
 
-    await waitFor(() => expect(putBodies).toHaveLength(1))
-    const saved = putBodies[0].config as ModelConfig
+    await waitFor(() => expect(server.bodies('/api/model_config', 'PUT')).toHaveLength(1))
+    const saved = server.bodies('/api/model_config', 'PUT')[0].config as ModelConfig
     expect(saved.connections).toEqual([])
     expect(saved.routes.schemaSuggestion).toEqual({
       connectionId: DEPLOYMENT_CONNECTION_IDS.nuextract, modelId: 'numind/NuExtract3-FP8',
@@ -627,7 +694,7 @@ describe('ProviderConfigPage', () => {
       ),
     )
 
-    render(<ProviderConfigPage onClose={() => {}} />)
+    renderConfigurationPage()
 
     expect(await screen.findByText('Model configuration could not be loaded.')).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent(

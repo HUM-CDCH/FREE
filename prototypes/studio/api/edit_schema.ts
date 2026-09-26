@@ -82,6 +82,7 @@ export function createPostEditSchema(
           {
             temperature,
             caller: { researcherAccountId: store.researcherAccountId },
+            signal: request.signal,
           },
         ),
       )

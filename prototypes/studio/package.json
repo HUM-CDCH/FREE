@@ -37,7 +37,6 @@
     "ai-sdk-provider-claude-code": "^4.3.1",
     "ai-sdk-provider-codex-cli": "^2.1.2",
     "db": "workspace:*",
-    "env-paths": "^4.0.0",
     "extraction": "workspace:*",
     "extraction-result-export": "workspace:*",
     "hono": "^4.13.7",

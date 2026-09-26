@@ -230,6 +230,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
           name: 'Article lifecycle fixture',
           provider: 'ollama',
           baseUrl: `http://127.0.0.1:${address.port}`,
+          hasKey: false,
         },
       ],
       routes: {

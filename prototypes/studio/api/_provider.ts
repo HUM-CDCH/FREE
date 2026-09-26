@@ -24,9 +24,9 @@ import type {
   ProviderKind,
 } from '../shared/modelConfig.contract.js'
 import { selectedRoute, usesNuextractProtocol } from '../shared/modelConfig.contract.js'
-import { DEPLOYMENT_IDS, deploymentModels } from './_deployment_models.js'
+import { deploymentModels } from './_deployment_models.js'
 import { ApiError } from './_http.js'
-import { systemCredentialStore, type CredentialStore } from './_keyring.js'
+import { requireModelKey, studioProcess, type ModelKeyCache } from './_model_keys.js'
 
 
 /** Internal adapter capability; routes always select output formatting automatically. */
@@ -663,38 +663,25 @@ export type NuExtractExecutionTarget = {
   profile: 'nuextract'
   modelId: string
   baseUrl: string
-  authorization: string | null
+  /** The connection's key, read inside each attempt (waiting for a page to resend a missing one); `null`: anonymous. */
+  key: (signal: AbortSignal | undefined) => Promise<string | null>
   temperatureSupported: boolean
   attribution?: ModelAttribution
 }
 export type ExecutionTarget = GeneralExecutionTarget | NuExtractExecutionTarget
 
 export type RouteResolverDependencies = {
+  /** Whose configuration and keys the call uses: the Project Context's owner. */
+  researcherAccountId: string
   /** The configuration whose routes and connections the call may use: its caller's, never another account's. */
   readConfig: () => Promise<ModelConfig>
   /** The deployment's own model servers; read from the environment when omitted. */
   deployment?: DeploymentModels
-  credentialStore?: CredentialStore
+  /** Studio's in-memory key cache; the process's own when omitted. */
+  keys?: ModelKeyCache
+  /** How long an attempt waits for a page to resend a missing key; `MODEL_KEY_WAIT_MS` when omitted. */
+  keyWaitMs?: number
   modelFactories?: Partial<Record<ProviderKind, ModelFactory>>
-}
-
-
-async function resolvedCredential(
-  connection: ModelConnection,
-  store: CredentialStore,
-): Promise<string | null> {
-  const authentication = providerTable[connection.provider].authentication
-  if (authentication === 'external') return null
-  try {
-    const value = await store.get?.(connection.id)
-    // Loose null: the keyring resolves `null`, not `undefined`, for a missing entry.
-    if (value != null) return value
-    if (authentication === 'optional') return null
-  } catch (cause) {
-    if (authentication === 'optional') return null
-    throw new ApiError(503, 'keyring_unavailable', 'The operating system credential store is unavailable.', { cause })
-  }
-  throw new ApiError(409, 'invalid_model_config', 'The selected Model Connection requires a credential.')
 }
 
 const ROUTE_LABELS = { schemaSuggestion: 'Schema Suggestion', interaction: 'Interaction' } as const
@@ -722,10 +709,11 @@ export async function resolveCapabilityRoute(
   if (options.temperature !== undefined && !entry.temperatureSupported) {
     throw new ApiError(400, 'unsupported_temperature', `${entry.label} does not support an explicit temperature.`)
   }
-  // The deployment's own servers take no FREE-managed credential.
-  const credential = DEPLOYMENT_IDS.has(connection.id)
-    ? null
-    : await resolvedCredential(connection, dependencies.credentialStore ?? systemCredentialStore)
+  const keys = dependencies.keys ?? studioProcess.keys
+  // A connection without `hasKey` calls its server anonymously and one with it never does (no fallback). The key is
+  // read inside each provider attempt, so resolving a route never needs one and a replayed step never reads one.
+  const key = (signal: AbortSignal | undefined) =>
+    requireModelKey(keys, dependencies.researcherAccountId, connection, signal, dependencies.keyWaitMs)
 
   if (routeKey === 'schemaSuggestion' && usesNuextractProtocol(entry, route.modelId)) {
     if (connection.baseUrl === null) {
@@ -735,7 +723,7 @@ export async function resolveCapabilityRoute(
       profile: 'nuextract',
       modelId: route.modelId,
       baseUrl: connection.baseUrl,
-      authorization: credential === null ? null : `Bearer ${credential}`,
+      key: connection.hasKey ? key : async () => null,
       temperatureSupported: true,
       attribution: { provider: connection.provider, modelId: route.modelId },
     }
@@ -746,7 +734,7 @@ export async function resolveCapabilityRoute(
   const createModel = dependencies.modelFactories?.[connection.provider] ?? entry.createModel
   let model: LanguageModel
   try {
-    model = createModel(connection, route.modelId, credential)
+    model = connection.hasKey ? keyedModel(createModel, connection, route.modelId, key) : createModel(connection, route.modelId, null)
   } catch (cause) {
     throw new ApiError(502, 'model_operation_failed', 'The selected provider could not be initialized.', { cause })
   }

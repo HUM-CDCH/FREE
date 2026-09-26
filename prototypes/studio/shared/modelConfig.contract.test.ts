@@ -9,6 +9,10 @@ import {
   ingestionModelRoleSchema,
   isValidApiBase,
   modelConfigSchema,
+  modelConfigStateSchema,
+  modelConfigUpdateSchema,
+  modelConnectionSchema,
+  modelProbeRequestSchema,
   routeSchema,
   selectedRoute,
   usesNuextractProtocol,
@@ -46,6 +50,27 @@ describe('model configuration runtime contract', () => {
     const empty = { connections: [], routes: { schemaSuggestion: null, interaction: null }, extractionModels: {}, ingestionModels: {} }
     expect(modelConfigSchema.parse(empty)).toEqual(empty)
     expect(modelConfigSchema.safeParse({ ...empty, ingestionModels: undefined }).success).toBe(false)
+  })
+
+  it('a connection records only whether it uses a key, never the key', () => {
+    const connection = { id: '11111111-1111-4111-8111-111111111111', name: 'Gateway', provider: 'openai', baseUrl: 'https://api.openai.com/v1', hasKey: true }
+    expect(modelConnectionSchema.parse(connection)).toEqual(connection)
+    expect(modelConnectionSchema.safeParse({ ...connection, hasKey: undefined }).success).toBe(false)
+    for (const secret of [{ key: 'sk-test-contract' }, { credential: 'sk-test-contract' }])
+      expect(modelConnectionSchema.safeParse({ ...connection, ...secret }).success).toBe(false)
+    const config = { connections: [connection], routes: { schemaSuggestion: null, interaction: null }, extractionModels: {}, ingestionModels: {} }
+    expect(modelConfigUpdateSchema.safeParse({ config }).success).toBe(true)
+    expect(modelConfigUpdateSchema.safeParse({ config, credentials: { [connection.id]: 'sk-test-contract' } }).success).toBe(false)
+    // What Studio answers about a configuration is the configuration alone.
+    expect(Object.keys(modelConfigStateSchema.shape)).toEqual(['config'])
+  })
+
+  it('a probe carries at most one bounded key and nothing else', () => {
+    const connection = { id: '11111111-1111-4111-8111-111111111111', name: 'vLLM', provider: 'vllm', baseUrl: 'http://vllm:8000/v1', hasKey: false }
+    expect(modelProbeRequestSchema.safeParse({ connection }).success).toBe(true)
+    expect(modelProbeRequestSchema.safeParse({ connection, credential: 'k'.repeat(8192) }).success).toBe(true)
+    for (const credential of [null, '', 'k'.repeat(8193), 42])
+      expect(modelProbeRequestSchema.safeParse({ connection, credential }).success).toBe(false)
   })
 
   it('stores no NuExtract protocol on a route', () => {

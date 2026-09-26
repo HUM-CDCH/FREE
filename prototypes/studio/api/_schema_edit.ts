@@ -48,6 +48,8 @@ type SchemaEditOptions = {
   /** Whose configuration the default model call resolves. */
   caller: ModelCaller
   temperature?: number
+  /** The browser's request: when it goes away the model call, and any wait for a key, ends. */
+  signal?: AbortSignal
   target?: ExecutionTarget
   generate?: Generate
 }
@@ -195,7 +197,7 @@ export async function proposeSchemaEdit(
 
   const expected = new Map(fields.map((field) => [field.id, field]))
   const generate = options.generate ?? (async (prompt, temperature, target) =>
-    (await generateSchemaEditJson(options.caller, prompt, temperature, target)).text)
+    (await generateSchemaEditJson(options.caller, prompt, temperature, options.signal, target)).text)
 
   try {
     const initial = await readEnvelope(await generate(

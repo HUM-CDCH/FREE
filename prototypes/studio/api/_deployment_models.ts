@@ -10,7 +10,7 @@ type Environment = Readonly<Record<string, string | undefined>>
 function served(id: string, name: string, baseUrl: string | undefined): ModelConnection[] {
   const trimmed = baseUrl?.trim()
   if (!trimmed || !isValidApiBase(trimmed)) return []
-  return [{ id, name, provider: 'vllm', baseUrl: trimmed }]
+  return [{ id, name, provider: 'vllm', baseUrl: trimmed, hasKey: false }]
 }
 
 /**

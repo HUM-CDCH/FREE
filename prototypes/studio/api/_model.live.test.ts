@@ -24,6 +24,7 @@ const liveConnection: ModelConnection = {
   name: 'Live vLLM',
   provider: 'vllm',
   baseUrl: LIVE_VLLM_URL,
+  hasKey: false,
 }
 
 const register = {
@@ -62,7 +63,7 @@ describe.skipIf(!LIVE)('bounded live vLLM Schema Suggestion profile', () => {
       profile: 'nuextract',
       modelId: LIVE_NUEXTRACT_MODEL,
       baseUrl: LIVE_NUEXTRACT_URL!,
-      authorization: null,
+      key: async () => null,
       temperatureSupported: true,
     }
     const result = await generateSchemaWithModel(CALLER, { document: register, instruction }, target)

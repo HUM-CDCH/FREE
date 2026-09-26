@@ -64,6 +64,7 @@ export function createPostChat(
         parsed.data.messages as UIMessage[],
         documentMarkdown,
         parsed.data.temperature,
+        request.signal,
       )
     } catch (error) {
       return apiErrorResponse(error)
