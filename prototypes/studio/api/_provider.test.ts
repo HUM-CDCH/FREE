@@ -497,6 +497,20 @@ describe('a route reads its key inside each provider attempt', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
+  it('a managed provider never falls back to its key in the environment: an empty cache ends in model_key_required', async () => {
+    vi.useFakeTimers()
+    vi.stubEnv('OPENAI_API_KEY', 'sk-test-openai-environment')
+    const request = serve()
+    const openai: ModelConnection = { ...keyed, provider: 'openai', baseUrl: 'https://api.openai.com/v1' }
+    const target = await resolveChat({ keys: createModelKeyCache(), readConfig: async () => routed({ connections: [openai] }) })
+    const call = generateText({ model: model(target), prompt: 'Hi' }).catch((error: unknown) => error)
+
+    await vi.advanceTimersByTimeAsync(50)
+
+    expect(await call).toMatchObject({ code: 'model_key_required' })
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('a key sent during the wait is used for that attempt', async () => {
     vi.useFakeTimers()
     const request = serve()
