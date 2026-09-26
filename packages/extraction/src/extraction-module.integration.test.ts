@@ -36,7 +36,7 @@ if (!disposableDatabaseUrl) {
   process.env.DATABASE_URL = disposableDatabaseUrl
 
   const [
-    { db },
+    { db, pool },
     { createCanonicalPackageStore },
     { createResearcherProjectStore },
     { createExtractionRuntimeWithInfrastructure },
@@ -1977,6 +1977,7 @@ if (!disposableDatabaseUrl) {
   after(async () => {
     await cleanup()
     await db.close()
+    await pool.end()
     await rm(packageRoot, { recursive: true, force: true })
   })
 }

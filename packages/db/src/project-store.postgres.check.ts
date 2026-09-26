@@ -25,7 +25,7 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
   process.env.DATABASE_URL = databaseUrl
 
   const [
-    { db },
+    { db, pool },
     {
       createInternalProjectWorkerStore,
       createResearcherProjectStore,
@@ -34,7 +34,10 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     import('./prisma/db.js'),
     import('./project-store.js'),
   ])
-  after(() => db.close())
+  after(async () => {
+    await db.close()
+    await pool.end()
+  })
 
   assert.deepEqual(await db.orm.public.ResearcherAccount.select('id').all(), [])
   assert.deepEqual(await db.orm.public.ProjectContext.select('id').all(), [])

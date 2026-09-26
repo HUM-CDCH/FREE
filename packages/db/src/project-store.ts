@@ -8,6 +8,7 @@ import {
   type Database,
   type DatabaseTransaction,
 } from './prisma/db.js'
+import { isUniqueViolation } from './pool-client-transaction.js'
 import { lockSourceDocumentRow } from './row-lock.js'
 
 export type SchemaRevisionOrigin =
@@ -164,12 +165,7 @@ async function ownedSourceRepresentationDescriptor(
 }
 
 export function uniqueConstraint(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'sqlState' in error &&
-    error.sqlState === '23505'
-  )
+  return isUniqueViolation(error)
 }
 
 export type ProjectContextSummary = {

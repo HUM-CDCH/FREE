@@ -20,7 +20,7 @@ test('PostgreSQL keeps one Model Configuration per Researcher Account and serial
   process.env.DATABASE_URL = databaseUrl
 
   const [
-    { db },
+    { db, pool },
     { createModelConfigurationStore },
     { createInternalProjectWorkerStore, createResearcherProjectStore },
   ] = await Promise.all([
@@ -35,6 +35,7 @@ test('PostgreSQL keeps one Model Configuration per Researcher Account and serial
         await db.orm.public.ResearcherAccount.where({ id }).delete()
     } finally {
       await db.close()
+      await pool.end()
     }
   })
 

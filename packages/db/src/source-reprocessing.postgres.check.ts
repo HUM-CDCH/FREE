@@ -13,10 +13,13 @@ if (!url)
   )
 validateDisposableTestDatabaseTarget(url)
 process.env.DATABASE_URL = url
-const { db } = await import('./prisma/db.js')
+const { db, pool } = await import('./prisma/db.js')
 const { createResearcherProjectStore, ReprocessConflictError } =
   await import('./project-store.js')
-after(() => db.close())
+after(async () => {
+  await db.close()
+  await pool.end()
+})
 
 // The root client must not satisfy the lock's parameter: its update would commit at once.
 // @ts-expect-error the root client is not a transaction context

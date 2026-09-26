@@ -34,6 +34,9 @@ importers:
         specifier: 8.22.0
         version: 8.22.0
     devDependencies:
+      '@dbos-inc/dbos-sdk':
+        specifier: 5.1.10
+        version: 5.1.10
       '@types/node':
         specifier: ^24.13.2
         version: 24.13.3
