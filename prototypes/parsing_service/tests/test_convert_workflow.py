@@ -7,7 +7,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from dbos import error as dbos_error
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import OperationalError
 
 from kei_exp import api, runs, runtime
 from kei_exp.cut import DEFAULT_LAYOUT_MODEL
@@ -162,6 +164,75 @@ def test_the_cancel_sink_checks_only_on_the_steps_own_thread(monkeypatch):
     assert reads == []
     sink({"type": "region"})
     assert reads == ["w"]
+
+
+SECRET = "sk-test-cancel-status-read"
+
+
+def unreadable_status(*, after: list[bool] | None = None):
+    """A status read that fails like a restarting PostgreSQL (dbos 3.1.0 does not retry reads), once `after[0]` is
+    set; the driver's message carries a synthetic secret the log must not repeat."""
+    def read(wid):
+        if after is None or after[0]:
+            raise OperationalError("SELECT status", {}, Exception(f"server closed the connection; password={SECRET}"))
+        return SimpleNamespace(status="PENDING")
+    return read
+
+
+@pytest.mark.parametrize("failing", [{"type": "region", "page": 2}, {"type": "phase", "name": "export", "total": None}])
+def test_an_unreadable_status_fails_open_and_the_conversion_publishes(roots, fake, monkeypatch, caplog, failing):
+    """kei's fail-open post-conversion policy (spec, *Cancellation*): a database restart during the cut, or at the
+    export phase after OCR, is not a cancel; the conversion goes on and publishes."""
+    broken = [False]
+    monkeypatch.setattr(cancel, "DBOS", SimpleNamespace(workflow_id=WID, get_workflow_status=unreadable_status(
+        after=broken)))
+    monkeypatch.setattr(cancel, "MIN_INTERVAL", 0.0)
+    original = runner.convert
+
+    def converting(execution, emit):
+        emit({"type": "region", "page": 1})
+        broken[0] = True  # from the event under test on
+        emit(failing)
+        emit({"type": "region", "page": 3})
+        return original(execution, emit)
+    monkeypatch.setattr(runner, "convert", converting)
+    params = workflow.prepare_run(WID, staged(roots, model="fake", cut="none"),
+                                  {"model": "fake", "layout_model": DEFAULT_LAYOUT_MODEL})
+    with caplog.at_level("WARNING", logger=cancel.__name__):
+        output = workflow.convert_run(WID, params)
+    contracts.ConvertOk.model_validate(output)
+    assert (runs.RUNS / params["id"] / "result" / "result.json").is_file()
+    warnings = [record for record in caplog.records if record.name == cancel.__name__]
+    assert len(warnings) == 1 and "OperationalError" in warnings[0].getMessage()  # once per step
+    assert SECRET not in caplog.text
+
+
+def test_dboss_own_error_still_stops_the_step_at_its_next_check(roots, fake, monkeypatch):
+    """After a SIGTERM, DBOS.destroy() makes every read raise DBOSException: the lame-duck step stops at its next
+    check instead of running on until SIGKILL (recovery re-runs it)."""
+    destroyed = [False]
+
+    def read(wid):
+        if destroyed[0]:
+            raise dbos_error.DBOSException("No DBOS was created yet")
+        return SimpleNamespace(status="PENDING")
+    monkeypatch.setattr(cancel, "DBOS", SimpleNamespace(workflow_id=WID, get_workflow_status=read))
+    monkeypatch.setattr(cancel, "MIN_INTERVAL", 0.0)
+    seen = []
+
+    def cutting(execution, emit):
+        for page in range(1, 11):
+            if page == 3:
+                destroyed[0] = True
+            emit({"type": "region", "page": page})
+            seen.append(page)
+        return ""
+    monkeypatch.setattr(runner, "convert", cutting)
+    params = workflow.prepare_run(WID, staged(roots, model="fake", cut="none"),
+                                  {"model": "fake", "layout_model": DEFAULT_LAYOUT_MODEL})
+    with pytest.raises(dbos_error.DBOSException):
+        workflow.convert_run(WID, params)
+    assert seen == [1, 2] and not (runs.RUNS / params["id"] / "result").exists()
 
 
 def test_outside_a_workflow_the_check_is_off(monkeypatch):

@@ -48,8 +48,10 @@ class KeiFailure(Exception):
 
 def classify(error: BaseException) -> BaseException:
     """`error` as a `TransientBackendError` when another attempt is worth making, else `error` itself."""
-    # Body moved from the deleted jobs/tasks.py without its `store.Unavailable` branch: a DBOS system-database outage
-    # blocks inside DBOS's own retry loop and never reaches a step.
+    # Body moved from the deleted jobs/tasks.py without its `store.Unavailable` branch. DBOS retries its own writes
+    # through a system-database outage, but not its reads, so an outage does reach a step that reads: the model
+    # steps' cooperative cancel check fails open on it (workflows/cancel.py), and never classifies it; delete_runs
+    # ends ERROR and Studio's next schedule runs it again.
     if isinstance(error, (requests.ConnectionError, requests.Timeout, ConnectionError, TimeoutError)):
         return TransientBackendError(str(error))
     if isinstance(error, requests.HTTPError):

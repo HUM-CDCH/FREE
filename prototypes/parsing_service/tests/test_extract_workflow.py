@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy.exc import OperationalError
 
 from kei_exp import runs
 from kei_exp.failures import KeiFailure
@@ -93,6 +94,31 @@ def test_the_step_publishes_the_artifact_and_names_its_digest(parsed, monkeypatc
     artifact = runs.RUNS / run_id / "extractions" / "x-1" / "result.json"
     assert output["artifact_sha256"] == hashlib.sha256(artifact.read_bytes()).hexdigest()
     assert json.loads(artifact.read_text())["chunks"] == 3 and output["extraction_id"] == "x-1"
+
+
+def test_an_unreadable_status_at_a_chunked_catalog_entry_fails_open_and_the_artifact_publishes(parsed, monkeypatch,
+                                                                                               caplog):
+    """A database restart while chunk threads ask before their entries is not a cancel: every entry is read, the
+    artifact published, and one warning logged without the driver's message."""
+    from kei_exp.workflows import cancel
+    secret = "sk-test-chunk-status-read"
+    step_thread = threading.get_ident()
+
+    def read(wid):
+        if threading.get_ident() != step_thread:  # the forced check passes; every chunk thread's read fails
+            raise OperationalError("SELECT status", {}, Exception(f"connection refused; password={secret}"))
+        return SimpleNamespace(status="PENDING")
+    monkeypatch.setattr(cancel, "DBOS", SimpleNamespace(workflow_id=WID, get_workflow_status=read))
+    monkeypatch.setattr(cancel, "MIN_INTERVAL", 0.0)
+    monkeypatch.setattr(workflow, "CATALOG_CHUNKS", 3)
+    run_id, generation = parsed
+    with caplog.at_level("WARNING", logger=cancel.__name__):
+        output = workflow.extract_run(WID, run_id, generation, kei_helper.extract_request(run_id, generation)["request"])
+    contracts.ExtractOk.model_validate(output)
+    artifact = json.loads((runs.RUNS / run_id / "extractions" / "x-1" / "result.json").read_text())
+    assert artifact["chunks"] == 3 and len(artifact["records"]) == 5  # the headings fixture's five entries
+    warnings = [record for record in caplog.records if record.name == cancel.__name__]
+    assert len(warnings) == 1 and secret not in caplog.text
 
 
 def test_a_rewritten_parse_is_a_stale_generation_before_any_model_call(parsed, scripted):
