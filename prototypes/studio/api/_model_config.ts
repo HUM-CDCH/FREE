@@ -212,3 +212,13 @@ export async function configuredExtractionModels(
   const { extractionModels } = await readAccountModelConfig(researcherAccountId, source)
   return extractionModels.fields || extractionModels.reasoning ? extractionModels : null
 }
+
+/** The owner's Ingestion Model Choice per role, null where the role keeps kei's default. Admission freezes it into an
+ *  ingestion's workflow input, so a recovered attempt runs the models it was admitted with (spec, decision 13). */
+export async function configuredIngestionModels(
+  researcherAccountId: string,
+  source: ModelConfigurationStore = modelConfigurations(),
+): Promise<{ ocr: string | null; layout: string | null }> {
+  const { ingestionModels } = await readAccountModelConfig(researcherAccountId, source)
+  return { ocr: ingestionModels.ocr ?? null, layout: ingestionModels.layout ?? null }
+}

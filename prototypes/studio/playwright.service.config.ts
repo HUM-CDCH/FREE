@@ -33,6 +33,8 @@ export default defineConfig({
       STUDIO_ORIGIN: origin,
       STUDIO_BASE_PATH: '/',
       XDG_DATA_HOME: state,
+      // The real kei worker reads staged uploads from here (KEI_SOURCE_INBOX, Task 13).
+      FREE_SOURCE_INBOX: resolve(state, 'source-inbox'),
       FREE_ENTRA_REAL: '0',
       FREE_ENTRA_MOCK_ISSUER: stack.oidcIssuer,
       FREE_ENTRA_MOCK_BROWSER_ISSUER: stack.oidcIssuer,

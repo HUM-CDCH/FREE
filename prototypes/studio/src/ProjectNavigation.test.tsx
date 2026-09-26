@@ -1852,7 +1852,8 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     createdAt: '2026-08-12T10:04:00.000Z',
     pageCount: 4,
   }
-  const ingestionKeys = {
+  // The queue's client-only item ids (crypto.randomUUID in the provider); no upload sends a key.
+  const itemIds = {
     A: '51000000-0000-4000-9000-000000000101',
     B: '51000000-0000-4000-9000-000000000102',
     C: '51000000-0000-4000-9000-000000000103',
@@ -1872,26 +1873,25 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     })
   }
 
-  it('writes selected PDFs in order, caches acknowledgements, and retries by the same key', async () => {
+  it('writes selected PDFs in order without a key, caches acknowledgements, and retries the failed PDF', async () => {
     const randomUUID = vi
       .fn()
-      .mockReturnValueOnce(ingestionKeys.A)
-      .mockReturnValueOnce(ingestionKeys.B)
-      .mockReturnValueOnce(ingestionKeys.C)
-      .mockReturnValueOnce(ingestionKeys.D)
+      .mockReturnValueOnce(itemIds.A)
+      .mockReturnValueOnce(itemIds.B)
+      .mockReturnValueOnce(itemIds.C)
+      .mockReturnValueOnce(itemIds.D)
     vi.stubGlobal('crypto', { randomUUID })
 
     let branchCalls = 0
     const attempts = new Map<string, number>()
-    const writes: { name: string; ingestionKey: string }[] = []
+    const writes: { name: string; ingestionKey: FormDataEntryValue | null }[] = []
     const pending: { response: Response; resolve: (response: Response) => void }[] = []
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       if (init?.method === 'POST') {
         const form = init.body as FormData
         const file = form.get('file') as File
-        const ingestionKey = String(form.get('ingestionKey'))
-        writes.push({ name: file.name, ingestionKey })
+        writes.push({ name: file.name, ingestionKey: form.get('ingestionKey') })
         const attempt = (attempts.get(file.name) ?? 0) + 1
         attempts.set(file.name, attempt)
         const document =
@@ -1943,17 +1943,17 @@ describe('multi-PDF ingestion on the Project Context page', () => {
       'A.pdf: parsing. B.pdf: queued. C.pdf: queued.',
     )
     await waitFor(() => expect(writes).toHaveLength(1))
-    expect(writes[0]).toMatchObject({ name: 'A.pdf', ingestionKey: ingestionKeys.A })
+    expect(writes[0]).toEqual({ name: 'A.pdf', ingestionKey: null })
     expect(pending).toHaveLength(1)
     const firstRequest = pending.shift()!
     firstRequest.resolve(firstRequest.response)
     await waitFor(() => expect(writes).toHaveLength(2))
-    expect(writes[1]).toMatchObject({ name: 'B.pdf', ingestionKey: ingestionKeys.B })
+    expect(writes[1]).toEqual({ name: 'B.pdf', ingestionKey: null })
     expect(pending).toHaveLength(1)
     const secondRequest = pending.shift()!
     secondRequest.resolve(secondRequest.response)
     await waitFor(() => expect(writes).toHaveLength(3))
-    expect(writes[2]).toMatchObject({ name: 'C.pdf', ingestionKey: ingestionKeys.C })
+    expect(writes[2]).toEqual({ name: 'C.pdf', ingestionKey: null })
     expect(pending).toHaveLength(1)
     const thirdRequest = pending.shift()!
     thirdRequest.resolve(thirdRequest.response)
@@ -1966,11 +1966,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     )
     expect(screen.queryByText(/Opened /)).not.toBeInTheDocument()
     expect(writes.map(({ name }) => name)).toEqual(['A.pdf', 'B.pdf', 'C.pdf'])
-    expect(writes.map(({ ingestionKey }) => ingestionKey)).toEqual([
-      ingestionKeys.A,
-      ingestionKeys.B,
-      ingestionKeys.C,
-    ])
+    expect(writes.map(({ ingestionKey }) => ingestionKey)).toEqual([null, null, null])
     // Acknowledged writes update the ready branch without a refresh.
     expect(branchCalls).toBe(1)
     expect(rail().getByRole('button', { name: 'A.pdf' })).toBeInTheDocument()
@@ -1983,7 +1979,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     })
     await waitFor(() => expect(writes).toHaveLength(4))
     expect(screen.getByText('B failed')).toBeInTheDocument()
-    expect(writes[3]).toMatchObject({ name: 'D.pdf', ingestionKey: ingestionKeys.D })
+    expect(writes[3]).toEqual({ name: 'D.pdf', ingestionKey: null })
     expect(pending).toHaveLength(1)
     const laterRequest = pending.shift()!
     laterRequest.resolve(laterRequest.response)
@@ -1993,7 +1989,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry B.pdf' }))
     await waitFor(() => expect(writes).toHaveLength(5))
-    expect(writes[4]).toMatchObject({ name: 'B.pdf', ingestionKey: ingestionKeys.B })
+    expect(writes[4]).toEqual({ name: 'B.pdf', ingestionKey: null })
     expect(pending).toHaveLength(1)
     const retryRequest = pending.shift()!
     retryRequest.resolve(retryRequest.response)
@@ -2007,7 +2003,6 @@ describe('multi-PDF ingestion on the Project Context page', () => {
       'D.pdf',
       'B.pdf',
     ])
-    expect(writes.at(-1)?.ingestionKey).toBe(ingestionKeys.B)
     expect(branchCalls).toBe(1)
     expect(
       rail()
@@ -2018,7 +2013,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
   })
 
   it('uploads with the page layout chosen beside the drop zone', async () => {
-    vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValueOnce(ingestionKeys.A) })
+    vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValueOnce(itemIds.A) })
     const layouts: (FormDataEntryValue | null)[] = []
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
@@ -2047,8 +2042,8 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     vi.stubGlobal('crypto', {
       randomUUID: vi
         .fn()
-        .mockReturnValueOnce(ingestionKeys.A)
-        .mockReturnValueOnce(ingestionKeys.B),
+        .mockReturnValueOnce(itemIds.A)
+        .mockReturnValueOnce(itemIds.B),
     })
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
@@ -2081,8 +2076,8 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     vi.stubGlobal('crypto', {
       randomUUID: vi
         .fn()
-        .mockReturnValueOnce(ingestionKeys.A)
-        .mockReturnValueOnce(ingestionKeys.B),
+        .mockReturnValueOnce(itemIds.A)
+        .mockReturnValueOnce(itemIds.B),
     })
     const acceptedName = `${'😀'.repeat(176)}.pdf`
     const rejectedName = `${'😀'.repeat(177)}.pdf`
@@ -2122,8 +2117,8 @@ describe('multi-PDF ingestion on the Project Context page', () => {
   it('stays on the Project Context route when every selected PDF fails', async () => {
     const randomUUID = vi
       .fn()
-      .mockReturnValueOnce(ingestionKeys.A)
-      .mockReturnValueOnce(ingestionKeys.B)
+      .mockReturnValueOnce(itemIds.A)
+      .mockReturnValueOnce(itemIds.B)
     vi.stubGlobal('crypto', { randomUUID })
 
     let branchReads = 0
@@ -2171,8 +2166,8 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     vi.stubGlobal('crypto', {
       randomUUID: vi
         .fn()
-        .mockReturnValueOnce(ingestionKeys.A)
-        .mockReturnValueOnce(ingestionKeys.B),
+        .mockReturnValueOnce(itemIds.A)
+        .mockReturnValueOnce(itemIds.B),
     })
     const writes: string[] = []
     const pending: { response: Response; resolve: (response: Response) => void }[] = []
@@ -2220,7 +2215,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
   })
 
   it('does not mutate the rail or navigate after its Project Context is deleted mid-ingestion', async () => {
-    vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValue(ingestionKeys.A) })
+    vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValue(itemIds.A) })
     let branchCalls = 0
     const pending: { response: Response; resolve: (response: Response) => void }[] = []
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

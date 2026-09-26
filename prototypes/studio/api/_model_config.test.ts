@@ -5,6 +5,7 @@ import { createModelKeyCache, type ModelKeyCache } from './_model_keys.js'
 import {
   EMPTY_MODEL_CONFIG,
   configuredExtractionModels,
+  configuredIngestionModels,
   readAccountModelConfig,
   validateModelConfig,
 } from './_model_config.js'
@@ -108,6 +109,18 @@ describe('model configuration storage', () => {
 
     await expect(configuredExtractionModels(ACCOUNT, store)).resolves.toEqual({ fields: 'nuextract', reasoning: 'instruct' })
     await expect(configuredExtractionModels(OTHER_ACCOUNT, store)).resolves.toBeNull()
+  })
+
+  it("configuredIngestionModels answers the owner's saved roles and null for an unchosen one", async () => {
+    const store = inMemoryModelConfigurations({
+      [ACCOUNT]: configured({ ingestionModels: { ocr: 'surya', layout: 'layout_heron_101' } }),
+      [OTHER_ACCOUNT]: configured({ ingestionModels: { layout: 'layout_egret_large' } }),
+    })
+
+    await expect(configuredIngestionModels(ACCOUNT, store)).resolves.toEqual({ ocr: 'surya', layout: 'layout_heron_101' })
+    await expect(configuredIngestionModels(OTHER_ACCOUNT, store)).resolves.toEqual({ ocr: null, layout: 'layout_egret_large' })
+    // Before an account's first Apply, both roles keep kei's defaults.
+    await expect(configuredIngestionModels('00000000-0000-4000-8000-0000000000a9', store)).resolves.toEqual({ ocr: null, layout: null })
   })
 
   it('rejects duplicate IDs and dangling routes', () => {

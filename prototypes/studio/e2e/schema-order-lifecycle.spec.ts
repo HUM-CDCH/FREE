@@ -87,7 +87,6 @@ test.beforeAll(async () => {
   await db.orm.public.SourceDocument.create({
     id: id.document,
     projectContextId: id.project,
-    ingestionKey: '51000000-0000-4000-9000-000000000003',
     contentSha256: 'a'.repeat(64),
     mediaType: 'application/pdf',
     originalName: '1790-06-17-1.pdf',

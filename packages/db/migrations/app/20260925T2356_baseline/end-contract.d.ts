@@ -30,7 +30,7 @@ import type {
 } from '@prisma-next/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'sha256:f1b3b53fbe216fa290cfebc7f03fe6ce5a559a6d00a7038a570ac8597666e32f'>;
+  StorageHashBase<'sha256:5c4459d8487bbec9ec1f6ba732db5b52030c9e375408081fae36dbfb513a640c'>;
 export type ExecutionHash =
   ExecutionHashBase<'sha256:935ac442569cf119b4cc12b4db9bd78853aa51606e8aff919ff4c91af0967818'>;
 export type ProfileHash =
@@ -158,7 +158,6 @@ export type FieldOutputTypes = {
     readonly SourceDocument: {
       readonly id: CodecTypes['pg/uuid@1']['output'];
       readonly projectContextId: CodecTypes['pg/uuid@1']['output'];
-      readonly ingestionKey: CodecTypes['pg/uuid@1']['output'];
       readonly contentSha256: CodecTypes['pg/text@1']['output'];
       readonly mediaType: CodecTypes['pg/text@1']['output'];
       readonly originalName: CodecTypes['pg/text@1']['output'] | null;
@@ -295,7 +294,6 @@ export type FieldInputTypes = {
     readonly SourceDocument: {
       readonly id: CodecTypes['pg/uuid@1']['input'];
       readonly projectContextId: CodecTypes['pg/uuid@1']['input'];
-      readonly ingestionKey: CodecTypes['pg/uuid@1']['input'];
       readonly contentSha256: CodecTypes['pg/text@1']['input'];
       readonly mediaType: CodecTypes['pg/text@1']['input'];
       readonly originalName: CodecTypes['pg/text@1']['input'] | null;
@@ -433,7 +431,6 @@ export type StorageColumnTypes = {
       readonly contentSha256: CodecTypes['pg/text@1']['output'];
       readonly createdAt: Timestamptz<6>;
       readonly id: CodecTypes['pg/uuid@1']['output'];
-      readonly ingestionKey: CodecTypes['pg/uuid@1']['output'];
       readonly mediaType: CodecTypes['pg/text@1']['output'];
       readonly originalName: CodecTypes['pg/text@1']['output'] | null;
       readonly projectContextId: CodecTypes['pg/uuid@1']['output'];
@@ -570,7 +567,6 @@ export type StorageColumnInputTypes = {
       readonly contentSha256: CodecTypes['pg/text@1']['input'];
       readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
       readonly id: CodecTypes['pg/uuid@1']['input'];
-      readonly ingestionKey: CodecTypes['pg/uuid@1']['input'];
       readonly mediaType: CodecTypes['pg/text@1']['input'];
       readonly originalName: CodecTypes['pg/text@1']['input'] | null;
       readonly projectContextId: CodecTypes['pg/uuid@1']['input'];
@@ -1526,12 +1522,6 @@ type ContractBase = Omit<
                   readonly nullable: false;
                   readonly typeRef: 'Uuid';
                 };
-                readonly ingestionKey: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: false;
-                  readonly typeRef: 'Uuid';
-                };
                 readonly contentSha256: {
                   readonly nativeType: 'text';
                   readonly codecId: 'pg/text@1';
@@ -1557,7 +1547,6 @@ type ContractBase = Omit<
               };
               primaryKey: { readonly columns: readonly ['id'] };
               uniques: readonly [
-                { readonly columns: readonly ['projectContextId', 'ingestionKey'] },
                 { readonly columns: readonly ['projectContextId', 'contentSha256'] },
               ];
               indexes: readonly [
@@ -2705,10 +2694,6 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
               };
-              readonly ingestionKey: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
               readonly contentSha256: {
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
@@ -2767,7 +2752,6 @@ type ContractBase = Omit<
               readonly fields: {
                 readonly id: { readonly column: 'id' };
                 readonly projectContextId: { readonly column: 'projectContextId' };
-                readonly ingestionKey: { readonly column: 'ingestionKey' };
                 readonly contentSha256: { readonly column: 'contentSha256' };
                 readonly mediaType: { readonly column: 'mediaType' };
                 readonly originalName: { readonly column: 'originalName' };

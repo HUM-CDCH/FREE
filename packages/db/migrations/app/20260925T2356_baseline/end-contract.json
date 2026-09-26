@@ -1625,13 +1625,6 @@
                   "kind": "scalar"
                 }
               },
-              "ingestionKey": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/uuid@1",
-                  "kind": "scalar"
-                }
-              },
               "mediaType": {
                 "nullable": false,
                 "type": {
@@ -1711,9 +1704,6 @@
                 },
                 "id": {
                   "column": "id"
-                },
-                "ingestionKey": {
-                  "column": "ingestionKey"
                 },
                 "mediaType": {
                   "column": "mediaType"
@@ -3205,12 +3195,6 @@
                   "nullable": false,
                   "typeRef": "Uuid"
                 },
-                "ingestionKey": {
-                  "codecId": "pg/uuid@1",
-                  "nativeType": "uuid",
-                  "nullable": false,
-                  "typeRef": "Uuid"
-                },
                 "mediaType": {
                   "codecId": "pg/text@1",
                   "nativeType": "text",
@@ -3261,12 +3245,6 @@
                 ]
               },
               "uniques": [
-                {
-                  "columns": [
-                    "projectContextId",
-                    "ingestionKey"
-                  ]
-                },
                 {
                   "columns": [
                     "projectContextId",
@@ -3437,7 +3415,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "sha256:f1b3b53fbe216fa290cfebc7f03fe6ce5a559a6d00a7038a570ac8597666e32f",
+    "storageHash": "sha256:5c4459d8487bbec9ec1f6ba732db5b52030c9e375408081fae36dbfb513a640c",
     "types": {
       "Timestamptz6": {
         "codecId": "pg/timestamptz@1",

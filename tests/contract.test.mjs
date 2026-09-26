@@ -95,7 +95,6 @@ test('ingestion: a PDF source document uploads and parses', { timeout: 300_000 }
     'file',
     new File([probePdf()], 'probe.pdf', { type: 'application/pdf' }),
   )
-  form.append('ingestionKey', crypto.randomUUID())
   const response = await session.api(
     `/project-contexts/${state.projectId}/source-documents`,
     { method: 'POST', body: form },
@@ -109,7 +108,6 @@ test('ingestion: a PDF source document uploads and parses', { timeout: 300_000 }
 test('ingestion: a non-PDF upload is rejected', async () => {
   const form = new FormData()
   form.append('file', new File(['not a pdf'], 'probe.pdf', { type: 'application/pdf' }))
-  form.append('ingestionKey', crypto.randomUUID())
   const response = await session.api(
     `/project-contexts/${state.projectId}/source-documents`,
     { method: 'POST', body: form },

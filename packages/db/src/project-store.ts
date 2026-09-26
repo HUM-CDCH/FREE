@@ -252,7 +252,6 @@ export type SourceDocumentSummary = {
 }
 
 export type IngestSourceDocumentInput = {
-  ingestionKey: string
   contentSha256: string
   mediaType: string
   originalName: string | null
@@ -271,7 +270,7 @@ export type IngestedSourceDocument = SourceDocumentSummary & {
   revisionNumber: 1
 }
 
-type PersistedSourceDocument = IngestedSourceDocument & {
+export type PersistedSourceDocument = IngestedSourceDocument & {
   descriptor: CanonicalPackageDescriptor
 }
 
@@ -284,6 +283,8 @@ export type ReprocessedSourceDocument = Omit<
 }
 
 export type ReprocessSourceDocumentInput = IngestSourceDocumentInput & {
+  /** The browser's reprocess request key: a repeat with the same key replays the revision it created. */
+  requestKey: string
   expectedRepresentationId: string
   requestFingerprint: string
 }
@@ -294,13 +295,6 @@ export class ReprocessConflictError extends Error {
       'The Source Document changed or the reprocessing key was reused with different options. Reload before reprocessing.',
     )
     this.name = 'ReprocessConflictError'
-  }
-}
-
-export class IngestionKeyConflictError extends Error {
-  constructor() {
-    super('The ingestion key already belongs to another Source Document.')
-    this.name = 'IngestionKeyConflictError'
   }
 }
 
@@ -336,6 +330,8 @@ export const SUGGEST_SCHEMA_BATCH_NAME = 'suggestSchemaBatch'
 export const SUGGEST_QUEUE_NAME = 'suggest'
 /** A concurrent creation of the same selection: its ID derives from the selection key, so either key can fire. */
 const SUGGESTION_KEYS = ['batchSchemaSuggestion_pkey', 'batchSchemaSuggestion_selectionKey_key'] as const
+/** One Source Document per content in a project (contract.prisma `@@unique([projectContextId, contentSha256])`). */
+const SOURCE_CONTENT_KEY = 'sourceDocument_projectContextId_contentSha256_key'
 
 export const suggestWorkflowId = (batchSchemaSuggestionId: string, attempt: number) =>
   `suggest:${batchSchemaSuggestionId}:${attempt}`
@@ -684,14 +680,23 @@ export type ResearcherProjectStore = {
   discardCanonicalPackage(
     descriptor: CanonicalPackageDescriptor,
   ): Promise<void>
+  /** The owned Project Context's Source Document with these bytes, as ingestion published it; null when the project
+   *  is missing or foreign or holds no such content. Completed-content replay reads it before any parse. */
+  findSourceDocumentByContent(
+    projectContextId: string,
+    contentSha256: string,
+  ): Promise<PersistedSourceDocument | null>
   /**
    * Makes a retained canonical package visible as one Source Document and its
-   * first representation. The unique ingestion key is the retry authority.
+   * first representation. Content is the identity: the unique
+   * (projectContextId, contentSha256) constraint is the publication backstop,
+   * so a repeat or a concurrent winner returns the existing document as
+   * `replayed` and never a second one.
    */
   ingestSourceDocument(
     projectContextId: string,
     input: IngestSourceDocumentInput,
-  ): Promise<PersistedSourceDocument | null>
+  ): Promise<(PersistedSourceDocument & { disposition: 'created' | 'replayed' }) | null>
   findReprocessedSourceDocument(
     projectContextId: string,
     sourceDocumentId: string,
@@ -853,6 +858,33 @@ function ingestedSourceDocument(
       artifactSha256: representation.artifactSha256,
     },
   }
+}
+
+/** The Source Document of a project with these bytes and its first revision, which ingestion published. */
+async function sourceDocumentByContent(
+  orm: Orm,
+  projectContextId: string,
+  contentSha256: string,
+): Promise<PersistedSourceDocument | null> {
+  const document = await orm.public.SourceDocument.select(
+    'id',
+    'originalName',
+    'contentSha256',
+    'createdAt',
+  ).first({ projectContextId, contentSha256 })
+  if (!document) return null
+  const representation = await orm.public.SourceRepresentationRevision.select(
+    'id',
+    'revisionNumber',
+    'artifactReference',
+    'artifactSha256',
+  ).first({ sourceDocumentId: document.id, revisionNumber: 1 })
+  return representation
+    ? ingestedSourceDocument(
+        document as StoredIngestedSourceDocument,
+        representation as StoredSourceRepresentation,
+      )
+    : null
 }
 
 async function ownsProjectContext(
@@ -1516,79 +1548,27 @@ export function createResearcherProjectStore(
     discardCanonicalPackage(descriptor) {
       return discardPackageIfUnreferenced(database, descriptor)
     },
+    async findSourceDocumentByContent(projectContextId, contentSha256) {
+      if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId))) return null
+      return sourceDocumentByContent(database.orm, projectContextId, contentSha256)
+    },
     async ingestSourceDocument(projectContextId, input) {
-      const project = await database.orm.public.ProjectContext.select(
-        'id',
-      ).first({
-        id: projectContextId,
-        researcherAccountId,
-      })
-      if (!project) return null
-
-      const persistedDocument = async (
-        document: StoredIngestedSourceDocument | null,
-      ): Promise<PersistedSourceDocument | null> => {
+      if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId))) return null
+      const replayed = async () => {
+        const document = await sourceDocumentByContent(database.orm, projectContextId, input.contentSha256)
         if (!document) return null
-        const representation =
-          await database.orm.public.SourceRepresentationRevision.select(
-            'id',
-            'revisionNumber',
-            'artifactReference',
-            'artifactSha256',
-          ).first({ sourceDocumentId: document.id, revisionNumber: 1 })
-        return representation
-          ? ingestedSourceDocument(
-              document,
-              representation as StoredSourceRepresentation,
-            )
-          : null
+        await input.ensureRetained(document.descriptor)
+        return { ...document, disposition: 'replayed' as const }
       }
-      const existingByIngestionKey = async (): Promise<PersistedSourceDocument | null> => {
-        const document = await database.orm.public.SourceDocument.select(
-          'id',
-          'originalName',
-          'contentSha256',
-          'createdAt',
-        ).first({
-          ingestionKey: input.ingestionKey,
-          projectContextId,
-        })
-        if (!document) return null
-        // Parser-run metadata may change package identity; uploaded content is
-        // the stable identity for a retry using the same ingestion key.
-        if (document.contentSha256 !== input.contentSha256)
-          throw new IngestionKeyConflictError()
-        return persistedDocument(document as StoredIngestedSourceDocument)
-      }
-      const existingByContent = async (): Promise<PersistedSourceDocument | null> => {
-        const document = await database.orm.public.SourceDocument.select(
-          'id',
-          'originalName',
-          'contentSha256',
-          'createdAt',
-        ).first({ projectContextId, contentSha256: input.contentSha256 })
-        return persistedDocument(document as StoredIngestedSourceDocument | null)
-      }
-
-      const persisted =
-        (await existingByIngestionKey()) ?? (await existingByContent())
-      if (persisted) {
-        await input.ensureRetained(persisted.descriptor)
-        return persisted
-      }
+      const existing = await replayed()
+      if (existing) return existing
 
       let createdSourceDocumentId: string | null = null
       try {
         const result = await database.transaction(async ({ orm }) => {
-          const project = await orm.public.ProjectContext.select('id').first({
-            id: projectContextId,
-            researcherAccountId,
-          })
-          if (!project) return null
-
+          if (!(await ownsProjectContext(orm, researcherAccountId, projectContextId))) return null
           const document = await orm.public.SourceDocument.create({
             projectContextId,
-            ingestionKey: input.ingestionKey,
             contentSha256: input.contentSha256,
             mediaType: input.mediaType,
             originalName: input.originalName,
@@ -1616,17 +1596,16 @@ export function createResearcherProjectStore(
         } catch (error) {
           await database.orm.public.SourceDocument.where({
             id: createdSourceDocumentId,
-            ingestionKey: input.ingestionKey,
+            projectContextId,
           }).delete()
           throw error
         }
-        return result
+        return { ...result, disposition: 'created' as const }
       } catch (error) {
-        if (!uniqueConstraint(error)) throw error
-        const winner =
-          (await existingByIngestionKey()) ?? (await existingByContent())
-        if (winner) await input.ensureRetained(winner.descriptor)
-        if (!winner) throw new IngestionKeyConflictError()
+        // Another publication of the same content in this project committed first: it is the document.
+        if (!isUniqueViolation(error, SOURCE_CONTENT_KEY)) throw error
+        const winner = await replayed()
+        if (!winner) throw error
         return winner
       }
     },
@@ -1674,7 +1653,7 @@ export function createResearcherProjectStore(
         this.findReprocessedSourceDocument(
           projectContextId,
           sourceDocumentId,
-          input.ingestionKey,
+          input.requestKey,
           input.requestFingerprint,
         )
       const previous = await replay()
@@ -1724,7 +1703,7 @@ export function createResearcherProjectStore(
               preprocessId: input.preprocessId,
               parserName: input.parserName,
               parserVersion: input.parserVersion,
-              reprocessKey: input.ingestionKey,
+              reprocessKey: input.requestKey,
               reprocessFingerprint: input.requestFingerprint,
             },
           )

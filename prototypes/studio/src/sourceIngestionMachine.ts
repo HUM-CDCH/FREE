@@ -5,8 +5,9 @@ import type { SourceDocumentReprocessResponse } from '../shared/sourceDocumentRe
 export type SourceLayout = 'pages' | 'spreads'
 
 type AddedSource = {
+  /** The queue's own identity for this item. It never leaves the browser: an upload is identified by its content. */
+  itemId: string
   projectContextId: string
-  ingestionKey: string
   layout: SourceLayout
   validationFailure?: string
 } & (
@@ -16,6 +17,8 @@ type AddedSource = {
       sourceDocumentId: string
       expectedRepresentationId: string
       name: string
+      /** The server's replay key for this reprocess action (`reprocess:<document>:<key>`). */
+      requestKey: string
     }
 )
 
@@ -26,12 +29,23 @@ export function sourceName(source: SourceIngestionItem): string {
 export type SourceIngestionItem = AddedSource & {
   status: 'queued' | 'parsing' | 'failed'
   failure?: string
+  /** The last failure left the server's outcome unknown (a network error, 502, 503 or 504). */
+  uncertain?: boolean
 }
 
 type Ingest = (item: SourceIngestionItem) => Promise<SourceDocumentReprocessResponse>
 type Ingested = {
   item: SourceIngestionItem
   result: SourceDocumentReprocessResponse
+}
+
+/** A failed item queued again. A reprocess keeps its request key only after an uncertain failure, where repeating it
+ *  replays whatever the server did; after a confirmed failure the retry is a new action with a new key. */
+function retried(item: SourceIngestionItem): SourceIngestionItem {
+  const queued = { ...item, status: 'queued' as const, failure: undefined, uncertain: undefined }
+  return queued.kind === 'reprocess' && !item.uncertain
+    ? { ...queued, requestKey: crypto.randomUUID() }
+    : queued
 }
 
 export const sourceIngestionMachine = setup({
@@ -41,15 +55,17 @@ export const sourceIngestionMachine = setup({
       ingest: Ingest
       onIngested: (ingested: Ingested) => void
       toFailureMessage: (error: unknown) => string
+      isUncertain: (error: unknown) => boolean
     },
     events: {} as
       | { type: 'sources.added'; items: AddedSource[] }
-      | { type: 'source.retry'; ingestionKey: string }
+      | { type: 'source.retry'; itemId: string }
       | { type: 'project.deleted'; projectContextId: string },
     input: {} as {
       ingest: Ingest
       onIngested: (ingested: Ingested) => void
       toFailureMessage: (error: unknown) => string
+      isUncertain: (error: unknown) => boolean
     },
   },
   actors: {
@@ -82,9 +98,7 @@ export const sourceIngestionMachine = setup({
       items: ({ context, event }) =>
         event.type === 'source.retry'
           ? context.items.map((item) =>
-              item.ingestionKey === event.ingestionKey
-                ? { ...item, status: 'queued' as const, failure: undefined }
-                : item,
+              item.itemId === event.itemId ? retried(item) : item,
             )
           : context.items,
     }),
@@ -116,7 +130,7 @@ export const sourceIngestionMachine = setup({
       event.type === 'source.retry' &&
       context.items.some(
         (item) =>
-          item.ingestionKey === event.ingestionKey &&
+          item.itemId === event.itemId &&
           item.status === 'failed' &&
           item.validationFailure === undefined,
       ),
@@ -154,7 +168,7 @@ export const sourceIngestionMachine = setup({
           {
             guard: ({ context, event }) =>
               context.items.some(
-                (item) => item.ingestionKey === event.output.item.ingestionKey,
+                (item) => item.itemId === event.output.item.itemId,
               ),
             target: 'idle',
             actions: [
@@ -164,8 +178,7 @@ export const sourceIngestionMachine = setup({
               assign({
                 items: ({ context, event }) =>
                   context.items.filter(
-                    (item) =>
-                      item.ingestionKey !== event.output.item.ingestionKey,
+                    (item) => item.itemId !== event.output.item.itemId,
                   ),
               }),
               ({ context, event }) => context.onIngested(event.output),
@@ -186,11 +199,12 @@ export const sourceIngestionMachine = setup({
                   )
                   if (!current) return context.items
                   return context.items.map((item) =>
-                    item.ingestionKey === current.ingestionKey
+                    item.itemId === current.itemId
                       ? {
                           ...item,
                           status: 'failed' as const,
                           failure: context.toFailureMessage(event.error),
+                          uncertain: context.isUncertain(event.error),
                         }
                       : item,
                   )

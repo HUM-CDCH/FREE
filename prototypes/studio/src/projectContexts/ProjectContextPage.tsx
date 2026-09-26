@@ -717,7 +717,7 @@ export default function ProjectContextPage({
                 {queued.map((source) => (
                   <li
                     className="flex items-center gap-3 px-1 py-3"
-                    key={source.ingestionKey}
+                    key={source.itemId}
                   >
                     <PdfIcon />
                     <span className="min-w-0 flex-1">
@@ -741,7 +741,7 @@ export default function ProjectContextPage({
                     {source.status === 'failed' &&
                       source.validationFailure === undefined && (
                       <Button
-                        onClick={() => retrySource(source.ingestionKey)}
+                        onClick={() => retrySource(source.itemId)}
                         aria-label={`Retry ${sourceName(source)}`}
                       >
                         Retry

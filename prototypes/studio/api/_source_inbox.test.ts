@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { studioDataRoot } from 'db'
@@ -60,6 +60,30 @@ describe('source inbox', () => {
     expect(await readFile(join(root, PROJECT), 'utf8')).toBe('not a directory')
   })
 
+  it('a write that fails after its temporary file exists removes that temporary file', async () => {
+    const relative = uploadSourcePath(PROJECT, ATTEMPT)
+    // A non-empty directory where the file goes: the temporary file is written, then its rename fails.
+    await mkdir(join(root, relative, 'occupied'), { recursive: true })
+    await expect(stageSource(root, relative, bytes)).rejects.toThrow()
+    expect(await readdir(join(root, PROJECT))).toEqual([`${ATTEMPT}.pdf`])
+    expect(await readdir(join(root, relative))).toEqual(['occupied'])
+  })
+
+  it('refuses a path that leaves the inbox, before touching the disk', async () => {
+    const outside = await mkdtemp(join(tmpdir(), 'free-source-outside-'))
+    try {
+      const escapes = ['', '.', `../${PROJECT}.pdf`, `${PROJECT}/../../x.pdf`, join(outside, 'x.pdf'), `${PROJECT}/`]
+      for (const relative of escapes) {
+        await expect(stageSource(root, relative, bytes)).rejects.toThrow(/inside the source inbox/)
+        await expect(removeStagedSource(root, relative)).rejects.toThrow(/inside the source inbox/)
+      }
+      expect(await readdir(root)).toEqual([])
+      expect(await readdir(outside)).toEqual([])
+    } finally {
+      await rm(outside, { recursive: true, force: true })
+    }
+  })
+
   it('staging the same name again replaces the file', async () => {
     const relative = uploadSourcePath(PROJECT, ATTEMPT)
     await stageSource(root, relative, new TextEncoder().encode('first'))
@@ -87,5 +111,9 @@ describe('source inbox', () => {
   it("the inbox is FREE_SOURCE_INBOX, else source-inbox under Studio's data directory", () => {
     expect(sourceInboxRoot({ FREE_SOURCE_INBOX: '/var/lib/free/source-inbox' })).toBe('/var/lib/free/source-inbox')
     expect(sourceInboxRoot({})).toBe(join(studioDataRoot(), 'source-inbox'))
+  })
+
+  it('an empty FREE_SOURCE_INBOX is unset, never the working directory', () => {
+    expect(sourceInboxRoot({ FREE_SOURCE_INBOX: '' })).toBe(join(studioDataRoot(), 'source-inbox'))
   })
 })

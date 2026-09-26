@@ -14,29 +14,24 @@ import {
   parseJsonRequest,
   persistenceUnavailable,
 } from './_http.js'
-import {
-  discardPublishedPackage,
-  parseSourceDocument,
-  type Dependencies,
-} from './source_documents.js'
+import { packagePageCount } from './_kei_conversion.js'
 
 type Store = Pick<
   ResearcherProjectStore,
   | 'getDocumentReopenSnapshot'
-  | 'getSourceRepresentation'
   | 'findReprocessedSourceDocument'
-  | 'reprocessSourceDocument'
-  | 'discardCanonicalPackage'
 >
+
+/**
+ * Reprocessing between M4 Tasks 10 and 11: a published request key still replays its revision, and a stale head is
+ * still refused, but new work has no conversion path until `reprocessSource` runs it on DBOS (Task 11). kei's HTTP
+ * run submission that the old path used is gone since M3.
+ */
 export function createSourceDocumentReprocessing(
   store: Store,
-  dependencies: Dependencies & {
-    readPackage?: typeof canonicalPackageStore.read
-  } = {},
+  dependencies: { readPackage?: typeof canonicalPackageStore.read } = {},
 ) {
   return async (request: Request): Promise<Response> => {
-    let saved:
-      Awaited<ReturnType<typeof parseSourceDocument>>['saved'] | undefined
     try {
       const match =
         /^\/api\/project-contexts\/([^/]+)\/source-documents\/([^/]+)\/reprocess$/.exec(
@@ -80,17 +75,10 @@ export function createSourceDocumentReprocessing(
       )
       if (replay) {
         const { descriptor, ...result } = replay
-        const source = await (
-          dependencies.readPackage ?? canonicalPackageStore.read
-        )(descriptor, 'source')
-        return json(
-          {
-            ...result,
-            pageCount: JSON.parse(new TextDecoder().decode(source.bytes))
-              .page_count,
-          },
-          { headers: noStore },
-        )
+        const pageCount = await packagePageCount(descriptor, {
+          read: dependencies.readPackage ?? canonicalPackageStore.read,
+        })
+        return json({ ...result, pageCount }, { headers: noStore })
       }
       const snapshot = await store.getDocumentReopenSnapshot(
         projectId,
@@ -103,54 +91,12 @@ export function createSourceDocumentReprocessing(
         expectedRepresentationId
       )
         throw new ReprocessConflictError()
-      const descriptor = await store.getSourceRepresentation(
-        projectId,
-        expectedRepresentationId,
-      )
-      if (!descriptor)
-        throw new ApiError(
-          404,
-          'not_found',
-          'Source representation was not found.',
-        )
-      const pdf = await (
-        dependencies.readPackage ?? canonicalPackageStore.read
-      )(descriptor, 'pdf')
-      const parsed = await parseSourceDocument(
-        pdf.bytes,
-        snapshot.sourceDocument.name,
-        requestKey,
-        layout === 'pages' ? 'pdf' : 'ingest',
-        store,
-        dependencies,
-      )
-      saved = parsed.saved
-      const published = await store.reprocessSourceDocument(
-        projectId,
-        documentId,
-        { ...parsed.input, expectedRepresentationId, requestFingerprint },
-      )
-      if (!published)
-        throw new ApiError(404, 'not_found', 'Source Document was not found.')
-      if (
-        published.descriptor.artifactReference !== saved.artifactReference ||
-        published.descriptor.artifactSha256 !== saved.artifactSha256
-      )
-        await discardPublishedPackage(saved, store)
-      const { descriptor: retained, ...result } = published
-      const source = await (
-        dependencies.readPackage ?? canonicalPackageStore.read
-      )(retained, 'source')
-      return json(
-        {
-          ...result,
-          pageCount: JSON.parse(new TextDecoder().decode(source.bytes))
-            .page_count,
-        },
-        { status: 201, headers: noStore },
+      throw new ApiError(
+        503,
+        'source_ingestion_failed',
+        'Source Document reprocessing is unavailable.',
       )
     } catch (error) {
-      if (saved) await discardPublishedPackage(saved, store)
       return noStoreError(
         error instanceof ReprocessConflictError
           ? new ApiError(409, 'invalid_request', error.message)

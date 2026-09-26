@@ -466,7 +466,6 @@ if (!disposableDatabaseUrl) {
       await db.orm.public.SourceDocument.create({
         id: sourceDocumentId,
         projectContextId,
-        ingestionKey: randomUUID(),
         contentSha256: sha256(strToU8(filename)),
         mediaType: 'application/pdf',
         originalName: filename,
@@ -820,7 +819,7 @@ if (!disposableDatabaseUrl) {
         revisionNumber: 1, snapshot: [{ text: 'original note' }],
       })
       const revised = await store.reprocessSourceDocument(project.projectContextId, document.sourceDocumentId, {
-        ingestionKey: randomUUID(), expectedRepresentationId: document.sourceRepresentationRevisionId,
+        requestKey: randomUUID(), expectedRepresentationId: document.sourceRepresentationRevisionId,
         requestFingerprint: 'f'.repeat(64), contentSha256: sha256(strToU8(document.filename)),
         mediaType: 'application/pdf', originalName: document.filename, ...document.storedPackage,
         contractVersion: 'parsed_document.v2', preprocessId: 'kei-exp:reprocessed:g2', parserName: 'test', parserVersion: '5',
@@ -986,7 +985,7 @@ if (!disposableDatabaseUrl) {
           repetition: 'create-new',
         }),
         store.reprocessSourceDocument(project.projectContextId, two.sourceDocumentId, {
-          ingestionKey: randomUUID(), expectedRepresentationId: two.sourceRepresentationRevisionId,
+          requestKey: randomUUID(), expectedRepresentationId: two.sourceRepresentationRevisionId,
           requestFingerprint: 'f'.repeat(64), contentSha256: sha256(strToU8(two.filename)),
           mediaType: 'application/pdf', originalName: two.filename, ...two.storedPackage,
           contractVersion: 'parsed_document.v2', preprocessId: 'kei-exp:reprocessed:g2', parserName: 'test', parserVersion: '5',

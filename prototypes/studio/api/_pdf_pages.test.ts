@@ -1,26 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { blankPdf, junkObjects } from '../test/support/pdf'
 import { countPdfPages } from './_pdf_pages'
-
-/** A valid PDF of `pages` blank pages with a correct cross-reference table. */
-function blankPdf(pages: number): Uint8Array {
-  const kids = Array.from({ length: pages }, (_, index) => `${index + 3} 0 R`).join(' ')
-  const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    `<< /Type /Pages /Kids [${kids}] /Count ${pages} >>`,
-    ...Array.from({ length: pages }, () => '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>'),
-  ]
-  let body = '%PDF-1.4\n'
-  const offsets = objects.map((object, index) => {
-    const offset = Buffer.byteLength(body)
-    body += `${index + 1} 0 obj\n${object}\nendobj\n`
-    return offset
-  })
-  const xref = Buffer.byteLength(body)
-  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`
-  body += offsets.map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')
-  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`
-  return new TextEncoder().encode(body)
-}
 
 describe('countPdfPages', () => {
   it('counts the pages of a PDF without rendering them', async () => {
@@ -35,6 +15,30 @@ describe('countPdfPages', () => {
     garbage.set(header)
     await expect(countPdfPages(garbage)).resolves.toBeNull()
     await expect(countPdfPages(new TextEncoder().encode('%PDF-'))).resolves.toBeNull()
+  })
+
+  it('counts off the event loop: timers keep firing while pdf.js rebuilds a hostile PDF', async () => {
+    const hostile = junkObjects(20 * 1024 * 1024)
+    let last = performance.now()
+    let longestGap = 0
+    const ticker = setInterval(() => {
+      const now = performance.now()
+      longestGap = Math.max(longestGap, now - last)
+      last = now
+    }, 10)
+    try {
+      // In process, pdf.js holds the event loop for about a second on these 20 MiB.
+      await expect(countPdfPages(hostile)).resolves.toBeNull()
+      longestGap = Math.max(longestGap, performance.now() - last)
+    } finally {
+      clearInterval(ticker)
+    }
+    expect(longestGap).toBeLessThan(400)
+  })
+
+  it('answers null once the count outlives its deadline', async () => {
+    await expect(countPdfPages(junkObjects(20 * 1024 * 1024), { deadlineMs: 50 })).resolves.toBeNull()
+    await expect(countPdfPages(blankPdf(3), { deadlineMs: 0 })).resolves.toBeNull()
   })
 
   it("leaves the caller's bytes intact", async () => {

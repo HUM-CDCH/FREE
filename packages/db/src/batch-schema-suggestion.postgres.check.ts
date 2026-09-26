@@ -116,7 +116,6 @@ test('Batch Schema Suggestion attempts on PostgreSQL and DBOS', { timeout: 120_0
     }))
     const document = await db.orm.public.SourceDocument.create({
       projectContextId,
-      ingestionKey: randomUUID(),
       contentSha256: sha,
       mediaType: 'application/pdf',
       originalName: `${markdown}.pdf`,
