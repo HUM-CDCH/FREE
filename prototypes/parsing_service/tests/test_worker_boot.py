@@ -94,7 +94,7 @@ def test_the_worker_locks_then_reads_the_clock_then_launches_then_registers(monk
 
 
 @pytest.mark.parametrize("failing", ["launch", "queues"])
-def test_dbos_is_destroyed_when_launch_or_the_lanes_fail(monkeypatch, failing):
+def test_dbos_is_destroyed_when_launch_or_the_lanes_fail(monkeypatch, capsys, failing):
     order: list[str] = []
 
     @contextlib.contextmanager
@@ -127,10 +127,11 @@ def test_dbos_is_destroyed_when_launch_or_the_lanes_fail(monkeypatch, failing):
     monkeypatch.setattr(boot, "_timestamp_ms", None)
     monkeypatch.setattr(cli, "DBOS", FakeDBOS)
     monkeypatch.setattr(config, "register_queues", lambda **_: step("queues"))
-    with pytest.raises(RuntimeError, match=f"{failing} failed"):
-        cli.serve("slot-7", "postgresql://x", until=lambda: order.append("serving"),
-                  exit_process=lambda code: order.append(f"exit {code}"))
-    assert "serving" not in order and order[-2:] == ["destroy", "release"]  # main() reports it, redacted
+    cli.serve("slot-7", "postgresql://x", until=lambda: order.append("serving"),
+              exit_process=lambda code: order.append(f"exit {code}"))
+    # Launch recovers pending workflows, so their steps may run: the process exits before it frees the slot here too.
+    assert "serving" not in order and order[-3:] == ["destroy", "exit 1", "release"]
+    assert capsys.readouterr().err == f"kei worker stopped: RuntimeError: {failing} failed\n"
 
 
 def test_the_worker_refuses_to_start_without_its_database_url(monkeypatch, capsys):

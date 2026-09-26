@@ -46,19 +46,30 @@ def serve(slot_name: str, database_url: str, *, until: Callable[[], None] = _unt
         logger.info("slot %s taken by pid %s", slot_name, os.getpid())
         import kei_exp.workflows.registered  # noqa: F401 - every workflow is registered before launch
         boot.set_timestamp(boot.database_clock_ms(database_url))
-        try:  # a launch or a lane registration that fails still stops DBOS's threads before the slot is released
+        # From here on DBOS may run steps (launch recovers this executor's pending workflows), and destroy() does not
+        # wait for them: their threads are not daemons, so returning would free the slot while they write on. Every
+        # way out therefore destroys DBOS and exits still holding the slot, which ends the steps with the process;
+        # only then does the kernel free the lock (spec, *kei worker*: held for the worker's lifetime; the boot
+        # boundary relies on it). Nothing is recorded after destroy: the interrupted workflows stay PENDING and
+        # recovery runs them.
+        try:
             DBOS(config=config.dbos_config(database_url, slot_name))
             DBOS.launch()
             config.register_queues()
             logger.info("kei worker %s serving", config.executor_id(slot_name))
             until()
-        finally:
+        except Exception as error:  # noqa: BLE001 - reported redacted, as main() reports what fails before this
             DBOS.destroy()
-        # destroy() does not wait for running steps, and their threads are not daemons: returning would free the slot
-        # while they write on. Exiting here, still holding it, ends them with the process, and only then does the
-        # kernel free the lock (spec, *kei worker*: held for the worker's lifetime; the boot boundary relies on it).
-        # Nothing is recorded after destroy, so the interrupted steps' workflows stay PENDING and recovery runs them.
+            print(stopped(error, database_url), file=sys.stderr)
+            exit_process(1)
+            return  # only a test's exit_process returns
+        DBOS.destroy()
         exit_process(0)
+
+
+def stopped(error: BaseException, database_url: str) -> str:
+    """The one line a failed worker prints: psycopg's message can quote the URL, and a traceback would repeat it."""
+    return f"kei worker stopped: {type(error).__name__}: {redacted(str(error), database_url)}"
 
 
 def redacted(message: str, database_url: str) -> str:
@@ -90,8 +101,8 @@ def main(argv: list[str] | None = None) -> None:
     except slot.SlotTaken as error:
         print(error, file=sys.stderr)
         sys.exit(1)
-    except Exception as error:  # noqa: BLE001 - psycopg's message can quote the URL; a traceback would repeat it
-        print(f"kei worker stopped: {type(error).__name__}: {redacted(str(error), args.database_url)}", file=sys.stderr)
+    except Exception as error:  # noqa: BLE001 - reported redacted, without a traceback
+        print(stopped(error, args.database_url), file=sys.stderr)
         sys.exit(1)
 
 
