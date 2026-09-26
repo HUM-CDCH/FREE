@@ -62,7 +62,7 @@ class Options(BaseModel):
 
     @model_validator(mode="after")
     def _models_are_served(self) -> Options:
-        extraction_models.check(self.models or {})  # an unservable route is refused at admission
+        extraction_models.check(self.models or {})  # an unservable route is refused before any model call
         return self
 
     @model_validator(mode="after")
@@ -70,7 +70,7 @@ class Options(BaseModel):
         if self.catalog is not None:
             if self.strategy != "catalog":
                 raise ValueError("options.catalog applies to the catalog strategy only")
-            load_recipe(self.catalog.recipe)  # an unknown reference is refused at admission, not in the worker
+            load_recipe(self.catalog.recipe)  # an unknown reference is refused before any model call
         return self
 
     def dumped(self) -> dict:
@@ -79,7 +79,7 @@ class Options(BaseModel):
 
 
 class ExtractRequest(BaseModel):
-    """The body of POST /api/runs/{run_id}/extract."""
+    """The `request` of the `extract` workflow's input (`workflows.contracts.ExtractInput`), and the CLI's."""
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
     schema_: Schema = Field(alias="schema")
     options: Options = Field(default_factory=Options)

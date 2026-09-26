@@ -1,7 +1,7 @@
 """What a failed step means: another attempt may meet a backend that is ready again, or the failure is about this
 document or request and repeats identically.
 
-`classify` is the one judgement (moved from `jobs/tasks.py`). DBOS asks `should_retry` after each failed attempt of a
+`classify` is the one judgement (moved from the deleted Procrastinate `jobs/tasks.py`). DBOS asks `should_retry` after each failed attempt of a
 step and needs a bool: `classify` returns an exception, which DBOS would read as always true. `failure_of` turns what a
 step finally raised into the portable code a workflow reports (`workflows/contracts.py`).
 """
@@ -48,7 +48,7 @@ class KeiFailure(Exception):
 
 def classify(error: BaseException) -> BaseException:
     """`error` as a `TransientBackendError` when another attempt is worth making, else `error` itself."""
-    # Body moved from jobs/tasks.py:61-75 without its `store.Unavailable` branch: a DBOS system-database outage
+    # Body moved from the deleted jobs/tasks.py without its `store.Unavailable` branch: a DBOS system-database outage
     # blocks inside DBOS's own retry loop and never reaches a step.
     if isinstance(error, (requests.ConnectionError, requests.Timeout, ConnectionError, TimeoutError)):
         return TransientBackendError(str(error))
@@ -68,7 +68,7 @@ def should_retry(error: BaseException) -> bool:
 
 
 # The keyword arguments of both model steps: three attempts, waiting 5 s then 10 s (Procrastinate's
-# RetryStrategy(max_attempts=2, wait=5, linear_wait=5) at jobs/tasks.py:196,250).
+# RetryStrategy(max_attempts=2, wait=5, linear_wait=5) in the deleted jobs/tasks.py).
 STEP_RETRY = {"retries_allowed": True, "max_attempts": 3, "interval_seconds": 5.0, "backoff_rate": 2.0,
               "should_retry": should_retry}
 

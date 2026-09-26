@@ -56,7 +56,7 @@ DEFAULTS = defaults(EXTRACT_MODELS)
 
 
 def check(choice: Mapping[str, str]) -> None:
-    """Refuse a run's choice the deployment cannot serve; called at admission, so no job is queued for it."""
+    """Refuse a run's choice the deployment cannot serve; called when the `extract` step validates its request, before any model call."""
     for role, key in choice.items():
         if role not in ROLES:
             raise ValueError(f"{role!r} is not an extraction role (fields, reasoning)")

@@ -39,9 +39,10 @@ if _unregistered:
 def check_knobs(params: RunParams) -> None:
     """Refuse the knobs the requested model's transcriber does not honour, naming them. ValueError when it does.
 
-    Reading no PDF is the point: this is the one part of `resolve` that judges the request alone, so the API can
-    make it while admitting a run (`kei_exp.api.create_run`) without paying for the native-text decision, which
-    only the worker makes. A native execution honours no knob at all, so `resolve` asks this after that choice.
+    Reading no PDF is the point: this is the one part of `resolve` that judges the request alone, so `convert`'s
+    `prepare_run` step (`kei_exp.workflows.convert`) makes it before any model work, without paying for the
+    native-text decision, which only the conversion makes. A native execution honours no knob at all, so
+    `resolve` asks this after that choice.
     """
     record = MODELS[params.model]
     given = {"stream": params.stream, "max_output_tokens": params.max_output_tokens is not None,
@@ -53,7 +54,8 @@ def check_knobs(params: RunParams) -> None:
 
 def check_ingest(page_source: str, ingest: dict | None) -> None:
     """An ingest setting (split, gutter overrides) applies only to book pages, and must be a valid IngestConfig.
-    Checked at admission and again when the run resolves, so a refused setting never reaches a worker."""
+    Checked by `convert`'s `prepare_run` step and again when the run resolves, so a refused setting never reaches
+    a model."""
     if ingest is None:
         return
     if page_source != "ingest":
