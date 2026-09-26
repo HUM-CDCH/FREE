@@ -193,7 +193,8 @@ export type ExtractionSnapshot = Readonly<{
   catalogRecipe: string | null
   /** The run's Extraction Model Choice; null (or absent) when every role kept kei-exp's deployment default. */
   requestedModels?: ExtractionModelChoice | null
-  outcome: ExtractionOutcome
+  /** Only a published Extraction has a result snapshot. */
+  outcome: 'SUCCEEDED'
   complete: boolean | null
   modelAttribution: ExtractionModelAttribution | null
   diagnostics: ExtractionDiagnostics
@@ -221,7 +222,8 @@ export type ExtractionAttemptSnapshot = Readonly<{
   /** The run's Extraction Model Choice; null (or absent) when every role kept kei-exp's deployment default. */
   requestedModels?: ExtractionModelChoice | null
   executionStatus: ProjectOperationStatus
-  outcome: ExtractionOutcome | null
+  /** SUCCEEDED once published; a failed, cancelled or interrupted attempt is FAILED with its failure instead. */
+  outcome: 'SUCCEEDED' | null
   complete: boolean | null
   modelAttribution: ExtractionModelAttribution | null
   diagnostics: ExtractionDiagnostics | null

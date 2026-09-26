@@ -138,7 +138,7 @@ export function useBatchExtractionReviewGrid(
   const memberFetchKey = batch.members
     .map(
       (member) =>
-        `${member.sourceDocumentId}:${member.latestExtraction?.extractionId ?? ''}:${member.latestExtraction?.outcome ?? ''}`,
+        `${member.sourceDocumentId}:${member.latestExtraction?.extractionId ?? ''}`,
     )
     .join('|')
 
@@ -225,18 +225,19 @@ export function useBatchExtractionReviewGrid(
     const controller = new AbortController()
     loadControllerRef.current = controller
     const successful = new Map(batch.members
-      .filter((member) => member.latestExtraction?.outcome === 'SUCCEEDED')
-      .map((member) => [member.sourceDocumentId, member.latestExtraction!.extractionId]))
+      .flatMap((member) => member.latestExtraction
+        ? [[member.sourceDocumentId, member.latestExtraction.extractionId] as const]
+        : []))
     setMembers((current) => new Map([...current].filter(([id, state]) =>
       state.status === 'ready' && state.attempt.extractionId === successful.get(id),
     )))
     for (const member of batch.members) {
-      if (member.latestExtraction?.outcome === 'SUCCEEDED' && !membersRef.current.has(member.sourceDocumentId))
+      if (member.latestExtraction && !membersRef.current.has(member.sourceDocumentId))
         loadMember(member.sourceDocumentId, member.latestExtraction.extractionId, controller.signal)
     }
     return () => controller.abort()
     // memberFetchKey stands in for batch.members: it changes only when a
-    // member's extraction identity/outcome actually changes, not on every
+    // member's published Extraction actually changes, not on every
     // poll tick of the same running batch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [batch.batchExtractionId, memberFetchKey])
@@ -246,7 +247,7 @@ export function useBatchExtractionReviewGrid(
     if (state?.status === 'ready' && (state.saving || state.touched.size > 0)) return
     const member = batch.members.find((item) => item.sourceDocumentId === sourceDocumentId)
     const signal = loadControllerRef.current?.signal
-    if (member?.latestExtraction?.outcome === 'SUCCEEDED' && signal)
+    if (member?.latestExtraction && signal)
       loadMember(sourceDocumentId, member.latestExtraction.extractionId, signal)
   }
 

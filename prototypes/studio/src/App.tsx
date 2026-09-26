@@ -184,6 +184,9 @@ export function DocumentWorkspace({
   const [railTab, setRailTab] = useState<RailTab>('schema')
   const [resultPath, setResultPath] = useState<string[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  // Whether the toast on screen explains the refresh that is about to replace
+  // this document's Source Representation, so that switch must not clear it.
+  const [toastOutlivesSwitch, setToastOutlivesSwitch] = useState(false)
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
   // Extraction Schemas keyed by Schema Revision id, so any attempt — active,
   // restored, or historical — resolves the exact revision it ran with.
@@ -229,7 +232,8 @@ export function DocumentWorkspace({
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
     setKnownSchemas(reopenedSchemas)
     setResultPath(null)
-    setToast(null)
+    if (!toastOutlivesSwitch) setToast(null)
+    setToastOutlivesSwitch(false)
     setDocIndex({ status: 'parsing' })
   }
 
@@ -426,10 +430,14 @@ export function DocumentWorkspace({
     [],
   )
 
-  function showToast(message: string) {
+  function showToast(message: string, { outlivesSwitch = false, durationMs = 2600 } = {}) {
     window.clearTimeout(toastTimerRef.current)
     setToast(message)
-    toastTimerRef.current = window.setTimeout(() => setToast(null), 2600)
+    setToastOutlivesSwitch(outlivesSwitch)
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null)
+      setToastOutlivesSwitch(false)
+    }, durationMs)
   }
 
   // Front-end reset only: the durable schema remains the save target, while
@@ -560,9 +568,13 @@ export function DocumentWorkspace({
         )
     },
     onError: () => showToast('Extraction failed — see details in Results'),
-    // Nothing started and the earlier results stay; the refreshed document then disables Run.
+    // Nothing started. The refresh either keeps this Source Representation, now no longer current (Run is then
+    // disabled), or moves to the reprocessed one; either way the notice outlives that switch.
     onSuperseded: () => {
-      showToast('This document has been reprocessed — no new Extraction was started')
+      showToast('This document has been reprocessed — no new Extraction was started', {
+        outlivesSwitch: true,
+        durationMs: 6000,
+      })
       onSourceSuperseded?.()
     },
   })

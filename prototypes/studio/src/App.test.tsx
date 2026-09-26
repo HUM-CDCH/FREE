@@ -1510,6 +1510,63 @@ describe('reopened Source Document workspace', () => {
       )
       expect(screen.queryByRole('button', { name: /^Run (Article|Catalog) extraction/ })).not.toBeInTheDocument()
     })
+
+    it('keeps the superseded notice when the refresh moves a plain route to the reprocessed Source Representation', async () => {
+      const posts: unknown[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((input: string | URL | Request, init?: RequestInit) => {
+          const url = String(input)
+          if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+          if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+          if (url.startsWith('/api/schema-revisions?'))
+            return Promise.resolve(Response.json({ revisions: [] }))
+          if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+            posts.push(JSON.parse(String(init.body)))
+            return Promise.resolve(Response.json(
+              { error: { code: 'source_representation_superseded', message: 'This document has been reprocessed.' } },
+              { status: 409 },
+            ))
+          }
+          return Promise.resolve(new Response('pdf'))
+        }),
+      )
+      // A plain route reopens the head: after a reprocess, that is the new Source Representation, current and
+      // with no attempt yet.
+      const reprocessedId = '51000000-0000-4000-8002-000000000077'
+      const resource = (artifact: 'pdf' | 'markdown' | 'source') =>
+        `/api/project-contexts/${reopened.projectContextId}/source-representations/${reprocessedId}/${artifact}`
+      const onSourceSuperseded = vi.fn(() =>
+        rerender(
+          <DocumentWorkspace
+            {...reopened}
+            sourceRepresentationId={reprocessedId}
+            sourceRepresentationCurrent
+            pdfUrl={resource('pdf')}
+            markdownUrl={resource('markdown')}
+            parsedDocumentUrl={resource('source')}
+            persistedExtraction={null}
+            latestReviewedExtraction={null}
+            onSourceSuperseded={onSourceSuperseded}
+          />,
+        ),
+      )
+      const { rerender } = render(<DocumentWorkspace {...reopened} onSourceSuperseded={onSourceSuperseded} />)
+      await waitFor(() =>
+        expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: '↻ Re-run extraction' }))
+      await waitFor(() => expect(onSourceSuperseded).toHaveBeenCalledOnce())
+      await waitFor(() =>
+        expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+      )
+
+      expect(posts).toHaveLength(1)
+      expect(screen.getByText('This document has been reprocessed — no new Extraction was started')).toBeVisible()
+      // The workspace now shows the reprocessed Source Representation, which can be run.
+      expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+    })
   })
 
   describe('Extraction Model Choice', () => {

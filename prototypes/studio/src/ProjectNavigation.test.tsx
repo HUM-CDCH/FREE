@@ -2369,6 +2369,46 @@ describe('routed Source Document reopening', () => {
     expect(screen.queryByRole('heading', { name: /could not be opened|cannot be reopened/ })).not.toBeInTheDocument()
   })
 
+  it('moves a plain route to the reprocessed head when a superseded refusal re-reads it', async () => {
+    const reprocessedId = '51000000-0000-4000-8002-000000000077'
+    const reopens: string[] = []
+    const rest = studioFetch()
+    history.replaceState(null, '', documentPath())
+    renderRoutes(
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (!url.includes('/reopen')) return rest(input)
+        reopens.push(url)
+        const reopened = hydratedSnapshot()
+        if (reopens.length === 1) return Response.json(reopened)
+        // The plain read answers the head: the reprocessed Source Representation, current, with no attempt yet.
+        return Response.json({
+          ...reopened,
+          sourceRepresentation: {
+            ...reopened.sourceRepresentation,
+            sourceRepresentationId: reprocessedId,
+            revisionNumber: 3,
+          },
+          latestAttempt: null,
+          latestReviewed: null,
+        })
+      }),
+    )
+    expect(await screen.findByTestId('workspace-resources')).toHaveTextContent(representationId)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refuse a run as superseded' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('workspace-resources')).toHaveTextContent(reprocessedId),
+    )
+    expect(screen.getByTestId('workspace-source-current')).toHaveTextContent(/^current$/)
+    expect(screen.getByTestId('workspace-result')).toHaveTextContent('null')
+    expect(reopens).toEqual([
+      expect.stringMatching(/\/reopen$/),
+      expect.stringMatching(/\/reopen$/),
+    ])
+  })
+
   it('keeps the workspace on the current head while displaying a historical latest attempt', async () => {
     const reopened = hydratedSnapshot()
     const historicalRepresentationId = '51000000-0000-4000-8002-000000000009'

@@ -16,7 +16,11 @@ export function memberStatus(member: BatchExtractionMember): {
     return { label: 'Running', tone: 'accent', message: null }
   // Failed, cancelled or interrupted: the member's own message says which.
   if (member.executionStatus === 'FAILED')
-    return { label: 'Failed', tone: 'danger', message: member.executionFailureMessage }
+    return {
+      label: 'Failed',
+      tone: 'danger',
+      message: member.executionFailureMessage ?? 'The member Extraction did not finish.',
+    }
   if (!extraction)
     return {
       label: member.executionStatus === 'QUEUED' ? 'Queued' : 'Not run',

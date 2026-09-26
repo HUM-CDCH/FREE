@@ -461,10 +461,11 @@ export default function BatchExtractionsPanel({
   useEffect(() => {
     for (const batch of batches.value ?? []) {
       const previous = previousExecutionStatus.current.get(batch.batchExtractionId)
-      const current = batch.executionStatus ?? 'COMPLETED'
+      const current = batch.executionStatus
       previousExecutionStatus.current.set(batch.batchExtractionId, current)
       const wasRunning = previous === 'RUNNING' || previous === 'QUEUED'
-      const nowTerminal = current === 'COMPLETED' || current === 'FAILED'
+      // A batch never fails as a whole: it completes once every member has settled.
+      const nowTerminal = current === 'COMPLETED'
       const gridAlreadyOpenForThisBatch =
         screen === 'grid' && openBatchExtractionId === batch.batchExtractionId
       if (wasRunning && nowTerminal && !gridAlreadyOpenForThisBatch)
@@ -729,9 +730,8 @@ export default function BatchExtractionsPanel({
   }
 
   const openBatchHasSuccessfulResult =
-    openBatch?.members.some(
-      (member) => member.latestExtraction?.outcome === 'SUCCEEDED',
-    ) ?? false
+    openBatch?.members.some((member) => member.latestExtraction !== null) ??
+    false
   const filtered = sourceDocuments.filter((document) =>
     document.name
       .toLocaleLowerCase()

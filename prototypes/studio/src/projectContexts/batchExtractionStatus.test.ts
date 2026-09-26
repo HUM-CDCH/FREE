@@ -22,6 +22,15 @@ describe('a Batch Extraction member status', () => {
     })
   })
 
+  it('a failed member without a recorded message still says it did not finish', () => {
+    expect(memberStatus({
+      ...member,
+      executionStatus: 'FAILED',
+      executionFailureMessage: null,
+      latestExtraction: null,
+    })).toEqual({ label: 'Failed', tone: 'danger', message: 'The member Extraction did not finish.' })
+  })
+
   it('reads queued, running and published members from their status and result', () => {
     const waiting = { ...member, executionFailureMessage: null, latestExtraction: null }
     expect(memberStatus({ ...waiting, executionStatus: 'QUEUED' }).label).toBe('Queued')

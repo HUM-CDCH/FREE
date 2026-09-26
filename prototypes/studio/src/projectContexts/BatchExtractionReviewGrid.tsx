@@ -137,7 +137,7 @@ function buildRows(
   const rows: DisplayRow[] = []
   for (const member of batch.members) {
     const state = gridMembers.get(member.sourceDocumentId)
-    if (member.latestExtraction?.outcome === 'SUCCEEDED' && state?.status === 'ready') {
+    if (member.latestExtraction && state?.status === 'ready') {
       const records = projectedRecords(state.attempt, state.decisions)
       const count = Math.max(records.length, 1)
       for (let recordIndex = 0; recordIndex < count; recordIndex += 1)

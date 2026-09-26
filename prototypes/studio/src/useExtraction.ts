@@ -49,8 +49,9 @@ type UseExtractionOptions = {
   onError: (message: string) => void
   /**
    * The server refused a run because the Source Representation it names was
-   * superseded by reprocessing. The earlier attempt stays on screen; the page
-   * re-reads the document so it stops offering runs on the old revision.
+   * superseded by reprocessing. Nothing failed, so `onError` is not called:
+   * the earlier attempt stays on screen and the page re-reads the document so
+   * it stops offering runs on the old revision.
    */
   onSuperseded?: () => void
   initialAttempt?: ExtractionAttempt | null
@@ -426,8 +427,7 @@ export function useExtraction({
       if (definiteRejection(error) && error.code === SOURCE_REPRESENTATION_SUPERSEDED) {
         // Nothing started: the earlier attempt and its results stay as they were.
         monitorRef.current = null
-        setState(state)
-        onError(error.message)
+        setState(extractionStateFromAttempt(attempt))
         onSuperseded?.()
         return null
       }

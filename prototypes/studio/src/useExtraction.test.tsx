@@ -587,7 +587,8 @@ describe('useExtraction server-owned lifecycle', () => {
       expect(result.current.attempt).toBe(earlier)
       expect(result.current.state).toEqual(shown)
       expect(result.current.hasResults).toBe(true)
-      expect(input.onError).toHaveBeenCalledExactlyOnceWith(`source_representation_superseded: ${message}`)
+      // Nothing failed: the page explains the refusal through onSuperseded alone.
+      expect(input.onError).not.toHaveBeenCalled()
       expect(input.onSuperseded).toHaveBeenCalledOnce()
       expect(input.onTerminal).not.toHaveBeenCalled()
       expect(api.readExtraction).not.toHaveBeenCalled()
@@ -595,6 +596,28 @@ describe('useExtraction server-owned lifecycle', () => {
     } finally {
       vi.unstubAllGlobals()
     }
+  })
+
+  it('a superseded refusal of a run started over a paused monitor restores the kept attempt, not the paused run', async () => {
+    vi.mocked(api.requestExtraction).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    vi.mocked(api.readExtraction).mockRejectedValue(new TypeError('Failed to fetch'))
+    const earlier = attempt()
+    const input = { ...options(earlier), onSuperseded: vi.fn() }
+    const { result } = renderHook(() => useExtraction(input))
+
+    await act(() => result.current.runExtraction())
+    expect(result.current.monitorError).toBe(MONITOR_DISCONNECTED)
+    expect(result.current.state.status).toBe('running')
+
+    vi.mocked(api.requestExtraction).mockRejectedValueOnce(
+      new ApiRequestError('source_representation_superseded: Reprocessed.', 409, 'source_representation_superseded'),
+    )
+    await act(() => result.current.runExtraction())
+
+    expect(input.onSuperseded).toHaveBeenCalledOnce()
+    expect(result.current.attempt).toBe(earlier)
+    expect(result.current.state.status).toBe('ready')
+    expect(result.current.hasResults).toBe(true)
   })
 
   it('offers no cancellation until the server has acknowledged the run', async () => {
