@@ -20,11 +20,11 @@ changed only tests, harness ports and one README paragraph (see
 - Tier commits:
   - `b64bc56`: typecheck, lint, e2e runs 4–8, base-path e2e, real service,
     Studio build, Docker image and `test:system`.
-  - `44db7c9`: the five unit runs. `b64bc56` changes only an e2e spec, which
-    Vitest excludes.
-  - `775860f`: safety and PostgreSQL. After it, only Studio test files
-    changed, and neither tier reads them.
-- Working tree: clean for every run. The one untracked directory belongs to
+  - `44db7c9`: the five unit runs, safety, PostgreSQL and e2e runs 1–3.
+    After `44db7c9`, only an e2e spec changed, and none of those tiers reads
+    it.
+- Working tree: clean for every tier run. The flake loops in the fix wave
+  below ran with uncommitted test edits. The one untracked directory belongs to
   another stream (`docs/plans/2026-09-24-unified-durable-execution-evidence/m3-spark/`)
   and was not touched.
 - Host: Ubuntu 24.04, Linux 6.8.0, x86_64, 24 CPUs, one NVIDIA RTX 4090.
@@ -42,9 +42,9 @@ changed only tests, harness ports and one README paragraph (see
 | Typecheck | `pnpm typecheck` | b64bc56 | exit 0 (studio, db, extraction, extraction-result-export) |
 | Lint | `pnpm lint` | b64bc56 | exit 0; 0 errors, 3 warnings, all pre-existing `react-hooks/exhaustive-deps` |
 | Unit | `pnpm test:unit` ×5 | 44db7c9 | 5/5 exit 0. Every run: scripts 57/57, studio-configuration 4/4, Studio 1200/1200 (102 files), db 52/52, extraction 38/38, extraction-result-export 33/33, Parsing fast 813 passed, 73 skipped, 127 deselected |
-| Safety | `pnpm test:safety` | 775860f | 18/18 pass, 0 skipped |
-| PostgreSQL | `pnpm test:postgres` (`PROJECT_STORE_POSTGRES_URL`, `EXTRACTION_TEST_DATABASE_URL`, `PARSING_TEST_DATABASE_URL`) | 775860f | db 19/19, extraction 36/36, Parsing 103 passed, 4 skipped, 906 deselected |
-| E2E | `pnpm test:e2e` (12 workers) | 775860f runs 1–3; b64bc56 runs 4–8 | runs 1–2: 56/56; run 3: 55 passed, 1 failed (see [F2](#f2--lifecycle-re-run-left-the-page-before-studio-started-it)); runs 4–8 after the fix: 56/56 each |
+| Safety | `pnpm test:safety` | 44db7c9 | 18/18 pass, 0 skipped |
+| PostgreSQL | `pnpm test:postgres` (`PROJECT_STORE_POSTGRES_URL`, `EXTRACTION_TEST_DATABASE_URL`, `PARSING_TEST_DATABASE_URL`) | 44db7c9 | db 19/19, extraction 36/36, Parsing 103 passed, 4 skipped, 906 deselected |
+| E2E | `pnpm test:e2e` (12 workers) | 44db7c9 runs 1–3; b64bc56 runs 4–8 | runs 1–2: 56/56; run 3: 55 passed, 1 failed (see [F2](#f2--lifecycle-re-run-left-the-page-before-studio-started-it)); runs 4–8 after the fix: 56/56 each. 56 = Task 14's 55 plus the removal test its fix round added (`b19bfde`) |
 | Base-path E2E | `pnpm --filter studio test:e2e:base-path` | b64bc56 | 2/2 pass (1 worker) |
 | Real service | `pnpm test:service` | b64bc56 | 2/2 pass |
 | Studio build | `pnpm --filter studio build` | b64bc56 | exit 0 |
