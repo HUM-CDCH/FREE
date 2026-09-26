@@ -9,7 +9,7 @@ import {
   ensureCertificates,
 } from '../scripts/free.mjs'
 
-// The local stack terminates TLS with a locally-trusted mkcert certificate.
+// The disposable stack terminates TLS with the local test certificate.
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
 export const ROOT = resolve(import.meta.dirname, '..')
@@ -65,7 +65,7 @@ export async function waitForHealth(timeoutMs = 300_000) {
   throw new Error('The stack did not become healthy in time.')
 }
 
-/** Start the stack the way `pnpm dev` does when it is not already running. */
+/** Build and start the disposable system-test stack owned by this process. */
 export async function ensureStackUp() {
   ensureCertificates()
   compose(['up', '-d', '--build', '--wait'])

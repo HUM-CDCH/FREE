@@ -150,13 +150,13 @@ deliberately according to their infrastructure and mutation boundaries:
 | `pnpm test:all:node` | Runs typecheck, lint, the Node unit tiers, safety, the `db` and `extraction` PostgreSQL integration tiers, and E2E sequentially: `test:all` without the Parsing Service tiers and `test:service`, so it needs no Python environment. The caller must provide the Docker/browser prerequisites and the two fresh, migrated Studio PostgreSQL targets (`PROJECT_STORE_POSTGRES_URL` and `EXTRACTION_TEST_DATABASE_URL`). |
 | `pnpm test:ci` | Requires `CI=true` and the fixed CI URLs `free_test_project_store` and `free_test_extraction` on PostgreSQL at `127.0.0.1:5432`. It also requires the fixed `free_test_parsing` URL unless `FREE_SKIP_PYTHON=1`; a parsing URL that is present is always validated. It requires `DATABASE_URL` to equal `EXTRACTION_TEST_DATABASE_URL`, migrates both Studio targets, then runs `test:all:node` when `FREE_SKIP_PYTHON=1` (GitHub's `verify` job) and `test:all` otherwise. |
 | `pnpm test:live-model` | Requires Ollama at `FREE_LIVE_OLLAMA_URL` (default `http://127.0.0.1:11434`) with `FREE_LIVE_OLLAMA_MODEL` (default `qwen3.8:latest`). It also runs the real Docling conversion smoke check, which may download models into the local cache. |
-| `pnpm test:system` | Requires Docker, `mkcert`, the default local Compose topology, and an Ollama endpoint reachable from its containers (`FREE_TEST_OLLAMA_BASE_URL`, default `http://host.docker.internal:11434`; model `FREE_TEST_OLLAMA_MODEL`, default `qwen3.8:latest`). It starts the stack if needed, creates an authenticated account and research workflow, replaces shared model configuration, restarts the stack to prove durability, deletes its Project Context, and leaves the stack running. Use only against disposable local development data. |
+| `pnpm test:system` | Requires Docker and `mkcert` (or an existing local certificate pair). It builds an isolated Compose project with a disposable PostgreSQL volume and a scripted external extraction-model response, then exercises authentication, upload, extraction, evidence, review, restart, and deletion over HTTPS. It removes its own project and volume afterward. The development stack and its database are outside this test's scope. |
 | `pnpm typecheck` | Runs the workspace TypeScript checks without services or data mutation. |
 | `pnpm lint` | Runs ESLint over Studio without services or data mutation. |
 
 `test:live-model` and `test:system` are intentionally excluded from the three
-aggregates (`test:all`, `test:all:node`, and `test:ci`) because they require an
-external model or mutate the default local stack. The GitHub `verify` workflow runs `test:ci` on Linux, so the POSIX
+aggregates (`test:all`, `test:all:node`, and `test:ci`) because the former needs
+an external model and the latter builds and restarts a full Docker stack. The GitHub `verify` workflow runs `test:ci` on Linux, so the POSIX
 session-secret permission check is part of the required deterministic gate.
 
 ## Host-run tooling

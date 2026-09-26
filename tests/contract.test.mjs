@@ -1,6 +1,5 @@
-// Black-box proof of the FREE product contract against the running local
-// stack. Requires Docker and, for the extraction subtests, a reachable Ollama
-// model (FREE_TEST_OLLAMA_BASE_URL / FREE_TEST_OLLAMA_MODEL).
+// Black-box proof of the FREE product contract against this test's disposable
+// Compose stack. Extraction uses the scripted external model fixture.
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import {
