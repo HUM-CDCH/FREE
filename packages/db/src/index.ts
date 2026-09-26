@@ -1,4 +1,4 @@
-export { canonicalPackageStore } from './artifact-store.js'
+export { canonicalPackageStore, studioDataRoot } from './artifact-store.js'
 export type {
   CanonicalPackageDescriptor,
   CanonicalPackageStore,

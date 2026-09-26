@@ -179,8 +179,13 @@ export function packCanonicalPackage(parts: {
   )
 }
 
+/** Studio's per-user data directory: canonical packages and, outside Compose, the source inbox live under it. */
+export function studioDataRoot(): string {
+  return envPaths('FREE Studio').data
+}
+
 function packageRoot(): string {
-  return join(envPaths('FREE Studio').data, 'source-representations')
+  return join(studioDataRoot(), 'source-representations')
 }
 
 export function createCanonicalPackageStore(

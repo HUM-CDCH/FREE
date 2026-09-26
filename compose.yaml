@@ -22,6 +22,8 @@ x-parsing-runtime: &parsing-runtime
   environment:
     KEI_RUNS: /app/runs
     KEI_SLOT: slot-1
+    # Studio's staged source PDFs (the source-inbox volume); only the worker mounts it, read-only.
+    KEI_SOURCE_INBOX: /app/source-inbox
     # The OCR model of a parse whose owner chose none; the API's listing and `convert` read the same value.
     KEI_OCR_MODEL: "${KEI_OCR_MODEL:-surya}"
     KEI_VLLM_URL: http://ocr_model:8000/v1/chat/completions
@@ -76,6 +78,11 @@ services:
     depends_on:
       studio:
         condition: service_healthy
+    # A service-level list replaces the anchor's, so it restates the shared volumes.
+    volumes:
+      - parsing-runs:/app/runs
+      - parsing-models:/models
+      - source-inbox:/app/source-inbox:ro
 
   studio:
     build:
@@ -88,6 +95,7 @@ services:
       STUDIO_ORIGIN: "${STUDIO_ORIGIN:-https://localhost:8443}"
       STUDIO_BASE_PATH: "${STUDIO_BASE_PATH:-/free}"
       FREE_STUDIO_PROXY: trusted-proxy
+      FREE_SOURCE_INBOX: /var/lib/free/source-inbox
       # The CLI providers (comma-separated `codex-cli`, `claude-code`) Studio
       # offers every researcher as read-only deployment connections. They run
       # on this server's own CLI login and billing, so none is enabled unless
@@ -137,6 +145,8 @@ services:
       # cannot read regardless of what's mounted here, so this volume only
       # persists a login performed inside the container itself.
       - studio-claude:/root/.claude
+      # Source PDFs staged for kei's worker (M4); the worker mounts it read-only.
+      - source-inbox:/var/lib/free/source-inbox
     networks:
       app:
       proxy:
@@ -148,6 +158,7 @@ volumes:
   studio-data:
   studio-config:
   studio-claude:
+  source-inbox:
 
 networks:
   app:

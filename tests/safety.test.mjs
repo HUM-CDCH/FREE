@@ -196,6 +196,15 @@ function assertOwnedParsingTopology(config, gpu) {
     assert.equal(service.deploy?.resources?.reservations?.devices, undefined)
   }
   assert.equal(services.parsing_service.environment.KEI_SYSTEM_DATABASE_URL, undefined)
+  // Studio stages source PDFs that kei's worker reads: one volume, written by Studio, read-only for kei, absent from
+  // the API (M4). Both processes name the same files by their path relative to the volume.
+  const inbox = (service) => (service.volumes ?? []).find(({ source }) => source === 'source-inbox')
+  assert.ok(config.volumes['source-inbox'])
+  assert.equal(inbox(services.studio)?.target, services.studio.environment.FREE_SOURCE_INBOX)
+  assert.notEqual(inbox(services.studio)?.read_only, true)
+  assert.equal(inbox(services.parsing_worker)?.target, services.parsing_worker.environment.KEI_SOURCE_INBOX)
+  assert.equal(inbox(services.parsing_worker)?.read_only, true)
+  assert.equal(inbox(services.parsing_service), undefined)
   assert.equal(services.parsing_worker.restart, 'unless-stopped')
   assert.equal(services.studio.depends_on.parsing_service.condition, 'service_healthy')
   // Extraction is served by vLLM on the GPU overlay only; no Ollama server or pull job remains.
