@@ -115,6 +115,23 @@ def convert_request(source: str, sha: str, **overrides) -> dict:
             "ingest": None, "model": None, "layout_model": None, "cut": "auto", "debug": False, **overrides}
 
 
+def converted_run(runs_root: Path, workflow_id: str, case: str = "headings") -> str:
+    """A finished conversion as prepare_run and convert_run leave it: a verified catalogue result and params.json."""
+    from tests.helpers import catalogue
+    run_id = runs.run_id_for(workflow_id)
+    directory = runs_root / run_id
+    catalogue.write(case, directory)
+    runs.write_json(directory / "params.json", {"id": run_id, "workflow_id": workflow_id,
+                                                "page_source": "pdf", "model": "surya"})
+    return run_id
+
+
+def extract_request(run_id: str, generation: str) -> dict:
+    from tests.test_extract_grounded import SCHEMA
+    return {"run_id": run_id, "generation": generation, "request": {"schema": SCHEMA, "options": {
+        "strategy": "catalog", "catalog": {"recipe": "numbered-catalogue-de@1"}}}}
+
+
 class Gate:
     """Holds chosen workflows' steps inside a native-like call until released; records when each entered and left.
     Keyed by DBOS.workflow_id, which only a sync step's own thread carries: Catalog chunk threads have none, so
