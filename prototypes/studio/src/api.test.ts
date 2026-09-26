@@ -11,6 +11,18 @@ import {
   requestSchema,
   requestSchemaEdit,
 } from './api'
+import { setModelKeyAccount } from './modelKeys/modelKeyHandoff'
+
+// This file runs without a browser storage; the handoff reads this account's one stored key from here instead.
+vi.mock('./modelKeys/modelKeyStore', () => ({
+  storedModelKeys: () => ({
+    '11111111-1111-4111-8111-111111111111': {
+      provider: 'openai-compatible',
+      baseUrl: 'https://a.example/v1',
+      key: 'sk-test-api',
+    },
+  }),
+}))
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -171,6 +183,73 @@ describe('requestSchema', () => {
       source_representation_revision_id:
         '51000000-0000-4000-8002-000000000001',
     })
+  })
+})
+
+describe('model work hands the keys over first', () => {
+  afterEach(() => setModelKeyAccount(null))
+
+  it('requestSchema and requestSchemaEdit hand the keys to Studio before their POST', async () => {
+    setModelKeyAccount('10000000-0000-4000-8000-000000000001')
+    const requests: string[] = []
+    let failHandoff = false
+    const fetch = vi.fn()
+    vi.stubGlobal(
+      'fetch',
+      fetch.mockImplementation((url: string, init: RequestInit) => {
+        requests.push(`${init.method} ${url}`)
+        if (url === '/api/model-keys')
+          return failHandoff
+            ? Promise.reject(new TypeError('Failed to fetch'))
+            : Promise.resolve(jsonResponse({ accepted: [] }))
+        return Promise.resolve(
+          url === '/api/generate_schema'
+            ? jsonResponse({ template: {}, raw: '', pages: null })
+            : jsonResponse({ status: 'proposed', fields: {}, additions: [], issues: [] }),
+        )
+      }),
+    )
+    const context = {
+      projectContextId: '51000000-0000-4000-8000-000000000001',
+      sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000001',
+    }
+    const schemaContext = {
+      ...context,
+      extractionSchemaId: '51000000-0000-4000-8003-000000000001',
+      schemaRevisionId: '51000000-0000-4000-8004-000000000001',
+    }
+
+    // The POST waits for the handoff's answer.
+    const handoff = Promise.withResolvers<Response>()
+    fetch.mockImplementationOnce((url: string, init: RequestInit) => {
+      requests.push(`${init.method} ${url}`)
+      return handoff.promise
+    })
+    const schema = requestSchema(context)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(requests).toEqual(['PUT /api/model-keys'])
+    handoff.resolve(jsonResponse({ accepted: [] }))
+    await schema
+
+    await requestSchemaEdit(schemaContext, 'Add title')
+    expect(requests).toEqual([
+      'PUT /api/model-keys',
+      'POST /api/generate_schema',
+      'PUT /api/model-keys',
+      'POST /api/edit_schema',
+    ])
+
+    // A handoff that fails still lets the model work start; Studio then waits for the key or answers model_key_required.
+    failHandoff = true
+    requests.length = 0
+    await requestSchema(context)
+    await requestSchemaEdit(schemaContext, 'Add title')
+    expect(requests).toEqual([
+      'PUT /api/model-keys',
+      'POST /api/generate_schema',
+      'PUT /api/model-keys',
+      'POST /api/edit_schema',
+    ])
   })
 })
 

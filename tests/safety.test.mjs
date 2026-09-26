@@ -335,6 +335,40 @@ test('kei role: only Studio receives the kei password, after migrations', () => 
   assert.ok(init < keiRole && keiRole < exec, 'the kei role is ensured after migrations and before Studio starts')
 })
 
+test('development enables both CLI deployment connections; the base file leaves them to the operator', () => {
+  const services = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {})).services
+  assert.equal(services.studio.environment.FREE_DEPLOYMENT_CLI_PROVIDERS, 'codex-cli,claude-code')
+
+  const base = readFileSync(resolve(ROOT, 'compose.yaml'), 'utf8')
+  assert.ok(
+    base.includes('FREE_DEPLOYMENT_CLI_PROVIDERS: "${FREE_DEPLOYMENT_CLI_PROVIDERS:-}"'),
+    'production enables a CLI provider only when the operator sets FREE_DEPLOYMENT_CLI_PROVIDERS',
+  )
+})
+
+test('app shell: the production policy is strict about script, workers and framing', async () => {
+  const { APP_SHELL_CONTENT_SECURITY_POLICY } = await import('../prototypes/studio/server/contentSecurityPolicy.ts')
+  const policy = new Map(
+    APP_SHELL_CONTENT_SECURITY_POLICY.split(';')
+      .map((directive) => directive.trim().split(/\s+/))
+      .filter(([name]) => name)
+      .map(([name, ...sources]) => [name, sources]),
+  )
+  assert.deepEqual(policy.get('script-src'), ["'self'"])
+  assert.deepEqual(policy.get('worker-src'), ["'self'"])
+  assert.deepEqual(policy.get('frame-ancestors'), ["'none'"])
+  assert.deepEqual(policy.get('object-src'), ["'none'"])
+  for (const source of policy.get('script-src'))
+    assert.ok(
+      source !== "'unsafe-inline'" && source !== "'unsafe-eval'" && !/^'sha(256|384|512)-/.test(source),
+      `script-src must not allow ${source}`,
+    )
+  assert.equal(policy.has('form-action'), false)
+
+  const staticClient = readFileSync(resolve(ROOT, 'prototypes/studio/server/static.ts'), 'utf8')
+  assert.ok(staticClient.includes('APP_SHELL_CONTENT_SECURITY_POLICY'), 'the app shell response sends the policy')
+})
+
 test('development: Studio watches shared configuration and rebuild-owned database inputs', () => {
   const result = spawnSync(
     'docker',
@@ -439,6 +473,35 @@ test('image: the shared configuration manifest precedes Studio dependency instal
     install < source,
     'workspace source must remain outside the manifest-first dependency layer',
   )
+})
+
+test('image: Studio installs no keyring and starts no D-Bus', () => {
+  const dockerfile = readFileSync(resolve(ROOT, 'prototypes/studio/Dockerfile'), 'utf8')
+  for (const forbidden of [
+    'gnome-keyring',
+    'dbus-daemon',
+    'XDG_RUNTIME_DIR',
+    'DBUS_SESSION_BUS_ADDRESS',
+  ]) {
+    assert.ok(!dockerfile.includes(forbidden), `the Studio image must not mention ${forbidden}`)
+  }
+  const entrypoint = readFileSync(resolve(ROOT, 'docker/studio-entrypoint.sh'), 'utf8')
+  for (const forbidden of ['dbus-daemon', 'gnome-keyring-daemon']) {
+    assert.ok(!entrypoint.includes(forbidden), `the Studio entrypoint must not start ${forbidden}`)
+  }
+  assert.match(entrypoint, /: "\$\{CODEX_HOME:\?CODEX_HOME must be set\}"/)
+  const manifest = JSON.parse(
+    readFileSync(resolve(ROOT, 'prototypes/studio/package.json'), 'utf8'),
+  )
+  for (const dependency of ['@napi-rs/keyring', 'env-paths']) {
+    for (const field of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+      assert.equal(
+        manifest[field]?.[dependency],
+        undefined,
+        `Studio must not depend on ${dependency}`,
+      )
+    }
+  }
 })
 
 test('proxy parity: the shared fragment renders and passes nginx -t for the host wrapper', (t) => {

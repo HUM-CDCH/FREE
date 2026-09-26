@@ -4,6 +4,7 @@ import { generateSchemaWithModel } from './_model.js'
 import { withThinkingOff } from './_provider.js'
 
 const TEMPLATE = '{"_description":"One catalogue entry","title":"string"}'
+const CALLER = { researcherAccountId: '51000000-0000-4000-8009-00000000000b' }
 const input = { document: { file: null, markdown: 'Grounded', pages: null }, instruction: '' }
 
 function completion(content: string): Response {
@@ -24,7 +25,7 @@ it('suggests a schema on a vLLM route with thinking switched off', async () => {
       return completion(TEMPLATE)
     },
   })
-  await expect(generateSchemaWithModel(input, {
+  await expect(generateSchemaWithModel(CALLER, input, {
     profile: 'general', model: provider.chatModel('Qwen/Qwen3.8-27B-FP8'), jsonOutput: 'schema', temperatureSupported: true,
   })).resolves.toMatchObject({ template: { _description: 'One catalogue entry', title: 'string' } })
   expect(requests).toHaveLength(1)
@@ -47,14 +48,14 @@ it('falls back to prompt-only JSON once per endpoint that rejects JSON mode', as
     profile: 'general' as const, model: provider.chatModel('audit'), jsonOutput: 'native' as const,
     temperatureSupported: true, automaticOutputKey: 'test-compatible-auto',
   }
-  await expect(generateSchemaWithModel(input, target)).resolves.toMatchObject({ template: { title: 'string' } })
+  await expect(generateSchemaWithModel(CALLER, input, target)).resolves.toMatchObject({ template: { title: 'string' } })
   expect(requests).toHaveLength(2)
   expect(requests[0].response_format).toMatchObject({ type: 'json_object' })
   expect(requests[1].response_format).toBeUndefined()
-  await generateSchemaWithModel(input, target)
+  await generateSchemaWithModel(CALLER, input, target)
   expect(requests).toHaveLength(3)
   expect(requests[2].response_format).toBeUndefined()
-  await generateSchemaWithModel(input, { ...target, automaticOutputKey: 'test-another-endpoint' })
+  await generateSchemaWithModel(CALLER, input, { ...target, automaticOutputKey: 'test-another-endpoint' })
   expect(requests).toHaveLength(5)
   expect(requests[3].response_format).toBeDefined()
 })
@@ -72,7 +73,7 @@ it.each([
       })
     },
   })
-  await expect(generateSchemaWithModel(input, {
+  await expect(generateSchemaWithModel(CALLER, input, {
     profile: 'general', model: provider.chatModel('audit'), jsonOutput: 'native',
     automaticOutputKey: message, temperatureSupported: true,
   })).rejects.toThrow()

@@ -6,6 +6,7 @@ import {
   markSessionSignedOut,
 } from './sessionRecovery.ts'
 import Button from '../ui/Button.tsx'
+import { clearModelKeys } from '../modelKeys/modelKeyStore.ts'
 import { browserStudioPath } from '../studioUrl.js'
 
 type AuthCardProps = {
@@ -41,11 +42,17 @@ function AuthCard({ title, description, children }: AuthCardProps) {
 }
 
 function SignOutButton() {
+  const researcherSession = useContext(ResearcherSessionContext)
+  // Studio evicts its copy of the keys at logout; this browser's copy goes here.
+  const signOut = () => {
+    markSessionSignedOut()
+    if (researcherSession) clearModelKeys(researcherSession.session.account.id)
+  }
   return (
     <form
       action={browserStudioPath('/auth/logout')}
       method="post"
-      onSubmit={markSessionSignedOut}
+      onSubmit={signOut}
     >
       <Button type="submit" variant="secondary" size="sm">
         Sign out

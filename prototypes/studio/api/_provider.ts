@@ -22,11 +22,11 @@ import type {
   ProbeStatus,
   ProviderDescriptor,
   ProviderKind,
-  SchemaSuggestionRoute,
 } from '../shared/modelConfig.contract.js'
-import { DEPLOYMENT_IDS, deploymentModels } from './_deployment_models.js'
+import { selectedRoute, usesNuextractProtocol } from '../shared/modelConfig.contract.js'
+import { deploymentModels } from './_deployment_models.js'
 import { ApiError } from './_http.js'
-import { systemCredentialStore, type CredentialStore } from './_keyring.js'
+import { requireModelKey, studioProcess, type ModelKeyCache } from './_model_keys.js'
 
 
 /** Internal adapter capability; routes always select output formatting automatically. */
@@ -46,7 +46,7 @@ type DiscoveryContext = Required<Pick<ProviderProbeDependencies, 'fetch' | 'code
   signal: AbortSignal
 }
 type DiscoveryObservation = Omit<ProbeResult, 'checkedAt'>
-type ModelFactory = (connection: ModelConnection, modelId: string, credential: string | null) => LanguageModel
+export type ModelFactory = (connection: ModelConnection, modelId: string, credential: string | null) => LanguageModel
 
 type ProviderEntry = ProviderDescriptor & {
   temperatureSupported: boolean
@@ -546,6 +546,40 @@ export const providerTable = {
   },
 } as const satisfies ProviderTable
 
+/** A factory's result as the provider-model interface; the table's factories never return a global model ID. */
+function providerModel(model: LanguageModel) {
+  if (typeof model === 'string' || model.specificationVersion !== 'v4')
+    throw new TypeError('A model factory returned no language model of the current specification.')
+  return model
+}
+
+/**
+ * A route's model for a connection with `hasKey`: the key is read inside each provider attempt and the provider
+ * client is built for that attempt alone, as the Ollama adapter already builds its client per call. A replayed step
+ * whose call is checkpointed never reaches here, so it never needs a key. The base model supplies metadata only and
+ * is never called, so an anonymous request cannot happen.
+ */
+export function keyedModel(
+  createModel: ModelFactory,
+  connection: ModelConnection,
+  modelId: string,
+  key: (signal: AbortSignal | undefined) => Promise<string>,
+): LanguageModel {
+  const attempt = async (signal: AbortSignal | undefined) => {
+    const credential = await key(signal)
+    signal?.throwIfAborted()
+    return providerModel(createModel(connection, modelId, credential))
+  }
+  return wrapLanguageModel({
+    model: providerModel(createModel(connection, modelId, null)),
+    middleware: {
+      specificationVersion: 'v4',
+      wrapGenerate: async ({ params }) => (await attempt(params.abortSignal)).doGenerate(params),
+      wrapStream: async ({ params }) => (await attempt(params.abortSignal)).doStream(params),
+    },
+  })
+}
+
 /** Serializable metadata only; backend capabilities and functions never cross HTTP. */
 export const PROVIDERS: readonly ProviderDescriptor[] = Object.values(providerTable).map(
   ({ kind, label, transport, defaultBaseUrl, authentication, supportsNuextract }) => ({
@@ -629,38 +663,25 @@ export type NuExtractExecutionTarget = {
   profile: 'nuextract'
   modelId: string
   baseUrl: string
-  authorization: string | null
+  /** The connection's key, read inside each attempt (waiting for a page to resend a missing one); `null`: anonymous. */
+  key: (signal: AbortSignal | undefined) => Promise<string | null>
   temperatureSupported: boolean
   attribution?: ModelAttribution
 }
 export type ExecutionTarget = GeneralExecutionTarget | NuExtractExecutionTarget
 
 export type RouteResolverDependencies = {
-  config?: ModelConfig
-  readConfig?: () => Promise<ModelConfig>
+  /** Whose configuration and keys the call uses: the Project Context's owner. */
+  researcherAccountId: string
+  /** The configuration whose routes and connections the call may use: its caller's, never another account's. */
+  readConfig: () => Promise<ModelConfig>
   /** The deployment's own model servers; read from the environment when omitted. */
   deployment?: DeploymentModels
-  credentialStore?: CredentialStore
+  /** Studio's in-memory key cache; the process's own when omitted. */
+  keys?: ModelKeyCache
+  /** How long an attempt waits for a page to resend a missing key; `MODEL_KEY_WAIT_MS` when omitted. */
+  keyWaitMs?: number
   modelFactories?: Partial<Record<ProviderKind, ModelFactory>>
-}
-
-
-async function resolvedCredential(
-  connection: ModelConnection,
-  store: CredentialStore,
-): Promise<string | null> {
-  const authentication = providerTable[connection.provider].authentication
-  if (authentication === 'external') return null
-  try {
-    const value = await store.get?.(connection.id)
-    // Loose null: the keyring resolves `null`, not `undefined`, for a missing entry.
-    if (value != null) return value
-    if (authentication === 'optional') return null
-  } catch (cause) {
-    if (authentication === 'optional') return null
-    throw new ApiError(503, 'keyring_unavailable', 'The operating system credential store is unavailable.', { cause })
-  }
-  throw new ApiError(409, 'invalid_model_config', 'The selected Model Connection requires a credential.')
 }
 
 const ROUTE_LABELS = { schemaSuggestion: 'Schema Suggestion', interaction: 'Interaction' } as const
@@ -668,22 +689,17 @@ const ROUTE_LABELS = { schemaSuggestion: 'Schema Suggestion', interaction: 'Inte
 export async function resolveCapabilityRoute(
   operation: ModelOperation,
   options: { temperature?: number } = {},
-  dependencies: RouteResolverDependencies = {},
+  dependencies: RouteResolverDependencies,
 ): Promise<ExecutionTarget> {
-  let config = dependencies.config
-  if (!config) {
-    if (!dependencies.readConfig) {
-      throw new ApiError(500, 'unexpected_failure', 'The model configuration reader is unavailable.')
-    }
-    config = await dependencies.readConfig()
-  }
+  const config = await dependencies.readConfig()
   const deployment = dependencies.deployment ?? deploymentModels()
-  const key = operation === 'schema-suggestion' ? 'schemaSuggestion' : 'interaction'
-  const label = ROUTE_LABELS[key]
-  // An unset route runs on the deployment's instruction model, when it serves one.
-  const route: SchemaSuggestionRoute | null = config.routes[key] ?? deployment.defaultRoute
+  const routeKey = operation === 'schema-suggestion' ? 'schemaSuggestion' : 'interaction'
+  const label = ROUTE_LABELS[routeKey]
+  // An unset Schema Suggestion route follows the Interaction Route; an unset Interaction Route runs on the
+  // deployment's instruction model, when it serves one.
+  const route = selectedRoute(config.routes, routeKey, deployment.defaultRoute)
   if (!route) {
-    throw new ApiError(409, 'invalid_model_config', `The ${label} Route is not configured.`)
+    throw new ApiError(409, 'invalid_model_config', `No model is configured for ${label}.`)
   }
   const connection = [...config.connections, ...deployment.connections].find(({ id }) => id === route.connectionId)
   if (!connection) {
@@ -693,20 +709,21 @@ export async function resolveCapabilityRoute(
   if (options.temperature !== undefined && !entry.temperatureSupported) {
     throw new ApiError(400, 'unsupported_temperature', `${entry.label} does not support an explicit temperature.`)
   }
-  // The deployment's own servers take no FREE-managed credential.
-  const credential = DEPLOYMENT_IDS.has(connection.id)
-    ? null
-    : await resolvedCredential(connection, dependencies.credentialStore ?? systemCredentialStore)
+  const keys = dependencies.keys ?? studioProcess.keys
+  // A connection without `hasKey` calls its server anonymously and one with it never does (no fallback). The key is
+  // read inside each provider attempt, so resolving a route never needs one and a replayed step never reads one.
+  const key = (signal: AbortSignal | undefined) =>
+    requireModelKey(keys, dependencies.researcherAccountId, connection, signal, dependencies.keyWaitMs)
 
-  if (route.protocol === 'nuextract') {
-    if (!entry.supportsNuextract || connection.baseUrl === null) {
+  if (routeKey === 'schemaSuggestion' && usesNuextractProtocol(entry, route.modelId)) {
+    if (connection.baseUrl === null) {
       throw new ApiError(409, 'invalid_model_config', 'The NuExtract protocol requires a vLLM Model Connection.')
     }
     return {
       profile: 'nuextract',
       modelId: route.modelId,
       baseUrl: connection.baseUrl,
-      authorization: credential === null ? null : `Bearer ${credential}`,
+      key: connection.hasKey ? key : async () => null,
       temperatureSupported: true,
       attribution: { provider: connection.provider, modelId: route.modelId },
     }
@@ -717,7 +734,7 @@ export async function resolveCapabilityRoute(
   const createModel = dependencies.modelFactories?.[connection.provider] ?? entry.createModel
   let model: LanguageModel
   try {
-    model = createModel(connection, route.modelId, credential)
+    model = connection.hasKey ? keyedModel(createModel, connection, route.modelId, key) : createModel(connection, route.modelId, null)
   } catch (cause) {
     throw new ApiError(502, 'model_operation_failed', 'The selected provider could not be initialized.', { cause })
   }
@@ -725,7 +742,7 @@ export async function resolveCapabilityRoute(
     profile: 'general',
     model,
     jsonOutput: ['anthropic', 'claude-code', 'openai-compatible', 'vllm'].includes(connection.provider) ? 'schema' : 'native',
-    automaticOutputKey: JSON.stringify([connection.id, connection.provider, connection.baseUrl, route.modelId, key]),
+    automaticOutputKey: JSON.stringify([connection.id, connection.provider, connection.baseUrl, route.modelId, routeKey]),
     temperatureSupported: entry.temperatureSupported,
     attribution: { provider: connection.provider, modelId: route.modelId },
   }

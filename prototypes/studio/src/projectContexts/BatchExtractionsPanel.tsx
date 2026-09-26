@@ -105,6 +105,7 @@ const suggestionFailureCategories: Readonly<Record<string, string>> = {
   invalid_model_config: 'Model configuration error',
   model_operation_failed: 'Model request failed',
   invalid_model_output: 'Invalid model output',
+  model_key_required: 'Model key not available',
   unexpected_failure: 'Unexpected failure',
 }
 

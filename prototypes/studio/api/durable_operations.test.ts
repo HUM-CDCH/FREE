@@ -18,6 +18,12 @@ vi.mock('./_project_operations.js', () => ({
   projectOperations: operations,
 }))
 
+const modelConfig = vi.hoisted(() => ({ configuredExtractionModels: vi.fn() }))
+vi.mock('./_model_config.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./_model_config.js')>()),
+  configuredExtractionModels: modelConfig.configuredExtractionModels,
+}))
+
 const researcherAccountId = '51000000-0000-4000-8009-000000000001'
 const projectContextId = '51000000-0000-4000-8000-000000000001'
 const sourceDocumentId = '51000000-0000-4000-8001-000000000001'
@@ -145,6 +151,22 @@ describe('durable operation APIs', () => {
     expect(response.status).toBe(202)
     expect(module.scheduleSuggestedBatch).toHaveBeenCalledWith(
       expect.objectContaining({ strategy: 'CATALOG' }),
+    )
+  })
+
+  it("runs a suggested batch on the account's configured Extraction Model Choice by default", async () => {
+    const module = moduleForSuggestedBatch()
+    runtime.createResearcherExtractions.mockReturnValue(module)
+    modelConfig.configuredExtractionModels.mockResolvedValueOnce({ fields: 'nuextract' })
+    const post = createResearcherApiHandlers({
+      researcherAccountId,
+      getBatchSchemaSuggestion: vi.fn(async () => suggestion),
+    } as unknown as ResearcherProjectStore).POST
+
+    expect((await post(runRequest())).status).toBe(202)
+    expect(modelConfig.configuredExtractionModels).toHaveBeenCalledWith(researcherAccountId)
+    expect(module.scheduleSuggestedBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ models: { fields: 'nuextract' } }),
     )
   })
 

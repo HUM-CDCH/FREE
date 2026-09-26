@@ -118,12 +118,17 @@ services:
       STUDIO_ORIGIN: "${STUDIO_ORIGIN:-https://localhost:8443}"
       STUDIO_BASE_PATH: "${STUDIO_BASE_PATH:-/free}"
       FREE_STUDIO_PROXY: trusted-proxy
+      # The CLI providers (comma-separated `codex-cli`, `claude-code`) Studio
+      # offers every researcher as read-only deployment connections. They run
+      # on this server's own CLI login and billing, so none is enabled unless
+      # the operator sets it; the development overlay enables both.
+      FREE_DEPLOYMENT_CLI_PROVIDERS: "${FREE_DEPLOYMENT_CLI_PROVIDERS:-}"
       # A Claude Code connection spawns the `claude` CLI as a subprocess; it
       # authenticates from this env var (`claude setup-token`'s own output)
       # rather than an interactive login, since the CLI's usual credential
       # storage (macOS Keychain on a developer host) isn't reachable from
-      # inside this container. Optional: unset if no Claude Code connection
-      # is configured in model-config.json.
+      # inside this container. Optional: set only if FREE_DEPLOYMENT_CLI_PROVIDERS
+      # enables the Claude Code deployment connection.
       CLAUDE_CODE_OAUTH_TOKEN: "${CLAUDE_CODE_OAUTH_TOKEN:-}"
       # FREE_STUDIO_PROXY_ADDRESS comes from the overlay: development trusts
       # the dedicated proxy network (the nginx container is its only other
@@ -156,7 +161,7 @@ services:
     volumes:
       # Canonical ingestion packages under `env-paths('FREE Studio').data`.
       - studio-data:/root/.local/share
-      # `model-config.json` under `env-paths('FREE Studio').config`.
+      # CODEX_HOME (Codex CLI login state).
       - studio-config:/root/.config
       # Claude Code CLI login state (`claude /login` or `claude setup-token`,
       # run once with `docker exec`). Not shared with the host: the host CLI's

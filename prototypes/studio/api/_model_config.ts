@@ -1,67 +1,38 @@
-import { randomUUID } from 'node:crypto'
-import { mkdir, open, readFile, rename, unlink } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
-import envPaths from 'env-paths'
+import { createModelConfigurationStore, type ModelConfigurationStore } from 'db'
 import { z } from 'zod'
 import {
   apiBaseIssue,
   modelConfigSchema,
-  type CredentialActions,
   modelConfigUpdateSchema,
   modelProbeRequestSchema,
-  type CredentialState,
   type ExtractionModelChoice,
   type ModelConfig,
   type ModelConfigUpdate,
   type ModelConnection,
   type ModelProbeRequest,
-  type ProviderKind,
 } from '../shared/modelConfig.contract.js'
 import { ApiError, boundedValidationDetails, type ValidationIssue } from './_http.js'
-import type { CredentialStore } from './_keyring.js'
 import { DEPLOYMENT_IDS } from './_deployment_models.js'
+import { studioProcess, type ModelKeyCache } from './_model_keys.js'
 import { providerTable } from './_provider.js'
 
 
 function emptyModelConfig(): ModelConfig {
-  return { connections: [], routes: { schemaSuggestion: null, interaction: null }, extractionModels: {} }
+  return {
+    connections: [],
+    routes: { schemaSuggestion: null, interaction: null },
+    extractionModels: {},
+    ingestionModels: {},
+  }
 }
 
 /** Comparison value only. Readers return a fresh document so callers cannot alias it. */
 export const EMPTY_MODEL_CONFIG: ModelConfig = emptyModelConfig()
 
 
-export type ConfigFileHandle = {
-  writeFile(contents: string, options: { encoding: 'utf8' }): Promise<void>
-  sync(): Promise<void>
-  close(): Promise<void>
-}
-
-export type ConfigFileSystem = {
-  readFile(path: string): Promise<Uint8Array>
-  mkdir(path: string, options: { recursive: true }): Promise<string | undefined | void>
-  open(path: string, flags: 'wx', mode: number): Promise<ConfigFileHandle>
-  rename(from: string, to: string): Promise<void>
-  unlink(path: string): Promise<void>
-}
-
-export const nodeFileSystem: ConfigFileSystem = {
-  readFile: (path) => readFile(path),
-  mkdir,
-  open,
-  rename,
-  unlink,
-}
-
-export type ConfigStorageOptions = { configRoot?: string; fileSystem?: ConfigFileSystem }
-
-export function modelConfigPath(configRoot: string = envPaths('FREE Studio').config): string {
-  return join(configRoot, 'model-config.json')
-}
-
-function invalidModelConfig(path: string, issues: readonly ValidationIssue[], cause?: unknown): ApiError {
-  return new ApiError(409, 'invalid_model_config', 'The saved model configuration is invalid.', {
-    details: boundedValidationDetails(path, issues),
+function invalidModelConfig(issues: readonly ValidationIssue[], cause?: unknown): ApiError {
+  return new ApiError(409, 'invalid_model_config', 'The model configuration is invalid.', {
+    details: boundedValidationDetails('config', issues),
     cause,
   })
 }
@@ -70,7 +41,6 @@ function invalidModelConfig(path: string, issues: readonly ValidationIssue[], ca
 function semanticIssues(config: ModelConfig): ValidationIssue[] {
   const issues: ValidationIssue[] = []
   const connectionById = new Map<string, ModelConnection>()
-  const cliCounts = new Map<ProviderKind, number>()
 
   config.connections.forEach((connection, index) => {
     const at = `connections.${index}`
@@ -80,17 +50,13 @@ function semanticIssues(config: ModelConfig): ValidationIssue[] {
       connectionById.set(connection.id, connection)
     }
 
-    if (providerTable[connection.provider].transport === 'cli') {
-      if (connection.baseUrl !== null) {
-        issues.push({ path: `${at}.baseUrl`, message: 'CLI providers require a null API base.' })
-      }
-      const count = (cliCounts.get(connection.provider) ?? 0) + 1
-      cliCounts.set(connection.provider, count)
-      if (count > 1) {
-        issues.push({ path: `${at}.provider`, message: 'CLI provider kinds allow only one connection.' })
-      }
+    const { authentication, transport } = providerTable[connection.provider]
+    if (transport === 'cli') {
+      issues.push({ path: `${at}.provider`, message: 'CLI providers run on the server\'s own login; the operator enables them as deployment connections.' })
       return
     }
+    if (authentication === 'managed' && !connection.hasKey)
+      issues.push({ path: `${at}.hasKey`, message: 'A hosted provider always uses a key.' })
 
     if (connection.baseUrl === null) {
       issues.push({ path: `${at}.baseUrl`, message: 'HTTP providers require an API base.' })
@@ -111,30 +77,11 @@ function semanticIssues(config: ModelConfig): ValidationIssue[] {
   const routed = (connectionId: string) => connectionById.get(connectionId) ?? (
     DEPLOYMENT_IDS.has(connectionId) ? 'deployment' : undefined
   )
-  const { schemaSuggestion, interaction } = config.routes
-  if (schemaSuggestion !== null) {
-    const connection = routed(schemaSuggestion.connectionId)
-    if (!connection) {
-      issues.push({
-        path: 'routes.schemaSuggestion.connectionId',
-        message: 'Route must reference an existing connection.',
-      })
-    } else if (
-      schemaSuggestion.protocol === 'nuextract' &&
-      connection !== 'deployment' &&
-      !providerTable[connection.provider].supportsNuextract
-    ) {
-      issues.push({
-        path: 'routes.schemaSuggestion.protocol',
-        message: 'The NuExtract protocol requires a vLLM connection.',
-      })
+  for (const key of ['schemaSuggestion', 'interaction'] as const) {
+    const route = config.routes[key]
+    if (route !== null && !routed(route.connectionId)) {
+      issues.push({ path: `routes.${key}.connectionId`, message: 'Route must reference an existing connection.' })
     }
-  }
-  if (interaction !== null && !routed(interaction.connectionId)) {
-    issues.push({
-      path: 'routes.interaction.connectionId',
-      message: 'Route must reference an existing connection.',
-    })
   }
 
   return issues
@@ -147,12 +94,13 @@ function zodIssues(error: z.ZodError): ValidationIssue[] {
   }))
 }
 
-export function validateModelConfig(value: unknown, path: string): ModelConfig {
+/** The contract every stored document obeys: its shape plus the rules across connections and routes. */
+export function validateModelConfig(value: unknown): ModelConfig {
   const parsed = modelConfigSchema.safeParse(value)
-  if (!parsed.success) throw invalidModelConfig(path, zodIssues(parsed.error), parsed.error)
+  if (!parsed.success) throw invalidModelConfig(zodIssues(parsed.error), parsed.error)
 
   const issues = semanticIssues(parsed.data)
-  if (issues.length > 0) throw invalidModelConfig(path, issues)
+  if (issues.length > 0) throw invalidModelConfig(issues)
   return parsed.data
 }
 
@@ -163,9 +111,7 @@ function invalidSubmitted(issues: readonly ValidationIssue[]): ApiError {
 }
 
 /** A malformed request is `400`; a well-formed one describing invalid state is `409`. */
-export function parseModelConfigUpdate(
-  value: unknown,
-): ModelConfigUpdate & { credentials: CredentialActions } {
+export function parseModelConfigUpdate(value: unknown): ModelConfigUpdate {
   const parsed = modelConfigUpdateSchema.safeParse(value)
   if (!parsed.success) {
     throw new ApiError(400, 'invalid_request', 'The request is invalid.', {
@@ -174,29 +120,24 @@ export function parseModelConfigUpdate(
     })
   }
 
-  // The submitted document is whole, so duplicate IDs, CLI singletons, API bases
-  // and dangling routes are all decidable here, by the same rules a saved one obeys.
+  // The submitted document is whole, so duplicate IDs, CLI connections, keys, API
+  // bases and dangling routes are all decidable here, by the same rules a saved one obeys.
   const issues = semanticIssues(parsed.data.config)
   if (issues.length > 0) {
     throw invalidSubmitted(issues.map((issue) => ({ ...issue, path: `config.${issue.path}` })))
   }
-  return { config: parsed.data.config, credentials: parsed.data.credentials ?? {} }
+  return { config: parsed.data.config }
 }
 
-/** Probe request syntax is structural; connection-contract violations are semantic. */
+/**
+ * Probe request syntax is structural; connection-contract violations are semantic. A probe may carry a key, and Zod
+ * issue paths and messages can echo a key placed under an unexpected property, so a malformed probe gets one fixed
+ * answer with no details and no cause.
+ */
 export function parseModelProbeRequest(value: unknown): ModelProbeRequest {
   const parsed = modelProbeRequestSchema.safeParse(value)
-  if (!parsed.success) {
-    throw new ApiError(400, 'invalid_request', 'The request is invalid.', {
-      details: boundedValidationDetails('request', zodIssues(parsed.error)),
-      cause: parsed.error,
-    })
-  }
-  const issues = semanticIssues({
-    connections: [parsed.data.connection],
-    routes: { schemaSuggestion: null, interaction: null },
-    extractionModels: {},
-  })
+  if (!parsed.success) throw new ApiError(400, 'invalid_request', 'The request is invalid.')
+  const issues = semanticIssues({ ...emptyModelConfig(), connections: [parsed.data.connection] })
   if (issues.length > 0) {
     throw invalidSubmitted(
       issues.map((issue) => ({
@@ -208,262 +149,66 @@ export function parseModelProbeRequest(value: unknown): ModelProbeRequest {
   return parsed.data
 }
 
-function isMissingFile(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
+let processConfigurations: ModelConfigurationStore | undefined
+/** The process's configuration store. Each Researcher Account owns one document (decision 6). */
+export function modelConfigurations(): ModelConfigurationStore {
+  return (processConfigurations ??= createModelConfigurationStore())
 }
 
-/** An absent file is the valid empty configuration. Anything else fails closed. */
-export async function readModelConfig(options: ConfigStorageOptions = {}): Promise<ModelConfig> {
-  const fileSystem = options.fileSystem ?? nodeFileSystem
-  const path = modelConfigPath(options.configRoot)
-
-  let bytes: Uint8Array
-  try {
-    bytes = await fileSystem.readFile(path)
-  } catch (error) {
-    if (isMissingFile(error)) return emptyModelConfig()
-    throw new ApiError(500, 'storage_failure', 'The model configuration could not be read.', {
-      cause: error,
-    })
-  }
-
-  let contents: string
-  try {
-    contents = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-  } catch (error) {
-    throw invalidModelConfig(path, [{ path: '', message: 'Document must contain valid UTF-8.' }], error)
-  }
-
-  let document: unknown
-  try {
-    document = JSON.parse(contents)
-  } catch (error) {
-    throw invalidModelConfig(path, [{ path: '', message: 'Document must contain valid JSON.' }], error)
-  }
-  return validateModelConfig(document, path)
-}
-
-/**
- * Removes the saved document so the next read is the empty configuration. The
- * one way back from a document this Studio cannot read; credentials it named
- * stay in the keyring under UUIDs no new connection reuses.
- */
-export async function resetModelConfig(options: ConfigStorageOptions = {}): Promise<void> {
-  const fileSystem = options.fileSystem ?? nodeFileSystem
-  try {
-    await fileSystem.unlink(modelConfigPath(options.configRoot))
-  } catch (error) {
-    if (isMissingFile(error)) return
-    throw new ApiError(500, 'storage_failure', 'The model configuration could not be reset.', { cause: error })
-  }
-}
-
-/** Flushed sibling temporary then rename, so the document is never half-written. */
-export async function writeModelConfig(
-  config: unknown,
-  options: ConfigStorageOptions = {},
+/** The account's configuration, or the empty one before its first Apply. Validation on write keeps the stored
+ *  document valid, so one that fails here is a server fault: 500, with no details. */
+export async function readAccountModelConfig(
+  researcherAccountId: string,
+  source: ModelConfigurationStore = modelConfigurations(),
 ): Promise<ModelConfig> {
-  const fileSystem = options.fileSystem ?? nodeFileSystem
-  const path = modelConfigPath(options.configRoot)
-  const validated = validateModelConfig(config, path)
-  const directory = dirname(path)
-  const temporaryPath = join(directory, `.${basename(path)}.${randomUUID()}.tmp`)
-  let handle: ConfigFileHandle | undefined
+  const stored = await source.read(researcherAccountId)
+  if (stored === null) return emptyModelConfig()
+  return storedModelConfig(stored)
+}
 
+function storedModelConfig(stored: unknown): ModelConfig {
   try {
-    await fileSystem.mkdir(directory, { recursive: true })
-    handle = await fileSystem.open(temporaryPath, 'wx', 0o600)
-    await handle.writeFile(`${JSON.stringify(validated, null, 2)}\n`, { encoding: 'utf8' })
-    await handle.sync()
-    await handle.close()
-    handle = undefined
-    await fileSystem.rename(temporaryPath, path)
-  } catch (error) {
-    // The original failure stays authoritative; cleanup is best effort.
-    await handle?.close().catch(() => undefined)
-    await fileSystem.unlink(temporaryPath).catch(() => undefined)
-    throw new ApiError(500, 'storage_failure', 'The model configuration could not be saved.', {
-      cause: error,
-    })
+    return validateModelConfig(stored)
+  } catch {
+    throw new ApiError(500, 'invalid_model_config', 'The saved model configuration is invalid.')
   }
-  return validated
+}
+
+/** A connection's provider is fixed once it is added: delete it and add a new one instead. */
+function providerChangeIssues(previous: ModelConfig, config: ModelConfig): ValidationIssue[] {
+  const before = new Map(previous.connections.map((connection) => [connection.id, connection.provider]))
+  return config.connections.flatMap((connection, index) =>
+    before.has(connection.id) && before.get(connection.id) !== connection.provider
+      ? [{ path: `config.connections.${index}.provider`, message: 'An existing connection cannot change provider kind. Delete it and create a new UUID.' }]
+      : [])
 }
 
 /**
- * Externally authenticated connections are absent from the map entirely: FREE
- * manages no credential for them, and CLI login is a probe concern.
- *
- * Reporting state is best effort by design, so a keyring failure degrades to
- * `unavailable` here. The mutating paths below take the opposite policy and fail
- * with `503`, because a save that silently skipped the keyring would be a lie.
+ * The account's configuration row stays locked from reading the previous document to committing the new one, so one
+ * account's Applies run one at a time and each sees the previous commit. The document never holds a key: Studio's
+ * copies live in `keys`, which follows the committed connections afterwards.
  */
-export async function credentialStates(
-  config: ModelConfig,
-  store: CredentialStore,
-): Promise<Record<string, CredentialState>> {
-  const states: Record<string, CredentialState> = {}
-  for (const connection of config.connections) {
-    if (providerTable[connection.provider].authentication === 'external') continue
-    try {
-      states[connection.id] = await store.state(connection.id)
-    } catch {
-      states[connection.id] = 'unavailable'
-    }
-  }
-  return states
-}
-
-export type ModelConfigUpdateOptions = ConfigStorageOptions & { credentialStore: CredentialStore }
-
-async function requireKeyring<T>(operation: () => Promise<T>): Promise<T> {
-  try {
-    return await operation()
-  } catch (cause) {
-    throw new ApiError(503, 'keyring_unavailable', 'The operating system credential store is unavailable.', {
-      cause,
-    })
-  }
-}
-
-/** Every issue decidable without the keyring, collected so one response reports them all. */
-function updateIssues(
-  previous: ModelConfig,
-  config: ModelConfig,
-  credentials: CredentialActions,
-): ValidationIssue[] {
-  const issues: ValidationIssue[] = []
-  const previousById = new Map(previous.connections.map((connection) => [connection.id, connection]))
-  const submittedById = new Map(config.connections.map((connection) => [connection.id, connection]))
-
-  config.connections.forEach((connection, index) => {
-    const before = previousById.get(connection.id)
-    if (before && before.provider !== connection.provider) {
-      issues.push({
-        path: `config.connections.${index}.provider`,
-        message: 'An existing connection cannot change provider kind. Delete it and create a new UUID.',
-      })
-    }
-    const managed =
-      providerTable[connection.provider].authentication === 'managed'
-    const credentialBoundaryChanged =
-      !before || before.baseUrl !== connection.baseUrl
-    if (
-      managed &&
-      credentialBoundaryChanged &&
-      !Object.hasOwn(credentials, connection.id)
-    )
-      issues.push({
-        path: `credentials.${connection.id}`,
-        message:
-          'A new or re-addressed managed connection requires an explicit credential.',
-      })
-  })
-
-  for (const [id, action] of Object.entries(credentials)) {
-    const connection = submittedById.get(id)
-    if (!connection) {
-      issues.push({ path: `credentials.${id}`, message: 'Credential actions must name a submitted connection.' })
-      continue
-    }
-    const { authentication } = providerTable[connection.provider]
-    if (authentication === 'external') {
-      issues.push({
-        path: `credentials.${id}`,
-        message: 'Externally authenticated providers have no FREE-managed credential.',
-      })
-    } else if (authentication === 'managed' && action === null) {
-      issues.push({ path: `credentials.${id}`, message: 'This provider requires a credential.' })
-    }
-  }
-  return issues
-}
-
-/**
- * A `managed` provider left out of the actions keeps whatever the keyring holds,
- * so this is the one validation step that has to ask the keyring.
- */
-async function requireManagedCredentials(
-  config: ModelConfig,
-  credentials: CredentialActions,
-  store: CredentialStore,
-): Promise<void> {
-  const issues: ValidationIssue[] = []
-  for (const { id, provider } of config.connections) {
-    if (providerTable[provider].authentication !== 'managed') continue
-    if (Object.hasOwn(credentials, id)) continue
-    if ((await requireKeyring(() => store.state(id))) === 'absent') {
-      issues.push({ path: `credentials.${id}`, message: 'This provider requires a credential.' })
-    }
-  }
-  if (issues.length > 0) throw invalidSubmitted(issues)
-}
-
-async function clearImplicitOptionalCredentials(
-  previous: ModelConfig,
-  config: ModelConfig,
-  credentials: CredentialActions,
-  store: CredentialStore,
-): Promise<void> {
-  const previousById = new Map(
-    previous.connections.map((connection) => [connection.id, connection]),
-  )
-  for (const connection of config.connections) {
-    const before = previousById.get(connection.id)
-    if (
-      providerTable[connection.provider].authentication === 'optional' &&
-      !Object.hasOwn(credentials, connection.id) &&
-      (!before || before.baseUrl !== connection.baseUrl)
-    )
-      await requireKeyring(() => store.delete(connection.id))
-  }
-}
-
-/**
- * Credentials move before the JSON commit so a committed route can never name a
- * credential that was never stored. The two stores cannot commit together: a
- * failure between them leaves the new credential beside the old configuration,
- * which the next successful Apply overwrites. No rollback, no action journal.
- */
-export async function updateModelConfig(
+export async function applyAccountModelConfig(
   value: unknown,
-  options: ModelConfigUpdateOptions,
-): Promise<{ config: ModelConfig; credentialStates: Record<string, CredentialState> }> {
-  const { config, credentials } = parseModelConfigUpdate(value)
-  const store = options.credentialStore
-  const previous = await readModelConfig(options)
-
-  const issues = updateIssues(previous, config, credentials)
-  if (issues.length > 0) throw invalidSubmitted(issues)
-  await requireManagedCredentials(config, credentials, store)
-  await clearImplicitOptionalCredentials(
-    previous,
-    config,
-    credentials,
-    store,
-  )
-
-  for (const [id, action] of Object.entries(credentials)) {
-    await requireKeyring(() => (action === null ? store.delete(id) : store.set(id, action)))
-  }
-
-  const committed = await writeModelConfig(config, options)
-
-  // Past the commit the JSON is authoritative. Reusing a removed UUID cannot
-  // reactivate a leftover credential: managed/new endpoints require an explicit
-  // credential, while optional/new endpoints delete any leftover before commit.
-  const submitted = new Set(config.connections.map(({ id }) => id))
-  for (const { id, provider } of previous.connections) {
-    if (submitted.has(id) || providerTable[provider].authentication === 'external') continue
-    await store.delete(id).catch(() => undefined)
-  }
-
-  return { config: committed, credentialStates: await credentialStates(committed, store) }
+  options: Readonly<{ researcherAccountId: string; store?: ModelConfigurationStore; keys?: Pick<ModelKeyCache, 'retain'> }>,
+): Promise<ModelConfig> {
+  const { config } = parseModelConfigUpdate(value)
+  await (options.store ?? modelConfigurations()).apply(options.researcherAccountId, (stored) => {
+    const previous = stored === null ? emptyModelConfig() : storedModelConfig(stored)
+    const issues = providerChangeIssues(previous, config)
+    if (issues.length > 0) throw invalidSubmitted(issues)
+    return config
+  })
+  // A removed or re-addressed connection's cached key goes now; a call already under way finishes.
+  ;(options.keys ?? studioProcess.keys).retain(options.researcherAccountId, config.connections)
+  return config
 }
 
 /** The configured Extraction Model Choice, or `null` when every role keeps kei-exp's default. */
 export async function configuredExtractionModels(
-  options: ConfigStorageOptions = {},
+  researcherAccountId: string,
+  source: ModelConfigurationStore = modelConfigurations(),
 ): Promise<ExtractionModelChoice | null> {
-  const { extractionModels } = await readModelConfig(options)
+  const { extractionModels } = await readAccountModelConfig(researcherAccountId, source)
   return extractionModels.fields || extractionModels.reasoning ? extractionModels : null
 }

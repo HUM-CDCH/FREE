@@ -2,10 +2,9 @@
 # `packages/db` directly, so the image needs the whole pnpm workspace.
 FROM node:24-bookworm-slim
 
-# `@napi-rs/keyring` is native and reaches the Secret Service over D-Bus, so
-# FREE-managed Model Connection credentials need a keyring inside the container.
+# Model providers and the OIDC issuer are reached over TLS, which needs the CA bundle.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates dbus-daemon gnome-keyring \
+        ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # The provider starts the package-local Codex executable from an isolated
@@ -57,10 +56,6 @@ ENV NODE_ENV=production
 COPY docker/studio-entrypoint.sh /usr/local/bin/studio-entrypoint
 RUN sed -i 's/\r$//' /usr/local/bin/studio-entrypoint \
     && chmod +x /usr/local/bin/studio-entrypoint
-
-# The keyring daemon needs both; the entrypoint creates the directory and socket.
-ENV XDG_RUNTIME_DIR=/tmp/free-keyring-runtime \
-    DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/free-keyring-runtime/bus
 
 EXPOSE 5173
 ENTRYPOINT ["/usr/local/bin/studio-entrypoint"]

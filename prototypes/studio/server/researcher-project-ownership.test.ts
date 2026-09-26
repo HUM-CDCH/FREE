@@ -695,6 +695,8 @@ function researcherModule(factory: ResearcherApiHandlerFactory) {
 }
 
 
+const defaultExtractionModels = async () => null
+
 function ownershipRegistry(fixture: TwoAccountStores) {
   return createApiHandlerRegistry({
     '../api/project_contexts.ts': researcherModule((store) => ({
@@ -743,12 +745,15 @@ function ownershipRegistry(fixture: TwoAccountStores) {
     '../api/document_reopen.ts': researcherModule(
       createDocumentReopenHandlers,
     ),
-    '../api/extractions.ts': researcherModule(createExtractionHandlers),
-    '../api/batch_extractions.ts': researcherModule(
-      createBatchExtractionHandlers,
+    // Every account runs on kei-exp's default models; the process configuration store is never read.
+    '../api/extractions.ts': researcherModule((store) =>
+      createExtractionHandlers(store, { extractionModels: defaultExtractionModels }),
     ),
-    '../api/batch_schema_suggestions.ts': researcherModule(
-      createBatchSuggestionHandlers,
+    '../api/batch_extractions.ts': researcherModule((store) =>
+      createBatchExtractionHandlers(store, { extractionModels: defaultExtractionModels }),
+    ),
+    '../api/batch_schema_suggestions.ts': researcherModule((store) =>
+      createBatchSuggestionHandlers(store, { extractionModels: defaultExtractionModels }),
     ),
   })
 }

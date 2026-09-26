@@ -1,4 +1,4 @@
-import type { CredentialState, ModelConnection, ProviderDescriptor, ProviderKind } from '../../shared/modelConfig.contract'
+import type { ModelConnection, ProviderDescriptor } from '../../shared/modelConfig.contract'
 import { Button, Pill } from '../ui'
 import type { ProbeView } from './useProbeLifecycle'
 
@@ -13,28 +13,33 @@ const tones = {
 type Props = {
   connection: ModelConnection
   provider: ProviderDescriptor
-  providers: readonly ProviderDescriptor[]
-  saved: boolean
-  credentialState: CredentialState
-  credentialAction: string | null | undefined
+  /** This browser holds a key for the connection's current provider and base, and the draft keeps it. */
+  keySaved: boolean
+  /** The key typed in this draft; '' when none. */
+  typedKey: string
+  /** The saved key is being replaced: the input shows instead of the saved-key line. */
+  replacing: boolean
   probe: ProbeView
-  onUpdate: (change: Partial<Pick<ModelConnection, 'name' | 'baseUrl'>>, probeInput: boolean) => void
-  onProviderChange: (kind: ProviderKind) => void
-  onCredentialChange: (action: string | null | undefined) => void
+  onUpdate: (change: Partial<Pick<ModelConnection, 'name' | 'baseUrl'>>) => void
+  onReplaceKey: () => void
+  onKeyChange: (key: string) => void
+  onRemoveKey: () => void
+  onUseWithoutKey: () => void
   onRemove: () => void
 }
 
 export function ProviderConnectionCard({
   connection,
   provider,
-  providers,
-  saved,
-  credentialState,
-  credentialAction,
+  keySaved,
+  typedKey,
+  replacing,
   probe,
   onUpdate,
-  onProviderChange,
-  onCredentialChange,
+  onReplaceKey,
+  onKeyChange,
+  onRemoveKey,
+  onUseWithoutKey,
   onRemove,
 }: Props) {
   const tone = probe.phase === 'done' ? (probe.result.status === 'connected' ? 'ok' : 'err') : probe.phase === 'error' ? 'err' : 'warn'
@@ -45,6 +50,7 @@ export function ProviderConnectionCard({
       : probe.phase === 'error'
         ? probe.message
         : 'Not checked this session.'
+  const showSavedKey = keySaved && !replacing && typedKey === ''
 
   return (
     <article className="rounded-xl border border-line bg-surface p-3.5">
@@ -58,36 +64,34 @@ export function ProviderConnectionCard({
       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
         <label className="flex flex-col gap-1">
           <span className="font-mono text-[9px] font-semibold uppercase text-ink-muted">Display name</span>
-          <input value={connection.name} onChange={(event) => onUpdate({ name: event.target.value }, false)} className={providerFieldClass} />
+          <input value={connection.name} onChange={(event) => onUpdate({ name: event.target.value })} className={providerFieldClass} />
         </label>
-        {!saved && (
-          <label className="flex flex-col gap-1">
-            <span className="font-mono text-[9px] font-semibold uppercase text-ink-muted">Provider</span>
-            <select aria-label={`${connection.name} provider`} value={connection.provider} onChange={(event) => onProviderChange(event.target.value as ProviderKind)} className={`${providerFieldClass} cursor-pointer`}>
-              {providers.map((item) => <option key={item.kind} value={item.kind}>{item.label}</option>)}
-            </select>
-          </label>
-        )}
         {provider.transport === 'http' && (
           <label className="flex flex-col gap-1">
             <span className="font-mono text-[9px] font-semibold uppercase text-ink-muted">Provider base URL</span>
-            <input value={connection.baseUrl ?? ''} onChange={(event) => onUpdate({ baseUrl: event.target.value }, true)} className={`font-mono ${providerFieldClass}`} />
+            <input value={connection.baseUrl ?? ''} onChange={(event) => onUpdate({ baseUrl: event.target.value })} className={`font-mono ${providerFieldClass}`} />
           </label>
         )}
       </div>
-      {provider.authentication !== 'external' && (
+      {provider.authentication !== 'external' && (showSavedKey ? (
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <span className="text-[11px] text-ink-muted">Key saved in this browser</span>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={onReplaceKey}>Replace</Button>
+            <Button variant="secondary" size="sm" onClick={onRemoveKey}>Remove</Button>
+          </div>
+        </div>
+      ) : (
         <div className="mt-2 grid grid-cols-1 items-end gap-2 md:grid-cols-[1fr_auto]">
           <label className="flex flex-col gap-1">
-            <span className="font-mono text-[9px] font-semibold uppercase text-ink-muted">{provider.authentication === 'managed' ? 'API credential' : 'API credential (optional)'}</span>
-            <input type="text" autoComplete="off" data-1p-ignore value={typeof credentialAction === 'string' ? credentialAction : ''} onChange={(event) => onCredentialChange(event.target.value || undefined)} placeholder={credentialState === 'present' ? 'Stored credential will be preserved' : 'Enter a credential'} className={`font-mono [-webkit-text-security:disc] ${providerFieldClass}`} />
+            <span className="font-mono text-[9px] font-semibold uppercase text-ink-muted">{provider.authentication === 'managed' ? 'API key' : 'API key (optional)'}</span>
+            <input type="password" autoComplete="off" data-1p-ignore value={typedKey} onChange={(event) => onKeyChange(event.target.value)} placeholder={connection.hasKey ? 'Enter a key' : 'Used without a key'} className={`font-mono ${providerFieldClass}`} />
           </label>
-          <div className="flex gap-2">
-            {credentialState === 'present' && credentialAction !== null && <Button variant="secondary" size="sm" onClick={() => onCredentialChange(null)}>Remove credential</Button>}
-            {credentialAction !== undefined && <Button variant="secondary" size="sm" onClick={() => onCredentialChange(undefined)}>Preserve stored value</Button>}
-          </div>
-          {credentialState === 'unavailable' && <p className="text-[11px] text-danger">Credential store unavailable.</p>}
+          {provider.authentication === 'optional' && connection.hasKey && !keySaved && typedKey === '' && (
+            <Button variant="secondary" size="sm" onClick={onUseWithoutKey}>Use without a key</Button>
+          )}
         </div>
-      )}
+      ))}
       <p className={`mt-2 whitespace-pre-line text-[11px] ${tones[tone].text}`}>{statusText}</p>
     </article>
   )

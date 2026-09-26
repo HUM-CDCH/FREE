@@ -1,8 +1,8 @@
 import { expect, test, type APIRequestContext } from '@playwright/test'
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
-import { join, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import {
   createCanonicalPackageStore,
   packCanonicalPackage,
@@ -114,13 +114,6 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     'DATABASE_URL must equal the disposable EXTRACTION_TEST_DATABASE_URL',
   )
 
-  const configHome = resolve(import.meta.dirname, '../test-results/config-home')
-  const configRoot =
-    process.platform === 'win32'
-      ? join(configHome, 'FREE Studio-nodejs', 'Config')
-      : join(configHome, 'FREE Studio-nodejs')
-  await rm(configHome, { recursive: true, force: true })
-
   let omitGrounding = false
   let blockNextValues = false
   let blockNextResult = false
@@ -205,30 +198,6 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
   const address = modelServer.address()
   if (!address || typeof address === 'string') throw new Error('The kei-exp fixture did not start.')
   const connectionId = randomUUID()
-  await mkdir(configRoot, { recursive: true })
-  await writeFile(
-    join(configRoot, 'model-config.json'),
-    JSON.stringify({
-      connections: [
-        {
-          id: connectionId,
-          name: 'Article lifecycle fixture',
-          provider: 'ollama',
-          baseUrl: `http://127.0.0.1:${address.port}`,
-        },
-      ],
-      routes: {
-        schemaSuggestion: {
-          connectionId,
-          modelId: 'fixture/nuextract',
-        },
-        interaction: null,
-      },
-      // The deployment-wide Extraction Model Choice every run is requested on.
-      extractionModels: { fields: 'instruct' },
-    }),
-    'utf8',
-  )
 
   try {
   const projectContextId = randomUUID()
@@ -251,6 +220,30 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     tenantId: DEVELOPMENT_ENTRA_TENANT_ID,
     objectId: researcherObjectId,
     displayName: 'Canonical Evidence Researcher',
+  })
+  await db.orm.public.ModelConfiguration.create({
+    researcherAccountId,
+    document: {
+      connections: [
+        {
+          id: connectionId,
+          name: 'Article lifecycle fixture',
+          provider: 'ollama',
+          baseUrl: `http://127.0.0.1:${address.port}`,
+          hasKey: false,
+        },
+      ],
+      routes: {
+        schemaSuggestion: {
+          connectionId,
+          modelId: 'fixture/nuextract',
+        },
+        interaction: null,
+      },
+      // The researcher's Extraction Model Choice every run is requested on.
+      extractionModels: { fields: 'instruct' },
+      ingestionModels: {},
+    },
   })
   await db.orm.public.ProjectContext.create({
     id: projectContextId,
@@ -852,6 +845,5 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
     await new Promise<void>((resolveClose, reject) =>
       modelServer.close((error) => (error ? reject(error) : resolveClose())),
     )
-    await rm(configHome, { recursive: true, force: true })
   }
 })

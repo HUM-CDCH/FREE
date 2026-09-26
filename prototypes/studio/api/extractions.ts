@@ -70,7 +70,7 @@ export function createResearcherApiHandlers(
   Record<string, (request: Request) => Response | Promise<Response>>
 > {
   const module = createResearcherExtractions(store.researcherAccountId)
-  const extractionModels = dependencies.extractionModels ?? (() => configuredExtractionModels())
+  const extractionModels = dependencies.extractionModels ?? (() => configuredExtractionModels(store.researcherAccountId))
   async function create(request: Request): Promise<Response> {
     const parsed = extractionRequestSchema.safeParse(
       await parseJsonRequest(request),

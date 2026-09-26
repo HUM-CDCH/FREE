@@ -24,6 +24,9 @@ export const modelConnectionSchema = z
     name: z.string().min(1, 'Must not be empty.'),
     provider: providerKindSchema,
     baseUrl: z.string().min(1).nullable(),
+    /** Whether calls to this connection carry a key. The key stays in the researcher's browser and, while a call needs
+     *  it, in Studio's memory; never in this document. Managed providers always have one; deployment connections never. */
+    hasKey: z.boolean(),
   })
   .strict()
 export type ModelConnection = z.infer<typeof modelConnectionSchema>
@@ -32,12 +35,6 @@ export const routeSchema = z
   .object({ connectionId: uuidSchema, modelId: z.string().min(1, 'Must not be empty.') })
   .strict()
 export type Route = z.infer<typeof routeSchema>
-
-/** NuExtract's own chat-template controls, which only a vLLM connection passes through. */
-export const schemaSuggestionRouteSchema = routeSchema
-  .extend({ protocol: z.literal('nuextract').optional() })
-  .strict()
-export type SchemaSuggestionRoute = z.infer<typeof schemaSuggestionRouteSchema>
 
 /** A kei-exp extraction model key (`instruct`, `nuextract`, ...): a registry key of the kei-exp deployment, never a
  *  repo id and never a FREE Model Connection's model. */
@@ -50,27 +47,48 @@ export const extractionModelChoiceSchema = z
   .strict()
 export type ExtractionModelChoice = z.infer<typeof extractionModelChoiceSchema>
 
+/** The roles of kei's `GET /api/ingestion-models`: the model that reads a scanned page, and the detector that finds
+ *  its layout. */
+export const INGESTION_MODEL_ROLES = ['ocr', 'layout'] as const
+export const ingestionModelRoleSchema = z.enum(INGESTION_MODEL_ROLES)
+export type IngestionModelRole = z.infer<typeof ingestionModelRoleSchema>
+/** A kei model key: a `kei_exp.models.MODELS` key for `ocr`, a `LAYOUT_MODELS` key for `layout`. Never a Model
+ *  Connection's model. */
+export const ingestionModelKeySchema = z.string().min(1).max(128)
+/** An Ingestion Model Choice: per role, the kei model key a conversion runs. An omitted role keeps kei's deployment
+ *  default. Any key is stored: kei refuses one it does not serve when it converts, so a saved choice the listing no
+ *  longer offers stays saved. */
+export const ingestionModelChoiceSchema = z
+  .object({ ocr: ingestionModelKeySchema.optional(), layout: ingestionModelKeySchema.optional() })
+  .strict()
+export type IngestionModelChoice = z.infer<typeof ingestionModelChoiceSchema>
+
 export const modelConfigSchema = z
   .object({
     connections: z.array(modelConnectionSchema),
     routes: z
       .object({
-        schemaSuggestion: schemaSuggestionRouteSchema.nullable(),
+        /** `null` follows the Interaction Route (the Assistant model). */
+        schemaSuggestion: routeSchema.nullable(),
         interaction: routeSchema.nullable(),
       })
       .strict(),
     extractionModels: extractionModelChoiceSchema,
+    ingestionModels: ingestionModelChoiceSchema,
   })
   .strict()
 export type ModelConfig = z.infer<typeof modelConfigSchema>
 
 /**
- * Model servers the deployment itself runs. Their UUIDs are reserved: a saved
- * route may name one, a saved connection may not reuse one.
+ * Model connections the deployment itself provides: its vLLM servers and the
+ * CLI providers the operator enables. Their UUIDs are reserved: a saved route
+ * may name one, a saved connection may not reuse one.
  */
 export const DEPLOYMENT_CONNECTION_IDS = {
   instruct: '00000000-0000-4000-8000-00000000d001',
   nuextract: '00000000-0000-4000-8000-00000000d002',
+  codexCli: '00000000-0000-4000-8000-00000000d003',
+  claudeCode: '00000000-0000-4000-8000-00000000d004',
 } as const
 export const deploymentModelsSchema = z
   .object({
@@ -81,21 +99,12 @@ export const deploymentModelsSchema = z
   .strict()
 export type DeploymentModels = z.infer<typeof deploymentModelsSchema>
 
-export const modelConfigUpdateSchema = z
-  .object({
-    config: modelConfigSchema,
-    credentials: z
-      .record(uuidSchema, z.string().min(1, 'Must not be empty.').nullable())
-      .optional(),
-  })
-  .strict()
+export const modelConfigUpdateSchema = z.object({ config: modelConfigSchema }).strict()
 export type ModelConfigUpdate = z.infer<typeof modelConfigUpdateSchema>
 
+/** A probe carries exactly the key the page typed or holds for the connection, and only when it has `hasKey`. */
 export const modelProbeRequestSchema = z
-  .object({
-    connection: modelConnectionSchema,
-    credential: z.string().min(1, 'Must not be empty.').nullable().optional(),
-  })
+  .object({ connection: modelConnectionSchema, credential: z.string().min(1).max(8192).optional() })
   .strict()
 export type ModelProbeRequest = z.infer<typeof modelProbeRequestSchema>
 
@@ -111,10 +120,11 @@ export const providerDescriptorSchema = z
   .strict()
 export type ProviderDescriptor = z.infer<typeof providerDescriptorSchema>
 
-export const credentialStateSchema = z.enum(['present', 'absent', 'unavailable'])
-export type CredentialState = z.infer<typeof credentialStateSchema>
-/** Omitted ID preserves, non-empty string replaces, `null` deletes. */
-export type CredentialActions = Record<string, string | null>
+/** Studio uses NuExtract's own protocol exactly when a route's connection can pass NuExtract's chat-template
+ *  controls (vLLM) and its model ID names NuExtract. Only Schema Suggestion runs it. Nothing stores this choice. */
+export function usesNuextractProtocol(provider: Pick<ProviderDescriptor, 'supportsNuextract'>, modelId: string): boolean {
+  return provider.supportsNuextract && /nuextract/i.test(modelId)
+}
 
 export const modelDescriptorSchema = z.object({ id: z.string(), label: z.string() }).strict()
 export type ModelDescriptor = z.infer<typeof modelDescriptorSchema>
@@ -141,12 +151,7 @@ export const probeResultSchema = z
   .strict()
 export type ProbeResult = z.infer<typeof probeResultSchema>
 
-export const modelConfigStateSchema = z
-  .object({
-    config: modelConfigSchema,
-    credentialStates: z.record(z.string(), credentialStateSchema),
-  })
-  .strict()
+export const modelConfigStateSchema = z.object({ config: modelConfigSchema }).strict()
 export type ModelConfigState = z.infer<typeof modelConfigStateSchema>
 
 export const getModelConfigResponseSchema = modelConfigStateSchema
@@ -172,6 +177,14 @@ export const validationDetailsSchema = z
 export type ValidationDetails = z.infer<typeof validationDetailsSchema>
 
 export type RouteKey = keyof ModelConfig['routes']
+
+/** Schema Suggestion's own route, else the Assistant model's (the Interaction Route), else the deployment default.
+ *  An explicit Schema Suggestion route stays explicit even when it equals the Interaction Route (decision 12). */
+export function selectedRoute(routes: ModelConfig['routes'], key: RouteKey, defaultRoute: Route | null): Route | null {
+  return key === 'schemaSuggestion'
+    ? routes.schemaSuggestion ?? routes.interaction ?? defaultRoute
+    : routes.interaction ?? defaultRoute
+}
 
 export function apiBaseIssue(value: string): string | null {
   if (value.trim() !== value) return 'API base must not have surrounding whitespace.'
@@ -200,14 +213,6 @@ export function isValidApiBase(value: string | null): boolean {
   return value !== null && apiBaseIssue(value) === null
 }
 
-/** The roles of kei's `GET /api/ingestion-models`: the model that reads a scanned page, and the detector that finds
- *  its layout. */
-export const INGESTION_MODEL_ROLES = ['ocr', 'layout'] as const
-export const ingestionModelRoleSchema = z.enum(INGESTION_MODEL_ROLES)
-export type IngestionModelRole = z.infer<typeof ingestionModelRoleSchema>
-/** A kei model key: a `kei_exp.models.MODELS` key for `ocr`, a `LAYOUT_MODELS` key for `layout`. Never a Model
- *  Connection's model. */
-export const ingestionModelKeySchema = z.string().min(1).max(128)
 const ingestionModelOptionSchema = z
   .object({ key: ingestionModelKeySchema, label: z.string().min(1), serving: z.boolean() })
   .strict()

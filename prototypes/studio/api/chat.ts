@@ -35,7 +35,7 @@ const requestSchema = z
   })
   .strict()
 
-type ChatStore = Pick<ResearcherProjectStore, 'getSourceRepresentation'>
+type ChatStore = Pick<ResearcherProjectStore, 'researcherAccountId' | 'getSourceRepresentation'>
 type StreamChat = typeof streamChatWithModel
 
 export function createPostChat(
@@ -60,9 +60,11 @@ export function createPostChat(
         parsed.data.sourceRepresentationRevisionId,
       )
       return await stream(
+        { researcherAccountId: store.researcherAccountId },
         parsed.data.messages as UIMessage[],
         documentMarkdown,
         parsed.data.temperature,
+        request.signal,
       )
     } catch (error) {
       return apiErrorResponse(error)

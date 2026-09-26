@@ -4,7 +4,6 @@ import {
   getModelConfigResponseSchema,
   modelConfigStateSchema,
   probeResultSchema,
-  type CredentialActions,
   type GetModelConfigResponse,
   type ModelConfig,
   type ModelConfigState,
@@ -93,26 +92,14 @@ export async function getModelConfig(signal?: AbortSignal): Promise<GetModelConf
   return parsed.data
 }
 
-/** Deletes the saved document, even one this Studio cannot read, and returns the empty state. */
-export async function resetModelConfig(signal?: AbortSignal): Promise<GetModelConfigResponse> {
-  const parsed = getModelConfigResponseSchema.safeParse(
-    await checkedJson(await authenticatedFetch('/api/model_config', { method: 'DELETE', signal })),
-  )
-  if (!parsed.success) throw new ModelConfigApiError(500, 'invalid_response', 'Studio returned invalid model configuration state.')
-  return parsed.data
-}
-
-export async function putModelConfig(
-  config: ModelConfig,
-  credentials: CredentialActions,
-  signal?: AbortSignal,
-): Promise<ModelConfigState> {
+/** Saves the whole document. It carries no key: keys reach Studio only through `PUT /api/model-keys`. */
+export async function putModelConfig(config: ModelConfig, signal?: AbortSignal): Promise<ModelConfigState> {
   const parsed = modelConfigStateSchema.safeParse(
     await checkedJson(
       await authenticatedFetch('/api/model_config', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ config, ...(Object.keys(credentials).length ? { credentials } : {}) }),
+        body: JSON.stringify({ config }),
         signal,
       }),
     ),
@@ -121,13 +108,14 @@ export async function putModelConfig(
   return parsed.data
 }
 
+/** Probes with exactly the key the page supplies, which Studio requires for a connection with `hasKey`. */
 export async function probeModelConnection(
   connection: ModelConnection,
-  options: { credential?: string | null; signal?: AbortSignal } = {},
+  options: { credential?: string; signal?: AbortSignal } = {},
 ): Promise<ProbeResult> {
   const body = {
     connection,
-    ...(Object.hasOwn(options, 'credential') ? { credential: options.credential } : {}),
+    ...(options.credential === undefined ? {} : { credential: options.credential }),
   }
   const parsed = probeResultSchema.safeParse(
     await checkedJson(

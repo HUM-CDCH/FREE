@@ -28,7 +28,7 @@ const FIELDS = [
 
 type GenerateSchemaStore = Pick<
   ResearcherProjectStore,
-  'getSourceRepresentation'
+  'researcherAccountId' | 'getSourceRepresentation'
 >
 
 type GenerateSchema = typeof generateSchemaWithModel
@@ -55,7 +55,7 @@ export function createPostGenerateSchema(
         projectContextId,
         sourceRepresentationRevisionId,
       )
-      const result = await generate({
+      const result = await generate({ researcherAccountId: store.researcherAccountId }, {
         document: {
           file: null,
           pages: null,

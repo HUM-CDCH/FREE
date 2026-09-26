@@ -3,6 +3,7 @@ import { DefaultChatTransport, readUIMessageStream } from 'ai'
 import type { UIMessage } from 'ai'
 import { useRef, useState } from 'react'
 import { API_BASE } from './api'
+import { ensureModelKeysSent } from './modelKeys/modelKeyHandoff'
 
 type ChatTabProps = {
   projectContextId: string
@@ -11,7 +12,11 @@ type ChatTabProps = {
 
 const transport = new DefaultChatTransport<UIMessage>({
   api: `${API_BASE}/chat`,
-  fetch: authenticatedFetch,
+  // Each message starts model work, so this browser's keys reach Studio first.
+  fetch: async (input, init) => {
+    await ensureModelKeysSent()
+    return authenticatedFetch(input, init)
+  },
   prepareSendMessagesRequest: ({ messages, body }) => ({
     body: {
       messages,

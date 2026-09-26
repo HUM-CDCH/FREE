@@ -98,6 +98,10 @@ export function createProjectOperations(
       now,
     )
     try {
+      // Background work runs on the Project Context owner's configuration and keys, never on whoever kicked the pump.
+      const owner = await store.projectContextOwner(suggestion.projectContextId)
+      if (owner === null) return
+      const caller = { researcherAccountId: owner }
       const definitions = new Map<string, ReturnType<typeof parseSchemaDefinition>>()
       let failed = false
       for (const source of suggestion.sources) {
@@ -117,7 +121,7 @@ export function createProjectOperations(
         try {
           const artifact = await readMarkdown(source.descriptor, 'markdown')
           guard.signal.throwIfAborted()
-          const generated = await generate({
+          const generated = await generate(caller, {
             document: {
               file: null,
               markdown: new TextDecoder().decode(artifact.bytes),
@@ -173,7 +177,7 @@ export function createProjectOperations(
         ))
       )
         return
-      const generated = await generate({
+      const generated = await generate(caller, {
         document: {
           file: null,
           markdown: suggestion.sources

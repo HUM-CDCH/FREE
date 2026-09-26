@@ -1,4 +1,5 @@
 import { authenticatedFetch } from '../auth/authenticatedFetch.ts'
+import { ensureModelKeysSent } from '../modelKeys/modelKeyHandoff'
 import {
   batchExtractionListResponseSchema,
   batchExtractionOpenResponseSchema,
@@ -125,6 +126,7 @@ export async function createBatchSchemaSuggestion(
   sourceDocumentIds: readonly string[],
   signal?: AbortSignal,
 ): Promise<BatchSchemaSuggestion> {
+  await ensureModelKeysSent()
   return batchSchemaSuggestionResponseSchema.parse(
     await read('/api/batch-schema-suggestions', {
       method: 'POST',
@@ -195,6 +197,7 @@ export async function retryBatchSchemaSuggestion(
   signal?: AbortSignal,
 ): Promise<BatchSchemaSuggestion> {
   const query = new URLSearchParams({ projectContextId })
+  await ensureModelKeysSent()
   return batchSchemaSuggestionResponseSchema.parse(
     await read(`/api/batch-schema-suggestions/${batchSchemaSuggestionId}/retry?${query}`, {
       method: 'POST',

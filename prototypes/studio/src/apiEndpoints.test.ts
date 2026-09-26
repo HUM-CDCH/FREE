@@ -26,6 +26,7 @@ vi.mock('../api/_model', async (importOriginal) => {
   }
 })
 
+const ACCOUNT = '51000000-0000-4000-8009-000000000001'
 const PROJECT = '51000000-0000-4000-8000-000000000001'
 const SOURCE_REVISION = '51000000-0000-4000-8002-000000000001'
 const SCHEMA = '51000000-0000-4000-8003-000000000001'
@@ -48,13 +49,14 @@ const revision: SchemaRevisionRecord = {
 
 type ContextStore = Pick<
   ResearcherProjectStore,
-  'getSourceRepresentation' | 'getSchemaRevision'
+  'researcherAccountId' | 'getSourceRepresentation' | 'getSchemaRevision'
 >
 
 function contextStore(
   overrides: Partial<ContextStore> = {},
 ): ContextStore {
   return {
+    researcherAccountId: ACCOUNT,
     getSourceRepresentation: vi.fn(async () => descriptor),
     getSchemaRevision: vi.fn(async () => revision),
     ...overrides,
@@ -137,6 +139,7 @@ describe('Studio API endpoints', () => {
       SOURCE_REVISION,
     )
     expect(generateSchemaWithModel).toHaveBeenCalledWith(
+      { researcherAccountId: ACCOUNT },
       expect.objectContaining({
         document: {
           file: null,
@@ -156,17 +159,21 @@ describe('Studio API endpoints', () => {
         parts: [{ type: 'text', text: 'Hi' }],
       },
     ]
+    const request = chatRequest(messages)
     const response = await createPostChat(
       contextStore(),
       markdownReader(),
-    )(chatRequest(messages))
+    )(request)
 
     expect(response.status).toBe(200)
     await expect(response.text()).resolves.toBe('stream')
+    // The request's signal ends the stream, and with it any wait for a key, when the browser leaves.
     expect(streamChatWithModel).toHaveBeenCalledWith(
+      { researcherAccountId: ACCOUNT },
       messages,
       '# Canonical report',
       undefined,
+      request.signal,
     )
   })
 
@@ -175,10 +182,11 @@ describe('Studio API endpoints', () => {
       text: '{"fields":{},"additions":[]}',
     })
     const store = contextStore()
+    const request = formRequest('edit_schema', editForm())
     const response = await createPostEditSchema(
       store,
       markdownReader(),
-    )(formRequest('edit_schema', editForm()))
+    )(request)
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({
@@ -197,6 +205,9 @@ describe('Studio API endpoints', () => {
       SCHEMA_REVISION,
     )
     expect(generateSchemaEditJson).toHaveBeenCalledOnce()
+    expect(vi.mocked(generateSchemaEditJson).mock.calls[0]?.[0]).toEqual({ researcherAccountId: ACCOUNT })
+    // The request's signal ends the edit, and with it any wait for a key, when the browser leaves.
+    expect(vi.mocked(generateSchemaEditJson).mock.calls[0]?.[3]).toBe(request.signal)
   })
 
   it('edits a persisted owner-scoped revision without inventing a source context', async () => {
