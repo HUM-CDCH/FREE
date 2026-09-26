@@ -172,6 +172,8 @@ function assertOwnedParsingTopology(config, gpu) {
   // The parsing API reads files only: no database URL, password or dependency.
   const api = services.parsing_service
   assert.deepEqual(Object.keys(api.environment).filter((name) => /DATABASE|POSTGRES/.test(name)), [])
+  assert.deepEqual(Object.entries(api.environment).filter(([, value]) => /postgres(ql)?:\/\//i.test(String(value ?? '')))
+    .map(([name]) => name), [], 'no variable of the parsing API, whatever its name, holds a database URL')
   assert.equal(api.depends_on?.db, undefined)
   // kei's worker connects as the restricted kei role to database free; its schema is kei_dbos (M2's entrypoint).
   const kei = new URL(services.parsing_worker.environment.KEI_SYSTEM_DATABASE_URL)
