@@ -60,7 +60,8 @@ async function read<T>(reader: Reader, path: string, consume: (response: Respons
     return await consume(response)
   } catch (cause) {
     if (reader.signal?.aborted) throw reader.signal.reason
-    throw new ApiError(502, 'source_ingestion_failed', 'The Parsing Service returned an invalid result.', { cause })
+    const failure = new ApiError(502, 'source_ingestion_failed', 'The Parsing Service returned an invalid result.', { cause })
+    throw cause instanceof SyntaxError ? failure : transient(failure)
   }
 }
 
@@ -171,7 +172,7 @@ export async function packageConversion(options: {
       packCanonicalPackage({ pdf: options.pdf, document: translated.document, markdown: translated.markdown }),
     )
   } catch (cause) {
-    throw new ApiError(502, 'source_artifact_unavailable', 'The parsed Source Document could not be packaged.', { cause })
+    throw transient(new ApiError(502, 'source_artifact_unavailable', 'The parsed Source Document could not be packaged.', { cause }))
   }
   return {
     descriptor: { artifactReference: saved.artifactReference, artifactSha256: saved.artifactSha256 },

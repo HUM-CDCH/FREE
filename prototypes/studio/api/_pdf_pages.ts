@@ -65,9 +65,9 @@ function release(): void {
 /** One count in its own worker, holding a slot until the worker is gone. */
 function counted(bytes: Uint8Array, deadline: number): Promise<number | null> {
   return new Promise((resolve) => {
-    const copy = bytes.slice() // moved to the worker; the caller still stages and hashes its bytes
     let worker: Worker
     try {
+      const copy = bytes.slice() // moved to the worker; the caller still stages and hashes its bytes
       worker = new Worker(COUNTER, {
         eval: true,
         workerData: { pdfjs: pdfjs(), bytes: copy },

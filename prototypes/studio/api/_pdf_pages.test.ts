@@ -95,4 +95,12 @@ describe('countPdfPages', () => {
     expect(bytes.byteLength).toBe(length)
     expect(bytes.slice(0, 16)).toEqual(before)
   })
+
+  it('answers null and releases its slot if copying the caller bytes fails', async () => {
+    const bytes = blankPdf(1)
+    bytes.slice = () => { throw new Error('copy failed') }
+    const failed = Array.from({ length: PAGE_COUNT_CONCURRENCY }, () => countPdfPages(bytes))
+    await expect(Promise.all(failed)).resolves.toEqual([null, null])
+    await expect(countPdfPages(blankPdf(2))).resolves.toBe(2)
+  })
 })

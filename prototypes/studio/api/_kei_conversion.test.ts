@@ -145,6 +145,17 @@ describe('packageConversion', () => {
     expect(error).toMatchObject({
       status: 502, code: 'source_artifact_unavailable', message: 'The parsed Source Document could not be packaged.',
     })
+    expect((error as ApiError & { transient?: boolean }).transient).toBe(true)
+  })
+
+  it('retries a read whose response body is cut off', async () => {
+    const cutOff = new ReadableStream<Uint8Array>({
+      start(controller) { controller.error(new Error('connection reset mid-body')) },
+    })
+    const error = await refusal(convert(keiReadApi({
+      respond: (route, fallback) => route === 'result' ? new Response(cutOff) : fallback(),
+    })))
+    expect((error as ApiError & { transient?: boolean }).transient).toBe(true)
   })
 })
 

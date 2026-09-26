@@ -220,7 +220,7 @@ describe('ingestSource', () => {
     expect(await staged()).toEqual([])
   })
 
-  it('a manifest of another generation, or a package that cannot be saved, is a typed 502 that removes the staged file', async () => {
+  it('a manifest of another generation is a typed 502, while packaging I/O is retried', async () => {
     const otherParse = harness({ fetcher: keiReadApi({ pdf: PDF, manifest: { generation: 'gen-2' } }) })
     await expect(otherParse.run()).resolves.toEqual({
       ok: false, status: 502, code: 'source_ingestion_failed',
@@ -231,11 +231,12 @@ describe('ingestSource', () => {
     await stageSource(inbox, SOURCE, PDF)
     const unsaved = harness()
     unsaved.packageStore.save.mockRejectedValueOnce(new Error('disk full'))
-    await expect(unsaved.run()).resolves.toEqual({
-      ok: false, status: 502, code: 'source_artifact_unavailable', message: 'The parsed Source Document could not be packaged.',
+    await expect(unsaved.run()).rejects.toMatchObject({
+      status: 502, code: 'source_artifact_unavailable', transient: true,
     })
     expect(unsaved.store.ingestSourceDocument).not.toHaveBeenCalled()
-    expect(await staged()).toEqual([])
+    expect(unsaved.kei.cancel).toHaveBeenCalledWith(CHILD)
+    expect(await staged()).toEqual([`${ATTEMPT}.pdf`])
   })
 
   it("a transient read failure is thrown for the step's retries and still cancels the kei child", async () => {
