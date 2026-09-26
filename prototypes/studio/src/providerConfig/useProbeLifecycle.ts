@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   isValidApiBase,
-  MODEL_KEY_MAX_LENGTH,
+  modelKeyIssue,
   type ModelConnection,
   type ProbeResult,
   type ProviderDescriptor,
@@ -73,8 +73,8 @@ export function useProbeLifecycle({ providers }: ProbeInputs) {
   function canProbe(connection: ModelConnection, credential: string | null | undefined): boolean {
     const provider = providerFor(connection)
     if (credential === undefined || !provider || !connection.name.trim()) return false
-    // A key Studio would refuse (longer than it accepts) is never sent; the key line says why.
-    if (typeof credential === 'string' && credential.length > MODEL_KEY_MAX_LENGTH) return false
+    // A key Studio would refuse (too long, or not printable ASCII) is never sent; the key line says why.
+    if (typeof credential === 'string' && credential !== '' && modelKeyIssue(credential) !== null) return false
     return provider.transport !== 'http' || isValidApiBase(connection.baseUrl)
   }
 

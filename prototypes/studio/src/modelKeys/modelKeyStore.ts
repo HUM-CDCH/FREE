@@ -58,7 +58,7 @@ export function modelKeyFor(accountId: string, connection: Addressed): string | 
   return entry && sameModelKeyAddress(entry, connection) ? entry.key : null
 }
 
-/** Saves nothing for a key Studio would refuse (empty or over 8192 characters); the stored keys stay as they were. */
+/** Saves nothing for a key Studio would refuse (`modelKeySchema`); the stored keys stay as they were. */
 export function saveModelKey(accountId: string, connection: Addressed, key: string): void {
   const entry = modelKeyEntrySchema.safeParse({ provider: connection.provider, baseUrl: connection.baseUrl, key })
   if (!entry.success) return

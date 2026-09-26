@@ -69,8 +69,16 @@ describe('model configuration runtime contract', () => {
     const connection = { id: '11111111-1111-4111-8111-111111111111', name: 'vLLM', provider: 'vllm', baseUrl: 'http://vllm:8000/v1', hasKey: false }
     expect(modelProbeRequestSchema.safeParse({ connection }).success).toBe(true)
     expect(modelProbeRequestSchema.safeParse({ connection, credential: 'k'.repeat(8192) }).success).toBe(true)
+    expect(modelProbeRequestSchema.safeParse({ connection, credential: 'sk-test with interior space' }).success).toBe(true)
     for (const credential of [null, '', 'k'.repeat(8193), 42])
       expect(modelProbeRequestSchema.safeParse({ connection, credential }).success).toBe(false)
+  })
+
+  it('a key is printable ASCII with no whitespace at either end', () => {
+    const connection = { id: '11111111-1111-4111-8111-111111111111', name: 'vLLM', provider: 'vllm', baseUrl: 'http://vllm:8000/v1', hasKey: true }
+    for (const credential of ['sk-test-a\nb', 'sk-test-a\rb', 'sk-test-a\u0000b', 'sk-test-a\tb', 'sk-test-cl\u00e9', ' sk-test-lead', 'sk-test-trail ', ' '])
+      expect(modelProbeRequestSchema.safeParse({ connection, credential }).success).toBe(false)
+    expect(modelProbeRequestSchema.safeParse({ connection, credential: '~!sk-test_ASCII-0' }).success).toBe(true)
   })
 
   it('stores no NuExtract protocol on a route', () => {

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import {
-  MODEL_KEY_MAX_LENGTH,
+  modelKeySchema,
   providerKindSchema,
   uuidSchema,
   type ModelConnection,
@@ -19,7 +19,7 @@ export function sameModelKeyAddress(
 }
 
 export const modelKeyEntrySchema = z
-  .object({ provider: providerKindSchema, baseUrl: z.string().min(1).nullable(), key: z.string().min(1).max(MODEL_KEY_MAX_LENGTH) })
+  .object({ provider: providerKindSchema, baseUrl: z.string().min(1).nullable(), key: modelKeySchema })
   .strict()
 
 /** `PUT /api/model-keys`: this browser's keys for `account`, each under its connection ID; `null` removes one. */

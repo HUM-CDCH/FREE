@@ -664,6 +664,31 @@ describe('ProviderConfigPage', () => {
     expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
   })
 
+  it.each([
+    ['a character outside printable ASCII', 'sk-test-cl\u00e9'],
+    ['a trailing space', 'sk-test-pasted '],
+    ['a tab', 'sk-test-a\tb'],
+  ])('a key with %s shows an error, is never probed and cannot be applied', async (_label, key) => {
+    const server = studio(config({ connections: [openai] }))
+    await renderPage()
+    vi.useFakeTimers()
+
+    const pane = openConnection('Research OpenAI')
+    const input = pane.getByLabelText('API key')
+    fireEvent.change(input, { target: { value: key } })
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+
+    const message = 'A key can contain only printable ASCII characters, with no spaces at either end.'
+    expect(pane.getByText(message)).toBeInTheDocument()
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(server.probes()).toEqual([])
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
+
+    fireEvent.change(input, { target: { value: 'sk-test-short' } })
+    expect(pane.queryByText(message)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
+  })
+
   it('renders an unloadable configuration through the stable error', async () => {
     vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => Promise.resolve(
       String(input) === '/api/model_config'

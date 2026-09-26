@@ -105,9 +105,23 @@ export type ModelConfigUpdate = z.infer<typeof modelConfigUpdateSchema>
 /** The longest model key Studio accepts: in a probe, in the key handoff and in this browser's key store. */
 export const MODEL_KEY_MAX_LENGTH = 8192
 
+/** Printable ASCII (0x20–0x7E) with no space at either end. A key that is no valid header value never reaches a
+ *  provider client, whose runtime error would quote the whole `Bearer <key>` header. */
+const MODEL_KEY_CHARACTERS = /^[\x21-\x7e](?:[\x20-\x7e]*[\x21-\x7e])?$/
+
+/** A model key as Studio accepts it: in a probe, in the key handoff and in this browser's key store. */
+export const modelKeySchema = z.string().min(1).max(MODEL_KEY_MAX_LENGTH).regex(MODEL_KEY_CHARACTERS)
+
+/** Why Studio would refuse a typed, non-empty key, or `null` when it would accept it. */
+export function modelKeyIssue(key: string): string | null {
+  if (key.length > MODEL_KEY_MAX_LENGTH) return `A key can be at most ${MODEL_KEY_MAX_LENGTH} characters.`
+  if (!MODEL_KEY_CHARACTERS.test(key)) return 'A key can contain only printable ASCII characters, with no spaces at either end.'
+  return null
+}
+
 /** A probe carries exactly the key the page typed or holds for the connection, and only when it has `hasKey`. */
 export const modelProbeRequestSchema = z
-  .object({ connection: modelConnectionSchema, credential: z.string().min(1).max(MODEL_KEY_MAX_LENGTH).optional() })
+  .object({ connection: modelConnectionSchema, credential: modelKeySchema.optional() })
   .strict()
 export type ModelProbeRequest = z.infer<typeof modelProbeRequestSchema>
 

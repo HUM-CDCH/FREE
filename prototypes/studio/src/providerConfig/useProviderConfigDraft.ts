@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ExtractionModelRole } from '../../shared/extraction.contract'
 import {
-  MODEL_KEY_MAX_LENGTH,
+  modelKeyIssue,
   type IngestionModelRole,
   type ModelConfig,
   type ModelConnection,
@@ -181,11 +181,10 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
 
   /** Typed keys Studio would refuse, by connection ID: this browser would not save them, so Apply waits. */
   const keyIssues: Readonly<Record<string, string>> = Object.fromEntries(
-    Object.entries(keyEdits).flatMap(([id, edit]) =>
-      typeof edit === 'string' && edit.length > MODEL_KEY_MAX_LENGTH
-        ? [[id, `A key can be at most ${MODEL_KEY_MAX_LENGTH} characters.`]]
-        : [],
-    ),
+    Object.entries(keyEdits).flatMap(([id, edit]) => {
+      const issue = typeof edit === 'string' && edit !== '' ? modelKeyIssue(edit) : null
+      return issue === null ? [] : [[id, issue]]
+    }),
   )
 
   return {

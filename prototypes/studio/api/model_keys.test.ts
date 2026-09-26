@@ -113,6 +113,11 @@ describe('PUT /api/model-keys', () => {
     ['a valid shape with an extra property', { account: ACCOUNT, keys: {}, 'sk-test-planted-2': 'sk-test-planted-2' }, 'application/json'],
     ['a key entry with a non-string baseUrl', { account: ACCOUNT, keys: { [OWN]: { provider: 'openai-compatible', baseUrl: 42, key: 'sk-test-planted-4' } } }, 'application/json'],
     ['a wrong media type', { account: ACCOUNT, keys: { [OWN]: entry('sk-test-planted-5') } }, 'text/plain'],
+    ['a key with a line feed', { account: ACCOUNT, keys: { [OWN]: entry('sk-test-planted-6\nrest') } }, 'application/json'],
+    ['a key with a carriage return', { account: ACCOUNT, keys: { [OWN]: entry('sk-test-planted-7\rrest') } }, 'application/json'],
+    ['a key with a NUL', { account: ACCOUNT, keys: { [OWN]: entry('sk-test-planted-8\u0000rest') } }, 'application/json'],
+    ['a key outside printable ASCII', { account: ACCOUNT, keys: { [OWN]: entry('sk-test-planted-9-cl\u00e9') } }, 'application/json'],
+    ['a key with a trailing space', { account: ACCOUNT, keys: { [OWN]: entry('sk-test-planted-10 ') } }, 'application/json'],
   ])('a malformed body (%s) echoes nothing and logs nothing', async (_label, body, contentType) => {
     const { keys, put } = fixture()
     const logs = (['error', 'warn', 'log', 'info'] as const).map((level) => vi.spyOn(console, level))

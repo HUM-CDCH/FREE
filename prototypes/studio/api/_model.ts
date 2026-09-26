@@ -121,6 +121,15 @@ export async function streamChatWithModel(
       messages: await convertToModelMessages([...messages]),
       ...(temperature === undefined ? {} : { temperature }),
       abortSignal: signal,
+      // The SDK's default logs the whole error: the provider's response body, the request and, for a key that is no
+      // valid header value, a runtime message quoting `Bearer <key>`. Log only the error's class and HTTP status.
+      onError: ({ error }) => {
+        if (error instanceof ModelKeyRequiredError) return
+        console.error('chat_failed:', {
+          error: error instanceof Error ? error.constructor.name : typeof error,
+          statusCode: APICallError.isInstance(error) ? error.statusCode ?? null : null,
+        })
+      },
     })
     return createUIMessageStreamResponse({
       stream: toUIMessageStream({
