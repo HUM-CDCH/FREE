@@ -1,8 +1,8 @@
 import { isDeveloperUiEnabled } from './developerUi'
 import PanelToggleIcon from './PanelToggleIcon'
-// The Annotation and Chat tabs were retired: the Annotation tab's highlight-set
-// list and the generic document Chat tab were folded into SchemaPanel's own
-// pre-generation chat. Left in place, commented out, rather than deleted.
+// The Annotation tab (highlight-set list) was retired and is left in place, commented out.
+// The document Chat tab was deleted (DBOS M5): the schema panel's own instruction
+// and edit chats replace it.
 // import AnnotationSetTab from './AnnotationSidebar'
 // import type { AnnotationSetItem } from './AnnotationSidebar'
 import SchemaPanel from './SchemaPanel'
@@ -178,9 +178,8 @@ function RightRail({
       </div>
 
       {/* All tab bodies stay mounted so chat drafts and schema edit state survive tab switches. */}
-      {/* The Annotation tab (highlight-set list) and the generic document Chat
-          tab were retired — folded into SchemaPanel's own pre-generation chat.
-          Left in place, commented out, rather than deleted.
+      {/* The Annotation tab (highlight-set list) was retired and is left in place,
+          commented out. The document Chat tab was deleted (DBOS M5).
       <div id="rail-panel-annot" aria-labelledby="rail-tab-annot" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'annot'}>
         <AnnotationSetTab
           items={annotationItems}

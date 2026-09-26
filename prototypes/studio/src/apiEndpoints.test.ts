@@ -1,17 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { UIMessage } from 'ai'
 import type { CanonicalPackageStore } from '../../../packages/db/src/artifact-store.js'
 import type {
   ResearcherProjectStore,
   SchemaRevisionRecord,
 } from '../../../packages/db/src/project-store.js'
-import { ApiError } from '../api/_http'
 import {
   generateSchemaWithModel,
   generateSchemaEditJson,
-  streamChatWithModel,
 } from '../api/_model'
-import { createPostChat } from '../api/chat'
 import { createPostEditSchema } from '../api/edit_schema'
 import { createPostGenerateSchema } from '../api/generate_schema'
 import { GET as healthGet } from '../api/healthz'
@@ -22,7 +18,6 @@ vi.mock('../api/_model', async (importOriginal) => {
     ...actual,
     generateSchemaWithModel: vi.fn(),
     generateSchemaEditJson: vi.fn(),
-    streamChatWithModel: vi.fn(),
   }
 })
 
@@ -94,18 +89,6 @@ function editForm(): FormData {
   return form
 }
 
-function chatRequest(messages: UIMessage[]): Request {
-  return new Request('http://local.test/api/chat', {
-    method: 'POST',
-    body: JSON.stringify({
-      projectContextId: PROJECT,
-      sourceRepresentationRevisionId: SOURCE_REVISION,
-      messages,
-    }),
-    headers: { 'content-type': 'application/json' },
-  })
-}
-
 afterEach(() => vi.clearAllMocks())
 
 describe('Studio API endpoints', () => {
@@ -147,33 +130,6 @@ describe('Studio API endpoints', () => {
           markdown: '# Canonical report',
         },
       }),
-    )
-  })
-
-  it('streams chat with owner-scoped canonical Markdown', async () => {
-    vi.mocked(streamChatWithModel).mockResolvedValue(new Response('stream'))
-    const messages: UIMessage[] = [
-      {
-        id: 'm1',
-        role: 'user',
-        parts: [{ type: 'text', text: 'Hi' }],
-      },
-    ]
-    const request = chatRequest(messages)
-    const response = await createPostChat(
-      contextStore(),
-      markdownReader(),
-    )(request)
-
-    expect(response.status).toBe(200)
-    await expect(response.text()).resolves.toBe('stream')
-    // The request's signal ends the stream, and with it any wait for a key, when the browser leaves.
-    expect(streamChatWithModel).toHaveBeenCalledWith(
-      { researcherAccountId: ACCOUNT },
-      messages,
-      '# Canonical report',
-      undefined,
-      request.signal,
     )
   })
 
@@ -261,24 +217,8 @@ describe('Studio API endpoints', () => {
     ).toBe(400)
     expect(editStore.getSchemaRevision).not.toHaveBeenCalled()
 
-    const chatStore = contextStore()
-    const chat = await createPostChat(chatStore, markdownReader())(
-      new Request('http://local.test/api/chat', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          projectContextId: PROJECT,
-          sourceRepresentationRevisionId: SOURCE_REVISION,
-          messages: [],
-          documentMarkdown: '# Browser report',
-        }),
-      }),
-    )
-    expect(chat.status).toBe(400)
-    expect(chatStore.getSourceRepresentation).not.toHaveBeenCalled()
     expect(generateSchemaWithModel).not.toHaveBeenCalled()
     expect(generateSchemaEditJson).not.toHaveBeenCalled()
-    expect(streamChatWithModel).not.toHaveBeenCalled()
   })
 
   it('returns 404 for cross-owner and mixed pins before artifact or model access', async () => {
@@ -292,14 +232,6 @@ describe('Studio API endpoints', () => {
           missingSource,
           reader,
         )(formRequest('generate_schema', sourceForm()))
-      ).status,
-    ).toBe(404)
-    expect(
-      (
-        await createPostChat(
-          missingSource,
-          reader,
-        )(chatRequest([]))
       ).status,
     ).toBe(404)
 
@@ -317,25 +249,5 @@ describe('Studio API endpoints', () => {
     expect(reader.read).not.toHaveBeenCalled()
     expect(generateSchemaWithModel).not.toHaveBeenCalled()
     expect(generateSchemaEditJson).not.toHaveBeenCalled()
-    expect(streamChatWithModel).not.toHaveBeenCalled()
-  })
-
-  it('maps pre-stream failures to the stable envelope', async () => {
-    vi.mocked(streamChatWithModel).mockRejectedValue(
-      new ApiError(
-        409,
-        'invalid_model_config',
-        'The Interaction Route is not configured.',
-      ),
-    )
-    const response = await createPostChat(
-      contextStore(),
-      markdownReader(),
-    )(chatRequest([]))
-
-    expect(response.status).toBe(409)
-    await expect(response.json()).resolves.toMatchObject({
-      error: { code: 'invalid_model_config' },
-    })
   })
 })

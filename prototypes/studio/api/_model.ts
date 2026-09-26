@@ -2,12 +2,7 @@ import {
   APICallError,
   NoObjectGeneratedError,
   Output,
-  convertToModelMessages,
-  createUIMessageStreamResponse,
   generateText,
-  streamText,
-  toUIMessageStream,
-  type UIMessage,
 } from 'ai'
 import { z } from 'zod'
 import type { DocumentInput } from './_document.js'
@@ -19,7 +14,6 @@ import {
 } from './_http.js'
 import { parseTemplate } from './_model_output.js'
 import { readAccountModelConfig } from './_model_config.js'
-import { ModelKeyRequiredError } from './_model_keys.js'
 import type { ModelConfig } from '../shared/modelConfig.contract.js'
 import {
   appendProviderResource,
@@ -96,51 +90,6 @@ async function operationTarget(
     researcherAccountId: caller.researcherAccountId,
     readConfig: dependencies.readConfig ?? (() => readAccountModelConfig(caller.researcherAccountId)),
   })
-}
-
-/** `signal` is the browser's request: when it goes away the stream, and any wait for a key, ends. */
-export async function streamChatWithModel(
-  caller: ModelCaller,
-  messages: readonly UIMessage[],
-  documentMarkdown: string,
-  temperature?: number,
-  signal?: AbortSignal,
-  target?: ExecutionTarget,
-  dependencies: ModelDependencies = {},
-): Promise<Response> {
-  const resolved = await operationTarget('chat', temperature, target, caller, dependencies)
-  if (resolved.profile !== 'general') {
-    throw new ApiError(409, 'invalid_model_config', 'The Interaction Route must use general execution.')
-  }
-  try {
-    const result = streamText({
-      model: resolved.model,
-      system:
-        'Answer questions using the source document below. Say when the source does not support an answer.\n\n' +
-        `SOURCE DOCUMENT MARKDOWN:\n${documentMarkdown}\nEND SOURCE DOCUMENT MARKDOWN`,
-      messages: await convertToModelMessages([...messages]),
-      ...(temperature === undefined ? {} : { temperature }),
-      abortSignal: signal,
-      // The SDK's default logs the whole error: the provider's response body, the request and, for a key that is no
-      // valid header value, a runtime message quoting `Bearer <key>`. Log only the error's class and HTTP status.
-      onError: ({ error }) => {
-        if (error instanceof ModelKeyRequiredError) return
-        console.error('chat_failed:', {
-          error: error instanceof Error ? error.constructor.name : typeof error,
-          statusCode: APICallError.isInstance(error) ? error.statusCode ?? null : null,
-        })
-      },
-    })
-    return createUIMessageStreamResponse({
-      stream: toUIMessageStream({
-        stream: result.stream,
-        // Only a missing key is named: the page resends its keys and the researcher can try again.
-        onError: (error) => (error instanceof ModelKeyRequiredError ? error.message : 'Chat failed.'),
-      }),
-    })
-  } catch (error) {
-    throw asModelOperationError(error, 'Chat failed before streaming began.')
-  }
 }
 
 export async function generateSchemaWithModel(

@@ -1,7 +1,8 @@
 import { inspect } from 'node:util'
 import { afterEach, expect, it, vi } from 'vitest'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import { generateSchemaWithModel, streamChatWithModel } from './_model.js'
+import { generateSchemaWithModel } from './_model.js'
+import { ApiError } from './_http.js'
 import { withThinkingOff } from './_provider.js'
 
 const TEMPLATE = '{"_description":"One catalogue entry","title":"string"}'
@@ -96,20 +97,20 @@ it.each([
     new Response(JSON.stringify({ error: { message: 'Incorrect API key provided: sk-test-planted.', type: 'invalid_request_error' } }), {
       status: 401, headers: { 'content-type': 'application/json', 'x-echo': 'sk-test-planted' },
     })],
-])('a failed chat call logs neither the key nor the provider response nor the document (%s)', async (_label, apiKey, fetch) => {
+])('a failed schema generation logs neither the key nor the provider response nor the document (%s)', async (_label, apiKey, fetch) => {
   const logs = (['error', 'warn', 'log', 'info', 'debug'] as const).map((level) => vi.spyOn(console, level).mockImplementation(() => {}))
-  const provider = createOpenAICompatible({ name: 'chat-logging', baseURL: 'https://audit.invalid/v1', apiKey, fetch })
+  const provider = createOpenAICompatible({ name: 'generation-logging', baseURL: 'https://audit.invalid/v1', apiKey, fetch })
 
-  const response = await streamChatWithModel(CALLER, [
-    { id: 'm1', role: 'user', parts: [{ type: 'text', text: 'What does planted-question say?' }] },
-  ], '# planted-document', undefined, undefined, {
-    profile: 'general', model: provider.chatModel('audit'), jsonOutput: 'prompt', temperatureSupported: true,
-  })
-  const body = await response.text()
+  const failure = await generateSchemaWithModel(CALLER, {
+    document: { file: null, pages: null, markdown: '# planted-document' },
+    instruction: 'planted-question',
+  }, { profile: 'general', model: provider.chatModel('audit'), jsonOutput: 'prompt', temperatureSupported: true })
+    .then(() => { throw new Error('expected the generation to fail') }, (error: unknown) => error)
 
-  expect(body).toContain('Chat failed.')
+  // FREE's own copy, never the provider's: the ApiError's message is what a page would show.
+  expect(failure).toBeInstanceOf(ApiError)
   const logged = logs.flatMap((log) => log.mock.calls.flat().map((argument) => inspect(argument, { depth: Infinity })))
-  for (const line of [...logged, body]) {
+  for (const line of [...logged, (failure as ApiError).message]) {
     expect(line).not.toContain('sk-test-planted')
     expect(line).not.toContain('planted-document')
     expect(line).not.toContain('planted-question')

@@ -651,7 +651,7 @@ export async function probeConnection(
   }
 }
 
-export type ModelOperation = 'schema-suggestion' | 'chat' | 'schema-edit'
+export type ModelOperation = 'schema-suggestion' | 'schema-edit'
 /**
  * What actually ran, as the persisted result records it. Absent only for a
  * target a caller constructed itself instead of resolving from a route.

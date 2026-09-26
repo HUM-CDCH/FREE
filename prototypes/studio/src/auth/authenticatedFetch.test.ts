@@ -117,17 +117,17 @@ describe('authenticatedFetch model key resend', () => {
     subscribeToModelKeyResend(resend)
 
     vi.stubGlobal('fetch', vi.fn(async () => conflict('invalid_model_config')))
-    await authenticatedFetch('/api/chat', { method: 'POST' })
+    await authenticatedFetch('/api/edit_schema', { method: 'POST' })
     await flush()
     expect(resend).not.toHaveBeenCalled()
 
     vi.stubGlobal('fetch', vi.fn(async () => new Response('not json', { status: 409 })))
-    await authenticatedFetch('/api/chat', { method: 'POST' })
+    await authenticatedFetch('/api/edit_schema', { method: 'POST' })
     await flush()
     expect(resend).not.toHaveBeenCalled()
 
     vi.stubGlobal('fetch', vi.fn(async () => conflict('model_key_required')))
-    await authenticatedFetch('/api/chat', { method: 'POST' })
+    await authenticatedFetch('/api/edit_schema', { method: 'POST' })
     await flush()
     expect(resend).toHaveBeenCalledOnce()
   })
@@ -136,7 +136,7 @@ describe('authenticatedFetch model key resend', () => {
     const body = { error: { code: 'model_key_required', message: 'Studio does not hold the key.' } }
     vi.stubGlobal('fetch', vi.fn(async () => Response.json(body, { status: 409 })))
 
-    const response = await authenticatedFetch('/api/chat', { method: 'POST' })
+    const response = await authenticatedFetch('/api/edit_schema', { method: 'POST' })
     await flush()
 
     expect(response.bodyUsed).toBe(false)

@@ -317,7 +317,7 @@ describe('model API authentication boundary', () => {
     }))
     vi.stubGlobal('fetch', request)
     const call = async (researcherAccountId: string) => {
-      const target = await resolveCapabilityRoute('chat', {}, {
+      const target = await resolveCapabilityRoute('schema-edit', {}, {
         researcherAccountId,
         readConfig: () => readAccountModelConfig(researcherAccountId, test.store),
         deployment: NO_DEPLOYMENT,

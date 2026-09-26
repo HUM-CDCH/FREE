@@ -2,15 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   generateSchemaEditJson,
   generateSchemaWithModel,
-  streamChatWithModel,
 } from './_model.js'
 import type { ExecutionTarget, NuExtractExecutionTarget } from './_provider.js'
 import { readAccountModelConfig } from './_model_config.js'
 import { ModelKeyRequiredError, createModelKeyCache } from './_model_keys.js'
 
-const { generateTextMock, streamTextMock } = vi.hoisted(() => ({
+const { generateTextMock } = vi.hoisted(() => ({
   generateTextMock: vi.fn(),
-  streamTextMock: vi.fn(),
 }))
 vi.mock('./_model_config.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./_model_config.js')>()),
@@ -18,7 +16,7 @@ vi.mock('./_model_config.js', async (importOriginal) => ({
 }))
 vi.mock('ai', async (importOriginal) => {
   const actual = await importOriginal<typeof import('ai')>()
-  return { ...actual, generateText: generateTextMock, streamText: streamTextMock }
+  return { ...actual, generateText: generateTextMock }
 })
 
 const CALLER = { researcherAccountId: '51000000-0000-4000-8009-00000000000a' }
@@ -282,40 +280,6 @@ describe('interactive model operations', () => {
     await expect(generateSchemaEditJson(CALLER, 'schema prompt', undefined, undefined, generalTarget)).rejects.toMatchObject({
       code: 'invalid_model_output',
     })
-  })
-
-  it('sanitizes model errors after the chat stream is committed', async () => {
-    streamTextMock.mockReturnValue({
-      stream: new ReadableStream({
-        start(controller) {
-          controller.enqueue({ type: 'error', error: new Error('upstream secret') })
-          controller.close()
-        },
-      }),
-    })
-    const response = await streamChatWithModel(CALLER, [], '# Report', undefined, undefined, generalTarget)
-    const body = await response.text()
-    expect(response.status).toBe(200)
-    expect(body).toContain('Chat failed.')
-    expect(body).not.toContain('upstream secret')
-  })
-
-  it('names a missing key in the chat stream and passes the request signal to the model', async () => {
-    const missing = new ModelKeyRequiredError()
-    streamTextMock.mockReturnValue({
-      stream: new ReadableStream({
-        start(controller) {
-          controller.enqueue({ type: 'error', error: missing })
-          controller.close()
-        },
-      }),
-    })
-    const controller = new AbortController()
-
-    const response = await streamChatWithModel(CALLER, [], '# Report', undefined, controller.signal, generalTarget)
-
-    expect(await response.text()).toContain(missing.message)
-    expect(streamTextMock.mock.calls.at(-1)?.[0]).toMatchObject({ abortSignal: controller.signal })
   })
 })
 

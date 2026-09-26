@@ -24,7 +24,6 @@ import {
 import { createSchemaRevisionHandlers } from '../api/schema_revisions.js'
 import { createPostGenerateSchema } from '../api/generate_schema.js'
 import { createPostEditSchema } from '../api/edit_schema.js'
-import { createPostChat } from '../api/chat.js'
 import {
   createResearcherApiHandlers as createDocumentReopenHandlers,
 } from '../api/document_reopen.js'
@@ -191,7 +190,6 @@ type TestPackageStore = {
 type ModelSpies = {
   generateSchema: Mock<() => Promise<never>>
   editSchema: Mock<() => Promise<never>>
-  chat: Mock<() => Promise<never>>
 }
 
 type ExtractionEffects = {
@@ -546,9 +544,6 @@ function twoAccountStoreFixture(): TwoAccountStores {
     editSchema: vi.fn(async () => {
       throw new Error('A cross-owner schema edit must not execute a model.')
     }),
-    chat: vi.fn(async () => {
-      throw new Error('A cross-owner chat must not execute a model.')
-    }),
   }
   const extractionEffects: ExtractionEffects = {
     singleExecutions: [],
@@ -733,13 +728,6 @@ function ownershipRegistry(fixture: TwoAccountStores) {
         store,
         { read: fixture.readArtifact },
         fixture.models.editSchema,
-      ),
-    })),
-    '../api/chat.ts': researcherModule((store) => ({
-      POST: createPostChat(
-        store,
-        { read: fixture.readArtifact },
-        fixture.models.chat,
       ),
     })),
     '../api/document_reopen.ts': researcherModule(
@@ -1153,29 +1141,6 @@ describe('two-account schema, revision, suggestion, editing, and chat isolation'
     )
     expect(fixture.readArtifact).toHaveBeenCalledTimes(readsBeforeEdit)
     expect(fixture.models.editSchema).not.toHaveBeenCalled()
-
-    const readsBeforeChat = fixture.readArtifact.mock.calls.length
-    await expectPrivateNotFound(
-      await api(
-        fixture,
-        ids.accountA,
-        '/api/chat',
-        jsonRequest('POST', {
-          projectContextId: ids.projectA,
-          sourceRepresentationRevisionId: ids.representationB,
-          messages: [
-            {
-              id: 'message-1',
-              role: 'user',
-              parts: [{ type: 'text', text: 'Disclose the foreign document.' }],
-            },
-          ],
-        }),
-      ),
-      forbiddenB,
-    )
-    expect(fixture.readArtifact).toHaveBeenCalledTimes(readsBeforeChat)
-    expect(fixture.models.chat).not.toHaveBeenCalled()
   })
 })
 

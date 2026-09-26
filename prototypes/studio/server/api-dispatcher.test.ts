@@ -33,7 +33,6 @@ describe('eager API dispatcher', () => {
   it('preserves the exact simple and parameterized route grammar', () => {
     const registry = registryWith({
       healthz: {},
-      chat: scopedModule(),
       edit_schema: scopedModule(),
       generate_schema: scopedModule(),
       project_contexts: scopedModule(),
@@ -52,7 +51,6 @@ describe('eager API dispatcher', () => {
 
     for (const [pathname, handler] of [
       ['/api/healthz', 'healthz'],
-      ['/api/chat', 'chat'],
       ['/api/edit_schema', 'edit_schema'],
       ['/api/generate_schema', 'generate_schema'],
       ['/api/project-contexts', 'project_contexts'],

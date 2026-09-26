@@ -471,7 +471,7 @@ describe('a route reads its key inside each provider attempt', () => {
     if (target.profile !== 'general') throw new Error('Expected general execution')
     return target.model
   }
-  const resolveChat = (dependencies: Partial<RouteResolverDependencies> = {}) => resolveCapabilityRoute('chat', {}, {
+  const resolveInteraction = (dependencies: Partial<RouteResolverDependencies> = {}) => resolveCapabilityRoute('schema-edit', {}, {
     researcherAccountId: ACCOUNT,
     readConfig: async () => routed({ connections: [keyed] }),
     deployment: NO_DEPLOYMENT,
@@ -482,7 +482,7 @@ describe('a route reads its key inside each provider attempt', () => {
   it('a hasKey route with no cached key waits, then fails with model_key_required without calling its server', async () => {
     vi.useFakeTimers()
     const request = serve()
-    const target = await resolveChat({ keys: createModelKeyCache() })
+    const target = await resolveInteraction({ keys: createModelKeyCache() })
     let settled: unknown
     const call = generateText({ model: model(target), prompt: 'Hi' }).catch((error: unknown) => (settled = error))
 
@@ -502,7 +502,7 @@ describe('a route reads its key inside each provider attempt', () => {
     vi.stubEnv('OPENAI_API_KEY', 'sk-test-openai-environment')
     const request = serve()
     const openai: ModelConnection = { ...keyed, provider: 'openai', baseUrl: 'https://api.openai.com/v1' }
-    const target = await resolveChat({ keys: createModelKeyCache(), readConfig: async () => routed({ connections: [openai] }) })
+    const target = await resolveInteraction({ keys: createModelKeyCache(), readConfig: async () => routed({ connections: [openai] }) })
     const call = generateText({ model: model(target), prompt: 'Hi' }).catch((error: unknown) => error)
 
     await vi.advanceTimersByTimeAsync(50)
@@ -515,7 +515,7 @@ describe('a route reads its key inside each provider attempt', () => {
     vi.useFakeTimers()
     const request = serve()
     const keys = createModelKeyCache()
-    const target = await resolveChat({ keys })
+    const target = await resolveInteraction({ keys })
     const call = generateText({ model: model(target), prompt: 'Hi', maxRetries: 0 })
 
     await vi.advanceTimersByTimeAsync(20)
@@ -532,7 +532,7 @@ describe('a route reads its key inside each provider attempt', () => {
     keys.put(ACCOUNT, keyed.id, address, 'sk-test-never-used')
     const read = vi.spyOn(keys, 'read')
     const wait = vi.spyOn(keys, 'wait')
-    const target = await resolveChat({ keys, readConfig: async () => routed({ connections: [{ ...keyed, hasKey: false }] }) })
+    const target = await resolveInteraction({ keys, readConfig: async () => routed({ connections: [{ ...keyed, hasKey: false }] }) })
 
     await generateText({ model: model(target), prompt: 'Hi', maxRetries: 0 })
 
@@ -549,7 +549,7 @@ describe('a route reads its key inside each provider attempt', () => {
     }
     keys.put(ACCOUNT, deployed.id, { provider: 'vllm', baseUrl: deployed.baseUrl }, 'sk-test-never-used')
     const wait = vi.spyOn(keys, 'wait')
-    const target = await resolveChat({
+    const target = await resolveInteraction({
       keys,
       readConfig: async () => routed({ connections: [], routes: { schemaSuggestion: null, interaction: null } }),
       deployment: { connections: [deployed], defaultRoute: { connectionId: deployed.id, modelId: 'm' } },
@@ -567,7 +567,7 @@ describe('a route reads its key inside each provider attempt', () => {
     const keys = createModelKeyCache()
     // Both accounts name the same connection ID; only A's browser sent a key.
     keys.put(ACCOUNT, keyed.id, address, 'sk-test-account-a')
-    const target = await resolveChat({ keys, researcherAccountId: OTHER_ACCOUNT })
+    const target = await resolveInteraction({ keys, researcherAccountId: OTHER_ACCOUNT })
     const call = generateText({ model: model(target), prompt: 'Hi', maxRetries: 0 }).catch((error: unknown) => error)
 
     await vi.advanceTimersByTimeAsync(50)
@@ -578,7 +578,7 @@ describe('a route reads its key inside each provider attempt', () => {
 
   it('an aborted call stops waiting for its key and never reaches the server', async () => {
     const request = serve()
-    const target = await resolveChat({ keys: createModelKeyCache(), keyWaitMs: 60_000 })
+    const target = await resolveInteraction({ keys: createModelKeyCache(), keyWaitMs: 60_000 })
     const controller = new AbortController()
     const reason = new Error('client disconnected')
     const call = generateText({ model: model(target), prompt: 'Hi', abortSignal: controller.signal, maxRetries: 0 })
@@ -614,7 +614,7 @@ describe('a route reads its key inside each provider attempt', () => {
 })
 
 describe('resolveCapabilityRoute', () => {
-  it.each(['schema-suggestion', 'chat', 'schema-edit'] as const)(
+  it.each(['schema-suggestion', 'schema-edit'] as const)(
     'keeps an existing route usable for %s without an output setting', async (operation) => {
       const config = routed()
       const createModel = vi.fn(() => ({}) as never)
@@ -629,7 +629,7 @@ describe('resolveCapabilityRoute', () => {
 
   it('passes an arbitrary saved model ID to the exact selected factory', async () => {
     const createModel = vi.fn(() => ({}) as never)
-    const target = await resolveCapabilityRoute('chat', {}, {
+    const target = await resolveCapabilityRoute('schema-edit', {}, {
       researcherAccountId: ACCOUNT,
       readConfig: async () => routed(),
       modelFactories: { 'openai-compatible': createModel },
@@ -734,7 +734,7 @@ describe('resolveCapabilityRoute', () => {
     },
   )
 
-  it.each(['chat', 'schema-edit'] as const)('no other route ever uses the NuExtract protocol (%s)', async (operation) => {
+  it.each(['schema-edit'] as const)('no other route ever uses the NuExtract protocol (%s)', async (operation) => {
     const target = await resolveCapabilityRoute(operation, {}, {
       researcherAccountId: ACCOUNT,
       readConfig: async () => routed({
@@ -830,7 +830,7 @@ describe('resolveCapabilityRoute', () => {
     const keys = createModelKeyCache()
     const read = vi.spyOn(keys, 'read')
 
-    const target = await resolveCapabilityRoute('chat', {}, {
+    const target = await resolveCapabilityRoute('schema-edit', {}, {
       researcherAccountId: ACCOUNT,
       readConfig: async () => routed({ connections: [], routes: { schemaSuggestion: null, interaction: { connectionId: claudeCode.id, modelId: 'opus' } } }),
       deployment: { connections: [claudeCode], defaultRoute: null },
@@ -845,7 +845,7 @@ describe('resolveCapabilityRoute', () => {
   })
 
   it('refuses a saved route naming a deployment connection this deployment no longer serves', async () => {
-    await expect(resolveCapabilityRoute('chat', {}, {
+    await expect(resolveCapabilityRoute('schema-edit', {}, {
       researcherAccountId: ACCOUNT,
       readConfig: async () => routed({ routes: { schemaSuggestion: null, interaction: { connectionId: DEPLOYMENT_CONNECTION_IDS.instruct, modelId: 'm' } } }),
       deployment: { connections: [], defaultRoute: null },
@@ -858,7 +858,7 @@ describe('resolveCapabilityRoute', () => {
     const claudeCode = {
       id: DEPLOYMENT_CONNECTION_IDS.claudeCode, name: 'Claude Code on this server', provider: 'claude-code' as const, baseUrl: null, hasKey: false,
     }
-    await expect(resolveCapabilityRoute('chat', {}, {
+    await expect(resolveCapabilityRoute('schema-edit', {}, {
       researcherAccountId: ACCOUNT,
       readConfig: async () => routed({
         connections: [], routes: { schemaSuggestion: null, interaction: { connectionId: DEPLOYMENT_CONNECTION_IDS.codexCli, modelId: 'gpt-5' } },
@@ -890,7 +890,6 @@ describe('resolveCapabilityRoute', () => {
 
   it.each([
     ['schema-suggestion', 'extract-model', 'schemaSuggestion'],
-    ['chat', 'interaction-model', 'interaction'],
     ['schema-edit', 'interaction-model', 'interaction'],
   ] as const)('maps %s exactly once to the %s route', async (operation, modelId, selectedRoute) => {
     const interactionId = '00000000-0000-4000-8000-000000000002'
@@ -943,7 +942,7 @@ describe('resolveCapabilityRoute', () => {
     const other: ModelConfig = routed({
       connections: [{ ...connection, id: '22222222-2222-4222-8222-222222222222', name: 'B gateway' }],
     })
-    await expect(resolveCapabilityRoute('chat', {}, {
+    await expect(resolveCapabilityRoute('schema-edit', {}, {
       researcherAccountId: ACCOUNT,
       readConfig: async () => other,
       deployment: { connections: [], defaultRoute: null },
@@ -976,7 +975,7 @@ describe('resolveCapabilityRoute', () => {
 
   it('fails closed instead of consulting another route', async () => {
     await expect(
-      resolveCapabilityRoute('chat', {}, {
+      resolveCapabilityRoute('schema-edit', {}, {
         researcherAccountId: ACCOUNT,
         readConfig: async () => routed({ routes: { schemaSuggestion: { connectionId: ID, modelId: 'model' }, interaction: null } }),
         deployment: { connections: [], defaultRoute: null },
