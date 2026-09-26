@@ -6,7 +6,7 @@ import { registerIngestionWorkflow, type IngestionStore } from '../../../api/_in
 import { createSourceDocumentIngestion } from '../../../api/source_documents.js'
 import { awaitWorkflowOutcome, launchStudioDbos, shutdownStudioDbos, studioDbos } from '../../../server/dbos.js'
 import { ingestionWorkflowPorts } from '../../../server/workflows.js'
-import { uploadRequest } from '../ingestion.js'
+import { ingestionStoreFor, uploadRequest } from '../ingestion.js'
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
   const value = env[name]
@@ -37,6 +37,7 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
   const owner = required(env, 'FREE_TEST_ACCOUNT')
   const projectContextId = required(env, 'FREE_TEST_PROJECT')
   const packageStore = createCanonicalPackageStore(required(env, 'FREE_TEST_PACKAGE_ROOT'))
+  const ownersStore = ingestionStoreFor(packageStore)
   await launchStudioDbos({
     databaseUrl: required(env, 'DATABASE_URL'),
     schema: required(env, 'FREE_TEST_DBOS_SCHEMA'),
@@ -57,7 +58,7 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
             },
           },
           storeFor: (account) =>
-            killAfterPublish(createResearcherProjectStore(account), firstRun && mode === 'kill-after-publish'),
+            killAfterPublish(ownersStore(account), firstRun && mode === 'kill-after-publish'),
         }
       }),
   })

@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import {
+  createInternalProjectWorkerStore,
   createModelConfigurationStore,
   createResearcherProjectStore,
   db,
@@ -9,6 +10,7 @@ import {
   type ResearcherProjectStore,
 } from 'db'
 import { packCanonicalPackage } from '../../../../packages/db/src/artifact-store.js'
+import type { IngestionStore } from '../../api/_ingestion_workflow.js'
 import { keiExpManifestSchema, listedPages, parsedDocumentFromKeiExp, verifiedPage } from '../../api/_kei_exp.js'
 import { EMPTY_MODEL_CONFIG } from '../../api/_model_config.js'
 
@@ -23,6 +25,20 @@ export async function seedOwner(): Promise<IngestionOwner> {
     id: owner, tenantId: '91000000-0000-4000-8000-000000000003', objectId: owner, displayName: 'Ingestion test researcher',
   })
   return { owner, store: createResearcherProjectStore(owner) }
+}
+
+/**
+ * The owner's store as ingestSource publishes through it, with discards aimed at the test's own package root: the
+ * researcher store's discard removes from the default package root, which holds the developer's own packages.
+ */
+export function ingestionStoreFor(packages: CanonicalPackageStore): (owner: string) => IngestionStore {
+  const worker = createInternalProjectWorkerStore(db, { packages })
+  return (owner) => ({
+    ...createResearcherProjectStore(owner),
+    async discardCanonicalPackage(descriptor) {
+      await packages.remove(descriptor, () => worker.isPackageReferenced(descriptor.artifactReference))
+    },
+  })
 }
 
 /** Removes the account; its projects cascade their Source Documents. */

@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { DBOSClient } from '@dbos-inc/dbos-sdk'
 import pg from 'pg'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { createResearcherProjectStore, db, pool, type ResearcherProjectStore } from 'db'
+import { db, pool, type ResearcherProjectStore } from 'db'
 import { dbosSteps } from 'extraction'
 import { createKeiHandoff, KEI_APPLICATION, keiConvertWorkflowId, type KeiConvertInput } from 'extraction/kei-handoff'
 import { spawnKeiStandIn, type KeiStandInProcess } from 'extraction/kei-stand-in-client'
@@ -14,7 +14,8 @@ import { createCanonicalPackageStore } from '../../../packages/db/src/artifact-s
 import { awaitWorkflowOutcome, launchStudioDbos, shutdownStudioDbos, studioDbos } from '../server/dbos.js'
 import { runWorkflowChild } from '../test/support/crash.js'
 import {
-  chooseIngestionModels, publishFixtureParse, removeOwner, seedOwner, uploadRequest, type IngestionOwner,
+  chooseIngestionModels, ingestionStoreFor, publishFixtureParse, removeOwner, seedOwner, uploadRequest,
+  type IngestionOwner,
 } from '../test/support/ingestion.js'
 import { blankPdf } from '../test/support/pdf.js'
 import { disposableDatabaseUrl, dropSchemas, testSchemas } from '../test/support/postgres.js'
@@ -49,7 +50,7 @@ beforeAll(async () => {
         readBase: standIn.url,
         inboxRoot: inbox,
         packageStore: packages,
-        storeFor: (owner) => createResearcherProjectStore(owner),
+        storeFor: ingestionStoreFor(packages),
       })),
   })
 })

@@ -22,15 +22,18 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
   validateDisposableTestDatabaseTarget(databaseUrl)
   process.env.DATABASE_URL = databaseUrl
 
+  // Imported only now: these modules build the pool from DATABASE_URL when they load.
   const [
     { db, pool },
     {
       createInternalProjectWorkerStore,
       createResearcherProjectStore,
     },
+    { isUniqueViolation },
   ] = await Promise.all([
     import('./prisma/db.js'),
     import('./project-store.js'),
+    import('./pool-client-transaction.js'),
   ])
   after(async () => {
     await db.close()
@@ -121,6 +124,14 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     await survivorStore.findSourceDocumentByContent(project.projectContextId, ingestion.contentSha256),
     null,
   )
+  // The publication backstop names this constraint: a second insert of the content is a replay, nothing else is.
+  const duplicate = await db.transaction(({ orm }) => orm.public.SourceDocument.create({
+    projectContextId: project.projectContextId,
+    contentSha256: ingestion.contentSha256,
+    mediaType: 'application/pdf',
+    originalName: 'duplicate.pdf',
+  })).then(() => null, (error: unknown) => error)
+  assert.ok(isUniqueViolation(duplicate, 'sourceDocument_projectContextId_contentSha256_key'), String(duplicate))
   assert.equal(ingested.revisionNumber, 1)
   assert.equal(
     (

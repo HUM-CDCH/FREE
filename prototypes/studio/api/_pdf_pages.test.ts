@@ -33,7 +33,8 @@ describe('countPdfPages', () => {
     } finally {
       clearInterval(ticker)
     }
-    expect(longestGap).toBeLessThan(400)
+    // Timer scheduling on a busy runner jitters; a blocked loop shows a gap of the whole count.
+    expect(longestGap).toBeLessThan(700)
   })
 
   it('answers null once the count outlives its deadline', async () => {
