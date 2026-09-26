@@ -55,6 +55,9 @@ importers:
 
   packages/extraction:
     dependencies:
+      '@dbos-inc/dbos-sdk':
+        specifier: 5.1.10
+        version: 5.1.10
       db:
         specifier: workspace:*
         version: link:../db
@@ -65,9 +68,15 @@ importers:
       '@types/node':
         specifier: ^24.13.2
         version: 24.13.3
+      '@types/pg':
+        specifier: ^8.21.0
+        version: 8.21.0
       fflate:
         specifier: ^0.8.3
         version: 0.8.3
+      pg:
+        specifier: 8.22.0
+        version: 8.22.0
       tsx:
         specifier: ^4.23.4
         version: 4.23.4
