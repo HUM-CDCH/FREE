@@ -3,11 +3,12 @@ import { relative } from 'node:path'
 
 const RELOAD_COALESCE_MS = 50
 
-// A registered workflow keeps the module instances it was registered from, and
-// the running DBOS the configuration and queues it launched with, so
+// A registered workflow keeps the module instances it was registered from (its
+// ports included: runExtraction's come from api/_extractions.ts), and the
+// running DBOS the configuration and queues it launched with, so
 // recomposition cannot adopt an edit to one of these.
 const RESTART_MODULE =
-  /(^|\/)(api\/_[a-z_]*_workflow\.ts|server\/(dbos|workflows)\.ts|packages\/extraction\/src\/workflows\.ts)$/
+  /(^|\/)(api\/_[a-z_]*_workflow\.ts|api\/_extractions\.ts|server\/(dbos|workflows)\.ts|packages\/extraction\/src\/workflows\.ts)$/
 
 // Vite restarts a dev server by configuring the new server, whose host adopts
 // the running DBOS, before it closes the old one. Only the newest configured

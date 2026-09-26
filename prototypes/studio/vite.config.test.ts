@@ -467,6 +467,13 @@ describe('Vite Hono integration', () => {
     expect(development.logger.warn).toHaveBeenLastCalledWith(
       expect.stringContaining('restart Studio'),
     )
+
+    // runExtraction was registered with the ports this module built.
+    const portsModule = '/workspace/prototypes/studio/api/_extractions.ts'
+    development.serverModules.add(portsModule)
+    development.change(portsModule)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(development.logger.warn).toHaveBeenCalledTimes(3)
   })
 
   it('a restarted dev server adopts the running DBOS, and closing the server it replaced leaves DBOS running', async () => {
