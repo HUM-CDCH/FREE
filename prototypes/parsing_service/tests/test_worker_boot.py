@@ -137,6 +137,32 @@ def test_the_worker_refuses_to_start_without_its_database_url(monkeypatch, capsy
     assert stopped.value.code == 2 and "KEI_SYSTEM_DATABASE_URL" in capsys.readouterr().err
 
 
+SYNTHETIC_PASSWORD = "sk-test-startup-password"
+
+
+def _echoing(url):
+    raise psycopg.OperationalError(f"connection to {url} failed: password={SYNTHETIC_PASSWORD} was refused")
+
+
+@pytest.mark.parametrize(("url", "clock", "kind"), [
+    (f"kei:{SYNTHETIC_PASSWORD}@db", None, "ProgrammingError"),  # psycopg quotes a malformed conninfo whole
+    (f"postgresql://kei:{SYNTHETIC_PASSWORD}@127.0.0.1:1/free", None, "OperationalError"),  # refused
+    (f"postgresql://kei:{SYNTHETIC_PASSWORD}@127.0.0.1:1/free", _echoing, "OperationalError"),
+    (f"postgresql://kei:{SYNTHETIC_PASSWORD.replace('-', '%2D')}@127.0.0.1:1/free", _echoing, "OperationalError"),
+])
+def test_a_startup_error_never_prints_the_database_password(lock_root, monkeypatch, capsys, url, clock, kind):
+    if clock is not None:
+        monkeypatch.setattr(boot, "database_clock_ms", clock)
+    monkeypatch.setattr(boot, "_timestamp_ms", None)
+    with pytest.raises(SystemExit) as stopped:
+        cli.main(["worker", "--slot", "slot-9", "--database-url", url])
+    output = capsys.readouterr()
+    assert stopped.value.code == 1
+    assert SYNTHETIC_PASSWORD not in output.err + output.out
+    assert "%2D" not in output.err  # nor its percent-encoded spelling
+    assert output.err.startswith(f"kei worker stopped: {kind}")
+
+
 def test_kei_launches_in_kei_dbos_with_its_four_lanes(kei):
     for name, limit in config.QUEUES.items():
         queue = DBOS.retrieve_queue(name)

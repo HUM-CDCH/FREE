@@ -9,10 +9,12 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import re
 import signal
 import sys
 import threading
 from collections.abc import Callable
+from urllib.parse import unquote, urlsplit
 
 from dbos import DBOS
 
@@ -46,6 +48,21 @@ def serve(slot_name: str, database_url: str, *, until: Callable[[], None] = _unt
             DBOS.destroy()
 
 
+def redacted(message: str, database_url: str) -> str:
+    """`message` without the database URL or its password, in any spelling a driver may quote it."""
+    secrets = {database_url}
+    try:
+        password = urlsplit(database_url).password
+    except ValueError:
+        password = None
+    if password:
+        secrets |= {password, unquote(password)}
+    for secret in sorted(secrets, key=len, reverse=True):
+        message = message.replace(secret, "***")
+    message = re.sub(r"(://[^:/@\s]*:)[^@\s]*@", r"\1***@", message)  # any other URL's password
+    return re.sub(r"(password\s*=\s*)\S+", r"\1***", message, flags=re.IGNORECASE)  # a conninfo's
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="kei-worker", description="kei's DBOS worker")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -59,6 +76,9 @@ def main(argv: list[str] | None = None) -> None:
         serve(args.slot, args.database_url)
     except slot.SlotTaken as error:
         print(error, file=sys.stderr)
+        sys.exit(1)
+    except Exception as error:  # noqa: BLE001 - psycopg's message can quote the URL; a traceback would repeat it
+        print(f"kei worker stopped: {type(error).__name__}: {redacted(str(error), args.database_url)}", file=sys.stderr)
         sys.exit(1)
 
 
