@@ -10,7 +10,6 @@ import {
   type ModelConfigUpdate,
   type ModelConnection,
   type ModelProbeRequest,
-  type ProviderKind,
 } from '../shared/modelConfig.contract.js'
 import { ApiError, boundedValidationDetails, type ValidationIssue } from './_http.js'
 import { DEPLOYMENT_IDS } from './_deployment_models.js'
@@ -42,7 +41,6 @@ function invalidModelConfig(issues: readonly ValidationIssue[], cause?: unknown)
 function semanticIssues(config: ModelConfig): ValidationIssue[] {
   const issues: ValidationIssue[] = []
   const connectionById = new Map<string, ModelConnection>()
-  const cliCounts = new Map<ProviderKind, number>()
 
   config.connections.forEach((connection, index) => {
     const at = `connections.${index}`
@@ -53,22 +51,12 @@ function semanticIssues(config: ModelConfig): ValidationIssue[] {
     }
 
     const { authentication, transport } = providerTable[connection.provider]
-    if (authentication === 'managed' && !connection.hasKey)
-      issues.push({ path: `${at}.hasKey`, message: 'A hosted provider always uses a key.' })
-    if (transport === 'cli' && connection.hasKey)
-      issues.push({ path: `${at}.hasKey`, message: 'A CLI provider signs in on the server and takes no key.' })
-
     if (transport === 'cli') {
-      if (connection.baseUrl !== null) {
-        issues.push({ path: `${at}.baseUrl`, message: 'CLI providers require a null API base.' })
-      }
-      const count = (cliCounts.get(connection.provider) ?? 0) + 1
-      cliCounts.set(connection.provider, count)
-      if (count > 1) {
-        issues.push({ path: `${at}.provider`, message: 'CLI provider kinds allow only one connection.' })
-      }
+      issues.push({ path: `${at}.provider`, message: 'CLI providers run on the server\'s own login; the operator enables them as deployment connections.' })
       return
     }
+    if (authentication === 'managed' && !connection.hasKey)
+      issues.push({ path: `${at}.hasKey`, message: 'A hosted provider always uses a key.' })
 
     if (connection.baseUrl === null) {
       issues.push({ path: `${at}.baseUrl`, message: 'HTTP providers require an API base.' })
@@ -132,7 +120,7 @@ export function parseModelConfigUpdate(value: unknown): ModelConfigUpdate {
     })
   }
 
-  // The submitted document is whole, so duplicate IDs, CLI singletons, keys, API
+  // The submitted document is whole, so duplicate IDs, CLI connections, keys, API
   // bases and dangling routes are all decidable here, by the same rules a saved one obeys.
   const issues = semanticIssues(parsed.data.config)
   if (issues.length > 0) {

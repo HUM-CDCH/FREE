@@ -779,6 +779,28 @@ describe('resolveCapabilityRoute', () => {
     })).rejects.toMatchObject({ status: 409, code: 'invalid_model_config', message: 'No model is configured for Schema Suggestion.' })
   })
 
+  it('a route may name an enabled CLI deployment connection', async () => {
+    const createModel = vi.fn(() => ({}) as never)
+    const claudeCode = {
+      id: DEPLOYMENT_CONNECTION_IDS.claudeCode, name: 'Claude Code on this server', provider: 'claude-code' as const, baseUrl: null, hasKey: false,
+    }
+    const keys = createModelKeyCache()
+    const read = vi.spyOn(keys, 'read')
+
+    const target = await resolveCapabilityRoute('chat', {}, {
+      researcherAccountId: ACCOUNT,
+      readConfig: async () => routed({ connections: [], routes: { schemaSuggestion: null, interaction: { connectionId: claudeCode.id, modelId: 'opus' } } }),
+      deployment: { connections: [claudeCode], defaultRoute: null },
+      keys,
+      modelFactories: { 'claude-code': createModel },
+    })
+
+    expect(target).toMatchObject({ profile: 'general', attribution: { provider: 'claude-code', modelId: 'opus' } })
+    // The server's own CLI login runs the call: no key is read, none is passed.
+    expect(createModel).toHaveBeenCalledWith(claudeCode, 'opus', null)
+    expect(read).not.toHaveBeenCalled()
+  })
+
   it('refuses a saved route naming a deployment connection this deployment no longer serves', async () => {
     await expect(resolveCapabilityRoute('chat', {}, {
       researcherAccountId: ACCOUNT,

@@ -117,6 +117,44 @@ describe('POST /api/model_probe', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
+  it('Probe rejects a researcher-defined CLI connection before running any CLI', async () => {
+    const codexListModels = vi.fn(async () => [])
+    const claudeStatus = vi.fn(async () => {})
+    const post = accountProbe({ codexListModels, claudeStatus, deployment })
+    for (const provider of ['codex-cli', 'claude-code'] as const) {
+      const response = await post(request({ connection: { ...keyless, provider, baseUrl: null } }))
+
+      expect(response.status).toBe(409)
+      const body = (await response.json()) as { error: { code: string; details: { issues: { path: string }[] } } }
+      expect(body.error.code).toBe('invalid_model_config')
+      expect(body.error.details.issues.map(({ path }) => path)).toEqual(['connection.provider'])
+    }
+    expect(codexListModels).not.toHaveBeenCalled()
+    expect(claudeStatus).not.toHaveBeenCalled()
+  })
+
+  it('an enabled CLI deployment connection is probed through its deployment ID', async () => {
+    const codexCli: ModelConnection = {
+      id: DEPLOYMENT_CONNECTION_IDS.codexCli, name: 'Codex CLI on this server', provider: 'codex-cli', baseUrl: null, hasKey: false,
+    }
+    const codexListModels = vi.fn(async () => [{ id: 'gpt-5.5-codex', displayName: 'GPT-5.5 Codex' }])
+    const enabled = accountProbe({ codexListModels, deployment: () => ({ connections: [codexCli], defaultRoute: null }) })
+
+    const response = await enabled(request({ connection: codexCli }))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ status: 'connected', catalog: [{ id: 'gpt-5.5-codex', label: 'GPT-5.5 Codex' }] })
+    expect(codexListModels).toHaveBeenCalledOnce()
+
+    const disabled = accountProbe({ codexListModels, deployment: () => ({ connections: [], defaultRoute: null }) })
+    const refused = await disabled(request({ connection: codexCli }))
+    expect(refused.status).toBe(409)
+    await expect(refused.json()).resolves.toEqual({
+      error: { code: 'invalid_model_config', message: 'This deployment does not serve that connection.' },
+    })
+    expect(codexListModels).toHaveBeenCalledOnce()
+  })
+
   it('holds a deployment probe to the same request contract as any probe', async () => {
     const fetch = vi.fn()
     const post = accountProbe({ fetch, deployment })

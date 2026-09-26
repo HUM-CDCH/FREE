@@ -80,12 +80,15 @@ export const modelConfigSchema = z
 export type ModelConfig = z.infer<typeof modelConfigSchema>
 
 /**
- * Model servers the deployment itself runs. Their UUIDs are reserved: a saved
- * route may name one, a saved connection may not reuse one.
+ * Model connections the deployment itself provides: its vLLM servers and the
+ * CLI providers the operator enables. Their UUIDs are reserved: a saved route
+ * may name one, a saved connection may not reuse one.
  */
 export const DEPLOYMENT_CONNECTION_IDS = {
   instruct: '00000000-0000-4000-8000-00000000d001',
   nuextract: '00000000-0000-4000-8000-00000000d002',
+  codexCli: '00000000-0000-4000-8000-00000000d003',
+  claudeCode: '00000000-0000-4000-8000-00000000d004',
 } as const
 export const deploymentModelsSchema = z
   .object({

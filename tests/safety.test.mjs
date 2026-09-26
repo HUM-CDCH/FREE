@@ -335,6 +335,17 @@ test('kei role: only Studio receives the kei password, after migrations', () => 
   assert.ok(init < keiRole && keiRole < exec, 'the kei role is ensured after migrations and before Studio starts')
 })
 
+test('development enables both CLI deployment connections; the base file leaves them to the operator', () => {
+  const services = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {})).services
+  assert.equal(services.studio.environment.FREE_DEPLOYMENT_CLI_PROVIDERS, 'codex-cli,claude-code')
+
+  const base = readFileSync(resolve(ROOT, 'compose.yaml'), 'utf8')
+  assert.ok(
+    base.includes('FREE_DEPLOYMENT_CLI_PROVIDERS: "${FREE_DEPLOYMENT_CLI_PROVIDERS:-}"'),
+    'production enables a CLI provider only when the operator sets FREE_DEPLOYMENT_CLI_PROVIDERS',
+  )
+})
+
 test('app shell: the production policy is strict about script, workers and framing', async () => {
   const { APP_SHELL_CONTENT_SECURITY_POLICY } = await import('../prototypes/studio/server/contentSecurityPolicy.ts')
   const policy = new Map(

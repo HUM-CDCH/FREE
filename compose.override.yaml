@@ -77,6 +77,9 @@ services:
       # invalidates the Researcher's session cookie.
       FREE_SESSION_SECRET: "${FREE_SESSION_SECRET:?FREE_SESSION_SECRET comes from pnpm dev; start the stack with it}"
       VITE_SHOW_DEVELOPER_UI: "true"
+      # A developer running FREE for themselves routes to their own Codex and
+      # Claude Code logins; production leaves this to the operator.
+      FREE_DEPLOYMENT_CLI_PROVIDERS: codex-cli,claude-code
       # Development sign-in drives the production Entra client code against the
       # mock-oidc service. The token endpoint is redeemed server-side over the
       # app network; the browser follows authorize/end-session redirects to the

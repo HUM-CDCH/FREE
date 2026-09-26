@@ -144,22 +144,12 @@ describe('model configuration storage', () => {
     expectInvalid(() => validateModelConfig(squatting), 'connections.1.id')
   })
 
-  it('enforces null CLI bases and at most one connection per CLI kind', () => {
-    for (const provider of ['codex-cli', 'claude-code'] as const) {
-      const twice = configured({
-        connections: [
-          { id: VLLM_ID, name: 'One', provider, baseUrl: null, hasKey: false },
-          { id: OPENAI_ID, name: 'Two', provider, baseUrl: null, hasKey: false },
-        ],
-        routes: { schemaSuggestion: null, interaction: null },
-      })
-      expectInvalid(() => validateModelConfig(twice), 'connections.1.provider')
-
-      const withBase = configured({
-        connections: [{ id: VLLM_ID, name: 'CLI', provider, baseUrl: 'https://example.test', hasKey: false }],
-        routes: { schemaSuggestion: null, interaction: null },
-      })
-      expectInvalid(() => validateModelConfig(withBase), 'connections.0.baseUrl')
+  it('a researcher connection may not reuse a CLI deployment ID', () => {
+    for (const id of [DEPLOYMENT_CONNECTION_IDS.codexCli, DEPLOYMENT_CONNECTION_IDS.claudeCode]) {
+      const squatting = configured()
+      squatting.connections[0] = { ...squatting.connections[0], id }
+      squatting.routes.schemaSuggestion = null
+      expectInvalid(() => validateModelConfig(squatting), 'connections.0.id')
     }
   })
 
@@ -207,16 +197,6 @@ describe('key rules of a stored document', () => {
       expect(validateModelConfig(config)).toEqual(config)
     }
   })
-
-  it('a CLI connection takes no key', () => {
-    for (const provider of ['codex-cli', 'claude-code'] as const) {
-      const config = configured({
-        connections: [{ id: VLLM_ID, name: 'CLI', provider, baseUrl: null, hasKey: true }],
-        routes: { schemaSuggestion: null, interaction: null },
-      })
-      expectInvalid(() => validateModelConfig(config), 'connections.0.hasKey')
-    }
-  })
 })
 
 describe('GET /api/model_config', () => {
@@ -224,6 +204,7 @@ describe('GET /api/model_config', () => {
     vi.stubEnv('FREE_DEPLOYMENT_INSTRUCT_URL', 'http://extraction_model:8000/v1')
     vi.stubEnv('FREE_DEPLOYMENT_INSTRUCT_MODEL', 'Qwen/Qwen3.8-27B-FP8')
     vi.stubEnv('FREE_DEPLOYMENT_NUEXTRACT_URL', 'http://nuextract_model:8000/v1')
+    vi.stubEnv('FREE_DEPLOYMENT_CLI_PROVIDERS', '')
     const configurations = inMemoryModelConfigurations()
 
     const response = await handlers({ configurations }).GET()
@@ -317,6 +298,24 @@ describe('PUT /api/model_config', () => {
     expect(body.error.details.issues.map(({ path }) => path)).toContain('config.connections.1.provider')
     // The researcher must delete the connection and create a new UUID instead.
     await expect(readAccountModelConfig(ACCOUNT, configurations)).resolves.toEqual(configured())
+  })
+
+  it('Apply rejects a researcher-defined CLI connection', async () => {
+    for (const provider of ['codex-cli', 'claude-code'] as const) {
+      const configurations = inMemoryModelConfigurations()
+      const config = configured({
+        connections: [{ id: OTHER_ID, name: 'My CLI', provider, baseUrl: null, hasKey: false }],
+        routes: { schemaSuggestion: null, interaction: { connectionId: OTHER_ID, modelId: 'opus' } },
+      })
+
+      const response = await handlers({ configurations }).PUT(putRequest({ config }))
+
+      expect(response.status).toBe(409)
+      const body = (await response.json()) as { error: { code: string; details: { issues: { path: string }[] } } }
+      expect(body.error.code).toBe('invalid_model_config')
+      expect(body.error.details.issues.map(({ path }) => path)).toEqual(['config.connections.0.provider'])
+      expect(configurations.documents.size).toBe(0)
+    }
   })
 
   it.each([

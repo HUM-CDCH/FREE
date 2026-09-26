@@ -686,6 +686,33 @@ describe('ProviderConfigPage', () => {
     })
   })
 
+  it('CLI kinds are not offered for a new connection; enabled CLI deployment connections are listed read-only', async () => {
+    const withCli: DeploymentModels = {
+      connections: [
+        { id: DEPLOYMENT_CONNECTION_IDS.codexCli, name: 'Codex CLI on this server', provider: 'codex-cli', baseUrl: null, hasKey: false },
+        { id: DEPLOYMENT_CONNECTION_IDS.claudeCode, name: 'Claude Code on this server', provider: 'claude-code', baseUrl: null, hasKey: false },
+      ],
+      defaultRoute: null,
+    }
+    savingServer(emptyConfig, withCli)
+
+    await renderPage()
+
+    const offered = Array.from((screen.getByLabelText('New connection provider') as HTMLSelectElement).options).map(({ value }) => value)
+    expect(offered).toEqual(['ollama', 'openai', 'anthropic', 'google', 'openai-compatible', 'vllm'])
+    expect(screen.getByLabelText('New connection provider')).toHaveValue('ollama')
+
+    const listed = within(screen.getByText('Deployment connections').parentElement!)
+    for (const name of ['Codex CLI on this server', 'Claude Code on this server']) {
+      const item = listed.getByText(name).closest('li')!
+      expect(within(item).getByText("Runs on this server's CLI login")).toBeInTheDocument()
+    }
+    expect(listed.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('article')).not.toBeInTheDocument()
+    // A route may still name one.
+    expect(within(screen.getByLabelText(INTERACTION_CONNECTION)).getByRole('option', { name: 'Claude Code on this server' })).toBeInTheDocument()
+  })
+
   it('renders corrupt saved configuration through the stable load error', async () => {
     mockFetch(() =>
       jsonResponse(

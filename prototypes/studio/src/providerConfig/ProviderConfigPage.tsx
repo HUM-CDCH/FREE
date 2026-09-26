@@ -18,6 +18,12 @@ type PageProps = {
   initialFocusRef?: RefObject<HTMLButtonElement | null>
 }
 
+/** The kinds a researcher may add. CLI providers run on the server's own login, so only the operator enables them, as
+ *  deployment connections. */
+function offeredProviders(providers: readonly ProviderDescriptor[]): ProviderDescriptor[] {
+  return providers.filter(({ transport }) => transport !== 'cli')
+}
+
 /** Keys are kept per Researcher Account, so the page needs the signed-in one. */
 function ProviderConfigPage(props: PageProps) {
   const researcher = useContext(ResearcherSessionContext)
@@ -65,7 +71,7 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
     initialize(state.config)
     setProviders(state.providers)
     setDeployment(state.deployment)
-    setNewProvider(state.providers[0]?.kind ?? 'ollama')
+    setNewProvider(offeredProviders(state.providers)[0]?.kind ?? 'ollama')
   }
 
   useEffect(() => {
@@ -178,7 +184,9 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
                 <li key={connection.id} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-canvas px-3.5 py-2.5">
                   <span className="min-w-0">
                     <b className="block text-[12.5px] text-ink">{connection.name}</b>
-                    <span className="block truncate font-mono text-[10.5px] text-ink-faint">{connection.baseUrl}</span>
+                    {connection.baseUrl === null
+                      ? <span className="block truncate text-[10.5px] text-ink-faint">Runs on this server's CLI login</span>
+                      : <span className="block truncate font-mono text-[10.5px] text-ink-faint">{connection.baseUrl}</span>}
                   </span>
                   <span className="shrink-0 rounded-md border border-line px-2 py-0.5 text-[10px] font-semibold uppercase text-ink-muted">Deployment</span>
                 </li>
@@ -191,7 +199,7 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
           <Overline>Your connections</Overline>
           <div className="flex gap-2">
             <select value={newProvider} onChange={(event) => setNewProvider(event.target.value as ProviderKind)} aria-label="New connection provider" className={`${providerFieldClass} w-auto cursor-pointer`}>
-              {providers.map((provider) => <option key={provider.kind} value={provider.kind}>{provider.label}</option>)}
+              {offeredProviders(providers).map((provider) => <option key={provider.kind} value={provider.kind}>{provider.label}</option>)}
             </select>
             <Button variant="primary" size="sm" onClick={() => addConnection(newProvider)}>+ New connection</Button>
           </div>
