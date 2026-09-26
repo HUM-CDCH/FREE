@@ -131,6 +131,25 @@ describe('Source Document reprocess admission', () => {
     }
   })
 
+  it('replays a revision published before the workflow stopped', async () => {
+    const h = harness({ known: fingerprint, status: 'ERROR' })
+    h.store.findReprocessedSourceDocument.mockResolvedValueOnce(null).mockResolvedValueOnce(published)
+    const response = await h.handler(request())
+    expect(response.status).toBe(200)
+    expect(response.headers.get(REPROCESS_TERMINAL_HEADER)).toBeNull()
+    expect(await response.json()).toMatchObject({ sourceRepresentationId: published.sourceRepresentationId, pageCount: 3 })
+    expect(h.store.findReprocessedSourceDocument).toHaveBeenCalledTimes(2)
+    expect(h.admission.enqueue).not.toHaveBeenCalled()
+  })
+
+  it('keeps a failed publication lookup uncertain', async () => {
+    const h = harness({ known: fingerprint, status: 'ERROR' })
+    h.store.findReprocessedSourceDocument.mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('database unavailable'))
+    const response = await h.handler(request())
+    expect(response.status).toBe(503)
+    expect(response.headers.get(REPROCESS_TERMINAL_HEADER)).toBeNull()
+  })
+
   it('maps an owner-store key conflict to 409', async () => {
     const h = harness({ replay: true })
     h.store.findReprocessedSourceDocument.mockRejectedValueOnce(new ReprocessConflictError())

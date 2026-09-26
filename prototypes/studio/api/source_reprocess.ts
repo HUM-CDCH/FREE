@@ -75,19 +75,20 @@ export function createSourceDocumentReprocessing(
       const requestFingerprint = createHash('sha256')
         .update(JSON.stringify([documentId, expectedRepresentationId, layout]))
         .digest('hex')
+      const publishedResponse = async (revision: NonNullable<Awaited<ReturnType<Store['findReprocessedSourceDocument']>>>) => {
+        const { descriptor, ...result } = revision
+        const pageCount = await packagePageCount(descriptor, {
+          read: dependencies.readPackage ?? canonicalPackageStore.read,
+        })
+        return json({ ...result, pageCount }, { headers: noStore })
+      }
       const replay = await store.findReprocessedSourceDocument(
         projectId,
         documentId,
         requestKey,
         requestFingerprint,
       )
-      if (replay) {
-        const { descriptor, ...result } = replay
-        const pageCount = await packagePageCount(descriptor, {
-          read: dependencies.readPackage ?? canonicalPackageStore.read,
-        })
-        return json({ ...result, pageCount }, { headers: noStore })
-      }
+      if (replay) return publishedResponse(replay)
       const workflowId = `reprocess:${documentId}:${requestKey}`
       const admission = dependencies.admission ?? studioDbos().admission
       const recordedFingerprint = async () => {
@@ -143,8 +144,11 @@ export function createSourceDocumentReprocessing(
         response.headers.set(REPROCESS_TERMINAL_HEADER, '1')
         return response
       }
-      if (awaited.state === 'stopped')
+      if (awaited.state === 'stopped') {
+        const published = await store.findReprocessedSourceDocument(projectId, documentId, requestKey, requestFingerprint)
+        if (published) return publishedResponse(published)
         return terminalFailure(502, 'source_ingestion_failed', 'Source Document parsing stopped before it finished.')
+      }
       if (!awaited.output.ok)
         return terminalFailure(awaited.output.status, awaited.output.code, awaited.output.message)
       return json({ ...awaited.output.revision, pageCount: awaited.output.pageCount }, { status: 201, headers: noStore })
