@@ -17,6 +17,7 @@ const saved: ModelConfig = {
   connections: [connection],
   routes: { schemaSuggestion: null, interaction: null },
   extractionModels: {},
+  ingestionModels: {},
 }
 
 /** The account's probe, always over an isolated configuration store, never the process one. */

@@ -22,8 +22,8 @@ import type {
   ProbeStatus,
   ProviderDescriptor,
   ProviderKind,
-  SchemaSuggestionRoute,
 } from '../shared/modelConfig.contract.js'
+import { selectedRoute, usesNuextractProtocol } from '../shared/modelConfig.contract.js'
 import { DEPLOYMENT_IDS, deploymentModels } from './_deployment_models.js'
 import { ApiError } from './_http.js'
 import { systemCredentialStore, type CredentialStore } from './_keyring.js'
@@ -706,12 +706,13 @@ export async function resolveCapabilityRoute(
 ): Promise<ExecutionTarget> {
   const config = await dependencies.readConfig()
   const deployment = dependencies.deployment ?? deploymentModels()
-  const key = operation === 'schema-suggestion' ? 'schemaSuggestion' : 'interaction'
-  const label = ROUTE_LABELS[key]
-  // An unset route runs on the deployment's instruction model, when it serves one.
-  const route: SchemaSuggestionRoute | null = config.routes[key] ?? deployment.defaultRoute
+  const routeKey = operation === 'schema-suggestion' ? 'schemaSuggestion' : 'interaction'
+  const label = ROUTE_LABELS[routeKey]
+  // An unset Schema Suggestion route follows the Interaction Route; an unset Interaction Route runs on the
+  // deployment's instruction model, when it serves one.
+  const route = selectedRoute(config.routes, routeKey, deployment.defaultRoute)
   if (!route) {
-    throw new ApiError(409, 'invalid_model_config', `The ${label} Route is not configured.`)
+    throw new ApiError(409, 'invalid_model_config', `No model is configured for ${label}.`)
   }
   const connection = [...config.connections, ...deployment.connections].find(({ id }) => id === route.connectionId)
   if (!connection) {
@@ -726,8 +727,8 @@ export async function resolveCapabilityRoute(
     ? null
     : await resolvedCredential(connection, dependencies.credentialStore ?? systemCredentialStore)
 
-  if (route.protocol === 'nuextract') {
-    if (!entry.supportsNuextract || connection.baseUrl === null) {
+  if (routeKey === 'schemaSuggestion' && usesNuextractProtocol(entry, route.modelId)) {
+    if (connection.baseUrl === null) {
       throw new ApiError(409, 'invalid_model_config', 'The NuExtract protocol requires a vLLM Model Connection.')
     }
     return {
@@ -753,7 +754,7 @@ export async function resolveCapabilityRoute(
     profile: 'general',
     model,
     jsonOutput: ['anthropic', 'claude-code', 'openai-compatible', 'vllm'].includes(connection.provider) ? 'schema' : 'native',
-    automaticOutputKey: JSON.stringify([connection.id, connection.provider, connection.baseUrl, route.modelId, key]),
+    automaticOutputKey: JSON.stringify([connection.id, connection.provider, connection.baseUrl, route.modelId, routeKey]),
     temperatureSupported: entry.temperatureSupported,
     attribution: { provider: connection.provider, modelId: route.modelId },
   }

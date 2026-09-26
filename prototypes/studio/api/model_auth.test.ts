@@ -42,6 +42,7 @@ const config: ModelConfig = {
     interaction: { connectionId: CONNECTION_ID, modelId: 'gpt-research' },
   },
   extractionModels: {},
+  ingestionModels: {},
 }
 
 type ProviderFetch = (
@@ -63,12 +64,14 @@ const otherConfig: ModelConfig = {
     interaction: { connectionId: OTHER_CONNECTION_ID, modelId: 'gpt-other' },
   },
   extractionModels: { fields: 'instruct' },
+  ingestionModels: {},
 }
 
 const EMPTY_CONFIG: ModelConfig = {
   connections: [],
   routes: { schemaSuggestion: null, interaction: null },
   extractionModels: {},
+  ingestionModels: {},
 }
 
 type ModelAuthFixture = {

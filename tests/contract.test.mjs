@@ -152,6 +152,7 @@ test('extraction: the canonical schema-guided path succeeds with evidence', { ti
           interaction: { connectionId: state.connectionId, modelId: OLLAMA_MODEL },
         },
         extractionModels: {},
+        ingestionModels: {},
       },
       credentials: {},
     }),

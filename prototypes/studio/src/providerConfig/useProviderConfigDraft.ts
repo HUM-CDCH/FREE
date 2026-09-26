@@ -7,8 +7,6 @@ type ProbeSchedule = (connection: ModelConnection, action: string | null | undef
 
 type DraftInputs = {
   providers: readonly ProviderDescriptor[]
-  /** Read-only connections the deployment runs; routes may name them. */
-  deploymentConnections?: readonly ModelConnection[]
   scheduleProbe: ProbeSchedule
   disposeProbe: (connectionId: string) => void
 }
@@ -18,13 +16,12 @@ export function configurationMode(config: ModelConfig): ConfigurationMode {
   if (schemaSuggestion === null && interaction === null) return 'single'
   if (schemaSuggestion === null || interaction === null) return 'routes'
   return schemaSuggestion.connectionId === interaction.connectionId &&
-    schemaSuggestion.modelId === interaction.modelId &&
-    schemaSuggestion.protocol === undefined
+    schemaSuggestion.modelId === interaction.modelId
     ? 'single'
     : 'routes'
 }
 
-export function useProviderConfigDraft({ providers, deploymentConnections = [], scheduleProbe, disposeProbe }: DraftInputs) {
+export function useProviderConfigDraft({ providers, scheduleProbe, disposeProbe }: DraftInputs) {
   const [draft, setDraft] = useState<ModelConfig | null>(null)
   const [mode, setMode] = useState<ConfigurationMode>('single')
   const [credentialActions, setCredentialActions] = useState<CredentialActions>({})
@@ -68,15 +65,9 @@ export function useProviderConfigDraft({ providers, deploymentConnections = [], 
       name: connection.name === descriptor(connection)?.label ? provider.label : connection.name,
       baseUrl: provider.transport === 'http' ? (provider.defaultBaseUrl ?? '') : null,
     }
-    const routes = { ...draft.routes }
-    const { schemaSuggestion } = routes
-    if (schemaSuggestion?.connectionId === connection.id && !provider.supportsNuextract) {
-      routes.schemaSuggestion = { connectionId: schemaSuggestion.connectionId, modelId: schemaSuggestion.modelId }
-    }
     setDraft({
       ...draft,
       connections: draft.connections.map((item) => (item.id === connection.id ? next : item)),
-      routes,
     })
     const action = provider.authentication === 'external' ? undefined : actionFor(connection.id)
     if (provider.authentication === 'external' && Object.hasOwn(credentialActions, connection.id)) {
@@ -127,21 +118,9 @@ export function useProviderConfigDraft({ providers, deploymentConnections = [], 
       setDraft({ ...draft, routes: { ...draft.routes, [key]: null } })
       return
     }
-    const current = draft.routes[key]
-    const selected = [...draft.connections, ...deploymentConnections].find(({ id }) => id === connectionId)
-    const nuextractSupported = selected ? descriptor(selected)?.supportsNuextract === true : false
     setDraft({
       ...draft,
-      routes: {
-        ...draft.routes,
-        [key]: {
-          connectionId,
-          modelId: current?.modelId ?? '',
-          ...(key === 'schemaSuggestion' && nuextractSupported && current && 'protocol' in current && current.protocol
-            ? { protocol: current.protocol }
-            : {}),
-        },
-      },
+      routes: { ...draft.routes, [key]: { connectionId, modelId: draft.routes[key]?.modelId ?? '' } },
     })
   }
 
@@ -167,18 +146,6 @@ export function useProviderConfigDraft({ providers, deploymentConnections = [], 
     if (!current) return
     const route = { connectionId: current.connectionId, modelId }
     setDraft({ ...draft, routes: { schemaSuggestion: route, interaction: route } })
-  }
-
-  function setNuextractProtocol(enabled: boolean): void {
-    if (!draft?.routes.schemaSuggestion) return
-    const { connectionId, modelId } = draft.routes.schemaSuggestion
-    setDraft({
-      ...draft,
-      routes: {
-        ...draft.routes,
-        schemaSuggestion: enabled ? { connectionId, modelId, protocol: 'nuextract' } : { connectionId, modelId },
-      },
-    })
   }
 
   /** '' leaves the role to kei-exp's deployment default. */
@@ -208,7 +175,6 @@ export function useProviderConfigDraft({ providers, deploymentConnections = [], 
     setRouteModel,
     setSingleConnection,
     setSingleModel,
-    setNuextractProtocol,
     setExtractionModel,
   }
 }

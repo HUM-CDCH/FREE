@@ -21,7 +21,12 @@ import { providerTable } from './_provider.js'
 
 
 function emptyModelConfig(): ModelConfig {
-  return { connections: [], routes: { schemaSuggestion: null, interaction: null }, extractionModels: {} }
+  return {
+    connections: [],
+    routes: { schemaSuggestion: null, interaction: null },
+    extractionModels: {},
+    ingestionModels: {},
+  }
 }
 
 /** Comparison value only. Readers return a fresh document so callers cannot alias it. */
@@ -80,30 +85,11 @@ function semanticIssues(config: ModelConfig): ValidationIssue[] {
   const routed = (connectionId: string) => connectionById.get(connectionId) ?? (
     DEPLOYMENT_IDS.has(connectionId) ? 'deployment' : undefined
   )
-  const { schemaSuggestion, interaction } = config.routes
-  if (schemaSuggestion !== null) {
-    const connection = routed(schemaSuggestion.connectionId)
-    if (!connection) {
-      issues.push({
-        path: 'routes.schemaSuggestion.connectionId',
-        message: 'Route must reference an existing connection.',
-      })
-    } else if (
-      schemaSuggestion.protocol === 'nuextract' &&
-      connection !== 'deployment' &&
-      !providerTable[connection.provider].supportsNuextract
-    ) {
-      issues.push({
-        path: 'routes.schemaSuggestion.protocol',
-        message: 'The NuExtract protocol requires a vLLM connection.',
-      })
+  for (const key of ['schemaSuggestion', 'interaction'] as const) {
+    const route = config.routes[key]
+    if (route !== null && !routed(route.connectionId)) {
+      issues.push({ path: `routes.${key}.connectionId`, message: 'Route must reference an existing connection.' })
     }
-  }
-  if (interaction !== null && !routed(interaction.connectionId)) {
-    issues.push({
-      path: 'routes.interaction.connectionId',
-      message: 'Route must reference an existing connection.',
-    })
   }
 
   return issues
@@ -162,11 +148,7 @@ export function parseModelProbeRequest(value: unknown): ModelProbeRequest {
       cause: parsed.error,
     })
   }
-  const issues = semanticIssues({
-    connections: [parsed.data.connection],
-    routes: { schemaSuggestion: null, interaction: null },
-    extractionModels: {},
-  })
+  const issues = semanticIssues({ ...emptyModelConfig(), connections: [parsed.data.connection] })
   if (issues.length > 0) {
     throw invalidSubmitted(
       issues.map((issue) => ({

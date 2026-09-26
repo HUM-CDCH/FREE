@@ -250,6 +250,7 @@ describe("a model call reads its caller's configuration", () => {
     connections: [{ id: connectionId, name: 'Gateway', provider: 'openai-compatible' as const, baseUrl: 'https://gateway.example/v1' }],
     routes: { schemaSuggestion: null, interaction: { connectionId, modelId: 'caller-model' } },
     extractionModels: {},
+    ingestionModels: {},
   }
   // Keyring, deployment and provider stay fakes: resolution must not reach the OS or the environment.
   const isolated = {

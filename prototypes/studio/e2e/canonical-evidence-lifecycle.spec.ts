@@ -241,6 +241,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       },
       // The researcher's Extraction Model Choice every run is requested on.
       extractionModels: { fields: 'instruct' },
+      ingestionModels: {},
     },
   })
   await db.orm.public.ProjectContext.create({

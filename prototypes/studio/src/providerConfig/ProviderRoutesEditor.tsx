@@ -1,4 +1,10 @@
-import type { ModelConfig, ModelConnection, ProviderDescriptor, RouteKey } from '../../shared/modelConfig.contract'
+import {
+  usesNuextractProtocol,
+  type ModelConfig,
+  type ModelConnection,
+  type ProviderDescriptor,
+  type RouteKey,
+} from '../../shared/modelConfig.contract'
 import { Overline } from '../ui'
 import { ModelCombobox } from './ModelCombobox'
 import { providerFieldClass } from './ProviderConnectionCard'
@@ -20,7 +26,6 @@ type Props = {
   setRouteModel: (key: RouteKey, modelId: string) => void
   setSingleConnection: (connectionId: string) => void
   setSingleModel: (modelId: string) => void
-  setNuextractProtocol: (enabled: boolean) => void
 }
 
 export function ProviderRoutesEditor({
@@ -35,7 +40,6 @@ export function ProviderRoutesEditor({
   setRouteModel,
   setSingleConnection,
   setSingleModel,
-  setNuextractProtocol,
 }: Props) {
   const schemaSuggestion = draft.routes.schemaSuggestion
   const interaction = draft.routes.interaction
@@ -109,11 +113,8 @@ export function ProviderRoutesEditor({
                   onOpen={() => connection && onModelListOpen(connection.id)}
                 />
               </div>
-              {task.key === 'schemaSuggestion' && provider?.supportsNuextract && route && (
-                <label className="mt-2 flex items-center gap-2 text-[11px] text-ink-muted">
-                  <input type="checkbox" checked={'protocol' in route && route.protocol === 'nuextract'} onChange={(event) => setNuextractProtocol(event.target.checked)} />
-                  Use NuExtract protocol
-                </label>
+              {task.key === 'schemaSuggestion' && provider && route && usesNuextractProtocol(provider, route.modelId) && (
+                <p className="mt-2 text-[11px] text-ink-muted">Uses the NuExtract protocol for this model.</p>
               )}
             </div>
           )

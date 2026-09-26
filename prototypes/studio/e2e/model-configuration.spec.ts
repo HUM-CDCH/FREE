@@ -50,14 +50,11 @@ type Config = {
     baseUrl: string | null
   }[]
   routes: {
-    schemaSuggestion: {
-      connectionId: string
-      modelId: string
-      protocol?: 'nuextract'
-    } | null
+    schemaSuggestion: { connectionId: string; modelId: string } | null
     interaction: { connectionId: string; modelId: string } | null
   }
   extractionModels: { fields?: string; reasoning?: string }
+  ingestionModels: { ocr?: string; layout?: string }
 }
 
 const deployment = { connections: [], defaultRoute: null }
@@ -67,6 +64,7 @@ async function mockConfiguration(page: Page) {
     connections: [],
     routes: { schemaSuggestion: null, interaction: null },
     extractionModels: {},
+    ingestionModels: {},
   }
   let probes = 0
   let putFailure = false
@@ -281,7 +279,7 @@ test('removing a connection disposes its pending and late probe state', async ({
   await expect(page.getByText('Connected. 1 model available.')).toBeHidden()
 })
 
-test('Capability Routes save mixed exact targets and the vLLM-only NuExtract protocol', async ({
+test('Capability Routes save mixed exact targets', async ({
   page,
 }) => {
   const state = await mockConfiguration(page)
@@ -306,7 +304,7 @@ test('Capability Routes save mixed exact targets and the vLLM-only NuExtract pro
     .getByLabel('Schema Suggestion model ID')
     .fill('numind/NuExtract3-FP8')
   await page.getByRole('combobox', { name: 'Schema Suggestion model ID' }).press('Tab')
-  await page.getByLabel('Use NuExtract protocol').check()
+  await expect(page.getByText('Uses the NuExtract protocol for this model.')).toBeVisible()
   await page
     .getByLabel('Chat & Extraction Schema editing connection')
     .selectOption({ label: 'OpenAI' })
@@ -324,7 +322,6 @@ test('Capability Routes save mixed exact targets and the vLLM-only NuExtract pro
   const saved = state.config()
   expect(saved.routes.schemaSuggestion).toMatchObject({
     modelId: 'numind/NuExtract3-FP8',
-    protocol: 'nuextract',
   })
   expect(saved.routes.interaction).toMatchObject({ modelId: 'gpt-manual' })
   expect(saved.routes.schemaSuggestion?.connectionId).not.toBe(
@@ -343,7 +340,7 @@ test('Capability Routes save mixed exact targets and the vLLM-only NuExtract pro
   expect(state.probes()).toBe(probesBeforeReload)
 })
 
-test('a draft provider change probes again, drops the NuExtract protocol, and locks once saved', async ({
+test('a draft provider change probes again and locks once saved', async ({
   page,
 }) => {
   const state = await mockConfiguration(page)
@@ -358,11 +355,9 @@ test('a draft provider change probes again, drops the NuExtract protocol, and lo
   await page
     .getByLabel('Schema Suggestion connection')
     .selectOption({ label: 'vLLM' })
-  await page.getByLabel('Use NuExtract protocol').check()
 
   await page.getByLabel('vLLM provider').selectOption('claude-code')
   await expect.poll(state.probes).toBe(2)
-  await expect(page.getByLabel('Use NuExtract protocol')).toBeHidden()
 
   await page
     .getByLabel('Schema Suggestion model ID')
@@ -373,7 +368,6 @@ test('a draft provider change probes again, drops the NuExtract protocol, and lo
     provider: 'claude-code',
     baseUrl: null,
   })
-  expect(state.config().routes.schemaSuggestion).not.toHaveProperty('protocol')
 })
 
 test('probe failures do not gate retryable offline Apply and pending state', async ({

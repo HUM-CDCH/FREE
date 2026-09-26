@@ -41,6 +41,7 @@ function routed(overrides: Partial<ModelConfig> = {}): ModelConfig {
       interaction: { connectionId: ID, modelId: 'manual/model' },
     },
     extractionModels: {},
+    ingestionModels: {},
     ...overrides,
   }
 }
@@ -533,26 +534,110 @@ describe('resolveCapabilityRoute', () => {
     })).rejects.toMatchObject({ status: 503, code: 'keyring_unavailable' })
   })
 
-  it('derives the NuExtract protocol only from a flagged vLLM Schema Suggestion Route', async () => {
-    const vllm = { ...connection, provider: 'vllm' as const, baseUrl: 'http://nuextract_model:8000/v1' }
+  const NUEXTRACT = 'numind/NuExtract3-FP8'
+  const QWEN = 'Qwen/Qwen3.8-27B-FP8'
+  const INTERACTION_ID = '22222222-2222-4222-8222-222222222222'
+  const onVllm = { ...connection, provider: 'vllm' as const, baseUrl: 'http://nuextract_model:8000/v1' }
+  const general = () => ({}) as never
+
+  it.each([
+    ['vllm', NUEXTRACT, 'nuextract'],
+    ['vllm', QWEN, 'general'],
+    ['openai-compatible', NUEXTRACT, 'general'],
+    ['openai-compatible', QWEN, 'general'],
+  ] as const)(
+    'Schema Suggestion uses the NuExtract protocol exactly for a NuExtract model on a vLLM connection (%s, %s)',
+    async (provider, modelId, profile) => {
+      const selected = { ...onVllm, provider }
+      const target = await resolveCapabilityRoute('schema-suggestion', {}, {
+        readConfig: async () => routed({
+          connections: [selected],
+          routes: { schemaSuggestion: { connectionId: ID, modelId }, interaction: null },
+        }),
+        deployment: { connections: [], defaultRoute: null },
+        credentialStore: presentCredentialStore,
+        modelFactories: { vllm: general, 'openai-compatible': general },
+      })
+      expect(target.profile).toBe(profile)
+      if (profile === 'nuextract') {
+        expect(target).toEqual({
+          profile: 'nuextract',
+          modelId: NUEXTRACT,
+          baseUrl: 'http://nuextract_model:8000/v1',
+          authorization: 'Bearer secret',
+          temperatureSupported: true,
+          attribution: { provider: 'vllm', modelId: NUEXTRACT },
+        })
+      }
+    },
+  )
+
+  it.each(['chat', 'schema-edit'] as const)('no other route ever uses the NuExtract protocol (%s)', async (operation) => {
+    const target = await resolveCapabilityRoute(operation, {}, {
+      readConfig: async () => routed({
+        connections: [onVllm],
+        routes: { schemaSuggestion: null, interaction: { connectionId: ID, modelId: NUEXTRACT } },
+      }),
+      deployment: { connections: [], defaultRoute: null },
+      credentialStore: presentCredentialStore,
+      modelFactories: { vllm: general },
+    })
+    expect(target).toMatchObject({ profile: 'general', attribution: { provider: 'vllm', modelId: NUEXTRACT } })
+  })
+
+  it('an inherited NuExtract target runs the protocol', async () => {
     const target = await resolveCapabilityRoute('schema-suggestion', {}, {
       readConfig: async () => routed({
-        connections: [vllm],
-        routes: {
-          schemaSuggestion: { connectionId: ID, modelId: 'numind/NuExtract3-FP8', protocol: 'nuextract' },
-          interaction: { connectionId: ID, modelId: 'chat-model' },
-        },
+        connections: [onVllm],
+        routes: { schemaSuggestion: null, interaction: { connectionId: ID, modelId: NUEXTRACT } },
       }),
+      deployment: { connections: [], defaultRoute: null },
       credentialStore: presentCredentialStore,
     })
-    expect(target).toEqual({
-      profile: 'nuextract',
-      modelId: 'numind/NuExtract3-FP8',
-      baseUrl: 'http://nuextract_model:8000/v1',
-      authorization: 'Bearer secret',
-      temperatureSupported: true,
-      attribution: { provider: 'vllm', modelId: 'numind/NuExtract3-FP8' },
+    expect(target).toMatchObject({ profile: 'nuextract', modelId: NUEXTRACT, baseUrl: onVllm.baseUrl })
+  })
+
+  it('an unset Schema Suggestion route follows the Interaction Route, then the deployment default', async () => {
+    const createModel = vi.fn(general)
+    const deployment = {
+      connections: [{ id: DEPLOYMENT_CONNECTION_IDS.instruct, name: 'Deployment', provider: 'vllm' as const, baseUrl: 'http://extraction_model:8000/v1' }],
+      defaultRoute: { connectionId: DEPLOYMENT_CONNECTION_IDS.instruct, modelId: QWEN },
+    }
+    const dependencies = (routes: ModelConfig['routes']) => ({
+      readConfig: async () => routed({ routes }),
+      deployment,
+      credentialStore: presentCredentialStore,
+      modelFactories: { vllm: createModel, 'openai-compatible': createModel },
     })
+
+    await expect(resolveCapabilityRoute('schema-suggestion', {}, dependencies({
+      schemaSuggestion: null, interaction: { connectionId: ID, modelId: 'assistant-model' },
+    }))).resolves.toMatchObject({ attribution: { provider: 'openai-compatible', modelId: 'assistant-model' } })
+    expect(createModel).toHaveBeenLastCalledWith(connection, 'assistant-model', 'secret')
+
+    await expect(resolveCapabilityRoute('schema-suggestion', {}, dependencies({
+      schemaSuggestion: null, interaction: null,
+    }))).resolves.toMatchObject({ attribution: { provider: 'vllm', modelId: QWEN } })
+    expect(createModel).toHaveBeenLastCalledWith(deployment.connections[0], QWEN, null)
+  })
+
+  it('an explicit Schema Suggestion route is used even when the Interaction Route differs or equals it', async () => {
+    const second = { ...connection, id: INTERACTION_ID, name: 'Second gateway' }
+    const createModel = vi.fn(general)
+    const resolve = (routes: ModelConfig['routes']) => resolveCapabilityRoute('schema-suggestion', {}, {
+      readConfig: async () => routed({ connections: [connection, second], routes }),
+      deployment: { connections: [], defaultRoute: null },
+      credentialStore: presentCredentialStore,
+      modelFactories: { 'openai-compatible': createModel },
+    })
+    const explicit = { connectionId: ID, modelId: 'suggestion-model' }
+
+    await resolve({ schemaSuggestion: explicit, interaction: { connectionId: INTERACTION_ID, modelId: 'assistant-model' } })
+    expect(createModel).toHaveBeenLastCalledWith(connection, 'suggestion-model', 'secret')
+
+    await resolve({ schemaSuggestion: explicit, interaction: { ...explicit } })
+    expect(createModel).toHaveBeenLastCalledWith(connection, 'suggestion-model', 'secret')
+    expect(createModel).toHaveBeenCalledTimes(2)
   })
 
   it('runs an unset route on the deployment default, and fails closed without one', async () => {
@@ -570,7 +655,7 @@ describe('resolveCapabilityRoute', () => {
 
     await expect(resolveCapabilityRoute('schema-suggestion', {}, {
       readConfig: async () => unset, deployment: { connections: [], defaultRoute: null },
-    })).rejects.toMatchObject({ status: 409, code: 'invalid_model_config', message: 'The Schema Suggestion Route is not configured.' })
+    })).rejects.toMatchObject({ status: 409, code: 'invalid_model_config', message: 'No model is configured for Schema Suggestion.' })
   })
 
   it('refuses a saved route naming a deployment connection this deployment no longer serves', async () => {
@@ -616,6 +701,7 @@ describe('resolveCapabilityRoute', () => {
           interaction: { connectionId: interactionId, modelId: 'interaction-model' },
         },
         extractionModels: {},
+        ingestionModels: {},
       }),
       credentialStore: presentCredentialStore,
       modelFactories: { ollama: extractionFactory, openai: interactionFactory },

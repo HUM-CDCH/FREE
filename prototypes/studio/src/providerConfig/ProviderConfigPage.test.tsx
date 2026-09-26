@@ -102,6 +102,7 @@ const emptyConfig: ModelConfig = {
   connections: [],
   routes: { schemaSuggestion: null, interaction: null },
   extractionModels: {},
+  ingestionModels: {},
 }
 
 function ollamaConfig(modelId = 'saved-model'): ModelConfig {
@@ -117,6 +118,7 @@ function ollamaConfig(modelId = 'saved-model'): ModelConfig {
     ],
     routes: { schemaSuggestion: route, interaction: route },
     extractionModels: {},
+    ingestionModels: {},
   }
 }
 
@@ -138,6 +140,7 @@ function mixedConfig(): ModelConfig {
     ],
     routes: { schemaSuggestion: null, interaction: null },
     extractionModels: {},
+    ingestionModels: {},
   }
 }
 
@@ -489,8 +492,9 @@ describe('ProviderConfigPage', () => {
     expect(request.mock.calls.filter(([url]) => String(url) === '/api/model_config')).toHaveLength(4)
   })
 
-  it('saves mixed routes and exposes the NuExtract protocol only on a vLLM Schema Suggestion Route', async () => {
+  it('the NuExtract protocol is shown as automatic for a NuExtract model on vLLM and never offered as a choice', async () => {
     const VLLM_ID = '33333333-3333-4333-8333-333333333333'
+    const NOTE = 'Uses the NuExtract protocol for this model.'
     const putBodies: Record<string, unknown>[] = []
     const config = mixedConfig()
     config.connections.push({ id: VLLM_ID, name: 'Lab vLLM', provider: 'vllm', baseUrl: 'http://lab.example:8000/v1' })
@@ -506,16 +510,28 @@ describe('ProviderConfigPage', () => {
     await renderPage()
     fireEvent.click(screen.getByRole('button', { name: 'Capability Routes' }))
     const suggestionConnection = screen.getByLabelText('Schema Suggestion connection')
+    const suggestionModel = screen.getByLabelText('Schema Suggestion model ID')
     fireEvent.change(suggestionConnection, { target: { value: VLLM_ID } })
-    fireEvent.change(screen.getByLabelText('Schema Suggestion model ID'), {
+    fireEvent.change(suggestionModel, { target: { value: 'Qwen/Qwen3.8-27B-FP8' } })
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument()
+    fireEvent.change(suggestionModel, { target: { value: 'numind/NuExtract3-FP8' } })
+    expect(screen.getByText(NOTE)).toBeInTheDocument()
+
+    // Not on a connection that cannot pass NuExtract's chat-template controls.
+    fireEvent.change(suggestionConnection, { target: { value: OLLAMA_ID } })
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument()
+    fireEvent.change(suggestionConnection, { target: { value: VLLM_ID } })
+    expect(screen.getByText(NOTE)).toBeInTheDocument()
+
+    // Never on the Interaction Route, even for the same NuExtract target.
+    fireEvent.change(screen.getByLabelText('Chat & Extraction Schema editing connection'), {
+      target: { value: VLLM_ID },
+    })
+    fireEvent.change(screen.getByLabelText('Chat & Extraction Schema editing model ID'), {
       target: { value: 'numind/NuExtract3-FP8' },
     })
-    fireEvent.click(screen.getByLabelText('Use NuExtract protocol'))
-
-    fireEvent.change(suggestionConnection, { target: { value: OLLAMA_ID } })
-    expect(screen.queryByLabelText('Use NuExtract protocol')).not.toBeInTheDocument()
-    fireEvent.change(suggestionConnection, { target: { value: VLLM_ID } })
-    fireEvent.click(screen.getByLabelText('Use NuExtract protocol'))
+    expect(screen.getAllByText(NOTE)).toHaveLength(1)
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Chat & Extraction Schema editing connection'), {
       target: { value: OPENAI_ID },
@@ -527,15 +543,8 @@ describe('ProviderConfigPage', () => {
 
     await waitFor(() => expect(putBodies).toHaveLength(1))
     const saved = putBodies[0].config as ModelConfig
-    expect(saved.routes.schemaSuggestion).toEqual({
-      connectionId: VLLM_ID,
-      modelId: 'numind/NuExtract3-FP8',
-      protocol: 'nuextract',
-    })
-    expect(saved.routes.interaction).toEqual({
-      connectionId: OPENAI_ID,
-      modelId: 'gpt-manual',
-    })
+    expect(saved.routes.schemaSuggestion).toEqual({ connectionId: VLLM_ID, modelId: 'numind/NuExtract3-FP8' })
+    expect(saved.routes.interaction).toEqual({ connectionId: OPENAI_ID, modelId: 'gpt-manual' })
   })
 
   it('sets the deployment-wide Extraction Model Choice from kei-exp\'s listing', async () => {
@@ -599,14 +608,14 @@ describe('ProviderConfigPage', () => {
     expect(within(suggestionConnection).getByRole('option', { name: 'Deployment default (Qwen/Qwen3.8-27B-FP8)' })).toBeInTheDocument()
     fireEvent.change(suggestionConnection, { target: { value: DEPLOYMENT_CONNECTION_IDS.nuextract } })
     fireEvent.change(screen.getByLabelText('Schema Suggestion model ID'), { target: { value: 'numind/NuExtract3-FP8' } })
-    fireEvent.click(screen.getByLabelText('Use NuExtract protocol'))
+    expect(screen.getByText('Uses the NuExtract protocol for this model.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
 
     await waitFor(() => expect(putBodies).toHaveLength(1))
     const saved = putBodies[0].config as ModelConfig
     expect(saved.connections).toEqual([])
     expect(saved.routes.schemaSuggestion).toEqual({
-      connectionId: DEPLOYMENT_CONNECTION_IDS.nuextract, modelId: 'numind/NuExtract3-FP8', protocol: 'nuextract',
+      connectionId: DEPLOYMENT_CONNECTION_IDS.nuextract, modelId: 'numind/NuExtract3-FP8',
     })
   })
 

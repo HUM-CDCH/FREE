@@ -51,11 +51,9 @@ function ProviderConfigPage({
     setRouteModel,
     setSingleConnection,
     setSingleModel,
-    setNuextractProtocol,
     setExtractionModel,
   } = useProviderConfigDraft({
     providers,
-    deploymentConnections: deployment.connections,
     scheduleProbe: schedule,
     disposeProbe: dispose,
   })
@@ -190,7 +188,6 @@ function ProviderConfigPage({
           setRouteModel={setRouteModel}
           setSingleConnection={setSingleConnection}
           setSingleModel={setSingleModel}
-          setNuextractProtocol={setNuextractProtocol}
         />
       </section>}
       <section className="p-4.5">

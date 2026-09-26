@@ -18,6 +18,8 @@ const VLLM_ID = '00000000-0000-4000-8000-000000000001'
 const OPENAI_ID = '00000000-0000-4000-8000-000000000002'
 const OTHER_ID = '00000000-0000-4000-8000-000000000003'
 const NO_DEPLOYMENT = { connections: [], defaultRoute: null }
+/** The stored protocol flag Studio no longer has: the NuExtract protocol is derived, never submitted. */
+const RETIRED_PROTOCOL = 'nuextract'
 
 function configured(overrides: Partial<ModelConfig> = {}): ModelConfig {
   return {
@@ -26,10 +28,11 @@ function configured(overrides: Partial<ModelConfig> = {}): ModelConfig {
       { id: OPENAI_ID, name: 'Research OpenAI', provider: 'openai', baseUrl: 'https://gateway.example/proxy/openai/v1' },
     ],
     routes: {
-      schemaSuggestion: { connectionId: VLLM_ID, modelId: 'numind/NuExtract3-FP8', protocol: 'nuextract' },
+      schemaSuggestion: { connectionId: VLLM_ID, modelId: 'numind/NuExtract3-FP8' },
       interaction: { connectionId: OPENAI_ID, modelId: 'an opaque model id' },
     },
     extractionModels: { fields: 'nuextract' },
+    ingestionModels: {},
     ...overrides,
   }
 }
@@ -139,7 +142,7 @@ describe('model configuration storage', () => {
     await expect(configuredExtractionModels(OTHER_ACCOUNT, store)).resolves.toBeNull()
   })
 
-  it('rejects duplicate IDs, dangling routes, and the NuExtract protocol off vLLM', () => {
+  it('rejects duplicate IDs and dangling routes', () => {
     const duplicate = configured()
     duplicate.connections[1] = { ...duplicate.connections[1], id: VLLM_ID }
     expectInvalid(() => validateModelConfig(duplicate), 'connections.1.id')
@@ -149,10 +152,6 @@ describe('model configuration storage', () => {
       dangling.routes[route] = { connectionId: OTHER_ID, modelId: 'missing' }
       expectInvalid(() => validateModelConfig(dangling), `routes.${route}.connectionId`)
     }
-
-    const wrongProvider = configured()
-    wrongProvider.routes.schemaSuggestion = { connectionId: OPENAI_ID, modelId: 'gpt', protocol: 'nuextract' }
-    expectInvalid(() => validateModelConfig(wrongProvider), 'routes.schemaSuggestion.protocol')
   })
 
   it('bounds extraction model keys as the extraction contract does', () => {
@@ -165,7 +164,7 @@ describe('model configuration storage', () => {
   it('lets routes name a deployment connection but reserves its ID', () => {
     const routed = configured({
       routes: {
-        schemaSuggestion: { connectionId: DEPLOYMENT_CONNECTION_IDS.nuextract, modelId: 'n', protocol: 'nuextract' },
+        schemaSuggestion: { connectionId: DEPLOYMENT_CONNECTION_IDS.nuextract, modelId: 'n' },
         interaction: { connectionId: DEPLOYMENT_CONNECTION_IDS.instruct, modelId: 'q' },
       },
     })
@@ -590,5 +589,59 @@ describe('PUT /api/model_config', () => {
       },
     })
     expect(fake.values.get(OPENAI_ID)).toBe('sk-orphan')
+  })
+
+  it('a submitted schemaSuggestion protocol is refused as an unknown field', async () => {
+    const configurations = inMemoryModelConfigurations()
+    const fake = fakeCredentialStore()
+    const config = configured()
+    const response = await handlers({ configurations, credentialStore: fake.store }).PUT(putRequest({
+      config: { ...config, routes: { ...config.routes, schemaSuggestion: { ...config.routes.schemaSuggestion, protocol: RETIRED_PROTOCOL } } },
+      credentials: { [OPENAI_ID]: 'sk-test-protocol' },
+    }))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'invalid_request' } })
+    expect(configurations.documents.has(ACCOUNT)).toBe(false)
+    expect(fake.calls).toEqual([])
+  })
+
+  it('an explicit Schema Suggestion route equal to the Interaction Route is stored as submitted', async () => {
+    const configurations = inMemoryModelConfigurations()
+    const route = { connectionId: OPENAI_ID, modelId: 'an opaque model id' }
+    const config = configured({ routes: { schemaSuggestion: { ...route }, interaction: route } })
+
+    const response = await handlers({ configurations, credentialStore: fakeCredentialStore().store }).PUT(
+      putRequest({ config, credentials: { [OPENAI_ID]: 'sk-test-explicit-route' } }),
+    )
+
+    expect(response.status).toBe(200)
+    const stored = await readAccountModelConfig(ACCOUNT, configurations)
+    expect(stored.routes.schemaSuggestion).toEqual(route)
+    expect(stored).toEqual(config)
+  })
+
+  it('the Ingestion Model Choice is stored as submitted, and any key string is accepted', async () => {
+    const configurations = inMemoryModelConfigurations()
+    // kei refuses a key it does not serve at conversion; a saved choice the listing no longer offers stays saved.
+    const config = configured({ ingestionModels: { ocr: 'retired-ocr-model', layout: 'layout_heron_101' } })
+
+    const response = await handlers({ configurations, credentialStore: fakeCredentialStore().store }).PUT(
+      putRequest({ config, credentials: { [OPENAI_ID]: 'sk-test-ingestion-choice' } }),
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ config: { ingestionModels: config.ingestionModels } })
+    await expect(readAccountModelConfig(ACCOUNT, configurations)).resolves.toMatchObject({
+      ingestionModels: { ocr: 'retired-ocr-model', layout: 'layout_heron_101' },
+    })
+
+    for (const ingestionModels of [{ table: 'x' }, { ocr: '' }, { layout: 'k'.repeat(129) }]) {
+      const refused = await handlers({ configurations, credentialStore: fakeCredentialStore().store }).PUT(
+        putRequest({ config: { ...config, ingestionModels } }),
+      )
+      expect(refused.status).toBe(400)
+    }
+    await expect(readAccountModelConfig(ACCOUNT, configurations)).resolves.toEqual(config)
   })
 })
