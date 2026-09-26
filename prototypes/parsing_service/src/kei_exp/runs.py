@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import secrets
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,6 +30,8 @@ TERMINAL = ("done", "failed")
 STATUS_OF = {"todo": "queued", "doing": "running", "succeeded": "done", "failed": "failed",
              "cancelled": "cancelled", "aborted": "cancelled"}
 UNRECORDED = "Run ended without a recorded status (it was recorded before the job backend, and its API died)"
+# One path component: a run or extraction ID; Studio's `RUN_ID` accepts it.
+COMPONENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
 def now() -> str:
