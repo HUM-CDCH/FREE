@@ -36,11 +36,11 @@ def serve(slot_name: str, database_url: str, *, until: Callable[[], None] = _unt
         logger.info("slot %s taken by pid %s", slot_name, os.getpid())
         import kei_exp.workflows.registered  # noqa: F401 - every workflow is registered before launch
         boot.set_timestamp(boot.database_clock_ms(database_url))
-        DBOS(config=config.dbos_config(database_url, slot_name))
-        DBOS.launch()
-        config.register_queues()
-        logger.info("kei worker %s serving", config.executor_id(slot_name))
-        try:
+        try:  # a launch or a lane registration that fails still stops DBOS's threads before the slot is released
+            DBOS(config=config.dbos_config(database_url, slot_name))
+            DBOS.launch()
+            config.register_queues()
+            logger.info("kei worker %s serving", config.executor_id(slot_name))
             until()
         finally:
             DBOS.destroy()

@@ -91,6 +91,45 @@ def test_the_worker_locks_then_reads_the_clock_then_launches_then_registers(monk
     assert boot.timestamp_ms() == 1234
 
 
+@pytest.mark.parametrize("failing", ["launch", "queues"])
+def test_dbos_is_destroyed_when_launch_or_the_lanes_fail(monkeypatch, failing):
+    order: list[str] = []
+
+    @contextlib.contextmanager
+    def hold(name):
+        order.append("flock")
+        try:
+            yield
+        finally:
+            order.append("release")
+
+    def step(name):
+        order.append(name)
+        if name == failing:
+            raise RuntimeError(f"{name} failed")
+
+    class FakeDBOS:
+        def __init__(self, *, config):
+            order.append("configure")
+
+        @staticmethod
+        def launch():
+            step("launch")
+
+        @staticmethod
+        def destroy():
+            order.append("destroy")
+
+    monkeypatch.setattr(slot, "hold_slot", hold)
+    monkeypatch.setattr(boot, "database_clock_ms", lambda url: 1234)
+    monkeypatch.setattr(boot, "_timestamp_ms", None)
+    monkeypatch.setattr(cli, "DBOS", FakeDBOS)
+    monkeypatch.setattr(config, "register_queues", lambda **_: step("queues"))
+    with pytest.raises(RuntimeError, match=f"{failing} failed"):
+        cli.serve("slot-7", "postgresql://x", until=lambda: order.append("serving"))
+    assert "serving" not in order and order[-2:] == ["destroy", "release"]
+
+
 def test_the_worker_refuses_to_start_without_its_database_url(monkeypatch, capsys):
     monkeypatch.delenv("KEI_SYSTEM_DATABASE_URL", raising=False)
     with pytest.raises(SystemExit) as stopped:
