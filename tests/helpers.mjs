@@ -2,17 +2,20 @@
 // the running stack over HTTP exactly as a browser would; nothing imports
 // application code.
 import { spawnSync } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import { resolve } from 'node:path'
 import {
   developmentComposeEnvironment,
   ensureCertificates,
 } from '../scripts/free.mjs'
 
-// The local stack terminates TLS with a locally-trusted mkcert certificate.
+// The disposable stack terminates TLS with the local test certificate.
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
 export const ROOT = resolve(import.meta.dirname, '..')
-export const ORIGIN = 'https://localhost:8443'
+// Each test process owns exactly one project; a second invocation cannot adopt or remove it.
+const SYSTEM_PROJECT = `free-system-m4-${randomBytes(4).toString('hex')}`
+export const ORIGIN = 'https://localhost:41843'
 export const BASE = `${ORIGIN}/free`
 export const API = `${BASE}/api`
 export const OLLAMA_BASE_URL =
@@ -20,9 +23,19 @@ export const OLLAMA_BASE_URL =
 export const OLLAMA_MODEL = process.env.FREE_TEST_OLLAMA_MODEL ?? 'qwen3.8:latest'
 
 export function compose(args, options = {}) {
-  const result = spawnSync('docker', ['compose', ...args], {
+  const env = {
+    ...developmentComposeEnvironment(),
+    COMPOSE_PROJECT_NAME: SYSTEM_PROJECT,
+    FREE_NGINX_PORT: '41843',
+    FREE_MOCK_OIDC_PORT: '41844',
+    FREE_POSTGRES_PORT: '45445',
+    FREE_ENTRA_MOCK_BROWSER_ISSUER: 'http://localhost:41844/dev',
+    STUDIO_ORIGIN: ORIGIN,
+  }
+  const result = spawnSync('docker', ['compose', '-f', 'compose.yaml', '-f', 'compose.override.yaml',
+    '-f', 'tests/compose.system.yaml', '--profile', 'mock-oidc', ...args], {
     cwd: ROOT,
-    env: developmentComposeEnvironment(),
+    env,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     timeout: options.timeoutMs ?? 600_000,
@@ -52,9 +65,8 @@ export async function waitForHealth(timeoutMs = 300_000) {
   throw new Error('The stack did not become healthy in time.')
 }
 
-/** Start the stack the way `pnpm dev` does when it is not already running. */
+/** Build and start the disposable system-test stack owned by this process. */
 export async function ensureStackUp() {
-  if (await healthy()) return
   ensureCertificates()
   compose(['up', '-d', '--build', '--wait'])
   await waitForHealth()

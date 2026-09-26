@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -152,7 +152,7 @@ async function modelServer() {
 
 type Process = { child: ChildProcess; exited: Promise<number | null> }
 
-export async function startRealService(logFile: string) {
+export async function startRealService(logFile: string, options: { holdConversion?: boolean } = {}) {
   const url = process.env.FREE_PLAYWRIGHT_SERVICE_URL
   if (!url) throw new Error('Run this test with playwright.service.config.ts.')
   const address = new URL(url)
@@ -177,6 +177,8 @@ export async function startRealService(logFile: string) {
     throw new Error('Provide both FREE_REAL_EXTRACT_URL and FREE_REAL_EXTRACT_MODEL, or neither.')
   const fixture = realUrl ? null : await modelServer()
   const runs = await mkdtemp(join(tmpdir(), 'free-real-service-'))
+  const conversionBarrier = options.holdConversion ? join(runs, '.conversion-hold') : null
+  if (conversionBarrier) await mkdir(conversionBarrier)
   const inbox = process.env.FREE_PLAYWRIGHT_SOURCE_INBOX
   if (!inbox) throw new Error('Playwright must provide the shared source inbox.')
   await mkdir(inbox, { recursive: true })
@@ -207,9 +209,13 @@ export async function startRealService(logFile: string) {
   delete env.DATABASE_URL
   delete env.KEI_DATABASE_URL
   delete env.KEI_SYSTEM_DATABASE_URL
+  const workerArgs = conversionBarrier
+    ? [resolve(import.meta.dirname, 'holdConversionWorker.py'), 'worker', '--slot', 'free-service-e2e']
+    : ['-m', 'kei_exp.workflows.cli', 'worker', '--slot', 'free-service-e2e']
   function start(args: string[], workerEnv = false): Process {
     const child = spawn(python, args, { cwd: directory,
-      env: workerEnv ? { ...env, KEI_SYSTEM_DATABASE_URL: keiDatabase.href } : env,
+      env: workerEnv ? { ...env, KEI_SYSTEM_DATABASE_URL: keiDatabase.href,
+        ...(conversionBarrier ? { FREE_REAL_SERVICE_CONVERSION_HOLD: conversionBarrier } : {}) } : env,
       stdio: ['ignore', 'pipe', 'pipe'] })
     child.stdout!.pipe(log, { end: false })
     child.stderr!.pipe(log, { end: false })
@@ -233,7 +239,7 @@ export async function startRealService(logFile: string) {
   const servingCount = async () => (await readFile(logFile, 'utf8').catch(() => '')).split(servingMarker).length - 1
   async function boot() {
     const previousServing = await servingCount()
-    worker = start(['-m', 'kei_exp.workflows.cli', 'worker', '--slot', 'free-service-e2e'], true)
+    worker = start(workerArgs, true)
     api = start(['-m', 'uvicorn', 'kei_exp.api:app', '--host', '127.0.0.1', '--port', new URL(url!).port])
     const deadline = Date.now() + 120_000
     while (Date.now() < deadline) {
@@ -269,15 +275,23 @@ export async function startRealService(logFile: string) {
     holdNextExtraction: () => fixture?.holdNextExtraction(),
     extractionHeld: () => fixture?.extractionHeld() ?? false,
     releaseExtraction: () => fixture?.releaseExtraction(),
+    conversionHeld: async () => conversionBarrier !== null &&
+      await readFile(join(conversionBarrier, 'entered'), 'utf8').then(() => true, () => false),
+    releaseConversion: async () => {
+      if (conversionBarrier) await writeFile(join(conversionBarrier, 'release'), '')
+    },
     keiWorkflows: (prefix: string, projectContextId?: string) => keiClient.listWorkflows({
       workflow_id_prefix: prefix, ...(projectContextId ? { attributes: { projectContextId } } : {}),
       loadInput: true, loadOutput: true,
     }),
+    keiExtractStepFinished: async (workflowID: string) =>
+      (await keiClient.listWorkflowSteps(workflowID))?.some((step) =>
+        step.name === 'extract_run' && step.completedAtEpochMs !== undefined) ?? false,
     async restart() { await Promise.all([stop(api), stop(worker)]); await boot() },
     async killWorker() { const running = worker; if (!running) throw new Error('Worker is not running.')
       running.child.kill('SIGKILL'); await running.exited
       const previousServing = await servingCount()
-      worker = start(['-m', 'kei_exp.workflows.cli', 'worker', '--slot', 'free-service-e2e'], true)
+      worker = start(workerArgs, true)
       const deadline = Date.now() + 120_000
       while (Date.now() < deadline) {
         if (worker.child.exitCode !== null || worker.child.signalCode !== null)

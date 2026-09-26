@@ -56,7 +56,7 @@ export function studioDbosConfig(options: Pick<StudioDbosOptions, 'databaseUrl' 
   }
 }
 
-type LaunchRecord = { launching?: Promise<StudioDbos>; launched?: StudioDbos }
+type LaunchRecord = { launching?: Promise<StudioDbos>; launched?: StudioDbos; stopping?: Promise<void> }
 
 /**
  * The launch is process-wide, like DBOS itself. Vite evaluates this module afresh after an edit to it and on every
@@ -73,10 +73,11 @@ const launch: LaunchRecord = ((globalThis as { [key: symbol]: LaunchRecord | und
  * launch, and a DBOS launched by anyone else is refused.
  */
 export function launchStudioDbos(options: StudioDbosOptions): Promise<StudioDbos> {
+  if (launch.stopping) return launch.stopping.then(() => launchStudioDbos(options))
   if (launch.launching) return launch.launching
   if (DBOS.isInitialized())
     throw new Error('DBOS was launched outside launchStudioDbos; Studio launches it once per process.')
-  const launching = start(options).then((dbos) => (launch.launched = dbos))
+  const launching = start(options)
   launch.launching = launching
   launching.catch(() => {
     if (launch.launching === launching) launch.launching = undefined
@@ -90,10 +91,8 @@ async function start(options: StudioDbosOptions): Promise<StudioDbos> {
   DBOS.setConfig(studioDbosConfig(options))
   const clients: DBOSClient[] = []
   try {
-    await DBOS.launch()
-    // Queues live in the system database, so they are registered after launch.
-    await DBOS.registerQueue(STUDIO_QUEUE, { minPollingIntervalMs: 100 }) // p50 ~55 ms dequeue, not ~0.5 s (M0R 3)
-    await DBOS.registerQueue(SUGGEST_QUEUE, { globalConcurrency: 1 })
+    // DBOS can dispatch recovered work during launch, before these queues are registered again. Client construction
+    // opens no connection, so expose both clients before dispatch can build a workflow's ports.
     const admission = await DBOSClient.create({
       systemDatabaseUrl: options.databaseUrl,
       systemDatabaseSchemaName: options.schema ?? STUDIO_SCHEMA,
@@ -110,11 +109,23 @@ async function start(options: StudioDbosOptions): Promise<StudioDbos> {
       applicationName: KEI_APPLICATION,
     })
     clients.push(kei)
-    return { bootTimestampMs, admission, kei }
+    const dbos = { bootTimestampMs, admission, kei }
+    launch.launched = dbos
+    await DBOS.launch()
+    // Queues live in the system database, so they are registered after launch.
+    await DBOS.registerQueue(STUDIO_QUEUE, { minPollingIntervalMs: 100 }) // p50 ~55 ms dequeue, not ~0.5 s (M0R 3)
+    await DBOS.registerQueue(SUGGEST_QUEUE, { globalConcurrency: 1 })
+    return dbos
   } catch (error) {
     // Leave nothing running: a retry then launches afresh instead of meeting this DBOS as a foreign one. The startup
     // error is the one to report, so a failure while stopping is dropped.
-    await stop(clients).catch(() => undefined)
+    try {
+      await stop(clients)
+    } catch {
+      // Report the startup failure.
+    } finally {
+      launch.launched = undefined
+    }
     throw error
   }
 }
@@ -133,12 +144,20 @@ export function studioDbos(): StudioDbos {
   return launch.launched
 }
 
-export async function shutdownStudioDbos(): Promise<void> {
-  const current = await launch.launching?.catch(() => undefined)
-  launch.launching = undefined
-  launch.launched = undefined
-  if (!current) return
-  await stop([current.admission, current.kei])
+export function shutdownStudioDbos(): Promise<void> {
+  if (launch.stopping) return launch.stopping
+  const stopping = (async () => {
+    const current = await launch.launching?.catch(() => undefined)
+    try {
+      if (current) await stop([current.admission, current.kei])
+    } finally {
+      launch.launching = undefined
+      launch.launched = undefined
+      launch.stopping = undefined
+    }
+  })()
+  launch.stopping = stopping
+  return stopping
 }
 
 export async function databaseClockMs(databaseUrl: string): Promise<number> {

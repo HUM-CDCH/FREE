@@ -24,7 +24,7 @@ services:
     environment:
       POSTGRES_PASSWORD: "${FREE_POSTGRES_PASSWORD:-postgres}"
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${FREE_POSTGRES_PORT:-5432}:5432"
 
   parsing_service:
     develop: &parsing-watch
@@ -213,7 +213,7 @@ services:
           ]
         }
     ports:
-      - "${FREE_MOCK_OIDC_BIND:-127.0.0.1}:8444:8080"
+      - "${FREE_MOCK_OIDC_BIND:-127.0.0.1}:${FREE_MOCK_OIDC_PORT:-8444}:8080"
     networks:
       - app
 

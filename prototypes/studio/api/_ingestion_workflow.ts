@@ -167,22 +167,22 @@ export async function ingestSourceWorkflow(input: IngestionInput, ports: Ingesti
     return replay
   }
   const child = keiConvertWorkflowId(workflowId)
-  await steps.step('submitToKei', () => kei.submit({
-    workflow: 'convert',
-    workflowId: child,
-    queueName: input.lane,
-    priority: CONVERSION_PRIORITY,
-    timeoutMs: conversionTimeoutMs(input.pageCount),
-    authenticatedUser: input.owner,
-    attributes: { projectContextId: input.projectContextId },
-    request: {
-      source: input.source, source_sha256: input.sourceSha256, source_name: input.originalName,
-      page_source: input.pageSource, ingest: null, model: input.models.ocr, layout_model: input.models.layout,
-      cut: 'auto', debug: false,
-    },
-  }), SUBMIT_TO_KEI_RETRY)
   let outcome: IngestionOutcome
   try {
+    await steps.step('submitToKei', () => kei.submit({
+      workflow: 'convert',
+      workflowId: child,
+      queueName: input.lane,
+      priority: CONVERSION_PRIORITY,
+      timeoutMs: conversionTimeoutMs(input.pageCount),
+      authenticatedUser: input.owner,
+      attributes: { projectContextId: input.projectContextId },
+      request: {
+        source: input.source, source_sha256: input.sourceSha256, source_name: input.originalName,
+        page_source: input.pageSource, ingest: null, model: input.models.ocr, layout_model: input.models.layout,
+        cut: 'auto', debug: false,
+      },
+    }), SUBMIT_TO_KEI_RETRY)
     let polled: KeiPoll
     do polled = await steps.step('pollKei', () => kei.poll(child, steps.cancelSignal()))
     while (polled.state === 'live')
@@ -211,7 +211,7 @@ export async function ingestSourceWorkflow(input: IngestionInput, ports: Ingesti
     outcome = await steps.step('publishSourceDocument', () => publish(store, input, accepted, ports.packageStore))
   } catch (error) {
     if (isWorkflowCancellation(error)) throw error
-    // A parent that fails unexpectedly after submitToKei cancels its kei child before rethrowing (spec, *Studio → kei*).
+    // Submission may have committed even when its acknowledgement was lost.
     // A cancel that fails too is logged: the original failure is the one the workflow records.
     await steps.step('cancelKeiChild', () => kei.cancel(child)).catch((cancelError: unknown) => {
       if (isWorkflowCancellation(cancelError)) throw cancelError

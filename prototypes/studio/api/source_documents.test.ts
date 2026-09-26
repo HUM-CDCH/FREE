@@ -33,10 +33,11 @@ const succeeded: IngestionOutcome = { ok: true, sourceDocument: published, pageC
 function request(
   fields: Array<[string, string | File]> = [['file', new File([PDF], 'report.pdf', { type: 'application/pdf' })]],
   projectContextId = ids.project,
+  signal?: AbortSignal,
 ) {
   const form = new FormData()
   for (const [key, value] of fields) form.append(key, value)
-  return new Request(`http://test/api/project-contexts/${projectContextId}/source-documents`, { method: 'POST', body: form })
+  return new Request(`http://test/api/project-contexts/${projectContextId}/source-documents`, { method: 'POST', body: form, signal })
 }
 
 const pdfFile = (name = 'report.pdf', bytes: BlobPart = PDF) => new File([bytes], name, { type: 'application/pdf' })
@@ -366,6 +367,40 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     // The workflow still owns its staged file.
     const [, input] = enqueued(admission)
     expect(await staged()).toEqual([`${input.attemptId}.pdf`])
+  })
+
+  it('a DBOS status-read outage after admission answers 503 and leaves the workflow staged', async () => {
+    const { handler, admission } = dependencies()
+    admission.listWorkflows.mockRejectedValueOnce(new Error('DBOS is unavailable'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const response = await handler(request())
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'persistence_unavailable', message: 'Source Document ingestion status is unavailable.' },
+    })
+    expect(admission.enqueue).toHaveBeenCalledOnce()
+    const [, input] = enqueued(admission)
+    expect(await staged()).toEqual([`${input.attemptId}.pdf`])
+  })
+
+  it('a request abort after admission detaches without reporting a persistence outage', async () => {
+    const { handler, admission } = dependencies()
+    const controller = new AbortController()
+    const detached = new Error('client disconnected')
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    logged.mockClear()
+    admission.listWorkflows.mockImplementationOnce(async () => {
+      controller.abort(detached)
+      throw detached
+    })
+
+    await expect(handler(request(undefined, ids.project, controller.signal))).rejects.toBe(detached)
+    expect(admission.enqueue).toHaveBeenCalledOnce()
+    const [, input] = enqueued(admission)
+    expect(await staged()).toEqual([`${input.attemptId}.pdf`])
+    expect(logged).not.toHaveBeenCalled()
   })
 
   it('a workflow that vanished answers 502, not a hang', async () => {

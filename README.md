@@ -117,13 +117,13 @@ mutating checks:
 | `pnpm test:all:node` | The deterministic tiers that need no Python environment: typecheck, lint, Node unit (`test:unit:node`), safety, db and extraction PostgreSQL (`test:postgres:node`), and E2E |
 | `pnpm test:ci` | CI-only aggregate; verifies the fixed disposable CI targets, migrates them, and runs `test:all:node` when `FREE_SKIP_PYTHON=1` (GitHub's job), otherwise `test:all` |
 | `pnpm test:live-model` | Real Ollama and Docling smoke checks; requires the configured Ollama model and may download Docling models |
-| `pnpm test:system` | Mutating black-box contract check against the default local Compose stack and a reachable Ollama model; may start and restart the stack, changes its development database/model configuration, and leaves the stack running |
+| `pnpm test:system` | Black-box contract check against its own disposable Compose project; builds and restarts the stack, scripts the external extraction-model response, and removes its project and volumes afterward |
 | `pnpm typecheck` | TypeScript checks only; no services or data mutation |
 | `pnpm lint` | ESLint over Studio (React hooks rules included); no services or data mutation |
 
 `test:live-model` and `test:system` remain deliberately outside `test:all`
-and `test:ci`: they depend on a live model or mutate the default development
-stack. GitHub's Linux `verify` job runs `test:ci` with `FREE_SKIP_PYTHON=1`:
+and `test:ci`: the former requires a live model, and the latter builds and
+restarts a full Docker stack. GitHub's Linux `verify` job runs `test:ci` with `FREE_SKIP_PYTHON=1`:
 it installs no Python environment (the CUDA PyTorch wheels do not fit the
 hosted runner), so the Parsing Service tiers and `test:service` run locally,
 as the dated records in `docs/validation/` show: the PostgreSQL tier against

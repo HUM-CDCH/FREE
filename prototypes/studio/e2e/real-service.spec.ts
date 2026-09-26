@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import type { Page } from '@playwright/test'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
 import { extractionReadResponseSchema } from '../shared/extraction.contract.js'
+import { batchExtractionResponseSchema } from '../shared/batchExtraction.contract.js'
 import { E2E_ORIGIN, loginResearcher } from './auth.js'
 import { cataloguePdf, numberedCataloguePdf, startRealService, textPdf } from './realService.js'
 
@@ -294,7 +295,7 @@ test('a PDF that neither parser opens is refused without a Source Document', asy
     expect(conversion?.output).toMatchObject({ ok: false, code: 'source_unreadable' })
     const snapshot = await page.request.get(`/api/project-contexts/${project}`)
     expect(snapshot.ok()).toBeTruthy()
-    expect(JSON.stringify(await snapshot.json())).not.toContain('unreadable.pdf')
+    expect((await snapshot.json()).sourceDocuments).toHaveLength(0)
   } finally { await service.close() }
 })
 
@@ -313,7 +314,7 @@ test('a PDF that PDFium alone opens converts on the large lane', async ({ page }
   } finally { await service.close() }
 })
 
-test('reprocess uses the small lane and the admitted owner model choice', async ({ page }, testInfo) => {
+test('reprocess uses the small lane and the default owner model choice', async ({ page }, testInfo) => {
   const service = await startRealService(testInfo.outputPath('parsing-service.log'))
   try {
     const project = await createProject(page, 'Reprocess model choice')
@@ -348,6 +349,7 @@ test('interactive and batch extraction reach kei with their priorities and deadl
       sourceDocumentIds: [sourceDocumentId], force: true,
     } })
     expect(scheduled.status(), await scheduled.text()).toBe(202)
+    const batchId = (await scheduled.json()).batchExtraction.batchExtractionId as string
     await expect.poll(async () => (await service.keiWorkflows('kei-extract:', project)).length,
       { timeout: 120_000, intervals: [500, 1000] }).toBe(2)
     const children = await service.keiWorkflows('kei-extract:', project)
@@ -355,6 +357,12 @@ test('interactive and batch extraction reach kei with their priorities and deadl
     const batch = children.find((child) => child.workflowID !== `kei-extract:${interactive}`)
     expect(first).toMatchObject({ queueName: 'kei-extract', priority: 1, timeoutMS: 600_000 })
     expect(batch).toMatchObject({ queueName: 'kei-extract', priority: 10, timeoutMS: 600_000 })
+    await expect.poll(async () => {
+      const response = await page.request.get(`/api/batch-extractions/${batchId}?projectContextId=${project}`)
+      expect(response.ok(), await response.text()).toBeTruthy()
+      const current = batchExtractionResponseSchema.parse(await response.json()).batchExtraction
+      return current.members[0]?.executionStatus
+    }, { timeout: 300_000, intervals: [500, 1000] }).toBe('COMPLETED')
   } finally { await service.close() }
 })
 
@@ -367,6 +375,7 @@ test('cancelling an extraction cancels its live kei child', async ({ page }, tes
     expect(upload.status(), await upload.text()).toBe(201)
     const { sourceDocumentId } = await upload.json()
     const revision = await articleSchema(page, project)
+    const modelCallsBefore = service.modelCalls()!
     service.holdNextExtraction()
     const id = await extract(page, revision, await representation(page, project, sourceDocumentId))
     await expect.poll(() => service.extractionHeld(), { timeout: 120_000 }).toBe(true)
@@ -379,19 +388,25 @@ test('cancelling an extraction cancels its live kei child', async ({ page }, tes
     const read = extractionReadResponseSchema.parse(await (await page.request.get(`/api/extractions/${id}`)).json())
     expect(read.extraction).toMatchObject({ executionStatus: 'FAILED', failure: { code: 'cancelled' }, resultPayload: null })
     service.releaseExtraction()
-    await expect.poll(async () => {
-      const latest = extractionReadResponseSchema.parse(await (await page.request.get(`/api/extractions/${id}`)).json())
-      return latest.extraction.resultPayload
-    }, { timeout: 10_000 }).toBeNull()
+    await expect.poll(() => service.modelCalls(), { timeout: 10_000, intervals: [100, 250] })
+      .toBeGreaterThan(modelCallsBefore)
+    // The model has answered and DBOS has recorded the native step's completion.
+    // Keep the service up through both barriers before checking late publication.
+    await expect.poll(() => service.keiExtractStepFinished(child),
+      { timeout: 120_000, intervals: [100, 250] }).toBe(true)
+    const latest = extractionReadResponseSchema.parse(await (await page.request.get(`/api/extractions/${id}`)).json())
+    expect(latest.extraction).toMatchObject({ executionStatus: 'FAILED', failure: { code: 'cancelled' }, resultPayload: null })
+    expect((await service.keiWorkflows(child, project))[0]?.status).toBe('CANCELLED')
   } finally { service.releaseExtraction(); await service.close() }
 })
 
 test('a small conversion and extraction finish while a large conversion runs', async ({ page }, testInfo) => {
-  const service = await startRealService(testInfo.outputPath('parsing-service.log'))
+  const service = await startRealService(testInfo.outputPath('parsing-service.log'), { holdConversion: true })
   try {
     const project = await createProject(page, 'Independent conversion lanes')
     const largePdf = textPdf(Array.from({ length: 40 }, (_, index) => [`Large page ${index + 1}.`]))
     const largeUpload = uploadPdf(page, project, largePdf, 'large.pdf')
+    await expect.poll(() => service.conversionHeld(), { timeout: 120_000, intervals: [100, 250] }).toBe(true)
     let largeId = ''
     await expect.poll(async () => {
       const row = (await service.keiWorkflows('kei-convert:', project))
@@ -405,6 +420,8 @@ test('a small conversion and extraction finish while a large conversion runs', a
     const revision = await articleSchema(page, project)
     const id = await extract(page, revision, await representation(page, project, sourceDocumentId))
     await completedExtraction(page, id)
+    expect((await service.keiWorkflows(largeId, project))[0]?.status).toBe('PENDING')
+    await service.releaseConversion()
     const big = await largeUpload
     expect(big.status(), await big.text()).toBe(201)
     const conversions = await service.keiWorkflows('kei-convert:', project)
@@ -415,15 +432,16 @@ test('a small conversion and extraction finish while a large conversion runs', a
     expect(smallChild?.queueName).toBe('kei-convert-small')
     expect(smallChild?.completedAt).toBeLessThan(large!.completedAt!)
     expect(extraction?.completedAt).toBeLessThan(large!.completedAt!)
-  } finally { await service.close() }
+  } finally { await service.releaseConversion(); await service.close() }
 })
 
-test('a kei worker killed during conversion recovers the child and publishes once', async ({ page }, testInfo) => {
-  const service = await startRealService(testInfo.outputPath('parsing-service.log'))
+test('a kei worker killed inside native conversion recovers the child and publishes once', async ({ page }, testInfo) => {
+  const service = await startRealService(testInfo.outputPath('parsing-service.log'), { holdConversion: true })
   try {
     const project = await createProject(page, 'Conversion recovery')
     const pdf = textPdf(Array.from({ length: 40 }, (_, index) => [`Recovery page ${index + 1}.`]))
     const pending = uploadPdf(page, project, pdf, 'recovery.pdf')
+    await expect.poll(() => service.conversionHeld(), { timeout: 120_000, intervals: [100, 250] }).toBe(true)
     let workflowId = ''
     await expect.poll(async () => {
       const row = (await service.keiWorkflows('kei-convert:', project)).find((candidate) => candidate.status === 'PENDING')
@@ -431,6 +449,7 @@ test('a kei worker killed during conversion recovers the child and publishes onc
       return Boolean(row)
     }, { timeout: 120_000, intervals: [100, 250] }).toBe(true)
     await service.killWorker()
+    await service.releaseConversion()
     const uploaded = await pending
     expect(uploaded.status(), await uploaded.text()).toBe(201)
     const { sourceDocumentId } = await uploaded.json()
@@ -445,5 +464,5 @@ test('a kei worker killed during conversion recovers the child and publishes onc
     const reopen = documentReopenResponseSchema.parse(await (await page.request.get(
       `/api/project-contexts/${project}/source-documents/${sourceDocumentId}/reopen`)).json())
     expect(reopen.sourceRepresentation.revisionNumber).toBe(1)
-  } finally { await service.close() }
+  } finally { await service.releaseConversion(); await service.close() }
 })

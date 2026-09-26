@@ -313,6 +313,18 @@ describe('ingestSource', () => {
     expect(stopped.kei.cancel).not.toHaveBeenCalled()
   })
 
+  it('an uncertain submission cancels the same child and retains its staged source', async () => {
+    const h = harness()
+    const lost = new Error('kei committed but the acknowledgement was lost')
+    h.kei.submit.mockRejectedValueOnce(lost)
+
+    await expect(h.run()).rejects.toBe(lost)
+    expect(h.names).toEqual(['replayCompletedContent', 'submitToKei', 'cancelKeiChild'])
+    expect(h.kei.cancel).toHaveBeenCalledExactlyOnceWith(CHILD)
+    expect(h.store.ingestSourceDocument).not.toHaveBeenCalled()
+    expect(await staged()).toEqual([`${ATTEMPT}.pdf`])
+  })
+
   it('a cancel of the kei child that fails does not replace the original failure', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const h = harness({ publication: async () => { throw new Error('the store is unavailable') } })

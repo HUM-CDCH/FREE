@@ -151,17 +151,17 @@ export async function runExtractionWorkflow(extractionId: string, ports: Extract
     return
   }
   const child = keiExtractWorkflowId(extractionId)
-  await steps.step('submitToKei', () => kei.submit({
-    workflow: 'extract',
-    workflowId: child,
-    queueName: KEI_QUEUE.extract,
-    priority: admitted.batchExtractionId === null ? KEI_PRIORITY.interactive : KEI_PRIORITY.batch,
-    timeoutMs: EXTRACTION_TIMEOUT_MS[admitted.strategy],
-    request,
-    authenticatedUser: admitted.owner,
-    attributes: extractionAttributes(admitted),
-  }), SUBMIT_TO_KEI_RETRY)
   try {
+    await steps.step('submitToKei', () => kei.submit({
+      workflow: 'extract',
+      workflowId: child,
+      queueName: KEI_QUEUE.extract,
+      priority: admitted.batchExtractionId === null ? KEI_PRIORITY.interactive : KEI_PRIORITY.batch,
+      timeoutMs: EXTRACTION_TIMEOUT_MS[admitted.strategy],
+      request,
+      authenticatedUser: admitted.owner,
+      attributes: extractionAttributes(admitted),
+    }), SUBMIT_TO_KEI_RETRY)
     const pollKei = () => steps.step('pollKei', () => kei.poll(child, steps.cancelSignal()))
     let polled: KeiPoll = await pollKei()
     while (polled.state === 'live') polled = await pollKei()
@@ -197,8 +197,12 @@ export async function runExtractionWorkflow(extractionId: string, ports: Extract
     }, ARTIFACT_READ_RETRY)
   } catch (error) {
     if (isWorkflowCancellation(error)) throw error
-    // A parent that fails unexpectedly after submitToKei cancels its kei child before rethrowing (spec, *Studio → kei*).
-    await steps.step('cancelKeiChild', () => kei.cancel(child))
+    // Submission may have committed even when its acknowledgement was lost. Preserve the first error if cancellation
+    // also fails; M6 repair can revisit an uncertain child.
+    await steps.step('cancelKeiChild', () => kei.cancel(child)).catch((cancelError: unknown) => {
+      if (isWorkflowCancellation(cancelError)) throw cancelError
+      console.warn('Could not cancel the kei child of a failed Extraction.')
+    })
     throw error
   }
 }

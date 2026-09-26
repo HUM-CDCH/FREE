@@ -54,6 +54,8 @@ type Scenario = {
   settle?: (settled: SettledExtraction) => Promise<'settled' | 'already-settled' | 'missing'>
   /** Throws for a step before it runs, as DBOS does for a step of a cancelled workflow. */
   beforeStep?: (name: string) => void
+  submit?: KeiHandoff['submit']
+  cancel?: KeiHandoff['cancel']
   poll?: KeiHandoff['poll']
   readArtifact?: () => Promise<Uint8Array>
   readPinnedDocument?: () => Promise<unknown>
@@ -76,12 +78,12 @@ function harness(scenario: Scenario = {}) {
   const row: { outcome: SettledExtraction | null } = { outcome: scenario.settled ?? null }
   let polled = 0
   const kei: KeiHandoff = {
-    async submit(submission) { submissions.push(submission) },
+    async submit(submission) { submissions.push(submission); await scenario.submit?.(submission) },
     poll: scenario.poll ?? (async (_workflowId, pollSignal) => {
       pollSignals.push(pollSignal)
       return polls[Math.min(polled++, polls.length - 1)]!
     }),
-    async cancel(workflowId) { cancels.push(workflowId) },
+    async cancel(workflowId) { cancels.push(workflowId); await scenario.cancel?.(workflowId) },
   }
   const run = () => runExtractionWorkflow(admitted?.extractionId ?? 'deleted', {
     steps: {
@@ -377,6 +379,21 @@ describe('runExtraction', () => {
     await assert.rejects(h.run(), (error: unknown) => error === down)
     assert.deepEqual(h.names().slice(-2), ['publishResult', 'cancelKeiChild'])
     assert.deepEqual(h.cancels, [`kei-extract:${h.admitted.extractionId}`])
+  })
+
+  it('an uncertain submission cancels its deterministic child and keeps the first failure', async () => {
+    const lost = new Error('kei committed but the acknowledgement was lost')
+    const h = harness({ submit: async () => { throw lost }, cancel: async () => { throw new Error('kei unavailable') } })
+    const warn = console.warn
+    const warnings: unknown[][] = []
+    console.warn = (...args) => { warnings.push(args) }
+    try {
+      await assert.rejects(h.run(), (error: unknown) => error === lost)
+    } finally { console.warn = warn }
+    assert.deepEqual(h.names(), ['loadAdmitted', 'submitToKei', 'cancelKeiChild'])
+    assert.deepEqual(h.cancels, [`kei-extract:${h.admitted.extractionId}`])
+    assert.equal(h.row.outcome, null)
+    assert.equal(warnings.length, 1)
   })
 
   it('a workflow cancellation propagates without another step', async () => {
