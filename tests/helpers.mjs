@@ -12,7 +12,7 @@ import {
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
 export const ROOT = resolve(import.meta.dirname, '..')
-export const ORIGIN = 'https://localhost:8443'
+export const ORIGIN = 'https://localhost:41843'
 export const BASE = `${ORIGIN}/free`
 export const API = `${BASE}/api`
 export const OLLAMA_BASE_URL =
@@ -20,9 +20,19 @@ export const OLLAMA_BASE_URL =
 export const OLLAMA_MODEL = process.env.FREE_TEST_OLLAMA_MODEL ?? 'qwen3.8:latest'
 
 export function compose(args, options = {}) {
-  const result = spawnSync('docker', ['compose', ...args], {
+  const env = {
+    ...developmentComposeEnvironment(),
+    COMPOSE_PROJECT_NAME: 'free-system-m4',
+    FREE_NGINX_PORT: '41843',
+    FREE_MOCK_OIDC_PORT: '41844',
+    FREE_POSTGRES_PORT: '45445',
+    FREE_ENTRA_MOCK_BROWSER_ISSUER: 'http://localhost:41844/dev',
+    STUDIO_ORIGIN: ORIGIN,
+  }
+  const result = spawnSync('docker', ['compose', '-f', 'compose.yaml', '-f', 'compose.override.yaml',
+    '-f', 'tests/compose.system.yaml', '--profile', 'mock-oidc', ...args], {
     cwd: ROOT,
-    env: developmentComposeEnvironment(),
+    env,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     timeout: options.timeoutMs ?? 600_000,

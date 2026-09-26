@@ -219,11 +219,14 @@ test('the provider dialog remains keyboard-operable across required viewports @d
   for (const viewport of REQUIRED_VIEWPORTS) {
     await page.setViewportSize(viewport)
     const expand = page.getByRole('button', { name: 'Expand projects' })
+    const configure = page.getByRole('button', { name: 'Configure models' })
     if (viewport.width < 860) {
+      // The resize effect collapses the narrow overlay; wait for that state
+      // before opening it, including when moving between two narrow widths.
+      await expect(configure).toHaveCount(0)
       await expect(expand).toBeVisible()
       await activateWithKeyboard(page, expand)
     }
-    const configure = page.getByRole('button', { name: 'Configure models' })
     await activateWithKeyboard(page, configure)
     const dialog = page.getByRole('dialog', { name: 'Model configuration' })
     const close = dialog.getByRole('button', { name: 'Close Model Configuration' })

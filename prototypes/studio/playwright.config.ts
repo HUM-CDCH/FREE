@@ -19,7 +19,7 @@ const e2eOrigin = `http://localhost:${e2ePort}`
 // The lifecycle spec's fake kei-exp listens here, and Studio's KEI_EXP_URL points at it. It binds mid-run, while
 // the browsers hold many outbound sockets, so it sits below Linux's ephemeral range (32768-60999) and the
 // Compose lease range (30000-39999): a client socket holding the port as its source would fail it with EADDRINUSE.
-const keiExpUrl = 'http://127.0.0.1:29750'
+const keiExpUrl = `http://127.0.0.1:${process.env.FREE_PLAYWRIGHT_KEI_EXP_PORT ?? '29750'}`
 process.env.FREE_PLAYWRIGHT_KEI_EXP_URL = keiExpUrl
 // Studio stages uploads for kei in its source inbox (FREE_SOURCE_INBOX): one directory per run. Workers load this
 // config too; they inherit the variable, so only the runner makes the directory.

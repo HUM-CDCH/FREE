@@ -167,14 +167,31 @@ test('extraction: the canonical schema-guided path succeeds with evidence', { ti
     }),
   })
   assert.equal(extraction.status, 201, JSON.stringify(extraction.body))
-  assert.equal(extraction.body.outcome, 'SUCCEEDED')
+  assert.ok(['QUEUED', 'RUNNING', 'COMPLETED'].includes(extraction.body.executionStatus))
+
+  const deadline = Date.now() + 600_000
+  let completed
+  while (Date.now() < deadline) {
+    const detail = await session.api(`/extractions/${state.extractionId}`)
+    assert.equal(detail.status, 200)
+    const attempt = detail.body.extraction
+    if (attempt.executionStatus === 'FAILED')
+      assert.fail(`Extraction failed: ${JSON.stringify(attempt.failure)}`)
+    if (attempt.executionStatus === 'COMPLETED') {
+      completed = attempt
+      break
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 1_000))
+  }
+  assert.ok(completed, 'Extraction did not finish before the deadline')
+  assert.equal(completed.outcome, 'SUCCEEDED')
 
   // The run produced Evidence links and reported its grounding diagnostic.
   // That grounded and ungrounded together cover every populated value is a
   // property of grounding.ts, pinned in packages/extraction/src/grounding.test.ts;
   // asserting it here can only restate what the response already computed.
-  assert.ok(extraction.body.evidenceLinks.length > 0)
-  assert.ok(Array.isArray(extraction.body.diagnostics.grounding.ungroundedPaths))
+  assert.ok(completed.evidenceLinks.length > 0)
+  assert.ok(Array.isArray(completed.diagnostics.grounding.ungroundedPaths))
 })
 
 test('review: partial review decisions are rejected (data integrity)', async () => {
@@ -243,5 +260,6 @@ test('projects: permanent deletion removes the owned graph', async () => {
 })
 
 after(() => {
-  // Leave the stack running: `pnpm dev` owns its lifecycle, not the suite.
+  // The contract suite owns its isolated Compose project and disposable volume.
+  compose(['down', '--volumes'], { allowFailure: true })
 })
