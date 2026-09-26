@@ -76,4 +76,18 @@ describe('scope cancellation after deletion', () => {
     })
     expect(dbos.kei.cancelWorkflow).toHaveBeenCalledWith(orphan)
   })
+
+  it('continues with known suggestions and independently live kei work when Studio discovery fails', async () => {
+    const orphan = `kei-extract:${EXTRACTION}`
+    const dbos = clients([], [], [orphan])
+    dbos.admission.listWorkflows.mockRejectedValueOnce(new Error('Studio status unavailable'))
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      await cancelScopeWork({ projectContextId: PROJECT },
+        [{ batchSchemaSuggestionId: SUGGESTION, attempt: 2 }], dbos as never)
+      expect(dbos.admission.cancelWorkflow).toHaveBeenCalledWith(suggest)
+      expect(dbos.kei.cancelWorkflow).toHaveBeenCalledWith(orphan)
+      expect(warning).toHaveBeenCalled()
+    } finally { warning.mockRestore() }
+  })
 })

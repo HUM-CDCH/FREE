@@ -17,9 +17,14 @@ export async function cancelScopeWork(
   const attributes = scope.sourceDocumentId
     ? { sourceDocumentId: scope.sourceDocumentId }
     : { projectContextId: scope.projectContextId }
-  const live = await clients.admission.listWorkflows({
-    attributes, status: ['ENQUEUED', 'DELAYED', 'PENDING'], loadInput: false, loadOutput: false,
-  })
+  let live: { workflowID: string }[] = []
+  try {
+    live = await clients.admission.listWorkflows({
+      attributes, status: ['ENQUEUED', 'DELAYED', 'PENDING'], loadInput: false, loadOutput: false,
+    })
+  } catch {
+    console.warn('Could not list live Studio work after deletion; continuing with known attempts and kei work.')
+  }
   const ids = new Set([
     ...live.map((workflow) => workflow.workflowID),
     ...interruptedAttempts.map(({ batchSchemaSuggestionId, attempt }) => `suggest:${batchSchemaSuggestionId}:${attempt}`),
