@@ -193,8 +193,11 @@ describe('AuthApplication', () => {
     expect(
       await screen.findByRole('heading', { name: 'You have signed out' }),
     ).toBeInTheDocument()
+    // The landing commits before the effect that clears recovery runs.
+    await waitFor(() =>
+      expect(sessionStorage.getItem('free.auth.recovery.v1')).toBeNull(),
+    )
     expect(navigate).not.toHaveBeenCalled()
-    expect(sessionStorage.getItem('free.auth.recovery.v1')).toBeNull()
   })
 
   it('warns five minutes before expiry and continues through Entra', async () => {

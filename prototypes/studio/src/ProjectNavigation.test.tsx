@@ -2445,11 +2445,12 @@ describe('routed Source Document reopening', () => {
     )
     await screen.findByText(/Opened Beretning.pdf/)
 
+    // The tab strip can commit after the announcement; wait for it.
+    const tablist = await screen.findByRole('tablist', {
+      name: 'Open Source Documents',
+    })
     const toggle = screen.getByRole('button', {
       name: 'Open project navigation',
-    })
-    const tablist = screen.getByRole('tablist', {
-      name: 'Open Source Documents',
     })
 
     expect(toggle).not.toHaveClass('fixed')
