@@ -2,6 +2,8 @@
 lanes polled every 0.1 s, the boot timestamp, and a portable client that enqueues as Studio will (M4)."""
 from __future__ import annotations
 
+import hashlib
+import threading
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -15,6 +17,7 @@ from dbos import DBOS, DBOSClient, EnqueueOptions, WorkflowSerializationFormat
 from kei_exp import runs
 from kei_exp.workflows import boot, config
 from tests.helpers import postgres as postgres_helper
+from tests.helpers.fake import FakeTranscriber
 
 TERMINAL = ("SUCCESS", "ERROR", "CANCELLED", "MAX_RECOVERY_ATTEMPTS_EXCEEDED")
 
@@ -96,3 +99,54 @@ def launched_url(url: str, root: Path, monkeypatch) -> Iterator[Kei]:
 def launched(conninfo: str, root: Path, monkeypatch) -> Iterator[Kei]:
     with launched_url(postgres_helper.url(conninfo), root, monkeypatch) as kei:
         yield kei
+
+
+def stage_pdf(inbox: Path, relative: str, *masks) -> str:
+    """An image-only PDF (no text layer, so the model path runs) staged as Studio will; its SHA-256."""
+    from tests.helpers.pdfs import binary_pdf
+    path = inbox / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    binary_pdf(path, *masks)
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def convert_request(source: str, sha: str, **overrides) -> dict:
+    return {"source": source, "source_sha256": sha, "source_name": Path(source).name, "page_source": "pdf",
+            "ingest": None, "model": None, "layout_model": None, "cut": "auto", "debug": False, **overrides}
+
+
+class Gate:
+    """Holds chosen workflows' steps inside a native-like call until released; records when each entered and left.
+    Keyed by DBOS.workflow_id, which only a sync step's own thread carries: Catalog chunk threads have none, so
+    tests keep KEI_CATALOG_CHUNKS unset (1) when a chat double calls a gate."""
+    def __init__(self) -> None:
+        self.entered: dict[str, float] = {}
+        self.left: dict[str, float] = {}
+        self._held: dict[str, threading.Event] = {}
+
+    def hold(self, workflow_id: str) -> None:
+        self._held[workflow_id] = threading.Event()
+
+    def release(self, workflow_id: str) -> None:
+        self._held[workflow_id].set()
+
+    def release_all(self) -> None:
+        for event in self._held.values():
+            event.set()
+
+    def __call__(self) -> None:
+        workflow_id = DBOS.workflow_id
+        self.entered[workflow_id] = time.monotonic()
+        if (event := self._held.get(workflow_id)) is not None:
+            event.wait(timeout=120)
+        self.left[workflow_id] = time.monotonic()
+
+
+class BlockingTranscriber(FakeTranscriber):
+    def __init__(self, gate: Gate) -> None:
+        super().__init__()
+        self.gate = gate
+
+    def transcribe(self, execution, crops, emit):
+        self.gate()
+        return super().transcribe(execution, crops, emit)

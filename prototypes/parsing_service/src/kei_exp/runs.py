@@ -11,6 +11,7 @@ Env: KEI_RUNS (run directory, default runs).
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -19,7 +20,6 @@ import secrets
 from datetime import UTC, datetime
 from pathlib import Path
 
-from kei_exp.cut import DEFAULT_LAYOUT_MODEL
 from kei_exp.files import load_dotenv, publish
 from kei_exp.kie.stages.ocr import resolve
 from kei_exp.transcription.types import DEFAULT_URL, Execution, RunParams
@@ -53,6 +53,12 @@ def new_id(model: str) -> str:
     return f"{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}-{model}-{secrets.token_hex(2)}"
 
 
+def run_id_for(workflow_id: str) -> str:
+    """The run a `convert` workflow writes: derived from its ID, so a re-executed prepare_run rebuilds the same
+    directory instead of orphaning one, and one path component Studio's RUN_ID accepts."""
+    return "run-" + hashlib.sha256(workflow_id.encode()).hexdigest()[:24]
+
+
 def directory_of(run_id: str) -> Path | None:
     """The directory of the run `run_id` names, or None when it names no run of this store.
 
@@ -80,9 +86,9 @@ def execution_for(directory: Path, params: dict) -> Execution:
     """
     pages = params.get("pages")
     request = RunParams(
-        pdf=directory / "input.pdf", source_name=params.get("source_name"), model=params.get("model") or "surya",
+        pdf=directory / "input.pdf", source_name=params.get("source_name"), model=params["model"],
         url=params.get("url") or DEFAULT_URL, cut=params.get("cut", "auto"),
-        layout_model=params.get("layout_model") or DEFAULT_LAYOUT_MODEL, crop_dpi=params.get("crop_dpi") or 250,
+        layout_model=params["layout_model"], crop_dpi=params.get("crop_dpi") or 250,
         max_image_size=params.get("max_image_size"), max_output_tokens=params.get("max_output_tokens"),
         stream=bool(params.get("stream")), pages=tuple(pages) if pages else None,
         debug_dir=directory / "debug" if params.get("debug") else None, result_dir=directory / "result",
