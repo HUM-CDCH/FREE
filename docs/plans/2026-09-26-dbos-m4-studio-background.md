@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-Status: **not started (plan written 2026-09-26 against `feat/dbos-m2-m6` at 83b2918 for Studio, `packages/` and Compose, and against the M3 branch tip 33941bf for kei; assumes the M2 plan is complete and the M3 plan is merged into `feat/dbos-m2-m6` before Task 3).**
+Status: **done 2026-09-26** on `feat/dbos-m2-m6`. Verification: [2026-09-26-dbos-m4-verification.md](../validation/2026-09-26-dbos-m4-verification.md).
 
 **Goal:** Deliver milestone M4 of the DBOS plan on `feat/dbos-m2-m6`: DBOS runs inside the Studio process; Extraction, Batch Extraction, Batch Schema Suggestion, ingestion and reprocessing run as named DBOS workflows admitted atomically with their domain rows or started workflow-first; Studio hands conversions and extractions to kei's DBOS worker through portable enqueues on kei's lanes; execution status is derived from DBOS; `ExtractionJob`, `BatchExtractionMember`, ingestion keys, the lease worker, the suggestion pump and Studio's HTTP kei submission are deleted; `pnpm test:e2e`, `pnpm test:service` and every component tier end green.
 
@@ -10,7 +10,7 @@ Status: **not started (plan written 2026-09-26 against `feat/dbos-m2-m6` at 83b2
 
 **Tech Stack:** Studio (TypeScript, React 19, Vite 8, Hono, Zod 4, Vitest 4, Playwright), `@dbos-inc/dbos-sdk` 5.1.10, `packages/db` (Prisma Next 0.16, `pg` 8.22.0, `tsx --test`), `packages/extraction` (`tsx --test`), kei (`kei_exp.workflows`, Python 3.13, `dbos` 3.1.0; only started by the real-service tier), Docker Compose.
 
-**Spec:** [docs/plans/2026-09-24-unified-durable-execution.md](2026-09-24-unified-durable-execution.md). Read *Decisions*, *Rules*, *Target architecture*, *Workflows* (all of it: Admission, Status and ownership, Studio → kei handoff), *Background work* (all of it), *Cancellation*, *Deletion and garbage collection* (what admission/publication must not break: `preprocessId`, `keiRunId`, staged-file names), *Queues, deadlines and upgrades*, *Public contract changes*, the M4 text (its `**M4:**` heading is missing: M4 is the text after M3's *Tests* list, from "**`server/dbos.ts`** holds:" through that section's *Acceptance* list, ending before "**M5: interactive work on DBOS.**") and *Verification*. Evidence this plan builds on: [m0r/README.md](2026-09-24-unified-durable-execution-evidence/m0r/README.md) (items 2 and 3 and PLAN IMPACT 1–3), [probe.mjs](2026-09-24-unified-durable-execution-evidence/probe.mjs) (Prisma/DBOS atomicity), [admission-races.mjs](2026-09-24-unified-durable-execution-evidence/admission-races.mjs), the M3 plan's *Deferred to M4 and later* ([2026-09-26-dbos-m3-kei-on-dbos.md](2026-09-26-dbos-m3-kei-on-dbos.md)) and the PR #140 design ([2026-09-25-superseded-revision-admission-design.md](2026-09-25-superseded-revision-admission-design.md)).
+**Spec:** [docs/plans/2026-09-24-unified-durable-execution.md](2026-09-24-unified-durable-execution.md). Read *Decisions*, *Rules*, *Target architecture*, *Workflows* (all of it: Admission, Status and ownership, Studio → kei handoff), *Background work* (all of it), *Cancellation*, *Deletion and garbage collection* (what admission/publication must not break: `preprocessId`, `keiRunId`, staged-file names), *Queues, deadlines and upgrades*, *Public contract changes*, the M4 section (from "**M4: Studio background work on DBOS.**" through its *Acceptance* list, ending before "**M5: interactive work on DBOS.**") and *Verification*. Evidence this plan builds on: [m0r/README.md](2026-09-24-unified-durable-execution-evidence/m0r/README.md) (items 2 and 3 and PLAN IMPACT 1–3), [probe.mjs](2026-09-24-unified-durable-execution-evidence/probe.mjs) (Prisma/DBOS atomicity), [admission-races.mjs](2026-09-24-unified-durable-execution-evidence/admission-races.mjs), the M3 plan's *Deferred to M4 and later* ([2026-09-26-dbos-m3-kei-on-dbos.md](2026-09-26-dbos-m3-kei-on-dbos.md)) and the PR #140 design ([2026-09-25-superseded-revision-admission-design.md](2026-09-25-superseded-revision-admission-design.md)).
 
 ## Rulings (controller, 2026-09-26)
 
@@ -130,7 +130,7 @@ Never deploy the middle state (spec *Milestones*: M2–M4 are one integration bo
 1. **Registration is explicit, never at import.** Each workflow module exports `register…Workflow(ports)`, which calls `DBOS.registerWorkflow(fn, { name })` once; `server/workflows.ts` `registerStudioWorkflows()` calls them all, and only `launchStudioDbos()` calls it, before `DBOS.launch()`. *Why:* the dispatcher and four unmocked test files evaluate every `api/*.ts` at import, and the development host re-evaluates modules on recomposition; a registration at import would throw `DBOSConflictingRegistrationError` after launch (M0R 2).
 2. **Handlers start Studio workflows by name through the admission client, never with a function handle:** `enqueueInTransaction` for row-backed admission, `enqueue` (with `duplicationPolicy: 'return-existing'` for ingestion) for workflow-first starts. ★ `reprocessSource` is therefore enqueued on the unrestricted `studio` queue (the spec's queue table lists only `runExtraction`, `chatTurn` and `ingestSource` there). *Why:* a recomposed module has no registered handle, and the `studio` queue imposes no cap (M0R 3: ~55 ms p50 dequeue). *Cost if wrong:* none beyond that latency.
 3. **The development host keeps recomposition, drops the runtime reload and launches DBOS once** through an identity-guarded `ssrLoadModule('/server/dbos.ts')` before the first composition. Registered workflow closures keep the module instances they were registered from until the process restarts; Compose restarts Studio on every server edit (M2 Task 3, `sync+restart`), and a host-side `pnpm --filter studio dev` needs a manual restart after a workflow edit (logged once per change of a file under `api/_*_workflow.ts`, `server/workflows.ts` or `packages/extraction/src/workflows.ts`).
-4. **`db.ts` owns the pool, and one helper binds a transaction to a pooled client** (`withPoolClientTransaction`, Task 2). On any thrown error the client is released with `release(true)` (destroyed), so a connection in an unknown transaction state is never reused; the facade is never closed.
+4. **`db.ts` owns the pool, and one helper binds a transaction to a pooled client** (`withPoolClientTransaction`, Task 2). Prisma Next releases a bound object that exposes `release`, so the helper binds a client view without that method and owns the real client's release. On any thrown error the client is released with `release(true)` (destroyed), so a connection in an unknown transaction state is never reused; the facade is never closed.
 5. **The pure status derivation lives in `packages/db`** (`execution-status.ts`: `executionOf`, `WorkflowStatuses`, `INTERRUPTED_FAILURE`), because `packages/db` (suggestions, `runningBatch`) and `packages/extraction` both need it and `extraction` depends on `db`, not the reverse. `server/dbos.ts` supplies the `listWorkflows` implementation (`workflowStatusesOf`). The spec puts "status-derivation helpers" in `server/dbos.ts`; only the pure mapping moves.
 6. **Failed, cancelled and interrupted attempts keep today's wire shape:** `executionStatus: 'FAILED'`, `outcome: null`, `failure: {code, message, phase}`, no diagnostics or result — exactly what the browser reads today, because no failed `Extraction` row existed before. The row stores `outcome FAILED|CANCELLED` and `diagnostics null`. `extractionAttemptSchema`'s COMPLETED-with-FAILED/CANCELLED branch (`extraction.contract.ts:318-343`) becomes unreachable and is deleted (Task 7). An interrupted attempt's failure is `{ code: 'interrupted', message: 'This work stopped before it finished. Start it again.', phase: 'extracting' }`.
 7. **`Extraction.createdAt` becomes admission time**, and "latest attempt" ordering follows admission. No `settledAt` column is added (nothing reads one).
@@ -140,7 +140,7 @@ Never deploy the middle state (spec *Milestones*: M2–M4 are one integration bo
 11. **Staged sources:** ingestion writes `<FREE_SOURCE_INBOX>/<projectContextId>/<attemptId>.pdf` in the request (temporary file, then rename); reprocessing writes `<FREE_SOURCE_INBOX>/<projectContextId>/reprocess-<sourceDocumentId>-<requestKey>.pdf` in the workflow's first step from the canonical package. Both names map back to their workflow ID for M6's garbage collection. Studio's default inbox is `join(envPaths('FREE Studio').data, 'source-inbox')`; Compose sets `FREE_SOURCE_INBOX=/var/lib/free/source-inbox` on Studio and `KEI_SOURCE_INBOX=/app/source-inbox` (read-only) on `parsing_worker`.
 12. **Ingestion waits at most thirty minutes for its workflow** by polling the workflow status every 500 ms (`awaitWorkflowOutcome`, Task 1), because `ClientHandle.getResult` cannot time out and would keep polling after a 504. A 504 detaches; nothing is cancelled. The response contract is unchanged apart from the missing key.
 13. **Suggestion attempts:** new enum `SuggestionAttemptOutcome { SUCCEEDED FAILED }`; `phase` becomes a nullable `{READY, HETEROGENEOUS}` describing the retained proposal; `failure` is the current attempt's. An attempt is *active* while it has no outcome and its workflow is live; an attempt with no outcome whose workflow is terminal or gone reads as FAILED `interrupted` and counts as terminal for retry. Retry body `{ expectedAttempt }`; a later attempt answers 409 `attempt_conflict`; an active attempt, a confirmed suggestion or an empty selection answers 409 `operation_not_ready`.
-14. **Reprocess retry in the browser:** a Retry after an uncertain failure (a network error, 502, 503 or 504) re-sends the same `requestKey`; a Retry after a confirmed failure (any other 4xx or 422) mints a new one (spec *Client IDs*). Upload items get a client-only `itemId` that is never sent.
+14. **Reprocess retry in the browser:** a Retry after an uncertain failure (a network error, or an unmarked 502, 503 or 504) re-sends the same `requestKey`; a response with `X-FREE-Reprocess-Terminal: 1` or another confirmed 4xx mints a new one (spec *Client IDs*). Upload items get a client-only `itemId` that is never sent.
 15. **Extraction cancel keeps its routes and statuses:** 202 `{extractionId}` when the cancel wrote the outcome, 404 "That Extraction is not active." otherwise; batch members still cannot be cancelled one by one. After the commit it cancels `extract:<id>` and `kei-extract:<id>` if live; a failure there is logged, never surfaced (the row is authoritative; M6's `collectGarbage` repairs a missed cancel).
 16. ★ **Deletion records the interruption in M4.** `deleteSourceDocument` locks the affected suggestion rows in sorted order and writes `outcome FAILED, failure interrupted` on an active attempt (proposal, draft and `draftVersion` untouched) in the deletion transaction, then cancels the deleted scope's live Studio workflows and their kei children after commit (best effort). The spec lists the interruption write under M6 (*Milestones → M6 → Garbage collection*), but M4's acceptance ("late success/failure cannot overwrite an interrupted attempt") cannot be met without it. M6 keeps the scheduled repair of a missed cancel and all garbage collection.
 17. **Test infrastructure:**
@@ -621,10 +621,9 @@ Never deploy the middle state (spec *Milestones*: M2–M4 are one integration bo
    * transaction context and that client, so an ORM write and DBOSClient.enqueueInTransaction(client, …) share the
    * transaction (spec, *Admission → Binding*; proved with Prisma Next 0.16 and DBOS 5.0.2/5.1.10).
    *
-   * The facade is bound to the pooled client: Prisma Next picks its `pgClient` binding by duck typing, reuses the
-   * connected client (it ignores pg's "already connected" error) and runs BEGIN/COMMIT on it. It is never closed: closing
-   * a `pgClient` binding calls `client.end()` and would kill the pooled connection. After a commit the client goes back to
-   * the pool; after any failure it is destroyed instead, so a connection in an unknown state is never reused.
+   * Prisma Next releases a bound object with `release` after a transaction and calls `end` after a failed rollback.
+   * Bind a view without `release` and with no-op `connect`/`end`; the helper alone releases the pooled client.
+   * After a commit the client goes back to the pool; after any failure it is destroyed.
    */
   export async function withPoolClientTransaction<T>(
     work: (transaction: DatabaseTransaction, client: PoolClient) => Promise<T>,
@@ -633,7 +632,7 @@ Never deploy the middle state (spec *Milestones*: M2–M4 are one integration bo
     const client = await source.connect()
     let failed = false
     try {
-      const bound = postgres<Contract>({ contractJson, pg: client as unknown as Client, verifyMarker: false })
+      const bound = postgres<Contract>({ contractJson, pg: clientView(client), verifyMarker: false })
       return await bound.transaction((transaction) => work(transaction, client))
     } catch (error) {
       failed = true
@@ -641,6 +640,16 @@ Never deploy the middle state (spec *Milestones*: M2–M4 are one integration bo
     } finally {
       client.release(failed)
     }
+  }
+
+  function clientView(client: PoolClient): Client {
+    return {
+      escapeIdentifier: (value: string) => client.escapeIdentifier(value),
+      escapeLiteral: (value: string) => client.escapeLiteral(value),
+      connect: async () => {},
+      end: async () => {},
+      query: client.query.bind(client),
+    } as unknown as Client
   }
 
   /** A PostgreSQL unique violation (23505), optionally on one named constraint; the error Prisma Next surfaces keeps the
@@ -654,7 +663,7 @@ Never deploy the middle state (spec *Milestones*: M2–M4 are one integration bo
     return false
   }
   ```
-  `verifyMarker: false`: the shared `db` already verifies the migration marker on first use; a facade per admission would otherwise add a marker query to every admission (the fifth-revision probe also bound with it off). If the typecheck rejects `DatabaseTransaction` as the bound facade's transaction type, the two are the same generic instance (`PostgresTransactionContext<Contract>`); cast the callback's parameter, do not widen the type. Reuse `uniqueConstraint` from `project-store.ts:166-173` by replacing its body with a call to `isUniqueViolation`.
+  `verifyMarker: false`: the shared `db` verifies the migration marker on first use, and the implemented helper triggers that read before its first shared-pool admission. A facade per admission would otherwise repeat the marker query. The implemented helper also attaches an error listener to its checked-out client until release. If the typecheck rejects `DatabaseTransaction` as the bound facade's transaction type, the two are the same generic instance (`PostgresTransactionContext<Contract>`); cast the callback's parameter, do not widen the type. Reuse `uniqueConstraint` from `project-store.ts:166-173` by replacing its body with a call to `isUniqueViolation`.
 
 - [ ] **Step 4: The status derivation**
 
@@ -2476,7 +2485,7 @@ Nothing is registered here; Task 9 wires it. The workflow replaces the pump's `r
 
 - [ ] **Step 5: Browser, e2e seeds and the system test**
 
-  `sourceIngestionMachine.ts`: an item's identity is `itemId` (`crypto.randomUUID()` minted in `ProjectContextsProvider.addSources`, never sent); a reprocess item carries `requestKey` (minted in `reprocessSource`); `source.retry` takes `itemId`; a failed reprocess item records whether its failure was uncertain (a network error, 502, 503 or 504 — `transport.ts`'s `read` (56-66) now throws an error that carries `status`) and its retry keeps `requestKey` only then, else mints a new one. `transport.ts` `ingestSourceDocument(projectContextId, file, layout, signal)` sends `file` and `layout` only. Remove `ingestionKey` from the e2e seeds (`canonical-evidence-lifecycle.spec.ts:253-260, 319-326`, `schema-order-lifecycle.spec.ts:90`), from `project-navigation.spec.ts`'s upload stubs and from `tests/contract.test.mjs` (98, 112).
+  `sourceIngestionMachine.ts`: an item's identity is `itemId` (`crypto.randomUUID()` minted in `ProjectContextsProvider.addSources`, never sent); a reprocess item carries `requestKey` (minted in `reprocessSource`); `source.retry` takes `itemId`; a failed reprocess item records whether its failure was uncertain (a network error, or an unmarked 502, 503 or 504 — `transport.ts` carries `status` and the terminal-response header) and its retry keeps `requestKey` only then, else mints a new one. `transport.ts` `ingestSourceDocument(projectContextId, file, layout, signal)` sends `file` and `layout` only. Remove `ingestionKey` from the e2e seeds (`canonical-evidence-lifecycle.spec.ts:253-260, 319-326`, `schema-order-lifecycle.spec.ts:90`), from `project-navigation.spec.ts`'s upload stubs and from `tests/contract.test.mjs` (98, 112).
 
 - [ ] **Step 6: Run and commit**
 
@@ -2661,7 +2670,7 @@ This turns `pnpm test:service` green again (red since M3 Task 10). It pulls the 
 
 **Interfaces:**
 - Consumes: M3's `kei-worker` (`python -m kei_exp.workflows.cli worker`), M2's `ensureKeiRole`, Tasks 6, 10, 11.
-- Produces: `startRealService(logFile)` returning `{ url, runs, model, modelCalls, restart(), killWorker(), holdNextExtraction(), releaseExtraction(), keiWorkflows(prefix): Promise<WorkflowStatus[]>, close() }`.
+- Produces: `startRealService(logFile, { holdConversion? })` returning `{ url, runs, model, modelCalls, restart(), killWorker(), holdNextExtraction(), releaseExtraction(), conversionHeld(), releaseConversion(), keiWorkflows(prefix): Promise<WorkflowStatus[]>, close() }`.
 
 - [ ] **Step 1: The harness**
 
@@ -2676,8 +2685,8 @@ This turns `pnpm test:service` green again (red since M3 Task 10). It pulls the 
 - [ ] **Step 2: The specs**
 
   `real-service.spec.ts`: both existing tests upload without `ingestionKey` (21, 136) and keep every evidence, review and restart assertion. Add, in serial mode:
-  - `a small PDF uploaded and extracted while a large conversion runs finishes first` (A11 and the *Verification* lanes item: start the upload of a 40-page `textPdf` without awaiting it; wait until `keiWorkflows('kei-convert:')` shows it `PENDING` on `kei-convert-large`; upload a 1-page PDF (201) and run an Article extraction on it to `COMPLETED`; then the small conversion's and the extraction's `completedAt` both precede the large conversion's; the small one ran on `kei-convert-small`).
-  - `a kei worker killed mid-conversion recovers the same child, and Studio publishes one document` (*Verification*: Studio and kei kill/restart with no duplicate kei work: upload a 40-page PDF, wait for `PENDING`, `killWorker()`; the upload still answers 201; exactly one `kei-convert:` workflow for it, `SUCCESS`, with `recoveryAttempts >= 2`; one Source Document with one revision).
+  - `a small PDF uploaded and extracted while a large conversion runs finishes first` (A11 and the *Verification* lanes item: start the upload of a 40-page `textPdf` without awaiting it; a test-only worker wrapper pauses its first native `runner.convert` call after writing an entry marker, while the large child occupies `kei-convert-large`; upload a 1-page PDF (201) and run an Article extraction on it to `COMPLETED`; assert the large child is still `PENDING`, release the wrapper, then assert both small operations' `completedAt` values precede the large conversion's; the small one ran on `kei-convert-small`).
+  - `a kei worker killed mid-conversion recovers the same child, and Studio publishes one document` (*Verification*: Studio and kei kill/restart with no duplicate kei work: upload a 40-page PDF, wait for the test-only native-runner entry marker and `PENDING`, `killWorker()`; the replacement runs unpaused, and the upload still answers 201; exactly one `kei-convert:` workflow for it, `SUCCESS`, with `recoveryAttempts >= 2`; one Source Document with one revision).
   - `cancelling an extraction cancels its kei workflow` (skipped when `FREE_REAL_EXTRACT_URL` is set, as `real-service.spec.ts:125` skips today, because only the scripted model can hold a call; `holdNextExtraction()`; POST an extraction; wait for `kei-extract:<id>` `PENDING`; `DELETE /api/extractions/<id>` → 202; within 5 s the kei row is `CANCELLED`; the attempt reads `FAILED` with `failure.code: 'cancelled'`; release the model and see nothing published).
   - `interactive and batch extractions reach kei at priority 1 and 10 with their deadlines` (*Verification* priorities and deadlines: `kei-extract:<interactive id>` has `priority: 1`, `timeoutMS: 600_000`; the batch member's has `priority: 10`).
   - `a reprocess of a small revision converts on kei-convert-small with the owner's Ingestion Model Choice` (A9/A11: `queueName: 'kei-convert-small'`; the kei input's `model` and `layout_model` equal the configured choice, or null when none).
@@ -2700,9 +2709,9 @@ This turns `pnpm test:service` green again (red since M3 Task 10). It pulls the 
 
 **Files:**
 - Create: `docs/validation/<YYYY-MM-DD>-dbos-m4-verification.md`
-- Modify: `docs/plans/2026-09-24-unified-durable-execution.md` (insert the missing M4 heading), this plan's `Status:` line
+- Modify: `docs/plans/2026-09-24-unified-durable-execution.md` (mark the existing M4 heading done), this plan's `Status:` line
 
-- [ ] **Step 1: Residue search**
+- [x] **Step 1: Residue search**
 
   ```bash
   cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6
@@ -2711,7 +2720,7 @@ This turns `pnpm test:service` green again (red since M3 Task 10). It pulls the 
   ```
   Expected: only the 422 request-body tests that post `retryOfId` as an unknown field (`api/extractions.test.ts`, `shared/extraction.contract.test.ts`). `docs/operations/*.md` and `docs/architecture/current.c4` still describe the old runtime; M6 rewrites them (Deferred table). Historical records under `docs/plans/`, `docs/validation/` and `openspec/changes/archive/` are not residue.
 
-- [ ] **Step 2: Run every tier**
+- [x] **Step 2: Run every tier**
 
   ```bash
   pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:safety
@@ -2723,9 +2732,9 @@ This turns `pnpm test:service` green again (red since M3 Task 10). It pulls the 
   ```
   Then the production-bundle smoke (M0R 2 checked the mechanism on a probe host; this checks FREE's own bundle): with a disposable `free_test_m4_bundle` database migrated by `db:init`, a throwaway Entra key pair (`openssl req -x509 -newkey rsa:2048 -nodes -subj /CN=free-bundle-smoke -keyout key.pem -out cert.pem`, its SHA-1 thumbprint) and dummy tenant and client IDs, start `node prototypes/studio/dist/server/index.js` with the production environment `server/config.ts` requires; wait for `FREE Studio listening`; with a `DBOSClient` (`applicationName: 'studio'`) enqueue `runExtraction` on `studio` for a random UUID; the workflow reaches `SUCCESS` (its `loadAdmitted` finds no row); stop with SIGTERM. Record the commands and output. Expected: every tier passes; a tier this host cannot run is recorded with the reason.
 
-- [ ] **Step 3: Record**
+- [x] **Step 3: Record**
 
-  Write the verification record (tested commit, commands, results, skips, the pool counts seen in the bundle smoke — `SELECT count(*) FROM pg_stat_activity WHERE datname = …` while idle and during one admission — as input for M6's pool measurement, and a pointer to the traceability table below). In the DBOS plan, insert before "**`server/dbos.ts`** holds:" the line `**M4: Studio's background work on DBOS — done YYYY-MM-DD.** Task plan: [2026-09-26-dbos-m4-studio-background.md](2026-09-26-dbos-m4-studio-background.md).` Set this plan's status to `done YYYY-MM-DD`.
+  Write the verification record (tested commit, commands, results, skips, the pool counts seen in the bundle smoke — `SELECT count(*) FROM pg_stat_activity WHERE datname = …` while idle and during one admission — as input for M6's pool measurement, and a pointer to the traceability table below). In the DBOS plan, mark the existing M4 heading done and link this task plan. Set this plan's status to `done YYYY-MM-DD`.
   ```bash
   git add docs/validation/<file> docs/plans/2026-09-24-unified-durable-execution.md docs/plans/2026-09-26-dbos-m4-studio-background.md
   git commit -m "docs(plans): record DBOS M4 completion"
