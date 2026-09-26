@@ -76,7 +76,7 @@ export function launchStudioDbos(options: StudioDbosOptions): Promise<StudioDbos
   if (launch.launching) return launch.launching
   if (DBOS.isInitialized())
     throw new Error('DBOS was launched outside launchStudioDbos; Studio launches it once per process.')
-  const launching = start(options).then((dbos) => (launch.launched = dbos))
+  const launching = start(options)
   launch.launching = launching
   launching.catch(() => {
     if (launch.launching === launching) launch.launching = undefined
@@ -90,10 +90,8 @@ async function start(options: StudioDbosOptions): Promise<StudioDbos> {
   DBOS.setConfig(studioDbosConfig(options))
   const clients: DBOSClient[] = []
   try {
-    await DBOS.launch()
-    // Queues live in the system database, so they are registered after launch.
-    await DBOS.registerQueue(STUDIO_QUEUE, { minPollingIntervalMs: 100 }) // p50 ~55 ms dequeue, not ~0.5 s (M0R 3)
-    await DBOS.registerQueue(SUGGEST_QUEUE, { globalConcurrency: 1 })
+    // DBOS can dispatch recovered work during launch, before these queues are registered again. Client construction
+    // opens no connection, so expose both clients before dispatch can build a workflow's ports.
     const admission = await DBOSClient.create({
       systemDatabaseUrl: options.databaseUrl,
       systemDatabaseSchemaName: options.schema ?? STUDIO_SCHEMA,
@@ -110,10 +108,17 @@ async function start(options: StudioDbosOptions): Promise<StudioDbos> {
       applicationName: KEI_APPLICATION,
     })
     clients.push(kei)
-    return { bootTimestampMs, admission, kei }
+    const dbos = { bootTimestampMs, admission, kei }
+    launch.launched = dbos
+    await DBOS.launch()
+    // Queues live in the system database, so they are registered after launch.
+    await DBOS.registerQueue(STUDIO_QUEUE, { minPollingIntervalMs: 100 }) // p50 ~55 ms dequeue, not ~0.5 s (M0R 3)
+    await DBOS.registerQueue(SUGGEST_QUEUE, { globalConcurrency: 1 })
+    return dbos
   } catch (error) {
     // Leave nothing running: a retry then launches afresh instead of meeting this DBOS as a foreign one. The startup
     // error is the one to report, so a failure while stopping is dropped.
+    launch.launched = undefined
     await stop(clients).catch(() => undefined)
     throw error
   }

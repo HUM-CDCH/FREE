@@ -368,6 +368,22 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     expect(await staged()).toEqual([`${input.attemptId}.pdf`])
   })
 
+  it('a DBOS status-read outage after admission answers 503 and leaves the workflow staged', async () => {
+    const { handler, admission } = dependencies()
+    admission.listWorkflows.mockRejectedValueOnce(new Error('DBOS is unavailable'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const response = await handler(request())
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'persistence_unavailable', message: 'Source Document ingestion status is unavailable.' },
+    })
+    expect(admission.enqueue).toHaveBeenCalledOnce()
+    const [, input] = enqueued(admission)
+    expect(await staged()).toEqual([`${input.attemptId}.pdf`])
+  })
+
   it('a workflow that vanished answers 502, not a hang', async () => {
     const { handler, admission } = dependencies({ statuses: [undefined] })
 

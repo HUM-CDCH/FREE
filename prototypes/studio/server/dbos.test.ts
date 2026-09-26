@@ -100,7 +100,7 @@ describe('Studio DBOS', () => {
     })
   })
 
-  it('reads the boot timestamp from the database clock, then registers workflows, then launches, then registers the queues', async () => {
+  it('reads the boot clock, registers workflows, prepares clients, then launches and registers queues', async () => {
     const { launchStudioDbos } = await freshModule()
     const register = vi.fn(() => {
       sdk.calls.push('register')
@@ -112,13 +112,23 @@ describe('Studio DBOS', () => {
       'clock',
       'register',
       'setConfig',
+      'client:studio:dbos',
+      'client:kei:kei_dbos',
       'launch',
       'registerQueue:studio',
       'registerQueue:suggest',
-      'client:studio:dbos',
-      'client:kei:kei_dbos',
     ])
     expect(dbos.bootTimestampMs).toBe(1789000000000)
+  })
+
+  it('exposes both clients to recovered work dispatched during launch', async () => {
+    const { launchStudioDbos, studioDbos } = await freshModule()
+    sdk.DBOS.launch.mockImplementationOnce(async () => {
+      expect(studioDbos()).toMatchObject({ admission: sdk.clients[0], kei: sdk.clients[1] })
+      sdk.state.initialized = true
+    })
+
+    await launchStudioDbos({ databaseUrl: URL, register: () => undefined })
   })
 
   it('registers the studio queue with a 100 ms polling floor and suggest with one global slot', async () => {
@@ -196,7 +206,7 @@ describe('Studio DBOS', () => {
     expect(sdk.DBOS.shutdown).toHaveBeenCalledOnce()
   })
 
-  it('a failure after launch shuts DBOS down and closes the clients it created, so a retry launches afresh', async () => {
+  it('a client preparation failure closes the client it created, so a retry launches afresh', async () => {
     const { launchStudioDbos, studioDbos } = await freshModule()
     const unreachable = new Error('kei client failed')
     sdk.create
@@ -216,7 +226,18 @@ describe('Studio DBOS', () => {
 
     const retried = await launchStudioDbos({ databaseUrl: URL, register: () => undefined })
     expect(studioDbos()).toBe(retried)
-    expect(sdk.DBOS.launch).toHaveBeenCalledTimes(2)
+    expect(sdk.DBOS.launch).toHaveBeenCalledOnce()
+  })
+
+  it('a post-launch queue failure withdraws exposed clients and closes both pools', async () => {
+    const { launchStudioDbos, studioDbos } = await freshModule()
+    const unavailable = new Error('queue registration failed')
+    sdk.DBOS.registerQueue.mockRejectedValueOnce(unavailable)
+
+    await expect(launchStudioDbos({ databaseUrl: URL, register: () => undefined })).rejects.toBe(unavailable)
+    expect(() => studioDbos()).toThrow('Studio has not launched DBOS in this process.')
+    expect(sdk.DBOS.shutdown).toHaveBeenCalledOnce()
+    for (const client of sdk.clients) expect(client.destroy).toHaveBeenCalledOnce()
   })
 
   it('refuses to launch when DBOS was launched elsewhere in this process', async () => {

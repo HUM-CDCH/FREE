@@ -234,6 +234,8 @@ export function createSourceDocumentIngestion(
         timeoutMs: dependencies.resultTimeoutMs ?? RESULT_TIMEOUT_MS,
         intervalMs: dependencies.resultPollIntervalMs,
         signal: request.signal,
+      }).catch((cause) => {
+        throw persistenceUnavailable(cause, 'Source Document ingestion status is unavailable.')
       })
       // Detaches: nothing is cancelled, and a re-upload of the same bytes joins the attempt or replays its document.
       if (awaited.state === 'timed-out')
