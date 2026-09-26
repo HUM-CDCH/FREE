@@ -63,18 +63,68 @@ async function readErrorDetail(response: Response): Promise<string> {
   return error ? `${error.code}: ${error.message}` : ''
 }
 
-async function postForm<T>(
+const REPEAT_DELAYS_MS = [1_000, 2_000, 4_000] as const
+/** Studio's own codes that still leave the outcome unknown; every other Studio error is a confirmed failure. */
+const UNCERTAIN_CODES: ReadonlySet<string> = new Set(['persistence_unavailable', 'operation_pending'])
+
+async function uncertain(response: Response): Promise<boolean> {
+  if (response.status !== 502 && response.status !== 503 && response.status !== 504) return false
+  const body: unknown = await response.clone().json().catch(() => null)
+  const code = isRecord(body) && isRecord(body.error) ? body.error.code : undefined
+  return typeof code !== 'string' || UNCERTAIN_CODES.has(code)
+}
+
+function pause(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms)
+    signal?.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason) }, { once: true })
+  })
+}
+
+/**
+ * A POST that starts model work under a client-minted ID (spec, *Browser*). Studio replays the same ID, so after a
+ * network failure, or a 502/503/504 that is not one of Studio's confirmed failures, the outcome is unknown and the same
+ * request goes again — at most three more times, 1, 2 and 4 s apart. The keys go first each time: a Studio restart
+ * that cut the connection also emptied its copy. An abort ends it; a confirmed failure comes back as it is, and a new
+ * user action — "try again" included — mints a new ID instead.
+ */
+export async function repeatableModelPost(
+  path: string,
+  body: () => BodyInit,
+  init: { headers?: HeadersInit; signal?: AbortSignal } = {},
+): Promise<Response> {
+  for (let attempt = 0; ; attempt += 1) {
+    await ensureModelKeysSent()
+    init.signal?.throwIfAborted()
+    const last = attempt === REPEAT_DELAYS_MS.length
+    try {
+      const response = await authenticatedFetch(`${API_BASE}${path}`, { method: 'POST', headers: init.headers, body: body(), signal: init.signal })
+      if (last || !(await uncertain(response))) return response
+    } catch (error) {
+      if (init.signal?.aborted || last) throw error
+    }
+    await pause(REPEAT_DELAYS_MS[attempt]!, init.signal)
+  }
+}
+
+/** Stops a model operation (a user's Stop, or Discard of a proposal): 204 and 404 both mean it is not running. */
+export async function deleteModelOperation(workflowId: string): Promise<void> {
+  const response = await authenticatedFetch(`${API_BASE}/model-operations/${encodeURIComponent(workflowId)}`, { method: 'DELETE' })
+  if (response.ok || response.status === 404) return
+  throw new ApiRequestError(
+    (await readErrorDetail(response)) || `Could not stop ${workflowId} (HTTP ${response.status})`,
+    response.status,
+  )
+}
+
+/** A model POST: the keys go first and an uncertain answer is repeated under the same operation ID. */
+async function postModelForm<T>(
   endpoint: string,
   form: FormData,
   decode: (data: unknown) => T,
   signal?: AbortSignal,
 ): Promise<T> {
-  const response = await authenticatedFetch(`${API_BASE}${endpoint}`, {
-    method: 'POST',
-    body: form,
-    headers: { accept: 'application/json' },
-    signal,
-  })
+  const response = await repeatableModelPost(endpoint, () => form, { headers: { accept: 'application/json' }, signal })
   if (!response.ok) {
     const detail = await readErrorDetail(response)
     throw new Error(detail || `Request to ${endpoint} failed (HTTP ${response.status})`)
@@ -107,8 +157,7 @@ export async function requestSchema(
     form.append('base_schema_revision_id', options.base.schemaRevisionId)
   }
 
-  await ensureModelKeysSent()
-  const done = await postForm('/generate_schema', form, decodeSchemaDone, signal)
+  const done = await postModelForm('/generate_schema', form, decodeSchemaDone, signal)
   return done.template
 }
 
@@ -269,7 +318,7 @@ export function saveExtractionReviewDraft(extractionId: string, decisions: reado
 //     form.append('document_markdown', markdown)
 //   }
 
-//   return postForm('/markdown', form, decodeMarkdownDone, signal)
+//   return postModelForm('/markdown', form, decodeMarkdownDone, signal)
 // }
 
 function decodeSchemaEdit(data: unknown): SchemaEditResponse {
@@ -296,6 +345,5 @@ export async function requestSchemaEdit(
   form.append('instruction', instruction)
   // The operation ID makes the POST repeatable and names the proposal a reloaded page can reopen.
   form.append('operation_id', operationId)
-  await ensureModelKeysSent()
-  return postForm('/edit_schema', form, decodeSchemaEdit, signal)
+  return postModelForm('/edit_schema', form, decodeSchemaEdit, signal)
 }

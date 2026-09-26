@@ -428,6 +428,35 @@ describe('generation lifecycle', () => {
     })
   })
 
+  it('Stop cancels the running generation on the server; unmounting only detaches', async () => {
+    const setup = setupDurable({ initial: revision(4, 'site'), debounceMs: 0 })
+    const cancel = vi.fn(async () => {})
+    let first: AbortSignal | undefined
+    void setup.controller.generate((signal) => {
+      first = signal
+      return new Promise<unknown>(() => {})
+    }, { cancel })
+
+    setup.controller.cancelGeneration()
+
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(first!.aborted).toBe(true)
+    expect(setup.controller.snapshot().view).toBe('editing')
+
+    const later = vi.fn(async () => {})
+    let second: AbortSignal | undefined
+    void setup.controller.generate((signal) => {
+      second = signal
+      return new Promise<unknown>(() => {})
+    }, { cancel: later })
+
+    setup.controller.dispose()
+
+    expect(second!.aborted).toBe(true)
+    expect(later).not.toHaveBeenCalled()
+    expect(cancel).toHaveBeenCalledOnce()
+  })
+
   it('keeps durable identity when cancelled initialization still acknowledges', async () => {
     let resolveInitialize!: (value: SchemaRevision) => void
     const initialize = vi.fn(

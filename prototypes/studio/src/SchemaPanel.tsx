@@ -5,7 +5,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { requestSchemaEdit } from './api'
+import { deleteModelOperation, requestSchemaEdit } from './api'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { countTemplateFields, isRecord } from '../shared/template'
 import {
@@ -1018,6 +1018,9 @@ function SchemaPanel({
   }
 
   function cancelChat() {
+    // A user's Stop: cancel the proposal on the server, then stop waiting. The unmount cleanup only aborts.
+    const operationId = editOperationRef.current
+    if (operationId) void deleteModelOperation(`edit:${operationId}`).catch(() => undefined)
     chatAbortRef.current?.abort()
   }
 

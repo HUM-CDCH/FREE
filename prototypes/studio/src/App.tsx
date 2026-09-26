@@ -12,7 +12,7 @@ import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
 import type { RunExtractionStrategy } from './ResultsTab'
 import { useDurableCurrentSchemaRevision } from './useCurrentSchemaRevision'
-import { requestSchema } from './api'
+import { deleteModelOperation, requestSchema } from './api'
 import {
   decodeParsedDocument,
   type ParsedDocument,
@@ -477,6 +477,8 @@ export function DocumentWorkspace({
           base: acknowledged && { extractionSchemaId: acknowledged.extractionSchemaId, schemaRevisionId: acknowledged.schemaRevisionId },
         },
       ),
+      // Stop cancels the workflow; leaving the page only detaches (the controller's dispose).
+      { cancel: () => deleteModelOperation(`suggestion:${operationId}`) },
     )
     // The first successful generation initializes the Extraction Schema;
     // name it the way initializeSchemaRevision's caller always has.

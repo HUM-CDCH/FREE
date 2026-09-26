@@ -1,10 +1,11 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExtractionController } from './useExtraction'
 import {
   ApiRequestError,
   decodeSchemaDone,
+  deleteModelOperation,
   finalizeExtractionReview,
   readExtraction,
   readIngestionModels,
@@ -286,6 +287,115 @@ describe('model work hands the keys over first', () => {
       'PUT /api/model-keys',
       'POST /api/edit_schema',
     ])
+  })
+})
+
+describe('repeatable model POST', () => {
+  const ACCOUNT = '10000000-0000-4000-8000-000000000001'
+  const context = {
+    projectContextId: '51000000-0000-4000-8000-000000000001',
+    sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000001',
+  }
+  const OPERATION = '51000000-0000-4000-8009-0000000000f1'
+  type Answer = () => Response | Promise<Response>
+  const errorResponse = (status: number, code: string) =>
+    new Response(JSON.stringify({ error: { code, message: 'Copy.' } }), { status, headers: { 'content-type': 'application/json' } })
+
+  /** A fetch that hands the keys over on every PUT and answers each POST from `answers` in turn (the last one repeats). */
+  function stubFetch(answers: Answer[]) {
+    const requests: string[] = []
+    const bodies: FormData[] = []
+    let posts = 0
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string, init: RequestInit) => {
+      requests.push(`${init.method} ${url}`)
+      if (url === '/api/model-keys') return Promise.resolve(jsonResponse({ accepted: [] }))
+      bodies.push(init.body as FormData)
+      const answer = answers[Math.min(posts, answers.length - 1)]!
+      posts += 1
+      return Promise.resolve().then(answer)
+    }))
+    return { requests, bodies, posts: () => posts }
+  }
+
+  beforeEach(() => {
+    setModelKeyAccount(ACCOUNT)
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    setModelKeyAccount(null)
+  })
+
+  it('a model POST is repeated with the same body after a network failure or a proxy 502/503/504, keys first each time', async () => {
+    const stub = stubFetch([
+      () => { throw new TypeError('Failed to fetch') },
+      () => new Response('<html>Bad Gateway</html>', { status: 502, headers: { 'content-type': 'text/html' } }),
+      () => jsonResponse({ template: { title: 'string' }, raw: '', pages: null }),
+    ])
+
+    const result = requestSchema(context, undefined, { instruction: 'Catalog entries', operationId: OPERATION, base: null })
+    await vi.advanceTimersByTimeAsync(3_000)
+
+    await expect(result).resolves.toEqual({ title: 'string' })
+    expect(stub.requests).toEqual([
+      'PUT /api/model-keys', 'POST /api/generate_schema',
+      'PUT /api/model-keys', 'POST /api/generate_schema',
+      'PUT /api/model-keys', 'POST /api/generate_schema',
+    ])
+    const sent = stub.bodies.map((body) => Object.fromEntries(body))
+    expect(sent).toHaveLength(3)
+    for (const body of sent)
+      expect(body).toEqual({
+        project_context_id: context.projectContextId,
+        source_representation_revision_id: context.sourceRepresentationRevisionId,
+        instruction: 'Catalog entries',
+        operation_id: OPERATION,
+      })
+  })
+
+  it('a confirmed failure is never repeated; an uncertain one at most three times', async () => {
+    const run = async (answers: Answer[]) => {
+      const stub = stubFetch(answers)
+      const result = requestSchema(context, undefined, { operationId: OPERATION, base: null })
+      const outcome = result.then(() => 'resolved', (error: Error) => error.message)
+      await vi.advanceTimersByTimeAsync(10_000)
+      return { outcome: await outcome, posts: stub.posts() }
+    }
+    expect(await run([() => errorResponse(409, 'model_key_required')])).toEqual({ outcome: 'model_key_required: Copy.', posts: 1 })
+    expect(await run([() => errorResponse(502, 'model_operation_failed')])).toEqual({ outcome: 'model_operation_failed: Copy.', posts: 1 })
+    expect(await run([() => errorResponse(503, 'persistence_unavailable')])).toEqual({ outcome: 'persistence_unavailable: Copy.', posts: 4 })
+    expect(await run([() => errorResponse(504, 'operation_pending')])).toEqual({ outcome: 'operation_pending: Copy.', posts: 4 })
+  })
+
+  it('an abort ends the repetition', async () => {
+    const stub = stubFetch([() => { throw new TypeError('Failed to fetch') }])
+    const controller = new AbortController()
+
+    const result = requestSchema(context, controller.signal, { operationId: OPERATION, base: null })
+    const outcome = result.then(() => 'resolved', (error: unknown) => error)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(stub.posts()).toBe(1)
+    controller.abort()
+    await vi.advanceTimersByTimeAsync(10_000)
+
+    expect(await outcome).toMatchObject({ name: 'AbortError' })
+    expect(stub.posts()).toBe(1)
+  })
+
+  it('deleteModelOperation encodes the workflow ID', async () => {
+    const requests: string[] = []
+    const statuses = [204, 404, 503]
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string, init: RequestInit) => {
+      requests.push(`${init.method} ${url}`)
+      const status = statuses.shift()!
+      return Promise.resolve(status === 503 ? errorResponse(503, 'persistence_unavailable') : new Response(null, { status }))
+    }))
+    const workflowId = 'suggestion:51000000-0000-4000-8009-0000000000f1'
+
+    await expect(deleteModelOperation(workflowId)).resolves.toBeUndefined()
+    await expect(deleteModelOperation(workflowId)).resolves.toBeUndefined()
+    await expect(deleteModelOperation(workflowId)).rejects.toMatchObject({ name: 'ApiRequestError', status: 503, message: 'persistence_unavailable: Copy.' })
+    expect(requests).toEqual(Array(3).fill('DELETE /api/model-operations/suggestion%3A51000000-0000-4000-8009-0000000000f1'))
   })
 })
 

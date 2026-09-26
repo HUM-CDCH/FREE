@@ -242,8 +242,10 @@ export type SchemaEditorController = {
   snapshot(): SchemaEditorSnapshot
   subscribe(listener: () => void): () => void
 
+  /** Runs a generation; `cancel` is what a user's Stop calls on the server, before the wait ends. */
   generate(
     request: (signal: AbortSignal) => Promise<unknown>,
+    options?: { cancel?: () => Promise<void> },
   ): Promise<void>
   cancelGeneration(): void
 
@@ -293,6 +295,7 @@ export function createSchemaEditorController(
   let generating = false
   let generationError: string | null = null
   let generationAbort: AbortController | null = null
+  let generationCancel: (() => Promise<void>) | null = null
   let extractableSchemaRevisionId =
     options.initialExtractableRevisionId ?? null
   let creatingFromRevisionId: string | null = null
@@ -414,11 +417,15 @@ export function createSchemaEditorController(
       return () => listeners.delete(listener)
     },
 
-    async generate(request) {
+    async generate(request, options = {}) {
       if (disposed) return
       generationAbort?.abort()
       const abort = new AbortController()
       generationAbort = abort
+      generationCancel = options.cancel ?? null
+      const settle = () => {
+        if (generationAbort === abort) generationCancel = null
+      }
       generating = true
       generationError = null
       historicalPreview = null
@@ -462,9 +469,16 @@ export function createSchemaEditorController(
         generationError =
           error instanceof Error ? error.message : 'Schema generation failed.'
         publish()
+      } finally {
+        settle()
       }
     },
     cancelGeneration() {
+      // A user's Stop: tell Studio, then stop waiting. dispose() only stops waiting — the workflow runs on and a
+      // reloaded page finds it (spec, *A client abort only detaches*).
+      const cancel = generationCancel
+      generationCancel = null
+      void cancel?.().catch(() => undefined)
       generationAbort?.abort()
       if (!generating) return
       generating = false

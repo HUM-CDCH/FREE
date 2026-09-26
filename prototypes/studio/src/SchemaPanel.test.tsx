@@ -17,10 +17,15 @@ import type {
   AcknowledgedSchemaRevision,
   SchemaSaveState,
 } from './schemaSaveCoordinator'
-const { requestSchemaEdit } = vi.hoisted(() => ({ requestSchemaEdit: vi.fn() }))
+// The server-side cancel resolves unless a case says otherwise; resetAllMocks restores this implementation.
+const { requestSchemaEdit, deleteModelOperation } = vi.hoisted(() => ({
+  requestSchemaEdit: vi.fn(),
+  deleteModelOperation: vi.fn<(workflowId: string) => Promise<void>>(async () => undefined),
+}))
 vi.mock('./api', async (importOriginal) => ({
   ...await importOriginal<typeof import('./api')>(),
   requestSchemaEdit,
+  deleteModelOperation,
 }))
 
 const nodes: SchemaNode[] = [
@@ -1159,6 +1164,42 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 
     expect(await screen.findByText('Cancelled.')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Describe a change to the schema…')).toBeEnabled()
+  })
+
+  it('Stop on a running edit cancels edit:<operationId> on the server and says Cancelled.', async () => {
+    requestSchemaEdit.mockImplementationOnce((_context, _message, signal) =>
+      new Promise<SchemaEditResponse>((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
+      }),
+    )
+    deleteModelOperation.mockResolvedValueOnce(undefined)
+    renderPanel()
+    const input = screen.getByPlaceholderText('Describe a change to the schema…')
+    fireEvent.change(input, { target: { value: 'Check fields' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    const stop = await screen.findByRole('button', { name: 'Stop schema edit request' })
+    await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledOnce())
+    const operationId = requestSchemaEdit.mock.calls[0]![3] as string
+
+    fireEvent.click(stop)
+
+    expect(await screen.findByText('Cancelled.')).toBeInTheDocument()
+    expect(deleteModelOperation).toHaveBeenCalledExactlyOnceWith(`edit:${operationId}`)
+  })
+
+  it('unmounting during an edit cancels nothing on the server', async () => {
+    requestSchemaEdit.mockImplementationOnce(() => new Promise<SchemaEditResponse>(() => undefined))
+    renderPanel()
+    const input = screen.getByPlaceholderText('Describe a change to the schema…')
+    fireEvent.change(input, { target: { value: 'Check fields' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledOnce())
+    const signal = requestSchemaEdit.mock.calls[0]![2] as AbortSignal
+
+    cleanup()
+
+    expect(signal.aborted).toBe(true)
+    expect(deleteModelOperation).not.toHaveBeenCalled()
   })
 
   it('cancels a schema edit request when the panel unmounts', async () => {
