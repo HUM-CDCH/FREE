@@ -83,7 +83,7 @@ def launched_url(url: str, root: Path, monkeypatch) -> Iterator[Kei]:
     monkeypatch.setattr(runs, "RUNS", root / "runs")
     monkeypatch.setattr(runs, "INBOX", root / "inbox")
     DBOS.destroy()
-    boot.set_timestamp(boot.database_clock_ms(url))
+    monkeypatch.setattr(boot, "_timestamp_ms", boot.database_clock_ms(url))  # restored after the test
     DBOS(config=config.dbos_config(url, "test", log_level="WARNING"))
     DBOS.launch()
     config.register_queues(polling_interval_sec=0.1)

@@ -50,8 +50,9 @@ def test_a_killed_holder_releases_and_a_stopped_one_keeps_its_slot(lock_root):
             holder.reap()
 
 
-def test_the_lock_is_taken_before_the_model_stack_is_imported():
-    """A second worker on a held slot is refused in a fraction of a second, not after loading docling and torch."""
+def test_the_worker_module_does_not_import_the_model_stack():
+    """Importing the CLI loads no docling, torch or surya, so `serve` can take the slot before `registered` loads
+    them: a second worker on a held slot is refused in a fraction of a second. The order itself is pinned below."""
     code = ("import sys, kei_exp.workflows.cli\n"
             "print(sorted({name.split('.')[0] for name in sys.modules} & {'docling', 'torch', 'surya'}))")
     loaded = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout
@@ -84,6 +85,7 @@ def test_the_worker_locks_then_reads_the_clock_then_launches_then_registers(monk
     monkeypatch.setattr(boot, "database_clock_ms", lambda url: order.append("clock") or 1234)
     monkeypatch.setattr(cli, "DBOS", FakeDBOS)
     monkeypatch.setattr(config, "register_queues", lambda **_: order.append("queues"))
+    monkeypatch.setattr(boot, "_timestamp_ms", None)  # restored after the test: serve sets it
     cli.serve("slot-7", "postgresql://x", until=lambda: order.append("serving"))
     assert order == ["flock", "clock", "configure", "launch", "queues", "serving", "destroy", "release"]
     assert boot.timestamp_ms() == 1234
