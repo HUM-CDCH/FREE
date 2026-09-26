@@ -13,8 +13,10 @@ const stack = configurePlaywrightStack({
 })
 const e2ePort = stack.applicationPort
 const e2eOrigin = `http://localhost:${e2ePort}`
-// The lifecycle spec's fake kei-exp listens here, and Studio's KEI_EXP_URL points at it.
-const keiExpUrl = 'http://127.0.0.1:41750'
+// The lifecycle spec's fake kei-exp listens here, and Studio's KEI_EXP_URL points at it. It binds mid-run, while
+// the browsers hold many outbound sockets, so it sits below Linux's ephemeral range (32768-60999) and the
+// Compose lease range (30000-39999): a client socket holding the port as its source would fail it with EADDRINUSE.
+const keiExpUrl = 'http://127.0.0.1:29750'
 process.env.FREE_PLAYWRIGHT_KEI_EXP_URL = keiExpUrl
 
 export default defineConfig({
