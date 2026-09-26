@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import pg from 'pg'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { createInternalProjectWorkerStore, db, INTERRUPTED_FAILURE, pool } from 'db'
 import { dbosSteps } from 'extraction'
@@ -232,6 +233,36 @@ describe('GET and DELETE /api/model-operations on PostgreSQL', () => {
     expect((await remove(scope.accountId, p2)).status).toBe(404)
     expect((await remove(scope.accountId, p3)).status).toBe(204)
     expect((await operations(scope.accountId, scope.projectContextId, base.extractionSchemaId)).map((operation) => operation.workflowId)).toEqual([q])
+  })
+
+  it('two proposals admitted in the same millisecond are discarded in the order the listing shows', async () => {
+    const scope = await seed()
+    const base = await seedSchemaRevision(scope)
+    const ids: string[] = []
+    for (let i = 0; i < 2; i += 1) {
+      const operationId = randomUUID()
+      server.reply({ text: ENVELOPE })
+      expect((await propose(scope, base, operationId)).status).toBe(200)
+      ids.push(`edit:${operationId}`)
+    }
+    // DBOS stamps created_at in milliseconds and orders by it alone: make the two share one stamp.
+    const client = new pg.Client({ connectionString: url })
+    await client.connect()
+    try {
+      await client.query(
+        `UPDATE "${schemas.schema}".workflow_status SET created_at = (SELECT created_at FROM "${schemas.schema}".workflow_status WHERE workflow_uuid = $1) WHERE workflow_uuid = $2`,
+        [ids[0], ids[1]],
+      )
+    } finally {
+      await client.end()
+    }
+    const [older, newer] = [...ids].sort() as [string, string]
+
+    const listed = (await operations(scope.accountId, scope.projectContextId, base.extractionSchemaId)).map((operation) => operation.workflowId)
+    expect(listed).toEqual([newer, older])
+    expect((await remove(scope.accountId, newer)).status).toBe(204)
+    expect(await statusOf(older)).toBeUndefined()
+    expect(await statusOf(newer)).toBeUndefined()
   })
 
   it("a second account can neither list nor cancel nor discard the first account's operations", async () => {

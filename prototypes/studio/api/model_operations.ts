@@ -15,6 +15,14 @@ const scopeSchema = z.object({ projectContextId: canonicalUuidSchema, extraction
 const PREFIX = '/api/model-operations'
 const notFound = () => new ApiError(404, 'not_found', 'Model operation was not found.')
 
+type Admitted = Pick<WorkflowStatus, 'createdAt' | 'workflowID'>
+/** Admission order with a total tie-break: DBOS stamps created_at in milliseconds and orders by it alone, so two
+ *  proposals admitted in the same millisecond need one answer to "older", the same for the listing and for Discard. */
+function olderThan(a: Admitted, b: Admitted): boolean {
+  return a.createdAt < b.createdAt || (a.createdAt === b.createdAt && a.workflowID < b.workflowID)
+}
+const newestFirst = (a: Admitted, b: Admitted): number => (olderThan(a, b) ? 1 : olderThan(b, a) ? -1 : 0)
+
 /** One workflow as the page sees it. The recorded input names the instruction and base; the output is the outcome. */
 export function modelOperationOf(status: WorkflowStatus): ModelOperation | null {
   const match = MODEL_OPERATION_WORKFLOW_ID.exec(status.workflowID)
@@ -81,7 +89,7 @@ export function createModelOperationHandlers(
           sortDesc: true,
           limit: 20,
         }).catch((cause) => { throw unavailable(cause) })
-        return json({ operations: statuses.flatMap((status) => modelOperationOf(status) ?? []) }, { headers: noStore })
+        return json({ operations: statuses.slice().sort(newestFirst).flatMap((status) => modelOperationOf(status) ?? []) }, { headers: noStore })
       } catch (error) {
         return noStoreError(error)
       }
@@ -113,7 +121,7 @@ export function createModelOperationHandlers(
           }).catch((cause) => { throw unavailable(cause) })
           const discarded = finished
             .filter((status) => (status.input?.[0] as SchemaEditInput | undefined)?.baseSchemaRevisionId === base
-              && (status.workflowID === workflowId || status.createdAt < recorded.createdAt))
+              && (status.workflowID === workflowId || olderThan(status, recorded)))
             .map((status) => status.workflowID)
           await client.deleteWorkflows(discarded).catch((cause) => { throw unavailable(cause) })
         }

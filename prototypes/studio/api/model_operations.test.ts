@@ -113,7 +113,8 @@ describe('GET /api/model-operations', () => {
     const common = (n: number, kind: 'suggestion' | 'edit') => ({
       workflowId: `${kind}:${uuid(n)}`, operationId: uuid(n), instruction: `Instruction ${n}`, createdAt: new Date(1_700_000_000_000 + n).toISOString(),
     })
-    expect(body.operations).toEqual([
+    // Newest first: the rows were admitted in order 1..8.
+    expect(body.operations.slice().reverse()).toEqual([
       { kind: 'generation', ...common(1, 'suggestion'), status: 'QUEUED', failure: null, baseSchemaRevisionId: null, template: null },
       { kind: 'proposal', ...common(2, 'edit'), status: 'RUNNING', failure: null, baseSchemaRevisionId: R1, response: null },
       { kind: 'generation', ...common(3, 'suggestion'), status: 'SUCCEEDED', failure: null, baseSchemaRevisionId: R1, template: TEMPLATE },
@@ -125,6 +126,16 @@ describe('GET /api/model-operations', () => {
     ])
     expect(modelOperationOf(rows[8]!)).toBeNull()
     expect(modelOperationOf(rows[9]!)).toBeNull()
+  })
+
+  it('orders two operations admitted in the same millisecond newest-first by workflow ID', async () => {
+    const at = 1_700_000_000_500
+    const rows = [row('edit', 1, 'PENDING', { createdAt: at }), row('edit', 2, 'PENDING', { createdAt: at }), row('suggestion', 3, 'PENDING', { createdAt: at - 1 })]
+    const { GET } = handlers(rows)
+
+    const body = modelOperationListingSchema.parse(await (await GET(get(`?projectContextId=${PROJECT}`))).json())
+
+    expect(body.operations.map((operation) => operation.workflowId)).toEqual([`edit:${uuid(2)}`, `edit:${uuid(1)}`, `suggestion:${uuid(3)}`])
   })
 
   it('an unowned or deleted scope is 404 and lists nothing', async () => {
@@ -197,6 +208,18 @@ describe('DELETE /api/model-operations/<workflow ID>', () => {
     expect(client.deleteWorkflows).toHaveBeenCalledOnce()
     expect([...client.deleteWorkflows.mock.calls[0]![0]].sort()).toEqual([`edit:${uuid(1)}`, `edit:${uuid(2)}`])
     expect(client.cancelWorkflow).not.toHaveBeenCalled()
+  })
+
+  it('discards two proposals admitted in the same millisecond in the order the listing shows', async () => {
+    const at = 1_700_000_000_500
+    const proposal = (n: number) => row('edit', n, 'SUCCESS', { output: { ok: true, baseSchemaRevisionId: R1, response: PROPOSED }, createdAt: at })
+    const newestFirst = handlers([proposal(1), proposal(2)])
+    expect((await newestFirst.DELETE(del(encodeURIComponent(`edit:${uuid(2)}`)))).status).toBe(204)
+    expect([...newestFirst.client.deleteWorkflows.mock.calls[0]![0]].sort()).toEqual([`edit:${uuid(1)}`, `edit:${uuid(2)}`])
+
+    const oldestFirst = handlers([proposal(1), proposal(2)])
+    expect((await oldestFirst.DELETE(del(encodeURIComponent(`edit:${uuid(1)}`)))).status).toBe(204)
+    expect(oldestFirst.client.deleteWorkflows).toHaveBeenCalledExactlyOnceWith([`edit:${uuid(1)}`])
   })
 
   it('deletes nothing for any other settled operation', async () => {
