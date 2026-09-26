@@ -283,6 +283,37 @@ def test_an_unreadable_run_is_kept_and_stops_nothing_else(kei, fake, monkeypatch
     assert corrupt.is_dir() and not (kei.runs / run_id).exists() and DBOS.get_workflow_status(workflow_id) is None
 
 
+@pytest.mark.parametrize("params", ["[1]", '"a string"', "null"])
+def test_a_params_file_that_is_no_object_is_unreadable_not_a_crash(tmp_path, params):
+    (tmp_path / "params.json").write_text(params, encoding="utf-8")
+    with pytest.raises(ValueError, match="no object"):
+        gc._writers(tmp_path)
+
+
+def test_a_run_that_cannot_be_removed_is_kept_and_stops_nothing_else(kei, fake, monkeypatch):
+    stuck_id, gone_id = (kei.output(converted(kei, f"kei-convert:ingest:p:{name}"))["run_id"] for name in "rs")
+    age(kei.runs / stuck_id)
+    age(kei.runs / gone_id)
+    original = gc._remove
+
+    def remove(directory):
+        if directory.name == stuck_id:
+            raise PermissionError(directory)
+        original(directory)
+    monkeypatch.setattr(gc, "_remove", remove)
+    output = delete(kei, [stuck_id, gone_id])
+    assert (output["deleted_runs"], output["kept_runs"]) == ([gone_id], [stuck_id])
+    assert (kei.runs / stuck_id).is_dir() and not (kei.runs / gone_id).exists()
+
+
+def test_a_history_id_named_twice_is_deleted_once(kei, fake):
+    done = converted(kei, "kei-convert:ingest:p:t")
+    kei.output(done)
+    output = delete(kei, history=[done, done])
+    assert (output["deleted_history"], output["kept_history"]) == ([done], [])
+    assert DBOS.get_workflow_status(done) is None
+
+
 def test_a_published_extraction_is_one_of_the_runs_writers(kei, monkeypatch):
     """extractions/<id>/ names its workflow, even once the `extract` listing no longer names the run."""
     from kei_exp.kie.extract import run as extraction

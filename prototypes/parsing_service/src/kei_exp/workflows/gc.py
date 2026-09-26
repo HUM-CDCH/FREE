@@ -27,7 +27,7 @@ STOPPED = frozenset({"CANCELLED", "MAX_RECOVERY_ATTEMPTS_EXCEEDED"})
 LIVE = ("ENQUEUED", "PENDING", "DELAYED")
 MIN_AGE_SECONDS = 24 * 3600
 PREPARE, DELETING = ".prepare-", ".deleting-"  # convert.prepare_run's staging; a run being removed
-UNREADABLE = (OSError, ValueError, AttributeError)  # a corrupt params.json, a file gone during the walk
+UNREADABLE = (OSError, ValueError)  # a corrupt params.json, a file gone during the walk
 
 
 def eligible(status, boot_ms: int) -> bool:
@@ -67,7 +67,9 @@ def _still_converting(boot_ms: int) -> set[str]:
 def _writers(directory: Path) -> list[str]:
     """The kei workflows that wrote this run: its conversion (params.json) and every published extraction."""
     params = runs.read_json(directory / "params.json")
-    workflow_id = params.get("workflow_id")  # AttributeError when params.json holds no object
+    if not isinstance(params, dict):
+        raise ValueError("params.json holds no object")  # noqa: TRY004 - bad file content, as for bad JSON
+    workflow_id = params.get("workflow_id")
     if workflow_id is not None and not isinstance(workflow_id, str):
         raise ValueError("params.json names no workflow")
     found = [workflow_id] if workflow_id else []
@@ -92,9 +94,13 @@ def _statuses(workflow_ids: list[str]) -> dict:
 
 
 def _remove(directory: Path) -> None:
+    """Gone once renamed; an OSError means the run is still in place. What the removal leaves behind is swept by the
+    next execution."""
     doomed = runs.RUNS / f"{DELETING}{directory.name}"  # hidden: runs.directory_of refuses it at once
     directory.rename(doomed)
-    shutil.rmtree(doomed)
+    shutil.rmtree(doomed, ignore_errors=True)
+    if doomed.exists():
+        logger.warning("run %s is deleted; part of %s is left for the next deleteRuns", directory.name, doomed.name)
 
 
 def _unreadable(run_id: str) -> None:
@@ -104,7 +110,7 @@ def _unreadable(run_id: str) -> None:
 @DBOS.step(name="delete_runs")
 def delete_runs(request: dict) -> dict:
     boot_ms = boot.timestamp_ms()
-    requested = list(dict.fromkeys(request["runs"]))
+    requested, history = list(dict.fromkeys(request["runs"])), list(dict.fromkeys(request["history"]))
     # Read every status first. The staging directories are listed before the conversions are read: one created later
     # belongs to a conversion that is live now, and is never in this list. A run whose directory cannot be read is
     # kept and never stops the others: Studio asks for it again on every schedule.
@@ -117,7 +123,7 @@ def delete_runs(request: dict) -> dict:
                 writers[run_id] = _writers(runs.RUNS / run_id)
             except UNREADABLE:
                 unreadable.add(run_id)
-    statuses = _statuses(sorted({*request["history"], *(wid for found in writers.values() for wid in found)}))
+    statuses = _statuses(sorted({*history, *(wid for found in writers.values() for wid in found)}))
     young = time.time() - MIN_AGE_SECONDS
 
     # Then delete. A run already gone was removed by an earlier execution of this step, or never written.
@@ -146,10 +152,15 @@ def delete_runs(request: dict) -> dict:
             if recent:
                 kept_runs.append(run_id)
                 continue
-            _remove(runs.RUNS / run_id)
+            try:
+                _remove(runs.RUNS / run_id)
+            except OSError:
+                logger.warning("keeping run %s: it could not be removed", run_id)
+                kept_runs.append(run_id)
+                continue
         deleted_runs.append(run_id)
-    deleted_history = [wid for wid in request["history"] if eligible(statuses.get(wid), boot_ms)]
-    kept_history = [wid for wid in request["history"] if wid not in deleted_history]
+    deleted_history = [wid for wid in history if eligible(statuses.get(wid), boot_ms)]
+    kept_history = [wid for wid in history if wid not in deleted_history]
     if deleted_history:
         DBOS.delete_workflows(deleted_history)
     logger.info("deleted runs %s, kept runs %s; deleted history %s, kept history %s",
