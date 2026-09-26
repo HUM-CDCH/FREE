@@ -3,6 +3,7 @@ import { parseSchemaDefinition } from 'extraction/schema'
 import type { WorkflowSteps } from 'extraction/workflows'
 import type { SchemaEditResponse } from '../shared/schemaEdit.contract.js'
 import type { generateSchemaEditJson } from './_model.js'
+import { persistenceUnavailable } from './_http.js'
 import { MODEL_OPERATION_TIMEOUT_MS, operationFailureOf, type OperationResult } from './_model_operation.js'
 import type { proposeSchemaEdit } from './_schema_edit.js'
 
@@ -36,9 +37,16 @@ export async function proposeSchemaEditWorkflow(
   input: SchemaEditInput,
   ports: SchemaEditPorts,
 ): Promise<OperationResult<SchemaEditProposed>> {
-  // The base revision and the document are immutable; both are read at workflow scope, outside history.
-  const tree = await ports.readSchemaTree(input.extractionSchemaId, input.baseSchemaRevisionId)
-  const markdown = input.sourceRepresentationRevisionId === null ? null : await ports.readMarkdown(input.sourceRepresentationRevisionId)
+  // The base revision and the document are immutable; both are read at workflow scope, outside history. A storage
+  // failure is the typed 503 the handler always answered, never a workflow error.
+  let tree: unknown | null
+  let markdown: string | null
+  try {
+    tree = await ports.readSchemaTree(input.extractionSchemaId, input.baseSchemaRevisionId)
+    markdown = input.sourceRepresentationRevisionId === null ? null : await ports.readMarkdown(input.sourceRepresentationRevisionId)
+  } catch (cause) {
+    return { ok: false, ...operationFailureOf(persistenceUnavailable(cause, 'Project model context storage is unavailable.')) }
+  }
   if (tree === null || (input.sourceRepresentationRevisionId !== null && markdown === null))
     return { ok: false, status: 404, code: 'not_found', message: 'Project model context was not found.' }
   const caller = { researcherAccountId: input.owner }

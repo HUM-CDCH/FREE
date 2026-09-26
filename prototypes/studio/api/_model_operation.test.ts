@@ -1,3 +1,4 @@
+import { Error as DBOSErrors } from '@dbos-inc/dbos-sdk'
 import { APICallError } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 import { INTERRUPTED_FAILURE } from 'db'
@@ -58,6 +59,14 @@ describe('startOrJoinOperation', () => {
     await expect(startOrJoinOperation(fakeClient({ workflowName: 'proposeSchemaEdit', input: [input] }), start))
       .rejects.toMatchObject({ status: 409, code: 'operation_conflict' })
     await expect(startOrJoinOperation(fakeClient(undefined), start)).rejects.toMatchObject({ status: 409, code: 'operation_conflict' })
+  })
+
+  it('an ID DBOS already holds for another workflow is 409 operation_conflict, not an outage', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const client = fakeClient({ workflowName: 'proposeSchemaEdit', input: [input] })
+    client.enqueue.mockRejectedValueOnce(new DBOSErrors.DBOSConflictingWorkflowError(start.workflowID, 'Workflow already exists with a different name'))
+    await expect(startOrJoinOperation(client, start)).rejects.toMatchObject({ status: 409, code: 'operation_conflict' })
+    expect(client.getWorkflow).not.toHaveBeenCalled()
   })
 
   it('a DBOS outage while starting or reading is 503 persistence_unavailable', async () => {

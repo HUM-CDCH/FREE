@@ -1,6 +1,7 @@
 import { DBOS } from '@dbos-inc/dbos-sdk'
 import type { WorkflowSteps } from 'extraction/workflows'
 import type { generateSchemaWithModel } from './_model.js'
+import { persistenceUnavailable } from './_http.js'
 import { MODEL_OPERATION_TIMEOUT_MS, operationFailureOf, type OperationResult } from './_model_operation.js'
 
 export const SUGGEST_SCHEMA = 'suggestSchema'
@@ -36,8 +37,13 @@ export async function suggestSchemaWorkflow(
   ports: SchemaGenerationPorts,
 ): Promise<OperationResult<SchemaGenerated>> {
   // Read at workflow scope from the immutable revision: a replay reads it again, and neither the input nor any step's
-  // output holds it.
-  const markdown = await ports.readMarkdown(input.sourceRepresentationRevisionId)
+  // output holds it. A storage failure is the typed 503 the handler always answered, never a workflow error.
+  let markdown: string | null
+  try {
+    markdown = await ports.readMarkdown(input.sourceRepresentationRevisionId)
+  } catch (cause) {
+    return { ok: false, ...operationFailureOf(persistenceUnavailable(cause, 'Project model context storage is unavailable.')) }
+  }
   if (markdown === null) return { ok: false, status: 404, code: 'not_found', message: 'Project model context was not found.' }
   return ports.steps.step('generateSchema', async (): Promise<OperationResult<SchemaGenerated>> => {
     try {

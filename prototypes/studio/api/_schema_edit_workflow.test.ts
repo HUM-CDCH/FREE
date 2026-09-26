@@ -109,6 +109,22 @@ describe('proposeSchemaEditWorkflow', () => {
     await expect(proposeSchemaEditWorkflow(input, misconfigured.ports)).resolves.toEqual({ ok: false, status: 409, code: 'invalid_model_config', message: 'No model.' })
   })
 
+  it('a base or document read that fails is a typed 503 persistence_unavailable and no step', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const tree = ports()
+    tree.readSchemaTree.mockRejectedValue(new Error('connection refused at 10.0.0.1'))
+    const result = await proposeSchemaEditWorkflow(input, tree.ports)
+    expect(result).toMatchObject({ ok: false, status: 503, code: 'persistence_unavailable' })
+    expect((result as { message: string }).message).not.toContain('10.0.0.1')
+    expect(tree.names).toEqual([])
+    expect(tree.propose).not.toHaveBeenCalled()
+
+    const document = ports()
+    document.readMarkdown.mockRejectedValue(new Error('package unreadable'))
+    await expect(proposeSchemaEditWorkflow(input, document.ports)).resolves.toMatchObject({ ok: false, status: 503, code: 'persistence_unavailable' })
+    expect(document.names).toEqual([])
+  })
+
   it('a deleted base revision or document ends with a typed 404 and no step', async () => {
     const noTree = ports()
     noTree.readSchemaTree.mockResolvedValue(null)

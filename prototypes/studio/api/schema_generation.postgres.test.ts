@@ -24,6 +24,7 @@ import { suggestionResearcherStore } from '../test/support/suggestionWorkflow.js
 import { deploymentModels } from './_deployment_models.js'
 import { generateSchemaWithModel } from './_model.js'
 import { createModelKeyCache } from './_model_keys.js'
+import { startOrJoinOperation } from './_model_operation.js'
 import { registerSchemaGenerationWorkflow, type SchemaGenerationPorts } from './_schema_generation_workflow.js'
 import { createPostGenerateSchema } from './generate_schema.js'
 
@@ -35,7 +36,8 @@ const schemas = testSchemas()
 const dropped: string[] = [schemas.schema, schemas.keiSchema]
 const scopes: InteractiveScope[] = []
 const TEMPLATE = '{"_description":"One catalogue entry.","title":"string"}'
-const KEY_WAIT_MS = 400
+/** A short wait for the model_key_required cases; the cancellation cases raise it so only a cancel can end the wait. */
+let keyWaitMs = 400
 
 let server: ScriptedModelServer
 const keys = createModelKeyCache()
@@ -52,7 +54,7 @@ const ports: SchemaGenerationPorts = {
   steps: dbosSteps,
   readMarkdown: (id) => worker.readRevisionMarkdown(id),
   generate: (caller, input) =>
-    generateSchemaWithModel(caller, input, undefined, { keys, keyWaitMs: KEY_WAIT_MS, deployment: deploymentModels({}) }),
+    generateSchemaWithModel(caller, input, undefined, { keys, keyWaitMs, deployment: deploymentModels({}) }),
 }
 
 function post(scope: InteractiveScope, operationId: string, fields: Record<string, string> = {}) {
@@ -145,6 +147,7 @@ beforeAll(async () => {
 afterEach(() => {
   server.release()
   keys.clear()
+  keyWaitMs = 400
 })
 
 afterAll(async () => {
@@ -197,6 +200,10 @@ describe('suggestSchema on PostgreSQL', () => {
     expect(conflict.status).toBe(409)
     await expect(conflict.json()).resolves.toMatchObject({ error: { code: 'operation_conflict' } })
     expect(server.calls().length).toBe(callsBefore + 1)
+    // The same ID under another workflow name: DBOS refuses the enqueue, and that is a conflict, not an outage.
+    await expect(startOrJoinOperation(studioDbos().admission, {
+      workflowName: 'proposeSchemaEdit', workflowID: `suggestion:${operationId}`, owner: scope.accountId, attributes: {}, input: { operationId },
+    })).rejects.toMatchObject({ status: 409, code: 'operation_conflict' })
   })
 
   it('a first generation records extractionSchemaId null, and the scope filter finds it only by null', async () => {
@@ -218,6 +225,8 @@ describe('suggestSchema on PostgreSQL', () => {
   })
 
   it('a cancel during the key wait never reaches the provider', async () => {
+    // A wait far longer than the test: only the cancel can end it.
+    keyWaitMs = 60_000
     const { scope, putKey } = await seed({ hasKey: true })
     const operationId = randomUUID()
     const workflowId = `suggestion:${operationId}`
@@ -226,17 +235,21 @@ describe('suggestSchema on PostgreSQL', () => {
     const response = post(scope, operationId)
 
     await until(() => waits > before, 10_000, 'the key wait to begin')
+    const cancelledAt = Date.now()
     await studioDbos().admission.cancelWorkflow(workflowId)
     await until(async () => (await statusOf(workflowId)) === 'CANCELLED', 3_000, 'the workflow to be cancelled')
 
     expect((await response).status).toBe(409)
     await expect((await response).clone().json()).resolves.toMatchObject({ error: { code: 'operation_cancelled' } })
-    // The step's cancel signal fires about 1 s after the cancel (spec); a key that arrives after it is never used.
-    await new Promise((resolve) => setTimeout(resolve, 1_500))
+    // The step's cancel signal ends the wait about 1 s after the cancel (spec): the workflow's step finishes long
+    // before the 60 s wait would, and a key that arrives after it is never used.
+    await until(async () => (await studioDbos().admission.getWorkflow(workflowId))?.recoveryAttempts !== undefined
+      && Date.now() - cancelledAt > 1_500, 5_000, 'the cancel signal to fire')
     putKey('sk-test-late')
     await new Promise((resolve) => setTimeout(resolve, 600))
     expect(server.calls().length).toBe(callsBefore)
     expect(await statusOf(workflowId)).toBe('CANCELLED')
+    expect(Date.now() - cancelledAt).toBeLessThan(10_000)
   })
 
   it('a cancel during a provider call stops it about 1 s later', async () => {
@@ -287,6 +300,17 @@ describe('suggestSchema on PostgreSQL', () => {
     expect(output.text()).not.toContain(key)
   })
 
+  it('the log capture sees a key nested in a logged error (negative control for the scan above)', () => {
+    const key = plantedKey()
+    const output = captureOutput()
+    try {
+      console.error('provider failed:', new Error('harmless', { cause: { responseHeaders: { 'x-echo': key } } }))
+    } finally {
+      output.restore()
+    }
+    expect(output.text()).toContain(key)
+  })
+
   it('NuExtract on a keyed vLLM connection waits for its key, stops on cancel, and leaves no key in history', async () => {
     const { scope, putKey } = await seed({ hasKey: true, provider: 'vllm', modelId: 'numind/NuExtract3-FP8', routes: ['schemaSuggestion'] })
     const callsBefore = server.calls().length
@@ -297,16 +321,22 @@ describe('suggestSchema on PostgreSQL', () => {
     await expect(missing.json()).resolves.toMatchObject({ error: { code: 'model_key_required' } })
     expect(server.calls().length).toBe(callsBefore)
 
-    // A cancel during the wait: no call either.
+    // A cancel during a long wait: only the cancel can end it, and no call is made.
+    keyWaitMs = 60_000
     const cancelledId = randomUUID()
     const before = waits
     const cancelled = post(scope, cancelledId)
     await until(() => waits > before, 10_000, 'the key wait to begin')
+    const cancelledAt = Date.now()
     await studioDbos().admission.cancelWorkflow(`suggestion:${cancelledId}`)
     expect((await cancelled).status).toBe(409)
+    await expect((await cancelled).clone().json()).resolves.toMatchObject({ error: { code: 'operation_cancelled' } })
+    expect(await statusOf(`suggestion:${cancelledId}`)).toBe('CANCELLED')
     expect(server.calls().length).toBe(callsBefore)
     // Let the step's cancel signal end the wait (about 1 s) before a key arrives.
     await new Promise((resolve) => setTimeout(resolve, 1_500))
+    expect(Date.now() - cancelledAt).toBeLessThan(10_000)
+    keyWaitMs = 400
 
     // The key present and a provider error that echoes it: no key in any table.
     const key = plantedKey()
@@ -323,6 +353,18 @@ describe('suggestSchema on PostgreSQL', () => {
     expect(succeeded.status).toBe(200)
     expect(server.calls().at(-1)?.authorization).toBe(`Bearer ${key}`)
     expect(server.calls().length).toBe(callsBefore + 2)
+
+    // A cancel during NuExtract's own fetch stops it about 1 s later, like the SDK models (A15).
+    const heldId = randomUUID()
+    server.reply({ text: TEMPLATE, hold: true })
+    const held = post(scope, heldId)
+    await server.waitForCall(callsBefore + 3)
+    const heldCancelledAt = Date.now()
+    await studioDbos().admission.cancelWorkflow(`suggestion:${heldId}`)
+    await until(() => server.calls()[callsBefore + 2]!.closedAt !== null, 5_000, 'the held NuExtract call to close')
+    expect(server.calls()[callsBefore + 2]!.closedAt! - heldCancelledAt).toBeLessThanOrEqual(2_500)
+    expect((await held).status).toBe(409)
+    expect(await statusOf(`suggestion:${heldId}`)).toBe('CANCELLED')
   })
 
   it('a replayed step whose call is checkpointed never waits for a key, even after the route moved', async () => {

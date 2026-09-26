@@ -103,6 +103,19 @@ describe('suggestSchemaWorkflow', () => {
     expect(holdsKey(output, key)).toBe(false)
   })
 
+  it('a document read that fails is a typed 503 persistence_unavailable and no step', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { names, generate, readMarkdown, ports: p } = ports()
+    readMarkdown.mockRejectedValue(new Error('connection refused at 10.0.0.1'))
+
+    const result = await suggestSchemaWorkflow(input, p)
+
+    expect(result).toMatchObject({ ok: false, status: 503, code: 'persistence_unavailable' })
+    expect((result as { message: string }).message).not.toContain('10.0.0.1')
+    expect(names).toEqual([])
+    expect(generate).not.toHaveBeenCalled()
+  })
+
   it('a deleted revision ends with a typed 404 and no step', async () => {
     const { names, generate, readMarkdown, ports: p } = ports()
     readMarkdown.mockResolvedValue(null)

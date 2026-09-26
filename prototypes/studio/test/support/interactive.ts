@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { inspect } from 'node:util'
 import pg from 'pg'
 import { db, type CanonicalPackageStore } from 'db'
 import type { ModelKeyCache } from '../../api/_model_keys.js'
@@ -103,12 +104,13 @@ export async function databaseHolds(url: string, needle: string, schemas: readon
   }
 }
 
-/** Captures console.* and process.stdout/stderr writes (DBOS's logger writes there) until `restore()`. */
+/** Captures console.* and process.stdout/stderr writes (DBOS's logger writes there) until `restore()`. Console
+ *  arguments are recorded as Node would print them, to full depth, so a key nested in an error's cause is seen. */
 export function captureOutput(): { text(): string; restore(): void } {
   const chunks: string[] = []
   const levels = ['log', 'info', 'warn', 'error', 'debug'] as const
   const originals = Object.fromEntries(levels.map((level) => [level, console[level]])) as Record<typeof levels[number], (...data: unknown[]) => void>
-  for (const level of levels) console[level] = (...data: unknown[]) => { chunks.push(data.map(String).join(' ')) }
+  for (const level of levels) console[level] = (...data: unknown[]) => { chunks.push(data.map((argument) => inspect(argument, { depth: Infinity })).join(' ')) }
   const stdoutWrite = process.stdout.write.bind(process.stdout)
   const stderrWrite = process.stderr.write.bind(process.stderr)
   const capture = (chunk: unknown) => { chunks.push(typeof chunk === 'string' ? chunk : String(chunk)); return true }

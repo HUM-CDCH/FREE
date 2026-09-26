@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util'
-import type { DBOSClient } from '@dbos-inc/dbos-sdk'
+import { Error as DBOSErrors, type DBOSClient } from '@dbos-inc/dbos-sdk'
 import { INTERRUPTED_FAILURE } from 'db'
 import { awaitWorkflowOutcome, STUDIO_QUEUE } from '../server/dbos.js'
 import { ApiError, persistenceUnavailable } from './_http.js'
@@ -29,6 +29,8 @@ export function operationFailureOf(error: unknown): OperationFailure {
 }
 
 const unavailable = (cause: unknown) => persistenceUnavailable(cause, 'Model operations are unavailable.')
+const conflict = () =>
+  new ApiError(409, 'operation_conflict', 'This operation ID was already used for a different request. Start a new one.')
 
 /**
  * Workflow-first admission (spec, *No-row operations*): enqueue by name on the studio queue. A reused workflow ID
@@ -47,10 +49,12 @@ export async function startOrJoinOperation<I>(client: ModelOperationClient, star
     }, start.input)
     recorded = await client.getWorkflow(start.workflowID)
   } catch (cause) {
+    // DBOS refuses the enqueue itself when the ID already names another workflow: a conflict, not an outage.
+    if (cause instanceof DBOSErrors.DBOSConflictingWorkflowError) throw conflict()
     throw unavailable(cause)
   }
   if (!recorded || recorded.workflowName !== start.workflowName || !isDeepStrictEqual(recorded.input?.[0], start.input))
-    throw new ApiError(409, 'operation_conflict', 'This operation ID was already used for a different request. Start a new one.')
+    throw conflict()
 }
 
 /** Waits for the operation's typed result without ClientHandle.getResult, which cannot time out. A client abort ends
