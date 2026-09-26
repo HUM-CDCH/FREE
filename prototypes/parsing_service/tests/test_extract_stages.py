@@ -204,6 +204,48 @@ def test_verification_links_a_unique_verbatim_value_without_the_model_and_asks_f
     assert calls[0].stage == "grounding" and not issues
 
 
+def test_verification_asks_its_hook_before_every_grounding_batch_and_stops_when_it_raises():
+    """The worker's cooperative cancellation reaches inside a record: a record whose claims split into several batches
+    stops before its next batch once cancelled (run.py checked only before the record)."""
+    fields = {"entry_no": "31", "site": "Hjortlund parish", "year": 1827, "finds": ["spyd", "sword"]}
+    sizes = []
+    probe = FakeChat(lambda s, u, schema: sizes.append(len(s) + len(u) + len(json.dumps(schema))) or {"C1": "NONE", "C2": "NONE"})
+    verify(passages()[1:3], fields, SCHEMA, probe, record=0, budget=10**9)
+    budget = sizes[0] - 1                        # the two pending claims no longer fit one batch: two batches
+    asked, calls = [], []
+
+    def before_call():
+        if len(calls) == 1:
+            raise RuntimeError("cancelled")
+        asked.append(len(calls))
+    chat = FakeChat(lambda s, u, schema: calls.append(u) or {claim: "NONE" for claim in schema["properties"]})
+    with pytest.raises(RuntimeError, match="cancelled"):
+        verify(passages()[1:3], fields, SCHEMA, chat, record=0, budget=budget, before_call=before_call)
+    assert asked == [0] and len(calls) == 1
+
+
+def test_extract_passes_its_check_to_verification(monkeypatch):
+    """The hook each grounding batch asks is the very `before_entry` extract was given."""
+    from kei_exp.kie.extract import run as run_module
+    request = ExtractRequest.model_validate({"schema": SCHEMA.model_dump(by_alias=True, exclude_none=True),
+                                             "options": {"strategy": "article"}})
+    received = []
+
+    def spy(*args, before_call=None, **kwargs):
+        received.append(before_call)
+        return [], [], []
+
+    def before_entry():
+        pass
+    monkeypatch.setattr(run_module, "load", lambda run_dir: evidence())
+    monkeypatch.setattr(run_module, "verify", spy)
+    chat = FakeChat(lambda s, u, schema: {"records": [{"entry_no": "31", "site": "Hjortlund", "year": None,
+                                                       "finds": None}]} if "records" in schema["properties"]
+                    else {"title": None})
+    extract(Path("/nonexistent/run-x"), request, chat, before_entry=before_entry)
+    assert received == [before_entry]
+
+
 def test_verification_reports_unknown_labels_and_missing_claims_and_leaves_them_ungrounded():
     chat = FakeChat(lambda s, u, schema: {"C1": "E7"})
     fields = {"entry_no": None, "site": "Hjortlund parish", "year": None, "finds": ["a sword nobody mentioned"]}

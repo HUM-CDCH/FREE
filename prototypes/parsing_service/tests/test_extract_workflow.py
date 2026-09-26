@@ -216,7 +216,8 @@ def test_the_version_1_catalog_checks_before_discovery_and_each_record_and_verif
                        before_entry=lambda: events.append("check"))
     records = events.count("record")
     assert records > 1
-    assert events == ["check", "discovery", *["check", "record"] * records, *["check", "grounding"] * records]
+    # Each record's verification checks once before it and once before its (here single) grounding batch.
+    assert events == ["check", "discovery", *["check", "record"] * records, *["check", "check", "grounding"] * records]
 
 
 def test_the_article_checks_before_its_records_call_and_each_verification(parsed):
@@ -225,7 +226,7 @@ def test_the_article_checks_before_its_records_call_and_each_verification(parsed
     request = extraction.ExtractRequest.model_validate(kei_helper.extract_request(run_id, "g", V1["article"])["request"])
     extraction.extract(runs.RUNS / run_id, request, CountingChat(version_1(events)),
                        before_entry=lambda: events.append("check"))
-    assert events == ["check", "records", "check", "grounding", "check", "grounding"]
+    assert events == ["check", "records", "check", "check", "grounding", "check", "check", "grounding"]
 
 
 @pytest.mark.parametrize("strategy, asked", [("catalog", ["discovery", "record"]), ("article", ["records"])])

@@ -395,13 +395,14 @@ def _siblings(fields: dict, path: tuple[str | int, ...]) -> str:
 
 
 def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int,
-           budget: int = 24_000) -> tuple[
+           budget: int = 24_000, before_call: Callable[[], None] | None = None) -> tuple[
         list[Link], list[Call], list[Issue]]:
     """Code first, then claim batches bounded by system, user and reply-schema characters.
 
     Every batch retains all passages for coarse/non-verbatim support, and all matching cells for its claims.
     An oversized single claim stays ungrounded with a diagnostic; evidence is never truncated to fit.
     This is a character cap like the other generic stages, not a served-token context guarantee.
+    `before_call`, when given, runs before every grounding call; its error ends verification (cancellation).
     """
     prefix: tuple[str | int, ...] = ("records", record)
     if not passages:
@@ -451,6 +452,8 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                                     f"{size} characters exceed {budget}; complete evidence was not sent",
                                     record, claims[batch[0]][0]))
             continue
+        if before_call is not None:
+            before_call()
         answer, attempts = _complete(chat, stage="grounding", record=record, system=GROUNDING, user=user,
                                     schema=reply_schema)
         calls += attempts
