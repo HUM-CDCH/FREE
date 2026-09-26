@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -151,13 +151,14 @@ def _page_size(passages: Sequence[Passage], index: int) -> int:
     return sum(len(p.text) + 12 for p in passages[index:] if p.page == page)
 
 
-def discover(evidence: Evidence, schema: Schema, chat: Chat, *, budget: int) -> tuple[
-        list[list[Passage]], list[Call], list[Issue]]:
+def discover(evidence: Evidence, schema: Schema, chat: Chat, *, budget: int,
+             before_call: Callable[[], None] | None = None) -> tuple[list[list[Passage]], list[Call], list[Issue]]:
     """Record slices of the passages, in order, cut at the starts the model names; labels run on across chunks.
 
     Only the final chunk may close the records with an `end`: an earlier chunk cannot know what follows it. An end
     named earlier, or one that lies at or before a record start, is ignored with an issue; a record is never
-    dropped for it."""
+    dropped for it. `before_call`, when given, runs before each chunk's call; its error ends discovery (the worker's
+    cooperative cancellation)."""
     passages = list(evidence.passages)
     labels = [f"B{n}" for n in range(1, len(passages) + 1)]
     system = DISCOVERY.format(description=schema.record_description) + DISCOVERY_EXAMPLES
@@ -167,6 +168,8 @@ def discover(evidence: Evidence, schema: Schema, chat: Chat, *, budget: int) -> 
     issues: list[Issue] = []
     chunks = _chunks(passages, budget)
     for number, (first, last) in enumerate(chunks):
+        if before_call is not None:
+            before_call()
         shown = labels[first:last]
         reply_schema = {"type": "object", "properties": {
             "starts": {"type": "array", "items": {"type": "string", "enum": shown}},

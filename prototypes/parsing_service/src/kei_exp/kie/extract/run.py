@@ -114,8 +114,8 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
 
     `before_entry` is a hook whose error ends the extraction (the worker's cooperative cancellation). A recipe's
     grounded Catalog (`grounded.extract_grounded`) calls it before every entry, and runs its entries in `chunks`
-    parallel contiguous chunks. The version 1 Catalog calls it before discovery, before each record's extraction
-    and before each record's verification; the Article, before its records call and before each record's
+    parallel contiguous chunks. The version 1 Catalog calls it before each discovery call, before each record's
+    extraction and before each record's verification; the Article, before its records call and before each record's
     verification. Those two paths run unsplit and ignore `chunks`.
     """
     evidence = load(run_dir)
@@ -137,15 +137,16 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     document, document_calls, document_issues = extract_document(evidence, schema, chat, budget=options.record_chars)
     calls += document_calls
     issues += document_issues
-    check()
     if options.strategy == "article":
+        check()
         found, record_calls, record_issues = extract_records(evidence.passages, schema, chat,
                                                              budget=options.record_chars)
         calls += record_calls
         issues += record_issues
         slices = [(list(evidence.passages), fields) for fields in found]
-    else:
-        groups, discovery_calls, discovery_issues = discover(evidence, schema, chat, budget=options.discovery_chars)
+    else:  # discovery checks before each of its calls
+        groups, discovery_calls, discovery_issues = discover(evidence, schema, chat, budget=options.discovery_chars,
+                                                            before_call=check)
         calls += discovery_calls
         issues += discovery_issues
         slices = []

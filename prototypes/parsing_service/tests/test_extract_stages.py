@@ -112,6 +112,20 @@ def test_discovery_over_a_long_source_is_chunked_by_page_and_labels_run_on():
     assert "[B3]" in users[1] and "[B1]" not in users[1]
 
 
+def test_discovery_asks_its_hook_before_every_window_and_stops_when_it_raises():
+    """The worker's cooperative cancellation: a hook that raises ends discovery before its next call."""
+    asked, windows = [], []
+
+    def before_call():
+        if len(asked) == 2:
+            raise RuntimeError("cancelled")
+        windows.append(len(asked))
+    chat = FakeChat(lambda s, u, schema: asked.append(u) or {"starts": [], "end": None})
+    with pytest.raises(RuntimeError, match="cancelled"):
+        discover(evidence(six_pages()), SCHEMA, chat, budget=7_000, before_call=before_call)  # three windows
+    assert windows == [0, 1] and len(asked) == 2
+
+
 def six_pages() -> list[Passage]:
     """One passage of about 3,000 characters per page: three chunks of two pages at a 7,000 budget."""
     return [Passage(id=f"p{page}_s0", page=page, index=0, text=f"{page}. Entry " + "x" * 3000, label="Text",

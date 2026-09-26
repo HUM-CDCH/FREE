@@ -121,6 +121,32 @@ def test_an_unreadable_status_at_a_chunked_catalog_entry_fails_open_and_the_arti
     assert len(warnings) == 1 and secret not in caplog.text
 
 
+def long_catalogue(pages: int) -> dict:
+    """A catalogue whose pages each fill a 1,000-character discovery window: one discovery call per page."""
+    return {"pages": [{"page": page, "units": [{"index": 1, "crops": [{"segments": [
+        f"{page}. Ort{page}. FA: G. " + "Beschreibung " * 90]}]}]} for page in range(1, pages + 1)]}
+
+
+def test_a_cancel_stops_a_version_1_catalogs_discovery_at_its_next_window(tmp_path, scripted, monkeypatch):
+    """A Catalog without a recipe discovers its records window by window before it reads any; a cancel during the
+    first window's call keeps the step from asking the others, so its kei-extract slot frees promptly."""
+    from kei_exp.workflows import cancel
+    cancelled = {"now": False}
+    monkeypatch.setattr(cancel, "DBOS", SimpleNamespace(
+        workflow_id=WID, get_workflow_status=lambda wid: SimpleNamespace(
+            status="CANCELLED" if cancelled["now"] else "PENDING")))
+    monkeypatch.setattr(cancel, "MIN_INTERVAL", 0.0)
+    monkeypatch.setattr(runs, "RUNS", tmp_path / "runs")
+    run_id = kei_helper.converted_run(runs.RUNS, "kei-convert:ingest:p:long", long_catalogue(4))
+    events: list[str] = []
+    scripted["script"] = version_1(events, hold=lambda stage: cancelled.update(now=True))
+    body = kei_helper.extract_request(run_id, catalogue.GENERATION,
+                                      {"strategy": "catalog", "discovery_chars": 1_000})["request"]
+    with pytest.raises(KeiFailure) as stopped:
+        workflow.extract_run(WID, run_id, catalogue.GENERATION, body)
+    assert stopped.value.code == "cancelled" and events == ["discovery"]
+
+
 def test_a_rewritten_parse_is_a_stale_generation_before_any_model_call(parsed, scripted):
     calls = []
     scripted["script"] = lambda *a: calls.append(a) or honest(*a)

@@ -133,6 +133,8 @@ def serving(execution) -> None:
 def _log(event: Event) -> None:
     if event["type"] == "phase":
         logger.info("phase %s (%s)", event["name"], event.get("total"))
+    elif event["type"] == "spread":
+        logger.info("ingest: reading spread %s/%s", event["spread"], event["total"])
     elif event["type"] == "log":
         logger.info("%s", event["text"])
 

@@ -152,6 +152,29 @@ def test_a_cancel_stops_the_conversion_at_its_next_page_event(roots, fake, monke
     assert stopped.value.code == "cancelled" and seen == [1, 2]
 
 
+def test_a_cancel_stops_the_ingest_at_its_next_spread(tmp_path, monkeypatch):
+    """The ingest reads every spread of a book before OCR starts: each spread is a check, not only the phases."""
+    cancelled = {"now": False}
+    monkeypatch.setattr(cancel, "DBOS", SimpleNamespace(
+        workflow_id=WID, get_workflow_status=lambda wid: SimpleNamespace(
+            status="CANCELLED" if cancelled["now"] else "PENDING")))
+    seen = []
+
+    def ingesting(pdf, cfg, doc_dir, on_spread=None):  # stands in for the ingest's spread loop
+        for spread in range(1, 201):
+            if spread == 3:
+                cancelled["now"] = True
+            on_spread(spread, 200)
+            seen.append(spread)
+        raise AssertionError("the ingest read every spread of a cancelled conversion")
+    monkeypatch.setattr(runner, "ingest_step", ingesting)
+    execution = SimpleNamespace(page_source="ingest", ingest_dir=tmp_path, pdf=tmp_path / "input.pdf", ingest=None)
+    check = cancel.CancelCheck(WID, min_interval=0.0)
+    with pytest.raises(KeiFailure) as stopped:
+        runner.convert(execution, emit=check.sink(lambda event: None))
+    assert stopped.value.code == "cancelled" and seen == [1, 2]
+
+
 def test_the_cancel_sink_checks_only_on_the_steps_own_thread(monkeypatch):
     reads = []
     monkeypatch.setattr(cancel, "DBOS", SimpleNamespace(
