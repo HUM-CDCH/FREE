@@ -423,10 +423,18 @@ export const providerTable = {
       // ai-sdk-ollama does not forward call abort signals to client.chat.
       // Scope the HTTP signal to this call so cancellation also stops Ollama.
       // FREE validates output; the adapter must not regenerate or invent fallback values.
+      // Without a key, ollama-js adds `OLLAMA_API_KEY` from the environment for ollama.com: drop it, so a keyless
+      // connection is anonymous and nobody spends the operator's key.
+      const headers = (init: RequestInit | undefined) => {
+        if (credential) return {}
+        const anonymous = new Headers(init?.headers)
+        anonymous.delete('authorization')
+        return { headers: anonymous }
+      }
       const create = (signal?: AbortSignal) => createOllama({
         baseURL: connection.baseUrl!,
         ...(credential ? { apiKey: credential } : {}),
-        fetch: (input, init) => fetch(input, { ...init, ...(signal ? {
+        fetch: (input, init) => fetch(input, { ...init, ...headers(init), ...(signal ? {
           signal: init?.signal ? AbortSignal.any([signal, init.signal]) : signal,
         } : {}) }),
       })(modelId, { reliableObjectGeneration: false })

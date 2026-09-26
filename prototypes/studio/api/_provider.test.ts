@@ -31,6 +31,7 @@ const OTHER_ACCOUNT = '11111111-1111-4111-8111-1111111111a2'
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
   vi.useRealTimers()
 })
 
@@ -84,6 +85,27 @@ describe('provider table', () => {
     await expect(generateText({ model, prompt: 'test cancellation', abortSignal: controller.signal, maxRetries: 0 }))
       .rejects.toThrow()
     expect(requestSignal?.aborted).toBe(true)
+  })
+
+  it.each([
+    ['a keyless connection calls ollama.com anonymously', null, null],
+    ['a keyed connection sends its own key', 'sk-test-ollama-own', 'Bearer sk-test-ollama-own'],
+  ])('never sends OLLAMA_API_KEY from the environment: %s', async (_label, credential, expected) => {
+    vi.stubEnv('OLLAMA_API_KEY', 'sk-test-ollama-environment')
+    const request = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => Response.json({
+      model: 'manual/model', created_at: '2026-09-26T00:00:00Z',
+      message: { role: 'assistant', content: 'ok' },
+      done: true, done_reason: 'stop', prompt_eval_count: 1, eval_count: 1,
+    }))
+    vi.stubGlobal('fetch', request)
+    const model = providerTable.ollama.createModel(
+      { ...connection, provider: 'ollama', baseUrl: 'https://ollama.com' }, 'manual/model', credential,
+    )
+
+    await generateText({ model, prompt: 'Hi', maxRetries: 0 })
+
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(new Headers(request.mock.calls[0]![1]?.headers).get('authorization')).toBe(expected)
   })
 
   it('points Codex at the installed native executable, never a Windows launcher script', () => {
