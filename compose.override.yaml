@@ -26,16 +26,7 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
 
-  parsing_db:
-    environment:
-      POSTGRES_PASSWORD: "${FREE_PARSING_POSTGRES_PASSWORD:-kei}"
-
-  parsing_migrate:
-    environment: &parsing-database
-      KEI_DATABASE_URL: "postgresql://kei:${FREE_PARSING_POSTGRES_PASSWORD:-kei}@parsing_db:5432/kei"
-
   parsing_service:
-    environment: *parsing-database
     develop: &parsing-watch
       watch:
         # Both service processes restart after syncing source. This also
@@ -47,10 +38,6 @@ services:
           ignore:
             - __pycache__/
             - "*.pyc"
-            # Schema changes belong to an ordered migration, not a hot reload.
-            - kei_exp/jobs/schema.py
-        # Restart pnpm dev after a schema edit so the migration job runs before
-        # either service starts with the new schema contract.
         - action: rebuild
           path: ./prototypes/parsing_service/pyproject.toml
         - action: rebuild
@@ -59,7 +46,9 @@ services:
           path: ./prototypes/parsing_service/Dockerfile
 
   parsing_worker:
-    environment: *parsing-database
+    environment:
+      # kei's own role on Studio's database; the password is Studio's FREE_KEI_POSTGRES_PASSWORD (M2).
+      KEI_SYSTEM_DATABASE_URL: "postgresql://kei:${FREE_KEI_POSTGRES_PASSWORD:-kei-development}@db:5432/free"
     develop: *parsing-watch
 
   studio:

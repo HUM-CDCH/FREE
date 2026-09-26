@@ -1,0 +1,6 @@
+{
+  "ok": false,
+  "code": "source_mismatch",
+  "reason": "the staged PDF hashes to 0000000000000000000000000000000000000000000000000000000000000000, not 641e16c209b792546e79ca2a660e14ecf6750c3c027ffb46a3b89f9a79770293",
+  "retryable": false
+}

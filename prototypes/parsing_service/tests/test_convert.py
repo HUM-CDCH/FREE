@@ -493,10 +493,12 @@ def test_the_recorded_layout_is_what_the_worker_resolves(tmp_path, monkeypatch):
     directory = tmp_path / "run"
     directory.mkdir()
     (directory / "input.pdf").write_bytes(b"%PDF-1.4")
-    params = {"model": "surya", "page_source": "ingest", "ingest": {"split": "spread", "overrides": {"1": 4800}}}
+    params = {"model": "surya", "layout_model": "layout_heron_101", "page_source": "ingest",
+              "ingest": {"split": "spread", "overrides": {"1": 4800}}}
     monkeypatch.setattr(ocr_stage, "has_native_text", lambda *_args, **_kwargs: False)
     assert runs.execution_for(directory, params).ingest == {"split": "spread", "overrides": {"1": 4800}}
-    assert runs.execution_for(directory, {"model": "surya", "page_source": "ingest"}).ingest is None
+    assert runs.execution_for(directory, {"model": "surya", "layout_model": "layout_heron_101",
+                                          "page_source": "ingest"}).ingest is None
     monkeypatch.setattr(ocr_stage, "has_native_text", lambda *_args, **_kwargs: True)
     native = runs.execution_for(directory, params)
     assert (native.page_source, native.ingest) == ("pdf", None)

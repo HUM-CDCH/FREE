@@ -343,8 +343,10 @@ def test_the_native_text_rules_are_part_of_what_a_native_run_was_asked(digital_p
     assert "text_rules" not in recipe(execution(digital_pdf, tmp_path), "ab" * 32, None)  # Surya's recipe unchanged
 
 
-def test_v4_result_keeps_original_bytes_and_hash_verification(written):
-    played, manifest, _ = written
+def test_a_version_4_manifest_is_refused(written):
+    """Only the version this reader was written for is read: a version 4 manifest, consistent in itself (its recipe
+    and fingerprint agree), is refused, and refusing it touches no page file."""
+    played, _, _ = written
     directory = played.execution.result_dir
     file = directory / 'result.json'
     data = json.loads(file.read_text())
@@ -353,9 +355,6 @@ def test_v4_result_keeps_original_bytes_and_hash_verification(written):
     data['fingerprint'] = fingerprint(data['recipe'])
     file.write_text(json.dumps(data))
     before = {path: path.read_bytes() for path in (directory / 'pages').glob('*.json')}
-    assert load_result(directory).manifest.result_version == 4
-    assert all(path.read_bytes() == raw for path, raw in before.items())
-    first = next(iter(before))
-    first.write_bytes(before[first] + b' ')
-    with pytest.raises(ResultError, match='sha256'):
+    with pytest.raises(ResultError, match="result_version 4"):
         load_result(directory)
+    assert all(path.read_bytes() == raw for path, raw in before.items())

@@ -79,7 +79,7 @@ class ConversionError(RuntimeError):
 
 class IncompleteConversionError(ConversionError):
     """The recognition itself came back incomplete (a capped page, a block that errored): about this document
-    at this budget, and another attempt at the same budget would fail identically. `kei_exp.jobs.tasks.classify`
+    at this budget, and another attempt at the same budget would fail identically. `kei_exp.failures.classify`
     matches this type, not the message text, to keep it out of the retried set; every caller that already
     catches `ConversionError` catches this too."""
 

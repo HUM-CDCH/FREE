@@ -80,7 +80,7 @@ function keiPage() {
 function keiResult(sourceSha256: string, overrides: Record<string, unknown> = {}) {
   const page = encoder.encode(JSON.stringify(keiPage()))
   const manifest = {
-    result_version: 4,
+    result_version: 5,
     generation: 'gen-1',
     digest: 'digest',
     fingerprint: 'fingerprint',

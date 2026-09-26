@@ -15,6 +15,7 @@ import hashlib
 import json
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -55,16 +56,13 @@ class Options(BaseModel):
     model_config = ConfigDict(extra="forbid")
     strategy: Literal["catalog", "article"] = "catalog"  # catalog: discover records first; article: one call
     models: dict[str, str] | None = None  # role (fields, reasoning) -> extraction model key; deployment defaults
-    model: str | None = None  # legacy: every stage on the instruction server, asking for this model id
     discovery_chars: int = Field(default=48_000, ge=1_000)  # text per discovery call
     record_chars: int = Field(default=24_000, ge=1_000)     # text per record/document call; full grounding request
     catalog: CatalogOptions | None = None  # a recipe: structural segmentation and grounded result version 2
 
     @model_validator(mode="after")
     def _models_are_served(self) -> Options:
-        if self.model and self.models:
-            raise ValueError("options name either a legacy model or models per role, not both")
-        extraction_models.check(self.models or {})  # an unservable route is refused at admission
+        extraction_models.check(self.models or {})  # an unservable route is refused before any model call
         return self
 
     @model_validator(mode="after")
@@ -72,7 +70,7 @@ class Options(BaseModel):
         if self.catalog is not None:
             if self.strategy != "catalog":
                 raise ValueError("options.catalog applies to the catalog strategy only")
-            load_recipe(self.catalog.recipe)  # an unknown reference is refused at admission, not in the worker
+            load_recipe(self.catalog.recipe)  # an unknown reference is refused before any model call
         return self
 
     def dumped(self) -> dict:
@@ -81,7 +79,7 @@ class Options(BaseModel):
 
 
 class ExtractRequest(BaseModel):
-    """The body of POST /api/runs/{run_id}/extract."""
+    """The `request` of the `extract` workflow's input (`workflows.contracts.ExtractInput`), and the CLI's."""
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
     schema_: Schema = Field(alias="schema")
     options: Options = Field(default_factory=Options)
@@ -106,13 +104,19 @@ def fingerprint(result: dict, request: ExtractRequest, model: dict) -> str:
 
 
 def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, generation: str | None = None,
-            counter=None) -> dict:
+            counter=None, chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
     """The artifact for `request` over the run's canonical result, from the stages in order.
 
     `generation` is the parse the caller admitted this extraction against, when it had one: the result on disk
     must still be that generation, or nothing is extracted (`StaleGeneration`). The check is before the first
     model call, so a run re-converted while the extraction sat in the queue costs no tokens. The CLI passes
     none: it extracts from whatever the directory holds at the moment it is run.
+
+    `before_entry` is a hook whose error ends the extraction (the worker's cooperative cancellation). A recipe's
+    grounded Catalog (`grounded.extract_grounded`) calls it before every entry, and runs its entries in `chunks`
+    parallel contiguous chunks. The version 1 Catalog calls it before each discovery call, before each record's
+    extraction and before each record's verification; the Article, before its records call and before each record's
+    verification. Those two paths run unsplit and ignore `chunks`.
     """
     evidence = load(run_dir)
     if generation is not None and evidence.generation != generation:
@@ -124,7 +128,8 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     options = request.options
     chat = as_router(chat)
     if options.catalog is not None:
-        return _grounded(run_dir, evidence, request, chat, counter)
+        return _grounded(run_dir, evidence, request, chat, counter, chunks=chunks, before_entry=before_entry)
+    check = before_entry or _unchecked
     started = datetime.now(UTC).isoformat()
     clock = time.monotonic()
     calls: list[Call] = []
@@ -133,17 +138,20 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     calls += document_calls
     issues += document_issues
     if options.strategy == "article":
+        check()
         found, record_calls, record_issues = extract_records(evidence.passages, schema, chat,
                                                              budget=options.record_chars)
         calls += record_calls
         issues += record_issues
         slices = [(list(evidence.passages), fields) for fields in found]
-    else:
-        groups, discovery_calls, discovery_issues = discover(evidence, schema, chat, budget=options.discovery_chars)
+    else:  # discovery checks before each of its calls
+        groups, discovery_calls, discovery_issues = discover(evidence, schema, chat, budget=options.discovery_chars,
+                                                            before_call=check)
         calls += discovery_calls
         issues += discovery_issues
         slices = []
         for number, group in enumerate(groups):
+            check()
             fields, record_calls, record_issues = extract_record(group, schema, chat, budget=options.record_chars,
                                                                  record=number)
             calls += record_calls
@@ -152,6 +160,7 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     records: list[dict] = []
     links: list[Link] = []
     for number, (group, fields) in enumerate(slices):
+        check()
         found_links, grounding_calls, grounding_issues = verify(group, fields, schema, chat, record=number,
                                                                budget=options.record_chars)
         links += found_links
@@ -181,7 +190,8 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     return result
 
 
-def _grounded(run_dir: Path, evidence, request: ExtractRequest, chat: Router, counter) -> dict:
+def _grounded(run_dir: Path, evidence, request: ExtractRequest, chat: Router, counter, *, chunks: int = 1,
+              before_entry: Callable[[], None] | None = None) -> dict:
     """The recipe path: the proven segmentation (computed and published when absent), a verified token counter for
     each serving endpoint (one per distinct chat), and the version 2 artifact."""
     options = request.options
@@ -190,7 +200,8 @@ def _grounded(run_dir: Path, evidence, request: ExtractRequest, chat: Router, co
     if counter is None:
         counters = {id(client): counter_for(client) for client in chat.chats().values()}
         counter = {role: counters[id(client)] for role, client in chat.chats().items()}
-    body = grounded.extract_grounded(evidence, request.schema_, recipe, options.catalog, segmentation, chat, counter)
+    body = grounded.extract_grounded(evidence, request.schema_, recipe, options.catalog, segmentation, chat, counter,
+                                     chunks=chunks, before_entry=before_entry)
     result = {"run_id": evidence.run_id, "generation": evidence.generation, "digest": evidence.digest,
               "model": chat.model, "models": chat.models,
               "schema": request.schema_.model_dump(by_alias=True, exclude_none=True), "options": options.dumped(),
@@ -198,6 +209,10 @@ def _grounded(run_dir: Path, evidence, request: ExtractRequest, chat: Router, co
     result["fingerprint"] = grounded.fingerprint(body, evidence.generation, evidence.digest, request.schema_,
                                                  options.dumped(), chat.models)
     return result
+
+
+def _unchecked() -> None:
+    """No cancellation hook: the CLI and direct callers run to the end."""
 
 
 def _total(values) -> int | None:

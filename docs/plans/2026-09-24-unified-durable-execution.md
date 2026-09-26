@@ -1446,7 +1446,7 @@ handlers or pages is an acceptance test of the milestone that builds it
     the page cannot choose one. A saved choice it no longer lists stays
     saved, and a listing failure blocks no other edit.
 
-**M3: kei on DBOS.**
+**M3: kei on DBOS — done 2026-09-26 (task plan: [2026-09-26-dbos-m3-kei-on-dbos.md](2026-09-26-dbos-m3-kei-on-dbos.md)); Spark measurement pending (Task 14).**
 - **Dependencies.** Replace Procrastinate with `dbos` in `pyproject.toml` and
   `uv.lock`; `kei-worker worker` replaces `kei-jobs`.
 - **New code.** `src/kei_exp/workflows/` holds the registration, the four
@@ -1496,6 +1496,8 @@ handlers or pages is an acceptance test of the milestone that builds it
   - On the Spark (M0R 6 harness): a 200-entry Catalog finishes in about a
     quarter of the time, and a small extraction beside it finishes within
     seconds of its time alone.
+
+**M4: Studio background work on DBOS.**
 - **`server/dbos.ts`** holds:
   - the configuration (app `studio`, schema `dbos`, version, executor);
   - one launch per process in `host.ts` and `developmentHost.ts`, replacing

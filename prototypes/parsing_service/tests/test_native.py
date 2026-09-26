@@ -1,12 +1,13 @@
 """Native PDF text (kei_exp.transcription.native), with no vLLM server: the text-layer classification of whole PDFs
 and selected ranges, the page-bound Docling pipeline that keeps a paragraph hyphenated across a page break, the
 per-block provenance a born-digital page publishes — its branches over a hand-built document that needs no
-conversion, its geometry over the fixture's own pages — and the native path through resolve(), the API and the
-CLI, which must neither start a server nor cut nor OCR anything.
+conversion, its geometry over the fixture's own pages — and the native path through resolve(), the worker's
+conversion steps and the CLI, which must neither start a server nor cut nor OCR anything.
 
-Two full conversions of the eight-page digital fixture run here, the API's and the CLI's, tens of seconds of
+Two full conversions of the eight-page digital fixture run here, the worker steps' and the CLI's, tens of seconds of
 docling on CPU each; the CLI's result directory is a module-scoped fixture, so the geometry assertions add one
 conversion to this module, not one per test."""
+import hashlib
 import json
 import re
 import unicodedata
@@ -32,19 +33,20 @@ from docling_core.types.doc import (
     TableCell,
     TableData,
 )
-from fastapi.testclient import TestClient
 from PIL import Image
 
 import kei_exp.convert as conversion
-from kei_exp import api, runs, runtime
+from kei_exp import runs, runtime
 from kei_exp.geometry import CropTransform
-from kei_exp.jobs import schema, store, tasks
 from kei_exp.kie.stages import ocr
 from kei_exp.kie.stages.ocr import TRANSCRIBERS, resolve
+from kei_exp.models import DEFAULT_OCR_MODEL, MODELS
 from kei_exp.pagefile import read_manifest, read_page
 from kei_exp.result import _segments  # the seam rule an empty block list feeds: one coarse segment, never none
 from kei_exp.transcription.native import blocks_of, has_native_text
 from kei_exp.transcription.types import PageRecord, RunParams
+from kei_exp.workflows import convert as workflow
+from tests.helpers import kei as kei_helper
 from tests.helpers.pdfs import text_pdf
 
 
@@ -159,79 +161,62 @@ def test_resolve_makes_the_execution_choice_once_following_the_selected_range(di
 
 
 @pytest.mark.live_model
-def test_the_native_api_run_reads_the_pdf_without_a_server_a_cut_or_ocr(digital_pdf, tmp_path, monkeypatch,
-                                                                        database):
-    # The real native path must work without checking, starting, or calling the OCR server or cutter. The run is
-    # submitted asking for surya, as a client with no way to know what is in the PDF would: admission records
-    # that request as it stands, and the worker's own resolution is what finds the text layer and runs natively
-    # — with no model, so neither process ever queries a server.
+def test_the_native_worker_run_reads_the_pdf_without_a_server_a_cut_or_ocr(digital_pdf, tmp_path, monkeypatch):
+    # The real native path must work without checking, starting, or calling the OCR server or cutter. The run asks
+    # for no model, as Studio does when the researcher chose none: kei's default OCR model is what prepare_run
+    # records, and the conversion's own resolution is what finds the text layer and runs natively — with no model,
+    # so it never queries a server. The steps are called directly, as `convert` calls them: no DBOS, no database.
     monkeypatch.setattr(runs, "RUNS", tmp_path / "runs")
-    schema.apply(database)
-    store.close_pool()
-    store.pool(database)
-    monkeypatch.setattr(api, "DATABASE_URL", database)
-    try:
-        with (
-            patch.object(api, "loaded_model", side_effect=AssertionError("submission queried vLLM")),
-            patch.object(runtime, "loaded_model", side_effect=AssertionError("native PDF queried vLLM")),
-            patch.object(ocr, "cut_pages", side_effect=AssertionError("native PDF was raster-cut")),
-            patch.object(TRANSCRIBERS["surya"], "transcribe", side_effect=AssertionError("native PDF used OCR")),
-            TestClient(api.app) as client,
-        ):
-            with digital_pdf.open("rb") as handle:
-                response = client.post("/api/runs", data={"model": "surya", "debug": "true"},  # this test reads it
-                                       files={"pdf": (digital_pdf.name, handle, "application/pdf")})
-            assert response.status_code == 202, response.text
-            result = response.json()
-            directory = runs.RUNS / result["id"]
-            row = store.record(result["id"])
-            assert row is not None
-            execution = runs.execution_for(directory, row.params)
-            # The recorded request is what was asked for (surya, the default cut); the execution is what runs.
-            assert result["params"]["transcriber"] == "surya" and result["params"]["model"] == "surya"
-            assert "extraction" not in result["params"] and result["params"]["cut"] == "auto"
-            assert "-surya-" in result["id"], result["id"]
-            assert execution.transcriber == "native" and execution.pdf == directory / "input.pdf"
-            assert execution.model is None and execution.cut == "none"
-            # No worker runs in this test: the task is called directly, exactly as a real worker would call it.
-            tasks.execute(result["id"], attempt=1)
-            events = store.events_after(result["id"], -1)
-            assert events[-1]["type"] == "status" and events[-1]["status"] == "done", events[-1]
-            assert store.record(result["id"]).finished is not None
-            manifest = json.loads((directory / "result" / "result.json").read_text(encoding="utf-8"))
-            assert manifest["source_name"] == digital_pdf.name
-            assert manifest["recipe"]["source_sha256"] == result["params"]["source_sha256"]
-            # Page evidence comes from the claimed page: no word ending a page's text is printed only on the next
-            # page and none opening it only on the previous one (pdfium's own text layer), so a paragraph Docling
-            # merged across a page break is split back to its pages.
-            word = re.compile(r"[^\W\d_]{5,}")
+    monkeypatch.setattr(runs, "INBOX", tmp_path / "inbox")
+    staged = runs.INBOX / "project-1" / "attempt-1.pdf"
+    staged.parent.mkdir(parents=True)
+    staged.write_bytes(digital_pdf.read_bytes())
+    sha = hashlib.sha256(staged.read_bytes()).hexdigest()
+    workflow_id = "kei-convert:ingest:project-1:attempt-1"
+    requested = kei_helper.convert_request("project-1/attempt-1.pdf", sha, source_name=digital_pdf.name,
+                                           debug=True)  # this test reads the debug report
+    default = MODELS[DEFAULT_OCR_MODEL]
+    with (
+        patch.object(runtime, "loaded_model", side_effect=AssertionError("native PDF queried vLLM")),
+        patch.object(ocr, "cut_pages", side_effect=AssertionError("native PDF was raster-cut")),
+        patch.object(TRANSCRIBERS[default.kind], "transcribe", side_effect=AssertionError("native PDF used OCR")),
+    ):
+        params = workflow.prepare_run(workflow_id, requested, workflow.resolve_models(None, None))
+        directory = runs.RUNS / params["id"]
+        execution = runs.execution_for(directory, params)
+        # The recorded request is what was asked for (the default model and cut); the execution is what runs.
+        assert (params["transcriber"], params["model"], params["cut"]) == (default.kind, DEFAULT_OCR_MODEL, "auto")
+        assert params["workflow_id"] == workflow_id and "extraction" not in params
+        assert execution.transcriber == "native" and execution.pdf == directory / "input.pdf"
+        assert execution.model is None and execution.cut == "none"
+        output = workflow.convert_run(workflow_id, params)
+    assert output["ok"] and output["run_id"] == params["id"] and output["page_count"] == params["page_count"]
+    manifest = json.loads((directory / "result" / "result.json").read_text(encoding="utf-8"))
+    assert manifest["source_name"] == digital_pdf.name
+    assert manifest["recipe"]["source_sha256"] == params["source_sha256"] == sha
+    # Page evidence comes from the claimed page: no word ending a page's text is printed only on the next
+    # page and none opening it only on the previous one (pdfium's own text layer), so a paragraph Docling
+    # merged across a page break is split back to its pages.
+    word = re.compile(r"[^\W\d_]{5,}")
 
-            def printed_words(text: str) -> set[str]:  # as pdfium reads them, joined across a hyphenated break
-                text = unicodedata.normalize("NFKC", text)
-                # pdfium marks a hyphen it read at a line break with \x02; a soft hyphen is invisible print
-                return set(word.findall(text)) | set(word.findall(re.sub(r"[\x02­]|-\s*[\r\n]+\s*", "", text)))
+    def printed_words(text: str) -> set[str]:  # as pdfium reads them, joined across a hyphenated break
+        text = unicodedata.normalize("NFKC", text)
+        # pdfium marks a hyphen it read at a line break with \x02; a soft hyphen is invisible print
+        return set(word.findall(text)) | set(word.findall(re.sub(r"[\x02­]|-\s*[\r\n]+\s*", "", text)))
 
-            with pdfium.PdfDocument(str(digital_pdf)) as pdf:
-                printed = {n + 1: printed_words(pdf[n].get_textpage().get_text_bounded()) for n in range(len(pdf))}
-            for number, words in printed.items():
-                page = json.loads((directory / "result" / "pages" / f"{number}.json").read_text(encoding="utf-8"))
-                found = word.findall(" ".join(segment["text"] for segment in page["segments"]))
-                leaked = [w for w in found[-25:] if w not in words and w in printed.get(number + 1, set())] + \
-                         [w for w in found[:25] if w not in words and w in printed.get(number - 1, set())]
-                assert not leaked, (number, leaked)
-            summary = runs.summary_of(row)
-            assert summary["transcriber"] == "surya" and summary["model"] == "surya"  # the request, as recorded
-            report = json.loads((directory / "debug/report.json").read_text())
-            assert report["transcriber"] == "native" and report["model"] is None and report["url"] is None
-            assert report["cut"] == "none" and report["tokens"] == {"input": 0, "output": 0}
-            assert report["layout_model"] is None
-            assert len(report["pages"]) == result["page_count"]
-            markdown = (directory / "output.md").read_text()
-            assert len(markdown.strip()) > 100 and "formula-not-decoded" not in markdown
-            assert not any(event["type"] == "region" for event in events)
-            assert any(event["type"] == "phase" and event["name"] == "native" for event in events)
-    finally:
-        store.close_pool()
+    with pdfium.PdfDocument(str(digital_pdf)) as pdf:
+        printed = {n + 1: printed_words(pdf[n].get_textpage().get_text_bounded()) for n in range(len(pdf))}
+    for number, words in printed.items():
+        page = json.loads((directory / "result" / "pages" / f"{number}.json").read_text(encoding="utf-8"))
+        found = word.findall(" ".join(segment["text"] for segment in page["segments"]))
+        leaked = [w for w in found[-25:] if w not in words and w in printed.get(number + 1, set())] + \
+                 [w for w in found[:25] if w not in words and w in printed.get(number - 1, set())]
+        assert not leaked, (number, leaked)
+    report = json.loads((directory / "debug/report.json").read_text())
+    assert report["transcriber"] == "native" and report["model"] is None and report["url"] is None
+    assert report["cut"] == "none" and report["tokens"] == {"input": 0, "output": 0}
+    assert report["layout_model"] is None
+    assert len(report["pages"]) == params["page_count"]
 
 
 @pytest.fixture

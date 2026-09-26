@@ -418,7 +418,8 @@ export function developmentComposeEnvironment(
     FREE_GPU: environment.FREE_GPU || 'auto',
     FREE_NGINX_PORT: String(NGINX_PORT),
     FREE_POSTGRES_PASSWORD: 'postgres',
-    FREE_PARSING_POSTGRES_PASSWORD: 'kei',
+    // Studio's entrypoint creates kei's role with it; kei's worker connects with it.
+    FREE_KEI_POSTGRES_PASSWORD: 'kei-development',
     FREE_SESSION_SECRET: sessionSecret,
     STUDIO_BASE_PATH: '/free',
     STUDIO_ORIGIN: profile.origin,
@@ -544,7 +545,7 @@ export function validateProductionEnvironment(
 
   appendSharedIssue('FREE_SESSION_SECRET')
 
-  for (const field of ['FREE_POSTGRES_PASSWORD', 'FREE_PARSING_POSTGRES_PASSWORD', 'FREE_KEI_POSTGRES_PASSWORD']) {
+  for (const field of ['FREE_POSTGRES_PASSWORD', 'FREE_KEI_POSTGRES_PASSWORD']) {
     const password = environment[field]
     if (password === undefined || password === '')
       errors.push(`${field} is required in .env.`)

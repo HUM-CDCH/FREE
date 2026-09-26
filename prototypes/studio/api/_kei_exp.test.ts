@@ -122,7 +122,7 @@ function segment(overrides: Partial<KeiExpSegment>): KeiExpSegment {
 
 function suryaRun(segments: KeiExpSegment[], warnings: string[] = []) {
   const manifest: KeiExpManifest = {
-    result_version: 4,
+    result_version: 5,
     generation: 'gen-surya',
     recipe: {
       source_sha256: 'b'.repeat(64),
@@ -316,6 +316,12 @@ describe('kei-exp translation', () => {
     }
     expect(() => verifiedPage(tampered, 1, edited)).toThrow(/says page 2/)
   })
+
+  it('refuses a version 4 manifest', async () => {
+    const raw = JSON.parse(await readFile(resolve(FIXTURE, 'result.json'), 'utf8'))
+    expect(keiExpManifestSchema.safeParse(raw).success).toBe(true)
+    expect(keiExpManifestSchema.safeParse({ ...raw, result_version: 4 }).success).toBe(false)
+  })
 })
 
 it('publishes v5 native cells with distinct anchors and unchanged parent text', () => {
@@ -358,7 +364,6 @@ it('publishes v5 native cells with distinct anchors and unchanged parent text', 
       table: { rows: 3, columns: 2, producer: 'docling', cells },
     }),
   ])
-  manifest.result_version = 5
   const { document, markdown } = translate(manifest, pages)
   expect(document.tables).toHaveLength(1)
   expect(document.tables[0].cells).toHaveLength(6)
@@ -381,7 +386,6 @@ it('retains the real Ellekilde page 3 table and all 23 measured cell anchors', a
     await readFile(resolve(FIXTURE, 'ellekilde-table-v5.json'), 'utf8'),
   )
   const { manifest, pages } = suryaRun([measured.segment])
-  manifest.result_version = 5
   pages[0].size_pt = measured.size_pt
   const { document, markdown } = translate(manifest, pages)
   const table = document.tables[0]

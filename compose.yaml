@@ -19,12 +19,11 @@ x-parsing-build: &parsing-build
 x-parsing-runtime: &parsing-runtime
   build: *parsing-build
   init: true
-  # Check the schema after every restart as well as the initial migration.
-  # A source watch must not serve code against an older database schema.
-  entrypoint: ["sh", "-c", "kei-jobs schema && exec \"$$@\"", "--"]
   environment:
     KEI_RUNS: /app/runs
     KEI_SLOT: slot-1
+    # The OCR model of a parse whose owner chose none; the API's listing and `convert` read the same value.
+    KEI_OCR_MODEL: "${KEI_OCR_MODEL:-surya}"
     KEI_VLLM_URL: http://ocr_model:8000/v1/chat/completions
     # Extraction's vLLM servers exist on the GPU overlay only (compose.gpu.yaml),
     # which also registers NuExtract. Without it an operator may point the
@@ -55,38 +54,9 @@ services:
     networks:
       - app
 
-  # Kept separate from FREE's application database: the imported service owns
-  # its Procrastinate/job schema and has no access to Researcher Account data.
-  parsing_db:
-    image: postgres:17
-    environment:
-      POSTGRES_DB: kei
-      POSTGRES_USER: kei
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kei -d kei"]
-      interval: 2s
-      timeout: 5s
-      retries: 15
-    volumes:
-      - parsing-postgres:/var/lib/postgresql/data
-    networks:
-      - app
-
-  parsing_migrate:
-    build: *parsing-build
-    command: ["kei-jobs", "schema", "--apply"]
-    depends_on:
-      parsing_db:
-        condition: service_healthy
-    networks:
-      - app
-
   parsing_service:
     <<: *parsing-runtime
     command: ["uvicorn", "kei_exp.api:app", "--host", "0.0.0.0", "--port", "8001"]
-    depends_on:
-      parsing_migrate:
-        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/models', timeout=5)"]
       interval: 10s
@@ -96,15 +66,16 @@ services:
 
   parsing_worker:
     <<: *parsing-runtime
-    command: ["kei-jobs", "worker"]
+    command: ["kei-worker", "worker"]
     # Restarting only the API leaves the worker's admitted conversions alive.
-    # A replacement worker starts after the old process exits and releases its
-    # slot ownership lock; never scale this single slot with replicas.
     restart: unless-stopped
     stop_grace_period: 60s
+    # Studio's entrypoint creates kei's role and schema (M2). A replacement
+    # worker starts after the old process exits and releases its slot lock;
+    # never scale this single slot with replicas.
     depends_on:
-      parsing_migrate:
-        condition: service_completed_successfully
+      studio:
+        condition: service_healthy
 
   studio:
     build:
@@ -114,7 +85,6 @@ services:
       NODE_ENV: production
       # Parsing and extraction use the service built from this checkout.
       KEI_EXP_URL: http://parsing_service:8001
-      KEI_EXP_MODEL: "${KEI_EXP_MODEL:-surya}"
       STUDIO_ORIGIN: "${STUDIO_ORIGIN:-https://localhost:8443}"
       STUDIO_BASE_PATH: "${STUDIO_BASE_PATH:-/free}"
       FREE_STUDIO_PROXY: trusted-proxy
@@ -144,8 +114,6 @@ services:
         condition: service_healthy
       parsing_service:
         condition: service_healthy
-      parsing_worker:
-        condition: service_started
     healthcheck:
       # Studio rejects direct HTTP peers outside the proxy network. A local TCP
       # connection proves the server started after migrations.
@@ -175,7 +143,6 @@ services:
 
 volumes:
   postgres-data:
-  parsing-postgres:
   parsing-runs:
   parsing-models:
   studio-data:

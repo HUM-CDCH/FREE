@@ -212,6 +212,16 @@ class KeptOutputs:
         return self.fallback.get(page, self.full_page.get(page))
 
 
+def settings_for(url: str, max_new_tokens: int, params: dict) -> dict:
+    """What `configure` assigns to Surya's process-global settings for one record and server. Two conversions in one
+    worker share these, so every Surya record must produce the same values (tests/test_lanes.py)."""
+    return {"SURYA_INFERENCE_BACKEND": "vllm", "SURYA_INFERENCE_URL": url.removesuffix("/chat/completions"),
+            # Surya retries an output that loops but otherwise ignores finish_reason, so a page that runs out of
+            # output tokens comes back short, error-free and full-confidence. Budget for the worst page; KeptOutputs
+            # catches the rest.
+            "SURYA_MAX_TOKENS_FULL_PAGE": max_new_tokens, **params}
+
+
 def configure(url: str, max_new_tokens: int, params: dict) -> None:
     """Point Surya at the vLLM server behind a chat completions url and pin the record's decoding settings.
 
@@ -222,12 +232,7 @@ def configure(url: str, max_new_tokens: int, params: dict) -> None:
     whatever the environment held.
     """
     from surya.settings import settings
-    settings.SURYA_INFERENCE_BACKEND = "vllm"
-    settings.SURYA_INFERENCE_URL = url.removesuffix("/chat/completions")
-    # Surya retries an output that loops but otherwise ignores finish_reason, so a page that runs out of output
-    # tokens comes back short, error-free and full-confidence. Budget for the worst page; KeptOutputs catches the rest.
-    settings.SURYA_MAX_TOKENS_FULL_PAGE = max_new_tokens
-    for name, value in params.items():
+    for name, value in settings_for(url, max_new_tokens, params).items():
         setattr(settings, name, value)
 
 

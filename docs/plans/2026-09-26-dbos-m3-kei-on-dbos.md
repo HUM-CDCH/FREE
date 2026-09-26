@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-Status: **not started (plan written 2026-09-26 against c543aeb; assumes the M2 plan, `2026-09-26-dbos-m2-platform-configuration.md`, is implemented first).**
+Status: **done 2026-09-26, except Task 14.**
 
 **Goal:** Deliver milestone M3 of the DBOS plan on `feat/dbos-m2-m6`: the Parsing Service's worker becomes kei's DBOS application (`convert`, `extract`, `deleteRuns` on four lanes), Procrastinate, `parsing_db` and the kei HTTP submission routes go, Catalog extraction runs its entries in parallel chunks, and the legacy v4-manifest and `options.model` readers are deleted.
 

@@ -277,6 +277,7 @@ describe('development launcher profiles', () => {
         FREE_GPU: 'required',
         FREE_NGINX_PORT: '443',
         FREE_POSTGRES_PASSWORD: 'deployment-secret',
+        FREE_KEI_POSTGRES_PASSWORD: 'deployment-secret',
         STUDIO_BASE_PATH: '/deployment',
         STUDIO_ORIGIN: 'https://free.example.edu',
         FREE_SESSION_SECRET: 'ZGVwbG95bWVudC1zZWNyZXQtdGhhdC1pcy0zMi1ieXRlcyE=',
@@ -297,6 +298,8 @@ describe('development launcher profiles', () => {
     assert.equal(environment.FREE_GPU, 'required')
     assert.equal(environment.FREE_NGINX_PORT, '8443')
     assert.equal(environment.FREE_POSTGRES_PASSWORD, 'postgres')
+    // Studio's entrypoint creates kei's role with this password and kei's worker connects with it.
+    assert.equal(environment.FREE_KEI_POSTGRES_PASSWORD, 'kei-development')
     assert.equal(environment.STUDIO_BASE_PATH, '/free')
     assert.equal(environment.STUDIO_ORIGIN, 'https://localhost:8443')
     assert.equal(environment.FREE_NGINX_BIND, '127.0.0.1')
@@ -333,6 +336,7 @@ describe('development launcher profiles', () => {
         FREE_ENTRA_MOCK_BROWSER_ISSUER: 'https://fake.invalid',
         FREE_ENTRA_CLIENT_ID: 'deployment-client',
         FREE_POSTGRES_PASSWORD: 'deployment-secret',
+        FREE_KEI_POSTGRES_PASSWORD: 'deployment-secret',
         FREE_SESSION_SECRET: 'deployment-secret',
         STUDIO_BASE_PATH: '/deployment',
         STUDIO_ORIGIN: 'https://free.example.edu',
@@ -349,6 +353,7 @@ describe('development launcher profiles', () => {
     assert.equal(environment.COMPOSE_PROFILES, undefined)
     assert.equal(environment.FREE_MOCK_OIDC_BIND, undefined)
     assert.equal(environment.FREE_POSTGRES_PASSWORD, 'postgres')
+    assert.equal(environment.FREE_KEI_POSTGRES_PASSWORD, 'kei-development')
     assert.equal(
       environment.FREE_SESSION_SECRET,
       'ZGV2ZWxvcG1lbnQtc2VjcmV0LXRoYXQtaXMtMzItYnl0ZXMhIQ==',
@@ -567,7 +572,6 @@ const productionEnvironment = {
   STUDIO_BASE_PATH: '/free',
   FREE_SESSION_SECRET: Buffer.alloc(32, 7).toString('base64'),
   FREE_POSTGRES_PASSWORD: 'a'.repeat(64),
-  FREE_PARSING_POSTGRES_PASSWORD: 'c'.repeat(64),
   FREE_KEI_POSTGRES_PASSWORD: 'd'.repeat(64),
   FREE_ENTRA_TENANT_ID: '00000000-0000-4000-8000-000000000001',
   FREE_ENTRA_CLIENT_ID: '00000000-0000-4000-8000-000000000002',
@@ -588,13 +592,21 @@ describe('production environment validation', () => {
     for (const name of [
       ...SHARED_STUDIO_CONFIGURATION_FIELDS,
       'FREE_POSTGRES_PASSWORD',
-      'FREE_PARSING_POSTGRES_PASSWORD',
       'FREE_KEI_POSTGRES_PASSWORD',
     ])
       assert.ok(
         errors.some((error) => error.includes(`${name} is required`)),
         `expected an error for ${name}`,
       )
+  })
+
+  it('no longer asks for a parsing job database password', () => {
+    // kei runs on DBOS in Studio's database as the kei role; the separate parsing job database is gone.
+    const errors = validateProductionEnvironment({}, () => true)
+    assert.ok(
+      errors.every((error) => !error.includes('FREE_PARSING_POSTGRES_PASSWORD')),
+      errors.join('\n'),
+    )
   })
 
   it('rejects an origin carrying a path and a root base path', () => {
@@ -653,7 +665,7 @@ describe('production environment validation', () => {
   })
 
   it('rejects weak or URL-unsafe passwords for every database role', () => {
-    for (const field of ['FREE_POSTGRES_PASSWORD', 'FREE_PARSING_POSTGRES_PASSWORD', 'FREE_KEI_POSTGRES_PASSWORD']) {
+    for (const field of ['FREE_POSTGRES_PASSWORD', 'FREE_KEI_POSTGRES_PASSWORD']) {
       const errors = validateProductionEnvironment(
         { ...productionEnvironment, [field]: 'p@ss word' },
         () => true,

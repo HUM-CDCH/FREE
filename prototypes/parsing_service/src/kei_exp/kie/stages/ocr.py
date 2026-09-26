@@ -39,9 +39,10 @@ if _unregistered:
 def check_knobs(params: RunParams) -> None:
     """Refuse the knobs the requested model's transcriber does not honour, naming them. ValueError when it does.
 
-    Reading no PDF is the point: this is the one part of `resolve` that judges the request alone, so the API can
-    make it while admitting a run (`kei_exp.api.create_run`) without paying for the native-text decision, which
-    only the worker makes. A native execution honours no knob at all, so `resolve` asks this after that choice.
+    Reading no PDF is the point: this is the one part of `resolve` that judges the request alone, so `convert`'s
+    `prepare_run` step (`kei_exp.workflows.convert`) makes it before any model work, without paying for the
+    native-text decision, which only the conversion makes. A native execution honours no knob at all, so
+    `resolve` asks this after that choice.
     """
     record = MODELS[params.model]
     given = {"stream": params.stream, "max_output_tokens": params.max_output_tokens is not None,
@@ -53,7 +54,8 @@ def check_knobs(params: RunParams) -> None:
 
 def check_ingest(page_source: str, ingest: dict | None) -> None:
     """An ingest setting (split, gutter overrides) applies only to book pages, and must be a valid IngestConfig.
-    Checked at admission and again when the run resolves, so a refused setting never reaches a worker."""
+    Checked by `convert`'s `prepare_run` step and again when the run resolves, so a refused setting never reaches
+    a model."""
     if ingest is None:
         return
     if page_source != "ingest":
@@ -185,7 +187,7 @@ def run(execution: Execution, emit: Emit = print_event, *, book: BookPages | Non
         except Exception as error:  # noqa: BLE001 - diagnostics only; the accepted result above is already written
             logger.error("debug report not written to %s: %s", execution.debug_dir, error)
             sink({"type": "log", "text": f"Debug report not written: {error}"})
-    # IncompleteConversionError, not ConversionError: kei_exp.jobs.tasks.classify() matches on this TYPE to
+    # IncompleteConversionError, not ConversionError: kei_exp.failures.classify() matches on this TYPE to
     # keep an incomplete recognition out of the retried set. It is about this document at this budget and
     # repeats identically, unlike a refused server; typing it (rather than matching phrases in the message)
     # stops a scanned page whose OCR'd text happens to contain something like "connection timed out" from
