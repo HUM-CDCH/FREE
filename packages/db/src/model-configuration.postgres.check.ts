@@ -120,7 +120,21 @@ test('PostgreSQL keeps one Model Configuration per Researcher Account and serial
     let seen: unknown = 'not yet'
     let second: Promise<unknown> | undefined
     try {
-      await entered.promise
+      // A first apply that fails or stalls before entering its next must fail the check, not hang it.
+      const stop = new AbortController()
+      try {
+        await Promise.race([
+          entered.promise,
+          first.then(() => {
+            throw new Error('The first apply settled without entering its next.')
+          }),
+          setTimeout(10_000, undefined, { signal: stop.signal }).then(() => {
+            throw new Error('The first apply did not enter its next within 10 s.')
+          }),
+        ])
+      } finally {
+        stop.abort()
+      }
       second = store.apply(researcherAccountId, (previous) => {
         seen = previous
         return { n: 2 }
