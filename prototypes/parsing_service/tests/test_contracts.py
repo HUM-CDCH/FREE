@@ -1,6 +1,4 @@
 """The portable contract of kei's workflows, as the fixtures Studio's node:test also reads (M4)."""
-import json
-from pathlib import Path
 
 import pytest
 import requests
@@ -10,23 +8,14 @@ from pydantic import ValidationError
 from kei_exp.failures import CODES, REASON_CHARS, KeiFailure
 from kei_exp.kie.extract.run import ExtractRequest
 from kei_exp.workflows import config, contracts
+from tests.helpers.contracts import convert_timeout_ms, fixture
 from tests.test_extract_grounded import SCHEMA
 
-FIXTURES = Path(__file__).parent / "fixtures" / "contracts"
 INPUTS = {"convert": contracts.ConvertInput, "extract": contracts.ExtractInput,
           "deleteRuns": contracts.DeleteRunsInput}
 OUTPUTS = {"convert.output.ok": contracts.ConvertOk, "convert.output.failed": contracts.Failure,
            "extract.output.ok": contracts.ExtractOk, "extract.output.failed": contracts.Failure,
            "deleteRuns.output": contracts.DeleteRunsOk}
-
-
-def fixture(name: str) -> dict:
-    return json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
-
-
-def convert_timeout_ms(pages: int) -> int:
-    """M0R 4's per-page conversion budget; Studio's submitToKei computes the same (M4)."""
-    return max(600_000, 3 * (20_000 + 6_300 * pages))
 
 
 @pytest.mark.parametrize("workflow", INPUTS)

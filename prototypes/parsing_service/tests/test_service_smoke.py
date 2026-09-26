@@ -42,7 +42,7 @@ from kei_exp.workflows import config
 from tests.helpers import kei as kei_helper
 from tests.helpers import kei_worker
 from tests.helpers import postgres as postgres_helper
-from tests.test_contracts import convert_timeout_ms, fixture
+from tests.helpers.contracts import convert_timeout_ms, fixture
 
 pytestmark = [pytest.mark.slow, pytest.mark.live_model]
 

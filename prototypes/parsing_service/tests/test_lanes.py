@@ -18,9 +18,9 @@ from kei_exp.transcription.types import DEFAULT_URL
 from kei_exp.workflows import cancel, config, gc
 from kei_exp.workflows import extract as extract_workflow
 from tests.helpers import kei as kei_helper
+from tests.helpers.contracts import convert_timeout_ms
 from tests.helpers.fake import registered
 from tests.helpers.pdfs import mask
-from tests.test_contracts import convert_timeout_ms
 from tests.test_extract_grounded import CountingChat, WordCounter, honest
 
 GENERATION = "20260923T000000.000000Z-fixture0"
