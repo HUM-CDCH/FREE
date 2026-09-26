@@ -47,47 +47,63 @@ FREE's normative product and safety contract is:
    previous review revisions remain in history, and results use only the latest
    active review.
 5. **Durable, versioned state.** Project Contexts, source documents and their
-   representation revisions, schema and prompt revisions, extractions, and
-   review decisions survive ordinary restarts. An extraction remains pinned to
-   the source-representation and schema revisions it used, so newer revisions
-   can make it stale without rewriting its history.
+   representation revisions, schema revisions, extractions, and review decisions
+   survive ordinary restarts. One Extraction record carries a run from admission
+   to its outcome and on to its reviews; it stays pinned to the
+   source-representation and schema revisions it used, so newer revisions can
+   make it stale without rewriting its history. Work in progress survives too:
+   it runs as DBOS workflows inside Studio and the Parsing Service, which resume
+   after a restart, and its status is derived from them rather than stored twice.
 6. **Project lifecycle.** A researcher can create, list, rename, and
    permanently delete a Project Context. Deletion removes its owned database
    graph and removes filesystem artifacts only when no remaining Project
    Context references them.
-7. **Model-provider surface.** The Model Configuration page supports Ollama,
-   OpenAI, Anthropic, Google, Codex CLI, Claude Code, vLLM, and
-   OpenAI-compatible providers, with explicit Schema Suggestion and
-   Interaction routes and the Extraction Model Choice. Stored credentials are
-   write-only; configuration is deployment-wide and is not seeded at startup.
-   With the GPU overlay, the deployment's own vLLM servers are listed as
-   read-only deployment connections, and an unset route runs on the
-   deployment's instruction model.
-   Extraction execution is delegated to the included Parsing Service;
-   FREE uses the configured provider directly for Schema Suggestion and Interaction.
+7. **Model-provider surface.** Each Researcher Account owns its model
+   configuration, stored in PostgreSQL: its Model Connections, the Assistant
+   model (the Interaction Route) and the Schema Suggestion Route, the Extraction
+   Model Choice and the Ingestion Model Choice. A Project Context uses its
+   owner's configuration. The Model Configuration page supports Ollama, OpenAI,
+   Anthropic, Google, vLLM and OpenAI-compatible connections. A researcher's API
+   keys stay in their own browser; Studio holds a copy only in memory while it
+   needs one, and never in PostgreSQL, on disk, in logs or in workflow history.
+   The deployment's own model servers are read-only deployment connections that
+   every researcher can use: its vLLM servers with the GPU overlay, and the
+   Codex CLI and Claude Code providers when the operator enables them with
+   `FREE_DEPLOYMENT_CLI_PROVIDERS`; those run on the server's own CLI login. An
+   unset Assistant model runs on the deployment's instruction model, and an
+   unset Schema Suggestion Route follows the Assistant model. The Ingestion
+   Model Choice picks the Parsing Service's OCR and layout models for new
+   ingestions and reprocessing only; existing revisions never change.
+   Extraction execution is delegated to the included Parsing Service; FREE
+   uses the configured provider directly for Schema Suggestion and Interaction.
    For those provider calls, output formatting is automatic: selecting a connection and model is sufficient.
    FREE uses the adapter's output support and
    falls back to prompt-only generation only after an explicit unsupported-format
    response, remembering that endpoint/model/route for the server session. Returned
    results are still validated. Output formatting has no route override. On a
-   vLLM connection, Schema Suggestion may use the NuExtract protocol (NuExtract's
-   template generation through its chat template). A saved configuration of an
-   earlier shape is not migrated: it fails closed, and the page offers a
-   confirmed reset to the empty configuration.
+   vLLM connection, Schema Suggestion uses the NuExtract protocol whenever the
+   model is NuExtract; nothing selects it by hand. The configuration is
+   validated whenever it is saved, so there is no reset.
 8. **Safe startup.** Authored forward migrations finish before Studio becomes
-   ready, both for a fresh database and an already-migrated one. Normal startup
-   never resets the database or seeds an account, Project Context, provider,
-   route, or credential.
+   ready, both for a fresh database and an already-migrated one. Studio's
+   entrypoint then creates the Parsing Service's restricted database role and
+   schema, and each process migrates its own DBOS system schema (`dbos`,
+   `kei_dbos`) when it launches. Normal startup never resets the database or
+   seeds an account, Project Context, provider, route, or credential.
 9. **Proxy parity.** Production keeps its host-managed nginx; local uses
    containerized nginx. Both render the same version-controlled proxy fragment
    for `/free` routing, forwarded headers, auth callbacks, security headers,
    upload limits, and timeouts.
-10. **Secrets and destructive limits.** Secrets enter through environment or
-    the OS credential store, never committed files. Forward migration replay
-    may target the configured deployment database. Reset is limited to
-    `postgres` on loopback port 5432 database `free`. Disposable PostgreSQL
-    checks are limited to `postgres` on loopback port 5432 databases named
-    `free_test_*`. Production is never reset.
+10. **Secrets and destructive limits.** Deployment secrets — the session
+    secret, database passwords, the Entra certificate, a CLI login — enter
+    through the environment or mounted files, never committed files.
+    Researchers' model keys never reach the server's storage, and FREE needs no
+    operating-system secret store. Forward migration replay may target the
+    configured deployment database. Reset is limited to `postgres` on loopback
+    port 5432 database `free`. Disposable PostgreSQL checks are limited to
+    `postgres` on loopback port 5432 databases named `free_test_*`. Production
+    is never reset; the single exception is the one-time, pre-production
+    cutover to durable execution ([runbook](docs/operations/deployment.md#cutover-to-durable-execution-one-time-clean-slate)).
 
 Out of scope: backward compatibility with historical API shapes, competing
 deployment paths, and speculative extensibility.
@@ -110,7 +126,7 @@ mutating checks:
 | --- | --- |
 | `pnpm test` | Fast unit/static checks only; no live stack, PostgreSQL, browser, or model |
 | `pnpm test:safety` | Safety/configuration checks; no running FREE stack, but Docker is required for Compose rendering and a throwaway nginx config check; no database mutation |
-| `pnpm test:postgres` | Studio/extraction and Parsing Service PostgreSQL checks against caller-provisioned disposable loopback `free_test_*` databases; they mutate those databases |
+| `pnpm test:postgres` | Studio's DBOS workflows, db, extraction and Parsing Service PostgreSQL checks against caller-provisioned disposable loopback `free_test_*` databases; the DBOS checks create and drop their own schemas |
 | `pnpm test:e2e` | Playwright browser tests; creates and removes its own Docker PostgreSQL and mock-OIDC stack, migrates it, and starts Studio locally |
 | `pnpm test:service` | Isolated authenticated FREE workflow using the real Python API/worker and native PDF parsing; scripts only the extraction model boundary; checks evidence, review, and restart persistence |
 | `pnpm test:all` | All deterministic tiers: typecheck, lint, unit, safety, caller-provisioned PostgreSQL integration, E2E, and the real-service workflow |
@@ -158,8 +174,9 @@ Then open **https://localhost:8443/free** and sign in through the local mock
 OIDC identity provider. `pnpm dev` generates the mkcert certificate when missing,
 builds the images, and stops Studio and the parsing API/worker before running
 `docker compose up --watch`. A failed build leaves the running
-application intact. Migrations finish before the replacement processes start,
-and source changes then sync live. The
+application intact. Migrations finish before the replacement processes start.
+Afterwards, a browser-code change reloads in place and a server-code change
+restarts Studio (Compose Watch). The
 first run builds the Python image and downloads the extraction model into a
 persistent cache; this can take several minutes and substantial disk space.
 
@@ -215,10 +232,13 @@ page: a field model and a reasoning model picked from the models the service
 lists at `GET /api/extraction-models`; an unchosen role uses the service's
 defaults, and each Extraction records the models its roles ran on. Schema
 Suggestion and Interaction use the configured Capability Routes, and an unset
-route runs on the deployment's instruction model. Polling waits up to ten minutes for Article and three hours for
-Catalog; cancellation stops FREE from waiting and publishing a result. A
-failed extraction carries kei-exp's own reason. The API has no remote cancellation
-or targeted Catalog retry operation; start a new Extraction to rerun.
+route runs on the deployment's instruction model. Each Extraction runs as a
+durable workflow: Studio hands it to the Parsing Service's worker on its
+extraction lane, whose deadline is ten minutes for Article and three hours for
+Catalog, counted from when the worker starts it. Cancelling an Extraction
+records the cancellation and stops the Parsing Service's work too. A failed
+extraction carries the Parsing Service's own reason. There is no targeted
+Catalog retry; start a new Extraction to rerun.
 
 ## More
 
