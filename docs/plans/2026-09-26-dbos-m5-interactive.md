@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-Status: **not started (plan written 2026-09-26 against `feat/dbos-m2-m6` at bf80322, with M4 Task 1 committed and M4 Task 2 in the working tree; revised 2026-09-26 after the user deleted the document chat (Ruling 1), which removed the chat workflow, table, routes and tab from this plan and added Task 1; assumes the M4 plan is complete — its Task 14 recorded — before Task 1 starts).**
+Status: **in progress (inline, 2026-09-26): executed by the controller session on `feat/dbos-m5` (from `feat/dbos-m2-m6` at e1c8ae6) while M4 finishes on `feat/dbos-m2-m6`; see *Execution addendum*. Plan written 2026-09-26 against `feat/dbos-m2-m6` at bf80322; revised 2026-09-26 after the user deleted the document chat (Ruling 1), which removed the chat workflow, table, routes and tab from this plan and added Task 1.**
 
 **Goal:** Deliver milestone M5 of the DBOS plan on `feat/dbos-m2-m6`: Schema Suggestion (`suggestSchema`) and schema edit proposals (`proposeSchemaEdit`) run as named DBOS workflows that survive a browser reload and a Studio restart; `GET`/`DELETE /api/model-operations` let a reloaded page find, cancel or discard its work; the unreachable document chat (`/api/chat`, `ChatTab`) is deleted rather than made durable (user, 2026-09-26); no key, provider error body, provider metadata or document text enters DBOS history; every tier ends green.
 
@@ -74,6 +74,45 @@ Status: **not started (plan written 2026-09-26 against `feat/dbos-m2-m6` at bf80
   If `free-m1-pg` was started with another password, ask the controller rather than restarting it. `project-store.postgres.check.ts` requires an empty database, so recreate both before each `pnpm --filter db test:postgres` run. DBOS-backed tests create their own system schemas (`dbos_t_<hex>`, `kei_dbos_t_<hex>`) and drop them in `afterAll`.
 - **No baseline edit:** M5 changes no table (Ruling 1). `packages/db/src/prisma/contract.prisma` and `packages/db/migrations/app/` stay as M4 left them, and an existing `pnpm dev` database needs no recreation for M5.
 - **Commits:** one per task, conventional prefix, message ending with the session's attribution line. Never `git stash`, `reset` or `commit --amend` another task's work.
+
+## Execution addendum (inline, 2026-09-26)
+
+The user asked for M5 to be implemented **without subagents**, starting while another session (df73e0ca) is still executing M4 (its Task 9 was dispatched at e1c8ae6). This section adapts the plan; the tasks themselves are unchanged.
+
+**Mode.** The controller session implements every task itself with `superpowers:executing-plans`, one commit per task, ledger in `.superpowers/sdd/2026-09-26-dbos-m5-interactive/progress.md` (gitignored; copied into the M5 worktree). Consequently: "report to the controller" means decide, record the ruling in the ledger and continue; the subagent-only rule about `git rm` authorization does not apply (plain `rm` + `git add -A <paths>` still works); "use a high-effort implementer" is moot. The final whole-branch review is a separate question for the user (Codex read-only via `codex exec` is not a subagent; see *Open questions*).
+
+**Worktree and branch (supersedes the first bullet of *Global Constraints*).** `/home/gennaro/.t3/worktrees/FREE/t3code-ade16c5b` on `feat/dbos-m5`, created from `feat/dbos-m2-m6` at e1c8ae6. Every `cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6` in Tasks 1–10 means this worktree; the M4 worktree is never read for state, edited, staged or committed. `feat/dbos-m2-m6` is **merged** into `feat/dbos-m5` at each gate below (merge, never rebase: M1 and M3 were integrated the same way, and the ledgers cite SHAs). `feat/dbos-m5` is merged into `feat/dbos-m2-m6` only after M4's "done" line, its final review and its fix wave have landed there (the M4 session stops at that point).
+
+**Gates (replace the single *Preconditions* check, which fails until M4 ends).**
+
+| Tasks | Gate | Verify before starting (in this worktree, after the merge) |
+|---|---|---|
+| 1–2 | none: nothing they consume is in M4's uncommitted tree (checked at e1c8ae6: `api/chat.ts`, `ChatTab.tsx`, `streamChatWithModel`, `ModelOperation` with `'chat'`, `keyedModel`, `requireModelKey`, `vite.server.config.ts:22` are as the plan describes) | — |
+| 3–7 | M4 Task 9 **committed** on `feat/dbos-m2-m6` (it adds `readRevisionMarkdown`, `createResearcherProjectStore(…, { workflowStatuses, enqueue })`, the worker store, the exported `requestModelKeyResend`, and `server/app.ts`'s store adapter) | `grep -n "readRevisionMarkdown" packages/db/src/project-store.ts`; `grep -n "export function requestModelKeyResend" prototypes/studio/src/auth/authenticatedFetch.ts`; `grep -n "workflowStatuses" packages/db/src/project-store.ts prototypes/studio/server/app.ts`; then run the ledger's pre-flight scan for Tasks 3–7 (line numbers in *Code facts* were taken at bf80322 and move with M4) |
+| 8–9 | M4 Tasks 10 and 13 committed (kei stand-in ingestion in `e2e/canonical-evidence-lifecycle.spec.ts`; `FREE_SOURCE_INBOX` in the Playwright configs; the fixed stand-in port 41750 replaced, M4 F10) | `grep -n "FREE_SOURCE_INBOX" prototypes/studio/playwright.config.ts`; `grep -n "41750\|41_750" prototypes/studio/e2e/*.ts prototypes/studio/playwright*.ts` prints nothing |
+| 10 | M4 complete: `grep -c "M4: Studio's background work on DBOS — done" docs/plans/2026-09-24-unified-durable-execution.md` prints 1, and its final review's fix wave is merged | the *Preconditions* greps of *Global Constraints* |
+
+**Merge hotspots expected at gate 1.** `server/researcher-project-ownership.test.ts` (Task 1 deletes the chat regions; M4 Task 9 edits the pump regions: different hunks), `server/workflows.ts` (both append names), `src/auth/authenticatedFetch.test.ts` (Task 1's dummy URL; M4 Task 9's export). Task 2 note: M4's F11 fix already rewrote the `_model_keys.ts` comment at 127-132 to name `modelSignal` (the caller-side composition); Task 2 replaces whatever text is there with the model-boundary wording and must not reintroduce "the keyed wrapper must compose it". Keep Tasks 1 and 2 as two small commits so the merge stays legible.
+
+**Environment.** Node dependencies installed with `FREE_SKIP_PYTHON=1 pnpm install --frozen-lockfile` (no 6 GB parsing venv in this worktree; `/home` was at 93 %). Python tiers (`pnpm test:service` in Task 10 only; M5 does not touch the parsing service) reuse an existing venv: `UV_PROJECT_ENVIRONMENT=/tmp/kei-m3-t7-venv` (or the main checkout's `prototypes/parsing_service/.venv`); never create a new one. PostgreSQL: `free-m1-pg` is up; the `free_test_m5_*` names in *Global Constraints* do not collide with M4's.
+
+**Playwright isolation.** The default and base-path stacks have fixed ports and Compose projects, so an e2e run here would collide with one in the M4 session. Every e2e command run from this worktree while M4 is still active exports (both are read by `configurePlaywrightStack`):
+
+```bash
+# default suite (Tasks 1, 3–8)
+export FREE_PLAYWRIGHT_PORT=41781 FREE_PLAYWRIGHT_OIDC_PORT=41782 FREE_PLAYWRIGHT_POSTGRES_PORT=45437 \
+  FREE_PLAYWRIGHT_COMPOSE_PROJECT=free-studio-m5-e2e FREE_PLAYWRIGHT_DATABASE_NAME=free_test_studio_m5
+# base path (Task 10)
+export FREE_PLAYWRIGHT_PORT=41783 FREE_PLAYWRIGHT_OIDC_PORT=41784 FREE_PLAYWRIGHT_POSTGRES_PORT=45438 \
+  FREE_PLAYWRIGHT_COMPOSE_PROJECT=free-studio-m5-e2e-base-path FREE_PLAYWRIGHT_DATABASE_NAME=free_test_studio_m5_base_path
+```
+
+Task 9's recovery config already has its own values (41771/41772/45436). Once M4 has stopped, the defaults are fine again.
+
+**Open questions for the user (asked in the plan review; execution does not block on them).**
+1. Final review: the user's standing preference is a Codex read-only whole-branch review; is that excluded by "no subagents"? Default if unanswered: run it at the end of Task 10 (it is a CLI, not an Agent-tool subagent).
+2. Task 10 Step 3's live checks need the Spark or a hosted key; the plan already allows recording them as deferred to the M6 cutover smoke. Default: defer.
+3. Learning mode: the only policy-shaped code in this plan is `recoveryView`/`planRecovery` (Task 7). The user may write those two functions themselves against Task 7's tests; otherwise the plan's version is used.
 
 ## Test tiers at the M5 seam
 
