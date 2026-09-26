@@ -1,5 +1,7 @@
 # The job backend spike: Procrastinate
 
+> **Superseded (2026-09-26)** by [ADR 0012](../../../docs/adr/0012-one-durable-execution-layer.md): the Parsing Service runs on DBOS (`kei_exp.workflows`); Procrastinate and its job database are gone. This record is kept for its measurements.
+
 Imported from kei-exp `93b9435c2b9a01a5424758d917c058fc79bbc159`. This document
 retains the original internal design or measurements. The service README and
 FREE root deployment runbooks govern the current runtime and verification commands.
