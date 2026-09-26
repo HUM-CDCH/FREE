@@ -75,7 +75,7 @@ const SOURCES_FAILED: SuggestionFailure = {
 export async function suggestSchemaBatchWorkflow(input: SuggestionAttemptInput, ports: SuggestionWorkflowPorts): Promise<void> {
   const { steps, store, generate } = ports
   const { batchSchemaSuggestionId: id, attempt } = input
-  const results: Array<Exclude<SourceResult, { kind: 'stopped' }>> = []
+  const definitions: Array<Extract<SourceResult, { kind: 'definition' }>> = []
   for (const member of input.members) {
     // One named step per source: recovery of this attempt reuses finished sources; a new attempt reruns them all.
     const result = await steps.step(`suggestSource:${member.sourceDocumentId}`, async (): Promise<SourceResult> => {
@@ -96,16 +96,16 @@ export async function suggestSchemaBatchWorkflow(input: SuggestionAttemptInput, 
       }
     })
     if (result.kind === 'stopped') return
-    results.push(result)
+    if (result.kind === 'failure') {
+      // The first failure ends the attempt (controller ruling): failures block the merge, and a retry reruns every
+      // surviving source, so later sources would only spend calls (and, without a key, a 60 s key wait each).
+      // A missing key is its own outcome, so the page resends keys and the researcher retries.
+      const failure = result.failure.code === 'model_key_required' ? result.failure : SOURCES_FAILED
+      await steps.step('publishFailure', () => store.fail(id, attempt, failure))
+      return
+    }
+    definitions.push(result)
   }
-  const failures = results.flatMap((result) => (result.kind === 'failure' ? [result.failure] : []))
-  if (failures.length > 0) {
-    // Failures block the merge (spec). A missing key is its own outcome, so the page resends keys and retries.
-    const failure = failures.find((candidate) => candidate.code === 'model_key_required') ?? SOURCES_FAILED
-    await steps.step('publishFailure', () => store.fail(id, attempt, failure))
-    return
-  }
-  const definitions = results.flatMap((result) => (result.kind === 'definition' ? [result] : []))
   const merged = await steps.step('merge', async (): Promise<MergeResult> => {
     if ((await store.attemptState(id, attempt)) !== 'current') return { kind: 'stopped' }
     const owner = await store.projectContextOwner(input.projectContextId)

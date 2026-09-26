@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SchemaModelInput } from './_model.js'
+import { ApiError } from './_http.js'
 import { ModelKeyRequiredError } from './_model_keys.js'
 import {
   registerBatchSuggestionWorkflow,
@@ -18,11 +19,13 @@ const PROJECT = 'project-1'
 const OWNER = 'owner-account'
 const A = { sourceDocumentId: 'source-a', sourceRepresentationRevisionId: 'revision-a' }
 const B = { sourceDocumentId: 'source-b', sourceRepresentationRevisionId: 'revision-b' }
-const MARKDOWN: Record<string, string> = { 'revision-a': '# Source A', 'revision-b': '# Source B' }
+const C = { sourceDocumentId: 'source-c', sourceRepresentationRevisionId: 'revision-c' }
+const MARKDOWN: Record<string, string> = { 'revision-a': '# Source A', 'revision-b': '# Source B', 'revision-c': '# Source C' }
 
 const sourceTemplate = { _description: 'One article.', title: 'string', year: 'integer' }
 const commonTemplate = { _description: 'One article.', title: 'string' }
 const emptyTemplate = { _description: 'One article.' }
+const SOURCES_FAILED = { code: 'source_suggestion_failed', message: 'Fields could not be suggested for every selected Source Document.' }
 
 type Generated = Awaited<ReturnType<SuggestionWorkflowPorts['generate']>>
 const generated = (template: Record<string, unknown>): Generated => ({ template, raw: JSON.stringify(template), pages: null })
@@ -36,10 +39,15 @@ type Scenario = {
   readMarkdown?: (revisionId: string) => string | null
   publishes?: 'published' | 'stopped'
   cancel?: AbortController
+  members?: SuggestionAttemptInput['members']
+  /** DBOS's checkpoints: a step whose name is here returns its recorded output without running (recovery). */
+  checkpoints?: Map<string, unknown>
+  /** Throws when this step is reached, as a crash before it would. */
+  crashAt?: string
 }
 
 function harness(scenario: Scenario = {}) {
-  const input: SuggestionAttemptInput = { batchSchemaSuggestionId: SUGGESTION, attempt: 2, projectContextId: PROJECT, members: [A, B] }
+  const input: SuggestionAttemptInput = { batchSchemaSuggestionId: SUGGESTION, attempt: 2, projectContextId: PROJECT, members: scenario.members ?? [A, B] }
   const steps: string[] = []
   const writes: Array<{ kind: 'publish'; result: SuggestionProposal } | { kind: 'fail'; failure: { code: string; message: string } }> = []
   const calls: Array<{ caller: { researcherAccountId: string }; input: SchemaModelInput }> = []
@@ -47,9 +55,13 @@ function harness(scenario: Scenario = {}) {
   let stateCalls = 0
   const ports: SuggestionWorkflowPorts = {
     steps: {
-      async step(name, run) {
+      async step<T>(name: string, run: () => Promise<T>): Promise<T> {
+        if (scenario.checkpoints?.has(name)) return scenario.checkpoints.get(name) as T
+        if (name === scenario.crashAt) throw new Error(`crashed before ${name}`)
         steps.push(name)
-        return run()
+        const output = await run()
+        scenario.checkpoints?.set(name, output)
+        return output
       },
       cancelSignal: () => cancel.signal,
     },
@@ -107,34 +119,49 @@ describe('suggestSchemaBatch', () => {
     expect(write.result.coverage).toEqual([{ nodeId: write.result.proposal.schemaNodes[0]!.id, present: 2, total: 2 }])
   })
 
-  it('a failed source blocks the merge and publishes the attempt\'s failure', async () => {
-    const h = harness({
-      generate: async (markdown) => {
-        if (markdown === '# Source A') throw new Error('provider body with secrets')
-        return generated(sourceTemplate)
-      },
-    })
-    await h.run()
-    expect(h.steps).toEqual(['suggestSource:source-a', 'suggestSource:source-b', 'publishFailure'])
-    expect(h.writes).toEqual([{
-      kind: 'fail',
-      failure: { code: 'source_suggestion_failed', message: 'Fields could not be suggested for every selected Source Document.' },
-    }])
-  })
-
-  it('a missing key fails the attempt with model_key_required', async () => {
-    for (const other of ['succeeds', 'fails'] as const) {
+  it('the first failed source ends the attempt: no later source runs, no merge, and its failure is published', async () => {
+    const cases = [
+      { error: () => new ModelKeyRequiredError(), failure: { code: 'model_key_required', message: new ModelKeyRequiredError().message } },
+      { error: () => new ApiError(502, 'invalid_model_output', 'The model returned an invalid Schema Suggestion.'), failure: SOURCES_FAILED },
+      { error: () => new ApiError(502, 'model_operation_failed', 'The model operation failed.'), failure: SOURCES_FAILED },
+      { error: () => new Error('provider body with secrets'), failure: SOURCES_FAILED },
+    ]
+    for (const { error, failure } of cases) {
       const h = harness({
+        members: [A, B, C],
         generate: async (markdown) => {
-          if (markdown === '# Source B') throw new ModelKeyRequiredError()
-          if (other === 'fails') throw new Error('provider failure')
+          if (markdown === '# Source B') throw error()
           return generated(sourceTemplate)
         },
       })
       await h.run()
-      expect(h.steps).not.toContain('merge')
-      expect(h.writes).toEqual([{ kind: 'fail', failure: { code: 'model_key_required', message: new ModelKeyRequiredError().message } }])
+      expect(h.steps).toEqual(['suggestSource:source-a', 'suggestSource:source-b', 'publishFailure'])
+      expect(h.calls.map((call) => call.input.document.markdown)).toEqual(['# Source A', '# Source B'])
+      expect(h.writes).toEqual([{ kind: 'fail', failure }])
     }
+  })
+
+  it('a missing key at the first source fails the attempt with model_key_required without waiting on the others', async () => {
+    const h = harness({ members: [A, B, C], generate: async () => { throw new ModelKeyRequiredError() } })
+    await h.run()
+    expect(h.calls).toHaveLength(1)
+    expect(h.steps).toEqual(['suggestSource:source-a', 'publishFailure'])
+    expect(h.writes).toEqual([{ kind: 'fail', failure: { code: 'model_key_required', message: new ModelKeyRequiredError().message } }])
+  })
+
+  it('recovery of the same attempt reuses the sources it already checkpointed', async () => {
+    const checkpoints = new Map<string, unknown>()
+    const crashed = harness({ members: [A, B, C], checkpoints, crashAt: 'suggestSource:source-c' })
+    await expect(crashed.run()).rejects.toThrow('crashed before suggestSource:source-c')
+    expect(crashed.calls).toHaveLength(2)
+
+    const recovered = harness({ members: [A, B, C], checkpoints })
+    await recovered.run()
+    expect(recovered.steps).toEqual(['suggestSource:source-c', 'merge', 'publish'])
+    expect(recovered.calls.map((call) => call.input.document.markdown?.split('\n')[0])).toEqual([
+      '# Source C', 'SOURCE DOCUMENT source-a SUGGESTION:',
+    ])
+    expect(recovered.writes.map((write) => write.kind)).toEqual(['publish'])
   })
 
   it('stops without publishing when its attempt was interrupted, superseded or its scope deleted', async () => {
@@ -212,7 +239,7 @@ describe('suggestSchemaBatch', () => {
   it('a failure publication that finds the attempt stopped writes nothing and does not throw', async () => {
     const h = harness({ publishes: 'stopped', generate: async () => { throw new ModelKeyRequiredError() } })
     await expect(h.run()).resolves.toBeUndefined()
-    expect(h.steps).toEqual(['suggestSource:source-a', 'suggestSource:source-b', 'publishFailure'])
+    expect(h.steps).toEqual(['suggestSource:source-a', 'publishFailure'])
     expect(h.writes.map((write) => write.kind)).toEqual(['fail'])
   })
 
