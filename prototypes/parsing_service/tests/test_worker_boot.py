@@ -103,8 +103,10 @@ def test_the_worker_locks_then_reads_the_clock_then_launches_then_registers(monk
     assert boot.timestamp_ms() == 1234
 
 
-def _serve_until(monkeypatch, failing: str, error: BaseException) -> list[str]:
-    """serve() over a fake slot and a fake DBOS whose `failing` step ("launch" or "queues") raises `error`."""
+def _serve_until(monkeypatch, failing: str, error: BaseException, *,
+                 destroy_error: BaseException | None = None) -> list[str]:
+    """serve() over a fake slot and a fake DBOS whose `failing` step ("launch" or "queues") raises `error` (and whose
+    destroy() raises `destroy_error`, when given)."""
     order: list[str] = []
 
     @contextlib.contextmanager
@@ -131,14 +133,20 @@ def _serve_until(monkeypatch, failing: str, error: BaseException) -> list[str]:
         @staticmethod
         def destroy():
             order.append("destroy")
+            if destroy_error is not None:
+                raise destroy_error
 
     monkeypatch.setattr(slot, "hold_slot", hold)
     monkeypatch.setattr(boot, "database_clock_ms", lambda url: 1234)
     monkeypatch.setattr(boot, "_timestamp_ms", None)
     monkeypatch.setattr(cli, "DBOS", FakeDBOS)
     monkeypatch.setattr(config, "register_queues", lambda **_: step("queues"))
-    cli.serve("slot-7", "postgresql://x", until=lambda: order.append("serving"),
-              exit_process=lambda code: order.append(f"exit {code}"))
+    try:
+        cli.serve("slot-7", "postgresql://x", until=lambda: order.append("serving"),
+                  exit_process=lambda code: order.append(f"exit {code}"))
+    except BaseException as escaped:  # destroy's own error escapes once a test's exit_process has returned
+        if escaped is not destroy_error:
+            raise
     return order
 
 
@@ -156,6 +164,13 @@ def test_an_interrupt_during_launch_destroys_dbos_and_exits_still_holding_the_sl
     order = _serve_until(monkeypatch, "launch", interrupt())
     assert "serving" not in order and order[-3:] == ["destroy", "exit 1", "release"]
     assert capsys.readouterr().err.startswith(f"kei worker stopped: {interrupt.__name__}")
+
+
+def test_a_second_interrupt_inside_destroy_still_exits_holding_the_slot(monkeypatch, capsys):
+    """A second Ctrl-C during launch lands before until() installs the signal handlers, possibly inside destroy()."""
+    order = _serve_until(monkeypatch, "launch", KeyboardInterrupt(), destroy_error=KeyboardInterrupt())
+    assert order[-3:] == ["destroy", "exit 1", "release"]
+    assert capsys.readouterr().err.startswith("kei worker stopped: KeyboardInterrupt")
 
 
 def test_dbos_own_logs_never_print_the_database_password():
@@ -187,6 +202,9 @@ def test_dbos_own_logs_never_print_the_database_password():
     assert len(lines) == 3
     assert "s3cr" not in text and "s3cr%40t-pw" not in text
     assert "DBOS failed to launch" in text and "RuntimeError" in text
+    # The traceback stays (workflow and recovery failures are logged with it), with the password replaced in it too.
+    assert "Traceback (most recent call last)" in text and "test_worker_boot.py" in text
+    assert "failed: password=***" in text
 
 
 def test_serve_installs_one_redacting_filter_on_the_dbos_logger_however_often_it_runs(monkeypatch):

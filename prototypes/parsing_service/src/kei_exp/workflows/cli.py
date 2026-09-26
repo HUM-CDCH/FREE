@@ -39,19 +39,20 @@ def _exit_hard(code: int) -> None:
 
 class RedactingFilter(logging.Filter):
     """DBOS logs its own launch and connection failures (dbos _dbos.py:787, _sys_db.py:5469) before the worker can
-    report them; driver messages there can quote the URL. Rewrite each record's message and traceback in place."""
+    report them; driver messages there can quote the URL. Rewrite each record's message and traceback in place: the
+    traceback is kept (workflow and recovery failures are logged with it for the worker's whole life), redacted."""
 
     def __init__(self, database_url: str) -> None:
         super().__init__()
         self._url = database_url
 
     def filter(self, record: logging.LogRecord) -> bool:
-        message = record.getMessage()
-        if record.exc_info:
-            kind, error = record.exc_info[0], record.exc_info[1]
-            message = f"{message} {kind.__name__ if kind else 'Error'}: {error}"
-            record.exc_info, record.exc_text = None, None     # the traceback repeats the message; drop it
-        record.msg, record.args = redacted(message, self._url), ()
+        if record.exc_info:  # a handler formats exc_text when exc_info is gone: hand it the redacted traceback
+            record.exc_text = logging.Formatter().formatException(record.exc_info)
+            record.exc_info = None
+        if record.exc_text:
+            record.exc_text = redacted(record.exc_text, self._url)
+        record.msg, record.args = redacted(record.getMessage(), self._url), ()
         return True
 
 
@@ -86,9 +87,11 @@ def serve(slot_name: str, database_url: str, *, until: Callable[[], None] = _unt
             logger.info("kei worker %s serving", config.executor_id(slot_name))
             until()
         except BaseException as error:  # noqa: BLE001 - an interrupt too must destroy DBOS and exit holding the slot
-            DBOS.destroy()
-            print(stopped(error, database_url), file=sys.stderr)
-            exit_process(1)
+            try:
+                DBOS.destroy()
+            finally:  # a second interrupt inside destroy() must not unwind the slot's `with` either
+                print(stopped(error, database_url), file=sys.stderr)
+                exit_process(1)
             return  # only a test's exit_process returns
         DBOS.destroy()
         exit_process(0)
