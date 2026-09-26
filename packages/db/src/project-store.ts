@@ -666,6 +666,9 @@ export type ResearcherProjectStore = {
 export type InternalProjectWorkerStore = {
   /** Whether any surviving Source Representation Revision pins this package. */
   isPackageReferenced(artifactReference: string): Promise<boolean>
+  /** The Researcher Account that owns the Project Context, or null when it no longer exists. Background model work
+   *  resolves the owner's configuration and keys through it. */
+  projectContextOwner(projectContextId: string): Promise<string | null>
   claimBatchSchemaSuggestion(
     owner: string,
     now: Date,
@@ -2098,6 +2101,10 @@ export function createInternalProjectWorkerStore(
   return {
     isPackageReferenced(artifactReference) {
       return packageIsReferenced(database, artifactReference)
+    },
+    async projectContextOwner(projectContextId) {
+      const project = await database.orm.public.ProjectContext.select('researcherAccountId').first({ id: projectContextId })
+      return project?.researcherAccountId ?? null
     },
     async claimBatchSchemaSuggestion(owner, now, leaseExpiresAt) {
       const queued = await database.orm.public.BatchSchemaSuggestion.where({
