@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { createWriteStream } from 'node:fs'
 import {
   mkdir,
   readFile,
@@ -743,20 +744,33 @@ type RunningVite = {
   exited: Promise<ViteExit>
   pid: number
 }
+export type RunningViteForTest = RunningVite
+export type ViteExitForTest = ViteExit
 
-async function spawnVite(
-  configuration: PlaywrightStackConfiguration,
+/**
+ * Spawns a detached process (its own group, so a kill reaches its children). With `log` named, both output streams
+ * are still written to this process's own output and are appended to that file too: the recovery tier reads Studio's
+ * log for a planted key.
+ */
+export async function spawnSupervisedProcessForTest(
+  command: string,
+  args: readonly string[],
+  options: { cwd: string; log?: string | undefined },
 ): Promise<RunningVite> {
-  const child = spawn(
-    process.execPath,
-    playwrightViteArgumentsForTest(configuration.applicationPort),
-    {
-      cwd: studioDirectory,
-      detached: process.platform !== 'win32',
-      env: process.env,
-      stdio: 'inherit',
-    },
-  )
+  const child = spawn(command, [...args], {
+    cwd: options.cwd,
+    detached: process.platform !== 'win32',
+    env: process.env,
+    stdio: options.log ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+  })
+  if (options.log) {
+    const appended = createWriteStream(options.log, { flags: 'a' })
+    child.stdout?.pipe(process.stdout, { end: false })
+    child.stdout?.pipe(appended, { end: false })
+    child.stderr?.pipe(process.stderr, { end: false })
+    child.stderr?.pipe(appended, { end: false })
+    child.once('close', () => appended.end())
+  }
   const started = Promise.withResolvers<void>()
   const exited = Promise.withResolvers<ViteExit>()
   child.once('spawn', started.resolve)
@@ -768,6 +782,62 @@ async function spawnVite(
   await started.promise
   if (!child.pid) throw new Error('Vite started without a process ID.')
   return { child, exited: exited.promise, pid: child.pid }
+}
+
+function spawnVite(configuration: PlaywrightStackConfiguration): Promise<RunningVite> {
+  return spawnSupervisedProcessForTest(
+    process.execPath,
+    playwrightViteArgumentsForTest(configuration.applicationPort),
+    { cwd: studioDirectory, log: process.env.FREE_PLAYWRIGHT_STUDIO_LOG },
+  )
+}
+
+export type ViteSupervisorOutcome =
+  | { type: 'teardown'; vite: RunningVite }
+  | { type: 'exit'; exit: ViteExit }
+
+/**
+ * Keeps one Vite running until a teardown request or an exit. A restartable stack (`FREE_PLAYWRIGHT_RESTARTABLE=1`:
+ * the recovery tier, whose specs SIGKILL Studio under an open page) spawns Vite again after a SIGKILL, on the same
+ * port, and records the new PID; any other exit ends the web server as before.
+ */
+export async function superviseViteForTest(options: {
+  spawn(): Promise<RunningVite>
+  restartable: boolean
+  recordVite(pid: number): Promise<void>
+  teardown: Promise<void>
+  /** Stops a Vite the supervisor spawned but cannot hand back (its lifecycle write failed), before it rethrows. */
+  stop?(vite: RunningVite): Promise<void>
+}): Promise<ViteSupervisorOutcome> {
+  const record = async (vite: RunningVite) => {
+    try {
+      await options.recordVite(vite.pid)
+    } catch (error) {
+      await options.stop?.(vite).catch(() => undefined)
+      throw error
+    }
+  }
+  let vite = await options.spawn()
+  await record(vite)
+  const teardown = options.teardown.then(() => ({ type: 'teardown' as const }))
+  for (;;) {
+    const event = await Promise.race([
+      vite.exited.then((exit) => ({ exit, type: 'exit' as const })),
+      teardown,
+    ])
+    if (event.type === 'teardown') return { type: 'teardown', vite }
+    if (!options.restartable || event.exit.signal !== 'SIGKILL') return { type: 'exit', exit: event.exit }
+    vite = await options.spawn()
+    await record(vite)
+  }
+}
+
+/** The configured stack's lifecycle state: the wrapper's PID and the current Vite's, for a spec that kills Studio. */
+export async function readPlaywrightLifecycleStateForTest(): Promise<{ vitePid?: number; wrapperPid: number }> {
+  const snapshot = await readLifecycleState(lifecyclePaths({ composeProject: parseComposeProject('') }))
+  if (!snapshot.exists || 'error' in snapshot)
+    throw new Error('The Playwright stack has no readable lifecycle state.', { cause: 'error' in snapshot ? snapshot.error : undefined })
+  return { vitePid: snapshot.state.vitePid, wrapperPid: snapshot.state.wrapperPid }
 }
 
 function describeViteExit(exit: ViteExit): Error {
@@ -918,18 +988,40 @@ async function runPlaywrightWebServer(
   }
 
   const requestAbort = new AbortController()
-  const event = await Promise.race([
-    vite.exited.then((exit) => ({ exit, type: 'exit' as const })),
-    waitForTeardownRequest(
-      paths,
-      configuration.lifecycleId,
-      requestAbort.signal,
-    ).then(() => ({ type: 'teardown' as const })),
-  ])
+  const first = vite
+  let handedOut = false
+  let event: ViteSupervisorOutcome
+  try {
+    event = await superviseViteForTest({
+      // The first Vite is already running and recorded; every later spawn is a real respawn.
+      spawn: async () => {
+        if (handedOut) return spawnVite(configuration)
+        handedOut = true
+        return first
+      },
+      restartable: process.env.FREE_PLAYWRIGHT_RESTARTABLE === '1',
+      recordVite: async (pid) => {
+        if (pid !== first.pid) await writeLifecycleState(paths, configuration.lifecycleId, pid)
+      },
+      teardown: waitForTeardownRequest(paths, configuration.lifecycleId, requestAbort.signal),
+      stop: stopOwnedVite,
+    })
+  } catch (respawnError) {
+    // A respawn that fails ends the web server like any other exit.
+    requestAbort.abort()
+    const cleanupErrors = await cleanupOwnedStack(configuration, paths)
+    if (cleanupErrors.length)
+      throw new AggregateError(
+        [respawnError, ...cleanupErrors],
+        'The Playwright Vite server could not be respawned and stack cleanup also failed.',
+        { cause: respawnError },
+      )
+    throw respawnError
+  }
   requestAbort.abort()
 
   if (event.type === 'teardown') {
-    const cleanupErrors = await cleanupOwnedStack(configuration, paths, vite)
+    const cleanupErrors = await cleanupOwnedStack(configuration, paths, event.vite)
     if (!cleanupErrors.length)
       await collectActionError(cleanupErrors, () =>
         writeLifecycleCompletion(paths, configuration.lifecycleId),

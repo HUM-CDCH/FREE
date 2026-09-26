@@ -102,9 +102,14 @@ const AMBIENT_STUDIO_ENVIRONMENT = [
   'FREE_ENTRA_MOCK_BROWSER_ISSUER',
 ]
 
+// A synthetic URL: the stubbed DBOS module never connects to it.
+const DEVELOPMENT_DATABASE_URL =
+  'postgresql://postgres@127.0.0.1:5432/free_test_development_host'
+
 beforeEach(() => {
   for (const name of AMBIENT_STUDIO_ENVIRONMENT) vi.stubEnv(name, undefined)
   vi.stubEnv('FREE_ENTRA_MOCK_ISSUER', 'http://mock-oidc:8080/dev')
+  vi.stubEnv('DATABASE_URL', DEVELOPMENT_DATABASE_URL)
 })
 
 afterEach(() => {
@@ -114,27 +119,53 @@ afterEach(() => {
     rmSync(directory, { recursive: true, force: true })
 })
 
+type StudioDbosModule = {
+  launchStudioDbos: ReturnType<typeof vi.fn>
+  shutdownStudioDbos: ReturnType<typeof vi.fn>
+}
+
+function studioDbosModule(): StudioDbosModule {
+  return {
+    launchStudioDbos: vi.fn(async () => ({})),
+    shutdownStudioDbos: vi.fn(async () => undefined),
+  }
+}
+
 // One fake Vite development server: the SSR loader under test, the watcher it
 // subscribes to, and the SSR module graph that decides whether a changed file
-// is server code.
+// is server code. It serves the DBOS modules itself, so every composition runs
+// after a (stubbed) launch as it does in development.
 function developmentServer(options: {
   mode?: string
   server?: Record<string, unknown>
   httpServer?: boolean
+  dbos?: StudioDbosModule
   ssrLoadModule: (path: string) => Promise<Record<string, unknown>>
 }) {
   const watched = new Map<string, (file: string) => void>()
+  const httpServerListeners = new Map<string, () => void>()
   const serverModules = new Set<string>()
   const onFileChange = vi.fn()
   const use = vi.fn()
-  const logger = { error: vi.fn(), info: vi.fn() }
-  const ssrLoadModule = vi.fn(options.ssrLoadModule)
+  const logger = { error: vi.fn(), info: vi.fn(), warn: vi.fn() }
+  const dbos = options.dbos ?? studioDbosModule()
+  const workflows = { registerStudioWorkflows: vi.fn() }
+  const ssrLoadModule = vi.fn(async (path: string) => {
+    if (path === '/server/dbos.ts') return dbos
+    if (path === '/server/workflows.ts') return workflows
+    return options.ssrLoadModule(path)
+  })
   return {
     serverModules,
     onFileChange,
     ssrLoadModule,
     logger,
+    dbos,
+    workflows,
+    loaded: (path: string) =>
+      ssrLoadModule.mock.calls.filter(([loaded]) => loaded === path).length,
     change: (file: string) => watched.get('change')?.(file),
+    closeHttpServer: () => httpServerListeners.get('close')?.(),
     middleware: () =>
       use.mock.calls[0]![0] as (
         request: IncomingMessage,
@@ -148,7 +179,14 @@ function developmentServer(options: {
         server: options.server ?? { https: false },
         logger,
       },
-      httpServer: options.httpServer === false ? undefined : { once: vi.fn() },
+      httpServer:
+        options.httpServer === false
+          ? undefined
+          : {
+              once: (event: string, listener: () => void) => {
+                httpServerListeners.set(event, listener)
+              },
+            },
       middlewares: { use },
       ssrLoadModule,
       watcher: {
@@ -173,22 +211,12 @@ function studioModules(parts: {
   createStudioApp: (options: Record<string, unknown>) => Promise<unknown>
   viteClientFallback?: () => Response
   handleStudioNodeRequest?: () => Promise<boolean>
-  extractionRuntime?: unknown
 }) {
-  return async (path: string) =>
-    path === '/api/_extraction_runtime.ts'
-      ? {
-          extractionRuntime:
-            parts.extractionRuntime ?? {
-              run: vi.fn(async () => undefined),
-              close: vi.fn(async () => undefined),
-            },
-        }
-      : {
-          createStudioApp: parts.createStudioApp,
-          viteClientFallback: parts.viteClientFallback ?? vi.fn(),
-          handleStudioNodeRequest: parts.handleStudioNodeRequest ?? vi.fn(),
-        }
+  return async () => ({
+    createStudioApp: parts.createStudioApp,
+    viteClientFallback: parts.viteClientFallback ?? vi.fn(),
+    handleStudioNodeRequest: parts.handleStudioNodeRequest ?? vi.fn(),
+  })
 }
 
 function configureServerHook(plugin: Plugin) {
@@ -245,29 +273,59 @@ describe('Vite Hono integration', () => {
     },
   )
 
+  it('loads /server/dbos.ts and /server/workflows.ts once and launches DBOS before the first composition', async () => {
+    const order: string[] = []
+    const dbos = studioDbosModule()
+    dbos.launchStudioDbos.mockImplementation(async () => {
+      await Promise.resolve()
+      order.push('dbos launched')
+      return {}
+    })
+    const createStudioApp = vi.fn(async () => {
+      order.push('composed')
+      return {}
+    })
+    const development = developmentServer({
+      dbos,
+      ssrLoadModule: studioModules({ createStudioApp }),
+    })
+
+    await configureServerHook(apiFunctions('/free'))(development.server)
+    await development.middleware()(
+      {} as IncomingMessage,
+      {} as ServerResponse,
+      vi.fn(),
+    )
+
+    expect(development.loaded('/server/dbos.ts')).toBe(1)
+    expect(development.loaded('/server/workflows.ts')).toBe(1)
+    expect(dbos.launchStudioDbos).toHaveBeenCalledOnce()
+    const [launch] = dbos.launchStudioDbos.mock.calls[0]!
+    expect(launch).toEqual({
+      databaseUrl: DEVELOPMENT_DATABASE_URL,
+      register: expect.any(Function),
+    })
+    expect(launch.register).toBe(
+      development.workflows.registerStudioWorkflows,
+    )
+    expect(order).toEqual(['dbos launched', 'composed'])
+  })
+
   it('loads one shared application root and delegates every request to it', async () => {
     const app = {}
     const clientFallback = vi.fn(() => new Response(null))
     const createStudioApp = vi.fn(async () => app)
     const handleStudioNodeRequest = vi.fn(async () => true)
-    const runtime = {
-      run: vi.fn(async () => undefined),
-      close: vi.fn(async () => undefined),
-    }
     const development = developmentServer({
       ssrLoadModule: studioModules({
         createStudioApp,
         viteClientFallback: clientFallback,
         handleStudioNodeRequest,
-        extractionRuntime: runtime,
       }),
     })
     const plugin = apiFunctions('/free')
 
     await configureServerHook(plugin)(development.server)
-    expect(development.ssrLoadModule).toHaveBeenCalledWith(
-      '/api/_extraction_runtime.ts',
-    )
     expect(development.ssrLoadModule).toHaveBeenCalledWith('/server/app.ts')
     expect(createStudioApp).toHaveBeenCalledWith(expect.objectContaining({
       studioOrigin: 'http://127.0.0.1:5173',
@@ -317,20 +375,15 @@ describe('Vite Hono integration', () => {
     expect(next).toHaveBeenCalledOnce()
   })
 
-  it('recomposes the application when a loaded server module changes', async () => {
+  it('recomposes the application after a server module changes without launching DBOS again', async () => {
     vi.useFakeTimers()
     const apps = [{ generation: 1 }, { generation: 2 }]
     const createStudioApp = vi.fn(async () => apps[createStudioApp.mock.calls.length - 1])
     const handleStudioNodeRequest = vi.fn(async () => true)
-    const runtime = {
-      run: vi.fn(async () => undefined),
-      close: vi.fn(async () => undefined),
-    }
     const development = developmentServer({
       ssrLoadModule: studioModules({
         createStudioApp,
         handleStudioNodeRequest,
-        extractionRuntime: runtime,
       }),
     })
     development.serverModules.add('/workspace/prototypes/studio/server/app.ts')
@@ -370,47 +423,135 @@ describe('Vite Hono integration', () => {
       expect.anything(),
     )
     expect(createStudioApp).toHaveBeenCalledTimes(2)
-    // The Extraction runtime module was not re-evaluated, so the worker that
-    // was already running keeps running.
-    expect(runtime.run).toHaveBeenCalledOnce()
-    expect(runtime.close).not.toHaveBeenCalled()
+    // DBOS launches once per process: recomposition re-evaluates handlers only.
+    expect(development.loaded('/server/dbos.ts')).toBe(1)
+    expect(development.loaded('/server/workflows.ts')).toBe(1)
+    expect(development.dbos.launchStudioDbos).toHaveBeenCalledOnce()
+    expect(development.dbos.shutdownStudioDbos).not.toHaveBeenCalled()
+    expect(development.logger.warn).not.toHaveBeenCalled()
   })
 
-  it('stops the running Extraction runtime a reload replaced', async () => {
+  it('logs a restart hint once when a workflow module changes', async () => {
     vi.useFakeTimers()
-    const replaced = {
-      run: vi.fn(async () => undefined),
-      close: vi.fn(async () => undefined),
-    }
-    const adopted = {
-      run: vi.fn(async () => undefined),
-      close: vi.fn(async () => undefined),
-    }
-    let extractionRuntime: unknown = replaced
+    const createStudioApp = vi.fn(async () => ({}))
     const development = developmentServer({
-      ssrLoadModule: async (path: string) =>
-        path === '/api/_extraction_runtime.ts'
-          ? { extractionRuntime }
-          : {
-              createStudioApp: vi.fn(async () => ({})),
-              viteClientFallback: vi.fn(),
-              handleStudioNodeRequest: vi.fn(),
-            },
+      ssrLoadModule: studioModules({ createStudioApp }),
     })
-    development.serverModules.add('/workspace/prototypes/studio/api/_model.ts')
-    const plugin = apiFunctions('/free')
+    const workflowModule =
+      '/workspace/prototypes/studio/api/_ingestion_workflow.ts'
+    development.serverModules.add(workflowModule)
+    development.serverModules.add('/workspace/prototypes/studio/server/app.ts')
 
-    await configureServerHook(plugin)(development.server)
-    expect(replaced.run).toHaveBeenCalledOnce()
-
-    extractionRuntime = adopted
-    development.change('/workspace/prototypes/studio/api/_model.ts')
+    await configureServerHook(apiFunctions('/free'))(development.server)
+    development.change(workflowModule)
     await vi.advanceTimersByTimeAsync(100)
 
-    expect(replaced.close).toHaveBeenCalledOnce()
-    expect(replaced.run.mock.calls[0]![0]!.aborted).toBe(true)
-    expect(adopted.run).toHaveBeenCalledOnce()
-    expect(adopted.close).not.toHaveBeenCalled()
+    expect(development.logger.warn).toHaveBeenCalledOnce()
+    expect(development.logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('restart Studio'),
+    )
+    // The handlers still recompose; only the registered workflow code is stale.
+    expect(createStudioApp).toHaveBeenCalledTimes(2)
+
+    development.change('/workspace/prototypes/studio/server/app.ts')
+    await vi.advanceTimersByTimeAsync(100)
+    expect(development.logger.warn).toHaveBeenCalledOnce()
+    expect(development.dbos.launchStudioDbos).toHaveBeenCalledOnce()
+
+    // The running DBOS keeps the configuration and queues it launched with.
+    const dbosModule = '/workspace/prototypes/studio/server/dbos.ts'
+    development.serverModules.add(dbosModule)
+    development.change(dbosModule)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(development.logger.warn).toHaveBeenCalledTimes(2)
+    expect(development.logger.warn).toHaveBeenLastCalledWith(
+      expect.stringContaining('restart Studio'),
+    )
+
+    // runExtraction was registered with the ports this module built.
+    const portsModule = '/workspace/prototypes/studio/api/_extractions.ts'
+    development.serverModules.add(portsModule)
+    development.change(portsModule)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(development.logger.warn).toHaveBeenCalledTimes(3)
+  })
+
+  it('a restarted dev server adopts the running DBOS, and closing the server it replaced leaves DBOS running', async () => {
+    // Vite restarts by configuring the new server before it closes the old one.
+    const dbos = studioDbosModule()
+    const replaced = developmentServer({
+      dbos,
+      ssrLoadModule: studioModules({ createStudioApp: vi.fn(async () => ({})) }),
+    })
+    await configureServerHook(apiFunctions('/free'))(replaced.server)
+    const restarted = developmentServer({
+      dbos,
+      ssrLoadModule: studioModules({ createStudioApp: vi.fn(async () => ({})) }),
+    })
+    await configureServerHook(apiFunctions('/free'))(restarted.server)
+
+    replaced.closeHttpServer()
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(dbos.shutdownStudioDbos).not.toHaveBeenCalled()
+
+    restarted.closeHttpServer()
+    await vi.waitFor(() =>
+      expect(dbos.shutdownStudioDbos).toHaveBeenCalledOnce(),
+    )
+  })
+
+  it('a restart that fails to configure leaves DBOS to the server that keeps running', async () => {
+    const dbos = studioDbosModule()
+    const running = developmentServer({
+      dbos,
+      ssrLoadModule: studioModules({ createStudioApp: vi.fn(async () => ({})) }),
+    })
+    await configureServerHook(apiFunctions('/free'))(running.server)
+    const failed = developmentServer({
+      dbos,
+      ssrLoadModule: studioModules({
+        createStudioApp: vi.fn(async () => {
+          throw new Error('Unexpected token')
+        }),
+      }),
+    })
+    await expect(
+      configureServerHook(apiFunctions('/free'))(failed.server),
+    ).rejects.toThrow('Unexpected token')
+
+    running.closeHttpServer()
+    await vi.waitFor(() =>
+      expect(dbos.shutdownStudioDbos).toHaveBeenCalledOnce(),
+    )
+  })
+
+  it('shuts DBOS down when the HTTP server closes', async () => {
+    const development = developmentServer({
+      ssrLoadModule: studioModules({ createStudioApp: vi.fn(async () => ({})) }),
+    })
+
+    await configureServerHook(apiFunctions('/free'))(development.server)
+    expect(development.dbos.shutdownStudioDbos).not.toHaveBeenCalled()
+    development.closeHttpServer()
+
+    await vi.waitFor(() =>
+      expect(development.dbos.shutdownStudioDbos).toHaveBeenCalledOnce(),
+    )
+    expect(development.logger.error).not.toHaveBeenCalled()
+  })
+
+  it('fails startup when DATABASE_URL does not name Studio\'s database', async () => {
+    vi.stubEnv('DATABASE_URL', undefined)
+    const createStudioApp = vi.fn(async () => ({}))
+    const development = developmentServer({
+      ssrLoadModule: studioModules({ createStudioApp }),
+    })
+
+    await expect(
+      configureServerHook(apiFunctions('/free'))(development.server),
+    ).rejects.toThrow("DATABASE_URL must name Studio's database.")
+    expect(development.dbos.launchStudioDbos).not.toHaveBeenCalled()
+    expect(createStudioApp).not.toHaveBeenCalled()
   })
 
   it('recomposes after a server module fails to evaluate', async () => {
@@ -418,14 +559,7 @@ describe('Vite Hono integration', () => {
     const createStudioApp = vi.fn(async () => ({}))
     let broken = false
     const development = developmentServer({
-      ssrLoadModule: async (path: string) => {
-        if (path === '/api/_extraction_runtime.ts')
-          return {
-            extractionRuntime: {
-              run: vi.fn(async () => undefined),
-              close: vi.fn(async () => undefined),
-            },
-          }
+      ssrLoadModule: async () => {
         if (broken) throw new Error('Unexpected token')
         return {
           createStudioApp,

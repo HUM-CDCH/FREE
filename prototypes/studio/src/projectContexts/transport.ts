@@ -1,4 +1,5 @@
 import {
+  REPROCESS_TERMINAL_HEADER,
   sourceDocumentReprocessResponseSchema,
   type SourceDocumentReprocessRequest,
 } from '../../shared/sourceDocumentReprocess.contract'
@@ -53,16 +54,45 @@ export type ProjectContextFailure = z.output<typeof projectContextErrorSchema>
 /** The durable read that reopens a Source Document, as the browser receives it. */
 export type DocumentSnapshot = z.output<typeof documentReopenResponseSchema>
 
+/** A request the server answered with an error status: the status, and its bounded failure when it sent one. */
+export class ProjectContextRequestError extends Error {
+  readonly status: number
+  readonly failure: ProjectContextFailure | null
+  readonly terminalOutcome: boolean
+
+  constructor(status: number, failure: ProjectContextFailure | null, terminalOutcome = false) {
+    super(failure?.message ?? 'Project Context request failed.')
+    this.name = 'ProjectContextRequestError'
+    this.status = status
+    this.failure = failure
+    this.terminalOutcome = terminalOutcome
+  }
+}
+
 async function read(url: string, init?: RequestInit): Promise<unknown> {
   const response = await authenticatedFetch(url, init)
   const body: unknown =
     response.status === 204 ? null : await response.json().catch(() => null)
   if (!response.ok) {
     const error = projectContextErrorResponseSchema.safeParse(body)
-    if (error.success) throw error.data.error
-    throw new Error('Project Context request failed.')
+    throw new ProjectContextRequestError(
+      response.status, error.success ? error.data.error : null,
+      response.headers.get(REPROCESS_TERMINAL_HEADER) === '1',
+    )
   }
   return body
+}
+
+/** Statuses after which the server may still have done, or still be doing, the work. */
+const UNCERTAIN_STATUSES = new Set([502, 503, 504])
+
+/**
+ * Whether a failed request left its outcome unknown: no answer at all (a network error) or a gateway, unavailable or
+ * timeout status. Repeating such a request with the same key replays whatever the server did; any other refusal is
+ * confirmed, and a retry is a new action (spec, *Client IDs*).
+ */
+export function uncertainFailure(error: unknown): boolean {
+  return !(error instanceof ProjectContextRequestError) || (!error.terminalOutcome && UNCERTAIN_STATUSES.has(error.status))
 }
 
 async function request<T>(
@@ -109,6 +139,7 @@ export async function deleteSourceDocument(
 
 /** A read failure that is not one of the bounded codes is unreadable persistence. */
 export function toProjectContextFailure(error: unknown): ProjectContextFailure {
+  if (error instanceof ProjectContextRequestError && error.failure) return error.failure
   const parsed = projectContextErrorSchema.safeParse(error)
   if (parsed.success) return parsed.data
   return {
@@ -138,20 +169,18 @@ export async function getProjectContextWithDocuments(
 }
 
 /**
- * Sends one PDF with the researcher's stable ingestion key, which is the
- * server's retry authority: replaying the same key returns the same Source
- * Document instead of persisting a second one.
+ * Sends one PDF and its page layout. It carries no key: the server identifies an
+ * upload by its content, so sending the same bytes again returns the Source
+ * Document they became, or joins the parse still running for them.
  */
 export async function ingestSourceDocument(
   projectContextId: string,
   file: File,
-  ingestionKey: string,
   layout: SourceLayout = 'pages',
   signal?: AbortSignal,
 ): Promise<SourceDocumentIngestionResponse> {
   const form = new FormData()
   form.append('file', file, file.name)
-  form.append('ingestionKey', ingestionKey)
   form.append('layout', layout)
   return sourceDocumentIngestionResponseSchema.parse(
     await read(`/api/project-contexts/${projectContextId}/source-documents`, {

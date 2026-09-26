@@ -5,6 +5,7 @@ import {
   type ResearcherAccountStore,
   type ResearcherProjectStore,
 } from 'db'
+import type { WorkflowStatus } from '@dbos-inc/dbos-sdk'
 import { describe, expect, it, vi, type Mock } from 'vitest'
 import { ExtractionError, type ExtractionModule } from 'extraction'
 import parsedDocument from '../src/assets/parsed_document.v2.json'
@@ -24,7 +25,7 @@ import {
 import { createSchemaRevisionHandlers } from '../api/schema_revisions.js'
 import { createPostGenerateSchema } from '../api/generate_schema.js'
 import { createPostEditSchema } from '../api/edit_schema.js'
-import { createPostChat } from '../api/chat.js'
+import { createModelOperationHandlers } from '../api/model_operations.js'
 import {
   createResearcherApiHandlers as createDocumentReopenHandlers,
 } from '../api/document_reopen.js'
@@ -48,23 +49,19 @@ import {
   type InMemoryEntraIdentityProvider,
 } from '../test/support/inMemoryEntraIdentityProvider.js'
 
-const extractionRuntimeMock = vi.hoisted(() => ({
+const extractionsMock = vi.hoisted(() => ({
   modules: new Map<string, unknown>(),
 }))
-const operationKickMock = vi.hoisted(() => vi.fn())
 
-vi.mock('../api/_extraction_runtime.js', () => ({
+vi.mock('../api/_extractions.js', () => ({
   createResearcherExtractions(researcherAccountId: string) {
-    const module = extractionRuntimeMock.modules.get(researcherAccountId)
+    const module = extractionsMock.modules.get(researcherAccountId)
     if (!module)
       throw new Error(
         `No test ExtractionModule for ${researcherAccountId}.`,
       )
     return module
   },
-}))
-vi.mock('../api/_project_operations.js', () => ({
-  projectOperations: { kick: operationKickMock },
 }))
 
 const ORIGIN = 'https://studio.example'
@@ -95,7 +92,7 @@ const ids = {
   batchB: '21000000-0000-4007-8000-000000000001',
   batchSuggestionA: '11000000-0000-4008-8000-000000000001',
   batchSuggestionB: '21000000-0000-4008-8000-000000000001',
-  ingestion: '11000000-0000-4009-8000-000000000001',
+  operationB: '21000000-0000-400a-8000-000000000001',
 } as const
 
 const objectIds = {
@@ -175,23 +172,24 @@ type ArtifactReader = (
   artifact: 'pdf' | 'markdown' | 'source',
 ) => Promise<{ bytes: Uint8Array; mediaType: string }>
 
-type TestPackageStore = {
-  save: Mock<
-    (
-      bytes: Uint8Array,
-    ) => Promise<
-      typeof sharedDescriptor & { document: unknown; published?: boolean }
-    >
-  >
-  available: Mock<
-    (descriptor: typeof sharedDescriptor) => Promise<boolean>
-  >
+type IngestionSpies = {
+  /** Staging, counting and enqueueing: a refused upload reaches none of them. */
+  countPages: Mock<(pdf: Uint8Array) => Promise<number | null>>
+  enqueue: Mock<() => Promise<never>>
+  listWorkflows: Mock<() => Promise<never>>
 }
 
 type ModelSpies = {
+  /** The model-operation client a cross-owner Schema Suggestion must never reach. */
   generateSchema: Mock<() => Promise<never>>
   editSchema: Mock<() => Promise<never>>
-  chat: Mock<() => Promise<never>>
+  /** The client behind /api/model-operations: it locates Bob's one workflow and refuses every other call. */
+  modelOperations: {
+    getWorkflow: Mock<(workflowId: string) => Promise<WorkflowStatus | undefined>>
+    listWorkflows: Mock<() => Promise<never>>
+    cancelWorkflow: Mock<() => Promise<never>>
+    deleteWorkflows: Mock<() => Promise<never>>
+  }
 }
 
 type ExtractionEffects = {
@@ -206,12 +204,10 @@ type TwoAccountStores = {
   stores: Map<string, ResearcherProjectStore>
   relationships: Relationship[]
   readArtifact: Mock<ArtifactReader>
-  parsingFetch: Mock<typeof fetch>
-  packageStore: TestPackageStore
+  ingestion: IngestionSpies
   models: ModelSpies
   extractionModules: Record<string, ExtractionModule>
   extractionEffects: ExtractionEffects
-  operationKick: Mock<() => void>
 }
 
 function twoAccountStoreFixture(): TwoAccountStores {
@@ -348,7 +344,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
           relationship.documentId !== sourceDocumentId ||
           !relationship.documentPresent
         )
-          return false
+          return null
         relationship.documentPresent = false
         if (
           !relationships.some(
@@ -356,7 +352,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
           )
         )
           packagePresent = false
-        return true
+        return { interruptedAttempts: [] }
       }),
       listRecentActivity: vi.fn(async () => []),
       listProjectContexts: vi.fn(async () => {
@@ -423,11 +419,12 @@ function twoAccountStoreFixture(): TwoAccountStores {
           const relationship = owned(accountId, projectContextId)
           return relationship?.documentPresent &&
             relationship.representationId === sourceRepresentationId
-            ? sharedDescriptor
+            ? { ...sharedDescriptor, sourceDocumentId: relationship.documentId }
             : null
         },
       ),
       discardCanonicalPackage: vi.fn(async () => {}),
+      findSourceDocumentByContent: vi.fn(async () => null),
       ingestSourceDocument: vi.fn(async () => null),
       createBatchSchemaSuggestion: vi.fn(async () => null),
       getBatchSchemaSuggestion: vi.fn(async () => null),
@@ -505,6 +502,16 @@ function twoAccountStoreFixture(): TwoAccountStores {
           return storedRevision(relationship)
         },
       ),
+      modelOperationScopeExists: vi.fn(
+        async (projectContextId, extractionSchemaId) => {
+          const relationship = owned(accountId, projectContextId)
+          return Boolean(
+            relationship &&
+              (extractionSchemaId === null ||
+                relationship.schemaId === extractionSchemaId),
+          )
+        },
+      ),
     }
     stores.set(accountId, store)
   }
@@ -530,14 +537,16 @@ function twoAccountStoreFixture(): TwoAccountStores {
       return { bytes: pdfBytes, mediaType: 'application/pdf' }
     },
   )
-  const parsingFetch = vi.fn<typeof fetch>(async () => {
-    throw new Error('A cross-owner ingestion must not reach Parsing Service.')
-  })
-  const packageStore = {
-    save: vi.fn(async () => {
-      throw new Error('A cross-owner ingestion must not save a package.')
+  const ingestion: IngestionSpies = {
+    countPages: vi.fn(async () => {
+      throw new Error('A cross-owner ingestion must not count pages.')
     }),
-    available: vi.fn(async () => false),
+    enqueue: vi.fn(async () => {
+      throw new Error('A cross-owner ingestion must not start a workflow.')
+    }),
+    listWorkflows: vi.fn(async () => {
+      throw new Error('A cross-owner ingestion must not await a workflow.')
+    }),
   }
   const models: ModelSpies = {
     generateSchema: vi.fn(async () => {
@@ -546,9 +555,32 @@ function twoAccountStoreFixture(): TwoAccountStores {
     editSchema: vi.fn(async () => {
       throw new Error('A cross-owner schema edit must not execute a model.')
     }),
-    chat: vi.fn(async () => {
-      throw new Error('A cross-owner chat must not execute a model.')
-    }),
+    modelOperations: {
+      getWorkflow: vi.fn(async (workflowId: string) =>
+        workflowId === `edit:${ids.operationB}`
+          ? {
+              workflowID: workflowId,
+              status: 'PENDING',
+              workflowName: 'proposeSchemaEdit',
+              workflowClassName: '',
+              authenticatedUser: ids.accountB,
+              attributes: { projectContextId: ids.projectB, extractionSchemaId: ids.schemaB },
+              input: [{ operationId: ids.operationB, owner: ids.accountB, projectContextId: ids.projectB, extractionSchemaId: ids.schemaB, baseSchemaRevisionId: ids.revisionB, sourceRepresentationRevisionId: null, instruction: 'Bob private edit', temperature: null }],
+              createdAt: CREATED_AT.getTime(),
+              priority: 0,
+            }
+          : undefined,
+      ),
+      listWorkflows: vi.fn(async () => {
+        throw new Error('A cross-owner listing must not read DBOS.')
+      }),
+      cancelWorkflow: vi.fn(async () => {
+        throw new Error('A cross-owner cancel must not reach DBOS.')
+      }),
+      deleteWorkflows: vi.fn(async () => {
+        throw new Error('A cross-owner discard must not reach DBOS.')
+      }),
+    },
   }
   const extractionEffects: ExtractionEffects = {
     singleExecutions: [],
@@ -672,21 +704,18 @@ function twoAccountStoreFixture(): TwoAccountStores {
       }),
     }
   }
-  extractionRuntimeMock.modules.clear()
+  extractionsMock.modules.clear()
   for (const [accountId, module] of Object.entries(extractionModules))
-    extractionRuntimeMock.modules.set(accountId, module)
-  operationKickMock.mockClear()
+    extractionsMock.modules.set(accountId, module)
 
   return {
     stores,
     relationships,
     readArtifact,
-    parsingFetch,
-    packageStore,
+    ingestion,
     models,
     extractionModules,
     extractionEffects,
-    operationKick: operationKickMock,
   }
 }
 
@@ -694,6 +723,8 @@ function researcherModule(factory: ResearcherApiHandlerFactory) {
   return { createResearcherApiHandlers: factory }
 }
 
+
+const defaultExtractionModels = async () => null
 
 function ownershipRegistry(fixture: TwoAccountStores) {
   return createApiHandlerRegistry({
@@ -703,8 +734,12 @@ function ownershipRegistry(fixture: TwoAccountStores) {
     })),
     '../api/source_documents.ts': researcherModule((store) => ({
       POST: createSourceDocumentIngestion(store, {
-        fetcher: fixture.parsingFetch,
-        packageStore: fixture.packageStore,
+        admission: {
+          enqueue: fixture.ingestion.enqueue,
+          listWorkflows: fixture.ingestion.listWorkflows,
+        },
+        countPages: fixture.ingestion.countPages,
+        inboxRoot: '/nonexistent/free-source-inbox',
       }),
       DELETE: createSourceDocumentDeletion(store),
     })),
@@ -720,35 +755,41 @@ function ownershipRegistry(fixture: TwoAccountStores) {
       createSchemaRevisionHandlers(store),
     ),
     '../api/generate_schema.ts': researcherModule((store) => ({
-      POST: createPostGenerateSchema(
-        store,
-        { read: fixture.readArtifact },
-        fixture.models.generateSchema,
-      ),
+      POST: createPostGenerateSchema(store, () => ({
+        enqueue: fixture.models.generateSchema,
+        getWorkflow: fixture.models.generateSchema,
+        listWorkflows: fixture.models.generateSchema,
+        cancelWorkflow: fixture.models.generateSchema,
+        deleteWorkflows: fixture.models.generateSchema,
+      }) as never),
     })),
     '../api/edit_schema.ts': researcherModule((store) => ({
-      POST: createPostEditSchema(
-        store,
-        { read: fixture.readArtifact },
-        fixture.models.editSchema,
-      ),
+      POST: createPostEditSchema(store, () => ({
+        enqueue: fixture.models.editSchema,
+        getWorkflow: fixture.models.editSchema,
+        listWorkflows: fixture.models.editSchema,
+        cancelWorkflow: fixture.models.editSchema,
+        deleteWorkflows: fixture.models.editSchema,
+      }) as never),
     })),
-    '../api/chat.ts': researcherModule((store) => ({
-      POST: createPostChat(
-        store,
-        { read: fixture.readArtifact },
-        fixture.models.chat,
-      ),
-    })),
+    '../api/model_operations.ts': researcherModule((store) =>
+      createModelOperationHandlers(store, () => ({
+        enqueue: fixture.models.modelOperations.listWorkflows,
+        ...fixture.models.modelOperations,
+      }) as never),
+    ),
     '../api/document_reopen.ts': researcherModule(
       createDocumentReopenHandlers,
     ),
-    '../api/extractions.ts': researcherModule(createExtractionHandlers),
-    '../api/batch_extractions.ts': researcherModule(
-      createBatchExtractionHandlers,
+    // Every account runs on kei-exp's default models; the process configuration store is never read.
+    '../api/extractions.ts': researcherModule((store) =>
+      createExtractionHandlers(store, { extractionModels: defaultExtractionModels }),
     ),
-    '../api/batch_schema_suggestions.ts': researcherModule(
-      createBatchSuggestionHandlers,
+    '../api/batch_extractions.ts': researcherModule((store) =>
+      createBatchExtractionHandlers(store, { extractionModels: defaultExtractionModels }),
+    ),
+    '../api/batch_schema_suggestions.ts': researcherModule((store) =>
+      createBatchSuggestionHandlers(store, { extractionModels: defaultExtractionModels }),
     ),
   })
 }
@@ -869,7 +910,6 @@ function ingestionRequest(): RequestInit {
     'file',
     new File([pdfBytes], 'private.pdf', { type: 'application/pdf' }),
   )
-  form.set('ingestionKey', ids.ingestion)
   return { method: 'POST', body: form }
 }
 
@@ -981,7 +1021,7 @@ describe('two-account project and source API isolation', () => {
     expect(fixture.createStore).toHaveBeenCalledWith(ids.accountB)
   })
 
-  it('rejects cross-owner ingest and deletion before parsing, package writes, or mutation', async () => {
+  it('rejects cross-owner ingest and deletion before staging, a workflow, or mutation', async () => {
     const fixture = await appFixture()
     const aliceStore = fixture.stores.get(ids.accountA)!
 
@@ -994,8 +1034,10 @@ describe('two-account project and source API isolation', () => {
       ),
       forbiddenB,
     )
-    expect(fixture.parsingFetch).not.toHaveBeenCalled()
-    expect(fixture.packageStore.save).not.toHaveBeenCalled()
+    expect(aliceStore.findSourceDocumentByContent).not.toHaveBeenCalled()
+    expect(fixture.ingestion.countPages).not.toHaveBeenCalled()
+    expect(fixture.ingestion.enqueue).not.toHaveBeenCalled()
+    expect(fixture.ingestion.listWorkflows).not.toHaveBeenCalled()
     expect(aliceStore.ingestSourceDocument).not.toHaveBeenCalled()
     expect(aliceStore.discardCanonicalPackage).not.toHaveBeenCalled()
 
@@ -1016,7 +1058,7 @@ describe('two-account project and source API isolation', () => {
   })
 })
 
-describe('two-account schema, revision, suggestion, editing, and chat isolation', () => {
+describe('two-account schema, revision, suggestion, and editing isolation', () => {
   it('rejects foreign project, schema, and revision combinations without mutation', async () => {
     const fixture = await appFixture()
     const aliceStore = fixture.stores.get(ids.accountA)!
@@ -1112,6 +1154,48 @@ describe('two-account schema, revision, suggestion, editing, and chat isolation'
     )
   })
 
+  it("rejects listing, cancelling and discarding another account's model operations, reading DBOS only to locate the workflow", async () => {
+    const fixture = await appFixture()
+    const aliceStore = fixture.stores.get(ids.accountA)!
+    const spies = fixture.models.modelOperations
+    const bobsEdit = encodeURIComponent(`edit:${ids.operationB}`)
+
+    await expectPrivateNotFound(
+      await api(fixture, ids.accountA, `/api/model-operations?projectContextId=${ids.projectB}`),
+      forbiddenB,
+    )
+    await expectPrivateNotFound(
+      await api(
+        fixture,
+        ids.accountA,
+        `/api/model-operations?projectContextId=${ids.projectA}&extractionSchemaId=${ids.schemaB}`,
+      ),
+      forbiddenB,
+    )
+    expect(aliceStore.modelOperationScopeExists).toHaveBeenNthCalledWith(1, ids.projectB, null)
+    expect(aliceStore.modelOperationScopeExists).toHaveBeenNthCalledWith(2, ids.projectA, ids.schemaB)
+    expect(spies.listWorkflows).not.toHaveBeenCalled()
+
+    await expectPrivateNotFound(
+      await api(fixture, ids.accountA, `/api/model-operations/${bobsEdit}`, { method: 'DELETE' }),
+      forbiddenB,
+    )
+    expect(spies.getWorkflow).toHaveBeenCalledExactlyOnceWith(`edit:${ids.operationB}`)
+    expect(spies.cancelWorkflow).not.toHaveBeenCalled()
+    expect(spies.deleteWorkflows).not.toHaveBeenCalled()
+
+    // Bob's own cancel passes the scope check and reaches DBOS; the fake refuses, which the handler answers as 503.
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const own = await api(fixture, ids.accountB, `/api/model-operations/${bobsEdit}`, { method: 'DELETE' })
+      expect(own.status).toBe(503)
+    } finally {
+      error.mockRestore()
+    }
+    expect(fixture.stores.get(ids.accountB)!.modelOperationScopeExists).toHaveBeenCalledExactlyOnceWith(ids.projectB, ids.schemaB)
+    expect(spies.cancelWorkflow).toHaveBeenCalledExactlyOnceWith(`edit:${ids.operationB}`)
+  })
+
   it('rejects mixed source and schema pins before artifact reads or model execution', async () => {
     const fixture = await appFixture()
 
@@ -1121,6 +1205,7 @@ describe('two-account schema, revision, suggestion, editing, and chat isolation'
       'source_representation_revision_id',
       ids.representationB,
     )
+    generateForm.set('operation_id', '11000000-0000-4009-8000-0000000000f1')
     const readsBeforeGenerate = fixture.readArtifact.mock.calls.length
     await expectPrivateNotFound(
       await api(fixture, ids.accountA, '/api/generate_schema', {
@@ -1138,6 +1223,7 @@ describe('two-account schema, revision, suggestion, editing, and chat isolation'
     editForm.set('extraction_schema_id', ids.schemaB)
     editForm.set('schema_revision_id', ids.revisionB)
     editForm.set('instruction', 'Do not mutate Bob schema.')
+    editForm.set('operation_id', '11000000-0000-4009-8000-0000000000f2')
     const readsBeforeEdit = fixture.readArtifact.mock.calls.length
     await expectPrivateNotFound(
       await api(fixture, ids.accountA, '/api/edit_schema', {
@@ -1148,29 +1234,6 @@ describe('two-account schema, revision, suggestion, editing, and chat isolation'
     )
     expect(fixture.readArtifact).toHaveBeenCalledTimes(readsBeforeEdit)
     expect(fixture.models.editSchema).not.toHaveBeenCalled()
-
-    const readsBeforeChat = fixture.readArtifact.mock.calls.length
-    await expectPrivateNotFound(
-      await api(
-        fixture,
-        ids.accountA,
-        '/api/chat',
-        jsonRequest('POST', {
-          projectContextId: ids.projectA,
-          sourceRepresentationRevisionId: ids.representationB,
-          messages: [
-            {
-              id: 'message-1',
-              role: 'user',
-              parts: [{ type: 'text', text: 'Disclose the foreign document.' }],
-            },
-          ],
-        }),
-      ),
-      forbiddenB,
-    )
-    expect(fixture.readArtifact).toHaveBeenCalledTimes(readsBeforeChat)
-    expect(fixture.models.chat).not.toHaveBeenCalled()
   })
 })
 
@@ -1377,7 +1440,7 @@ describe('two-account reopen, extraction, result, review, and batch isolation', 
         fixture,
         ids.accountA,
         `/api/batch-schema-suggestions/${ids.batchSuggestionB}/retry?projectContextId=${ids.projectA}`,
-        { method: 'POST' },
+        jsonRequest('POST', { expectedAttempt: 1 }),
       ),
       forbiddenB,
     )
@@ -1390,8 +1453,8 @@ describe('two-account reopen, extraction, result, review, and batch isolation', 
     expect(aliceStore.retryBatchSchemaSuggestion).toHaveBeenCalledWith(
       ids.projectA,
       ids.batchSuggestionB,
+      1,
     )
-    expect(fixture.operationKick).not.toHaveBeenCalled()
     expect(fixture.extractionEffects.suggestedBatchExecutions).toEqual([])
   })
 })

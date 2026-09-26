@@ -298,10 +298,13 @@ export const extractionAttemptSchema = z
     sourceRepresentationRevisionId: z.uuid(),
     schemaRevisionId: z.uuid(),
     strategy: extractionStrategySchema,
+    /** The numbered-catalogue recipe a Catalog Extraction ran with; null for generic Catalog and for Article. */
+    catalogRecipe: catalogRecipeSchema.nullable(),
     /** The run's Extraction Model Choice as requested; null when every role kept kei-exp's deployment default. */
     requestedModels: extractionModelChoiceSchema.nullable().optional(),
     executionStatus: z.enum(['QUEUED', 'RUNNING', 'COMPLETED', 'FAILED']),
-    outcome: z.enum(['SUCCEEDED', 'FAILED', 'CANCELLED']).nullable(),
+    /** SUCCEEDED once COMPLETED; a failed, cancelled or interrupted Extraction is FAILED with its failure instead. */
+    outcome: z.literal('SUCCEEDED').nullable(),
     complete: z.boolean().nullable(),
     modelAttribution: extractionModelAttributionSchema.nullable(),
     diagnostics: extractionDiagnosticsSchema.nullable(),
@@ -316,31 +319,21 @@ export const extractionAttemptSchema = z
   })
   .strict()
   .superRefine((attempt, context) => {
-    const completed = attempt.executionStatus === 'COMPLETED'
-    const terminalShape = completed && attempt.diagnostics !== null && (
-      attempt.outcome === 'SUCCEEDED'
-        ? attempt.complete !== null && attempt.modelAttribution !== null &&
-          attempt.failure === null && attempt.resultPayload !== null &&
+    const empty = attempt.complete === null && attempt.modelAttribution === null && attempt.diagnostics === null &&
+      attempt.resultPayload === null && attempt.evidenceLinks === null && !attempt.reviewable &&
+      attempt.reviewedAt === null && attempt.reviewDecisions.length === 0
+    const shape =
+      attempt.executionStatus === 'COMPLETED'
+        // A succeeded Extraction: its result, evidence and diagnostics, and no failure.
+        ? attempt.outcome === 'SUCCEEDED' && attempt.diagnostics !== null && attempt.complete !== null &&
+          attempt.modelAttribution !== null && attempt.failure === null && attempt.resultPayload !== null &&
           attempt.evidenceLinks !== null
-        : (attempt.outcome === 'FAILED' || attempt.outcome === 'CANCELLED') &&
-          attempt.complete === null && attempt.resultPayload === null &&
-          attempt.evidenceLinks === null && !attempt.reviewable &&
-          attempt.reviewedAt === null && attempt.reviewDecisions.length === 0 &&
-          (attempt.outcome === 'FAILED' ? attempt.failure !== null : attempt.failure === null)
-    )
-    const jobShape = !completed && attempt.outcome === null &&
-      attempt.evidenceLinks === null && !attempt.reviewable &&
-      attempt.reviewedAt === null && attempt.reviewDecisions.length === 0 &&
-      attempt.complete === null && attempt.modelAttribution === null &&
-      attempt.diagnostics === null && attempt.resultPayload === null &&
-      (attempt.executionStatus === 'FAILED'
-        ? attempt.failure !== null
-        : attempt.failure === null)
-    if (!terminalShape && !jobShape)
-      context.addIssue({
-        code: 'custom',
-        message: 'Extraction fields do not match the execution state.',
-      })
+        // Queued, running, failed, cancelled or interrupted: no outcome on the wire and no result; a failure exactly
+        // when FAILED.
+        : attempt.outcome === null && empty && (attempt.executionStatus === 'FAILED') === (attempt.failure !== null)
+    if (!shape) context.addIssue({ code: 'custom', message: 'Extraction fields do not match the execution state.' })
+    if (attempt.catalogRecipe !== null && attempt.strategy !== 'CATALOG')
+      context.addIssue({ code: 'custom', path: ['catalogRecipe'], message: 'A recipe applies to a Catalog Extraction only.' })
 
     if (
       attempt.strategy === 'ARTICLE' && attempt.diagnostics?.catalog != null

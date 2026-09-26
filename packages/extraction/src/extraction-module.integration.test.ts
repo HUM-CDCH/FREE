@@ -1,22 +1,27 @@
 import assert from 'node:assert/strict'
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import { after, describe, it, test } from 'node:test'
+import { DBOS, DBOSClient } from '@dbos-inc/dbos-sdk'
 import { strToU8, zipSync } from 'fflate'
+import pg from 'pg'
 import type { CanonicalPackageStore, Database } from 'db'
 import { validateDisposableTestDatabaseTarget } from 'db/database-url'
-import { withHeldSourceDocumentLock } from 'db/postgres-test-helpers'
-import { withBlockedUpdates } from '../../db/src/postgres-test-helpers.js'
-import type { KeiExpClient, KeiExpRequest, KeiExpArtifact } from './kei-exp.js'
-import { keiExpArtifact, keiExpEvidence, keiExpGroundedArtifact } from './kei-exp-fixture.js'
+import { withBlockedUpdates, withHeldSourceDocumentLock } from 'db/postgres-test-helpers'
+import type { ExtractionExecution, TerminalExtraction } from './dependencies.js'
 import { ExtractionError } from './errors.js'
-import type {
-  BatchExtractionSnapshot,
-  ExtractionModule,
-  ExtractionRuntime,
-} from './types.js'
+import { createKeiExpClient } from './kei-exp.js'
+import { keiExpArtifact, keiExpEvidence, keiExpGroundedArtifact } from './kei-exp-fixture.js'
+import {
+  createKeiHandoff, KEI_APPLICATION, keiExtractWorkflowId,
+  type KeiExtractInput, type KeiFailureCode, type KeiHandoff, type KeiPoll, type KeiSubmission,
+} from './kei-handoff.js'
+import { createExtractionModule } from './module.js'
+import type { BatchExtractionSnapshot, ExtractionAttemptSnapshot, ExtractionModule, RunSingleInput } from './types.js'
+import { dbosSteps, RUN_EXTRACTION, type ExtractionWorkflowPorts } from './workflows.js'
 
 const configuredDatabaseUrl =
   process.env.EXTRACTION_TEST_DATABASE_URL ?? process.env.DATABASE_URL
@@ -36,18 +41,20 @@ if (!disposableDatabaseUrl) {
   process.env.DATABASE_URL = disposableDatabaseUrl
 
   const [
-    { db },
+    { db, pool, stableJson, stableUuid },
     { createCanonicalPackageStore },
     { createResearcherProjectStore },
-    { createExtractionRuntimeWithInfrastructure },
-    { createInternalExtractionJobStore },
+    { createExtractionStore, createResearcherExtractionPersistence, settleExtraction },
+    { launchDbosTestApp },
+    { spawnKeiStandIn },
   ] =
     await Promise.all([
-      import('../../db/src/prisma/db.js'),
+      import('db'),
       import('../../db/src/artifact-store.js'),
       import('../../db/src/project-store.js'),
-      import('./runtime.js'),
       import('./postgres-persistence.js'),
+      import('./testing/dbos-test-app.js'),
+      import('./testing/kei-stand-in-client.js'),
     ])
 
   const ARTICLE_SCHEMA = {
@@ -69,6 +76,8 @@ if (!disposableDatabaseUrl) {
   type SeededDocument = {
     sourceDocumentId: string
     sourceRepresentationRevisionId: string
+    /** The kei run the revision was made from (`preprocessId` `kei-exp:<run>:g1`). */
+    runId: string
     packageBytes: Uint8Array
     storedPackage: StoredPackage
     filename: string
@@ -80,16 +89,156 @@ if (!disposableDatabaseUrl) {
     schemaRevisionId: string
     documents: SeededDocument[]
   }
+  type KeiDecision =
+    | { artifact: unknown }
+    | { failure: { code: KeiFailureCode; reason: string; retryable: boolean } }
+  type KeiResponder = (request: KeiExtractInput, extractionId: string) => KeiDecision | Promise<KeiDecision>
 
-  type DeterministicAdapters = { client: Pick<KeiExpClient, 'extract'>; calls: KeiExpRequest[] }
   const projects = new Set<string>()
   const accounts = new Set<string>()
-  const runtimes = new Set<ExtractionRuntime>()
   let packageRoot = ''
   let packages: CanonicalPackageStore
 
   const sha256 = (value: Uint8Array) =>
     createHash('sha256').update(value).digest('hex')
+
+  /** The artifact the scripted kei publishes unless a test answers otherwise: one grounded record, as kei-exp dumps it. */
+  function deterministicArtifact(request: KeiExtractInput) {
+    const { schema, options } = request.request
+    const strategy = options.strategy === 'catalog' ? 'catalog' : 'article'
+    const nodes = (schema as { schemaNodes?: Array<{ name: string }> }).schemaNodes ?? []
+    return keiExpArtifact({
+      run_id: request.run_id, generation: request.generation, strategy, model: 'deterministic',
+      schema: schema as { recordDescription: string; schemaNodes: unknown[] },
+      // As kei dumps the options it ran under: the run's model choice, null when it chose no role.
+      options: { strategy, model: 'deterministic', models: (options.models as Record<string, string> | undefined) ?? null },
+      started: new Date().toISOString(), seconds: 0.001,
+      complete: true,
+      records: [{ title: 'Alpha', ...(nodes.some((node) => node.name === 'filename') ? { filename: 'article.pdf' } : {}) }],
+      evidence: [keiExpEvidence({ bbox_pt: [10, 10, 100, 30], linked_by: 'model' })],
+    })
+  }
+
+  /**
+   * kei at its contract, in memory: each submission is answered by `respond` (or held until `release`), its child is
+   * polled like kei's workflow row, and the published artifact is served by `readArtifact`. Most tests use it; the
+   * `through kei's contract` group talks to a spawned stand-in instead.
+   */
+  function scriptedKei() {
+    const submissions: KeiSubmission[] = []
+    const cancels: string[] = []
+    const children = new Map<string, { state: KeiPoll }>()
+    const artifacts = new Map<string, Uint8Array>()
+    const held = new Map<string, (decision: KeiDecision | null) => void>()
+    const scripted = {
+      respond: ((request) => ({ artifact: deterministicArtifact(request) })) as KeiResponder,
+      holding: false,
+      submissions,
+      cancels,
+      children,
+      /** The Extraction IDs whose kei decision is held. */
+      held: () => [...held.keys()],
+      /** Answers a held extraction with `respond`, or with `decision`. */
+      release(extractionId: string, decision?: KeiDecision) {
+        const answer = held.get(extractionId)
+        if (!answer) throw new Error(`kei holds no decision for ${extractionId}.`)
+        held.delete(extractionId)
+        answer(decision ?? null)
+      },
+      releaseAll() {
+        for (const extractionId of [...held.keys()]) scripted.release(extractionId)
+      },
+      /** Answers every held decision and restores the default script. */
+      reset() {
+        scripted.holding = false
+        scripted.respond = (request) => ({ artifact: deterministicArtifact(request) })
+        scripted.releaseAll()
+      },
+      /** Forgets a finished test's work. */
+      forget() {
+        submissions.length = 0
+        cancels.length = 0
+        children.clear()
+        artifacts.clear()
+      },
+      handoff: {
+        async submit(submission) {
+          // Reusing a child's ID returns the existing workflow (M0 #1).
+          if (children.has(submission.workflowId)) return
+          submissions.push(submission)
+          const child: { state: KeiPoll } = { state: { state: 'live' } }
+          children.set(submission.workflowId, child)
+          const extractionId = submission.workflowId.slice(keiExtractWorkflowId('').length)
+          const request = submission.request as KeiExtractInput
+          const decided = scripted.holding
+            ? new Promise<KeiDecision | null>((resolve) => held.set(extractionId, resolve))
+            : Promise.resolve(null)
+          void decided
+            .then(async (decision) => decision ?? scripted.respond(request, extractionId))
+            .then((decision) => {
+              if (child.state.state !== 'live') return // cancelled meanwhile
+              if ('failure' in decision) {
+                child.state = { state: 'SUCCESS', output: { ok: false, ...decision.failure } }
+                return
+              }
+              const bytes = new TextEncoder().encode(JSON.stringify(decision.artifact))
+              artifacts.set(`${request.run_id}/${extractionId}`, bytes)
+              const artifact = decision.artifact as { generation: string; model: string; models: Record<string, string> }
+              child.state = {
+                state: 'SUCCESS',
+                output: {
+                  ok: true, run_id: request.run_id, extraction_id: extractionId, generation: artifact.generation,
+                  artifact_sha256: sha256(bytes), model: artifact.model, models: artifact.models,
+                },
+              }
+            })
+        },
+        async poll(workflowId, signal) {
+          const deadline = Date.now() + 2_000
+          for (;;) {
+            signal?.throwIfAborted()
+            const child = children.get(workflowId)
+            if (!child) return { state: 'missing' }
+            if (child.state.state !== 'live') return child.state
+            if (Date.now() >= deadline) return { state: 'live' }
+            await delay(20, undefined, { signal })
+          }
+        },
+        async cancel(workflowId) {
+          cancels.push(workflowId)
+          const child = children.get(workflowId)
+          if (child?.state.state === 'live') child.state = { state: 'CANCELLED', deadlinePassed: false }
+        },
+      } satisfies KeiHandoff,
+      async readArtifact(runId: string, extractionId: string) {
+        const bytes = artifacts.get(`${runId}/${extractionId}`)
+        if (!bytes) throw new ExtractionError('extraction_failed', 'kei-exp has no published artifact for this Extraction.')
+        return bytes
+      },
+    }
+    return scripted
+  }
+
+  packageRoot = await mkdtemp(join(tmpdir(), 'free-extraction-contract-'))
+  packages = createCanonicalPackageStore(packageRoot)
+  const kei = scriptedKei()
+  const scriptedPorts: ExtractionWorkflowPorts = {
+    steps: dbosSteps,
+    store: createExtractionStore({ database: db as Database, packages }),
+    kei: kei.handoff,
+    readArtifact: (runId, extractionId) => kei.readArtifact(runId, extractionId),
+  }
+  let ports = scriptedPorts
+  const app = await launchDbosTestApp({ databaseUrl: disposableDatabaseUrl, ports: () => ports })
+  /** Every ExtractionExecution.cancel call, by Extraction ID. */
+  const executionCancels: string[] = []
+  const execution: ExtractionExecution = {
+    ...app.execution,
+    async cancel(extractionId) {
+      executionCancels.push(extractionId)
+      await app.execution.cancel(extractionId)
+    },
+  }
 
   function canonicalPackage(filename: string): Uint8Array {
     const pdf = strToU8(`%PDF-1.7\n${filename}`)
@@ -272,6 +421,7 @@ if (!disposableDatabaseUrl) {
     )
   }
 
+
   async function seedProject(
     schemaTree: unknown = ARTICLE_SCHEMA,
     filenames: readonly string[] = ['article.pdf'],
@@ -316,12 +466,12 @@ if (!disposableDatabaseUrl) {
       await db.orm.public.SourceDocument.create({
         id: sourceDocumentId,
         projectContextId,
-        ingestionKey: randomUUID(),
         contentSha256: sha256(strToU8(filename)),
         mediaType: 'application/pdf',
         originalName: filename,
       })
       const sourceRepresentationRevisionId = randomUUID()
+      const runId = `run-${randomUUID()}`
       await db.orm.public.SourceRepresentationRevision.create({
         id: sourceRepresentationRevisionId,
         sourceDocumentId,
@@ -329,13 +479,14 @@ if (!disposableDatabaseUrl) {
         artifactReference: storedPackage.artifactReference,
         artifactSha256: storedPackage.artifactSha256,
         contractVersion: 'parsed_document.v2',
-        preprocessId: `seed-${randomUUID()}`,
+        preprocessId: `kei-exp:${runId}:g1`,
         parserName: 'test',
         parserVersion: '1',
       })
       documents.push({
         sourceDocumentId,
         sourceRepresentationRevisionId,
+        runId,
         packageBytes,
         storedPackage,
         filename,
@@ -361,86 +512,69 @@ if (!disposableDatabaseUrl) {
       artifactReference: storedPackage.artifactReference,
       artifactSha256: storedPackage.artifactSha256,
       contractVersion: 'parsed_document.v2',
-      preprocessId: `seed-${randomUUID()}`,
+      preprocessId: `kei-exp:run-${randomUUID()}:g2`,
       parserName: 'test',
       parserVersion: '1',
     })
     return sourceRepresentationRevisionId
   }
 
-  function deterministicAdapters(options: { failArticle?: boolean } = {}): DeterministicAdapters {
-    const calls: KeiExpRequest[] = []
-    return {
-      calls,
-      client: {
-        async extract(request) {
-          calls.push(request)
-          request.signal.throwIfAborted()
-          if (options.failArticle) throw new Error('controlled extraction failure')
-          return keiExpArtifact({
-            run_id: request.runId, strategy: request.strategy, model: 'deterministic', schema: request.schema,
-            options: { strategy: request.strategy, model: 'deterministic' }, started: new Date().toISOString(), seconds: 0.001,
-            complete: true, records: [{ title: 'Alpha', ...(request.schema.schemaNodes.some(node => node.name === 'filename') ? { filename: 'article.pdf' } : {}) }],
-            evidence: [keiExpEvidence({ bbox_pt: [10, 10, 100, 30], linked_by: 'model' })],
-          })
-        },
-      },
+  /** A revision 2 a concurrent reprocess publishes, as the SQL and parameters of one statement. */
+  const raceRevision = (sourceDocumentId: string, id: string = randomUUID()): [string, unknown[]] => [
+    `INSERT INTO "sourceRepresentationRevision"
+       (id, "sourceDocumentId", "revisionNumber", "artifactReference", "artifactSha256",
+        "contractVersion", "preprocessId", "parserName", "parserVersion")
+     VALUES ($1, $2, 2, $3, $3, 'parsed_document.v2', $4, 'test', '1')`,
+    [id, sourceDocumentId, 'c'.repeat(64), `kei-exp:race-${randomUUID()}:g2`],
+  ]
+
+  /** The researcher's ExtractionModule: admission and reads through this process's DBOS. */
+  function scheduler(researcherAccountId: string): ExtractionModule {
+    return createExtractionModule(
+      createResearcherExtractionPersistence(researcherAccountId, execution, { database: db as Database, packages }),
+    )
+  }
+
+  function isTerminal(attempt: ExtractionAttemptSnapshot | null) {
+    return attempt?.executionStatus === 'COMPLETED' || attempt?.executionStatus === 'FAILED'
+  }
+
+  async function eventually<T>(read: () => Promise<T>, done: (value: T) => boolean, what: string, timeoutMs = 20_000): Promise<T> {
+    const deadline = Date.now() + timeoutMs
+    for (;;) {
+      const value = await read()
+      if (done(value)) return value
+      if (Date.now() >= deadline) throw new Error(`Timed out waiting until ${what}.`)
+      await delay(25)
     }
   }
 
-  function createRuntime(
-    researcherAccountId: string,
-    adapters: DeterministicAdapters = deterministicAdapters(),
-  ) {
-    const runtime = createExtractionRuntimeWithInfrastructure(
-      {
-        keiExp: { extract: request => adapters.client.extract(request) },
-      },
-      { database: db as Database, packages },
-    )
-    runtimes.add(runtime)
-    const scheduledModule = runtime.forResearcher(researcherAccountId)
+  async function waitForAttempt(
+    module: ExtractionModule,
+    extractionId: string,
+    predicate: (attempt: ExtractionAttemptSnapshot | null) => boolean = isTerminal,
+  ): Promise<ExtractionAttemptSnapshot> {
+    return (await eventually(() => module.readExtractionAttempt(extractionId), predicate, `Extraction ${extractionId} settles`))!
+  }
+
+  /** A module whose runSingle waits until its runExtraction workflow has settled the Extraction. */
+  function createRuntime(researcherAccountId: string) {
+    const scheduled = scheduler(researcherAccountId)
     const module: ExtractionModule = {
-      ...scheduledModule,
+      ...scheduled,
       async runSingle(input) {
-        const scheduled = await scheduledModule.runSingle(input)
-        if (scheduled.extraction.executionStatus === 'COMPLETED' ||
-            scheduled.extraction.executionStatus === 'FAILED') return scheduled
-        const controller = new AbortController()
-        const running = runtime.run(controller.signal)
-        try {
-          const deadline = Date.now() + 5_000
-          for (;;) {
-            const extraction = await scheduledModule.readExtractionAttempt(
-              input.extractionId,
-            )
-            if (extraction &&
-                (extraction.executionStatus === 'COMPLETED' ||
-                 extraction.executionStatus === 'FAILED'))
-              return { disposition: scheduled.disposition, extraction }
-            if (Date.now() >= deadline)
-              throw new Error(`Timed out waiting for Extraction ${input.extractionId}.`)
-            const turn = Promise.withResolvers<void>()
-            setImmediate(turn.resolve)
-            await turn.promise
-          }
-        } finally {
-          controller.abort()
-          await running
-        }
+        const admitted = await scheduled.runSingle(input)
+        if (isTerminal(admitted.extraction)) return admitted
+        return { disposition: admitted.disposition, extraction: await waitForAttempt(scheduled, input.extractionId) }
       },
     }
-    return {
-      runtime,
-      module,
-      adapters,
-    }
+    return { module, scheduled }
   }
 
   const freshInput = (
     project: SeededProject,
-    extractionId = randomUUID(),
-  ) => ({
+    extractionId: string = randomUUID(),
+  ): RunSingleInput => ({
     kind: 'fresh' as const,
     extractionId,
     sourceRepresentationRevisionId:
@@ -467,43 +601,60 @@ if (!disposableDatabaseUrl) {
     batchExtractionId: string,
     predicate: (batch: BatchExtractionSnapshot) => boolean,
   ) {
-    const deadline = Date.now() + 5_000
-    for (;;) {
-      const batch = await module.readBatch({ projectContextId, batchExtractionId })
-      if (predicate(batch)) return batch
-      if (Date.now() >= deadline)
-        throw new Error(`Timed out waiting for Batch Extraction ${batchExtractionId}.`)
-      const turn = Promise.withResolvers<void>()
-      setImmediate(turn.resolve)
-      await turn.promise
-    }
+    return eventually(
+      () => module.readBatch({ projectContextId, batchExtractionId }),
+      predicate,
+      `Batch Extraction ${batchExtractionId} matches`,
+    )
   }
 
-  async function runWorkerUntil(
-    runtime: ExtractionRuntime,
-    module: ExtractionModule,
-    projectContextId: string,
-    batchExtractionId: string,
-    predicate: (batch: BatchExtractionSnapshot) => boolean,
-  ) {
-    const controller = new AbortController()
-    const running = runtime.run(controller.signal)
-    try {
-      return await waitForBatch(
-        module,
-        projectContextId,
-        batchExtractionId,
-        predicate,
-      )
-    } finally {
-      controller.abort()
-      await running
+  async function studioWorkflow(extractionId: string) {
+    const [workflow] = await app.admission.listWorkflows({
+      workflowIDs: [`extract:${extractionId}`], loadInput: false, loadOutput: false,
+    })
+    return workflow
+  }
+
+  /** Waits until kei holds the Extraction's child: its Studio workflow is running and polling. */
+  const heldByKei = (extractionId: string) =>
+    eventually(async () => kei.held(), (held) => held.includes(extractionId), `kei holds ${extractionId}`)
+
+  async function extractionRow(extractionId: string) {
+    return db.orm.public.Extraction.select(
+      'id', 'outcome', 'failure', 'catalogRecipe', 'requestedModels', 'resultPayload', 'batchExtractionId',
+    ).first({ id: extractionId })
+  }
+
+  /** A published result for `settle`, standing in for the one runExtraction would write. */
+  function succeeded(extractionId: string, project: SeededProject): TerminalExtraction {
+    const document = project.documents[0]!
+    return {
+      extractionId, sourceDocumentId: document.sourceDocumentId,
+      sourceRepresentationRevisionId: document.sourceRepresentationRevisionId, schemaRevisionId: project.schemaRevisionId,
+      strategy: 'ARTICLE', outcome: 'SUCCEEDED', complete: true,
+      modelAttribution: { provider: 'kei-exp', modelId: 'deterministic' },
+      diagnostics: {
+        phase: 'persisting', durationMs: 1, modelCalls: 1, finishReason: null, inputTokens: null, outputTokens: null,
+        ungroundedPaths: [], groundingIssues: [], groundingBatches: [], unverifiedFields: [], catalog: null,
+      },
+      failure: null, result: { records: [{ title: 'Alpha' }] }, evidence: [], reviewable: true, batchExtractionId: null,
     }
   }
 
   async function cleanup() {
-    for (const runtime of runtimes) await runtime.close()
-    runtimes.clear()
+    kei.reset()
+    ports = scriptedPorts
+    // Let every workflow of the test settle before its rows go.
+    await eventually(
+      () => app.admission.listWorkflows({ status: ['ENQUEUED', 'DELAYED', 'PENDING'], loadInput: false, loadOutput: false }),
+      (live) => live.length === 0,
+      'the test\'s workflows finish',
+    ).catch(async () => {
+      for (const workflow of await app.admission.listWorkflows({ status: ['ENQUEUED', 'DELAYED', 'PENDING'], loadInput: false, loadOutput: false }))
+        await app.admission.cancelWorkflow(workflow.workflowID)
+    })
+    kei.forget()
+    executionCancels.length = 0
     for (const projectContextId of projects)
       await db.orm.public.ProjectContext.where({ id: projectContextId }).delete()
     projects.clear()
@@ -514,10 +665,59 @@ if (!disposableDatabaseUrl) {
     accounts.clear()
   }
 
-  packageRoot = await mkdtemp(join(tmpdir(), 'free-extraction-contract-'))
-  packages = createCanonicalPackageStore(packageRoot)
-
   describe('ExtractionModule on disposable PostgreSQL', () => {
+    it('admits an Extraction row and its runExtraction workflow in one transaction', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const module = scheduler(project.researcherAccountId)
+      kei.holding = true
+      const models = { fields: 'nuextract' }
+      const input = {
+        ...freshInput(project), strategy: 'CATALOG' as const, catalogRecipe: 'numbered-catalogue-de@1', models,
+      }
+      const admitted = await module.runSingle(input)
+      assert.equal(admitted.disposition, 'created')
+      // The workflow was enqueued in the transaction that committed the row.
+      assert.equal(admitted.extraction.executionStatus, 'QUEUED')
+      const row = await extractionRow(input.extractionId)
+      assert.equal(row?.outcome, null)
+      assert.equal(row?.catalogRecipe, 'numbered-catalogue-de@1')
+      assert.deepEqual(row?.requestedModels, models)
+      const document = project.documents[0]!
+      const [workflow] = await app.admission.listWorkflows({ workflowIDs: [`extract:${input.extractionId}`], loadInput: true })
+      assert.equal(workflow?.workflowName, RUN_EXTRACTION)
+      assert.equal(workflow?.queueName, 'studio')
+      assert.equal(workflow?.authenticatedUser, project.researcherAccountId)
+      assert.deepEqual(workflow?.input, [input.extractionId])
+      assert.deepEqual(workflow?.attributes, {
+        projectContextId: project.projectContextId,
+        sourceDocumentId: document.sourceDocumentId,
+        sourceRepresentationRevisionId: document.sourceRepresentationRevisionId,
+        extractionSchemaId: project.extractionSchemaId,
+        keiRunId: document.runId,
+      })
+      await heldByKei(input.extractionId)
+    })
+
+    it('a failure after the enqueue rolls back both the row and the workflow', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const failing: ExtractionExecution = {
+        ...execution,
+        async enqueue(client, workflow, input) {
+          await execution.enqueue(client, workflow, input)
+          throw new Error('the request failed after its enqueue')
+        },
+      }
+      const module = createExtractionModule(
+        createResearcherExtractionPersistence(project.researcherAccountId, failing, { database: db as Database, packages }),
+      )
+      const input = freshInput(project)
+      await assert.rejects(module.runSingle(input), /after its enqueue/)
+      assert.equal(await extractionRow(input.extractionId), null)
+      assert.deepEqual(await app.admission.listWorkflows({ workflowIDs: [`extract:${input.extractionId}`] }), [])
+    })
+
     it('scopes run, read, review, and cancellation to one researcher', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
@@ -526,17 +726,15 @@ if (!disposableDatabaseUrl) {
       const contestedInput = freshInput(project)
       const accepted = contested.module.runSingle(contestedInput)
       await assert.rejects(
-        contested.runtime
-          .forResearcher(foreign.researcherAccountId)
-          .runSingle({
-            ...freshInput(foreign),
-            extractionId: contestedInput.extractionId,
-          }),
+        scheduler(foreign.researcherAccountId).runSingle({
+          ...freshInput(foreign),
+          extractionId: contestedInput.extractionId,
+        }),
         rejectsWithCode('not_found'),
       )
       await accepted
-      assert.equal(contested.adapters.calls.length, 1)
-      const { module, adapters } = createRuntime(project.researcherAccountId)
+      assert.equal(kei.submissions.length, 1)
+      const { module } = createRuntime(project.researcherAccountId)
       const input = freshInput(project)
 
       const created = await module.runSingle(input)
@@ -546,12 +744,12 @@ if (!disposableDatabaseUrl) {
       assert.deepEqual(created.extraction.result, {
         records: [{ title: 'Alpha', filename: 'article.pdf' }],
       })
-      assert.equal(adapters.calls.length, 1)
+      assert.equal(kei.submissions.length, 2)
 
       const replayed = await module.runSingle(input)
       assert.equal(replayed.disposition, 'replayed')
       assert.equal(replayed.extraction.extractionId, input.extractionId)
-      assert.equal(adapters.calls.length, 1)
+      assert.equal(kei.submissions.length, 2)
 
       await assert.rejects(
         module.runSingle({
@@ -564,16 +762,11 @@ if (!disposableDatabaseUrl) {
         module.runSingle(freshInput(foreign)),
         rejectsWithCode('not_found'),
       )
-      assert.equal(adapters.calls.length, 1)
+      assert.equal(kei.submissions.length, 2)
 
-      const foreignModule = createRuntime(
-        foreign.researcherAccountId,
-      ).module
-      const foreignExtraction = await foreignModule.runSingle(
-        freshInput(foreign),
-      )
-      const foreignExtractionId =
-        foreignExtraction.extraction.extractionId
+      const foreignModule = createRuntime(foreign.researcherAccountId).module
+      const foreignExtraction = await foreignModule.runSingle(freshInput(foreign))
+      const foreignExtractionId = foreignExtraction.extraction.extractionId
       await assert.rejects(
         module.runSingle({
           ...freshInput(project),
@@ -581,7 +774,7 @@ if (!disposableDatabaseUrl) {
         }),
         rejectsWithCode('not_found'),
       )
-      assert.equal(adapters.calls.length, 1)
+      assert.equal(kei.submissions.length, 3)
       await assert.rejects(
         module.prepareReview(foreignExtractionId),
         rejectsWithCode('not_found'),
@@ -593,6 +786,7 @@ if (!disposableDatabaseUrl) {
         module.finalizeReview(foreignExtractionId, []),
         rejectsWithCode('not_found'),
       )
+      assert.equal(await module.readExtractionAttempt(foreignExtractionId), null)
       assert.equal(
         await module.cancelSingle(foreignExtractionId),
         'not-found',
@@ -605,10 +799,10 @@ if (!disposableDatabaseUrl) {
         null,
       )
       const unchanged =
-        await db.orm.public.Extraction.select('reviewedAt').first({
+        await db.orm.public.Extraction.select('reviewedAt', 'outcome').first({
           id: foreignExtractionId,
         })
-      assert.equal(unchanged?.reviewedAt, null)
+      assert.deepEqual(unchanged, { reviewedAt: null, outcome: 'SUCCEEDED' })
     })
 
     it('reprocessing advances the current source while historical extraction and review pins survive', async (t) => {
@@ -625,10 +819,10 @@ if (!disposableDatabaseUrl) {
         revisionNumber: 1, snapshot: [{ text: 'original note' }],
       })
       const revised = await store.reprocessSourceDocument(project.projectContextId, document.sourceDocumentId, {
-        ingestionKey: randomUUID(), expectedRepresentationId: document.sourceRepresentationRevisionId,
+        requestKey: randomUUID(), expectedRepresentationId: document.sourceRepresentationRevisionId,
         requestFingerprint: 'f'.repeat(64), contentSha256: sha256(strToU8(document.filename)),
         mediaType: 'application/pdf', originalName: document.filename, ...document.storedPackage,
-        contractVersion: 'parsed_document.v2', preprocessId: 'reprocessed', parserName: 'test', parserVersion: '5',
+        contractVersion: 'parsed_document.v2', preprocessId: 'kei-exp:reprocessed:g2', parserName: 'test', parserVersion: '5',
         ensureRetained: async descriptor => { assert.ok(await packages.available(descriptor)) },
       })
       assert.equal(revised?.revisionNumber, 2)
@@ -649,15 +843,16 @@ if (!disposableDatabaseUrl) {
       assert.deepEqual(reviewed.extraction.evidence, prepared.extraction.evidence)
     })
 
-    it('refuses a new Extraction on a superseded Source Representation Revision and writes no job', async (t) => {
+    it('refuses a new Extraction on a superseded Source Representation Revision and writes no row', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
       const document = project.documents[0]!
       await addRepresentation(document, 'article-v2.pdf')
-      const { module } = createRuntime(project.researcherAccountId)
+      const module = scheduler(project.researcherAccountId)
       const input = freshInput(project)
       await assert.rejects(module.runSingle(input), rejectsWithCode('source_representation_superseded'))
-      assert.equal(await db.orm.public.ExtractionJob.select('id').first({ id: input.extractionId }), null)
+      assert.equal(await extractionRow(input.extractionId), null)
+      assert.deepEqual(await app.admission.listWorkflows({ workflowIDs: [`extract:${input.extractionId}`] }), [])
       await assert.rejects(module.runSingle(freshInput(project)), rejectsWithCode('source_representation_superseded'))
     })
 
@@ -688,65 +883,76 @@ if (!disposableDatabaseUrl) {
       t.after(cleanup)
       const project = await seedProject()
       const document = project.documents[0]!
-      const { runtime } = createRuntime(project.researcherAccountId)
-      const scheduledModule = runtime.forResearcher(project.researcherAccountId)
+      const module = scheduler(project.researcherAccountId)
+      kei.holding = true
       const input = freshInput(project)
-      const queued = await scheduledModule.runSingle(input)
+      const queued = await module.runSingle(input)
       assert.equal(queued.extraction.executionStatus, 'QUEUED')
+      await heldByKei(input.extractionId)
       await addRepresentation(document, 'article-v2.pdf')
-      const controller = new AbortController()
-      const running = runtime.run(controller.signal)
-      let executed
-      try {
-        const deadline = Date.now() + 5_000
-        for (;;) {
-          executed = await scheduledModule.readExtractionAttempt(input.extractionId)
-          if (executed?.executionStatus === 'COMPLETED' || executed?.executionStatus === 'FAILED') break
-          if (Date.now() >= deadline)
-            throw new Error(`Timed out waiting for Extraction ${input.extractionId}.`)
-          const turn = Promise.withResolvers<void>()
-          setImmediate(turn.resolve)
-          await turn.promise
-        }
-      } finally {
-        controller.abort()
-        await running
-      }
-      assert.equal(executed?.executionStatus, 'COMPLETED')
-      assert.equal(executed?.sourceRepresentationRevisionId, document.sourceRepresentationRevisionId)
+      kei.release(input.extractionId)
+      const executed = await waitForAttempt(module, input.extractionId)
+      assert.equal(executed.executionStatus, 'COMPLETED')
+      assert.equal(executed.sourceRepresentationRevisionId, document.sourceRepresentationRevisionId)
+      const request = kei.submissions.at(-1)!.request as KeiExtractInput
+      assert.equal(request.run_id, document.runId)
     })
 
     it('refuses a run that was admitted while a reprocess published a newer revision', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
       const document = project.documents[0]!
-      const { module } = createRuntime(project.researcherAccountId)
+      const module = scheduler(project.researcherAccountId)
       const input = freshInput(project)
       await assert.rejects(
         withHeldSourceDocumentLock(
           disposableDatabaseUrl,
           document.sourceDocumentId,
           () => module.runSingle(input),
-          async (run) => {
-            await run(
-              `INSERT INTO "sourceRepresentationRevision"
-                 (id, "sourceDocumentId", "revisionNumber", "artifactReference", "artifactSha256",
-                  "contractVersion", "preprocessId", "parserName", "parserVersion")
-               VALUES ($1, $2, 2, $3, $3, 'parsed_document.v2', $4, 'test', '1')`,
-              [randomUUID(), document.sourceDocumentId, 'c'.repeat(64), `race-${randomUUID()}`],
-            )
-          },
+          async (run) => { await run(...raceRevision(document.sourceDocumentId)) },
         ),
         rejectsWithCode('source_representation_superseded'),
       )
-      assert.equal(await db.orm.public.ExtractionJob.select('id').first({ id: input.extractionId }), null)
+      assert.equal(await extractionRow(input.extractionId), null)
+    })
+
+    it('an identical request that waited behind a reprocess replays the Extraction admitted before it', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const document = project.documents[0]!
+      const module = scheduler(project.researcherAccountId)
+      const input = freshInput(project)
+      // Request B reads no Extraction under this ID, then waits on the document lock a reprocess holds. Meanwhile
+      // request A's Extraction commits on revision 1 (it needs no lock of the reprocess's), and the reprocess publishes
+      // revision 2. Once B holds the lock it reads the identity again and replays A instead of answering superseded.
+      const replayed = await withHeldSourceDocumentLock(
+        disposableDatabaseUrl,
+        document.sourceDocumentId,
+        () => module.runSingle(input),
+        async (run) => {
+          await db.orm.public.Extraction.create({
+            id: input.extractionId,
+            sourceDocumentId: document.sourceDocumentId,
+            sourceRepresentationRevisionId: document.sourceRepresentationRevisionId,
+            schemaRevisionId: project.schemaRevisionId,
+            strategy: 'ARTICLE',
+            catalogRecipe: null,
+            requestedModels: null,
+            batchExtractionId: null,
+          })
+          await run(...raceRevision(document.sourceDocumentId))
+        },
+      )
+      assert.equal(replayed.disposition, 'replayed')
+      assert.equal(replayed.extraction.sourceRepresentationRevisionId, document.sourceRepresentationRevisionId)
+      assert.deepEqual(await app.admission.listWorkflows({ workflowIDs: [`extract:${input.extractionId}`] }), [])
     })
 
     it('a batch admitted behind a reprocess pins the newly published revision', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
       const document = project.documents[0]!
-      const { module } = createRuntime(project.researcherAccountId)
+      const module = scheduler(project.researcherAccountId)
       const revisionTwo = randomUUID()
       const scheduled = await withHeldSourceDocumentLock(
         disposableDatabaseUrl,
@@ -758,15 +964,7 @@ if (!disposableDatabaseUrl) {
           strategy: 'ARTICLE',
           repetition: 'create-new',
         }),
-        async (run) => {
-          await run(
-            `INSERT INTO "sourceRepresentationRevision"
-               (id, "sourceDocumentId", "revisionNumber", "artifactReference", "artifactSha256",
-                "contractVersion", "preprocessId", "parserName", "parserVersion")
-             VALUES ($1, $2, 2, $3, $3, 'parsed_document.v2', $4, 'test', '1')`,
-            [revisionTwo, document.sourceDocumentId, 'c'.repeat(64), `race-${randomUUID()}`],
-          )
-        },
+        async (run) => { await run(...raceRevision(document.sourceDocumentId, revisionTwo)) },
       )
       assert.ok(scheduled)
       assert.equal(scheduled.batch.members[0]?.sourceRepresentationRevisionId, revisionTwo)
@@ -776,7 +974,7 @@ if (!disposableDatabaseUrl) {
       t.after(cleanup)
       const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])
       const [one, two] = project.documents as [SeededDocument, SeededDocument]
-      const { module } = createRuntime(project.researcherAccountId)
+      const module = scheduler(project.researcherAccountId)
       const store = createResearcherProjectStore(project.researcherAccountId, db)
       const [scheduled, revised] = await Promise.all([
         module.scheduleBatch({
@@ -787,10 +985,10 @@ if (!disposableDatabaseUrl) {
           repetition: 'create-new',
         }),
         store.reprocessSourceDocument(project.projectContextId, two.sourceDocumentId, {
-          ingestionKey: randomUUID(), expectedRepresentationId: two.sourceRepresentationRevisionId,
+          requestKey: randomUUID(), expectedRepresentationId: two.sourceRepresentationRevisionId,
           requestFingerprint: 'f'.repeat(64), contentSha256: sha256(strToU8(two.filename)),
           mediaType: 'application/pdf', originalName: two.filename, ...two.storedPackage,
-          contractVersion: 'parsed_document.v2', preprocessId: 'reprocessed', parserName: 'test', parserVersion: '5',
+          contractVersion: 'parsed_document.v2', preprocessId: 'kei-exp:reprocessed:g2', parserName: 'test', parserVersion: '5',
           ensureRetained: async () => {},
         }),
       ])
@@ -812,27 +1010,510 @@ if (!disposableDatabaseUrl) {
       const foreign = await seedProject()
       // Supersede the foreign revision: checking currency before ownership would answer superseded.
       await addRepresentation(foreign.documents[0]!, 'foreign-v2.pdf')
-      const { module } = createRuntime(project.researcherAccountId)
+      const module = scheduler(project.researcherAccountId)
       await assert.rejects(
         module.runSingle({ ...freshInput(project), sourceRepresentationRevisionId: foreign.documents[0]!.sourceRepresentationRevisionId }),
         rejectsWithCode('not_found'),
       )
     })
 
+    it('batch admission locks members in sorted order and creates one pending Extraction per member with a deterministic ID', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['b.pdf', 'a.pdf', 'c.pdf'])
+      const module = scheduler(project.researcherAccountId)
+      kei.holding = true
+      const sorted = project.documents.map((document) => document.sourceDocumentId).sort((left, right) => left.localeCompare(right))
+      /** Holds one member's document row, admits a batch over the members in reverse order, and reports which other
+       *  members the admission had locked when it blocked. */
+      async function lockedWhileHolding(held: string) {
+        const holder = new pg.Client({ connectionString: disposableDatabaseUrl! })
+        const prober = new pg.Client({ connectionString: disposableDatabaseUrl! })
+        await holder.connect()
+        await prober.connect()
+        try {
+          await holder.query('BEGIN')
+          await holder.query('SELECT id FROM "sourceDocument" WHERE id = $1 FOR UPDATE', [held])
+          const scheduling = module.scheduleBatch({
+            projectContextId: project.projectContextId,
+            schemaRevisionId: project.schemaRevisionId,
+            strategy: 'ARTICLE',
+            sourceDocumentIds: [...sorted].reverse(),
+            repetition: 'create-new',
+            models: { fields: 'nuextract' },
+          })
+          void scheduling.catch(() => {})
+          await eventually(async () => {
+            await prober.query('SELECT pg_stat_clear_snapshot()')
+            const { rows } = await prober.query<{ count: number }>(
+              `SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname = current_database()
+                 AND wait_event_type = 'Lock' AND query ILIKE '%UPDATE%"sourceDocument"%'`)
+            return rows[0]!.count
+          }, (count) => count === 1, 'the batch admission waits on the held document')
+          const locked: string[] = []
+          for (const id of sorted.filter((candidate) => candidate !== held)) {
+            await prober.query('BEGIN')
+            try {
+              await prober.query('SELECT id FROM "sourceDocument" WHERE id = $1 FOR UPDATE NOWAIT', [id])
+            } catch (error) {
+              if ((error as { code?: string }).code !== '55P03') throw error
+              locked.push(id)
+            } finally {
+              await prober.query('ROLLBACK')
+            }
+          }
+          await holder.query('COMMIT')
+          return { locked, scheduled: await scheduling }
+        } finally {
+          await holder.query('ROLLBACK').catch(() => {})
+          await holder.end()
+          await prober.end()
+        }
+      }
+      // Holding the smallest ID stops the admission before it locks anything else; holding the largest, after it
+      // locked every other member.
+      assert.deepEqual((await lockedWhileHolding(sorted[0]!)).locked, [])
+      const { locked, scheduled } = await lockedWhileHolding(sorted[2]!)
+      assert.deepEqual(locked, sorted.slice(0, 2))
+      const batchExtractionId = scheduled.batch.batchExtractionId
+      assert.equal(scheduled.disposition, 'created')
+      assert.deepEqual(scheduled.batch.members.map((member) => member.sourceDocumentId), sorted)
+      const rows = await db.orm.public.Extraction.where({ batchExtractionId })
+        .select('id', 'sourceDocumentId', 'outcome', 'requestedModels', 'catalogRecipe').all()
+      assert.equal(rows.length, 3)
+      for (const row of rows) {
+        assert.equal(row.id, stableUuid('batch-member-extraction', stableJson([batchExtractionId, row.sourceDocumentId])))
+        assert.equal(row.outcome, null)
+        assert.equal(row.catalogRecipe, null)
+        assert.deepEqual(row.requestedModels, { fields: 'nuextract' })
+      }
+      const workflows = await app.admission.listWorkflows({ workflowIDs: rows.map((row) => `extract:${row.id}`) })
+      assert.equal(workflows.length, 3)
+      for (const workflow of workflows) {
+        assert.equal(workflow.workflowName, RUN_EXTRACTION)
+        assert.equal(workflow.queueName, 'studio')
+        assert.equal(workflow.authenticatedUser, project.researcherAccountId)
+        assert.equal(workflow.attributes?.batchExtractionId, batchExtractionId)
+      }
+      // Members reach kei at the batch priority.
+      for (const row of rows) await heldByKei(row.id)
+      const submitted = kei.submissions.filter((submission) => rows.some((row) => submission.workflowId === keiExtractWorkflowId(row.id)))
+      assert.equal(submitted.length, 3)
+      assert.ok(submitted.every((submission) => submission.priority === 10))
+    })
+
+    it('a committed batch answers with its admitted members even when DBOS cannot be read, and a retry adds no batch', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])
+      const outage = new Error('connect ECONNREFUSED: DBOS is unavailable')
+      const unreadable: ExtractionExecution = { ...execution, statuses: async () => { throw outage } }
+      const module = createExtractionModule(
+        createResearcherExtractionPersistence(project.researcherAccountId, unreadable, { database: db as Database, packages }),
+      )
+      const batches = async () =>
+        (await db.orm.public.BatchExtraction.where({ projectContextId: project.projectContextId }).select('id').all()).length
+      const input = {
+        projectContextId: project.projectContextId,
+        schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE' as const,
+        sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId),
+      }
+      for (const repetition of ['create-new', 'reuse-equal-selection'] as const) {
+        const before = await batches()
+        const created = await module.scheduleBatch({ ...input, repetition })
+        assert.equal(created.disposition, 'created')
+        assert.equal(created.batch.executionStatus, 'QUEUED')
+        assert.deepEqual(created.batch.members.map((member) => member.executionStatus), ['QUEUED', 'QUEUED'])
+        assert.equal(await batches(), before + 1)
+      }
+      // A replay reads its status like any read, so the outage still answers; it creates nothing.
+      await assert.rejects(module.scheduleBatch({ ...input, repetition: 'reuse-equal-selection' }), (error: unknown) => error === outage)
+      assert.equal(await batches(), 2)
+
+      // A suggested batch's handoff answers the same way.
+      const batchSchemaSuggestionId = randomUUID()
+      await db.orm.public.BatchSchemaSuggestion.create({
+        id: batchSchemaSuggestionId,
+        projectContextId: project.projectContextId,
+        selectionKey: sha256(strToU8(batchSchemaSuggestionId)),
+      })
+      for (const document of project.documents)
+        await db.orm.public.BatchSchemaSuggestionSource.create({
+          batchSchemaSuggestionId,
+          sourceDocumentId: document.sourceDocumentId,
+          sourceRepresentationRevisionId: document.sourceRepresentationRevisionId,
+        })
+      await db.orm.public.BatchSchemaSuggestion.where({ id: batchSchemaSuggestionId }).update({
+        outcome: 'SUCCEEDED', phase: 'READY', draft: ARTICLE_SCHEMA, draftVersion: 1,
+      })
+      const handedOff = await module.scheduleSuggestedBatch({
+        projectContextId: project.projectContextId, batchSchemaSuggestionId, strategy: 'ARTICLE',
+      })
+      assert.equal(handedOff.disposition, 'created')
+      assert.deepEqual(handedOff.batch.members.map((member) => member.executionStatus), ['QUEUED', 'QUEUED'])
+      assert.equal(await batches(), 3)
+    })
+
+    it('a batch rerun creates new Extraction identities', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])
+      const module = scheduler(project.researcherAccountId)
+      const input = {
+        projectContextId: project.projectContextId,
+        schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE' as const,
+        sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId),
+        repetition: 'create-new' as const,
+      }
+      const first = await module.scheduleBatch(input)
+      const second = await module.scheduleBatch(input)
+      const ids = async (batchExtractionId: string) =>
+        (await db.orm.public.Extraction.where({ batchExtractionId }).select('id').all()).map((row) => row.id)
+      const firstIds = await ids(first.batch.batchExtractionId)
+      const secondIds = await ids(second.batch.batchExtractionId)
+      assert.equal(firstIds.length, 2)
+      assert.equal(secondIds.length, 2)
+      assert.ok(firstIds.every((id) => !secondIds.includes(id)))
+    })
+
+    it('pending Extractions count as batch members but do not displace the latest reviewed result on reopen', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const document = project.documents[0]!
+      const { module } = createRuntime(project.researcherAccountId)
+      const reviewed = await module.runSingle(freshInput(project))
+      const prepared = await module.prepareReview(reviewed.extraction.extractionId)
+      await module.finalizeReview(reviewed.extraction.extractionId, prepared.reviewDecisions)
+      kei.holding = true
+      const scheduled = await module.scheduleBatch({
+        projectContextId: project.projectContextId,
+        schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE',
+        sourceDocumentIds: [document.sourceDocumentId],
+        repetition: 'create-new',
+      })
+      const member = stableUuid('batch-member-extraction', stableJson([scheduled.batch.batchExtractionId, document.sourceDocumentId]))
+      await heldByKei(member)
+      const batch = await module.readBatch({
+        projectContextId: project.projectContextId, batchExtractionId: scheduled.batch.batchExtractionId,
+      })
+      assert.equal(batch.members.length, 1)
+      assert.equal(batch.members[0]!.executionStatus, 'RUNNING')
+      assert.equal(batch.members[0]!.latestExtraction, null)
+      const reopened = await module.readDocumentExtractions({ sourceDocumentId: document.sourceDocumentId })
+      assert.equal(reopened?.latestReviewed?.extractionId, reviewed.extraction.extractionId)
+      assert.equal(reopened?.latestAttempt?.extractionId, reviewed.extraction.extractionId)
+      const results = await module.readBatchResults({
+        projectContextId: project.projectContextId, batchExtractionId: scheduled.batch.batchExtractionId,
+      })
+      assert.deepEqual({ total: results.totalMembers, pending: results.pending, results: results.results.length },
+        { total: 1, pending: 1, results: 0 })
+      // The project list counts the pending member as batch progress, not as a published Extraction.
+      const listed = await createResearcherProjectStore(project.researcherAccountId, db, { workflowStatuses: execution.statuses })
+        .listProjectContexts(20)
+      const summary = listed.find((item) => item.projectContextId === project.projectContextId)?.summary
+      assert.equal(summary?.extractionCount, 1)
+      assert.equal(summary?.reviewedSourceDocumentCount, 1)
+      assert.deepEqual(summary?.runningBatch, { completedMemberCount: 0, memberCount: 1 })
+      const activity = await createResearcherProjectStore(project.researcherAccountId, db).listRecentActivity(20)
+      assert.equal(activity.filter((event) => event.kind === 'extraction_appended').length, 1)
+    })
+
+    it('derives QUEUED, RUNNING and interrupted from DBOS and never reports a settled row as running', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const document = project.documents[0]!
+      const module = scheduler(project.researcherAccountId)
+      // A workflow DBOS holds back (DELAYED) reads as QUEUED.
+      const delayed = randomUUID()
+      await db.orm.public.Extraction.create({
+        id: delayed, sourceDocumentId: document.sourceDocumentId,
+        sourceRepresentationRevisionId: document.sourceRepresentationRevisionId, schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, batchExtractionId: null,
+      })
+      await app.admission.enqueue(
+        { workflowName: RUN_EXTRACTION, workflowID: `extract:${delayed}`, queueName: 'studio', delaySeconds: 3_600 },
+        delayed,
+      )
+      assert.equal((await module.readExtractionAttempt(delayed))?.executionStatus, 'QUEUED')
+      // Its workflow cancelled without an outcome: interrupted.
+      await DBOS.cancelWorkflow(`extract:${delayed}`)
+      const interrupted = await module.readExtractionAttempt(delayed)
+      assert.equal(interrupted?.executionStatus, 'FAILED')
+      assert.equal(interrupted?.outcome, null)
+      assert.deepEqual(interrupted?.failure, {
+        code: 'interrupted', message: 'This work stopped before it finished. Start it again.', phase: 'extracting',
+      })
+      // A held kei keeps the workflow PENDING: RUNNING.
+      kei.holding = true
+      const input = freshInput(project)
+      await module.runSingle(input)
+      await heldByKei(input.extractionId)
+      assert.equal((await studioWorkflow(input.extractionId))?.status, 'PENDING')
+      const running = await module.readExtractionAttempt(input.extractionId)
+      assert.equal(running?.executionStatus, 'RUNNING')
+      assert.equal(running?.result, null)
+      // An outcome on the row wins while its workflow is still PENDING.
+      assert.equal(await settleExtraction(db.orm, input.extractionId, {
+        outcome: 'FAILED', failure: { code: 'extraction_failed', message: 'Settled first.', phase: 'extracting' },
+      }), 'settled')
+      assert.equal((await studioWorkflow(input.extractionId))?.status, 'PENDING')
+      const settled = await module.readExtractionAttempt(input.extractionId)
+      assert.equal(settled?.executionStatus, 'FAILED')
+      assert.equal(settled?.failure?.message, 'Settled first.')
+      // The workflow finishes later and writes nothing over it.
+      kei.release(input.extractionId)
+      await eventually(() => studioWorkflow(input.extractionId), (workflow) => workflow?.status === 'SUCCESS', 'runExtraction ends')
+      assert.equal((await extractionRow(input.extractionId))?.outcome, 'FAILED')
+    })
+
+    it('a SUCCESS workflow over a row without an outcome reads as interrupted after the re-read', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const { module } = createRuntime(project.researcherAccountId)
+      const completed = await module.runSingle(freshInput(project))
+      const id = completed.extraction.extractionId
+      assert.equal((await studioWorkflow(id))?.status, 'SUCCESS')
+      // A workflow that returned SUCCESS without publishing (here: an outcome removed behind its back).
+      await db.orm.public.Extraction.where({ id }).updateAll({ outcome: null })
+      const read = await module.readExtractionAttempt(id)
+      assert.equal(read?.executionStatus, 'FAILED')
+      assert.equal(read?.failure?.code, 'interrupted')
+    })
+
+    it('cancel racing completion has one winner', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const module = scheduler(project.researcherAccountId)
+      const store = createExtractionStore({ database: db as Database, packages })
+      const probe = new pg.Client({ connectionString: disposableDatabaseUrl })
+      await probe.connect()
+      t.after(() => probe.end())
+      /** Waits until `count` backends wait on the Extraction row lock with their conditional UPDATE. */
+      const blockedWriters = (count: number) => eventually(async () => {
+        await probe.query('SELECT pg_stat_clear_snapshot()')
+        const { rows } = await probe.query<{ count: number }>(
+          `SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname = current_database()
+             AND wait_event_type = 'Lock' AND query ILIKE '%UPDATE%"extraction"%'`)
+        return rows[0]!.count
+      }, (blocked) => blocked >= count, `${count} blocked Extraction writes`)
+      kei.holding = true
+      const winners: string[] = []
+      for (let iteration = 0; iteration < 20; iteration += 1) {
+        const input = freshInput(project)
+        await module.runSingle(input)
+        await heldByKei(input.extractionId)
+        const cancel = () => module.cancelSingle(input.extractionId)
+        const complete = () =>
+          store.settle(input.extractionId, { outcome: 'SUCCEEDED', extraction: succeeded(input.extractionId, project) })
+        // A second connection holds the row, so both conditional UPDATEs queue on its lock and really collide; the
+        // writer that queued first (alternating) takes the lock first, and the other re-checks `outcome IS NULL`.
+        const collide = async (): Promise<[string, string]> => {
+          if (iteration % 2 === 0) {
+            const first = cancel()
+            await blockedWriters(1)
+            return Promise.all([first, complete()])
+          }
+          const first = complete()
+          await blockedWriters(1)
+          return Promise.all([cancel(), first])
+        }
+        const written: [string, string] =
+          await withBlockedUpdates(disposableDatabaseUrl, 'Extraction', input.extractionId, 2, collide)
+        const [cancelled, completed] = written
+        const cancelWon: boolean = cancelled === 'cancellation-requested'
+        assert.equal(cancelWon, completed === 'already-settled', `iteration ${iteration}: exactly one wrote`)
+        assert.equal(completed === 'settled' || completed === 'already-settled', true)
+        winners.push(cancelWon ? 'cancel' : 'completion')
+        const row = await extractionRow(input.extractionId)
+        assert.equal(row?.outcome, cancelWon ? 'CANCELLED' : 'SUCCEEDED')
+        // No second write: a later attempt at either finds the outcome.
+        assert.equal(await complete(), 'already-settled')
+        assert.equal(await cancel(), 'not-found')
+      }
+      // Both branches ran: a cancel that won and a completion that won.
+      assert.ok(winners.includes('cancel'), winners.join(','))
+      assert.ok(winners.includes('completion'), winners.join(','))
+    })
+
+    it('a status read racing a cancel shows the cancellation, not an interruption', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const cancelling = scheduler(project.researcherAccountId)
+      kei.holding = true
+      const input = freshInput(project)
+      await cancelling.runSingle(input)
+      await heldByKei(input.extractionId)
+      // The read loads the row (no outcome yet); the cancel commits and stops the workflow before the read asks DBOS.
+      let raced = false
+      const racing: ExtractionExecution = {
+        ...execution,
+        async statuses(workflowIds) {
+          if (!raced) {
+            raced = true
+            assert.equal(await cancelling.cancelSingle(input.extractionId), 'cancellation-requested')
+            assert.equal((await studioWorkflow(input.extractionId))?.status, 'CANCELLED')
+          }
+          return execution.statuses(workflowIds)
+        },
+      }
+      const reader = createExtractionModule(
+        createResearcherExtractionPersistence(project.researcherAccountId, racing, { database: db as Database, packages }),
+      )
+      const read = await reader.readExtractionAttempt(input.extractionId)
+      assert.ok(raced)
+      assert.equal(read?.executionStatus, 'FAILED')
+      assert.deepEqual(read?.failure, { code: 'cancelled', message: 'Extraction cancelled.', phase: 'extracting' })
+    })
+
+    it('a replay of a failed Extraction returns its failure, even after its workflow history was deleted, and enqueues nothing', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const { module } = createRuntime(project.researcherAccountId)
+      kei.respond = () => ({ failure: { code: 'extraction_failed', reason: 'the model server refused the request', retryable: false } })
+      const input = freshInput(project)
+      const failed = await module.runSingle(input)
+      assert.equal(failed.extraction.executionStatus, 'FAILED')
+      assert.equal((await extractionRow(input.extractionId))?.outcome, 'FAILED')
+      await DBOS.deleteWorkflows([`extract:${input.extractionId}`])
+      const submitted = kei.submissions.length
+      const replayed = await module.runSingle(input)
+      assert.equal(replayed.disposition, 'replayed')
+      assert.equal(replayed.extraction.executionStatus, 'FAILED')
+      assert.deepEqual(replayed.extraction.failure, failed.extraction.failure)
+      assert.deepEqual(await app.admission.listWorkflows({ workflowIDs: [`extract:${input.extractionId}`] }), [])
+      assert.equal(kei.submissions.length, submitted)
+    })
+
+    it('cancel writes the cancelled outcome and stops the Studio workflow and its kei child', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const module = scheduler(project.researcherAccountId)
+      kei.holding = true
+      const input = freshInput(project)
+      await module.runSingle(input)
+      await heldByKei(input.extractionId)
+      assert.equal(await module.cancelSingle(input.extractionId), 'cancellation-requested')
+      const row = await extractionRow(input.extractionId)
+      assert.equal(row?.outcome, 'CANCELLED')
+      assert.equal((row?.failure as { code?: string } | null)?.code, 'cancelled')
+      assert.equal((await studioWorkflow(input.extractionId))?.status, 'CANCELLED')
+      assert.deepEqual(executionCancels.filter((id) => id === input.extractionId), [input.extractionId])
+      assert.ok(kei.cancels.includes(keiExtractWorkflowId(input.extractionId)))
+      const read = await module.readExtractionAttempt(input.extractionId)
+      assert.equal(read?.executionStatus, 'FAILED')
+      assert.equal(read?.failure?.code, 'cancelled')
+      assert.equal(await module.cancelSingle(input.extractionId), 'not-found')
+      assert.equal(await module.cancelSingle(randomUUID()), 'not-found')
+    })
+
+    it('a batch member cannot be cancelled on its own, and its ID posted as an interactive Extraction answers extraction_id_conflict', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const document = project.documents[0]!
+      const module = scheduler(project.researcherAccountId)
+      kei.holding = true
+      const scheduled = await module.scheduleBatch({
+        projectContextId: project.projectContextId,
+        schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE',
+        sourceDocumentIds: [document.sourceDocumentId],
+        repetition: 'create-new',
+      })
+      const member = stableUuid('batch-member-extraction', stableJson([scheduled.batch.batchExtractionId, document.sourceDocumentId]))
+      assert.equal(await module.cancelSingle(member), 'not-found')
+      assert.equal((await extractionRow(member))?.outcome, null)
+      await assert.rejects(module.runSingle(freshInput(project, member)), rejectsWithCode('extraction_id_conflict'))
+    })
+
+    it('an Extraction deleted while it runs publishes nothing and fails no surviving member', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['deleted.pdf', 'kept.pdf'])
+      const [deleted, kept] = project.documents as [SeededDocument, SeededDocument]
+      const module = scheduler(project.researcherAccountId)
+      const store = createResearcherProjectStore(project.researcherAccountId, db)
+      kei.holding = true
+      const scheduled = await module.scheduleBatch({
+        projectContextId: project.projectContextId,
+        schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE',
+        sourceDocumentIds: [deleted.sourceDocumentId, kept.sourceDocumentId],
+        repetition: 'create-new',
+      })
+      const batchExtractionId = scheduled.batch.batchExtractionId
+      const memberOf = (document: SeededDocument) =>
+        stableUuid('batch-member-extraction', stableJson([batchExtractionId, document.sourceDocumentId]))
+      await heldByKei(memberOf(deleted))
+      await heldByKei(memberOf(kept))
+      assert.deepEqual(await store.deleteSourceDocument(project.projectContextId, deleted.sourceDocumentId), { interruptedAttempts: [] })
+      assert.equal(await extractionRow(memberOf(deleted)), null)
+      kei.releaseAll()
+      await eventually(() => studioWorkflow(memberOf(deleted)), (workflow) => workflow?.status === 'SUCCESS',
+        'the deleted member\'s workflow ends without an error')
+      const batch = await waitForBatch(module, project.projectContextId, batchExtractionId,
+        (candidate) => candidate.executionStatus === 'COMPLETED')
+      assert.deepEqual(batch.members.map((member) => [member.sourceDocumentId, member.executionStatus]),
+        [[kept.sourceDocumentId, 'COMPLETED']])
+      assert.equal((await extractionRow(memberOf(kept)))?.outcome, 'SUCCEEDED')
+      assert.equal(await createExtractionStore({ database: db as Database, packages }).settle(memberOf(deleted), {
+        outcome: 'FAILED', failure: { code: 'extraction_failed', message: 'late', phase: 'extracting' },
+      }), 'missing')
+    })
+
+    it('deleting one batch source preserves another member\'s result, revision pin and finalized review', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['deleted.pdf', 'kept.pdf'])
+      const [deleted, kept] = project.documents as [SeededDocument, SeededDocument]
+      const module = scheduler(project.researcherAccountId)
+      const store = createResearcherProjectStore(project.researcherAccountId, db)
+      const scheduled = await module.scheduleBatch({
+        projectContextId: project.projectContextId, schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE', sourceDocumentIds: [deleted.sourceDocumentId, kept.sourceDocumentId], repetition: 'create-new',
+      })
+      const batchExtractionId = scheduled.batch.batchExtractionId
+      await waitForBatch(module, project.projectContextId, batchExtractionId,
+        (candidate) => candidate.executionStatus === 'COMPLETED')
+      const keptId = stableUuid('batch-member-extraction', stableJson([batchExtractionId, kept.sourceDocumentId]))
+      const prepared = await module.prepareReview(keptId)
+      await module.finalizeReview(keptId, prepared.reviewDecisions)
+      const keptBefore = await db.orm.public.Extraction.select('id', 'sourceRepresentationRevisionId', 'outcome', 'resultPayload').first({ id: keptId })
+      const reviewsBefore = await db.orm.public.ExtractionReview.where({ extractionId: keptId })
+        .select('id', 'decisionDigest').all()
+      assert.ok(reviewsBefore.length > 0)
+
+      assert.deepEqual(await store.deleteSourceDocument(project.projectContextId, deleted.sourceDocumentId), { interruptedAttempts: [] })
+      assert.deepEqual(await db.orm.public.Extraction.select('id', 'sourceRepresentationRevisionId', 'outcome', 'resultPayload').first({ id: keptId }), keptBefore)
+      assert.deepEqual(await db.orm.public.ExtractionReview.where({ extractionId: keptId })
+        .select('id', 'decisionDigest').all(), reviewsBefore)
+      const batch = await module.readBatch({ projectContextId: project.projectContextId, batchExtractionId })
+      assert.deepEqual(batch.members.map((member) => member.sourceDocumentId), [kept.sourceDocumentId])
+    })
+
+    it('runExtraction records keiRunId from the pinned revision', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const document = project.documents[0]!
+      const { module } = createRuntime(project.researcherAccountId)
+      const input = freshInput(project)
+      await module.runSingle(input)
+      const [workflow] = await app.admission.listWorkflows({ workflowIDs: [`extract:${input.extractionId}`] })
+      assert.equal(workflow?.attributes?.keiRunId, document.runId)
+      const submission = kei.submissions.find((candidate) => candidate.workflowId === keiExtractWorkflowId(input.extractionId))
+      assert.equal(submission?.attributes.keiRunId, document.runId)
+      assert.equal((submission?.request as KeiExtractInput).run_id, document.runId)
+    })
+
     it('persists and reopens a partial remote Catalog result without local stage diagnostics', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
-      const adapters = deterministicAdapters()
-      const extract = adapters.client.extract
-      adapters.client.extract = async request => ({ ...await extract(request), complete: false })
-      const { module } = createRuntime(project.researcherAccountId, adapters)
+      kei.respond = (request) => ({ artifact: { ...deterministicArtifact(request), complete: false } })
+      const { module } = createRuntime(project.researcherAccountId)
       const input = { ...freshInput(project), strategy: 'CATALOG' as const }
       const created = await module.runSingle(input)
       assert.equal(created.extraction.complete, false)
       assert.equal(created.extraction.outcome, 'SUCCEEDED')
       assert.equal(created.extraction.diagnostics!.catalog, null)
       assert.equal((await module.runSingle(input)).disposition, 'replayed')
-      assert.equal(adapters.calls.length, 1)
+      assert.equal(kei.submissions.length, 1)
       const reopened = await module.readDocumentExtractions({ sourceDocumentId: project.documents[0]!.sourceDocumentId })
       assert.deepEqual(reopened?.latestAttempt?.result, created.extraction.result)
       const prepared = await module.prepareReview(input.extractionId)
@@ -842,21 +1523,22 @@ if (!disposableDatabaseUrl) {
     it('persists and reopens a version 2 recipe result with its span evidence and review material', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
-      const adapters = deterministicAdapters()
-      adapters.client.extract = async request => (adapters.calls.push(request), keiExpGroundedArtifact({
-        run_id: request.runId, schema: request.schema, model: 'deterministic',
-        records: [{ title: 'Alpha' }], record_blocks: [{ block: 'b1', entry_label: '1' }],
-        evidence: [{ path: ['records', 0, 'title'], segment: 'p1_s0', page: 1, bbox_pt: [10, 10, 100, 30],
-                     verbatim: true, hits: 1, linked_by: 'key', spans: [{ segment: 'p1_s0', start: 0, end: 5 }],
-                     alternatives: [], provenance: 'token', key_spans: [], heading: null, precision: 'segment',
-                     raw: 'Alpha', normalized: { value: 'Alphabet', rule: 'glossary',
-                                                 key_span: { segment: 'p1_s0', start: 0, end: 5 },
-                                                 expansion_span: { segment: 'p1_s0', start: 8, end: 16 } } }],
-      }))
-      const { module } = createRuntime(project.researcherAccountId, adapters)
+      kei.respond = (request) => ({
+        artifact: keiExpGroundedArtifact({
+          run_id: request.run_id, generation: request.generation, schema: request.request.schema as never, model: 'deterministic',
+          records: [{ title: 'Alpha' }], record_blocks: [{ block: 'b1', entry_label: '1' }],
+          evidence: [{ path: ['records', 0, 'title'], segment: 'p1_s0', page: 1, bbox_pt: [10, 10, 100, 30],
+                       verbatim: true, hits: 1, linked_by: 'key', spans: [{ segment: 'p1_s0', start: 0, end: 5 }],
+                       alternatives: [], provenance: 'token', key_spans: [], heading: null, precision: 'segment',
+                       raw: 'Alpha', normalized: { value: 'Alphabet', rule: 'glossary',
+                                                   key_span: { segment: 'p1_s0', start: 0, end: 5 },
+                                                   expansion_span: { segment: 'p1_s0', start: 8, end: 16 } } }],
+        }),
+      })
+      const { module } = createRuntime(project.researcherAccountId)
       const input = { ...freshInput(project), strategy: 'CATALOG' as const, catalogRecipe: 'numbered-catalogue-de@1' }
       const created = await module.runSingle(input)
-      assert.equal(adapters.calls[0]?.catalogRecipe, 'numbered-catalogue-de@1')
+      assert.deepEqual((kei.submissions[0]!.request as KeiExtractInput).request.options.catalog, { recipe: 'numbered-catalogue-de@1' })
       const reopened = await module.readDocumentExtractions({ sourceDocumentId: project.documents[0]!.sourceDocumentId })
       const attempt = reopened!.latestAttempt!
       assert.equal(attempt.extractionId, created.extraction.extractionId)
@@ -878,75 +1560,21 @@ if (!disposableDatabaseUrl) {
       assert.equal((await module.finalizeReview(input.extractionId, prepared.reviewDecisions)).disposition, 'reviewed')
     })
 
-    it('retains Article failures on jobs without creating Extractions', async (t) => {
+    it('a failed Extraction keeps its failure on its row and publishes no result', async (t) => {
       t.after(cleanup)
       const article = await seedProject()
-      const failing = createRuntime(
-        article.researcherAccountId,
-        deterministicAdapters({ failArticle: true }),
-      ).module
-      const failed = await failing.runSingle(freshInput(article))
+      kei.respond = () => ({ failure: { code: 'extraction_failed', reason: 'controlled extraction failure', retryable: false } })
+      const failed = await createRuntime(article.researcherAccountId).module.runSingle(freshInput(article))
       assert.equal(failed.extraction.executionStatus, 'FAILED')
       assert.equal(failed.extraction.outcome, null)
       assert.equal(failed.extraction.complete, null)
       assert.equal(failed.extraction.result, null)
-      assert.equal(failed.extraction.failure?.code, 'extraction_failed')
-      assert.equal(await db.orm.public.Extraction.select('id').first({
-        id: failed.extraction.extractionId,
-      }), null)
-    })
-
-    it('bounds the cancellation race without creating a terminal Extraction', async (t) => {
-      t.after(cleanup)
-      const project = await seedProject()
-      const modelStarted = Promise.withResolvers<void>()
-      const client: Pick<KeiExpClient, 'extract'> = {
-        extract(request) {
-          modelStarted.resolve()
-          const pending = Promise.withResolvers<KeiExpArtifact>()
-          const abort = () => pending.reject(new DOMException('Aborted', 'AbortError'))
-          request.signal.addEventListener('abort', abort, { once: true })
-          if (request.signal.aborted) abort()
-          return pending.promise
-        },
-      }
-      const runtime = createExtractionRuntimeWithInfrastructure(
-        { keiExp: client },
-        { database: db, packages },
-      )
-      runtimes.add(runtime)
-      const module = runtime.forResearcher(project.researcherAccountId)
-      const input = freshInput(project)
-      const scheduled = await module.runSingle(input)
-      const controller = new AbortController()
-      const running = runtime.run(controller.signal)
-      await modelStarted.promise
-
-      assert.equal(
-        await module.cancelSingle(input.extractionId),
-        'cancellation-requested',
-      )
-      let terminal = scheduled.extraction
-      const deadline = Date.now() + 5_000
-      while (terminal.executionStatus !== 'FAILED') {
-        if (Date.now() >= deadline)
-          throw new Error(`Timed out waiting for cancelled Extraction ${input.extractionId}.`)
-        const current = await module.readExtractionAttempt(input.extractionId)
-        if (!current) throw new Error('Cancelled Extraction Job disappeared.')
-        terminal = current
-        const turn = Promise.withResolvers<void>()
-        setImmediate(turn.resolve)
-        await turn.promise
-      }
-      controller.abort()
-      await running
-      assert.equal(terminal.outcome, null)
-      assert.equal(terminal.failure?.code, 'cancelled')
-      assert.equal(
-        await module.cancelSingle(input.extractionId),
-        'not-found',
-      )
-      assert.equal(await module.cancelSingle(randomUUID()), 'not-found')
+      assert.deepEqual(failed.extraction.failure, {
+        code: 'extraction_failed', message: 'kei-exp could not complete the Extraction: controlled extraction failure', phase: 'extracting',
+      })
+      const row = await extractionRow(failed.extraction.extractionId)
+      assert.equal(row?.outcome, 'FAILED')
+      assert.equal(row?.resultPayload, null)
     })
 
     it('persists drafts independently, rejects invalid and concurrent edits, and clears them atomically on finalization', async (t) => {
@@ -1014,13 +1642,13 @@ if (!disposableDatabaseUrl) {
     it('projects only the active review revision into batch results after reset', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
-      const { runtime, module } = createRuntime(project.researcherAccountId)
+      const { module } = createRuntime(project.researcherAccountId)
       const scheduled = await module.scheduleBatch({
         projectContextId: project.projectContextId, schemaRevisionId: project.schemaRevisionId,
         strategy: 'ARTICLE', sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId),
         repetition: 'create-new',
       })
-      const batch = await runWorkerUntil(runtime, module, project.projectContextId, scheduled.batch.batchExtractionId,
+      const batch = await waitForBatch(module, project.projectContextId, scheduled.batch.batchExtractionId,
         (batch) => batch.executionStatus === 'COMPLETED')
       const id = batch.members[0]!.latestExtraction!.extractionId
       const input = { projectContextId: project.projectContextId, batchExtractionId: batch.batchExtractionId }
@@ -1120,14 +1748,14 @@ if (!disposableDatabaseUrl) {
           { id: 'note-node', name: 'note', type: 'string' },
         ],
       })
-      const adapters = deterministicAdapters()
-      const extract = adapters.client.extract
-      adapters.client.extract = async request => ({
-        ...await extract(request), complete: false,
-        records: [{ title: 'Alpha', note: 'Beta' }],
-        ungrounded: [['records', 0, 'note']],
+      kei.respond = (request) => ({
+        artifact: {
+          ...deterministicArtifact(request), complete: false,
+          records: [{ title: 'Alpha', note: 'Beta' }],
+          ungrounded: [['records', 0, 'note']],
+        },
       })
-      const { module } = createRuntime(project.researcherAccountId, adapters)
+      const { module } = createRuntime(project.researcherAccountId)
       const completed = await module.runSingle(freshInput(project))
       assert.equal(completed.extraction.outcome, 'SUCCEEDED')
       assert.equal(completed.extraction.complete, false)
@@ -1156,16 +1784,13 @@ if (!disposableDatabaseUrl) {
           { id: 'note-node', name: 'note', type: 'string' },
         ],
       })
-      const adapters = deterministicAdapters()
-      const extract = adapters.client.extract
-      adapters.client.extract = async request => {
-        const artifact = await extract(request)
-        if (artifact.extraction_version !== 1) throw new Error('the deterministic adapter answers version 1')
-        return { ...artifact, records: [{ title: 'Alpha', note: 'Alpha' }], evidence: [
+      kei.respond = (request) => {
+        const artifact = deterministicArtifact(request)
+        return { artifact: { ...artifact, records: [{ title: 'Alpha', note: 'Alpha' }], evidence: [
           ...artifact.evidence, { ...artifact.evidence[0]!, path: ['records', 0, 'note'] },
-        ] }
+        ] } }
       }
-      const { module } = createRuntime(project.researcherAccountId, adapters)
+      const { module } = createRuntime(project.researcherAccountId)
       const completed = await module.runSingle(freshInput(project))
       const prepared = await module.prepareReview(completed.extraction.extractionId)
       assert.equal(prepared.reviewDecisions.length, 2)
@@ -1239,7 +1864,7 @@ if (!disposableDatabaseUrl) {
       )
     })
 
-    it('does not invent a terminal Extraction when its canonical package is unavailable', async (t) => {
+    it('fails an Extraction whose canonical package is unavailable without inventing a result', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
       const document = project.documents[0]!
@@ -1250,88 +1875,46 @@ if (!disposableDatabaseUrl) {
       const failed = await module.runSingle(input)
       assert.equal(failed.extraction.executionStatus, 'FAILED')
       assert.equal(failed.extraction.outcome, null)
-      assert.equal(await db.orm.public.Extraction.select('id').first({
-        id: input.extractionId,
-      }), null)
+      assert.deepEqual(failed.extraction.failure, {
+        code: 'invalid_source_representation', message: 'The pinned Source Representation is unavailable.', phase: 'persisting',
+      })
+      const row = await extractionRow(input.extractionId)
+      assert.equal(row?.outcome, 'FAILED')
+      assert.equal(row?.resultPayload, null)
       assert.equal(await module.cancelSingle(input.extractionId), 'not-found')
     })
 
-    it('claims interactive jobs first and FIFO within that kind', async (t) => {
-      t.after(cleanup)
-      const project = await seedProject(ARTICLE_SCHEMA, ['first.pdf', 'second.pdf'])
-      const { runtime, module } = createRuntime(project.researcherAccountId)
-      await module.scheduleBatch({
-        projectContextId: project.projectContextId,
-        schemaRevisionId: project.schemaRevisionId,
-        strategy: 'ARTICLE',
-        sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId),
-        repetition: 'create-new',
-        models: { fields: 'nuextract', reasoning: 'instruct' },
-      })
-      const scheduler = runtime.forResearcher(project.researcherAccountId)
-      const firstId = randomUUID()
-      const secondId = randomUUID()
-      await scheduler.runSingle(freshInput(project, firstId))
-      await scheduler.runSingle(freshInput(project, secondId))
-      await db.orm.public.ExtractionJob.where({ id: firstId }).update({
-        createdAt: new Date('2026-08-31T10:00:00.000Z'),
-      })
-      await db.orm.public.ExtractionJob.where({ id: secondId }).update({
-        createdAt: new Date('2026-08-31T10:00:01.000Z'),
-      })
-
-      const store = createInternalExtractionJobStore(db, packages)
-      const owner = randomUUID()
-      const now = new Date('2026-08-31T10:01:00.000Z')
-      const expiresAt = new Date('2026-08-31T10:03:00.000Z')
-      const failure = { code: 'test_cleanup', message: 'Test cleanup.', phase: 'loading' as const }
-      const first = await store.claim(owner, now, expiresAt)
-      assert.equal(first?.input.extractionId, firstId)
-      assert.ok(first)
-      await store.fail(first.input.extractionId, first.lease, failure, now)
-      const second = await store.claim(owner, now, expiresAt)
-      assert.equal(second?.input.extractionId, secondId)
-      assert.ok(second)
-      await store.fail(second.input.extractionId, second.lease, failure, now)
-      const batchMember = await store.claim(owner, now, expiresAt)
-      assert.ok(batchMember?.input.kind === 'batch-member')
-      assert.deepEqual(batchMember.input.models, { fields: 'nuextract', reasoning: 'instruct' })
-    })
-
-    it('stores the Catalog recipe chosen for an Extraction on its job and hands it to the worker', async (t) => {
+    it('stores the Catalog recipe chosen for an Extraction on its row and hands it to kei', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
-      const scheduler = createRuntime(project.researcherAccountId).runtime.forResearcher(project.researcherAccountId)
+      const module = scheduler(project.researcherAccountId)
+      kei.holding = true
       const extractionId = randomUUID()
       const input = { ...freshInput(project, extractionId), strategy: 'CATALOG' as const,
                       catalogRecipe: 'numbered-catalogue-de@1' }
-      await scheduler.runSingle(input)
-      assert.equal((await scheduler.runSingle(input)).disposition, 'replayed')
-      await assert.rejects(scheduler.runSingle({ ...input, catalogRecipe: null }),
+      // Every read of the attempt names its recipe, so a failed attempt can be run again with it.
+      assert.equal((await module.runSingle(input)).extraction.catalogRecipe, 'numbered-catalogue-de@1')
+      assert.equal((await module.runSingle(input)).disposition, 'replayed')
+      assert.equal((await module.readExtractionAttempt(extractionId))?.catalogRecipe, 'numbered-catalogue-de@1')
+      await assert.rejects(module.runSingle({ ...input, catalogRecipe: null }),
         (error: unknown) => error instanceof ExtractionError && error.code === 'extraction_id_conflict')
-      const row = await db.orm.public.ExtractionJob.select('catalogRecipe').first({ id: extractionId })
-      assert.equal(row?.catalogRecipe, 'numbered-catalogue-de@1')
-      const store = createInternalExtractionJobStore(db, packages)
-      const claimed = await store.claim(randomUUID(), new Date(), new Date(Date.now() + 60_000))
-      assert.ok(claimed && claimed.input.kind === 'fresh')
-      assert.equal(claimed.input.catalogRecipe, 'numbered-catalogue-de@1')
-      assert.equal(claimed.input.models, null)
-      await store.fail(claimed.input.extractionId, claimed.lease,
-        { code: 'test_cleanup', message: 'Test cleanup.', phase: 'loading' }, new Date())
+      assert.equal((await extractionRow(extractionId))?.catalogRecipe, 'numbered-catalogue-de@1')
+      await heldByKei(extractionId)
+      const request = kei.submissions.find((submission) => submission.workflowId === keiExtractWorkflowId(extractionId))!
+        .request as KeiExtractInput
+      assert.deepEqual(request.request.options, { strategy: 'catalog', catalog: { recipe: 'numbered-catalogue-de@1' } })
     })
 
-    it('keeps the Extraction Model Choice on its job and Extraction, relays it, and records the model each role ran on', async (t) => {
+    it('keeps the Extraction Model Choice on its row, hands it to kei, and records the model each role ran on', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
-      const adapters = deterministicAdapters()
-      const extract = adapters.client.extract
-      adapters.client.extract = async request => ({
-        ...await extract(request), models: { fields: 'numind/NuExtract3-FP8', reasoning: 'Qwen/Qwen3.8-27B-FP8' },
+      kei.respond = (request) => ({
+        artifact: { ...deterministicArtifact(request), models: { fields: 'numind/NuExtract3-FP8', reasoning: 'Qwen/Qwen3.8-27B-FP8' } },
       })
-      const { module, runtime } = createRuntime(project.researcherAccountId, adapters)
+      const { module, scheduled } = createRuntime(project.researcherAccountId)
       const models = { fields: 'nuextract', reasoning: 'instruct' }
       const input = { ...freshInput(project), models }
-      const queued = await runtime.forResearcher(project.researcherAccountId).runSingle(input)
+      const queued = await scheduled.runSingle(input)
       assert.deepEqual(queued.extraction.requestedModels, models)
       // A replay must ask for the same models: another choice under the same id is another Extraction.
       for (const other of [null, {}, { fields: 'nuextract' }, { fields: 'instruct', reasoning: 'instruct' }])
@@ -1340,88 +1923,51 @@ if (!disposableDatabaseUrl) {
       const created = await module.runSingle({ ...input, models: { reasoning: 'instruct', fields: 'nuextract' } })
       assert.equal(created.disposition, 'replayed')
       assert.equal(created.extraction.outcome, 'SUCCEEDED')
-      assert.deepEqual(adapters.calls.map(call => call.models), [models])
+      assert.deepEqual(kei.submissions.map((submission) => (submission.request as KeiExtractInput).request.options.models), [models])
       assert.deepEqual(created.extraction.requestedModels, models)
       assert.deepEqual(created.extraction.diagnostics?.models,
         { fields: 'numind/NuExtract3-FP8', reasoning: 'Qwen/Qwen3.8-27B-FP8' })
       assert.deepEqual(created.extraction.modelAttribution, { provider: 'kei-exp', modelId: 'deterministic' })
-      const job = await db.orm.public.ExtractionJob.select('requestedModels').first({ id: input.extractionId })
-      const extraction = await db.orm.public.Extraction.select('requestedModels').first({ id: input.extractionId })
-      assert.deepEqual(job?.requestedModels, models)
-      assert.deepEqual(extraction?.requestedModels, models)
+      assert.deepEqual((await extractionRow(input.extractionId))?.requestedModels, models)
       const reopened = await module.readDocumentExtractions({ sourceDocumentId: project.documents[0]!.sourceDocumentId })
       assert.deepEqual(reopened?.latestAttempt?.requestedModels, models)
     })
 
-    it('refuses to replay a legacy job whose retryOfId still pins it as a retry', async (t) => {
+    it('reads no result values from a row without a published result, whatever its columns hold', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
-      const { module } = createRuntime(project.researcherAccountId)
-      // A first Extraction, completed normally: its job row is the retry pin's FK target.
-      const first = await module.runSingle(freshInput(project))
-      assert.equal(first.extraction.executionStatus, 'COMPLETED')
-      // A second job under its own id, then planted with a retryOfId the way a pre-migration
-      // row would carry one: no code path creates this shape any more.
-      const legacyId = randomUUID()
-      await module.runSingle(freshInput(project, legacyId))
-      const planted = await db.orm.public.ExtractionJob.where({ id: legacyId }).updateAll({
-        retryOfId: first.extraction.extractionId,
-      })
-      assert.equal(planted.length, 1)
-      await assert.rejects(
-        module.runSingle(freshInput(project, legacyId)),
-        rejectsWithCode('extraction_id_conflict'),
-      )
-    })
-
-    it('reads a job holding legacy checkpoint columns as having no values yet', async (t) => {
-      t.after(cleanup)
-      const project = await seedProject()
-      const { module } = createRuntime(project.researcherAccountId)
+      const module = scheduler(project.researcherAccountId)
+      kei.holding = true
       const input = freshInput(project)
       await module.runSingle(input)
-      // Legacy-row fixture: rows written before e88b08f could hold checkpointed values on RUNNING or FAILED
-      // jobs; nothing writes them any more.
-      await db.orm.public.ExtractionJob.where({ id: input.extractionId }).updateAll({
-        executionStatus: 'RUNNING',
+      await heldByKei(input.extractionId)
+      const planted = {
         complete: true,
-        modelAttribution: { provider: 'kei-exp', modelId: 'legacy' },
+        modelAttribution: { provider: 'kei-exp', modelId: 'planted' },
         diagnostics: { phase: 'grounding' },
         resultPayload: { records: [{ place: 'Rome' }] },
-      })
-      const attempt = await module.readExtractionAttempt(input.extractionId)
-      assert.equal(attempt?.executionStatus, 'RUNNING')
-      assert.equal(attempt?.result, null)
-      assert.equal(attempt?.complete, null)
-      assert.equal(attempt?.modelAttribution, null)
-      assert.equal(attempt?.diagnostics, null)
-
-      const failedInput = freshInput(project)
-      await module.runSingle(failedInput)
-      // Legacy-row fixture: a FAILED job can hold the same stale checkpoint values, plus a failure in the
-      // shape `fail()` still writes today (code/message/phase); the checkpoint columns must still read null.
-      const failure = { code: 'legacy_failure', message: 'Legacy job failure.', phase: 'grounding' as const }
-      await db.orm.public.ExtractionJob.where({ id: failedInput.extractionId }).updateAll({
-        executionStatus: 'FAILED',
-        complete: true,
-        modelAttribution: { provider: 'kei-exp', modelId: 'legacy' },
-        diagnostics: { phase: 'grounding' },
-        resultPayload: { records: [{ place: 'Rome' }] },
-        failure,
-      })
-      const failedAttempt = await module.readExtractionAttempt(failedInput.extractionId)
-      assert.equal(failedAttempt?.executionStatus, 'FAILED')
-      assert.equal(failedAttempt?.result, null)
-      assert.equal(failedAttempt?.complete, null)
-      assert.equal(failedAttempt?.modelAttribution, null)
-      assert.equal(failedAttempt?.diagnostics, null)
-      assert.deepEqual(failedAttempt?.failure, failure)
+        evidenceLinks: [],
+        reviewable: true,
+      }
+      await db.orm.public.Extraction.where({ id: input.extractionId }).updateAll(planted)
+      const running = await module.readExtractionAttempt(input.extractionId)
+      assert.equal(running?.executionStatus, 'RUNNING')
+      assert.deepEqual([running?.result, running?.complete, running?.modelAttribution, running?.diagnostics, running?.reviewable],
+        [null, null, null, null, false])
+      const failure = { code: 'planted_failure', message: 'A planted failure.', phase: 'grounding' as const }
+      await db.orm.public.Extraction.where({ id: input.extractionId }).updateAll({ outcome: 'FAILED', failure })
+      const failed = await module.readExtractionAttempt(input.extractionId)
+      assert.equal(failed?.executionStatus, 'FAILED')
+      assert.deepEqual([failed?.result, failed?.complete, failed?.modelAttribution, failed?.diagnostics, failed?.reviewable],
+        [null, null, null, null, false])
+      assert.deepEqual(failed?.failure, failure)
+      await assert.rejects(module.prepareReview(input.extractionId), rejectsWithCode('not_found'))
     })
 
-    it('stores batch model choices on every job and completed Extraction and includes them in selection identity', async (t) => {
+    it('stores batch model choices on every member Extraction and includes them in selection identity', async (t) => {
       t.after(cleanup)
       const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])
-      const { module, runtime, adapters } = createRuntime(project.researcherAccountId)
+      const module = scheduler(project.researcherAccountId)
       const input = {
         projectContextId: project.projectContextId,
         schemaRevisionId: project.schemaRevisionId,
@@ -1459,147 +2005,40 @@ if (!disposableDatabaseUrl) {
           assert.equal(replay.disposition, 'replayed')
           assert.equal(replay.batch.batchExtractionId, batchExtractionId)
         }
-        const jobs = await db.orm.public.ExtractionJob.where({ batchExtractionId })
-          .select('requestedModels').all()
-        assert.equal(jobs.length, project.documents.length)
-        for (const job of jobs) assert.deepEqual(job.requestedModels, models)
-        await runWorkerUntil(runtime, module, project.projectContextId,
-          batchExtractionId, batch => batch.executionStatus === 'COMPLETED')
-        const extractions = await db.orm.public.Extraction.where({ batchExtractionId })
-          .select('requestedModels').all()
-        assert.equal(extractions.length, project.documents.length)
-        for (const extraction of extractions) assert.deepEqual(extraction.requestedModels, models)
-        assert.deepEqual(adapters.calls.slice(-project.documents.length).map(call => call.models),
-          project.documents.map(() => models))
+        await waitForBatch(module, project.projectContextId, batchExtractionId, batch => batch.executionStatus === 'COMPLETED')
+        const members = await db.orm.public.Extraction.where({ batchExtractionId })
+          .select('id', 'requestedModels', 'outcome').all()
+        assert.equal(members.length, project.documents.length)
+        for (const member of members) {
+          assert.deepEqual(member.requestedModels, models)
+          assert.equal(member.outcome, 'SUCCEEDED')
+          const submission = kei.submissions.find((candidate) => candidate.workflowId === keiExtractWorkflowId(member.id))!
+          assert.deepEqual((submission.request as KeiExtractInput).request.options.models ?? null, models)
+        }
       }
     })
 
     it('stores no Extraction Model Choice when every role keeps kei-exp\'s defaults', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
-      const { module, adapters } = createRuntime(project.researcherAccountId)
+      const { module } = createRuntime(project.researcherAccountId)
       for (const models of [undefined, null, {}]) {
         const input = { ...freshInput(project), models }
         const created = await module.runSingle(input)
         assert.equal(created.extraction.requestedModels, null)
         // No choice and an empty choice are the same request.
         assert.equal((await module.runSingle({ ...input, models: {} })).disposition, 'replayed')
-        const row = await db.orm.public.Extraction.select('requestedModels').first({ id: input.extractionId })
-        assert.equal(row?.requestedModels, null)
+        assert.equal((await extractionRow(input.extractionId))?.requestedModels, null)
       }
-      assert.deepEqual(adapters.calls.map(call => call.models ?? null), [null, null, null])
-    })
-
-    it('claims a queued job only once when workers compete', async (t) => {
-      t.after(cleanup)
-      const project = await seedProject()
-      const scheduler = createRuntime(project.researcherAccountId).runtime
-        .forResearcher(project.researcherAccountId)
-      const extractionId = randomUUID()
-      await scheduler.runSingle(freshInput(project, extractionId))
-      const store = createInternalExtractionJobStore(db, packages)
-      const now = new Date('2026-08-31T10:00:00.000Z')
-      const expiresAt = new Date('2026-08-31T10:03:00.000Z')
-      const claims = await withBlockedUpdates(disposableDatabaseUrl, 'ExtractionJob', extractionId, 2,
-        () => Promise.all([
-          store.claim(randomUUID(), now, expiresAt),
-          store.claim(randomUUID(), now, expiresAt),
-        ]))
-      assert.equal(claims.filter((claim) => claim !== null).length, 1)
-    })
-
-    it('honors cancellation when it races a worker failure', async (t) => {
-      t.after(cleanup)
-      const project = await seedProject()
-      const scheduler = createRuntime(project.researcherAccountId).runtime
-        .forResearcher(project.researcherAccountId)
-      const extractionId = randomUUID()
-      await scheduler.runSingle(freshInput(project, extractionId))
-      const store = createInternalExtractionJobStore(db, packages)
-      const now = new Date('2026-08-31T10:00:00.000Z')
-      const claimed = await store.claim(randomUUID(), now, new Date(now.getTime() + 60_000))
-      assert.ok(claimed)
-      const [cancellation, failed] = await withBlockedUpdates(
-        disposableDatabaseUrl, 'ExtractionJob', extractionId, 2,
-        () => Promise.all([
-          scheduler.cancelSingle(extractionId),
-          store.fail(extractionId, claimed.lease, {
-            code: 'extraction_failed', message: 'Model failed.', phase: 'extracting',
-          }, now),
-        ]))
-      assert.equal(failed, true)
-      const job = await db.orm.public.ExtractionJob.select('failure', 'executionStatus')
-        .first({ id: extractionId })
-      assert.equal(job?.executionStatus, 'FAILED')
-      assert.equal((job?.failure as { code: string }).code,
-        cancellation === 'cancellation-requested' ? 'cancelled' : 'extraction_failed')
-    })
-
-    it('does not reclaim a renewed lease and lets committed cancellation win failure', async (t) => {
-      t.after(cleanup)
-      const project = await seedProject()
-      const scheduler = createRuntime(project.researcherAccountId).runtime
-        .forResearcher(project.researcherAccountId)
-      const store = createInternalExtractionJobStore(db, packages)
-      const extractionId = randomUUID()
-      await scheduler.runSingle(freshInput(project, extractionId))
-      const owner = randomUUID()
-      const claimed = await store.claim(
-        owner,
-        new Date('2026-08-31T10:00:00.000Z'),
-        new Date('2026-08-31T10:01:00.000Z'),
-      )
-      assert.ok(claimed)
-      assert.equal(await store.renew(
-        extractionId,
-        claimed.lease,
-        new Date('2026-08-31T10:03:00.000Z'),
-      ), 'owned')
-      assert.equal(await store.claim(
-        randomUUID(),
-        new Date('2026-08-31T10:02:00.000Z'),
-        new Date('2026-08-31T10:04:00.000Z'),
-      ), null)
-
-      assert.equal(
-        await scheduler.cancelSingle(extractionId),
-        'cancellation-requested',
-      )
-      assert.equal(await store.fail(extractionId, claimed.lease, {
-        code: 'extraction_failed',
-        message: 'Model failed.',
-        phase: 'extracting',
-      }, new Date('2026-08-31T10:02:30.000Z')), true)
-      const failed = await db.orm.public.ExtractionJob.select('failure').first({
-        id: extractionId,
-      })
-      assert.equal(
-        (failed?.failure as { code?: unknown } | null)?.code,
-        'cancelled',
-      )
-    })
-
-    it('does not expose a terminal Extraction after its job identity is removed', async (t) => {
-      t.after(cleanup)
-      const project = await seedProject()
-      const { module } = createRuntime(project.researcherAccountId)
-      const completed = await module.runSingle(freshInput(project))
-      await db.orm.public.ExtractionJob.where({
-        id: completed.extraction.extractionId,
-      }).delete()
-      assert.equal(
-        await module.readExtractionAttempt(completed.extraction.extractionId),
-        null,
-      )
+      assert.deepEqual(kei.submissions.map((submission) => (submission.request as KeiExtractInput).request.options.models ?? null),
+        [null, null, null])
     })
 
     it('rejects duplicate members, atomically pins valid members, replays equal selections, and creates explicit repetitions', async (t) => {
       t.after(cleanup)
       const project = await seedProject(ARTICLE_SCHEMA, ['b.pdf', 'a.pdf'])
       const foreign = await seedProject()
-      const { runtime, module } = createRuntime(
-        project.researcherAccountId,
-      )
+      const module = scheduler(project.researcherAccountId)
       const selected = [
         project.documents[1]!.sourceDocumentId,
         project.documents[0]!.sourceDocumentId,
@@ -1675,9 +2114,7 @@ if (!disposableDatabaseUrl) {
         projectContextId: project.projectContextId,
       })
       assert.equal(after.length, before.length)
-      const foreignModule = runtime.forResearcher(
-        foreign.researcherAccountId,
-      )
+      const foreignModule = scheduler(foreign.researcherAccountId)
       const foreignBatch = await foreignModule.scheduleBatch({
         projectContextId: foreign.projectContextId,
         schemaRevisionId: foreign.schemaRevisionId,
@@ -1714,20 +2151,57 @@ if (!disposableDatabaseUrl) {
           rejectsWithCode('not_found'),
         )
       }
-      const completedForeign = await runWorkerUntil(
-        runtime,
+      const completedForeign = await waitForBatch(
         foreignModule,
         foreign.projectContextId,
         foreignBatch.batch.batchExtractionId,
         (batch) => batch.executionStatus === 'COMPLETED',
       )
       assert.equal(completedForeign.executionStatus, 'COMPLETED')
+      const results = await foreignModule.readBatchResults({
+        projectContextId: foreign.projectContextId, batchExtractionId: foreignBatch.batch.batchExtractionId,
+      })
+      assert.deepEqual([results.successfulResults, results.pending, results.failed, results.cancelled], [1, 0, 0, 0])
     })
 
-    it('atomically hands a ready Schema Suggestion to one replayable Batch', async (t) => {
+    it('counts a member kei cancelled as cancelled and an interrupted one as failed', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['cancelled.pdf', 'interrupted.pdf'])
+      const [cancelled, interrupted] = project.documents as [SeededDocument, SeededDocument]
+      const module = scheduler(project.researcherAccountId)
+      kei.holding = true
+      const scheduled = await module.scheduleBatch({
+        projectContextId: project.projectContextId,
+        schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE',
+        sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId),
+        repetition: 'create-new',
+      })
+      const batchExtractionId = scheduled.batch.batchExtractionId
+      const memberOf = (document: SeededDocument) =>
+        stableUuid('batch-member-extraction', stableJson([batchExtractionId, document.sourceDocumentId]))
+      await heldByKei(memberOf(cancelled))
+      await heldByKei(memberOf(interrupted))
+      // kei's own cancel of a child settles the member FAILED with code `cancelled`.
+      await kei.handoff.cancel(keiExtractWorkflowId(memberOf(cancelled)))
+      // A Studio workflow stopped without an outcome leaves its member interrupted.
+      await DBOS.cancelWorkflow(`extract:${memberOf(interrupted)}`)
+      await eventually(() => extractionRow(memberOf(cancelled)), (row) => row?.outcome === 'FAILED', 'the cancelled member settles')
+      const results = await module.readBatchResults({ projectContextId: project.projectContextId, batchExtractionId })
+      assert.deepEqual([results.totalMembers, results.pending, results.failed, results.cancelled], [2, 0, 1, 1])
+      assert.equal(results.executionStatus, 'COMPLETED')
+      const batch = await module.readBatch({ projectContextId: project.projectContextId, batchExtractionId })
+      assert.deepEqual(batch.members.map((member) => [member.executionStatus, member.failureMessage]).sort(), [
+        ['FAILED', 'The Extraction was cancelled.'],
+        ['FAILED', 'This work stopped before it finished. Start it again.'],
+      ])
+    })
+
+    it('a ready suggestion hands its saved pins to one replayable batch of pending member Extractions', async (t) => {
       t.after(cleanup)
       const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])
-      const { module } = createRuntime(project.researcherAccountId)
+      const module = scheduler(project.researcherAccountId)
+      kei.holding = true
       const batchSchemaSuggestionId = randomUUID()
       await db.orm.public.BatchSchemaSuggestion.create({
         id: batchSchemaSuggestionId,
@@ -1744,12 +2218,13 @@ if (!disposableDatabaseUrl) {
       await db.orm.public.BatchSchemaSuggestion.where({
         id: batchSchemaSuggestionId,
       }).update({
-        executionStatus: 'COMPLETED',
+        outcome: 'SUCCEEDED',
         phase: 'READY',
         draft: ARTICLE_SCHEMA,
         draftVersion: 1,
-        finishedAt: new Date(),
       })
+      // The suggestion's saved revisions are kept even after a reprocess (PR #140's documented exemption).
+      await addRepresentation(project.documents[0]!, 'one-v2.pdf')
 
       const request = {
         projectContextId: project.projectContextId,
@@ -1765,59 +2240,57 @@ if (!disposableDatabaseUrl) {
         handoffs.map((handoff) => handoff.disposition).sort(),
         ['created', 'replayed'],
       )
-      assert.equal(
-        handoffs[0]!.batch.batchExtractionId,
-        handoffs[1]!.batch.batchExtractionId,
-      )
+      const batchExtractionId = handoffs[0]!.batch.batchExtractionId
+      assert.equal(handoffs[1]!.batch.batchExtractionId, batchExtractionId)
+      const pins = project.documents
+        .map((document) => ({
+          sourceDocumentId: document.sourceDocumentId,
+          sourceRepresentationRevisionId: document.sourceRepresentationRevisionId,
+        }))
+        .sort((left, right) => left.sourceDocumentId.localeCompare(right.sourceDocumentId))
       assert.deepEqual(
         handoffs[0]!.batch.members.map((member) => ({
           sourceDocumentId: member.sourceDocumentId,
-          sourceRepresentationRevisionId:
-            member.sourceRepresentationRevisionId,
+          sourceRepresentationRevisionId: member.sourceRepresentationRevisionId,
         })),
-        project.documents
-          .map((document) => ({
-            sourceDocumentId: document.sourceDocumentId,
-            sourceRepresentationRevisionId:
-              document.sourceRepresentationRevisionId,
-          }))
-          .sort((left, right) =>
-            left.sourceDocumentId.localeCompare(right.sourceDocumentId),
-          ),
+        pins,
       )
-      const jobs = await db.orm.public.ExtractionJob.where({
-        batchExtractionId: handoffs[0]!.batch.batchExtractionId,
-      }).select('requestedModels').all()
-      assert.equal(jobs.length, project.documents.length)
-      for (const job of jobs) assert.deepEqual(job.requestedModels, request.models)
-      const store = createInternalExtractionJobStore(db, packages)
-      for (const _document of project.documents) {
-        const claimed = await store.claim(randomUUID(), new Date(), new Date(Date.now() + 60_000))
-        assert.ok(claimed?.input.kind === 'batch-member')
-        assert.equal(claimed.input.batchExtractionId, handoffs[0]!.batch.batchExtractionId)
-        assert.deepEqual(claimed.input.models, request.models)
-        await store.fail(claimed.input.extractionId, claimed.lease,
-          { code: 'test_cleanup', message: 'Test cleanup.', phase: 'loading' }, new Date())
+      const members = async () => db.orm.public.Extraction.where({ batchExtractionId })
+        .select('id', 'sourceDocumentId', 'sourceRepresentationRevisionId', 'requestedModels', 'outcome').all()
+      const rows = await members()
+      assert.equal(rows.length, project.documents.length)
+      for (const row of rows) {
+        assert.equal(row.id, stableUuid('batch-member-extraction', stableJson([batchExtractionId, row.sourceDocumentId])))
+        assert.deepEqual(row.requestedModels, request.models)
+        assert.equal(row.outcome, null)
       }
+      const workflows = () => app.admission.listWorkflows({ workflowIDs: rows.map((row) => `extract:${row.id}`) })
+      assert.equal((await workflows()).length, project.documents.length)
       const persisted = await db.orm.public.BatchSchemaSuggestion.select(
         'confirmedSchemaRevisionId',
         'batchExtractionId',
       ).first({ id: batchSchemaSuggestionId })
       assert.ok(persisted?.confirmedSchemaRevisionId)
-      assert.equal(
-        persisted.batchExtractionId,
-        handoffs[0]!.batch.batchExtractionId,
-      )
-      assert.equal(
-        handoffs[0]!.batch.schemaRevisionId,
-        persisted.confirmedSchemaRevisionId,
-      )
+      assert.equal(persisted.batchExtractionId, batchExtractionId)
+      assert.equal(handoffs[0]!.batch.schemaRevisionId, persisted.confirmedSchemaRevisionId)
+      for (const row of rows) {
+        const [workflow] = await app.admission.listWorkflows({ workflowIDs: [`extract:${row.id}`] })
+        assert.equal(workflow?.attributes?.extractionSchemaId, (await db.orm.public.SchemaRevision.select('extractionSchemaId')
+          .first({ id: persisted.confirmedSchemaRevisionId }))?.extractionSchemaId)
+      }
+
+      // A repeat replays the handoff and adds no rows or workflows.
+      const repeated = await module.scheduleSuggestedBatch(request)
+      assert.equal(repeated.disposition, 'replayed')
+      assert.equal(repeated.batch.batchExtractionId, batchExtractionId)
+      assert.equal((await members()).length, project.documents.length)
+      assert.equal((await workflows()).length, project.documents.length)
     })
 
     it('rejects invalid stored suggestion drafts inside the atomic batch transaction', async (t) => {
       t.after(cleanup)
       const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf'])
-      const { module } = createRuntime(project.researcherAccountId)
+      const module = scheduler(project.researcherAccountId)
       const invalidDrafts = [
         {
           recordDescription: '   ',
@@ -1848,11 +2321,10 @@ if (!disposableDatabaseUrl) {
         await db.orm.public.BatchSchemaSuggestion.where({
           id: batchSchemaSuggestionId,
         }).update({
-          executionStatus: 'COMPLETED',
+          outcome: 'SUCCEEDED',
           phase: 'READY',
           draft,
           draftVersion: 1,
-          finishedAt: new Date(),
         })
 
         await assert.rejects(
@@ -1883,100 +2355,158 @@ if (!disposableDatabaseUrl) {
         ).length,
         0,
       )
+      assert.equal((await db.orm.public.Extraction.where({ sourceDocumentId: project.documents[0]!.sourceDocumentId })
+        .select('id').all()).length, 0)
     })
 
-    it('retries one durable suggestion while preserving successful source checkpoints', async (t) => {
+    it('Run requires a valid draft, a surviving member and no active attempt', async (t) => {
       t.after(cleanup)
       const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])
-      const store = createResearcherProjectStore(
-        project.researcherAccountId,
-        db,
+      /** The DBOS status each suggestion attempt reports; an attempt missing here is gone (interrupted). */
+      const attempts = new Map<string, string>()
+      const module = createExtractionModule(
+        createResearcherExtractionPersistence(project.researcherAccountId, {
+          ...execution,
+          async statuses(workflowIds) {
+            const suggestions = workflowIds.filter((id) => id.startsWith('suggest:'))
+            const statuses = new Map(await execution.statuses(workflowIds.filter((id) => !id.startsWith('suggest:'))))
+            for (const id of suggestions) if (attempts.has(id)) statuses.set(id, attempts.get(id)!)
+            return statuses
+          },
+        }, { database: db as Database, packages }),
       )
-      const batchSchemaSuggestionId = randomUUID()
-      await db.orm.public.BatchSchemaSuggestion.create({
-        id: batchSchemaSuggestionId,
-        projectContextId: project.projectContextId,
-        selectionKey: sha256(strToU8(batchSchemaSuggestionId)),
-      })
-      for (const document of project.documents)
-        await db.orm.public.BatchSchemaSuggestionSource.create({
-          batchSchemaSuggestionId,
-          sourceDocumentId: document.sourceDocumentId,
-          sourceRepresentationRevisionId:
-            document.sourceRepresentationRevisionId,
+      async function suggestion(fields: Record<string, unknown>, members = project.documents) {
+        const batchSchemaSuggestionId = randomUUID()
+        await db.orm.public.BatchSchemaSuggestion.create({
+          id: batchSchemaSuggestionId,
+          projectContextId: project.projectContextId,
+          selectionKey: sha256(strToU8(batchSchemaSuggestionId)),
         })
-      const completedAt = new Date('2026-08-24T10:00:00.000Z')
-      await db.orm.public.BatchSchemaSuggestionSource.where({
-        batchSchemaSuggestionId,
-        sourceDocumentId: project.documents[0]!.sourceDocumentId,
-      }).update({
-        executionStatus: 'COMPLETED',
-        definition: ARTICLE_SCHEMA,
-        startedAt: completedAt,
-        finishedAt: completedAt,
-      })
-      await db.orm.public.BatchSchemaSuggestionSource.where({
-        batchSchemaSuggestionId,
-        sourceDocumentId: project.documents[1]!.sourceDocumentId,
-      }).update({
-        executionStatus: 'FAILED',
-        failure: {
-          code: 'invalid_model_output',
-          message: 'Sanitized durable failure.',
-        },
-        startedAt: completedAt,
-        finishedAt: completedAt,
-      })
-      await db.orm.public.BatchSchemaSuggestion.where({
-        id: batchSchemaSuggestionId,
-      }).update({
-        executionStatus: 'FAILED',
-        phase: 'SOURCES',
-        failure: {
-          code: 'source_suggestion_failed',
-          message: 'One source failed.',
-        },
-        startedAt: completedAt,
-        finishedAt: completedAt,
-      })
-
-      const retried = await store.retryBatchSchemaSuggestion(
-        project.projectContextId,
-        batchSchemaSuggestionId,
-      )
-      assert.equal(retried?.suggestion.batchSchemaSuggestionId, batchSchemaSuggestionId)
-      assert.equal(retried?.suggestion.executionStatus, 'QUEUED')
-      const successful = retried?.suggestion.sources.find(
-        (source) =>
-          source.sourceDocumentId === project.documents[0]!.sourceDocumentId,
-      )
-      const failed = retried?.suggestion.sources.find(
-        (source) =>
-          source.sourceDocumentId === project.documents[1]!.sourceDocumentId,
-      )
-      assert.equal(successful?.executionStatus, 'COMPLETED')
-      assert.deepEqual(successful?.definition, ARTICLE_SCHEMA)
-      assert.equal(successful?.finishedAt?.toISOString(), completedAt.toISOString())
-      assert.equal(failed?.executionStatus, 'QUEUED')
-      assert.equal(failed?.failure, null)
-      assert.equal(failed?.startedAt, null)
-      assert.equal(failed?.finishedAt, null)
-      assert.equal(
-        (
-          await db.orm.public.BatchSchemaSuggestion.where({
-            projectContextId: project.projectContextId,
+        for (const document of members)
+          await db.orm.public.BatchSchemaSuggestionSource.create({
+            batchSchemaSuggestionId,
+            sourceDocumentId: document.sourceDocumentId,
+            sourceRepresentationRevisionId: document.sourceRepresentationRevisionId,
           })
-            .select('id')
-            .all()
-        ).length,
-        1,
-      )
+        await db.orm.public.BatchSchemaSuggestion.where({ id: batchSchemaSuggestionId }).update(fields)
+        return batchSchemaSuggestionId
+      }
+      const run = (batchSchemaSuggestionId: string) =>
+        module.scheduleSuggestedBatch({ projectContextId: project.projectContextId, batchSchemaSuggestionId, strategy: 'ARTICLE' })
+      const unconfirmed = async (batchSchemaSuggestionId: string) =>
+        assert.deepEqual(
+          await db.orm.public.BatchSchemaSuggestion.select('confirmedSchemaRevisionId', 'batchExtractionId')
+            .first({ id: batchSchemaSuggestionId }),
+          { confirmedSchemaRevisionId: null, batchExtractionId: null },
+        )
+      const ready = { phase: 'READY', draft: ARTICLE_SCHEMA, draftVersion: 1 }
+
+      // No draft yet: the first attempt has not published one.
+      const drafting = await suggestion({ outcome: 'SUCCEEDED', phase: 'HETEROGENEOUS' })
+      await assert.rejects(run(drafting), rejectsWithCode('batch_not_ready'))
+      await unconfirmed(drafting)
+
+      // A valid draft with no surviving member (its sources were deleted).
+      const empty = await suggestion({ outcome: 'SUCCEEDED', ...ready }, [])
+      await assert.rejects(run(empty), rejectsWithCode('batch_not_ready'))
+      await unconfirmed(empty)
+
+      // A retained draft while the next attempt runs: its result will replace the draft.
+      const retrying = await suggestion({ attempt: 2, outcome: null, ...ready })
+      for (const status of ['ENQUEUED', 'PENDING']) {
+        attempts.set(`suggest:${retrying}:2`, status)
+        await assert.rejects(run(retrying), rejectsWithCode('batch_not_ready'))
+        await unconfirmed(retrying)
+      }
+
+      // The latest attempt need not have succeeded: a failed or interrupted attempt keeps a valid draft runnable.
+      const failed = await suggestion({ attempt: 2, outcome: 'FAILED', failure: { code: 'source_suggestion_failed', message: 'Failed.' }, ...ready })
+      assert.equal((await run(failed)).disposition, 'created')
+      attempts.set(`suggest:${retrying}:2`, 'CANCELLED')
+      assert.equal((await run(retrying)).disposition, 'created')
+      const persisted = await db.orm.public.BatchSchemaSuggestion.select('confirmedSchemaRevisionId', 'batchExtractionId')
+        .first({ id: retrying })
+      assert.ok(persisted?.confirmedSchemaRevisionId)
+      assert.ok(persisted.batchExtractionId)
+
+      const removable = await suggestion({ outcome: 'SUCCEEDED', ...ready }, [project.documents[0]!])
+      const projectStore = createResearcherProjectStore(project.researcherAccountId, db)
+      assert.deepEqual(await projectStore.deleteSourceDocument(project.projectContextId, project.documents[0]!.sourceDocumentId),
+        { interruptedAttempts: [] })
+      await assert.rejects(run(removable), rejectsWithCode('batch_not_ready'))
+      assert.deepEqual(await projectStore.retryBatchSchemaSuggestion(project.projectContextId, removable, 1), { status: 'not-ready' })
+      assert.deepEqual((await db.orm.public.BatchSchemaSuggestion.select('draft', 'draftVersion').first({ id: removable })),
+        { draft: ARTICLE_SCHEMA, draftVersion: 1 })
+    })
+  })
+
+  describe('through kei\'s contract', () => {
+    const keiSchema = `kei_dbos_t_${randomBytes(4).toString('hex')}`
+    let standIn: Awaited<ReturnType<typeof spawnKeiStandIn>> | undefined
+    let keiClient: DBOSClient | undefined
+
+    after(async () => {
+      try {
+        await standIn?.stop()
+      } finally {
+        try {
+          await keiClient?.destroy()
+        } finally {
+          const admin = new pg.Client({ connectionString: disposableDatabaseUrl })
+          await admin.connect()
+          try {
+            if (!/^kei_dbos_t_[0-9a-f]{8}$/.test(keiSchema)) throw new Error(`Refusing to drop schema ${keiSchema}.`)
+            await admin.query(`DROP SCHEMA IF EXISTS "${keiSchema}" CASCADE`)
+          } finally {
+            await admin.end()
+          }
+        }
+      }
+    })
+
+    it('an Extraction runs end to end on the stand-in and publishes the artifact kei published', async (t) => {
+      t.after(cleanup)
+      standIn = await spawnKeiStandIn({ databaseUrl: disposableDatabaseUrl, schema: keiSchema })
+      await standIn.policy({ extract: 'auto' })
+      keiClient = await DBOSClient.create({
+        systemDatabaseUrl: disposableDatabaseUrl, systemDatabaseSchemaName: keiSchema, applicationName: KEI_APPLICATION,
+      })
+      const keiExp = createKeiExpClient({ url: standIn.url })
+      ports = {
+        ...scriptedPorts,
+        kei: createKeiHandoff(keiClient, { pollWindowMs: 3_000, pollIntervalMs: 100 }),
+        readArtifact: (runId, extractionId, signal) => keiExp.readExtractionArtifact(runId, extractionId, signal),
+      }
+      const project = await seedProject()
+      const document = project.documents[0]!
+      const { module } = createRuntime(project.researcherAccountId)
+      const input = freshInput(project)
+      const completed = await module.runSingle(input)
+      assert.equal(completed.extraction.executionStatus, 'COMPLETED')
+      const published = JSON.parse(new TextDecoder().decode(
+        await keiExp.readExtractionArtifact(document.runId, input.extractionId),
+      )) as { records: unknown[]; model: string; models: Record<string, string>; complete: boolean }
+      assert.deepEqual(completed.extraction.result, { records: published.records })
+      assert.equal(completed.extraction.complete, published.complete)
+      assert.deepEqual(completed.extraction.modelAttribution, { provider: 'kei-exp', modelId: published.model })
+      assert.deepEqual(completed.extraction.diagnostics?.models, published.models)
+      const [child] = await keiClient.listWorkflows({ workflowIDs: [keiExtractWorkflowId(input.extractionId)], loadInput: false })
+      assert.equal(child?.status, 'SUCCESS')
+      assert.equal(child?.queueName, 'kei-extract')
+      assert.equal(child?.priority, 1)
+      assert.equal(child?.attributes?.keiRunId, document.runId)
+      assert.equal(kei.submissions.length, 0)
     })
   })
 
   after(async () => {
     await cleanup()
-    await db.close()
-    await rm(packageRoot, { recursive: true, force: true })
+    try {
+      await app.close()
+    } finally {
+      await db.close()
+      await pool.end()
+      await rm(packageRoot, { recursive: true, force: true })
+    }
   })
 }

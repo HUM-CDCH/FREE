@@ -225,7 +225,7 @@ def read_manifest(directory: Path) -> Result:
         manifest = Result.model_validate_json(raw)
     except ValidationError as error:
         raise ResultError(f"{path} is not a valid manifest: {error}") from error
-    if manifest.result_version not in (4, RESULT_VERSION):
+    if manifest.result_version != RESULT_VERSION:
         raise ResultError(f"{path} was written at result_version {manifest.result_version}, not the {RESULT_VERSION} "
                           "this reader reads")
     return manifest

@@ -12,7 +12,7 @@ import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
 import type { RunExtractionStrategy } from './ResultsTab'
 import { useDurableCurrentSchemaRevision } from './useCurrentSchemaRevision'
-import { requestSchema } from './api'
+import { deleteModelOperation, requestSchema } from './api'
 import {
   decodeParsedDocument,
   type ParsedDocument,
@@ -123,6 +123,9 @@ export type DocumentWorkspaceProps = {
   onOpenExtraction: (extractionId: string) => void
   /** Only the loader sees a retained resource fail; reported once, on open. */
   onInitialResourceLoadFailure?: () => void
+  /** A run was refused because reprocessing superseded this Source Representation: read the document again, and
+      keep this workspace if that read fails. */
+  onSourceSuperseded?: () => void
   /** DocumentTabBar's (AppFrame.tsx) trailing slot, in its own tab-strip row —
       portalled into so the PDF controls share that row instead of a second one. */
   tabBarSlot?: HTMLElement | null
@@ -146,6 +149,7 @@ export function DocumentWorkspace({
   latestReviewedExtraction = null,
   onOpenExtraction,
   onInitialResourceLoadFailure,
+  onSourceSuperseded,
   tabBarSlot = null,
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -180,6 +184,9 @@ export function DocumentWorkspace({
   const [railTab, setRailTab] = useState<RailTab>('schema')
   const [resultPath, setResultPath] = useState<string[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  // Whether the toast on screen explains the refresh that is about to replace
+  // this document's Source Representation, so that switch must not clear it.
+  const [toastOutlivesSwitch, setToastOutlivesSwitch] = useState(false)
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
   // Extraction Schemas keyed by Schema Revision id, so any attempt — active,
   // restored, or historical — resolves the exact revision it ran with.
@@ -225,7 +232,8 @@ export function DocumentWorkspace({
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
     setKnownSchemas(reopenedSchemas)
     setResultPath(null)
-    setToast(null)
+    if (!toastOutlivesSwitch) setToast(null)
+    setToastOutlivesSwitch(false)
     setDocIndex({ status: 'parsing' })
   }
 
@@ -422,10 +430,14 @@ export function DocumentWorkspace({
     [],
   )
 
-  function showToast(message: string) {
+  function showToast(message: string, { outlivesSwitch = false, durationMs = 2600 } = {}) {
     window.clearTimeout(toastTimerRef.current)
     setToast(message)
-    toastTimerRef.current = window.setTimeout(() => setToast(null), 2600)
+    setToastOutlivesSwitch(outlivesSwitch)
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null)
+      setToastOutlivesSwitch(false)
+    }, durationMs)
   }
 
   // Front-end reset only: the durable schema remains the save target, while
@@ -449,6 +461,9 @@ export function DocumentWorkspace({
       return
     }
     const hadSchema = schemaSnap.extractionSchemaId !== null
+    // The tab's acknowledged head is the base: a reloaded page saves this generation only while it is still current.
+    const acknowledged = schema.snapshot().save?.acknowledged ?? null
+    const operationId = crypto.randomUUID() // a new user action, a new ID (spec, *Client IDs*)
     await schema.generate((signal) =>
       requestSchema(
         {
@@ -456,8 +471,14 @@ export function DocumentWorkspace({
           sourceRepresentationRevisionId: sourceRepresentationId,
         },
         signal,
-        { instruction },
+        {
+          instruction,
+          operationId,
+          base: acknowledged && { extractionSchemaId: acknowledged.extractionSchemaId, schemaRevisionId: acknowledged.schemaRevisionId },
+        },
       ),
+      // Stop cancels the workflow; leaving the page only detaches (the controller's dispose).
+      { cancel: () => deleteModelOperation(`suggestion:${operationId}`) },
     )
     // The first successful generation initializes the Extraction Schema;
     // name it the way initializeSchemaRevision's caller always has.
@@ -543,10 +564,11 @@ export function DocumentWorkspace({
         if (attempt.outcome === 'SUCCEEDED')
           setFinishedExtractionReport({ attempt, schemaNodes })
       }
-      if (attempt.executionStatus === 'FAILED')
-        showToast('Extraction failed — see details in Results')
-      else if (attempt.outcome === 'CANCELLED')
+      selectNextRunAfter(attempt)
+      if (attempt.failure?.code === 'cancelled')
         showToast('Extraction cancelled — no result was saved')
+      else if (attempt.executionStatus === 'FAILED')
+        showToast('Extraction failed — see details in Results')
       else
         showToast(
           isRerun
@@ -555,7 +577,26 @@ export function DocumentWorkspace({
         )
     },
     onError: () => showToast('Extraction failed — see details in Results'),
+    // Nothing started. The refresh either keeps this Source Representation, now no longer current (Run is then
+    // disabled), or moves to the reprocessed one; either way the notice outlives that switch.
+    onSuperseded: () => {
+      showToast('This document has been reprocessed — no new Extraction was started', {
+        outlivesSwitch: true,
+        durationMs: 6000,
+      })
+      onSourceSuperseded?.()
+    },
   })
+
+  /**
+   * The one-shot selection for the next run once `attempt` is acknowledged or has ended: a failed Catalog attempt is
+   * run again with its own recipe; anything else defaults back to Article.
+   */
+  function selectNextRunAfter(attempt: ExtractionAttempt) {
+    const repeat = attempt.executionStatus === 'FAILED' && attempt.strategy === 'CATALOG'
+    setNextExtractionStrategy(repeat ? 'CATALOG' : 'ARTICLE')
+    setNextCatalogRecipe(repeat ? attempt.catalogRecipe ?? '' : '')
+  }
 
   // The Current Schema Revision is the acknowledged durable revision; unsaved
   // editor changes never move it, so they cannot mark a result as previous.
@@ -666,8 +707,7 @@ export function DocumentWorkspace({
         catalogRecipe,
       )
       if (!acknowledged) return
-      setNextExtractionStrategy('ARTICLE')
-      setNextCatalogRecipe('')
+      selectNextRunAfter(acknowledged)
       if (acknowledged.executionStatus === 'COMPLETED' || acknowledged.executionStatus === 'FAILED') {
         if (acknowledged.outcome === 'SUCCEEDED')
           setFinishedExtractionReport({ attempt: acknowledged, schemaNodes: revision.schemaNodes })

@@ -83,7 +83,7 @@ export type ProjectContextsValue = {
     layout: SourceLayout
   }) => void
   sourceRevisions: Readonly<Record<string, string>>
-  retrySource: (ingestionKey: string) => void
+  retrySource: (itemId: string) => void
 }
 
 export const ProjectContextsContext =

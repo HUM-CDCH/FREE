@@ -2,10 +2,59 @@ import { expect, test } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import type { Page } from '@playwright/test'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
 import { extractionReadResponseSchema } from '../shared/extraction.contract.js'
+import { batchExtractionResponseSchema } from '../shared/batchExtraction.contract.js'
 import { E2E_ORIGIN, loginResearcher } from './auth.js'
-import { cataloguePdf, numberedCataloguePdf, startRealService } from './realService.js'
+import { cataloguePdf, numberedCataloguePdf, startRealService, textPdf } from './realService.js'
+
+const headers = { Origin: E2E_ORIGIN }
+async function createProject(page: Page, name: string): Promise<string> {
+  await loginResearcher(page)
+  const response = await page.request.post('/api/project-contexts', { headers, data: { name } })
+  expect(response.status(), await response.text()).toBe(201)
+  return (await response.json()).projectContext.projectContextId as string
+}
+async function uploadPdf(page: Page, project: string, pdf: Buffer, name = 'source.pdf') {
+  return page.request.post(`/api/project-contexts/${project}/source-documents`, {
+    headers, timeout: 300_000, multipart: { file: { name, mimeType: 'application/pdf', buffer: pdf } },
+  })
+}
+async function representation(page: Page, project: string, document: string) {
+  const response = await page.request.get(`/api/project-contexts/${project}/source-documents/${document}/reopen`)
+  expect(response.ok(), await response.text()).toBeTruthy()
+  return documentReopenResponseSchema.parse(await response.json()).sourceRepresentation.sourceRepresentationId
+}
+async function articleSchema(page: Page, project: string) {
+  const response = await page.request.post('/api/schema-revisions', { headers, data: {
+    projectContextId: project, recordDescription: 'Numbered archaeological sites.',
+    schemaNodes: [
+      { id: 'site', name: 'site', type: 'verbatim-string', description: 'Site name.' },
+      { id: 'finds', name: 'finds', type: 'verbatim-string', description: 'Material found.' },
+      { id: 'year', name: 'year', type: 'integer', description: 'Year after dated.' },
+    ],
+  } })
+  expect(response.status(), await response.text()).toBe(201)
+  return (await response.json()).revision.schemaRevisionId as string
+}
+async function extract(page: Page, revision: string, representationId: string) {
+  const id = randomUUID()
+  const response = await page.request.post('/api/extractions', { headers, data: {
+    id, strategy: 'ARTICLE', schemaRevisionId: revision, sourceRepresentationRevisionId: representationId,
+  } })
+  expect(response.status(), await response.text()).toBe(201)
+  return id
+}
+async function completedExtraction(page: Page, id: string) {
+  await expect.poll(async () => {
+    const response = await page.request.get(`/api/extractions/${id}`)
+    expect(response.ok(), await response.text()).toBeTruthy()
+    const body = extractionReadResponseSchema.parse(await response.json())
+    if (body.extraction.executionStatus === 'FAILED') throw new Error(JSON.stringify(body.extraction.failure))
+    return body.extraction.executionStatus
+  }, { timeout: 300_000, intervals: [500, 1000] }).toBe('COMPLETED')
+}
 
 test('PDF upload, real parse worker, extraction, evidence and review survive service restart', async ({ page }, testInfo) => {
   const service = await startRealService(testInfo.outputPath('parsing-service.log'))
@@ -18,7 +67,7 @@ test('PDF upload, real parse worker, extraction, evidence and review survive ser
     const upload = await page.request.post(`/api/project-contexts/${projectContext.projectContextId}/source-documents`, {
       headers,
       timeout: 180_000,
-      multipart: { ingestionKey: randomUUID(), file: { name: 'sites.pdf', mimeType: 'application/pdf', buffer: cataloguePdf() } },
+      multipart: { file: { name: 'sites.pdf', mimeType: 'application/pdf', buffer: cataloguePdf() } },
     })
     expect(upload.status(), await upload.text()).toBe(201)
     const source = await upload.json()
@@ -89,20 +138,19 @@ test('PDF upload, real parse worker, extraction, evidence and review survive ser
     expect(extractionIds).toHaveLength(2)
     const acceptedArtifacts = await Promise.all(extractionIds.map(async (extractionId) => {
       const polled = await (await fetch(`${service.url}/api/runs/${runId}/extractions/${extractionId}`)).json()
-      expect(polled.status).toBe('done')
-      expect(polled.result.model).toBe(service.model)
+      expect(polled.model).toBe(service.model)
       // One scripted server takes both roles, so each role reports the same model.
-      expect(polled.result.models).toEqual({ fields: service.model, reasoning: service.model })
+      expect(polled.models).toEqual({ fields: service.model, reasoning: service.model })
       const disk = JSON.parse(await readFile(join(service.runs, runId, 'extractions', extractionId, 'result.json'), 'utf8'))
-      expect(polled.result).toEqual(disk)
-      return polled
+      expect(polled).toEqual(disk)
+      return { id: extractionId, result: polled }
     }))
     await testInfo.attach('accepted-extractions', { body: JSON.stringify(acceptedArtifacts, null, 2), contentType: 'application/json' })
     const calls = service.modelCalls()
     if (calls !== null) expect(calls).toBe(4) // Article, discovery, then two catalog records.
     await service.restart()
     for (const prior of acceptedArtifacts)
-      expect(await (await fetch(`${service.url}/api/runs/${runId}/extractions/${prior.id}`)).json()).toEqual(prior)
+      expect(await (await fetch(`${service.url}/api/runs/${runId}/extractions/${prior.id}`)).json()).toEqual(prior.result)
     expect(service.modelCalls()).toBe(calls)
     for (const id of completedIds) {
       const durable = extractionReadResponseSchema.parse(await (await page.request.get(`/api/extractions/${id}`)).json())
@@ -133,7 +181,7 @@ test('a recipe Catalog extraction segments entries, inherits headings, follows c
     const upload = await page.request.post(`/api/project-contexts/${projectContext.projectContextId}/source-documents`, {
       headers,
       timeout: 180_000,
-      multipart: { ingestionKey: randomUUID(), file: { name: 'katalog.pdf', mimeType: 'application/pdf', buffer: numberedCataloguePdf() } },
+      multipart: { file: { name: 'katalog.pdf', mimeType: 'application/pdf', buffer: numberedCataloguePdf() } },
     })
     expect(upload.status(), await upload.text()).toBe(201)
     const source = await upload.json()
@@ -201,8 +249,8 @@ test('a recipe Catalog extraction segments entries, inherits headings, follows c
 
     const [extractionId] = await readdir(join(service.runs, runId, 'extractions'))
     const accepted = await (await fetch(`${service.url}/api/runs/${runId}/extractions/${extractionId}`)).json()
-    expect(accepted.result.extraction_version).toBe(2)
-    expect(accepted.result.budget.tokenizer.source).toBe('vllm:/tokenize')
+    expect(accepted.extraction_version).toBe(2)
+    expect(accepted.budget.tokenizer.source).toBe('vllm:/tokenize')
     const segmentations = await readdir(join(service.runs, runId, 'segmentations'))
     expect(segmentations).toHaveLength(1)
     await service.restart()
@@ -233,4 +281,188 @@ test('a recipe Catalog extraction segments entries, inherits headings, follows c
   } finally {
     await service.close()
   }
+})
+
+test('a PDF that neither parser opens is refused without a Source Document', async ({ page }, testInfo) => {
+  const service = await startRealService(testInfo.outputPath('parsing-service.log'))
+  try {
+    const project = await createProject(page, 'Unreadable PDF')
+    const response = await uploadPdf(page, project, Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.alloc(2048)]), 'unreadable.pdf')
+    expect(response.status(), await response.text()).toBe(422)
+    expect(await response.json()).toMatchObject({ error: { code: 'source_ingestion_failed' } })
+    const [conversion] = await service.keiWorkflows('kei-convert:', project)
+    expect(conversion?.queueName).toBe('kei-convert-large')
+    expect(conversion?.output).toMatchObject({ ok: false, code: 'source_unreadable' })
+    const snapshot = await page.request.get(`/api/project-contexts/${project}`)
+    expect(snapshot.ok()).toBeTruthy()
+    expect((await snapshot.json()).sourceDocuments).toHaveLength(0)
+  } finally { await service.close() }
+})
+
+test('a PDF that PDFium alone opens converts on the large lane', async ({ page }, testInfo) => {
+  // Generated from textPdf([['PDFium probe']]) by changing the page tree's /Count 1 to /Count 0.
+  // Probed before committing: PDFium counts one page; pdf.js reports zero, which countPdfPages maps to null.
+  const service = await startRealService(testInfo.outputPath('parsing-service.log'))
+  try {
+    const project = await createProject(page, 'PDFium fallback')
+    const pdf = await readFile(join(import.meta.dirname, 'fixtures', 'pdfium-only.pdf'))
+    const response = await uploadPdf(page, project, pdf, 'pdfium-only.pdf')
+    expect(response.status(), await response.text()).toBe(201)
+    const [conversion] = await service.keiWorkflows('kei-convert:', project)
+    expect(conversion?.queueName).toBe('kei-convert-large')
+    expect(conversion?.status).toBe('SUCCESS')
+  } finally { await service.close() }
+})
+
+test('reprocess uses the small lane and the default owner model choice', async ({ page }, testInfo) => {
+  const service = await startRealService(testInfo.outputPath('parsing-service.log'))
+  try {
+    const project = await createProject(page, 'Reprocess model choice')
+    const first = await uploadPdf(page, project, cataloguePdf())
+    expect(first.status(), await first.text()).toBe(201)
+    const { sourceDocumentId } = await first.json()
+    const head = await representation(page, project, sourceDocumentId)
+    const key = randomUUID()
+    const response = await page.request.post(`/api/project-contexts/${project}/source-documents/${sourceDocumentId}/reprocess`, {
+      headers, timeout: 300_000,
+      data: { requestKey: key, expectedRepresentationId: head, layout: 'pages' },
+    })
+    expect(response.status(), await response.text()).toBe(201)
+    const [child] = await service.keiWorkflows(`kei-convert:reprocess:${sourceDocumentId}:${key}`, project)
+    expect(child?.queueName).toBe('kei-convert-small')
+    expect(child?.input?.[0]).toMatchObject({ model: null, layout_model: null })
+  } finally { await service.close() }
+})
+
+test('interactive and batch extraction reach kei with their priorities and deadlines', async ({ page }, testInfo) => {
+  const service = await startRealService(testInfo.outputPath('parsing-service.log'))
+  try {
+    const project = await createProject(page, 'Extraction priorities')
+    const upload = await uploadPdf(page, project, cataloguePdf())
+    expect(upload.status(), await upload.text()).toBe(201)
+    const { sourceDocumentId } = await upload.json()
+    const revision = await articleSchema(page, project)
+    const interactive = await extract(page, revision, await representation(page, project, sourceDocumentId))
+    await completedExtraction(page, interactive)
+    const scheduled = await page.request.post('/api/batch-extractions', { headers, data: {
+      projectContextId: project, schemaRevisionId: revision, strategy: 'ARTICLE',
+      sourceDocumentIds: [sourceDocumentId], force: true,
+    } })
+    expect(scheduled.status(), await scheduled.text()).toBe(202)
+    const batchId = (await scheduled.json()).batchExtraction.batchExtractionId as string
+    await expect.poll(async () => (await service.keiWorkflows('kei-extract:', project)).length,
+      { timeout: 120_000, intervals: [500, 1000] }).toBe(2)
+    const children = await service.keiWorkflows('kei-extract:', project)
+    const first = children.find((child) => child.workflowID === `kei-extract:${interactive}`)
+    const batch = children.find((child) => child.workflowID !== `kei-extract:${interactive}`)
+    expect(first).toMatchObject({ queueName: 'kei-extract', priority: 1, timeoutMS: 600_000 })
+    expect(batch).toMatchObject({ queueName: 'kei-extract', priority: 10, timeoutMS: 600_000 })
+    await expect.poll(async () => {
+      const response = await page.request.get(`/api/batch-extractions/${batchId}?projectContextId=${project}`)
+      expect(response.ok(), await response.text()).toBeTruthy()
+      const current = batchExtractionResponseSchema.parse(await response.json()).batchExtraction
+      return current.members[0]?.executionStatus
+    }, { timeout: 300_000, intervals: [500, 1000] }).toBe('COMPLETED')
+  } finally { await service.close() }
+})
+
+test('cancelling an extraction cancels its live kei child', async ({ page }, testInfo) => {
+  test.skip(Boolean(process.env.FREE_REAL_EXTRACT_URL), 'A held model call requires the scripted model server.')
+  const service = await startRealService(testInfo.outputPath('parsing-service.log'))
+  try {
+    const project = await createProject(page, 'Cancel extraction')
+    const upload = await uploadPdf(page, project, cataloguePdf())
+    expect(upload.status(), await upload.text()).toBe(201)
+    const { sourceDocumentId } = await upload.json()
+    const revision = await articleSchema(page, project)
+    const modelCallsBefore = service.modelCalls()!
+    service.holdNextExtraction()
+    const id = await extract(page, revision, await representation(page, project, sourceDocumentId))
+    await expect.poll(() => service.extractionHeld(), { timeout: 120_000 }).toBe(true)
+    const child = `kei-extract:${id}`
+    await expect.poll(async () => (await service.keiWorkflows(child, project))[0]?.status).toBe('PENDING')
+    const cancel = await page.request.delete(`/api/extractions/${id}`, { headers })
+    expect(cancel.status(), await cancel.text()).toBe(202)
+    await expect.poll(async () => (await service.keiWorkflows(child, project))[0]?.status,
+      { timeout: 5_000, intervals: [100, 250] }).toBe('CANCELLED')
+    const read = extractionReadResponseSchema.parse(await (await page.request.get(`/api/extractions/${id}`)).json())
+    expect(read.extraction).toMatchObject({ executionStatus: 'FAILED', failure: { code: 'cancelled' }, resultPayload: null })
+    service.releaseExtraction()
+    await expect.poll(() => service.modelCalls(), { timeout: 10_000, intervals: [100, 250] })
+      .toBeGreaterThan(modelCallsBefore)
+    // The model has answered and DBOS has recorded the native step's completion.
+    // Keep the service up through both barriers before checking late publication.
+    await expect.poll(() => service.keiExtractStepFinished(child),
+      { timeout: 120_000, intervals: [100, 250] }).toBe(true)
+    const latest = extractionReadResponseSchema.parse(await (await page.request.get(`/api/extractions/${id}`)).json())
+    expect(latest.extraction).toMatchObject({ executionStatus: 'FAILED', failure: { code: 'cancelled' }, resultPayload: null })
+    expect((await service.keiWorkflows(child, project))[0]?.status).toBe('CANCELLED')
+  } finally { service.releaseExtraction(); await service.close() }
+})
+
+test('a small conversion and extraction finish while a large conversion runs', async ({ page }, testInfo) => {
+  const service = await startRealService(testInfo.outputPath('parsing-service.log'), { holdConversion: true })
+  try {
+    const project = await createProject(page, 'Independent conversion lanes')
+    const largePdf = textPdf(Array.from({ length: 40 }, (_, index) => [`Large page ${index + 1}.`]))
+    const largeUpload = uploadPdf(page, project, largePdf, 'large.pdf')
+    await expect.poll(() => service.conversionHeld(), { timeout: 120_000, intervals: [100, 250] }).toBe(true)
+    let largeId = ''
+    await expect.poll(async () => {
+      const row = (await service.keiWorkflows('kei-convert:', project))
+        .find((candidate) => candidate.queueName === 'kei-convert-large' && candidate.status === 'PENDING')
+      largeId = row?.workflowID ?? ''
+      return Boolean(row)
+    }, { timeout: 120_000, intervals: [100, 250] }).toBe(true)
+    const small = await uploadPdf(page, project, cataloguePdf(), 'small.pdf')
+    expect(small.status(), await small.text()).toBe(201)
+    const { sourceDocumentId } = await small.json()
+    const revision = await articleSchema(page, project)
+    const id = await extract(page, revision, await representation(page, project, sourceDocumentId))
+    await completedExtraction(page, id)
+    expect((await service.keiWorkflows(largeId, project))[0]?.status).toBe('PENDING')
+    await service.releaseConversion()
+    const big = await largeUpload
+    expect(big.status(), await big.text()).toBe(201)
+    const conversions = await service.keiWorkflows('kei-convert:', project)
+    const large = conversions.find((row) => row.workflowID === largeId)
+    const smallChild = conversions.find((row) => row.workflowID !== largeId)
+    const [extraction] = await service.keiWorkflows(`kei-extract:${id}`, project)
+    expect(large?.queueName).toBe('kei-convert-large')
+    expect(smallChild?.queueName).toBe('kei-convert-small')
+    expect(smallChild?.completedAt).toBeLessThan(large!.completedAt!)
+    expect(extraction?.completedAt).toBeLessThan(large!.completedAt!)
+  } finally { await service.releaseConversion(); await service.close() }
+})
+
+test('a kei worker killed inside native conversion recovers the child and publishes once', async ({ page }, testInfo) => {
+  const service = await startRealService(testInfo.outputPath('parsing-service.log'), { holdConversion: true })
+  try {
+    const project = await createProject(page, 'Conversion recovery')
+    const pdf = textPdf(Array.from({ length: 40 }, (_, index) => [`Recovery page ${index + 1}.`]))
+    const pending = uploadPdf(page, project, pdf, 'recovery.pdf')
+    await expect.poll(() => service.conversionHeld(), { timeout: 120_000, intervals: [100, 250] }).toBe(true)
+    let workflowId = ''
+    await expect.poll(async () => {
+      const row = (await service.keiWorkflows('kei-convert:', project)).find((candidate) => candidate.status === 'PENDING')
+      workflowId = row?.workflowID ?? ''
+      return Boolean(row)
+    }, { timeout: 120_000, intervals: [100, 250] }).toBe(true)
+    await service.killWorker()
+    await service.releaseConversion()
+    const uploaded = await pending
+    expect(uploaded.status(), await uploaded.text()).toBe(201)
+    const { sourceDocumentId } = await uploaded.json()
+    const children = await service.keiWorkflows('kei-convert:', project)
+    expect(children.map((child) => child.workflowID)).toEqual([workflowId])
+    expect(children[0]).toMatchObject({ status: 'SUCCESS' })
+    expect(children[0]!.recoveryAttempts).toBeGreaterThanOrEqual(2)
+    const opened = await page.request.get(`/api/project-contexts/${project}`)
+    expect(opened.ok(), await opened.text()).toBeTruthy()
+    expect((await opened.json()).sourceDocuments.map((document: { sourceDocumentId: string }) => document.sourceDocumentId))
+      .toEqual([sourceDocumentId])
+    const reopen = documentReopenResponseSchema.parse(await (await page.request.get(
+      `/api/project-contexts/${project}/source-documents/${sourceDocumentId}/reopen`)).json())
+    expect(reopen.sourceRepresentation.revisionNumber).toBe(1)
+  } finally { await service.releaseConversion(); await service.close() }
 })

@@ -3,6 +3,7 @@ import { Readable } from 'node:stream'
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 import {
   createResearcherProjectStore,
+  workflowStatusesOf,
   type ResearcherAccountStore,
   type ResearcherProjectStore,
 } from 'db'
@@ -18,6 +19,7 @@ import {
   apiErrorResponse,
 } from '../api/_http.js'
 import { GET as healthResponse } from '../api/healthz.js'
+import { studioProcess, type ModelKeyCache } from '../api/_model_keys.js'
 import {
   dispatchApiRequest,
   isSourceDocumentIngestionPath,
@@ -31,6 +33,7 @@ import {
 import {
   type EntraIdentityProvider,
 } from './entraIdentityProvider.js'
+import { studioDbos } from './dbos.js'
 import { createEntraTransactionManager } from './entraTransaction.js'
 import { enforceCanonicalOrigin } from './origin.js'
 import { normalizeClientAddress } from './request-address.js'
@@ -47,6 +50,7 @@ import {
   DEFAULT_RETURN_PATH,
   validateLocalReturnPath,
 } from '../shared/returnPath.js'
+import { STUDIO_BOOT_HEADER } from '../shared/studioBoot.js'
 export const VITE_CLIENT_FALLBACK_HEADER = 'x-free-vite-client-fallback'
 export const GENERAL_API_REQUEST_LIMIT = 1024 * 1024
 const SIGNED_OUT_COOKIE_NAME = 'free_signed_out'
@@ -70,6 +74,7 @@ const PUBLIC_ASSETS: Readonly<Record<string, true>> = {
 const VITE_DEVELOPMENT_ASSETS: Readonly<Record<string, true>> = {
   '/@react-refresh': true,
   '/src/main.tsx': true,
+  '/src/zodWithoutEval.ts': true,
   '/src/index.css': true,
   '/src/pdf-viewer.css': true,
   '/src/auth/AuthApplication.tsx': true,
@@ -83,6 +88,12 @@ const VITE_DEVELOPMENT_ASSETS: Readonly<Record<string, true>> = {
   '/shared/studioBasePath.ts': true,
   '/shared/authSession.contract.ts': true,
   '/shared/returnPath.ts': true,
+  '/shared/studioBoot.ts': true,
+  // The model key handoff: AuthApplication hands the keys over, and sign-out clears this browser's copy.
+  '/src/modelKeys/modelKeyHandoff.ts': true,
+  '/src/modelKeys/modelKeyStore.ts': true,
+  '/shared/modelKeys.contract.ts': true,
+  '/shared/modelConfig.contract.ts': true,
   '/src/ui/Button.tsx': true,
 }
 
@@ -140,6 +151,8 @@ export type StudioAppOptions = {
   clientHandler?: ClientHandler
   viteDevelopmentAssets?: boolean
   requestPeer?: (bindings: StudioBindings) => void
+  /** This process's key cache and its boot ID; the process-wide `studioProcess` when omitted. */
+  modelKeys?: { bootId: string; keys: Pick<ModelKeyCache, 'forgetAccount'> }
 }
 
 function withCookie(response: Response, cookie: string): Response {
@@ -352,9 +365,27 @@ export async function createStudioApp(
   const allowViteDevelopmentAssets = options.viteDevelopmentAssets ?? false
   const dispatcher = options.apiDispatcher ?? dispatchApiRequest
   const researcherProjectStore =
-    options.researcherProjectStore ?? createResearcherProjectStore
+    options.researcherProjectStore ??
+    ((researcherAccountId: string) =>
+      createResearcherProjectStore(researcherAccountId, undefined, {
+        // Resolved per read: an application built without a launched DBOS (its tests) never reads a status.
+        workflowStatuses: (workflowIds) =>
+          workflowStatusesOf((input) =>
+            studioDbos().admission.listWorkflows(input),
+          )(workflowIds),
+        // A suggestion attempt's workflow, written in its admission transaction; resolved per admission like reads.
+        enqueue: (client, workflow, input) =>
+          studioDbos()
+            .admission.enqueueInTransaction(
+              client,
+              { ...workflow, attributes: { ...workflow.attributes } },
+              input,
+            )
+            .then(() => undefined),
+      }))
   const clientHandler = options.clientHandler ?? defaultClientHandler
   const verifyRequestPeer = options.requestPeer
+  const custody = options.modelKeys ?? studioProcess
   const gate = createSessionGate({
     backend,
     clearSessionCookie: () => sessions.clear(),
@@ -368,6 +399,22 @@ export async function createStudioApp(
     enforceCanonicalOrigin(context.req.raw, studioOrigin)
     await next()
   })
+
+  const stampBoot: MiddlewareHandler<StudioEnvironment> = async (
+    context,
+    next,
+  ) => {
+    await next()
+    // Every API response names this process's key cache, so a page resends its keys after a restart.
+    try {
+      context.res.headers.set(STUDIO_BOOT_HEADER, custody.bootId)
+    } catch {
+      context.res = new Response(context.res.body, context.res)
+      context.res.headers.set(STUDIO_BOOT_HEADER, custody.bootId)
+    }
+  }
+  app.use('/api', stampBoot)
+  app.use('/api/*', stampBoot)
 
   const authGuard: MiddlewareHandler<StudioEnvironment> = async (
     context,
@@ -401,6 +448,24 @@ export async function createStudioApp(
       : generalBodyLimit)(context, next)
   app.use('/api', apiBodyLimit)
   app.use('/api/*', apiBodyLimit)
+
+  // Sessions that signed out in this process, by a digest of their cookie, until they would have expired. Only key
+  // handoffs consult it: a handoff a page sent before signing out must not put its keys back after the eviction.
+  const signedOutSessions = new Map<string, number>()
+  const sessionDigest = (value: string) => createHash('sha256').update(value).digest('base64url')
+  const refuseSignedOutHandoff: MiddlewareHandler<StudioEnvironment> = async (
+    context,
+    next,
+  ) => {
+    const { value } = sessions.read(context.req.raw)
+    // No cookie is cleared: this answer can arrive after the browser signed in again and holds a newer session.
+    if (value && signedOutSessions.has(sessionDigest(value)))
+      return authenticationRequired()
+    // Nothing awaits between this check and the handoff's start (`keys.handoff` in api/model_keys.ts), and a
+    // sign-out after that start voids the handoff's writes, so no key comes back either way.
+    await next()
+  }
+  app.use('/api/model-keys', refuseSignedOutHandoff)
 
   app.get('/api/auth/session', async (context) => {
     const inspected = await gate.session(context.req.raw)
@@ -486,13 +551,24 @@ export async function createStudioApp(
     }
   })
 
-  app.post('/auth/logout', () =>
-    externalRedirect(identityProvider.logoutUrl(signedOutUri), [
+  app.post('/auth/logout', async (context) => {
+    // Sign-out clears Studio's copy of this account's keys; the page clears the browser's own copy. The signed
+    // cookie alone names the account, so eviction works with the database down.
+    const { value } = sessions.read(context.req.raw)
+    const session = value ? sessions.verify(value) : null
+    if (value && session) {
+      const now = (options.now ?? Date.now)()
+      for (const [digest, expiresAt] of signedOutSessions)
+        if (expiresAt <= now) signedOutSessions.delete(digest)
+      signedOutSessions.set(sessionDigest(value), session.expiresAt)
+      custody.keys.forgetAccount(session.accountId)
+    }
+    return externalRedirect(identityProvider.logoutUrl(signedOutUri), [
       transactions.clear(),
       sessions.clear(),
       signedOutCookie(basePath),
-    ]),
-  )
+    ])
+  })
 
   app.on(['GET', 'HEAD'], '/auth/signed-out', (context) =>
     clientHandler(context.req.raw),

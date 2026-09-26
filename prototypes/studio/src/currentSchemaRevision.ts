@@ -17,6 +17,7 @@ import {
   type SchemaSaveState,
 } from './schemaSaveCoordinator'
 import { sameSchemaDefinition } from './schemaDefinitionEquality'
+import { SchemaRevisionConflictError } from './schemaRevisions'
 import type { SchemaModelContext } from './api'
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -33,6 +34,8 @@ export type SchemaEditorPersistence = {
   edit(definition: SchemaDefinition): void
   /** Durable Extraction Schema identity; absent for local drafts. */
   extractionSchemaId?(): string | null
+  /** The Project Context the durable schema lives in: the scope of the model operations a reloaded page looks for. */
+  projectContextId?(): string
   initialize?(
     definition: SchemaDefinition,
     signal?: AbortSignal,
@@ -62,6 +65,7 @@ export type DurableSchemaPersistence = SchemaEditorPersistence &
     Pick<
       SchemaEditorPersistence,
       | 'extractionSchemaId'
+      | 'projectContextId'
       | 'initialize'
       | 'flush'
       | 'saveState'
@@ -103,6 +107,7 @@ function normalizeSchemaDefinition(
  * without one.
  */
 export function durableSchemaPersistence(options: {
+  projectContextId: string
   initial: AcknowledgedSchemaRevision | null
   debounceMs?: number
   append(
@@ -147,6 +152,9 @@ export function durableSchemaPersistence(options: {
   return {
     extractionSchemaId() {
       return extractionSchemaId
+    },
+    projectContextId() {
+      return options.projectContextId
     },
     initialize(definition, signal) {
       if (coordinator) return Promise.reject(new Error('A durable schema is already open.'))
@@ -215,6 +223,8 @@ export type SchemaEditorSnapshot = {
   /** Generation can run while the acknowledged current draft stays mounted. */
   generating: boolean
   generationError: string | null
+  /** A Stop whose server-side cancel failed: the generation may still be running and shows after a reload. */
+  cancellationError: string | null
   /** Editor payload; null until the first generation or adoption. */
   draft: SchemaDefinition | null
   /** Increments for every whole-draft mutation, including description edits. */
@@ -242,10 +252,16 @@ export type SchemaEditorController = {
   snapshot(): SchemaEditorSnapshot
   subscribe(listener: () => void): () => void
 
+  /** Runs a generation; `cancel` is what a user's Stop calls on the server, before the wait ends. */
   generate(
     request: (signal: AbortSignal) => Promise<unknown>,
+    options?: { cancel?: () => Promise<void> },
   ): Promise<void>
   cancelGeneration(): void
+  /** The durable scope a reloaded page lists model operations for; null for a local draft. */
+  operationScope(): { projectContextId: string; extractionSchemaId: string | null } | null
+  /** Saves a generation that finished while no tab waited for it, but only onto its base; true when it was saved. */
+  restoreGeneration(template: unknown, baseSchemaRevisionId: string | null): Promise<boolean>
 
   commit(
     mutator: (nodes: SchemaNode[]) => SchemaNode[],
@@ -292,7 +308,9 @@ export function createSchemaEditorController(
     : null
   let generating = false
   let generationError: string | null = null
+  let cancellationError: string | null = null
   let generationAbort: AbortController | null = null
+  let generationCancel: (() => Promise<void>) | null = null
   let extractableSchemaRevisionId =
     options.initialExtractableRevisionId ?? null
   let creatingFromRevisionId: string | null = null
@@ -320,6 +338,7 @@ export function createSchemaEditorController(
               : 'empty',
       generating,
       generationError,
+      cancellationError,
       draft,
       draftVersion,
       replacementVersion,
@@ -405,6 +424,33 @@ export function createSchemaEditorController(
   function flushPersistence() {
     return persistence.flush?.() ?? Promise.resolve(null)
   }
+
+  /** Joins a generated candidate to the revision chain — onto the acknowledged head when a schema exists (the save
+   *  coordinator's expected head), else as the first revision. generate() and restoreGeneration() share it. */
+  async function adoptGenerated(definition: SchemaDefinition, signal?: AbortSignal): Promise<boolean> {
+    if ((persistence.extractionSchemaId?.() ?? null) !== null) {
+      // Keep the acknowledged current draft mounted and extractable while the generated candidate joins the revision
+      // chain. The save acknowledgement is the only event allowed to replace it.
+      persistence.edit(definition)
+      const revision = await flushPersistence()
+      if (!revision) throw new Error('A durable Extraction Schema is required.')
+      if (draft === null || !sameSchemaDefinition(draft, revision)) {
+        draft = normalizeSchemaDefinition(revision)
+        draftVersion += 1
+      }
+      extractableSchemaRevisionId = revision.schemaRevisionId
+      replacementVersion += 1
+      return true
+    }
+    if (!persistence.initialize) throw new Error('Schema generation is unavailable for this draft.')
+    const revision = await persistence.initialize(definition, signal)
+    if (signal?.aborted || disposed) return false
+    replacementVersion += 1
+    draft = definition
+    draftVersion += 1
+    extractableSchemaRevisionId = revision.schemaRevisionId
+    return true
+  }
   return {
     snapshot() {
       return snapshot
@@ -414,13 +460,18 @@ export function createSchemaEditorController(
       return () => listeners.delete(listener)
     },
 
-    async generate(request) {
+    async generate(request, options = {}) {
       if (disposed) return
       generationAbort?.abort()
       const abort = new AbortController()
       generationAbort = abort
+      generationCancel = options.cancel ?? null
+      const settle = () => {
+        if (generationAbort === abort) generationCancel = null
+      }
       generating = true
       generationError = null
+      cancellationError = null
       historicalPreview = null
       publish()
       try {
@@ -428,31 +479,7 @@ export function createSchemaEditorController(
         if (abort.signal.aborted || disposed) return
         const parsed = templateToSchemaDefinition(generatedSchema)
         const definition = normalizeSchemaDefinition(parsed)
-        if ((persistence.extractionSchemaId?.() ?? null) !== null) {
-          // Keep the acknowledged current draft mounted and extractable while
-          // the generated candidate joins the revision chain. The save
-          // acknowledgement is the only event allowed to replace it.
-          persistence.edit(definition)
-          const revision = await flushPersistence()
-          if (!revision)
-            throw new Error('A durable Extraction Schema is required.')
-          if (draft === null || !sameSchemaDefinition(draft, revision)) {
-            draft = normalizeSchemaDefinition(revision)
-            draftVersion += 1
-          }
-          extractableSchemaRevisionId = revision.schemaRevisionId
-          replacementVersion += 1
-        } else {
-          if (!persistence.initialize)
-            throw new Error('Schema generation is unavailable for this draft.')
-          const revision = await persistence.initialize(definition, abort.signal)
-          if (abort.signal.aborted || disposed) return
-          replacementVersion += 1
-          draft = definition
-          draftVersion += 1
-          extractableSchemaRevisionId = revision.schemaRevisionId
-          publish()
-        }
+        if (!(await adoptGenerated(definition, abort.signal))) return
         generating = false
         publish()
       } catch (error) {
@@ -462,9 +489,65 @@ export function createSchemaEditorController(
         generationError =
           error instanceof Error ? error.message : 'Schema generation failed.'
         publish()
+      } finally {
+        settle()
+      }
+    },
+    operationScope() {
+      const projectContextId = persistence.projectContextId?.() ?? null
+      return projectContextId === null ? null : { projectContextId, extractionSchemaId: persistence.extractionSchemaId?.() ?? null }
+    },
+    /** Saves a generation that finished while no tab waited for it (a reload or a restart), but only onto its base: the
+     *  base is still the acknowledged revision of a clean draft, or no Extraction Schema exists yet. Anything else — and a
+     *  conflict, meaning newer work landed first — drops it without an error (spec, *Generation*). */
+    async restoreGeneration(template, baseSchemaRevisionId) {
+      if (disposed || generating) return false
+      const save = persistence.saveState?.() ?? null
+      const onBase = baseSchemaRevisionId === null
+        ? (persistence.extractionSchemaId?.() ?? null) === null && draft === null
+        : save?.status === 'saved' && save.acknowledged.schemaRevisionId === baseSchemaRevisionId
+          && extractableSchemaRevisionId === baseSchemaRevisionId
+      if (!onBase) return false
+      let definition: SchemaDefinition
+      try {
+        definition = normalizeSchemaDefinition(templateToSchemaDefinition(template))
+      } catch {
+        return false
+      }
+      try {
+        const saved = await adoptGenerated(definition)
+        publish()
+        return saved
+      } catch (error) {
+        if (disposed) return false
+        // A conflict means newer work landed first: adopt it and drop the generation. Any other failure keeps the
+        // visible draft (edits made meanwhile included) and the save engine's own error and retry.
+        if (error instanceof SchemaRevisionConflictError) {
+          const current = persistence.reloadCurrent?.() ?? null
+          if (current) {
+            draft = normalizeSchemaDefinition(current)
+            draftVersion += 1
+            replacementVersion += 1
+            extractableSchemaRevisionId = current.schemaRevisionId
+          }
+        }
+        publish()
+        return false
       }
     },
     cancelGeneration() {
+      // A user's Stop: tell Studio, then stop waiting. dispose() only stops waiting — the workflow runs on and a
+      // reloaded page finds it (spec, *A client abort only detaches*).
+      const cancel = generationCancel
+      generationCancel = null
+      cancellationError = null
+      // Stop waiting either way; a cancel Studio did not confirm is said, since the workflow may run on and the
+      // reloaded panel will show it as an earlier request with its own Stop.
+      void cancel?.().catch(() => {
+        if (disposed) return
+        cancellationError = 'The generation could not be stopped on the server; it may still be running and will show as an earlier request after a reload.'
+        publish()
+      })
       generationAbort?.abort()
       if (!generating) return
       generating = false

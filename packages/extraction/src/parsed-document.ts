@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ExtractionError } from './errors.js'
 
 const byteSpanSchema = z.object({ start: z.int().nonnegative(), end: z.int().nonnegative() }).strict().refine((value) => value.end >= value.start, 'span end must not precede start')
 const bboxSchema = z.object({ x0: z.number().finite(), y0: z.number().finite(), x1: z.number().finite(), y1: z.number().finite() }).strict().refine((value) => value.x1 > value.x0 && value.y1 > value.y0, 'bbox must have positive area')
@@ -116,6 +117,12 @@ export function decodeParsedDocument(data: unknown): ParsedDocument {
   }
   for (const table of parsed.tables) for (const cell of table.cells) if (anchors.get(cell.evidence_anchor_id)?.kind !== 'table_cell') throw new Error('parsed_document.v2: every table cell requires one evidence anchor')
   return parsed
+}
+
+/** A pinned Source Representation's package, or `invalid_source_representation` when it is not a ParsedDocument v2. */
+export function decodePinnedDocument(raw: unknown): ParsedDocument {
+  try { return decodeParsedDocument(raw) }
+  catch (error) { throw new ExtractionError('invalid_source_representation', 'The pinned Source Representation is not a valid ParsedDocument v2.', { cause: error }) }
 }
 
 export function tableForAnchor(document: ParsedDocument, anchor: TableCellEvidenceAnchor): ParsedLogicalTable | undefined { return document.tables.find((table) => table.table_id === anchor.logical_table_id) }

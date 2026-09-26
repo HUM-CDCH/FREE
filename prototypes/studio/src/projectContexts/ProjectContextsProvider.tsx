@@ -12,6 +12,7 @@ import {
   renameProjectContext,
   provisionalSummary,
   toProjectContextFailure as failure,
+  uncertainFailure,
   type ProjectContext,
   type ProjectContextActivityEvent,
 } from './transport'
@@ -302,18 +303,18 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
               source.projectContextId,
               source.sourceDocumentId,
               {
-                requestKey: source.ingestionKey,
+                requestKey: source.requestKey,
                 expectedRepresentationId: source.expectedRepresentationId,
                 layout: source.layout,
               },
             )
           : ingestSourceDocument(
-          source.projectContextId,
-          source.file,
-          source.ingestionKey,
-          source.layout,
-        ),
+              source.projectContextId,
+              source.file,
+              source.layout,
+            ),
       toFailureMessage: (error) => failure(error).message,
+      isUncertain: uncertainFailure,
       onIngested: ({ item, result }) => {
         acknowledgeSourceDocument(item.projectContextId, result)
         if (item.kind === 'reprocess') {
@@ -334,7 +335,7 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
         items: sources.map((source) => ({
           ...source,
           layout: source.layout ?? 'pages',
-          ingestionKey: crypto.randomUUID(),
+          itemId: crypto.randomUUID(),
           validationFailure:
             sourceDocumentFilenameFailure(source.file.name) ?? undefined,
         })),
@@ -347,7 +348,12 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
       sendIngestion({
         type: 'sources.added',
         items: [
-          { ...source, kind: 'reprocess', ingestionKey: crypto.randomUUID() },
+          {
+            ...source,
+            kind: 'reprocess',
+            itemId: crypto.randomUUID(),
+            requestKey: crypto.randomUUID(),
+          },
         ],
       })
     },
@@ -355,8 +361,7 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
   )
 
   const retrySource = useCallback(
-    (ingestionKey: string) =>
-      sendIngestion({ type: 'source.retry', ingestionKey }),
+    (itemId: string) => sendIngestion({ type: 'source.retry', itemId }),
     [sendIngestion],
   )
 

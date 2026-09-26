@@ -9,10 +9,8 @@ import { withBlockedUpdates } from './postgres-test-helpers.js'
  * `pnpm --filter db test:postgres` fails loudly when it has no database, so a
  * green run always means the cascade actually ran.
  *
- * Give it a freshly created database every run. Ingestion keys are globally
- * unique and fixed here, and the check only cleans up when it passes, so
- * re-running against a database a previous failure dirtied reports
- * `IngestionKeyConflictError` instead of the original failure.
+ * Give it a freshly created database every run: it expects no account and no
+ * Project Context before it starts, and it only cleans up when it passes.
  */
 const databaseUrl = process.env.PROJECT_STORE_POSTGRES_URL
 
@@ -24,17 +22,23 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
   validateDisposableTestDatabaseTarget(databaseUrl)
   process.env.DATABASE_URL = databaseUrl
 
+  // Imported only now: these modules build the pool from DATABASE_URL when they load.
   const [
-    { db },
+    { db, pool },
     {
       createInternalProjectWorkerStore,
       createResearcherProjectStore,
     },
+    { isUniqueViolation },
   ] = await Promise.all([
     import('./prisma/db.js'),
     import('./project-store.js'),
+    import('./pool-client-transaction.js'),
   ])
-  after(() => db.close())
+  after(async () => {
+    await db.close()
+    await pool.end()
+  })
 
   assert.deepEqual(await db.orm.public.ResearcherAccount.select('id').all(), [])
   assert.deepEqual(await db.orm.public.ProjectContext.select('id').all(), [])
@@ -69,7 +73,6 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     }),
   )
   const ingestion = {
-    ingestionKey: '51000000-0000-4000-9000-000000000001',
     contentSha256: 'a'.repeat(64),
     mediaType: 'application/pdf',
     originalName: 'doomed.pdf',
@@ -84,7 +87,6 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
   await assert.rejects(
     survivorStore.ingestSourceDocument(survivor.projectContextId, {
       ...ingestion,
-      ingestionKey: '51000000-0000-4000-9000-000000000099',
       ensureRetained: async () => {
         throw new Error('package unavailable')
       },
@@ -93,7 +95,7 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
   )
   assert.equal(
     await db.orm.public.SourceDocument.select('id').first({
-      ingestionKey: '51000000-0000-4000-9000-000000000099',
+      projectContextId: survivor.projectContextId,
     }),
     null,
   )
@@ -101,12 +103,35 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     store.ingestSourceDocument(project.projectContextId, ingestion),
     store.ingestSourceDocument(project.projectContextId, {
       ...ingestion,
-      ingestionKey: '51000000-0000-4000-9000-000000000002',
       originalName: 'same-bytes-renamed.pdf',
     }),
   ])
   assert.ok(ingested)
-  assert.deepEqual(concurrentReplay, ingested)
+  assert.ok(concurrentReplay)
+  // One insert won; the other met the (project, content) constraint and read the winner.
+  assert.deepEqual(
+    [ingested.disposition, concurrentReplay.disposition].sort(),
+    ['created', 'replayed'],
+  )
+  const { disposition: _ingestedDisposition, ...ingestedDocument } = ingested
+  const { disposition: _replayDisposition, ...replayedDocument } = concurrentReplay
+  assert.deepEqual(replayedDocument, ingestedDocument)
+  assert.deepEqual(
+    await store.findSourceDocumentByContent(project.projectContextId, ingestion.contentSha256),
+    ingestedDocument,
+  )
+  assert.equal(
+    await survivorStore.findSourceDocumentByContent(project.projectContextId, ingestion.contentSha256),
+    null,
+  )
+  // The publication backstop names this constraint: a second insert of the content is a replay, nothing else is.
+  const duplicate = await db.transaction(({ orm }) => orm.public.SourceDocument.create({
+    projectContextId: project.projectContextId,
+    contentSha256: ingestion.contentSha256,
+    mediaType: 'application/pdf',
+    originalName: 'duplicate.pdf',
+  })).then(() => null, (error: unknown) => error)
+  assert.ok(isUniqueViolation(duplicate, 'sourceDocument_projectContextId_contentSha256_key'), String(duplicate))
   assert.equal(ingested.revisionNumber, 1)
   assert.equal(
     (
@@ -126,13 +151,12 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
   )
   assert.deepEqual(
     await store.ingestSourceDocument(project.projectContextId, ingestion),
-    ingested,
+    { ...ingestedDocument, disposition: 'replayed' },
   )
   const sameNameDifferentContent = await store.ingestSourceDocument(
     project.projectContextId,
     {
       ...ingestion,
-      ingestionKey: '51000000-0000-4000-9000-000000000003',
       contentSha256: 'b'.repeat(64),
       artifactReference: 'f'.repeat(64),
       artifactSha256: 'f'.repeat(64),
@@ -151,7 +175,6 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     survivor.projectContextId,
     {
       ...ingestion,
-      ingestionKey: '51000000-0000-4000-9000-000000000004',
       originalName: 'survivor.pdf',
     },
   )
@@ -165,7 +188,7 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     null,
   )
   const survivingDocument = { id: survivingIngestion.sourceDocumentId }
-  const annotation = await db.orm.public.AnnotationSetRevision.create({
+  await db.orm.public.AnnotationSetRevision.create({
     sourceDocumentId: document.id,
     sourceRepresentationRevisionId: representation.id,
     revisionNumber: 1,
@@ -175,45 +198,22 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     projectContextId: project.projectContextId,
     name: 'Schema',
   })
-  const prompt = await db.orm.public.PromptRevision.create({
+  await t.test("modelOperationScopeExists is true only for the account's project and, when named, a schema of that project", async () => {
+    assert.equal(await store.modelOperationScopeExists(project.projectContextId, null), true)
+    assert.equal(await store.modelOperationScopeExists(project.projectContextId, schema.id), true)
+    assert.equal(await store.modelOperationScopeExists(project.projectContextId, '52000000-0000-4000-8000-0000000000aa'), false)
+    assert.equal(await store.modelOperationScopeExists(survivor.projectContextId, null), false)
+    assert.equal(await survivorStore.modelOperationScopeExists(project.projectContextId, null), false)
+    assert.equal(await survivorStore.modelOperationScopeExists(survivor.projectContextId, schema.id), false)
+  })
+  await db.orm.public.SchemaRevision.create({
     extractionSchemaId: schema.id,
     revisionNumber: 1,
-    text: 'Extract.',
-  })
-  const suggestion = await db.orm.public.SchemaSuggestion.create({
-    extractionSchemaId: schema.id,
-    promptRevisionId: prompt.id,
-    annotationMode: 'hints',
-    outcome: 'SUCCEEDED',
-    modelAttribution: {},
-    proposedTree: [],
-  })
-  await db.orm.public.SchemaSuggestionInput.create({
-    schemaSuggestionId: suggestion.id,
-    sourceRepresentationRevisionId: representation.id,
-    annotationSetRevisionId: annotation.id,
-  })
-  const baseRevision = await db.orm.public.SchemaRevision.create({
-    extractionSchemaId: schema.id,
-    schemaSuggestionId: suggestion.id,
-    revisionNumber: 1,
-    origin: 'SUGGESTION',
+    origin: 'RESEARCHER_EDIT',
     schemaTree: [],
-  })
-  const edit = await db.orm.public.ConversationalSchemaEdit.create({
-    extractionSchemaId: schema.id,
-    baseSchemaRevisionId: baseRevision.id,
-    sourceRepresentationRevisionId: representation.id,
-    annotationSetRevisionId: annotation.id,
-    promptRevisionId: prompt.id,
-    instruction: 'Add a field.',
-    outcome: 'SUCCEEDED',
-    modelAttribution: {},
-    proposedTree: [],
   })
   const appliedRevision = await db.orm.public.SchemaRevision.create({
     extractionSchemaId: schema.id,
-    conversationalSchemaEditId: edit.id,
     revisionNumber: 2,
     origin: 'MODEL_EDIT',
     schemaTree: [],
@@ -257,7 +257,7 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
   const batchSuggestion = await db.orm.public.BatchSchemaSuggestion.create({
     projectContextId: project.projectContextId,
     selectionKey: 'atomic-suggestion-check',
-    executionStatus: 'COMPLETED',
+    outcome: 'SUCCEEDED',
     phase: 'READY',
     draft: { name: 'original' },
     draftVersion: 1,
@@ -279,47 +279,19 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     assert.equal(saved?.draftVersion, 2)
     assert.deepEqual(saved?.draft, { name: ['first', 'second'][winner] })
   })
-  await t.test('only one worker can claim a queued suggestion', async () => {
-    await db.orm.public.BatchSchemaSuggestion.where({ id: batchSuggestion.id }).update({ executionStatus: 'QUEUED' })
-    const now = new Date()
-    const expiresAt = new Date(now.getTime() + 60_000)
-    const claims = await withBlockedUpdates(databaseUrl, 'BatchSchemaSuggestion', batchSuggestion.id, 2,
-      () => Promise.all(['worker-a', 'worker-b'].map((owner) =>
-        workerStore.claimBatchSchemaSuggestion(owner, now, expiresAt),
-      )),
+  await t.test('two executions of one attempt\'s publication write one outcome and one draft version', async () => {
+    await db.orm.public.BatchSchemaSuggestion.where({ id: batchSuggestion.id }).update({ attempt: 2, outcome: null })
+    const proposal = { phase: 'READY' as const, proposal: { name: 'proposed' }, coverage: [], draft: { name: 'proposed' } }
+    const results = await withBlockedUpdates(databaseUrl, 'BatchSchemaSuggestion', batchSuggestion.id, 2,
+      () => Promise.all([1, 2].map(() => workerStore.publishBatchSchemaSuggestion(batchSuggestion.id, 2, proposal))),
     )
-    assert.equal(claims.filter(Boolean).length, 1)
-    const winner = claims.find((claim) => claim !== null)!
-    const saved = await store.getBatchSchemaSuggestion(project.projectContextId, batchSuggestion.id)
-    assert.equal(saved?.executionStatus, 'RUNNING')
-    assert.equal(await workerStore.renewBatchSchemaSuggestionLease(batchSuggestion.id, winner.lease, expiresAt), true)
-
-    const later = new Date(expiresAt.getTime() + 1)
-    const reclaimed = await workerStore.claimBatchSchemaSuggestion('replacement', later, new Date(later.getTime() + 60_000))
-    assert.ok(reclaimed)
-    assert.equal(reclaimed.lease.version, winner.lease.version + 1)
-    for (const [lease, accepted] of [[winner.lease, false], [reclaimed.lease, true]] as const) {
-      assert.equal(await workerStore.renewBatchSchemaSuggestionLease(batchSuggestion.id, lease, expiresAt), accepted)
-      assert.equal(await workerStore.startBatchSchemaSuggestionSource(batchSuggestion.id, document.id, lease, later), accepted)
-      assert.equal(await workerStore.completeBatchSchemaSuggestionSource(
-        batchSuggestion.id, document.id, lease, { definition: { field: lease.owner } }, later,
-      ), accepted)
-      assert.equal(await workerStore.startBatchSchemaSuggestionMerge(batchSuggestion.id, lease), accepted)
-      assert.equal(await workerStore.completeBatchSchemaSuggestionMerge(
-        batchSuggestion.id, lease, { heterogeneous: true }, later,
-      ), accepted)
-    }
-    const completed = await store.getBatchSchemaSuggestion(project.projectContextId, batchSuggestion.id)
-    assert.equal(completed?.phase, 'HETEROGENEOUS')
-    assert.deepEqual(completed?.sources[0]?.definition, { field: 'replacement' })
-    assert.equal(await workerStore.failBatchSchemaSuggestion(batchSuggestion.id, winner.lease, {}, later), false)
-    assert.equal(await workerStore.failBatchSchemaSuggestion(batchSuggestion.id, reclaimed.lease, {}, later), false)
-    assert.equal((await store.retryBatchSchemaSuggestion(project.projectContextId, batchSuggestion.id))?.status, 'retried')
-    const retry = await workerStore.claimBatchSchemaSuggestion('retry', later, expiresAt)
-    assert.ok(retry)
-    assert.equal(await workerStore.failBatchSchemaSuggestion(batchSuggestion.id, retry.lease, { code: 'model_failed' }, later), true)
+    assert.deepEqual([...results].sort(), ['published', 'stopped'])
+    const saved = await db.orm.public.BatchSchemaSuggestion.select('outcome', 'draft', 'draftVersion').first({ id: batchSuggestion.id })
+    assert.deepEqual(saved, { outcome: 'SUCCEEDED', draft: { name: 'proposed' }, draftVersion: 3 })
+    assert.equal(await workerStore.failBatchSchemaSuggestionAttempt(batchSuggestion.id, 2, { code: 'late', message: 'Late.' }), 'stopped')
   })
   assert.equal(await store.deleteProjectContext(project.projectContextId), true)
+  assert.equal(await store.modelOperationScopeExists(project.projectContextId, null), false)
 
   assert.deepEqual(
     (await db.orm.public.ProjectContext.select('id').all()).map(({ id }) => id),
@@ -336,14 +308,12 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
   for (const table of [
     db.orm.public.AnnotationSetRevision,
     db.orm.public.ExtractionSchema,
-    db.orm.public.PromptRevision,
-    db.orm.public.SchemaSuggestion,
-    db.orm.public.SchemaSuggestionInput,
     db.orm.public.SchemaRevision,
-    db.orm.public.ConversationalSchemaEdit,
     db.orm.public.Extraction,
     db.orm.public.ExtractionReview,
     db.orm.public.ReviewDecision,
+    db.orm.public.BatchSchemaSuggestion,
+    db.orm.public.BatchSchemaSuggestionSource,
   ])
     assert.deepEqual(await table.all(), [])
 

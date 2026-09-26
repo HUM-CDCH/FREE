@@ -22,7 +22,7 @@ import {
   parseJsonRequest,
   persistenceUnavailable,
 } from './_http.js'
-import { createResearcherExtractions } from './_extraction_runtime.js'
+import { createResearcherExtractions } from './_extractions.js'
 import type { ExtractionHandlerDependencies } from './extractions.js'
 import { configuredExtractionModels } from './_model_config.js'
 
@@ -40,17 +40,12 @@ function batchDto(batch: BatchExtractionSnapshot) {
     schemaRevisionNumber: batch.schemaRevisionNumber,
     strategy: batch.strategy,
     executionStatus: batch.executionStatus,
-    executionFailureMessage: batch.failureMessage,
-    startedAt: batch.startedAt?.toISOString() ?? null,
-    finishedAt: batch.finishedAt?.toISOString() ?? null,
     createdAt: batch.createdAt.toISOString(),
     members: batch.members.map((member) => ({
       sourceDocumentId: member.sourceDocumentId,
       sourceRepresentationRevisionId: member.sourceRepresentationRevisionId,
       executionStatus: member.executionStatus,
       executionFailureMessage: member.failureMessage,
-      startedAt: member.startedAt?.toISOString() ?? null,
-      finishedAt: member.finishedAt?.toISOString() ?? null,
       latestExtraction: member.latestExtraction && {
         extractionId: member.latestExtraction.extractionId,
         outcome: member.latestExtraction.outcome,
@@ -58,7 +53,6 @@ function batchDto(batch: BatchExtractionSnapshot) {
         reviewable: member.latestExtraction.reviewable,
         createdAt: member.latestExtraction.createdAt.toISOString(),
         reviewedAt: member.latestExtraction.reviewedAt?.toISOString() ?? null,
-        failureMessage: member.latestExtraction.failureMessage,
       },
     })),
   }
@@ -77,7 +71,7 @@ export function createResearcherApiHandlers(
 ): Readonly<
   Record<string, (request: Request) => Response | Promise<Response>>
 > {
-  const extractionModels = dependencies.extractionModels ?? (() => configuredExtractionModels())
+  const extractionModels = dependencies.extractionModels ?? (() => configuredExtractionModels(store.researcherAccountId))
   const extractionModule = createResearcherExtractions(
     store.researcherAccountId,
   )

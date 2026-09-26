@@ -34,29 +34,32 @@ export const batchExtractionRequestSchema = z
 
 export type BatchExtractionRequest = z.infer<typeof batchExtractionRequestSchema>
 
+/**
+ * A member's status is derived from its Extraction (QUEUED, RUNNING, COMPLETED
+ * or FAILED, an interruption included); its Extraction appears once published.
+ */
 const batchExtractionMemberSchema = z
   .object({
     sourceDocumentId: canonicalUuidSchema,
     sourceRepresentationRevisionId: canonicalUuidSchema,
-    executionStatus: projectOperationStatusSchema.optional(),
-    executionFailureMessage: z.string().nullable().optional(),
-    startedAt: z.iso.datetime().nullable().optional(),
-    finishedAt: z.iso.datetime().nullable().optional(),
+    executionStatus: projectOperationStatusSchema,
+    /** Why a FAILED member failed, was cancelled or was interrupted. */
+    executionFailureMessage: z.string().nullable(),
     latestExtraction: z
       .object({
         extractionId: canonicalUuidSchema,
-        outcome: z.enum(['SUCCEEDED', 'FAILED', 'CANCELLED']),
+        outcome: z.literal('SUCCEEDED'),
         complete: z.boolean().nullable(),
         reviewable: z.boolean(),
         createdAt: z.iso.datetime(),
         reviewedAt: z.iso.datetime().nullable(),
-        failureMessage: z.string().nullable(),
       })
       .strict()
       .nullable(),
   })
   .strict()
 
+/** A batch is QUEUED, RUNNING or COMPLETED from its members; it never fails as a whole, its members do. */
 export const batchExtractionSchema = z
   .object({
     batchExtractionId: canonicalUuidSchema,
@@ -66,10 +69,7 @@ export const batchExtractionSchema = z
     extractionSchemaName: z.string(),
     schemaRevisionNumber: z.number().int().positive(),
     strategy: extractionStrategySchema,
-    executionStatus: projectOperationStatusSchema.optional(),
-    executionFailureMessage: z.string().nullable().optional(),
-    startedAt: z.iso.datetime().nullable().optional(),
-    finishedAt: z.iso.datetime().nullable().optional(),
+    executionStatus: projectOperationStatusSchema,
     createdAt: z.iso.datetime(),
     members: z.array(batchExtractionMemberSchema),
   })
@@ -131,23 +131,14 @@ export type BatchExtractionResult = z.output<
  */
 export function batchExtractionProgress(batch: BatchExtraction) {
   const extracted = batch.members.filter((member) => member.latestExtraction)
-  const succeeded = extracted.filter(
-    (member) => member.latestExtraction!.outcome === 'SUCCEEDED',
-  )
-  const failed = extracted.filter(
-    (member) => member.latestExtraction!.outcome === 'FAILED',
-  )
-  const cancelled = extracted.filter(
-    (member) => member.latestExtraction!.outcome === 'CANCELLED',
-  )
   // A succeeded Extraction with no reviewable result can never carry Review
   // Decisions, so it is its own outcome — never counted as what a researcher
   // has reviewed. An Extraction is reviewable whenever it has been reviewed
-  // (extraction.contract.ts), so these three groups partition `succeeded`.
-  const reviewed = succeeded.filter(
+  // (extraction.contract.ts), so these three groups partition `extracted`.
+  const reviewed = extracted.filter(
     (member) => member.latestExtraction!.reviewedAt !== null,
   )
-  const unreviewable = succeeded.filter(
+  const unreviewable = extracted.filter(
     (member) => !member.latestExtraction!.reviewable,
   )
   return {
@@ -158,10 +149,11 @@ export function batchExtractionProgress(batch: BatchExtraction) {
         member.executionStatus === 'QUEUED' ||
         member.executionStatus === 'RUNNING',
     ).length,
-    failed: failed.length,
-    cancelled: cancelled.length,
+    // Failed, cancelled or interrupted: the member settled without a result.
+    failed: batch.members.filter((member) => member.executionStatus === 'FAILED')
+      .length,
     reviewed: reviewed.length,
     unreviewable: unreviewable.length,
-    needsReview: succeeded.length - reviewed.length - unreviewable.length,
+    needsReview: extracted.length - reviewed.length - unreviewable.length,
   }
 }

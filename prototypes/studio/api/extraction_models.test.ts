@@ -4,7 +4,7 @@ import { extractionModelListingSchema } from '../shared/extraction.contract.js'
 import { createGetExtractionModels, createResearcherApiHandlers } from './extraction_models.js'
 
 const runtime = vi.hoisted(() => ({ listModels: vi.fn() }))
-vi.mock('./_extraction_runtime.js', () => ({ keiExpClient: { listModels: runtime.listModels } }))
+vi.mock('./_extractions.js', () => ({ keiExpClient: { listModels: runtime.listModels } }))
 
 const listing = {
   defaults: { fields: 'nuextract', reasoning: 'instruct' },

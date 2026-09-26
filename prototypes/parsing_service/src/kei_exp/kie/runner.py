@@ -121,7 +121,7 @@ def convert(execution: Execution, emit: Emit = print_event) -> str:
             doc_dir.mkdir(parents=True, exist_ok=True)
             step, artifact = ingest_step(execution.pdf, IngestConfig.model_validate(execution.ingest or {}), doc_dir,
                                         lambda spread, spreads: emit(
-                                            {"type": "log", "text": f"Ingest: reading spread {spread}/{spreads}"}))
+                                            {"type": "spread", "spread": spread, "total": spreads}))
         except (RunError, OSError) as error:
             raise ConversionError(f"Ingest failed: {error}") from error
         did = "skipped, cached" if step.skipped else "ran"

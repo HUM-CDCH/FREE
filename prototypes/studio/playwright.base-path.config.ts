@@ -1,5 +1,7 @@
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { defineConfig } from '@playwright/test'
-import { resolve } from 'node:path'
 import {
   configurePlaywrightStack,
   playwrightWebServerCommand,
@@ -17,10 +19,13 @@ const origin = `http://localhost:${port}`
 const basePath = '/free'
 process.env.FREE_PLAYWRIGHT_BASE_PATH = basePath
 // The lifecycle spec's fake kei-exp listens here, and Studio's KEI_EXP_URL points at it. The default suite's
-// fixture keeps 41750, so the two suites' ports are distinct. The suites still share the output directories
-// test-results/ and test-results/config-home, so they must run sequentially.
-const keiExpUrl = 'http://127.0.0.1:41753'
+// fixture keeps 29750, so the two suites' ports are distinct; both sit outside the ephemeral range (see
+// playwright.config.ts). The suites still share the output directory test-results/, so they must run sequentially.
+const keiExpUrl = 'http://127.0.0.1:29753'
 process.env.FREE_PLAYWRIGHT_KEI_EXP_URL = keiExpUrl
+// Studio stages uploads for kei in its source inbox (FREE_SOURCE_INBOX): one directory per run. Workers load this
+// config too; they inherit the variable, so only the runner makes the directory.
+process.env.FREE_PLAYWRIGHT_SOURCE_INBOX ??= mkdtempSync(join(tmpdir(), 'free-e2e-source-inbox-'))
 
 export default defineConfig({
   testDir: './e2e',
@@ -34,11 +39,10 @@ export default defineConfig({
     env: {
       DATABASE_URL: stack.databaseUrl,
       KEI_EXP_URL: keiExpUrl,
+      FREE_SOURCE_INBOX: process.env.FREE_PLAYWRIGHT_SOURCE_INBOX,
       FREE_PLAYWRIGHT_LIFECYCLE_ID: stack.lifecycleId,
       STUDIO_ORIGIN: origin,
       STUDIO_BASE_PATH: basePath,
-      APPDATA: resolve(import.meta.dirname, 'test-results/config-home'),
-      XDG_CONFIG_HOME: resolve(import.meta.dirname, 'test-results/config-home'),
       FREE_ENTRA_REAL: '0',
       FREE_ENTRA_MOCK_ISSUER: stack.oidcIssuer,
       FREE_ENTRA_MOCK_BROWSER_ISSUER: stack.oidcIssuer,

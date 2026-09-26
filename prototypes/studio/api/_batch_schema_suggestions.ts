@@ -21,13 +21,15 @@ export function sourceSuggestionFailure(error: unknown): {
     | 'invalid_model_config'
     | 'model_operation_failed'
     | 'invalid_model_output'
+    | 'model_key_required'
     | 'unexpected_failure'
 } {
   if (
     error instanceof ApiError &&
     (error.code === 'invalid_model_config' ||
       error.code === 'model_operation_failed' ||
-      error.code === 'invalid_model_output')
+      error.code === 'invalid_model_output' ||
+      error.code === 'model_key_required')
   )
     return { code: error.code }
   return { code: 'unexpected_failure' }
@@ -57,7 +59,7 @@ export function validateEditableSuggestion(
   }
 }
 
-type FieldCoverage = {
+export type FieldCoverage = {
   nodeId: string
   present: number
   total: number

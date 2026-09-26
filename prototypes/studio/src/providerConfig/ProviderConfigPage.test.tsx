@@ -2,182 +2,221 @@
 
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { createRef, type RefObject } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   DEPLOYMENT_CONNECTION_IDS,
-  type CredentialState,
   type DeploymentModels,
+  type IngestionModelListing,
   type ModelConfig,
+  type ModelConnection,
   type ProviderDescriptor,
 } from '../../shared/modelConfig.contract'
+import type { ExtractionModelListing } from '../../shared/extraction.contract'
+import { ResearcherSessionContext } from '../auth/sessionContext'
 import ProviderConfigPage from './ProviderConfigPage'
 
 const OLLAMA_ID = '11111111-1111-4111-8111-111111111111'
 const OPENAI_ID = '22222222-2222-4222-8222-222222222222'
+const VLLM_ID = '33333333-3333-4333-8333-333333333333'
+const OTHER_OPENAI_ID = '44444444-4444-4444-8444-444444444444'
+const ACCOUNT = 'acct-a'
+const STORAGE = `free.modelKeys.v1:${ACCOUNT}`
+const SESSION = {
+  session: {
+    authenticated: true as const,
+    account: { id: ACCOUNT, displayName: 'Researcher A' },
+    expiresAt: '2026-09-26T18:00:00.000Z',
+  },
+}
+const OPENAI_BASE = 'https://api.openai.com/v1'
+const OLLAMA_BASE = 'http://127.0.0.1:11434'
+const LAB_VLLM_BASE = 'http://lab.example:8000/v1'
+const QWEN = 'Qwen/Qwen3.8-27B-FP8'
+const NUEXTRACT = 'numind/NuExtract3-FP8'
+const NUEXTRACT_NOTE = 'Schema Suggestion uses the NuExtract protocol for this model.'
+const FOLLOWS = 'Schema Suggestion uses the assistant model.'
 
 const providers: ProviderDescriptor[] = [
-  {
-    kind: 'ollama',
-    label: 'Ollama',
-    transport: 'http',
-    defaultBaseUrl: 'http://127.0.0.1:11434',
-    authentication: 'optional',
-    supportsNuextract: false,
-  },
-  {
-    kind: 'openai',
-    label: 'OpenAI',
-    transport: 'http',
-    defaultBaseUrl: 'https://api.openai.com/v1',
-    authentication: 'managed',
-    supportsNuextract: false,
-  },
-  {
-    kind: 'anthropic',
-    label: 'Anthropic',
-    transport: 'http',
-    defaultBaseUrl: 'https://api.anthropic.com/v1',
-    authentication: 'managed',
-    supportsNuextract: false,
-  },
-  {
-    kind: 'google',
-    label: 'Google',
-    transport: 'http',
-    defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-    authentication: 'managed',
-    supportsNuextract: false,
-  },
-  {
-    kind: 'codex-cli',
-    label: 'Codex CLI',
-    transport: 'cli',
-    defaultBaseUrl: null,
-    authentication: 'external',
-    supportsNuextract: false,
-  },
-  {
-    kind: 'claude-code',
-    label: 'Claude Code',
-    transport: 'cli',
-    defaultBaseUrl: null,
-    authentication: 'external',
-    supportsNuextract: false,
-  },
-  {
-    kind: 'openai-compatible',
-    label: 'OpenAI-compatible',
-    transport: 'http',
-    defaultBaseUrl: null,
-    authentication: 'optional',
-    supportsNuextract: false,
-  },
-  {
-    kind: 'vllm',
-    label: 'vLLM',
-    transport: 'http',
-    defaultBaseUrl: null,
-    authentication: 'optional',
-    supportsNuextract: true,
-  },
+  { kind: 'ollama', label: 'Ollama', transport: 'http', defaultBaseUrl: OLLAMA_BASE, authentication: 'optional', supportsNuextract: false },
+  { kind: 'openai', label: 'OpenAI', transport: 'http', defaultBaseUrl: OPENAI_BASE, authentication: 'managed', supportsNuextract: false },
+  { kind: 'anthropic', label: 'Anthropic', transport: 'http', defaultBaseUrl: 'https://api.anthropic.com/v1', authentication: 'managed', supportsNuextract: false },
+  { kind: 'google', label: 'Google', transport: 'http', defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta', authentication: 'managed', supportsNuextract: false },
+  { kind: 'codex-cli', label: 'Codex CLI', transport: 'cli', defaultBaseUrl: null, authentication: 'external', supportsNuextract: false },
+  { kind: 'claude-code', label: 'Claude Code', transport: 'cli', defaultBaseUrl: null, authentication: 'external', supportsNuextract: false },
+  { kind: 'openai-compatible', label: 'OpenAI-compatible', transport: 'http', defaultBaseUrl: null, authentication: 'optional', supportsNuextract: false },
+  { kind: 'vllm', label: 'vLLM', transport: 'http', defaultBaseUrl: null, authentication: 'optional', supportsNuextract: true },
 ]
 
-const NO_DEPLOYMENT: DeploymentModels = { connections: [], defaultRoute: null }
-const deployment: DeploymentModels = {
-  connections: [
-    { id: DEPLOYMENT_CONNECTION_IDS.instruct, name: 'Deployment instruction model', provider: 'vllm', baseUrl: 'http://extraction_model:8000/v1' },
-    { id: DEPLOYMENT_CONNECTION_IDS.nuextract, name: 'Deployment NuExtract', provider: 'vllm', baseUrl: 'http://nuextract_model:8000/v1' },
-  ],
-  defaultRoute: { connectionId: DEPLOYMENT_CONNECTION_IDS.instruct, modelId: 'Qwen/Qwen3.8-27B-FP8' },
+const instruct: ModelConnection = {
+  id: DEPLOYMENT_CONNECTION_IDS.instruct, name: 'Deployment instruction model', provider: 'vllm', baseUrl: 'http://extraction_model:8000/v1', hasKey: false,
 }
-const extractionListing = {
+const nuextract: ModelConnection = {
+  id: DEPLOYMENT_CONNECTION_IDS.nuextract, name: 'Deployment NuExtract', provider: 'vllm', baseUrl: 'http://nuextract_model:8000/v1', hasKey: false,
+}
+const codex: ModelConnection = {
+  id: DEPLOYMENT_CONNECTION_IDS.codexCli, name: 'Codex CLI on this server', provider: 'codex-cli', baseUrl: null, hasKey: false,
+}
+const NO_DEPLOYMENT: DeploymentModels = { connections: [], defaultRoute: null }
+const deployment: DeploymentModels = { connections: [instruct, nuextract], defaultRoute: { connectionId: instruct.id, modelId: QWEN } }
+
+const ollama: ModelConnection = { id: OLLAMA_ID, name: 'Local Ollama', provider: 'ollama', baseUrl: OLLAMA_BASE, hasKey: false }
+const openai: ModelConnection = { id: OPENAI_ID, name: 'Research OpenAI', provider: 'openai', baseUrl: OPENAI_BASE, hasKey: true }
+const labVllm: ModelConnection = { id: VLLM_ID, name: 'Lab vLLM', provider: 'vllm', baseUrl: LAB_VLLM_BASE, hasKey: false }
+
+const extractionListing: ExtractionModelListing = {
   defaults: { fields: 'nuextract', reasoning: 'instruct' },
   models: [
-    { key: 'instruct', repo: 'Qwen/Qwen3.8-27B-FP8', roles: ['fields', 'reasoning'], reachable: true, serving: true },
-    { key: 'nuextract', repo: 'numind/NuExtract3-FP8', roles: ['fields'], reachable: true, serving: false },
+    { key: 'instruct', repo: QWEN, roles: ['fields', 'reasoning'], reachable: true, serving: true },
+    { key: 'nuextract', repo: NUEXTRACT, roles: ['fields'], reachable: true, serving: true },
+    { key: 'gemma', repo: 'google/gemma-3-27b-it', roles: ['reasoning'], reachable: false, serving: false },
   ],
 }
-
-const emptyConfig: ModelConfig = {
-  connections: [],
-  routes: { schemaSuggestion: null, interaction: null },
-  extractionModels: {},
+const ingestionListing: IngestionModelListing = {
+  defaults: { ocr: 'surya', layout: 'layout_heron_101' },
+  models: {
+    ocr: [
+      { key: 'surya', label: 'datalab-to/surya-ocr-2', serving: true },
+      { key: 'granite_vision', label: 'ibm-granite/granite-vision-4.1-4b', serving: false },
+    ],
+    layout: [
+      { key: 'layout_heron_101', label: 'Heron-101', serving: true },
+      { key: 'layout_egret_xlarge', label: 'Egret XLarge', serving: true },
+    ],
+  },
 }
 
-function ollamaConfig(modelId = 'saved-model'): ModelConfig {
-  const route = { connectionId: OLLAMA_ID, modelId }
-  return {
-    connections: [
-      {
-        id: OLLAMA_ID,
-        name: 'Local Ollama',
-        provider: 'ollama',
-        baseUrl: 'http://127.0.0.1:11434',
-      },
-    ],
-    routes: { schemaSuggestion: route, interaction: route },
-    extractionModels: {},
-  }
+/** What each connection's probe lists. */
+const CATALOGS: Readonly<Record<string, readonly string[]>> = {
+  [instruct.id]: [QWEN],
+  [nuextract.id]: [NUEXTRACT],
+  [OLLAMA_ID]: ['llama3.3', 'qwen3:8b'],
 }
 
-function mixedConfig(): ModelConfig {
+function config(overrides: Partial<ModelConfig> = {}): ModelConfig {
   return {
-    connections: [
-      {
-        id: OLLAMA_ID,
-        name: 'Local Ollama',
-        provider: 'ollama',
-        baseUrl: 'http://127.0.0.1:11434',
-      },
-      {
-        id: OPENAI_ID,
-        name: 'Research OpenAI',
-        provider: 'openai',
-        baseUrl: 'https://api.openai.com/v1',
-      },
-    ],
+    connections: [],
     routes: { schemaSuggestion: null, interaction: null },
     extractionModels: {},
+    ingestionModels: {},
+    ...overrides,
   }
+}
+
+function storeKey(id: string, provider: string, baseUrl: string, key: string): void {
+  const stored = JSON.parse(localStorage.getItem(STORAGE) ?? '{}') as Record<string, unknown>
+  localStorage.setItem(STORAGE, JSON.stringify({ ...stored, [id]: { provider, baseUrl, key } }))
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  })
+  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 }
 
-function configResponse(
-  config: ModelConfig,
-  credentialStates: Record<string, CredentialState> = {},
-  deploymentModels: DeploymentModels = NO_DEPLOYMENT,
-): Response {
-  return jsonResponse({ config, credentialStates, providers, deployment: deploymentModels })
-}
-
-type FetchHandler = (url: string, init: RequestInit) => Promise<Response> | Response
-
-/** Records every Model Configuration request; kei-exp's model listing is answered apart, so counts stay exact. */
-function mockFetch(handler: FetchHandler, listing: () => Response = () => jsonResponse(extractionListing)) {
-  const request = vi.fn(
-    (input: string | URL | Request, init: RequestInit = {}) => {
-      expect(init.credentials).toBe('same-origin')
-      return Promise.resolve(handler(String(input), init))
-    },
-  )
-  vi.stubGlobal('fetch', (input: string | URL | Request, init: RequestInit = {}) =>
-    String(input).endsWith('/api/extraction-models') ? Promise.resolve(listing()) : request(input, init))
-  return request
-}
+const unavailable = (code: string) => () => jsonResponse({ error: { code, message: 'Unavailable.' } }, 503)
 
 function requestBody(init: RequestInit): Record<string, unknown> {
   return JSON.parse(String(init.body)) as Record<string, unknown>
 }
 
-async function renderPage(): Promise<void> {
-  render(<ProviderConfigPage onClose={() => {}} />)
+type ProbeBody = { connection: ModelConnection; credential?: string }
+type StudioOptions = {
+  deployment?: DeploymentModels
+  probe?: (body: ProbeBody) => Response | Promise<Response>
+  extraction?: () => Response
+  ingestion?: () => Response
+  put?: (config: ModelConfig) => Response | Promise<Response> | undefined
+}
+
+function probeResponse(status: 'connected' | 'unreachable', message: string): Response {
+  return jsonResponse({ checkedAt: '2026-09-26T00:00:00.000Z', status, message, catalog: [] })
+}
+
+function connected({ connection }: ProbeBody): Response {
+  return jsonResponse({
+    checkedAt: '2026-09-26T00:00:00.000Z',
+    status: 'connected',
+    message: 'Connected.',
+    catalog: (CATALOGS[connection.id] ?? []).map((id) => ({ id, label: id })),
+  })
+}
+
+/** Studio's five endpoints the page calls: it saves what it is sent, and records every request. */
+function studio(initial: ModelConfig, options: StudioOptions = {}) {
+  let stored = initial
+  const request = vi.fn((input: string | URL | Request, init: RequestInit = {}) => {
+    expect(init.credentials).toBe('same-origin')
+    const url = String(input)
+    const method = init.method ?? 'GET'
+    if (url === '/api/model_config' && method === 'PUT') {
+      const submitted = requestBody(init).config as ModelConfig
+      const refused = options.put?.(submitted)
+      if (refused) return Promise.resolve(refused)
+      stored = submitted
+      return Promise.resolve(jsonResponse({ config: stored }))
+    }
+    if (url === '/api/model_config') return Promise.resolve(jsonResponse({ config: stored, providers, deployment: options.deployment ?? NO_DEPLOYMENT }))
+    if (url === '/api/model_probe') return Promise.resolve((options.probe ?? connected)(requestBody(init) as ProbeBody))
+    if (url === '/api/model-keys') return Promise.resolve(jsonResponse({ accepted: [] }))
+    if (url === '/api/extraction-models') return Promise.resolve((options.extraction ?? (() => jsonResponse(extractionListing)))())
+    if (url === '/api/ingestion-models') return Promise.resolve((options.ingestion ?? (() => jsonResponse(ingestionListing)))())
+    throw new Error(`Unexpected request: ${method} ${url}`)
+  })
+  vi.stubGlobal('fetch', request)
+  const bodies = (url: string, method: string) =>
+    request.mock.calls
+      .filter(([input, init]) => String(input) === url && (init?.method ?? 'GET') === method)
+      .map(([, init]) => requestBody(init!))
+  return {
+    request,
+    bodies,
+    probes: () => bodies('/api/model_probe', 'POST') as ProbeBody[],
+    puts: () => bodies('/api/model_config', 'PUT').map(({ config }) => config as ModelConfig),
+    stored: () => stored,
+  }
+}
+
+async function renderPage(initialFocusRef?: RefObject<HTMLButtonElement | null>) {
+  const view = render(
+    <ResearcherSessionContext value={SESSION}>
+      <ProviderConfigPage onClose={() => {}} initialFocusRef={initialFocusRef} />
+    </ResearcherSessionContext>,
+  )
   await waitFor(() => expect(screen.queryByText('Loading model configuration…')).not.toBeInTheDocument())
+  return view
+}
+
+/** Waits past an edit's 500 ms probe debounce with room for a loaded test run. */
+const DEBOUNCED = { timeout: 3_000 }
+const step = (title: string) => screen.getByRole('region', { name: title })
+const apply = () => fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+
+/** Opens a picker and returns one of its connection groups once the probe has listed its models. */
+async function pickerGroup(picker: string, group: string) {
+  fireEvent.click(screen.getByRole('button', { name: picker }))
+  return within(within(screen.getByRole('listbox', { name: picker })).getByRole('group', { name: group }))
+}
+
+async function choose(picker: string, group: string, model: string) {
+  const options = await pickerGroup(picker, group)
+  fireEvent.click(await options.findByRole('option', { name: model }))
+}
+
+async function typeModel(picker: string, group: string, model: string) {
+  fireEvent.click(screen.getByRole('button', { name: picker }))
+  fireEvent.change(screen.getByRole('combobox', { name: `Search ${picker}` }), { target: { value: model } })
+  const list = within(screen.getByRole('listbox', { name: picker }))
+  fireEvent.click(within(list.getByRole('group', { name: group })).getByRole('option', { name: `Use ${model}` }))
+}
+
+function openConnections(): void {
+  fireEvent.click(screen.getByRole('tab', { name: /^Connections/ }))
+}
+
+/** Selects a connection on the Connections tab and returns its detail pane. */
+function openConnection(name: string | RegExp) {
+  openConnections()
+  fireEvent.click(within(screen.getByRole('list', { name: 'Connections' })).getByRole('button', { name }))
+  return within(screen.getByRole('region', { name: 'Connection details' }))
 }
 
 afterEach(() => {
@@ -185,474 +224,651 @@ afterEach(() => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
+  localStorage.clear()
 })
 
 describe('ProviderConfigPage', () => {
-  it('loads backend-owned state without probing and renders partial credential states', async () => {
-    const config = mixedConfig()
-    const request = mockFetch((url, init) => {
-      expect(url).toBe('/api/model_config')
-      expect(init.method).toBeUndefined()
-      return configResponse(config, { [OPENAI_ID]: 'unavailable' })
-    })
-
+  it('opens on Models with each step as one sentence at its defaults', async () => {
+    studio(config(), { deployment })
     await renderPage()
 
-    expect(screen.getByDisplayValue('Local Ollama')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('Research OpenAI')).toBeInTheDocument()
-    expect(screen.getByText('Credential store unavailable.')).toBeInTheDocument()
-    const cards = screen.getAllByRole('article')
-    expect(within(cards[0]).getByPlaceholderText('Enter a credential')).toHaveValue('')
-    expect(request).toHaveBeenCalledTimes(1)
-    expect(request.mock.calls.some(([url]) => String(url) === '/api/model_probe')).toBe(false)
-  })
+    expect(screen.getByText('Model Configuration')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Models' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Connections · 2' })).toHaveAttribute('aria-selected', 'false')
 
-  it('submits one unchanged draft, disables pending Apply, replaces it from the response, and reloads it', async () => {
-    let stored = ollamaConfig()
-    let finishPut: ((response: Response) => void) | undefined
-    const putResponse = new Promise<Response>((resolve) => { finishPut = resolve })
-    const request = mockFetch((url, init) => {
-      if (url === '/api/model_config' && init.method === 'PUT') {
-        const submitted = requestBody(init).config as ModelConfig
-        expect(submitted.routes.schemaSuggestion?.modelId).toBe('manual-model')
-        expect(submitted.routes.interaction?.modelId).toBe('manual-model')
-        for (const route of Object.values(submitted.routes)) expect(route).not.toHaveProperty('jsonOutput')
-        stored = {
-          ...submitted,
-          routes: {
-            schemaSuggestion: { ...submitted.routes.schemaSuggestion!, modelId: 'normalized-model' },
-            interaction: { ...submitted.routes.interaction!, modelId: 'normalized-model' },
-          },
-        }
-        return putResponse
-      }
-      return configResponse(stored)
-    })
-
-    const first = render(<ProviderConfigPage onClose={() => {}} />)
-    await screen.findByDisplayValue('saved-model')
-    expect(screen.queryByLabelText(/output support/)).not.toBeInTheDocument()
-    expect(screen.queryByText('Advanced output settings')).not.toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Single model ID'), { target: { value: 'manual-model' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
-
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Applying…' })).toBeDisabled())
-    expect(screen.getByLabelText('Single model ID')).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Capability Routes' })).toBeDisabled()
-    expect(request.mock.calls.filter(([url]) => String(url) === '/api/model_config')).toHaveLength(2)
-    expect(request.mock.calls.some(([url]) => String(url) === '/api/model_probe')).toBe(false)
-
-    await act(async () => {
-      finishPut?.(jsonResponse({ config: stored, credentialStates: { [OLLAMA_ID]: 'absent' } }))
-      await putResponse
-    })
-    expect(screen.getByLabelText('Single model ID')).toHaveValue('normalized-model')
-
-    first.unmount()
-    render(<ProviderConfigPage onClose={() => {}} />)
-    expect(await screen.findByLabelText('Single model ID')).toHaveValue('normalized-model')
-  })
-
-  it('retains a failed draft, renders the stable error, and permits an offline save retry', async () => {
-    let attempts = 0
-    const request = mockFetch((url, init) => {
-      if (url === '/api/model_config' && init.method === 'PUT') {
-        attempts += 1
-        if (attempts === 1) {
-          return jsonResponse(
-            { error: { code: 'keyring_unavailable', message: 'The credential store is locked.' } },
-            503,
-          )
-        }
-        return jsonResponse({
-          config: requestBody(init).config,
-          credentialStates: { [OLLAMA_ID]: 'absent' },
-        })
-      }
-      return configResponse(ollamaConfig())
-    })
-
-    await renderPage()
-    fireEvent.change(screen.getByLabelText('Single model ID'), { target: { value: 'offline-model' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'keyring_unavailable: The credential store is locked.',
+    await waitFor(() => expect(step('Reading documents')).toHaveTextContent(
+      'Scanned pages are read by datalab-to/surya-ocr-2, page regions found by Heron-101.',
+    ))
+    expect(step('Reading documents')).toHaveTextContent(
+      'Choose among the models this deployment runs. Applies to new uploads and reprocessing.',
     )
-    expect(screen.getByLabelText('Single model ID')).toHaveValue('offline-model')
-    expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
+    expect(step('Schema & chat')).toHaveTextContent(
+      `Chat, schema editing and Schema Suggestion use ${QWEN}, the deployment's model.`,
+    )
+    expect(step('Schema & chat')).toHaveTextContent('Choose any model from your connections.')
+    await waitFor(() => expect(step('Extracting data')).toHaveTextContent(
+      `${NUEXTRACT} reads field values, ${QWEN} reasons over the source.`,
+    ))
+    expect(step('Extracting data')).toHaveTextContent('Choose among the models this deployment runs.')
+    for (const title of ['Reading documents', 'Schema & chat', 'Extracting data']) {
+      expect(within(step(title)).getByRole('button', { name: 'Change' })).toBeInTheDocument()
+      expect(within(step(title)).queryByRole('button', { name: 'Use defaults' })).not.toBeInTheDocument()
+    }
+    for (const picker of ['Text recognition', 'Page regions', 'Assistant model', 'Field values', 'Reasoning'])
+      expect(screen.queryByRole('button', { name: picker })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Configuration mode' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Discard' })).toBeDisabled()
+  })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
-    await waitFor(() => expect(request).toHaveBeenCalledTimes(3))
+  it('probes every eligible connection once on open with exactly the credential the rules allow', async () => {
+    const otherOpenai = { ...openai, id: OTHER_OPENAI_ID, name: 'Gateway OpenAI' }
+    const keyedVllm = { ...labVllm, hasKey: true }
+    storeKey(OPENAI_ID, 'openai', OPENAI_BASE, 'sk-test-this-base')
+    storeKey(OTHER_OPENAI_ID, 'openai', 'https://old-gateway.example/v1', 'sk-test-other-base')
+    const server = studio(config({ connections: [ollama, openai, otherOpenai, keyedVllm] }), {
+      deployment: { connections: [instruct], defaultRoute: { connectionId: instruct.id, modelId: QWEN } },
+    })
+
+    await renderPage()
+    await waitFor(() => expect(server.probes()).toHaveLength(3))
+    vi.useFakeTimers()
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+
+    const probes = server.probes()
+    expect(probes).toHaveLength(3)
+    const byId = new Map(probes.map((body) => [body.connection.id, body]))
+    expect([...byId.keys()].sort()).toEqual([instruct.id, OLLAMA_ID, OPENAI_ID].sort())
+    expect(byId.get(instruct.id)).toEqual({ connection: instruct })
+    expect(byId.get(OLLAMA_ID)).toEqual({ connection: ollama })
+    expect(byId.get(OPENAI_ID)).toEqual({ connection: openai, credential: 'sk-test-this-base' })
+    expect(JSON.stringify(server.request.mock.calls)).not.toContain('sk-test-other-base')
+  })
+
+  it('Change opens a step and Use defaults removes its stored choice', async () => {
+    const server = studio(
+      config({
+        connections: [ollama],
+        routes: { schemaSuggestion: { connectionId: nuextract.id, modelId: NUEXTRACT }, interaction: { connectionId: OLLAMA_ID, modelId: 'llama3.3' } },
+        extractionModels: { fields: 'instruct', reasoning: 'instruct' },
+        ingestionModels: { ocr: 'surya', layout: 'layout_egret_xlarge' },
+      }),
+      { deployment },
+    )
+    await renderPage()
+
+    // A step with a stored choice opens on its pickers.
+    expect(within(step('Reading documents')).getByRole('button', { name: 'Text recognition' })).toHaveTextContent('datalab-to/surya-ocr-2')
+    expect(within(step('Reading documents')).getByRole('button', { name: 'Page regions' })).toHaveTextContent('Egret XLarge')
+    expect(within(step('Schema & chat')).getByRole('button', { name: 'Assistant model' })).toHaveTextContent('llama3.3 · Local Ollama')
+    expect(within(step('Extracting data')).getByRole('button', { name: 'Field values' })).toHaveTextContent(QWEN)
+
+    for (const title of ['Reading documents', 'Schema & chat', 'Extracting data']) {
+      fireEvent.click(within(step(title)).getByRole('button', { name: 'Use defaults' }))
+      expect(within(step(title)).getByRole('button', { name: 'Change' })).toBeInTheDocument()
+    }
+    expect(screen.queryByRole('button', { name: 'Assistant model' })).not.toBeInTheDocument()
+
+    // Change opens a step at its defaults on its pickers, which show the deployment's defaults.
+    fireEvent.click(within(step('Extracting data')).getByRole('button', { name: 'Change' }))
+    expect(within(step('Extracting data')).getByRole('button', { name: 'Field values' })).toHaveTextContent(`Deployment default · ${NUEXTRACT}`)
+    expect(within(step('Extracting data')).getByRole('button', { name: 'Reasoning' })).toHaveTextContent(`Deployment default · ${QWEN}`)
+    expect(within(step('Extracting data')).getByRole('button', { name: 'Use defaults' })).toBeInTheDocument()
+
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    const [saved] = server.puts()
+    expect(saved.routes).toEqual({ schemaSuggestion: null, interaction: null })
+    expect(saved.extractionModels).toEqual({})
+    expect(saved.ingestionModels).toEqual({})
+  })
+
+  it('an unset Schema Suggestion route follows the Assistant model, and Use a different model stores an explicit route even when it equals it', async () => {
+    const assistant = { connectionId: OLLAMA_ID, modelId: 'llama3.3' }
+    const server = studio(config({ connections: [ollama], routes: { schemaSuggestion: null, interaction: assistant } }))
+    const first = await renderPage()
+
+    const schemaAndChat = within(step('Schema & chat'))
+    expect(schemaAndChat.getByText(FOLLOWS)).toBeInTheDocument()
+    expect(schemaAndChat.queryByRole('button', { name: 'Schema Suggestion model' })).not.toBeInTheDocument()
+    expect(schemaAndChat.queryByText(/Deployment default/)).not.toBeInTheDocument()
+
+    fireEvent.click(schemaAndChat.getByRole('button', { name: 'Use a different model' }))
+    // Focus moves to the picker it revealed, not to the page.
+    expect(schemaAndChat.getByRole('button', { name: 'Schema Suggestion model' })).toHaveFocus()
+    fireEvent.click(schemaAndChat.getByRole('button', { name: 'Schema Suggestion model' }))
+    expect(screen.getByRole('option', { name: 'Use the assistant model' })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Schema Suggestion model' }))
+    await choose('Schema Suggestion model', 'Local Ollama', 'llama3.3')
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0].routes).toEqual({ schemaSuggestion: assistant, interaction: assistant })
+
+    // Reopened, the saved route is still its own, though it equals the Assistant model.
+    first.unmount()
+    await renderPage()
+    const reopened = within(step('Schema & chat'))
+    expect(reopened.getByRole('button', { name: 'Schema Suggestion model' })).toHaveTextContent('llama3.3 · Local Ollama')
+    expect(reopened.queryByText(FOLLOWS)).not.toBeInTheDocument()
+
+    fireEvent.click(reopened.getByRole('button', { name: 'Use the assistant model' }))
+    expect(reopened.getByText(FOLLOWS)).toBeInTheDocument()
+    expect(reopened.getByRole('button', { name: 'Use a different model' })).toHaveFocus()
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(2))
+    expect(server.puts()[1].routes).toEqual({ schemaSuggestion: null, interaction: assistant })
+  })
+
+  it('the NuExtract protocol is shown as automatic for a NuExtract model on vLLM and never offered as a control', async () => {
+    const server = studio(config({
+      connections: [labVllm, ollama],
+      routes: { schemaSuggestion: null, interaction: { connectionId: VLLM_ID, modelId: NUEXTRACT } },
+    }))
+    await renderPage()
+    const schemaAndChat = within(step('Schema & chat'))
+
+    // Inherited from the Assistant model.
+    expect(schemaAndChat.getByText(NUEXTRACT_NOTE)).toBeInTheDocument()
+
+    fireEvent.click(schemaAndChat.getByRole('button', { name: 'Use a different model' }))
+    await typeModel('Schema Suggestion model', 'Lab vLLM', QWEN)
+    expect(schemaAndChat.queryByText(NUEXTRACT_NOTE)).not.toBeInTheDocument()
+
+    // Not on a connection that cannot pass NuExtract's chat-template controls.
+    await typeModel('Schema Suggestion model', 'Local Ollama', NUEXTRACT)
+    expect(schemaAndChat.queryByText(NUEXTRACT_NOTE)).not.toBeInTheDocument()
+
+    await typeModel('Schema Suggestion model', 'Lab vLLM', NUEXTRACT)
+    expect(schemaAndChat.getByText(NUEXTRACT_NOTE)).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0].routes).toEqual({
+      schemaSuggestion: { connectionId: VLLM_ID, modelId: NUEXTRACT },
+      interaction: { connectionId: VLLM_ID, modelId: NUEXTRACT },
+    })
+  })
+
+  it('the ingestion step cannot choose an OCR model the OCR server does not serve, and keeps a saved choice the listing no longer offers', async () => {
+    const server = studio(config({ ingestionModels: { layout: 'layout_retired' } }))
+    await renderPage()
+    const reading = within(step('Reading documents'))
+
+    await waitFor(() => expect(reading.getByRole('button', { name: 'Page regions' })).toHaveTextContent(
+      'layout_retired (not offered by this deployment)',
+    ))
+    fireEvent.click(reading.getByRole('button', { name: 'Text recognition' }))
+    const unloaded = screen.getByRole('option', { name: /granite-vision/ })
+    expect(unloaded).toHaveAttribute('aria-disabled', 'true')
+    expect(unloaded).toHaveTextContent('Not loaded on the OCR server')
+    fireEvent.click(unloaded)
+    expect(screen.getByRole('listbox', { name: 'Text recognition' })).toBeInTheDocument()
+    expect(reading.getByRole('button', { name: 'Text recognition' })).toHaveTextContent('Deployment default · datalab-to/surya-ocr-2')
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('option', { name: 'datalab-to/surya-ocr-2' }))
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0].ingestionModels).toEqual({ ocr: 'surya', layout: 'layout_retired' })
+  })
+
+  it('a failed ingestion or extraction listing blocks no other edit', async () => {
+    const server = studio(config({ connections: [ollama], extractionModels: { fields: 'instruct' } }), {
+      extraction: unavailable('extraction_models_unavailable'),
+      ingestion: unavailable('ingestion_models_unavailable'),
+    })
+    await renderPage()
+
+    expect(step('Reading documents')).toHaveTextContent(
+      "Scanned pages are read and their page regions found by the deployment's default models.",
+    )
+    expect(step('Schema & chat')).toHaveTextContent('No model is configured yet.')
+    // A saved choice stays saved and shown, though nothing lists it.
+    expect(within(step('Extracting data')).getByRole('button', { name: 'Field values' })).toHaveTextContent('instruct')
+    expect(within(step('Extracting data')).getByRole('button', { name: 'Reasoning' })).toHaveTextContent('Deployment default')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Single model ID')).toHaveValue('offline-model')
+
+    fireEvent.click(within(step('Schema & chat')).getByRole('button', { name: 'Change' }))
+    await choose('Assistant model', 'Local Ollama', 'llama3.3')
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0]).toMatchObject({
+      routes: { schemaSuggestion: null, interaction: { connectionId: OLLAMA_ID, modelId: 'llama3.3' } },
+      extractionModels: { fields: 'instruct' },
+      ingestionModels: {},
+    })
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  // An empty model ID is the likeliest rejected Apply and `invalid_request: The
-  // request is invalid.` alone does not say which field to fix.
-  it('names the offending field when a rejected Apply carries validation issues', async () => {
-    mockFetch((url, init) => {
-      if (url === '/api/model_config' && init.method === 'PUT') {
-        return jsonResponse(
-          {
-            error: {
-              code: 'invalid_request',
-              message: 'The request is invalid.',
-              details: {
-                path: 'request',
-                issues: [{ path: 'config.routes.schemaSuggestion.modelId', message: 'Must not be empty.' }],
-                truncated: false,
-              },
-            },
-          },
-          400,
-        )
-      }
-      return configResponse(ollamaConfig())
+  it("deployment connections are read-only, CLI kinds are not offered, and a saved connection's provider cannot change", async () => {
+    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(VLLM_ID)
+    const server = studio(config({ connections: [openai] }), {
+      deployment: { connections: [instruct, codex], defaultRoute: { connectionId: instruct.id, modelId: QWEN } },
     })
-
     await renderPage()
-    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+    openConnections()
+    expect(screen.getByRole('tab', { name: 'Connections · 3' })).toHaveAttribute('aria-selected', 'true')
+    const list = within(screen.getByRole('list', { name: 'Connections' }))
+    expect(list.getAllByRole('button').map((item) => item.textContent)).toEqual([
+      'Deployment instruction modelDeployment',
+      'Codex CLI on this serverDeployment',
+      'Research OpenAI',
+    ])
 
-    const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('invalid_request: The request is invalid.')
-    expect(alert).toHaveTextContent('config.routes.schemaSuggestion.modelId: Must not be empty.')
+    const deployed = openConnection(/Deployment instruction model/)
+    expect(deployed.getByRole('heading', { name: 'Deployment instruction model' })).toBeInTheDocument()
+    expect(deployed.getByText(instruct.baseUrl!)).toBeInTheDocument()
+    expect(await deployed.findByText('Connected.')).toBeInTheDocument()
+    // The list's status dot has words too, not only a colour.
+    expect(list.getByRole('button', { name: /Deployment instruction model/ })).toHaveAccessibleDescription('Connected.')
+    expect(within(deployed.getByRole('list', { name: 'Models' })).getByText(QWEN)).toBeInTheDocument()
+    expect(deployed.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(deployed.queryByRole('button')).not.toBeInTheDocument()
+
+    const cli = openConnection(/Codex CLI on this server/)
+    expect(cli.getByText("Runs on this server's CLI login")).toBeInTheDocument()
+    expect(cli.queryByRole('textbox')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add connection' }))
+    const kinds = screen.getAllByRole('menuitem').map((item) => item.textContent)
+    expect(kinds).toEqual([
+      'OllamaYour own server',
+      'OpenAIHosted API · needs a key',
+      'AnthropicHosted API · needs a key',
+      'GoogleHosted API · needs a key',
+      'OpenAI-compatibleYour own server',
+      'vLLMYour own server',
+    ])
+    // A press keeps focus in the menu, so browsers that do not focus a clicked button do not close it first.
+    expect(fireEvent.mouseDown(screen.getByRole('menuitem', { name: /^vLLM/ }))).toBe(false)
+    fireEvent.click(screen.getByRole('menuitem', { name: /^vLLM/ }))
+    const added = within(screen.getByRole('region', { name: 'Connection details' }))
+    expect(added.getByRole('heading', { name: 'vLLM connection' })).toHaveFocus()
+
+    const saved = openConnection('Research OpenAI')
+    expect(saved.getByRole('heading', { name: 'OpenAI connection' })).toBeInTheDocument()
+    expect(saved.getByRole('textbox', { name: 'Name' })).toHaveValue('Research OpenAI')
+    expect(saved.getByRole('textbox', { name: 'Base URL' })).toHaveValue(OPENAI_BASE)
+    expect(saved.queryByRole('combobox')).not.toBeInTheDocument()
+
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0].connections.map(({ id, provider }) => [id, provider])).toEqual([[OPENAI_ID, 'openai'], [VLLM_ID, 'vllm']])
   })
 
-  it('debounces draft checks, cancels and suppresses stale results, retries immediately, and saves offline', async () => {
-    const probeResolvers: Array<(response: Response) => void> = []
-    const putBodies: Record<string, unknown>[] = []
-    const request = mockFetch((url, init) => {
-      if (url === '/api/model_probe') {
-        return new Promise<Response>((resolve) => probeResolvers.push(resolve))
-      }
-      if (url === '/api/model_config' && init.method === 'PUT') {
-        putBodies.push(requestBody(init))
-        return jsonResponse({
-          config: requestBody(init).config,
-          credentialStates: { [OLLAMA_ID]: 'absent' },
-        })
-      }
-      return configResponse(emptyConfig)
-    })
-
-    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(OLLAMA_ID)
+  it('the key line offers Replace and Remove for a key saved in this browser, or an input', async () => {
+    storeKey(OPENAI_ID, 'openai', OPENAI_BASE, 'sk-test-saved')
+    studio(config({ connections: [openai, ollama, { ...labVllm, hasKey: true }] }))
     await renderPage()
-    expect(request).toHaveBeenCalledTimes(1)
+
+    const saved = openConnection('Research OpenAI')
+    expect(saved.getByText('Key saved in this browser')).toBeInTheDocument()
+    expect(saved.queryByLabelText('API key')).not.toBeInTheDocument()
+    fireEvent.click(saved.getByRole('button', { name: 'Replace' }))
+    const input = saved.getByLabelText('API key')
+    expect(input).toHaveFocus()
+    // Masked, but not a password field: a password manager would keep another copy of the key.
+    expect(input).toHaveAttribute('type', 'text')
+    expect(input).toHaveAttribute('autocomplete', 'off')
+    expect(input).toHaveAttribute('spellcheck', 'false')
+    expect(input.className).toContain('[-webkit-text-security:disc]')
+    fireEvent.click(saved.getByRole('button', { name: 'Keep saved key' }))
+    expect(saved.getByText('Key saved in this browser')).toBeInTheDocument()
+    expect(saved.getByRole('button', { name: 'Replace' })).toHaveFocus()
+    fireEvent.click(saved.getByRole('button', { name: 'Remove' }))
+    expect(saved.getByLabelText('API key')).toHaveFocus()
+
+    const keyless = openConnection('Local Ollama')
+    expect(keyless.getByLabelText('API key (optional)')).toHaveAttribute('placeholder', 'Used without a key')
+    expect(keyless.queryByRole('button', { name: 'Use without a key' })).not.toBeInTheDocument()
+
+    const missing = openConnection('Lab vLLM')
+    expect(missing.getByLabelText('API key (optional)')).toHaveAttribute('placeholder', 'Paste a key')
+    expect(missing.getByRole('button', { name: 'Use without a key' })).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent('sk-test-saved')
+  })
+
+  it('a draft base change clears the typed key and never probes the new base with the old key', async () => {
+    storeKey(OPENAI_ID, 'openai', OPENAI_BASE, 'sk-test-stored-old-base')
+    const server = studio(config({ connections: [ollama, openai] }))
+    await renderPage()
+    await waitFor(() => expect(server.probes()).toHaveLength(2))
+    const opening = server.request.mock.calls.length
+
+    vi.useFakeTimers()
+    const pane = openConnection('Research OpenAI')
+    fireEvent.click(pane.getByRole('button', { name: 'Replace' }))
+    fireEvent.change(pane.getByLabelText('API key'), { target: { value: 'sk-test-typed-old-base' } })
+    await act(() => vi.advanceTimersByTimeAsync(200))
+    fireEvent.change(pane.getByRole('textbox', { name: 'Base URL' }), { target: { value: 'https://gateway.example/v1' } })
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+
+    expect(pane.getByLabelText('API key')).toHaveValue('')
+    expect(server.request.mock.calls.slice(opening)).toEqual([])
+    expect(JSON.stringify(server.request.mock.calls)).not.toContain('sk-test-typed-old-base')
+    expect(pane.getByText('Not checked yet.')).toBeInTheDocument()
+
+    // Discard restores the saved base, which is probed again with the key saved for it.
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(server.probes().slice(2)).toEqual([{ connection: openai, credential: 'sk-test-stored-old-base' }])
+    expect(pane.getByText('Connected.')).toBeInTheDocument()
+  })
+
+  it("Apply sends the configuration without keys, then this browser's keys; Discard restores the saved draft", async () => {
+    const server = studio(config({ connections: [ollama, openai] }))
+    await renderPage()
+
+    const pane = openConnection('Research OpenAI')
+    fireEvent.change(pane.getByLabelText('API key'), { target: { value: 'sk-test-typed' } })
+    // The typed key is what the connection is probed with.
+    await waitFor(() => expect(server.probes().filter(({ connection }) => connection.id === OPENAI_ID)).toHaveLength(1), DEBOUNCED)
+    expect(server.probes().find(({ connection }) => connection.id === OPENAI_ID)).toMatchObject({ credential: 'sk-test-typed' })
+    apply()
+
+    await waitFor(() => expect(server.bodies('/api/model-keys', 'PUT')).toHaveLength(1))
+    const [put] = server.request.mock.calls.filter(([url, init]) => String(url) === '/api/model_config' && init?.method === 'PUT')
+    const text = String(put[1]!.body)
+    expect(Object.keys(JSON.parse(text))).toEqual(['config'])
+    expect(text).not.toMatch(/sk-test|credential/)
+    const entry = { provider: 'openai', baseUrl: OPENAI_BASE, key: 'sk-test-typed' }
+    expect(JSON.parse(localStorage.getItem(STORAGE)!)).toEqual({ [OPENAI_ID]: entry })
+    expect(server.bodies('/api/model-keys', 'PUT')[0]).toEqual({ account: ACCOUNT, keys: { [OPENAI_ID]: entry } })
+    const order = server.request.mock.calls.map(([url, init]) => `${init?.method ?? 'GET'} ${String(url)}`)
+    expect(order.indexOf('PUT /api/model_config')).toBeLessThan(order.indexOf('PUT /api/model-keys'))
+    expect(pane.getByText('Key saved in this browser')).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent('sk-test-typed')
+
+    const renamed = openConnection('Local Ollama')
+    const probed = server.probes().length
+    vi.useFakeTimers()
+    fireEvent.change(renamed.getByRole('textbox', { name: 'Name' }), { target: { value: 'Renamed Ollama' } })
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(renamed.getByRole('textbox', { name: 'Name' })).toHaveValue('Local Ollama')
+    expect(screen.getByRole('button', { name: 'Discard' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
+    // Neither the rename nor its Discard changes what a probe would do, so neither probes.
+    expect(server.probes()).toHaveLength(probed)
+    expect(renamed.getByText('Connected.')).toBeInTheDocument()
+    expect(server.puts()).toHaveLength(1)
+  })
+
+  it('the close button keeps its name and initial focus', async () => {
+    studio(config())
+    const initialFocus = createRef<HTMLButtonElement>()
+    await renderPage(initialFocus)
+
+    const close = screen.getByRole('button', { name: 'Close Model Configuration' })
+    expect(initialFocus.current).toBe(close)
+    expect(close).toHaveFocus()
+  })
+
+  it("Remove drops this browser's key on Apply and tells Studio; an optional connection then uses no key", async () => {
+    storeKey(OLLAMA_ID, 'ollama', OLLAMA_BASE, 'sk-test-removed')
+    const server = studio(config({ connections: [{ ...ollama, hasKey: true }] }))
+    await renderPage()
+
+    const pane = openConnection('Local Ollama')
+    fireEvent.click(pane.getByRole('button', { name: 'Remove' }))
+    expect(pane.getByLabelText('API key (optional)')).toHaveAttribute('placeholder', 'Used without a key')
+    apply()
+
+    await waitFor(() => expect(server.bodies('/api/model-keys', 'PUT')).toHaveLength(1))
+    expect(server.puts()[0].connections[0].hasKey).toBe(false)
+    expect(localStorage.getItem(STORAGE)).toBeNull()
+    expect(server.bodies('/api/model-keys', 'PUT')[0]).toEqual({ account: ACCOUNT, keys: { [OLLAMA_ID]: null } })
+    expect(pane.queryByText('Key saved in this browser')).not.toBeInTheDocument()
+    expect(pane.queryByRole('button', { name: 'Use without a key' })).not.toBeInTheDocument()
+  })
+
+  it('a managed connection keeps hasKey when its key is removed', async () => {
+    storeKey(OPENAI_ID, 'openai', OPENAI_BASE, 'sk-test-managed')
+    const server = studio(config({ connections: [ollama, openai] }))
+    await renderPage()
+
+    const pane = openConnection('Research OpenAI')
+    fireEvent.click(pane.getByRole('button', { name: 'Remove' }))
+    expect(pane.getByLabelText('API key')).toHaveValue('')
+    expect(pane.queryByRole('button', { name: 'Use without a key' })).not.toBeInTheDocument()
+    apply()
+
+    await waitFor(() => expect(server.bodies('/api/model-keys', 'PUT')).toHaveLength(1))
+    expect(server.puts()[0].connections.find(({ id }) => id === OPENAI_ID)?.hasKey).toBe(true)
+    expect(localStorage.getItem(STORAGE)).toBeNull()
+    expect(server.bodies('/api/model-keys', 'PUT')[0]).toEqual({ account: ACCOUNT, keys: { [OPENAI_ID]: null } })
+  })
+
+  it('a key longer than Studio accepts shows an error, is never probed and cannot be applied', async () => {
+    const server = studio(config({ connections: [openai] }))
+    await renderPage()
     vi.useFakeTimers()
 
-    fireEvent.click(screen.getByRole('button', { name: '+ New connection' }))
-    const baseInput = screen.getByDisplayValue('http://127.0.0.1:11434')
-    fireEvent.change(baseInput, { target: { value: 'http://localhost:11434/first' } })
-    await act(() => vi.advanceTimersByTimeAsync(499))
-    expect(probeResolvers).toHaveLength(0)
-    await act(() => vi.advanceTimersByTimeAsync(1))
-    expect(probeResolvers).toHaveLength(1)
-    expect(screen.getByText('Checking…')).toBeInTheDocument()
-    const firstSignal = request.mock.calls.find(([url]) => String(url) === '/api/model_probe')?.[1]?.signal
+    const pane = openConnection('Research OpenAI')
+    const input = pane.getByLabelText('API key')
+    fireEvent.change(input, { target: { value: `sk-test-${'x'.repeat(8192)}` } })
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
 
-    fireEvent.change(baseInput, { target: { value: 'http://localhost:11434/latest' } })
-    expect(firstSignal?.aborted).toBe(true)
-    await act(() => vi.advanceTimersByTimeAsync(500))
-    expect(probeResolvers).toHaveLength(2)
+    expect(pane.getByText('A key can be at most 8192 characters.')).toBeInTheDocument()
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(server.probes()).toEqual([])
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
 
-    await act(async () => {
-      probeResolvers[1](jsonResponse({
-        checkedAt: '2026-07-25T00:00:01.000Z',
-        status: 'connected',
-        message: 'Latest connection is ready.',
-        catalog: [{ id: 'latest-model', label: 'Latest model' }],
-      }))
-      await Promise.resolve()
-    })
-    expect(screen.getByText('Latest connection is ready.')).toBeInTheDocument()
-
-    await act(async () => {
-      probeResolvers[0](jsonResponse({
-        checkedAt: '2026-07-25T00:00:00.000Z',
-        status: 'unreachable',
-        message: 'Stale provider failure.',
-        catalog: [],
-      }))
-      await Promise.resolve()
-    })
-    expect(screen.queryByText('Stale provider failure.')).not.toBeInTheDocument()
-
-    fireEvent.change(screen.getByLabelText('Single model connection'), { target: { value: OLLAMA_ID } })
-    fireEvent.focus(screen.getByLabelText('Single model ID'))
-    expect(probeResolvers).toHaveLength(2) // already probed this session; opening the list must not re-probe
-    const listbox = screen.getByRole('listbox')
-    expect(within(listbox).getAllByRole('option')).toHaveLength(1)
-    fireEvent.mouseDown(within(listbox).getByRole('option', { name: 'Latest model' }))
-    expect(screen.getByLabelText('Single model ID')).toHaveValue('latest-model')
-
-    // reopening after a pick still shows the full catalog, not a filtered single entry
-    fireEvent.focus(screen.getByLabelText('Single model ID'))
-    expect(within(screen.getByRole('listbox')).getAllByRole('option')).toHaveLength(1)
-
-    fireEvent.change(screen.getByLabelText('Single model ID'), { target: { value: 'manual-offline-model' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
-    await act(async () => { await Promise.resolve() })
-    expect(putBodies).toHaveLength(1)
-    expect((putBodies[0].config as ModelConfig).routes.schemaSuggestion?.modelId).toBe('manual-offline-model')
+    fireEvent.change(input, { target: { value: 'sk-test-short' } })
+    expect(pane.queryByText('A key can be at most 8192 characters.')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
   })
 
-  it('probes when the model list is opened for an unchecked connection, once per session', async () => {
-    const probeResolvers: Array<(response: Response) => void> = []
-    const request = mockFetch((url) => {
-      if (url === '/api/model_probe') {
-        return new Promise<Response>((resolve) => probeResolvers.push(resolve))
-      }
-      return configResponse(ollamaConfig())
-    })
-
+  it.each([
+    ['a character outside printable ASCII', 'sk-test-cl\u00e9'],
+    ['a trailing space', 'sk-test-pasted '],
+    ['a tab', 'sk-test-a\tb'],
+  ])('a key with %s shows an error, is never probed and cannot be applied', async (_label, key) => {
+    const server = studio(config({ connections: [openai] }))
     await renderPage()
-    expect(request.mock.calls.some(([url]) => String(url) === '/api/model_probe')).toBe(false)
+    vi.useFakeTimers()
 
-    fireEvent.focus(screen.getByLabelText('Single model ID'))
-    expect(probeResolvers).toHaveLength(1)
-    expect(within(screen.getByRole('listbox')).getByText('Loading models…')).toBeInTheDocument()
-    await act(async () => {
-      probeResolvers[0](jsonResponse({
-        checkedAt: '2026-07-25T00:00:00.000Z',
-        status: 'connected',
-        message: 'Connection is ready.',
-        catalog: [
-          { id: 'model-a', label: 'Model A' },
-          { id: 'model-b', label: 'Model B' },
-        ],
-      }))
-      await Promise.resolve()
-    })
-    expect(within(screen.getByRole('listbox')).getAllByRole('option')).toHaveLength(2)
+    const pane = openConnection('Research OpenAI')
+    const input = pane.getByLabelText('API key')
+    fireEvent.change(input, { target: { value: key } })
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
 
-    fireEvent.mouseDown(within(screen.getByRole('listbox')).getByRole('option', { name: 'Model A' }))
-    expect(screen.getByLabelText('Single model ID')).toHaveValue('model-a')
-    fireEvent.focus(screen.getByLabelText('Single model ID'))
-    expect(probeResolvers).toHaveLength(1)
-    expect(within(screen.getByRole('listbox')).getAllByRole('option')).toHaveLength(2)
+    const message = 'A key can contain only printable ASCII characters, with no spaces at either end.'
+    expect(pane.getByText(message)).toBeInTheDocument()
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(server.probes()).toEqual([])
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
+
+    fireEvent.change(input, { target: { value: 'sk-test-short' } })
+    expect(pane.queryByText(message)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
   })
 
-  it('guides first-time setup when no connections exist', async () => {
-    mockFetch(() => configResponse(emptyConfig))
-
+  it('renders an unloadable configuration through the stable error', async () => {
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => Promise.resolve(
+      String(input) === '/api/model_config'
+        ? jsonResponse({ error: { code: 'invalid_model_config', message: 'Saved model configuration is invalid.' } }, 500)
+        : jsonResponse({ error: { code: 'unavailable', message: 'Unavailable.' } }, 503),
+    )))
     await renderPage()
 
-    expect(screen.getByText('No Model Connections yet.')).toBeInTheDocument()
-    expect(screen.queryByRole('group', { name: 'Configuration mode' })).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Single model connection')).not.toBeInTheDocument()
-    expect(screen.queryByText(/Capability Routes currently differ/)).not.toBeInTheDocument()
+    expect(screen.getByText('Model configuration could not be loaded.')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('invalid_model_config: Saved model configuration is invalid.')
   })
 
-  it('implements credential preserve, replace, and delete without retaining transient values', async () => {
-    const config = mixedConfig()
-    const putBodies: Record<string, unknown>[] = []
-    let states: Record<string, CredentialState> = { [OPENAI_ID]: 'present' }
-    const request = mockFetch((url, init) => {
-      if (url === '/api/model_config' && init.method === 'PUT') {
-        const body = requestBody(init)
-        putBodies.push(body)
-        const action = (body.credentials as Record<string, string | null> | undefined)?.[OPENAI_ID]
-        if (action === null) states = { [OPENAI_ID]: 'absent' }
-        else if (typeof action === 'string') states = { [OPENAI_ID]: 'present' }
-        return jsonResponse({ config: body.config, credentialStates: states })
-      }
-      return configResponse(config, states)
+  it('a rejected Apply keeps the draft and shows the stable error', async () => {
+    let refuse = true
+    const server = studio(config({ connections: [ollama] }), {
+      put: () => (refuse ? jsonResponse({ error: { code: 'persistence_unavailable', message: 'Model Configuration storage is unavailable.' } }, 503) : undefined),
     })
-
     await renderPage()
-    const openaiCard = screen.getAllByRole('article')[1]
-    const credential = within(openaiCard).getByLabelText('API credential')
-    expect(credential).toHaveValue('')
-    expect(credential).toHaveAttribute('placeholder', 'Stored credential will be preserved')
+    fireEvent.click(within(step('Schema & chat')).getByRole('button', { name: 'Change' }))
+    await typeModel('Assistant model', 'Local Ollama', 'offline-model')
+    apply()
 
-    fireEvent.click(within(openaiCard).getByRole('button', { name: 'Remove credential' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
-    await waitFor(() => expect(putBodies).toHaveLength(1))
-    expect(putBodies[0].credentials).toEqual({ [OPENAI_ID]: null })
-    expect(credential).toHaveAttribute('placeholder', 'Enter a credential')
-
-    fireEvent.change(credential, { target: { value: 'replacement-secret' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
-    await waitFor(() => expect(putBodies).toHaveLength(2))
-    expect(putBodies[1].credentials).toEqual({ [OPENAI_ID]: 'replacement-secret' })
-    expect(credential).toHaveValue('')
-    expect(credential).toHaveAttribute('placeholder', 'Stored credential will be preserved')
-    expect(document.body).not.toHaveTextContent('replacement-secret')
-
-    fireEvent.change(credential, { target: { value: 'discarded-secret' } })
-    fireEvent.click(within(openaiCard).getByRole('button', { name: 'Preserve stored value' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
-    await waitFor(() => expect(putBodies).toHaveLength(3))
-    expect(putBodies[2]).not.toHaveProperty('credentials')
-    expect(document.body).not.toHaveTextContent('discarded-secret')
-    expect(request.mock.calls.filter(([url]) => String(url) === '/api/model_config')).toHaveLength(4)
-  })
-
-  it('saves mixed routes and exposes the NuExtract protocol only on a vLLM Schema Suggestion Route', async () => {
-    const VLLM_ID = '33333333-3333-4333-8333-333333333333'
-    const putBodies: Record<string, unknown>[] = []
-    const config = mixedConfig()
-    config.connections.push({ id: VLLM_ID, name: 'Lab vLLM', provider: 'vllm', baseUrl: 'http://lab.example:8000/v1' })
-    mockFetch((url, init) => {
-      if (url === '/api/model_config' && init.method === 'PUT') {
-        const body = requestBody(init)
-        putBodies.push(body)
-        return jsonResponse({ config: body.config, credentialStates: {} })
-      }
-      return configResponse(config)
-    })
-
-    await renderPage()
-    fireEvent.click(screen.getByRole('button', { name: 'Capability Routes' }))
-    const suggestionConnection = screen.getByLabelText('Schema Suggestion connection')
-    fireEvent.change(suggestionConnection, { target: { value: VLLM_ID } })
-    fireEvent.change(screen.getByLabelText('Schema Suggestion model ID'), {
-      target: { value: 'numind/NuExtract3-FP8' },
-    })
-    fireEvent.click(screen.getByLabelText('Use NuExtract protocol'))
-
-    fireEvent.change(suggestionConnection, { target: { value: OLLAMA_ID } })
-    expect(screen.queryByLabelText('Use NuExtract protocol')).not.toBeInTheDocument()
-    fireEvent.change(suggestionConnection, { target: { value: VLLM_ID } })
-    fireEvent.click(screen.getByLabelText('Use NuExtract protocol'))
-
-    fireEvent.change(screen.getByLabelText('Chat & Extraction Schema editing connection'), {
-      target: { value: OPENAI_ID },
-    })
-    fireEvent.change(screen.getByLabelText('Chat & Extraction Schema editing model ID'), {
-      target: { value: 'gpt-manual' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
-
-    await waitFor(() => expect(putBodies).toHaveLength(1))
-    const saved = putBodies[0].config as ModelConfig
-    expect(saved.routes.schemaSuggestion).toEqual({
-      connectionId: VLLM_ID,
-      modelId: 'numind/NuExtract3-FP8',
-      protocol: 'nuextract',
-    })
-    expect(saved.routes.interaction).toEqual({
-      connectionId: OPENAI_ID,
-      modelId: 'gpt-manual',
-    })
-  })
-
-  it('sets the deployment-wide Extraction Model Choice from kei-exp\'s listing', async () => {
-    const putBodies: Record<string, unknown>[] = []
-    mockFetch((url, init) => {
-      if (url === '/api/model_config' && init.method === 'PUT') {
-        const body = requestBody(init)
-        putBodies.push(body)
-        return jsonResponse({ config: body.config, credentialStates: {} })
-      }
-      return configResponse({ ...emptyConfig, extractionModels: { reasoning: 'instruct' } })
-    })
-    const optionLabels = (label: string) =>
-      Array.from((screen.getByLabelText(label) as HTMLSelectElement).options).map((option) => option.textContent)
-
-    await renderPage()
-    await waitFor(() => expect(optionLabels('Field model')).toEqual([
-      'Default (numind/NuExtract3-FP8)', 'Qwen/Qwen3.8-27B-FP8', 'numind/NuExtract3-FP8 (unavailable)',
-    ]))
-    // NuExtract cannot take the reasoning role, so it is not offered there.
-    expect(optionLabels('Reasoning model')).toEqual(['Default (Qwen/Qwen3.8-27B-FP8)', 'Qwen/Qwen3.8-27B-FP8'])
-    expect(screen.getByLabelText('Reasoning model')).toHaveValue('instruct')
-
-    fireEvent.change(screen.getByLabelText('Field model'), { target: { value: 'instruct' } })
-    fireEvent.change(screen.getByLabelText('Reasoning model'), { target: { value: '' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
-
-    await waitFor(() => expect(putBodies).toHaveLength(1))
-    expect((putBodies[0].config as ModelConfig).extractionModels).toEqual({ fields: 'instruct' })
-  })
-
-  it('keeps only the Default extraction models when kei-exp cannot list them', async () => {
-    mockFetch(() => configResponse(emptyConfig), () => jsonResponse({ error: { code: 'extraction_models_unavailable', message: 'Unavailable.' } }, 503))
-    await renderPage()
-    const labels = (label: string) =>
-      Array.from((screen.getByLabelText(label) as HTMLSelectElement).options).map((option) => option.textContent)
-    expect(labels('Field model')).toEqual(['Default'])
-    expect(labels('Reasoning model')).toEqual(['Default'])
-  })
-
-  it('offers the deployment connections read-only and names the default an unset route runs on', async () => {
-    const putBodies: Record<string, unknown>[] = []
-    mockFetch((url, init) => {
-      if (url === '/api/model_config' && init.method === 'PUT') {
-        const body = requestBody(init)
-        putBodies.push(body)
-        return jsonResponse({ config: body.config, credentialStates: {} })
-      }
-      return configResponse(emptyConfig, {}, deployment)
-    })
-
-    await renderPage()
-    const listed = within(screen.getByText('Deployment connections').parentElement!)
-    expect(listed.getByText('Deployment NuExtract')).toBeInTheDocument()
-    expect(listed.queryByRole('textbox')).not.toBeInTheDocument()
-    expect(screen.queryByRole('article')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Capability Routes' }))
-    const suggestionConnection = screen.getByLabelText('Schema Suggestion connection')
-    expect(suggestionConnection).toHaveValue('')
-    expect(within(suggestionConnection).getByRole('option', { name: 'Deployment default (Qwen/Qwen3.8-27B-FP8)' })).toBeInTheDocument()
-    fireEvent.change(suggestionConnection, { target: { value: DEPLOYMENT_CONNECTION_IDS.nuextract } })
-    fireEvent.change(screen.getByLabelText('Schema Suggestion model ID'), { target: { value: 'numind/NuExtract3-FP8' } })
-    fireEvent.click(screen.getByLabelText('Use NuExtract protocol'))
-    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
-
-    await waitFor(() => expect(putBodies).toHaveLength(1))
-    const saved = putBodies[0].config as ModelConfig
-    expect(saved.connections).toEqual([])
-    expect(saved.routes.schemaSuggestion).toEqual({
-      connectionId: DEPLOYMENT_CONNECTION_IDS.nuextract, modelId: 'numind/NuExtract3-FP8', protocol: 'nuextract',
-    })
-  })
-
-  it('renders corrupt saved configuration through the stable load error', async () => {
-    mockFetch(() =>
-      jsonResponse(
-        { error: { code: 'invalid_model_config', message: 'Saved model configuration is invalid.' } },
-        409,
-      ),
-    )
-
-    render(<ProviderConfigPage onClose={() => {}} />)
-
-    expect(await screen.findByText('Model configuration could not be loaded.')).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'invalid_model_config: Saved model configuration is invalid.',
-    )
-  })
-
-  it('replaces an unreadable configuration only after a confirmed reset', async () => {
-    let saved: 'unreadable' | 'reset' = 'unreadable'
-    const request = mockFetch((url, init) => {
-      if (url === '/api/model_config' && init.method === 'DELETE') {
-        saved = 'reset'
-        return configResponse(emptyConfig, {}, deployment)
-      }
-      return saved === 'unreadable'
-        ? jsonResponse({ error: { code: 'invalid_model_config', message: 'Saved model configuration is invalid.' } }, 409)
-        : configResponse(emptyConfig, {}, deployment)
-    })
-
-    render(<ProviderConfigPage onClose={() => {}} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Reset model configuration' }))
-    expect(request.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false)
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm reset' }))
-
-    expect(await screen.findByText('Model Configuration')).toBeInTheDocument()
-    expect(screen.getByText('Deployment connections')).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('persistence_unavailable: Model Configuration storage is unavailable.')
+    expect(screen.getByRole('button', { name: 'Assistant model' })).toHaveTextContent('offline-model · Local Ollama')
+    refuse = false
+    apply()
+    await waitFor(() => expect(server.stored().routes.interaction).toEqual({ connectionId: OLLAMA_ID, modelId: 'offline-model' }))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(request.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(1)
   })
 
-  it('offers no reset when the configuration failed to load for another reason', async () => {
-    mockFetch(() => jsonResponse({ error: { code: 'storage_failure', message: 'Unreadable.' } }, 500))
-    render(<ProviderConfigPage onClose={() => {}} />)
-    expect(await screen.findByText('Model configuration could not be loaded.')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Reset model configuration' })).not.toBeInTheDocument()
+  it('a rename alone is not probed again; blanking or restoring the name is', async () => {
+    storeKey(OPENAI_ID, 'openai', OPENAI_BASE, 'sk-test-rename')
+    const server = studio(config({ connections: [openai] }))
+    await renderPage()
+    await waitFor(() => expect(server.probes()).toHaveLength(1))
+    vi.useFakeTimers()
+    const pane = openConnection('Research OpenAI')
+    const name = pane.getByRole('textbox', { name: 'Name' })
+
+    fireEvent.change(name, { target: { value: 'Renamed OpenAI' } })
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    // The key is not sent again, and the connection's status and models stay as they were.
+    expect(server.probes()).toHaveLength(1)
+    expect(pane.getByText('Connected.')).toBeInTheDocument()
+
+    // A blank name cannot be probed; a name again can.
+    fireEvent.change(name, { target: { value: ' ' } })
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(server.probes()).toHaveLength(1)
+    expect(pane.getByText('Not checked yet.')).toBeInTheDocument()
+    fireEvent.change(name, { target: { value: 'Research OpenAI' } })
+    await act(() => vi.advanceTimersByTimeAsync(499))
+    expect(server.probes()).toHaveLength(1)
+    await act(() => vi.advanceTimersByTimeAsync(1))
+    expect(server.probes()).toEqual([
+      { connection: openai, credential: 'sk-test-rename' },
+      { connection: openai, credential: 'sk-test-rename' },
+    ])
+  })
+
+  it('an edit supersedes a scheduled or running probe, and a stale result never shows', async () => {
+    const answers: ((response: Response) => void)[] = []
+    const server = studio(config({ connections: [ollama] }), {
+      probe: () => new Promise<Response>((resolve) => answers.push(resolve)),
+    })
+    const signals = () =>
+      server.request.mock.calls.filter(([url]) => String(url) === '/api/model_probe').map(([, init]) => init?.signal)
+    await renderPage()
+    await waitFor(() => expect(answers).toHaveLength(1))
+    vi.useFakeTimers()
+    const pane = openConnection('Local Ollama')
+    expect(pane.getByText('Checking…')).toBeInTheDocument()
+    const base = pane.getByRole('textbox', { name: 'Base URL' })
+
+    // The running opening probe is aborted; the edit's probe waits out the debounce.
+    fireEvent.change(base, { target: { value: 'http://127.0.0.1:11435' } })
+    expect(signals()[0]?.aborted).toBe(true)
+    await act(() => vi.advanceTimersByTimeAsync(499))
+    // A second edit inside the debounce replaces the scheduled probe.
+    fireEvent.change(base, { target: { value: 'http://127.0.0.1:11436' } })
+    await act(() => vi.advanceTimersByTimeAsync(499))
+    expect(answers).toHaveLength(1)
+    await act(() => vi.advanceTimersByTimeAsync(1))
+    expect(answers).toHaveLength(2)
+    expect(server.probes()[1].connection.baseUrl).toBe('http://127.0.0.1:11436')
+
+    fireEvent.change(base, { target: { value: 'http://127.0.0.1:11437' } })
+    expect(signals()[1]?.aborted).toBe(true)
+    await act(() => vi.advanceTimersByTimeAsync(500))
+    expect(answers).toHaveLength(3)
+
+    await act(async () => answers[2](probeResponse('connected', 'Latest connection is ready.')))
+    expect(pane.getByText('Latest connection is ready.')).toBeInTheDocument()
+    await act(async () => {
+      answers[1](probeResponse('unreachable', 'Stale provider failure.'))
+      answers[0](probeResponse('unreachable', 'Stale opening failure.'))
+    })
+    expect(screen.queryByText(/Stale/)).not.toBeInTheDocument()
+    expect(pane.getByText('Latest connection is ready.')).toBeInTheDocument()
+  })
+
+  it('removing a connection disposes its pending and late probe state', async () => {
+    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(OLLAMA_ID)
+    const answers: ((response: Response) => void)[] = []
+    const server = studio(config({ connections: [ollama, openai] }), {
+      probe: () => new Promise<Response>((resolve) => answers.push(resolve)),
+    })
+    await renderPage()
+    await waitFor(() => expect(answers).toHaveLength(1))
+    vi.useFakeTimers()
+    const list = () => within(screen.getByRole('list', { name: 'Connections' }))
+
+    // Running when the connection is deleted: aborted, and its late answer is dropped.
+    const pane = openConnection('Local Ollama')
+    fireEvent.click(pane.getByRole('button', { name: 'Delete connection' }))
+    expect(server.request.mock.calls.find(([url]) => String(url) === '/api/model_probe')?.[1]?.signal?.aborted).toBe(true)
+    // Focus goes to the connection now selected, not to the page.
+    expect(list().getByRole('button', { name: 'Research OpenAI' })).toHaveFocus()
+    await act(async () => answers[0](probeResponse('unreachable', 'Late failure of the deleted connection.')))
+
+    // Added again under the same ID, it starts clean.
+    fireEvent.click(screen.getByRole('button', { name: 'Add connection' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Ollama/ }))
+    const readded = within(screen.getByRole('region', { name: 'Connection details' }))
+    expect(readded.getByRole('heading', { name: 'Ollama connection' })).toHaveFocus()
+    expect(readded.getByText('Not checked yet.')).toBeInTheDocument()
+    expect(screen.queryByText(/Late failure/)).not.toBeInTheDocument()
+
+    // Scheduled when deleted: it never runs.
+    fireEvent.click(readded.getByRole('button', { name: 'Delete connection' }))
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(answers).toHaveLength(1)
+    expect(list().queryByRole('button', { name: /Ollama/ })).not.toBeInTheDocument()
+  })
+
+  it('a probe failure does not gate Apply', async () => {
+    const server = studio(config({ connections: [ollama] }), {
+      probe: () => probeResponse('unreachable', 'Ollama is not reachable.'),
+    })
+    await renderPage()
+    openConnections()
+    await waitFor(() =>
+      expect(within(screen.getByRole('list', { name: 'Connections' })).getByRole('button', { name: 'Local Ollama' }))
+        .toHaveAccessibleDescription('Ollama is not reachable.'))
+    fireEvent.click(screen.getByRole('tab', { name: 'Models' }))
+
+    fireEvent.click(within(step('Schema & chat')).getByRole('button', { name: 'Change' }))
+    const group = await pickerGroup('Assistant model', 'Local Ollama')
+    expect(group.getByText('Ollama is not reachable.')).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Search Assistant model' }), { key: 'Escape' })
+    await typeModel('Assistant model', 'Local Ollama', 'offline-model')
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
+    apply()
+    await waitFor(() => expect(server.puts()).toHaveLength(1))
+    expect(server.puts()[0].routes.interaction).toEqual({ connectionId: OLLAMA_ID, modelId: 'offline-model' })
+  })
+
+  it('Apply is disabled while it applies', async () => {
+    let release: (() => void) | undefined
+    const server = studio(config({ connections: [ollama] }), {
+      put: (submitted) =>
+        new Promise<Response>((resolve) => {
+          release = () => resolve(jsonResponse({ config: submitted }))
+        }),
+    })
+    await renderPage()
+    fireEvent.click(within(step('Schema & chat')).getByRole('button', { name: 'Change' }))
+    await choose('Assistant model', 'Local Ollama', 'llama3.3')
+    apply()
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Applying…' })).toBeDisabled())
+    expect(screen.getByRole('button', { name: 'Assistant model' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Discard' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Applying…' }))
+    expect(server.puts()).toHaveLength(1)
+
+    await act(async () => release?.())
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Assistant model' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Assistant model' })).toHaveTextContent('llama3.3 · Local Ollama')
+    expect(server.puts()).toHaveLength(1)
   })
 })

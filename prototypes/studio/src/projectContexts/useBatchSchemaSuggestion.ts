@@ -29,8 +29,8 @@ export function useBatchSchemaSuggestion({
     input: {
       create: (sourceDocumentIds) =>
         createBatchSchemaSuggestion(projectContextId, sourceDocumentIds),
-      retry: (batchSchemaSuggestionId) =>
-        retryBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId),
+      retry: (batchSchemaSuggestionId, expectedAttempt) =>
+        retryBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId, expectedAttempt),
       save: (suggestion, definition) =>
         updateBatchSchemaSuggestionDraft(
           projectContextId,
@@ -44,9 +44,10 @@ export function useBatchSchemaSuggestion({
           batchSchemaSuggestionId,
           strategy,
         ),
+      // Another tab saved the draft, or regenerated the suggestion since this page read it: reload it first.
       isConflict: (error) =>
         error instanceof BatchSchemaSuggestionRequestError &&
-        error.failure.code === 'draft_conflict',
+        (error.failure.code === 'draft_conflict' || error.failure.code === 'attempt_conflict'),
       failureMessage: (error, fallback) =>
         error instanceof Error ? error.message : fallback,
       onSuggestion,

@@ -6,7 +6,7 @@ import { StrictMode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { EXTRACTION_UNAVAILABLE, MONITOR_DISCONNECTED, useExtraction, type ReviewTarget } from './useExtraction'
 import * as api from './api'
-import { ExtractionRequestError } from './api'
+import { ApiRequestError } from './api'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import {
   clearSessionRecovery,
@@ -34,6 +34,7 @@ function attempt(
     sourceRepresentationRevisionId: representationId,
     schemaRevisionId,
     strategy: 'ARTICLE',
+    catalogRecipe: null,
     executionStatus: 'COMPLETED',
     outcome: 'SUCCEEDED',
     complete: true,
@@ -543,7 +544,7 @@ describe('useExtraction server-owned lifecycle', () => {
 
   it('reports an unavailable Extraction after an uncertain POST without inventing a failure', async () => {
     vi.mocked(api.requestExtraction).mockRejectedValue(new TypeError('Failed to fetch'))
-    vi.mocked(api.readExtraction).mockRejectedValue(new ExtractionRequestError('not found', 404))
+    vi.mocked(api.readExtraction).mockRejectedValue(new ApiRequestError('not found', 404))
     const input = options()
     const { result } = renderHook(() => useExtraction(input))
 
@@ -556,7 +557,7 @@ describe('useExtraction server-owned lifecycle', () => {
   })
 
   it('fails immediately when the server definitely rejects the POST', async () => {
-    vi.mocked(api.requestExtraction).mockRejectedValue(new ExtractionRequestError('conflict', 409))
+    vi.mocked(api.requestExtraction).mockRejectedValue(new ApiRequestError('conflict', 409))
     const input = options()
     const { result } = renderHook(() => useExtraction(input))
 
@@ -565,6 +566,78 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(result.current.state).toEqual({ status: 'error', message: 'conflict' })
     expect(input.onError).toHaveBeenCalledWith('conflict')
     expect(api.readExtraction).not.toHaveBeenCalled()
+  })
+
+  it('a run refused as superseded keeps the earlier results and asks the page to refresh the document', async () => {
+    const message = 'This document has been reprocessed. No new Extraction was started.'
+    const actual = await vi.importActual<typeof import('./api')>('./api')
+    vi.mocked(api.requestExtraction).mockImplementation(actual.requestExtraction)
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(Response.json(
+      { error: { code: 'source_representation_superseded', message } },
+      { status: 409 },
+    ))))
+    try {
+      const earlier = attempt()
+      const input = { ...options(earlier), onSuperseded: vi.fn() }
+      const { result } = renderHook(() => useExtraction(input))
+      const shown = result.current.state
+
+      await act(() => result.current.runExtraction())
+
+      expect(result.current.attempt).toBe(earlier)
+      expect(result.current.state).toEqual(shown)
+      expect(result.current.hasResults).toBe(true)
+      // Nothing failed: the page explains the refusal through onSuperseded alone.
+      expect(input.onError).not.toHaveBeenCalled()
+      expect(input.onSuperseded).toHaveBeenCalledOnce()
+      expect(input.onTerminal).not.toHaveBeenCalled()
+      expect(api.readExtraction).not.toHaveBeenCalled()
+      expect(result.current.canRun).toBe(true)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('a superseded refusal of a run started over a paused monitor restores the kept attempt, not the paused run', async () => {
+    vi.mocked(api.requestExtraction).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    vi.mocked(api.readExtraction).mockRejectedValue(new TypeError('Failed to fetch'))
+    const earlier = attempt()
+    const input = { ...options(earlier), onSuperseded: vi.fn() }
+    const { result } = renderHook(() => useExtraction(input))
+
+    await act(() => result.current.runExtraction())
+    expect(result.current.monitorError).toBe(MONITOR_DISCONNECTED)
+    expect(result.current.state.status).toBe('running')
+
+    vi.mocked(api.requestExtraction).mockRejectedValueOnce(
+      new ApiRequestError('source_representation_superseded: Reprocessed.', 409, 'source_representation_superseded'),
+    )
+    await act(() => result.current.runExtraction())
+
+    expect(input.onSuperseded).toHaveBeenCalledOnce()
+    expect(result.current.attempt).toBe(earlier)
+    expect(result.current.state.status).toBe('ready')
+    expect(result.current.hasResults).toBe(true)
+  })
+
+  it('offers no cancellation until the server has acknowledged the run', async () => {
+    const post = Promise.withResolvers<ExtractionAttempt>()
+    vi.mocked(api.requestExtraction).mockReturnValue(post.promise)
+    vi.mocked(api.readExtraction).mockReturnValue(new Promise(() => {}))
+    vi.mocked(api.cancelExtraction).mockResolvedValue(undefined)
+    const { result } = renderHook(() => useExtraction(options(attempt())))
+
+    act(() => void result.current.runExtraction())
+    expect(result.current.state.status).toBe('running')
+    await act(() => result.current.requestCancellation())
+    expect(api.cancelExtraction).not.toHaveBeenCalled()
+    expect(result.current.cancellationRequested).toBe(false)
+    expect(vi.mocked(api.requestExtraction).mock.calls[0][1]?.aborted).toBe(false)
+
+    const admitted = jobAttempt({ extractionId: vi.mocked(api.requestExtraction).mock.calls[0][0].id, executionStatus: 'QUEUED' })
+    await act(async () => post.resolve(admitted))
+    await act(() => result.current.requestCancellation())
+    expect(api.cancelExtraction).toHaveBeenCalledExactlyOnceWith(admitted.extractionId)
   })
 
   it('keeps a failed cancellation separate from the connection and re-enables the request', async () => {
@@ -604,30 +677,6 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(result.current.state.status).toBe('ready')
     expect(result.current.monitorError).toBeNull()
     vi.useRealTimers()
-  })
-
-  it('keeps the POST live until persisted cancellation returns', async () => {
-    let resolvePost!: (attempt: ExtractionAttempt) => void
-    let signal: AbortSignal | undefined
-    vi.mocked(api.requestExtraction).mockImplementation((_input, requestSignal) => {
-      signal = requestSignal
-      return new Promise((resolve) => { resolvePost = resolve })
-    })
-    vi.mocked(api.cancelExtraction).mockResolvedValue(undefined)
-    const { result } = renderHook(() => useExtraction(options()))
-
-    act(() => void result.current.runExtraction())
-    await act(() => result.current.requestCancellation())
-
-    expect(signal?.aborted).toBe(false)
-    expect(result.current.state.status).toBe('running')
-    expect(result.current.cancellationRequested).toBe(true)
-
-    await act(() => {
-      resolvePost(attempt({ outcome: 'CANCELLED', complete: null, resultPayload: null, evidenceLinks: null, modelAttribution: null, reviewable: false }))
-    })
-    expect(result.current.state.status).toBe('cancelled')
-    expect(result.current.attempt?.outcome).toBe('CANCELLED')
   })
 
   it('does not offer review when no populated value has Evidence', async () => {

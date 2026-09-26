@@ -4,9 +4,11 @@ import type {
   ResearcherAccountStore,
   ResearcherProjectStore,
 } from 'db'
-import { createStudioApp, type StudioApp } from './app.js'
+import { createStudioApp, type StudioApp, type StudioAppOptions } from './app.js'
+import { STUDIO_BOOT_HEADER } from '../shared/studioBoot.js'
 import type { EntraIdentityProvider } from './entraIdentityProvider.js'
 import { createInMemoryEntraIdentityProvider } from '../test/support/inMemoryEntraIdentityProvider.js'
+import { createSessionManager } from './session.js'
 
 const ORIGIN = 'https://studio.example'
 const NOW = Date.parse('2026-08-26T18:00:00.000Z')
@@ -40,6 +42,7 @@ async function fixture(options: {
   basePath?: string
   identityProvider?: EntraIdentityProvider
   viteDevelopmentAssets?: boolean
+  modelKeys?: StudioAppOptions['modelKeys']
 } = {}): Promise<Fixture> {
   let account: ResearcherAccountRecord | null = null
   const findOrCreate = vi.fn(async (identity) => {
@@ -73,6 +76,7 @@ async function fixture(options: {
       options.identityProvider ??
       createInMemoryEntraIdentityProvider({ now: () => NOW }),
     viteDevelopmentAssets: options.viteDevelopmentAssets,
+    modelKeys: options.modelKeys,
     apiDispatcher: dispatcher,
     researcherProjectStore: (id) => ({ id }) as unknown as ResearcherProjectStore,
     clientHandler: (request) =>
@@ -340,6 +344,22 @@ describe('authentication gate and route contract', () => {
     )
     expect(returnPathModule.status).toBe(200)
     expect(returnPathModule.headers.get('location')).toBeNull()
+    const studioBootModule = await test.app.request(
+      `${ORIGIN}/shared/studioBoot.ts`,
+    )
+    expect(studioBootModule.status).toBe(200)
+    expect(studioBootModule.headers.get('location')).toBeNull()
+    // AuthApplication and the sign-out form reach the model key handoff and store.
+    for (const path of [
+      '/src/modelKeys/modelKeyHandoff.ts',
+      '/src/modelKeys/modelKeyStore.ts',
+      '/shared/modelKeys.contract.ts',
+      '/shared/modelConfig.contract.ts',
+    ]) {
+      const module = await test.app.request(`${ORIGIN}${path}`)
+      expect(module.status, path).toBe(200)
+      expect(module.headers.get('location'), path).toBeNull()
+    }
   })
 
   it('uses exact base-path callback and post-logout redirect URIs', async () => {
@@ -362,5 +382,118 @@ describe('authentication gate and route contract', () => {
     expect(logout.headers.get('location')).toBe(
       `${ORIGIN}/free/auth/signed-out`,
     )
+  })
+})
+
+describe('Studio key custody', () => {
+  const LOGOUT_COOKIES = [
+    'free_entra_transaction=; Max-Age=0; Path=/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax',
+    'free_session=; Max-Age=0; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax',
+    'free_signed_out=1; Path=/; HttpOnly; Secure; SameSite=Lax',
+  ]
+  const custody = () => ({ bootId: 'boot-1', keys: { forgetAccount: vi.fn() } })
+
+  it('every API response carries the boot header, including 401 and 404', async () => {
+    const test = await fixture({ modelKeys: custody() })
+    const denied = await test.app.request(`${ORIGIN}/api/example`)
+    expect(denied.status).toBe(401)
+    expect(denied.headers.get(STUDIO_BOOT_HEADER)).toBe('boot-1')
+
+    const { sessionCookie } = await signIn(test)
+    const headers = { cookie: sessionCookie! }
+    const answered = await test.app.request(`${ORIGIN}/api/example`, { headers })
+    expect(answered.status).toBe(200)
+    expect(answered.headers.get(STUDIO_BOOT_HEADER)).toBe('boot-1')
+    const missing = await test.app.request(`${ORIGIN}/api/auth/unknown`, { headers })
+    expect(missing.status).toBe(404)
+    expect(missing.headers.get(STUDIO_BOOT_HEADER)).toBe('boot-1')
+    const session = await test.app.request(`${ORIGIN}/api/auth/session`, { headers })
+    expect(session.headers.get(STUDIO_BOOT_HEADER)).toBe('boot-1')
+    test.dispatcher.mockRejectedValueOnce(new Error('unexpected'))
+    const failed = await test.app.request(`${ORIGIN}/api/example`, { headers })
+    expect(failed.status).toBe(500)
+    expect(failed.headers.get(STUDIO_BOOT_HEADER)).toBe('boot-1')
+
+    const page = await test.app.request(`${ORIGIN}/auth/signed-out`)
+    expect(page.headers.get(STUDIO_BOOT_HEADER)).toBeNull()
+  })
+
+  it('stamps API responses under a base path', async () => {
+    const test = await fixture({ basePath: '/free', modelKeys: custody() })
+    const denied = await test.app.request(`${ORIGIN}/free/api/example`)
+    expect(denied.status).toBe(401)
+    expect(denied.headers.get(STUDIO_BOOT_HEADER)).toBe('boot-1')
+  })
+
+  it("sign-out evicts the signed-in account's keys", async () => {
+    const modelKeys = custody()
+    const test = await fixture({ modelKeys })
+    const signedIn = await signIn(test)
+    const response = await test.app.request(`${ORIGIN}/auth/logout`, {
+      method: 'POST',
+      headers: { origin: ORIGIN, cookie: signedIn.sessionCookie! },
+    })
+
+    expect(modelKeys.keys.forgetAccount).toHaveBeenCalledExactlyOnceWith(ACCOUNT_ID)
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toBe(`${ORIGIN}/auth/signed-out`)
+    expect(setCookies(response)).toEqual(LOGOUT_COOKIES)
+  })
+
+  it("sign-out evicts the account's keys from the signed cookie alone, with the account store down", async () => {
+    const modelKeys = custody()
+    const test = await fixture({ modelKeys })
+    const signedIn = await signIn(test)
+    vi.mocked(test.accountStore.findById).mockRejectedValue(new Error('database unavailable'))
+
+    const response = await test.app.request(`${ORIGIN}/auth/logout`, {
+      method: 'POST',
+      headers: { origin: ORIGIN, cookie: signedIn.sessionCookie! },
+    })
+
+    expect(modelKeys.keys.forgetAccount).toHaveBeenCalledExactlyOnceWith(ACCOUNT_ID)
+    expect(response.status).toBe(302)
+    expect(setCookies(response)).toEqual(LOGOUT_COOKIES)
+  })
+
+  it('a signed-out session hands off no more keys; another session of the account still does', async () => {
+    const modelKeys = custody()
+    const test = await fixture({ modelKeys })
+    const signedOut = (await signIn(test)).sessionCookie!
+    // Another browser of the same account, signed in a minute earlier.
+    const earlier = createSessionManager(SECRET, () => NOW - 60_000)
+    const other = earlier.serialize(earlier.issue(ACCOUNT_ID, NOW + 60 * 60 * 1_000)!).split(';', 1)[0]
+    const handoff = (cookie: string) => test.app.request(`${ORIGIN}/api/model-keys`, {
+      method: 'PUT',
+      headers: { origin: ORIGIN, cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ account: ACCOUNT_ID, keys: {} }),
+    })
+    await test.app.request(`${ORIGIN}/auth/logout`, { method: 'POST', headers: { origin: ORIGIN, cookie: signedOut } })
+
+    // A handoff the signed-out page sent before its sign-out, arriving after it.
+    const late = await handoff(signedOut)
+    expect(late.status).toBe(401)
+    await expect(late.json()).resolves.toMatchObject({ error: { code: 'authentication_required' } })
+    expect(late.headers.get(STUDIO_BOOT_HEADER)).toBe('boot-1')
+    // The late answer clears no cookie: the browser may already hold a newer session.
+    expect(setCookies(late)).toEqual([])
+    expect(test.dispatcher).not.toHaveBeenCalled()
+
+    expect((await handoff(other)).status).toBe(200)
+    expect(test.dispatcher).toHaveBeenCalledOnce()
+  })
+
+  it('sign-out without a session evicts nothing and still clears cookies', async () => {
+    const modelKeys = custody()
+    const test = await fixture({ modelKeys })
+    const response = await test.app.request(`${ORIGIN}/auth/logout`, {
+      method: 'POST',
+      headers: { origin: ORIGIN, cookie: 'free_session=forged' },
+    })
+
+    expect(modelKeys.keys.forgetAccount).not.toHaveBeenCalled()
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toBe(`${ORIGIN}/auth/signed-out`)
+    expect(setCookies(response)).toEqual(LOGOUT_COOKIES)
   })
 })

@@ -5,7 +5,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { requestSchemaEdit } from './api'
+import { deleteModelOperation, requestSchemaEdit } from './api'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { countTemplateFields, isRecord } from '../shared/template'
 import {
@@ -28,7 +28,7 @@ import {
   deriveSchemaProposal,
   type Change,
   type ReplayOutcome,
-} from './schemaChanges'
+} from '../shared/schemaChanges'
 import {
   InstructionCount,
   SchemaInstructionsChat,
@@ -37,6 +37,7 @@ import {
 import { useSchemaInstructions } from './useSchemaInstructions'
 import { ProposalReviewBar } from './SchemaProposalReview'
 import { useSchemaProposalReview } from './useSchemaProposalReview'
+import { useModelOperationRecovery } from './useModelOperationRecovery'
 import {
   moveSchemaNodes,
   removeSchemaNode,
@@ -536,6 +537,8 @@ function SchemaPanel({
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const chatAbortRef = useRef<AbortController | null>(null)
+  /** The running edit's operation ID: Stop cancels it on the server (Task 6) and Discard names it (Task 7). */
+  const editOperationRef = useRef<string | null>(null)
   useEffect(() => () => {
     chatAbortRef.current?.abort()
     chatAbortRef.current = null
@@ -566,6 +569,35 @@ function SchemaPanel({
   const [recordDescriptionDraft, setRecordDescriptionDraft] = useState(
     () => snap.draft?.recordDescription ?? '',
   )
+  // What a reloaded page found (spec, *What the schema panel does on load*): running operations to show and poll, a
+  // finished generation to save onto its base, an unreviewed proposal to reopen.
+  const recovery = useModelOperationRecovery({
+    schema,
+    proposalReview,
+    busy: chatLoading || pending !== null,
+    appendMessage: appendChatMessage,
+    onReopened: (proposal) => {
+      const ancestors = schemaAncestorIds(proposal.reviewNodes, new Set(proposal.changes.map(({ id }) => id)))
+      setExpandedIds((current) => new Set([...current, ...ancestors]))
+    },
+  })
+  // Shown wherever the chat lives: before the first schema (the instructions chat) and after (the edit chat).
+  const runningRows = recovery.running.map((operation) => (
+    <div
+      key={operation.workflowId}
+      className="flex items-center justify-between gap-2 rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-2 text-[12px] text-ink-muted"
+    >
+      <span>{`Still working on an earlier request: “${operation.instruction}”`}</span>
+      <button
+        type="button"
+        className="shrink-0 text-[11px] text-ink underline"
+        aria-label={`Stop earlier request “${operation.instruction}”`}
+        onClick={() => recovery.stop(operation.workflowId)}
+      >
+        Stop
+      </button>
+    </div>
+  ))
   const chatRef = useRef<HTMLDivElement>(null)
   const creatingFromHistoryRef = useRef(false)
 
@@ -937,6 +969,9 @@ function SchemaPanel({
     setChatLoading(true)
     const controller = new AbortController()
     chatAbortRef.current = controller
+    // A new user action, a new ID (spec, *Client IDs*): Studio replays the same one if the POST is repeated.
+    const operationId = crypto.randomUUID()
+    editOperationRef.current = operationId
 
     const versionBeforeFlush = schema.snapshot().draftVersion
     try {
@@ -962,6 +997,7 @@ function SchemaPanel({
         modelContext,
         userMsg,
         controller.signal,
+        operationId,
       )
       const currentAfterResponse = schema.snapshot()
       if (
@@ -984,6 +1020,7 @@ function SchemaPanel({
             original,
             originalDraftVersion,
             originalSchemaRevisionId,
+            `edit:${operationId}`,
           )
           const ancestors = schemaAncestorIds(proposal.reviewNodes, new Set(proposal.changes.map(({ id }) => id)))
           setExpandedIds((current) => new Set([...current, ...ancestors]))
@@ -1005,12 +1042,19 @@ function SchemaPanel({
     } finally {
       if (chatAbortRef.current === controller) {
         chatAbortRef.current = null
+        editOperationRef.current = null
         setChatLoading(false)
       }
     }
   }
 
   function cancelChat() {
+    // A user's Stop: cancel the proposal on the server, then stop waiting. The unmount cleanup only aborts.
+    const operationId = editOperationRef.current
+    if (operationId)
+      void deleteModelOperation(`edit:${operationId}`).catch(() =>
+        appendChatMessage('The request could not be stopped on the server; it may still be running and will show as an earlier request after a reload.'),
+      )
     chatAbortRef.current?.abort()
   }
 
@@ -1422,6 +1466,11 @@ function SchemaPanel({
             <p className="text-[11px] text-danger">Regeneration failed: {snap.generationError} The current saved schema is unchanged.</p>
           </div>
         )}
+        {snap.cancellationError && (
+          <div className="mb-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2" role="alert">
+            <p className="text-[11px] text-danger">{snap.cancellationError}</p>
+          </div>
+        )}
         {snap.save?.status === 'conflict' && (
           <div
             className="mb-2 flex items-center justify-between gap-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2"
@@ -1630,6 +1679,7 @@ function SchemaPanel({
               </button>
             )}
           </div>
+          {runningRows.length > 0 && <div className="flex flex-col gap-2 px-3.5 pt-2.5">{runningRows}</div>}
           <SchemaInstructionsChat
             instructions={instructions}
             messageClass={msgCls}
@@ -1721,6 +1771,7 @@ function SchemaPanel({
           </div>
           <div ref={chatRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
             <div className="flex flex-col gap-2">
+              {runningRows}
               {chat.map((m, i) => (
                 <div key={i} className={msgCls(m.role)}>{m.text}</div>
               ))}

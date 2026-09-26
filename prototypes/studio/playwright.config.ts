@@ -1,5 +1,7 @@
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { defineConfig } from '@playwright/test'
-import { resolve } from 'node:path'
 import {
   configurePlaywrightStack,
   playwrightWebServerCommand,
@@ -12,16 +14,21 @@ const stack = configurePlaywrightStack({
   oidcPort: 41_748,
   postgresPort: 45_432,
 })
-const e2eConfigHome = resolve(import.meta.dirname, 'test-results/config-home')
 const e2ePort = stack.applicationPort
 const e2eOrigin = `http://localhost:${e2ePort}`
-// The lifecycle spec's fake kei-exp listens here, and Studio's KEI_EXP_URL points at it.
-const keiExpUrl = 'http://127.0.0.1:41750'
+// The lifecycle spec's fake kei-exp listens here, and Studio's KEI_EXP_URL points at it. It binds mid-run, while
+// the browsers hold many outbound sockets, so it sits below Linux's ephemeral range (32768-60999) and the
+// Compose lease range (30000-39999): a client socket holding the port as its source would fail it with EADDRINUSE.
+const keiExpUrl = `http://127.0.0.1:${process.env.FREE_PLAYWRIGHT_KEI_EXP_PORT ?? '29750'}`
 process.env.FREE_PLAYWRIGHT_KEI_EXP_URL = keiExpUrl
+// Studio stages uploads for kei in its source inbox (FREE_SOURCE_INBOX): one directory per run. Workers load this
+// config too; they inherit the variable, so only the runner makes the directory.
+process.env.FREE_PLAYWRIGHT_SOURCE_INBOX ??= mkdtempSync(join(tmpdir(), 'free-e2e-source-inbox-'))
 
 export default defineConfig({
   testDir: './e2e',
-  testIgnore: 'real-service.spec.ts',
+  // The restart spec runs on the recovery config's restartable Studio (playwright.recovery.config.ts).
+  testIgnore: ['real-service.spec.ts', 'interactive-restart.spec.ts'],
   fullyParallel: true,
   globalTeardown: './e2e/globalTeardown.ts',
   use: { baseURL: e2eOrigin },
@@ -31,11 +38,10 @@ export default defineConfig({
     env: {
       DATABASE_URL: stack.databaseUrl,
       KEI_EXP_URL: keiExpUrl,
+      FREE_SOURCE_INBOX: process.env.FREE_PLAYWRIGHT_SOURCE_INBOX,
       FREE_PLAYWRIGHT_LIFECYCLE_ID: stack.lifecycleId,
       STUDIO_ORIGIN: e2eOrigin,
       STUDIO_BASE_PATH: '/',
-      APPDATA: e2eConfigHome,
-      XDG_CONFIG_HOME: e2eConfigHome,
       FREE_ENTRA_REAL: '0',
       FREE_ENTRA_MOCK_ISSUER: stack.oidcIssuer,
       FREE_ENTRA_MOCK_BROWSER_ISSUER: stack.oidcIssuer,

@@ -2,6 +2,7 @@ import { configDefaults, defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
-    exclude: [...configDefaults.exclude, 'e2e/**'],
+    // The Studio PostgreSQL tier (vitest.postgres.config.ts) runs these.
+    exclude: [...configDefaults.exclude, 'e2e/**', '**/*.postgres.test.ts'],
   },
 })

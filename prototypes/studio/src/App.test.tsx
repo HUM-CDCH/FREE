@@ -159,6 +159,7 @@ const reopened: DocumentWorkspaceProps = {
     createdAt: '2026-07-31T12:03:00.000Z',
     reviewedAt: null,
     strategy: 'ARTICLE',
+    catalogRecipe: null,
     executionStatus: 'COMPLETED',
     outcome: 'SUCCEEDED',
     complete: true,
@@ -1056,7 +1057,7 @@ describe('reopened Source Document workspace', () => {
       sourceDocumentId: '51000000-0000-4000-8001-000000000001',
       sourceRepresentationRevisionId: reopened.sourceRepresentationId,
       schemaRevisionId: savedSchemaRevisionId,
-      strategy: 'ARTICLE', executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
+      strategy: 'ARTICLE', catalogRecipe: null, executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
       modelAttribution: { provider: 'ollama', modelId: 'test-model' },
       diagnostics: {
         phase: 'grounding', durationMs: 1, modelCalls: 1,
@@ -1151,7 +1152,7 @@ describe('reopened Source Document workspace', () => {
       sourceDocumentId: '51000000-0000-4000-8001-000000000001',
       sourceRepresentationRevisionId: reopened.sourceRepresentationId,
       schemaRevisionId: savedSchemaRevisionId,
-      strategy: 'ARTICLE', executionStatus: 'RUNNING', outcome: null, complete: null,
+      strategy: 'ARTICLE', catalogRecipe: null, executionStatus: 'RUNNING', outcome: null, complete: null,
       modelAttribution: null, diagnostics: null, failure: null, resultPayload: null,
       evidenceLinks: null, reviewable: false, batchExtractionId: null,
       createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
@@ -1178,18 +1179,19 @@ describe('reopened Source Document workspace', () => {
         if (url.startsWith('/api/schema-revisions?'))
           return Promise.resolve(Response.json({ revisions: [] }))
         if (url.endsWith('/api/extractions')) {
-          const body = JSON.parse(String(init?.body)) as { strategy?: string }
+          const body = JSON.parse(String(init?.body)) as { strategy?: string; catalogRecipe?: string }
           extractionRequests.push(body)
           return Promise.resolve(Response.json({
             extractionId: '51000000-0000-4000-8006-000000000021',
             sourceDocumentId: '51000000-0000-4000-8001-000000000001',
             sourceRepresentationRevisionId: reopened.sourceRepresentationId,
             schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-            strategy: 'CATALOG', executionStatus: 'FAILED', outcome: null, complete: null,
-            modelAttribution: null,
-            diagnostics: null,
-            failure: { code: 'catalog_discovery_failed', message: 'Discovery failed.' },
-            resultPayload: null, evidenceLinks: null, reviewable: false,
+            strategy: 'CATALOG', catalogRecipe: body.catalogRecipe ?? null,
+            executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
+            modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+            diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 1, finishReason: 'stop', inputTokens: 1, outputTokens: 1, grounding: null, catalog: null },
+            failure: null,
+            resultPayload: { records: [] }, evidenceLinks: [], reviewable: true,
             batchExtractionId: null,
             createdAt: '2026-08-12T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
           }, { status: 201 }))
@@ -1226,15 +1228,16 @@ describe('reopened Source Document workspace', () => {
 
   describe('Results-tab run action after a Catalog attempt', () => {
     // Every Results-tab run action posts the toolbar's one-shot selection, so
-    // after any Catalog attempt it names and posts the Article default until
-    // the researcher selects Catalog again.
+    // after a Catalog attempt it names and posts the Article default until the
+    // researcher selects Catalog again — unless the run it started failed,
+    // which repeats that attempt's strategy and recipe.
     const catalogAttempts: Record<'FAILED' | 'SUCCEEDED', ExtractionAttempt> = {
       FAILED: {
         extractionId: '51000000-0000-4000-8006-000000000041',
         sourceDocumentId: '51000000-0000-4000-8001-000000000001',
         sourceRepresentationRevisionId: reopened.sourceRepresentationId,
         schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-        strategy: 'CATALOG', executionStatus: 'FAILED', outcome: null, complete: null,
+        strategy: 'CATALOG', catalogRecipe: null, executionStatus: 'FAILED', outcome: null, complete: null,
         modelAttribution: null, diagnostics: null,
         failure: { code: 'catalog_discovery_failed', message: 'Discovery failed.' },
         resultPayload: null, evidenceLinks: null, reviewable: false, batchExtractionId: null,
@@ -1245,7 +1248,7 @@ describe('reopened Source Document workspace', () => {
         sourceDocumentId: '51000000-0000-4000-8001-000000000001',
         sourceRepresentationRevisionId: reopened.sourceRepresentationId,
         schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-        strategy: 'CATALOG', executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
+        strategy: 'CATALOG', catalogRecipe: null, executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
         modelAttribution: { provider: 'ollama', modelId: 'test-model' },
         diagnostics: {
           phase: 'grounding', durationMs: 1, modelCalls: 1,
@@ -1299,8 +1302,8 @@ describe('reopened Source Document workspace', () => {
       )
     }
 
-    /** Starts a Catalog run from the toolbar; acknowledging it resets the one-shot selection. */
-    async function runCatalogFromToolbar(bodies: unknown[], recipe?: string) {
+    /** Starts a Catalog run from the toolbar; acknowledging it resets the one-shot selection, unless it failed. */
+    async function runCatalogFromToolbar(bodies: unknown[], recipe?: string, next: 'ARTICLE' | 'CATALOG' = 'ARTICLE') {
       fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
       if (recipe)
         fireEvent.change(screen.getByLabelText('Record boundaries'), { target: { value: recipe } })
@@ -1308,7 +1311,7 @@ describe('reopened Source Document workspace', () => {
       await waitFor(() => expect(bodies).toHaveLength(1))
       expect(bodies[0]).toEqual(posted('CATALOG', recipe))
       await waitFor(() =>
-        expect(screen.getByLabelText('Extraction strategy')).toHaveValue('ARTICLE'),
+        expect(screen.getByLabelText('Extraction strategy')).toHaveValue(next),
       )
     }
 
@@ -1318,21 +1321,29 @@ describe('reopened Source Document workspace', () => {
       return screen.getByRole('button', { name })
     }
 
-    it.each([
-      ['fails', 'FAILED'],
-      ['succeeds', 'SUCCEEDED'],
-    ] as const)('names and posts Article after a Catalog run that %s', async (_label, outcome) => {
-      const bodies = stubRuns(outcome)
+    it('names and posts Article after a Catalog run that succeeds', async () => {
+      const bodies = stubRuns('SUCCEEDED')
       await renderWorkspace(null)
       await runCatalogFromToolbar(bodies)
-      if (outcome === 'SUCCEEDED')
-        fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
 
       const action = resultsRunAction('Run Article extraction')
       expect(action).not.toHaveAccessibleDescription()
       fireEvent.click(action)
       await waitFor(() => expect(bodies).toHaveLength(2))
       expect(bodies[1]).toEqual(posted('ARTICLE'))
+    })
+
+    it('names and posts the same Catalog run after one that fails', async () => {
+      const bodies = stubRuns('FAILED')
+      await renderWorkspace(null)
+      await runCatalogFromToolbar(bodies, undefined, 'CATALOG')
+
+      const action = resultsRunAction('Run Catalog extraction')
+      expect(action).toHaveAccessibleDescription('Boundaries: Model discovery')
+      fireEvent.click(action)
+      await waitFor(() => expect(bodies).toHaveLength(2))
+      expect(bodies[1]).toEqual(posted('CATALOG'))
     })
 
     it.each([
@@ -1360,9 +1371,10 @@ describe('reopened Source Document workspace', () => {
       ['selects the recipe again', 'numbered-catalogue-de@1', 'Numbered catalogue (German)'],
       ['keeps Model discovery', undefined, 'Model discovery'],
     ] as const)('after a recipe run, names and posts Catalog as the researcher %s', async (_label, recipe, boundaries) => {
-      const bodies = stubRuns('FAILED')
+      const bodies = stubRuns('SUCCEEDED')
       await renderWorkspace(null)
       await runCatalogFromToolbar(bodies, 'numbered-catalogue-de@1')
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
       // The recipe is one-shot like the strategy: selecting Catalog again starts at Model discovery.
       fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
       expect(screen.getByLabelText('Record boundaries')).toHaveValue('')
@@ -1379,6 +1391,184 @@ describe('reopened Source Document workspace', () => {
     })
   })
 
+  describe('the next run after a refused or failed one', () => {
+    const recipe = 'numbered-catalogue-de@1'
+
+    it('after a failed Catalog attempt, the next run posts that attempt\'s recipe', async () => {
+      const bodies: Array<{ id: string; strategy: 'ARTICLE' | 'CATALOG'; catalogRecipe?: string }> = []
+      const admitted = new Map<string, ExtractionAttempt>()
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((input: string | URL | Request, init?: RequestInit) => {
+          const url = String(input)
+          if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+          if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+          if (url.startsWith('/api/schema-revisions?'))
+            return Promise.resolve(Response.json({ revisions: [] }))
+          if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+            const body = JSON.parse(String(init.body)) as (typeof bodies)[number]
+            bodies.push(body)
+            const queued: ExtractionAttempt = {
+              extractionId: body.id,
+              sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+              sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+              schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+              strategy: body.strategy, catalogRecipe: body.catalogRecipe ?? null,
+              executionStatus: 'QUEUED', outcome: null, complete: null,
+              modelAttribution: null, diagnostics: null, failure: null,
+              resultPayload: null, evidenceLinks: null, reviewable: false, batchExtractionId: null,
+              createdAt: '2026-08-12T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+            }
+            admitted.set(body.id, queued)
+            return Promise.resolve(Response.json(queued, { status: 201 }))
+          }
+          const monitored = admitted.get(url.split('/').at(-1)!)
+          if (monitored)
+            return Promise.resolve(Response.json({
+              extraction: {
+                ...monitored,
+                executionStatus: 'FAILED',
+                failure: { code: 'extraction_failed', message: 'Discovery failed.' },
+              },
+              pendingReviewDecisions: null,
+            }))
+          return Promise.resolve(new Response('pdf'))
+        }),
+      )
+      render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+      await waitFor(() =>
+        expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+      )
+      fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+      fireEvent.change(screen.getByLabelText('Record boundaries'), { target: { value: recipe } })
+      fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+      await waitFor(() => expect(bodies).toHaveLength(1))
+      expect(bodies[0]).toMatchObject({ strategy: 'CATALOG', catalogRecipe: recipe })
+
+      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+      expect(await screen.findByText('Discovery failed.', undefined, { timeout: 4_000 })).toBeVisible()
+      // The failed attempt's strategy and recipe are the next run's selection.
+      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('CATALOG')
+      expect(screen.getByLabelText('Record boundaries')).toHaveDisplayValue('Numbered catalogue (German)')
+      const action = screen.getByRole('button', { name: 'Run Catalog extraction' })
+      expect(action).toHaveAccessibleDescription('Boundaries: Numbered catalogue (German)')
+      fireEvent.click(action)
+      await waitFor(() => expect(bodies).toHaveLength(2))
+      expect(bodies[1]).toEqual({
+        id: expect.any(String),
+        sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+        schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+        strategy: 'CATALOG',
+        catalogRecipe: recipe,
+      })
+    })
+
+    it('a superseded refusal refreshes the document and disables Run without hiding the earlier results', async () => {
+      const message =
+        "This document has been reprocessed. No new Extraction was started. Open the document from the project's Sources list to run on its current source revision. You can continue reviewing this earlier Extraction."
+      const posts: unknown[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((input: string | URL | Request, init?: RequestInit) => {
+          const url = String(input)
+          if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+          if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+          if (url.startsWith('/api/schema-revisions?'))
+            return Promise.resolve(Response.json({ revisions: [] }))
+          if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+            posts.push(JSON.parse(String(init.body)))
+            return Promise.resolve(Response.json(
+              { error: { code: 'source_representation_superseded', message } },
+              { status: 409 },
+            ))
+          }
+          return Promise.resolve(new Response('pdf'))
+        }),
+      )
+      // What AppFrame swaps in once the second reopen read answers: the same document, no longer current.
+      const onSourceSuperseded = vi.fn(() =>
+        rerender(<DocumentWorkspace {...reopened} sourceRepresentationCurrent={false} onSourceSuperseded={onSourceSuperseded} />),
+      )
+      const { rerender } = render(<DocumentWorkspace {...reopened} onSourceSuperseded={onSourceSuperseded} />)
+      await waitFor(() =>
+        expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+      )
+      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+      expect(screen.getByText('Ellekilde')).toBeVisible()
+
+      fireEvent.click(screen.getByRole('button', { name: '↻ Re-run extraction' }))
+      await waitFor(() => expect(onSourceSuperseded).toHaveBeenCalledOnce())
+      expect(posts).toHaveLength(1)
+      expect(screen.getByText('This document has been reprocessed — no new Extraction was started')).toBeVisible()
+      expect(screen.getByText('Ellekilde')).toBeVisible()
+      expect(screen.queryByText(/Extraction failed/)).not.toBeInTheDocument()
+      const run = screen.getByRole('button', { name: '↻ Re-run extraction' })
+      expect(run).toBeDisabled()
+      expect(run).toHaveAttribute(
+        'title',
+        'This view shows an Extraction on an earlier Source Representation. Go back to the current one to run a new Extraction.',
+      )
+      expect(screen.queryByRole('button', { name: /^Run (Article|Catalog) extraction/ })).not.toBeInTheDocument()
+    })
+
+    it('keeps the superseded notice when the refresh moves a plain route to the reprocessed Source Representation', async () => {
+      const posts: unknown[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((input: string | URL | Request, init?: RequestInit) => {
+          const url = String(input)
+          if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+          if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+          if (url.startsWith('/api/schema-revisions?'))
+            return Promise.resolve(Response.json({ revisions: [] }))
+          if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+            posts.push(JSON.parse(String(init.body)))
+            return Promise.resolve(Response.json(
+              { error: { code: 'source_representation_superseded', message: 'This document has been reprocessed.' } },
+              { status: 409 },
+            ))
+          }
+          return Promise.resolve(new Response('pdf'))
+        }),
+      )
+      // A plain route reopens the head: after a reprocess, that is the new Source Representation, current and
+      // with no attempt yet.
+      const reprocessedId = '51000000-0000-4000-8002-000000000077'
+      const resource = (artifact: 'pdf' | 'markdown' | 'source') =>
+        `/api/project-contexts/${reopened.projectContextId}/source-representations/${reprocessedId}/${artifact}`
+      const onSourceSuperseded = vi.fn(() =>
+        rerender(
+          <DocumentWorkspace
+            {...reopened}
+            sourceRepresentationId={reprocessedId}
+            sourceRepresentationCurrent
+            pdfUrl={resource('pdf')}
+            markdownUrl={resource('markdown')}
+            parsedDocumentUrl={resource('source')}
+            persistedExtraction={null}
+            latestReviewedExtraction={null}
+            onSourceSuperseded={onSourceSuperseded}
+          />,
+        ),
+      )
+      const { rerender } = render(<DocumentWorkspace {...reopened} onSourceSuperseded={onSourceSuperseded} />)
+      await waitFor(() =>
+        expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: '↻ Re-run extraction' }))
+      await waitFor(() => expect(onSourceSuperseded).toHaveBeenCalledOnce())
+      await waitFor(() =>
+        expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+      )
+
+      expect(posts).toHaveLength(1)
+      expect(screen.getByText('This document has been reprocessed — no new Extraction was started')).toBeVisible()
+      // The workspace now shows the reprocessed Source Representation, which can be run.
+      expect(screen.getByRole('button', { name: '▶ Run extraction' })).toBeEnabled()
+    })
+  })
+
   describe('Extraction Model Choice', () => {
     const listing = {
       defaults: { fields: 'nuextract', reasoning: 'instruct' },
@@ -1392,7 +1582,7 @@ describe('reopened Source Document workspace', () => {
       sourceDocumentId: '51000000-0000-4000-8001-000000000001',
       sourceRepresentationRevisionId: reopened.sourceRepresentationId,
       schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-      strategy: 'ARTICLE', requestedModels: body.models ?? null, executionStatus, outcome: null, complete: null,
+      strategy: 'ARTICLE', catalogRecipe: null, requestedModels: body.models ?? null, executionStatus, outcome: null, complete: null,
       modelAttribution: null, diagnostics: null,
       failure: executionStatus === 'FAILED' ? { code: 'extraction_failed', message: 'kei-exp returned HTTP 422.' } : null,
       resultPayload: null, evidenceLinks: null, reviewable: false, batchExtractionId: null,
@@ -1533,6 +1723,7 @@ describe('reopened Source Document workspace', () => {
       sourceRepresentationRevisionId: nextSourceRepresentationId,
       schemaRevisionId: reopened.persistedExtraction!.schemaRevisionId,
       strategy: 'CATALOG' as const,
+      catalogRecipe: null,
       executionStatus: 'RUNNING' as const,
       outcome: null,
       complete: null,
@@ -1649,6 +1840,7 @@ describe('reopened Source Document workspace', () => {
             sourceRepresentationRevisionId: reopened.sourceRepresentationId,
             schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
             strategy: 'ARTICLE',
+            catalogRecipe: null,
             executionStatus: 'COMPLETED',
             outcome: 'SUCCEEDED',
             complete: true,
@@ -1672,7 +1864,7 @@ describe('reopened Source Document workspace', () => {
               sourceDocumentId: '51000000-0000-4000-8001-000000000001',
               sourceRepresentationRevisionId: reopened.sourceRepresentationId,
               schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-              strategy: 'ARTICLE', executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
+              strategy: 'ARTICLE', catalogRecipe: null, executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
               modelAttribution: { provider: 'ollama', modelId: 'test-model' },
               diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null, catalog: null },
               failure: null, resultPayload: { records: [{ number: '24-1' }] },
@@ -1701,7 +1893,7 @@ describe('reopened Source Document workspace', () => {
             sourceDocumentId: '51000000-0000-4000-8001-000000000001',
             sourceRepresentationRevisionId: reopened.sourceRepresentationId,
             schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-            strategy: 'ARTICLE', executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
+            strategy: 'ARTICLE', catalogRecipe: null, executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
             modelAttribution: { provider: 'ollama', modelId: 'test-model' },
             diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null, catalog: null },
             failure: null, resultPayload: { records: [{ number: '24-1' }] },
@@ -1754,10 +1946,9 @@ describe('reopened Source Document workspace', () => {
   })
 
   it.each([
-    ['failed job', 'FAILED', null, 'Extraction failed — see details in Results'],
-    ['cancellation', 'COMPLETED', 'CANCELLED', 'Extraction cancelled — no result was saved'],
-  ] as const)('reports a persisted %s without a success toast', async (_label, executionStatus, outcome, message) => {
-    const failedJob = executionStatus === 'FAILED'
+    ['failure', { code: 'extraction_failed', message: 'Extraction failed.' }, 'Extraction failed — see details in Results'],
+    ['cancellation', { code: 'cancelled', message: 'Extraction cancelled.' }, 'Extraction cancelled — no result was saved'],
+  ] as const)('reports a persisted %s without a success toast', async (_label, failure, message) => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -1771,12 +1962,13 @@ describe('reopened Source Document workspace', () => {
             sourceRepresentationRevisionId: reopened.sourceRepresentationId,
             schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
             strategy: 'ARTICLE',
-            executionStatus,
-            outcome,
+            catalogRecipe: null,
+            executionStatus: 'FAILED',
+            outcome: null,
             complete: null,
             modelAttribution: null,
-            diagnostics: failedJob ? null : { phase: 'extracting', durationMs: 1, modelCalls: 1, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null },
-            failure: failedJob ? { code: 'extraction_failed', message: 'Extraction failed.' } : null,
+            diagnostics: null,
+            failure,
             resultPayload: null,
             evidenceLinks: null,
             reviewable: false,
@@ -1830,7 +2022,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     sourceDocumentId: '51000000-0000-4000-8001-000000000001',
     sourceRepresentationRevisionId,
     schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-    strategy: 'ARTICLE', executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
+    strategy: 'ARTICLE', catalogRecipe: null, executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
     modelAttribution: { provider: 'ollama', modelId: 'fixture' },
     diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null },
     failure: null, resultPayload: { place: 'Ellekilde' }, evidenceLinks: [],
@@ -1942,7 +2134,12 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     ],
     [
       'a cancelled attempt',
-      attemptOn(earlierRepresentationId, { ...unfinished, outcome: 'CANCELLED' }),
+      attemptOn(earlierRepresentationId, {
+        ...unfinished,
+        executionStatus: 'FAILED',
+        outcome: null,
+        failure: { code: 'cancelled', message: 'Extraction cancelled.' },
+      }),
       'Extraction cancelled',
     ],
   ] as const)('offers no new run from %s', async (_label, attempt, shown) => {

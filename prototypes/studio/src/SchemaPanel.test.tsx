@@ -3,6 +3,7 @@
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { ModelOperation } from '../shared/modelOperation.contract'
 import type { SchemaEditResponse } from '../shared/schemaEdit.contract'
 import type { SchemaRevision, SchemaRevisionSummary } from '../shared/schemaRevision.contract'
 import { nodesToTemplate, type SchemaNode } from 'extraction/schema'
@@ -17,10 +18,17 @@ import type {
   AcknowledgedSchemaRevision,
   SchemaSaveState,
 } from './schemaSaveCoordinator'
-const { requestSchemaEdit } = vi.hoisted(() => ({ requestSchemaEdit: vi.fn() }))
+// The server-side cancel resolves unless a case says otherwise; resetAllMocks restores this implementation.
+const { requestSchemaEdit, deleteModelOperation, listModelOperations } = vi.hoisted(() => ({
+  requestSchemaEdit: vi.fn(),
+  deleteModelOperation: vi.fn<(workflowId: string) => Promise<void>>(async () => undefined),
+  listModelOperations: vi.fn<() => Promise<ModelOperation[]>>(async () => []),
+}))
 vi.mock('./api', async (importOriginal) => ({
   ...await importOriginal<typeof import('./api')>(),
   requestSchemaEdit,
+  deleteModelOperation,
+  listModelOperations,
 }))
 
 const nodes: SchemaNode[] = [
@@ -74,12 +82,18 @@ function setupController({
   currentRevisionNumber = 2,
   getRevision,
   flushImpl,
+  durableScope = false,
+  noSchema = false,
 }: {
   panelNodes?: SchemaNode[]
   recordDescription?: string
   currentRevisionNumber?: number
   getRevision?: (schemaRevisionId: string) => Promise<SchemaRevision>
   flushImpl?: (call: number) => Promise<SchemaRevision | null>
+  /** A durable, clean scope: the panel lists and restores model operations on load. */
+  durableScope?: boolean
+  /** A durable scope before its first schema: no draft, no revision. */
+  noSchema?: boolean
 } = {}): PanelSetup {
   const acknowledged: AcknowledgedSchemaRevision = {
     schemaRevisionId: '51000000-0000-4000-8004-000000000002',
@@ -92,7 +106,8 @@ function setupController({
   const events: string[] = []
   let flushCalls = 0
   const persistence: SchemaEditorPersistence = {
-    extractionSchemaId: () => acknowledged.extractionSchemaId,
+    extractionSchemaId: () => (noSchema ? null : acknowledged.extractionSchemaId),
+    ...(durableScope ? { projectContextId: () => modelContext.projectContextId } : {}),
     initialize: async () => {
       throw new Error('Generation is not exercised here.')
     },
@@ -114,7 +129,7 @@ function setupController({
         : acknowledged
     },
     saveState() {
-      return null
+      return durableScope && !noSchema ? { status: 'saved', acknowledged, draft: { recordDescription, schemaNodes: panelNodes } } : null
     },
     modelContext: () => modelContext,
     listRevisions: async () => schemaHistory,
@@ -130,7 +145,7 @@ function setupController({
     onChange: () => () => {},
     dispose: () => {},
   }
-  const schema = createSchemaEditorController(persistence, {
+  const schema = createSchemaEditorController(persistence, noSchema ? {} : {
     initialDraft: { recordDescription, schemaNodes: panelNodes },
     initialRevisionNumber: currentRevisionNumber,
     initialExtractableRevisionId: acknowledged.schemaRevisionId,
@@ -168,6 +183,23 @@ afterEach(() => {
 })
 
 describe.sequential('SchemaPanel schema proposal review', () => {
+  it('each edit request carries a new operation ID', async () => {
+    renderPanel()
+    const input = screen.getByPlaceholderText('Describe a change to the schema…')
+    for (const turn of [1, 2]) {
+      requestSchemaEdit.mockResolvedValueOnce({ status: 'refused', message: 'no' })
+      fireEvent.change(input, { target: { value: `Update fields ${turn}` } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+      await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledTimes(turn))
+      await screen.findByText(`Request refused: no`, { exact: false }, { timeout: 2_000 }).catch(() => undefined)
+    }
+
+    const ids = requestSchemaEdit.mock.calls.map((call) => call[3] as string)
+    expect(ids).toHaveLength(2)
+    for (const id of ids) expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(ids[0]).not.toBe(ids[1])
+  })
+
   it('renames the durable schema from the schema/chat header', async () => {
     const onRenameSchema = vi.fn(async () => null)
     const setup = renderPanel({}, { schemaName: 'Places', onRenameSchema })
@@ -199,6 +231,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       modelContext,
       'Update fields',
       expect.any(AbortSignal),
+      expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
     )
 
     const row = screen.getByText('title').parentElement!
@@ -1141,6 +1174,113 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 
     expect(await screen.findByText('Cancelled.')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Describe a change to the schema…')).toBeEnabled()
+  })
+
+  it('a reloaded panel shows a running operation with its instruction, and Stop cancels it', async () => {
+    const running: ModelOperation = {
+      kind: 'generation', workflowId: 'suggestion:51000000-0000-4000-8009-0000000000f1', operationId: '51000000-0000-4000-8009-0000000000f1',
+      status: 'RUNNING', instruction: 'Catalog entries', createdAt: '2026-09-26T10:00:00.000Z', failure: null, baseSchemaRevisionId: null, template: null,
+    }
+    listModelOperations.mockResolvedValueOnce([running])
+    renderPanel({ durableScope: true })
+
+    expect(await screen.findByText('Still working on an earlier request: “Catalog entries”')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop earlier request “Catalog entries”' }))
+
+    await waitFor(() => expect(deleteModelOperation).toHaveBeenCalledExactlyOnceWith(running.workflowId))
+    expect(listModelOperations).toHaveBeenCalledExactlyOnceWith(
+      { projectContextId: modelContext.projectContextId, extractionSchemaId: modelContext.extractionSchemaId },
+      expect.any(AbortSignal),
+    )
+  })
+
+  it('a reloaded panel before its first schema shows the running first generation with a Stop', async () => {
+    const running: ModelOperation = {
+      kind: 'generation', workflowId: 'suggestion:51000000-0000-4000-8009-0000000000f3', operationId: '51000000-0000-4000-8009-0000000000f3',
+      status: 'RUNNING', instruction: 'First catalog', createdAt: '2026-09-26T10:00:00.000Z', failure: null, baseSchemaRevisionId: null, template: null,
+    }
+    listModelOperations.mockResolvedValueOnce([running])
+    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
+
+    expect(await screen.findByText('Still working on an earlier request: “First catalog”')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop earlier request “First catalog”' }))
+    await waitFor(() => expect(deleteModelOperation).toHaveBeenCalledExactlyOnceWith(running.workflowId))
+  })
+
+  it("a restored proposal reopens the review bar and replays onto the base revision's nodes", async () => {
+    const restored: ModelOperation = {
+      kind: 'proposal', workflowId: 'edit:51000000-0000-4000-8009-0000000000f2', operationId: '51000000-0000-4000-8009-0000000000f2',
+      status: 'SUCCEEDED', instruction: 'Rename title to heading', createdAt: '2026-09-26T10:00:00.000Z', failure: null,
+      baseSchemaRevisionId: modelContext.schemaRevisionId,
+      response: { status: 'proposed', fields: { title: { name: 'heading', type: 'string', removed: false } }, additions: [], issues: [] },
+    }
+    listModelOperations.mockResolvedValueOnce([restored])
+    const setup = renderPanel({ durableScope: true })
+
+    const apply = await screen.findByRole('button', { name: 'Apply changes' })
+    expect(screen.getByText('Reopened the proposal for “Rename title to heading”.')).toBeInTheDocument()
+    fireEvent.click(apply)
+
+    await waitFor(() => expect(setup.edits).toHaveLength(1))
+    expect(setup.edits[0]!.schemaNodes.map((node) => node.name)).toEqual(['heading', 'gender'])
+    expect(requestSchemaEdit).not.toHaveBeenCalled()
+  })
+
+  it('Stop on a running edit cancels edit:<operationId> on the server and says Cancelled.', async () => {
+    requestSchemaEdit.mockImplementationOnce((_context, _message, signal) =>
+      new Promise<SchemaEditResponse>((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
+      }),
+    )
+    deleteModelOperation.mockResolvedValueOnce(undefined)
+    renderPanel()
+    const input = screen.getByPlaceholderText('Describe a change to the schema…')
+    fireEvent.change(input, { target: { value: 'Check fields' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    const stop = await screen.findByRole('button', { name: 'Stop schema edit request' })
+    await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledOnce())
+    const operationId = requestSchemaEdit.mock.calls[0]![3] as string
+
+    fireEvent.click(stop)
+
+    expect(await screen.findByText('Cancelled.')).toBeInTheDocument()
+    expect(deleteModelOperation).toHaveBeenCalledExactlyOnceWith(`edit:${operationId}`)
+  })
+
+  it('Stop whose server cancel fails still stops waiting, and says the request may still be running', async () => {
+    requestSchemaEdit.mockImplementationOnce((_context, _message, signal) =>
+      new Promise<SchemaEditResponse>((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
+      }),
+    )
+    deleteModelOperation.mockRejectedValueOnce(new Error('503'))
+    renderPanel()
+    const input = screen.getByPlaceholderText('Describe a change to the schema…')
+    fireEvent.change(input, { target: { value: 'Check fields' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    const stop = await screen.findByRole('button', { name: 'Stop schema edit request' })
+    await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledOnce())
+
+    fireEvent.click(stop)
+
+    expect(await screen.findByText('Cancelled.')).toBeInTheDocument()
+    expect(await screen.findByText('The request could not be stopped on the server; it may still be running and will show as an earlier request after a reload.')).toBeInTheDocument()
+    expect(input).toBeEnabled()
+  })
+
+  it('unmounting during an edit cancels nothing on the server', async () => {
+    requestSchemaEdit.mockImplementationOnce(() => new Promise<SchemaEditResponse>(() => undefined))
+    renderPanel()
+    const input = screen.getByPlaceholderText('Describe a change to the schema…')
+    fireEvent.change(input, { target: { value: 'Check fields' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledOnce())
+    const signal = requestSchemaEdit.mock.calls[0]![2] as AbortSignal
+
+    cleanup()
+
+    expect(signal.aborted).toBe(true)
+    expect(deleteModelOperation).not.toHaveBeenCalled()
   })
 
   it('cancels a schema edit request when the panel unmounts', async () => {

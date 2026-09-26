@@ -50,7 +50,7 @@ A fresh Studio starts without saved Model Connections or Capability Routes. Open
 - Non-secret connection and route state is stored as `model-config.json` in the operating system user configuration directory for `FREE Studio`.
 - FREE-managed credentials are stored only in the operating system credential store. A locked or unavailable credential store does not block credentialless Ollama/OpenAI-compatible connections or externally authenticated Codex CLI and Claude Code connections.
 - **Extraction** chooses kei-exp's field and reasoning models for every single and Batch Extraction; **Default** keeps the service's default for the role.
-- **Single model** assigns one explicit connection and model ID to Schema Suggestion, document chat, and conversational Extraction Schema editing.
+- **Single model** assigns one explicit connection and model ID to Schema Suggestion and conversational Extraction Schema editing.
 - **Capability Routes** independently assigns the Schema Suggestion Route and Interaction Route. The NuExtract protocol is a vLLM-only Schema Suggestion Route option. A route left unset runs on the deployment's instruction model.
 - **Apply** sends the complete editable draft once. Credential fields are write-only; leaving one untouched preserves its saved value.
 - Connection checks run after edited provider inputs settle and through **Refresh models**. Their status and model catalog are advisory session state: checks never generate content, change configuration, or gate manual model IDs or Apply.
@@ -87,6 +87,6 @@ Run a new Extraction on the current revision to use upgraded cell Evidence; an
 Extraction opened on an earlier revision offers no new run. Ordinary
 re-uploading still deduplicates by PDF content and does not reprocess it.
 
-Apply database migration `20260923T1946_source_reprocessing` before serving this
-version. This action currently uses the same request and in-memory queue
-lifecycle as uploads; closing the browser does not provide durable queue recovery.
+Recreate the database from the baseline before serving this version. This action
+currently uses the same request and in-memory queue lifecycle as uploads; closing
+the browser does not provide durable queue recovery.

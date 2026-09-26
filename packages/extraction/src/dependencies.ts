@@ -1,4 +1,4 @@
-import type { KeiExpClient } from './kei-exp.js'
+import type { TransactionalEnqueue, WorkflowStatuses } from 'db'
 import type {
   BatchExtractionResults,
   BatchExtractionSnapshot,
@@ -9,7 +9,6 @@ import type {
   EvidenceLink,
   ExtractionFailure,
   ExtractionModelAttribution,
-  ExtractionModelChoice,
   ExtractionSnapshot,
   ExtractionStrategy,
   ReadBatchInput,
@@ -60,7 +59,7 @@ export type PersistedReviewResult =
   | Readonly<{ status: 'reviewed' | 'replayed'; extraction: ExtractionSnapshot }>
   | Readonly<{ status: 'conflict' | 'invalid' | 'not-found' }>
 
-/** The pinned inputs one Extraction Job reads while it executes. */
+/** An Extraction's pinned inputs and its attempt, as the researcher-scoped module reads them. */
 export interface ExtractionInputReader {
   loadExtractionInputs(
     sourceRepresentationRevisionId: string,
@@ -87,44 +86,17 @@ export interface ExtractionPersistence extends ExtractionInputReader {
   readBatchResults(input: ReadBatchInput): Promise<BatchExtractionResults | null>
 }
 
-export type BatchMemberExtractionInput = Readonly<{
-  models: ExtractionModelChoice | null
-  extractionId: string
-  sourceRepresentationRevisionId: string
-  schemaRevisionId: string
-  strategy: ExtractionStrategy
-  batchExtractionId: string
-}>
-
-export type ExtractionJobInput =
-  | RunSingleInput
-  | (BatchMemberExtractionInput & Readonly<{ kind: 'batch-member' }>)
-
-export type ClaimedExtractionJob = Readonly<{
-  input: ExtractionJobInput
-  lease: Readonly<{ owner: string; version: number; expiresAt: Date }>
-}>
-
-export type ExtractionJobFailure = Readonly<{
-  code: string
-  message: string
-  phase: ExtractionDiagnostics['phase']
-}>
-
-export interface InternalExtractionJobStore {
-  claim(owner: string, now: Date, leaseExpiresAt: Date): Promise<ClaimedExtractionJob | null>
-  renew(extractionId: string, lease: ClaimedExtractionJob['lease'], leaseExpiresAt: Date): Promise<'owned' | 'cancelled' | 'lost'>
-  complete(extractionId: string, lease: ClaimedExtractionJob['lease'], extraction: TerminalExtraction, finishedAt: Date): Promise<boolean>
-  fail(extractionId: string, lease: ClaimedExtractionJob['lease'], failure: ExtractionJobFailure, finishedAt: Date): Promise<boolean>
-}
-
-export type ExtractionJobExecutor = (
-  input: ExtractionJobInput,
-  signal: AbortSignal,
-) => Promise<TerminalExtraction>
-
-export type ExtractionJobExecutorDependencies = Readonly<{
-  inputs: ExtractionInputReader
-  /** A job only extracts; listing kei-exp's models is Studio's concern. */
-  keiExp: Pick<KeiExpClient, 'extract'>
+/**
+ * How admission reaches DBOS without `packages/extraction` owning a DBOS client: Studio implements it with its admission
+ * client (api/_extractions.ts), the PostgreSQL tests with their own.
+ */
+export type ExtractionExecution = Readonly<{
+  /** Enqueues `runExtraction` in the caller's admission transaction. An implementation refuses a workflow ID already in
+   *  use (DBOS `workflowIDReusePolicy: 'reject'`): admission creates each Extraction's row with its workflow, so such an
+   *  ID names a workflow whose Extraction is gone, and reusing it would silently return that workflow. */
+  enqueue: TransactionalEnqueue
+  /** The DBOS status of `extract:<id>` workflows, in one call; rejects when DBOS cannot be read. */
+  statuses: WorkflowStatuses
+  /** Stops `extract:<id>` and its kei child `kei-extract:<id>` while they are live (best effort, after the cancel commits). */
+  cancel(extractionId: string): Promise<void>
 }>

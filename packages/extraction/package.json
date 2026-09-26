@@ -8,21 +8,28 @@
     "./allowed-values": "./src/allowed-values.ts",
     "./batch": "./src/batch.ts",
     "./kei-exp-fixture": "./src/kei-exp-fixture.ts",
+    "./kei-handoff": "./src/kei-handoff.ts",
+    "./kei-stand-in": "./src/testing/kei-stand-in.ts",
+    "./kei-stand-in-client": "./src/testing/kei-stand-in-client.ts",
     "./parsed-document": "./src/parsed-document.ts",
-    "./schema": "./src/schema.ts"
+    "./schema": "./src/schema.ts",
+    "./workflows": "./src/workflows.ts"
   },
   "scripts": {
-    "test": "tsx --test src/job-worker.test.ts src/module.test.ts src/parsed-document.test.ts",
-    "test:postgres": "tsx --test src/extraction-module.integration.test.ts",
+    "test": "tsx --test src/module.test.ts src/parsed-document.test.ts src/kei-handoff.test.ts src/kei-artifact.test.ts src/workflows.test.ts",
+    "test:postgres": "tsx --test src/extraction-module.integration.test.ts src/kei-handoff.postgres.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@dbos-inc/dbos-sdk": "5.1.10",
     "db": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^24.13.2",
+    "@types/pg": "^8.21.0",
     "fflate": "^0.8.3",
+    "pg": "8.22.0",
     "tsx": "^4.23.4",
     "typescript": "~6.0.3"
   },

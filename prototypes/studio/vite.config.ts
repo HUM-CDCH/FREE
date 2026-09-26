@@ -20,6 +20,7 @@ import {
   DEVELOPMENT_ENTRA_TENANT_ID,
 } from './server/entraIdentityProvider.js'
 import { createDevelopmentHost } from './server/developmentHost.js'
+import { withDevelopmentContentSecurityPolicy } from './server/contentSecurityPolicy.js'
 
 export function developmentStudioOrigin(server: {
   https?: unknown
@@ -45,6 +46,15 @@ function studioBaseHtml(basePath: string): Plugin {
     transformIndexHtml(html) {
       return applyStudioBaseTag(html, basePath)
     },
+  }
+}
+
+function appShellContentSecurityPolicy(): Plugin {
+  return {
+    name: 'free-app-shell-csp',
+    apply: 'serve',
+    // After React Refresh injected its preamble, so its hash is part of the policy.
+    transformIndexHtml: { order: 'post', handler: withDevelopmentContentSecurityPolicy },
   }
 }
 
@@ -74,7 +84,10 @@ type StudioComposition = {
 // invalidates the SSR module graph upwards, from the edited file through its
 // importers, so recomposition re-evaluates exactly the changed server code
 // while process-wide singletons its dependencies own — the database pool, the
-// Extraction runtime — stay the instances already loaded.
+// Extraction runtime — stay the instances already loaded. DBOS launches once
+// per process, before the first composition, and recomposition re-evaluates
+// handlers only: a registered workflow keeps running the code it was
+// registered with until Studio restarts.
 export function apiFunctions(configuredBasePath: string): Plugin {
   const basePath = canonicalStudioBasePath(configuredBasePath)
   const generatedSessionSecret = randomBytes(32)
@@ -211,7 +224,9 @@ export default defineConfig(({ command, mode }) => {
     base: command === 'build' ? './' : studioBaseHref(basePath),
     plugins: [
       ...(process.env.VITEST ? [] : [pdfjsWasmAssets(command)]),
-      ...(command === 'serve' ? [studioBaseHtml(basePath)] : []),
+      ...(command === 'serve'
+        ? [studioBaseHtml(basePath), appShellContentSecurityPolicy()]
+        : []),
       react(),
       tailwindcss(),
       apiFunctions(basePath),

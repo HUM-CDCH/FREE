@@ -33,7 +33,6 @@ describe('eager API dispatcher', () => {
   it('preserves the exact simple and parameterized route grammar', () => {
     const registry = registryWith({
       healthz: {},
-      chat: scopedModule(),
       edit_schema: scopedModule(),
       generate_schema: scopedModule(),
       project_contexts: scopedModule(),
@@ -42,15 +41,17 @@ describe('eager API dispatcher', () => {
       schema_revisions: scopedModule(),
       extraction_schemas: scopedModule(),
       extraction_models: scopedModule(),
+      ingestion_models: scopedModule(),
+      model_keys: scopedModule(),
       extractions: scopedModule(),
       batch_extractions: scopedModule(),
       batch_schema_suggestions: scopedModule(),
       source_representations: scopedModule(),
+      model_operations: scopedModule(),
     })
 
     for (const [pathname, handler] of [
       ['/api/healthz', 'healthz'],
-      ['/api/chat', 'chat'],
       ['/api/edit_schema', 'edit_schema'],
       ['/api/generate_schema', 'generate_schema'],
       ['/api/project-contexts', 'project_contexts'],
@@ -70,6 +71,8 @@ describe('eager API dispatcher', () => {
       ['/api/schema-revisions/revision', 'schema_revisions'],
       ['/api/extraction-schemas/schema', 'extraction_schemas'],
       ['/api/extraction-models', 'extraction_models'],
+      ['/api/ingestion-models', 'ingestion_models'],
+      ['/api/model-keys', 'model_keys'],
       ['/api/extractions/extraction/review', 'extractions'],
       ['/api/extractions/extraction/review/draft', 'extractions'],
       ['/api/extractions/extraction/review/reset', 'extractions'],
@@ -82,6 +85,11 @@ describe('eager API dispatcher', () => {
         '/api/project-contexts/project/source-representations/representation/pdf',
         'source_representations',
       ],
+      ['/api/model-operations', 'model_operations'],
+      [
+        '/api/model-operations/suggestion%3A51000000-0000-4000-8009-0000000000f1',
+        'model_operations',
+      ],
     ] as const)
       expect(apiHandlerName(pathname, registry)).toBe(handler)
 
@@ -91,10 +99,13 @@ describe('eager API dispatcher', () => {
       '/api/nope',
       '/api/healthz/anything',
       '/api/extraction-models/instruct',
+      '/api/ingestion-models/surya',
+      '/api/model-keys/connection',
       '/api/batch-extractions/batch/results/anything',
       '/api/source-representations/representation/pdf',
       '/api/project-contexts/project/source-representations/representation/pdf/anything',
       '/api/source-representations/representation/pdf/anything',
+      '/api/model-operations/edit%3Aid/anything',
       '/api/../package.json',
       '/api/',
     ])
@@ -172,6 +183,21 @@ describe('eager API dispatcher', () => {
         healthz: { createResearcherApiHandlers: () => ({}) },
       }),
     ).toThrow(/Static API module healthz/)
+  })
+
+  it('model_config, model_probe and model_keys are researcher-scoped', () => {
+    expect(() =>
+      registryWith({ model_config: { GET: () => new Response(), PUT: () => new Response() } }),
+    ).toThrow(/Researcher-scoped API module model_config must not export module-level handlers/)
+    expect(() =>
+      registryWith({ model_probe: { POST: () => new Response() } }),
+    ).toThrow(/Researcher-scoped API module model_probe must not export module-level handlers/)
+    expect(() =>
+      registryWith({ model_keys: { PUT: () => new Response() } }),
+    ).toThrow(/Researcher-scoped API module model_keys must not export module-level handlers/)
+    expect(apiHandlerName('/api/model_config')).toBe('model_config')
+    expect(apiHandlerName('/api/model_probe')).toBe('model_probe')
+    expect(apiHandlerName('/api/model-keys')).toBe('model_keys')
   })
 
   it('uses the eager production registry without filesystem discovery', async () => {

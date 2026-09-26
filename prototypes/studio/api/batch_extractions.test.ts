@@ -6,13 +6,20 @@ import {
   type ExtractionModule,
 } from 'extraction'
 import { createResearcherApiHandlers } from './batch_extractions.js'
+import { batchExtractionResponseSchema } from '../shared/batchExtraction.contract.js'
 
 const runtime = vi.hoisted(() => ({
   createResearcherExtractions: vi.fn(),
 }))
 
-vi.mock('./_extraction_runtime.js', () => ({
+vi.mock('./_extractions.js', () => ({
   createResearcherExtractions: runtime.createResearcherExtractions,
+}))
+
+const modelConfig = vi.hoisted(() => ({ configuredExtractionModels: vi.fn() }))
+vi.mock('./_model_config.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./_model_config.js')>()),
+  configuredExtractionModels: modelConfig.configuredExtractionModels,
 }))
 
 const ACCOUNT = '51000000-0000-4000-8009-000000000001'
@@ -30,9 +37,6 @@ const batch: BatchExtractionSnapshot = {
   schemaRevisionNumber: 4,
   strategy: 'ARTICLE',
   executionStatus: 'QUEUED',
-  failureMessage: null,
-  startedAt: null,
-  finishedAt: null,
   createdAt: new Date('2026-08-20T10:00:00.000Z'),
   members: [
     {
@@ -41,8 +45,6 @@ const batch: BatchExtractionSnapshot = {
         '51000000-0000-4000-8002-000000000001',
       executionStatus: 'QUEUED',
       failureMessage: null,
-      startedAt: null,
-      finishedAt: null,
       latestExtraction: null,
     },
   ],
@@ -150,6 +152,17 @@ describe('/api/batch-extractions transport', () => {
     expect(module.scheduleBatch).toHaveBeenCalledWith(expect.objectContaining({ models: { fields: 'instruct' } }))
   })
 
+  it("reads the account's configured Extraction Model Choice by default", async () => {
+    const module = extractionModule()
+    runtime.createResearcherExtractions.mockReturnValue(module)
+    modelConfig.configuredExtractionModels.mockResolvedValueOnce({ reasoning: 'instruct' })
+    const post = createResearcherApiHandlers({ researcherAccountId: ACCOUNT } as ResearcherProjectStore).POST
+
+    expect((await post(open(selection))).status).toBe(202)
+    expect(modelConfig.configuredExtractionModels).toHaveBeenCalledWith(ACCOUNT)
+    expect(module.scheduleBatch).toHaveBeenCalledWith(expect.objectContaining({ models: { reasoning: 'instruct' } }))
+  })
+
   it('lists, reads, and exports through caller-shaped module methods', async () => {
     const module = extractionModule()
     const handle = handlerFor(module)
@@ -193,6 +206,44 @@ describe('/api/batch-extractions transport', () => {
       batchExtractionId: BATCH,
       successfulResults: 1,
       results: [{ sourceDocumentId: DOCUMENT }],
+    })
+  })
+
+  it('answers a batch with its derived member status and no job-era fields', async () => {
+    const read = batchExtractionResponseSchema.parse(await (await handlerFor(extractionModule({
+      readBatch: vi.fn(async () => ({
+        ...batch,
+        executionStatus: 'COMPLETED' as const,
+        members: [
+          {
+            ...batch.members[0],
+            executionStatus: 'FAILED' as const,
+            failureMessage: 'This work stopped before it finished. Start it again.',
+          },
+        ],
+      })),
+    }))(
+      new Request(`http://test/api/batch-extractions/${BATCH}?projectContextId=${PROJECT}`),
+    )).json())
+    expect(read.batchExtraction).toEqual({
+      batchExtractionId: BATCH,
+      projectContextId: PROJECT,
+      schemaRevisionId: REVISION,
+      extractionSchemaId: batch.extractionSchemaId,
+      extractionSchemaName: 'Places',
+      schemaRevisionNumber: 4,
+      strategy: 'ARTICLE',
+      executionStatus: 'COMPLETED',
+      createdAt: '2026-08-20T10:00:00.000Z',
+      members: [
+        {
+          sourceDocumentId: DOCUMENT,
+          sourceRepresentationRevisionId: batch.members[0].sourceRepresentationRevisionId,
+          executionStatus: 'FAILED',
+          executionFailureMessage: 'This work stopped before it finished. Start it again.',
+          latestExtraction: null,
+        },
+      ],
     })
   })
 

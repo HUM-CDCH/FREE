@@ -6,20 +6,26 @@ import {
   type ExtractionSnapshot,
 } from 'extraction'
 import { createResearcherApiHandlers } from './extractions.js'
-import type * as ExtractionRuntimeModule from './_extraction_runtime.js'
+import type * as ExtractionsModule from './_extractions.js'
 import { extractionAttemptSchema, extractionReadResponseSchema, type ExtractionModelChoice } from '../shared/extraction.contract.js'
 
 const runtime = vi.hoisted(() => ({
   createResearcherExtractions: vi.fn(),
 }))
 
-vi.mock('./_extraction_runtime.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof ExtractionRuntimeModule>()
+vi.mock('./_extractions.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof ExtractionsModule>()
   return {
     ...actual,
     createResearcherExtractions: runtime.createResearcherExtractions,
   }
 })
+
+const modelConfig = vi.hoisted(() => ({ configuredExtractionModels: vi.fn() }))
+vi.mock('./_model_config.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./_model_config.js')>()),
+  configuredExtractionModels: modelConfig.configuredExtractionModels,
+}))
 
 const ACCOUNT = '51000000-0000-4000-8009-000000000001'
 const EXTRACTION = '51000000-0000-4000-8006-000000000001'
@@ -36,6 +42,7 @@ const snapshot: ExtractionSnapshot = {
   extractionSchemaId: '51000000-0000-4000-8003-000000000001',
   schemaRevisionNumber: 4,
   strategy: 'ARTICLE',
+  catalogRecipe: null,
   outcome: 'SUCCEEDED',
   complete: true,
   modelAttribution: { provider: 'openai', modelId: 'fixture' },
@@ -212,7 +219,6 @@ describe('/api/extractions transport', () => {
         schemaRevisionId: REVISION,
         strategy: 'ARTICLE',
       },
-      expect.any(AbortSignal),
     )
     expect(await created.json()).toMatchObject({
       extractionId: EXTRACTION,
@@ -227,12 +233,46 @@ describe('/api/extractions transport', () => {
     expect((await handle(request(fresh))).status).toBe(200)
   })
 
+  it('answers 503 when admission or a status read cannot reach its store or DBOS', async () => {
+    const outage = new Error('connect ECONNREFUSED 127.0.0.1:5432')
+    const module = extractionModule({
+      runSingle: vi.fn<ExtractionModule['runSingle']>(async () => { throw outage }),
+      readExtractionAttempt: vi.fn<ExtractionModule['readExtractionAttempt']>(async () => { throw outage }),
+    })
+    const handle = handlerFor(module)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    for (const response of [
+      await handle(request(fresh)),
+      await handle(new Request(`http://test/api/extractions/${EXTRACTION}`)),
+    ]) {
+      expect(response.status).toBe(503)
+      expect(response.headers.get('cache-control')).toBe('no-store')
+      expect(await response.json()).toEqual({
+        error: { code: 'persistence_unavailable', message: 'Project Context storage is unavailable.' },
+      })
+    }
+    vi.mocked(console.error).mockRestore()
+  })
+
+  it("reads the account's configured Extraction Model Choice by default", async () => {
+    const module = extractionModule()
+    runtime.createResearcherExtractions.mockReturnValue(module)
+    modelConfig.configuredExtractionModels.mockResolvedValueOnce({ fields: 'nuextract' })
+    const post = createResearcherApiHandlers({ researcherAccountId: ACCOUNT } as ResearcherProjectStore).POST
+
+    expect((await post(request(fresh))).status).toBe(201)
+    expect(modelConfig.configuredExtractionModels).toHaveBeenCalledWith(ACCOUNT)
+    expect(module.runSingle).toHaveBeenCalledWith(
+      expect.objectContaining({ models: { fields: 'nuextract' } }),
+    )
+  })
+
   it('passes the Catalog recipe chosen for an Extraction to runSingle', async () => {
     const module = extractionModule()
     await handlerFor(module)(request({ ...fresh, strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1' }))
     expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'fresh', strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1',
-    }), expect.any(AbortSignal))
+    }))
   })
 
   it('runs a fresh Extraction on the configured Extraction Model Choice and echoes it beside the models each role ran on', async () => {
@@ -251,7 +291,7 @@ describe('/api/extractions transport', () => {
     })
     const response = await handlerFor(module, models)(request(fresh))
     expect(response.status).toBe(201)
-    expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({ kind: 'fresh', models }), expect.any(AbortSignal))
+    expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({ kind: 'fresh', models }))
     const body = extractionAttemptSchema.parse(await response.json())
     expect(body.requestedModels).toEqual(models)
     expect(body.diagnostics?.models).toEqual(used)
@@ -524,40 +564,4 @@ describe('/api/extractions transport', () => {
       },
     })
   })
-})
-
-it('transports the version 2 review material instead of stripping it', async () => {
-  const { extractionAttemptDto } = await import('./_extraction_runtime.js')
-  const grounded = {
-    recipe: 'numbered-catalogue-de@1', segmentationFingerprint: 'f',
-    budget: { inputTokens: 4096, outputTokens: 1024, tokenizer: { source: 'vllm:/tokenize' } },
-    segmentationDiagnostics: [],
-    normalization: { version: 1, rules: ['glossary' as const] },
-    recordBlocks: [], proposed: [], rejected: [], competitors: [],
-    coverage: { complete: true }, completeness: { processing: true, coverage: true, grounding: true, recall: 'unmeasured' as const },
-  }
-  const dto = extractionAttemptDto({ ...attemptSnapshot, diagnostics: { ...snapshot.diagnostics, grounded } })
-  expect(dto.diagnostics?.grounded).toEqual(grounded)
-})
-
-it('echoes no Extraction Model Choice as null and transports no per-role models when kei-exp reported none', async () => {
-  const { extractionAttemptDto } = await import('./_extraction_runtime.js')
-  const dto = extractionAttemptDto(attemptSnapshot)
-  expect(dto.requestedModels).toBeNull()
-  expect(dto.diagnostics).not.toHaveProperty('models')
-})
-
-it('transports kei-exp attribution and service issue codes without filtering diagnostics', async () => {
-  const { extractionAttemptDto } = await import('./_extraction_runtime.js')
-  const dto = extractionAttemptDto({
-    ...attemptSnapshot,
-    modelAttribution: { provider: 'kei-exp', modelId: 'remote-model' },
-    diagnostics: {
-      ...snapshot.diagnostics,
-      groundingIssues: [{ code: 'missing_value', detail: 'No source value', record: 0, path: ['records', 0, 'year'] }],
-      groundingBatches: [],
-    },
-  })
-  expect(dto.modelAttribution).toEqual({ provider: 'kei-exp', modelId: 'remote-model' })
-  expect(dto.diagnostics?.grounding?.issueCodes).toEqual(['missing_value'])
 })

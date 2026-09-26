@@ -1,6 +1,5 @@
-// Black-box proof of the FREE product contract against the running local
-// stack. Requires Docker and, for the extraction subtests, a reachable Ollama
-// model (FREE_TEST_OLLAMA_BASE_URL / FREE_TEST_OLLAMA_MODEL).
+// Black-box proof of the FREE product contract against this test's disposable
+// Compose stack. Extraction uses the scripted external model fixture.
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import {
@@ -95,7 +94,6 @@ test('ingestion: a PDF source document uploads and parses', { timeout: 300_000 }
     'file',
     new File([probePdf()], 'probe.pdf', { type: 'application/pdf' }),
   )
-  form.append('ingestionKey', crypto.randomUUID())
   const response = await session.api(
     `/project-contexts/${state.projectId}/source-documents`,
     { method: 'POST', body: form },
@@ -109,7 +107,6 @@ test('ingestion: a PDF source document uploads and parses', { timeout: 300_000 }
 test('ingestion: a non-PDF upload is rejected', async () => {
   const form = new FormData()
   form.append('file', new File(['not a pdf'], 'probe.pdf', { type: 'application/pdf' }))
-  form.append('ingestionKey', crypto.randomUUID())
   const response = await session.api(
     `/project-contexts/${state.projectId}/source-documents`,
     { method: 'POST', body: form },
@@ -145,6 +142,7 @@ test('extraction: the canonical schema-guided path succeeds with evidence', { ti
             name: 'Contract Ollama',
             provider: 'ollama',
             baseUrl: OLLAMA_BASE_URL,
+            hasKey: false,
           },
         ],
         routes: {
@@ -152,8 +150,8 @@ test('extraction: the canonical schema-guided path succeeds with evidence', { ti
           interaction: { connectionId: state.connectionId, modelId: OLLAMA_MODEL },
         },
         extractionModels: {},
+        ingestionModels: {},
       },
-      credentials: {},
     }),
   })
   assert.equal(configured.status, 200, JSON.stringify(configured.body))
@@ -168,14 +166,31 @@ test('extraction: the canonical schema-guided path succeeds with evidence', { ti
     }),
   })
   assert.equal(extraction.status, 201, JSON.stringify(extraction.body))
-  assert.equal(extraction.body.outcome, 'SUCCEEDED')
+  assert.ok(['QUEUED', 'RUNNING', 'COMPLETED'].includes(extraction.body.executionStatus))
+
+  const deadline = Date.now() + 600_000
+  let completed
+  while (Date.now() < deadline) {
+    const detail = await session.api(`/extractions/${state.extractionId}`)
+    assert.equal(detail.status, 200)
+    const attempt = detail.body.extraction
+    if (attempt.executionStatus === 'FAILED')
+      assert.fail(`Extraction failed: ${JSON.stringify(attempt.failure)}`)
+    if (attempt.executionStatus === 'COMPLETED') {
+      completed = attempt
+      break
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 1_000))
+  }
+  assert.ok(completed, 'Extraction did not finish before the deadline')
+  assert.equal(completed.outcome, 'SUCCEEDED')
 
   // The run produced Evidence links and reported its grounding diagnostic.
   // That grounded and ungrounded together cover every populated value is a
   // property of grounding.ts, pinned in packages/extraction/src/grounding.test.ts;
   // asserting it here can only restate what the response already computed.
-  assert.ok(extraction.body.evidenceLinks.length > 0)
-  assert.ok(Array.isArray(extraction.body.diagnostics.grounding.ungroundedPaths))
+  assert.ok(completed.evidenceLinks.length > 0)
+  assert.ok(Array.isArray(completed.diagnostics.grounding.ungroundedPaths))
 })
 
 test('review: partial review decisions are rejected (data integrity)', async () => {
@@ -244,5 +259,6 @@ test('projects: permanent deletion removes the owned graph', async () => {
 })
 
 after(() => {
-  // Leave the stack running: `pnpm dev` owns its lifecycle, not the suite.
+  // The contract suite owns its isolated Compose project and disposable volume.
+  compose(['down', '--volumes'], { allowFailure: true })
 })

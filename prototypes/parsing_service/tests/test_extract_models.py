@@ -55,12 +55,9 @@ def test_a_route_the_deployment_cannot_serve_is_refused_at_admission(deployed, c
         Options(models=choice)
 
 
-def test_the_legacy_model_runs_every_stage_on_the_instruction_server_under_that_id(deployed):
-    router = chats_for(Options(model="Qwen/Qwen3.8-27B"))
-    assert router.fields is router.reasoning and isinstance(router.fields, OpenAIChat)
-    assert router.fields.model == "Qwen/Qwen3.8-27B" and router.fields.url == models.EXTRACT_MODELS["instruct"].url
-    with pytest.raises(ValidationError, match="either"):
-        Options(model="Qwen/Qwen3.8-27B", models={"fields": "instruct"})
+def test_a_legacy_single_model_is_refused():
+    with pytest.raises(ValidationError):
+        Options.model_validate({"model": "Qwen/Qwen3.8-27B"})
 
 
 def test_every_stage_goes_to_its_role():

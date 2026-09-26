@@ -2,12 +2,7 @@ import {
   APICallError,
   NoObjectGeneratedError,
   Output,
-  convertToModelMessages,
-  createUIMessageStreamResponse,
   generateText,
-  streamText,
-  toUIMessageStream,
-  type UIMessage,
 } from 'ai'
 import { z } from 'zod'
 import type { DocumentInput } from './_document.js'
@@ -18,7 +13,9 @@ import {
   asModelOperationError,
 } from './_http.js'
 import { parseTemplate } from './_model_output.js'
-import { readModelConfig } from './_model_config.js'
+import { withStepCancellation } from './_model_keys.js'
+import { readAccountModelConfig } from './_model_config.js'
+import type { ModelConfig } from '../shared/modelConfig.contract.js'
 import {
   appendProviderResource,
   resolveCapabilityRoute,
@@ -56,7 +53,14 @@ export type SchemaModelInput = {
 
 type DocumentContentPart = DocumentFilePart | { readonly type: 'text'; readonly text: string }
 type NuExtractMode = 'template-generation'
-type ModelDependencies = RouteResolverDependencies & { fetch?: typeof fetch }
+/** Whose configuration and keys a model call uses: the Project Context's owner. Background and (from M4/M5) workflow
+ *  calls carry only this ID and resolve the rest when the call runs. */
+export type ModelCaller = Readonly<{ researcherAccountId: string }>
+/** The resolver's seams, less the account: that is always the caller's, so no call can name another account's keys. */
+type ModelDependencies = Omit<RouteResolverDependencies, 'readConfig' | 'researcherAccountId'> & {
+  readConfig?: () => Promise<ModelConfig>
+  fetch?: typeof fetch
+}
 
 async function documentContentParts(document: DocumentInput): Promise<{
   readonly parts: readonly DocumentContentPart[]
@@ -79,47 +83,18 @@ async function operationTarget(
   operation: ModelOperation,
   temperature: number | undefined,
   target: ExecutionTarget | undefined,
+  caller: ModelCaller,
   dependencies: ModelDependencies,
 ): Promise<ExecutionTarget> {
-  const resolved = target ?? await resolveCapabilityRoute(operation, { temperature }, {
+  return target ?? resolveCapabilityRoute(operation, { temperature }, {
     ...dependencies,
-    readConfig: dependencies.readConfig ?? (() => readModelConfig()),
+    researcherAccountId: caller.researcherAccountId,
+    readConfig: dependencies.readConfig ?? (() => readAccountModelConfig(caller.researcherAccountId)),
   })
-  return resolved
-}
-
-export async function streamChatWithModel(
-  messages: readonly UIMessage[],
-  documentMarkdown: string,
-  temperature?: number,
-  target?: ExecutionTarget,
-  dependencies: ModelDependencies = {},
-): Promise<Response> {
-  const resolved = await operationTarget('chat', temperature, target, dependencies)
-  if (resolved.profile !== 'general') {
-    throw new ApiError(409, 'invalid_model_config', 'The Interaction Route must use general execution.')
-  }
-  try {
-    const result = streamText({
-      model: resolved.model,
-      system:
-        'Answer questions using the source document below. Say when the source does not support an answer.\n\n' +
-        `SOURCE DOCUMENT MARKDOWN:\n${documentMarkdown}\nEND SOURCE DOCUMENT MARKDOWN`,
-      messages: await convertToModelMessages([...messages]),
-      ...(temperature === undefined ? {} : { temperature }),
-    })
-    return createUIMessageStreamResponse({
-      stream: toUIMessageStream({
-        stream: result.stream,
-        onError: () => 'Chat failed.',
-      }),
-    })
-  } catch (error) {
-    throw asModelOperationError(error, 'Chat failed before streaming began.')
-  }
 }
 
 export async function generateSchemaWithModel(
+  caller: ModelCaller,
   { document, instruction, temperature, signal }: SchemaModelInput,
   target?: ExecutionTarget,
   dependencies: ModelDependencies = {},
@@ -128,7 +103,7 @@ export async function generateSchemaWithModel(
   readonly raw: string
   readonly pages: number | null
 }> {
-  const resolved = await operationTarget('schema-suggestion', temperature, target, dependencies)
+  const resolved = await operationTarget('schema-suggestion', temperature, target, caller, dependencies)
   const documentParts = await documentContentParts({
     ...document,
     markdown: document.markdown ? schemaSourceExcerpts(document.markdown) : document.markdown,
@@ -261,6 +236,18 @@ async function generateWithNuExtract(
   requestFetch: typeof fetch = fetch,
 ): Promise<GeneratedText> {
   const startedAt = performance.now()
+  // The attempt's signal carries the step's cancel signal (Task 2): a cancelled workflow ends the key wait or the fetch.
+  const signal = withStepCancellation(input.signal)
+  // The key is read inside the attempt, so a missing one waits for a page to resend it; nothing is sent after an abort.
+  let authorization: string | null
+  try {
+    const key = await target.key(signal)
+    authorization = key === null ? null : `Bearer ${key}`
+  } catch (error) {
+    // model_key_required passes through unchanged.
+    throw asModelOperationError(error, 'NuExtract generation failed.')
+  }
+  signal?.throwIfAborted()
   const url = appendProviderResource(target.baseUrl, 'chat/completions')
   const requestBody = JSON.stringify({
     model: target.modelId,
@@ -275,10 +262,10 @@ async function generateWithNuExtract(
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        ...(target.authorization === null ? {} : { authorization: target.authorization }),
+        ...(authorization === null ? {} : { authorization }),
       },
       body: requestBody,
-      signal: input.signal,
+      signal,
     })
   } catch (error) {
     throw asModelOperationError(error, 'NuExtract generation failed.')
@@ -331,13 +318,16 @@ const chatCompletionSchema = z.object({
   }).optional(),
 })
 
+/** `signal` is the browser's request: when it goes away the call, and any wait for a key, ends. */
 export async function generateSchemaEditJson(
+  caller: ModelCaller,
   prompt: string,
   temperature?: number,
+  signal?: AbortSignal,
   target?: ExecutionTarget,
   dependencies: ModelDependencies = {},
 ): Promise<{ text: string }> {
-  const resolved = await operationTarget('schema-edit', temperature, target, dependencies)
+  const resolved = await operationTarget('schema-edit', temperature, target, caller, dependencies)
   if (resolved.profile !== 'general') {
     throw new ApiError(409, 'invalid_model_config', 'The Interaction Route must use general execution.')
   }
@@ -348,6 +338,7 @@ export async function generateSchemaEditJson(
       reasoning: 'none',
       messages: [{ role: 'user', content: prompt }],
       ...(temperature === undefined ? {} : { temperature }),
+      abortSignal: signal,
     })
     if (result.finishReason === 'length') {
       throw new ApiError(502, 'invalid_model_output', 'Schema edit model output was truncated.')

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { forgetReviewDraft, recoverReviewDraft, rememberReviewDraft, REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import {
+  ApiRequestError,
   cancelExtraction,
-  ExtractionRequestError,
   finalizeExtractionReview,
   saveExtractionReviewDraft,
   readExtraction,
@@ -47,6 +47,13 @@ type UseExtractionOptions = {
   indexing: boolean
   onTerminal: (attempt: ExtractionAttempt, isRerun: boolean) => void
   onError: (message: string) => void
+  /**
+   * The server refused a run because the Source Representation it names was
+   * superseded by reprocessing. Nothing failed, so `onError` is not called:
+   * the earlier attempt stays on screen and the page re-reads the document so
+   * it stops offering runs on the old revision.
+   */
+  onSuperseded?: () => void
   initialAttempt?: ExtractionAttempt | null
   reviewTarget?: ReviewTarget | null
   /**
@@ -76,9 +83,12 @@ function isActive(attempt: ExtractionAttempt | null): boolean {
   return attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
 }
 
-function definiteRejection(error: unknown): error is ExtractionRequestError {
-  return error instanceof ExtractionRequestError && error.status >= 400 && error.status < 500
+function definiteRejection(error: unknown): error is ApiRequestError {
+  return error instanceof ApiRequestError && error.status >= 400 && error.status < 500
 }
+
+/** PR #140: a run on a Source Representation that reprocessing replaced is refused before anything starts. */
+const SOURCE_REPRESENTATION_SUPERSEDED = 'source_representation_superseded'
 
 export type ExtractionController = ReturnType<typeof useExtraction>
 
@@ -87,8 +97,7 @@ export function extractionStateFromAttempt(attempt: ExtractionAttempt | null): E
   const active = isActive(attempt)
   if (!attempt.resultPayload) {
     if (active) return { status: 'running', step: 'extraction' }
-    if (attempt.failure?.code === 'cancelled' || attempt.outcome === 'CANCELLED')
-      return { status: 'cancelled' }
+    if (attempt.failure?.code === 'cancelled') return { status: 'cancelled' }
     return {
       status: 'error',
       message: attempt.failure?.message ?? 'Extraction failed.',
@@ -137,6 +146,7 @@ export function useExtraction({
   indexing,
   onTerminal,
   onError,
+  onSuperseded,
   initialAttempt = null,
   reviewTarget = null,
   documentKey = '',
@@ -229,7 +239,7 @@ export function useExtraction({
       if (!live()) return
       monitor.paused = true
       setMonitorError(
-        error instanceof ExtractionRequestError && (error.status === 403 || error.status === 404)
+        error instanceof ApiRequestError && (error.status === 403 || error.status === 404)
           ? EXTRACTION_UNAVAILABLE
           : MONITOR_DISCONNECTED,
       )
@@ -368,13 +378,13 @@ export function useExtraction({
     }
   }, [attempt, reviewAvailable, documentKey, reviewReload])
 
+  /** Cancels the acknowledged active attempt; before the server acknowledges a run there is nothing to cancel. */
   async function requestCancellation() {
-    const id = monitorRef.current?.extractionId ?? attempt?.extractionId
-    if ((!activeAttempt && state.status !== 'running') || !id || cancellationRequested) return
+    if (!activeAttempt || !attempt || cancellationRequested) return
     setCancellationRequested(true)
     setCancellationError(null)
     try {
-      await cancelExtraction(id)
+      await cancelExtraction(attempt.extractionId)
     } catch (error) {
       setCancellationRequested(false)
       setCancellationError(error instanceof Error ? error.message : 'Cancellation failed.')
@@ -414,6 +424,13 @@ export function useExtraction({
       )
     } catch (error) {
       if (monitorRef.current !== monitor || monitor.controller.signal.aborted) return null
+      if (definiteRejection(error) && error.code === SOURCE_REPRESENTATION_SUPERSEDED) {
+        // Nothing started: the earlier attempt and its results stay as they were.
+        monitorRef.current = null
+        setState(extractionStateFromAttempt(attempt))
+        onSuperseded?.()
+        return null
+      }
       if (definiteRejection(error)) {
         monitorRef.current = null
         setState({ status: 'error', message: error.message })

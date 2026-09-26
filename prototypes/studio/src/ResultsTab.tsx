@@ -441,11 +441,12 @@ function ExtractionStatus({
       {running && !readOnly && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <p className="text-[11.5px] text-ink-muted">You can continue working on other documents.</p>
+          {/* Nothing to cancel until the server acknowledges the run ("Starting extraction…"). */}
           <Button
             variant="secondary"
             size="sm"
             className={pressable}
-            disabled={controller.cancellationRequested}
+            disabled={controller.cancellationRequested || !active}
             onClick={() => void controller.requestCancellation()}
           >
             {controller.cancellationRequested ? 'Cancellation requested…' : 'Cancel extraction'}
@@ -947,11 +948,19 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, runExt
 
       {state.status === 'running' && (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
+          {/* Queued or running only once the server acknowledged the attempt: until then the attempt on screen is
+              the previous one, and the new run may not exist yet. */}
           <Spinner
-            label={attempt?.executionStatus === 'QUEUED' ? 'Queued extraction…' : 'Running extraction…'}
+            label={attempt?.executionStatus === 'QUEUED'
+              ? 'Queued extraction…'
+              : attempt?.executionStatus === 'RUNNING'
+                ? 'Running extraction…'
+                : 'Starting extraction…'}
             hint={attempt?.executionStatus === 'QUEUED'
               ? 'Waiting for the extraction worker to start this attempt.'
-              : 'The server is extracting values, grounding Evidence, and saving the terminal attempt.'}
+              : attempt?.executionStatus === 'RUNNING'
+                ? 'The server is extracting values, grounding Evidence, and saving the terminal attempt.'
+                : 'Sending the extraction to the server.'}
           />
         </div>
       )}

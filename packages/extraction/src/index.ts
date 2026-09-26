@@ -1,9 +1,20 @@
 export { ExtractionError } from './errors.js'
-export { createExtractionRuntime } from './runtime.js'
 export type { ExtractionErrorCode } from './errors.js'
-export type { CreateExtractionRuntimeDependencies } from './runtime.js'
+export type { ExtractionExecution } from './dependencies.js'
 export { createKeiExpClient } from './kei-exp.js'
-export type { KeiExpClient, KeiExpArtifact, KeiExpModelListing, KeiExpRequest } from './kei-exp.js'
+export type { KeiExpClient, KeiExpArtifact, KeiExpIngestionModelListing, KeiExpModelListing } from './kei-exp.js'
+export {
+  createExtractions,
+  createExtractionStore,
+  createResearcherExtractionPersistence,
+} from './postgres-persistence.js'
+export {
+  dbosSteps,
+  EXTRACTION_QUEUE,
+  registerExtractionWorkflow,
+  RUN_EXTRACTION,
+} from './workflows.js'
+export type { ExtractionStore, ExtractionWorkflowPorts } from './workflows.js'
 export type {
   BatchDisposition,
   BatchExtractionMemberSnapshot,
@@ -30,7 +41,6 @@ export type {
   FinalizeReviewResult,
   ExtractionModule,
   ExtractionOutcome,
-  ExtractionRuntime,
   ExtractionSchemaNode,
   ExtractionSnapshot,
   ExtractionStrategy,

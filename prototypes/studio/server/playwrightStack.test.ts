@@ -10,8 +10,12 @@ import {
   acquirePlaywrightProjectLeaseForTest,
   playwrightViteArgumentsForTest,
   recoverPlaywrightStackForTest,
+  spawnSupervisedProcessForTest,
+  superviseViteForTest,
   teardownPlaywrightStackForTest,
   type PlaywrightPortLease,
+  type RunningViteForTest,
+  type ViteExitForTest,
 } from '../e2e/playwrightStack.js'
 
 const temporaryDirectories: string[] = []
@@ -250,6 +254,8 @@ describe('Playwright stack teardown', () => {
       composeProject,
       directory,
       lifecycleId,
+      // Far beyond the fake time this test advances, so only the completion marker ends the wait.
+      timeoutMs: 60_000,
     })
     let teardownSettled = false
     void teardown.then(
@@ -270,7 +276,15 @@ describe('Playwright stack teardown', () => {
     await vi.advanceTimersByTimeAsync(100)
     expect(teardownSettled).toBe(false)
     await writeCompletionMarker(directory, lifecycleId)
-    await vi.advanceTimersByTimeAsync(100)
+    // The poll reads the marker with real file I/O between fake-timer sleeps. A read still in flight when one
+    // advance returns schedules its next sleep after it, so keep the clock moving until the teardown settles.
+    await vi.waitFor(
+      async () => {
+        await vi.advanceTimersByTimeAsync(50)
+        expect(teardownSettled).toBe(true)
+      },
+      { interval: 20, timeout: 2_000 },
+    )
 
     await expect(teardown).resolves.toBeUndefined()
     expect(composeDown).not.toHaveBeenCalled()
@@ -352,5 +366,103 @@ describe('Playwright Vite ownership', () => {
       '47001',
       '--strictPort',
     ])
+  })
+})
+
+describe('Playwright Vite supervision', () => {
+  /** A fake Vite whose exit the test decides. */
+  function fakeVite(pid: number): RunningViteForTest & { exit: (exit: ViteExitForTest) => void } {
+    const exited = Promise.withResolvers<ViteExitForTest>()
+    return {
+      child: { exitCode: null, signalCode: null } as RunningViteForTest['child'],
+      exited: exited.promise,
+      pid,
+      exit: exited.resolve,
+    }
+  }
+
+  it('a restartable web server respawns Vite after a SIGKILL and records its new PID', async () => {
+    const vites = [fakeVite(11), fakeVite(22)]
+    const spawn = vi.fn(async () => vites[spawn.mock.calls.length - 1]!)
+    const recorded: number[] = []
+    const teardown = Promise.withResolvers<void>()
+
+    const outcome = superviseViteForTest({
+      spawn,
+      restartable: true,
+      recordVite: async (pid) => { recorded.push(pid) },
+      teardown: teardown.promise,
+    })
+    await vi.waitFor(() => expect(recorded).toEqual([11]))
+    vites[0]!.exit({ code: null, signal: 'SIGKILL' })
+    await vi.waitFor(() => expect(recorded).toEqual([11, 22]))
+    expect(spawn).toHaveBeenCalledTimes(2)
+
+    teardown.resolve()
+    await expect(outcome).resolves.toEqual({ type: 'teardown', vite: vites[1] })
+  })
+
+  it('any other Vite exit still fails the web server, and so does a SIGKILL when not restartable', async () => {
+    const crashed = fakeVite(11)
+    const spawn = vi.fn(async () => crashed)
+    const outcome = superviseViteForTest({
+      spawn, restartable: true, recordVite: async () => {}, teardown: new Promise<void>(() => {}),
+    })
+    await vi.waitFor(() => expect(spawn).toHaveBeenCalledTimes(1))
+    crashed.exit({ code: 1, signal: null })
+    await expect(outcome).resolves.toEqual({ type: 'exit', exit: { code: 1, signal: null } })
+    expect(spawn).toHaveBeenCalledTimes(1)
+
+    const killed = fakeVite(12)
+    const once = vi.fn(async () => killed)
+    const plain = superviseViteForTest({
+      spawn: once, restartable: false, recordVite: async () => {}, teardown: new Promise<void>(() => {}),
+    })
+    await vi.waitFor(() => expect(once).toHaveBeenCalledTimes(1))
+    killed.exit({ code: null, signal: 'SIGKILL' })
+    await expect(plain).resolves.toEqual({ type: 'exit', exit: { code: null, signal: 'SIGKILL' } })
+    expect(once).toHaveBeenCalledTimes(1)
+  })
+
+  it('a respawn whose lifecycle write fails stops the new Vite before the wrapper cleans up', async () => {
+    const vites = [fakeVite(11), fakeVite(22)]
+    const spawn = vi.fn(async () => vites[spawn.mock.calls.length - 1]!)
+    const stopped: number[] = []
+    let writes = 0
+    const outcome = superviseViteForTest({
+      spawn,
+      restartable: true,
+      recordVite: async () => {
+        writes += 1
+        if (writes === 2) throw new Error('disk full')
+      },
+      teardown: new Promise<void>(() => {}),
+      stop: async (vite) => { stopped.push(vite.pid) },
+    })
+    await vi.waitFor(() => expect(writes).toBe(1))
+    vites[0]!.exit({ code: null, signal: 'SIGKILL' })
+
+    await expect(outcome).rejects.toThrow('disk full')
+    expect(stopped).toEqual([22])
+  })
+
+  it("Vite's output is appended to the Studio log when one is named", async () => {
+    const directory = await temporaryLifecycleDirectory()
+    const log = join(directory, 'studio.log')
+    await writeFile(log, 'earlier line\n', 'utf8')
+
+    const child = await spawnSupervisedProcessForTest(
+      process.execPath,
+      ['-e', "console.log('hello from stdout'); console.error('hello from stderr')"],
+      { cwd: directory, log },
+    )
+    await expect(child.exited).resolves.toEqual({ code: 0, signal: null })
+
+    await vi.waitFor(async () => {
+      const contents = await readFile(log, 'utf8')
+      expect(contents).toContain('earlier line')
+      expect(contents).toContain('hello from stdout')
+      expect(contents).toContain('hello from stderr')
+    })
   })
 })

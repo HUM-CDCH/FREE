@@ -44,6 +44,8 @@ type AppFrameProps = {
   onNavigate: (route: NavigableRoute) => void
   onRetry: () => void
   onInitialResourceLoadFailure: () => void
+  /** Reads the open Source Document again and swaps it in only once that read succeeds. */
+  onRefreshDocument: () => void
 }
 
 const DocumentWorkspace = lazy(() => import('./App'))
@@ -139,6 +141,7 @@ export default function AppFrame({
   onNavigate,
   onRetry,
   onInitialResourceLoadFailure,
+  onRefreshDocument,
 }: AppFrameProps) {
   const [navOpen, setNavOpen] = useState(true)
   const [narrowNavOpen, setNarrowNavOpen] = useState(false)
@@ -234,9 +237,11 @@ export default function AppFrame({
           sourceDocumentId: openDocument.sourceDocument.sourceDocumentId,
           extractionId,
         }),
+        // A run refused as superseded means this snapshot's Source Representation may be stale.
+        onSourceSuperseded: onRefreshDocument,
         tabBarSlot,
       },
-    [openDocument, tabBarSlot, onNavigate],
+    [openDocument, tabBarSlot, onNavigate, onRefreshDocument],
   )
 
   // Keeps open tabs in sync with routes reached other than a tab-strip or

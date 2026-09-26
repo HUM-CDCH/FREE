@@ -1,5 +1,5 @@
 """The converter over the KIE ingest's book pages: page-source renders, whole pages as crops, the cut over book pages,
-`--page-source ingest` through convert() with its cache, and the API's summary of a run over book pages.
+`--page-source ingest` through convert() with its cache.
 The layout model runs on CPU, no GPU and no server: the transcriber is a fake. One workspace for the module: the
 fixture spread is ingested once, with the layout model, and every later conversion reuses that ingest."""
 import json
@@ -11,12 +11,9 @@ from unittest.mock import patch
 import numpy as np
 import pypdfium2 as pdfium
 import pytest
-from fastapi.testclient import TestClient
 from PIL import Image
 
-from kei_exp import api, runs
 from kei_exp.geometry import CropTransform, PointBox
-from kei_exp.jobs import schema, store
 from kei_exp.kie.model import IngestArtifact, Placement
 from kei_exp.kie.model import Page as IngestPage
 from kei_exp.kie.runner import convert
@@ -386,96 +383,6 @@ def test_a_pdf_the_ingest_refuses_is_a_failed_conversion(workspace, digital_pdf,
 def test_an_unknown_page_source_is_refused(scan_pdf):
     with pytest.raises(ValueError, match="page_source"):  # an unknown page source must be refused
         resolve(RunParams(pdf=scan_pdf, model="fake", page_source="bogus"))
-
-
-# The API: a run over book pages counts its PDF pages (the spreads); there is no page unit in the summary.
-
-
-@pytest.fixture(scope="module")
-def api_run(workspace, scan_pdf, converted) -> Path:
-    """A run directory laid out as the API lays out a run over book pages: the shared ingest moved under
-    `run/input/ingest` (where `create_run` has the ingest run), the fixture copied to `run/input.pdf`, params.json.
-
-    Moving consumes `converted`'s published ingest, so this section comes last in the module: every test that
-    reads the shared ingest directory (`converted`, `book`, the cut-none and cached conversions) is above the first
-    test that asks for this fixture, and pytest runs a module's tests in file order.
-    """
-    run = workspace / "runs" / "20260915-000000-fake-0000"
-    (run / "input").mkdir(parents=True)
-    converted.published.rename(run / "input" / "ingest")
-    (run / "input.pdf").write_bytes(scan_pdf.read_bytes())
-    runs.write_json(run / "params.json", {"id": run.name, "created": "2026-09-15T00:00:00+00:00",
-                                         "page_source": "ingest", "pages": None, "page_count": 1,
-                                         "transcriber": "fake", "model": "fake"})
-    runs.write_json(run / "status.json", {"status": "done"})  # identify this file-only historical fixture
-    return run
-
-
-@pytest.fixture
-def run(api_run, monkeypatch) -> Path:
-    """The fake run, with the API's runs root pointed at the workspace: nothing writes into the repository's runs/."""
-    monkeypatch.setattr(runs, "RUNS", api_run.parent)
-    return api_run
-
-
-def test_the_summary_counts_pdf_pages_and_has_no_page_unit(run):
-    summary = runs.summary(run)
-    assert summary["page_count"] == 1 and summary["pages"] is None and summary["page_source"] == "ingest"
-    assert "page_unit" not in summary
-
-
-@pytest.fixture
-def jobs_store(database, monkeypatch) -> str:
-    """The store pointed at a fresh database, and the API's own `DATABASE_URL` redirected to match: the lifespan
-    opens (or, since the pool is already open, confirms) the pool by that name and installs its deferring
-    connector for as long as `TestClient(api.app)` is open."""
-    schema.apply(database)
-    store.close_pool()
-    store.pool(database)
-    monkeypatch.setattr(api, "DATABASE_URL", database)
-    try:
-        yield database
-    finally:
-        store.close_pool()
-
-
-def test_the_api_refuses_an_unknown_page_source(run, scan_pdf, jobs_store):
-    with TestClient(api.app) as client, scan_pdf.open("rb") as pdf:
-        response = client.post("/api/runs", files={"pdf": ("scan.pdf", pdf, "application/pdf")},
-                               data={"model": "fake", "page_source": "bogus"})
-        assert response.status_code == 400 and "page_source" in response.json()["detail"], response.json()
-
-
-def test_the_api_runs_the_ingest_under_the_run_directory(run, scan_pdf, jobs_store):
-    # No model server stands behind the "fake" model and none is patched in: admission asks none anything.
-    with TestClient(api.app) as client, scan_pdf.open("rb") as pdf:
-        response = client.post("/api/runs", files={"pdf": ("scan.pdf", pdf, "application/pdf")},
-                               data={"model": "fake", "page_source": "ingest", "cut": "none"})
-        assert response.status_code == 202, response.json()
-        created = response.json()
-        assert created["params"]["page_source"] == "ingest" and created["page_count"] == 1
-        row = store.record(created["id"])
-        assert row is not None
-        execution = runs.execution_for(runs.RUNS / created["id"], row.params)
-        assert execution.ingest_dir == run.parent / created["id"]
-    assert runs.read_json(run / "params.json")["page_source"] == "ingest"
-
-
-def test_the_http_layer_keeps_no_run_state_of_its_own(run, scan_pdf, jobs_store):
-    """One owner holds the store and the run directory root; the routes reach both through `runs` and
-    `kei_exp.jobs.store`.
-
-    A `RUNS` copied into the HTTP module at import time would send a redirected store back to the repository's
-    own runs/, silently. The submitted run is looked for where the store, redirected through `runs.RUNS` alone,
-    says it is.
-    """
-    assert not any(hasattr(api, name) for name in ("jobs", "work", "Job", "RUNS"))
-    with TestClient(api.app) as client, scan_pdf.open("rb") as pdf:
-        created = client.post("/api/runs", files={"pdf": ("scan.pdf", pdf, "application/pdf")},
-                              data={"model": "fake", "cut": "none"}).json()
-        row = store.record(created["id"])
-        assert row is not None  # the store recorded the submission under the redirected runs.RUNS, not api's own
-    assert runs.directory_of(created["id"]) == run.parent / created["id"]  # under the redirected store
 
 
 def test_a_gutter_override_reaches_the_ingest_and_binds_the_parse(converted, workspace, scan_pdf, fake):

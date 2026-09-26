@@ -8,6 +8,7 @@ import {
   batchSchemaSuggestionDraftRequestSchema,
   batchSchemaSuggestionListResponseSchema,
   batchSchemaSuggestionResponseSchema,
+  batchSchemaSuggestionRetryRequestSchema,
   batchSchemaSuggestionRunRequestSchema,
 } from '../shared/batchSchemaSuggestion.contract.js'
 import { parseSchemaDefinition } from 'extraction/schema'
@@ -20,8 +21,7 @@ import {
   persistenceUnavailable,
 } from './_http.js'
 import { validateEditableSuggestion } from './_batch_schema_suggestions.js'
-import { projectOperations } from './_project_operations.js'
-import { createResearcherExtractions } from './_extraction_runtime.js'
+import { createResearcherExtractions } from './_extractions.js'
 import type { ExtractionHandlerDependencies } from './extractions.js'
 import { configuredExtractionModels } from './_model_config.js'
 
@@ -52,6 +52,7 @@ function suggestionDto(suggestion: BatchSchemaSuggestionRecord) {
       batchSchemaSuggestionId: suggestion.batchSchemaSuggestionId,
       projectContextId: suggestion.projectContextId,
       selectionKey: suggestion.selectionKey,
+      attempt: suggestion.attempt,
       executionStatus: suggestion.executionStatus,
       phase: suggestion.phase,
       proposal:
@@ -65,34 +66,26 @@ function suggestionDto(suggestion: BatchSchemaSuggestionRecord) {
       failure: failureDto(suggestion.failure),
       confirmedSchemaRevisionId: suggestion.confirmedSchemaRevisionId,
       batchExtractionId: suggestion.batchExtractionId,
-      startedAt: suggestion.startedAt?.toISOString() ?? null,
-      finishedAt: suggestion.finishedAt?.toISOString() ?? null,
       createdAt: suggestion.createdAt.toISOString(),
       sources: suggestion.sources.map((source) => ({
         sourceDocumentId: source.sourceDocumentId,
         sourceRepresentationRevisionId: source.sourceRepresentationRevisionId,
-        executionStatus: source.executionStatus,
-        definition:
-          source.definition === null
-            ? null
-            : parseSchemaDefinition(source.definition),
-        failure: failureDto(source.failure),
-        startedAt: source.startedAt?.toISOString() ?? null,
-        finishedAt: source.finishedAt?.toISOString() ?? null,
       })),
     },
   })
 }
 
-/** Durable schema-suggestion HTTP lifecycle: all model work runs after 202. */
+/**
+ * Durable schema-suggestion HTTP lifecycle. Creation and retry admit an attempt's `suggestSchemaBatch` workflow with
+ * its rows and answer 202; the model work runs on DBOS's `suggest` queue. Reads only read: status is derived.
+ */
 export function createResearcherApiHandlers(
   store: ResearcherProjectStore,
   dependencies: ExtractionHandlerDependencies = {},
 ): Readonly<
   Record<string, (request: Request) => Response | Promise<Response>>
 > {
-  const extractionModels = dependencies.extractionModels ?? (() => configuredExtractionModels())
-  const operations = projectOperations
+  const extractionModels = dependencies.extractionModels ?? (() => configuredExtractionModels(store.researcherAccountId))
   const extractionModule = createResearcherExtractions(
     store.researcherAccountId,
   )
@@ -133,7 +126,6 @@ export function createResearcherApiHandlers(
         'invalid_selection',
         'Use Source Documents in this Project Context with a Source Representation.',
       )
-    operations.kick()
     return json(suggestionDto(opened.suggestion), { status: 202, headers: noStore })
   }
 
@@ -146,7 +138,6 @@ export function createResearcherApiHandlers(
       })
     if (!suggestions)
       throw new ApiError(404, 'not_found', 'Project Context was not found.')
-    operations.kick()
     return json(
       batchSchemaSuggestionListResponseSchema.parse({
         batchSchemaSuggestions: suggestions.map(
@@ -165,7 +156,6 @@ export function createResearcherApiHandlers(
       })
     if (!suggestion)
       throw new ApiError(404, 'not_found', 'Batch Schema Suggestion was not found.')
-    operations.kick()
     return json(suggestionDto(suggestion), { headers: noStore })
   }
 
@@ -255,15 +245,36 @@ export function createResearcherApiHandlers(
     return json(suggestionDto(suggestion), { status: 202, headers: noStore })
   }
 
-  const retry = async (url: URL, id: string) => {
+  const retry = async (request: Request, url: URL, id: string) => {
+    const parsed = batchSchemaSuggestionRetryRequestSchema.safeParse(
+      await parseJsonRequest(request),
+    )
+    if (!parsed.success)
+      throw new ApiError(
+        422,
+        'invalid_request',
+        'A retry names the attempt it follows as a positive integer expectedAttempt.',
+      )
     const result = await store
-      .retryBatchSchemaSuggestion(projectId(url), id)
+      .retryBatchSchemaSuggestion(projectId(url), id, parsed.data.expectedAttempt)
       .catch((cause) => {
         throw persistenceUnavailable(cause)
       })
     if (!result)
       throw new ApiError(404, 'not_found', 'Batch Schema Suggestion was not found.')
-    operations.kick()
+    if (result.status === 'attempt-conflict')
+      throw new ApiError(
+        409,
+        'attempt_conflict',
+        'The suggestion was regenerated since this page read it. Reload before trying again.',
+      )
+    if (result.status === 'not-ready')
+      throw new ApiError(
+        409,
+        'operation_not_ready',
+        'The suggestion can be regenerated only after its current attempt finished, before it is run, and while it has a Source Document.',
+      )
+    // A replay answers the successor this attempt already has, whether or not it finished.
     return json(suggestionDto(result.suggestion), { status: 202, headers: noStore })
   }
 
@@ -282,7 +293,7 @@ export function createResearcherApiHandlers(
         return await run(request, url, runMatch[1])
       const retryMatch = RETRY_ROUTE.exec(url.pathname)
       if (request.method === 'POST' && retryMatch)
-        return await retry(url, retryMatch[1])
+        return await retry(request, url, retryMatch[1])
       const item = ITEM_ROUTE.exec(url.pathname)
       if (request.method === 'GET' && item) return await read(url, item[1])
       throw new ApiError(404, 'not_found', 'API route not found.')

@@ -6,24 +6,27 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
+    "./kei-role": "./src/kei-role.ts",
     "./database-url": "./src/database-url.ts",
     "./postgres-test-helpers": "./src/postgres-test-helpers.ts"
   },
   "scripts": {
     "test": "tsx --test src/*.test.ts",
-    "test:postgres": "tsx --test --test-concurrency=1 src/project-store.postgres.check.ts src/source-reprocessing.postgres.check.ts",
+    "test:postgres": "tsx --test --test-concurrency=1 src/project-store.postgres.check.ts src/source-reprocessing.postgres.check.ts src/model-configuration.postgres.check.ts src/kei-role.postgres.check.ts src/pool-client-transaction.postgres.check.ts src/batch-schema-suggestion.postgres.check.ts src/source-deletion.postgres.check.ts",
     "typecheck": "tsc --noEmit",
     "contract:emit": "prisma-next contract emit",
     "db:start": "tsx src/start-development-database.ts",
     "db:reset": "tsx src/reset-database.ts && prisma-next migrate --yes",
     "db:init": "prisma-next migrate --yes",
-    "db:verify": "tsx src/verify-database.ts"
+    "db:verify": "tsx src/verify-database.ts",
+    "db:kei-role": "tsx src/ensure-kei-role.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.9.0",
   "devDependencies": {
+    "@dbos-inc/dbos-sdk": "5.1.10",
     "@types/node": "^24.13.2",
     "@types/pg": "^8.21.0",
     "prisma-next": "^0.16.0",

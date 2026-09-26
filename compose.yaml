@@ -19,12 +19,13 @@ x-parsing-build: &parsing-build
 x-parsing-runtime: &parsing-runtime
   build: *parsing-build
   init: true
-  # Check the schema after every restart as well as the initial migration.
-  # A source watch must not serve code against an older database schema.
-  entrypoint: ["sh", "-c", "kei-jobs schema && exec \"$$@\"", "--"]
   environment:
     KEI_RUNS: /app/runs
     KEI_SLOT: slot-1
+    # Studio's staged source PDFs (the source-inbox volume); only the worker mounts it, read-only.
+    KEI_SOURCE_INBOX: /app/source-inbox
+    # The OCR model of a parse whose owner chose none; the API's listing and `convert` read the same value.
+    KEI_OCR_MODEL: "${KEI_OCR_MODEL:-surya}"
     KEI_VLLM_URL: http://ocr_model:8000/v1/chat/completions
     # Extraction's vLLM servers exist on the GPU overlay only (compose.gpu.yaml),
     # which also registers NuExtract. Without it an operator may point the
@@ -55,38 +56,9 @@ services:
     networks:
       - app
 
-  # Kept separate from FREE's application database: the imported service owns
-  # its Procrastinate/job schema and has no access to Researcher Account data.
-  parsing_db:
-    image: postgres:17
-    environment:
-      POSTGRES_DB: kei
-      POSTGRES_USER: kei
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kei -d kei"]
-      interval: 2s
-      timeout: 5s
-      retries: 15
-    volumes:
-      - parsing-postgres:/var/lib/postgresql/data
-    networks:
-      - app
-
-  parsing_migrate:
-    build: *parsing-build
-    command: ["kei-jobs", "schema", "--apply"]
-    depends_on:
-      parsing_db:
-        condition: service_healthy
-    networks:
-      - app
-
   parsing_service:
     <<: *parsing-runtime
     command: ["uvicorn", "kei_exp.api:app", "--host", "0.0.0.0", "--port", "8001"]
-    depends_on:
-      parsing_migrate:
-        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/models', timeout=5)"]
       interval: 10s
@@ -96,15 +68,21 @@ services:
 
   parsing_worker:
     <<: *parsing-runtime
-    command: ["kei-jobs", "worker"]
+    command: ["kei-worker", "worker"]
     # Restarting only the API leaves the worker's admitted conversions alive.
-    # A replacement worker starts after the old process exits and releases its
-    # slot ownership lock; never scale this single slot with replicas.
     restart: unless-stopped
     stop_grace_period: 60s
+    # Studio's entrypoint creates kei's role and schema (M2). A replacement
+    # worker starts after the old process exits and releases its slot lock;
+    # never scale this single slot with replicas.
     depends_on:
-      parsing_migrate:
-        condition: service_completed_successfully
+      studio:
+        condition: service_healthy
+    # A service-level list replaces the anchor's, so it restates the shared volumes.
+    volumes:
+      - parsing-runs:/app/runs
+      - parsing-models:/models
+      - source-inbox:/app/source-inbox:ro
 
   studio:
     build:
@@ -114,16 +92,21 @@ services:
       NODE_ENV: production
       # Parsing and extraction use the service built from this checkout.
       KEI_EXP_URL: http://parsing_service:8001
-      KEI_EXP_MODEL: "${KEI_EXP_MODEL:-surya}"
       STUDIO_ORIGIN: "${STUDIO_ORIGIN:-https://localhost:8443}"
       STUDIO_BASE_PATH: "${STUDIO_BASE_PATH:-/free}"
       FREE_STUDIO_PROXY: trusted-proxy
+      FREE_SOURCE_INBOX: /var/lib/free/source-inbox
+      # The CLI providers (comma-separated `codex-cli`, `claude-code`) Studio
+      # offers every researcher as read-only deployment connections. They run
+      # on this server's own CLI login and billing, so none is enabled unless
+      # the operator sets it; the development overlay enables both.
+      FREE_DEPLOYMENT_CLI_PROVIDERS: "${FREE_DEPLOYMENT_CLI_PROVIDERS:-}"
       # A Claude Code connection spawns the `claude` CLI as a subprocess; it
       # authenticates from this env var (`claude setup-token`'s own output)
       # rather than an interactive login, since the CLI's usual credential
       # storage (macOS Keychain on a developer host) isn't reachable from
-      # inside this container. Optional: unset if no Claude Code connection
-      # is configured in model-config.json.
+      # inside this container. Optional: set only if FREE_DEPLOYMENT_CLI_PROVIDERS
+      # enables the Claude Code deployment connection.
       CLAUDE_CODE_OAUTH_TOKEN: "${CLAUDE_CODE_OAUTH_TOKEN:-}"
       # FREE_STUDIO_PROXY_ADDRESS comes from the overlay: development trusts
       # the dedicated proxy network (the nginx container is its only other
@@ -139,8 +122,6 @@ services:
         condition: service_healthy
       parsing_service:
         condition: service_healthy
-      parsing_worker:
-        condition: service_started
     healthcheck:
       # Studio rejects direct HTTP peers outside the proxy network. A local TCP
       # connection proves the server started after migrations.
@@ -156,7 +137,7 @@ services:
     volumes:
       # Canonical ingestion packages under `env-paths('FREE Studio').data`.
       - studio-data:/root/.local/share
-      # `model-config.json` under `env-paths('FREE Studio').config`.
+      # CODEX_HOME (Codex CLI login state).
       - studio-config:/root/.config
       # Claude Code CLI login state (`claude /login` or `claude setup-token`,
       # run once with `docker exec`). Not shared with the host: the host CLI's
@@ -164,18 +145,20 @@ services:
       # cannot read regardless of what's mounted here, so this volume only
       # persists a login performed inside the container itself.
       - studio-claude:/root/.claude
+      # Source PDFs staged for kei's worker (M4); the worker mounts it read-only.
+      - source-inbox:/var/lib/free/source-inbox
     networks:
       app:
       proxy:
 
 volumes:
   postgres-data:
-  parsing-postgres:
   parsing-runs:
   parsing-models:
   studio-data:
   studio-config:
   studio-claude:
+  source-inbox:
 
 networks:
   app:

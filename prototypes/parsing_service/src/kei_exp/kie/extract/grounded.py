@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import hashlib
 import re
+import threading
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -156,9 +158,17 @@ class _Run:
 
 
 def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options: CatalogOptions,
-                     segmentation: Segmentation, chat: Chat | Router, counter: Counter | dict[str, Counter]) -> dict:
+                     segmentation: Segmentation, chat: Chat | Router, counter: Counter | dict[str, Counter], *,
+                     chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
     """The version 2 artifact body for `schema` over `segmentation` (without run identity and fingerprint). `counter`
-    is one counter for every call, or one per role when the roles are served apart."""
+    is one counter for every call, or one per role when the roles are served apart.
+
+    `chunks` contiguous runs of entries are extracted at once, each in its own thread with its own `_Run`, because
+    `_Run.call` mutates run state; the segmentation, budget checks, bindings and document fields are computed once,
+    and the chunks' records, calls and issues are merged back in entry order. `before_entry` is called before every
+    entry, and what it raises ends the extraction."""
+    if chunks < 1:
+        raise ValueError("chunks must be at least 1")
     started, clock = datetime.now(UTC).isoformat(), time.monotonic()
     counters = counter if isinstance(counter, dict) else dict.fromkeys(ROLES, counter)
     distinct = list({id(each): each for each in counters.values()}.values())
@@ -184,13 +194,20 @@ def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options
         run.issue("schema_exceeds_budget", f"the instructions and schema alone count {_schema_alone(run, schema)} "
                   f"tokens, over the input budget of {options.input_tokens}; nothing was sent")
         run.refused = True
+    pieces: list[list[tuple[int, Block]]] = []
     if not run.refused:
-        document = _document(run)
-        for number, block in enumerate(segmentation.blocks):
-            record, found, contest = _block(run, number, block, headings, bindings, segmentation)
-            outcomes += found
-            competitors += contest
-            records.append(merge(record, document, evidence.source_name, schema))
+        document = _document(run)  # once for the whole document; every chunk's records merge it
+        pieces = _pieces(list(enumerate(segmentation.blocks)), chunks)
+        for part, found in _in_chunks(run, pieces, before_entry,
+                                      lambda part, number, block: _block(part, number, block, headings, bindings,
+                                                                         segmentation)):
+            run.calls += part.calls        # chunk order is entry order: prelude calls, then each chunk's
+            run.issues += part.issues
+            run.refused = run.refused or part.refused
+            for record, block_outcomes, contest in found:
+                outcomes += block_outcomes
+                competitors += contest
+                records.append(merge(record, document, evidence.source_name, schema))
     if not segmentation.blocks:
         run.issue("no_records", "the segmentation resolved no entry")
     accepted = [outcome for outcome in outcomes if outcome.kind == "accepted"]
@@ -204,6 +221,7 @@ def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options
                     "recall": "unmeasured"}
     return {
         "extraction_version": EXTRACTION_VERSION, "prompt_version": PROMPT_VERSION, "strategy": "catalog",
+        "chunks": len(pieces),
         "started": started, "seconds": round(time.monotonic() - clock, 3),
         "segmentation": {"fingerprint": segmentation.fingerprint, "digest": segmentation.digest,
                          "recipe": {"id": recipe.id, "version": recipe.version,
@@ -244,6 +262,44 @@ def fingerprint(body: dict, generation: str, digest: str, schema: Schema, option
         "options": options, "model": model, "prompt_version": PROMPT_VERSION,
         "recipe": body["segmentation"]["recipe"], "segmentation": body["segmentation"]["fingerprint"],
         "budget": body["budget"], "normalization": body["normalization"]})).hexdigest()
+
+
+def _pieces(entries: list, chunks: int) -> list[list]:
+    """`entries` in at most `chunks` contiguous runs whose sizes differ by at most one; none is empty."""
+    count = min(chunks, len(entries))
+    bounds = [index * len(entries) // count for index in range(count + 1)] if count else []
+    return [entries[bounds[index]:bounds[index + 1]] for index in range(count)]
+
+
+def _in_chunks(prelude: _Run, pieces: list[list[tuple[int, Block]]], before_entry: Callable[[], None] | None,
+               work: Callable[[_Run, int, Block], tuple]) -> list[tuple[_Run, list]]:
+    """Each piece with its own `_Run`, one thread per piece when there are several. A failed piece stops the others
+    at their next entry; the first failure in entry order is raised once every thread has returned."""
+    halt = threading.Event()
+
+    def one(piece):
+        part = _Run(prelude.evidence, prelude.schema, prelude.recipe, prelude.options, prelude.chat, prelude.counters)
+        found = []
+        try:
+            for number, block in piece:  # the document-wide entry number, so issues and calls name the record
+                if halt.is_set():
+                    break
+                if before_entry is not None:
+                    before_entry()
+                found.append(work(part, number, block))
+        except BaseException:
+            halt.set()
+            raise
+        return part, found
+
+    if len(pieces) <= 1:
+        return [one(piece) for piece in pieces]
+    with ThreadPoolExecutor(max_workers=len(pieces), thread_name_prefix="catalog-chunk") as pool:
+        futures = [pool.submit(one, piece) for piece in pieces]
+    for future in futures:
+        if (error := future.exception()) is not None:
+            raise error
+    return [future.result() for future in futures]
 
 
 # --- prompts and budget --------------------------------------------------------------------------------------------

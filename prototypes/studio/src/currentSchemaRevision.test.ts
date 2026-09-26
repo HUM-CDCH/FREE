@@ -65,13 +65,19 @@ function setupDurable(options: {
     : []
   let appendResult: SchemaRevision | SchemaRevisionConflictError | Error | null =
     null
+  let hold: PromiseWithResolvers<void> | null = null
 
   const persistence = durableSchemaPersistence({
+    projectContextId: 'project-1',
     initial: options.initial ?? null,
     debounceMs: options.debounceMs,
     append: async (_extractionSchemaId, expectedRevisionNumber, sent) => {
       events.push('append')
       appends.push({ expected: expectedRevisionNumber, definition: sent })
+      if (hold) {
+        await hold.promise
+        hold = null
+      }
       if (appendResult instanceof SchemaRevisionConflictError) throw appendResult
       if (appendResult instanceof Error) throw appendResult
       const next =
@@ -127,6 +133,11 @@ function setupDurable(options: {
       controller.snapshot().save?.status ?? null,
     failNextAppendWith: (error: SchemaRevisionConflictError | Error) => {
       appendResult = error
+    },
+    /** The next append waits until the returned function is called. */
+    holdNextAppend: () => {
+      hold = Promise.withResolvers<void>()
+      return () => hold?.resolve()
     },
   }
 }
@@ -428,6 +439,144 @@ describe('generation lifecycle', () => {
     })
   })
 
+  it('Stop cancels the running generation on the server; unmounting only detaches', async () => {
+    const setup = setupDurable({ initial: revision(4, 'site'), debounceMs: 0 })
+    const cancel = vi.fn(async () => {})
+    let first: AbortSignal | undefined
+    void setup.controller.generate((signal) => {
+      first = signal
+      return new Promise<unknown>(() => {})
+    }, { cancel })
+
+    setup.controller.cancelGeneration()
+
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(first!.aborted).toBe(true)
+    expect(setup.controller.snapshot().view).toBe('editing')
+
+    const later = vi.fn(async () => {})
+    let second: AbortSignal | undefined
+    void setup.controller.generate((signal) => {
+      second = signal
+      return new Promise<unknown>(() => {})
+    }, { cancel: later })
+
+    setup.controller.dispose()
+
+    expect(second!.aborted).toBe(true)
+    expect(later).not.toHaveBeenCalled()
+    expect(cancel).toHaveBeenCalledOnce()
+  })
+
+  it('a Stop whose server cancel fails says so, and the next generation clears it', async () => {
+    const setup = setupDurable({ initial: revision(4, 'site'), debounceMs: 0 })
+    const cancel = vi.fn(async () => { throw new Error('503') })
+    void setup.controller.generate(() => new Promise<unknown>(() => {}), { cancel })
+
+    setup.controller.cancelGeneration()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(setup.controller.snapshot()).toMatchObject({
+      view: 'editing', generating: false, generationError: null,
+      cancellationError: 'The generation could not be stopped on the server; it may still be running and will show as an earlier request after a reload.',
+    })
+
+    void setup.controller.generate(() => new Promise<unknown>(() => {}))
+    expect(setup.controller.snapshot().cancellationError).toBeNull()
+  })
+
+  it('restoreGeneration saves onto a clean base and drops on a conflict without an error', async () => {
+    const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 0 })
+
+    await expect(setup.controller.restoreGeneration({ _description: 'One restored record.', restored: 'string' }, 'rev-1')).resolves.toBe(true)
+
+    expect(setup.appends.map((append) => append.expected)).toEqual([1])
+    expect(setup.controller.snapshot()).toMatchObject({ view: 'editing', generating: false, generationError: null, extractableSchemaRevisionId: 'rev-2' })
+    expect(setup.controller.snapshot().draft!.recordDescription).toBe('One restored record.')
+
+    setup.failNextAppendWith(new SchemaRevisionConflictError(revision(7, 'elsewhere')))
+    await expect(setup.controller.restoreGeneration({ _description: 'One late record.', late: 'string' }, 'rev-2')).resolves.toBe(false)
+
+    expect(setup.controller.snapshot().generationError).toBeNull()
+    expect(setup.controller.snapshot().draft).toEqual(definition('elsewhere'))
+    expect(setup.controller.snapshot().extractableSchemaRevisionId).toBe('rev-7')
+    expect(setup.saveState()).toBe('saved')
+  })
+
+  it('restoreGeneration keeps edits made meanwhile when the append fails for another reason than a conflict', async () => {
+    const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 0 })
+    const release = setup.holdNextAppend()
+    const restore = setup.controller.restoreGeneration({ _description: 'One restored record.', restored: 'string' }, 'rev-1')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(setup.appends).toHaveLength(1)
+
+    setup.controller.commit((current) => [...current, node('year')], 'edit')
+    setup.failNextAppendWith(new Error('network'))
+    release()
+
+    await expect(restore).resolves.toBe(false)
+    expect(setup.controller.snapshot().draft!.schemaNodes.map((n) => n.name)).toEqual(['site', 'year'])
+    expect(setup.controller.snapshot().generationError).toBeNull()
+    expect(setup.saveState()).not.toBe('saved')
+  })
+
+  it('restoreGeneration refuses a dirty draft, a moved base and a running generation', async () => {
+    const dirty = setupDurable({ initial: revision(1, 'site'), debounceMs: 10_000 })
+    dirty.controller.commit((current) => [...current, node('year')], 'edit')
+    await expect(dirty.controller.restoreGeneration({ _description: 'One record.', a: 'string' }, 'rev-1')).resolves.toBe(false)
+    expect(dirty.appends).toHaveLength(0)
+
+    const moved = setupDurable({ initial: revision(4, 'site'), debounceMs: 0 })
+    await expect(moved.controller.restoreGeneration({ _description: 'One record.', a: 'string' }, 'rev-3')).resolves.toBe(false)
+    expect(moved.appends).toHaveLength(0)
+    expect(moved.controller.snapshot().draft).toEqual(definition('site'))
+
+    const running = setupDurable({ initial: revision(1, 'site'), debounceMs: 0 })
+    void running.controller.generate(() => new Promise<unknown>(() => {}))
+    await expect(running.controller.restoreGeneration({ _description: 'One record.', a: 'string' }, 'rev-1')).resolves.toBe(false)
+    expect(running.appends).toHaveLength(0)
+  })
+
+  it('restoreGeneration initializes the first schema only while none exists', async () => {
+    const setup = setupDurable()
+
+    await expect(setup.controller.restoreGeneration({ _description: 'One first record.', place: 'string' }, null)).resolves.toBe(true)
+
+    expect(setup.events).toContain('initialize')
+    expect(setup.controller.snapshot()).toMatchObject({ view: 'editing', extractionSchemaId: 'schema-1', extractableSchemaRevisionId: 'rev-1' })
+    expect(setup.controller.snapshot().draft!.recordDescription).toBe('One first record.')
+    await expect(setup.controller.restoreGeneration({ _description: 'One second record.', place: 'string' }, null)).resolves.toBe(false)
+    expect(setup.events.filter((event) => event === 'initialize')).toHaveLength(1)
+  })
+
+  it('a surviving tab keeps saving through its acknowledged head, including edits during generation', async () => {
+    const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 0 })
+    const held = Promise.withResolvers<unknown>()
+    const generation = setup.controller.generate(() => held.promise)
+
+    setup.controller.commit((current) => [...current, node('year')], 'edit')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(setup.saveState()).toBe('saved')
+    expect(setup.controller.snapshot().extractableSchemaRevisionId).toBe('rev-2')
+
+    held.resolve({ _description: 'One generated record.', place: 'string' })
+    await generation
+
+    expect(setup.appends.map((append) => append.expected)).toEqual([1, 2])
+    expect(setup.saveState()).toBe('saved')
+    expect(setup.controller.snapshot()).toMatchObject({ generating: false, generationError: null, extractableSchemaRevisionId: 'rev-3' })
+  })
+
+  it('operationScope names the durable project and schema, and is null for a local draft', () => {
+    const durable = setupDurable({ initial: revision(1, 'site') })
+    expect(durable.controller.operationScope()).toEqual({ projectContextId: 'project-1', extractionSchemaId: 'schema-1' })
+    const fresh = setupDurable()
+    expect(fresh.controller.operationScope()).toEqual({ projectContextId: 'project-1', extractionSchemaId: null })
+    const local = createSchemaEditorController(localSchemaPersistence({ onEdit: () => {} }))
+    expect(local.operationScope()).toBeNull()
+  })
+
   it('keeps durable identity when cancelled initialization still acknowledges', async () => {
     let resolveInitialize!: (value: SchemaRevision) => void
     const initialize = vi.fn(
@@ -437,6 +586,7 @@ describe('generation lifecycle', () => {
         }),
     )
     const persistence = durableSchemaPersistence({
+      projectContextId: 'project-1',
       initial: null,
       debounceMs: 0,
       append: async (_schemaId, expected, sent) =>

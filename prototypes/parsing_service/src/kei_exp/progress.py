@@ -64,6 +64,8 @@ class _Printer:
                         self._line(f"{where(event).capitalize()}: image={event['image']}, "
                                    f"input_tokens={event['input_tokens']}, output_tokens={event['output_tokens']}, "
                                    f"stop={event['stop']}")
+                case "spread":
+                    self._line(f"Ingest: reading spread {event['spread']}/{event['total']}")
                 case "log":
                     self._line(event["text"])
 

@@ -26,6 +26,7 @@ const extraction: ExtractionAttemptSnapshot = {
   extractionSchemaId,
   schemaRevisionNumber: 2,
   strategy: 'ARTICLE',
+  catalogRecipe: null,
   executionStatus: 'COMPLETED',
   outcome: 'SUCCEEDED',
   complete: true,

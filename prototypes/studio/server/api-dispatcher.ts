@@ -24,6 +24,8 @@ const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
   [/^\/api\/schema-revisions(?:\/[^/]+)?$/, 'schema_revisions'],
   [/^\/api\/extraction-schemas(?:\/[^/]+)?$/, 'extraction_schemas'],
   [/^\/api\/extraction-models$/, 'extraction_models'],
+  [/^\/api\/ingestion-models$/, 'ingestion_models'],
+  [/^\/api\/model-keys$/, 'model_keys'],
   [/^\/api\/extractions(?:\/[^/]+)?(?:\/review(?:\/(?:draft|reset))?)?$/, 'extractions'],
   [
     /^\/api\/batch-extractions(?:\/[^/]+)?(?:\/results)?$/,
@@ -37,12 +39,11 @@ const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
     /^\/api\/project-contexts\/[^/]+\/source-representations\/[^/]+\/(?:pdf|markdown|source)$/,
     'source_representations',
   ],
+  [/^\/api\/model-operations(?:\/[^/]+)?$/, 'model_operations'],
 ]
 
 const STATIC_API: Readonly<Record<string, true>> = {
   healthz: true,
-  model_config: true,
-  model_probe: true,
 }
 
 export type ApiHandler = (request: Request) => Response | Promise<Response>

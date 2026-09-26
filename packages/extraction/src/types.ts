@@ -189,9 +189,12 @@ export type ExtractionSnapshot = Readonly<{
   extractionSchemaId: string
   schemaRevisionNumber: number
   strategy: ExtractionStrategy
+  /** The numbered-catalogue recipe a Catalog Extraction ran with; null for generic Catalog and for Article. */
+  catalogRecipe: string | null
   /** The run's Extraction Model Choice; null (or absent) when every role kept kei-exp's deployment default. */
   requestedModels?: ExtractionModelChoice | null
-  outcome: ExtractionOutcome
+  /** Only a published Extraction has a result snapshot. */
+  outcome: 'SUCCEEDED'
   complete: boolean | null
   modelAttribution: ExtractionModelAttribution | null
   diagnostics: ExtractionDiagnostics
@@ -214,10 +217,13 @@ export type ExtractionAttemptSnapshot = Readonly<{
   extractionSchemaId: string
   schemaRevisionNumber: number
   strategy: ExtractionStrategy
+  /** The numbered-catalogue recipe a Catalog Extraction ran with; null for generic Catalog and for Article. */
+  catalogRecipe: string | null
   /** The run's Extraction Model Choice; null (or absent) when every role kept kei-exp's deployment default. */
   requestedModels?: ExtractionModelChoice | null
   executionStatus: ProjectOperationStatus
-  outcome: ExtractionOutcome | null
+  /** SUCCEEDED once published; a failed, cancelled or interrupted attempt is FAILED with its failure instead. */
+  outcome: 'SUCCEEDED' | null
   complete: boolean | null
   modelAttribution: ExtractionModelAttribution | null
   diagnostics: ExtractionDiagnostics | null
@@ -272,17 +278,16 @@ export type BatchExtractionMemberSnapshot = Readonly<{
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
   executionStatus: ProjectOperationStatus
+  /** Why the member failed, was cancelled or was interrupted; null unless its status is FAILED. */
   failureMessage: string | null
-  startedAt: Date | null
-  finishedAt: Date | null
+  /** The member's published Extraction; a member that failed has none. */
   latestExtraction: Readonly<{
     extractionId: string
-    outcome: ExtractionOutcome
+    outcome: 'SUCCEEDED'
     complete: boolean | null
     reviewable: boolean
     createdAt: Date
     reviewedAt: Date | null
-    failureMessage: string | null
   }> | null
 }>
 
@@ -294,10 +299,8 @@ export type BatchExtractionSnapshot = Readonly<{
   extractionSchemaName: string
   schemaRevisionNumber: number
   strategy: ExtractionStrategy
+  /** QUEUED while every member is, COMPLETED once every member has settled, RUNNING otherwise; never FAILED. */
   executionStatus: ProjectOperationStatus
-  failureMessage: string | null
-  startedAt: Date | null
-  finishedAt: Date | null
   createdAt: Date
   members: readonly BatchExtractionMemberSnapshot[]
 }>
@@ -362,7 +365,7 @@ export type DocumentExtractionsSnapshot = Readonly<{
 
 
 export interface ExtractionModule {
-  runSingle(input: RunSingleInput, signal?: AbortSignal): Promise<RunSingleResult>
+  runSingle(input: RunSingleInput): Promise<RunSingleResult>
   readExtractionAttempt(extractionId: string): Promise<ExtractionAttemptSnapshot | null>
   cancelSingle(extractionId: string): Promise<CancellationResult>
   prepareReview(extractionId: string): Promise<ReviewPreparation>
@@ -376,12 +379,6 @@ export interface ExtractionModule {
   listBatches(input: ListBatchesInput): Promise<readonly BatchExtractionSnapshot[]>
   readBatch(input: ReadBatchInput): Promise<BatchExtractionSnapshot>
   readBatchResults(input: ReadBatchInput): Promise<BatchExtractionResults>
-}
-
-export interface ExtractionRuntime {
-  forResearcher(researcherAccountId: string): ExtractionModule
-  run(signal: AbortSignal): Promise<void>
-  close(): Promise<void>
 }
 import type { ScalarFieldType as SchemaScalarFieldType } from './allowed-values.js'
 type CatalogBoundary = {

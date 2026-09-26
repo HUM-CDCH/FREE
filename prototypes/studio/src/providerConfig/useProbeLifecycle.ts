@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { isValidApiBase, type CredentialState, type ModelConnection, type ProbeResult, type ProviderDescriptor } from '../../shared/modelConfig.contract'
+import {
+  isValidApiBase,
+  modelKeyIssue,
+  type ModelConnection,
+  type ProbeResult,
+  type ProviderDescriptor,
+} from '../../shared/modelConfig.contract'
 import { apiErrorText, probeModelConnection } from './providerConfig.data'
 
 export type ProbeView =
@@ -7,6 +13,40 @@ export type ProbeView =
   | { phase: 'checking' }
   | { phase: 'done'; result: ProbeResult }
   | { phase: 'error'; message: string }
+
+/**
+ * Whether two versions of a connection would be probed differently. A probe depends on the provider, the API base and
+ * `hasKey` (which decides the credential), and on whether the connection has a name at all: a blank one is not
+ * probed. A rename alone changes nothing, so it never probes again, re-sends a key or clears a model list.
+ */
+export function probesDiffer(before: ModelConnection, after: ModelConnection): boolean {
+  return (
+    before.provider !== after.provider ||
+    before.baseUrl !== after.baseUrl ||
+    before.hasKey !== after.hasKey ||
+    !before.name.trim() !== !after.name.trim()
+  )
+}
+
+/** What a probe's state says, in one line. */
+export function probeText(probe: ProbeView | undefined): string {
+  if (!probe || probe.phase === 'idle') return 'Not checked yet.'
+  if (probe.phase === 'checking') return 'Checking…'
+  if (probe.phase === 'error') return probe.message
+  return probe.result.message
+}
+
+/** Whether a probe's connection answered (`ok`), failed (`failed`), is being checked, or was never checked. */
+export function probeTone(probe: ProbeView | undefined): 'ok' | 'failed' | 'checking' | 'idle' {
+  if (probe?.phase === 'done') return probe.result.status === 'connected' ? 'ok' : 'failed'
+  if (probe?.phase === 'error') return 'failed'
+  return probe?.phase === 'checking' ? 'checking' : 'idle'
+}
+
+/** The models a probe listed; none until it answered. */
+export function probeCatalog(probe: ProbeView | undefined): ProbeResult['catalog'] {
+  return probe?.phase === 'done' ? probe.result.catalog : []
+}
 
 type LifecycleRecord = {
   sequence: number
@@ -16,10 +56,13 @@ type LifecycleRecord = {
 
 type ProbeInputs = {
   providers: readonly ProviderDescriptor[]
-  credentialStates: Readonly<Record<string, CredentialState>>
 }
 
-export function useProbeLifecycle({ providers, credentialStates }: ProbeInputs) {
+/**
+ * A probe's `credential` is what the draft says it may carry (`credentialFor`): a key for a connection with `hasKey`,
+ * `null` for a keyless one, `undefined` when this browser holds no key for it, which is never probed.
+ */
+export function useProbeLifecycle({ providers }: ProbeInputs) {
   const [probes, setProbes] = useState<Record<string, ProbeView>>({})
   const lifecycles = useRef(new Map<string, LifecycleRecord>())
 
@@ -27,14 +70,12 @@ export function useProbeLifecycle({ providers, credentialStates }: ProbeInputs) 
     return providers.find(({ kind }) => kind === connection.provider)
   }
 
-  function canProbe(connection: ModelConnection, action: string | null | undefined): boolean {
+  function canProbe(connection: ModelConnection, credential: string | null | undefined): boolean {
     const provider = providerFor(connection)
-    if (!provider || !connection.name.trim()) return false
-    if (provider.transport === 'http' && !isValidApiBase(connection.baseUrl)) return false
-    if (provider.authentication !== 'managed') return true
-    return typeof action === 'string' && action.length > 0
-      ? true
-      : action === undefined && credentialStates[connection.id] === 'present'
+    if (credential === undefined || !provider || !connection.name.trim()) return false
+    // A key Studio would refuse (too long, or not printable ASCII) is never sent; the key line says why.
+    if (typeof credential === 'string' && credential !== '' && modelKeyIssue(credential) !== null) return false
+    return provider.transport !== 'http' || isValidApiBase(connection.baseUrl)
   }
 
   function supersede(connectionId: string): LifecycleRecord {
@@ -54,7 +95,7 @@ export function useProbeLifecycle({ providers, credentialStates }: ProbeInputs) 
 
   async function execute(
     connection: ModelConnection,
-    action: string | null | undefined,
+    credential: string | null,
     record: LifecycleRecord,
     sequence: number,
   ): Promise<void> {
@@ -65,7 +106,7 @@ export function useProbeLifecycle({ providers, credentialStates }: ProbeInputs) 
     setProbes((current) => ({ ...current, [connection.id]: { phase: 'checking' } }))
     try {
       const result = await probeModelConnection(connection, {
-        ...(action === undefined ? {} : { credential: action }),
+        ...(typeof credential === 'string' ? { credential } : {}),
         signal: controller.signal,
       })
       if (
@@ -92,23 +133,37 @@ export function useProbeLifecycle({ providers, credentialStates }: ProbeInputs) 
     }
   }
 
-  function schedule(connection: ModelConnection, action: string | null | undefined): void {
+  const idle = (connectionId: string) => setProbes((current) => ({ ...current, [connectionId]: { phase: 'idle' } }))
+
+  function schedule(connection: ModelConnection, credential: string | null | undefined): void {
     const record = supersede(connection.id)
-    if (!canProbe(connection, action)) {
-      setProbes((current) => ({ ...current, [connection.id]: { phase: 'idle' } }))
+    if (credential === undefined || !canProbe(connection, credential)) {
+      idle(connection.id)
       return
     }
     const sequence = record.sequence
-    record.timer = window.setTimeout(() => void execute(connection, action, record, sequence), 500)
+    record.timer = window.setTimeout(() => void execute(connection, credential, record, sequence), 500)
   }
 
-  function refresh(connection: ModelConnection, action: string | null | undefined): void {
+  function refresh(connection: ModelConnection, credential: string | null | undefined): void {
     const record = supersede(connection.id)
-    if (!canProbe(connection, action)) {
-      setProbes((current) => ({ ...current, [connection.id]: { phase: 'idle' } }))
+    if (credential === undefined || !canProbe(connection, credential)) {
+      idle(connection.id)
       return
     }
-    void execute(connection, action, record, record.sequence)
+    void execute(connection, credential, record, record.sequence)
+  }
+
+  /** The page's opening check: probes every entry once, now. An entry without a credential it may carry
+   *  (`undefined`) is not probed. */
+  function refreshAll(entries: readonly { connection: ModelConnection; credential: string | null | undefined }[]): void {
+    for (const { connection, credential } of entries) refresh(connection, credential)
+  }
+
+  /** Supersedes the connection's scheduled or running probe without scheduling another; its result is gone. */
+  function cancel(connectionId: string): void {
+    supersede(connectionId)
+    idle(connectionId)
   }
 
   function dispose(connectionId: string): void {
@@ -133,5 +188,5 @@ export function useProbeLifecycle({ providers, credentialStates }: ProbeInputs) 
     }
   }, [])
 
-  return { probes, canProbe, schedule, refresh, dispose }
+  return { probes, schedule, refreshAll, cancel, dispose }
 }

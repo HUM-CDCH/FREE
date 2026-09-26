@@ -13,10 +13,13 @@ if (!url)
   )
 validateDisposableTestDatabaseTarget(url)
 process.env.DATABASE_URL = url
-const { db } = await import('./prisma/db.js')
+const { db, pool } = await import('./prisma/db.js')
 const { createResearcherProjectStore, ReprocessConflictError } =
   await import('./project-store.js')
-after(() => db.close())
+after(async () => {
+  await db.close()
+  await pool.end()
+})
 
 // The root client must not satisfy the lock's parameter: its update would commit at once.
 // @ts-expect-error the root client is not a transaction context
@@ -32,7 +35,6 @@ test('reprocessing atomically appends, preserves history, and arbitrates concurr
   const store = createResearcherProjectStore(account.id, db)
   const project = await store.createProjectContext('Cell evidence')
   const base = {
-    ingestionKey: randomUUID(),
     contentSha256: 'a'.repeat(64),
     mediaType: 'application/pdf',
     originalName: 'cells.pdf',
@@ -48,7 +50,7 @@ test('reprocessing atomically appends, preserves history, and arbitrates concurr
   assert.ok(first)
   const input = {
     ...base,
-    ingestionKey: randomUUID(),
+    requestKey: randomUUID(),
     expectedRepresentationId: first.sourceRepresentationId,
     requestFingerprint: 'c'.repeat(64),
   }
@@ -71,18 +73,18 @@ test('reprocessing atomically appends, preserves history, and arbitrates concurr
       project.projectContextId,
       first.sourceRepresentationId,
     ),
-    first.descriptor,
+    { ...first.descriptor, sourceDocumentId: first.sourceDocumentId },
   )
   const next = {
     ...input,
     expectedRepresentationId: sameKey[0]!.sourceRepresentationId,
   }
   const differentKeys = await Promise.allSettled(
-    [randomUUID(), randomUUID()].map((ingestionKey) =>
+    [randomUUID(), randomUUID()].map((requestKey) =>
       store.reprocessSourceDocument(
         project.projectContextId,
         first.sourceDocumentId,
-        { ...next, ingestionKey },
+        { ...next, requestKey },
       ),
     ),
   )
@@ -115,7 +117,7 @@ test('reprocessing atomically appends, preserves history, and arbitrates concurr
       first.sourceDocumentId,
       {
         ...next,
-        ingestionKey: randomUUID(),
+        requestKey: randomUUID(),
         ensureRetained: async () => {
           throw new Error('unavailable')
         },
@@ -155,7 +157,6 @@ test('reprocess publication waits for a held Source Document row lock', async ()
   const store = createResearcherProjectStore(account.id, db)
   const project = await store.createProjectContext('Lock evidence')
   const base = {
-    ingestionKey: randomUUID(),
     contentSha256: 'd'.repeat(64),
     mediaType: 'application/pdf',
     originalName: 'locked.pdf',
@@ -176,7 +177,7 @@ test('reprocess publication waits for a held Source Document row lock', async ()
     () =>
       store.reprocessSourceDocument(project.projectContextId, first.sourceDocumentId, {
         ...base,
-        ingestionKey: randomUUID(),
+        requestKey: randomUUID(),
         expectedRepresentationId: first.sourceRepresentationId,
         requestFingerprint: 'f'.repeat(64),
       }),
@@ -209,7 +210,6 @@ test('the Source Document row lock is held until the locking transaction commits
   const store = createResearcherProjectStore(account.id, db)
   const project = await store.createProjectContext('Held lock evidence')
   const first = await store.ingestSourceDocument(project.projectContextId, {
-    ingestionKey: randomUUID(),
     contentSha256: '1'.repeat(64),
     mediaType: 'application/pdf',
     originalName: 'held.pdf',

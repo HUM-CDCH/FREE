@@ -104,6 +104,7 @@ export function useDurableCurrentSchemaRevision(
           )
         : null)
     const persistence = durableSchemaPersistence({
+      projectContextId: scope.projectContextId,
       initial,
       debounceMs: scope.debounceMs,
       append: (extractionSchemaId, expectedRevisionNumber, definition) =>

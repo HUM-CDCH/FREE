@@ -1,7 +1,15 @@
-import { stableJson, stableUuid, uniqueConstraint, type Database } from 'db'
+import {
+  stableJson,
+  stableUuid,
+  suggestionAttemptActive,
+  suggestWorkflowId,
+  withPoolClientTransaction,
+  type Database,
+} from 'db'
+import type { ExtractionExecution } from './dependencies.js'
 import { modelChoice } from './model-choice.js'
 import { ExtractionError } from './errors.js'
-import type { DurableBatchExtraction } from './postgres-persistence.js'
+import type { AdmitBatchMember, DurableBatchExtraction } from './postgres-persistence.js'
 import { parseBatchSuggestionDefinition } from './schema.js'
 import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
 import type {
@@ -9,49 +17,72 @@ import type {
   ScheduleSuggestedBatchInput,
 } from './types.js'
 
-/** Owns the atomic Schema Suggestion → Extraction Schema → Batch handoff. */
+/**
+ * Owns the atomic Schema Suggestion → Extraction Schema → Batch handoff: the confirmed schema, the batch, one pending
+ * Extraction per saved pin and each member's `runExtraction` workflow commit together on one pooled client. The members
+ * keep the revisions saved with the suggestion, without a document lock: its fields were derived from those pins
+ * (PR #140's documented exemption). Run needs a valid draft, at least one surviving member and no active attempt
+ * (spec, *suggestSchemaBatch*), checked under the suggestion's row lock.
+ */
 export async function persistSuggestedBatch(
   database: Database,
   researcherAccountId: string,
   input: ScheduleSuggestedBatchInput,
   helpers: Readonly<{
+    execution: ExtractionExecution
+    admitBatchMember: AdmitBatchMember
+    /** `created`: the handoff committed just now, so its members answer as just admitted, not from DBOS. */
     loadBatch: (
       orm: Database['orm'],
       projectContextId: string,
       batchExtractionId: string,
+      created: boolean,
     ) => Promise<DurableBatchExtraction | null>
+    /** A unique violation on this handoff's own identities: a concurrent handoff of the suggestion committed first. */
+    replayed: (error: unknown) => boolean
     semanticSuggestionTree: (tree: unknown) => unknown
     snapshot: (batch: DurableBatchExtraction) => ScheduleBatchResult['batch']
   }>,
 ): Promise<ScheduleBatchResult | null> {
-  const { loadBatch, semanticSuggestionTree, snapshot } = helpers
+  const { execution, admitBatchMember, loadBatch, replayed, semanticSuggestionTree, snapshot } = helpers
   let status: 'created' | 'replayed' | 'missing' | 'not-ready' | 'invalid'
   try {
-    status = await database.transaction(async ({ orm }) => {
-      const project = await orm.public.ProjectContext.select('id').first({
+    status = await withPoolClientTransaction(async ({ orm }, client) => {
+      // Suggestion admission and source deletion lock the project before suggestions. Keep that order here.
+      const project = await orm.public.ProjectContext.where({
         id: input.projectContextId,
         researcherAccountId,
-      })
-      if (!project) return 'missing' as const
+      }).updateAll({ id: input.projectContextId })
+      if (project.length !== 1) return 'missing' as const
+      // A retry or draft edit waits until this handoff commits.
+      const locked = await orm.public.BatchSchemaSuggestion.where({
+        id: input.batchSchemaSuggestionId,
+        projectContextId: input.projectContextId,
+      }).updateAll({ id: input.batchSchemaSuggestionId })
+      if (locked.length !== 1) return 'missing' as const
       const suggestion = await orm.public.BatchSchemaSuggestion.select(
-        'executionStatus',
+        'attempt',
+        'outcome',
         'phase',
         'draft',
         'confirmedSchemaRevisionId',
         'batchExtractionId',
-      ).first({
-        id: input.batchSchemaSuggestionId,
-        projectContextId: input.projectContextId,
-      })
+      ).first({ id: input.batchSchemaSuggestionId })
       if (!suggestion) return 'missing' as const
       if (suggestion.confirmedSchemaRevisionId && suggestion.batchExtractionId)
         return 'replayed' as const
+      // A valid draft runs whatever the latest attempt's outcome, but not while an attempt that would replace it runs.
       if (
-        suggestion.executionStatus !== 'COMPLETED' ||
+        suggestion.confirmedSchemaRevisionId !== null ||
         suggestion.phase !== 'READY' ||
         suggestion.draft === null
       )
         return 'not-ready' as const
+      if (suggestion.outcome === null) {
+        const attemptId = suggestWorkflowId(input.batchSchemaSuggestionId, suggestion.attempt)
+        if (suggestionAttemptActive(suggestion.outcome, (await execution.statuses([attemptId])).get(attemptId)))
+          return 'not-ready' as const
+      }
       let draft
       try {
         draft = parseBatchSuggestionDefinition(suggestion.draft)
@@ -64,13 +95,24 @@ export async function persistSuggestedBatch(
         .select('sourceDocumentId', 'sourceRepresentationRevisionId')
         .orderBy((source) => source.sourceDocumentId.asc())
         .all()
+      // Source deletion removes pins: an empty selection keeps its draft but has nothing to run.
+      if (members.length === 0) return 'not-ready' as const
       if (
-        members.length === 0 ||
         members.length > BATCH_EXTRACTION_SELECTION_LIMIT ||
         new Set(members.map((member) => member.sourceDocumentId)).size !==
           members.length
       )
         return 'invalid' as const
+      // Read before any write: returning from the transaction commits it.
+      const pinned: Array<(typeof members)[number] & { preprocessId: string }> = []
+      for (const member of members) {
+        const revision = await orm.public.SourceRepresentationRevision.select('preprocessId').first({
+          id: member.sourceRepresentationRevisionId,
+          sourceDocumentId: member.sourceDocumentId,
+        })
+        if (!revision) return 'invalid' as const
+        pinned.push({ ...member, preprocessId: revision.preprocessId })
+      }
       const extractionSchemaId = stableUuid(
         'confirmed-batch-schema-suggestion',
         `${input.batchSchemaSuggestionId}:${stableJson(
@@ -110,34 +152,25 @@ export async function persistSuggestedBatch(
         schemaRevisionId,
         strategy: input.strategy,
       })
-      for (const member of members) {
-        const initialExtractionJobId = stableUuid(
-          'batch-member-extraction-job',
-          stableJson([batchExtractionId, member.sourceRepresentationRevisionId]),
-        )
-        await orm.public.ExtractionJob.create({
-          id: initialExtractionJobId,
-          kind: 'BATCH_MEMBER',
-          requestedModels: modelChoice(input.models),
+      const requestedModels = modelChoice(input.models)
+      for (const member of pinned)
+        await admitBatchMember(orm, client, execution, {
+          owner: researcherAccountId,
           projectContextId: input.projectContextId,
-          ...member,
+          extractionSchemaId,
           schemaRevisionId,
           strategy: input.strategy,
-          batchExtractionId,
-        })
-        await orm.public.BatchExtractionMember.create({
+          requestedModels,
           batchExtractionId,
           ...member,
-          initialExtractionJobId,
         })
-      }
       await orm.public.BatchSchemaSuggestion.where({
         id: input.batchSchemaSuggestionId,
       }).update({ confirmedSchemaRevisionId: schemaRevisionId, batchExtractionId })
       return 'created' as const
     })
   } catch (error) {
-    if (!uniqueConstraint(error)) throw error
+    if (!replayed(error)) throw error
     status = 'replayed'
   }
   if (status === 'missing') return null
@@ -146,7 +179,7 @@ export async function persistSuggestedBatch(
       'batch_not_ready',
       'The suggested fields are not ready to run.',
     )
-  const batch = await database.transaction(async ({ orm }) => {
+  const batchExtractionId = await database.transaction(async ({ orm }) => {
     const project = await orm.public.ProjectContext.select('id').first({
       id: input.projectContextId,
       researcherAccountId,
@@ -159,14 +192,11 @@ export async function persistSuggestedBatch(
         id: input.batchSchemaSuggestionId,
         projectContextId: input.projectContextId,
       })
-    return suggestion?.batchExtractionId
-      ? loadBatch(
-          orm,
-          input.projectContextId,
-          suggestion.batchExtractionId,
-        )
-      : null
+    return suggestion?.batchExtractionId ?? null
   })
+  const batch = batchExtractionId
+    ? await loadBatch(database.orm, input.projectContextId, batchExtractionId, status === 'created')
+    : null
   if (!batch)
     throw new Error('Confirmed Batch Schema Suggestion could not be read.')
   return { disposition: status, batch: snapshot(batch) }

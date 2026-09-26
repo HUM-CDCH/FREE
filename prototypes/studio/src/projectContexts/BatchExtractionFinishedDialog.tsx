@@ -13,26 +13,24 @@ type DocumentReport =
   | { status: 'loading' }
   | { status: 'ready'; grounded: number; ungrounded: number }
   | { status: 'failed' }
-  | { status: 'cancelled' }
   | { status: 'error' }
 
-/** Reads every SUCCEEDED member's full Extraction diagnostics — the same
+/** Reads every published member Extraction's full diagnostics — the same
  *  per-member fetch the review grid's own hook makes lazily, just run
  *  eagerly here so each document's own grounded/ungrounded counts can be
  *  reported, not only a batch-wide sum. */
 function useBatchDocumentReports(
   batch: BatchExtraction,
 ): ReadonlyMap<string, DocumentReport> {
-  // Only ever holds the fetched outcome of SUCCEEDED members — FAILED/
-  // CANCELLED/loading are derived synchronously from `batch` itself below,
-  // so this state never needs a synchronous reset at the top of the effect.
+  // Only ever holds the fetched outcome of members with a published
+  // Extraction — failed and loading are derived synchronously from `batch`
+  // itself below, so this state never needs a synchronous reset at the top of
+  // the effect.
   const [fetched, setFetched] = useState<ReadonlyMap<string, DocumentReport>>(new Map())
 
   useEffect(() => {
     const controller = new AbortController()
-    const succeeded = batch.members.filter(
-      (member) => member.latestExtraction?.outcome === 'SUCCEEDED',
-    )
+    const succeeded = batch.members.filter((member) => member.latestExtraction)
     Promise.all(
       succeeded.map((member) =>
         readExtraction(member.latestExtraction!.extractionId, controller.signal).then(
@@ -63,14 +61,11 @@ function useBatchDocumentReports(
   return useMemo(() => {
     const merged = new Map<string, DocumentReport>()
     for (const member of batch.members) {
-      const outcome = member.latestExtraction?.outcome
       merged.set(
         member.sourceDocumentId,
-        outcome === 'FAILED'
+        member.executionStatus === 'FAILED'
           ? { status: 'failed' }
-          : outcome === 'CANCELLED'
-            ? { status: 'cancelled' }
-            : (fetched.get(member.sourceDocumentId) ?? { status: 'loading' }),
+          : (fetched.get(member.sourceDocumentId) ?? { status: 'loading' }),
       )
     }
     return merged
@@ -114,8 +109,6 @@ function documentReportText(report: DocumentReport, fieldCount: number): string 
       return `${fieldCount} field${fieldCount === 1 ? '' : 's'} · ${report.grounded} grounded`
     case 'failed':
       return 'Failed to extract.'
-    case 'cancelled':
-      return 'Cancelled.'
     case 'error':
       return 'Evidence coverage could not be read.'
   }
@@ -145,7 +138,6 @@ export default function BatchExtractionFinishedDialog({
   const initialFocus = useRef<HTMLButtonElement>(null)
   const titleId = useId()
   const descriptionId = useId()
-  const failed = batch.executionStatus === 'FAILED'
   const progress = batchExtractionProgress(batch)
   const reports = useBatchDocumentReports(batch)
   const schemaNodes = useBatchSchemaNodes(projectContextId, batch)
@@ -160,14 +152,9 @@ export default function BatchExtractionFinishedDialog({
       onDismiss={onDismiss}
     >
       <h2 id={titleId} className="text-sm font-bold text-ink">
-        {failed ? 'Batch Extraction failed' : 'Batch Extraction finished'}
+        Batch Extraction finished
       </h2>
       <div id={descriptionId} className="mt-2 space-y-1 text-xs leading-relaxed text-ink-muted">
-        {failed && (
-          <p className="text-danger">
-            {batch.executionFailureMessage ?? 'Execution failed.'}
-          </p>
-        )}
         <p>
           {progress.total} Source Document{progress.total === 1 ? '' : 's'} extracted
           {progress.needsReview > 0 ? ` · ${progress.needsReview} need review` : ''}

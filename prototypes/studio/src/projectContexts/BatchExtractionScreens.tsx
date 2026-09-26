@@ -139,24 +139,13 @@ function batchStatus(batch: BatchExtraction): {
       tone: 'accent',
       running: true,
     }
-  if (batch.executionStatus === 'FAILED')
-    return {
-      label: batch.executionFailureMessage ?? 'Execution failed',
-      tone: 'danger',
-      running: false,
-    }
-  const withoutResult = batch.members.filter(
-    (member) =>
-      member.executionStatus === 'FAILED' && member.latestExtraction === null,
-  ).length
+  // A batch never fails as a whole: its members do, and each says why.
   const parts = [
-    withoutResult ? `${withoutResult} without a result` : null,
     progress.needsReview ? `${progress.needsReview} need review` : null,
     progress.unreviewable
       ? `${progress.unreviewable} with no reviewable result`
       : null,
     progress.failed ? `${progress.failed} failed` : null,
-    progress.cancelled ? `${progress.cancelled} cancelled` : null,
   ].filter((part): part is string => part !== null)
   if (parts.length === 0)
     return { label: 'Reviewed', tone: 'success', running: false }

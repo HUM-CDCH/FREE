@@ -60,6 +60,7 @@ function readySuggestionDto(
     batchSchemaSuggestionId: '74000000-0000-4000-8008-000000000001',
     projectContextId: id.project,
     selectionKey: 'a'.repeat(64),
+    attempt: 1,
     executionStatus: 'COMPLETED',
     phase: 'READY',
     proposal: schemaTree,
@@ -73,8 +74,6 @@ function readySuggestionDto(
     failure: null,
     confirmedSchemaRevisionId: null,
     batchExtractionId: null,
-    startedAt: '2026-08-19T10:00:00.000Z',
-    finishedAt: '2026-08-19T10:00:01.000Z',
     createdAt: '2026-08-19T10:00:00.000Z',
     sources: [
       [id.beretning, id.beretningRevision],
@@ -82,11 +81,6 @@ function readySuggestionDto(
     ].map(([sourceDocumentId, sourceRepresentationRevisionId]) => ({
       sourceDocumentId,
       sourceRepresentationRevisionId,
-      executionStatus: 'COMPLETED',
-      definition: schemaTree,
-      failure: null,
-      startedAt: '2026-08-19T10:00:00.000Z',
-      finishedAt: '2026-08-19T10:00:01.000Z',
     })),
   }
 }
@@ -113,9 +107,6 @@ function batchDto(batch: BatchExtractionSnapshot) {
     schemaRevisionNumber: batch.schemaRevisionNumber,
     strategy: batch.strategy,
     executionStatus: batch.executionStatus,
-    executionFailureMessage: batch.failureMessage,
-    startedAt: batch.startedAt?.toISOString() ?? null,
-    finishedAt: batch.finishedAt?.toISOString() ?? null,
     createdAt: batch.createdAt.toISOString(),
     members: batch.members.map((member) => ({
       sourceDocumentId: member.sourceDocumentId,
@@ -123,8 +114,6 @@ function batchDto(batch: BatchExtractionSnapshot) {
         member.sourceRepresentationRevisionId,
       executionStatus: member.executionStatus,
       executionFailureMessage: member.failureMessage,
-      startedAt: member.startedAt?.toISOString() ?? null,
-      finishedAt: member.finishedAt?.toISOString() ?? null,
       latestExtraction: member.latestExtraction && {
         extractionId: member.latestExtraction.extractionId,
         outcome: member.latestExtraction.outcome,
@@ -133,7 +122,6 @@ function batchDto(batch: BatchExtractionSnapshot) {
         createdAt: member.latestExtraction.createdAt.toISOString(),
         reviewedAt:
           member.latestExtraction.reviewedAt?.toISOString() ?? null,
-        failureMessage: member.latestExtraction.failureMessage,
       },
     })),
   }
@@ -232,8 +220,6 @@ function batchFixture(nested = false): {
     sourceRepresentationRevisionId,
     executionStatus: finished ? ('COMPLETED' as const) : ('QUEUED' as const),
     failureMessage: null,
-    startedAt: finished ? at(43) : null,
-    finishedAt: finished ? at(44) : null,
     latestExtraction: finished
       ? {
           extractionId,
@@ -242,7 +228,6 @@ function batchFixture(nested = false): {
           reviewable: true,
           createdAt: at(44),
           reviewedAt: null,
-          failureMessage: null,
         }
       : null,
   })
@@ -256,9 +241,6 @@ function batchFixture(nested = false): {
     schemaRevisionNumber: 4,
     strategy: 'ARTICLE',
     executionStatus: finished ? 'COMPLETED' : 'QUEUED',
-    failureMessage: null,
-    startedAt: finished ? at(43) : null,
-    finishedAt: finished ? at(45) : null,
     createdAt: at(42),
     members: [
       member(id.beretning, id.beretningRevision, id.beretningExtraction, finished),
@@ -794,9 +776,6 @@ test('the Batch review grid handles member failure, targeted reload, bulk decisi
     schemaRevisionNumber: 4,
     strategy: 'ARTICLE',
     executionStatus: 'COMPLETED',
-    failureMessage: null,
-    startedAt: at(43),
-    finishedAt: at(45),
     createdAt: at(42),
     members: [
       {
@@ -804,8 +783,6 @@ test('the Batch review grid handles member failure, targeted reload, bulk decisi
         sourceRepresentationRevisionId: id.beretningRevision,
         executionStatus: 'COMPLETED',
         failureMessage: null,
-        startedAt: at(43),
-        finishedAt: at(44),
         latestExtraction: {
           extractionId: id.beretningExtraction,
           outcome: 'SUCCEEDED',
@@ -813,7 +790,6 @@ test('the Batch review grid handles member failure, targeted reload, bulk decisi
           reviewable: true,
           createdAt: at(44),
           reviewedAt: null,
-          failureMessage: null,
         },
       },
       {
@@ -821,8 +797,6 @@ test('the Batch review grid handles member failure, targeted reload, bulk decisi
         sourceRepresentationRevisionId: id.fundlisteRevision,
         executionStatus: 'FAILED',
         failureMessage: 'Grounding failed for this member.',
-        startedAt: at(43),
-        finishedAt: at(44),
         latestExtraction: null,
       },
     ],
@@ -833,6 +807,7 @@ test('the Batch review grid handles member failure, targeted reload, bulk decisi
     sourceRepresentationRevisionId: id.beretningRevision,
     schemaRevisionId: id.revision,
     strategy: 'ARTICLE' as const,
+    catalogRecipe: null,
     executionStatus: 'COMPLETED' as const,
     outcome: 'SUCCEEDED' as const,
     complete: true,

@@ -14,33 +14,18 @@ export function memberStatus(member: BatchExtractionMember): {
   const extraction = member.latestExtraction
   if (member.executionStatus === 'RUNNING')
     return { label: 'Running', tone: 'accent', message: null }
-  if (member.executionStatus === 'FAILED' && !extraction)
+  // Failed, cancelled or interrupted: the member's own message says which.
+  if (member.executionStatus === 'FAILED')
     return {
-      label: 'No result in this batch',
+      label: 'Failed',
       tone: 'danger',
-      message:
-        member.executionFailureMessage ??
-        'The member Extraction did not finish.',
+      message: member.executionFailureMessage ?? 'The member Extraction did not finish.',
     }
   if (!extraction)
     return {
       label: member.executionStatus === 'QUEUED' ? 'Queued' : 'Not run',
       tone: 'neutral',
       message: null,
-    }
-  if (extraction.outcome === 'FAILED')
-    return {
-      label: 'Failed',
-      tone: 'danger',
-      message:
-        extraction.failureMessage ??
-        'The Extraction failed without a recorded reason.',
-    }
-  if (extraction.outcome === 'CANCELLED')
-    return {
-      label: 'Cancelled',
-      tone: 'neutral',
-      message: 'The Extraction was cancelled before completion.',
     }
   if (extraction.reviewedAt)
     return { label: 'Reviewed', tone: 'success', message: null }

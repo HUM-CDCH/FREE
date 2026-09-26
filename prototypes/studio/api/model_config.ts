@@ -1,54 +1,25 @@
+import type { ModelConfigurationStore, ResearcherProjectStore } from 'db'
 import { apiErrorResponse, json, parseJsonRequest } from './_http.js'
-import { systemCredentialStore, type CredentialStore } from './_keyring.js'
-import {
-  credentialStates,
-  readModelConfig,
-  resetModelConfig,
-  updateModelConfig,
-  type ConfigStorageOptions,
-} from './_model_config.js'
+import { applyAccountModelConfig, readAccountModelConfig } from './_model_config.js'
+import type { ModelKeyCache } from './_model_keys.js'
 import type { DeploymentModels } from '../shared/modelConfig.contract.js'
 import { deploymentModels } from './_deployment_models.js'
 import { PROVIDERS } from './_provider.js'
 
-/** `credentialStore` is the keyring seam; tests inject a fake for both handlers. */
-export type ModelConfigDependencies = ConfigStorageOptions & {
-  credentialStore?: CredentialStore
+/** `configurations` and `keys` are the storage and key-cache seams; tests inject isolated ones for both. */
+export type ModelConfigDependencies = {
+  configurations?: ModelConfigurationStore
+  keys?: Pick<ModelKeyCache, 'retain'>
   deployment?: () => DeploymentModels
 }
 
-let modelConfigWriteBarrier: Promise<void> = Promise.resolve()
-
-/**
- * The hosted Studio has one process and one deployment-wide document. Reserve a
- * queue position synchronously so every handler instance serializes the complete
- * read/keyring/atomic-file/cleanup path without turning probes into queued work.
- */
-async function serializeModelConfigWrite<T>(
-  operation: () => Promise<T>,
-): Promise<T> {
-  const preceding = modelConfigWriteBarrier
-  let release!: () => void
-  modelConfigWriteBarrier = new Promise<void>((resolve) => {
-    release = resolve
-  })
-  await preceding
-  try {
-    return await operation()
-  } finally {
-    release()
-  }
-}
-
-/** Reads saved state only: no provider network call, CLI process, or `AI_*` value. */
-export function createGetModelConfig(dependencies: ModelConfigDependencies = {}) {
-  const credentialStore = dependencies.credentialStore ?? systemCredentialStore
+/** Reads saved state only: no provider network call, CLI process, key, or `AI_*` value. */
+function createGetModelConfig(researcherAccountId: string, dependencies: ModelConfigDependencies) {
   return async function getModelConfig(): Promise<Response> {
     try {
-      const config = await readModelConfig(dependencies)
+      const config = await readAccountModelConfig(researcherAccountId, dependencies.configurations)
       return json({
         config,
-        credentialStates: await credentialStates(config, credentialStore),
         providers: PROVIDERS,
         deployment: (dependencies.deployment ?? deploymentModels)(),
       })
@@ -58,39 +29,30 @@ export function createGetModelConfig(dependencies: ModelConfigDependencies = {})
   }
 }
 
-/** Whole-document save. Returns the committed configuration, never a descriptor or secret. */
-export function createPutModelConfig(dependencies: ModelConfigDependencies = {}) {
-  const credentialStore = dependencies.credentialStore ?? systemCredentialStore
+/** Whole-document save. Returns the committed configuration, never a descriptor or key. */
+function createPutModelConfig(researcherAccountId: string, dependencies: ModelConfigDependencies) {
   return async function putModelConfig(request: Request): Promise<Response> {
     try {
-      return json(
-        await serializeModelConfigWrite(async () => {
-          const body = await parseJsonRequest(request)
-          return updateModelConfig(body, {
-            ...dependencies,
-            credentialStore,
-          })
-        }),
-      )
+      const body = await parseJsonRequest(request)
+      const config = await applyAccountModelConfig(body, {
+        researcherAccountId,
+        store: dependencies.configurations,
+        keys: dependencies.keys,
+      })
+      return json({ config })
     } catch (error) {
       return apiErrorResponse(error)
     }
   }
 }
 
-/** Deletes the saved document, readable or not; the response is the empty state a GET would now return. */
-export function createDeleteModelConfig(dependencies: ModelConfigDependencies = {}) {
-  const get = createGetModelConfig(dependencies)
-  return async function deleteModelConfig(): Promise<Response> {
-    try {
-      await serializeModelConfigWrite(() => resetModelConfig(dependencies))
-      return await get()
-    } catch (error) {
-      return apiErrorResponse(error)
-    }
+/** A researcher reads and changes only their own configuration. */
+export function createResearcherApiHandlers(
+  store: Pick<ResearcherProjectStore, 'researcherAccountId'>,
+  dependencies: ModelConfigDependencies = {},
+) {
+  return {
+    GET: createGetModelConfig(store.researcherAccountId, dependencies),
+    PUT: createPutModelConfig(store.researcherAccountId, dependencies),
   }
 }
-
-export const GET = createGetModelConfig()
-export const PUT = createPutModelConfig()
-export const DELETE = createDeleteModelConfig()

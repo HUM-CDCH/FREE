@@ -1,4 +1,5 @@
 import { authenticatedFetch } from '../auth/authenticatedFetch.ts'
+import { ensureModelKeysSent } from '../modelKeys/modelKeyHandoff'
 import {
   batchExtractionListResponseSchema,
   batchExtractionOpenResponseSchema,
@@ -13,6 +14,7 @@ import {
   batchSchemaSuggestionDraftRequestSchema,
   batchSchemaSuggestionListResponseSchema,
   batchSchemaSuggestionResponseSchema,
+  batchSchemaSuggestionRetryRequestSchema,
   batchSchemaSuggestionRunRequestSchema,
   type BatchSchemaSuggestion,
   type BatchSchemaSuggestionFailure,
@@ -125,6 +127,7 @@ export async function createBatchSchemaSuggestion(
   sourceDocumentIds: readonly string[],
   signal?: AbortSignal,
 ): Promise<BatchSchemaSuggestion> {
+  await ensureModelKeysSent()
   return batchSchemaSuggestionResponseSchema.parse(
     await read('/api/batch-schema-suggestions', {
       method: 'POST',
@@ -189,16 +192,21 @@ export async function runBatchSchemaSuggestion(
   ).batchSchemaSuggestion
 }
 
+/** Starts the attempt after `expectedAttempt` over every surviving pin. Repeating the POST (an uncertain answer)
+ *  returns that same successor rather than starting another; an older attempt answers 409 attempt_conflict. */
 export async function retryBatchSchemaSuggestion(
   projectContextId: string,
   batchSchemaSuggestionId: string,
+  expectedAttempt: number,
   signal?: AbortSignal,
 ): Promise<BatchSchemaSuggestion> {
   const query = new URLSearchParams({ projectContextId })
+  await ensureModelKeysSent()
   return batchSchemaSuggestionResponseSchema.parse(
     await read(`/api/batch-schema-suggestions/${batchSchemaSuggestionId}/retry?${query}`, {
       method: 'POST',
-      headers: { accept: 'application/json' },
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify(batchSchemaSuggestionRetryRequestSchema.parse({ expectedAttempt })),
       signal,
     }),
   ).batchSchemaSuggestion

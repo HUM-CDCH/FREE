@@ -45,6 +45,24 @@ def test_database_guard_pins_the_address_despite_ambient_libpq_configuration(mon
     assert fields["hostaddr"] == "127.0.0.1" and fields["port"] == "5432"
 
 
+def test_the_url_quotes_every_reserved_character_of_the_credentials():
+    from psycopg.conninfo import conninfo_to_dict
+
+    built = postgres_helper.url("postgresql://postgres:secret@127.0.0.1:5432/free_test_parser",
+                                user="kei/role", password="p/w@x:y?z#")
+    fields = conninfo_to_dict(built)
+    assert (fields["user"], fields["password"], fields["host"], fields["dbname"]) == \
+        ("kei/role", "p/w@x:y?z#", "127.0.0.1", "free_test_parser")
+
+
+def test_the_url_brackets_an_ipv6_loopback():
+    from psycopg.conninfo import conninfo_to_dict
+
+    built = postgres_helper.url("postgresql://postgres:secret@[::1]:5432/free_test_parser")
+    assert "@[::1]:5432/" in built
+    assert conninfo_to_dict(built)["host"] == "::1"
+
+
 def _unresponsive_docker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Put a fake `docker` on PATH that sleeps far longer than any timeout this test uses."""
     fake = tmp_path / "docker"

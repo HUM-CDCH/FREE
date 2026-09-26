@@ -87,6 +87,7 @@ export function projectContextFixture(): ProjectStoreReads {
         ? {
             artifactReference: DEMO_ARTIFACT_REFERENCE,
             artifactSha256: 'c'.repeat(64),
+            sourceDocumentId: DEMO_DOCUMENT_ID,
           }
         : null
     },

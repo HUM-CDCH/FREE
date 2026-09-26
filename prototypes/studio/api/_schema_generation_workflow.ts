@@ -1,0 +1,67 @@
+import { DBOS } from '@dbos-inc/dbos-sdk'
+import type { WorkflowSteps } from 'extraction/workflows'
+import type { generateSchemaWithModel } from './_model.js'
+import { persistenceUnavailable } from './_http.js'
+import { MODEL_OPERATION_TIMEOUT_MS, operationFailureOf, type OperationResult } from './_model_operation.js'
+
+export const SUGGEST_SCHEMA = 'suggestSchema'
+
+/** IDs, the instruction and the temperature only: never the document, never a key (spec, *What DBOS history holds*). */
+export type SchemaGenerationInput = Readonly<{
+  operationId: string
+  owner: string
+  projectContextId: string
+  sourceRepresentationRevisionId: string
+  /** Null before the Project Context has an Extraction Schema (a first generation). */
+  extractionSchemaId: string | null
+  /** The acknowledged revision the tab generated from; a reloaded page saves only onto it (spec, *Generation*). */
+  baseSchemaRevisionId: string | null
+  instruction: string
+  temperature: number | null
+}>
+export type SchemaGenerated = {
+  template: Record<string, unknown>
+  raw: string
+  pages: number | null
+  baseSchemaRevisionId: string | null
+}
+export type SchemaGenerationPorts = Readonly<{
+  steps: WorkflowSteps
+  readMarkdown(sourceRepresentationRevisionId: string): Promise<string | null>
+  generate: typeof generateSchemaWithModel
+}>
+
+/** `suggestSchema(input)`: one step wraps generateSchemaWithModel; its typed result is the operation's outcome. */
+export async function suggestSchemaWorkflow(
+  input: SchemaGenerationInput,
+  ports: SchemaGenerationPorts,
+): Promise<OperationResult<SchemaGenerated>> {
+  // Read at workflow scope from the immutable revision: a replay reads it again, and neither the input nor any step's
+  // output holds it. A storage failure is the typed 503 the handler always answered, never a workflow error.
+  let markdown: string | null
+  try {
+    markdown = await ports.readMarkdown(input.sourceRepresentationRevisionId)
+  } catch (cause) {
+    return { ok: false, ...operationFailureOf(persistenceUnavailable(cause, 'Project model context storage is unavailable.')) }
+  }
+  if (markdown === null) return { ok: false, status: 404, code: 'not_found', message: 'Project model context was not found.' }
+  return ports.steps.step('generateSchema', async (): Promise<OperationResult<SchemaGenerated>> => {
+    try {
+      const generated = await ports.generate({ researcherAccountId: input.owner }, {
+        document: { file: null, pages: null, markdown },
+        instruction: input.instruction,
+        ...(input.temperature === null ? {} : { temperature: input.temperature }),
+        // The model boundary adds the step's cancel signal (Task 2).
+        signal: AbortSignal.timeout(MODEL_OPERATION_TIMEOUT_MS),
+      })
+      // Only the model's text and the base: never the provider's response, headers or metadata.
+      return { ok: true, template: generated.template, raw: generated.raw, pages: generated.pages, baseSchemaRevisionId: input.baseSchemaRevisionId }
+    } catch (error) {
+      return { ok: false, ...operationFailureOf(error) }
+    }
+  })
+}
+
+export function registerSchemaGenerationWorkflow(ports: () => SchemaGenerationPorts): void {
+  DBOS.registerWorkflow(async (input: SchemaGenerationInput) => suggestSchemaWorkflow(input, ports()), { name: SUGGEST_SCHEMA })
+}

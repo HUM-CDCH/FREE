@@ -1,17 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { UIMessage } from 'ai'
-import type { CanonicalPackageStore } from '../../../packages/db/src/artifact-store.js'
 import type {
   ResearcherProjectStore,
   SchemaRevisionRecord,
 } from '../../../packages/db/src/project-store.js'
-import { ApiError } from '../api/_http'
 import {
   generateSchemaWithModel,
   generateSchemaEditJson,
-  streamChatWithModel,
 } from '../api/_model'
-import { createPostChat } from '../api/chat'
+import type { ModelOperationClient } from '../api/_model_operation'
 import { createPostEditSchema } from '../api/edit_schema'
 import { createPostGenerateSchema } from '../api/generate_schema'
 import { GET as healthGet } from '../api/healthz'
@@ -22,17 +18,20 @@ vi.mock('../api/_model', async (importOriginal) => {
     ...actual,
     generateSchemaWithModel: vi.fn(),
     generateSchemaEditJson: vi.fn(),
-    streamChatWithModel: vi.fn(),
   }
 })
 
+const ACCOUNT = '51000000-0000-4000-8009-000000000001'
 const PROJECT = '51000000-0000-4000-8000-000000000001'
 const SOURCE_REVISION = '51000000-0000-4000-8002-000000000001'
 const SCHEMA = '51000000-0000-4000-8003-000000000001'
 const SCHEMA_REVISION = '51000000-0000-4000-8004-000000000001'
+const DOCUMENT = '51000000-0000-4000-8001-000000000001'
+const OPERATION = '51000000-0000-4000-8009-0000000000f1'
 const descriptor = {
   artifactReference: 'a'.repeat(64),
   artifactSha256: 'a'.repeat(64),
+  sourceDocumentId: DOCUMENT,
 }
 const revision: SchemaRevisionRecord = {
   schemaRevisionId: SCHEMA_REVISION,
@@ -48,25 +47,17 @@ const revision: SchemaRevisionRecord = {
 
 type ContextStore = Pick<
   ResearcherProjectStore,
-  'getSourceRepresentation' | 'getSchemaRevision'
+  'researcherAccountId' | 'getSourceRepresentation' | 'getSchemaRevision'
 >
 
 function contextStore(
   overrides: Partial<ContextStore> = {},
 ): ContextStore {
   return {
+    researcherAccountId: ACCOUNT,
     getSourceRepresentation: vi.fn(async () => descriptor),
     getSchemaRevision: vi.fn(async () => revision),
     ...overrides,
-  }
-}
-
-function markdownReader(): Pick<CanonicalPackageStore, 'read'> {
-  return {
-    read: vi.fn(async () => ({
-      bytes: new TextEncoder().encode('# Canonical report'),
-      mediaType: 'text/markdown; charset=utf-8',
-    })),
   }
 }
 
@@ -75,6 +66,26 @@ function sourceForm(): FormData {
   form.append('project_context_id', PROJECT)
   form.append('source_representation_revision_id', SOURCE_REVISION)
   return form
+}
+
+/** A generation's form: the source identity plus the client-minted operation ID. */
+function generateForm(): FormData {
+  const form = sourceForm()
+  form.append('operation_id', OPERATION)
+  return form
+}
+
+/** A model-operation client that finds its enqueued workflow again and reports it finished with `output`. */
+function operations(output: unknown = { ok: true, template: { title: 'verbatim-string' }, raw: '{"title":"verbatim-string"}', pages: null, baseSchemaRevisionId: null }) {
+  let enqueued: { workflowName: string; input: unknown } | undefined
+  const client = {
+    enqueue: vi.fn(async (options: { workflowName: string }, input: unknown) => { enqueued = { workflowName: options.workflowName, input }; return {} as never }),
+    getWorkflow: vi.fn(async () => (enqueued ? { workflowName: enqueued.workflowName, input: [enqueued.input] } : undefined)),
+    listWorkflows: vi.fn(async () => [{ workflowID: `suggestion:${OPERATION}`, status: 'SUCCESS', output }]),
+    cancelWorkflow: vi.fn(async () => {}),
+    deleteWorkflows: vi.fn(async () => {}),
+  }
+  return client as unknown as ModelOperationClient & typeof client
 }
 
 function formRequest(path: string, form: FormData): Request {
@@ -89,20 +100,11 @@ function editForm(): FormData {
   form.append('extraction_schema_id', SCHEMA)
   form.append('schema_revision_id', SCHEMA_REVISION)
   form.append('instruction', 'Add title')
+  form.append('operation_id', OPERATION)
   return form
 }
 
-function chatRequest(messages: UIMessage[]): Request {
-  return new Request('http://local.test/api/chat', {
-    method: 'POST',
-    body: JSON.stringify({
-      projectContextId: PROJECT,
-      sourceRepresentationRevisionId: SOURCE_REVISION,
-      messages,
-    }),
-    headers: { 'content-type': 'application/json' },
-  })
-}
+const PROPOSED = { status: 'proposed', fields: {}, additions: [], issues: [] }
 
 afterEach(() => vi.clearAllMocks())
 
@@ -114,217 +116,113 @@ describe('Studio API endpoints', () => {
     await expect(response.json()).resolves.toEqual({ status: 'ok' })
   })
 
-  it('generates a schema from owner-scoped canonical Markdown', async () => {
-    vi.mocked(generateSchemaWithModel).mockResolvedValue({
-      template: { title: 'verbatim-string' },
-      raw: '{"template":{"title":"verbatim-string"}}',
-      pages: null,
-    })
+  it('starts a durable Schema Suggestion over the owner-scoped source and answers its result', async () => {
     const store = contextStore()
-    const response = await createPostGenerateSchema(
-      store,
-      markdownReader(),
-    )(formRequest('generate_schema', sourceForm()))
+    const client = operations()
+    const response = await createPostGenerateSchema(store, () => client)(formRequest('generate_schema', generateForm()))
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({
       template: { title: 'verbatim-string' },
-      raw: '{"template":{"title":"verbatim-string"}}',
+      raw: '{"title":"verbatim-string"}',
       pages: null,
     })
-    expect(store.getSourceRepresentation).toHaveBeenCalledWith(
-      PROJECT,
-      SOURCE_REVISION,
+    expect(store.getSourceRepresentation).toHaveBeenCalledWith(PROJECT, SOURCE_REVISION)
+    // The handler never reads the document: the workflow does, outside history.
+    expect(client.enqueue).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ workflowName: 'suggestSchema', workflowID: `suggestion:${OPERATION}`, authenticatedUser: ACCOUNT }),
+      expect.objectContaining({ owner: ACCOUNT, sourceRepresentationRevisionId: SOURCE_REVISION }),
     )
-    expect(generateSchemaWithModel).toHaveBeenCalledWith(
+    expect(generateSchemaWithModel).not.toHaveBeenCalled()
+  })
+
+  it('starts a durable edit proposal over the persisted owner-scoped revision, never browser-authored nodes', async () => {
+    const store = contextStore()
+    const client = operations({ ok: true, baseSchemaRevisionId: SCHEMA_REVISION, response: PROPOSED })
+    const response = await createPostEditSchema(store, () => client)(formRequest('edit_schema', editForm()))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual(PROPOSED)
+    expect(store.getSourceRepresentation).toHaveBeenCalledWith(PROJECT, SOURCE_REVISION)
+    expect(store.getSchemaRevision).toHaveBeenCalledWith(PROJECT, SCHEMA, SCHEMA_REVISION)
+    // The handler reads neither the schema tree nor the document: the workflow does, outside history.
+    expect(client.enqueue).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
-        document: {
-          file: null,
-          pages: null,
-          markdown: '# Canonical report',
-        },
+        workflowName: 'proposeSchemaEdit', workflowID: `edit:${OPERATION}`, authenticatedUser: ACCOUNT,
+        attributes: { projectContextId: PROJECT, extractionSchemaId: SCHEMA, sourceDocumentId: DOCUMENT, sourceRepresentationRevisionId: SOURCE_REVISION },
       }),
+      expect.objectContaining({ owner: ACCOUNT, baseSchemaRevisionId: SCHEMA_REVISION, instruction: 'Add title' }),
     )
+    expect(generateSchemaEditJson).not.toHaveBeenCalled()
   })
 
-  it('streams chat with owner-scoped canonical Markdown', async () => {
-    vi.mocked(streamChatWithModel).mockResolvedValue(new Response('stream'))
-    const messages: UIMessage[] = [
-      {
-        id: 'm1',
-        role: 'user',
-        parts: [{ type: 'text', text: 'Hi' }],
-      },
-    ]
-    const response = await createPostChat(
-      contextStore(),
-      markdownReader(),
-    )(chatRequest(messages))
-
-    expect(response.status).toBe(200)
-    await expect(response.text()).resolves.toBe('stream')
-    expect(streamChatWithModel).toHaveBeenCalledWith(
-      messages,
-      '# Canonical report',
-      undefined,
-    )
-  })
-
-  it('edits the persisted owner-scoped revision rather than browser-authored nodes', async () => {
-    vi.mocked(generateSchemaEditJson).mockResolvedValue({
-      text: '{"fields":{},"additions":[]}',
-    })
-    const store = contextStore()
-    const response = await createPostEditSchema(
-      store,
-      markdownReader(),
-    )(formRequest('edit_schema', editForm()))
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({
-      status: 'proposed',
-      fields: {},
-      additions: [],
-      issues: [],
-    })
-    expect(store.getSourceRepresentation).toHaveBeenCalledWith(
-      PROJECT,
-      SOURCE_REVISION,
-    )
-    expect(store.getSchemaRevision).toHaveBeenCalledWith(
-      PROJECT,
-      SCHEMA,
-      SCHEMA_REVISION,
-    )
-    expect(generateSchemaEditJson).toHaveBeenCalledOnce()
-  })
-
-  it('edits a persisted owner-scoped revision without inventing a source context', async () => {
-    vi.mocked(generateSchemaEditJson).mockResolvedValue({
-      text: '{"fields":{},"additions":[]}',
-    })
+  it('starts a schema-only edit proposal without inventing a source context', async () => {
     const form = editForm()
     form.delete('source_representation_revision_id')
     const store = contextStore()
-    const reader = markdownReader()
-    const response = await createPostEditSchema(
-      store,
-      reader,
-    )(formRequest('edit_schema', form))
+    const client = operations({ ok: true, baseSchemaRevisionId: SCHEMA_REVISION, response: PROPOSED })
+    const response = await createPostEditSchema(store, () => client)(formRequest('edit_schema', form))
 
     expect(response.status).toBe(200)
-    expect(store.getSchemaRevision).toHaveBeenCalledWith(
-      PROJECT,
-      SCHEMA,
-      SCHEMA_REVISION,
-    )
     expect(store.getSourceRepresentation).not.toHaveBeenCalled()
-    expect(reader.read).not.toHaveBeenCalled()
-    expect(generateSchemaEditJson).toHaveBeenCalledOnce()
+    expect(client.enqueue).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ attributes: { projectContextId: PROJECT, extractionSchemaId: SCHEMA } }),
+      expect.objectContaining({ sourceRepresentationRevisionId: null }),
+    )
   })
 
   it('rejects browser-authored source and schema context', async () => {
-    const generation = sourceForm()
+    const generation = generateForm()
     generation.append('document_markdown', '# Browser report')
     const generationStore = contextStore()
+    const generationClient = operations()
     expect(
       (
-        await createPostGenerateSchema(
-          generationStore,
-          markdownReader(),
-        )(formRequest('generate_schema', generation))
+        await createPostGenerateSchema(generationStore, () => generationClient)(formRequest('generate_schema', generation))
       ).status,
     ).toBe(400)
     expect(generationStore.getSourceRepresentation).not.toHaveBeenCalled()
+    expect(generationClient.enqueue).not.toHaveBeenCalled()
 
     const editing = editForm()
     editing.append('current_nodes', '[]')
     const editStore = contextStore()
+    const editClient = operations()
     expect(
       (
-        await createPostEditSchema(
-          editStore,
-          markdownReader(),
-        )(formRequest('edit_schema', editing))
+        await createPostEditSchema(editStore, () => editClient)(formRequest('edit_schema', editing))
       ).status,
     ).toBe(400)
     expect(editStore.getSchemaRevision).not.toHaveBeenCalled()
+    expect(editClient.enqueue).not.toHaveBeenCalled()
 
-    const chatStore = contextStore()
-    const chat = await createPostChat(chatStore, markdownReader())(
-      new Request('http://local.test/api/chat', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          projectContextId: PROJECT,
-          sourceRepresentationRevisionId: SOURCE_REVISION,
-          messages: [],
-          documentMarkdown: '# Browser report',
-        }),
-      }),
-    )
-    expect(chat.status).toBe(400)
-    expect(chatStore.getSourceRepresentation).not.toHaveBeenCalled()
     expect(generateSchemaWithModel).not.toHaveBeenCalled()
     expect(generateSchemaEditJson).not.toHaveBeenCalled()
-    expect(streamChatWithModel).not.toHaveBeenCalled()
   })
 
   it('returns 404 for cross-owner and mixed pins before artifact or model access', async () => {
-    const reader = markdownReader()
     const missingSource = contextStore({
       getSourceRepresentation: vi.fn(async () => null),
     })
+    const missingClient = operations()
     expect(
       (
-        await createPostGenerateSchema(
-          missingSource,
-          reader,
-        )(formRequest('generate_schema', sourceForm()))
+        await createPostGenerateSchema(missingSource, () => missingClient)(formRequest('generate_schema', generateForm()))
       ).status,
     ).toBe(404)
-    expect(
-      (
-        await createPostChat(
-          missingSource,
-          reader,
-        )(chatRequest([]))
-      ).status,
-    ).toBe(404)
+    expect(missingClient.enqueue).not.toHaveBeenCalled()
 
     const mixed = contextStore({
       getSchemaRevision: vi.fn(async () => null),
     })
+    const mixedClient = operations()
     expect(
       (
-        await createPostEditSchema(
-          mixed,
-          reader,
-        )(formRequest('edit_schema', editForm()))
+        await createPostEditSchema(mixed, () => mixedClient)(formRequest('edit_schema', editForm()))
       ).status,
     ).toBe(404)
-    expect(reader.read).not.toHaveBeenCalled()
+    expect(mixedClient.enqueue).not.toHaveBeenCalled()
     expect(generateSchemaWithModel).not.toHaveBeenCalled()
     expect(generateSchemaEditJson).not.toHaveBeenCalled()
-    expect(streamChatWithModel).not.toHaveBeenCalled()
-  })
-
-  it('maps pre-stream failures to the stable envelope', async () => {
-    vi.mocked(streamChatWithModel).mockRejectedValue(
-      new ApiError(
-        409,
-        'invalid_model_config',
-        'The Interaction Route is not configured.',
-      ),
-    )
-    const response = await createPostChat(
-      contextStore(),
-      markdownReader(),
-    )(chatRequest([]))
-
-    expect(response.status).toBe(409)
-    await expect(response.json()).resolves.toMatchObject({
-      error: { code: 'invalid_model_config' },
-    })
   })
 })

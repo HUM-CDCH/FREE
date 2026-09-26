@@ -66,6 +66,10 @@ export function ProjectRoutes() {
     () => actor.send({ type: 'RESOURCE_FAILED' }),
     [actor],
   )
+  const onRefreshDocument = useCallback(
+    () => actor.send({ type: 'REFRESH' }),
+    [actor],
+  )
 
   useEffect(() => {
     if (route.kind !== 'document' || routedDocumentContained === null) return
@@ -96,6 +100,7 @@ export function ProjectRoutes() {
       onNavigate={navigate}
       onRetry={() => actor.send({ type: 'RETRY' })}
       onInitialResourceLoadFailure={onInitialResourceLoadFailure}
+      onRefreshDocument={onRefreshDocument}
     />
   )
 }

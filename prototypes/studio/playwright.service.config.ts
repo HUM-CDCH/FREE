@@ -13,6 +13,7 @@ const origin = `http://localhost:${stack.applicationPort}`
 const serviceTests = resolve(import.meta.dirname, '../../artifacts/service-tests')
 const state = resolve(serviceTests, 'state')
 process.env.FREE_PLAYWRIGHT_SERVICE_URL = 'http://127.0.0.1:41764'
+process.env.FREE_PLAYWRIGHT_SOURCE_INBOX = resolve(state, 'source-inbox')
 
 export default defineConfig({
   testDir: './e2e',
@@ -32,9 +33,9 @@ export default defineConfig({
       FREE_PLAYWRIGHT_LIFECYCLE_ID: stack.lifecycleId,
       STUDIO_ORIGIN: origin,
       STUDIO_BASE_PATH: '/',
-      APPDATA: state,
-      XDG_CONFIG_HOME: state,
       XDG_DATA_HOME: state,
+      // The real kei worker reads staged uploads from here (KEI_SOURCE_INBOX, Task 13).
+      FREE_SOURCE_INBOX: process.env.FREE_PLAYWRIGHT_SOURCE_INBOX,
       FREE_ENTRA_REAL: '0',
       FREE_ENTRA_MOCK_ISSUER: stack.oidcIssuer,
       FREE_ENTRA_MOCK_BROWSER_ISSUER: stack.oidcIssuer,
