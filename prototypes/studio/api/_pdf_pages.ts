@@ -47,7 +47,8 @@ function freedSlot(deadline: number): Promise<boolean> {
       resolve(true)
     }
     const timer = setTimeout(() => {
-      waiting.splice(waiting.indexOf(granted), 1)
+      const index = waiting.indexOf(granted)
+      if (index >= 0) waiting.splice(index, 1)
       resolve(false)
     }, Math.max(0, deadline - performance.now()))
     waiting.push(granted)
