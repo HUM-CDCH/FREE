@@ -75,6 +75,7 @@ const articleAttempt: ExtractionAttempt = {
   sourceRepresentationRevisionId: '22222222-2222-4222-8222-222222222222',
   schemaRevisionId: '33333333-3333-4333-8333-333333333333',
   strategy: 'ARTICLE',
+  catalogRecipe: null,
   executionStatus: 'COMPLETED',
   outcome: 'SUCCEEDED',
   complete: false,
@@ -268,6 +269,27 @@ describe('ResultsTab grounded values', () => {
       expect(screen.queryByText('Queued extraction…')).not.toBeInTheDocument()
       unmount()
     }
+  })
+
+  it('offers no cancellation until the server acknowledges the run', () => {
+    // While the request is in flight there is nothing to cancel yet: the new run may not exist.
+    const requestCancellation = vi.fn(async () => {})
+    for (const previous of [null, articleAttempt]) {
+      const { unmount } = render(
+        <ResultsTab
+          {...defaultRunProps}
+          controller={{ ...controller({ status: 'running', step: 'extraction' }, previous), requestCancellation }}
+          schemaReady
+          documentMarkdown="# Source"
+          sourceDocumentName="Ravenna letters.pdf"
+        />,
+      )
+      const cancel = screen.getByRole('button', { name: 'Cancel extraction' })
+      expect(cancel).toBeDisabled()
+      fireEvent.click(cancel)
+      unmount()
+    }
+    expect(requestCancellation).not.toHaveBeenCalled()
   })
 
   it('labels queued work before the worker starts it', () => {
@@ -563,9 +585,11 @@ describe('ResultsTab grounded values', () => {
     const failed: ExtractionAttempt = {
       ...articleAttempt,
       strategy: 'CATALOG',
-      executionStatus: 'COMPLETED',
-      outcome: 'FAILED',
+      executionStatus: 'FAILED',
+      outcome: null,
       complete: null,
+      modelAttribution: null,
+      diagnostics: null,
       failure: { code: 'catalog_no_records', message: 'Catalog discovery returned no records.' },
       resultPayload: null,
       evidenceLinks: null,
@@ -1357,8 +1381,11 @@ describe('ResultsTab run actions', () => {
   const catalogAttempt: ExtractionAttempt = { ...articleAttempt, strategy: 'CATALOG', complete: true }
   const failedCatalogAttempt: ExtractionAttempt = {
     ...catalogAttempt,
-    outcome: 'FAILED',
+    executionStatus: 'FAILED',
+    outcome: null,
     complete: null,
+    modelAttribution: null,
+    diagnostics: null,
     failure: { code: 'catalog_no_records', message: 'Catalog discovery returned no records.' },
     resultPayload: null,
     evidenceLinks: null,

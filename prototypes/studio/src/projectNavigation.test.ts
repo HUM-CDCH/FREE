@@ -369,6 +369,54 @@ describe('routed Source Document opening', () => {
     actor.stop()
   })
 
+  it('refreshes the open Source Document in place and swaps in the new snapshot only once it is read', async () => {
+    const { actor, pending } = reopenController(documentRoute)
+    pending.get(sourceDocumentId)!.resolve(snapshotOf(sourceDocumentId))
+    await Promise.resolve()
+    const opened = actor.getSnapshot().context.snapshot
+
+    actor.send({ type: 'REFRESH' })
+    expect(actor.getSnapshot().value).toBe('refreshing')
+    expect(actor.getSnapshot().context.snapshot).toBe(opened)
+
+    const fresh = snapshotOf(sourceDocumentId)
+    const superseded = { ...fresh, sourceRepresentation: { ...fresh.sourceRepresentation, current: false } }
+    pending.get(sourceDocumentId)!.resolve(superseded)
+    await Promise.resolve()
+
+    expect(actor.getSnapshot().value).toBe('open')
+    expect(actor.getSnapshot().context.snapshot).toBe(superseded)
+    actor.stop()
+  })
+
+  it('keeps the open Source Document when its refresh fails', async () => {
+    const { actor, pending } = reopenController(documentRoute)
+    pending.get(sourceDocumentId)!.resolve(snapshotOf(sourceDocumentId))
+    await Promise.resolve()
+    const opened = actor.getSnapshot().context.snapshot
+
+    actor.send({ type: 'REFRESH' })
+    pending.get(sourceDocumentId)!.reject({
+      code: 'persistence_unavailable',
+      message: 'Persistence is unavailable.',
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(actor.getSnapshot().value).toBe('open')
+    expect(actor.getSnapshot().context.snapshot).toBe(opened)
+    expect(actor.getSnapshot().context.failure).toBeNull()
+    actor.stop()
+  })
+
+  it('refreshes nothing unless a Source Document is open', () => {
+    const { actor, pending } = reopenController(documentRoute)
+    actor.send({ type: 'REFRESH' })
+    expect(actor.getSnapshot().value).toBe('opening')
+    expect(pending.size).toBe(1)
+    actor.stop()
+  })
+
   it('reports an unrecognized read failure as unavailable persistence', async () => {
     const { actor, pending } = reopenController(documentRoute)
 

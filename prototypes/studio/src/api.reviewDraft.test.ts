@@ -13,7 +13,7 @@ it('restores and retries a document decision after its real API request receives
   const id = '10000000-0000-4000-8000-000000000001'
   const extraction: ExtractionAttempt = {
     extractionId: id, sourceDocumentId: id, sourceRepresentationRevisionId: id, schemaRevisionId: id,
-    strategy: 'ARTICLE', executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
+    strategy: 'ARTICLE', catalogRecipe: null, executionStatus: 'COMPLETED', outcome: 'SUCCEEDED', complete: true,
     modelAttribution: { provider: 'ollama', modelId: 'fixture' },
     diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null },
     failure: null, resultPayload: { records: [{ title: 'Original' }] },

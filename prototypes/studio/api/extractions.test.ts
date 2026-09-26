@@ -42,6 +42,7 @@ const snapshot: ExtractionSnapshot = {
   extractionSchemaId: '51000000-0000-4000-8003-000000000001',
   schemaRevisionNumber: 4,
   strategy: 'ARTICLE',
+  catalogRecipe: null,
   outcome: 'SUCCEEDED',
   complete: true,
   modelAttribution: { provider: 'openai', modelId: 'fixture' },

@@ -6,6 +6,7 @@ import {
   type ExtractionModule,
 } from 'extraction'
 import { createResearcherApiHandlers } from './batch_extractions.js'
+import { batchExtractionResponseSchema } from '../shared/batchExtraction.contract.js'
 
 const runtime = vi.hoisted(() => ({
   createResearcherExtractions: vi.fn(),
@@ -36,9 +37,6 @@ const batch: BatchExtractionSnapshot = {
   schemaRevisionNumber: 4,
   strategy: 'ARTICLE',
   executionStatus: 'QUEUED',
-  failureMessage: null,
-  startedAt: null,
-  finishedAt: null,
   createdAt: new Date('2026-08-20T10:00:00.000Z'),
   members: [
     {
@@ -47,8 +45,6 @@ const batch: BatchExtractionSnapshot = {
         '51000000-0000-4000-8002-000000000001',
       executionStatus: 'QUEUED',
       failureMessage: null,
-      startedAt: null,
-      finishedAt: null,
       latestExtraction: null,
     },
   ],
@@ -210,6 +206,44 @@ describe('/api/batch-extractions transport', () => {
       batchExtractionId: BATCH,
       successfulResults: 1,
       results: [{ sourceDocumentId: DOCUMENT }],
+    })
+  })
+
+  it('answers a batch with its derived member status and no job-era fields', async () => {
+    const read = batchExtractionResponseSchema.parse(await (await handlerFor(extractionModule({
+      readBatch: vi.fn(async () => ({
+        ...batch,
+        executionStatus: 'COMPLETED' as const,
+        members: [
+          {
+            ...batch.members[0],
+            executionStatus: 'FAILED' as const,
+            failureMessage: 'This work stopped before it finished. Start it again.',
+          },
+        ],
+      })),
+    }))(
+      new Request(`http://test/api/batch-extractions/${BATCH}?projectContextId=${PROJECT}`),
+    )).json())
+    expect(read.batchExtraction).toEqual({
+      batchExtractionId: BATCH,
+      projectContextId: PROJECT,
+      schemaRevisionId: REVISION,
+      extractionSchemaId: batch.extractionSchemaId,
+      extractionSchemaName: 'Places',
+      schemaRevisionNumber: 4,
+      strategy: 'ARTICLE',
+      executionStatus: 'COMPLETED',
+      createdAt: '2026-08-20T10:00:00.000Z',
+      members: [
+        {
+          sourceDocumentId: DOCUMENT,
+          sourceRepresentationRevisionId: batch.members[0].sourceRepresentationRevisionId,
+          executionStatus: 'FAILED',
+          executionFailureMessage: 'This work stopped before it finished. Start it again.',
+          latestExtraction: null,
+        },
+      ],
     })
   })
 

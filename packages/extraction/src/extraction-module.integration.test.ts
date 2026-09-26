@@ -1864,8 +1864,10 @@ if (!disposableDatabaseUrl) {
       const extractionId = randomUUID()
       const input = { ...freshInput(project, extractionId), strategy: 'CATALOG' as const,
                       catalogRecipe: 'numbered-catalogue-de@1' }
-      await module.runSingle(input)
+      // Every read of the attempt names its recipe, so a failed attempt can be run again with it.
+      assert.equal((await module.runSingle(input)).extraction.catalogRecipe, 'numbered-catalogue-de@1')
       assert.equal((await module.runSingle(input)).disposition, 'replayed')
+      assert.equal((await module.readExtractionAttempt(extractionId))?.catalogRecipe, 'numbered-catalogue-de@1')
       await assert.rejects(module.runSingle({ ...input, catalogRecipe: null }),
         (error: unknown) => error instanceof ExtractionError && error.code === 'extraction_id_conflict')
       assert.equal((await extractionRow(extractionId))?.catalogRecipe, 'numbered-catalogue-de@1')

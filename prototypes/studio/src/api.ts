@@ -50,13 +50,17 @@ export function decodeSchemaDone(data: unknown): SchemaDone {
   return data as SchemaDone
 }
 
-async function readErrorDetail(response: Response): Promise<string> {
+async function readError(response: Response): Promise<{ code: string; message: string } | null> {
   const body = await response.json().catch(() => null)
   const error = isRecord(body) && isRecord(body.error) ? body.error : null
-  if (error && typeof error.code === 'string' && typeof error.message === 'string') {
-    return `${error.code}: ${error.message}`
-  }
-  return ''
+  return error && typeof error.code === 'string' && typeof error.message === 'string'
+    ? { code: error.code, message: error.message }
+    : null
+}
+
+async function readErrorDetail(response: Response): Promise<string> {
+  const error = await readError(response)
+  return error ? `${error.code}: ${error.message}` : ''
 }
 
 async function postForm<T>(
@@ -102,11 +106,14 @@ export async function requestSchema(
 /** Thrown when a JSON endpoint (an Extraction, or a model listing) answers with an HTTP error status. */
 export class ApiRequestError extends Error {
   readonly status: number
+  /** The server's error code (`{ error: { code } }`), when it sent one. */
+  readonly code: string | null
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code: string | null = null) {
     super(message)
     this.name = 'ApiRequestError'
     this.status = status
+    this.code = code
   }
 }
 
@@ -123,10 +130,11 @@ async function requestJson(
     signal,
   })
   if (!response.ok) {
-    const detail = await readErrorDetail(response)
+    const error = await readError(response)
     throw new ApiRequestError(
-      detail || `Request to ${path} failed (HTTP ${response.status})`,
+      error ? `${error.code}: ${error.message}` : `Request to ${path} failed (HTTP ${response.status})`,
       response.status,
+      error?.code ?? null,
     )
   }
   return response.json()

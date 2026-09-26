@@ -123,6 +123,9 @@ export type DocumentWorkspaceProps = {
   onOpenExtraction: (extractionId: string) => void
   /** Only the loader sees a retained resource fail; reported once, on open. */
   onInitialResourceLoadFailure?: () => void
+  /** A run was refused because reprocessing superseded this Source Representation: read the document again, and
+      keep this workspace if that read fails. */
+  onSourceSuperseded?: () => void
   /** DocumentTabBar's (AppFrame.tsx) trailing slot, in its own tab-strip row —
       portalled into so the PDF controls share that row instead of a second one. */
   tabBarSlot?: HTMLElement | null
@@ -146,6 +149,7 @@ export function DocumentWorkspace({
   latestReviewedExtraction = null,
   onOpenExtraction,
   onInitialResourceLoadFailure,
+  onSourceSuperseded,
   tabBarSlot = null,
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -543,10 +547,11 @@ export function DocumentWorkspace({
         if (attempt.outcome === 'SUCCEEDED')
           setFinishedExtractionReport({ attempt, schemaNodes })
       }
-      if (attempt.executionStatus === 'FAILED')
-        showToast('Extraction failed — see details in Results')
-      else if (attempt.outcome === 'CANCELLED')
+      selectNextRunAfter(attempt)
+      if (attempt.failure?.code === 'cancelled')
         showToast('Extraction cancelled — no result was saved')
+      else if (attempt.executionStatus === 'FAILED')
+        showToast('Extraction failed — see details in Results')
       else
         showToast(
           isRerun
@@ -555,7 +560,22 @@ export function DocumentWorkspace({
         )
     },
     onError: () => showToast('Extraction failed — see details in Results'),
+    // Nothing started and the earlier results stay; the refreshed document then disables Run.
+    onSuperseded: () => {
+      showToast('This document has been reprocessed — no new Extraction was started')
+      onSourceSuperseded?.()
+    },
   })
+
+  /**
+   * The one-shot selection for the next run once `attempt` is acknowledged or has ended: a failed Catalog attempt is
+   * run again with its own recipe; anything else defaults back to Article.
+   */
+  function selectNextRunAfter(attempt: ExtractionAttempt) {
+    const repeat = attempt.executionStatus === 'FAILED' && attempt.strategy === 'CATALOG'
+    setNextExtractionStrategy(repeat ? 'CATALOG' : 'ARTICLE')
+    setNextCatalogRecipe(repeat ? attempt.catalogRecipe ?? '' : '')
+  }
 
   // The Current Schema Revision is the acknowledged durable revision; unsaved
   // editor changes never move it, so they cannot mark a result as previous.
@@ -666,8 +686,7 @@ export function DocumentWorkspace({
         catalogRecipe,
       )
       if (!acknowledged) return
-      setNextExtractionStrategy('ARTICLE')
-      setNextCatalogRecipe('')
+      selectNextRunAfter(acknowledged)
       if (acknowledged.executionStatus === 'COMPLETED' || acknowledged.executionStatus === 'FAILED') {
         if (acknowledged.outcome === 'SUCCEEDED')
           setFinishedExtractionReport({ attempt: acknowledged, schemaNodes: revision.schemaNodes })

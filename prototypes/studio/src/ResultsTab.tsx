@@ -441,11 +441,12 @@ function ExtractionStatus({
       {running && !readOnly && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <p className="text-[11.5px] text-ink-muted">You can continue working on other documents.</p>
+          {/* Nothing to cancel until the server acknowledges the run ("Starting extraction…"). */}
           <Button
             variant="secondary"
             size="sm"
             className={pressable}
-            disabled={controller.cancellationRequested}
+            disabled={controller.cancellationRequested || !active}
             onClick={() => void controller.requestCancellation()}
           >
             {controller.cancellationRequested ? 'Cancellation requested…' : 'Cancel extraction'}

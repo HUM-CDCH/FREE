@@ -42,6 +42,7 @@ function attempt(overrides: Partial<ExtractionAttempt> = {}): ExtractionAttempt 
     sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000001',
     schemaRevisionId: '51000000-0000-4000-8004-000000000001',
     strategy: 'ARTICLE',
+    catalogRecipe: null,
     executionStatus: 'COMPLETED',
     outcome: 'SUCCEEDED',
     complete: true,
@@ -87,11 +88,14 @@ function batch(overrides: Partial<BatchExtraction> = {}): BatchExtraction {
     extractionSchemaName: 'Places',
     schemaRevisionNumber: 1,
     strategy: 'ARTICLE',
+    executionStatus: 'COMPLETED',
     createdAt: '2026-08-14T10:42:00.000Z',
     members: [
       {
         sourceDocumentId: reviewableDocumentId,
         sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000001',
+        executionStatus: 'COMPLETED',
+        executionFailureMessage: null,
         latestExtraction: {
           extractionId,
           outcome: 'SUCCEEDED',
@@ -99,24 +103,35 @@ function batch(overrides: Partial<BatchExtraction> = {}): BatchExtraction {
           reviewable: true,
           createdAt: '2026-08-14T10:43:00.000Z',
           reviewedAt: null,
-          failureMessage: null,
         },
       },
       {
         sourceDocumentId: failedDocumentId,
         sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000002',
-        latestExtraction: {
-          extractionId: '51000000-0000-4000-8006-000000000002',
-          outcome: 'FAILED',
-          complete: null,
-          reviewable: false,
-          createdAt: '2026-08-14T10:44:00.000Z',
-          reviewedAt: null,
-          failureMessage: 'The provider rejected this document.',
-        },
+        executionStatus: 'FAILED',
+        executionFailureMessage: 'The provider rejected this document.',
+        latestExtraction: null,
       },
     ],
     ...overrides,
+  }
+}
+
+/** The failed member once a later attempt published its (unreviewable) Extraction. */
+function publishedFailedMember(): BatchExtraction['members'][number] {
+  return {
+    sourceDocumentId: failedDocumentId,
+    sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000002',
+    executionStatus: 'COMPLETED',
+    executionFailureMessage: null,
+    latestExtraction: {
+      extractionId: '51000000-0000-4000-8006-000000000002',
+      outcome: 'SUCCEEDED',
+      complete: null,
+      reviewable: false,
+      createdAt: '2026-08-14T10:44:00.000Z',
+      reviewedAt: null,
+    },
   }
 }
 
@@ -444,6 +459,8 @@ describe('useBatchExtractionReviewGrid', () => {
         {
           sourceDocumentId: secondDocumentId,
           sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000003',
+          executionStatus: 'COMPLETED',
+          executionFailureMessage: null,
           latestExtraction: {
             extractionId: secondExtractionId,
             outcome: 'SUCCEEDED',
@@ -451,7 +468,6 @@ describe('useBatchExtractionReviewGrid', () => {
             reviewable: true,
             createdAt: '2026-08-14T10:43:00.000Z',
             reviewedAt: null,
-            failureMessage: null,
           },
         },
       ],
@@ -709,6 +725,8 @@ describe('useBatchExtractionReviewGrid', () => {
         {
           sourceDocumentId: secondDocumentId,
           sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000004',
+          executionStatus: 'COMPLETED',
+          executionFailureMessage: null,
           latestExtraction: {
             extractionId: secondExtractionId,
             outcome: 'SUCCEEDED',
@@ -716,7 +734,6 @@ describe('useBatchExtractionReviewGrid', () => {
             reviewable: true,
             createdAt: '2026-08-14T10:43:00.000Z',
             reviewedAt: null,
-            failureMessage: null,
           },
         },
       ],
@@ -852,7 +869,7 @@ it('preserves an unsaved review when another member completes', async () => {
   act(() => result.current.setDecision(reviewableDocumentId, pendingDecisions[0].resultPath, 'EDITED', 'Corrected'))
   expect(result.current.dirtyCount).toBe(1)
   const next = structuredClone(initial)
-  next.members[1].latestExtraction!.outcome = 'SUCCEEDED'
+  next.members[1] = publishedFailedMember()
   rerender({ current: next })
   await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
   const state = result.current.members.get(reviewableDocumentId)
@@ -990,7 +1007,7 @@ it('autosaves only complete documents and preserves partially reviewed drafts', 
   const otherId = '51000000-0000-4000-8006-000000000002'
   const decisions = [...pendingDecisions, { ...pendingDecisions[0], resultPath: ['records', 0, 'year'] }]
   const current = batch()
-  current.members[1].latestExtraction!.outcome = 'SUCCEEDED'
+  current.members[1] = publishedFailedMember()
   vi.mocked(api.readExtraction).mockImplementation(async (id) => ({
     extraction: attempt({ extractionId: id }), pendingReviewDecisions: decisions,
   }))

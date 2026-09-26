@@ -30,6 +30,7 @@ vi.mock('./App', () => ({
     extractionSchema,
     persistedExtraction,
     onInitialResourceLoadFailure,
+    onSourceSuperseded,
   }: DocumentWorkspaceProps) => (
     <>
       <p>
@@ -56,6 +57,9 @@ vi.mock('./App', () => ({
       </p>
       <button type="button" onClick={onInitialResourceLoadFailure}>
         Fail retained artifact
+      </button>
+      <button type="button" onClick={onSourceSuperseded}>
+        Refuse a run as superseded
       </button>
     </>
   ),
@@ -150,6 +154,7 @@ function hydratedSnapshot() {
       createdAt: '2026-07-31T12:03:00.000Z',
       reviewedAt: null,
       strategy: 'ARTICLE',
+      catalogRecipe: null,
       executionStatus: 'COMPLETED',
       outcome: 'SUCCEEDED',
       complete: true,
@@ -1266,9 +1271,6 @@ describe('Project Context navigation', () => {
       strategy: 'ARTICLE',
       createdAt: '2026-08-14T10:42:00.000Z',
       executionStatus: 'COMPLETED',
-      executionFailureMessage: null,
-      startedAt: '2026-08-14T10:42:00.000Z',
-      finishedAt: '2026-08-14T10:43:00.000Z',
       members: [
         {
           sourceDocumentId,
@@ -1276,8 +1278,6 @@ describe('Project Context navigation', () => {
             '51000000-0000-4000-8002-000000000001',
           executionStatus: 'COMPLETED',
           executionFailureMessage: null,
-          startedAt: '2026-08-14T10:42:00.000Z',
-          finishedAt: '2026-08-14T10:43:00.000Z',
           latestExtraction: null,
         },
       ],
@@ -2322,6 +2322,51 @@ describe('routed Source Document reopening', () => {
       expect.stringMatching(new RegExp(`/reopen\\?extractionId=${extractionId}$`)),
       expect.stringMatching(/\/reopen$/),
     ])
+  })
+
+  it('re-reads the open Source Document after a superseded refusal, and keeps it when that read fails', async () => {
+    const extractionId = '51000000-0000-4000-8006-000000000001'
+    const answers: Array<() => Response> = [
+      () => Response.json(hydratedSnapshot()),
+      () => {
+        const reopened = hydratedSnapshot()
+        return Response.json({
+          ...reopened,
+          sourceRepresentation: { ...reopened.sourceRepresentation, current: false },
+        })
+      },
+      () => Response.json(
+        { error: { code: 'persistence_unavailable', message: 'Persistence is unavailable.' } },
+        { status: 503 },
+      ),
+    ]
+    const reopens: string[] = []
+    const rest = studioFetch()
+    history.replaceState(null, '', `${documentPath()}?extractionId=${extractionId}`)
+    renderRoutes(
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (!url.includes('/reopen')) return rest(input)
+        reopens.push(url)
+        return answers[reopens.length - 1]()
+      }),
+    )
+    expect(await screen.findByTestId('workspace-source-current')).toHaveTextContent(/^current$/)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refuse a run as superseded' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('workspace-source-current')).toHaveTextContent(/^superseded$/),
+    )
+    // The same reopen read that opened it, for the same route.
+    expect(reopens).toEqual([reopens[0], reopens[0]])
+    expect(reopens[0]).toMatch(new RegExp(`/reopen\\?extractionId=${extractionId}$`))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refuse a run as superseded' }))
+    await waitFor(() => expect(reopens).toHaveLength(3))
+    await Promise.resolve()
+    expect(screen.getByTestId('workspace-source-current')).toHaveTextContent(/^superseded$/)
+    expect(screen.getByTestId('workspace-result')).toHaveTextContent('place')
+    expect(screen.queryByRole('heading', { name: /could not be opened|cannot be reopened/ })).not.toBeInTheDocument()
   })
 
   it('keeps the workspace on the current head while displaying a historical latest attempt', async () => {

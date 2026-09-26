@@ -15,6 +15,7 @@ const completed = {
   sourceRepresentationRevisionId: id('3'),
   schemaRevisionId: id('4'),
   strategy: 'ARTICLE',
+  catalogRecipe: null,
   executionStatus: 'COMPLETED',
   outcome: 'SUCCEEDED',
   complete: true,
@@ -87,6 +88,67 @@ describe('Article lifecycle contracts', () => {
         result: {},
       }).success,
     ).toBe(false)
+  })
+
+  it('a COMPLETED attempt is a succeeded result with its evidence and diagnostics', () => {
+    expect(extractionAttemptSchema.safeParse(completed).success).toBe(true)
+    for (const missing of ['diagnostics', 'complete', 'modelAttribution', 'resultPayload', 'evidenceLinks'] as const)
+      expect(extractionAttemptSchema.safeParse({ ...completed, [missing]: null }).success).toBe(false)
+    expect(extractionAttemptSchema.safeParse({ ...completed, outcome: null }).success).toBe(false)
+    expect(extractionAttemptSchema.safeParse({
+      ...completed,
+      failure: { code: 'extraction_failed', message: 'Failed.' },
+    }).success).toBe(false)
+  })
+
+  it('a failed, cancelled or interrupted attempt is FAILED with a failure and no result', () => {
+    const failed = {
+      ...completed,
+      executionStatus: 'FAILED',
+      outcome: null,
+      complete: null,
+      modelAttribution: null,
+      diagnostics: null,
+      resultPayload: null,
+      evidenceLinks: null,
+      reviewable: false,
+    }
+    for (const failure of [
+      { code: 'extraction_failed', message: 'The model was unreachable.' },
+      { code: 'cancelled', message: 'Extraction cancelled.' },
+      { code: 'interrupted', message: 'This work stopped before it finished. Start it again.' },
+    ]) {
+      expect(extractionAttemptSchema.safeParse({ ...failed, failure }).success).toBe(true)
+      // The job-era shape of a settled failure: COMPLETED with a FAILED or CANCELLED outcome.
+      for (const outcome of ['FAILED', 'CANCELLED'] as const)
+        expect(extractionAttemptSchema.safeParse({
+          ...failed,
+          executionStatus: 'COMPLETED',
+          outcome,
+          diagnostics: completed.diagnostics,
+          failure,
+        }).success).toBe(false)
+      expect(extractionAttemptSchema.safeParse({ ...failed, outcome: 'FAILED', failure }).success).toBe(false)
+      expect(extractionAttemptSchema.safeParse({
+        ...failed,
+        failure,
+        diagnostics: completed.diagnostics,
+      }).success).toBe(false)
+    }
+    expect(extractionAttemptSchema.safeParse({ ...failed, failure: null }).success).toBe(false)
+  })
+
+  it('an attempt names its Catalog recipe, or null', () => {
+    const catalog = { ...completed, strategy: 'CATALOG' }
+    expect(extractionAttemptSchema.parse({ ...catalog, catalogRecipe: 'numbered-catalogue-de@1' }))
+      .toMatchObject({ catalogRecipe: 'numbered-catalogue-de@1' })
+    expect(extractionAttemptSchema.safeParse({ ...catalog, catalogRecipe: null }).success).toBe(true)
+    const unnamed: Partial<typeof catalog> = { ...catalog }
+    delete unnamed.catalogRecipe
+    expect(extractionAttemptSchema.safeParse(unnamed).success).toBe(false)
+    expect(extractionAttemptSchema.safeParse({ ...catalog, catalogRecipe: '../etc' }).success).toBe(false)
+    expect(extractionAttemptSchema.safeParse({ ...completed, catalogRecipe: 'numbered-catalogue-de@1' }).success)
+      .toBe(false)
   })
 
   it('requires exact reviewed-anchor coverage', () => {

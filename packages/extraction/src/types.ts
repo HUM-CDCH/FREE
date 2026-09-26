@@ -189,6 +189,8 @@ export type ExtractionSnapshot = Readonly<{
   extractionSchemaId: string
   schemaRevisionNumber: number
   strategy: ExtractionStrategy
+  /** The numbered-catalogue recipe a Catalog Extraction ran with; null for generic Catalog and for Article. */
+  catalogRecipe: string | null
   /** The run's Extraction Model Choice; null (or absent) when every role kept kei-exp's deployment default. */
   requestedModels?: ExtractionModelChoice | null
   outcome: ExtractionOutcome
@@ -214,6 +216,8 @@ export type ExtractionAttemptSnapshot = Readonly<{
   extractionSchemaId: string
   schemaRevisionNumber: number
   strategy: ExtractionStrategy
+  /** The numbered-catalogue recipe a Catalog Extraction ran with; null for generic Catalog and for Article. */
+  catalogRecipe: string | null
   /** The run's Extraction Model Choice; null (or absent) when every role kept kei-exp's deployment default. */
   requestedModels?: ExtractionModelChoice | null
   executionStatus: ProjectOperationStatus
@@ -272,17 +276,16 @@ export type BatchExtractionMemberSnapshot = Readonly<{
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
   executionStatus: ProjectOperationStatus
+  /** Why the member failed, was cancelled or was interrupted; null unless its status is FAILED. */
   failureMessage: string | null
-  startedAt: Date | null
-  finishedAt: Date | null
+  /** The member's published Extraction; a member that failed has none. */
   latestExtraction: Readonly<{
     extractionId: string
-    outcome: ExtractionOutcome
+    outcome: 'SUCCEEDED'
     complete: boolean | null
     reviewable: boolean
     createdAt: Date
     reviewedAt: Date | null
-    failureMessage: string | null
   }> | null
 }>
 
@@ -294,10 +297,8 @@ export type BatchExtractionSnapshot = Readonly<{
   extractionSchemaName: string
   schemaRevisionNumber: number
   strategy: ExtractionStrategy
+  /** QUEUED while every member is, COMPLETED once every member has settled, RUNNING otherwise; never FAILED. */
   executionStatus: ProjectOperationStatus
-  failureMessage: string | null
-  startedAt: Date | null
-  finishedAt: Date | null
   createdAt: Date
   members: readonly BatchExtractionMemberSnapshot[]
 }>

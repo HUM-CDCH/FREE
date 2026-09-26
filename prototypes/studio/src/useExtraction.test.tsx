@@ -34,6 +34,7 @@ function attempt(
     sourceRepresentationRevisionId: representationId,
     schemaRevisionId,
     strategy: 'ARTICLE',
+    catalogRecipe: null,
     executionStatus: 'COMPLETED',
     outcome: 'SUCCEEDED',
     complete: true,
@@ -567,6 +568,55 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(api.readExtraction).not.toHaveBeenCalled()
   })
 
+  it('a run refused as superseded keeps the earlier results and asks the page to refresh the document', async () => {
+    const message = 'This document has been reprocessed. No new Extraction was started.'
+    const actual = await vi.importActual<typeof import('./api')>('./api')
+    vi.mocked(api.requestExtraction).mockImplementation(actual.requestExtraction)
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(Response.json(
+      { error: { code: 'source_representation_superseded', message } },
+      { status: 409 },
+    ))))
+    try {
+      const earlier = attempt()
+      const input = { ...options(earlier), onSuperseded: vi.fn() }
+      const { result } = renderHook(() => useExtraction(input))
+      const shown = result.current.state
+
+      await act(() => result.current.runExtraction())
+
+      expect(result.current.attempt).toBe(earlier)
+      expect(result.current.state).toEqual(shown)
+      expect(result.current.hasResults).toBe(true)
+      expect(input.onError).toHaveBeenCalledExactlyOnceWith(`source_representation_superseded: ${message}`)
+      expect(input.onSuperseded).toHaveBeenCalledOnce()
+      expect(input.onTerminal).not.toHaveBeenCalled()
+      expect(api.readExtraction).not.toHaveBeenCalled()
+      expect(result.current.canRun).toBe(true)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('offers no cancellation until the server has acknowledged the run', async () => {
+    const post = Promise.withResolvers<ExtractionAttempt>()
+    vi.mocked(api.requestExtraction).mockReturnValue(post.promise)
+    vi.mocked(api.readExtraction).mockReturnValue(new Promise(() => {}))
+    vi.mocked(api.cancelExtraction).mockResolvedValue(undefined)
+    const { result } = renderHook(() => useExtraction(options(attempt())))
+
+    act(() => void result.current.runExtraction())
+    expect(result.current.state.status).toBe('running')
+    await act(() => result.current.requestCancellation())
+    expect(api.cancelExtraction).not.toHaveBeenCalled()
+    expect(result.current.cancellationRequested).toBe(false)
+    expect(vi.mocked(api.requestExtraction).mock.calls[0][1]?.aborted).toBe(false)
+
+    const admitted = jobAttempt({ extractionId: vi.mocked(api.requestExtraction).mock.calls[0][0].id, executionStatus: 'QUEUED' })
+    await act(async () => post.resolve(admitted))
+    await act(() => result.current.requestCancellation())
+    expect(api.cancelExtraction).toHaveBeenCalledExactlyOnceWith(admitted.extractionId)
+  })
+
   it('keeps a failed cancellation separate from the connection and re-enables the request', async () => {
     vi.useFakeTimers()
     const running = attempt({ executionStatus: 'RUNNING', outcome: null, complete: null, modelAttribution: null, diagnostics: null, resultPayload: null, evidenceLinks: null, reviewable: false })
@@ -604,30 +654,6 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(result.current.state.status).toBe('ready')
     expect(result.current.monitorError).toBeNull()
     vi.useRealTimers()
-  })
-
-  it('keeps the POST live until persisted cancellation returns', async () => {
-    let resolvePost!: (attempt: ExtractionAttempt) => void
-    let signal: AbortSignal | undefined
-    vi.mocked(api.requestExtraction).mockImplementation((_input, requestSignal) => {
-      signal = requestSignal
-      return new Promise((resolve) => { resolvePost = resolve })
-    })
-    vi.mocked(api.cancelExtraction).mockResolvedValue(undefined)
-    const { result } = renderHook(() => useExtraction(options()))
-
-    act(() => void result.current.runExtraction())
-    await act(() => result.current.requestCancellation())
-
-    expect(signal?.aborted).toBe(false)
-    expect(result.current.state.status).toBe('running')
-    expect(result.current.cancellationRequested).toBe(true)
-
-    await act(() => {
-      resolvePost(attempt({ outcome: 'CANCELLED', complete: null, resultPayload: null, evidenceLinks: null, modelAttribution: null, reviewable: false }))
-    })
-    expect(result.current.state.status).toBe('cancelled')
-    expect(result.current.attempt?.outcome).toBe('CANCELLED')
   })
 
   it('does not offer review when no populated value has Evidence', async () => {

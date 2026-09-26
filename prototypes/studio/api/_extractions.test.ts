@@ -140,6 +140,7 @@ const snapshot: ExtractionAttemptSnapshot = {
   extractionSchemaId: '51000000-0000-4000-8003-000000000001',
   schemaRevisionNumber: 4,
   strategy: 'ARTICLE',
+  catalogRecipe: null,
   executionStatus: 'COMPLETED',
   outcome: 'SUCCEEDED',
   complete: true,
@@ -194,6 +195,32 @@ describe('extractionAttemptDto', () => {
     }
     const dto = extractionAttemptDto({ ...attemptSnapshot, diagnostics: { ...snapshot.diagnostics!, grounded } })
     expect(dto.diagnostics?.grounded).toEqual(grounded)
+  })
+
+  it('carries the Catalog recipe the attempt ran with, or null', async () => {
+    const { extractionAttemptDto } = await import('./_extractions.js')
+    expect(extractionAttemptDto(attemptSnapshot).catalogRecipe).toBeNull()
+    const failedCatalog = extractionAttemptDto({
+      ...attemptSnapshot,
+      strategy: 'CATALOG',
+      catalogRecipe: 'numbered-catalogue-de@1',
+      executionStatus: 'FAILED',
+      outcome: null,
+      complete: null,
+      modelAttribution: null,
+      diagnostics: null,
+      result: null,
+      evidence: null,
+      failure: { code: 'interrupted', message: 'This work stopped before it finished. Start it again.', phase: 'extracting' },
+      reviewable: false,
+    })
+    expect(failedCatalog).toMatchObject({
+      strategy: 'CATALOG',
+      catalogRecipe: 'numbered-catalogue-de@1',
+      executionStatus: 'FAILED',
+      outcome: null,
+      failure: { code: 'interrupted', message: 'This work stopped before it finished. Start it again.' },
+    })
   })
 
   it('echoes no Extraction Model Choice as null and transports no per-role models when kei-exp reported none', async () => {

@@ -145,8 +145,9 @@ function failureMessage(failure: unknown): string | null {
 function readAttemptRows(orm: DatabaseOrm, extractionIds: readonly string[]) {
   return orm.public.Extraction.where((row) => row.id.in([...extractionIds]))
     .select(
-      'id', 'sourceDocumentId', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'requestedModels',
-      'outcome', 'complete', 'modelAttribution', 'diagnostics', 'failure', 'resultPayload', 'evidenceLinks',
+      'id', 'sourceDocumentId', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'catalogRecipe',
+      'requestedModels', 'outcome', 'complete', 'modelAttribution', 'diagnostics', 'failure', 'resultPayload',
+      'evidenceLinks',
       'reviewable', 'batchExtractionId', 'createdAt', 'reviewedAt',
     )
     .all()
@@ -225,6 +226,7 @@ async function pinsOf(orm: DatabaseOrm, row: AttemptRow) {
     extractionSchemaId: schema.extractionSchemaId,
     schemaRevisionNumber: schema.revisionNumber,
     strategy: row.strategy as ExtractionStrategy,
+    catalogRecipe: row.catalogRecipe,
     requestedModels: modelChoice(row.requestedModels),
     batchExtractionId: row.batchExtractionId,
     createdAt: row.createdAt,
@@ -676,17 +678,12 @@ export function snapshot(batch: DurableBatchExtraction): BatchExtractionSnapshot
     schemaRevisionNumber: batch.schemaRevisionNumber,
     strategy: batch.strategy,
     executionStatus: batch.executionStatus,
-    failureMessage: null,
-    startedAt: null,
-    finishedAt: null,
     createdAt: batch.createdAt,
     members: batch.members.map((member) => ({
       sourceDocumentId: member.sourceDocumentId,
       sourceRepresentationRevisionId: member.sourceRepresentationRevisionId,
       executionStatus: member.executionStatus,
       failureMessage: failureMessage(member.executionFailure),
-      startedAt: null,
-      finishedAt: null,
       latestExtraction: member.latestExtraction,
     })),
   }
@@ -743,7 +740,6 @@ async function loadBatches(
                 reviewable: row.reviewable,
                 createdAt: row.createdAt,
                 reviewedAt: row.reviewedAt,
-                failureMessage: null,
               }
             : null,
           extraction: row,

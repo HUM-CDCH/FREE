@@ -143,7 +143,7 @@ describe('review of an Extraction with document-level schema fields', () => {
   const extraction: ExtractionSnapshot = {
     extractionId, sourceDocumentId: randomUUID(), sourceRepresentationRevisionId: randomUUID(),
     sourceRepresentationRevisionNumber: 1, schemaRevisionId: randomUUID(),
-    extractionSchemaId: randomUUID(), schemaRevisionNumber: 1, strategy: 'ARTICLE',
+    extractionSchemaId: randomUUID(), schemaRevisionNumber: 1, strategy: 'ARTICLE', catalogRecipe: null,
     outcome: 'SUCCEEDED', complete: true, modelAttribution: { provider: 'kei-exp', modelId: 'm' },
     diagnostics: {
       phase: 'persisting', durationMs: 1, modelCalls: 1, finishReason: null, inputTokens: null,

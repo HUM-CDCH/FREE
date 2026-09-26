@@ -40,17 +40,12 @@ function batchDto(batch: BatchExtractionSnapshot) {
     schemaRevisionNumber: batch.schemaRevisionNumber,
     strategy: batch.strategy,
     executionStatus: batch.executionStatus,
-    executionFailureMessage: batch.failureMessage,
-    startedAt: batch.startedAt?.toISOString() ?? null,
-    finishedAt: batch.finishedAt?.toISOString() ?? null,
     createdAt: batch.createdAt.toISOString(),
     members: batch.members.map((member) => ({
       sourceDocumentId: member.sourceDocumentId,
       sourceRepresentationRevisionId: member.sourceRepresentationRevisionId,
       executionStatus: member.executionStatus,
       executionFailureMessage: member.failureMessage,
-      startedAt: member.startedAt?.toISOString() ?? null,
-      finishedAt: member.finishedAt?.toISOString() ?? null,
       latestExtraction: member.latestExtraction && {
         extractionId: member.latestExtraction.extractionId,
         outcome: member.latestExtraction.outcome,
@@ -58,7 +53,6 @@ function batchDto(batch: BatchExtractionSnapshot) {
         reviewable: member.latestExtraction.reviewable,
         createdAt: member.latestExtraction.createdAt.toISOString(),
         reviewedAt: member.latestExtraction.reviewedAt?.toISOString() ?? null,
-        failureMessage: member.latestExtraction.failureMessage,
       },
     })),
   }

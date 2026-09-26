@@ -61,6 +61,8 @@ type Event =
   | { type: 'ROUTE_CHANGED'; route: Route }
   | { type: 'RETRY' }
   | { type: 'SOURCE_REPROCESSED' }
+  /** The open document's Source Representation may be stale (a run was refused as superseded): read it again. */
+  | { type: 'REFRESH' }
   | { type: 'RESOURCE_FAILED' }
   | { type: 'DOCUMENT_CONTAINED' }
   | { type: 'DOCUMENT_NOT_CONTAINED' }
@@ -170,6 +172,12 @@ function assertDocumentRoute(route: Route): DocumentRoute {
   return route
 }
 
+/** What the routed document is read by, when it opens and when it refreshes. */
+function reopenInput({ context }: { context: Context }) {
+  const { projectContextId, sourceDocumentId, extractionId } = assertDocumentRoute(context.route)
+  return { projectContextId, sourceDocumentId, extractionId }
+}
+
 // @xstate/react stops the actor on React's StrictMode remount, then rehydrates
 // the abandoned promise actor's snapshot as `active` again — so xstate's own
 // late-rejection guard lets the abandoned read's AbortError reach the restarted
@@ -267,12 +275,7 @@ export const navigationMachine = setup({
       entry: [{ type: 'clearFailure' }],
       invoke: {
         src: 'reopenDocument',
-        input: ({ context }) => {
-          const { projectContextId, sourceDocumentId, extractionId } = assertDocumentRoute(
-            context.route,
-          )
-          return { projectContextId, sourceDocumentId, extractionId }
-        },
+        input: reopenInput,
         // Inline so the done/error event payloads stay typed.
         onDone: {
           target: 'open',
@@ -290,6 +293,23 @@ export const navigationMachine = setup({
       },
     },
     open: {
+      on: {
+        RESOURCE_FAILED: { target: 'failed', actions: [{ type: 'failResource' }] },
+        REFRESH: { target: 'refreshing' },
+      },
+    },
+    // The open workspace stays on screen while its document is read again; only a successful read replaces it,
+    // so a failed refresh keeps the workspace as it was.
+    refreshing: {
+      invoke: {
+        src: 'reopenDocument',
+        input: reopenInput,
+        onDone: {
+          target: 'open',
+          actions: [assign({ snapshot: ({ event }) => event.output })],
+        },
+        onError: { target: 'open' },
+      },
       on: {
         RESOURCE_FAILED: { target: 'failed', actions: [{ type: 'failResource' }] },
       },
