@@ -124,6 +124,15 @@ that every other researcher's documents are sent to.
     Pausing or preempting running work is not a goal. Two books do not share:
     the second waits. Concurrent uploads from one browser tab stay out of
     scope; another tab or researcher is not blocked.
+15. **The document chat is deleted, not made durable (user, 2026-09-26).**
+    `/api/chat` and `ChatTab` have had no UI since 44ce50b (2026-08-13); M5
+    deletes them. The schema tab's generation (its instruction chat) and edit
+    proposals ("Describe a change to the schema…") remain the durable
+    interactive work. `ChatTurn`, `chatTurn`, the chat routes and
+    `@dbos-inc/vercel-ai` are therefore not built, and decisions 4 and 8 apply
+    to generation and edit proposals only. The chat items elsewhere in this
+    plan are superseded; the [M5 task plan](2026-09-26-dbos-m5-interactive.md)
+    lists each.
 
 **Settled after the Spark tests (user, 2026-09-25).**
 - **Small-document threshold: 30 pages** (`SMALL_DOCUMENT_PAGES`, *Queues*).

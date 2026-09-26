@@ -2,60 +2,59 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-Status: **not started (plan written 2026-09-26 against `feat/dbos-m2-m6` at bf80322, with M4 Task 1 committed and M4 Task 2 in the working tree; assumes the M4 plan is complete — its Task 14 recorded — before Task 1 starts).**
+Status: **not started (plan written 2026-09-26 against `feat/dbos-m2-m6` at bf80322, with M4 Task 1 committed and M4 Task 2 in the working tree; revised 2026-09-26 after the user deleted the document chat (Ruling 1), which removed the chat workflow, table, routes and tab from this plan and added Task 1; assumes the M4 plan is complete — its Task 14 recorded — before Task 1 starts).**
 
-**Goal:** Deliver milestone M5 of the DBOS plan on `feat/dbos-m2-m6`: Schema Suggestion (`suggestSchema`), schema edit proposals (`proposeSchemaEdit`) and document chat (`chatTurn`, streamed through `@dbos-inc/vercel-ai`'s `durableCalls`) run as named DBOS workflows that survive a browser reload and a Studio restart; chat transcripts live in a new `ChatTurn` table; `GET`/`DELETE /api/model-operations`, `GET /api/chat/<revision ID>` and its `/stream` let a reloaded page find, reattach to, cancel or discard its work; no key, provider error body, provider metadata or document text enters DBOS history; every tier ends green.
+**Goal:** Deliver milestone M5 of the DBOS plan on `feat/dbos-m2-m6`: Schema Suggestion (`suggestSchema`) and schema edit proposals (`proposeSchemaEdit`) run as named DBOS workflows that survive a browser reload and a Studio restart; `GET`/`DELETE /api/model-operations` let a reloaded page find, cancel or discard its work; the unreachable document chat (`/api/chat`, `ChatTab`) is deleted rather than made durable (user, 2026-09-26); no key, provider error body, provider metadata or document text enters DBOS history; every tier ends green.
 
-**Architecture:** Generation and edit proposals are workflow-first: the handler owner-checks in PostgreSQL, enqueues `suggestion:<operationId>` / `edit:<operationId>` by name on the `studio` queue through the admission client, compares the recorded input on reuse (409 on conflict), then waits for the workflow's typed result and answers exactly as today, so a live tab keeps saving through `generate()` and the save coordinator. Chat is row-backed: one transaction inserts the `ChatTurn` question and `enqueueInTransaction`s `chat:<turnId>` with deduplication ID `chat:<sourceRepresentationRevisionId>` (rejection policy); the workflow loads the turn, runs `streamText` at workflow scope over `wrapLanguageModel({ model: sanitizedChatModel(ownerModel), middleware: durableCalls({ name: 'chat', durableStream: 'ui', … }) })`, then writes the answer, or records a typed failure and throws a fresh sanitized error. Every route answers from `readDurableStream` (turn ID as the message ID) or 204. The model boundary composes `DBOS.stepStatus.cancelSignal` into every provider attempt, so a cancel ends a key wait or a provider call about 1 s later. The schema panel restores running operations (2 s poll), unsaved generations onto their base and unreviewed proposals onto a clean draft; the Chat tab reloads its transcript and reconnects to the exact turn.
+**Architecture:** Task 1 deletes the document chat end to end, so no later task touches dead code. The schema tab's two chats are the interactive work M5 makes durable: the pre-generation instruction chat (`SchemaInstructionsChat`, local state that feeds `generate_schema` → `suggestSchema`) and "Describe a change to the schema…" (`requestSchemaEdit` → `edit_schema` → `proposeSchemaEdit`). Both are workflow-first: the handler owner-checks in PostgreSQL, enqueues `suggestion:<operationId>` / `edit:<operationId>` by name on the `studio` queue through the admission client, compares the recorded input on reuse (409 on conflict), then waits for the workflow's typed result and answers exactly as today, so a live tab keeps saving through `generate()` and the save coordinator. Each model step catches every error inside the step and returns FREE's typed failure (`operationFailureOf`), so DBOS never serializes a provider error. The model boundary composes `DBOS.stepStatus.cancelSignal` into every provider attempt, keyed or keyless, so a cancel ends a key wait or a provider call about 1 s later. The schema panel restores running operations (2 s poll), unsaved generations onto their base and unreviewed proposals onto a clean draft.
 
-**Tech Stack:** Studio (TypeScript, React 19, Vite 8, Hono, Zod 4, Vitest 4, Playwright, AI SDK `ai` 7.0.93), `@dbos-inc/dbos-sdk` 5.1.10, `@dbos-inc/vercel-ai` 0.4.4 (new here), `packages/db` (Prisma Next 0.16, `pg` 8.22.0, `tsx --test`), Docker Compose (Playwright stacks only).
+**Tech Stack:** Studio (TypeScript, React 19, Vite 8, Hono, Zod 4, Vitest 4, Playwright, AI SDK `ai` 7.0.93), `@dbos-inc/dbos-sdk` 5.1.10, `packages/db` (Prisma Next 0.16, `pg` 8.22.0, `tsx --test`), Docker Compose (Playwright stacks only). M5 adds no dependency.
 
-**Spec:** [docs/plans/2026-09-24-unified-durable-execution.md](2026-09-24-unified-durable-execution.md). Read *Decisions* (4, 6, 8), *Rules* (all: secrets, status derivation, workflow IDs, ownership), *Workflows → Admission* (Binding, Queues, Replays, Chat exclusion, No-row operations, Client IDs) and *Status and ownership*, *Interactive model work* (all of it), *Cancellation → Studio model calls*, *Queues, deadlines and upgrades* (the `studio` row, *Other workflows start directly*, *Ownership*, *Versions*), *Model configuration and keys → Keys* (Handoff, Cache, Use), *Public contract changes* (chat and model-operation bullets), *Milestones → M5* (Workflows, Handlers, Browser, Acceptance), *Verification* and *Risks* (one Studio process; research content in DBOS history). Evidence this plan builds on: [evidence README](2026-09-24-unified-durable-execution-evidence/README.md) — [stream-probe.mjs](2026-09-24-unified-durable-execution-evidence/stream-probe.mjs) (an outer sanitized return still leaves the secret in the recorded step error; a workflow that returns a typed failure makes the stream end with an ordinary `finish`), [version-probe.mjs](2026-09-24-unified-durable-execution-evidence/version-probe.mjs) (0.4.4 checkpoints no request body or response headers but does record provider metadata; `cancelSignal` reaches a wrapper model inside a `durableCalls` step and fires ≈1001 ms after `cancelWorkflow`, with no provider call after it), [admission-races.mjs](2026-09-24-unified-durable-execution-evidence/admission-races.mjs) (same turn: one created, one replayed; different turns on one revision: one created, one `DBOSQueueDuplicatedError`, one question persisted; a cancel clears the dedup record) and [m0r/README.md](2026-09-24-unified-durable-execution-evidence/m0r/README.md) (items 2–3: explicit names, one launch, `minPollingIntervalMs: 100`, `return-existing` only outside caller transactions). The M4 plan ([2026-09-26-dbos-m4-studio-background.md](2026-09-26-dbos-m4-studio-background.md)) owns every piece of infrastructure named below as "(M4)".
+**Spec:** [docs/plans/2026-09-24-unified-durable-execution.md](2026-09-24-unified-durable-execution.md). Read *Decisions* (4, 6, 8 and 15 — 15 records the chat deletion and limits 4 and 8 to generation and edit proposals), *Rules* (all: secrets, status derivation, workflow IDs, ownership), *Workflows → Admission* (Binding, Queues, Replays, No-row operations, Client IDs) and *Status and ownership*, *Interactive model work* (*Generation* and *Edit proposals*; its *Chat* sections are not built), *Cancellation → Studio model calls*, *Queues, deadlines and upgrades* (the `studio` row, *Other workflows start directly*, *Ownership*, *Versions*), *Model configuration and keys → Keys* (Handoff, Cache, Use), *Public contract changes* (model-operation bullets), *Milestones → M5* (Workflows, Handlers, Browser, Acceptance; the chat items are superseded, see the traceability table), *Verification* and *Risks* (one Studio process; research content in DBOS history). Evidence this plan builds on: [evidence README](2026-09-24-unified-durable-execution-evidence/README.md) — [stream-probe.mjs](2026-09-24-unified-durable-execution-evidence/stream-probe.mjs) (an outer sanitized return still leaves the secret in the recorded step error, so sanitizing happens inside the step), [version-probe.mjs](2026-09-24-unified-durable-execution-evidence/version-probe.mjs) (`cancelSignal` reaches a wrapper model inside a step and fires ≈1001 ms after `cancelWorkflow`, with no provider call after it) and [m0r/README.md](2026-09-24-unified-durable-execution-evidence/m0r/README.md) (items 2–3: explicit names, one launch, `minPollingIntervalMs: 100`, `return-existing` only outside caller transactions). The M4 plan ([2026-09-26-dbos-m4-studio-background.md](2026-09-26-dbos-m4-studio-background.md)) owns every piece of infrastructure named below as "(M4)".
 
 ## Rulings (controller, 2026-09-26)
 
-1. **Ruling: `@dbos-inc/vercel-ai@0.4.4` is installed in Studio in M5 (Task 1)**, exact, as a direct `dependency` (M0R PLAN IMPACT 1). `vite.server.config.ts` already lists it in `ssr.external` (M4 Task 1). — *Why:* M4 deliberately deferred it to its first user. — *Cost if wrong:* a transitive copy is bundled or a second DBOS singleton appears.
-2. **Ruling: `DBOS.stepStatus.cancelSignal` is composed inside the model boundary, never by the caller.** Under `durableCalls` the library calls the model, so no caller can add it. `requireModelKey` (`api/_model_keys.ts`, whose comment already says so) composes it into the key wait; a step-cancellation middleware composes it into every provider call, keyed or not (Task 1). M4's Ruling 9 put the composition in the key wrapper while its Task 8 code composes at the caller (`modelSignal(steps.cancelSignal())`); the caller-side composition stays and is now redundant, and deployment vLLM and CLI connections — which never pass through `keyedModel` — become cancellable too. — *Why:* spec *Cancellation → Studio model calls*. — *Cost if wrong:* a cancelled chat keeps its provider call (and its bill) running to the end.
-3. **Ruling: the chat sanitizer lives inside `durableCalls`** (it wraps the provider model; `durableCalls` wraps it). It replaces **every** thrown error and every stream `error` part — not only `APICallError` — with a fresh `ChatModelFailure` that has no `cause`, response, request, headers or body, and it strips `providerMetadata` from every part. A typed chat failure is recorded on the `ChatTurn` row, then a fresh sanitized `Error` is thrown; the workflow never returns a typed failure as success. — *Why:* stream-probe (sanitizing outside the step leaves the secret in `operation_outputs`) and version-probe (provider metadata is recorded). — *Cost if wrong:* a key or a provider body sits in `dbos.operation_outputs` for 24 h and in every dump.
-4. **Ruling: every `streamText`/`streamObject` call passes an explicit `onError`**, through one shared helper `modelStreamOnError` (Task 1), and a source-scan test fails when a call site does not (M2 fix, `api/_model.ts:124-132`). — *Why:* the SDK's default logs the whole error, including provider bodies and `Bearer <key>` runtime messages.
-5. **Ruling: a `model_key_required` inside a 200 stream triggers exactly one key resend per turn** (M2 ruling: M5 wires the explicit chat resend). `authenticatedFetch`'s 409 hook never sees a stream. The Chat tab calls `requestModelKeyResend()` (exported by M4 Task 9) when the re-read transcript shows the newest turn failed with `model_key_required`, once per turn ID (Task 11); the schema panel does the same for a restored operation (Task 10). The stale comment at `api/_model.ts:137` ("the page resends its keys") is corrected in Task 1 and deleted with `streamChatWithModel` in Task 8.
-6. **Ruling: "Change the route between attempts" and "one HTTP and one CLI provider complete a chat turn end to end" are tested without live providers.** HTTP: a scripted OpenAI-compatible server (`test/support/scriptedModelServer.ts`) behind the real `@ai-sdk/openai-compatible` provider, the real route resolver and the real key cache. CLI: a stand-in model registered through the route resolver's `modelFactories['claude-code']` seam for a `FREE_DEPLOYMENT_CLI_PROVIDERS=claude-code` deployment connection, so resolution, the keyless path, the sanitizer, `durableCalls` and the stream are FREE's own code; only the CLI subprocess is replaced. Route change: a crash scenario kills Studio mid-stream on route A, re-points the owner's Interaction Route to server B and restarts. Left to the live check (Task 14, recorded, never claimed as passed on a host that cannot run it): one real CLI chat turn on the operator's Codex or Claude Code login, and one real hosted or Spark vLLM chat turn, through `pnpm dev` across a reload and a Studio restart.
-7. **Ruling: the generation rule is the spec's, verbatim.** A live tab saves exactly as today, through `generate()` (`src/currentSchemaRevision.ts:417`) and the save coordinator (acknowledged head, editing during a regeneration allowed). A reloaded page saves a finished generation only while its base is still the current revision (clean draft), or while there is still no Extraction Schema; otherwise it drops it. The schema panel restores running operations (2 s poll), unsaved generations and unreviewed proposals; Discard deletes that proposal and every older finished proposal on the same base.
-8. **Ruling: key acceptance is tested by planting.** A synthetic key `FREE_SYNTHETIC_KEY_<hex>` is put in Studio's cache for a `hasKey` connection; stand-in models and the scripted server echo it into an error's cause chain (`APICallError` `requestBodyValues`, `responseHeaders`, `responseBody`, `cause`), into a successful response's headers and into provider metadata. Detection is a text scan of every row of every table in the test's DBOS schema and `public` (Studio PostgreSQL tier, Tasks 3 and 7), and — for the full-stack bullet — `pg_dump` of the Playwright database, a recursive scan of Studio's data directories and a scan of Studio's captured log (Task 13).
-9. **Ruling: the baseline is edited in place again** (`packages/db/migrations/app/*_baseline`): Task 6 adds `ChatTurn(id, sourceRepresentationRevisionId, question, answer, failure, createdAt)` cascading with its revision. In a checkout without the gitignored ref snapshots run `npx prisma-next ref delete db --no-interactive` before `migration plan`.
-10. **Ruling: M5 ends with every tier green** — unit, typecheck, lint, safety, all PostgreSQL tiers, `pnpm test:e2e` (both Playwright configs, Task 13 adds the second), base-path e2e and `pnpm test:service` (unchanged by M5, rerun in Task 14).
+1. **Ruling (user, 2026-09-26): the document chat is deleted, not made durable.** `/api/chat` (`api/chat.ts`, `streamChatWithModel` in `api/_model.ts`) and `src/ChatTab.tsx` have had no UI since 44ce50b (2026-08-13, "integrate chat into schema panel"): `src/RightRail.tsx:3-5,181-183` comments the Chat tab out and only `src/ChatTab.test.tsx` imports `ChatTab`. The schema tab's "chat" is two other things, and both stay: (a) the pre-generation instruction chat (`SchemaInstructionsChat`, `src/SchemaInstructions.tsx:28`, local state feeding `generate_schema` → `suggestSchema`) and (b) "Describe a change to the schema…" (`src/SchemaPanel.tsx:1753`) → `requestSchemaEdit` → `edit_schema` → `proposeSchemaEdit`. Task 1 deletes the chat before any other task. Consequently M5 builds no `chatTurn` workflow, no `ChatTurn` table (so no baseline edit, and no database needs recreating for M5), no chat routes, no Chat tab and no `@dbos-inc/vercel-ai`; spec decisions 4 and 8 apply to generation and edit proposals only (spec decision 15). — *Why:* a durable workflow, a table, four routes and a tab for a feature no researcher can reach cost more than they return; the reload- and restart-proof interactive work researchers use is generation and edit proposals. — *Cost if wrong:* document chat is rebuilt later from the spec's *Chat* sections, which stay in the spec, and the first version of this plan (a722fe1).
+2. **Ruling: `@dbos-inc/vercel-ai` is not installed, and Task 1 removes M4's `ssr.external` entry for it** (`vite.server.config.ts:22`, pinned by `vite.server.config.test.ts:3-10`). Studio's `package.json` never declared it. This supersedes the first version's Ruling 1, which installed it for chat. — *Why:* chat was its only user. — *Cost if wrong:* one dependency and one list entry to add back.
+3. **Ruling: `DBOS.stepStatus.cancelSignal` is composed inside the model boundary, never by the caller.** The key wait runs inside `keyedModel`'s provider attempt and reads that attempt's `params.abortSignal`; NuExtract reads its key and fetches on its own; deployment vLLM and CLI connections never pass through `keyedModel`. So `requireModelKey` (`api/_model_keys.ts`, whose comment already says the keyed wrapper must compose it) composes it into the key wait, a step-cancellation middleware composes it into every general model's provider call, keyed or not, and NuExtract's attempt composes it into its key read and `fetch` (Task 2). Every attempt the AI SDK makes, retries included, then carries it whatever the caller passes. M4's Ruling 9 put the composition in the key wrapper while its Task 8 code composes at the caller (`modelSignal(steps.cancelSignal())`); the caller-side composition stays and is now redundant. — *Why:* spec *Cancellation → Studio model calls*. — *Cost if wrong:* a cancelled generation or edit keeps its provider call (and its bill) running to the end, or a keyless connection never stops.
+4. **Ruling: provider errors are sanitized inside the step boundary.** DBOS records a step's thrown error with every enumerable property and its cause (spec *Rules → Secrets never enter DBOS*; `ApiError.cause` is enumerable, and `asModelOperationError`, `api/_http.ts:139-144`, puts the provider error there). So each model step (`generateSchema`, `proposeSchemaEdit`) catches every error inside its closure and returns `{ ok: false, status, code, message }` built by `operationFailureOf` — an `ApiError`'s own status, code and message (FREE's copy; no `ApiError` in `_model.ts` or `_provider.ts` interpolates provider text), anything else 500 `unexpected_failure` — and never rethrows. A step's success output holds only the generated template or proposal: never the provider's response, headers or metadata. — *Why:* stream probe (a sanitized return outside the step leaves the secret in `operation_outputs`). — *Cost if wrong:* a key or a provider body sits in `dbos.operation_outputs` for 24 h and in every dump.
+5. **Ruling: after Task 1 no `streamText` or `streamObject` call remains in Studio's server code, and a source-scan test (Task 2) fails when one appears without an explicit `onError`.** The only call today is `streamChatWithModel`'s (`api/_model.ts:116`); `generateText` (203, 211) throws instead of logging. No shared `onError` helper is built for a caller that does not exist. — *Why:* the SDK's default `onError` logs the whole error, including provider bodies and `Bearer <key>` runtime messages (M2 fix, `api/_model.ts:124-132`). — *Cost if wrong:* a later streaming call logs a key.
+6. **Ruling: a restored operation that failed with `model_key_required` triggers exactly one key resend per operation.** A live generation or edit receives its 409 through `authenticatedFetch`'s hook (M2). The listing a reloaded page polls answers 200, which that hook never sees, so the schema panel calls `requestModelKeyResend()` (exported by M4 Task 9) once per workflow ID (Task 7); asking again mints a new operation ID. This replaces the first version's chat resend.
+7. **Ruling: route change and provider coverage are tested without live providers.** HTTP: a scripted OpenAI-compatible server (`test/support/scriptedModelServer.ts`) behind the real `@ai-sdk/openai-compatible` provider, the real route resolver and the real key cache. Route change (spec *No pins*): the generation crash scenarios re-point the owner's Schema Suggestion Route to a second scripted server between the two runs (Task 3). Left to the live check (Task 10, recorded, never claimed as passed on a host that cannot run it): one Schema Suggestion and one edit proposal on a real hosted or Spark vLLM model through `pnpm dev` across a reload and a Studio restart, and one Schema Suggestion and one edit proposal on the operator's Codex or Claude Code login.
+8. **Ruling: the generation rule is the spec's, verbatim.** A live tab saves exactly as today, through `generate()` (`src/currentSchemaRevision.ts:417`) and the save coordinator (acknowledged head, editing during a regeneration allowed). A reloaded page saves a finished generation only while its base is still the current revision (clean draft), or while there is still no Extraction Schema; otherwise it drops it. The schema panel restores running operations (2 s poll), unsaved generations and unreviewed proposals; Discard deletes that proposal and every older finished proposal on the same base.
+9. **Ruling: key acceptance is tested by planting.** A synthetic key `FREE_SYNTHETIC_KEY_<hex>` is put in Studio's cache for a `hasKey` connection; the scripted server echoes it into an error body (its `{{authorization}}` token) and into the response headers of failed and successful calls, and `operationFailureOf`'s unit test plants it in an `APICallError`'s `requestBodyValues`, `responseHeaders`, `responseBody` and `cause`. Detection is a text scan of every row of every table in the test's DBOS schema and `public` (Studio PostgreSQL tier, Task 3) and — for the full-stack bullet — `pg_dump` of the Playwright database, a recursive scan of Studio's data directories and a scan of Studio's captured log (Task 9).
+10. **Ruling: M5 ends with every tier green** — unit, typecheck, lint, safety, all PostgreSQL tiers, `pnpm test:e2e` (both Playwright configs, Task 9 adds the second), base-path e2e and `pnpm test:service` (unchanged by M5, rerun in Task 10).
 
-## Code facts this plan relies on (verified at bf80322 and the M4 working tree)
+## Code facts this plan relies on (verified at bf80322 and the M4 working tree; rechecked 2026-09-26 for the revision)
 
-- **Model calls today** (`prototypes/studio/api/_model.ts`): `streamChatWithModel(caller, messages, documentMarkdown, temperature?, signal?, target?, dependencies?)` (101-144) streams at request scope with `onError` logging class and status only (124-132) and a `toUIMessageStream` `onError` that names only `ModelKeyRequiredError` (136-139, stale comment at 137). `generateSchemaWithModel(caller, { document, instruction, temperature, signal }, target?, dependencies?)` (146-194). `generateWithNuExtract` reads the key inside the attempt (`target.key(input.signal)`, 289-298) and fetches with `signal: input.signal` (316). `generateSchemaEditJson(caller, prompt, temperature?, signal?, target?, dependencies?)` (370-398). `operationTarget` resolves the caller's account (87-99).
+- **Model calls today** (`prototypes/studio/api/_model.ts`, line numbers before Task 1): `streamChatWithModel(caller, messages, documentMarkdown, temperature?, signal?, target?, dependencies?)` (101-144) holds the only `streamText` call (116); Task 1 deletes it with the imports only it uses (`convertToModelMessages`, `createUIMessageStreamResponse`, `toUIMessageStream`, `UIMessage` and `streamText` from `ai`; `ModelKeyRequiredError`, 22, used only by its `onError`s at 127 and 138). `generateSchemaWithModel(caller, { document, instruction, temperature, signal }, target?, dependencies?)` (146-194). `generateWithNuExtract` reads the key inside the attempt (`target.key(input.signal)`, 289-298) and fetches with `signal: input.signal` (316). `generateSchemaEditJson(caller, prompt, temperature?, signal?, target?, dependencies?)` (370-398). `operationTarget` resolves the caller's account (87-99). `asModelOperationError(error, message?)` (`api/_http.ts:139-144`) wraps a non-`ApiError` as 502 `model_operation_failed` with the provider error as `cause`.
 - **Keys** (`api/_model_keys.ts`): `MODEL_KEY_WAIT_MS = 60_000`; `ModelKeyRequiredError` (409 `model_key_required`, `isRetryable = false`); `ModelKeyCache.wait(accountId, connection, signal, waitMs)`; `requireModelKey(cache, accountId, connection, signal, waitMs)` (133-144, comment 127-132 says the keyed wrapper must compose `cancelSignal`); `studioProcess = { bootId, keys }` (150-153).
-- **Provider seam** (`api/_provider.ts`): private `providerModel` (558); `keyedModel(createModel, connection, modelId, key)` (570-591) reads the key from `params.abortSignal` per attempt; `resolveCapabilityRoute(operation, { temperature }, dependencies)` (698-760): `key = (signal) => requireModelKey(keys, researcherAccountId, connection, signal, keyWaitMs)` (729-730), NuExtract target with `key` (737-740), `model = connection.hasKey ? keyedModel(…) : createModel(…)` (751); `RouteResolverDependencies` has `keys`, `keyWaitMs`, `modelFactories`, `deployment`, `readConfig`. Keyless connections (deployment vLLM, CLI, keyless Ollama/OpenAI-compatible) never pass through `keyedModel`.
-- **Handlers today:** `api/generate_schema.ts` (form `project_context_id`, `source_representation_revision_id`, `instruction`, `temperature`; `createPostGenerateSchema(store, reader, generate)` at 36); `api/edit_schema.ts` (form adds `extraction_schema_id`, `schema_revision_id`; `createPostEditSchema(store, reader, propose)` at 37); `api/chat.ts` (JSON `{ projectContextId, sourceRepresentationRevisionId, messages, temperature? }`, `createPostChat(store, reader, stream)` at 41). Owner loaders `loadOwnedSourceMarkdown`, `loadOwnedSchemaRevision`, `loadOwnedSchemaModelContext`, `formContextIdentity` and `proposeSchemaEdit(nodes, instruction, documentMarkdown, { caller, temperature, signal, target, generate })` are in `api/_schema_edit.ts` (76-243). `getSourceRepresentation` returns only `{ artifactReference, artifactSha256 }` (`packages/db/src/project-store.ts:125-164`).
-- **Dispatcher** (`server/api-dispatcher.ts`): `PARAMETERIZED` routes (16-42); `/api/chat` is matched by the generic `API_ROUTE` (8) today; every `api/[a-z]*.ts` is eagerly imported (65-72), so no module registers a workflow or opens a connection at import. `STUDIO_BOOT_HEADER` is stamped on every `/api` response (`server/app.ts:391,394`).
-- **Browser:** `src/ChatTab.tsx` keeps history in React state (45), uses the fixed chat ID `free-document-chat` (72) and a module `DefaultChatTransport` whose `fetch` awaits `ensureModelKeysSent()` (13-27). **`ChatTab` is mounted nowhere**: the Chat rail tab was retired in 44ce50b (2026-08-13); `src/RightRail.tsx:3-5,181-191` says so, and only `src/ChatTab.test.tsx` imports it. `RailTab = 'evidence' | 'schema' | 'results'` (`RightRail.tsx:19`). `requestSchema` / `requestSchemaEdit` post forms after `ensureModelKeysSent()` (`src/api.ts:83-100,264-281`). `App.handleGenerate` calls `schema.generate((signal) => requestSchema(…))` (`src/App.tsx:444-464`). The schema panel's edit flow is `sendChatMessage` / `cancelChat` (`src/SchemaPanel.tsx:931-1015`); `useSchemaProposalReview.start(proposal, original, originalDraftVersion, originalSchemaRevisionId)` and its draft-version guard (`src/useSchemaProposalReview.ts:59-94`); `deriveSchemaProposal(original, response)` (`shared/schemaChanges.ts:129`). `SchemaPanel` is also rendered on the Batch prepare screen over a durable schema without a source revision (`src/projectContexts/BatchExtractionsPanel.tsx:1277-1310`). A document workspace opens the project's newest Extraction Schema (`project-store.ts:1330-1341`), so an Extraction Schema is project-scoped. `requestModelKeyResend` is module-private today (`src/auth/authenticatedFetch.ts:35`); M4 Task 9 exports it.
-- **AI SDK 7.0.93** (`node_modules/.pnpm/ai@7.0.93_zod@4.4.3/node_modules/ai/dist/index.d.ts`): `streamText` has `maxRetries` (default 2) and `streamRetries` (omitted → no stream retries, 3441); an `onError` that returns `{ retry: true }` requests a stream retry (3360-3380); `consumeStream({ onError })` (2618-2620, 2829); `DefaultChatTransport.reconnectToStream` GETs `${api}/${chatId}/stream` (or `prepareReconnectToStreamRequest`'s `api`) and returns `null` on 204 (`index.js:18799-18828`).
-- **`@dbos-inc/vercel-ai` 0.4.4** (read from `src/`): `durableCalls({ name, durableStream, retriesAllowed, maxAttempts, timeoutMS, … })` runs each `doStream` in one `DBOS.runStep`, writes content parts to the durable stream from inside the step, refuses a retry once any content part streamed live (`middleware.ts:146-151`), classifies `name` `AbortError`/`TimeoutError` and `isRetryable === false` as terminal (`internal.ts:28-48`), throws a stream `error` part as the step error (`middleware.ts:174-178`), outside a workflow calls the model directly (103-105), and records the accumulated `providerMetadata` (`middleware.ts:474-478,533-543`). `readDurableStream({ workflowID, key, messageId, client, onError })` replays from offset 0, skips superseded attempts of a step for a new reader (`durable-stream.ts:200-218`), ends from the workflow status when no end record exists (CANCELLED → `abort`; ERROR → `error` chunk with `onError(error)` then `finish` `error`, 226-238), and **throws `DBOSNonExistentWorkflowError` for a workflow that does not exist** (DBOS `streams.js:175-177`), so a 204 needs an existence check first. Peers: `@dbos-inc/dbos-sdk ^4.21 || ^5`, `ai ^7`.
-- **DBOS 5.1.10:** `listWorkflows({ workflow_id_prefix: string | string[], attributes, authenticatedUser, status, loadInput, loadOutput, limit, sortDesc })`; `attributes` filters by JSONB `@>` (`system_database.js:3252-3256`), so `{ extractionSchemaId: null }` matches only rows that recorded the key with `null`; `WorkflowStatus.input` is the argument array, `createdAt` epoch ms. `DBOSClient.getWorkflow(id)` loads input, output and attributes (it lists by ID with `loadInput`/`loadOutput` defaulting to true, `system_database.js:1154-1158,3159-3160`), `cancelWorkflow`, `deleteWorkflows(ids)`; `enqueue` with a reused `workflowID` returns the existing workflow; `enqueueInTransaction` with a taken `deduplicationID` throws `DBOSQueueDuplicatedError` (reject is the default policy). `DBOS.stepStatus?.cancelSignal` (`context.d.ts:3-18`) is aborted with **a `DBOSWorkflowCancelledError` as its reason, not an `AbortError`** (`system_database.js:2157-2167`), so a key wait or `fetch` ended by a cancel rejects with that error.
-- **M4 (plan names; Task 2 present in the working tree):** `withPoolClientTransaction`, `TransactionalEnqueue`, `AdmittedWorkflow { workflowName, workflowID, queueName, authenticatedUser, attributes }` — **no `deduplicationID`** — and `isUniqueViolation` (`packages/db/src/pool-client-transaction.ts`); `WorkflowStatuses`, `executionOf`, `LIVE_WORKFLOW_STATUSES`, `INTERRUPTED_FAILURE` (`packages/db/src/execution-status.ts`); `createResearcherProjectStore(account, database?, { workflowStatuses, enqueue })` with the Studio adapter in `server/app.ts` (M4 Task 9); `createInternalProjectWorkerStore()` with `readRevisionMarkdown` and `projectContextOwner` (M4 Task 9); `WorkflowSteps`, `dbosSteps`, `isWorkflowCancellation` (`extraction/workflows`, M4 Task 5); `server/dbos.ts` (`studioDbos()`, `STUDIO_QUEUE`, `awaitWorkflowOutcome`, `launchStudioDbos({ …, schema, keiSchema, executorId, register })`); `server/workflows.ts` (`STUDIO_WORKFLOW_NAMES`, `registerStudioWorkflows`); the Studio PostgreSQL tier (`vitest.postgres.config.ts`, `test/support/postgres.ts`: `disposableDatabaseUrl`, `testSchemas`, `dropSchemas`) and crash harness (`test/support/crash.ts` `runWorkflowChild(scenario, env)`, `workflowChild.ts`, scenarios in `test/support/scenarios/`); `cancelScopeWork` cancels live workflows by `sourceDocumentId`/`projectContextId` attribute after a deletion (M4 Task 12).
+- **Provider seam** (`api/_provider.ts`): private `providerModel` (558); `keyedModel(createModel, connection, modelId, key)` (570-591) reads the key from `params.abortSignal` per attempt; `ModelOperation = 'schema-suggestion' | 'chat' | 'schema-edit'` (654), where every operation but `schema-suggestion` resolves the Interaction Route (705); `resolveCapabilityRoute(operation, { temperature }, dependencies)` (698-760): `key = (signal) => requireModelKey(keys, researcherAccountId, connection, signal, keyWaitMs)` (729-730), NuExtract target with `key` (737-740), `model = connection.hasKey ? keyedModel(…) : createModel(…)` (751); `RouteResolverDependencies` has `keys`, `keyWaitMs`, `modelFactories`, `deployment`, `readConfig`. Keyless connections (deployment vLLM, CLI, keyless Ollama/OpenAI-compatible) never pass through `keyedModel`.
+- **Handlers today:** `api/generate_schema.ts` (form `project_context_id`, `source_representation_revision_id`, `instruction`, `temperature`; `createPostGenerateSchema(store, reader, generate)` at 36; reads Markdown through `loadOwnedSourceMarkdown`, 19 and 52); `api/edit_schema.ts` (form adds `extraction_schema_id`, `schema_revision_id`; `createPostEditSchema(store, reader, propose)` at 37; reads through `loadOwnedSchemaModelContext`, 16 and 67); `api/chat.ts` (JSON `{ projectContextId, sourceRepresentationRevisionId, messages, temperature? }`, `createPostChat(store, reader, stream)` at 41; Task 1 deletes it). Owner loaders `readCanonicalMarkdown` (87), `loadOwnedSourceMarkdown` (101), `loadOwnedSchemaRevision`, `loadOwnedSchemaModelContext` (148-184), `formContextIdentity` and `proposeSchemaEdit(nodes, instruction, documentMarkdown, { caller, temperature, signal, target, generate })` are in `api/_schema_edit.ts` (76-243). `getSourceRepresentation` returns only `{ artifactReference, artifactSha256 }` (`packages/db/src/project-store.ts:125-164`).
+- **Dispatcher** (`server/api-dispatcher.ts`): `PARAMETERIZED` routes (16-42); `/api/chat` reaches `api/chat.ts` only through the generic `API_ROUTE` (8) and the eager glob of `api/[a-z]*.ts` (65-72), so deleting the module removes the route and the path answers the dispatcher's 404 `API route not found.`; `server/api-dispatcher.test.ts:36,55` lists it. No module registers a workflow or opens a connection at import. `STUDIO_BOOT_HEADER` is stamped on every `/api` response (`server/app.ts:391,394`).
+- **Chat residue** (all deleted or rewritten by Task 1): `src/ChatTab.tsx` (fixed chat ID `free-document-chat`, 72; the only user of `DefaultChatTransport`/`readUIMessageStream`) and `src/ChatTab.test.tsx`; `api/_model.test.ts` (import 5, `streamTextMock` 11-21, cases 287-320); `api/_model.transport.test.ts` (import 4; the chat log audit from the `it.each` at 88 to the end); `src/apiEndpoints.test.ts` (`UIMessage` import 2, imports 12-14, mock 25, `chatRequest` 97-107, `streams chat with owner-scoped canonical Markdown` 153-178, chat parts of 237-282 and 284-321, `maps pre-stream failures to the stable envelope` 323-339); `server/researcher-project-ownership.test.ts` (import 27, `ModelSpies.chat` 194, its spy 549-551, the module 738-744, the chat case ending at 1178); `server/api-dispatcher.test.ts` (36, 55); `src/auth/authenticatedFetch.test.ts` (`/api/chat` as a dummy URL, 120-139); `api/_provider.test.ts` (`resolveCapabilityRoute('chat', …)` at 474, 617, 632, 737, 833, 848, 861, 893, 946, 979; 158-159 are Ollama's native `/api/chat` and stay) and `api/model_auth.test.ts:320`; `vite.server.config.ts:22` and `vite.server.config.test.ts:8`; `src/RightRail.tsx:3-5,181-183` (retirement comments); `prototypes/studio/README.md:53` ("document chat"). Not chat residue, and left alone: a Project Context's `'chat'` phase (`shared/projectContext.contract.ts:26`, `src/ui/PhaseProgress.tsx:5,25`, shown as "Chatting"; `src/ui/PhaseProgress.test.tsx:14`), `README.md:58`, `CLAUDE.md:6` and `DESIGN.md:107` (chat templates and chat-message UI), and the schema panel's own chat naming (`sendChatMessage`, `chatAbortRef`, `chatLoading`).
+- **Browser:** `RailTab = 'evidence' | 'schema' | 'results'` (`RightRail.tsx:19`). `SchemaInstructionsChat` (`src/SchemaInstructions.tsx:28`, rendered at `SchemaPanel.tsx:1633`) keeps the pre-generation instruction in local state. `requestSchema` / `requestSchemaEdit` post forms after `ensureModelKeysSent()` (`src/api.ts:83-100,264-281`). `App.handleGenerate` calls `schema.generate((signal) => requestSchema(…))` (`src/App.tsx:444-464`). The schema panel's edit flow ("Describe a change to the schema…", `SchemaPanel.tsx:1753`) is `sendChatMessage` / `cancelChat` (`src/SchemaPanel.tsx:931-1015`); `useSchemaProposalReview.start(proposal, original, originalDraftVersion, originalSchemaRevisionId)` and its draft-version guard (`src/useSchemaProposalReview.ts:59-94`); `deriveSchemaProposal(original, response)` (`shared/schemaChanges.ts:129`). `SchemaPanel` is also rendered on the Batch prepare screen over a durable schema without a source revision (`src/projectContexts/BatchExtractionsPanel.tsx:1277-1310`). A document workspace opens the project's newest Extraction Schema (`project-store.ts:1330-1341`), so an Extraction Schema is project-scoped. `requestModelKeyResend` is module-private today (`src/auth/authenticatedFetch.ts:35`); M4 Task 9 exports it.
+- **DBOS 5.1.10:** `listWorkflows({ workflow_id_prefix: string | string[], attributes, authenticatedUser, status, loadInput, loadOutput, limit, sortDesc })`; `attributes` filters by JSONB `@>` (`system_database.js:3252-3256`), so `{ extractionSchemaId: null }` matches only rows that recorded the key with `null`; `WorkflowStatus.input` is the argument array, `createdAt` epoch ms. `DBOSClient.getWorkflow(id)` loads input, output and attributes (it lists by ID with `loadInput`/`loadOutput` defaulting to true, `system_database.js:1154-1158,3159-3160`), `cancelWorkflow`, `deleteWorkflows(ids)`; `enqueue` with a reused `workflowID` returns the existing workflow. `DBOS.stepStatus?.cancelSignal` (`context.d.ts:3-18`) is aborted with **a `DBOSWorkflowCancelledError` as its reason, not an `AbortError`** (`system_database.js:2157-2167`), so a key wait or `fetch` ended by a cancel rejects with that error.
+- **M4 (plan names; Task 2 present in the working tree):** `WorkflowStatuses`, `executionOf`, `LIVE_WORKFLOW_STATUSES`, `INTERRUPTED_FAILURE` (`packages/db/src/execution-status.ts`); `createResearcherProjectStore(account, database?, { workflowStatuses, enqueue })` with the Studio adapter in `server/app.ts` (M4 Task 9); `createInternalProjectWorkerStore()` with `readRevisionMarkdown` and `projectContextOwner` (M4 Task 9); `WorkflowSteps` (`step(name, run, config?)`, `cancelSignal()`) and `dbosSteps` (`extraction/workflows`, M4 Task 5); `server/dbos.ts` (`studioDbos()`, `STUDIO_QUEUE`, `awaitWorkflowOutcome`, `launchStudioDbos({ …, schema, keiSchema, executorId, register })`); `server/workflows.ts` (`STUDIO_WORKFLOW_NAMES`, `registerStudioWorkflows`); the Studio PostgreSQL tier (`vitest.postgres.config.ts`, `test/support/postgres.ts`: `disposableDatabaseUrl`, `testSchemas`, `dropSchemas`) and crash harness (`test/support/crash.ts` `runWorkflowChild(scenario, env)`, `workflowChild.ts`, scenarios in `test/support/scenarios/`); `cancelScopeWork` cancels live workflows by `sourceDocumentId`/`projectContextId` attribute after a deletion (M4 Task 12).
 
 ## Global Constraints
 
 - **Worktree and branch:** `/home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6` on `feat/dbos-m2-m6`. Other agents write under `docs/plans/2026-09-24-unified-durable-execution-evidence/m0r*/`: never touch, stage or commit anything there. Stage explicit paths, never `git add -A .` at the root.
 - **Preconditions:** M4 is complete (its Task 14 recorded; the DBOS plan carries its "done" line). Verify: `grep -c "M4: Studio's background work on DBOS — done" docs/plans/2026-09-24-unified-durable-execution.md` prints 1; `grep -n "export function registerStudioWorkflows\|STUDIO_WORKFLOW_NAMES" prototypes/studio/server/workflows.ts` lists M4's four names; `grep -n "export function requestModelKeyResend" prototypes/studio/src/auth/authenticatedFetch.ts` finds it; `grep -n "readRevisionMarkdown" packages/db/src/project-store.ts` finds it. If any fails, stop and report to the controller.
-- **Pins:** `@dbos-inc/vercel-ai` exactly `0.4.4` (no caret) in `prototypes/studio` `dependencies`. After the install `pnpm why @dbos-inc/dbos-sdk` lists one version (5.1.10) and `pnpm why ai` lists one `ai` 7.0.93: a second copy of either breaks the singleton or the middleware types. Install with `FREE_SKIP_PYTHON=1 pnpm --filter studio add --save-exact @dbos-inc/vercel-ai@0.4.4`.
-- **Names (fixed):** workflows `suggestSchema` (`suggestion:<operationId>`), `proposeSchemaEdit` (`edit:<operationId>`), `chatTurn` (`chat:<turnId>`), all on queue `studio`, all registered only by `registerStudioWorkflows()` with an explicit `name`; chat deduplication ID `chat:<sourceRepresentationRevisionId>`; durable stream key `ui`; `durableCalls` step name `chat`. Operation and turn IDs are client-minted canonical lowercase UUIDs; workflow IDs are matched with full-match expressions (`^…$`, no `m` flag).
-- **Workflow attributes (fixed):** generation `{ projectContextId, sourceDocumentId, sourceRepresentationRevisionId, extractionSchemaId: string | null }` (explicit `null` before the first schema); edit `{ projectContextId, extractionSchemaId, sourceDocumentId?, sourceRepresentationRevisionId? }` (the source keys only for a document-grounded edit); chat `{ projectContextId, sourceDocumentId, sourceRepresentationRevisionId }`. `authenticatedUser` is always the Project Context owner.
-- **Secrets:** workflow inputs carry IDs, questions and instructions only — never a key, never document text. No test or script prints a database URL with its password or a synthetic key. Model steps return typed results whose failure is `{ status, code, message }` with FREE's own copy; nothing a provider returned (body, headers, metadata, error message) is stored except the model's generated text.
-- **No compatibility aliases** (spec, *Public contract changes*): the chat request loses `messages` and `temperature`; `free-document-chat` goes; no custom `data-dbos-superseded` handling is added anywhere.
+- **Pins:** unchanged; M5 adds no dependency. `pnpm why @dbos-inc/dbos-sdk` lists one version (5.1.10) and `pnpm --filter studio why ai` one `ai` 7.0.93. `@dbos-inc/vercel-ai` is not installed (Ruling 2).
+- **Names (fixed):** workflows `suggestSchema` (`suggestion:<operationId>`) and `proposeSchemaEdit` (`edit:<operationId>`), both on queue `studio`, both registered only by `registerStudioWorkflows()` with an explicit `name`. Operation IDs are client-minted canonical lowercase UUIDs; workflow IDs are matched with full-match expressions (`^…$`, no `m` flag).
+- **Workflow attributes (fixed):** generation `{ projectContextId, sourceDocumentId, sourceRepresentationRevisionId, extractionSchemaId: string | null }` (explicit `null` before the first schema); edit `{ projectContextId, extractionSchemaId, sourceDocumentId?, sourceRepresentationRevisionId? }` (the source keys only for a document-grounded edit). `authenticatedUser` is always the Project Context owner.
+- **Secrets:** workflow inputs carry IDs and instructions only — never a key, never document text. No test or script prints a database URL with its password or a synthetic key. Model steps return typed results whose failure is `{ status, code, message }` with FREE's own copy; nothing a provider returned (body, headers, metadata, error message) is stored except the model's generated text.
+- **No compatibility aliases** (spec, *Public contract changes*): `/api/chat` goes with no stub, redirect or 410 (the dispatcher's ordinary 404 answers it), and `free-document-chat` goes; no custom `data-dbos-superseded` handling is added anywhere.
 - **Deletions:** implementer subagents may not run `git rm` without the user's authorization. Run plain `rm`, then `git add -A <those exact paths>`.
 - **Test tiers (exact commands):**
   - Studio: `pnpm --filter studio typecheck && pnpm --filter studio lint && pnpm --filter studio test`; one file: `pnpm --filter studio exec vitest run <path>`; browser tests start with `// @vitest-environment jsdom`.
   - Studio PostgreSQL: `pnpm --filter studio test:postgres` with `DATABASE_URL` and `EXTRACTION_TEST_DATABASE_URL` exported and equal; one file: `pnpm --filter studio exec vitest run --config vitest.postgres.config.ts <path>`.
   - db: `pnpm --filter db typecheck && pnpm --filter db test`; `pnpm --filter db test:postgres` with `PROJECT_STORE_POSTGRES_URL` exported (fresh databases).
-  - E2E: `pnpm --filter studio test:e2e` (from Task 13 it runs `playwright.config.ts` then `playwright.recovery.config.ts`); one spec: `pnpm --filter studio exec playwright test e2e/<name>.spec.ts` (default config) or `pnpm --filter studio exec playwright test --config playwright.recovery.config.ts`; base path `pnpm --filter studio test:e2e:base-path`.
+  - E2E: `pnpm --filter studio test:e2e` (from Task 9 it runs `playwright.config.ts` then `playwright.recovery.config.ts`); one spec: `pnpm --filter studio exec playwright test e2e/<name>.spec.ts` (default config) or `pnpm --filter studio exec playwright test --config playwright.recovery.config.ts`; base path `pnpm --filter studio test:e2e:base-path`.
   - Real service: `pnpm test:service`. Safety and scripts: `pnpm test:safety`, `node --test scripts/free.test.mjs scripts/test-ci.test.mjs`.
   - Whole repository: `pnpm typecheck && pnpm lint && pnpm test:unit:node && pnpm test:safety && pnpm test:postgres:node && pnpm test:e2e && pnpm test:service`.
-- **Disposable databases only** (README #10): user `postgres`, loopback, explicit port 5432, databases `free_test_*`; the guards refuse anything else. Reuse the M1–M4 container; never stop it or any other service. Every task that edits `contract.prisma` recreates its databases:
+- **Disposable databases only** (README #10): user `postgres`, loopback, explicit port 5432, databases `free_test_*`; the guards refuse anything else. Reuse the M1–M4 container; never stop it or any other service. Before a PostgreSQL tier run, (re)create the databases:
   ```bash
   docker ps --filter name=free-m1-pg --format '{{.Names}}'   # prints free-m1-pg when it is running
   # Only if it is not running and port 5432 is free (never stop another service to free it):
@@ -73,96 +72,135 @@ Status: **not started (plan written 2026-09-26 against `feat/dbos-m2-m6` at bf80
   pnpm --filter db db:init
   ```
   If `free-m1-pg` was started with another password, ask the controller rather than restarting it. `project-store.postgres.check.ts` requires an empty database, so recreate both before each `pnpm --filter db test:postgres` run. DBOS-backed tests create their own system schemas (`dbos_t_<hex>`, `kei_dbos_t_<hex>`) and drop them in `afterAll`.
-- **Baseline regeneration (Task 6):**
-  ```bash
-  cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6/packages/db
-  export CONTRACT_URL=postgresql://contract:emit@127.0.0.1:5432/free       # never dialled
-  DATABASE_URL=$CONTRACT_URL pnpm contract:emit
-  rm -r migrations/app/*_baseline
-  DATABASE_URL=$CONTRACT_URL npx prisma-next ref delete db --no-interactive   # required when refs/*.contract.* are absent; harmless otherwise
-  DATABASE_URL=$CONTRACT_URL npx prisma-next migration plan --name baseline --no-interactive
-  cat migrations/app/*_baseline/migration.json                              # note the "to" hash; "from" must be null
-  DATABASE_URL=$CONTRACT_URL npx prisma-next ref set db <the "to" hash> --no-interactive
-  DATABASE_URL=$CONTRACT_URL npx prisma-next migration check --no-interactive # prints "All checks passed"
-  ```
-  `src/prisma/contract.{d.ts,json}` and `migrations/app/refs/*.contract.*` are generated and gitignored; commit the baseline directory and `migrations/app/refs/db.json`.
-- **Development database:** after Task 6 an existing `pnpm dev` stack's `postgres-data` volume carries M4's baseline and `db:init` refuses it. Do not reset it yourself; tell the controller that the developer must recreate it once.
+- **No baseline edit:** M5 changes no table (Ruling 1). `packages/db/src/prisma/contract.prisma` and `packages/db/migrations/app/` stay as M4 left them, and an existing `pnpm dev` database needs no recreation for M5.
 - **Commits:** one per task, conventional prefix, message ending with the session's attribution line. Never `git stash`, `reset` or `commit --amend` another task's work.
 
 ## Test tiers at the M5 seam
 
-| Tier | Tasks 1–5 | Task 6 on | Task 8 on | Task 13 on |
-|---|---|---|---|---|
-| Studio, db unit; typecheck; lint | green | green | green | green |
-| db, extraction, Studio PostgreSQL | green | green (fresh databases) | green | green |
-| `pnpm test:e2e` (default config) | green | green | green | green |
-| `pnpm test:e2e` recovery config | — | — | — | green |
-| `pnpm test:safety`, scripts, `pnpm test:service` | green | green | green | green |
-| `pnpm dev` generation / edit across a reload | live tab only (Task 3/4); restore from Task 10 | same | same | works |
-| `pnpm dev` document chat | unreachable (ChatTab unmounted) | same | API only | reachable from Task 11 |
+| Tier | Tasks 1–8 | Task 9 on |
+|---|---|---|
+| Studio, db unit; typecheck; lint | green | green |
+| db, extraction, Studio PostgreSQL | green | green |
+| `pnpm test:e2e` (default config) | green | green |
+| `pnpm test:e2e` recovery config | — | green |
+| `pnpm test:safety`, scripts, `pnpm test:service` | green | green |
+| `pnpm dev` generation / edit across a reload | live tab only (Tasks 3–4); restore from Task 7 | works |
+| `pnpm dev` document chat | deleted by Task 1 (unreachable since 44ce50b) | deleted |
 
-## Plan decisions (not settled by the spec; settled here — the ones marked ★ need the controller's confirmation)
+## Plan decisions (not settled by the spec; settled here)
 
-1. ★ **The Chat tab comes back.** `ChatTab` has been unmounted since 44ce50b, yet decisions 4 and 8, the M5 *Browser* text, its acceptance ("reload the page mid-`chatTurn`") and the cutover smoke test all assume a reachable chat. Task 11 adds a `chat` `RailTab` labelled "Chat" between Schema and Results, kept mounted while hidden (as the other rail panels are) so it reconnects on load. *Cost if wrong:* one tab to remove again; the server side is unaffected. The alternative — keep it unmounted and test the tab only as a component — leaves every chat acceptance bullet provable only through the API.
-2. ★ **Chat cancellation goes through `DELETE /api/model-operations/chat:<turnId>`, and the Chat tab gains a Stop button.** The spec lists no chat cancel route but requires "aborts that come from a user action call the cancel route" and, under *Verification*, "one answer per chat turn when an answer races a cancel". The route writes `failure { code: 'cancelled', message: 'You stopped this answer.' }` under the conditional predicate, then cancels `chat:<turnId>` if live (spec *Rules*: the cancellation handler records the domain outcome). The listing stays generation and edit only. *Cost if wrong:* one route branch and one button.
-3. **Workflow-first operations are enqueued by name on the `studio` queue through the admission client** (as M4 plan decision 2 does for reprocessing), with `authenticatedUser` and the fixed attributes; a reused operation ID returns the existing workflow and the handler compares its recorded input with `isDeepStrictEqual` (409 `operation_conflict` on any difference, including `workflowName`). No deduplication ID: the operation ID is the identity.
-4. **Generation and edit handlers wait for the workflow** (`awaitWorkflowOutcome`, 250 ms interval, at most 25 min: two 10-minute calls for an edit's repair plus the 60 s key wait) and answer exactly today's success body and status codes. A client abort ends the wait only; the workflow runs on. A wait that times out answers 504 `operation_pending`; a cancelled workflow answers 409 `operation_cancelled`; `ERROR`/`MAX_RECOVERY_ATTEMPTS_EXCEEDED`/missing answers 500 `interrupted` with `INTERRUPTED_FAILURE.message`.
-5. **Model steps return typed results** `{ ok: true, … } | { ok: false, status, code, message }` (spec *Typed results*): every error a step catches becomes `operationFailureOf(error)` — an `ApiError`'s own status, code and message (FREE's copy), anything else 500 `unexpected_failure`. Nothing is rethrown from inside a JSON step, so a provider error's cause never reaches DBOS's error serializer.
-6. **Document text is read at workflow scope** (spec *What DBOS history holds*): the three workflows read the immutable revision's canonical Markdown (and an edit's base schema tree) with a plain call outside any step, pass it to the step closure, and never return it. A missing revision or schema revision ends a JSON workflow with a typed 404 and a chat workflow with no write.
-7. **The model-operation DTO** (`shared/modelOperation.contract.ts`): `{ workflowId, operationId, kind: 'generation' | 'proposal', status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED', instruction, baseSchemaRevisionId, createdAt, template | response | null, failure | null }`. `SUCCEEDED` means the workflow returned `ok: true`; `FAILED` covers `ok: false` and every stopped status (with `INTERRUPTED_FAILURE` for a stop).
-8. **`DELETE /api/model-operations/<workflow ID>`:** a live `suggestion:`/`edit:` workflow is cancelled (204); a finished `edit:` proposal is deleted together with every older finished `edit:` workflow in the same scope whose input names the same `baseSchemaRevisionId` (204); any other settled operation answers 204 and deletes nothing; `chat:` follows decision 2. Ownership: the workflow's recorded `projectContextId` (and `extractionSchemaId`) must pass the PostgreSQL scope check for the session's account and its `authenticatedUser` must be that account; otherwise 404, never 403.
-9. **The transcript** (`GET /api/chat/<revision ID>`): turns in `createdAt, id` order with a derived `status` (`ANSWERED`, `FAILED` — failure written —, `QUEUED`/`RUNNING` — live —, `UNANSWERED` — no outcome and the workflow stopped or is gone) and `reconnectTurnId`, the newest turn whose status is `QUEUED` or `RUNNING` (at most one exists: the revision's deduplication record).
-10. **The browser repeats a model-work POST** (`repeatableModelPost`, Task 9) after a network error or a 502/503/504 whose body is not a Studio error, or whose code is `persistence_unavailable` or `operation_pending` — at most three more times (1, 2 and 4 s apart), resending the keys before each attempt, never after an abort. A confirmed Studio failure (any other code, any 4xx) is never repeated. Extraction admission keeps its read-based reconciliation (spec *Replays*) and is not repeated.
-11. **`AdmittedWorkflow` gains `deduplicationID?: string`**, and `packages/db` gains `DuplicateActiveWorkflowError`; Studio's enqueue adapter (M4, `server/app.ts`) maps `DBOSQueueDuplicatedError` to it, so `packages/db` still imports no DBOS runtime.
-12. **The chat request drops `temperature`** (no browser sends one) and **history** (spec *Request*); the earlier answered turns come from `ChatTurn` rows (all of them, in order).
-13. **A reloaded page acts only on operations it found at load** (and polls only those that were running then); operations this tab starts afterwards follow the live path. Of the finished operations whose base is the current revision, only the newest acts: a generation is saved, or a proposal reopened — never both, because saving moves the base.
-14. **The listing is scoped to Project Context and Extraction Schema, as the spec says.** A first generation (`extractionSchemaId: null`) can therefore be restored in any document workspace of its project before the project has a schema; the project has one schema, so that is where the generation would have landed anyway.
-15. **The Studio-restart and planted-key browser tests run in their own Playwright stack** (`playwright.recovery.config.ts`, one worker) whose web-server wrapper respawns Vite after a SIGKILL and tees its output to a log file; restarting the shared default stack would break parallel specs.
+The first version's decisions 1 (the Chat tab comes back), 2 (chat cancellation through `DELETE /api/model-operations/chat:<turnId>` and a Stop button), 9 (the chat transcript), 11 (`AdmittedWorkflow.deduplicationID` and `DuplicateActiveWorkflowError`) and 12 (the chat request without `temperature` and history) are superseded by Ruling 1; the rest are renumbered below.
+
+1. **Workflow-first operations are enqueued by name on the `studio` queue through the admission client** (as M4 plan decision 2 does for reprocessing), with `authenticatedUser` and the fixed attributes; a reused operation ID returns the existing workflow and the handler compares its recorded input with `isDeepStrictEqual` (409 `operation_conflict` on any difference, including `workflowName`). No deduplication ID: the operation ID is the identity.
+2. **Generation and edit handlers wait for the workflow** (`awaitWorkflowOutcome`, 250 ms interval, at most 25 min: two 10-minute calls for an edit's repair plus the 60 s key wait) and answer exactly today's success body and status codes. A client abort ends the wait only; the workflow runs on. A wait that times out answers 504 `operation_pending`; a cancelled workflow answers 409 `operation_cancelled`; `ERROR`/`MAX_RECOVERY_ATTEMPTS_EXCEEDED`/missing answers 500 `interrupted` with `INTERRUPTED_FAILURE.message`.
+3. **Model steps return typed results** `{ ok: true, … } | { ok: false, status, code, message }` (spec *Typed results*; Ruling 4): every error a step catches becomes `operationFailureOf(error)` — an `ApiError`'s own status, code and message (FREE's copy), anything else 500 `unexpected_failure`. Nothing is rethrown from inside a model step, so a provider error's cause never reaches DBOS's error serializer.
+4. **Document text is read at workflow scope** (spec *What DBOS history holds*): both workflows read the immutable revision's canonical Markdown (and an edit's base schema tree) with a plain call outside any step, pass it to the step closure, and never return it. A missing revision or schema revision ends the workflow with a typed 404.
+5. **The model-operation DTO** (`shared/modelOperation.contract.ts`): `{ workflowId, operationId, kind: 'generation' | 'proposal', status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED', instruction, baseSchemaRevisionId, createdAt, template | response | null, failure | null }`. `SUCCEEDED` means the workflow returned `ok: true`; `FAILED` covers `ok: false` and every stopped status (with `INTERRUPTED_FAILURE` for a stop).
+6. **`DELETE /api/model-operations/<workflow ID>`:** a live `suggestion:`/`edit:` workflow is cancelled (204); a finished `edit:` proposal is deleted together with every older finished `edit:` workflow in the same scope whose input names the same `baseSchemaRevisionId` (204); any other settled operation answers 204 and deletes nothing. Ownership: the workflow's recorded `projectContextId` (and `extractionSchemaId`) must pass the PostgreSQL scope check for the session's account and its `authenticatedUser` must be that account; otherwise 404, never 403.
+7. **The browser repeats a model-work POST** (`repeatableModelPost`, Task 6) after a network error or a 502/503/504 whose body is not a Studio error, or whose code is `persistence_unavailable` or `operation_pending` — at most three more times (1, 2 and 4 s apart), resending the keys before each attempt, never after an abort. A confirmed Studio failure (any other code, any 4xx) is never repeated. Extraction admission keeps its read-based reconciliation (spec *Replays*) and is not repeated.
+8. **A reloaded page acts only on operations it found at load** (and polls only those that were running then); operations this tab starts afterwards follow the live path. Of the finished operations whose base is the current revision, only the newest acts: a generation is saved, or a proposal reopened — never both, because saving moves the base.
+9. **The listing is scoped to Project Context and Extraction Schema, as the spec says.** A first generation (`extractionSchemaId: null`) can therefore be restored in any document workspace of its project before the project has a schema; the project has one schema, so that is where the generation would have landed anyway.
+10. **The Studio-restart and planted-key browser tests run in their own Playwright stack** (`playwright.recovery.config.ts`, one worker) whose web-server wrapper respawns Vite after a SIGKILL and tees its output to a log file; restarting the shared default stack would break parallel specs.
 
 ## Review Focus
 
-1. **A key or provider body reaches storage or logs through a path the sanitizer does not see** — a `doStream()` rejection versus a stream-read rejection versus an `error` part; a key echoed in response headers, provider metadata, a `TypeError` message or a Zod issue; a JSON step that rethrows; DBOS or the AI SDK logging a step error. Expected: no table, stream, dump, data file or log line contains the key. Pinned by Task 2 `every failure path yields a ChatModelFailure that holds none of the planted key`, Task 3 `a key planted in a provider error in a JSON step reaches no DBOS or public table and no log`, Task 7 `a key planted in the error cause chain, response headers and provider metadata of a chat call reaches no table, stream record or log` and Task 13 `a planted key reaches no pg_dump, data volume or Studio log after chat, generation, a batch suggestion and a probe`.
-2. **A recovered or retried chat call appends replacement text** — the AI SDK's `streamRetries`, an `onError` that returns `{ retry: true }`, `maxRetries`, or a `durableCalls` retry after content streamed. Expected: after a partial failure the stream ends with an error finish, the row holds a failure, and no answer is saved. Pinned by Task 7 `a partial provider failure ends the stream with an error finish, records the failure and saves no answer; the provider was called once` and `the chat's streamText sets maxRetries 0, no streamRetries, and an onError that returns nothing`.
-3. **A stale generation lands on newer work after a reload** — a dirty or session-recovered draft, another tab that already saved it, a base that moved while the poll ran, or a first generation arriving after another tab created the schema. Expected: dropped silently, as a reloaded conflicted save is today. Pinned by Task 10 `planRecovery` cases, `restoreGeneration saves onto a clean base and drops on a conflict without an error`, and Task 12 `a reloaded page drops a finished generation when newer work exists`.
-4. **A workflow ID alone authorizes a read, stream or cancel** — another account's `edit:`/`chat:` ID, a turn ID under another revision, a project deleted between two reconnects. Expected: 404 with no DBOS call beyond locating the scope. Pinned by Task 5 `a second account can neither list nor cancel nor discard the first account's operations` and Task 8 `a second account can neither read, stream nor cancel the first account's turns; after the project is deleted every reconnect is 404`.
-5. **Recovery loops or storms** — `model_key_required` resent forever, a repeated POST re-running a confirmed failure, a poll that never stops. Expected: one resend per operation or turn, at most three repeats per POST, polling ends when every watched operation settled or the panel unmounts. Pinned by Task 9 `a confirmed failure is never repeated; an uncertain one at most three times` and `a model POST is repeated with the same body after a network failure or a proxy 502/503/504, keys first each time`, Task 10 `polls every 2 s only while a watched operation runs, and stops on unmount` and Task 11 `a model_key_required turn resends the keys once and asking again mints a new turn`.
+1. **A key or provider body reaches storage or logs through a path the step boundary does not see** — a model step that rethrows; an `ApiError` whose enumerable `cause` is the provider error; a key echoed in response headers, a `TypeError` message or a Zod issue; DBOS or the AI SDK logging a step error; a `streamText`/`streamObject` call added without `onError`. Expected: no table, dump, data file or log line contains the key. Pinned by Task 3 `operationFailureOf keeps only FREE's copy, whatever the provider error holds` and `a key planted in a provider error in a JSON step reaches no DBOS or public table and no log`, Task 2 `every streamText and streamObject call in server code passes an explicit onError`, and Task 9 `a planted key reaches no pg_dump, data volume or Studio log after a generation, an edit proposal, a batch suggestion and a probe`.
+2. **A stale generation lands on newer work after a reload** — a dirty or session-recovered draft, another tab that already saved it, a base that moved while the poll ran, or a first generation arriving after another tab created the schema. Expected: dropped silently, as a reloaded conflicted save is today. Pinned by Task 7 `planRecovery` cases, `restoreGeneration saves onto a clean base and drops on a conflict without an error`, and Task 8 `a reloaded page drops a finished generation when newer work exists`.
+3. **A workflow ID alone authorizes a read or cancel** — another account's `suggestion:`/`edit:` ID, a project deleted between two polls. Expected: 404 with no DBOS call beyond locating the scope. Pinned by Task 5 `a second account can neither list nor cancel nor discard the first account's operations` and `after the project is deleted, listing and DELETE are 404`.
+4. **Recovery loops or storms** — `model_key_required` resent forever, a repeated POST re-running a confirmed failure, a poll that never stops. Expected: one resend per operation, at most three repeats per POST, polling ends when every watched operation settled or the panel unmounts. Pinned by Task 6 `a confirmed failure is never repeated; an uncertain one at most three times` and `a model POST is repeated with the same body after a network failure or a proxy 502/503/504, keys first each time`, and Task 7 `polls every 2 s only while a watched operation runs, and stops on unmount` and `a restored model_key_required failure resends the keys once`.
+5. **The chat deletion leaves a live reference or removes a shared helper too early** — a dispatcher fixture, an ownership-test module, `ssr.external`, a README line; or `loadOwnedSourceMarkdown` deleted while `generate_schema` still calls it. Expected: Task 1's residue grep prints only the listed false positives and every tier stays green after Task 1; `loadOwnedSourceMarkdown` goes in Task 3, `readCanonicalMarkdown` and `loadOwnedSchemaModelContext` in Task 4. Pinned by Task 1 Step 3 and Task 10 Step 1.
 
 ---
 
-### Task 1: The model boundary: `@dbos-inc/vercel-ai`, DBOS's cancel signal inside every provider attempt, one stream `onError`
+### Task 1: Delete the document chat end to end
+
+The user's decision (Ruling 1). Nothing replaces the chat, and nothing a researcher can reach changes: no page has mounted `ChatTab` since 44ce50b. The schema tab's instruction chat and edit chat are not touched here. `loadOwnedSourceMarkdown` stays until Task 3 (`generate_schema.ts` still calls it); `readCanonicalMarkdown` and `loadOwnedSchemaModelContext` stay until Task 4. No CSP or dev-asset list names the chat (checked 2026-09-26: `server/app.ts`'s two `Content-Security-Policy` headers, 297 and 318, `vite.config.ts`, `index.html`), and no dependency exists only for it (`ai` stays for generation; `@dbos-inc/vercel-ai` was never installed).
 
 **Files:**
-- Modify: `prototypes/studio/package.json` (dependency `"@dbos-inc/vercel-ai": "0.4.4"`), `pnpm-lock.yaml`
-- Modify: `prototypes/studio/api/_model_keys.ts` (`withStepCancellation`; `requireModelKey` composes it; comment 127-132), `prototypes/studio/api/_model_keys.test.ts`
-- Modify: `prototypes/studio/api/_provider.ts` (export `providerModel`; add `stepCancellable`; `resolveCapabilityRoute` wraps every general model, 751), `prototypes/studio/api/_provider.test.ts`
-- Modify: `prototypes/studio/api/_model.ts` (`modelStreamOnError`; `streamChatWithModel` uses it; NuExtract's signal; the stale comment at 137), `prototypes/studio/api/_model.transport.test.ts`
+- Delete: `prototypes/studio/api/chat.ts`, `prototypes/studio/src/ChatTab.tsx`, `prototypes/studio/src/ChatTab.test.tsx`
+- Modify: `prototypes/studio/api/_model.ts` (delete `streamChatWithModel`, 101-144, and the imports only it used), `prototypes/studio/api/_model.test.ts` (import 5, `streamTextMock` 11-21, the two chat cases 287-320), `prototypes/studio/api/_model.transport.test.ts` (import 4; the chat log audit, from the `it.each` at 88, becomes a schema-generation log audit)
+- Modify: `prototypes/studio/api/_provider.ts` (`ModelOperation` loses `'chat'`, 654), `prototypes/studio/api/_provider.test.ts` (its `'chat'` cases, 474-979, use `'schema-edit'`, which resolves the same Interaction Route; 158-159 are Ollama's native `/api/chat` and stay), `prototypes/studio/api/model_auth.test.ts` (320)
+- Modify: `prototypes/studio/src/apiEndpoints.test.ts` (the chat imports, mock, helper and cases), `prototypes/studio/server/researcher-project-ownership.test.ts` (27, 194, 549-551, 738-744, 1157-1178), `prototypes/studio/server/api-dispatcher.test.ts` (36, 55), `prototypes/studio/src/auth/authenticatedFetch.test.ts` (120-139)
+- Modify: `prototypes/studio/vite.server.config.ts` (22), `prototypes/studio/vite.server.config.test.ts` (3-10)
+- Modify: `prototypes/studio/src/RightRail.tsx` (comments 3-5 and 181-183), `prototypes/studio/README.md` (53)
+
+**Interfaces:**
+- Consumes: nothing.
+- Produces: `ModelOperation = 'schema-suggestion' | 'schema-edit'` (`api/_provider.ts`); no `/api/chat` route; `vite.server.config.ts` keeps only `@dbos-inc/dbos-sdk` external.
+
+- [ ] **Step 1: Record the residue before deleting**
+
+  ```bash
+  cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6
+  grep -rnE "ChatTab|streamChatWithModel|createPostChat|free-document-chat|api/chat\.|'/api/chat'|@dbos-inc/vercel-ai|resolveCapabilityRoute\('chat'|document chat" \
+    prototypes/studio --include=*.ts --include=*.tsx --include=*.md --exclude-dir=node_modules --exclude-dir=dist
+  ```
+  Expected: the files listed above except `api/_provider.ts` (its `'chat'` is a bare union member) and `src/RightRail.tsx` (its comments say "document Chat tab"), and nothing else. A hit anywhere else is residue this plan missed: report it to the controller before deleting.
+
+- [ ] **Step 2: Delete and edit**
+
+  ```bash
+  cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6/prototypes/studio
+  rm api/chat.ts src/ChatTab.tsx src/ChatTab.test.tsx
+  ```
+  - `api/_model.ts`: delete `streamChatWithModel` with its doc comment (101-144). Remove every import typecheck or lint then reports unused — expected: `convertToModelMessages`, `createUIMessageStreamResponse`, `toUIMessageStream`, `type UIMessage` and `streamText` from `ai`, and `ModelKeyRequiredError` (its only use was the chat's `onError`s). `APICallError` stays (206).
+  - `api/_model.test.ts`: delete the import of `streamChatWithModel` (5), the cases `sanitizes model errors after the chat stream is committed` and `names a missing key in the chat stream and passes the request signal to the model` (287-320), and `streamTextMock` from the hoisted mocks and the `ai` mock (11-21) once nothing uses it.
+  - `api/_model.transport.test.ts`: the `it.each` at 88 (`a failed chat call logs neither the key nor the provider response nor the document (%s)`) keeps its two planted providers and becomes `a failed schema generation logs neither the key nor the provider response nor the document (%s)`: call `generateSchemaWithModel(CALLER, { document: { file: null, pages: null, markdown: '# planted-document' }, instruction: 'planted-question' }, { profile: 'general', model: provider.chatModel('audit'), jsonOutput: 'prompt', temperatureSupported: true })`; it rejects with an `ApiError` (FREE's copy); neither its `message` nor any logged argument (the existing `inspect` scan) holds `sk-test-planted`, `planted-document` or `planted-question`. The import at 4 loses `streamChatWithModel`. This keeps the only log audit of a provider error that echoes a key.
+  - `api/_provider.ts`: `export type ModelOperation = 'schema-suggestion' | 'schema-edit'` (654); `resolveCapabilityRoute`'s route choice (705) is unchanged, since `schema-edit` already resolves the Interaction Route.
+  - `api/_provider.test.ts`: every `resolveCapabilityRoute('chat', …)` (474 `resolveChat`, 632, 833, 848, 861, 946, 979) passes `'schema-edit'` (rename `resolveChat` to `resolveInteraction`), as does `api/model_auth.test.ts:320`; drop `'chat'` from the `it.each` lists at 617 and 737, and the `['chat', 'interaction-model', 'interaction']` row at 893 (its `schema-edit` row stays). Test names that say "chat" say "schema edit" or "Interaction Route".
+  - `src/apiEndpoints.test.ts`: delete the `UIMessage` import (2), `streamChatWithModel` and `createPostChat` (12, 14), the mock entry (25), `chatRequest` (97-107), `streams chat with owner-scoped canonical Markdown` (153-178), the chat parts of `rejects browser-authored source and schema context` (264-281) and of `returns 404 for cross-owner and mixed pins before artifact or model access` (297-303 and 320), and `maps pre-stream failures to the stable envelope` (323-339, chat only; Task 3's `generate_schema.test.ts` pins a typed failure's envelope).
+  - `server/researcher-project-ownership.test.ts`: delete the `createPostChat` import (27), `ModelSpies.chat` (194) and its spy (549-551), the `'../api/chat.ts'` module (738-744), and the chat request in the cross-owner model case (1157-1178, from `const readsBeforeChat` to `expect(fixture.models.chat).not.toHaveBeenCalled()`).
+  - `server/api-dispatcher.test.ts`: drop `chat: scopedModule()` (36) and the `['/api/chat', 'chat']` row (55).
+  - `src/auth/authenticatedFetch.test.ts`: the dummy URL `/api/chat` (120, 125, 130, 139) becomes `/api/edit_schema`, a route that can answer `model_key_required`.
+  - `vite.server.config.ts`: `ssr: { external: ['@dbos-inc/dbos-sdk'] }`, and its comment names DBOS alone; `vite.server.config.test.ts` expects `['@dbos-inc/dbos-sdk']`. `package.json` and `pnpm-lock.yaml` never held `@dbos-inc/vercel-ai`: leave them.
+  - `src/RightRail.tsx`: the comments at 3-5 and 181-183 say only that the Annotation tab was retired and is left commented out; the document Chat tab was deleted (M5), and the schema panel's own instruction and edit chats replace it.
+  - `README.md` (53): "…to Schema Suggestion and conversational Extraction Schema editing." (M6 rewrites this section; this only drops the deleted feature.)
+
+- [ ] **Step 3: Residue grep and every Studio tier**
+
+  ```bash
+  cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6
+  grep -rnE "ChatTab|streamChatWithModel|createPostChat|free-document-chat|api/chat\.|'/api/chat'|@dbos-inc/vercel-ai|resolveCapabilityRoute\('chat'|document chat" \
+    prototypes/studio --include=*.ts --include=*.tsx --include=*.md --exclude-dir=node_modules --exclude-dir=dist
+  grep -rnE "\b(streamText|streamObject)\(" prototypes/studio/api prototypes/studio/server --include=*.ts
+  pnpm --filter studio typecheck && pnpm --filter studio lint && pnpm --filter studio test
+  pnpm --filter studio build && ! grep -q "vercel-ai" prototypes/studio/dist/server/index.js
+  pnpm --filter studio test:e2e
+  ```
+  Expected: both greps print nothing (the first searches only for chat residue, so Ollama's `/api/chat` in `_provider.test.ts`, the Project Context phase `'chat'`, chat templates in `README.md:58`/`CLAUDE.md:6` and `DESIGN.md:107`'s chat-message entry do not match); every tier is green.
+
+- [ ] **Step 4: Commit**
+
+  ```bash
+  cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6
+  git add -A prototypes/studio/api/chat.ts prototypes/studio/src/ChatTab.tsx prototypes/studio/src/ChatTab.test.tsx
+  git add prototypes/studio/api/_model.ts prototypes/studio/api/_model.test.ts prototypes/studio/api/_model.transport.test.ts \
+    prototypes/studio/api/_provider.ts prototypes/studio/api/_provider.test.ts prototypes/studio/api/model_auth.test.ts \
+    prototypes/studio/src/apiEndpoints.test.ts prototypes/studio/server/researcher-project-ownership.test.ts prototypes/studio/server/api-dispatcher.test.ts \
+    prototypes/studio/src/auth/authenticatedFetch.test.ts prototypes/studio/vite.server.config.ts \
+    prototypes/studio/vite.server.config.test.ts prototypes/studio/src/RightRail.tsx prototypes/studio/README.md
+  git commit -m "feat(studio)!: delete the document chat, which no page has shown since the schema panel took over"
+  ```
+
+### Task 2: The model boundary: DBOS's cancel signal inside every provider attempt, and no stream call without `onError`
+
+**Files:**
+- Modify: `prototypes/studio/api/_model_keys.ts` (`withStepCancellation`; `requireModelKey` composes it; comments 13 and 127-132), `prototypes/studio/api/_model_keys.test.ts`
+- Modify: `prototypes/studio/api/_provider.ts` (add `stepCancellable`; `resolveCapabilityRoute` wraps every general model, 751), `prototypes/studio/api/_provider.test.ts`
+- Modify: `prototypes/studio/api/_model.ts` (NuExtract's signal), `prototypes/studio/api/_model.transport.test.ts`
 - Create: `prototypes/studio/api/_model_stream_calls.test.ts`
 
 **Interfaces:**
-- Consumes: nothing from earlier M5 tasks.
+- Consumes: Task 1's `ModelOperation`.
 - Produces:
   ```ts
   // api/_model_keys.ts
   export function withStepCancellation(signal: AbortSignal | undefined, cancel?: AbortSignal | undefined): AbortSignal | undefined
   // api/_provider.ts
-  export function providerModel(model: LanguageModel): LanguageModelV4   // the existing private helper, now exported
   export function stepCancellable(model: LanguageModel): LanguageModel
-  // api/_model.ts
-  export function modelStreamOnError(operation: string, capture?: (error: unknown) => void): (event: { error: unknown }) => void
   ```
 
-- [ ] **Step 1: Install and pin `@dbos-inc/vercel-ai`**
-
-  ```bash
-  cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6
-  FREE_SKIP_PYTHON=1 pnpm --filter studio add --save-exact @dbos-inc/vercel-ai@0.4.4
-  pnpm why @dbos-inc/vercel-ai     # one version: 0.4.4
-  pnpm why @dbos-inc/dbos-sdk      # one version: 5.1.10
-  pnpm --filter studio why ai      # one version: 7.0.93
-  ```
-  `vite.server.config.ts` already keeps it external; do not edit it.
-
-- [ ] **Step 2: Write the failing tests**
+- [ ] **Step 1: Write the failing tests**
 
   `api/_model_keys.test.ts` (the first case passes the cancel signal explicitly; the second mocks DBOS):
   - `withStepCancellation returns the call signal unchanged outside a step, the step's cancel signal alone without a call signal, and both composed inside a step` — `withStepCancellation(undefined, undefined) === undefined`; `withStepCancellation(call, undefined) === call`; `withStepCancellation(undefined, cancel) === cancel`; with both, aborting either aborts the result and leaves the other untouched.
@@ -172,39 +210,47 @@ Status: **not started (plan written 2026-09-26 against `feat/dbos-m2-m6` at bf80
   - `a keyed model's key wait ends on the step's cancel signal and never calls the provider` — no key in the cache; the stand-in counts calls; aborting the cancel controller rejects the call and the count stays 0.
   `api/_model.transport.test.ts`:
   - `NuExtract's key wait and fetch receive the step's cancel signal` — the NuExtract target from the existing fixtures with a recording `fetch`; the recorded `init.signal` aborts when the cancel controller aborts.
-  - `modelStreamOnError logs only the class and status, and nothing for a missing key` — `console.error` spy: an `APICallError` whose `responseBody` and `requestBodyValues` hold `FREE_SYNTHETIC_KEY_1` logs `['chat_failed:', { error: 'APICallError', statusCode: 500 }]` and no argument holds the key; a `ModelKeyRequiredError` logs nothing; `capture` receives the original error; the callback returns `undefined`.
   `api/_model_stream_calls.test.ts`:
   ```ts
   import { readdirSync, readFileSync } from 'node:fs'
   import { join } from 'node:path'
   import { expect, it } from 'vitest'
 
-  // Rule 4: the SDK's default onError logs provider bodies and `Bearer <key>` messages, so every stream call names ours.
-  it('every streamText and streamObject call in server code passes modelStreamOnError', () => {
+  /** Stream calls in `source` beyond the explicit `onError:` options it names: a coarse count, enough to stop a call
+   *  that relies on the SDK's default onError, which logs provider bodies and `Bearer <key>` messages (Ruling 5). */
+  function unhandledStreamCalls(source: string): number {
+    const calls = source.match(/\b(?:streamText|streamObject)\(/g)?.length ?? 0
+    const handled = source.match(/\bonError:/g)?.length ?? 0
+    return Math.max(0, calls - handled)
+  }
+
+  it('the scan counts a stream call without onError', () => {
+    expect(unhandledStreamCalls('const r = streamText({ model })')).toBe(1)
+    expect(unhandledStreamCalls('const r = streamObject({ model, onError: log })')).toBe(0)
+  })
+
+  it('every streamText and streamObject call in server code passes an explicit onError', () => {
     for (const directory of ['api', 'server']) {
       const root = join(import.meta.dirname, '..', directory)
       for (const file of readdirSync(root).filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))) {
-        const source = readFileSync(join(root, file), 'utf8')
-        const calls = source.match(/\b(?:streamText|streamObject)\(/g)?.length ?? 0
-        const handled = source.match(/onError:\s*modelStreamOnError\(/g)?.length ?? 0
-        expect({ file, handled }).toEqual({ file, handled: calls })
+        expect({ file, unhandled: unhandledStreamCalls(readFileSync(join(root, file), 'utf8')) }).toEqual({ file, unhandled: 0 })
       }
     }
   })
   ```
-  (Doc comments must not contain an opening parenthesis right after `streamText` or `streamObject`: write "streamText calls".)
+  (Doc comments must not contain an opening parenthesis right after `streamText` or `streamObject`: write "streamText calls". After Task 1 no such call exists, so the second case passes at once; it guards later code.)
 
-  Run: `pnpm --filter studio exec vitest run api/_model_keys.test.ts api/_provider.test.ts api/_model.transport.test.ts api/_model_stream_calls.test.ts`. Expected: FAIL (missing exports; the source scan fails on `_model.ts`).
+  Run: `pnpm --filter studio exec vitest run api/_model_keys.test.ts api/_provider.test.ts api/_model.transport.test.ts api/_model_stream_calls.test.ts`. Expected: FAIL (missing exports); the two scan cases pass.
 
-- [ ] **Step 3: Implement**
+- [ ] **Step 2: Implement**
 
   `api/_model_keys.ts` (add `import { DBOS } from '@dbos-inc/dbos-sdk'`; importing it runs no query and registers nothing):
   ```ts
   /**
    * The provider attempt's signal with DBOS's `cancelSignal` added when the attempt runs inside a step, so a cancelled
    * workflow ends a key wait or a provider call about 1 s later (spec, *Cancellation → Studio model calls*). It is
-   * composed here, at the model boundary, because under `durableCalls` the library — not FREE — calls the model, so no
-   * caller can add it. Outside a step it returns `signal` unchanged.
+   * composed here, at the model boundary, so every attempt carries it — the AI SDK's retries, NuExtract's own fetch,
+   * keyed and keyless connections — whatever the caller passed. Outside a step it returns `signal` unchanged.
    */
   export function withStepCancellation(
     signal: AbortSignal | undefined,
@@ -229,9 +275,9 @@ Status: **not started (plan written 2026-09-26 against `feat/dbos-m2-m6` at bf80
     return key
   }
   ```
-  Update the `ModelKeyRequiredError.isRetryable` comment to "neither the AI SDK nor `durableCalls` may retry it" (drop "(M5)").
+  The `ModelKeyRequiredError.isRetryable` comment (13) becomes "Only a page resending the key can fix this, so neither the AI SDK nor a DBOS step may retry it." (`durableCalls` is not used.)
 
-  `api/_provider.ts`: export `providerModel` unchanged, and add after `keyedModel`:
+  `api/_provider.ts`: add after `keyedModel` (the private `providerModel`, 558, stays private):
   ```ts
   /**
    * A route's general model as every call uses it: the provider attempt runs with the step's cancel signal composed
@@ -251,262 +297,33 @@ Status: **not started (plan written 2026-09-26 against `feat/dbos-m2-m6` at bf80
   ```
   and at 751: `model = stepCancellable(connection.hasKey ? keyedModel(createModel, connection, route.modelId, key) : createModel(connection, route.modelId, null))`.
 
-  `api/_model.ts`:
-  ```ts
-  /**
-   * The `onError` of every streamText and streamObject call. The SDK's default logs the whole error: the provider's
-   * response body, the request and, for a key that is no valid header value, a runtime message quoting `Bearer <key>`.
-   * This logs only the error's class and HTTP status, and nothing for a missing key (the page resends it). It returns
-   * nothing: an `onError` that returns `{ retry: true }` would make the SDK retry the stream in-process and append
-   * replacement text.
-   */
-  export function modelStreamOnError(operation: string, capture?: (error: unknown) => void) {
-    return ({ error }: { error: unknown }): void => {
-      capture?.(error)
-      if (error instanceof ModelKeyRequiredError || (error as { code?: unknown } | null)?.code === 'model_key_required') return
-      const status = (error as { statusCode?: unknown } | null)?.statusCode
-      console.error(`${operation}_failed:`, {
-        error: error instanceof Error ? error.constructor.name : typeof error,
-        statusCode: APICallError.isInstance(error) ? error.statusCode ?? null : typeof status === 'number' ? status : null,
-      })
-    }
-  }
-  ```
-  In `streamChatWithModel`, replace the inline `onError` (124-132) with `onError: modelStreamOnError('chat')`, and the comment at 137 with `// Only a missing key is named. It arrives inside a 200, which authenticatedFetch's 409 hook never sees, so no key resend follows it here; the Chat tab resends from the transcript (M5 Task 11).` In `generateWithNuExtract`, start with `const signal = withStepCancellation(input.signal)` and use `signal` for `target.key(signal)`, `signal?.throwIfAborted()` and the `fetch`.
+  `api/_model.ts`: in `generateWithNuExtract`, start with `const signal = withStepCancellation(input.signal)` and use `signal` for `target.key(signal)`, `signal?.throwIfAborted()` and the `fetch`.
 
-- [ ] **Step 4: Run and commit**
+- [ ] **Step 3: Run and commit**
 
   ```bash
   pnpm --filter studio exec vitest run api/_model_keys.test.ts api/_provider.test.ts api/_model.transport.test.ts api/_model_stream_calls.test.ts
   pnpm --filter studio typecheck && pnpm --filter studio lint && pnpm --filter studio test
   cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6
-  git add pnpm-lock.yaml prototypes/studio/package.json prototypes/studio/api/_model_keys.ts prototypes/studio/api/_model_keys.test.ts \
+  git add prototypes/studio/api/_model_keys.ts prototypes/studio/api/_model_keys.test.ts \
     prototypes/studio/api/_provider.ts prototypes/studio/api/_provider.test.ts prototypes/studio/api/_model.ts \
     prototypes/studio/api/_model.transport.test.ts prototypes/studio/api/_model_stream_calls.test.ts
-  git commit -m "feat(studio): stop every model call on DBOS's cancel signal at the model boundary and pin durable chat's library"
-  ```
-
-### Task 2: The chat sanitizer inside `durableCalls`
-
-Nothing is registered or wired here; Task 7 wraps the resolved chat model with it.
-
-**Files:**
-- Create: `prototypes/studio/api/_chat_sanitizer.ts`, `prototypes/studio/api/_chat_sanitizer.test.ts`, `prototypes/studio/test/support/plantedKey.ts`
-
-**Interfaces:**
-- Consumes: Task 1's `providerModel`.
-- Produces:
-  ```ts
-  export type ChatFailureCode = 'model_key_required' | 'invalid_model_config' | 'model_operation_failed' | 'cancelled'
-  export type ChatTurnFailure = Readonly<{ code: ChatFailureCode; message: string }>
-  export const CHAT_FAILED: ChatTurnFailure         // { code: 'model_operation_failed', message: 'Chat failed.' }
-  export const CHAT_CANCELLED: ChatTurnFailure      // { code: 'cancelled', message: 'You stopped this answer.' }
-  export class ChatModelFailure extends Error { readonly code: ChatFailureCode; readonly isRetryable: boolean; readonly statusCode: number | null }
-  export function sanitizeChatError(error: unknown): ChatModelFailure
-  export function sanitizedChatModel(model: LanguageModel): ReturnType<typeof wrapLanguageModel>
-  export function chatFailureOf(error: unknown): ChatTurnFailure
-  export function chatTurnFailed(failure: ChatTurnFailure): Error
-  export function chatStreamErrorText(error: unknown): string
-  // test/support/plantedKey.ts
-  export function plantedKey(): string                                   // FREE_SYNTHETIC_KEY_<16 hex>
-  export function holdsKey(value: unknown, key: string): boolean         // own properties (enumerable or not), causes, arrays, maps, strings
-  export function plantingModel(key: string, behaviour: 'throw' | 'read-reject' | 'error-part' | 'success' | 'key-missing' | 'abort'): LanguageModelV4
-  ```
-
-- [ ] **Step 1: The test helpers** (`test/support/plantedKey.ts`)
-
-  `plantedKey()` is `` `FREE_SYNTHETIC_KEY_${randomBytes(8).toString('hex')}` ``. `holdsKey` walks a value depth-first with a `seen` set over `Object.getOwnPropertyNames` (so the non-enumerable `message`, `stack` and `cause` count), `Map`/`Set` entries and array items, and tests every string with `includes(key)`. `plantingModel` returns a `specificationVersion: 'v4'` model (provider `synthetic`, model ID `synthetic`, `supportedUrls: {}`, `doGenerate` throwing `unused`) whose `doStream`:
-  - `'throw'` rejects with `new APICallError({ message: \`401 for Bearer ${key}\`, url: 'http://127.0.0.1:1/v1/chat/completions', requestBodyValues: { authorization: \`Bearer ${key}\` }, statusCode: 401, responseHeaders: { 'x-echo': key }, responseBody: \`{"error":"${key}"}\`, cause: new Error(key), isRetryable: false })`;
-  - `'read-reject'` returns a stream that enqueues `stream-start` and a `text-delta`, then errors with `new TypeError(\`socket closed after ${key}\`)`;
-  - `'error-part'` enqueues `stream-start`, `text-start`, a `text-delta` `partial`, then `{ type: 'error', error: <the APICallError above> }`, and closes;
-  - `'success'` returns `{ request: { body: { prompt: key } }, response: { headers: { 'x-echo': key } }, stream }` whose `text-start`/`text-delta`/`text-end` and `finish` parts carry `providerMetadata: { synthetic: { marker: key } }`, with a `{ type: 'raw', rawValue: key }` part among them and `answer` as the text;
-  - `'key-missing'` rejects with `new ModelKeyRequiredError()`;
-  - `'abort'` rejects with `new DOMException('aborted', 'AbortError')`.
-
-- [ ] **Step 2: Write the failing tests** (`api/_chat_sanitizer.test.ts`)
-
-  A helper `consume(model)` calls `model.doStream({ prompt: [] })` and reads every part, returning `{ result, parts, error }` (a rejection of `doStream` or of a read is `error`; an `error` part stays in `parts`).
-  - `every failure path yields a ChatModelFailure that holds none of the planted key` — for `'throw'`, `'read-reject'` and `'error-part'`: the error (or the `error` part's `error`) is a `ChatModelFailure`; `holdsKey(it, key) === false`; `it.cause === undefined`; `Object.keys(it)` is a subset of `['code', 'isRetryable', 'statusCode']`.
-  - `a successful stream keeps its text and drops provider metadata, raw chunks, request and response` — the `text-delta`s join to `answer`; no part has `providerMetadata`; no `raw` part; `Object.keys(result)` is `['stream']`; `holdsKey(parts, key) === false`.
-  - `a missing key, an abort and a DBOS cancellation stay terminal; a provider's own retry flag is kept` — `'key-missing'` → `{ code: 'model_key_required', isRetryable: false }` with `ModelKeyRequiredError`'s message; `'abort'` → `name === 'AbortError'`, `isRetryable === false`; `new DBOSErrors.DBOSWorkflowCancelledError('chat:x')` (the cancel signal's reason) → `name === 'AbortError'`, `isRetryable === false`, so `durableCalls` never spends its three attempts on a cancelled turn; an `APICallError` 429 with `isRetryable: true` → `isRetryable === true`, `statusCode === 429`; a plain `TypeError` → `isRetryable === true`; `new ApiError(409, 'invalid_model_config', 'No model is configured for the Assistant model route.')` → that code and message, `isRetryable === false`.
-  - `durableCalls outside a workflow passes the sanitized stream through` — `wrapLanguageModel({ model: sanitizedChatModel(plantingModel(key, 'success')), middleware: durableCalls({ name: 'chat' }) })` streams `answer` (outside a workflow `durableCalls` calls the model directly, `middleware.ts:103-105`); this pins the composition order Task 7 uses.
-  - `chatFailureOf finds the sanitized failure behind a wrapper and in an error revived from a checkpoint, and says Chat failed. otherwise` — a `ChatModelFailure`; `{ lastError: failure }`; `Object.assign(new Error('Studio does not hold …'), { code: 'model_key_required' })` (how DBOS revives a recorded error: a plain `Error` with its enumerable properties) → that code and message; `new Error('boom')` → `CHAT_FAILED`.
-  - `chatTurnFailed is a fresh error with the failure's code and message and no cause`; `chatStreamErrorText names only failures chatTurn threw` (`chatTurnFailed(CHAT_CANCELLED)` → its message; `new Error('SQL text')` → `Chat failed.`).
-
-  Run: `pnpm --filter studio exec vitest run api/_chat_sanitizer.test.ts`. Expected: FAIL (module missing).
-
-- [ ] **Step 3: Implement `api/_chat_sanitizer.ts`**
-
-  ```ts
-  import { Error as DBOSErrors } from '@dbos-inc/dbos-sdk'
-  import { APICallError, wrapLanguageModel, type LanguageModel } from 'ai'
-  import { ApiError } from './_http.js'
-  import { ModelKeyRequiredError } from './_model_keys.js'
-  import { providerModel } from './_provider.js'
-
-  type ChatModel = ReturnType<typeof wrapLanguageModel>
-  type StreamResult = Awaited<ReturnType<ChatModel['doStream']>>
-  type StreamPart = StreamResult['stream'] extends ReadableStream<infer Part> ? Part : never
-
-  /** Chat failures a researcher can see, in FREE's own words: nothing here ever comes from a provider. */
-  export type ChatFailureCode = 'model_key_required' | 'invalid_model_config' | 'model_operation_failed' | 'cancelled'
-  export type ChatTurnFailure = Readonly<{ code: ChatFailureCode; message: string }>
-  export const CHAT_FAILED: ChatTurnFailure = { code: 'model_operation_failed', message: 'Chat failed.' }
-  export const CHAT_CANCELLED: ChatTurnFailure = { code: 'cancelled', message: 'You stopped this answer.' }
-  const CHAT_STOPPED: ChatTurnFailure = { code: 'model_operation_failed', message: 'Chat stopped before it finished.' }
-  const CODES: ReadonlySet<string> = new Set(['model_key_required', 'invalid_model_config', 'model_operation_failed', 'cancelled'])
-
-  /** Reads a property of something a provider threw without letting a hostile getter replace the real error. */
-  function read<T>(get: () => T): T | undefined {
-    try {
-      return get()
-    } catch {
-      return undefined
-    }
-  }
-
-  /**
-   * What durableCalls may record of a failed chat call. DBOS serializes a step's thrown error with every enumerable
-   * property and its cause (spec, *Rules*), so this is a fresh Error holding FREE's copy and the retry classification
-   * only: no cause, response, request, headers or body. `name` and `isRetryable` keep durableCalls' classification
-   * (`internal.ts:28-48`): an abort and a missing key are terminal; a provider's own flag is kept.
-   */
-  export class ChatModelFailure extends Error {
-    readonly code: ChatFailureCode
-    readonly isRetryable: boolean
-    readonly statusCode: number | null
-    constructor(failure: ChatTurnFailure, isRetryable: boolean, statusCode: number | null, name = 'ChatModelFailure') {
-      super(failure.message)
-      this.name = name
-      this.code = failure.code
-      this.isRetryable = isRetryable
-      this.statusCode = statusCode
-    }
-  }
-
-  /** Replaces every error a chat call can raise — not only APICallError — with a ChatModelFailure. */
-  export function sanitizeChatError(error: unknown): ChatModelFailure {
-    if (error instanceof ChatModelFailure) return error
-    // The step's cancelSignal aborts with a DBOSWorkflowCancelledError (not an AbortError), so a key wait or a provider
-    // fetch ended by a cancel rejects with it; name it AbortError so durableCalls classifies it as terminal.
-    if (error instanceof DBOSErrors.DBOSWorkflowCancelledError) return new ChatModelFailure(CHAT_STOPPED, false, null, 'AbortError')
-    const name = read(() => (error as { name?: unknown } | null)?.name)
-    if (name === 'AbortError' || name === 'TimeoutError') return new ChatModelFailure(CHAT_STOPPED, false, null, name)
-    if (error instanceof ModelKeyRequiredError)
-      return new ChatModelFailure({ code: 'model_key_required', message: error.message }, false, null)
-    if (error instanceof ApiError && error.code === 'invalid_model_config')
-      return new ChatModelFailure({ code: 'invalid_model_config', message: error.message.slice(0, 512) }, false, null)
-    const flag = read(() => (error as { isRetryable?: unknown } | null)?.isRetryable)
-    const statusCode = read(() => (APICallError.isInstance(error) ? error.statusCode ?? null : null)) ?? null
-    return new ChatModelFailure(CHAT_FAILED, typeof flag === 'boolean' ? flag : !(error instanceof ApiError), statusCode)
-  }
-
-  function withoutProviderMetadata(part: StreamPart): StreamPart {
-    if (!('providerMetadata' in part)) return part
-    const { providerMetadata: _dropped, ...rest } = part as StreamPart & { providerMetadata?: unknown }
-    return rest as StreamPart
-  }
-
-  /**
-   * The provider model as durableCalls may record it (spec, *Rules → Secrets never enter DBOS*). durableCalls wraps this
-   * model, so it runs inside durableCalls' step: every doStream rejection, stream-read failure and `error` part becomes a
-   * ChatModelFailure, and provider metadata goes from every part, because durableCalls 0.4.4 checkpoints the accumulated
-   * provider metadata (not the request body or the response headers: version probe). Raw chunks are dropped and only
-   * the stream is returned, never the provider's request or response. Chat only streams, so generate calls pass through.
-   */
-  export function sanitizedChatModel(model: LanguageModel): ChatModel {
-    return wrapLanguageModel({
-      model: providerModel(model),
-      middleware: {
-        specificationVersion: 'v4',
-        wrapStream: async ({ doStream }) => {
-          let upstream: StreamResult
-          try {
-            upstream = await doStream()
-          } catch (error) {
-            throw sanitizeChatError(error)
-          }
-          const reader = upstream.stream.getReader()
-          return {
-            stream: new ReadableStream<StreamPart>({
-              async pull(controller) {
-                for (;;) {
-                  let next: ReadableStreamReadResult<StreamPart>
-                  try {
-                    next = await reader.read()
-                  } catch (error) {
-                    controller.error(sanitizeChatError(error))
-                    return
-                  }
-                  if (next.done) return controller.close()
-                  if (next.value.type === 'raw') continue
-                  controller.enqueue(next.value.type === 'error'
-                    ? { type: 'error', error: sanitizeChatError(next.value.error) }
-                    : withoutProviderMetadata(next.value))
-                  return
-                }
-              },
-              cancel: (reason) => reader.cancel(reason),
-            }),
-          }
-        },
-      },
-    })
-  }
-
-  /** The typed failure of a turn from whatever streamText reported: the sanitized failure (live), a wrapper around it,
-   *  or the plain Error DBOS revives from a checkpoint; anything else is Chat failed. Reads no provider property. */
-  export function chatFailureOf(error: unknown): ChatTurnFailure {
-    for (let current: unknown = error, depth = 0; current && depth < 4; depth += 1) {
-      const code = read(() => (current as { code?: unknown }).code)
-      const message = read(() => (current instanceof Error ? current.message : undefined))
-      if (typeof code === 'string' && CODES.has(code) && typeof message === 'string')
-        return { code: code as ChatFailureCode, message: message.slice(0, 512) }
-      current = read(() => (current as { lastError?: unknown }).lastError ?? (current as { cause?: unknown }).cause)
-    }
-    const sanitized = sanitizeChatError(error)
-    return { code: sanitized.code, message: sanitized.message }
-  }
-
-  /** Thrown by chatTurn after it recorded `failure`: a fresh Error, so the workflow ends ERROR and readDurableStream ends
-   *  the stream with an error finish. Returning a typed failure as success would end it with an ordinary finish (stream
-   *  probe). */
-  export function chatTurnFailed(failure: ChatTurnFailure): Error {
-    return Object.assign(new Error(failure.message), { name: 'ChatTurnFailed', code: failure.code })
-  }
-
-  /** readDurableStream's onError: the recorded workflow error's message only when chatTurn threw it. */
-  export function chatStreamErrorText(error: unknown): string {
-    const code = read(() => (error as { code?: unknown } | null)?.code)
-    const message = read(() => (error instanceof Error ? error.message : undefined))
-    return typeof code === 'string' && CODES.has(code) && typeof message === 'string' ? message.slice(0, 512) : CHAT_FAILED.message
-  }
-  ```
-  Only sanitized errors reach durableCalls' record, so an error revived from a checkpoint always carries a valid `code`.
-
-- [ ] **Step 4: Run and commit**
-
-  ```bash
-  pnpm --filter studio exec vitest run api/_chat_sanitizer.test.ts
-  pnpm --filter studio typecheck && pnpm --filter studio lint && pnpm --filter studio test
-  cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6
-  git add prototypes/studio/api/_chat_sanitizer.ts prototypes/studio/api/_chat_sanitizer.test.ts prototypes/studio/test/support/plantedKey.ts
-  git commit -m "feat(studio): replace every chat provider error with FREE's own and strip provider metadata inside durableCalls"
+  git commit -m "feat(studio): stop every model call on DBOS's cancel signal at the model boundary"
   ```
 
 ### Task 3: `suggestSchema` on DBOS: operation IDs, typed results, the waiting handler; keys and cancellation proven on PostgreSQL
 
-The largest task: it also builds the operation helper and the PostgreSQL-tier support (scripted model server, seeding, key scans) that Tasks 4–8 reuse. Use a high-effort implementer.
+The largest task: it also builds the operation helper with the step-boundary sanitizer (Ruling 4) and the PostgreSQL-tier support (scripted model server, planted keys, seeding, key scans) that Tasks 4, 5, 8 and 9 reuse. Use a high-effort implementer.
 
 **Files:**
 - Create: `prototypes/studio/api/_model_operation.ts` (+ `_model_operation.test.ts`), `prototypes/studio/api/_schema_generation_workflow.ts` (+ `_schema_generation_workflow.test.ts`), `prototypes/studio/api/generate_schema.test.ts`
-- Modify: `prototypes/studio/api/generate_schema.ts`, `prototypes/studio/api/_schema_edit.ts` (add `ownedSourceScope`, `optionalSchemaBase`), `prototypes/studio/server/workflows.ts` (+ `workflows.test.ts`), `prototypes/studio/server/researcher-project-ownership.test.ts` (the `generate_schema` cases send `operation_id` and fake the operation client)
+- Modify: `prototypes/studio/api/generate_schema.ts`, `prototypes/studio/api/_schema_edit.ts` (add `ownedSourceScope`, `optionalSchemaBase`; delete `loadOwnedSourceMarkdown`, 101-122, whose last caller was `generate_schema.ts`), `prototypes/studio/server/workflows.ts` (+ `workflows.test.ts`), `prototypes/studio/server/researcher-project-ownership.test.ts` (the `generate_schema` cases send `operation_id` and fake the operation client)
 - Modify: `packages/db/src/project-store.ts` (`ownedSourceRepresentationDescriptor` 125-164 also selects `sourceDocumentId`; `getSourceRepresentation` returns it), `packages/db/src/project-store.test.ts`
 - Modify: `prototypes/studio/src/api.ts` (`requestSchema` sends `operation_id` and the base), `prototypes/studio/src/App.tsx` (`handleGenerate`, 444-464), `prototypes/studio/src/api.test.ts`, `prototypes/studio/src/apiEndpoints.test.ts` (where it lists form fields)
-- Create (Studio PostgreSQL tier): `prototypes/studio/test/support/scriptedModelServer.ts`, `prototypes/studio/test/support/interactive.ts`, `prototypes/studio/api/schema_generation.postgres.test.ts`, `prototypes/studio/test/support/scenarios/generation-recover.ts`, `prototypes/studio/test/support/scenarios/generation-replay.ts`
+- Create (Studio PostgreSQL tier): `prototypes/studio/test/support/scriptedModelServer.ts`, `prototypes/studio/test/support/plantedKey.ts`, `prototypes/studio/test/support/interactive.ts`, `prototypes/studio/api/schema_generation.postgres.test.ts`, `prototypes/studio/test/support/scenarios/generation-recover.ts`, `prototypes/studio/test/support/scenarios/generation-replay.ts`
 
 **Interfaces:**
-- Consumes: M4's `studioDbos`, `STUDIO_QUEUE`, `awaitWorkflowOutcome`, `dbosSteps`, `WorkflowSteps`, `createInternalProjectWorkerStore().readRevisionMarkdown`, `INTERRUPTED_FAILURE`, the Studio PostgreSQL tier and crash harness; Task 1's model boundary; Task 2's `plantedKey`.
+- Consumes: M4's `studioDbos`, `STUDIO_QUEUE`, `awaitWorkflowOutcome`, `dbosSteps`, `WorkflowSteps`, `createInternalProjectWorkerStore().readRevisionMarkdown`, `INTERRUPTED_FAILURE`, the Studio PostgreSQL tier and crash harness; Task 2's model boundary.
 - Produces:
   ```ts
   // api/_model_operation.ts
@@ -533,19 +350,24 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
   export type SchemaBase = { extractionSchemaId: string; schemaRevisionId: string }
   export function requestSchema(context: SourceModelContext, signal: AbortSignal | undefined, options: { instruction?: string; operationId: string; base: SchemaBase | null }): Promise<unknown>
   // test/support/scriptedModelServer.ts
-  export type ScriptedReply = { text: string; hold?: boolean } | { text: string; dropAfterFirstChunk: true } | { status: number; body: string; headers?: Readonly<Record<string, string>> }
-  export type ScriptedCall = Readonly<{ authorization: string | null; stream: boolean; body: unknown; receivedAt: number; closedAt: number | null }>
+  export type ScriptedReply = { text: string; hold?: boolean; headers?: Readonly<Record<string, string>> } | { status: number; body: string; headers?: Readonly<Record<string, string>> }
+  export type ScriptedCall = Readonly<{ authorization: string | null; body: unknown; receivedAt: number; closedAt: number | null }>
   export function startScriptedModelServer(): Promise<{ baseUrl: string; reply(...replies: ScriptedReply[]): void; calls(): readonly ScriptedCall[]; waitForCall(count: number, timeoutMs?: number): Promise<ScriptedCall>; release(): void; close(): Promise<void> }>
   // test/support/interactive.ts
   export function seedInteractiveScope(): Promise<{ accountId: string; projectContextId: string; sourceDocumentId: string; sourceRepresentationRevisionId: string }>
   export function configureOwnerRoute(accountId: string, route: { provider: 'openai-compatible' | 'vllm'; baseUrl: string; modelId: string; hasKey: boolean; routes?: ReadonlyArray<'interaction' | 'schemaSuggestion'> }): Promise<{ connectionId: string }>
   export function databaseHolds(url: string, needle: string, schemas: readonly string[]): Promise<readonly string[]>   // "<schema>.<table>" whose rows hold it
   export function captureOutput(): { text(): string; restore(): void }                                               // console.* and process.std{out,err}.write
+  // test/support/plantedKey.ts
+  export function plantedKey(): string                                   // FREE_SYNTHETIC_KEY_<16 hex>
+  export function holdsKey(value: unknown, key: string): boolean         // own properties (enumerable or not), causes, arrays, maps, strings
   ```
 
 - [ ] **Step 1: The PostgreSQL-tier support**
 
-  `test/support/scriptedModelServer.ts`: a `node:http` server on `127.0.0.1:0` answering `POST /v1/chat/completions` (and `GET /v1/models` with one model, `scripted`). Replies are taken FIFO from `reply(...)`; with none queued it answers `{ text: 'scripted answer' }`. Each call records `authorization` (the request header or null), `stream` (the body's `stream === true`), the parsed body, `receivedAt` and `closedAt` (from `res.on('close')`). A text reply answers a streaming request with SSE — one chunk `data: {"id":"c","object":"chat.completion.chunk","created":0,"model":"scripted","choices":[{"index":0,"delta":{"role":"assistant","content":<text>},"finish_reason":null}]}`, then one with `"delta":{}`, `"finish_reason":"stop"` and `"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}`, then `data: [DONE]` — and a non-streaming one with one `chat.completion` JSON (`choices[0].message.content` is the text; the same `usage`). `hold: true` withholds the reply (SSE: after the first chunk; JSON: entirely) until `release()`. `dropAfterFirstChunk` destroys the socket after the first SSE chunk. An error reply writes its status, headers and body; the token `{{authorization}}` in the body is replaced by the request's `authorization` header (how a provider echoes a key into an error). `waitForCall(n)` resolves when the n-th call arrived (default timeout 10 s).
+  `test/support/scriptedModelServer.ts`: a `node:http` server on `127.0.0.1:0` answering `POST /v1/chat/completions` (and `GET /v1/models` with one model, `scripted`). Replies are taken FIFO from `reply(...)`; with none queued it answers `{ text: 'scripted answer' }`. Each call records `authorization` (the request header or null), the parsed body, `receivedAt` and `closedAt` (from `res.on('close')`). A text reply answers with one `chat.completion` JSON (`choices[0].message.content` is the text; `usage` `{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}`) and its `headers`; a request with `stream: true` answers 400, since no M5 call streams (Ruling 5). `hold: true` withholds the reply until `release()`. An error reply writes its status, headers and body; the token `{{authorization}}` in the body is replaced by the request's `authorization` header (how a provider echoes a key into an error). `waitForCall(n)` resolves when the n-th call arrived (default timeout 10 s).
+
+  `test/support/plantedKey.ts`: `plantedKey()` is `` `FREE_SYNTHETIC_KEY_${randomBytes(8).toString('hex')}` ``. `holdsKey` walks a value depth-first with a `seen` set over `Object.getOwnPropertyNames` (so the non-enumerable `message`, `stack` and `cause` count), `Map`/`Set` entries and array items, and tests every string with `includes(key)`.
 
   `test/support/interactive.ts`: `seedInteractiveScope()` creates with the post-M4 ORM (`db.orm.public`) a `ResearcherAccount` (random tenant and object IDs), a `ProjectContext`, a `SourceDocument` and one `SourceRepresentationRevision` with placeholder artifact fields (the workflows' ports read Markdown from a test double, never from the package store); copy the column list from M4's Studio PostgreSQL seeding (for example `api/source_ingestion.postgres.test.ts`) if it has a helper, otherwise fill every NOT NULL column of the post-M4 contract. `configureOwnerRoute` calls `applyAccountModelConfig(accountId, update)` (`api/_model_config.ts:191`) with one researcher connection (`id: randomUUID()`) and the given routes (default `['interaction', 'schemaSuggestion']`). `databaseHolds` lists `information_schema.tables` (`BASE TABLE`) of the given schemas and runs per table `SELECT count(*)::int AS n FROM "<schema>"."<table>" AS x WHERE x::text LIKE $1` with `'%' + needle + '%'`. `captureOutput` wraps `console.log/info/warn/error` and `process.stdout.write`/`process.stderr.write` (DBOS's logger writes there).
 
@@ -557,10 +379,12 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
   - `a DBOS outage while starting or reading is 503 persistence_unavailable`.
   - `awaitOperation returns a finished workflow's typed output; a cancel is 409 operation_cancelled, an error or a missing workflow 500 interrupted, a timeout 504 operation_pending`.
   - `operationFailureOf keeps an ApiError's status, code and message and turns anything else into 500 unexpected_failure without its message`.
+  - `operationFailureOf keeps only FREE's copy, whatever the provider error holds` (the step-boundary sanitizer, Ruling 4: with `key = plantedKey()`, for an `APICallError` whose `message`, `requestBodyValues`, `responseHeaders`, `responseBody` and `cause` hold the key; for `asModelOperationError(thatError)` — an `ApiError` whose enumerable `cause` is it; for a `TypeError` whose message quotes `Bearer <key>`; for a thrown string holding the key; and for an object whose `message` getter throws: the result has exactly the keys `status`, `code` and `message`, and `holdsKey(result, key) === false`).
   `api/_schema_generation_workflow.test.ts` (fake `steps` that run at once and record names; scripted `generate`):
   - `reads the document outside the step, generates in one step named generateSchema, and returns the template with its base` (`readMarkdown` runs before the step; `generate` runs only inside it; the output carries `baseSchemaRevisionId`).
   - `every call resolves the owner's account and gets a ten-minute signal` (`generate`'s caller is `{ researcherAccountId: input.owner }`; spy `AbortSignal.timeout`: called with `600_000`, and its signal is the one passed).
   - `an expected failure is returned as a typed result, never thrown` (`new ApiError(502, 'invalid_model_output', 'x')` → `{ ok: false, status: 502, code: 'invalid_model_output', message: 'x' }`; `ModelKeyRequiredError` → status 409, code `model_key_required`).
+  - `the step's output copies only the template, the raw text, the page count and the base` (the scripted `generate` resolves `{ template, raw, pages, providerMetadata: { synthetic: { marker: key } }, response: { headers: { 'x-echo': key } } }` cast to its type; the output's keys are exactly `ok`, `template`, `raw`, `pages`, `baseSchemaRevisionId`, and `holdsKey(output, key) === false`).
   - `a deleted revision ends with a typed 404 and no step`.
   `api/generate_schema.test.ts` (fake store; fake operation client whose `listWorkflows` reports `SUCCESS` with a scripted output):
   - `starts suggestion:<operation_id> for the owner with the scope attributes, and answers today's body` (`{ template, raw, pages }`, 200; attributes `{ projectContextId, sourceDocumentId, sourceRepresentationRevisionId, extractionSchemaId: null }` without a base).
@@ -686,7 +510,7 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
           document: { file: null, pages: null, markdown },
           instruction: input.instruction,
           ...(input.temperature === null ? {} : { temperature: input.temperature }),
-          // The model boundary adds the step's cancel signal (Task 1).
+          // The model boundary adds the step's cancel signal (Task 2).
           signal: AbortSignal.timeout(MODEL_OPERATION_TIMEOUT_MS),
         })
         return { ok: true, template: generated.template, raw: generated.raw, pages: generated.pages, baseSchemaRevisionId: input.baseSchemaRevisionId }
@@ -753,7 +577,7 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
     }
   }
   ```
-  (`createResearcherApiHandlers` keeps `{ POST: createPostGenerateSchema(store) }`; the package-reader and `generate` parameters go.)
+  (`createResearcherApiHandlers` keeps `{ POST: createPostGenerateSchema(store) }`; the package-reader and `generate` parameters go. Delete `loadOwnedSourceMarkdown` from `api/_schema_edit.ts`: after Task 1 removed `api/chat.ts`, this handler was its last caller; `readCanonicalMarkdown` stays for `loadOwnedSchemaModelContext` until Task 4.)
   `src/api.ts`: `requestSchema(context, signal, { instruction, operationId, base })` appends `operation_id`, and `extraction_schema_id` + `base_schema_revision_id` when `base` is not null. `src/App.tsx` `handleGenerate`:
   ```ts
   // The tab's acknowledged head is the base: a reloaded page saves this generation only while it is still current.
@@ -776,8 +600,9 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
   - `a cancel during a provider call stops it about 1 s later` (A14: key present; `reply({ text: 'x', hold: true })`; `waitForCall(1)`; cancel at `t0`; `calls()[0].closedAt - t0 <= 2_500`; the workflow is `CANCELLED`).
   - `a key planted in a provider error in a JSON step reaches no DBOS or public table and no log` (A10: `plantedKey()` in the cache; `reply({ status: 500, body: '{"error":"echo {{authorization}}"}', headers: { 'x-echo': key } })`; the POST answers 502 `model_operation_failed`; then a success reply with `headers: { 'x-echo': key }` answers 200; `databaseHolds(url, key, [schema, 'public'])` is empty; the captured output does not contain the key).
   - `NuExtract on a keyed vLLM connection waits for its key, stops on cancel, and leaves no key in history` (A15: `configureOwnerRoute(account, { provider: 'vllm', modelId: 'numind/NuExtract3', hasKey: true, routes: ['schemaSuggestion'] })`; no key → 409 `model_key_required` after the wait and 0 calls; a cancel during the wait → 0 calls; the key present and an echoing 500 → no key in any table; the key present and a success → the call's `authorization` is `Bearer <key>`).
-  - `a replayed step whose call is checkpointed never waits for a key` (A14; scenario `generation-replay`: on the first run, with the key, its `steps.step` wrapper SIGKILLs right after the `generateSchema` step resolved; the second run holds no key and a 60 s wait; the workflow reaches `SUCCESS` within 5 s with the first run's template; `server.calls().length === 1`; the second process's counted `wait` stays 0 — the scenario writes its count to a file).
+  - `a replayed step whose call is checkpointed never waits for a key, even after the route moved` (A14, A7; scenario `generation-replay`: on the first run, with the key, its `steps.step` wrapper SIGKILLs right after the `generateSchema` step resolved; between the runs the parent re-points the owner's Schema Suggestion Route to a second scripted server B (`configureOwnerRoute`); the second run holds no key and a 60 s wait; the workflow reaches `SUCCESS` within 5 s with the first run's template; `server.calls().length === 1` and B has no call; the second process's counted `wait` stays 0 — the scenario writes its count to a file).
   - `a Studio killed mid-generation recovers it: the operation stays listed as running, and finishes once the page resends the key` (A2 kill; scenario `generation-recover`: the first run holds the call and SIGKILLs once `waitForCall(1)` resolved; between the runs `admission.listWorkflows({ workflow_id_prefix: 'suggestion:' })` shows `PENDING`; the second run puts the key before launch — the resend — and the workflow finishes with the second call's template; exactly 2 calls).
+  - `a route changed between attempts: an interrupted generation reruns on the new route` (A7, spec *No pins*; scenario `generation-recover` with `FREE_TEST_MOVE_ROUTE=1`: between the runs the parent re-points the owner's Schema Suggestion Route to a second scripted server B; the second run puts the key before launch; A was called once, B once; the workflow's template is B's reply).
   - `with no page to resend it, a recovered generation fails with model_key_required after the wait and nobody retries it` (A13: `generation-recover` with `FREE_TEST_RESEND=0`: the output is `{ ok: false, status: 409, code: 'model_key_required' }`; no call after the restart; the counted `wait` ran once).
   The scenarios follow M4's contract (`run({ firstRun, env })`, `FREE_TEST_DBOS_SCHEMA`, `FREE_TEST_KEI_SCHEMA`, `FREE_TEST_EXECUTOR`, `FREE_CRASH_MARKER`), read the scripted server's base URL and the seeded IDs from `FREE_TEST_*` variables the parent sets, and on the second run only wait (`awaitWorkflowOutcome`, 60 s) and shut down. The scripted server lives in the parent process, so it survives the child's SIGKILL.
 
@@ -799,7 +624,7 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
 
 **Files:**
 - Create: `prototypes/studio/api/_schema_edit_workflow.ts` (+ `_schema_edit_workflow.test.ts`), `prototypes/studio/api/edit_schema.test.ts`, `prototypes/studio/api/schema_edit.postgres.test.ts`, `prototypes/studio/test/support/scenarios/edit-recover.ts`
-- Modify: `prototypes/studio/api/edit_schema.ts`, `prototypes/studio/api/_schema_edit.ts` (delete `loadOwnedSchemaModelContext`, 148-184), `packages/db/src/project-store.ts` (worker store `readSchemaRevisionTree`), `prototypes/studio/server/workflows.ts` (+ test), `prototypes/studio/server/researcher-project-ownership.test.ts` (the `edit_schema` cases send `operation_id`)
+- Modify: `prototypes/studio/api/edit_schema.ts`, `prototypes/studio/api/_schema_edit.ts` (delete `loadOwnedSchemaModelContext`, 148-184, and `readCanonicalMarkdown`, 87-99), `packages/db/src/project-store.ts` (worker store `readSchemaRevisionTree`), `prototypes/studio/server/workflows.ts` (+ test), `prototypes/studio/server/researcher-project-ownership.test.ts` (the `edit_schema` cases send `operation_id`)
 - Modify: `prototypes/studio/src/api.ts` (`requestSchemaEdit` sends `operation_id`), `prototypes/studio/src/SchemaPanel.tsx` (`sendChatMessage` mints one per send), `prototypes/studio/src/api.test.ts`, `prototypes/studio/src/SchemaPanel.test.tsx`
 
 **Interfaces:**
@@ -863,8 +688,8 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
   }
   ```
   `registerSchemaEditWorkflow` registers it under `PROPOSE_SCHEMA_EDIT`; `server/workflows.ts` appends the name and registers it with `readSchemaTree: (schemaId, revisionId) => worker.readSchemaRevisionTree(schemaId, revisionId)`, `readMarkdown: (id) => worker.readRevisionMarkdown(id)`, `propose: proposeSchemaEdit` and `generateJson: generateSchemaEditJson`. The worker store's `readSchemaRevisionTree` returns the `schemaTree` of `SchemaRevision { id, extractionSchemaId }`, or null.
-  `api/edit_schema.ts`: `FIELDS` gains `operation_id`; after today's validation, ownership is `loadOwnedSchemaRevision(…)` plus, for a document-grounded edit, `ownedSourceScope(…)` (no package read); the input is a `SchemaEditInput`; then `startOrJoinOperation(operations(), { workflowName: PROPOSE_SCHEMA_EDIT, workflowID: \`edit:${operationId}\`, owner, input, attributes: { projectContextId, extractionSchemaId, ...(source ? { sourceDocumentId, sourceRepresentationRevisionId } : {}) } })` and `awaitOperation<SchemaEditProposed>`; `ok: false` throws its `ApiError`; `ok: true` answers `json(result.response)`. `createPostEditSchema(store, operations = () => studioDbos().admission)`. Delete `loadOwnedSchemaModelContext` (its only caller is gone).
-  `src/api.ts`: `requestSchemaEdit(context, instruction, signal, operationId)` appends `operation_id`. `src/SchemaPanel.tsx` `sendChatMessage`: `const operationId = crypto.randomUUID()` per send, kept in `editOperationRef` beside `chatAbortRef` (Task 9's Stop and Task 10's Discard read it), passed to `requestSchemaEdit`.
+  `api/edit_schema.ts`: `FIELDS` gains `operation_id`; after today's validation, ownership is `loadOwnedSchemaRevision(…)` plus, for a document-grounded edit, `ownedSourceScope(…)` (no package read); the input is a `SchemaEditInput`; then `startOrJoinOperation(operations(), { workflowName: PROPOSE_SCHEMA_EDIT, workflowID: \`edit:${operationId}\`, owner, input, attributes: { projectContextId, extractionSchemaId, ...(source ? { sourceDocumentId, sourceRepresentationRevisionId } : {}) } })` and `awaitOperation<SchemaEditProposed>`; `ok: false` throws its `ApiError`; `ok: true` answers `json(result.response)`. `createPostEditSchema(store, operations = () => studioDbos().admission)`. Delete `loadOwnedSchemaModelContext` (its only caller is gone) and `readCanonicalMarkdown` (its last caller was `loadOwnedSchemaModelContext`; no handler reads Markdown any more).
+  `src/api.ts`: `requestSchemaEdit(context, instruction, signal, operationId)` appends `operation_id`. `src/SchemaPanel.tsx` `sendChatMessage`: `const operationId = crypto.randomUUID()` per send, kept in `editOperationRef` beside `chatAbortRef` (Task 6's Stop and Task 7's Discard read it), passed to `requestSchemaEdit`.
 
 - [ ] **Step 3: Run and commit**
 
@@ -889,7 +714,7 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
 - Produces:
   ```ts
   // shared/modelOperation.contract.ts
-  export const MODEL_OPERATION_WORKFLOW_ID: RegExp        // ^(suggestion|edit):(<canonical UUID>)$ — Task 8 adds chat: to DELETE separately
+  export const MODEL_OPERATION_WORKFLOW_ID: RegExp        // ^(suggestion|edit):(<canonical UUID>)$
   export const modelOperationSchema, modelOperationListingSchema
   export type ModelOperation = z.infer<typeof modelOperationSchema>
   export type ModelOperationListing = z.infer<typeof modelOperationListingSchema>
@@ -933,7 +758,7 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
   export type ModelOperation = z.infer<typeof modelOperationSchema>
   export type ModelOperationListing = z.infer<typeof modelOperationListingSchema>
   ```
-  Check the exact shape of `CANONICAL_UUID` in `studio-configuration` first; if it is not anchored with `^…$`, use its `source` unchanged. The contract test pins `MODEL_OPERATION_WORKFLOW_ID` against `suggestion:<uuid>`, `edit:<uuid>`, and refuses `chat:<uuid>`, `suggestion:<uuid>\n`, `edit:<UUID in upper case>` and `suggestion:<uuid>:x`.
+  Check the exact shape of `CANONICAL_UUID` in `studio-configuration` first; if it is not anchored with `^…$`, use its `source` unchanged. The contract test pins `MODEL_OPERATION_WORKFLOW_ID` against `suggestion:<uuid>`, `edit:<uuid>`, and refuses `chat:<uuid>` (no chat workflows exist), `suggestion:<uuid>\n`, `edit:<UUID in upper case>` and `suggestion:<uuid>:x`.
 
 - [ ] **Step 2: Write the failing tests**
 
@@ -1076,586 +901,7 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
   git commit -m "feat(studio): list, cancel and discard a scope's schema generations and edit proposals"
   ```
 
-### Task 6: `ChatTurn` in the baseline; atomic question admission with per-revision exclusion
-
-**Files:**
-- Modify: `packages/db/src/prisma/contract.prisma` (add `ChatTurn`; `SourceRepresentationRevision` gains `chatTurns ChatTurn[]`); regenerate the baseline (Global Constraints) and commit `migrations/app/*_baseline/` and `migrations/app/refs/db.json`; recreate the databases
-- Modify: `packages/db/src/pool-client-transaction.ts` (`AdmittedWorkflow.deduplicationID?`, `DuplicateActiveWorkflowError`), `packages/db/src/index.ts`, `packages/db/package.json` (`test:postgres` gains `src/chat-turn.postgres.check.ts`)
-- Create: `packages/db/src/chat-turns.ts` (the chat store methods, spread into the two stores), `packages/db/src/chat-turn.postgres.check.ts`
-- Modify: `packages/db/src/project-store.ts` (the `ResearcherProjectStore` and `InternalProjectWorkerStore` types and factories spread `chat-turns.ts`)
-- Modify: `prototypes/studio/server/app.ts` (the enqueue adapter maps `DBOSQueueDuplicatedError`) and `server/app.test.ts`; Studio fixtures implementing `ResearcherProjectStore` gain stubs
-
-**Interfaces:**
-- Consumes: M4's `withPoolClientTransaction`, `TransactionalEnqueue`, `isUniqueViolation`, `WorkflowStatuses`, `executionOf`.
-- Produces:
-  ```ts
-  // pool-client-transaction.ts
-  export type AdmittedWorkflow = Readonly<{ workflowName: string; workflowID: string; queueName: string; deduplicationID?: string; authenticatedUser: string; attributes: Readonly<Record<string, unknown>> }>
-  export class DuplicateActiveWorkflowError extends Error { readonly deduplicationID: string }
-  // chat-turns.ts
-  export const CHAT_TURN_NAME = 'chatTurn'
-  export const STUDIO_QUEUE_NAME = 'studio'          // reuse M4's constant if packages/db already has one (grep "'studio'" packages/db/src)
-  export type ChatTurnFailureRecord = Readonly<{ code: string; message: string }>
-  export type ChatTurnRecord = Readonly<{ turnId: string; sourceRepresentationRevisionId: string; question: string; answer: string | null; failure: ChatTurnFailureRecord | null; createdAt: Date }>
-  export type ChatTurnStatus = 'QUEUED' | 'RUNNING' | 'ANSWERED' | 'FAILED' | 'UNANSWERED'
-  export type ChatTranscript = Readonly<{ sourceRepresentationRevisionId: string; turns: readonly (ChatTurnRecord & { status: ChatTurnStatus })[]; reconnectTurnId: string | null }>
-  export type ChatAdmission = { status: 'created' | 'replayed'; turn: ChatTurnRecord } | { status: 'conflict' } | { status: 'busy' }
-  export type AdmittedChatTurn = Readonly<{ turnId: string; owner: string; projectContextId: string; sourceDocumentId: string; sourceRepresentationRevisionId: string; question: string; history: readonly { question: string; answer: string }[]; settled: boolean }>
-  export type ChatTurnOutcome = { answer: string } | { failure: ChatTurnFailureRecord }
-  // ResearcherProjectStore gains
-  admitChatTurn(input: { projectContextId: string; sourceRepresentationRevisionId: string; turnId: string; question: string }): Promise<ChatAdmission | null>
-  readChatTranscript(sourceRepresentationRevisionId: string): Promise<ChatTranscript | null>
-  ownedChatTurn(sourceRepresentationRevisionId: string, turnId: string): Promise<ChatTurnRecord | null>
-  cancelChatTurn(turnId: string, failure: ChatTurnFailureRecord): Promise<'cancelled' | 'settled' | null>
-  // InternalProjectWorkerStore gains
-  loadChatTurn(turnId: string): Promise<AdmittedChatTurn | null>
-  settleChatTurn(turnId: string, outcome: ChatTurnOutcome): Promise<'settled' | 'already-settled' | 'missing'>
-  ```
-
-- [ ] **Step 1: Edit the baseline**
-
-  ```prisma
-  // One document-chat turn (spec, *Interactive model work → Chat*): the question, admitted in one transaction with its
-  // chat:<id> workflow, and at most one outcome — `answer` or `failure` — written once, conditionally, by that workflow
-  // or by a cancel. Neither set: running, or unanswered once its workflow is gone. Deleting the revision deletes it.
-  model ChatTurn {
-    id                             Uuid                         @id @default(uuid())
-    sourceRepresentationRevisionId Uuid
-    question                       String
-    answer                         String?
-    failure                        Json?
-    createdAt                      Timestamptz6                 @default(now())
-    sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId], references: [id], onDelete: Cascade)
-
-    @@index([sourceRepresentationRevisionId, createdAt])
-  }
-  ```
-  Regenerate (Global Constraints), note the generated primary-key constraint name in `ops.json` (expected `chatTurn_pkey`; use whatever it is below), recreate the databases.
-
-- [ ] **Step 2: Write the failing checks** (`packages/db/src/chat-turn.postgres.check.ts`)
-
-  Style of M4's `pool-client-transaction.postgres.check.ts`: top-level `test`, `PROJECT_STORE_POSTGRES_URL` required and validated, `process.env.DATABASE_URL` set before dynamic imports, DBOS launched once on a throwaway schema with no workflows (an enqueued `chat:` row stays `ENQUEUED`, holding its deduplication ID), an enqueue implementing `TransactionalEnqueue` that maps `DBOSErrors.DBOSQueueDuplicatedError` to `DuplicateActiveWorkflowError` exactly as Studio's adapter does, and `workflowStatuses` from that client. Each sub-test seeds its own account, project, document and revision.
-  - `admission commits the question and chat:<turnId> together, with the revision's deduplication ID, the owner and the scope attributes` (`workflow_status` row: `queue_name 'studio'`, `deduplication_id 'chat:<revision>'`, `authenticated_user` the owner, `attributes` `{ projectContextId, sourceDocumentId, sourceRepresentationRevisionId }`, input `[{ turnId }]`).
-  - `an enqueue that fails after the insert rolls back both`.
-  - `two simultaneous identical turns create one question and replay once` (*Verification*: concurrent replay; `Promise.all` of two admissions → `['created', 'replayed']`; one row; one workflow).
-  - `the same turn ID with another question or revision is a conflict` (no second row, no workflow).
-  - `a second turn while one is active is busy and leaves no question behind` (*Verification*: active-chat exclusion and rollback; both sequential and simultaneous; exactly one row).
-  - `cancelling the active turn records the cancellation, frees the revision, and the next turn is admitted` (`cancelChatTurn` → `'cancelled'`; `admission.cancelWorkflow('chat:<id>')`; a new turn → `'created'`).
-  - `one answer per turn when an answer races a cancel` (*Verification*: twenty fresh turns, each `Promise.all([settleChatTurn(id, { answer: 'a' }), cancelChatTurn(id, failure)])`; every row has exactly one of `answer` and `failure`, and the two results are complementary: `settled` with `settled`, or `already-settled` with `cancelled`).
-  - `a replayed answer write finds the turn settled and writes nothing` (`settleChatTurn` twice → `settled`, then `already-settled`; the answer is the first one).
-  - `the transcript orders turns, derives running and unanswered, and names only a live turn for reconnect` (turns: answered; failed; one whose workflow was cancelled without an outcome → `UNANSWERED`; one `ENQUEUED` → `QUEUED`, which is `reconnectTurnId`).
-  - `a SUCCESS workflow over a turn without an outcome reads as unanswered after the re-read`.
-  - `loadChatTurn returns the question, the owner and the earlier answered turns in order` (unanswered and failed turns are left out; later turns are left out).
-  - `a second account reads, reconnects to and cancels none of the first account's turns` (`readChatTranscript`, `ownedChatTurn`, `cancelChatTurn`, `admitChatTurn` on A's revision → `null` for B).
-  - `deleting the Source Document deletes its transcript` (cascade through the revision).
-  - `the ChatTurn table holds no key column` (`information_schema.columns` for `chatTurn` is exactly `id, sourceRepresentationRevisionId, question, answer, failure, createdAt`).
-  Run: `pnpm --filter db test:postgres` (fresh databases). Expected: FAIL.
-
-- [ ] **Step 3: Implement `packages/db/src/chat-turns.ts`**
-
-  ```ts
-  /** The chat store (spec, *Chat*). One active turn per immutable Source Representation Revision; the question and its
-   *  workflow commit together; every outcome write is conditional, so a replay, a cancel race or a late answer is a no-op. */
-  export function chatTurnMethods(database: Database, researcherAccountId: string,
-    options: { workflowStatuses?: WorkflowStatuses; enqueue?: TransactionalEnqueue }) {
-    const compare = (row: StoredChatTurn, input: { sourceRepresentationRevisionId: string; question: string }): ChatAdmission =>
-      row.sourceRepresentationRevisionId === input.sourceRepresentationRevisionId && row.question === input.question
-        ? { status: 'replayed', turn: recordOf(row) }
-        : { status: 'conflict' }
-    return {
-      async admitChatTurn(input: { projectContextId: string; sourceRepresentationRevisionId: string; turnId: string; question: string }) {
-        const enqueue = options.enqueue
-        if (!enqueue) throw new Error('Chat admission needs the transactional enqueue.')
-        try {
-          return await withPoolClientTransaction(async (transaction, client): Promise<ChatAdmission | null> => {
-            const scope = await ownedRevisionScope(transaction, researcherAccountId, input.sourceRepresentationRevisionId)
-            if (!scope || scope.projectContextId !== input.projectContextId) return null
-            const existing = await transaction.orm.public.ChatTurn.select(...TURN_FIELDS).first({ id: input.turnId })
-            if (existing) return compare(existing, input)                      // committed earlier: nothing to enqueue
-            const created = await transaction.orm.public.ChatTurn.create({
-              id: input.turnId, sourceRepresentationRevisionId: input.sourceRepresentationRevisionId, question: input.question,
-            })
-            await enqueue(client, {
-              workflowName: CHAT_TURN_NAME,
-              workflowID: `chat:${input.turnId}`,
-              queueName: STUDIO_QUEUE_NAME,
-              // One active turn per immutable revision (spec, *Chat exclusion*): a second one's enqueue is rejected, and
-              // the rollback takes its question with it.
-              deduplicationID: `chat:${input.sourceRepresentationRevisionId}`,
-              authenticatedUser: researcherAccountId,
-              attributes: { projectContextId: scope.projectContextId, sourceDocumentId: scope.sourceDocumentId,
-                sourceRepresentationRevisionId: input.sourceRepresentationRevisionId },
-            }, { turnId: input.turnId })
-            return { status: 'created', turn: recordOf(created) }
-          })
-        } catch (error) {
-          if (error instanceof DuplicateActiveWorkflowError) return { status: 'busy' }
-          // Two first requests for one turn: the loser's insert waited for the winner's commit (spec, *Replays*).
-          if (!isUniqueViolation(error, 'chatTurn_pkey')) throw error
-          const row = await database.orm.public.ChatTurn.select(...TURN_FIELDS).first({ id: input.turnId })
-          return row ? compare(row, input) : { status: 'conflict' }
-        }
-      },
-      async readChatTranscript(sourceRepresentationRevisionId: string): Promise<ChatTranscript | null> {
-        const read = () => database.transaction(async (transaction) => {
-          if (!(await ownedRevisionScope(transaction, researcherAccountId, sourceRepresentationRevisionId))) return null
-          return transaction.orm.public.ChatTurn.where({ sourceRepresentationRevisionId }).select(...TURN_FIELDS)
-            .orderBy([(turn) => turn.createdAt.asc(), (turn) => turn.id.asc()]).all()
-        })
-        let rows = await read()
-        if (rows === null) return null
-        const unsettled = (all: readonly StoredChatTurn[]) => all.filter((row) => row.answer === null && row.failure === null)
-        const statusesOf = options.workflowStatuses
-        if (!statusesOf) throw new Error('Reading a transcript needs the workflow statuses.')
-        const statuses = await statusesOf(unsettled(rows).map((row) => `chat:${row.id}`))
-        // SUCCESS means the workflow wrote its outcome just now: read once more; still no outcome is unanswered.
-        if (unsettled(rows).some((row) => executionOf(statuses.get(`chat:${row.id}`)) === 'REREAD')) rows = await read()
-        if (rows === null) return null
-        const turns = rows.map((row) => ({ ...recordOf(row), status: turnStatus(row, statuses.get(`chat:${row.id}`)) }))
-        const live = [...turns].reverse().find((turn) => turn.status === 'QUEUED' || turn.status === 'RUNNING')
-        return { sourceRepresentationRevisionId, turns, reconnectTurnId: live?.turnId ?? null }
-      },
-      async ownedChatTurn(sourceRepresentationRevisionId: string, turnId: string) {
-        return database.transaction(async (transaction) => {
-          if (!(await ownedRevisionScope(transaction, researcherAccountId, sourceRepresentationRevisionId))) return null
-          const row = await transaction.orm.public.ChatTurn.select(...TURN_FIELDS).first({ id: turnId, sourceRepresentationRevisionId })
-          return row ? recordOf(row) : null
-        })
-      },
-      async cancelChatTurn(turnId: string, failure: ChatTurnFailureRecord) {
-        return database.transaction(async (transaction) => {
-          const row = await transaction.orm.public.ChatTurn.select('sourceRepresentationRevisionId').first({ id: turnId })
-          if (!row || !(await ownedRevisionScope(transaction, researcherAccountId, row.sourceRepresentationRevisionId))) return null
-          // The cancellation handler records the domain outcome before cancelling; the workflow cannot (spec, *Rules*).
-          const written = await transaction.orm.public.ChatTurn.where({ id: turnId, answer: null, failure: null }).updateAll({ failure })
-          return written.length === 1 ? 'cancelled' as const : 'settled' as const
-        })
-      },
-    }
-  }
-
-  function turnStatus(row: StoredChatTurn, workflowStatus: string | undefined): ChatTurnStatus {
-    if (row.answer !== null) return 'ANSWERED'
-    if (row.failure !== null) return 'FAILED'
-    const execution = executionOf(workflowStatus)
-    return execution === 'QUEUED' || execution === 'RUNNING' ? execution : 'UNANSWERED'
-  }
-
-  export function chatTurnWorkerMethods(database: Database) {
-    return {
-      async loadChatTurn(turnId: string): Promise<AdmittedChatTurn | null> {
-        return database.transaction(async (transaction) => {
-          const turn = await transaction.orm.public.ChatTurn.select(...TURN_FIELDS).first({ id: turnId })
-          if (!turn) return null
-          const scope = await revisionScope(transaction, turn.sourceRepresentationRevisionId)   // { owner, projectContextId, sourceDocumentId }
-          if (!scope) return null
-          const all = await transaction.orm.public.ChatTurn.where({ sourceRepresentationRevisionId: turn.sourceRepresentationRevisionId })
-            .select(...TURN_FIELDS).orderBy([(row) => row.createdAt.asc(), (row) => row.id.asc()]).all()
-          const earlier = all.slice(0, all.findIndex((row) => row.id === turnId))
-          return {
-            turnId, ...scope, sourceRepresentationRevisionId: turn.sourceRepresentationRevisionId, question: turn.question,
-            history: earlier.flatMap((row) => (row.answer === null ? [] : [{ question: row.question, answer: row.answer }])),
-            settled: turn.answer !== null || turn.failure !== null,
-          }
-        })
-      },
-      async settleChatTurn(turnId: string, outcome: ChatTurnOutcome) {
-        const written = await database.orm.public.ChatTurn.where({ id: turnId, answer: null, failure: null })
-          .updateAll('answer' in outcome ? { answer: outcome.answer } : { failure: outcome.failure })
-        if (written.length === 1) return 'settled' as const
-        return (await database.orm.public.ChatTurn.select('id').first({ id: turnId })) ? 'already-settled' as const : 'missing' as const
-      },
-    }
-  }
-  ```
-  `TURN_FIELDS` is `['id', 'sourceRepresentationRevisionId', 'question', 'answer', 'failure', 'createdAt'] as const`; `recordOf` renames `id` to `turnId`. `ownedRevisionScope(transaction, account, revisionId)` joins revision → document → project with `projectContext.researcherAccountId = account` (as `ownedSourceRepresentationDescriptor` does) and returns `{ projectContextId, sourceDocumentId }`; `revisionScope` is the same join without the account filter, returning the owner too. `createResearcherProjectStore` spreads `chatTurnMethods(database, researcherAccountId, options)`; `createInternalProjectWorkerStore` spreads `chatTurnWorkerMethods(database)`.
-  `pool-client-transaction.ts`:
-  ```ts
-  /** Another live workflow holds the deduplication ID (DBOS's rejection policy). Studio's enqueue adapter raises it in
-   *  place of DBOSQueueDuplicatedError, so packages/db imports no DBOS runtime. */
-  export class DuplicateActiveWorkflowError extends Error {
-    constructor(readonly deduplicationID: string, options?: ErrorOptions) {
-      super(`A live workflow holds deduplication ID ${deduplicationID}.`, options)
-      this.name = 'DuplicateActiveWorkflowError'
-    }
-  }
-  ```
-  and `AdmittedWorkflow` gains `deduplicationID?: string` (M4's adapter spreads `workflow` into the enqueue options, so it reaches DBOS unchanged). `server/app.ts`'s enqueue adapter:
-  ```ts
-  enqueue: async (client, workflow, input) => {
-    try {
-      await studioDbos().admission.enqueueInTransaction(client, { ...workflow, attributes: { ...workflow.attributes } }, input)
-    } catch (error) {
-      if (error instanceof DBOSErrors.DBOSQueueDuplicatedError)
-        throw new DuplicateActiveWorkflowError(workflow.deduplicationID ?? workflow.workflowID, { cause: error })
-      throw error
-    }
-  },
-  ```
-  with `server/app.test.ts`: `the enqueue adapter reports a taken deduplication ID as DuplicateActiveWorkflowError`.
-
-- [ ] **Step 4: Run and commit**
-
-  ```bash
-  pnpm --filter db typecheck && pnpm --filter db test && pnpm --filter db test:postgres          # fresh databases
-  pnpm --filter extraction typecheck && pnpm --filter extraction test && pnpm --filter extraction test:postgres
-  pnpm --filter studio typecheck && pnpm --filter studio lint && pnpm --filter studio test && pnpm --filter studio test:postgres
-  pnpm --filter studio test:e2e
-  cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6
-  git add packages/db/src/prisma/contract.prisma packages/db/migrations/app packages/db/src/pool-client-transaction.ts \
-    packages/db/src/index.ts packages/db/src/chat-turns.ts packages/db/src/chat-turn.postgres.check.ts packages/db/src/project-store.ts \
-    packages/db/package.json prototypes/studio/server/app.ts prototypes/studio/server/app.test.ts prototypes/studio/api prototypes/studio/server
-  git commit -m "feat(db): store chat turns and admit each question with its workflow, one active turn per revision"
-  ```
-  Tell the controller that an existing `pnpm dev` database must be recreated once (Global Constraints).
-
-### Task 7: `chatTurn`: durable streaming, the answer write, the sanitized failure
-
-**Files:**
-- Create: `prototypes/studio/api/_chat_turn_workflow.ts` (+ `_chat_turn_workflow.test.ts`), `prototypes/studio/test/support/cliStandInModel.ts`, `prototypes/studio/api/chat_turn_workflow.postgres.test.ts`, `prototypes/studio/test/support/scenarios/chat-answer-kill.ts`, `…/chat-stream-kill.ts`, `…/chat-route-change.ts`, `…/chat-key-recover.ts`
-- Modify: `prototypes/studio/api/_model.ts` (export `ModelDependencies`; add `resolveChatModel`, `chatSystemPrompt`), `prototypes/studio/server/workflows.ts` (+ test)
-
-**Interfaces:**
-- Consumes: Task 1 (`modelStreamOnError`, the model boundary), Task 2 (`sanitizedChatModel`, `chatFailureOf`, `chatTurnFailed`), Task 3 (PostgreSQL support), Task 6 (`AdmittedChatTurn`, `ChatTurnOutcome`, `loadChatTurn`, `settleChatTurn`, `admitChatTurn`), M4's `WorkflowSteps`, `dbosSteps`, `isWorkflowCancellation`.
-- Produces:
-  ```ts
-  // api/_chat_turn_workflow.ts
-  export const CHAT_TURN = 'chatTurn'
-  export const CHAT_STREAM_KEY = 'ui'
-  export type ChatTurnInput = Readonly<{ turnId: string }>
-  export type ChatTurnStore = Readonly<{ load(turnId: string): Promise<AdmittedChatTurn | null>; readMarkdown(sourceRepresentationRevisionId: string): Promise<string | null>; settle(turnId: string, outcome: ChatTurnOutcome): Promise<'settled' | 'already-settled' | 'missing'> }>
-  export type ChatTurnPorts = Readonly<{ steps: WorkflowSteps; store: ChatTurnStore; resolveModel(owner: string): Promise<LanguageModel>; stream?: typeof streamText; callTimeoutMs?: number }>
-  export function chatTurnWorkflow(input: ChatTurnInput, ports: ChatTurnPorts): Promise<void>
-  export function registerChatTurnWorkflow(ports: () => ChatTurnPorts): void
-  // api/_model.ts
-  export type ModelDependencies                                   // the existing type, exported
-  export function resolveChatModel(caller: ModelCaller, dependencies?: ModelDependencies): Promise<LanguageModel>
-  export function chatSystemPrompt(documentMarkdown: string): string
-  // test/support/cliStandInModel.ts
-  export function cliStandInModel(options?: { answer?: string }): LanguageModelV4   // provider 'claude-code', honours abortSignal, emits provider metadata
-  ```
-
-- [ ] **Step 1: Write the failing unit tests** (`api/_chat_turn_workflow.test.ts`)
-
-  The body runs outside DBOS (`durableCalls` then calls the model directly), with fake `steps` recording step names, a fake store and `plantingModel`/stand-in models.
-  - `loads the turn, streams from the owner's model with the document as system prompt and earlier turns as messages, then records the answer` (steps `loadTurn`, `recordAnswer`; the model's `prompt` holds `chatSystemPrompt(markdown)` then user/assistant/user messages in order; `settle` receives `{ answer }`).
-  - `a settled or deleted turn streams nothing` (`load` → `settled: true` or null; the model is never called; no `record*` step).
-  - `a provider failure records a typed failure and throws a fresh ChatTurnFailed error without a cause` (`plantingModel(key, 'throw')`: `recordFailure` with `CHAT_FAILED`; the rejection is `ChatTurnFailed` with `code: 'model_operation_failed'`, `cause === undefined`, and `holdsKey(it, key) === false`).
-  - `a missing route records invalid_model_config` (`resolveModel` rejects `ApiError(409, 'invalid_model_config', …)`).
-  - `a partial failure saves no answer` (`'error-part'` after `partial`: `recordFailure` only).
-  - `the chat's streamText sets maxRetries 0, no streamRetries, and an onError that returns nothing` (`ports.stream` is a spy that records its options and delegates to `streamText`: `maxRetries === 0`; `'streamRetries' in options === false`; `options.onError({ error: new Error('x') }) === undefined`).
-  - `a workflow cancellation during the stream propagates without a failure write` (under DBOS the cancellation surfaces from `durableCalls`' own `DBOS.runStep`, outside the sanitizer, as a stream error: the `stream` spy calls `options.onError({ error: new DBOSErrors.DBOSWorkflowCancelledError('chat:x') })` and returns a result whose `consumeStream` resolves; the workflow rejects with that error and no `record*` step runs).
-  Run: `pnpm --filter studio exec vitest run api/_chat_turn_workflow.test.ts`. Expected: FAIL.
-
-- [ ] **Step 2: Implement**
-
-  `api/_model.ts`:
-  ```ts
-  export function chatSystemPrompt(documentMarkdown: string): string {
-    return 'Answer questions using the source document below. Say when the source does not support an answer.\n\n' +
-      `SOURCE DOCUMENT MARKDOWN:\n${documentMarkdown}\nEND SOURCE DOCUMENT MARKDOWN`
-  }
-
-  /** The owner's Interaction Route model for one chat attempt, resolved again on every attempt (spec, *No pins*): a
-   *  recovered turn follows today's route and key. Keys are read inside the provider attempt, never here. */
-  export async function resolveChatModel(caller: ModelCaller, dependencies: ModelDependencies = {}): Promise<LanguageModel> {
-    const resolved = await operationTarget('chat', undefined, undefined, caller, dependencies)
-    if (resolved.profile !== 'general') throw new ApiError(409, 'invalid_model_config', 'The Interaction Route must use general execution.')
-    return resolved.model
-  }
-  ```
-  `api/_chat_turn_workflow.ts`:
-  ```ts
-  import { DBOS } from '@dbos-inc/dbos-sdk'
-  import { durableCalls } from '@dbos-inc/vercel-ai'
-  import { streamText, wrapLanguageModel, type LanguageModel, type ModelMessage } from 'ai'
-  import type { AdmittedChatTurn, ChatTurnOutcome } from 'db'
-  import { isWorkflowCancellation, type WorkflowSteps } from 'extraction/workflows'
-  import { chatFailureOf, chatTurnFailed, sanitizedChatModel } from './_chat_sanitizer.js'
-  import { chatSystemPrompt, modelStreamOnError } from './_model.js'
-  import { MODEL_OPERATION_TIMEOUT_MS } from './_model_operation.js'
-
-  export const CHAT_TURN = 'chatTurn'
-  export const CHAT_STREAM_KEY = 'ui'
-  /** The turn ID only: the question and the earlier turns are the ChatTurn rows (spec, *Chat → Request*). */
-  export type ChatTurnInput = Readonly<{ turnId: string }>
-
-  function chatMessages(turn: AdmittedChatTurn): ModelMessage[] {
-    return [
-      ...turn.history.flatMap(({ question, answer }): ModelMessage[] => [
-        { role: 'user', content: question },
-        { role: 'assistant', content: answer },
-      ]),
-      { role: 'user', content: turn.question },
-    ]
-  }
-
-  /**
-   * `chatTurn(turnId)` (spec, *Chat → Workflow*). The load step checkpoints the question and the earlier answered turns;
-   * the document is read at workflow scope, so no checkpoint holds it. streamText runs at workflow scope; durableCalls
-   * makes the model call one step named `chat` — a fixed name, so replay stays valid when the route changed between
-   * attempts — and writes its parts to the durable stream `ui` from inside that step. The sanitizer sits inside it.
-   * One retry owner: durableCalls (maxRetries 0; no streamRetries; an onError that returns nothing), and 0.4.4 refuses a
-   * retry once content streamed, so a partial failure never gains replacement text.
-   */
-  export async function chatTurnWorkflow({ turnId }: ChatTurnInput, ports: ChatTurnPorts): Promise<void> {
-    const { steps, store } = ports
-    const turn = await steps.step('loadTurn', () => store.load(turnId))
-    if (turn === null || turn.settled) return
-    const markdown = await store.readMarkdown(turn.sourceRepresentationRevisionId)
-    if (markdown === null) return                             // the revision is gone, and its turns with it
-    let failure: unknown
-    const capture = (error: unknown) => { failure ??= error }
-    let answer = ''
-    try {
-      const model = wrapLanguageModel({
-        model: sanitizedChatModel(await ports.resolveModel(turn.owner)),
-        middleware: durableCalls({
-          name: 'chat', durableStream: CHAT_STREAM_KEY, retriesAllowed: true, maxAttempts: 3,
-          timeoutMS: ports.callTimeoutMs ?? MODEL_OPERATION_TIMEOUT_MS,
-        }),
-      })
-      const result = (ports.stream ?? streamText)({
-        model,
-        system: chatSystemPrompt(markdown),
-        messages: chatMessages(turn),
-        maxRetries: 0,
-        onError: modelStreamOnError('chat', capture),
-      })
-      await result.consumeStream({ onError: capture })
-      if (failure === undefined) answer = await result.text
-    } catch (error) {
-      if (isWorkflowCancellation(error)) throw error
-      capture(error)
-    }
-    if (failure !== undefined) {
-      if (isWorkflowCancellation(failure)) throw failure
-      const typed = chatFailureOf(failure)
-      // Record the typed failure, then end the workflow with a fresh sanitized error: a typed failure returned as success
-      // would close the durable stream with an ordinary finish (stream probe). Partial text is never saved.
-      await steps.step('recordFailure', () => store.settle(turnId, { failure: typed }))
-      throw chatTurnFailed(typed)
-    }
-    // Conditional: a cancel that won, a deleted turn or a replay of this step writes nothing.
-    await steps.step('recordAnswer', () => store.settle(turnId, { answer }))
-  }
-
-  export function registerChatTurnWorkflow(ports: () => ChatTurnPorts): void {
-    DBOS.registerWorkflow(async (input: ChatTurnInput) => chatTurnWorkflow(input, ports()), { name: CHAT_TURN })
-  }
-  ```
-  `server/workflows.ts`: append `CHAT_TURN` and register
-  ```ts
-  registerChatTurnWorkflow(() => {
-    const worker = createInternalProjectWorkerStore()
-    return {
-      steps: dbosSteps,
-      store: { load: (id) => worker.loadChatTurn(id), readMarkdown: (id) => worker.readRevisionMarkdown(id), settle: (id, outcome) => worker.settleChatTurn(id, outcome) },
-      resolveModel: (owner) => resolveChatModel({ researcherAccountId: owner }),
-    }
-  })
-  ```
-  and `server/workflows.test.ts` asserts `CHAT_TURN_NAME === CHAT_TURN` and `STUDIO_QUEUE_NAME === STUDIO_QUEUE`.
-  `test/support/cliStandInModel.ts`: a v4 model with `provider: 'claude-code'`, `modelId: 'sonnet'`, whose `doStream` emits `stream-start`, a `text-start`/`text-delta`/`text-end` with the answer (default `stand-in answer`) and a `finish` whose `providerMetadata` is `{ 'claude-code': { sessionId: 'FREE_CLI_SESSION_MARKER', costUsd: 0 } }` (the shape the real provider reports), and that rejects with an `AbortError` when `params.abortSignal` aborts before it finishes. It stands in for the CLI subprocess only: resolution, the deployment connection, the sanitizer, `durableCalls` and the stream are FREE's own.
-
-- [ ] **Step 3: Write the PostgreSQL tests** (`api/chat_turn_workflow.postgres.test.ts`)
-
-  Setup: Task 3's support; `configureOwnerRoute(account, { provider: 'openai-compatible', baseUrl: server.baseUrl, modelId: 'scripted', hasKey: true, routes: ['interaction'] })`; a counted key cache holding `plantedKey()`; ports with the Task 6 stores (`admitChatTurn` through `createResearcherProjectStore(account, undefined, { workflowStatuses, enqueue })` with Studio's adapter; `load`/`settle` through the worker store), `readMarkdown` returning a synthetic document and `resolveModel: (owner) => resolveChatModel({ researcherAccountId: owner }, { keys, keyWaitMs: 400, deployment, modelFactories })`. Streams are read with `readDurableStream({ workflowID: \`chat:${turnId}\`, key: 'ui', messageId: turnId })` into a list of UI chunks.
-  - `a chat turn over the scripted HTTP provider streams its answer under the turn ID and records it once` (A8 HTTP: `start.messageId === turnId`; the text deltas join to the reply; `answer` is stored; one call, carrying `Bearer <key>`). This first test is also the gate for the one assumption no probe covered: `stream-probe.mjs` and `version-probe.mjs` called `model.doStream` directly inside a workflow, whereas `chatTurn` calls `streamText` at workflow scope and relies on DBOS's context reaching `durableCalls` through the AI SDK's internal promise chain (the integration's documented pattern). If this test fails with the model called outside a step (no `chat` row in `operation_outputs`, nothing in the `ui` stream), diagnose that first, not the store; report it to the controller rather than moving the model call into a hand-written step.
-  - `a chat turn on a CLI deployment connection completes end to end through the stand-in` (A8 CLI: `deployment = deploymentModels({ FREE_DEPLOYMENT_CLI_PROVIDERS: 'claude-code' })`, the owner's Interaction Route names that deployment connection, `modelFactories: { 'claude-code': () => cliStandInModel() }`; the answer is stored and streamed; `databaseHolds(url, 'FREE_CLI_SESSION_MARKER', [schema])` is empty: provider metadata was stripped).
-  - `a reader that reconnects mid-stream sees the text so far once, then the rest, under the turn ID` (A4: `reply({ text: 'partial-then-rest', hold: true })`; a first reader receives the first delta; a second reader opened from offset 0 receives it once; `release()`; both end with the full text exactly once and `finish`).
-  - `a partial provider failure ends the stream with an error finish, records the failure and saves no answer; the provider was called once` (A4: `reply({ text: 'partial', dropAfterFirstChunk: true })`: the stream ends `error` then `finish` `error`; the row has `failure.code === 'model_operation_failed'` and `answer === null`; `server.calls().length === 1`; the workflow is `ERROR`).
-  - `an answer written before a kill is written once` (A1; scenario `chat-answer-kill`: its `settle` wrapper SIGKILLs right after the commit of `{ answer }` on the first run; after the second run the scenario's result file reads `settled`, `already-settled`; the stored answer is unchanged; `SUCCESS`).
-  - `a Studio killed mid-stream recovers the turn: the transcript names it for reconnect, and a new reader sees only the recovered attempt's text under the turn ID` (A2 kill, A4 superseded attempts; scenario `chat-stream-kill`: the first run SIGKILLs once `DBOS.readStreamOffset(workflowID, 'ui', 0)` returned a record of the held reply `partial-A`; between the runs `readChatTranscript` has `reconnectTurnId === turnId`; the second run answers `answer-A2`; a reader from offset 0 yields `answer-A2` only, never `partial-A`; `start.messageId === turnId`).
-  - `a route changed between attempts: an interrupted call reruns on the new route` (A7; scenario `chat-route-change` mode `interrupted`: as above, but between the runs `configureOwnerRoute` re-points the Interaction Route to a second scripted server B; B answers; A was called once, B once; the stored answer is B's).
-  - `a route changed between attempts: a checkpointed call replays without a model call and without waiting for a key` (A7, A14; mode `checkpointed`: the first run's `settle` wrapper SIGKILLs before its commit, after the `chat` step checkpointed; between the runs the route moves to B; the second run holds no key; it finishes within 5 s with A's answer; B is never called; no `DBOSUnexpectedStepError`).
-  - `with no page to resend it, a recovered chat call fails with model_key_required after the wait and neither retry owner retries it` (A13; scenario `chat-key-recover`: the first run SIGKILLs during a held call; the second run holds no key; the row's failure is `model_key_required`; no call after the restart; the counted `wait` ran once; the stream ends with an error finish whose text is `ModelKeyRequiredError`'s message).
-  - `a cancel during the key wait never reaches the provider` (A14: no key; once the counted `wait` began, `admission.cancelWorkflow('chat:<id>')`; `CANCELLED` within 3 s; no call; the stream ends with `abort`).
-  - `a cancel during a provider call stops it about 1 s later` (A14: `hold`; cancel at `t0`; `calls()[0].closedAt - t0 <= 2_500`).
-  - `a key planted in the error cause chain, response headers and provider metadata of a chat call reaches no table, stream record or log` (A10: turn 1 against `reply({ status: 500, body: '{"error":"{{authorization}}"}', headers: { 'x-echo': key } })`; turn 2 against `modelFactories['openai-compatible'] = () => plantingModel(key, 'error-part')`; turn 3 against `plantingModel(key, 'success')`; after each settles, `databaseHolds(url, key, [schema, 'public'])` is empty, `holdsKey(readChunks, key)` is false, and the captured output does not contain the key).
-  - `a chat turn's checkpoints hold the history and the answer, not the document` (A11: a 200 000-character synthetic document containing `FREE_SYNTHETIC_DOCUMENT_<hex>` and two earlier answered turns; `databaseHolds(url, marker, [schema])` is empty; the bytes of every row of every table in the DBOS schema whose text mentions `chat:<turnId>` sum below 20 000; print the measured number as `chat checkpoint bytes: <n>` for Task 14's record).
-  Scenarios follow Task 3's contract; the scripted servers stay in the parent.
-
-- [ ] **Step 4: Run and commit**
-
-  ```bash
-  pnpm --filter studio exec vitest run api/_chat_turn_workflow.test.ts
-  pnpm --filter studio exec vitest run --config vitest.postgres.config.ts api/chat_turn_workflow.postgres.test.ts
-  pnpm --filter studio typecheck && pnpm --filter studio lint && pnpm --filter studio test && pnpm --filter studio test:postgres
-  pnpm --filter studio build && grep -c '@dbos-inc/vercel-ai' prototypes/studio/dist/server/index.js   # at least 1: kept external
-  cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6
-  git add prototypes/studio/api prototypes/studio/server prototypes/studio/test/support
-  git commit -m "feat(studio): answer chat turns as durable workflows that stream through durableCalls and record one outcome"
-  ```
-
-### Task 8: The chat routes: question admission, the transcript, exact-turn reconnect, cancel
-
-**Files:**
-- Create: `prototypes/studio/shared/chat.contract.ts` (+ `chat.contract.test.ts`), `prototypes/studio/api/chat.test.ts`, `prototypes/studio/api/chat_routes.postgres.test.ts`
-- Modify: `prototypes/studio/api/chat.ts` (rewritten), `prototypes/studio/api/model_operations.ts` (`DELETE chat:<turnId>`) and its tests, `prototypes/studio/server/api-dispatcher.ts` (+ test), `prototypes/studio/server/researcher-project-ownership.test.ts` (chat cases)
-- Modify: `prototypes/studio/api/_model.ts` (delete `streamChatWithModel`), `prototypes/studio/api/_model.test.ts` / `_model.transport.test.ts` (delete its cases; Task 7 covers the stream's `onError`), `prototypes/studio/api/_schema_edit.ts` (delete `loadOwnedSourceMarkdown` and `readCanonicalMarkdown`: no handler reads Markdown any more)
-- Modify: `prototypes/studio/src/ChatTab.tsx` (the transport sends `{ projectContextId, sourceRepresentationRevisionId, turnId, question }` with the revision as chat ID) and `src/ChatTab.test.tsx`
-
-**Interfaces:**
-- Consumes: Task 5 (`createModelOperationHandlers`), Task 6 (store methods), Task 7 (`CHAT_STREAM_KEY`), Task 2 (`chatStreamErrorText`, `CHAT_CANCELLED`).
-- Produces:
-  ```ts
-  // shared/chat.contract.ts
-  export const chatRequestSchema          // { projectContextId, sourceRepresentationRevisionId, turnId, question: trimmed, 1–8000 characters }
-  export const chatTurnSchema             // { turnId, question, answer | null, failure: { code, message } | null, status, createdAt }
-  export const chatTranscriptSchema       // { sourceRepresentationRevisionId, turns, reconnectTurnId | null }
-  export type ChatTranscriptDto = z.infer<typeof chatTranscriptSchema>
-  export const CHAT_TURN_WORKFLOW_ID: RegExp   // ^chat:(<canonical UUID>)$
-  // api/chat.ts
-  export function createChatHandlers(store: ChatStore, dbos?: () => { operations: Pick<DBOSClient, 'getWorkflow'>; streams: DurableStreamSource }): { POST; GET }
-  ```
-  Routes: `POST /api/chat` → 200 UI message stream or 204; 400 malformed; 404 not owned; 409 `chat_turn_conflict` / `chat_turn_active`; 503 outage. `GET /api/chat/<revision ID>` → `ChatTranscriptDto`. `GET /api/chat/<revision ID>/stream?turnId=<id>` → 200 stream or 204; 404 unless the turn belongs to the owned revision. `DELETE /api/model-operations/chat:<turnId>` → 204 (404 unless owned).
-
-- [ ] **Step 1: Write the failing tests**
-
-  `shared/chat.contract.test.ts`: `a chat request carries only the revision, the turn ID and the question` (`messages`, `temperature` and unknown keys are refused; an empty or 8 001-character question is refused).
-  `api/chat.test.ts` (fake store; fake `operations.getWorkflow`; fake `streams` replaying scripted records):
-  - `POST admits the question and answers the turn's stream with the turn ID as the message ID`.
-  - `a replayed turn answers its stream, or 204 when its history is gone`.
-  - `another active turn is 409 chat_turn_active; a reused turn ID with another question is 409 chat_turn_conflict; an unowned revision is 404`.
-  - `a malformed body is 400 with a fixed message and no details`.
-  - `GET returns the transcript with reconnectTurnId`; `GET …/stream needs a canonical turnId (422) that belongs to the owned revision (404)`; `a stream that ends in a workflow error carries chatTurn's message only`.
-  `api/model_operations.test.ts`: `DELETE chat:<turnId> records the cancellation before cancelling a live workflow, and is 404 for another account's turn`.
-  `server/api-dispatcher.test.ts`: `routes /api/chat, /api/chat/<id> and /api/chat/<id>/stream to chat`.
-  `src/ChatTab.test.tsx`: replace `sends chat through the shared authenticated fetch` with `sends only the new question with a new turn ID, using the revision as the chat ID`; keep `a chat message is sent after the keys`.
-  `api/chat_routes.postgres.test.ts` (Task 7's setup; the handlers run on the real store, admission client and `DBOS` as stream source):
-  - `POST admits the question and streams the answer with the turn ID as the assistant message ID`.
-  - `a repeated POST after a dropped connection returns the same turn's stream, and the model runs once` (A6: abort the first response's body read after the first chunk; POST the same body; the second stream holds the whole answer once; one question row; one call).
-  - `a different active turn on the same revision is 409 chat_turn_active and stores no question`.
-  - `an answer that finishes between the transcript read and the reconnect still streams in full under the turn ID` (A5: `hold`; `GET` transcript → `reconnectTurnId === turnId`; `release()` and wait for `SUCCESS`; `GET …/stream?turnId=` → the whole answer with `start.messageId === turnId`; the transcript now reads `ANSWERED`).
-  - `exact-turn reconnect works across completion and answers 204 once the turn's history is deleted; the transcript then holds the answer` (A6: after `SUCCESS` the stream route replays the answer; after `admission.deleteWorkflows(['chat:<id>'])` it answers 204; the transcript still has the answer).
-  - `DELETE chat:<turnId> records the cancellation, stops the workflow and frees the revision for a new turn`.
-  - `a second account can neither read, stream nor cancel the first account's turns; after the project is deleted every reconnect is 404` (A9).
-  Run them. Expected: FAIL.
-
-- [ ] **Step 2: Implement**
-
-  `shared/chat.contract.ts`:
-  ```ts
-  export const chatRequestSchema = z.object({
-    projectContextId: canonicalUuidSchema,
-    sourceRepresentationRevisionId: canonicalUuidSchema,
-    /** Client-minted per question; a repeat after an uncertain failure reuses it (spec, *Client IDs*). */
-    turnId: canonicalUuidSchema,
-    question: z.string().trim().min(1).max(8_000),
-  }).strict()
-  export const chatTurnSchema = z.object({
-    turnId: canonicalUuidSchema,
-    question: z.string(),
-    answer: z.string().nullable(),
-    failure: z.object({ code: z.string(), message: z.string() }).strict().nullable(),
-    status: z.enum(['QUEUED', 'RUNNING', 'ANSWERED', 'FAILED', 'UNANSWERED']),
-    createdAt: z.string(),
-  }).strict()
-  export const chatTranscriptSchema = z.object({
-    sourceRepresentationRevisionId: canonicalUuidSchema,
-    turns: z.array(chatTurnSchema),
-    /** The live turn to reconnect to with GET …/stream?turnId=, if any (at most one per revision). */
-    reconnectTurnId: canonicalUuidSchema.nullable(),
-  }).strict()
-  ```
-  `api/chat.ts`:
-  ```ts
-  type ChatStore = Pick<ResearcherProjectStore, 'admitChatTurn' | 'readChatTranscript' | 'ownedChatTurn'>
-  type ChatDbos = { operations: Pick<DBOSClient, 'getWorkflow'>; streams: DurableStreamSource }
-  const CHAT_PATH = /^\/api\/chat\/([^/]+)(\/stream)?$/
-  const notFound = () => new ApiError(404, 'not_found', 'Project model context was not found.')
-  const unavailable = (cause: unknown) => persistenceUnavailable(cause, 'Chat is unavailable.')
-
-  export function createChatHandlers(store: ChatStore,
-    dbos: () => ChatDbos = () => ({ operations: studioDbos().admission, streams: DBOS })) {
-    /** The named turn's durable stream, replayed from offset 0 with the turn ID as the assistant message ID, live or
-     *  after completion; 204 once its history is gone (readDurableStream throws for a workflow DBOS no longer holds),
-     *  and the page re-reads the transcript (spec, *Reload*). */
-    async function streamTurn(turnId: string): Promise<Response> {
-      const workflowID = `chat:${turnId}`
-      const { operations, streams } = dbos()
-      const recorded = await operations.getWorkflow(workflowID).catch((cause) => { throw unavailable(cause) })
-      if (!recorded) return new Response(null, { status: 204, headers: noStore })
-      return createUIMessageStreamResponse({
-        headers: noStore,
-        stream: readDurableStream({ workflowID, key: CHAT_STREAM_KEY, messageId: turnId, client: streams, onError: chatStreamErrorText }),
-      })
-    }
-    return {
-      async POST(request: Request): Promise<Response> {
-        try {
-          if (new URL(request.url).pathname !== '/api/chat') throw notFound()
-          const parsed = chatRequestSchema.safeParse(await parseJsonRequest(request))
-          if (!parsed.success) throw new ApiError(400, 'invalid_request', 'The chat request is invalid.')
-          const admitted = await store.admitChatTurn(parsed.data).catch((cause) => { throw unavailable(cause) })
-          if (admitted === null) throw notFound()
-          if (admitted.status === 'conflict')
-            throw new ApiError(409, 'chat_turn_conflict', 'This turn ID was already used for another question. Ask again.')
-          if (admitted.status === 'busy')
-            throw new ApiError(409, 'chat_turn_active', 'Another question about this document is still being answered.')
-          return await streamTurn(parsed.data.turnId)
-        } catch (error) {
-          return noStoreError(error)
-        }
-      },
-      async GET(request: Request): Promise<Response> {
-        try {
-          const url = new URL(request.url)
-          const match = CHAT_PATH.exec(url.pathname)
-          if (!match || !canonicalUuidSchema.safeParse(match[1]).success) throw notFound()
-          const revisionId = match[1]!
-          if (!match[2]) {
-            const transcript = await store.readChatTranscript(revisionId).catch((cause) => { throw unavailable(cause) })
-            if (!transcript) throw notFound()
-            return json(transcriptDto(transcript), { headers: noStore })
-          }
-          const turnId = url.searchParams.get('turnId')
-          if (!turnId || !canonicalUuidSchema.safeParse(turnId).success)
-            throw new ApiError(422, 'invalid_request', 'turnId must be a canonical lowercase UUID.')
-          // Ownership on every reconnect: the turn must belong to this revision, which the account must own.
-          if (!(await store.ownedChatTurn(revisionId, turnId).catch((cause) => { throw unavailable(cause) }))) throw notFound()
-          return await streamTurn(turnId)
-        } catch (error) {
-          return noStoreError(error)
-        }
-      },
-    }
-  }
-
-  export function createResearcherApiHandlers(store: ResearcherProjectStore) {
-    return createChatHandlers(store)
-  }
-  ```
-  `transcriptDto` maps `createdAt` to ISO strings. The dispatcher gains `[/^\/api\/chat(?:\/[^/]+(?:\/stream)?)?$/, 'chat']`.
-  `api/model_operations.ts` `DELETE`: right after decoding `workflowId` (and creating `client`), before matching `MODEL_OPERATION_WORKFLOW_ID`,
-  ```ts
-  const chat = CHAT_TURN_WORKFLOW_ID.exec(workflowId)
-  if (chat) {
-    // Record the domain outcome first (spec, *Rules*: the workflow cannot record its own cancellation); the conditional
-    // write makes an answer racing this cancel the one winner.
-    const outcome = await store.cancelChatTurn(chat[1]!, CHAT_CANCELLED).catch((cause) => { throw unavailable(cause) })
-    if (outcome === null) throw notFound()
-    const recorded = await client.getWorkflow(workflowId).catch((cause) => { throw unavailable(cause) })
-    if (recorded && LIVE_WORKFLOW_STATUSES.has(recorded.status)) await client.cancelWorkflow(workflowId).catch((cause) => { throw unavailable(cause) })
-    return new Response(null, { status: 204, headers: noStore })
-  }
-  ```
-  (`ModelOperationStore` gains `cancelChatTurn`.)
-  `src/ChatTab.tsx` (minimal here; Task 11 rewrites the tab): `prepareSendMessagesRequest` sends `{ projectContextId, sourceRepresentationRevisionId, turnId: <the new user message's id>, question: <its text> }`; `sendMessages` uses `chatId: sourceRepresentationRevisionId`; `nextId()` stays `crypto.randomUUID()`, and the user message's ID is the turn ID.
-  Delete `streamChatWithModel` and its tests, `loadOwnedSourceMarkdown` and `readCanonicalMarkdown`; then `grep -rn "streamChatWithModel\|loadOwnedSourceMarkdown\|free-document-chat" prototypes/studio --include=*.ts --include=*.tsx` prints nothing.
-
-- [ ] **Step 3: Run and commit**
-
-  ```bash
-  pnpm --filter studio typecheck && pnpm --filter studio lint && pnpm --filter studio test && pnpm --filter studio test:postgres
-  pnpm --filter studio test:e2e
-  cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6
-  git add prototypes/studio/shared prototypes/studio/api prototypes/studio/server prototypes/studio/src/ChatTab.tsx prototypes/studio/src/ChatTab.test.tsx
-  git commit -m "feat(studio)!: admit chat questions as turns and serve their durable streams, transcripts and exact-turn reconnects"
-  ```
-
-### Task 9: The browser repeats an uncertain model POST and cancels only on a user's Stop
+### Task 6: The browser repeats an uncertain model POST and cancels only on a user's Stop
 
 **Files:**
 - Modify: `prototypes/studio/src/api.ts` (`repeatableModelPost`; `requestSchema`/`requestSchemaEdit` use it; `deleteModelOperation`), `prototypes/studio/src/api.test.ts`
@@ -1763,14 +1009,14 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
   git commit -m "feat(studio): repeat an uncertain model request under its ID and cancel only when the researcher stops it"
   ```
 
-### Task 10: The schema panel restores running operations, unsaved generations and unreviewed proposals
+### Task 7: The schema panel restores running operations, unsaved generations and unreviewed proposals
 
 **Files:**
 - Create: `prototypes/studio/src/modelOperationRecovery.ts` (+ `modelOperationRecovery.test.ts`), `prototypes/studio/src/useModelOperationRecovery.ts` (+ `useModelOperationRecovery.test.tsx`), `prototypes/studio/src/useSchemaProposalReview.test.tsx`
 - Modify: `prototypes/studio/src/api.ts` (`listModelOperations`), `prototypes/studio/src/currentSchemaRevision.ts` (`adoptGenerated` extracted from `generate`, 417-466; `restoreGeneration`; `operationScope`; `durableSchemaPersistence` takes `projectContextId`), `prototypes/studio/src/currentSchemaRevision.test.ts`, `prototypes/studio/src/useCurrentSchemaRevision.ts` (passes `scope.projectContextId`), `prototypes/studio/src/useSchemaProposalReview.ts` (`start(…, workflowId)`; Discard deletes on the server), `prototypes/studio/src/SchemaPanel.tsx` (the hook; the running-operation line; `start` gets `edit:<operationId>`), `prototypes/studio/src/SchemaPanel.test.tsx`
 
 **Interfaces:**
-- Consumes: Task 5 (`ModelOperation`, the listing and `DELETE`), Task 9 (`deleteModelOperation`), M4 Task 9's exported `requestModelKeyResend`, `deriveSchemaProposal` (`shared/schemaChanges.ts:129`).
+- Consumes: Task 5 (`ModelOperation`, the listing and `DELETE`), Task 6 (`deleteModelOperation`), M4 Task 9's exported `requestModelKeyResend`, `deriveSchemaProposal` (`shared/schemaChanges.ts:129`).
 - Produces:
   ```ts
   // src/api.ts
@@ -2004,97 +1250,14 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
   git commit -m "feat(studio): restore running operations, unsaved generations and unreviewed proposals when the schema panel loads"
   ```
 
-### Task 11: The Chat tab: transcript, exact-turn reconnect, Stop, one key resend
-
-**Files:**
-- Modify: `prototypes/studio/src/ChatTab.tsx` (rewritten), `prototypes/studio/src/ChatTab.test.tsx`, `prototypes/studio/src/api.ts` (`readChatTranscript`), `prototypes/studio/src/RightRail.tsx` (a `chat` tab; comment 3-5 and 181-191 updated), `prototypes/studio/src/RightRail.test.tsx`, `prototypes/studio/src/App.tsx` (passes the chat scope to `RightRail`)
-
-**Interfaces:**
-- Consumes: Task 8 (routes and `chatTranscriptSchema`), Task 9 (`repeatableModelPost`, `deleteModelOperation`), M4 Task 9's `requestModelKeyResend`.
-- Produces:
-  ```ts
-  // src/api.ts
-  export function readChatTranscript(sourceRepresentationRevisionId: string, signal?: AbortSignal): Promise<ChatTranscriptDto>
-  // src/RightRail.tsx
-  export type RailTab = 'evidence' | 'schema' | 'chat' | 'results'
-  // RightRailProps gains: chat?: { projectContextId: string; sourceRepresentationRevisionId: string }   (absent → no Chat tab)
-  ```
-
-- [ ] **Step 1: Write the failing tests** (`src/ChatTab.test.tsx`, jsdom; a `fetch` stub that serves the transcript and answers stream routes with UI-message SSE bodies built with `createUIMessageStreamResponse`)
-  - `loads the transcript and shows answered, failed and unanswered turns under their turn IDs` (assistant bubbles carry `data-message-id={turnId}`; a failure shows its message; an unanswered turn shows "No answer: this question stopped before it was answered. Ask again.").
-  - `reconnects to the transcript's live turn and shows its text once under the turn ID` (A4, A5: `reconnectTurnId` → `GET /api/chat/<rev>/stream?turnId=<id>`; the replayed partial and the rest appear once in one bubble with that ID).
-  - `sends only the new question with a new turn ID and the revision as chat ID, keys first` (body exactly `{ projectContextId, sourceRepresentationRevisionId, turnId, question }`; `PUT /api/model-keys` precedes the POST).
-  - `a dropped stream reconnects to the same turn, then re-reads the transcript` (A6: the POST's body errors mid-stream with a network `TypeError`: a `GET …/stream?turnId=<same id>` follows, then `GET /api/chat/<rev>`).
-  - `a 204 or a finished stream re-reads the transcript, whose answer wins over the streamed text` (A6: the stream's text differs from the transcript's answer; after it ends the bubble shows the transcript's).
-  - `another active turn restores the question, says why, and reconnects to the running turn` (409 `chat_turn_active`: the input holds the question again; the note "Another question about this document is still being answered."; the transcript's live turn is followed).
-  - `Stop cancels chat:<turnId> on the server and re-reads the transcript` (`DELETE /api/model-operations/chat%3A<id>`).
-  - `a model_key_required turn resends the keys once and asking again mints a new turn` (A13: after the re-read the newest turn failed with `model_key_required`: `requestModelKeyResend` called once, even across a second re-read; the next question uses a new turn ID).
-  - `unmounting stops reading without cancelling the turn` (no `DELETE`).
-  `src/RightRail.test.tsx`: `the Chat tab sits between Schema and Results and its panel stays mounted while hidden`; `no Chat tab without a chat scope`.
-  Run them. Expected: FAIL.
-
-- [ ] **Step 2: Implement**
-
-  `ChatTab.tsx` keeps the component's name, props and markup style; its logic becomes:
-  ```ts
-  const UNANSWERED = 'No answer: this question stopped before it was answered. Ask again.'
-
-  function transcriptMessages(transcript: ChatTranscriptDto): UIMessage[] {
-    return transcript.turns.flatMap((turn): UIMessage[] => [
-      { id: `${turn.turnId}:question`, role: 'user', parts: [{ type: 'text', text: turn.question }] },
-      ...(turn.status === 'QUEUED' || turn.status === 'RUNNING' ? [] : [{
-        id: turn.turnId,                             // the turn ID is the assistant message's stable ID (spec, *Chat ID*)
-        role: 'assistant' as const,
-        metadata: { outcome: turn.answer !== null ? 'answer' : turn.failure ? 'failure' : 'unanswered' },
-        parts: [{ type: 'text' as const, text: turn.answer ?? turn.failure?.message ?? UNANSWERED }],
-      }]),
-    ])
-  }
-
-  function chatTransport(projectContextId: string, sourceRepresentationRevisionId: string) {
-    return new DefaultChatTransport<UIMessage>({
-      api: `${API_BASE}/chat`,
-      // A question's POST repeats under its turn ID when its outcome is unknown, keys first; reconnects are plain GETs.
-      fetch: (input, init) => init?.method === 'POST'
-        ? repeatableModelPost('/chat', () => init.body as BodyInit, { headers: init.headers, signal: init.signal ?? undefined })
-        : authenticatedFetch(input, init),
-      prepareSendMessagesRequest: ({ messages }) => {
-        const question = messages.at(-1)!
-        // Only the new question: the history lives in ChatTurn rows (spec, *Request*).
-        return { body: { projectContextId, sourceRepresentationRevisionId, turnId: question.id, question: messageText(question) } }
-      },
-      prepareReconnectToStreamRequest: ({ id, body }) => ({
-        api: `${API_BASE}/chat/${id}/stream?turnId=${encodeURIComponent(String(body?.turnId))}`,
-      }),
-    })
-  }
-  ```
-  The component (one `AbortController` per read, aborted on unmount; a `resentFor` ref holding turn IDs):
-  - **load** (mount, and after every stream end, error or 204): `readChatTranscript` → `setMessages(transcriptMessages(t))`; if the newest turn failed with `model_key_required` and `resentFor` lacks it, add it and call `requestModelKeyResend()` (the error arrived inside a 200; Ruling 5); if `reconnectTurnId` is set and no read is running, **follow** `transport.reconnectToStream({ chatId: sourceRepresentationRevisionId, body: { turnId } })`.
-  - **follow**(stream promise, turnId): a null stream (204) → load; otherwise read with `readUIMessageStream({ stream })`, replacing the message with the chunk-provided ID (the turn ID) as it grows; when the read throws and the signal was not aborted (a dropped connection, not an `error` chunk), reconnect with the same turn ID up to three times (1, 2, 4 s) before giving up; then load.
-  - **send**: `const turnId = crypto.randomUUID()` (a new action, a new ID; "try again" is a new question); append the user message `{ id: turnId, … }`; `transport.sendMessages({ chatId: sourceRepresentationRevisionId, messages: [userMessage], trigger: 'submit-message', messageId: undefined, abortSignal, body: {} })` → follow. A rejection whose text parses as `{ error: { code: 'chat_turn_active' } }` restores the draft and shows the note, then loads (which follows the live turn); any other rejection loads (the transport throws on a 204 because the body is empty; the transcript is authoritative either way).
-  - **Stop** (shown instead of the send button while a turn is followed): `deleteModelOperation(\`chat:${turnId}\`)`, then abort the read, then load.
-  No `data-dbos-superseded` handling exists or is added: a new reader never sees superseded attempts, and a live reader's socket dies with the process it read from (spec, *Reload*).
-  `RightRail.tsx`: `RailTab` gains `'chat'`; with a `chat` prop the tab list is Evidence (developer UI), Schema, Chat, Results, and a `rail-panel-chat` panel renders `<ChatTab {...chat} />`, hidden like the others; update the retirement comments to say the Chat tab returned with durable chat (M5). `App.tsx` passes `chat={{ projectContextId, sourceRepresentationRevisionId: sourceRepresentationId }}`.
-
-- [ ] **Step 3: Run and commit**
-
-  ```bash
-  pnpm --filter studio typecheck && pnpm --filter studio lint && pnpm --filter studio test
-  pnpm --filter studio test:e2e
-  cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6
-  git add prototypes/studio/src
-  git commit -m "feat(studio): bring back document chat with a transcript that survives a reload and reconnects to its turn"
-  ```
-
-### Task 12: Browser reload recovery end to end (default Playwright suite)
+### Task 8: Browser reload recovery end to end (default Playwright suite)
 
 **Files:**
 - Create: `prototypes/studio/e2e/interactive-reload.spec.ts`, `prototypes/studio/e2e/interactiveStack.ts`
-- Modify: `prototypes/studio/e2e/tsconfig.json` (include `../test/support/scriptedModelServer.ts` when the spec's import needs it)
+- Modify: `prototypes/studio/e2e/tsconfig.json` (include `../test/support/scriptedModelServer.ts` and `../test/support/plantedKey.ts` when the specs' imports need them)
 
 **Interfaces:**
-- Consumes: Tasks 3–11; M4's e2e ingestion path (the kei stand-in in the Playwright worker, as `e2e/canonical-evidence-lifecycle.spec.ts` uses it at M4's end).
+- Consumes: Tasks 3–7; M4's e2e ingestion path (the kei stand-in in the Playwright worker, as `e2e/canonical-evidence-lifecycle.spec.ts` uses it at M4's end).
 - Produces:
   ```ts
   // e2e/interactiveStack.ts
@@ -2117,8 +1280,7 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
   - `a reloaded page drops a finished generation when newer work exists` (A3: hold a regeneration; reload; in a second page of the same account, rename a field so a newer revision lands; release; the first page never saves the generation — its revisions are the original and the second page's — and shows no error).
   - `a surviving tab keeps saving through its acknowledged head, including edits during generation` (A3: hold a regeneration; edit a field description in the same tab; the edit saves; release; the generation saves on top of it; no conflict banner).
   - `a reload mid-proposeSchemaEdit reopens the review bar; Discard persists across another reload` (A2, A3: hold an edit; reload; "Still working on…"; release; the review bar returns with the proposal on the base revision's fields; Discard; reload; no review bar).
-  - `a reload mid-chatTurn returns the transcript and replays the partial answer once under the turn ID` (A2, A4: open the Chat tab; `reply({ text: 'partial answer', hold: true })` streams its first chunk; ask; the bubble shows `partial answer` once; reload; open Chat; the question is there and the partial text appears exactly once; release; the whole answer appears once; reload again: the answer is in the transcript).
-  - `a dropped chat stream reconnects to the same turn, and a repeated POST returns the same turn` (A6, *Verification* chat reconnect and re-POST: `page.route('**/api/chat', …)` lets the first POST reach Studio with `route.fetch()`, then aborts it towards the page; the page repeats the POST with the same body; then `page.route('**/api/chat/*/stream*', …)` aborts one reconnect; the answer appears once; one question in the transcript; one model call).
+  (The first version's two chat specs — a reload mid-`chatTurn`, and a dropped chat stream with a repeated POST — went with the chat, Ruling 1.)
 
 - [ ] **Step 3: Run and commit**
 
@@ -2128,17 +1290,17 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
   cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6
   git add prototypes/studio/e2e/interactive-reload.spec.ts prototypes/studio/e2e/interactiveStack.ts prototypes/studio/e2e/tsconfig.json \
     prototypes/studio/e2e/canonical-evidence-lifecycle.spec.ts
-  git commit -m "test(studio): prove generation, edit proposals and chat come back after a page reload"
+  git commit -m "test(studio): prove generation and edit proposals come back after a page reload"
   ```
 
-### Task 13: A Studio restart with the page open, and a planted key in no dump, volume or log
+### Task 9: A Studio restart with the page open, and a planted key in no dump, volume or log
 
 **Files:**
 - Create: `prototypes/studio/playwright.recovery.config.ts`, `prototypes/studio/e2e/interactive-restart.spec.ts`, `prototypes/studio/e2e/studioRestart.ts`
 - Modify: `prototypes/studio/e2e/playwrightStack.ts` (`runPlaywrightWebServer`, 905-952: respawn Vite after a SIGKILL when `FREE_PLAYWRIGHT_RESTARTABLE=1`; `spawnVite`, 747-770: tee output to `FREE_PLAYWRIGHT_STUDIO_LOG`; export `readPlaywrightLifecycleStateForTest()`), `prototypes/studio/server/playwrightStack.test.ts`, `prototypes/studio/playwright.config.ts` (`testIgnore` adds `interactive-restart.spec.ts`), `prototypes/studio/package.json` (`test:e2e` runs both configs; `test:e2e:recovery`), `.gitignore` (add `artifacts/recovery-tests/` beside the service-test artifacts if those are listed)
 
 **Interfaces:**
-- Consumes: Task 12's `prepareInteractiveDocument`, Tasks 3–11.
+- Consumes: Task 8's `prepareInteractiveDocument`, Task 3's `plantedKey`, Tasks 3–7.
 - Produces: `killStudio(): Promise<void>` (SIGKILLs the Vite process group, waits for the wrapper's respawn and for Studio to answer); `readPlaywrightLifecycleStateForTest(): Promise<{ vitePid?: number; wrapperPid: number }>`.
 
 - [ ] **Step 1: The restartable stack**
@@ -2151,8 +1313,7 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
 
   - `a Studio restart with the page open resends the keys, and the recovered generation continues` (A13, A2: `prepareInteractiveDocument(page, { hasKey: true, key })`; hold a generation; `killStudio()`; the page's repeated POST is preceded by `PUT /api/model-keys` (seen through `page.on('request')`); the recovered call reaches the model with `authorization: Bearer <key>`; release; the fields save).
   - `a Studio restart between two polls: the reloaded page sees the new boot ID, resends the keys, and the recovered proposal continues` (A13 "between two polls": hold an edit; reload — the panel now polls; `killStudio()`; the next poll's response carries a new `X-FREE-Studio-Boot`; a `PUT /api/model-keys` follows; the recovered call carries the key; release; the review bar returns).
-  - `a Studio restart mid-chatTurn: the Chat tab reconnects and the recovered answer appears once` (A2 kill: hold a chat turn after its first chunk; `killStudio()`; the tab reconnects by its turn ID after the transcript read; release; the answer appears once).
-  - `a planted key reaches no pg_dump, data volume or Studio log after chat, generation, a batch suggestion and a probe` (A12: `key = plantedKey()` typed into the Model Configuration page for an `openai-compatible` connection at the scripted server; the server answers the first call of each kind with `{ status: 500, body: '{"error":"{{authorization}}"}', headers: { 'x-echo': key } }` and later ones with `headers: { 'x-echo': key }`; run a probe (the page's own probe), a generation (fails, then succeeds as a new operation), a Batch Schema Suggestion over the uploaded document (fails, then retried with the next expected attempt) and a chat turn (fails, then a new turn succeeds); then `docker compose -p "$FREE_PLAYWRIGHT_COMPOSE_PROJECT" -f e2e/playwright.compose.yaml exec -T postgres pg_dump -U free_e2e "$FREE_PLAYWRIGHT_DATABASE_NAME"` (run with `execFile`, output kept in memory, never printed) does not contain the key; no file under the state directory (Studio's data and the source inbox) contains it; the Studio log does not contain it. The browser's own `localStorage` holds it by design and is not scanned).
+  - `a planted key reaches no pg_dump, data volume or Studio log after a generation, an edit proposal, a batch suggestion and a probe` (A12, with an edit proposal in place of the deleted chat: `key = plantedKey()` typed into the Model Configuration page for an `openai-compatible` connection at the scripted server; the server answers the first call of each kind with `{ status: 500, body: '{"error":"{{authorization}}"}', headers: { 'x-echo': key } }` and later ones with `headers: { 'x-echo': key }`; run a probe (the page's own probe), a generation (fails, then succeeds as a new operation), an edit proposal (fails, then succeeds as a new operation) and a Batch Schema Suggestion over the uploaded document (fails, then retried with the next expected attempt); then `docker compose -p "$FREE_PLAYWRIGHT_COMPOSE_PROJECT" -f e2e/playwright.compose.yaml exec -T postgres pg_dump -U free_e2e "$FREE_PLAYWRIGHT_DATABASE_NAME"` (run with `execFile`, output kept in memory, never printed) does not contain the key; no file under the state directory (Studio's data and the source inbox) contains it; the Studio log does not contain it. The browser's own `localStorage` holds it by design and is not scanned).
 
 - [ ] **Step 3: Run and commit**
 
@@ -2167,7 +1328,7 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
   git commit -m "test(studio): restart Studio under an open page and prove a planted key reaches no dump, volume or log"
   ```
 
-### Task 14: Verification and bookkeeping
+### Task 10: Verification and bookkeeping
 
 **Files:**
 - Create: `docs/validation/<YYYY-MM-DD>-dbos-m5-verification.md`
@@ -2177,11 +1338,11 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
 
   ```bash
   cd /home/gennaro/projects/FREE/.claude/worktrees/feat+dbos-m2-m6
-  grep -rnE "free-document-chat|streamChatWithModel|data-dbos-superseded|loadOwnedSourceMarkdown|loadOwnedSchemaModelContext|chatId: 'free" \
-    prototypes packages --include=*.ts --include=*.tsx --exclude-dir=node_modules
+  grep -rnE "free-document-chat|streamChatWithModel|createPostChat|ChatTab|data-dbos-superseded|loadOwnedSourceMarkdown|readCanonicalMarkdown|loadOwnedSchemaModelContext|@dbos-inc/vercel-ai|chatTurn|ChatTurn" \
+    prototypes packages --include=*.ts --include=*.tsx --include=*.json --exclude-dir=node_modules --exclude-dir=dist
   grep -rnE "\b(streamText|streamObject)\(" prototypes/studio/api prototypes/studio/server --include=*.ts | grep -v "\.test\.ts"
   ```
-  Expected: the first prints nothing; every line of the second is a call that passes `modelStreamOnError` (the Task 1 test already enforces it).
+  Expected: both print nothing (Task 2's scan test already stops a stream call without `onError`).
 
 - [ ] **Step 2: Run every tier**
 
@@ -2193,19 +1354,19 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
   pnpm test:service
   pnpm --filter studio build
   ```
-  Then the production-bundle smoke of M4 Task 14, extended: with the bundle running on a disposable `free_test_m5_bundle` database, enqueue `chatTurn` on `studio` for a random turn ID through a `DBOSClient` (`applicationName: 'studio'`); it reaches `SUCCESS` (its `loadTurn` finds no row), which proves `@dbos-inc/vercel-ai` loads from outside the bundle. Record commands and output. A tier this host cannot run is recorded with its reason, never as passed.
+  Then the production-bundle smoke of M4 Task 14, extended: with the bundle running on a disposable `free_test_m5_bundle` database, enqueue `suggestSchema` on `studio` as `suggestion:<random UUID>` through a `DBOSClient` (`applicationName: 'studio'`) with a `SchemaGenerationInput` naming a random revision; it reaches `SUCCESS` with the typed 404 (its `readMarkdown` finds no revision), which proves the bundle registers M5's workflows. Record commands and output. A tier this host cannot run is recorded with its reason, never as passed.
 
-- [ ] **Step 3: The live checks (Ruling 6)**
+- [ ] **Step 3: The live checks (Ruling 7)**
 
   On a host with a real model (the Spark's deployment vLLM, or a hosted provider with the researcher's own key) and `pnpm dev`:
-  1. Ask a chat question; reload mid-answer; the answer finishes once under the same turn. Ask another; kill Studio mid-answer (Compose `restart` of `studio`, or SIGKILL of the development server); the page resends its keys and the answer finishes once.
-  2. With `FREE_DEPLOYMENT_CLI_PROVIDERS=claude-code` (or `codex-cli`) and the operator's CLI login, route the Assistant model to that deployment connection and complete one chat turn end to end, then one Schema Suggestion.
-  3. Inspect `dbos.workflow_status` and `dbos.operation_outputs` for one chat turn and one generation: no document text, no key, no provider metadata.
+  1. Generate a schema from the instruction chat; reload mid-generation; the panel shows it running and saves it onto its base once. Describe a change to the schema; kill Studio mid-proposal (Compose `restart` of `studio`, or SIGKILL of the development server); the page resends its keys and the review bar returns once.
+  2. With `FREE_DEPLOYMENT_CLI_PROVIDERS=claude-code` (or `codex-cli`) and the operator's CLI login, route the Assistant model to that deployment connection and complete one Schema Suggestion (Schema Suggestion follows the Assistant model while unset) and one edit proposal end to end.
+  3. Inspect `dbos.workflow_status` and `dbos.operation_outputs` for one generation and one edit proposal: no document text, no key, no provider metadata.
   Record what ran, where and the result. If no live model or CLI login is available here, say so in the record and leave these for the cutover smoke test (spec *Cutover*, step 6).
 
 - [ ] **Step 4: Record**
 
-  Write the verification record (tested commit, commands, results, skips, the `chat checkpoint bytes` Task 7 printed, the live-check outcomes, and a pointer to the traceability table below). In the DBOS plan, replace `**M5: interactive work on DBOS.**` with `**M5: interactive work on DBOS — done YYYY-MM-DD.** Task plan: [2026-09-26-dbos-m5-interactive.md](2026-09-26-dbos-m5-interactive.md).` Set this plan's status to `done YYYY-MM-DD`.
+  Write the verification record (tested commit, commands, results, skips, the live-check outcomes, and a pointer to the traceability table below). In the DBOS plan, replace `**M5: interactive work on DBOS.**` with `**M5: interactive work on DBOS — done YYYY-MM-DD.** Task plan: [2026-09-26-dbos-m5-interactive.md](2026-09-26-dbos-m5-interactive.md).` Set this plan's status to `done YYYY-MM-DD`.
   ```bash
   git add docs/validation/<file> docs/plans/2026-09-24-unified-durable-execution.md docs/plans/2026-09-26-dbos-m5-interactive.md
   git commit -m "docs(plans): record DBOS M5 completion"
@@ -2215,48 +1376,51 @@ The largest task: it also builds the operation helper and the PostgreSQL-tier su
 
 ## Traceability: M5 acceptance → tests
 
-Test files are under `prototypes/studio/` unless they start with `packages/`.
+Test files are under `prototypes/studio/` unless they start with `packages/`. "Superseded" rows are the spec's chat acceptance items, which the user's decision (Ruling 1; spec decision 15) removed from M5; they are listed rather than dropped.
 
 | Spec M5 acceptance (sub-bullet) | Test (file › name) | Task |
 |---|---|---|
-| A1 Kill after the chat answer write but before its checkpoint: the answer is written once | `api/chat_turn_workflow.postgres.test.ts` › `an answer written before a kill is written once`; `packages/db/src/chat-turn.postgres.check.ts` › `a replayed answer write finds the turn settled and writes nothing` | 6, 7 |
-| A2 Reload the page mid-`suggestSchema`, mid-`proposeSchemaEdit`, mid-`chatTurn`: the page finds each operation | `e2e/interactive-reload.spec.ts` › `a reload mid-suggestSchema finds the running generation …`, `a reload mid-proposeSchemaEdit reopens the review bar …`, `a reload mid-chatTurn returns the transcript …` | 12 |
-| A2 … and separately kill Studio at the same points | `e2e/interactive-restart.spec.ts` › `a Studio restart with the page open … generation continues`, `… between two polls … recovered proposal continues`, `a Studio restart mid-chatTurn …`; `api/schema_generation.postgres.test.ts` › `a Studio killed mid-generation recovers it …`; `api/schema_edit.postgres.test.ts` › `a Studio killed mid-proposal recovers it …`; `api/chat_turn_workflow.postgres.test.ts` › `a Studio killed mid-stream recovers the turn …` | 3, 4, 7, 13 |
-| A3 A reloaded page saves a finished generation only onto its base, dropping it when newer work exists | `src/modelOperationRecovery.test.ts` › `the newest finished generation whose base is the clean current revision is saved`, `a generation whose base is older, or a draft that is dirty …, is dropped`, `a first generation is saved only while no Extraction Schema exists`; `src/currentSchemaRevision.test.ts` › `restoreGeneration saves onto a clean base and drops on a conflict without an error`; `e2e/interactive-reload.spec.ts` › `a reloaded page drops a finished generation when newer work exists` | 10, 12 |
-| A3 A surviving tab keeps today's acknowledged-head save behavior, including edits during generation | `src/currentSchemaRevision.test.ts` › `a surviving tab keeps saving through its acknowledged head, including edits during generation`; `e2e/interactive-reload.spec.ts` › same name | 10, 12 |
-| A3 The review bar returns | `src/useModelOperationRecovery.test.tsx` › `a restored proposal reopens the review bar …`; `src/SchemaPanel.test.tsx` › `a restored proposal reopens the review bar and replays onto the base revision's nodes`; `e2e/interactive-reload.spec.ts` › `a reload mid-proposeSchemaEdit reopens the review bar; Discard persists …` | 10, 12 |
-| A4 The transcript returns and partial text replays once under the turn ID | `api/chat_turn_workflow.postgres.test.ts` › `a reader that reconnects mid-stream sees the text so far once …`; `src/ChatTab.test.tsx` › `reconnects to the transcript's live turn and shows its text once under the turn ID`; `e2e/interactive-reload.spec.ts` › `a reload mid-chatTurn returns the transcript and replays the partial answer once …` | 7, 11, 12 |
-| A4 New readers skip superseded attempts | `api/chat_turn_workflow.postgres.test.ts` › `a Studio killed mid-stream recovers the turn: … a new reader sees only the recovered attempt's text …` | 7 |
-| A4 A partial provider failure produces an error finish and persisted failure, never a saved partial answer or an in-process retry that appends replacement text | `api/chat_turn_workflow.postgres.test.ts` › `a partial provider failure ends the stream with an error finish, records the failure and saves no answer; the provider was called once`; `api/_chat_turn_workflow.test.ts` › `a partial failure saves no answer`, `the chat's streamText sets maxRetries 0, no streamRetries, and an onError that returns nothing` | 7 |
-| A5 An answer that finishes between the transcript read and the reconnect still appears, with the turn ID as its message ID | `api/chat_routes.postgres.test.ts` › `an answer that finishes between the transcript read and the reconnect still streams in full under the turn ID`; `src/ChatTab.test.tsx` › `reconnects to the transcript's live turn …` | 8, 11 |
-| A6 A repeated POST after a dropped connection returns the same result | `api/chat_routes.postgres.test.ts` › `a repeated POST after a dropped connection returns the same turn's stream …`; `api/schema_generation.postgres.test.ts` › `… a repeated POST returns the same result without a second model call`; `api/schema_edit.postgres.test.ts` › `… a repeated POST returns the same proposal …`; `src/api.test.ts` › `a model POST is repeated with the same body …`; `e2e/interactive-reload.spec.ts` › `a dropped chat stream reconnects to the same turn, and a repeated POST returns the same turn` | 3, 4, 8, 9, 12 |
-| A6 Exact-turn reconnect works across completion and returns 204 for expired history, followed by the authoritative transcript | `api/chat_routes.postgres.test.ts` › `exact-turn reconnect works across completion and answers 204 once the turn's history is deleted …`; `src/ChatTab.test.tsx` › `a 204 or a finished stream re-reads the transcript …`, `a dropped stream reconnects to the same turn, then re-reads the transcript` | 8, 11 |
-| A7 Change the route between attempts | `api/chat_turn_workflow.postgres.test.ts` › `a route changed between attempts: an interrupted call reruns on the new route`, `… a checkpointed call replays without a model call and without waiting for a key` | 7 |
-| A8 One HTTP and one CLI provider complete a chat turn end to end | `api/chat_turn_workflow.postgres.test.ts` › `a chat turn over the scripted HTTP provider …`, `a chat turn on a CLI deployment connection completes end to end through the stand-in`; live: Task 14 Step 3 (real CLI and real HTTP model, recorded) | 7, 14 |
-| A9 A second account can list, read, stream or cancel none of the first's operations or turns; ownership holds on every reconnect, including after the project is deleted | `api/model_operations.postgres.test.ts` › `a second account can neither list nor cancel nor discard …`, `after the project is deleted, listing and DELETE are 404`; `api/chat_routes.postgres.test.ts` › `a second account can neither read, stream nor cancel the first account's turns; after the project is deleted every reconnect is 404`; `packages/db/src/chat-turn.postgres.check.ts` › `a second account reads, reconnects to and cancels none …`; `server/researcher-project-ownership.test.ts` (model-operation and chat cases) | 5, 6, 8 |
-| A10 A synthetic key planted in a provider error's cause chain in a JSON step | `api/schema_generation.postgres.test.ts` › `a key planted in a provider error in a JSON step reaches no DBOS or public table and no log` | 3 |
-| A10 … and inside `durableCalls`; in a successful response's headers and provider metadata; no input, output, error or stream record holds it | `api/_chat_sanitizer.test.ts` › `every failure path yields a ChatModelFailure …`, `a successful stream keeps its text and drops provider metadata, raw chunks, request and response`; `api/chat_turn_workflow.postgres.test.ts` › `a key planted in the error cause chain, response headers and provider metadata of a chat call reaches no table, stream record or log` | 2, 7 |
-| A11 A chat turn's checkpoint holds the history and the answer, not the document | `api/chat_turn_workflow.postgres.test.ts` › `a chat turn's checkpoints hold the history and the answer, not the document` (size recorded in Task 14) | 7, 14 |
-| A12 Plant a key and run chat, generation, a batch suggestion and a probe: no `pg_dump`, volume or log holds it | `e2e/interactive-restart.spec.ts` › `a planted key reaches no pg_dump, data volume or Studio log after chat, generation, a batch suggestion and a probe` | 13 |
-| A13 Restart Studio mid-call with the page open, including between two polls; the new boot ID triggers the resend and the recovered call continues | `e2e/interactive-restart.spec.ts` › `a Studio restart with the page open resends the keys …`, `a Studio restart between two polls …`, `a Studio restart mid-chatTurn …`; `src/api.test.ts` › `… keys first each time` | 9, 13 |
-| A13 With no page open, the call fails with `model_key_required` after the wait, and neither retry owner retries it | `api/schema_generation.postgres.test.ts` › `with no page to resend it, a recovered generation fails with model_key_required …`; `api/chat_turn_workflow.postgres.test.ts` › `with no page to resend it, a recovered chat call fails with model_key_required after the wait and neither retry owner retries it` | 3, 7 |
-| A13 Resending keys then retrying starts a new operation/turn ID or batch attempt | `src/ChatTab.test.tsx` › `a model_key_required turn resends the keys once and asking again mints a new turn`; `src/useModelOperationRecovery.test.tsx` › `a restored model_key_required failure resends the keys once`; `src/SchemaPanel.test.tsx` › `each edit request carries a new operation ID`; `src/api.test.ts` › `a confirmed failure is never repeated …`; M4 Task 9 `BatchExtractionsPanel.test.tsx` › `a model_key_required failure resends this browser's keys once, and Try again posts the next expected attempt` | 4, 9, 10, 11 (M4 9) |
-| A14 A replayed step whose call is checkpointed never waits for a key | `api/schema_generation.postgres.test.ts` › `a replayed step whose call is checkpointed never waits for a key`; `api/chat_turn_workflow.postgres.test.ts` › `a route changed between attempts: a checkpointed call replays … without waiting for a key` | 3, 7 |
-| A14 A cancel during the wait never reaches the provider | `api/schema_generation.postgres.test.ts` › `a cancel during the key wait never reaches the provider`; `api/chat_turn_workflow.postgres.test.ts` › same name; `api/_model_keys.test.ts` › `requireModelKey ends the wait when the step's cancel signal fires …`; `api/_provider.test.ts` › `a keyed model's key wait ends on the step's cancel signal and never calls the provider` | 1, 3, 7 |
-| A14 A cancel during a provider call stops it about 1 s later | `api/schema_generation.postgres.test.ts` › `a cancel during a provider call stops it about 1 s later`; `api/chat_turn_workflow.postgres.test.ts` › same name; `api/_provider.test.ts` › `every general model's provider call receives the step's cancel signal, keyed or keyless` | 1, 3, 7 |
-| A15 Schema Suggestion over the NuExtract protocol on a keyed vLLM connection passes the same key-wait, cancellation and no-key-in-history checks | `api/schema_generation.postgres.test.ts` › `NuExtract on a keyed vLLM connection waits for its key, stops on cancel, and leaves no key in history`; `api/_model.transport.test.ts` › `NuExtract's key wait and fetch receive the step's cancel signal` | 1, 3 |
+| A1 Kill after the chat answer write but before its checkpoint: the answer is written once | Superseded by the user's 2026-09-26 decision: document chat deleted | — |
+| A2 Reload the page mid-`suggestSchema`, mid-`proposeSchemaEdit`: the page finds each operation | `e2e/interactive-reload.spec.ts` › `a reload mid-suggestSchema finds the running generation …`, `a reload mid-proposeSchemaEdit reopens the review bar …` | 8 |
+| A2 … mid-`chatTurn` | Superseded by the user's 2026-09-26 decision: document chat deleted | — |
+| A2 … and separately kill Studio at the same points | `e2e/interactive-restart.spec.ts` › `a Studio restart with the page open … generation continues`, `… between two polls … recovered proposal continues`; `api/schema_generation.postgres.test.ts` › `a Studio killed mid-generation recovers it …`; `api/schema_edit.postgres.test.ts` › `a Studio killed mid-proposal recovers it …` (mid-`chatTurn`: superseded by the user's 2026-09-26 decision: document chat deleted) | 3, 4, 9 |
+| A3 A reloaded page saves a finished generation only onto its base, dropping it when newer work exists | `src/modelOperationRecovery.test.ts` › `the newest finished generation whose base is the clean current revision is saved`, `a generation whose base is older, or a draft that is dirty …, is dropped`, `a first generation is saved only while no Extraction Schema exists`; `src/currentSchemaRevision.test.ts` › `restoreGeneration saves onto a clean base and drops on a conflict without an error`; `e2e/interactive-reload.spec.ts` › `a reloaded page drops a finished generation when newer work exists` | 7, 8 |
+| A3 A surviving tab keeps today's acknowledged-head save behavior, including edits during generation | `src/currentSchemaRevision.test.ts` › `a surviving tab keeps saving through its acknowledged head, including edits during generation`; `e2e/interactive-reload.spec.ts` › same name | 7, 8 |
+| A3 The review bar returns | `src/useModelOperationRecovery.test.tsx` › `a restored proposal reopens the review bar …`; `src/SchemaPanel.test.tsx` › `a restored proposal reopens the review bar and replays onto the base revision's nodes`; `e2e/interactive-reload.spec.ts` › `a reload mid-proposeSchemaEdit reopens the review bar; Discard persists …` | 7, 8 |
+| A4 The transcript returns and partial text replays once under the turn ID | Superseded by the user's 2026-09-26 decision: document chat deleted | — |
+| A4 New readers skip superseded attempts | Superseded by the user's 2026-09-26 decision: document chat deleted | — |
+| A4 A partial provider failure produces an error finish and persisted failure, never a saved partial answer or an in-process retry that appends replacement text | Superseded by the user's 2026-09-26 decision: document chat deleted (no model call streams after Task 1; Ruling 5's scan stops a new one without `onError`) | — |
+| A5 An answer that finishes between the transcript read and the reconnect still appears, with the turn ID as its message ID | Superseded by the user's 2026-09-26 decision: document chat deleted | — |
+| A6 A repeated POST after a dropped connection returns the same result | `api/schema_generation.postgres.test.ts` › `… a repeated POST returns the same result without a second model call`; `api/schema_edit.postgres.test.ts` › `… a repeated POST returns the same proposal …`; `src/api.test.ts` › `a model POST is repeated with the same body …`; `e2e/interactive-restart.spec.ts` › `a Studio restart with the page open resends the keys …` (the page's repeated POST) | 3, 4, 6, 9 |
+| A6 Exact-turn reconnect works across completion and returns 204 for expired history, followed by the authoritative transcript | Superseded by the user's 2026-09-26 decision: document chat deleted | — |
+| A7 Change the route between attempts | `api/schema_generation.postgres.test.ts` › `a route changed between attempts: an interrupted generation reruns on the new route`, `a replayed step whose call is checkpointed never waits for a key, even after the route moved` (retargeted from chat to Schema Suggestion: the spec's *No pins* rule is not chat-specific) | 3 |
+| A8 One HTTP and one CLI provider complete a chat turn end to end | Superseded by the user's 2026-09-26 decision: document chat deleted. The live check still runs one Schema Suggestion and one edit proposal on a real HTTP model and on a CLI login (Task 10 Step 3, recorded) | (10) |
+| A9 A second account can list or cancel none of the first's operations; ownership holds on every read, including after the project is deleted | `api/model_operations.postgres.test.ts` › `a second account can neither list nor cancel nor discard …`, `after the project is deleted, listing and DELETE are 404`; `server/researcher-project-ownership.test.ts` (model-operation cases) | 5 |
+| A9 … read or stream none of the first's turns | Superseded by the user's 2026-09-26 decision: document chat deleted | — |
+| A10 A synthetic key planted in a provider error's cause chain in a JSON step | `api/_model_operation.test.ts` › `operationFailureOf keeps only FREE's copy, whatever the provider error holds`; `api/schema_generation.postgres.test.ts` › `a key planted in a provider error in a JSON step reaches no DBOS or public table and no log` | 3 |
+| A10 … in a successful response's headers and provider metadata; no input, output, error or stream record holds it | `api/schema_generation.postgres.test.ts` › `a key planted in a provider error in a JSON step …` (its success reply echoes the key in a header); `api/_schema_generation_workflow.test.ts` › `the step's output copies only the template, the raw text, the page count and the base` | 3 |
+| A10 … inside `durableCalls` | Superseded by the user's 2026-09-26 decision: document chat deleted (no `durableCalls`) | — |
+| A11 A chat turn's checkpoint holds the history and the answer, not the document | Superseded by the user's 2026-09-26 decision: document chat deleted. Generation and edits keep the document out of history: `api/_schema_generation_workflow.test.ts` › `reads the document outside the step …`; `api/_schema_edit_workflow.test.ts` › `reads the base schema and the document outside the step …` | (3, 4) |
+| A12 Plant a key and run generation, a batch suggestion and a probe: no `pg_dump`, volume or log holds it | `e2e/interactive-restart.spec.ts` › `a planted key reaches no pg_dump, data volume or Studio log after a generation, an edit proposal, a batch suggestion and a probe` (the chat run: superseded by the user's 2026-09-26 decision: document chat deleted; an edit proposal takes its place) | 9 |
+| A13 Restart Studio mid-call with the page open, including between two polls; the new boot ID triggers the resend and the recovered call continues | `e2e/interactive-restart.spec.ts` › `a Studio restart with the page open resends the keys …`, `a Studio restart between two polls …`; `src/api.test.ts` › `… keys first each time` | 6, 9 |
+| A13 With no page open, the call fails with `model_key_required` after the wait, and neither retry owner retries it | `api/schema_generation.postgres.test.ts` › `with no page to resend it, a recovered generation fails with model_key_required …` | 3 |
+| A13 Resending keys then retrying starts a new operation ID or batch attempt | `src/useModelOperationRecovery.test.tsx` › `a restored model_key_required failure resends the keys once`; `src/SchemaPanel.test.tsx` › `each edit request carries a new operation ID`; `src/api.test.ts` › `a confirmed failure is never repeated …`; M4 Task 9 `BatchExtractionsPanel.test.tsx` › `a model_key_required failure resends this browser's keys once, and Try again posts the next expected attempt` (a new turn ID: superseded by the user's 2026-09-26 decision: document chat deleted) | 4, 6, 7 (M4 9) |
+| A14 A replayed step whose call is checkpointed never waits for a key | `api/schema_generation.postgres.test.ts` › `a replayed step whose call is checkpointed never waits for a key, even after the route moved` | 3 |
+| A14 A cancel during the wait never reaches the provider | `api/schema_generation.postgres.test.ts` › `a cancel during the key wait never reaches the provider`; `api/_model_keys.test.ts` › `requireModelKey ends the wait when the step's cancel signal fires …`; `api/_provider.test.ts` › `a keyed model's key wait ends on the step's cancel signal and never calls the provider` | 2, 3 |
+| A14 A cancel during a provider call stops it about 1 s later | `api/schema_generation.postgres.test.ts` › `a cancel during a provider call stops it about 1 s later`; `api/_provider.test.ts` › `every general model's provider call receives the step's cancel signal, keyed or keyless` | 2, 3 |
+| A15 Schema Suggestion over the NuExtract protocol on a keyed vLLM connection passes the same key-wait, cancellation and no-key-in-history checks | `api/schema_generation.postgres.test.ts` › `NuExtract on a keyed vLLM connection waits for its key, stops on cancel, and leaves no key in history`; `api/_model.transport.test.ts` › `NuExtract's key wait and fetch receive the step's cancel signal` | 2, 3 |
 
-Spec *Verification* items M5 owns: atomic admission, concurrent replay, active-chat exclusion and rollback (`chat-turn.postgres.check.ts`, 6); one answer per chat turn when an answer races a cancel (`chat-turn.postgres.check.ts` › `one answer per turn when an answer races a cancel`, 6); no key in any table (3, 7, 13); a page reload mid-chat, mid-generation and mid-edit (12); a Studio restart with the page open, keys resent, the call continuing (13); chat reconnect and re-POST recovery (12); the residue item `free-document-chat` (14).
+Spec *Verification* items M5 owns: no key in any table (3, 9); a page reload mid-generation and mid-edit (8); a Studio restart with the page open, keys resent, the call continuing (9); the residue item `free-document-chat` (1, 10). Superseded by the user's 2026-09-26 decision (document chat deleted): atomic question admission, concurrent chat replay, active-chat exclusion and rollback; one answer per chat turn when an answer races a cancel; a page reload mid-chat; chat reconnect and re-POST recovery; chat across a reload and a restart in the manual run.
 
-Other M5 items and where they are built: `suggestSchema`, `proposeSchemaEdit` and `chatTurn` with its answer write (3, 4, 7); `@dbos-inc/vercel-ai` for chat only, with the sanitizer inside `durableCalls` (1, 2, 7); operation and turn IDs with 409 on conflicting reuse (3, 4, 6, 8); atomic question/enqueue with per-revision dedup, 409 for another active turn and same-turn primary-key replay (6, 8); owner checks and conditional answer/failure writes (5, 6, 8); a typed chat failure followed by a sanitized throw (2, 7); `GET`/`DELETE /api/model-operations`, `GET /api/chat/<revision ID>` and `/stream?turnId=` (5, 8); `src/api.ts` repeats the same POST after a network failure or 502/503/504 (9); a new user action mints a new ID (3, 4, 9, 11; ingestion retry without a client key is M4 Task 10); `generate_schema` carries the operation ID and base; the schema panel restores a running operation, saves a finished generation on its base and reopens an unreviewed proposal (3, 10); `ChatTab.tsx` loads the transcript, sends only the new question, uses the revision ID as chat ID, reconnects to the returned turn ID on load and after a dropped stream, re-reads after 204/end, with no custom superseded handler (8, 11); aborts from a user action call the cancel route (9, 10, 11); a new boot ID resends keys before recovery continues (M2's `authenticatedFetch`, 9, 13); `model_key_required` resend then a new ID, never a re-POST of the failed ID (9, 10, 11); the key wrapper composes `cancelSignal` (1); every stream call has an explicit `onError` (1); the `ChatTurn` baseline edit (6).
+Other M5 items and where they are built: `suggestSchema` and `proposeSchemaEdit` (3, 4); operation IDs with 409 on conflicting reuse (3, 4); owner checks (3, 4, 5); typed results with provider errors sanitized inside the step (3, Ruling 4); `GET`/`DELETE /api/model-operations` (5); `src/api.ts` repeats the same POST after a network failure or 502/503/504 (6); a new user action mints a new ID (3, 4, 6; ingestion retry without a client key is M4 Task 10); `generate_schema` carries the operation ID and base; the schema panel restores a running operation, saves a finished generation on its base and reopens an unreviewed proposal (3, 7); aborts from a user action call the cancel route (6, 7); a new boot ID resends keys before recovery continues (M2's `authenticatedFetch`, 6, 9); `model_key_required` resend then a new ID, never a re-POST of the failed ID (6, 7); the key wrapper composes `cancelSignal` (2); every stream call has an explicit `onError` (1 removes the only one, 2 guards new ones). Superseded by the user's 2026-09-26 decision (document chat deleted): `chatTurn` and its answer write; `@dbos-inc/vercel-ai` and the sanitizer inside `durableCalls`; turn IDs; atomic question/enqueue with per-revision dedup and same-turn replay; conditional answer/failure writes and the typed chat failure followed by a sanitized throw; `GET /api/chat/<revision ID>` and `/stream?turnId=`; everything `ChatTab.tsx` was to do; the `ChatTurn` baseline edit.
 
 ## Deferred to M6 and later
 
 | Item | Goes to | Why |
 |---|---|---|
-| History retention for settled interactive work (24 h) and the rest of `collectGarbage` | M6 | spec *Milestones → M6*; M5 only relies on history existing, and answers 204 when it does not |
-| README #5/#7, CONTEXT.md (chat transcripts in FREE's tables; interactive work stores no Model Attribution), ADR 0012, the OpenSpec spec for schema chat edit, `docs/architecture/current.c4` (the Chat tab and the model-operation routes) | M6 | spec *Milestones → M6 → Other docs* |
-| The full *Verification* residue search and the pool measurement across Studio's pools | M6 verification | Task 14 searches only M5's own residue |
-| M0R 6's pending "Studio chat and schema generation during a kei extraction on `extraction_model`" | Spark, separate | needs the Spark's model servers; not an M5 acceptance bullet |
-| A bound on how many earlier turns a chat sends as history | not planned | the spec sends every earlier answered turn; revisit only if transcripts grow large (the checkpoint measurement in Task 7 is the signal) |
-| Persisting the schema panel's message log; more than one thread per revision; carrying a transcript to a reprocessed revision | out of scope | spec *Out of scope* |
+| History retention for settled interactive work (24 h) and the rest of `collectGarbage` | M6 | spec *Milestones → M6*; M5 only relies on history existing |
+| README #5/#7, CONTEXT.md (interactive work stores no Model Attribution; `CONTEXT.md:149` still says the Interaction Route serves document chat), ADR 0007 (`:9`, document chat), ADR 0012, the OpenSpec specs for schema chat edit and capability-route resolution (`openspec/specs/capability-route-resolution/spec.md:8,16-18,48,77-79`, document chat), `docs/architecture/current.c4` (the model-operation routes; no Chat tab) | M6 | spec *Milestones → M6 → Other docs*; the document-chat mentions are stale since Task 1 |
+| The M6 plan's chat items: its Ruling 3 (the Chat tab as developer-UI only), `@dbos-inc/vercel-ai` among the pins (line 50), the `chat:` prefix in `GC_POLICY` and `STUDIO_WORKFLOW_PREFIXES`, `ChatTurn` scopes in garbage collection, the precondition grep for `chatTurn`, the README "developer view" sentence and the Spark smoke's chat turn | M6 plan revision (controller) | written against the first version of this plan; this revision cannot edit it |
+| The full *Verification* residue search and the pool measurement across Studio's pools | M6 verification | Task 10 searches only M5's own residue |
+| M0R 6's pending "Studio chat and schema generation during a kei extraction on `extraction_model`" | Spark, separate | needs the Spark's model servers; with chat deleted only its schema-generation half remains; not an M5 acceptance bullet |
+| Persisting the schema panel's message log | out of scope | spec *Out of scope* |
