@@ -614,10 +614,17 @@ describe('resolveCapabilityRoute', () => {
   ] as const)('constructs the exact %s general target', async (provider, baseUrl, jsonOutput, temperatureSupported) => {
     // A hosted provider always uses a key, so its model is the keyed wrapper around the same provider model.
     const selected = { ...connection, provider, baseUrl, hasKey: ['openai', 'anthropic', 'google'].includes(provider) }
-    const config = routed({ connections: [selected] })
+    // A CLI kind is never a researcher connection: it is the deployment's, under its reserved ID.
+    const cliId = provider === 'codex-cli' ? DEPLOYMENT_CONNECTION_IDS.codexCli : DEPLOYMENT_CONNECTION_IDS.claudeCode
+    const cli = { ...selected, id: cliId, name: 'CLI on this server' }
+    const isCli = provider === 'codex-cli' || provider === 'claude-code'
+    const config = isCli
+      ? routed({ connections: [], routes: { schemaSuggestion: { connectionId: cliId, modelId: 'manual/model' }, interaction: null } })
+      : routed({ connections: [selected] })
     const target = await resolveCapabilityRoute('schema-suggestion', {}, {
       researcherAccountId: ACCOUNT,
       readConfig: async () => config,
+      deployment: { connections: isCli ? [cli] : [], defaultRoute: null },
     })
     expect(target).toMatchObject({ profile: 'general', jsonOutput, temperatureSupported })
     expect(target).toMatchObject({ automaticOutputKey: expect.any(String) })
@@ -809,6 +816,25 @@ describe('resolveCapabilityRoute', () => {
     })).rejects.toMatchObject({ status: 409, code: 'invalid_model_config' })
   })
 
+  it('refuses a saved route naming a CLI deployment connection this deployment no longer enables', async () => {
+    const createModel = vi.fn(() => ({}) as never)
+    // Only Claude Code is enabled now; the route still names the Codex CLI deployment connection.
+    const claudeCode = {
+      id: DEPLOYMENT_CONNECTION_IDS.claudeCode, name: 'Claude Code on this server', provider: 'claude-code' as const, baseUrl: null, hasKey: false,
+    }
+    await expect(resolveCapabilityRoute('chat', {}, {
+      researcherAccountId: ACCOUNT,
+      readConfig: async () => routed({
+        connections: [], routes: { schemaSuggestion: null, interaction: { connectionId: DEPLOYMENT_CONNECTION_IDS.codexCli, modelId: 'gpt-5' } },
+      }),
+      deployment: { connections: [claudeCode], defaultRoute: null },
+      modelFactories: { 'codex-cli': createModel, 'claude-code': createModel },
+    })).rejects.toMatchObject({
+      status: 409, code: 'invalid_model_config', message: 'The Assistant model route names a Model Connection that does not exist.',
+    })
+    expect(createModel).not.toHaveBeenCalled()
+  })
+
   it('sends vLLM requests with thinking off unless a call chooses otherwise', async () => {
     const request = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => Response.json({
       id: 'x', object: 'chat.completion', created: 0, model: 'm',
@@ -859,11 +885,16 @@ describe('resolveCapabilityRoute', () => {
 
   it('rejects unsupported temperature before constructing a CLI model', async () => {
     const createModel = vi.fn(() => ({}) as never)
-    const cli = { ...connection, provider: 'codex-cli' as const, baseUrl: null }
+    const cli = {
+      id: DEPLOYMENT_CONNECTION_IDS.codexCli, name: 'Codex CLI on this server', provider: 'codex-cli' as const, baseUrl: null, hasKey: false,
+    }
     await expect(
       resolveCapabilityRoute('schema-suggestion', { temperature: 0.3 }, {
         researcherAccountId: ACCOUNT,
-        readConfig: async () => routed({ connections: [cli] }),
+        readConfig: async () => routed({
+          connections: [], routes: { schemaSuggestion: { connectionId: cli.id, modelId: 'manual/model' }, interaction: null },
+        }),
+        deployment: { connections: [cli], defaultRoute: null },
         modelFactories: { 'codex-cli': createModel },
       }),
     ).rejects.toMatchObject({ status: 400, code: 'unsupported_temperature' })

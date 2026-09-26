@@ -18,7 +18,8 @@ describe('deploymentModels', () => {
     expect(listed('codex-cli,unknown')).toEqual([codex])
     expect(listed(undefined)).toEqual([])
     expect(deploymentModels({ FREE_DEPLOYMENT_CLI_PROVIDERS: 'codex-cli' }).defaultRoute).toBeNull()
-    expect(DEPLOYMENT_IDS.has(codex.id) && DEPLOYMENT_IDS.has(claude.id)).toBe(true)
+    expect(DEPLOYMENT_IDS.has(codex.id)).toBe(true)
+    expect(DEPLOYMENT_IDS.has(claude.id)).toBe(true)
   })
 
   it('the vLLM servers are listed as before', () => {
