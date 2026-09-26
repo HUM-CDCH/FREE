@@ -901,6 +901,16 @@ async function ownsProjectContext(
   )
 }
 
+/** Serializes source deletion with suggestion admission before either reads current source membership. */
+async function lockOwnedProjectContext(
+  orm: Orm,
+  researcherAccountId: string,
+  projectContextId: string,
+): Promise<boolean> {
+  return (await orm.public.ProjectContext.where({ id: projectContextId, researcherAccountId })
+    .updateAll({ id: projectContextId })).length === 1
+}
+
 async function packageIsReferenced(
   database: Database,
   artifactReference: string,
@@ -1029,7 +1039,7 @@ export function createResearcherProjectStore(
     },
     async deleteSourceDocument(projectContextId, sourceDocumentId) {
       const candidates = await database.transaction(async ({ orm }) => {
-        if (!(await ownsProjectContext(orm, researcherAccountId, projectContextId)))
+        if (!(await lockOwnedProjectContext(orm, researcherAccountId, projectContextId)))
           return null
         const document = await orm.public.SourceDocument.select('id').first({
           id: sourceDocumentId,
@@ -1756,7 +1766,7 @@ export function createResearcherProjectStore(
       // The suggestion, its pins and attempt 1's workflow commit together on one pooled client, or none of them does.
       const admit = () =>
         withPoolClientTransaction(async ({ orm }, client) => {
-          if (!(await ownsProjectContext(orm, researcherAccountId, projectContextId)))
+          if (!(await lockOwnedProjectContext(orm, researcherAccountId, projectContextId)))
             return { status: 'missing' } as const
           const members = await currentBatchMembers(orm, researcherAccountId, projectContextId, sourceDocumentIds)
           if (!members || members.length === 0) return { status: 'invalid' } as const

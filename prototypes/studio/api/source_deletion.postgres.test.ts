@@ -135,4 +135,25 @@ describe('deletion cancels its live DBOS scope', () => {
     expect(await status(kei, `kei-extract:${extraction}`)).toBe('CANCELLED')
     expect(await status(kei, `kei-convert:${reprocess}`)).toBe('CANCELLED')
   })
+
+  it('source deletion cancels an orphaned live kei child of a terminal Studio parent', async () => {
+    const { owner, store, project, document } = await fixture()
+    const extraction = randomUUID()
+    const parent = `extract:${extraction}`
+    const child = `kei-extract:${extraction}`
+    await enqueue(parent, owner, { projectContextId: project, sourceDocumentId: document })
+    await studioDbos().admission.cancelWorkflow(parent)
+    expect(await status(studioDbos().admission, parent)).toBe('CANCELLED')
+    await standIn.policy({ extract: 'hold' })
+    await createKeiHandoff(studioDbos().kei).submit({ workflow: 'extract', workflowId: child,
+      queueName: 'kei-extract', priority: 1, timeoutMs: 600_000, authenticatedUser: owner,
+      attributes: { projectContextId: project, sourceDocumentId: document },
+      request: { run_id: 'run-1', generation: 'gen-1', request: { schema: {}, options: {} } },
+    })
+    await until(async () => expect(await standIn.held()).toHaveLength(1))
+    const response = await createSourceDocumentDeletion(store)(new Request(
+      `http://test/api/project-contexts/${project}/source-documents/${document}`, { method: 'DELETE' }))
+    expect(response.status).toBe(204)
+    expect(await status(kei, child)).toBe('CANCELLED')
+  })
 })

@@ -1475,13 +1475,13 @@ if (!disposableDatabaseUrl) {
       const keptId = stableUuid('batch-member-extraction', stableJson([batchExtractionId, kept.sourceDocumentId]))
       const prepared = await module.prepareReview(keptId)
       await module.finalizeReview(keptId, prepared.reviewDecisions)
-      const keptBefore = await db.orm.public.Extraction.select('id', 'sourceRepresentationRevisionId', 'outcome').first({ id: keptId })
+      const keptBefore = await db.orm.public.Extraction.select('id', 'sourceRepresentationRevisionId', 'outcome', 'resultPayload').first({ id: keptId })
       const reviewsBefore = await db.orm.public.ExtractionReview.where({ extractionId: keptId })
         .select('id', 'decisionDigest').all()
       assert.ok(reviewsBefore.length > 0)
 
       assert.deepEqual(await store.deleteSourceDocument(project.projectContextId, deleted.sourceDocumentId), { interruptedAttempts: [] })
-      assert.deepEqual(await db.orm.public.Extraction.select('id', 'sourceRepresentationRevisionId', 'outcome').first({ id: keptId }), keptBefore)
+      assert.deepEqual(await db.orm.public.Extraction.select('id', 'sourceRepresentationRevisionId', 'outcome', 'resultPayload').first({ id: keptId }), keptBefore)
       assert.deepEqual(await db.orm.public.ExtractionReview.where({ extractionId: keptId })
         .select('id', 'decisionDigest').all(), reviewsBefore)
       const batch = await module.readBatch({ projectContextId: project.projectContextId, batchExtractionId })
@@ -2428,6 +2428,15 @@ if (!disposableDatabaseUrl) {
         .first({ id: retrying })
       assert.ok(persisted?.confirmedSchemaRevisionId)
       assert.ok(persisted.batchExtractionId)
+
+      const removable = await suggestion({ outcome: 'SUCCEEDED', ...ready }, [project.documents[0]!])
+      const projectStore = createResearcherProjectStore(project.researcherAccountId, db)
+      assert.deepEqual(await projectStore.deleteSourceDocument(project.projectContextId, project.documents[0]!.sourceDocumentId),
+        { interruptedAttempts: [] })
+      await assert.rejects(run(removable), rejectsWithCode('batch_not_ready'))
+      assert.deepEqual(await projectStore.retryBatchSchemaSuggestion(project.projectContextId, removable, 1), { status: 'not-ready' })
+      assert.deepEqual((await db.orm.public.BatchSchemaSuggestion.select('draft', 'draftVersion').first({ id: removable })),
+        { draft: ARTICLE_SCHEMA, draftVersion: 1 })
     })
   })
 

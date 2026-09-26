@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { after, test } from 'node:test'
-import { DBOS } from '@dbos-inc/dbos-sdk'
+import { setTimeout as delay } from 'node:timers/promises'
+import { DBOS, DBOSClient } from '@dbos-inc/dbos-sdk'
+import { Client } from 'pg'
 import { validateDisposableTestDatabaseTarget } from './database-url.js'
 import { withBlockedUpdates } from './postgres-test-helpers.js'
 
@@ -16,8 +18,10 @@ test('Source Document deletion preserves suggestions and interrupts affected att
   ])
   const account = randomUUID()
   const schema = `dbos_delete_${randomBytes(4).toString('hex')}`
+  let admission: DBOSClient | undefined
   after(async () => {
     try {
+      await admission?.destroy()
       await DBOS.shutdown()
       await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`)
       await db.orm.public.ProjectContext.where({ researcherAccountId: account }).delete()
@@ -27,8 +31,13 @@ test('Source Document deletion preserves suggestions and interrupts affected att
   DBOS.setConfig({ name: 'free-delete-check', systemDatabaseUrl: databaseUrl, systemDatabaseSchemaName: schema,
     applicationVersion: 'check@1', executorID: `delete-${schema}`, enableOTLP: false, logLevel: 'error' })
   await DBOS.launch()
+  admission = await DBOSClient.create({ systemDatabaseUrl: databaseUrl, systemDatabaseSchemaName: schema,
+    applicationName: 'studio' })
   await db.orm.public.ResearcherAccount.create({ id: account, tenantId: randomUUID(), objectId: randomUUID(), displayName: 'Delete check' })
   const store = createResearcherProjectStore(account, db)
+  const admitting = createResearcherProjectStore(account, db, { enqueue: async (client, workflow, input) => {
+    await admission!.enqueueInTransaction(client, workflow, input)
+  } })
   const worker = createInternalProjectWorkerStore(db)
   const project = (await store.createProjectContext('Delete check')).projectContextId
   const draft = { recordDescription: 'Places in this document.', schemaNodes: [{ id: 'place', name: 'Place', type: 'string' }] }
@@ -56,6 +65,40 @@ test('Source Document deletion preserves suggestions and interrupts affected att
   const saved = (id: string) => db.orm.public.BatchSchemaSuggestion.select(
     'attempt', 'outcome', 'failure', 'phase', 'proposal', 'draft', 'draftVersion',
   ).first({ id })
+
+  async function projectLockOrder<T, U>(first: () => Promise<T>, second: () => Promise<U>): Promise<[T, U]> {
+    const holder = new Client({ connectionString: databaseUrl })
+    await holder.connect()
+    let one: Promise<T> | undefined
+    let two: Promise<U> | undefined
+    try {
+      await holder.query('BEGIN')
+      await holder.query('SELECT id FROM "projectContext" WHERE id = $1 FOR UPDATE', [project])
+      const waitFor = async (count: number) => {
+        const deadline = Date.now() + 10_000
+        while (Date.now() < deadline) {
+          await holder.query('SELECT pg_stat_clear_snapshot()')
+          const waiting = await holder.query<{ count: number }>(`SELECT count(*)::int AS count FROM pg_stat_activity
+            WHERE datname = current_database() AND wait_event_type = 'Lock' AND query ILIKE '%UPDATE%"projectContext"%'`)
+          if (waiting.rows[0]!.count >= count) return
+          await delay(10)
+        }
+        throw new Error(`Timed out waiting for ${count} project locks.`)
+      }
+      one = first()
+      void one.catch(() => {})
+      await waitFor(1)
+      two = second()
+      void two.catch(() => {})
+      await waitFor(2)
+      await holder.query('COMMIT')
+      return await Promise.all([one, two])
+    } finally {
+      await holder.query('ROLLBACK').catch(() => {})
+      await holder.end()
+      await Promise.allSettled([one, two].filter((candidate) => candidate !== undefined))
+    }
+  }
 
   await t.test('an active attempt is interrupted before its pin disappears, while its valid draft survives', async () => {
     const left = await source()
@@ -86,22 +129,25 @@ test('Source Document deletion preserves suggestions and interrupts affected att
 
     const duringSource = await source()
     const duringId = await suggestion([duringSource])
+    const publishedDraft = { recordDescription: 'Published places.', schemaNodes: [{ id: 'place', name: 'Place', type: 'string' }] }
     const [publication, deletion] = await withBlockedUpdates(databaseUrl, 'BatchSchemaSuggestion', duringId, 2,
       () => Promise.all([
-        worker.publishBatchSchemaSuggestion(duringId, 2, proposed),
+        worker.publishBatchSchemaSuggestion(duringId, 2, { ...proposed, proposal: publishedDraft, draft: publishedDraft }),
         store.deleteSourceDocument(project, duringSource.document),
       ]))
     assert.ok(deletion)
     assert.ok(['published', 'stopped'].includes(publication))
     const duringRow = await saved(duringId)
     assert.ok(duringRow?.outcome === 'FAILED' || duringRow?.outcome === 'SUCCEEDED')
-    assert.deepEqual(duringRow?.draft, draft)
+    assert.deepEqual(duringRow?.draft, publication === 'published' ? publishedDraft : draft)
+    assert.equal(duringRow?.draftVersion, publication === 'published' ? 2 : 1)
 
     const afterSource = await source()
     const afterId = await suggestion([afterSource], false)
     assert.deepEqual(await store.deleteSourceDocument(project, afterSource.document), { interruptedAttempts: [] })
     assert.equal((await saved(afterId))?.outcome, 'SUCCEEDED')
     assert.deepEqual((await saved(afterId))?.draft, draft)
+    assert.equal((await saved(afterId))?.draftVersion, 1)
     assert.deepEqual((await store.getBatchSchemaSuggestion(project, afterId))?.sources, [])
     assert.deepEqual(await store.retryBatchSchemaSuggestion(project, afterId, 1), { status: 'not-ready' })
   })
@@ -115,5 +161,25 @@ test('Source Document deletion preserves suggestions and interrupts affected att
     assert.equal(await worker.publishBatchSchemaSuggestion(id, 2, proposed), 'stopped')
     assert.equal(await worker.failBatchSchemaSuggestionAttempt(id, 2, { code: 'late', message: 'Late.' }), 'stopped')
     assert.deepEqual(await saved(id), before)
+  })
+
+  await t.test('admission and deletion serialize before membership is read', async () => {
+    const admittedSource = await source()
+    const [created, deleted] = await projectLockOrder(
+      () => admitting.createBatchSchemaSuggestion(project, [admittedSource.document]),
+      () => store.deleteSourceDocument(project, admittedSource.document),
+    )
+    assert.equal(created?.status, 'created')
+    assert.ok(created && 'suggestion' in created)
+    assert.deepEqual(deleted, { interruptedAttempts: [{ batchSchemaSuggestionId: created.suggestion.batchSchemaSuggestionId, attempt: 1 }] })
+    assert.equal(await worker.publishBatchSchemaSuggestion(created.suggestion.batchSchemaSuggestionId, 1, proposed), 'stopped')
+
+    const refusedSource = await source()
+    const [removed, refused] = await projectLockOrder(
+      () => store.deleteSourceDocument(project, refusedSource.document),
+      () => admitting.createBatchSchemaSuggestion(project, [refusedSource.document]),
+    )
+    assert.deepEqual(removed, { interruptedAttempts: [] })
+    assert.deepEqual(refused, { status: 'invalid' })
   })
 })

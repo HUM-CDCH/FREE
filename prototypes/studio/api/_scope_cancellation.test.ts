@@ -10,7 +10,7 @@ const extract = `extract:${EXTRACTION}`
 const reprocess = `reprocess:${SOURCE}:${KEY}`
 const suggest = `suggest:${SUGGESTION}:2`
 
-function clients(live: string[], stopped: string[] = []) {
+function clients(live: string[], stopped: string[] = [], liveKei: string[] = []) {
   const admission = {
     listWorkflows: vi.fn(async (query: { workflowIDs?: string[] }) => {
       if (!query.workflowIDs) return live.map((workflowID) => ({ workflowID, status: 'PENDING' }))
@@ -20,7 +20,8 @@ function clients(live: string[], stopped: string[] = []) {
     cancelWorkflow: vi.fn<(id: string) => Promise<void>>(async () => {}),
   }
   const kei = {
-    listWorkflows: vi.fn(async (query: { workflowIDs?: string[] }) => query.workflowIDs?.map((workflowID) => ({ workflowID, status: 'PENDING' })) ?? []),
+    listWorkflows: vi.fn(async (query: { workflowIDs?: string[] }) =>
+      (query.workflowIDs ?? liveKei).map((workflowID) => ({ workflowID, status: 'PENDING' }))),
     cancelWorkflow: vi.fn<(id: string) => Promise<void>>(async () => {}), enqueuePortable: vi.fn(async () => {}),
   }
   return { admission, kei }
@@ -62,5 +63,17 @@ describe('scope cancellation after deletion', () => {
       expect(dbos.kei.cancelWorkflow).toHaveBeenCalledTimes(2)
       expect(warning).toHaveBeenCalled()
     } finally { warning.mockRestore() }
+  })
+
+  it('finds a live kei child even when its Studio parent is terminal', async () => {
+    const orphan = `kei-extract:${EXTRACTION}`
+    const dbos = clients([], [], [orphan])
+    await cancelScopeWork({ projectContextId: PROJECT, sourceDocumentId: SOURCE }, [], dbos as never)
+    expect(dbos.admission.cancelWorkflow).not.toHaveBeenCalled()
+    expect(dbos.kei.listWorkflows).toHaveBeenCalledWith({
+      attributes: { sourceDocumentId: SOURCE }, workflowName: ['convert', 'extract'],
+      status: ['ENQUEUED', 'DELAYED', 'PENDING'], loadInput: false, loadOutput: false,
+    })
+    expect(dbos.kei.cancelWorkflow).toHaveBeenCalledWith(orphan)
   })
 })

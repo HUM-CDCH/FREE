@@ -25,6 +25,7 @@ export async function cancelScopeWork(
     ...interruptedAttempts.map(({ batchSchemaSuggestionId, attempt }) => `suggest:${batchSchemaSuggestionId}:${attempt}`),
   ])
   const kei = createKeiHandoff(clients.kei)
+  const childIds = new Set<string>()
   for (const id of ids) {
     try {
       const [status] = await clients.admission.listWorkflows({ workflowIDs: [id], loadInput: false, loadOutput: false })
@@ -32,11 +33,20 @@ export async function cancelScopeWork(
     } catch {
       console.warn(`Could not cancel Studio workflow ${id} after deletion.`)
     }
-    try {
-      if (id.startsWith('extract:')) await kei.cancel(keiExtractWorkflowId(id.slice('extract:'.length)))
-      else if (id.startsWith('ingest:') || id.startsWith('reprocess:')) await kei.cancel(keiConvertWorkflowId(id))
-    } catch {
-      console.warn(`Could not cancel kei child of ${id} after deletion.`)
-    }
+    if (id.startsWith('extract:')) childIds.add(keiExtractWorkflowId(id.slice('extract:'.length)))
+    else if (id.startsWith('ingest:') || id.startsWith('reprocess:')) childIds.add(keiConvertWorkflowId(id))
+  }
+  try {
+    const liveChildren = await clients.kei.listWorkflows({
+      attributes, workflowName: ['convert', 'extract'], status: ['ENQUEUED', 'DELAYED', 'PENDING'],
+      loadInput: false, loadOutput: false,
+    })
+    for (const child of liveChildren) childIds.add(child.workflowID)
+  } catch {
+    console.warn('Could not list live kei work after deletion; garbage collection will retry.')
+  }
+  for (const id of childIds) {
+    try { await kei.cancel(id) }
+    catch { console.warn(`Could not cancel kei workflow ${id} after deletion.`) }
   }
 }

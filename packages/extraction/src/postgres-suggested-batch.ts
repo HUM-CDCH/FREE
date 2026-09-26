@@ -48,7 +48,7 @@ export async function persistSuggestedBatch(
   let status: 'created' | 'replayed' | 'missing' | 'not-ready' | 'invalid'
   try {
     status = await withPoolClientTransaction(async ({ orm }, client) => {
-      // Source/project deletion locks the project before its suggestions. Keep that order here to avoid a cycle.
+      // Suggestion admission and source deletion lock the project before suggestions. Keep that order here.
       const project = await orm.public.ProjectContext.where({
         id: input.projectContextId,
         researcherAccountId,
