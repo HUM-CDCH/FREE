@@ -127,9 +127,27 @@ async function addConnection(dialog: Locator, label: string, fields: { baseUrl?:
 
 async function selectConnection(dialog: Locator, name: string): Promise<Locator> {
   await showConnections(dialog)
-  await dialog.getByRole('list', { name: 'Connections' }).getByRole('button', { name }).click()
+  await dialog.getByRole('list', { name: 'Connections' }).getByRole('button', { name, exact: true }).click()
   return details(dialog)
 }
+
+/**
+ * Lets each key handoff reach Studio and records what the page sent and what Studio accepted, on the way back. (The
+ * page never reads this response's body, so a response listener could not read it either.)
+ */
+async function recordKeyHandoffs(page: Page): Promise<{ sent: KeyHandoff; accepted: string[] }[]> {
+  const handoffs: { sent: KeyHandoff; accepted: string[] }[] = []
+  await page.route('**/api/model-keys', async (route) => {
+    const response = await route.fetch()
+    const { accepted } = (await response.json()) as { accepted: string[] }
+    handoffs.push({ sent: route.request().postDataJSON() as KeyHandoff, accepted })
+    await route.fulfill({ response })
+  })
+  return handoffs
+}
+
+const storedKeys = (page: Page, accountId: string) =>
+  page.evaluate((key) => localStorage.getItem(key), `free.modelKeys.v1:${accountId}`)
 
 /** Picks `model` for a route picker from one connection's group: listed by its probe, or typed as an exact ID. */
 async function chooseRoute(dialog: Locator, picker: string, group: string, model: string, typed = false): Promise<void> {
@@ -177,20 +195,20 @@ test.describe('against Studio and PostgreSQL', () => {
     const other = await browser.newContext()
     try {
       const pageB = await other.newPage()
-      const requestsB: string[] = []
-      pageB.on('request', (request) => requestsB.push(`${request.url()} ${request.postData() ?? ''}`))
       await routeModelServers(pageB)
       const accountB = await signIn(pageB)
       const dialogB = await openModelConfiguration(pageB)
 
       // B starts from nothing: none of A's connections and the Schema & chat step at its default.
+      const researcherConnectionsB = dialogB.getByRole('list', { name: 'Connections' }).getByRole('button').filter({ hasNotText: 'Deployment' })
       await showConnections(dialogB)
-      await expect(dialogB.getByRole('list', { name: 'Connections' }).getByRole('button').filter({ hasNotText: 'Deployment' })).toHaveCount(0)
+      await expect(researcherConnectionsB).toHaveCount(0)
       await showModels(dialogB)
       await expect(step(dialogB, 'Schema & chat').getByRole('button', { name: 'Change' })).toBeVisible()
       await expect(dialogB.getByRole('button', { name: 'Assistant model', exact: true })).toHaveCount(0)
 
       await addConnection(dialogB, 'Ollama')
+      await expect(researcherConnectionsB).toHaveCount(1)
       await showModels(dialogB)
       await step(dialogB, 'Schema & chat').getByRole('button', { name: 'Change' }).click()
       await chooseRoute(dialogB, 'Assistant model', 'Ollama', 'llama3.3')
@@ -198,14 +216,15 @@ test.describe('against Studio and PostgreSQL', () => {
       expect(committedB.connections.map(({ provider }) => provider)).toEqual(['ollama'])
       expect(await storedConfiguration(pageB)).toEqual(committedB)
 
-      // Studio files no key under A's connection for B, and nothing B's page sent carries A's key.
+      // Neither account's stored configuration holds a key, and Studio files no key under A's connection for B.
+      expect(JSON.stringify(await storedConfiguration(pageB))).not.toContain('sk-test-e2e-')
+      expect(JSON.stringify(await storedConfiguration(page))).not.toContain('sk-test-e2e-')
       const foreign = await pageB.request.put('/api/model-keys', {
         headers: { origin: E2E_ORIGIN },
         data: { account: accountB, keys: { [labVllm.id]: { provider: 'vllm', baseUrl: labVllm.baseUrl, key: 'sk-test-e2e-account-b' } } },
       })
       expect(foreign.status()).toBe(200)
       expect(await foreign.json()).toEqual({ accepted: [] })
-      expect(requestsB.join('\n')).not.toContain('sk-test-e2e-account-a')
     } finally {
       await other.close()
     }
@@ -282,15 +301,7 @@ test.describe('against Studio and PostgreSQL', () => {
   test("Apply hands this browser's key to Studio for the connection's current base only", async ({ page }) => {
     const { probes } = await routeModelServers(page)
     const accountId = await signIn(page)
-    // Each handoff reaches Studio; what the page sent and what Studio accepted are recorded on the way back. (The page
-    // never reads this response's body, so a response listener could not read it either.)
-    const handoffs: { sent: KeyHandoff; accepted: string[] }[] = []
-    await page.route('**/api/model-keys', async (route) => {
-      const response = await route.fetch()
-      const { accepted } = (await response.json()) as { accepted: string[] }
-      handoffs.push({ sent: route.request().postDataJSON() as KeyHandoff, accepted })
-      await route.fulfill({ response })
-    })
+    const handoffs = await recordKeyHandoffs(page)
 
     const dialog = await openModelConfiguration(page)
     await addConnection(dialog, 'OpenAI-compatible', { baseUrl: 'https://gateway-a.example/v1', key: 'sk-test-e2e-gateway-a' })
@@ -312,16 +323,47 @@ test.describe('against Studio and PostgreSQL', () => {
     await apply(page, dialog)
     await expect.poll(() => handoffs.length).toBe(2)
     expect(handoffs[1]).toEqual({ sent: { account: accountId, keys: { [gateway.id]: null } }, accepted: [gateway.id] })
-    expect(await page.evaluate((key) => localStorage.getItem(key), `free.modelKeys.v1:${accountId}`)).toBeNull()
+    expect(await storedKeys(page, accountId)).toBeNull()
+    // Past the edit's 500 ms probe debounce.
+    await page.waitForTimeout(1_000)
     expect(probes.filter(({ connection }) => connection.baseUrl === 'https://gateway-b.example/v1')).toEqual([])
     await expect(details(dialog).getByLabel('API key (optional)')).toHaveAttribute('placeholder', 'Paste a key')
+    expect(JSON.stringify(await storedConfiguration(page))).not.toContain('sk-test-e2e-')
+  })
+
+  test('removing a key or a keyed connection clears it in this browser and tells Studio to drop its copy', async ({ page }) => {
+    await routeModelServers(page)
+    const accountId = await signIn(page)
+    const handoffs = await recordKeyHandoffs(page)
+    const dialog = await openModelConfiguration(page)
+    await addConnection(dialog, 'OpenAI-compatible', { baseUrl: 'https://gateway.example/v1', key: 'sk-test-e2e-removed-key' })
+    await addConnection(dialog, 'OpenAI', { key: 'sk-test-e2e-removed-connection' })
+    const [gateway, openai] = (await apply(page, dialog)).connections
+    await expect.poll(() => handoffs.length).toBe(1)
+    expect(handoffs[0].accepted.toSorted()).toEqual([gateway.id, openai.id].toSorted())
+
+    await (await selectConnection(dialog, 'OpenAI-compatible')).getByRole('button', { name: 'Remove' }).click()
+    await (await selectConnection(dialog, 'OpenAI')).getByRole('button', { name: 'Delete connection' }).click()
+    const committed = await apply(page, dialog)
+    expect(committed.connections).toEqual([{ ...gateway, hasKey: false }])
+    await expect.poll(() => handoffs.length).toBe(2)
+    expect(handoffs[1].sent).toEqual({ account: accountId, keys: { [gateway.id]: null, [openai.id]: null } })
+    expect(handoffs[1].accepted.toSorted()).toEqual([gateway.id, openai.id].toSorted())
+    expect(await storedKeys(page, accountId)).toBeNull()
   })
 
   test("a stale tab's key handoff under another signed-in account is rejected", async ({ page }) => {
     const accountA = await signIn(page)
+    await seedKeys(page, accountA, {
+      [randomUUID()]: { provider: 'openai', baseUrl: OPENAI_BASE, key: 'sk-test-e2e-signed-out' },
+    })
     const signOut = page.getByRole('button', { name: 'Sign out' })
-    if (!(await signOut.isVisible())) await page.getByRole('button', { name: 'Researcher Account' }).click()
+    const accountMenu = page.getByRole('button', { name: 'Researcher Account' })
+    await expect(signOut.or(accountMenu)).toBeVisible()
+    if (!(await signOut.isVisible())) await accountMenu.click()
     await Promise.all([page.waitForURL(/\/auth\/signed-out$/), signOut.click()])
+    // Signing out clears this account's keys in this browser.
+    expect(await storedKeys(page, accountA)).toBeNull()
     const accountB = await signIn(page)
     expect(accountB).not.toBe(accountA)
 
