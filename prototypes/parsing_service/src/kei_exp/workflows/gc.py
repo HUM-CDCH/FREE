@@ -27,6 +27,7 @@ STOPPED = frozenset({"CANCELLED", "MAX_RECOVERY_ATTEMPTS_EXCEEDED"})
 LIVE = ("ENQUEUED", "PENDING", "DELAYED")
 MIN_AGE_SECONDS = 24 * 3600
 PREPARE, DELETING = ".prepare-", ".deleting-"  # convert.prepare_run's staging; a run being removed
+UNREADABLE = (OSError, ValueError, AttributeError)  # a corrupt params.json, a file gone during the walk
 
 
 def eligible(status, boot_ms: int) -> bool:
@@ -66,7 +67,10 @@ def _still_converting(boot_ms: int) -> set[str]:
 def _writers(directory: Path) -> list[str]:
     """The kei workflows that wrote this run: its conversion (params.json) and every published extraction."""
     params = runs.read_json(directory / "params.json")
-    found = [params["workflow_id"]] if params.get("workflow_id") else []
+    workflow_id = params.get("workflow_id")  # AttributeError when params.json holds no object
+    if workflow_id is not None and not isinstance(workflow_id, str):
+        raise ValueError("params.json names no workflow")
+    found = [workflow_id] if workflow_id else []
     extractions = directory / "extractions"
     if extractions.is_dir():
         found += [f"{EXTRACT_PREFIX}{entry.name}" for entry in sorted(extractions.iterdir()) if entry.is_dir()]
@@ -74,6 +78,9 @@ def _writers(directory: Path) -> list[str]:
 
 
 def _last_write(directory: Path) -> float:
+    # Directory mtimes suffice: kei writes every file of a run by publish-by-rename (files.publish, the renamed result
+    # and extraction directories), and creating the sibling and renaming it both change the directory's mtime. A
+    # writer that may still be inside a long write is caught by its status, not by this age.
     return max(path.stat().st_mtime for path in [directory, *directory.rglob("*")] if path.is_dir())
 
 
@@ -90,15 +97,26 @@ def _remove(directory: Path) -> None:
     shutil.rmtree(doomed)
 
 
+def _unreadable(run_id: str) -> None:
+    logger.warning("keeping run %s: its directory could not be read", run_id)
+
+
 @DBOS.step(name="delete_runs")
 def delete_runs(request: dict) -> dict:
     boot_ms = boot.timestamp_ms()
-    # Read everything first. The staging directories are listed before the conversions are read: one created later
-    # belongs to a conversion that is live now, and is never in this list.
+    requested = list(dict.fromkeys(request["runs"]))
+    # Read every status first. The staging directories are listed before the conversions are read: one created later
+    # belongs to a conversion that is live now, and is never in this list. A run whose directory cannot be read is
+    # kept and never stops the others: Studio asks for it again on every schedule.
     staged = sorted(runs.RUNS.glob(f"{PREPARE}*"))
     converting, extracting = _still_converting(boot_ms), _still_extracting(boot_ms)
-    present = {run_id: runs.RUNS / run_id for run_id in request["runs"] if (runs.RUNS / run_id).exists()}
-    writers = {run_id: _writers(directory) for run_id, directory in present.items()}
+    writers, unreadable = {}, set()
+    for run_id in requested:
+        if (runs.RUNS / run_id).exists():
+            try:
+                writers[run_id] = _writers(runs.RUNS / run_id)
+            except UNREADABLE:
+                unreadable.add(run_id)
     statuses = _statuses(sorted({*request["history"], *(wid for found in writers.values() for wid in found)}))
     young = time.time() - MIN_AGE_SECONDS
 
@@ -110,19 +128,32 @@ def delete_runs(request: dict) -> dict:
             logger.info("removing %s, left by a conversion that can no longer write", leftover.name)
             shutil.rmtree(leftover, ignore_errors=True)
     deleted_runs, kept_runs = [], []
-    for run_id in request["runs"]:
-        directory = present.get(run_id)
-        if directory is not None:
-            if (run_id in extracting or _last_write(directory) > young
-                    or not all(eligible(statuses.get(writer), boot_ms) for writer in writers[run_id])):
+    for run_id in requested:
+        if run_id in unreadable:
+            _unreadable(run_id)
+            kept_runs.append(run_id)
+            continue
+        if run_id in writers:
+            if run_id in extracting or not all(eligible(statuses.get(wid), boot_ms) for wid in writers[run_id]):
+                kept_runs.append(run_id)  # a kei workflow may still write it; checked before the walk below
+                continue
+            try:
+                recent = _last_write(runs.RUNS / run_id) > young
+            except UNREADABLE:
+                _unreadable(run_id)
                 kept_runs.append(run_id)
                 continue
-            _remove(directory)
+            if recent:
+                kept_runs.append(run_id)
+                continue
+            _remove(runs.RUNS / run_id)
         deleted_runs.append(run_id)
     deleted_history = [wid for wid in request["history"] if eligible(statuses.get(wid), boot_ms)]
     kept_history = [wid for wid in request["history"] if wid not in deleted_history]
     if deleted_history:
         DBOS.delete_workflows(deleted_history)
+    logger.info("deleted runs %s, kept runs %s; deleted history %s, kept history %s",
+                deleted_runs, kept_runs, deleted_history, kept_history)
     return DeleteRunsOk(ok=True, deleted_runs=deleted_runs, kept_runs=kept_runs, deleted_history=deleted_history,
                         kept_history=kept_history).model_dump()
 

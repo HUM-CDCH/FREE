@@ -259,6 +259,53 @@ def test_a_failed_status_read_deletes_nothing(kei, fake, monkeypatch, read):
     assert not list(kei.runs.glob(".deleting-*"))
 
 
+@pytest.mark.parametrize("broken", ["not json", "not an object", "no workflow", "walk"])
+def test_an_unreadable_run_is_kept_and_stops_nothing_else(kei, fake, monkeypatch, broken):
+    workflow_id = converted(kei, "kei-convert:ingest:p:n")
+    run_id = kei.output(workflow_id)["run_id"]
+    age(kei.runs / run_id)
+    corrupt = kei.runs / "run-corrupt"
+    corrupt.mkdir()
+    params = {"not json": "{", "not an object": "[1]", "no workflow": '{"workflow_id": 5}',
+              "walk": '{"workflow_id": "kei-convert:ingest:p:gone"}'}[broken]
+    (corrupt / "params.json").write_text(params, encoding="utf-8")
+    age(corrupt)
+    original = gc._last_write
+
+    def last_write(directory):
+        if broken == "walk" and directory.name == corrupt.name:  # a file unreadable while the age is measured
+            raise PermissionError(directory)
+        return original(directory)
+    monkeypatch.setattr(gc, "_last_write", last_write)
+    output = delete(kei, [corrupt.name, run_id], [workflow_id])
+    assert output == {"ok": True, "deleted_runs": [run_id], "kept_runs": [corrupt.name],
+                      "deleted_history": [workflow_id], "kept_history": []}
+    assert corrupt.is_dir() and not (kei.runs / run_id).exists() and DBOS.get_workflow_status(workflow_id) is None
+
+
+def test_a_published_extraction_is_one_of_the_runs_writers(kei, monkeypatch):
+    """extractions/<id>/ names its workflow, even once the `extract` listing no longer names the run."""
+    from kei_exp.kie.extract import run as extraction
+    from kei_exp.workflows import extract as extract_workflow
+    from tests.helpers import catalogue
+    from tests.test_extract_grounded import CountingChat, WordCounter, honest
+    monkeypatch.setattr(extract_workflow, "chats_for", lambda options: CountingChat(honest))
+    monkeypatch.setattr(extraction, "counter_for", lambda client: WordCounter())
+    run_id = kei_helper.converted_run(kei.runs, "kei-convert:ingest:p:o")
+    extraction_id = "kei-extract:x-5"
+    kei.output(kei.enqueue("extract", config.EXTRACT, extraction_id,
+                           kei_helper.extract_request(run_id, catalogue.GENERATION), priority=1))
+    assert (kei.runs / run_id / "extractions" / "x-5" / "result.json").is_file()
+    monkeypatch.setattr(gc, "_still_extracting", lambda boot_ms: set())  # only the published directory remains
+    with psycopg.connect(kei.url, autocommit=True) as connection:  # as if cancelled in this boot while publishing
+        connection.execute("update kei_dbos.workflow_status set status = 'CANCELLED', updated_at = %s "
+                           "where workflow_uuid = %s", (kei.db_now_ms(), extraction_id))
+    age(kei.runs / run_id)
+    assert delete(kei, [run_id])["kept_runs"] == [run_id]
+    restart(kei)
+    assert delete(kei, [run_id])["deleted_runs"] == [run_id]
+
+
 def test_a_run_id_that_is_not_one_path_component_is_an_invalid_request(kei):
     output = delete(kei, ["../escape"])
     assert (output["ok"], output["code"]) == (False, "invalid_request")
