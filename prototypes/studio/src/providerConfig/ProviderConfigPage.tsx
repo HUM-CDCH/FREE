@@ -1,14 +1,12 @@
-import { type RefObject, useContext, useEffect, useState } from 'react'
+import { type KeyboardEvent, type RefObject, useContext, useEffect, useId, useRef, useState } from 'react'
 import type { ExtractionModelListing } from '../../shared/extraction.contract'
-import type { DeploymentModels, GetModelConfigResponse, ProviderDescriptor, ProviderKind } from '../../shared/modelConfig.contract'
-import { readExtractionModels } from '../api'
+import type { DeploymentModels, GetModelConfigResponse, IngestionModelListing, ProviderDescriptor } from '../../shared/modelConfig.contract'
+import { readExtractionModels, readIngestionModels } from '../api'
 import { ResearcherSessionContext } from '../auth/sessionContext'
 import { sendModelKeys } from '../modelKeys/modelKeyHandoff'
-import { modelKeyFor } from '../modelKeys/modelKeyStore'
-import { Button, EmptyState, Overline } from '../ui'
-import { ExtractionModelSelect } from './ExtractionModelSelect'
-import { ProviderConnectionCard, providerFieldClass } from './ProviderConnectionCard'
-import { ProviderRoutesEditor } from './ProviderRoutesEditor'
+import { Button } from '../ui'
+import { ConnectionsTab } from './ConnectionsTab'
+import { ModelsTab } from './ModelsTab'
 import { apiErrorText, getModelConfig, putModelConfig } from './providerConfig.data'
 import { useProbeLifecycle } from './useProbeLifecycle'
 import { useProviderConfigDraft } from './useProviderConfigDraft'
@@ -18,11 +16,8 @@ type PageProps = {
   initialFocusRef?: RefObject<HTMLButtonElement | null>
 }
 
-/** The kinds a researcher may add. CLI providers run on the server's own login, so only the operator enables them, as
- *  deployment connections. */
-function offeredProviders(providers: readonly ProviderDescriptor[]): ProviderDescriptor[] {
-  return providers.filter(({ transport }) => transport !== 'cli')
-}
+type Tab = 'models' | 'connections'
+const TABS: readonly Tab[] = ['models', 'connections']
 
 /** Keys are kept per Researcher Account, so the page needs the signed-in one. */
 function ProviderConfigPage(props: PageProps) {
@@ -34,44 +29,37 @@ function ProviderConfigPage(props: PageProps) {
 function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageProps & { accountId: string }) {
   const [providers, setProviders] = useState<ProviderDescriptor[]>([])
   const [deployment, setDeployment] = useState<DeploymentModels>({ connections: [], defaultRoute: null })
-  // kei-exp's extraction models; null until listed, and for good when they cannot be.
+  // The deployment's model listings; null until listed, and for good when they cannot be. Neither blocks an edit.
   const [extractionListing, setExtractionListing] = useState<ExtractionModelListing | null>(null)
-  const [newProvider, setNewProvider] = useState<ProviderKind>('ollama')
+  const [ingestionListing, setIngestionListing] = useState<IngestionModelListing | null>(null)
+  const [tab, setTab] = useState<Tab>('models')
+  const [selected, setSelected] = useState<string | null>(null)
   // Connections whose saved key is being replaced: their key input shows instead of the saved-key line.
   const [replacing, setReplacing] = useState<ReadonlySet<string>>(new Set())
+  // Connections to probe once the state a probe reads (providers, draft, keys) has rendered: on open, after Discard.
+  const [probeRequest, setProbeRequest] = useState<{ ids: ReadonlySet<string> } | null>(null)
   const [loading, setLoading] = useState(true)
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const tabIds = { models: useId(), connections: useId() }
+  const panelId = useId()
+  const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({})
 
-  const { probes, schedule, refresh, cancel, dispose } = useProbeLifecycle({ providers })
-  const {
-    draft,
-    keyEdits,
-    descriptor,
-    credentialFor,
-    initialize,
-    assign,
-    setExtractionModel,
-    addConnection,
-    updateConnection,
-    setKey,
-    removeKey,
-    connectWithoutKey,
-    removeConnection,
-    commit,
-  } = useProviderConfigDraft({
+  const { probes, schedule, refreshAll, cancel, dispose } = useProbeLifecycle({ providers })
+  const editor = useProviderConfigDraft({
     accountId,
     providers,
     scheduleProbe: schedule,
     cancelProbe: cancel,
     disposeProbe: dispose,
   })
+  const { draft, saved, keyEdits, keyIssues, dirty, credentialFor } = editor
 
   function receive(state: GetModelConfigResponse): void {
-    initialize(state.config)
+    editor.initialize(state.config)
     setProviders(state.providers)
     setDeployment(state.deployment)
-    setNewProvider(offeredProviders(state.providers)[0]?.kind ?? 'ollama')
+    setProbeRequest({ ids: new Set([...state.deployment.connections, ...state.config.connections].map(({ id }) => id)) })
   }
 
   useEffect(() => {
@@ -85,10 +73,16 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
       })
-    // A failed listing leaves only kei-exp's defaults, which never block a run.
+    // A listing that fails stays empty: the step keeps the deployment's defaults and any saved choice.
     readExtractionModels(controller.signal).then(
       (listing) => {
         if (!controller.signal.aborted) setExtractionListing(listing)
+      },
+      () => {},
+    )
+    readIngestionModels(controller.signal).then(
+      (listing) => {
+        if (!controller.signal.aborted) setIngestionListing(listing)
       },
       () => {},
     )
@@ -96,13 +90,25 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot mount load; deliberately not re-run when draft helpers change identity
   }, [])
 
+  // Each eligible connection is probed once, now, with exactly the credential it may carry: none for a deployment or
+  // keyless connection, this browser's key for this address for one with `hasKey`, and not at all without that key.
+  useEffect(() => {
+    if (!probeRequest || !draft) return
+    refreshAll(
+      [...deployment.connections, ...draft.connections]
+        .filter(({ id }) => probeRequest.ids.has(id))
+        .map((connection) => ({ connection, credential: credentialFor(connection) })),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per request; it reads the state rendered with it
+  }, [probeRequest])
+
   async function apply(): Promise<void> {
     if (!draft || applying) return
     setApplying(true)
     setError(null)
     try {
       const state = await putModelConfig(draft)
-      const dropped = commit(state.config)
+      const dropped = editor.commit(state.config)
       setReplacing(new Set())
       // Studio gets this browser's keys for the committed configuration, and forgets the ones it dropped.
       void sendModelKeys(accountId, dropped)
@@ -113,6 +119,28 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
     }
   }
 
+  /** Back to the saved configuration; connections the draft changed are probed again as saved. */
+  function discard(): void {
+    if (!draft || !saved) return
+    const drafted = new Map(draft.connections.map((connection) => [connection.id, connection]))
+    for (const { id } of draft.connections) if (!saved.connections.some((connection) => connection.id === id)) dispose(id)
+    const changed = saved.connections.filter(
+      (connection) => Object.hasOwn(keyEdits, connection.id) || JSON.stringify(drafted.get(connection.id)) !== JSON.stringify(connection),
+    )
+    editor.discard()
+    setReplacing(new Set())
+    setError(null)
+    if (changed.length > 0) setProbeRequest({ ids: new Set(changed.map(({ id }) => id)) })
+  }
+
+  function onTabKeyDown(event: KeyboardEvent<HTMLButtonElement>): void {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+    event.preventDefault()
+    const next = TABS[(TABS.indexOf(tab) + (event.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length]
+    setTab(next)
+    tabRefs.current[next]?.focus()
+  }
+
   if (loading) {
     return <div className="mx-auto max-w-4xl rounded-2xl border border-line bg-surface p-6 text-sm text-ink-muted">Loading model configuration…</div>
   }
@@ -120,7 +148,7 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
     return (
       <div className="mx-auto max-w-4xl rounded-2xl border border-danger/40 bg-surface p-6">
         <p className="text-sm font-semibold text-danger">Model configuration could not be loaded.</p>
-        {error && <p role="alert" className="mt-2 whitespace-pre-line font-mono text-xs text-danger">{error}</p>}
+        {error && <p role="alert" className="mt-2 font-mono text-xs whitespace-pre-line text-danger">{error}</p>}
         <div className="mt-3 flex gap-2">
           <Button ref={initialFocusRef} autoFocus variant="secondary" size="sm" onClick={onClose}>Close</Button>
         </div>
@@ -128,111 +156,100 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
     )
   }
 
-  const hasConnections = draft.connections.length > 0
   const routable = [...deployment.connections, ...draft.connections]
-
-  function openModelList(connectionId: string): void {
-    const phase = probes[connectionId]?.phase ?? 'idle'
-    if (phase === 'checking' || phase === 'done') return
-    const connection = routable.find(({ id }) => id === connectionId)
-    if (connection) refresh(connection, credentialFor(connection))
-  }
+  const current = routable.find(({ id }) => id === selected) ?? routable[0] ?? null
+  const blocked = Object.keys(keyIssues).length > 0
 
   return (
-    <fieldset disabled={applying} className="mx-auto min-w-0 max-w-4xl overflow-hidden rounded-2xl border border-line bg-surface-muted shadow-page">
-      <header className="flex items-center justify-between gap-3 border-b border-line bg-surface px-4 py-2.75">
-        <b className="text-[13px] text-ink">Model Configuration</b>
-        <button ref={initialFocusRef} autoFocus type="button" onClick={onClose} aria-label="Close Model Configuration" className="text-lg text-ink-faint hover:text-ink">×</button>
-      </header>
-
-      {error && <p role="alert" className="m-4 whitespace-pre-line rounded-lg border border-danger/40 bg-danger/5 px-3 py-2 font-mono text-xs text-danger">{error}</p>}
-
-      <section aria-label="Extraction models" className="border-b border-line bg-surface p-4.5">
-        <Overline as="p" className="mb-1">Extraction</Overline>
-        <p className="mb-3 text-[10.5px] text-ink-faint">kei-exp's models for every single and batch Extraction.</p>
-        <div className="flex flex-wrap gap-4">
-          {(['fields', 'reasoning'] as const).map((role) => (
-            <ExtractionModelSelect
-              key={role}
-              role={role}
-              listing={extractionListing}
-              value={draft.extractionModels[role] ?? ''}
-              disabled={applying}
-              onChange={(key) => setExtractionModel(role, key)}
-            />
+    <fieldset disabled={applying} className="mx-auto flex min-w-0 max-w-4xl flex-col rounded-2xl border border-line bg-surface shadow-page">
+      <header className="flex items-center gap-4 rounded-t-2xl border-b border-line bg-surface px-5 pt-3">
+        <h2 className="pb-3 text-[13px] font-bold text-ink">Model Configuration</h2>
+        <div role="tablist" aria-label="Model Configuration" className="flex flex-1 gap-4 self-end">
+          {TABS.map((key) => (
+            <button
+              key={key}
+              ref={(element) => {
+                tabRefs.current[key] = element
+              }}
+              id={tabIds[key]}
+              role="tab"
+              type="button"
+              aria-selected={tab === key}
+              aria-controls={panelId}
+              tabIndex={tab === key ? 0 : -1}
+              onClick={() => setTab(key)}
+              onKeyDown={onTabKeyDown}
+              className={`-mb-px border-b-2 pb-2.5 text-[12px] font-semibold transition-colors ${
+                tab === key ? 'border-accent text-accent' : 'border-transparent text-ink-faint hover:text-ink'
+              }`}
+            >
+              {key === 'models' ? 'Models' : `Connections · ${routable.length}`}
+            </button>
           ))}
         </div>
-      </section>
+        <button
+          ref={initialFocusRef}
+          autoFocus
+          type="button"
+          onClick={onClose}
+          aria-label="Close Model Configuration"
+          className="pb-3 text-lg text-ink-faint hover:text-ink"
+        >
+          ×
+        </button>
+      </header>
 
-      {routable.length > 0 && <section className="border-b border-line bg-surface p-4.5">
-        <ProviderRoutesEditor
-          draft={draft}
-          connections={routable}
-          defaultModelId={deployment.defaultRoute?.modelId ?? null}
-          probes={probes}
-          descriptor={descriptor}
-          onModelListOpen={openModelList}
-          assign={assign}
-        />
-      </section>}
-      <section className="p-4.5">
-        {deployment.connections.length > 0 && (
-          <div className="mb-5">
-            <Overline as="p" className="mb-3">Deployment connections</Overline>
-            <ul className="flex flex-col gap-2">
-              {deployment.connections.map((connection) => (
-                <li key={connection.id} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-canvas px-3.5 py-2.5">
-                  <span className="min-w-0">
-                    <b className="block text-[12.5px] text-ink">{connection.name}</b>
-                    {connection.baseUrl === null
-                      ? <span className="block truncate text-[10.5px] text-ink-faint">Runs on this server's CLI login</span>
-                      : <span className="block truncate font-mono text-[10.5px] text-ink-faint">{connection.baseUrl}</span>}
-                  </span>
-                  <span className="shrink-0 rounded-md border border-line px-2 py-0.5 text-[10px] font-semibold uppercase text-ink-muted">Deployment</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+      {error && (
+        <p role="alert" className="mx-5 mt-4 rounded-lg border border-danger/40 bg-danger/5 px-3 py-2 font-mono text-xs whitespace-pre-line text-danger">
+          {error}
+        </p>
+      )}
+
+      <div role="tabpanel" id={panelId} aria-labelledby={tabIds[tab]} className="min-h-0 flex-1 bg-surface-muted/60">
+        {tab === 'models' ? (
+          <ModelsTab
+            draft={draft}
+            deployment={deployment}
+            descriptor={editor.descriptor}
+            probes={probes}
+            extractionListing={extractionListing}
+            ingestionListing={ingestionListing}
+            assign={editor.assign}
+            setExtractionModel={editor.setExtractionModel}
+            setIngestionModel={editor.setIngestionModel}
+          />
+        ) : (
+          <ConnectionsTab
+            accountId={accountId}
+            draft={draft}
+            deployment={deployment}
+            providers={providers}
+            probes={probes}
+            editor={editor}
+            replacing={replacing}
+            onReplacing={(id, on) =>
+              setReplacing((ids) => {
+                const next = new Set(ids)
+                if (on) next.add(id)
+                else next.delete(id)
+                return next
+              })
+            }
+            selected={current}
+            onSelect={setSelected}
+          />
         )}
+      </div>
 
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <Overline>Your connections</Overline>
-          <div className="flex gap-2">
-            <select value={newProvider} onChange={(event) => setNewProvider(event.target.value as ProviderKind)} aria-label="New connection provider" className={`${providerFieldClass} w-auto cursor-pointer`}>
-              {offeredProviders(providers).map((provider) => <option key={provider.kind} value={provider.kind}>{provider.label}</option>)}
-            </select>
-            <Button variant="primary" size="sm" onClick={() => addConnection(newProvider)}>+ New connection</Button>
-          </div>
+      <footer className="flex items-center justify-between gap-3 rounded-b-2xl border-t border-line bg-surface px-5 py-3">
+        <span className="text-[11.5px] text-ink-faint">{dirty ? 'Unsaved changes' : 'Everything saved'}</span>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="md" disabled={!dirty} onClick={discard}>Discard</Button>
+          <Button variant="primary" size="md" disabled={applying || !dirty || blocked} onClick={() => void apply()}>
+            {applying ? 'Applying…' : 'Apply'}
+          </Button>
         </div>
-        <div className="flex flex-col gap-3">
-          {draft.connections.map((connection) => {
-            const provider = descriptor(connection)
-            if (!provider) return null
-            const edit = keyEdits[connection.id]
-            return (
-              <ProviderConnectionCard
-                key={connection.id}
-                connection={connection}
-                provider={provider}
-                keySaved={edit === undefined && connection.hasKey && modelKeyFor(accountId, connection) !== null}
-                typedKey={typeof edit === 'string' ? edit : ''}
-                replacing={replacing.has(connection.id)}
-                probe={probes[connection.id] ?? { phase: 'idle' }}
-                onUpdate={(change) => updateConnection(connection.id, change)}
-                onReplaceKey={() => setReplacing((current) => new Set(current).add(connection.id))}
-                onKeyChange={(key) => setKey(connection.id, key)}
-                onRemoveKey={() => removeKey(connection.id)}
-                onUseWithoutKey={() => connectWithoutKey(connection.id)}
-                onRemove={() => removeConnection(connection.id)}
-              />
-            )
-          })}
-          {!hasConnections && <EmptyState title="No Model Connections yet." description="Choose a provider above and add your first connection. You'll pick a model afterwards." />}
-        </div>
-        <div className="mt-4 flex items-center justify-end gap-3">
-          <Button variant="primary" size="md" disabled={applying} onClick={() => void apply()}>{applying ? 'Applying…' : 'Apply'}</Button>
-        </div>
-      </section>
+      </footer>
     </fieldset>
   )
 }

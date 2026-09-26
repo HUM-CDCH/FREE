@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ExtractionController } from './useExtraction'
 import {
+  ApiRequestError,
   decodeSchemaDone,
   finalizeExtractionReview,
   readExtraction,
@@ -293,7 +294,12 @@ describe('readIngestionModels', () => {
         { status: 503, headers: { 'content-type': 'application/json' } },
       )),
     )
-    await expect(readIngestionModels()).rejects.toMatchObject({ status: 503 })
+    const failure = readIngestionModels()
+    await expect(failure).rejects.toBeInstanceOf(ApiRequestError)
+    await expect(failure).rejects.toMatchObject({
+      status: 503,
+      message: 'ingestion_models_unavailable: The Parsing Service could not list its ingestion models.',
+    })
   })
 })
 

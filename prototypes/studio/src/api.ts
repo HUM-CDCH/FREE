@@ -99,18 +99,18 @@ export async function requestSchema(
   return done.template
 }
 
-/** Thrown when an Extraction endpoint answers with an HTTP error status. */
-export class ExtractionRequestError extends Error {
+/** Thrown when a JSON endpoint (an Extraction, or a model listing) answers with an HTTP error status. */
+export class ApiRequestError extends Error {
   readonly status: number
 
   constructor(message: string, status: number) {
     super(message)
-    this.name = 'ExtractionRequestError'
+    this.name = 'ApiRequestError'
     this.status = status
   }
 }
 
-async function extractionJson(
+async function requestJson(
   path: string,
   method: 'GET' | 'POST' | 'DELETE',
   body: unknown,
@@ -124,8 +124,8 @@ async function extractionJson(
   })
   if (!response.ok) {
     const detail = await readErrorDetail(response)
-    throw new ExtractionRequestError(
-      detail || `Extraction failed (HTTP ${response.status})`,
+    throw new ApiRequestError(
+      detail || `Request to ${path} failed (HTTP ${response.status})`,
       response.status,
     )
   }
@@ -136,7 +136,7 @@ async function extractionJson(
  *  Extraction Model Choice picks from. */
 export async function readExtractionModels(signal?: AbortSignal): Promise<ExtractionModelListing> {
   return extractionModelListingSchema.parse(
-    await extractionJson('/extraction-models', 'GET', null, signal),
+    await requestJson('/extraction-models', 'GET', null, signal),
   )
 }
 
@@ -144,7 +144,7 @@ export async function readExtractionModels(signal?: AbortSignal): Promise<Extrac
  *  researcher's Ingestion Model Choice picks from. */
 export async function readIngestionModels(signal?: AbortSignal): Promise<IngestionModelListing> {
   return ingestionModelListingSchema.parse(
-    await extractionJson('/ingestion-models', 'GET', null, signal),
+    await requestJson('/ingestion-models', 'GET', null, signal),
   )
 }
 
@@ -154,7 +154,7 @@ export async function requestExtraction(
 ): Promise<ExtractionAttempt> {
   const request = extractionRequestSchema.parse(input)
   return extractionAttemptSchema.parse(
-    await extractionJson('/extractions', 'POST', request, signal),
+    await requestJson('/extractions', 'POST', request, signal),
   )
 }
 
@@ -170,12 +170,12 @@ export async function readExtraction(
   await draftWrites.get(extractionId)?.catch(() => {})
   signal?.throwIfAborted()
   return extractionReadResponseSchema.parse(
-    await extractionJson(`/extractions/${extractionId}`, 'GET', null, signal),
+    await requestJson(`/extractions/${extractionId}`, 'GET', null, signal),
   )
 }
 
 export async function cancelExtraction(extractionId: string) {
-  await extractionJson(`/extractions/${extractionId}`, 'DELETE', null)
+  await requestJson(`/extractions/${extractionId}`, 'DELETE', null)
 }
 
 export async function finalizeExtractionReview(
@@ -185,7 +185,7 @@ export async function finalizeExtractionReview(
 ): Promise<ExtractionAttempt> {
   const review = finalizeExtractionReviewSchema.parse({ reviewDecisions, expectedDraftVersion })
   return extractionAttemptSchema.parse(
-    await extractionJson(
+    await requestJson(
       `/extractions/${extractionId}/review`,
       'POST',
       review,
@@ -196,7 +196,7 @@ export async function finalizeExtractionReview(
 type SavedReviewDraft = { version: number; decisions: ReviewDecisionInput[] }
 export async function resetExtractionReview(extractionId: string, expectedDraftVersion: number): Promise<SavedReviewDraft> {
   return extractionReviewDraftSchema.parse(
-    await extractionJson(`/extractions/${extractionId}/review/reset`, 'POST', { expectedDraftVersion }),
+    await requestJson(`/extractions/${extractionId}/review/reset`, 'POST', { expectedDraftVersion }),
   )
 }
 // Only in-flight writes live here. PostgreSQL owns all persisted review state.
@@ -220,7 +220,7 @@ export function saveExtractionReviewDraft(extractionId: string, decisions: reado
     acknowledgeReviewDraft(extractionId, saved.version)
     // A conflict is one state for every caller: the hooks key their reload path on this message.
     const result = extractionReviewDraftSchema.parse(
-      await extractionJson(`/extractions/${extractionId}/review/draft`, 'POST', { version: saved.version, decisions }).catch((error: unknown) => {
+      await requestJson(`/extractions/${extractionId}/review/draft`, 'POST', { version: saved.version, decisions }).catch((error: unknown) => {
         throw error instanceof Error && error.message.startsWith('review_conflict:') ? new Error(REVIEW_DRAFT_CONFLICT) : error
       }),
     )

@@ -9,26 +9,8 @@ import {
   type ModelConfigState,
   type ModelConnection,
   type ProbeResult,
-  type RouteKey,
   validationDetailsSchema,
 } from '../../shared/modelConfig.contract'
-
-export const ROUTABLE_TASKS: readonly {
-  key: RouteKey
-  label: string
-  description: string
-}[] = [
-  {
-    key: 'schemaSuggestion',
-    label: 'Schema Suggestion',
-    description: 'Proposes an Extraction Schema from a Source Document',
-  },
-  {
-    key: 'interaction',
-    label: 'Chat & Extraction Schema editing',
-    description: 'Interactive, conversational',
-  },
-]
 
 export class ModelConfigApiError extends Error {
   readonly status: number

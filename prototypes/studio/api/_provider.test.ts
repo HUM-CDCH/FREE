@@ -776,7 +776,7 @@ describe('resolveCapabilityRoute', () => {
     await expect(resolveCapabilityRoute('schema-suggestion', {}, {
       researcherAccountId: ACCOUNT,
       readConfig: async () => unset, deployment: { connections: [], defaultRoute: null },
-    })).rejects.toMatchObject({ status: 409, code: 'invalid_model_config', message: 'No model is configured for Schema Suggestion.' })
+    })).rejects.toMatchObject({ status: 409, code: 'invalid_model_config', message: 'No model is configured for the Schema Suggestion route.' })
   })
 
   it('a route may name an enabled CLI deployment connection', async () => {
@@ -884,9 +884,27 @@ describe('resolveCapabilityRoute', () => {
     })).rejects.toMatchObject({
       status: 409,
       code: 'invalid_model_config',
-      message: 'The Interaction Route names a Model Connection that does not exist.',
+      message: 'The Assistant model route names a Model Connection that does not exist.',
     })
     expect(createModel).not.toHaveBeenCalled()
+  })
+
+  it('a resolution error names the route that supplied the target, not the one that follows it', async () => {
+    const missing = { connectionId: '22222222-2222-4222-8222-222222222222', modelId: 'gone' }
+    const resolve = (routes: ModelConfig['routes']) => resolveCapabilityRoute('schema-suggestion', {}, {
+      researcherAccountId: ACCOUNT,
+      readConfig: async () => routed({ routes }),
+      deployment: { connections: [], defaultRoute: null },
+    })
+
+    await expect(resolve({ schemaSuggestion: null, interaction: missing })).rejects.toMatchObject({
+      status: 409,
+      message: 'The Assistant model route names a Model Connection that does not exist.',
+    })
+    await expect(resolve({ schemaSuggestion: missing, interaction: null })).rejects.toMatchObject({
+      status: 409,
+      message: 'The Schema Suggestion route names a Model Connection that does not exist.',
+    })
   })
 
   it('fails closed instead of consulting another route', async () => {

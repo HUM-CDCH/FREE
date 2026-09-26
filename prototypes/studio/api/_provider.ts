@@ -684,7 +684,8 @@ export type RouteResolverDependencies = {
   modelFactories?: Partial<Record<ProviderKind, ModelFactory>>
 }
 
-const ROUTE_LABELS = { schemaSuggestion: 'Schema Suggestion', interaction: 'Interaction' } as const
+/** The page's names for the routes, which a resolution error uses. */
+const ROUTE_LABELS = { schemaSuggestion: 'Schema Suggestion', interaction: 'Assistant model' } as const
 
 export async function resolveCapabilityRoute(
   operation: ModelOperation,
@@ -694,16 +695,21 @@ export async function resolveCapabilityRoute(
   const config = await dependencies.readConfig()
   const deployment = dependencies.deployment ?? deploymentModels()
   const routeKey = operation === 'schema-suggestion' ? 'schemaSuggestion' : 'interaction'
-  const label = ROUTE_LABELS[routeKey]
   // An unset Schema Suggestion route follows the Interaction Route; an unset Interaction Route runs on the
   // deployment's instruction model, when it serves one.
   const route = selectedRoute(config.routes, routeKey, deployment.defaultRoute)
   if (!route) {
-    throw new ApiError(409, 'invalid_model_config', `No model is configured for ${label}.`)
+    throw new ApiError(409, 'invalid_model_config', `No model is configured for the ${ROUTE_LABELS[routeKey]} route.`)
   }
   const connection = [...config.connections, ...deployment.connections].find(({ id }) => id === route.connectionId)
   if (!connection) {
-    throw new ApiError(409, 'invalid_model_config', `The ${label} Route names a Model Connection that does not exist.`)
+    // Named after the route the researcher set: an unset Schema Suggestion route got it from the Assistant model.
+    const supplier = routeKey === 'schemaSuggestion' && config.routes.schemaSuggestion === null ? 'interaction' : routeKey
+    throw new ApiError(
+      409,
+      'invalid_model_config',
+      `The ${ROUTE_LABELS[supplier]} route names a Model Connection that does not exist.`,
+    )
   }
   const entry = providerTable[connection.provider]
   if (options.temperature !== undefined && !entry.temperatureSupported) {

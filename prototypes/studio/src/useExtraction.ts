@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { forgetReviewDraft, recoverReviewDraft, rememberReviewDraft, REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import {
+  ApiRequestError,
   cancelExtraction,
-  ExtractionRequestError,
   finalizeExtractionReview,
   saveExtractionReviewDraft,
   readExtraction,
@@ -76,8 +76,8 @@ function isActive(attempt: ExtractionAttempt | null): boolean {
   return attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
 }
 
-function definiteRejection(error: unknown): error is ExtractionRequestError {
-  return error instanceof ExtractionRequestError && error.status >= 400 && error.status < 500
+function definiteRejection(error: unknown): error is ApiRequestError {
+  return error instanceof ApiRequestError && error.status >= 400 && error.status < 500
 }
 
 export type ExtractionController = ReturnType<typeof useExtraction>
@@ -229,7 +229,7 @@ export function useExtraction({
       if (!live()) return
       monitor.paused = true
       setMonitorError(
-        error instanceof ExtractionRequestError && (error.status === 403 || error.status === 404)
+        error instanceof ApiRequestError && (error.status === 403 || error.status === 404)
           ? EXTRACTION_UNAVAILABLE
           : MONITOR_DISCONNECTED,
       )

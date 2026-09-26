@@ -6,7 +6,7 @@ import { StrictMode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { EXTRACTION_UNAVAILABLE, MONITOR_DISCONNECTED, useExtraction, type ReviewTarget } from './useExtraction'
 import * as api from './api'
-import { ExtractionRequestError } from './api'
+import { ApiRequestError } from './api'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import {
   clearSessionRecovery,
@@ -543,7 +543,7 @@ describe('useExtraction server-owned lifecycle', () => {
 
   it('reports an unavailable Extraction after an uncertain POST without inventing a failure', async () => {
     vi.mocked(api.requestExtraction).mockRejectedValue(new TypeError('Failed to fetch'))
-    vi.mocked(api.readExtraction).mockRejectedValue(new ExtractionRequestError('not found', 404))
+    vi.mocked(api.readExtraction).mockRejectedValue(new ApiRequestError('not found', 404))
     const input = options()
     const { result } = renderHook(() => useExtraction(input))
 
@@ -556,7 +556,7 @@ describe('useExtraction server-owned lifecycle', () => {
   })
 
   it('fails immediately when the server definitely rejects the POST', async () => {
-    vi.mocked(api.requestExtraction).mockRejectedValue(new ExtractionRequestError('conflict', 409))
+    vi.mocked(api.requestExtraction).mockRejectedValue(new ApiRequestError('conflict', 409))
     const input = options()
     const { result } = renderHook(() => useExtraction(input))
 

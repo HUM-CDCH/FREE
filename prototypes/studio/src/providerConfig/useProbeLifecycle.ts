@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { isValidApiBase, type ModelConnection, type ProbeResult, type ProviderDescriptor } from '../../shared/modelConfig.contract'
+import {
+  isValidApiBase,
+  modelProbeRequestSchema,
+  type ModelConnection,
+  type ProbeResult,
+  type ProviderDescriptor,
+} from '../../shared/modelConfig.contract'
 import { apiErrorText, probeModelConnection } from './providerConfig.data'
 
 export type ProbeView =
@@ -7,6 +13,26 @@ export type ProbeView =
   | { phase: 'checking' }
   | { phase: 'done'; result: ProbeResult }
   | { phase: 'error'; message: string }
+
+/** What a probe's state says, in one line. */
+export function probeText(probe: ProbeView | undefined): string {
+  if (!probe || probe.phase === 'idle') return 'Not checked yet.'
+  if (probe.phase === 'checking') return 'Checking…'
+  if (probe.phase === 'error') return probe.message
+  return probe.result.message
+}
+
+/** Whether a probe's connection answered (`ok`), failed (`failed`), is being checked, or was never checked. */
+export function probeTone(probe: ProbeView | undefined): 'ok' | 'failed' | 'checking' | 'idle' {
+  if (probe?.phase === 'done') return probe.result.status === 'connected' ? 'ok' : 'failed'
+  if (probe?.phase === 'error') return 'failed'
+  return probe?.phase === 'checking' ? 'checking' : 'idle'
+}
+
+/** The models a probe listed; none until it answered. */
+export function probeCatalog(probe: ProbeView | undefined): ProbeResult['catalog'] {
+  return probe?.phase === 'done' ? probe.result.catalog : []
+}
 
 type LifecycleRecord = {
   sequence: number
@@ -33,6 +59,8 @@ export function useProbeLifecycle({ providers }: ProbeInputs) {
   function canProbe(connection: ModelConnection, credential: string | null | undefined): boolean {
     const provider = providerFor(connection)
     if (credential === undefined || !provider || !connection.name.trim()) return false
+    // A key Studio would refuse (longer than it accepts) is never sent; the key line says why.
+    if (typeof credential === 'string' && !modelProbeRequestSchema.shape.credential.safeParse(credential).success) return false
     return provider.transport !== 'http' || isValidApiBase(connection.baseUrl)
   }
 
@@ -112,6 +140,12 @@ export function useProbeLifecycle({ providers }: ProbeInputs) {
     void execute(connection, credential, record, record.sequence)
   }
 
+  /** The page's opening check: probes every entry once, now. An entry without a credential it may carry
+   *  (`undefined`) is not probed. */
+  function refreshAll(entries: readonly { connection: ModelConnection; credential: string | null | undefined }[]): void {
+    for (const { connection, credential } of entries) refresh(connection, credential)
+  }
+
   /** Supersedes the connection's scheduled or running probe without scheduling another; its result is gone. */
   function cancel(connectionId: string): void {
     supersede(connectionId)
@@ -140,5 +174,5 @@ export function useProbeLifecycle({ providers }: ProbeInputs) {
     }
   }, [])
 
-  return { probes, canProbe, schedule, refresh, cancel, dispose }
+  return { probes, schedule, refreshAll, cancel, dispose }
 }
