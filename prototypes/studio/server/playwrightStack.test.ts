@@ -250,6 +250,8 @@ describe('Playwright stack teardown', () => {
       composeProject,
       directory,
       lifecycleId,
+      // Far beyond the fake time this test advances, so only the completion marker ends the wait.
+      timeoutMs: 60_000,
     })
     let teardownSettled = false
     void teardown.then(
@@ -270,7 +272,15 @@ describe('Playwright stack teardown', () => {
     await vi.advanceTimersByTimeAsync(100)
     expect(teardownSettled).toBe(false)
     await writeCompletionMarker(directory, lifecycleId)
-    await vi.advanceTimersByTimeAsync(100)
+    // The poll reads the marker with real file I/O between fake-timer sleeps. A read still in flight when one
+    // advance returns schedules its next sleep after it, so keep the clock moving until the teardown settles.
+    await vi.waitFor(
+      async () => {
+        await vi.advanceTimersByTimeAsync(50)
+        expect(teardownSettled).toBe(true)
+      },
+      { interval: 20, timeout: 2_000 },
+    )
 
     await expect(teardown).resolves.toBeUndefined()
     expect(composeDown).not.toHaveBeenCalled()
