@@ -87,6 +87,6 @@ Run a new Extraction on the current revision to use upgraded cell Evidence; an
 Extraction opened on an earlier revision offers no new run. Ordinary
 re-uploading still deduplicates by PDF content and does not reprocess it.
 
-Apply database migration `20260923T1946_source_reprocessing` before serving this
-version. This action currently uses the same request and in-memory queue
-lifecycle as uploads; closing the browser does not provide durable queue recovery.
+Recreate the database from the baseline before serving this version. This action
+currently uses the same request and in-memory queue lifecycle as uploads; closing
+the browser does not provide durable queue recovery.
