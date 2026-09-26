@@ -126,8 +126,9 @@ export function createModelKeyCache(): ModelKeyCache {
 
 /**
  * The key for one provider attempt: from the cache, or after waiting up to `waitMs` for a page to resend it. The wait
- * ends early when `signal` aborts, and nothing after it runs. In M4/M5 the caller composes DBOS's
- * `DBOS.stepStatus.cancelSignal` into `signal`.
+ * ends early when `signal` aborts, and nothing after it runs. Under `durableCalls` (M5) the library, not FREE, calls
+ * the model, so no caller can add DBOS's `DBOS.stepStatus.cancelSignal` to `signal`: the keyed-model wrapper
+ * (`keyedModel`'s key function) must compose it with the attempt's own signal before calling this.
  */
 export async function requireModelKey(
   cache: ModelKeyCache,
