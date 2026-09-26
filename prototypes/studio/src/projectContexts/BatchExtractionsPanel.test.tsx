@@ -1368,6 +1368,68 @@ describe('BatchExtractionsPanel', () => {
     expect(screen.queryByText(/provider secret/)).not.toBeInTheDocument()
   })
 
+  it('a model_key_required source failure reads "Model key not available"', async () => {
+    const failure = {
+      code: 'model_key_required',
+      message: 'Studio does not hold the key for this Model Connection.',
+    }
+    const failedSuggestion = readySuggestion({
+      executionStatus: 'FAILED',
+      phase: 'SOURCES',
+      proposal: null,
+      draft: null,
+      failure,
+      sources: [
+        {
+          sourceDocumentId: failedDocumentId,
+          sourceRepresentationRevisionId:
+            '51000000-0000-4000-8002-000000000001',
+          executionStatus: 'FAILED',
+          definition: null,
+          failure,
+          startedAt: '2026-08-15T10:00:00.000Z',
+          finishedAt: '2026-08-15T10:00:01.000Z',
+        },
+      ],
+    })
+    let suggestions: unknown[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.startsWith('/api/batch-extractions?'))
+          return response({ batchExtractions: [] })
+        if (url.startsWith('/api/batch-schema-suggestions?'))
+          return response({ batchSchemaSuggestions: suggestions })
+        if (url.startsWith('/api/extraction-schemas?'))
+          return response({ extractionSchemas: [] })
+        if (url === '/api/batch-schema-suggestions' && init?.method === 'POST') {
+          suggestions = [failedSuggestion]
+          return response({ batchSchemaSuggestion: failedSuggestion })
+        }
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    renderPanel()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'New Batch Extraction' }),
+    )
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
+    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+      target: { value: '__suggest_common_fields__' },
+    })
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Suggest common fields' }),
+    )
+
+    const progress = await screen.findByLabelText('Source suggestion progress')
+    expect(
+      within(progress).getByText('Failed — Model key not available'),
+    ).toBeVisible()
+  })
+
   it('keeps a created suggestion when an older list response resolves last', async () => {
     const listedBody = Promise.withResolvers<unknown>()
     const listedStarted = Promise.withResolvers<void>()

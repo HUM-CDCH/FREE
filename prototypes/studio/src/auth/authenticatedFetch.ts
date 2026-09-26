@@ -31,8 +31,15 @@ export function subscribeToModelKeyResend(listener: () => void): () => void {
   return () => resendListeners.delete(listener)
 }
 
+/** Listeners run inside `authenticatedFetch`, so one that throws must fail neither that request nor the others. */
 function requestModelKeyResend(): void {
-  for (const listener of [...resendListeners]) listener()
+  for (const listener of [...resendListeners]) {
+    try {
+      listener()
+    } catch {
+      // A resend is best effort: the next new boot ID or model_key_required asks again.
+    }
+  }
 }
 
 /** Forgets the boot ID seen and every resend listener, so one test's module state does not reach the next. */

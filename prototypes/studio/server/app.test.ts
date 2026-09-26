@@ -349,6 +349,17 @@ describe('authentication gate and route contract', () => {
     )
     expect(studioBootModule.status).toBe(200)
     expect(studioBootModule.headers.get('location')).toBeNull()
+    // AuthApplication and the sign-out form reach the model key handoff and store.
+    for (const path of [
+      '/src/modelKeys/modelKeyHandoff.ts',
+      '/src/modelKeys/modelKeyStore.ts',
+      '/shared/modelKeys.contract.ts',
+      '/shared/modelConfig.contract.ts',
+    ]) {
+      const module = await test.app.request(`${ORIGIN}${path}`)
+      expect(module.status, path).toBe(200)
+      expect(module.headers.get('location'), path).toBeNull()
+    }
   })
 
   it('uses exact base-path callback and post-logout redirect URIs', async () => {
@@ -464,6 +475,8 @@ describe('Studio key custody', () => {
     expect(late.status).toBe(401)
     await expect(late.json()).resolves.toMatchObject({ error: { code: 'authentication_required' } })
     expect(late.headers.get(STUDIO_BOOT_HEADER)).toBe('boot-1')
+    // The late answer clears no cookie: the browser may already hold a newer session.
+    expect(setCookies(late)).toEqual([])
     expect(test.dispatcher).not.toHaveBeenCalled()
 
     expect((await handoff(other)).status).toBe(200)

@@ -16,11 +16,13 @@ const REMOVED_ID = '33333333-3333-4333-8333-333333333333'
 const connection = { id: ID, provider: 'openai-compatible', baseUrl: 'https://a.example/v1' } as const
 
 let sendModelKeys: typeof import('./modelKeyHandoff').sendModelKeys
+let setModelKeyAccount: typeof import('./modelKeyHandoff').setModelKeyAccount
+let ensureModelKeysSent: typeof import('./modelKeyHandoff').ensureModelKeysSent
 
 beforeEach(async () => {
   // The handoff keeps its pending removals and in-flight request in module state; each test gets a fresh module.
   vi.resetModules()
-  ;({ sendModelKeys } = await import('./modelKeyHandoff'))
+  ;({ sendModelKeys, setModelKeyAccount, ensureModelKeysSent } = await import('./modelKeyHandoff'))
   request.mockReset()
   request.mockImplementation(async () => Response.json({ accepted: [] }))
 })
@@ -96,5 +98,41 @@ describe('sendModelKeys', () => {
 
     expect(request).toHaveBeenCalledTimes(3)
     for (const call of [0, 1, 2]) expect(sentBody(call).keys).toEqual({ [REMOVED_ID]: null })
+  })
+})
+
+describe('ensureModelKeysSent', () => {
+  it('ensureModelKeysSent does nothing before an account is set', async () => {
+    saveModelKey(ACCOUNT, connection, 'sk-test-ensure')
+
+    await expect(ensureModelKeysSent()).resolves.toBeUndefined()
+    expect(request).not.toHaveBeenCalled()
+
+    setModelKeyAccount(ACCOUNT)
+    await ensureModelKeysSent()
+    expect(request).toHaveBeenCalledOnce()
+    expect(sentBody(0).account).toBe(ACCOUNT)
+
+    setModelKeyAccount(null)
+    await ensureModelKeysSent()
+    expect(request).toHaveBeenCalledOnce()
+  })
+
+  it('resolves only once the handoff has answered', async () => {
+    saveModelKey(ACCOUNT, connection, 'sk-test-ensure')
+    setModelKeyAccount(ACCOUNT)
+    const answer = Promise.withResolvers<Response>()
+    request.mockImplementationOnce(() => answer.promise)
+    let settled = false
+
+    const sent = ensureModelKeysSent().then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    answer.resolve(Response.json({ accepted: [ID] }))
+    await sent
+    expect(settled).toBe(true)
   })
 })

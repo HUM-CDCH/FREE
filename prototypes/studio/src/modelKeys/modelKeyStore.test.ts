@@ -103,4 +103,32 @@ describe('model key store', () => {
     expect(localStorage.getItem(`free.modelKeys.v1:${ACCOUNT}`)).toBeNull()
     expect(modelKeyFor(OTHER_ACCOUNT, connection)).toBe('sk-test-other')
   })
+
+  it('one unreadable entry hides only itself, and the next save keeps the other keys', () => {
+    const OTHER_ID = '22222222-2222-4222-8222-222222222222'
+    localStorage.setItem(
+      `free.modelKeys.v1:${ACCOUNT}`,
+      JSON.stringify({
+        [ID]: { provider: 'openai-compatible', baseUrl: BASE_A, key: KEY },
+        [OTHER_ID]: { provider: 'openai-compatible', baseUrl: BASE_A, key: '' },
+        'not-a-connection-id': { provider: 'openai-compatible', baseUrl: BASE_A, key: KEY },
+      }),
+    )
+
+    expect(storedModelKeys(ACCOUNT)).toEqual({ [ID]: { provider: 'openai-compatible', baseUrl: BASE_A, key: KEY } })
+
+    saveModelKey(ACCOUNT, { ...connection, id: OTHER_ID }, 'sk-test-other')
+    expect(Object.keys(storedModelKeys(ACCOUNT)).sort()).toEqual([ID, OTHER_ID].sort())
+  })
+
+  it('an empty or over-long key is not saved and leaves the stored keys intact', () => {
+    const OTHER_ID = '22222222-2222-4222-8222-222222222222'
+    saveModelKey(ACCOUNT, connection, KEY)
+
+    saveModelKey(ACCOUNT, { ...connection, id: OTHER_ID }, '')
+    saveModelKey(ACCOUNT, { ...connection, id: OTHER_ID }, 'k'.repeat(8193))
+
+    expect(storedModelKeys(ACCOUNT)).toEqual({ [ID]: { provider: 'openai-compatible', baseUrl: BASE_A, key: KEY } })
+    expect(modelKeyFor(ACCOUNT, connection)).toBe(KEY)
+  })
 })

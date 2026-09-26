@@ -11,7 +11,10 @@ import {
 import { ResearcherSessionContext } from './sessionContext.ts'
 import { getAuthSession } from './authApi.ts'
 import type { AuthenticatedSession, AuthSession } from './authApi.ts'
-import { subscribeToAuthenticationRequired } from './authenticatedFetch.ts'
+import {
+  subscribeToAuthenticationRequired,
+  subscribeToModelKeyResend,
+} from './authenticatedFetch.ts'
 import { currentReturnPath } from './returnPath.ts'
 import {
   captureSessionRecovery,
@@ -20,6 +23,10 @@ import {
   setSessionRecoveryAccount,
 } from './sessionRecovery.ts'
 import { browserStudioPath, browserStudioPathname } from '../studioUrl.js'
+import {
+  sendModelKeys,
+  setModelKeyAccount,
+} from '../modelKeys/modelKeyHandoff.ts'
 
 type ProjectNavigationModule = {
   ProjectNavigationProvider: ComponentType<{ children: ReactNode }>
@@ -57,6 +64,18 @@ function AuthenticatedProject({
   const [expiryWarning, setExpiryWarning] = useState(
     () => Date.parse(session.expiresAt) - Date.now() <= EXPIRY_WARNING_MILLISECONDS,
   )
+
+  // Studio holds this browser's keys only in memory: hand them over on load and again whenever it no longer has them.
+  useEffect(() => {
+    const accountId = session.account.id
+    setModelKeyAccount(accountId)
+    void sendModelKeys(accountId)
+    const stop = subscribeToModelKeyResend(() => void sendModelKeys(accountId))
+    return () => {
+      stop()
+      setModelKeyAccount(null)
+    }
+  }, [session.account.id])
 
   useEffect(() => {
     let active = true

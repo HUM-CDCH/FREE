@@ -1,4 +1,5 @@
 import { authenticatedFetch } from './auth/authenticatedFetch.ts'
+import { ensureModelKeysSent } from './modelKeys/modelKeyHandoff'
 import { acknowledgeReviewDraft, forgetReviewDraft, rememberReviewDraft, REVIEW_DRAFT_CONFLICT } from './reviewDrafts'
 import { resultPathKey } from './reviewDecisions'
 import { isRecord } from '../shared/template'
@@ -93,6 +94,7 @@ export async function requestSchema(
   if (options?.instruction?.trim())
     form.append('instruction', options.instruction.trim())
 
+  await ensureModelKeysSent()
   const done = await postForm('/generate_schema', form, decodeSchemaDone, signal)
   return done.template
 }
@@ -274,5 +276,6 @@ export async function requestSchemaEdit(
       context.sourceRepresentationRevisionId,
     )
   form.append('instruction', instruction)
+  await ensureModelKeysSent()
   return postForm('/edit_schema', form, decodeSchemaEdit, signal)
 }

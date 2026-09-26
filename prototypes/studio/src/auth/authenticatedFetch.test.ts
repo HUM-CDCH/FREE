@@ -142,4 +142,21 @@ describe('authenticatedFetch model key resend', () => {
     expect(response.bodyUsed).toBe(false)
     await expect(response.json()).resolves.toEqual(body)
   })
+
+  it('a throwing resend listener fails neither the request nor the other listeners', async () => {
+    const boots = ['boot-1', 'boot-2']
+    const response = () => booted(boots.shift()!)
+    vi.stubGlobal('fetch', vi.fn(async () => response()))
+    subscribeToModelKeyResend(() => {
+      throw new Error('listener failed')
+    })
+    const resend = vi.fn()
+    subscribeToModelKeyResend(resend)
+
+    await authenticatedFetch('/api/model-config')
+    await expect(authenticatedFetch('/api/model-config')).resolves.toBeInstanceOf(Response)
+
+    expect(resend).toHaveBeenCalledOnce()
+  })
 })
+

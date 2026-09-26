@@ -2,6 +2,7 @@ import { authenticatedFetch } from '../auth/authenticatedFetch'
 import { storedModelKeys } from './modelKeyStore'
 
 const pendingRemovals = new Map<string, Set<string>>()
+let activeAccount: string | null = null
 let running: Promise<void> | null = null
 let queued: Promise<void> | null = null
 
@@ -50,4 +51,14 @@ async function put(accountId: string): Promise<void> {
   } catch {
     queueRemovals(accountId, removals)
   }
+}
+
+/** Names the signed-in account whose keys `ensureModelKeysSent` hands over; `null` once the account's page unmounts. */
+export function setModelKeyAccount(accountId: string | null): void {
+  activeAccount = accountId
+}
+
+/** Awaited before a POST that starts model work: resolves once this browser's keys reached Studio (best effort). */
+export function ensureModelKeysSent(): Promise<void> {
+  return activeAccount ? sendModelKeys(activeAccount) : Promise.resolve()
 }

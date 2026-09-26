@@ -4,6 +4,7 @@ import {
   sourceSuggestionFailure,
 } from './_batch_schema_suggestions.js'
 import { ApiError } from './_http.js'
+import { ModelKeyRequiredError } from './_model_keys.js'
 
 describe('batch source Schema Suggestions', () => {
   it('reduces source failures to safe diagnostic codes', () => {
@@ -14,6 +15,12 @@ describe('batch source Schema Suggestions', () => {
     ).toEqual({ code: 'invalid_model_output' })
     expect(sourceSuggestionFailure(new Error('provider secret'))).toEqual({
       code: 'unexpected_failure',
+    })
+  })
+
+  it('a missing key is recorded as model_key_required', () => {
+    expect(sourceSuggestionFailure(new ModelKeyRequiredError())).toEqual({
+      code: 'model_key_required',
     })
   })
 

@@ -1,5 +1,5 @@
-import { z } from 'zod'
-import type { ModelConnection } from '../../shared/modelConfig.contract'
+import type { z } from 'zod'
+import { uuidSchema, type ModelConnection } from '../../shared/modelConfig.contract'
 import { modelKeyEntrySchema, sameModelKeyAddress } from '../../shared/modelKeys.contract'
 
 /**
@@ -9,8 +9,7 @@ import { modelKeyEntrySchema, sameModelKeyAddress } from '../../shared/modelKeys
  * accepts, so the handoff sends them as stored.
  */
 const PREFIX = 'free.modelKeys.v1:'
-const storedSchema = z.record(z.string(), modelKeyEntrySchema)
-type StoredModelKeys = z.infer<typeof storedSchema>
+type StoredModelKeys = Record<string, z.infer<typeof modelKeyEntrySchema>>
 type Addressed = Pick<ModelConnection, 'id' | 'provider' | 'baseUrl'>
 
 function storage(): Storage | null {
@@ -21,13 +20,24 @@ function storage(): Storage | null {
   }
 }
 
+/**
+ * Each entry is read on its own, so one unreadable entry hides only itself and the next write keeps the others. Only
+ * entries `PUT /api/model-keys` accepts are read: a connection ID that is not a UUID would make Studio refuse them all.
+ */
 function read(accountId: string): StoredModelKeys {
+  let stored: unknown
   try {
-    const parsed = storedSchema.safeParse(JSON.parse(storage()?.getItem(PREFIX + accountId) ?? '{}'))
-    return parsed.success ? parsed.data : {}
+    stored = JSON.parse(storage()?.getItem(PREFIX + accountId) ?? '{}')
   } catch {
     return {}
   }
+  if (typeof stored !== 'object' || stored === null || Array.isArray(stored)) return {}
+  const keys: StoredModelKeys = {}
+  for (const [id, value] of Object.entries(stored)) {
+    const entry = modelKeyEntrySchema.safeParse(value)
+    if (entry.success && uuidSchema.safeParse(id).success) keys[id] = entry.data
+  }
+  return keys
 }
 
 function write(accountId: string, keys: StoredModelKeys): void {
@@ -48,11 +58,11 @@ export function modelKeyFor(accountId: string, connection: Addressed): string | 
   return entry && sameModelKeyAddress(entry, connection) ? entry.key : null
 }
 
+/** Saves nothing for a key Studio would refuse (empty or over 8192 characters); the stored keys stay as they were. */
 export function saveModelKey(accountId: string, connection: Addressed, key: string): void {
-  write(accountId, {
-    ...read(accountId),
-    [connection.id]: { provider: connection.provider, baseUrl: connection.baseUrl, key },
-  })
+  const entry = modelKeyEntrySchema.safeParse({ provider: connection.provider, baseUrl: connection.baseUrl, key })
+  if (!entry.success) return
+  write(accountId, { ...read(accountId), [connection.id]: entry.data })
 }
 
 export function removeModelKey(accountId: string, connectionId: string): void {

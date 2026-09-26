@@ -14,7 +14,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import AuthApplication from './AuthApplication.tsx'
 import type { ProjectNavigationLoader } from './AuthApplication.tsx'
 import { SessionControls } from './AuthForms.tsx'
-import { authenticatedFetch } from './authenticatedFetch.ts'
+import {
+  authenticatedFetch,
+  resetModelKeyResendForTesting,
+} from './authenticatedFetch.ts'
+import { STUDIO_BOOT_HEADER } from '../../shared/studioBoot.ts'
+import { ensureModelKeysSent } from '../modelKeys/modelKeyHandoff.ts'
+import { saveModelKey, storedModelKeys } from '../modelKeys/modelKeyStore.ts'
 import {
   clearSessionRecovery,
   markSessionSignedOut,
@@ -68,6 +74,8 @@ function projectLoader(): ProjectNavigationLoader {
 
 afterEach(() => {
   cleanup()
+  resetModelKeyResendForTesting()
+  localStorage.clear()
   clearSessionRecovery()
   document.querySelector('base')?.remove()
   sessionStorage.clear()
@@ -295,3 +303,119 @@ describe('AuthApplication', () => {
     expect(await screen.findByText('Project application')).toBeInTheDocument()
   })
 })
+
+describe('AuthApplication model key handoff', () => {
+  const OTHER_ACCOUNT = '10000000-0000-4000-8000-000000000002'
+  const connection = {
+    id: '33333333-3333-4333-8333-333333333333',
+    provider: 'openai-compatible' as const,
+    baseUrl: 'https://a.example/v1',
+  }
+
+  /** Studio answers every request with its boot ID; `restart` draws a new one. */
+  function studio() {
+    let boot = 'boot-1'
+    const request = mockFetch((url) =>
+      url === '/api/auth/session'
+        ? jsonResponse(usableSession)
+        : new Response(JSON.stringify({ accepted: [] }), {
+            headers: {
+              'content-type': 'application/json',
+              [STUDIO_BOOT_HEADER]: boot,
+            },
+          }),
+    )
+    const handoffs = () =>
+      request.mock.calls.filter(([input]) => String(input) === '/api/model-keys')
+    return {
+      handoffs,
+      restart(next: string) {
+        boot = next
+      },
+    }
+  }
+
+  async function renderSignedIn() {
+    render(<AuthApplication loadNavigation={projectLoader()} />)
+    expect(await screen.findByText('Project application')).toBeInTheDocument()
+  }
+
+  it("an authenticated app sends this browser's keys on load", async () => {
+    saveModelKey(account.id, connection, 'sk-test-load')
+    const { handoffs } = studio()
+
+    await renderSignedIn()
+
+    await waitFor(() => expect(handoffs()).toHaveLength(1))
+    const [, init = {}] = handoffs()[0]
+    expect(init.method).toBe('PUT')
+    expect(JSON.parse(String(init.body))).toEqual({
+      account: account.id,
+      keys: {
+        [connection.id]: {
+          provider: connection.provider,
+          baseUrl: connection.baseUrl,
+          key: 'sk-test-load',
+        },
+      },
+    })
+  })
+
+  it('a new Studio boot ID resends them once', async () => {
+    saveModelKey(account.id, connection, 'sk-test-boot')
+    const { handoffs, restart } = studio()
+    await renderSignedIn()
+    await waitFor(() => expect(handoffs()).toHaveLength(1))
+
+    await act(() => authenticatedFetch('/api/project-contexts'))
+    expect(handoffs()).toHaveLength(1)
+
+    restart('boot-2')
+    await act(async () => {
+      await Promise.all([
+        authenticatedFetch('/api/project-contexts'),
+        authenticatedFetch('/api/batch-extractions'),
+      ])
+    })
+    await waitFor(() => expect(handoffs()).toHaveLength(2))
+    await act(() => authenticatedFetch('/api/project-contexts'))
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+    expect(handoffs()).toHaveLength(2)
+  })
+
+  it('unmounting stops the resends', async () => {
+    saveModelKey(account.id, connection, 'sk-test-unmount')
+    const { handoffs, restart } = studio()
+    await renderSignedIn()
+    await waitFor(() => expect(handoffs()).toHaveLength(1))
+
+    cleanup()
+    restart('boot-2')
+    await authenticatedFetch('/api/project-contexts')
+    await ensureModelKeysSent()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(handoffs()).toHaveLength(1)
+  })
+
+  it("signing out clears this account's keys in this browser and leaves another account's", async () => {
+    saveModelKey(account.id, connection, 'sk-test-signed-out')
+    saveModelKey(OTHER_ACCOUNT, connection, 'sk-test-other-account')
+    studio()
+    await renderSignedIn()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Researcher Account' }))
+    const form = screen.getByRole('button', { name: 'Sign out' }).closest('form')!
+    fireEvent.submit(form)
+
+    expect(storedModelKeys(account.id)).toEqual({})
+    expect(storedModelKeys(OTHER_ACCOUNT)).toEqual({
+      [connection.id]: {
+        provider: connection.provider,
+        baseUrl: connection.baseUrl,
+        key: 'sk-test-other-account',
+      },
+    })
+  })
+})
+

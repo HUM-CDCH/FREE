@@ -87,6 +87,11 @@ const VITE_DEVELOPMENT_ASSETS: Readonly<Record<string, true>> = {
   '/shared/authSession.contract.ts': true,
   '/shared/returnPath.ts': true,
   '/shared/studioBoot.ts': true,
+  // The model key handoff: AuthApplication hands the keys over, and sign-out clears this browser's copy.
+  '/src/modelKeys/modelKeyHandoff.ts': true,
+  '/src/modelKeys/modelKeyStore.ts': true,
+  '/shared/modelKeys.contract.ts': true,
+  '/shared/modelConfig.contract.ts': true,
   '/src/ui/Button.tsx': true,
 }
 
@@ -434,8 +439,9 @@ export async function createStudioApp(
     next,
   ) => {
     const { value } = sessions.read(context.req.raw)
+    // No cookie is cleared: this answer can arrive after the browser signed in again and holds a newer session.
     if (value && signedOutSessions.has(sessionDigest(value)))
-      return authenticationRequired(sessions.clear())
+      return authenticationRequired()
     // Nothing awaits between this check and the handoff's start (`keys.handoff` in api/model_keys.ts), and a
     // sign-out after that start voids the handoff's writes, so no key comes back either way.
     await next()
