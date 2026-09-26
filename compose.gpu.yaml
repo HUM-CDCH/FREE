@@ -86,6 +86,7 @@ services:
       - --kv-cache-memory-bytes
       - "${NUEXTRACT_KV_CACHE_BYTES:-4G}"
       - --max-num-seqs
+      # Also parsing_worker's KEI_CATALOG_CHUNKS, which kei bounds at 64: keep it at 64 or below.
       - "${NUEXTRACT_MAX_NUM_SEQS:-4}"
     depends_on:
       ocr_model:
@@ -127,6 +128,8 @@ services:
     environment:
       <<: *parsing-gpu-env
       # A Catalog extraction runs its entries in as many chunks as NuExtract serves requests at once.
+      # kei accepts 1 to 64 (MAX_CATALOG_CHUNKS): NUEXTRACT_MAX_NUM_SEQS above 64 stops the worker at
+      # boot, and `restart: unless-stopped` then restarts it in a loop.
       KEI_CATALOG_CHUNKS: "${NUEXTRACT_MAX_NUM_SEQS:-4}"
     depends_on:
       ocr_model:
