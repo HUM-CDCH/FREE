@@ -5,7 +5,7 @@ import type {
 import { schemaRevisionWriteRequestSchema } from '../shared/schemaRevision.contract.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
 import { parseSchemaDefinition } from 'extraction/schema'
-import { summarizeSchemaRevision } from '../src/schemaChanges.js'
+import { summarizeSchemaRevision } from '../shared/schemaChanges.js'
 import {
   ApiError,
   boundedLimit,

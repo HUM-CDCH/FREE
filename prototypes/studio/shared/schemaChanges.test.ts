@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { ProposedSchemaEdit } from '../shared/schemaEdit.contract'
+import type { ProposedSchemaEdit } from './schemaEdit.contract.js'
 import { nodesToTemplate, templateToNodes, type SchemaNode } from 'extraction/schema'
 import {
   deriveSchemaProposal,
   replaySchemaChanges,
   summarizeSchemaRevision,
   toggleAcceptedSchemaChange,
-} from './schemaChanges'
+} from './schemaChanges.js'
 
 function proposed(fields: ProposedSchemaEdit['fields'], additions: ProposedSchemaEdit['additions'] = []): ProposedSchemaEdit {
   return { status: 'proposed', fields, additions, issues: [] }

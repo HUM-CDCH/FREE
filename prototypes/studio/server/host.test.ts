@@ -33,6 +33,7 @@ afterEach(async () => {
 
 describe('production Studio process', () => {
   it('serves the shared app and shuts runtime plus listener down once on signal', async () => {
+    const order: string[] = []
     const runtimeStopped = Promise.withResolvers<void>()
     const runtime: StudioRuntime = {
       run: vi.fn(async (signal) => {
@@ -43,8 +44,12 @@ describe('production Studio process', () => {
       }),
       close: vi.fn(async () => undefined),
     }
+    // The listener finishes closing later, as a real one does after its open connections end.
     const close = vi.fn((callback: (error?: Error) => void) => {
-      callback()
+      setImmediate(() => {
+        order.push('listener closed')
+        callback()
+      })
       return server
     })
     const server = { close } as unknown as ServerType
@@ -56,6 +61,7 @@ describe('production Studio process', () => {
       port: number
       family: string
     }) => void) => {
+      order.push('serve')
       fetchApplication = options.fetch
       listening?.({ address: '127.0.0.1', port: 5173, family: 'IPv4' })
       return server
@@ -64,6 +70,15 @@ describe('production Studio process', () => {
       StudioSignalTarget
     const logger = { log: vi.fn(), error: vi.fn() }
     const providerRuntime = { close: vi.fn(async () => undefined) }
+    const dbos = {
+      launch: vi.fn(async () => {
+        await Promise.resolve()
+        order.push('dbos launched')
+      }),
+      shutdown: vi.fn(async () => {
+        order.push('dbos shut down')
+      }),
+    }
     const config = loadStudioServerConfig({
       STUDIO_ORIGIN: 'http://127.0.0.1:5173',
       STUDIO_BASE_PATH: '/free',
@@ -83,7 +98,10 @@ describe('production Studio process', () => {
       logger,
       providerRuntime,
       identityProvider: createInMemoryEntraIdentityProvider(),
+      dbos,
     })
+    expect(dbos.launch).toHaveBeenCalledOnce()
+    expect(order).toEqual(['dbos launched', 'serve'])
     expect(serve).toHaveBeenCalledOnce()
     expect(serve.mock.calls[0][0]).toMatchObject({
       hostname: '127.0.0.1',
@@ -115,6 +133,13 @@ describe('production Studio process', () => {
     await host.shutdown()
     await host.shutdown()
     expect(close).toHaveBeenCalledOnce()
+    expect(dbos.shutdown).toHaveBeenCalledOnce()
+    expect(order).toEqual([
+      'dbos launched',
+      'serve',
+      'listener closed',
+      'dbos shut down',
+    ])
     expect(runtime.close).toHaveBeenCalledOnce()
     expect(providerRuntime.close).toHaveBeenCalledOnce()
     await expect(runtimeStopped.promise).resolves.toBeUndefined()

@@ -5,7 +5,7 @@ import {
   replaySchemaChanges,
   toggleAcceptedSchemaChange,
   type DerivedProposal,
-} from './schemaChanges'
+} from '../shared/schemaChanges'
 
 export type PendingSchemaProposal = DerivedProposal & {
   original: SchemaNode[]

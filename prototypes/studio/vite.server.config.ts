@@ -17,4 +17,7 @@ export default defineConfig({
       },
     },
   },
+  // DBOS cannot be bundled (its lazy optional requires fail the build), and a bundled copy would be a second DBOS
+  // singleton. Studio declares it, so Vite keeps it external; this line pins that choice (M0R PLAN IMPACT 1).
+  ssr: { external: ['@dbos-inc/dbos-sdk', '@dbos-inc/vercel-ai'] },
 })

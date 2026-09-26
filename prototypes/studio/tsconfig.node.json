@@ -20,5 +20,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["*.config.ts", "api", "server", "shared"]
+  "include": ["*.config.ts", "api", "server", "shared", "test/support"]
 }

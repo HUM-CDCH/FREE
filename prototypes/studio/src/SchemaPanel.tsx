@@ -28,7 +28,7 @@ import {
   deriveSchemaProposal,
   type Change,
   type ReplayOutcome,
-} from './schemaChanges'
+} from '../shared/schemaChanges'
 import {
   InstructionCount,
   SchemaInstructionsChat,

@@ -9,15 +9,23 @@ import {
   createRequestPeerVerifier,
   type StudioServerConfig,
 } from './config.js'
+import { launchStudioDbos, shutdownStudioDbos } from './dbos.js'
 import {
   createMicrosoftEntraIdentityProvider,
   type EntraIdentityProvider,
 } from './entraIdentityProvider.js'
 import { createStaticClientHandler } from './static.js'
+import { registerStudioWorkflows } from './workflows.js'
 
 export type StudioRuntime = {
   run(signal: AbortSignal): Promise<void>
   close(): Promise<void>
+}
+
+/** DBOS in this process: launched once before the listener opens, shut down after it closed. */
+export type StudioDbosLifecycle = {
+  launch(): Promise<unknown>
+  shutdown(): Promise<void>
 }
 
 export type StudioSignalTarget = {
@@ -34,6 +42,7 @@ export type StudioHostDependencies = {
   logger?: Pick<Console, 'error' | 'log'>
   providerRuntime?: Pick<StudioRuntime, 'close'>
   identityProvider?: EntraIdentityProvider
+  dbos?: StudioDbosLifecycle
 }
 
 export type RunningStudioHost = {
@@ -43,6 +52,12 @@ export type RunningStudioHost = {
 
 export function productionClientRoot(): string {
   return resolve(import.meta.dirname, '../client')
+}
+
+function requiredDatabaseUrl(): string {
+  const databaseUrl = process.env.DATABASE_URL
+  if (!databaseUrl) throw new Error("DATABASE_URL must name Studio's database.")
+  return databaseUrl
 }
 
 function closeServer(server: ServerType): Promise<void> {
@@ -66,6 +81,14 @@ export async function startStudioServer(
   const providerRuntime =
     dependencies.providerRuntime ?? productionProviderRuntime
   const clientRoot = dependencies.clientRoot ?? productionClientRoot()
+  const dbos = dependencies.dbos ?? {
+    launch: () =>
+      launchStudioDbos({
+        databaseUrl: requiredDatabaseUrl(),
+        register: registerStudioWorkflows,
+      }),
+    shutdown: shutdownStudioDbos,
+  }
   const identityProvider =
     dependencies.identityProvider ??
     createMicrosoftEntraIdentityProvider({
@@ -85,6 +108,8 @@ export async function startStudioServer(
     requestPeer: createRequestPeerVerifier(config),
     clientHandler: createStaticClientHandler(clientRoot, config.basePath),
   })
+  // A failed launch fails startup: the healthcheck never passes, so nothing that waits for Studio starts.
+  await dbos.launch()
   const server = serveApplication(
     {
       fetch: app.fetch,
@@ -121,8 +146,10 @@ export async function startStudioServer(
       signals.off('SIGINT', stopForSignal)
       signals.off('SIGTERM', stopForSignal)
       runtimeAbort.abort()
+      // Requests still in flight may enqueue work, so DBOS stops only after the listener closed.
+      await closeServer(server)
       await Promise.all([
-        closeServer(server),
+        dbos.shutdown(),
         runtime.close().then(() => running),
         providerRuntime.close(),
       ])

@@ -1,4 +1,4 @@
-import type { FieldEdit, ProposedSchemaEdit, SchemaAddition, SchemaEditIssue } from '../shared/schemaEdit.contract'
+import type { FieldEdit, ProposedSchemaEdit, SchemaAddition, SchemaEditIssue } from './schemaEdit.contract.js'
 import {
   enumerateFieldPaths,
   mkId,

@@ -84,7 +84,10 @@ type StudioComposition = {
 // invalidates the SSR module graph upwards, from the edited file through its
 // importers, so recomposition re-evaluates exactly the changed server code
 // while process-wide singletons its dependencies own — the database pool, the
-// Extraction runtime — stay the instances already loaded.
+// Extraction runtime — stay the instances already loaded. DBOS launches once
+// per process, before the first composition, and recomposition re-evaluates
+// handlers only: a registered workflow keeps running the code it was
+// registered with until Studio restarts.
 export function apiFunctions(configuredBasePath: string): Plugin {
   const basePath = canonicalStudioBasePath(configuredBasePath)
   const generatedSessionSecret = randomBytes(32)
