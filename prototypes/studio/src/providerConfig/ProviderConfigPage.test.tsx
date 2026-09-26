@@ -473,6 +473,8 @@ describe('ProviderConfigPage', () => {
       'OpenAI-compatibleYour own server',
       'vLLMYour own server',
     ])
+    // A press keeps focus in the menu, so browsers that do not focus a clicked button do not close it first.
+    expect(fireEvent.mouseDown(screen.getByRole('menuitem', { name: /^vLLM/ }))).toBe(false)
     fireEvent.click(screen.getByRole('menuitem', { name: /^vLLM/ }))
     const added = within(screen.getByRole('region', { name: 'Connection details' }))
     expect(added.getByRole('heading', { name: 'vLLM connection' })).toBeInTheDocument()

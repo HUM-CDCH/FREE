@@ -290,7 +290,15 @@ function AddConnectionMenu({ providers, onAdd }: { providers: readonly ProviderD
         Add connection
       </Button>
       {open && (
-        <ul ref={menu} role="menu" aria-label="Add connection" className="absolute left-0 z-30 mt-1 w-72 rounded-xl border border-line bg-surface py-1 shadow-float">
+        // A press keeps focus in the menu: a browser that does not focus a clicked button would otherwise blur it
+        // and close the menu before the click lands.
+        <ul
+          ref={menu}
+          role="menu"
+          aria-label="Add connection"
+          onMouseDown={(event) => event.preventDefault()}
+          className="absolute left-0 z-30 mt-1 w-72 rounded-xl border border-line bg-surface py-1 shadow-float"
+        >
           {providers.map((provider, index) => (
             <li key={provider.kind} role="none">
               <button
