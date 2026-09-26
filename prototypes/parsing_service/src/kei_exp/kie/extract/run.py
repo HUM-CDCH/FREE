@@ -15,6 +15,7 @@ import hashlib
 import json
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -106,13 +107,17 @@ def fingerprint(result: dict, request: ExtractRequest, model: dict) -> str:
 
 
 def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, generation: str | None = None,
-            counter=None) -> dict:
+            counter=None, chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
     """The artifact for `request` over the run's canonical result, from the stages in order.
 
     `generation` is the parse the caller admitted this extraction against, when it had one: the result on disk
     must still be that generation, or nothing is extracted (`StaleGeneration`). The check is before the first
     model call, so a run re-converted while the extraction sat in the queue costs no tokens. The CLI passes
     none: it extracts from whatever the directory holds at the moment it is run.
+
+    `chunks` and `before_entry` apply to a recipe's grounded Catalog (`grounded.extract_grounded`): its entries in
+    that many parallel contiguous chunks, and a hook called before every entry whose error ends the extraction. The
+    version 1 Catalog and Article paths ignore both.
     """
     evidence = load(run_dir)
     if generation is not None and evidence.generation != generation:
@@ -124,7 +129,7 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     options = request.options
     chat = as_router(chat)
     if options.catalog is not None:
-        return _grounded(run_dir, evidence, request, chat, counter)
+        return _grounded(run_dir, evidence, request, chat, counter, chunks=chunks, before_entry=before_entry)
     started = datetime.now(UTC).isoformat()
     clock = time.monotonic()
     calls: list[Call] = []
@@ -181,7 +186,8 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     return result
 
 
-def _grounded(run_dir: Path, evidence, request: ExtractRequest, chat: Router, counter) -> dict:
+def _grounded(run_dir: Path, evidence, request: ExtractRequest, chat: Router, counter, *, chunks: int = 1,
+              before_entry: Callable[[], None] | None = None) -> dict:
     """The recipe path: the proven segmentation (computed and published when absent), a verified token counter for
     each serving endpoint (one per distinct chat), and the version 2 artifact."""
     options = request.options
@@ -190,7 +196,8 @@ def _grounded(run_dir: Path, evidence, request: ExtractRequest, chat: Router, co
     if counter is None:
         counters = {id(client): counter_for(client) for client in chat.chats().values()}
         counter = {role: counters[id(client)] for role, client in chat.chats().items()}
-    body = grounded.extract_grounded(evidence, request.schema_, recipe, options.catalog, segmentation, chat, counter)
+    body = grounded.extract_grounded(evidence, request.schema_, recipe, options.catalog, segmentation, chat, counter,
+                                     chunks=chunks, before_entry=before_entry)
     result = {"run_id": evidence.run_id, "generation": evidence.generation, "digest": evidence.digest,
               "model": chat.model, "models": chat.models,
               "schema": request.schema_.model_dump(by_alias=True, exclude_none=True), "options": options.dumped(),
