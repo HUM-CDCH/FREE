@@ -69,14 +69,6 @@
             "codecId": "pg/text@1",
             "members": [
               {
-                "name": "SOURCES",
-                "value": "SOURCES"
-              },
-              {
-                "name": "MERGING",
-                "value": "MERGING"
-              },
-              {
                 "name": "READY",
                 "value": "READY"
               },
@@ -103,27 +95,6 @@
               }
             ]
           },
-          "ProjectOperationStatus": {
-            "codecId": "pg/text@1",
-            "members": [
-              {
-                "name": "QUEUED",
-                "value": "QUEUED"
-              },
-              {
-                "name": "RUNNING",
-                "value": "RUNNING"
-              },
-              {
-                "name": "COMPLETED",
-                "value": "COMPLETED"
-              },
-              {
-                "name": "FAILED",
-                "value": "FAILED"
-              }
-            ]
-          },
           "SchemaRevisionOrigin": {
             "codecId": "pg/text@1",
             "members": [
@@ -138,6 +109,19 @@
               {
                 "name": "MODEL_EDIT",
                 "value": "MODEL_EDIT"
+              }
+            ]
+          },
+          "SuggestionAttemptOutcome": {
+            "codecId": "pg/text@1",
+            "members": [
+              {
+                "name": "SUCCEEDED",
+                "value": "SUCCEEDED"
+              },
+              {
+                "name": "FAILED",
+                "value": "FAILED"
               }
             ]
           }
@@ -358,6 +342,13 @@
           },
           "BatchSchemaSuggestion": {
             "fields": {
+              "attempt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
               "batchExtractionId": {
                 "nullable": true,
                 "type": {
@@ -400,30 +391,10 @@
                   "kind": "scalar"
                 }
               },
-              "executionStatus": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/text@1",
-                  "kind": "scalar"
-                },
-                "valueSet": {
-                  "entityKind": "enum",
-                  "entityName": "ProjectOperationStatus",
-                  "namespaceId": "public",
-                  "plane": "domain"
-                }
-              },
               "failure": {
                 "nullable": true,
                 "type": {
                   "codecId": "pg/jsonb@1",
-                  "kind": "scalar"
-                }
-              },
-              "finishedAt": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/timestamptz@1",
                   "kind": "scalar"
                 }
               },
@@ -434,29 +405,21 @@
                   "kind": "scalar"
                 }
               },
-              "leaseExpiresAt": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/timestamptz@1",
-                  "kind": "scalar"
-                }
-              },
-              "leaseOwner": {
+              "outcome": {
                 "nullable": true,
                 "type": {
                   "codecId": "pg/text@1",
                   "kind": "scalar"
-                }
-              },
-              "leaseVersion": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/int4@1",
-                  "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "SuggestionAttemptOutcome",
+                  "namespaceId": "public",
+                  "plane": "domain"
                 }
               },
               "phase": {
-                "nullable": false,
+                "nullable": true,
                 "type": {
                   "codecId": "pg/text@1",
                   "kind": "scalar"
@@ -486,13 +449,6 @@
                 "nullable": false,
                 "type": {
                   "codecId": "pg/text@1",
-                  "kind": "scalar"
-                }
-              },
-              "startedAt": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/timestamptz@1",
                   "kind": "scalar"
                 }
               }
@@ -531,6 +487,9 @@
             },
             "storage": {
               "fields": {
+                "attempt": {
+                  "column": "attempt"
+                },
                 "batchExtractionId": {
                   "column": "batchExtractionId"
                 },
@@ -549,26 +508,14 @@
                 "draftVersion": {
                   "column": "draftVersion"
                 },
-                "executionStatus": {
-                  "column": "executionStatus"
-                },
                 "failure": {
                   "column": "failure"
-                },
-                "finishedAt": {
-                  "column": "finishedAt"
                 },
                 "id": {
                   "column": "id"
                 },
-                "leaseExpiresAt": {
-                  "column": "leaseExpiresAt"
-                },
-                "leaseOwner": {
-                  "column": "leaseOwner"
-                },
-                "leaseVersion": {
-                  "column": "leaseVersion"
+                "outcome": {
+                  "column": "outcome"
                 },
                 "phase": {
                   "column": "phase"
@@ -581,9 +528,6 @@
                 },
                 "selectionKey": {
                   "column": "selectionKey"
-                },
-                "startedAt": {
-                  "column": "startedAt"
                 }
               },
               "namespaceId": "public",
@@ -599,40 +543,6 @@
                   "kind": "scalar"
                 }
               },
-              "definition": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/jsonb@1",
-                  "kind": "scalar"
-                }
-              },
-              "executionStatus": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/text@1",
-                  "kind": "scalar"
-                },
-                "valueSet": {
-                  "entityKind": "enum",
-                  "entityName": "ProjectOperationStatus",
-                  "namespaceId": "public",
-                  "plane": "domain"
-                }
-              },
-              "failure": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/jsonb@1",
-                  "kind": "scalar"
-                }
-              },
-              "finishedAt": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/timestamptz@1",
-                  "kind": "scalar"
-                }
-              },
               "sourceDocumentId": {
                 "nullable": false,
                 "type": {
@@ -644,13 +554,6 @@
                 "nullable": false,
                 "type": {
                   "codecId": "pg/uuid@1",
-                  "kind": "scalar"
-                }
-              },
-              "startedAt": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/timestamptz@1",
                   "kind": "scalar"
                 }
               }
@@ -675,10 +578,12 @@
                 "cardinality": "N:1",
                 "on": {
                   "localFields": [
-                    "sourceRepresentationRevisionId"
+                    "sourceRepresentationRevisionId",
+                    "sourceDocumentId"
                   ],
                   "targetFields": [
-                    "id"
+                    "id",
+                    "sourceDocumentId"
                   ]
                 },
                 "to": {
@@ -692,26 +597,11 @@
                 "batchSchemaSuggestionId": {
                   "column": "batchSchemaSuggestionId"
                 },
-                "definition": {
-                  "column": "definition"
-                },
-                "executionStatus": {
-                  "column": "executionStatus"
-                },
-                "failure": {
-                  "column": "failure"
-                },
-                "finishedAt": {
-                  "column": "finishedAt"
-                },
                 "sourceDocumentId": {
                   "column": "sourceDocumentId"
                 },
                 "sourceRepresentationRevisionId": {
                   "column": "sourceRepresentationRevisionId"
-                },
-                "startedAt": {
-                  "column": "startedAt"
                 }
               },
               "namespaceId": "public",
@@ -1946,10 +1836,12 @@
                 "cardinality": "1:N",
                 "on": {
                   "localFields": [
-                    "id"
+                    "id",
+                    "sourceDocumentId"
                   ],
                   "targetFields": [
-                    "sourceRepresentationRevisionId"
+                    "sourceRepresentationRevisionId",
+                    "sourceDocumentId"
                   ]
                 },
                 "to": {
@@ -2258,11 +2150,11 @@
             "batchSchemaSuggestion": {
               "checks": [
                 {
-                  "column": "executionStatus",
-                  "name": "batchSchemaSuggestion_executionStatus_check",
+                  "column": "outcome",
+                  "name": "batchSchemaSuggestion_outcome_check",
                   "valueSet": {
                     "entityKind": "valueSet",
-                    "entityName": "ProjectOperationStatus",
+                    "entityName": "SuggestionAttemptOutcome",
                     "namespaceId": "public",
                     "plane": "storage"
                   }
@@ -2279,6 +2171,15 @@
                 }
               ],
               "columns": {
+                "attempt": {
+                  "codecId": "pg/int4@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": 1
+                  },
+                  "nativeType": "int4",
+                  "nullable": false
+                },
                 "batchExtractionId": {
                   "codecId": "pg/uuid@1",
                   "nativeType": "uuid",
@@ -2320,31 +2221,10 @@
                   "nativeType": "int4",
                   "nullable": false
                 },
-                "executionStatus": {
-                  "codecId": "pg/text@1",
-                  "default": {
-                    "kind": "literal",
-                    "value": "QUEUED"
-                  },
-                  "nativeType": "text",
-                  "nullable": false,
-                  "valueSet": {
-                    "entityKind": "valueSet",
-                    "entityName": "ProjectOperationStatus",
-                    "namespaceId": "public",
-                    "plane": "storage"
-                  }
-                },
                 "failure": {
                   "codecId": "pg/jsonb@1",
                   "nativeType": "jsonb",
                   "nullable": true
-                },
-                "finishedAt": {
-                  "codecId": "pg/timestamptz@1",
-                  "nativeType": "timestamptz",
-                  "nullable": true,
-                  "typeRef": "Timestamptz6"
                 },
                 "id": {
                   "codecId": "pg/uuid@1",
@@ -2352,34 +2232,21 @@
                   "nullable": false,
                   "typeRef": "Uuid"
                 },
-                "leaseExpiresAt": {
-                  "codecId": "pg/timestamptz@1",
-                  "nativeType": "timestamptz",
-                  "nullable": true,
-                  "typeRef": "Timestamptz6"
-                },
-                "leaseOwner": {
+                "outcome": {
                   "codecId": "pg/text@1",
                   "nativeType": "text",
-                  "nullable": true
-                },
-                "leaseVersion": {
-                  "codecId": "pg/int4@1",
-                  "default": {
-                    "kind": "literal",
-                    "value": 0
-                  },
-                  "nativeType": "int4",
-                  "nullable": false
+                  "nullable": true,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "SuggestionAttemptOutcome",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
                 },
                 "phase": {
                   "codecId": "pg/text@1",
-                  "default": {
-                    "kind": "literal",
-                    "value": "SOURCES"
-                  },
                   "nativeType": "text",
-                  "nullable": false,
+                  "nullable": true,
                   "valueSet": {
                     "entityKind": "valueSet",
                     "entityName": "BatchSchemaSuggestionPhase",
@@ -2402,12 +2269,6 @@
                   "codecId": "pg/text@1",
                   "nativeType": "text",
                   "nullable": false
-                },
-                "startedAt": {
-                  "codecId": "pg/timestamptz@1",
-                  "nativeType": "timestamptz",
-                  "nullable": true,
-                  "typeRef": "Timestamptz6"
                 }
               },
               "foreignKeys": [
@@ -2434,12 +2295,6 @@
                   "columns": [
                     "projectContextId",
                     "createdAt"
-                  ]
-                },
-                {
-                  "columns": [
-                    "executionStatus",
-                    "leaseExpiresAt"
                   ]
                 },
                 {
@@ -2473,55 +2328,12 @@
               ]
             },
             "batchSchemaSuggestionSource": {
-              "checks": [
-                {
-                  "column": "executionStatus",
-                  "name": "batchSchemaSuggestionSource_executionStatus_check",
-                  "valueSet": {
-                    "entityKind": "valueSet",
-                    "entityName": "ProjectOperationStatus",
-                    "namespaceId": "public",
-                    "plane": "storage"
-                  }
-                }
-              ],
               "columns": {
                 "batchSchemaSuggestionId": {
                   "codecId": "pg/uuid@1",
                   "nativeType": "uuid",
                   "nullable": false,
                   "typeRef": "Uuid"
-                },
-                "definition": {
-                  "codecId": "pg/jsonb@1",
-                  "nativeType": "jsonb",
-                  "nullable": true
-                },
-                "executionStatus": {
-                  "codecId": "pg/text@1",
-                  "default": {
-                    "kind": "literal",
-                    "value": "QUEUED"
-                  },
-                  "nativeType": "text",
-                  "nullable": false,
-                  "valueSet": {
-                    "entityKind": "valueSet",
-                    "entityName": "ProjectOperationStatus",
-                    "namespaceId": "public",
-                    "plane": "storage"
-                  }
-                },
-                "failure": {
-                  "codecId": "pg/jsonb@1",
-                  "nativeType": "jsonb",
-                  "nullable": true
-                },
-                "finishedAt": {
-                  "codecId": "pg/timestamptz@1",
-                  "nativeType": "timestamptz",
-                  "nullable": true,
-                  "typeRef": "Timestamptz6"
                 },
                 "sourceDocumentId": {
                   "codecId": "pg/uuid@1",
@@ -2534,12 +2346,6 @@
                   "nativeType": "uuid",
                   "nullable": false,
                   "typeRef": "Uuid"
-                },
-                "startedAt": {
-                  "codecId": "pg/timestamptz@1",
-                  "nativeType": "timestamptz",
-                  "nullable": true,
-                  "typeRef": "Timestamptz6"
                 }
               },
               "foreignKeys": [
@@ -2561,17 +2367,20 @@
                   }
                 },
                 {
-                  "onDelete": "restrict",
+                  "name": "batch_suggestion_source_representation_fkey",
+                  "onDelete": "cascade",
                   "source": {
                     "columns": [
-                      "sourceRepresentationRevisionId"
+                      "sourceRepresentationRevisionId",
+                      "sourceDocumentId"
                     ],
                     "namespaceId": "public",
                     "tableName": "batchSchemaSuggestionSource"
                   },
                   "target": {
                     "columns": [
-                      "id"
+                      "id",
+                      "sourceDocumentId"
                     ],
                     "namespaceId": "public",
                     "tableName": "sourceRepresentationRevision"
@@ -2584,12 +2393,6 @@
                     "batchSchemaSuggestionId"
                   ],
                   "name": "batchSchemaSuggestionSource_batchSchemaSuggestionId_idx"
-                },
-                {
-                  "columns": [
-                    "sourceRepresentationRevisionId"
-                  ],
-                  "name": "batchSchemaSuggestionSource_sourceRepresentationRevisionId_idx"
                 },
                 {
                   "columns": [
@@ -3601,8 +3404,6 @@
             "BatchSchemaSuggestionPhase": {
               "kind": "valueSet",
               "values": [
-                "SOURCES",
-                "MERGING",
                 "READY",
                 "HETEROGENEOUS"
               ]
@@ -3615,21 +3416,19 @@
                 "CANCELLED"
               ]
             },
-            "ProjectOperationStatus": {
-              "kind": "valueSet",
-              "values": [
-                "QUEUED",
-                "RUNNING",
-                "COMPLETED",
-                "FAILED"
-              ]
-            },
             "SchemaRevisionOrigin": {
               "kind": "valueSet",
               "values": [
                 "SUGGESTION",
                 "RESEARCHER_EDIT",
                 "MODEL_EDIT"
+              ]
+            },
+            "SuggestionAttemptOutcome": {
+              "kind": "valueSet",
+              "values": [
+                "SUCCEEDED",
+                "FAILED"
               ]
             }
           }
@@ -3638,7 +3437,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "sha256:4a635e7b6e94fb26b4e0610299ed85b0ae1acd822460a3294b55f894825e3937",
+    "storageHash": "sha256:f1b3b53fbe216fa290cfebc7f03fe6ce5a559a6d00a7038a570ac8597666e32f",
     "types": {
       "Timestamptz6": {
         "codecId": "pg/timestamptz@1",

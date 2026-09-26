@@ -50,7 +50,6 @@ import {
 const extractionsMock = vi.hoisted(() => ({
   modules: new Map<string, unknown>(),
 }))
-const operationKickMock = vi.hoisted(() => vi.fn())
 
 vi.mock('../api/_extractions.js', () => ({
   createResearcherExtractions(researcherAccountId: string) {
@@ -61,9 +60,6 @@ vi.mock('../api/_extractions.js', () => ({
       )
     return module
   },
-}))
-vi.mock('../api/_project_operations.js', () => ({
-  projectOperations: { kick: operationKickMock },
 }))
 
 const ORIGIN = 'https://studio.example'
@@ -209,7 +205,6 @@ type TwoAccountStores = {
   models: ModelSpies
   extractionModules: Record<string, ExtractionModule>
   extractionEffects: ExtractionEffects
-  operationKick: Mock<() => void>
 }
 
 function twoAccountStoreFixture(): TwoAccountStores {
@@ -670,7 +665,6 @@ function twoAccountStoreFixture(): TwoAccountStores {
   extractionsMock.modules.clear()
   for (const [accountId, module] of Object.entries(extractionModules))
     extractionsMock.modules.set(accountId, module)
-  operationKickMock.mockClear()
 
   return {
     stores,
@@ -681,7 +675,6 @@ function twoAccountStoreFixture(): TwoAccountStores {
     models,
     extractionModules,
     extractionEffects,
-    operationKick: operationKickMock,
   }
 }
 
@@ -1347,7 +1340,7 @@ describe('two-account reopen, extraction, result, review, and batch isolation', 
         fixture,
         ids.accountA,
         `/api/batch-schema-suggestions/${ids.batchSuggestionB}/retry?projectContextId=${ids.projectA}`,
-        { method: 'POST' },
+        jsonRequest('POST', { expectedAttempt: 1 }),
       ),
       forbiddenB,
     )
@@ -1360,8 +1353,8 @@ describe('two-account reopen, extraction, result, review, and batch isolation', 
     expect(aliceStore.retryBatchSchemaSuggestion).toHaveBeenCalledWith(
       ids.projectA,
       ids.batchSuggestionB,
+      1,
     )
-    expect(fixture.operationKick).not.toHaveBeenCalled()
     expect(fixture.extractionEffects.suggestedBatchExecutions).toEqual([])
   })
 })

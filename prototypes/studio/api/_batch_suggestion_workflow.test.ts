@@ -1,3 +1,4 @@
+import type { StepConfig } from '@dbos-inc/dbos-sdk'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SchemaModelInput } from './_model.js'
 import { ApiError } from './_http.js'
@@ -49,13 +50,15 @@ type Scenario = {
 function harness(scenario: Scenario = {}) {
   const input: SuggestionAttemptInput = { batchSchemaSuggestionId: SUGGESTION, attempt: 2, projectContextId: PROJECT, members: scenario.members ?? [A, B] }
   const steps: string[] = []
+  const configs = new Map<string, StepConfig | undefined>()
   const writes: Array<{ kind: 'publish'; result: SuggestionProposal } | { kind: 'fail'; failure: { code: string; message: string } }> = []
   const calls: Array<{ caller: { researcherAccountId: string }; input: SchemaModelInput }> = []
   const cancel = scenario.cancel ?? new AbortController()
   let stateCalls = 0
   const ports: SuggestionWorkflowPorts = {
     steps: {
-      async step<T>(name: string, run: () => Promise<T>): Promise<T> {
+      async step<T>(name: string, run: () => Promise<T>, config?: StepConfig): Promise<T> {
+        configs.set(name, config)
         if (scenario.checkpoints?.has(name)) return scenario.checkpoints.get(name) as T
         if (name === scenario.crashAt) throw new Error(`crashed before ${name}`)
         steps.push(name)
@@ -96,7 +99,7 @@ function harness(scenario: Scenario = {}) {
       return generated(key === 'merge' ? commonTemplate : sourceTemplate)
     },
   }
-  return { input, ports, steps, writes, calls, cancel, run: () => suggestSchemaBatchWorkflow(input, ports) }
+  return { input, ports, steps, configs, writes, calls, cancel, run: () => suggestSchemaBatchWorkflow(input, ports) }
 }
 
 afterEach(() => {
@@ -234,6 +237,27 @@ describe('suggestSchemaBatch', () => {
     expect(h.calls.map((call) => call.caller)).toEqual([
       { researcherAccountId: OWNER }, { researcherAccountId: OWNER }, { researcherAccountId: OWNER },
     ])
+  })
+
+  it('every step that reads or writes the store retries a transient PostgreSQL error, and nothing else', async () => {
+    const h = harness()
+    await h.run()
+    const failed = harness({ members: [A], generate: async () => { throw new Error('model down') } })
+    await failed.run()
+    const configs = new Map([...h.configs, ...failed.configs])
+    expect([...configs.keys()]).toEqual(['suggestSource:source-a', 'suggestSource:source-b', 'merge', 'publish', 'publishFailure'])
+    const dropped = Object.assign(new Error('terminating connection due to administrator command'), { code: '57P01' })
+    const wrapped = Object.assign(new Error('Query failed'), { cause: Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }) })
+    const refused = Object.assign(new Error('connection refused'), { sqlState: '08006' })
+    const terminated = new Error('Connection terminated unexpectedly')
+    const missingPackage = Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' })
+    const constraint = Object.assign(new Error('duplicate key'), { code: '23505' })
+    for (const [name, config] of configs) {
+      expect(config?.retriesAllowed, name).toBe(true)
+      expect(config?.maxAttempts, name).toBeLessThanOrEqual(5)
+      for (const transient of [dropped, wrapped, refused, terminated]) expect(config?.shouldRetry?.(transient), name).toBe(true)
+      for (const lasting of [missingPackage, constraint, new Error('bug')]) expect(config?.shouldRetry?.(lasting), name).toBe(false)
+    }
   })
 
   it('a failure publication that finds the attempt stopped writes nothing and does not throw', async () => {

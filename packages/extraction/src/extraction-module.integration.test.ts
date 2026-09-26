@@ -1144,7 +1144,7 @@ if (!disposableDatabaseUrl) {
           sourceRepresentationRevisionId: document.sourceRepresentationRevisionId,
         })
       await db.orm.public.BatchSchemaSuggestion.where({ id: batchSchemaSuggestionId }).update({
-        executionStatus: 'COMPLETED', phase: 'READY', draft: ARTICLE_SCHEMA, draftVersion: 1, finishedAt: new Date(),
+        outcome: 'SUCCEEDED', phase: 'READY', draft: ARTICLE_SCHEMA, draftVersion: 1,
       })
       const handedOff = await module.scheduleSuggestedBatch({
         projectContextId: project.projectContextId, batchSchemaSuggestionId, strategy: 'ARTICLE',
@@ -2190,11 +2190,10 @@ if (!disposableDatabaseUrl) {
       await db.orm.public.BatchSchemaSuggestion.where({
         id: batchSchemaSuggestionId,
       }).update({
-        executionStatus: 'COMPLETED',
+        outcome: 'SUCCEEDED',
         phase: 'READY',
         draft: ARTICLE_SCHEMA,
         draftVersion: 1,
-        finishedAt: new Date(),
       })
       // The suggestion's saved revisions are kept even after a reprocess (PR #140's documented exemption).
       await addRepresentation(project.documents[0]!, 'one-v2.pdf')
@@ -2294,11 +2293,10 @@ if (!disposableDatabaseUrl) {
         await db.orm.public.BatchSchemaSuggestion.where({
           id: batchSchemaSuggestionId,
         }).update({
-          executionStatus: 'COMPLETED',
+          outcome: 'SUCCEEDED',
           phase: 'READY',
           draft,
           draftVersion: 1,
-          finishedAt: new Date(),
         })
 
         await assert.rejects(
@@ -2333,92 +2331,75 @@ if (!disposableDatabaseUrl) {
         .select('id').all()).length, 0)
     })
 
-    it('retries one durable suggestion while preserving successful source checkpoints', async (t) => {
+    it('Run requires a valid draft, a surviving member and no active attempt', async (t) => {
       t.after(cleanup)
       const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])
-      const store = createResearcherProjectStore(
-        project.researcherAccountId,
-        db,
+      /** The DBOS status each suggestion attempt reports; an attempt missing here is gone (interrupted). */
+      const attempts = new Map<string, string>()
+      const module = createExtractionModule(
+        createResearcherExtractionPersistence(project.researcherAccountId, {
+          ...execution,
+          async statuses(workflowIds) {
+            const suggestions = workflowIds.filter((id) => id.startsWith('suggest:'))
+            const statuses = new Map(await execution.statuses(workflowIds.filter((id) => !id.startsWith('suggest:'))))
+            for (const id of suggestions) if (attempts.has(id)) statuses.set(id, attempts.get(id)!)
+            return statuses
+          },
+        }, { database: db as Database, packages }),
       )
-      const batchSchemaSuggestionId = randomUUID()
-      await db.orm.public.BatchSchemaSuggestion.create({
-        id: batchSchemaSuggestionId,
-        projectContextId: project.projectContextId,
-        selectionKey: sha256(strToU8(batchSchemaSuggestionId)),
-      })
-      for (const document of project.documents)
-        await db.orm.public.BatchSchemaSuggestionSource.create({
-          batchSchemaSuggestionId,
-          sourceDocumentId: document.sourceDocumentId,
-          sourceRepresentationRevisionId:
-            document.sourceRepresentationRevisionId,
+      async function suggestion(fields: Record<string, unknown>, members = project.documents) {
+        const batchSchemaSuggestionId = randomUUID()
+        await db.orm.public.BatchSchemaSuggestion.create({
+          id: batchSchemaSuggestionId,
+          projectContextId: project.projectContextId,
+          selectionKey: sha256(strToU8(batchSchemaSuggestionId)),
         })
-      const completedAt = new Date('2026-08-24T10:00:00.000Z')
-      await db.orm.public.BatchSchemaSuggestionSource.where({
-        batchSchemaSuggestionId,
-        sourceDocumentId: project.documents[0]!.sourceDocumentId,
-      }).update({
-        executionStatus: 'COMPLETED',
-        definition: ARTICLE_SCHEMA,
-        startedAt: completedAt,
-        finishedAt: completedAt,
-      })
-      await db.orm.public.BatchSchemaSuggestionSource.where({
-        batchSchemaSuggestionId,
-        sourceDocumentId: project.documents[1]!.sourceDocumentId,
-      }).update({
-        executionStatus: 'FAILED',
-        failure: {
-          code: 'invalid_model_output',
-          message: 'Sanitized durable failure.',
-        },
-        startedAt: completedAt,
-        finishedAt: completedAt,
-      })
-      await db.orm.public.BatchSchemaSuggestion.where({
-        id: batchSchemaSuggestionId,
-      }).update({
-        executionStatus: 'FAILED',
-        phase: 'SOURCES',
-        failure: {
-          code: 'source_suggestion_failed',
-          message: 'One source failed.',
-        },
-        startedAt: completedAt,
-        finishedAt: completedAt,
-      })
-
-      const retried = await store.retryBatchSchemaSuggestion(
-        project.projectContextId,
-        batchSchemaSuggestionId,
-      )
-      assert.equal(retried?.suggestion.batchSchemaSuggestionId, batchSchemaSuggestionId)
-      assert.equal(retried?.suggestion.executionStatus, 'QUEUED')
-      const successful = retried?.suggestion.sources.find(
-        (source) =>
-          source.sourceDocumentId === project.documents[0]!.sourceDocumentId,
-      )
-      const failed = retried?.suggestion.sources.find(
-        (source) =>
-          source.sourceDocumentId === project.documents[1]!.sourceDocumentId,
-      )
-      assert.equal(successful?.executionStatus, 'COMPLETED')
-      assert.deepEqual(successful?.definition, ARTICLE_SCHEMA)
-      assert.equal(successful?.finishedAt?.toISOString(), completedAt.toISOString())
-      assert.equal(failed?.executionStatus, 'QUEUED')
-      assert.equal(failed?.failure, null)
-      assert.equal(failed?.startedAt, null)
-      assert.equal(failed?.finishedAt, null)
-      assert.equal(
-        (
-          await db.orm.public.BatchSchemaSuggestion.where({
-            projectContextId: project.projectContextId,
+        for (const document of members)
+          await db.orm.public.BatchSchemaSuggestionSource.create({
+            batchSchemaSuggestionId,
+            sourceDocumentId: document.sourceDocumentId,
+            sourceRepresentationRevisionId: document.sourceRepresentationRevisionId,
           })
-            .select('id')
-            .all()
-        ).length,
-        1,
-      )
+        await db.orm.public.BatchSchemaSuggestion.where({ id: batchSchemaSuggestionId }).update(fields)
+        return batchSchemaSuggestionId
+      }
+      const run = (batchSchemaSuggestionId: string) =>
+        module.scheduleSuggestedBatch({ projectContextId: project.projectContextId, batchSchemaSuggestionId, strategy: 'ARTICLE' })
+      const unconfirmed = async (batchSchemaSuggestionId: string) =>
+        assert.deepEqual(
+          await db.orm.public.BatchSchemaSuggestion.select('confirmedSchemaRevisionId', 'batchExtractionId')
+            .first({ id: batchSchemaSuggestionId }),
+          { confirmedSchemaRevisionId: null, batchExtractionId: null },
+        )
+      const ready = { phase: 'READY', draft: ARTICLE_SCHEMA, draftVersion: 1 }
+
+      // No draft yet: the first attempt has not published one.
+      const drafting = await suggestion({ outcome: 'SUCCEEDED', phase: 'HETEROGENEOUS' })
+      await assert.rejects(run(drafting), rejectsWithCode('batch_not_ready'))
+      await unconfirmed(drafting)
+
+      // A valid draft with no surviving member (its sources were deleted).
+      const empty = await suggestion({ outcome: 'SUCCEEDED', ...ready }, [])
+      await assert.rejects(run(empty), rejectsWithCode('batch_not_ready'))
+      await unconfirmed(empty)
+
+      // A retained draft while the next attempt runs: its result will replace the draft.
+      const retrying = await suggestion({ attempt: 2, outcome: null, ...ready })
+      for (const status of ['ENQUEUED', 'PENDING']) {
+        attempts.set(`suggest:${retrying}:2`, status)
+        await assert.rejects(run(retrying), rejectsWithCode('batch_not_ready'))
+        await unconfirmed(retrying)
+      }
+
+      // The latest attempt need not have succeeded: a failed or interrupted attempt keeps a valid draft runnable.
+      const failed = await suggestion({ attempt: 2, outcome: 'FAILED', failure: { code: 'source_suggestion_failed', message: 'Failed.' }, ...ready })
+      assert.equal((await run(failed)).disposition, 'created')
+      attempts.set(`suggest:${retrying}:2`, 'CANCELLED')
+      assert.equal((await run(retrying)).disposition, 'created')
+      const persisted = await db.orm.public.BatchSchemaSuggestion.select('confirmedSchemaRevisionId', 'batchExtractionId')
+        .first({ id: retrying })
+      assert.ok(persisted?.confirmedSchemaRevisionId)
+      assert.ok(persisted.batchExtractionId)
     })
   })
 

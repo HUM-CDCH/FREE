@@ -5,7 +5,8 @@ import type { ExtractionStrategy } from '../../shared/extraction.contract'
 
 export type BatchSchemaSuggestionOperations = {
   create(sourceDocumentIds: readonly string[]): Promise<BatchSchemaSuggestion>
-  retry(batchSchemaSuggestionId: string): Promise<BatchSchemaSuggestion>
+  /** Starts the attempt after `expectedAttempt`, the one this page shows. */
+  retry(batchSchemaSuggestionId: string, expectedAttempt: number): Promise<BatchSchemaSuggestion>
   save(
     suggestion: BatchSchemaSuggestion,
     definition: SchemaDefinition,
@@ -49,8 +50,8 @@ const createSuggestion = fromPromise<
 
 const retrySuggestion = fromPromise<
   BatchSchemaSuggestion,
-  Pick<Context, 'retry'> & { batchSchemaSuggestionId: string }
->(({ input }) => input.retry(input.batchSchemaSuggestionId))
+  Pick<Context, 'retry'> & { batchSchemaSuggestionId: string; expectedAttempt: number }
+>(({ input }) => input.retry(input.batchSchemaSuggestionId, input.expectedAttempt))
 
 const saveDraft = fromPromise<
   { suggestion: BatchSchemaSuggestion; definition: SchemaDefinition },
@@ -229,6 +230,7 @@ export const batchSchemaSuggestionMachine = setup({
   },
   guards: {
     hasSelection: ({ context }) => context.sourceDocumentIds.length > 0,
+    // An attempt is queued or running: a retained draft stays visible, but editing and Run wait for it to settle.
     suggestionRunning: ({ context }) =>
       context.suggestion?.executionStatus === 'QUEUED' ||
       context.suggestion?.executionStatus === 'RUNNING',
@@ -239,6 +241,7 @@ export const batchSchemaSuggestionMachine = setup({
       context.suggestion.confirmedSchemaRevisionId !== null,
     suggestionHeterogeneous: ({ context }) =>
       context.suggestion?.phase === 'HETEROGENEOUS',
+    // A retained valid draft, whatever the latest attempt's outcome: a failed or interrupted attempt keeps it runnable.
     suggestionReady: ({ context }) =>
       context.suggestion?.phase === 'READY' && context.draft !== null,
     hasNewerDraft: ({ context, event }) => {
@@ -301,10 +304,10 @@ export const batchSchemaSuggestionMachine = setup({
     adopting: {
       always: [
         { guard: 'suggestionRunning', target: 'suggesting' },
-        { guard: 'suggestionFailed', target: 'failed' },
         { guard: 'suggestionConfirmed', target: 'confirmed' },
-        { guard: 'suggestionHeterogeneous', target: 'heterogeneous' },
         { guard: 'suggestionReady', target: 'drafting.clean' },
+        { guard: 'suggestionFailed', target: 'failed' },
+        { guard: 'suggestionHeterogeneous', target: 'heterogeneous' },
         { target: 'idle' },
       ],
     },
@@ -334,9 +337,9 @@ export const batchSchemaSuggestionMachine = setup({
         },
       },
     },
+    // A confirmed suggestion is immutable: its fields run again from its Extraction Schema, never by a retry.
     confirmed: {
       on: {
-        'suggestion.retry': { target: 'retrying' },
         'suggestion.updated': {
           target: 'adopting',
           actions: [{ type: 'adoptUpdatedSuggestion' }],
@@ -349,6 +352,7 @@ export const batchSchemaSuggestionMachine = setup({
         input: ({ context }) => ({
           retry: context.retry,
           batchSchemaSuggestionId: context.suggestion!.batchSchemaSuggestionId,
+          expectedAttempt: context.suggestion!.attempt,
         }),
         onDone: {
           target: 'adopting',
@@ -357,10 +361,19 @@ export const batchSchemaSuggestionMachine = setup({
             { type: 'notifySuggestion' },
           ],
         },
-        onError: {
-          target: 'failed',
-          actions: [{ type: 'captureRetryFailure' }],
-        },
+        onError: [
+          // A later attempt exists: this page's suggestion is stale until it is reloaded.
+          {
+            guard: 'saveConflict',
+            target: 'conflict',
+            actions: [{ type: 'captureRetryFailure' }],
+          },
+          // The suggestion is unchanged, so it is shown as it was, with the error; Try again repeats the same attempt.
+          {
+            target: 'adopting',
+            actions: [{ type: 'captureRetryFailure' }],
+          },
+        ],
       },
     },
     drafting: {

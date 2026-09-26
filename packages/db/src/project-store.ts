@@ -1,6 +1,7 @@
 import {
   canonicalPackageStore,
   type CanonicalPackageDescriptor,
+  type CanonicalPackageStore,
 } from './artifact-store.js'
 import { createHash, randomUUID } from 'node:crypto'
 import {
@@ -8,8 +9,17 @@ import {
   type Database,
   type DatabaseTransaction,
 } from './prisma/db.js'
-import { executionOf, type WorkflowStatuses } from './execution-status.js'
-import { isUniqueViolation } from './pool-client-transaction.js'
+import {
+  executionOf,
+  INTERRUPTED_FAILURE,
+  LIVE_WORKFLOW_STATUSES,
+  type WorkflowStatuses,
+} from './execution-status.js'
+import {
+  isUniqueViolation,
+  withPoolClientTransaction,
+  type TransactionalEnqueue,
+} from './pool-client-transaction.js'
 import { lockSourceDocumentRow } from './row-lock.js'
 
 export type SchemaRevisionOrigin =
@@ -319,90 +329,194 @@ export type DocumentReopenSnapshot = {
 
 type Orm = typeof db.orm
 
-/** Rebuild the durable suggestion snapshot, including its pinned artifacts. */
+/** Studio's `suggestSchemaBatch` workflow, by name (api/_batch_suggestion_workflow.ts SUGGEST_SCHEMA_BATCH; Studio's
+ *  server/workflows.test.ts pins the two equal). */
+export const SUGGEST_SCHEMA_BATCH_NAME = 'suggestSchemaBatch'
+/** Studio's `suggest` queue, one global slot (server/dbos.ts SUGGEST_QUEUE; server/workflows.test.ts pins the two equal). */
+export const SUGGEST_QUEUE_NAME = 'suggest'
+/** A concurrent creation of the same selection: its ID derives from the selection key, so either key can fire. */
+const SUGGESTION_KEYS = ['batchSchemaSuggestion_pkey', 'batchSchemaSuggestion_selectionKey_key'] as const
+
+export const suggestWorkflowId = (batchSchemaSuggestionId: string, attempt: number) =>
+  `suggest:${batchSchemaSuggestionId}:${attempt}`
+
+/**
+ * Whether a suggestion's current attempt is active: it has no outcome and its workflow is live (DBOS ENQUEUED, DELAYED
+ * or PENDING). An attempt with no outcome whose workflow ended or is gone is interrupted, and counts as terminal for
+ * retry, draft edits and Run alike. Read under the suggestion's row lock the answer is exact: a publication either
+ * committed before the lock was taken, so its outcome is visible, or waits behind it with its workflow still PENDING.
+ */
+export function suggestionAttemptActive(outcome: string | null, status: string | undefined): boolean {
+  return outcome === null && status !== undefined && LIVE_WORKFLOW_STATUSES.has(status)
+}
+
+/** The statuses of attempts admitted just now: each workflow was enqueued in the transaction that committed its row. */
+const JUST_ADMITTED: WorkflowStatuses = async (workflowIds) => new Map(workflowIds.map((id) => [id, 'ENQUEUED']))
+/** Without a DBOS reader an attempt without an outcome counts as running (ResearcherProjectStoreOptions). */
+const ASSUMED_RUNNING: WorkflowStatuses = async (workflowIds) => new Map(workflowIds.map((id) => [id, 'PENDING']))
+
+const suggestionFields = [
+  'id',
+  'selectionKey',
+  'attempt',
+  'outcome',
+  'failure',
+  'phase',
+  'proposal',
+  'coverage',
+  'draft',
+  'draftVersion',
+  'confirmedSchemaRevisionId',
+  'batchExtractionId',
+  'createdAt',
+] as const
+
+type StoredSuggestion = {
+  id: string
+  selectionKey: string
+  attempt: number
+  outcome: 'SUCCEEDED' | 'FAILED' | null
+  failure: unknown
+  phase: BatchSchemaSuggestionPhase | null
+  proposal: unknown
+  coverage: unknown
+  draft: unknown
+  draftVersion: number
+  confirmedSchemaRevisionId: string | null
+  batchExtractionId: string | null
+  createdAt: Date
+}
+
+/** The execution status and failure a researcher reads: the stored outcome, else the attempt's workflow (spec, *Status
+ *  and ownership*). A row read before its workflow reported SUCCESS was re-read by the caller. */
+function suggestionExecution(
+  row: StoredSuggestion,
+  status: string | undefined,
+): Pick<BatchSchemaSuggestionRecord, 'executionStatus' | 'failure'> {
+  if (row.outcome === 'SUCCEEDED') return { executionStatus: 'COMPLETED', failure: null }
+  if (row.outcome === 'FAILED') return { executionStatus: 'FAILED', failure: row.failure }
+  const execution = executionOf(status)
+  if (execution === 'QUEUED' || execution === 'RUNNING') return { executionStatus: execution, failure: null }
+  return { executionStatus: 'FAILED', failure: { ...INTERRUPTED_FAILURE } }
+}
+
+/**
+ * Rebuilds the durable suggestion snapshots of `ids` in one Project Context, in the order given, with one status read
+ * for every attempt that has no outcome. A suggestion missing from the project is left out.
+ */
+async function loadBatchSchemaSuggestions(
+  orm: Orm,
+  statuses: WorkflowStatuses,
+  projectContextId: string,
+  ids: readonly string[],
+): Promise<BatchSchemaSuggestionRecord[]> {
+  if (ids.length === 0) return []
+  const rows = new Map(
+    ((await orm.public.BatchSchemaSuggestion.where((suggestion) => suggestion.id.in([...ids]))
+      .where({ projectContextId })
+      .select(...suggestionFields)
+      .all()) as StoredSuggestion[]).map((row) => [row.id, row]),
+  )
+  const unsettled = [...rows.values()].filter((row) => row.outcome === null)
+  const status =
+    unsettled.length === 0
+      ? new Map<string, string>()
+      : await statuses(unsettled.map((row) => suggestWorkflowId(row.id, row.attempt)))
+  // SUCCESS without an outcome on the first read: the publication may have committed just after it.
+  for (const row of unsettled)
+    if (executionOf(status.get(suggestWorkflowId(row.id, row.attempt))) === 'REREAD') {
+      const reread = (await orm.public.BatchSchemaSuggestion.select(...suggestionFields).first({
+        id: row.id,
+      })) as StoredSuggestion | null
+      if (reread) rows.set(row.id, reread)
+    }
+  const pins = rows.size === 0
+    ? []
+    : await orm.public.BatchSchemaSuggestionSource.where((source) =>
+        source.batchSchemaSuggestionId.in([...rows.keys()]),
+      )
+        .select('batchSchemaSuggestionId', 'sourceDocumentId', 'sourceRepresentationRevisionId')
+        .orderBy((source) => source.sourceDocumentId.asc())
+        .all()
+  const revisions = new Map(
+    (pins.length === 0
+      ? []
+      : await orm.public.SourceRepresentationRevision.where((revision) =>
+          revision.id.in([...new Set(pins.map((pin) => pin.sourceRepresentationRevisionId))]),
+        )
+          .select('id', 'artifactReference', 'artifactSha256')
+          .all()
+    ).map((revision) => [revision.id, revision]),
+  )
+  const records: BatchSchemaSuggestionRecord[] = []
+  for (const id of ids) {
+    const row = rows.get(id)
+    if (!row) continue
+    const sources: BatchSchemaSuggestionSourceRecord[] = []
+    for (const pin of pins) {
+      if (pin.batchSchemaSuggestionId !== id) continue
+      // The composite pin cascades with its revision, so a pin always has one.
+      const revision = revisions.get(pin.sourceRepresentationRevisionId)
+      if (!revision) throw new Error('Stored Batch Schema Suggestion pins are unavailable.')
+      sources.push({
+        sourceDocumentId: pin.sourceDocumentId,
+        sourceRepresentationRevisionId: pin.sourceRepresentationRevisionId,
+        descriptor: { artifactReference: revision.artifactReference, artifactSha256: revision.artifactSha256 },
+      })
+    }
+    records.push({
+      batchSchemaSuggestionId: row.id,
+      projectContextId,
+      selectionKey: row.selectionKey,
+      attempt: row.attempt,
+      ...suggestionExecution(row, status.get(suggestWorkflowId(row.id, row.attempt))),
+      phase: row.phase,
+      proposal: row.proposal,
+      coverage: row.coverage,
+      draft: row.draft,
+      draftVersion: row.draftVersion,
+      confirmedSchemaRevisionId: row.confirmedSchemaRevisionId,
+      batchExtractionId: row.batchExtractionId,
+      createdAt: row.createdAt,
+      sources,
+    })
+  }
+  return records
+}
+
 async function loadBatchSchemaSuggestion(
   orm: Orm,
+  statuses: WorkflowStatuses,
   projectContextId: string,
   batchSchemaSuggestionId: string,
 ): Promise<BatchSchemaSuggestionRecord | null> {
-  const suggestion = await orm.public.BatchSchemaSuggestion.select(
-    'id',
-    'selectionKey',
-    'executionStatus',
-    'phase',
-    'proposal',
-    'coverage',
-    'draft',
-    'draftVersion',
-    'failure',
-    'confirmedSchemaRevisionId',
-    'batchExtractionId',
-    'startedAt',
-    'finishedAt',
-    'leaseOwner',
-    'leaseVersion',
-    'leaseExpiresAt',
-    'createdAt',
-  ).first({ id: batchSchemaSuggestionId, projectContextId })
-  if (!suggestion) return null
-  const rows = await orm.public.BatchSchemaSuggestionSource.where({
-    batchSchemaSuggestionId,
-  })
-    .select(
-      'sourceDocumentId',
-      'sourceRepresentationRevisionId',
-      'executionStatus',
-      'definition',
-      'failure',
-      'startedAt',
-      'finishedAt',
-    )
-    .orderBy((source) => source.sourceDocumentId.asc())
-    .all()
-  const sources: BatchSchemaSuggestionSourceRecord[] = []
-  for (const row of rows) {
-    const representation =
-      await orm.public.SourceRepresentationRevision.select(
-        'artifactReference',
-        'artifactSha256',
-      ).first({ id: row.sourceRepresentationRevisionId })
-    if (!representation)
-      throw new Error('Stored Batch Schema Suggestion pins are unavailable.')
-    sources.push({
-      sourceDocumentId: row.sourceDocumentId,
-      sourceRepresentationRevisionId: row.sourceRepresentationRevisionId,
-      descriptor: {
-        artifactReference: representation.artifactReference,
-        artifactSha256: representation.artifactSha256,
-      },
-      executionStatus: row.executionStatus as ProjectOperationStatus,
-      definition: row.definition,
-      failure: row.failure,
-      startedAt: row.startedAt,
-      finishedAt: row.finishedAt,
-    })
-  }
-  return {
-    batchSchemaSuggestionId: suggestion.id,
+  return (await loadBatchSchemaSuggestions(orm, statuses, projectContextId, [batchSchemaSuggestionId]))[0] ?? null
+}
+
+/**
+ * Takes the suggestion's row lock for the rest of the transaction (a no-op update, as row-lock.ts does for documents):
+ * a concurrent retry, draft edit, Run or attempt write waits. False when the suggestion is not in the project.
+ */
+async function lockSuggestionRow(orm: Orm, projectContextId: string, batchSchemaSuggestionId: string): Promise<boolean> {
+  const locked = await orm.public.BatchSchemaSuggestion.where({
+    id: batchSchemaSuggestionId,
     projectContextId,
-    selectionKey: suggestion.selectionKey,
-    executionStatus: suggestion.executionStatus as ProjectOperationStatus,
-    phase: suggestion.phase as BatchSchemaSuggestionPhase,
-    proposal: suggestion.proposal,
-    coverage: suggestion.coverage,
-    draft: suggestion.draft,
-    draftVersion: suggestion.draftVersion,
-    failure: suggestion.failure,
-    confirmedSchemaRevisionId: suggestion.confirmedSchemaRevisionId,
-    batchExtractionId: suggestion.batchExtractionId,
-    startedAt: suggestion.startedAt,
-    finishedAt: suggestion.finishedAt,
-    leaseOwner: suggestion.leaseOwner,
-    leaseVersion: suggestion.leaseVersion,
-    leaseExpiresAt: suggestion.leaseExpiresAt,
-    createdAt: suggestion.createdAt,
-    sources,
-  }
+  }).updateAll({ id: batchSchemaSuggestionId })
+  return locked.length === 1
+}
+
+/**
+ * The one predicate every attempt check and terminal write shares: `attempt` is the suggestion's current attempt and it
+ * has no outcome. Evaluated by a no-op update, so it also takes the row lock: a retry that advanced the attempt, a
+ * deletion that interrupted it or an earlier execution of the same step leaves nothing to match.
+ */
+async function lockCurrentAttempt(orm: Orm, batchSchemaSuggestionId: string, attempt: number): Promise<boolean> {
+  const locked = await orm.public.BatchSchemaSuggestion.where({
+    id: batchSchemaSuggestionId,
+    attempt,
+    outcome: null,
+  }).updateAll({ id: batchSchemaSuggestionId })
+  return locked.length === 1
 }
 
 function canonicalSourceDocumentIds(ids: readonly string[]): string[] {
@@ -439,23 +553,23 @@ function batchSuggestionSelectionKey(
     .digest('hex')
 }
 
+/** One member's pin, as a suggestion attempt's workflow input carries it. */
+type SuggestionMember = { sourceDocumentId: string; sourceRepresentationRevisionId: string }
+
+/** Each selected Source Document's head revision, sorted by Source Document ID; null for an empty or foreign
+ *  selection. */
 async function currentBatchMembers(
   orm: Orm,
   researcherAccountId: string,
   projectContextId: string,
   sourceDocumentIds: readonly string[],
-): Promise<
-  { sourceDocumentId: string; sourceRepresentationRevisionId: string }[] | null
-> {
+): Promise<SuggestionMember[] | null> {
   const project = await orm.public.ProjectContext.select('id').first({
     id: projectContextId,
     researcherAccountId,
   })
   if (!project || sourceDocumentIds.length === 0) return null
-  const members: {
-    sourceDocumentId: string
-    sourceRepresentationRevisionId: string
-  }[] = []
+  const members: SuggestionMember[] = []
   for (const sourceDocumentId of canonicalSourceDocumentIds(
     sourceDocumentIds,
   )) {
@@ -479,57 +593,41 @@ async function currentBatchMembers(
   return members
 }
 
-export type ProjectOperationStatus =
-  | 'QUEUED'
-  | 'RUNNING'
-  | 'COMPLETED'
-  | 'FAILED'
+export type BatchSchemaSuggestionPhase = 'READY' | 'HETEROGENEOUS'
 
-export type BatchSchemaSuggestionPhase =
-  | 'SOURCES'
-  | 'MERGING'
-  | 'READY'
-  | 'HETEROGENEOUS'
-
-
+/** One member pin and its revision's canonical package. */
 export type BatchSchemaSuggestionSourceRecord = {
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
   descriptor: CanonicalPackageDescriptor
-  executionStatus: ProjectOperationStatus
-  definition: unknown | null
-  failure: unknown | null
-  startedAt: Date | null
-  finishedAt: Date | null
 }
 
 export type BatchSchemaSuggestionRecord = {
   batchSchemaSuggestionId: string
   projectContextId: string
   selectionKey: string
-  executionStatus: ProjectOperationStatus
-  phase: BatchSchemaSuggestionPhase
+  /** The current attempt: 1 at creation, one more after each retry. */
+  attempt: number
+  /** Derived: the current attempt's outcome, else its workflow's DBOS status (FAILED `interrupted` once it stopped). */
+  executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED'
+  /** The retained proposal's meaning; null before the first proposal. */
+  phase: BatchSchemaSuggestionPhase | null
   proposal: unknown | null
   coverage: unknown | null
   draft: unknown | null
   draftVersion: number
+  /** The current attempt's failure. */
   failure: unknown | null
   confirmedSchemaRevisionId: string | null
   batchExtractionId: string | null
-  startedAt: Date | null
-  finishedAt: Date | null
-  leaseOwner: string | null
-  leaseVersion: number
-  leaseExpiresAt: Date | null
   createdAt: Date
   sources: BatchSchemaSuggestionSourceRecord[]
 }
 
-export type OperationLease = {
-  owner: string
-  version: number
-  expiresAt: Date
-}
+/** What one successful attempt publishes (Studio's SuggestionProposal). */
+export type BatchSchemaSuggestionProposal =
+  | { phase: 'READY'; proposal: unknown; coverage: unknown; draft: unknown }
+  | { phase: 'HETEROGENEOUS' }
 
 export type UpdateBatchSchemaSuggestionDraftResult =
   | { status: 'updated'; suggestion: BatchSchemaSuggestionRecord }
@@ -538,7 +636,9 @@ export type UpdateBatchSchemaSuggestionDraftResult =
   | null
 
 export type RetryBatchSchemaSuggestionResult =
-  | { status: 'retried'; suggestion: BatchSchemaSuggestionRecord }
+  | { status: 'retried' | 'replayed'; suggestion: BatchSchemaSuggestionRecord }
+  | { status: 'attempt-conflict' }
+  | { status: 'not-ready' }
   | null
 
 export type ResearcherProjectStore = {
@@ -625,9 +725,15 @@ export type ResearcherProjectStore = {
     expectedDraftVersion: number,
     draft: unknown,
   ): Promise<UpdateBatchSchemaSuggestionDraftResult>
+  /**
+   * Starts the next attempt over every surviving pin, once per `expectedAttempt`: a repeat that finds exactly that
+   * attempt's successor replays it, whether or not it finished; any other attempt is a conflict. Refused (`not-ready`)
+   * while the current attempt is active, after confirmation, or with no surviving member.
+   */
   retryBatchSchemaSuggestion(
     projectContextId: string,
     batchSchemaSuggestionId: string,
+    expectedAttempt: number,
   ): Promise<RetryBatchSchemaSuggestionResult>
   initializeSchemaRevision(
     projectContextId: string,
@@ -666,47 +772,23 @@ export type InternalProjectWorkerStore = {
   /** The Researcher Account that owns the Project Context, or null when it no longer exists. Background model work
    *  resolves the owner's configuration and keys through it. */
   projectContextOwner(projectContextId: string): Promise<string | null>
-  claimBatchSchemaSuggestion(
-    owner: string,
-    now: Date,
-    leaseExpiresAt: Date,
-  ): Promise<(BatchSchemaSuggestionRecord & { lease: OperationLease }) | null>
-  renewBatchSchemaSuggestionLease(
+  /** The revision's canonical Markdown as text, or null when the revision is gone. */
+  readRevisionMarkdown(sourceRepresentationRevisionId: string): Promise<string | null>
+  /** 'current' while `attempt` is the suggestion's attempt and has no outcome; 'stopped' after a retry, an
+   *  interruption, a publication or the suggestion's deletion. */
+  suggestionAttemptState(batchSchemaSuggestionId: string, attempt: number): Promise<'current' | 'stopped'>
+  /** Publishes the attempt's proposal (and a new draft version) if it is still current. */
+  publishBatchSchemaSuggestion(
     batchSchemaSuggestionId: string,
-    lease: OperationLease,
-    leaseExpiresAt: Date,
-  ): Promise<boolean>
-  startBatchSchemaSuggestionSource(
+    attempt: number,
+    result: BatchSchemaSuggestionProposal,
+  ): Promise<'published' | 'stopped'>
+  /** Records the attempt's failure if it is still current; the proposal, draft and draft version stay. */
+  failBatchSchemaSuggestionAttempt(
     batchSchemaSuggestionId: string,
-    sourceDocumentId: string,
-    lease: OperationLease,
-    startedAt: Date,
-  ): Promise<boolean>
-  completeBatchSchemaSuggestionSource(
-    batchSchemaSuggestionId: string,
-    sourceDocumentId: string,
-    lease: OperationLease,
-    result: { definition: unknown } | { failure: unknown },
-    finishedAt: Date,
-  ): Promise<boolean>
-  startBatchSchemaSuggestionMerge(
-    batchSchemaSuggestionId: string,
-    lease: OperationLease,
-  ): Promise<boolean>
-  completeBatchSchemaSuggestionMerge(
-    batchSchemaSuggestionId: string,
-    lease: OperationLease,
-    result:
-      | { proposal: unknown; coverage: unknown; draft: unknown }
-      | { heterogeneous: true },
-    finishedAt: Date,
-  ): Promise<boolean>
-  failBatchSchemaSuggestion(
-    batchSchemaSuggestionId: string,
-    lease: OperationLease,
-    failure: unknown,
-    finishedAt: Date,
-  ): Promise<boolean>
+    attempt: number,
+    failure: { code: string; message: string },
+  ): Promise<'published' | 'stopped'>
 }
 
 type StoredProjectContext = { id: string; name: string; createdAt: Date }
@@ -827,9 +909,12 @@ async function discardPackagesIfUnreferenced(
 }
 
 export type ResearcherProjectStoreOptions = Readonly<{
-  /** The DBOS status of named workflows (Studio's admission client); without it an unsettled batch member counts as
-   *  running. */
+  /** The DBOS status of named workflows (Studio's admission client); without it an unsettled batch member or
+   *  suggestion attempt counts as running. */
   workflowStatuses?: WorkflowStatuses
+  /** Enqueues a Batch Schema Suggestion attempt's `suggestSchemaBatch` workflow in its admission transaction (Studio's
+   *  admission client); creation and retry require it. */
+  enqueue?: TransactionalEnqueue
 }>
 
 export function createResearcherProjectStore(
@@ -837,6 +922,21 @@ export function createResearcherProjectStore(
   database: Database = db,
   options: ResearcherProjectStoreOptions = {},
 ): ResearcherProjectStore {
+  const statuses = options.workflowStatuses ?? ASSUMED_RUNNING
+  const admitSuggestionAttempt = async (
+    client: Parameters<TransactionalEnqueue>[0],
+    input: { batchSchemaSuggestionId: string; attempt: number; projectContextId: string; members: readonly SuggestionMember[] },
+  ) => {
+    if (!options.enqueue)
+      throw new Error('This store cannot admit a Batch Schema Suggestion attempt: createResearcherProjectStore was given no enqueue.')
+    await options.enqueue(client, {
+      workflowName: SUGGEST_SCHEMA_BATCH_NAME,
+      workflowID: suggestWorkflowId(input.batchSchemaSuggestionId, input.attempt),
+      queueName: SUGGEST_QUEUE_NAME,
+      authenticatedUser: researcherAccountId,
+      attributes: { projectContextId: input.projectContextId, batchSchemaSuggestionId: input.batchSchemaSuggestionId },
+    }, input)
+  }
   return {
     researcherAccountId,
     async createProjectContext(name) {
@@ -1651,95 +1751,48 @@ export function createResearcherProjectStore(
       }
     },
     async createBatchSchemaSuggestion(projectContextId, sourceDocumentIds) {
-      const create = async () =>
-        database.transaction(async ({ orm }) => {
-          const project = await orm.public.ProjectContext.select('id').first({
-            id: projectContextId,
-            researcherAccountId,
-          })
-          if (!project) return 'missing' as const
-          const members = await currentBatchMembers(
-            orm,
-            researcherAccountId,
-            projectContextId,
-            sourceDocumentIds,
-          )
-          if (!members) return 'invalid' as const
-          const selectionKey = batchSuggestionSelectionKey(
-            projectContextId,
-            members,
-          )
-          const batchSchemaSuggestionId = stableUuid(
-            'batch-schema-suggestion',
-            selectionKey,
-          )
-          await orm.public.BatchSchemaSuggestion.create({
-            id: batchSchemaSuggestionId,
-            projectContextId,
-            selectionKey,
-          })
+      // The suggestion, its pins and attempt 1's workflow commit together on one pooled client, or none of them does.
+      const admit = () =>
+        withPoolClientTransaction(async ({ orm }, client) => {
+          if (!(await ownsProjectContext(orm, researcherAccountId, projectContextId)))
+            return { status: 'missing' } as const
+          const members = await currentBatchMembers(orm, researcherAccountId, projectContextId, sourceDocumentIds)
+          if (!members || members.length === 0) return { status: 'invalid' } as const
+          const selectionKey = batchSuggestionSelectionKey(projectContextId, members)
+          const batchSchemaSuggestionId = stableUuid('batch-schema-suggestion', selectionKey)
+          if (await orm.public.BatchSchemaSuggestion.select('id').first({ id: batchSchemaSuggestionId }))
+            return { status: 'replayed', batchSchemaSuggestionId } as const
+          await orm.public.BatchSchemaSuggestion.create({ id: batchSchemaSuggestionId, projectContextId, selectionKey })
           for (const member of members)
-            await orm.public.BatchSchemaSuggestionSource.create({
-              batchSchemaSuggestionId,
-              ...member,
-            })
-          return { batchSchemaSuggestionId } as const
+            await orm.public.BatchSchemaSuggestionSource.create({ batchSchemaSuggestionId, ...member })
+          await admitSuggestionAttempt(client, { batchSchemaSuggestionId, attempt: 1, projectContextId, members })
+          return { status: 'created', batchSchemaSuggestionId } as const
         })
+      let admitted
       try {
-        const created = await create()
-        if (created === 'missing') return null
-        if (created === 'invalid') return { status: 'invalid' as const }
-        const suggestion = await loadBatchSchemaSuggestion(
-          database.orm,
-          projectContextId,
-          created.batchSchemaSuggestionId,
-        )
-        if (!suggestion)
-          throw new Error('Persisted Batch Schema Suggestion could not be read.')
-        return { status: 'created' as const, suggestion }
+        admitted = await admit()
       } catch (error) {
-        if (!uniqueConstraint(error)) throw error
-        const members = await database.transaction(({ orm }) =>
-          currentBatchMembers(
-            orm,
-            researcherAccountId,
-            projectContextId,
-            sourceDocumentIds,
-          ),
-        )
-        if (!members) return { status: 'invalid' as const }
-        const suggestion = await loadBatchSchemaSuggestion(
-          database.orm,
-          projectContextId,
-          stableUuid(
-            'batch-schema-suggestion',
-            batchSuggestionSelectionKey(projectContextId, members),
-          ),
-        )
-        if (!suggestion) throw error
-        return { status: 'replayed' as const, suggestion }
+        // A concurrent creation of the same selection committed first: this one rolled back and reads it.
+        if (!SUGGESTION_KEYS.some((key) => isUniqueViolation(error, key))) throw error
+        admitted = await admit()
       }
+      if (admitted.status === 'missing') return null
+      if (admitted.status === 'invalid') return { status: 'invalid' as const }
+      const suggestion = await loadBatchSchemaSuggestion(
+        database.orm,
+        admitted.status === 'created' ? JUST_ADMITTED : statuses,
+        projectContextId,
+        admitted.batchSchemaSuggestionId,
+      )
+      if (!suggestion) throw new Error('Persisted Batch Schema Suggestion could not be read.')
+      return { status: admitted.status, suggestion }
     },
     async getBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId) {
-      if (
-        !(await ownsProjectContext(
-          database.orm,
-          researcherAccountId,
-          projectContextId,
-        ))
-      )
-        return null
-      return loadBatchSchemaSuggestion(
-        database.orm,
-        projectContextId,
-        batchSchemaSuggestionId,
-      )
+      if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId))) return null
+      return loadBatchSchemaSuggestion(database.orm, statuses, projectContextId, batchSchemaSuggestionId)
     },
     async listBatchSchemaSuggestions(projectContextId, limit) {
-      const project = await database.orm.public.ProjectContext.select(
-        'id',
-      ).first({ id: projectContextId, researcherAccountId })
-      if (!project) return null
+      if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId))) return null
       const rows = await database.orm.public.BatchSchemaSuggestion.where({
         projectContextId,
       })
@@ -1750,16 +1803,7 @@ export function createResearcherProjectStore(
         ])
         .take(limit)
         .all()
-      const suggestions: BatchSchemaSuggestionRecord[] = []
-      for (const row of rows) {
-        const suggestion = await loadBatchSchemaSuggestion(
-          database.orm,
-          projectContextId,
-          row.id,
-        )
-        if (suggestion) suggestions.push(suggestion)
-      }
-      return suggestions
+      return loadBatchSchemaSuggestions(database.orm, statuses, projectContextId, rows.map((row) => row.id))
     },
     async updateBatchSchemaSuggestionDraft(
       projectContextId,
@@ -1768,33 +1812,28 @@ export function createResearcherProjectStore(
       draft,
     ) {
       const result = await database.transaction(async ({ orm }) => {
-        if (
-          !(await ownsProjectContext(
-            orm,
-            researcherAccountId,
-            projectContextId,
-          ))
-        )
-          return 'missing' as const
+        if (!(await ownsProjectContext(orm, researcherAccountId, projectContextId))) return 'missing' as const
+        // Under the row lock a retry or Run cannot start between this check and the write.
+        if (!(await lockSuggestionRow(orm, projectContextId, batchSchemaSuggestionId))) return 'missing' as const
         const suggestion = await orm.public.BatchSchemaSuggestion.select(
-          'id',
-          'executionStatus',
+          'attempt',
+          'outcome',
           'phase',
           'confirmedSchemaRevisionId',
-          'draftVersion',
-        ).first({ id: batchSchemaSuggestionId, projectContextId })
+        ).first({ id: batchSchemaSuggestionId })
         if (!suggestion) return 'missing' as const
+        if (suggestion.phase !== 'READY' || suggestion.confirmedSchemaRevisionId !== null) return 'invalid' as const
+        const attemptId = suggestWorkflowId(batchSchemaSuggestionId, suggestion.attempt)
+        // The retained draft is read-only while an attempt runs: its result replaces it.
         if (
-          suggestion.executionStatus !== 'COMPLETED' ||
-          suggestion.phase !== 'READY' ||
-          suggestion.confirmedSchemaRevisionId !== null
+          suggestion.outcome === null &&
+          suggestionAttemptActive(suggestion.outcome, (await statuses([attemptId])).get(attemptId))
         )
           return 'invalid' as const
         // updateAll retains these guards in the UPDATE; update selects an id first.
         const updated = await orm.public.BatchSchemaSuggestion.where({
           id: batchSchemaSuggestionId,
           draftVersion: expectedDraftVersion,
-          executionStatus: 'COMPLETED',
           phase: 'READY',
           confirmedSchemaRevisionId: null,
         }).updateAll({
@@ -1804,73 +1843,54 @@ export function createResearcherProjectStore(
         return updated.length === 1 ? ('updated' as const) : ('conflict' as const)
       })
       if (result === 'missing') return null
-      const suggestion = await loadBatchSchemaSuggestion(
-        database.orm,
-        projectContextId,
-        batchSchemaSuggestionId,
-      )
-      if (!suggestion) return null
       if (result === 'invalid') return { status: 'invalid' as const }
+      const suggestion = await loadBatchSchemaSuggestion(database.orm, statuses, projectContextId, batchSchemaSuggestionId)
+      if (!suggestion) return null
       return { status: result, suggestion }
     },
-    async retryBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId) {
-      const result = await database.transaction(async ({ orm }) => {
-        if (
-          !(await ownsProjectContext(
-            orm,
-            researcherAccountId,
-            projectContextId,
-          ))
-        )
-          return 'missing' as const
-        // Lock the parent before touching sources, as the worker does.
-        const [suggestion] = await orm.public.BatchSchemaSuggestion.where({
-          id: batchSchemaSuggestionId,
-          projectContextId,
-        }).updateAll({ id: batchSchemaSuggestionId })
-        if (!suggestion) return 'missing' as const
-        const sources = await orm.public.BatchSchemaSuggestionSource.where({
-          batchSchemaSuggestionId,
-        })
-          .select('sourceDocumentId', 'executionStatus')
+    async retryBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId, expectedAttempt) {
+      const result = await withPoolClientTransaction(async ({ orm }, client) => {
+        if (!(await ownsProjectContext(orm, researcherAccountId, projectContextId))) return 'missing' as const
+        // Lock the row first: a concurrent retry, draft edit, Run or source deletion waits.
+        if (!(await lockSuggestionRow(orm, projectContextId, batchSchemaSuggestionId))) return 'missing' as const
+        const row = await orm.public.BatchSchemaSuggestion.select(
+          'attempt',
+          'outcome',
+          'confirmedSchemaRevisionId',
+        ).first({ id: batchSchemaSuggestionId })
+        if (!row) return 'missing' as const
+        // This request's successor already exists (an uncertain POST repeated): answer it, finished or not.
+        if (row.attempt === expectedAttempt + 1) return 'replayed' as const
+        if (row.attempt !== expectedAttempt) return 'attempt-conflict' as const
+        if (row.confirmedSchemaRevisionId !== null) return 'not-ready' as const
+        const current = suggestWorkflowId(batchSchemaSuggestionId, row.attempt)
+        // Allowed only after a terminal attempt: an outcome, or a workflow that stopped without one (interrupted).
+        if (row.outcome === null && suggestionAttemptActive(row.outcome, (await statuses([current])).get(current)))
+          return 'not-ready' as const
+        const members = await orm.public.BatchSchemaSuggestionSource.where({ batchSchemaSuggestionId })
+          .select('sourceDocumentId', 'sourceRepresentationRevisionId')
+          .orderBy((source) => source.sourceDocumentId.asc())
           .all()
-        const sourceFailures = sources.filter(
-          (source) => source.executionStatus !== 'COMPLETED',
-        )
-        for (const source of sourceFailures)
-          await orm.public.BatchSchemaSuggestionSource.where({
-            batchSchemaSuggestionId,
-            sourceDocumentId: source.sourceDocumentId,
-          }).update({
-            executionStatus: 'QUEUED',
-            failure: null,
-            startedAt: null,
-            finishedAt: null,
-          })
-        await orm.public.BatchSchemaSuggestion.where({
-          id: batchSchemaSuggestionId,
-        }).update({
-          executionStatus: 'QUEUED',
-          phase:
-            sourceFailures.length > 0 ? 'SOURCES' : ('MERGING' as const),
+        // An empty selection keeps its draft, but there is nothing to suggest from.
+        if (members.length === 0) return 'not-ready' as const
+        const attempt = row.attempt + 1
+        await orm.public.BatchSchemaSuggestion.where({ id: batchSchemaSuggestionId }).updateAll({
+          attempt,
+          outcome: null,
           failure: null,
-          confirmedSchemaRevisionId: null,
-          batchExtractionId: null,
-          startedAt: null,
-          finishedAt: null,
-          leaseOwner: null,
-          leaseExpiresAt: null,
         })
+        await admitSuggestionAttempt(client, { batchSchemaSuggestionId, attempt, projectContextId, members })
         return 'retried' as const
       })
       if (result === 'missing') return null
+      if (result === 'attempt-conflict' || result === 'not-ready') return { status: result }
       const suggestion = await loadBatchSchemaSuggestion(
         database.orm,
+        result === 'retried' ? JUST_ADMITTED : statuses,
         projectContextId,
         batchSchemaSuggestionId,
       )
-      if (!suggestion)
-        throw new Error('Retried Batch Schema Suggestion could not be read.')
+      if (!suggestion) throw new Error('Retried Batch Schema Suggestion could not be read.')
       return { status: result, suggestion }
     },
     async initializeSchemaRevision(projectContextId, schemaTree) {
@@ -2109,7 +2129,9 @@ export function createResearcherProjectStore(
 
 export function createInternalProjectWorkerStore(
   database: Database = db,
+  infrastructure: Readonly<{ packages?: CanonicalPackageStore }> = {},
 ): InternalProjectWorkerStore {
+  const packages = infrastructure.packages ?? canonicalPackageStore
   return {
     isPackageReferenced(artifactReference) {
       return packageIsReferenced(database, artifactReference)
@@ -2118,199 +2140,65 @@ export function createInternalProjectWorkerStore(
       const project = await database.orm.public.ProjectContext.select('researcherAccountId').first({ id: projectContextId })
       return project?.researcherAccountId ?? null
     },
-    async claimBatchSchemaSuggestion(owner, now, leaseExpiresAt) {
-      const queued = await database.orm.public.BatchSchemaSuggestion.where({
-        executionStatus: 'QUEUED',
-      })
-        .select('id', 'leaseVersion', 'startedAt')
-        .orderBy((suggestion) => suggestion.createdAt.asc())
-        .first()
-      const running = queued
-        ? null
-        : (await database.orm.public.BatchSchemaSuggestion.where({
-            executionStatus: 'RUNNING',
-          })
-            .select('id', 'leaseVersion', 'startedAt', 'leaseExpiresAt')
-            .orderBy((suggestion) => suggestion.createdAt.asc())
-            .all()).find(
-            (suggestion) =>
-              suggestion.leaseExpiresAt === null ||
-              suggestion.leaseExpiresAt.getTime() <= now.getTime(),
-          )
-      const candidate = queued ?? running
-      if (!candidate) return null
-      const version = candidate.leaseVersion + 1
-      const [claimed] = await database.orm.public.BatchSchemaSuggestion.where({
-        id: candidate.id,
-        leaseVersion: candidate.leaseVersion,
-        executionStatus: queued ? 'QUEUED' : 'RUNNING',
-        ...(running ? { leaseExpiresAt: running.leaseExpiresAt } : {}),
-      }).updateAll({
-        executionStatus: 'RUNNING',
-        failure: null,
-        startedAt: candidate.startedAt ?? now,
-        finishedAt: null,
-        leaseOwner: owner,
-        leaseVersion: version,
-        leaseExpiresAt,
-      })
-      if (!claimed) return null
-      const suggestion = await loadBatchSchemaSuggestion(
-        database.orm,
-        claimed.projectContextId,
-        candidate.id,
-      )
-      if (!suggestion) return null
-      return {
-        ...suggestion,
-        lease: { owner, version, expiresAt: leaseExpiresAt },
-      }
+    async readRevisionMarkdown(sourceRepresentationRevisionId) {
+      const revision = await database.orm.public.SourceRepresentationRevision.select(
+        'artifactReference',
+        'artifactSha256',
+      ).first({ id: sourceRepresentationRevisionId })
+      if (!revision) return null
+      return new TextDecoder().decode((await packages.read(revision, 'markdown')).bytes)
     },
-    async renewBatchSchemaSuggestionLease(
-      batchSchemaSuggestionId,
-      lease,
-      leaseExpiresAt,
-    ) {
-      const updated = await database.orm.public.BatchSchemaSuggestion.where({
-        id: batchSchemaSuggestionId,
-        leaseOwner: lease.owner,
-        leaseVersion: lease.version,
-        executionStatus: 'RUNNING',
-      }).updateAll({ leaseExpiresAt })
-      return updated.length === 1
+    async suggestionAttemptState(batchSchemaSuggestionId, attempt) {
+      return (await database.transaction(({ orm }) => lockCurrentAttempt(orm, batchSchemaSuggestionId, attempt)))
+        ? 'current'
+        : 'stopped'
     },
-    async startBatchSchemaSuggestionSource(
-      batchSchemaSuggestionId,
-      sourceDocumentId,
-      lease,
-      startedAt,
-    ) {
+    async publishBatchSchemaSuggestion(batchSchemaSuggestionId, attempt, result) {
       return database.transaction(async ({ orm }) => {
-        // Keep ownership locked until the source write commits.
-        const owned = await orm.public.BatchSchemaSuggestion.where({
+        if (!(await lockCurrentAttempt(orm, batchSchemaSuggestionId, attempt))) return 'stopped' as const
+        const row = await orm.public.BatchSchemaSuggestion.select('draftVersion').first({ id: batchSchemaSuggestionId })
+        if (!row) return 'stopped' as const
+        // The read and this write share the lock, and the write repeats the predicate: a second execution of the
+        // publication step finds the outcome and increments nothing.
+        const written = await orm.public.BatchSchemaSuggestion.where({
           id: batchSchemaSuggestionId,
-          leaseOwner: lease.owner,
-          leaseVersion: lease.version,
-          executionStatus: 'RUNNING',
-        }).updateAll({ leaseVersion: lease.version })
-        if (owned.length !== 1) return false
-        return Boolean(
-          await orm.public.BatchSchemaSuggestionSource.where({
-            batchSchemaSuggestionId,
-            sourceDocumentId,
-          }).update({
-            executionStatus: 'RUNNING',
-            failure: null,
-            startedAt,
-            finishedAt: null,
-          }),
+          attempt,
+          outcome: null,
+        }).updateAll(
+          result.phase === 'READY'
+            ? {
+                outcome: 'SUCCEEDED',
+                failure: null,
+                phase: 'READY',
+                proposal: result.proposal,
+                coverage: result.coverage,
+                draft: result.draft,
+                draftVersion: row.draftVersion + 1,
+              }
+            : {
+                outcome: 'SUCCEEDED',
+                failure: null,
+                phase: 'HETEROGENEOUS',
+                proposal: null,
+                coverage: null,
+                draft: null,
+                draftVersion: row.draftVersion + 1,
+              },
         )
+        return written.length === 1 ? ('published' as const) : ('stopped' as const)
       })
     },
-    async completeBatchSchemaSuggestionSource(
-      batchSchemaSuggestionId,
-      sourceDocumentId,
-      lease,
-      result,
-      finishedAt,
-    ) {
+    async failBatchSchemaSuggestionAttempt(batchSchemaSuggestionId, attempt, failure) {
       return database.transaction(async ({ orm }) => {
-        const owned = await orm.public.BatchSchemaSuggestion.where({
+        if (!(await lockCurrentAttempt(orm, batchSchemaSuggestionId, attempt))) return 'stopped' as const
+        // The proposal, draft and draft version stay: a failed attempt replaces nothing.
+        const written = await orm.public.BatchSchemaSuggestion.where({
           id: batchSchemaSuggestionId,
-          leaseOwner: lease.owner,
-          leaseVersion: lease.version,
-          executionStatus: 'RUNNING',
-        }).updateAll({ leaseVersion: lease.version })
-        if (owned.length !== 1) return false
-        return Boolean(
-          await orm.public.BatchSchemaSuggestionSource.where({
-            batchSchemaSuggestionId,
-            sourceDocumentId,
-          }).update(
-            'definition' in result
-              ? {
-                  executionStatus: 'COMPLETED',
-                  definition: result.definition,
-                  failure: null,
-                  finishedAt,
-                }
-              : {
-                  executionStatus: 'FAILED',
-                  definition: null,
-                  failure: result.failure,
-                  finishedAt,
-                },
-          ),
-        )
+          attempt,
+          outcome: null,
+        }).updateAll({ outcome: 'FAILED', failure })
+        return written.length === 1 ? ('published' as const) : ('stopped' as const)
       })
-    },
-    async startBatchSchemaSuggestionMerge(batchSchemaSuggestionId, lease) {
-      const updated = await database.orm.public.BatchSchemaSuggestion.where({
-        id: batchSchemaSuggestionId,
-        leaseOwner: lease.owner,
-        leaseVersion: lease.version,
-        executionStatus: 'RUNNING',
-      }).updateAll({ phase: 'MERGING' })
-      return updated.length === 1
-    },
-    async completeBatchSchemaSuggestionMerge(
-      batchSchemaSuggestionId,
-      lease,
-      result,
-      finishedAt,
-    ) {
-      const updated = await database.orm.public.BatchSchemaSuggestion.where({
-        id: batchSchemaSuggestionId,
-        leaseOwner: lease.owner,
-        leaseVersion: lease.version,
-        executionStatus: 'RUNNING',
-      }).updateAll(
-        'heterogeneous' in result
-          ? {
-              executionStatus: 'COMPLETED',
-              phase: 'HETEROGENEOUS',
-              proposal: null,
-              coverage: null,
-              draft: null,
-              failure: null,
-              finishedAt,
-              leaseOwner: null,
-              leaseExpiresAt: null,
-            }
-          : {
-              executionStatus: 'COMPLETED',
-              phase: 'READY',
-              proposal: result.proposal,
-              coverage: result.coverage,
-              draft: result.draft,
-              draftVersion: 1,
-              failure: null,
-              finishedAt,
-              leaseOwner: null,
-              leaseExpiresAt: null,
-            },
-      )
-      return updated.length === 1
-    },
-    async failBatchSchemaSuggestion(
-      batchSchemaSuggestionId,
-      lease,
-      failure,
-      finishedAt,
-    ) {
-      const updated = await database.orm.public.BatchSchemaSuggestion.where({
-        id: batchSchemaSuggestionId,
-        leaseOwner: lease.owner,
-        leaseVersion: lease.version,
-        executionStatus: 'RUNNING',
-      }).updateAll({
-        executionStatus: 'FAILED',
-        failure,
-        finishedAt,
-        leaseOwner: null,
-        leaseExpiresAt: null,
-      })
-      return updated.length === 1
     },
   }
 }

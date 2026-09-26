@@ -1,4 +1,11 @@
-import { stableJson, stableUuid, withPoolClientTransaction, type Database } from 'db'
+import {
+  stableJson,
+  stableUuid,
+  suggestionAttemptActive,
+  suggestWorkflowId,
+  withPoolClientTransaction,
+  type Database,
+} from 'db'
 import type { ExtractionExecution } from './dependencies.js'
 import { modelChoice } from './model-choice.js'
 import { ExtractionError } from './errors.js'
@@ -14,7 +21,8 @@ import type {
  * Owns the atomic Schema Suggestion → Extraction Schema → Batch handoff: the confirmed schema, the batch, one pending
  * Extraction per saved pin and each member's `runExtraction` workflow commit together on one pooled client. The members
  * keep the revisions saved with the suggestion, without a document lock: its fields were derived from those pins
- * (PR #140's documented exemption).
+ * (PR #140's documented exemption). Run needs a valid draft, at least one surviving member and no active attempt
+ * (spec, *suggestSchemaBatch*), checked under the suggestion's row lock.
  */
 export async function persistSuggestedBatch(
   database: Database,
@@ -45,25 +53,35 @@ export async function persistSuggestedBatch(
         researcherAccountId,
       })
       if (!project) return 'missing' as const
+      // Lock the suggestion first (a no-op update): a retry or a draft edit waits until this handoff commits.
+      const locked = await orm.public.BatchSchemaSuggestion.where({
+        id: input.batchSchemaSuggestionId,
+        projectContextId: input.projectContextId,
+      }).updateAll({ id: input.batchSchemaSuggestionId })
+      if (locked.length !== 1) return 'missing' as const
       const suggestion = await orm.public.BatchSchemaSuggestion.select(
-        'executionStatus',
+        'attempt',
+        'outcome',
         'phase',
         'draft',
         'confirmedSchemaRevisionId',
         'batchExtractionId',
-      ).first({
-        id: input.batchSchemaSuggestionId,
-        projectContextId: input.projectContextId,
-      })
+      ).first({ id: input.batchSchemaSuggestionId })
       if (!suggestion) return 'missing' as const
       if (suggestion.confirmedSchemaRevisionId && suggestion.batchExtractionId)
         return 'replayed' as const
+      // A valid draft runs whatever the latest attempt's outcome, but not while an attempt that would replace it runs.
       if (
-        suggestion.executionStatus !== 'COMPLETED' ||
+        suggestion.confirmedSchemaRevisionId !== null ||
         suggestion.phase !== 'READY' ||
         suggestion.draft === null
       )
         return 'not-ready' as const
+      if (suggestion.outcome === null) {
+        const attemptId = suggestWorkflowId(input.batchSchemaSuggestionId, suggestion.attempt)
+        if (suggestionAttemptActive(suggestion.outcome, (await execution.statuses([attemptId])).get(attemptId)))
+          return 'not-ready' as const
+      }
       let draft
       try {
         draft = parseBatchSuggestionDefinition(suggestion.draft)
@@ -76,8 +94,9 @@ export async function persistSuggestedBatch(
         .select('sourceDocumentId', 'sourceRepresentationRevisionId')
         .orderBy((source) => source.sourceDocumentId.asc())
         .all()
+      // Source deletion removes pins: an empty selection keeps its draft but has nothing to run.
+      if (members.length === 0) return 'not-ready' as const
       if (
-        members.length === 0 ||
         members.length > BATCH_EXTRACTION_SELECTION_LIMIT ||
         new Set(members.map((member) => member.sourceDocumentId)).size !==
           members.length

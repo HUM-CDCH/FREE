@@ -30,7 +30,7 @@ import type {
 } from '@prisma-next/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'sha256:4a635e7b6e94fb26b4e0610299ed85b0ae1acd822460a3294b55f894825e3937'>;
+  StorageHashBase<'sha256:f1b3b53fbe216fa290cfebc7f03fe6ce5a559a6d00a7038a570ac8597666e32f'>;
 export type ExecutionHash =
   ExecutionHashBase<'sha256:935ac442569cf119b4cc12b4db9bd78853aa51606e8aff919ff4c91af0967818'>;
 export type ProfileHash =
@@ -64,31 +64,22 @@ export type FieldOutputTypes = {
       readonly id: CodecTypes['pg/uuid@1']['output'];
       readonly projectContextId: CodecTypes['pg/uuid@1']['output'];
       readonly selectionKey: CodecTypes['pg/text@1']['output'];
-      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-      readonly phase: 'SOURCES' | 'MERGING' | 'READY' | 'HETEROGENEOUS';
+      readonly attempt: CodecTypes['pg/int4@1']['output'];
+      readonly outcome: 'SUCCEEDED' | 'FAILED' | null;
+      readonly failure: CodecTypes['pg/jsonb@1']['output'] | null;
+      readonly phase: 'READY' | 'HETEROGENEOUS' | null;
       readonly proposal: CodecTypes['pg/jsonb@1']['output'] | null;
       readonly coverage: CodecTypes['pg/jsonb@1']['output'] | null;
       readonly draft: CodecTypes['pg/jsonb@1']['output'] | null;
       readonly draftVersion: CodecTypes['pg/int4@1']['output'];
-      readonly failure: CodecTypes['pg/jsonb@1']['output'] | null;
       readonly confirmedSchemaRevisionId: CodecTypes['pg/uuid@1']['output'] | null;
       readonly batchExtractionId: CodecTypes['pg/uuid@1']['output'] | null;
-      readonly startedAt: Timestamptz<6> | null;
-      readonly finishedAt: Timestamptz<6> | null;
-      readonly leaseOwner: CodecTypes['pg/text@1']['output'] | null;
-      readonly leaseVersion: CodecTypes['pg/int4@1']['output'];
-      readonly leaseExpiresAt: Timestamptz<6> | null;
       readonly createdAt: Timestamptz<6>;
     };
     readonly BatchSchemaSuggestionSource: {
       readonly batchSchemaSuggestionId: CodecTypes['pg/uuid@1']['output'];
       readonly sourceDocumentId: CodecTypes['pg/uuid@1']['output'];
       readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['output'];
-      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-      readonly definition: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly failure: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly startedAt: Timestamptz<6> | null;
-      readonly finishedAt: Timestamptz<6> | null;
     };
     readonly Extraction: {
       readonly id: CodecTypes['pg/uuid@1']['output'];
@@ -210,31 +201,22 @@ export type FieldInputTypes = {
       readonly id: CodecTypes['pg/uuid@1']['input'];
       readonly projectContextId: CodecTypes['pg/uuid@1']['input'];
       readonly selectionKey: CodecTypes['pg/text@1']['input'];
-      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-      readonly phase: 'SOURCES' | 'MERGING' | 'READY' | 'HETEROGENEOUS';
+      readonly attempt: CodecTypes['pg/int4@1']['input'];
+      readonly outcome: 'SUCCEEDED' | 'FAILED' | null;
+      readonly failure: CodecTypes['pg/jsonb@1']['input'] | null;
+      readonly phase: 'READY' | 'HETEROGENEOUS' | null;
       readonly proposal: CodecTypes['pg/jsonb@1']['input'] | null;
       readonly coverage: CodecTypes['pg/jsonb@1']['input'] | null;
       readonly draft: CodecTypes['pg/jsonb@1']['input'] | null;
       readonly draftVersion: CodecTypes['pg/int4@1']['input'];
-      readonly failure: CodecTypes['pg/jsonb@1']['input'] | null;
       readonly confirmedSchemaRevisionId: CodecTypes['pg/uuid@1']['input'] | null;
       readonly batchExtractionId: CodecTypes['pg/uuid@1']['input'] | null;
-      readonly startedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
-      readonly finishedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
-      readonly leaseOwner: CodecTypes['pg/text@1']['input'] | null;
-      readonly leaseVersion: CodecTypes['pg/int4@1']['input'];
-      readonly leaseExpiresAt: CodecTypes['pg/timestamptz@1']['input'] | null;
       readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
     };
     readonly BatchSchemaSuggestionSource: {
       readonly batchSchemaSuggestionId: CodecTypes['pg/uuid@1']['input'];
       readonly sourceDocumentId: CodecTypes['pg/uuid@1']['input'];
       readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['input'];
-      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-      readonly definition: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly failure: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly startedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
-      readonly finishedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
     };
     readonly Extraction: {
       readonly id: CodecTypes['pg/uuid@1']['input'];
@@ -353,34 +335,25 @@ export type StorageColumnTypes = {
       readonly strategy: CodecTypes['pg/text@1']['output'];
     };
     readonly batchSchemaSuggestion: {
+      readonly attempt: CodecTypes['pg/int4@1']['output'];
       readonly batchExtractionId: CodecTypes['pg/uuid@1']['output'] | null;
       readonly confirmedSchemaRevisionId: CodecTypes['pg/uuid@1']['output'] | null;
       readonly coverage: CodecTypes['pg/jsonb@1']['output'] | null;
       readonly createdAt: Timestamptz<6>;
       readonly draft: CodecTypes['pg/jsonb@1']['output'] | null;
       readonly draftVersion: CodecTypes['pg/int4@1']['output'];
-      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
       readonly failure: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly finishedAt: Timestamptz<6> | null;
       readonly id: CodecTypes['pg/uuid@1']['output'];
-      readonly leaseExpiresAt: Timestamptz<6> | null;
-      readonly leaseOwner: CodecTypes['pg/text@1']['output'] | null;
-      readonly leaseVersion: CodecTypes['pg/int4@1']['output'];
-      readonly phase: 'SOURCES' | 'MERGING' | 'READY' | 'HETEROGENEOUS';
+      readonly outcome: 'SUCCEEDED' | 'FAILED' | null;
+      readonly phase: 'READY' | 'HETEROGENEOUS' | null;
       readonly projectContextId: CodecTypes['pg/uuid@1']['output'];
       readonly proposal: CodecTypes['pg/jsonb@1']['output'] | null;
       readonly selectionKey: CodecTypes['pg/text@1']['output'];
-      readonly startedAt: Timestamptz<6> | null;
     };
     readonly batchSchemaSuggestionSource: {
       readonly batchSchemaSuggestionId: CodecTypes['pg/uuid@1']['output'];
-      readonly definition: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-      readonly failure: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly finishedAt: Timestamptz<6> | null;
       readonly sourceDocumentId: CodecTypes['pg/uuid@1']['output'];
       readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['output'];
-      readonly startedAt: Timestamptz<6> | null;
     };
     readonly extraction: {
       readonly batchExtractionId: CodecTypes['pg/uuid@1']['output'] | null;
@@ -499,34 +472,25 @@ export type StorageColumnInputTypes = {
       readonly strategy: CodecTypes['pg/text@1']['input'];
     };
     readonly batchSchemaSuggestion: {
+      readonly attempt: CodecTypes['pg/int4@1']['input'];
       readonly batchExtractionId: CodecTypes['pg/uuid@1']['input'] | null;
       readonly confirmedSchemaRevisionId: CodecTypes['pg/uuid@1']['input'] | null;
       readonly coverage: CodecTypes['pg/jsonb@1']['input'] | null;
       readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
       readonly draft: CodecTypes['pg/jsonb@1']['input'] | null;
       readonly draftVersion: CodecTypes['pg/int4@1']['input'];
-      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
       readonly failure: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly finishedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
       readonly id: CodecTypes['pg/uuid@1']['input'];
-      readonly leaseExpiresAt: CodecTypes['pg/timestamptz@1']['input'] | null;
-      readonly leaseOwner: CodecTypes['pg/text@1']['input'] | null;
-      readonly leaseVersion: CodecTypes['pg/int4@1']['input'];
-      readonly phase: 'SOURCES' | 'MERGING' | 'READY' | 'HETEROGENEOUS';
+      readonly outcome: 'SUCCEEDED' | 'FAILED' | null;
+      readonly phase: 'READY' | 'HETEROGENEOUS' | null;
       readonly projectContextId: CodecTypes['pg/uuid@1']['input'];
       readonly proposal: CodecTypes['pg/jsonb@1']['input'] | null;
       readonly selectionKey: CodecTypes['pg/text@1']['input'];
-      readonly startedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
     };
     readonly batchSchemaSuggestionSource: {
       readonly batchSchemaSuggestionId: CodecTypes['pg/uuid@1']['input'];
-      readonly definition: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-      readonly failure: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly finishedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
       readonly sourceDocumentId: CodecTypes['pg/uuid@1']['input'];
       readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['input'];
-      readonly startedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
     };
     readonly extraction: {
       readonly batchExtractionId: CodecTypes['pg/uuid@1']['input'] | null;
@@ -820,23 +784,29 @@ type ContractBase = Omit<
                   readonly codecId: 'pg/text@1';
                   readonly nullable: false;
                 };
-                readonly executionStatus: {
-                  readonly nativeType: 'text';
-                  readonly codecId: 'pg/text@1';
+                readonly attempt: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
                   readonly nullable: false;
                   readonly default: {
                     readonly kind: 'literal';
-                    readonly value: DefaultLiteralValue<'pg/text@1', 'QUEUED'>;
+                    readonly value: DefaultLiteralValue<'pg/int4@1', 1>;
                   };
+                };
+                readonly outcome: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                };
+                readonly failure: {
+                  readonly nativeType: 'jsonb';
+                  readonly codecId: 'pg/jsonb@1';
+                  readonly nullable: true;
                 };
                 readonly phase: {
                   readonly nativeType: 'text';
                   readonly codecId: 'pg/text@1';
-                  readonly nullable: false;
-                  readonly default: {
-                    readonly kind: 'literal';
-                    readonly value: DefaultLiteralValue<'pg/text@1', 'SOURCES'>;
-                  };
+                  readonly nullable: true;
                 };
                 readonly proposal: {
                   readonly nativeType: 'jsonb';
@@ -862,11 +832,6 @@ type ContractBase = Omit<
                     readonly value: DefaultLiteralValue<'pg/int4@1', 0>;
                   };
                 };
-                readonly failure: {
-                  readonly nativeType: 'jsonb';
-                  readonly codecId: 'pg/jsonb@1';
-                  readonly nullable: true;
-                };
                 readonly confirmedSchemaRevisionId: {
                   readonly nativeType: 'uuid';
                   readonly codecId: 'pg/uuid@1';
@@ -878,38 +843,6 @@ type ContractBase = Omit<
                   readonly codecId: 'pg/uuid@1';
                   readonly nullable: true;
                   readonly typeRef: 'Uuid';
-                };
-                readonly startedAt: {
-                  readonly nativeType: 'timestamptz';
-                  readonly codecId: 'pg/timestamptz@1';
-                  readonly nullable: true;
-                  readonly typeRef: 'Timestamptz6';
-                };
-                readonly finishedAt: {
-                  readonly nativeType: 'timestamptz';
-                  readonly codecId: 'pg/timestamptz@1';
-                  readonly nullable: true;
-                  readonly typeRef: 'Timestamptz6';
-                };
-                readonly leaseOwner: {
-                  readonly nativeType: 'text';
-                  readonly codecId: 'pg/text@1';
-                  readonly nullable: true;
-                };
-                readonly leaseVersion: {
-                  readonly nativeType: 'int4';
-                  readonly codecId: 'pg/int4@1';
-                  readonly nullable: false;
-                  readonly default: {
-                    readonly kind: 'literal';
-                    readonly value: DefaultLiteralValue<'pg/int4@1', 0>;
-                  };
-                };
-                readonly leaseExpiresAt: {
-                  readonly nativeType: 'timestamptz';
-                  readonly codecId: 'pg/timestamptz@1';
-                  readonly nullable: true;
-                  readonly typeRef: 'Timestamptz6';
                 };
                 readonly createdAt: {
                   readonly nativeType: 'timestamptz';
@@ -927,7 +860,6 @@ type ContractBase = Omit<
               ];
               indexes: readonly [
                 { readonly columns: readonly ['projectContextId', 'createdAt'] },
-                { readonly columns: readonly ['executionStatus', 'leaseExpiresAt'] },
                 {
                   readonly columns: readonly ['projectContextId'];
                   readonly name: 'batchSchemaSuggestion_projectContextId_idx';
@@ -968,37 +900,6 @@ type ContractBase = Omit<
                   readonly nullable: false;
                   readonly typeRef: 'Uuid';
                 };
-                readonly executionStatus: {
-                  readonly nativeType: 'text';
-                  readonly codecId: 'pg/text@1';
-                  readonly nullable: false;
-                  readonly default: {
-                    readonly kind: 'literal';
-                    readonly value: DefaultLiteralValue<'pg/text@1', 'QUEUED'>;
-                  };
-                };
-                readonly definition: {
-                  readonly nativeType: 'jsonb';
-                  readonly codecId: 'pg/jsonb@1';
-                  readonly nullable: true;
-                };
-                readonly failure: {
-                  readonly nativeType: 'jsonb';
-                  readonly codecId: 'pg/jsonb@1';
-                  readonly nullable: true;
-                };
-                readonly startedAt: {
-                  readonly nativeType: 'timestamptz';
-                  readonly codecId: 'pg/timestamptz@1';
-                  readonly nullable: true;
-                  readonly typeRef: 'Timestamptz6';
-                };
-                readonly finishedAt: {
-                  readonly nativeType: 'timestamptz';
-                  readonly codecId: 'pg/timestamptz@1';
-                  readonly nullable: true;
-                  readonly typeRef: 'Timestamptz6';
-                };
               };
               primaryKey: {
                 readonly columns: readonly ['batchSchemaSuggestionId', 'sourceDocumentId'];
@@ -1022,10 +923,6 @@ type ContractBase = Omit<
                   readonly columns: readonly ['batchSchemaSuggestionId'];
                   readonly name: 'batchSchemaSuggestionSource_batchSchemaSuggestionId_idx';
                 },
-                {
-                  readonly columns: readonly ['sourceRepresentationRevisionId'];
-                  readonly name: 'batchSchemaSuggestionSource_sourceRepresentationRevisionId_idx';
-                },
               ];
               foreignKeys: readonly [
                 {
@@ -1044,13 +941,17 @@ type ContractBase = Omit<
                   readonly source: {
                     readonly namespaceId: 'public' & NamespaceId;
                     readonly tableName: 'batchSchemaSuggestionSource';
-                    readonly columns: readonly ['sourceRepresentationRevisionId'];
+                    readonly columns: readonly [
+                      'sourceRepresentationRevisionId',
+                      'sourceDocumentId',
+                    ];
                   };
                   readonly target: {
                     readonly namespaceId: 'public' & NamespaceId;
                     readonly tableName: 'sourceRepresentationRevision';
-                    readonly columns: readonly ['id'];
+                    readonly columns: readonly ['id', 'sourceDocumentId'];
                   };
+                  readonly name: 'batch_suggestion_source_representation_fkey';
                 },
               ];
             };
@@ -1779,19 +1680,19 @@ type ContractBase = Omit<
           readonly valueSet: {
             readonly BatchSchemaSuggestionPhase: {
               readonly kind: 'valueSet';
-              readonly values: readonly ['SOURCES', 'MERGING', 'READY', 'HETEROGENEOUS'];
+              readonly values: readonly ['READY', 'HETEROGENEOUS'];
             };
             readonly ExtractionOutcome: {
               readonly kind: 'valueSet';
               readonly values: readonly ['SUCCEEDED', 'FAILED', 'CANCELLED'];
             };
-            readonly ProjectOperationStatus: {
-              readonly kind: 'valueSet';
-              readonly values: readonly ['QUEUED', 'RUNNING', 'COMPLETED', 'FAILED'];
-            };
             readonly SchemaRevisionOrigin: {
               readonly kind: 'valueSet';
               readonly values: readonly ['SUGGESTION', 'RESEARCHER_EDIT', 'MODEL_EDIT'];
+            };
+            readonly SuggestionAttemptOutcome: {
+              readonly kind: 'valueSet';
+              readonly values: readonly ['SUCCEEDED', 'FAILED'];
             };
           };
         };
@@ -2033,12 +1934,20 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
-              readonly executionStatus: {
+              readonly attempt: {
                 readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly outcome: {
+                readonly nullable: true;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
+              readonly failure: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
+              };
               readonly phase: {
-                readonly nullable: false;
+                readonly nullable: true;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
               readonly proposal: {
@@ -2057,10 +1966,6 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
               };
-              readonly failure: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
-              };
               readonly confirmedSchemaRevisionId: {
                 readonly nullable: true;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
@@ -2068,26 +1973,6 @@ type ContractBase = Omit<
               readonly batchExtractionId: {
                 readonly nullable: true;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
-              readonly startedAt: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
-              };
-              readonly finishedAt: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
-              };
-              readonly leaseOwner: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
-              readonly leaseVersion: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
-              };
-              readonly leaseExpiresAt: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
               };
               readonly createdAt: {
                 readonly nullable: false;
@@ -2125,22 +2010,18 @@ type ContractBase = Omit<
                 readonly id: { readonly column: 'id' };
                 readonly projectContextId: { readonly column: 'projectContextId' };
                 readonly selectionKey: { readonly column: 'selectionKey' };
-                readonly executionStatus: { readonly column: 'executionStatus' };
+                readonly attempt: { readonly column: 'attempt' };
+                readonly outcome: { readonly column: 'outcome' };
+                readonly failure: { readonly column: 'failure' };
                 readonly phase: { readonly column: 'phase' };
                 readonly proposal: { readonly column: 'proposal' };
                 readonly coverage: { readonly column: 'coverage' };
                 readonly draft: { readonly column: 'draft' };
                 readonly draftVersion: { readonly column: 'draftVersion' };
-                readonly failure: { readonly column: 'failure' };
                 readonly confirmedSchemaRevisionId: {
                   readonly column: 'confirmedSchemaRevisionId';
                 };
                 readonly batchExtractionId: { readonly column: 'batchExtractionId' };
-                readonly startedAt: { readonly column: 'startedAt' };
-                readonly finishedAt: { readonly column: 'finishedAt' };
-                readonly leaseOwner: { readonly column: 'leaseOwner' };
-                readonly leaseVersion: { readonly column: 'leaseVersion' };
-                readonly leaseExpiresAt: { readonly column: 'leaseExpiresAt' };
                 readonly createdAt: { readonly column: 'createdAt' };
               };
             };
@@ -2158,26 +2039,6 @@ type ContractBase = Omit<
               readonly sourceRepresentationRevisionId: {
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
-              readonly executionStatus: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
-              readonly definition: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
-              };
-              readonly failure: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
-              };
-              readonly startedAt: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
-              };
-              readonly finishedAt: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
               };
             };
             readonly relations: {
@@ -2199,8 +2060,11 @@ type ContractBase = Omit<
                 };
                 readonly cardinality: 'N:1';
                 readonly on: {
-                  readonly localFields: readonly ['sourceRepresentationRevisionId'];
-                  readonly targetFields: readonly ['id'];
+                  readonly localFields: readonly [
+                    'sourceRepresentationRevisionId',
+                    'sourceDocumentId',
+                  ];
+                  readonly targetFields: readonly ['id', 'sourceDocumentId'];
                 };
               };
             };
@@ -2213,11 +2077,6 @@ type ContractBase = Omit<
                 readonly sourceRepresentationRevisionId: {
                   readonly column: 'sourceRepresentationRevisionId';
                 };
-                readonly executionStatus: { readonly column: 'executionStatus' };
-                readonly definition: { readonly column: 'definition' };
-                readonly failure: { readonly column: 'failure' };
-                readonly startedAt: { readonly column: 'startedAt' };
-                readonly finishedAt: { readonly column: 'finishedAt' };
               };
             };
           };
@@ -2986,8 +2845,11 @@ type ContractBase = Omit<
                 };
                 readonly cardinality: '1:N';
                 readonly on: {
-                  readonly localFields: readonly ['id'];
-                  readonly targetFields: readonly ['sourceRepresentationRevisionId'];
+                  readonly localFields: readonly ['id', 'sourceDocumentId'];
+                  readonly targetFields: readonly [
+                    'sourceRepresentationRevisionId',
+                    'sourceDocumentId',
+                  ];
                 };
               };
               readonly extractions: {
@@ -3053,22 +2915,18 @@ type ContractBase = Omit<
               { readonly name: 'MODEL_EDIT'; readonly value: 'MODEL_EDIT' },
             ];
           };
-          readonly ProjectOperationStatus: {
-            readonly codecId: 'pg/text@1';
-            readonly members: readonly [
-              { readonly name: 'QUEUED'; readonly value: 'QUEUED' },
-              { readonly name: 'RUNNING'; readonly value: 'RUNNING' },
-              { readonly name: 'COMPLETED'; readonly value: 'COMPLETED' },
-              { readonly name: 'FAILED'; readonly value: 'FAILED' },
-            ];
-          };
           readonly BatchSchemaSuggestionPhase: {
             readonly codecId: 'pg/text@1';
             readonly members: readonly [
-              { readonly name: 'SOURCES'; readonly value: 'SOURCES' },
-              { readonly name: 'MERGING'; readonly value: 'MERGING' },
               { readonly name: 'READY'; readonly value: 'READY' },
               { readonly name: 'HETEROGENEOUS'; readonly value: 'HETEROGENEOUS' },
+            ];
+          };
+          readonly SuggestionAttemptOutcome: {
+            readonly codecId: 'pg/text@1';
+            readonly members: readonly [
+              { readonly name: 'SUCCEEDED'; readonly value: 'SUCCEEDED' },
+              { readonly name: 'FAILED'; readonly value: 'FAILED' },
             ];
           };
         };

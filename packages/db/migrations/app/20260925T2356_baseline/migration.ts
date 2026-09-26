@@ -64,6 +64,11 @@ export default class M extends Migration<never, End> {
         schema: 'public',
         table: 'batchSchemaSuggestion',
         columns: [
+          col('attempt', 'int4', {
+            notNull: true,
+            default: lit(1),
+            codecRef: { codecId: 'pg/int4@1' },
+          }),
           col('batchExtractionId', '"uuid"', {
             codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
           }),
@@ -82,42 +87,19 @@ export default class M extends Migration<never, End> {
             default: lit(0),
             codecRef: { codecId: 'pg/int4@1' },
           }),
-          col('executionStatus', 'text', {
-            notNull: true,
-            default: lit('QUEUED'),
-            codecRef: { codecId: 'pg/text@1' },
-          }),
           col('failure', 'jsonb', { codecRef: { codecId: 'pg/jsonb@1' } }),
-          col('finishedAt', 'timestamptz(6)', {
-            codecRef: { codecId: 'pg/timestamptz@1', typeParams: { precision: 6 } },
-          }),
           col('id', '"uuid"', {
             notNull: true,
             codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
           }),
-          col('leaseExpiresAt', 'timestamptz(6)', {
-            codecRef: { codecId: 'pg/timestamptz@1', typeParams: { precision: 6 } },
-          }),
-          col('leaseOwner', 'text', { codecRef: { codecId: 'pg/text@1' } }),
-          col('leaseVersion', 'int4', {
-            notNull: true,
-            default: lit(0),
-            codecRef: { codecId: 'pg/int4@1' },
-          }),
-          col('phase', 'text', {
-            notNull: true,
-            default: lit('SOURCES'),
-            codecRef: { codecId: 'pg/text@1' },
-          }),
+          col('outcome', 'text', { codecRef: { codecId: 'pg/text@1' } }),
+          col('phase', 'text', { codecRef: { codecId: 'pg/text@1' } }),
           col('projectContextId', '"uuid"', {
             notNull: true,
             codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
           }),
           col('proposal', 'jsonb', { codecRef: { codecId: 'pg/jsonb@1' } }),
           col('selectionKey', 'text', { notNull: true, codecRef: { codecId: 'pg/text@1' } }),
-          col('startedAt', 'timestamptz(6)', {
-            codecRef: { codecId: 'pg/timestamptz@1', typeParams: { precision: 6 } },
-          }),
         ],
         constraints: [primaryKey(['id'])],
       }),
@@ -129,16 +111,6 @@ export default class M extends Migration<never, End> {
             notNull: true,
             codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
           }),
-          col('definition', 'jsonb', { codecRef: { codecId: 'pg/jsonb@1' } }),
-          col('executionStatus', 'text', {
-            notNull: true,
-            default: lit('QUEUED'),
-            codecRef: { codecId: 'pg/text@1' },
-          }),
-          col('failure', 'jsonb', { codecRef: { codecId: 'pg/jsonb@1' } }),
-          col('finishedAt', 'timestamptz(6)', {
-            codecRef: { codecId: 'pg/timestamptz@1', typeParams: { precision: 6 } },
-          }),
           col('sourceDocumentId', '"uuid"', {
             notNull: true,
             codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
@@ -146,9 +118,6 @@ export default class M extends Migration<never, End> {
           col('sourceRepresentationRevisionId', '"uuid"', {
             notNull: true,
             codecRef: { codecId: 'pg/uuid@1', typeParams: {} },
-          }),
-          col('startedAt', 'timestamptz(6)', {
-            codecRef: { codecId: 'pg/timestamptz@1', typeParams: { precision: 6 } },
           }),
         ],
         constraints: [primaryKey(['batchSchemaSuggestionId', 'sourceDocumentId'])],
@@ -532,23 +501,16 @@ export default class M extends Migration<never, End> {
       this.addCheckConstraint({
         schema: 'public',
         table: 'batchSchemaSuggestion',
-        constraint: 'batchSchemaSuggestion_executionStatus_check',
-        column: 'executionStatus',
-        values: ['QUEUED', 'RUNNING', 'COMPLETED', 'FAILED'],
+        constraint: 'batchSchemaSuggestion_outcome_check',
+        column: 'outcome',
+        values: ['SUCCEEDED', 'FAILED'],
       }),
       this.addCheckConstraint({
         schema: 'public',
         table: 'batchSchemaSuggestion',
         constraint: 'batchSchemaSuggestion_phase_check',
         column: 'phase',
-        values: ['SOURCES', 'MERGING', 'READY', 'HETEROGENEOUS'],
-      }),
-      this.addCheckConstraint({
-        schema: 'public',
-        table: 'batchSchemaSuggestionSource',
-        constraint: 'batchSchemaSuggestionSource_executionStatus_check',
-        column: 'executionStatus',
-        values: ['QUEUED', 'RUNNING', 'COMPLETED', 'FAILED'],
+        values: ['READY', 'HETEROGENEOUS'],
       }),
       this.addCheckConstraint({
         schema: 'public',
@@ -603,12 +565,6 @@ export default class M extends Migration<never, End> {
       this.createIndex({
         schema: 'public',
         table: 'batchSchemaSuggestion',
-        index: 'batchSchemaSuggestion_executionStatus_leaseExpiresAt_idx',
-        columns: ['executionStatus', 'leaseExpiresAt'],
-      }),
-      this.createIndex({
-        schema: 'public',
-        table: 'batchSchemaSuggestion',
         index: 'batchSchemaSuggestion_projectContextId_idx',
         columns: ['projectContextId'],
       }),
@@ -617,12 +573,6 @@ export default class M extends Migration<never, End> {
         table: 'batchSchemaSuggestionSource',
         index: 'batchSchemaSuggestionSource_batchSchemaSuggestionId_idx',
         columns: ['batchSchemaSuggestionId'],
-      }),
-      this.createIndex({
-        schema: 'public',
-        table: 'batchSchemaSuggestionSource',
-        index: 'batchSchemaSuggestionSource_sourceRepresentationRevisionId_idx',
-        columns: ['sourceRepresentationRevisionId'],
       }),
       this.createIndex({
         schema: 'public',
@@ -766,10 +716,14 @@ export default class M extends Migration<never, End> {
         schema: 'public',
         table: 'batchSchemaSuggestionSource',
         foreignKey: {
-          name: 'batchSchemaSuggestionSource_sourceRepresentationRevisionId_fkey',
-          columns: ['sourceRepresentationRevisionId'],
-          references: { schema: 'public', table: 'sourceRepresentationRevision', columns: ['id'] },
-          onDelete: 'restrict',
+          name: 'batch_suggestion_source_representation_fkey',
+          columns: ['sourceRepresentationRevisionId', 'sourceDocumentId'],
+          references: {
+            schema: 'public',
+            table: 'sourceRepresentationRevision',
+            columns: ['id', 'sourceDocumentId'],
+          },
+          onDelete: 'cascade',
         },
       }),
       this.addForeignKey({

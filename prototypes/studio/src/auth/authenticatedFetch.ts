@@ -31,8 +31,12 @@ export function subscribeToModelKeyResend(listener: () => void): () => void {
   return () => resendListeners.delete(listener)
 }
 
-/** Listeners run inside `authenticatedFetch`, so one that throws must fail neither that request nor the others. */
-function requestModelKeyResend(): void {
+/**
+ * Asks every listener to hand this page's keys to Studio again. `authenticatedFetch` calls it on a new boot ID or a 409
+ * model_key_required; a page calls it when background work reports model_key_required inside a 200 read, which that
+ * hook never sees. Listeners run inside the caller, so one that throws must fail neither the caller nor the others.
+ */
+export function requestModelKeyResend(): void {
   for (const listener of [...resendListeners]) {
     try {
       listener()

@@ -373,6 +373,15 @@ export async function createStudioApp(
           workflowStatusesOf((input) =>
             studioDbos().admission.listWorkflows(input),
           )(workflowIds),
+        // A suggestion attempt's workflow, written in its admission transaction; resolved per admission like reads.
+        enqueue: (client, workflow, input) =>
+          studioDbos()
+            .admission.enqueueInTransaction(
+              client,
+              { ...workflow, attributes: { ...workflow.attributes } },
+              input,
+            )
+            .then(() => undefined),
       }))
   const clientHandler = options.clientHandler ?? defaultClientHandler
   const verifyRequestPeer = options.requestPeer
