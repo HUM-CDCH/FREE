@@ -424,6 +424,28 @@ describe('Playwright Vite supervision', () => {
     expect(once).toHaveBeenCalledTimes(1)
   })
 
+  it('a respawn whose lifecycle write fails stops the new Vite before the wrapper cleans up', async () => {
+    const vites = [fakeVite(11), fakeVite(22)]
+    const spawn = vi.fn(async () => vites[spawn.mock.calls.length - 1]!)
+    const stopped: number[] = []
+    let writes = 0
+    const outcome = superviseViteForTest({
+      spawn,
+      restartable: true,
+      recordVite: async () => {
+        writes += 1
+        if (writes === 2) throw new Error('disk full')
+      },
+      teardown: new Promise<void>(() => {}),
+      stop: async (vite) => { stopped.push(vite.pid) },
+    })
+    await vi.waitFor(() => expect(writes).toBe(1))
+    vites[0]!.exit({ code: null, signal: 'SIGKILL' })
+
+    await expect(outcome).rejects.toThrow('disk full')
+    expect(stopped).toEqual([22])
+  })
+
   it("Vite's output is appended to the Studio log when one is named", async () => {
     const directory = await temporaryLifecycleDirectory()
     const log = join(directory, 'studio.log')

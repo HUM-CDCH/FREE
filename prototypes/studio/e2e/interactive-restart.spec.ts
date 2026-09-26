@@ -61,7 +61,7 @@ test('a Studio restart with the page open resends the keys, and the recovered ge
 
   await regenerate(page, 'Catalog entries')
   const first = await stack.model.waitForCall(1, 30_000)
-  expect(first.authorization).toBe(`Bearer ${key}`)
+  expect(first.authorization === `Bearer ${key}`, 'the first call carried the key').toBe(true)
 
   const before = requests.length
   const killedAt = Date.now()
@@ -76,7 +76,7 @@ test('a Studio restart with the page open resends the keys, and the recovered ge
 
   // DBOS recovers the generation in the new process; its call carries the resent key.
   const recovered = await stack.model.waitForCall(2, 90_000)
-  expect(recovered.authorization).toBe(`Bearer ${key}`)
+  expect(recovered.authorization === `Bearer ${key}`, 'the recovered call carried the resent key').toBe(true)
   stack.model.release()
 
   await expect(page.getByText('heading', { exact: true }).first()).toBeVisible({ timeout: 60_000 })
@@ -92,7 +92,7 @@ test('a Studio restart between two polls: the reloaded page sees the new boot ID
 
   await requestEdit(page, 'Rename title to heading')
   const first = await stack.model.waitForCall(1, 30_000)
-  expect(first.authorization).toBe(`Bearer ${key}`)
+  expect(first.authorization === `Bearer ${key}`, 'the first call carried the key').toBe(true)
 
   // The reloaded page polls the running proposal; every poll answers with the Studio process's boot ID.
   const firstListing = page.waitForResponse((response) => pathOf(response.url()) === '/api/model-operations')
@@ -119,7 +119,7 @@ test('a Studio restart between two polls: the reloaded page sees the new boot ID
   await expect.poll(() => requests.includes('PUT /api/model-keys'), { timeout: 20_000 }).toBe(true)
 
   const recovered = await stack.model.waitForCall(2, 90_000)
-  expect(recovered.authorization).toBe(`Bearer ${key}`)
+  expect(recovered.authorization === `Bearer ${key}`, 'the recovered call carried the resent key').toBe(true)
   stack.model.release()
 
   await expect(page.getByRole('button', { name: 'Apply changes' })).toBeVisible({ timeout: 60_000 })
@@ -151,19 +151,36 @@ test('a planted key reaches no pg_dump, data volume or Studio log after a genera
   stack = await prepareInteractiveDocument(page, { hasKey: false })
   await stack.open()
 
-  // The key is typed into the Model Configuration page for the scripted connection: the page probes with it and hands
-  // it to Studio; the configuration itself records only that a key exists.
-  await page.getByRole('button', { name: 'Configure models' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Model configuration' })
-  await expect(dialog.getByRole('tab', { name: 'Models' })).toBeVisible({ timeout: 15_000 })
-  await dialog.getByRole('tab', { name: /^Connections/ }).click()
-  await dialog.getByRole('list', { name: 'Connections' }).getByRole('button', { name: 'Scripted model', exact: true }).click()
-  await dialog.getByRole('region', { name: 'Connection details' }).getByLabel(/^API key/).fill(key)
+  // The key is typed into the Model Configuration page for the scripted connection: the page probes with it (the
+  // provider refuses the first probe, echoing the key back) and hands it to Studio; the configuration itself records
+  // only that a key exists. Reopened, the page probes again with the stored key and the provider connects.
+  const openConfiguration = async () => {
+    await page.getByRole('button', { name: 'Configure models' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Model configuration' })
+    await expect(dialog.getByRole('tab', { name: 'Models' })).toBeVisible({ timeout: 15_000 })
+    await dialog.getByRole('tab', { name: /^Connections/ }).click()
+    await dialog.getByRole('list', { name: 'Connections' }).getByRole('button', { name: 'Scripted model', exact: true }).click()
+    return dialog
+  }
+  const dialog = await openConfiguration()
+  const details = dialog.getByRole('region', { name: 'Connection details' })
+  // The connection is keyless so far: the page's first probe carries no credential. The typed key's probe is refused.
+  await expect.poll(() => stack!.model.probes().length, { timeout: 15_000 }).toBeGreaterThanOrEqual(1)
+  expect(stack.model.probes()[0]!.authorization).toBeNull()
+  stack.model.replyModels(refusal)
+  await details.getByLabel(/^API key/).fill(key)
+  await expect(details.getByText('The provider rejected authentication.')).toBeVisible({ timeout: 15_000 })
   const handoff = page.waitForRequest((request) => pathOf(request.url()) === '/api/model-keys' && request.method() === 'PUT')
   await dialog.getByRole('button', { name: 'Apply' }).click()
   await handoff
   await expect(dialog.getByText('Everything saved')).toBeVisible()
   await dialog.getByRole('button', { name: 'Close Model Configuration' }).click()
+  const reopened = await openConfiguration()
+  await expect(reopened.getByRole('region', { name: 'Connection details' }).getByText(/^Connected\./)).toBeVisible({ timeout: 15_000 })
+  await reopened.getByRole('button', { name: 'Close Model Configuration' }).click()
+  const keyedProbes = stack.model.probes().slice(1)
+  expect(keyedProbes.length).toBeGreaterThanOrEqual(2)
+  for (const probe of keyedProbes) expect(probe.authorization === `Bearer ${key}`, 'every probe after the key was typed carried it').toBe(true)
 
   // An edit proposal on the seeded schema (whose field IDs the scripted envelope names): refused once, then proposed
   // and discarded.
@@ -172,8 +189,7 @@ test('a planted key reaches no pg_dump, data volume or Studio log after a genera
   await expect(page.getByText(/^(Request failed|Error):/).first()).toBeVisible({ timeout: 30_000 })
   await requestEdit(page, 'Rename title to heading')
   await expect(page.getByRole('button', { name: 'Apply changes' })).toBeVisible({ timeout: 30_000 })
-  await page.getByRole('button', { name: 'Discard' }).click()
-  await expect(page.getByRole('button', { name: 'Apply changes' })).toHaveCount(0)
+  // The proposal stays open: Discard would delete its history before the sweep inspects it.
 
   // A generation: refused once (a new operation follows), then answered.
   stack.model.reply(refusal, { text: TEMPLATE, headers: echo })
@@ -206,7 +222,15 @@ test('a planted key reaches no pg_dump, data volume or Studio log after a genera
 
   // Every model call carried the key, which is the only place it belongs on the server side of this test.
   expect(stack.model.calls().length).toBeGreaterThanOrEqual(7)
-  for (const call of stack.model.calls()) expect(call.authorization).toBe(`Bearer ${key}`)
+  for (const call of stack.model.calls()) expect(call.authorization === `Bearer ${key}`, 'every model call carried the key').toBe(true)
+
+  // The operations whose history the sweep must see: both edits (the refused one is a typed failure in a SUCCESS
+  // workflow) and both generations, as the page lists them for this scope.
+  const listing = await page.request.get(e2eStudioPath(`/api/model-operations?projectContextId=${stack.projectContextId}&extractionSchemaId=${stack.extractionSchemaId}`))
+  expect(listing.ok()).toBe(true)
+  const listed = ((await listing.json()) as { operations: { workflowId: string; kind: string }[] }).operations.map((operation) => operation.workflowId)
+  expect(listed.filter((id) => id.startsWith('edit:'))).toHaveLength(2)
+  expect(listed.filter((id) => id.startsWith('suggestion:'))).toHaveLength(2)
 
   // The sweep: the whole database, Studio's data directory and source inbox, and Studio's log. Nothing is printed.
   const dump = await execFileAsync('docker', [
@@ -215,8 +239,8 @@ test('a planted key reaches no pg_dump, data volume or Studio log after a genera
   ], { maxBuffer: 512 * 1024 * 1024 })
   expect(dump.stdout.length).toBeGreaterThan(10_000)
   expect(dump.stdout.includes(key)).toBe(false)
-  // The dump does see what the operations wrote: the planted refusals' operations are in DBOS history.
-  expect(dump.stdout.includes('suggestion:')).toBe(true)
+  // The dump does see what the operations wrote: every listed operation's history is in it.
+  for (const id of listed) expect(dump.stdout.includes(id), `the dump holds ${id}`).toBe(true)
 
   const files = await filesUnder(process.env.FREE_PLAYWRIGHT_RECOVERY_STATE!)
   expect(files.length).toBeGreaterThan(0)
@@ -225,4 +249,8 @@ test('a planted key reaches no pg_dump, data volume or Studio log after a genera
   const log = await readFile(process.env.FREE_PLAYWRIGHT_STUDIO_LOG!, 'utf8')
   expect(log.length).toBeGreaterThan(0)
   expect(log.includes(key)).toBe(false)
+
+  // The regeneration replaced the draft the proposal was for, so its review bar is already gone; nothing was discarded
+  // before the sweep, and the edit histories were in the dump.
+  await expect(page.getByRole('button', { name: 'Apply changes' })).toHaveCount(0)
 })

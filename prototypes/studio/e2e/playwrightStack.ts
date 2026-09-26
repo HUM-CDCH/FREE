@@ -806,9 +806,19 @@ export async function superviseViteForTest(options: {
   restartable: boolean
   recordVite(pid: number): Promise<void>
   teardown: Promise<void>
+  /** Stops a Vite the supervisor spawned but cannot hand back (its lifecycle write failed), before it rethrows. */
+  stop?(vite: RunningVite): Promise<void>
 }): Promise<ViteSupervisorOutcome> {
+  const record = async (vite: RunningVite) => {
+    try {
+      await options.recordVite(vite.pid)
+    } catch (error) {
+      await options.stop?.(vite).catch(() => undefined)
+      throw error
+    }
+  }
   let vite = await options.spawn()
-  await options.recordVite(vite.pid)
+  await record(vite)
   const teardown = options.teardown.then(() => ({ type: 'teardown' as const }))
   for (;;) {
     const event = await Promise.race([
@@ -818,7 +828,7 @@ export async function superviseViteForTest(options: {
     if (event.type === 'teardown') return { type: 'teardown', vite }
     if (!options.restartable || event.exit.signal !== 'SIGKILL') return { type: 'exit', exit: event.exit }
     vite = await options.spawn()
-    await options.recordVite(vite.pid)
+    await record(vite)
   }
 }
 
@@ -994,6 +1004,7 @@ async function runPlaywrightWebServer(
         if (pid !== first.pid) await writeLifecycleState(paths, configuration.lifecycleId, pid)
       },
       teardown: waitForTeardownRequest(paths, configuration.lifecycleId, requestAbort.signal),
+      stop: stopOwnedVite,
     })
   } catch (respawnError) {
     // A respawn that fails ends the web server like any other exit.

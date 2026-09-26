@@ -20,6 +20,10 @@ export type ScriptedModelServer = Readonly<{
   baseUrl: string
   reply(...replies: ScriptedReply[]): void
   calls(): readonly ScriptedCall[]
+  /** Answers for `GET /v1/models` (a probe), FIFO; with none queued the one scripted model is listed. */
+  replyModels(...replies: ScriptedReply[]): void
+  /** Every `GET /v1/models` (a probe) with its authorization, in order. */
+  probes(): readonly ScriptedCall[]
   /** Resolves with the n-th call (1-based) once it arrived. */
   waitForCall(count: number, timeoutMs?: number): Promise<ScriptedCall>
   release(): void
@@ -53,7 +57,9 @@ function completion(text: string): string {
  */
 export async function startScriptedModelServer(): Promise<ScriptedModelServer> {
   const queue: ScriptedReply[] = []
+  const modelsQueue: ScriptedReply[] = []
   const recorded: Recorded[] = []
+  const probed: Recorded[] = []
   const held: (() => void)[] = []
   const waiters: { count: number; resolve: (call: ScriptedCall) => void }[] = []
   const notify = () => {
@@ -67,7 +73,17 @@ export async function startScriptedModelServer(): Promise<ScriptedModelServer> {
   }
   const server: Server = createServer(async (request, response) => {
     if (request.method === 'GET' && request.url?.endsWith('/v1/models')) {
-      response.writeHead(200, { 'content-type': 'application/json' })
+      const authorization = request.headers.authorization ?? null
+      const probe: Recorded = { authorization, body: null, receivedAt: Date.now(), closedAt: null }
+      probed.push(probe)
+      response.once('close', () => { probe.closedAt ??= Date.now() })
+      const scripted = modelsQueue.shift()
+      if (scripted && 'status' in scripted) {
+        response.writeHead(scripted.status, { 'content-type': 'application/json', ...scripted.headers })
+        response.end(scripted.body.replaceAll('{{authorization}}', authorization ?? ''))
+        return
+      }
+      response.writeHead(200, { 'content-type': 'application/json', ...(scripted?.headers ?? {}) })
       response.end(JSON.stringify({ object: 'list', data: [{ id: 'scripted', object: 'model' }] }))
       return
     }
@@ -108,6 +124,8 @@ export async function startScriptedModelServer(): Promise<ScriptedModelServer> {
     baseUrl: `http://127.0.0.1:${port}/v1`,
     reply: (...replies) => { queue.push(...replies) },
     calls: () => recorded.map((call) => ({ ...call })),
+    replyModels: (...replies) => { modelsQueue.push(...replies) },
+    probes: () => probed.map((call) => ({ ...call })),
     waitForCall: (count, timeoutMs = 10_000) => new Promise<ScriptedCall>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error(`Call ${count} did not arrive within ${timeoutMs} ms.`)), timeoutMs)
       waiters.push({ count, resolve: (call) => { clearTimeout(timer); resolve(call) } })
