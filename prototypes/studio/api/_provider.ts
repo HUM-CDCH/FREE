@@ -46,7 +46,7 @@ type DiscoveryContext = Required<Pick<ProviderProbeDependencies, 'fetch' | 'code
   signal: AbortSignal
 }
 type DiscoveryObservation = Omit<ProbeResult, 'checkedAt'>
-type ModelFactory = (connection: ModelConnection, modelId: string, credential: string | null) => LanguageModel
+export type ModelFactory = (connection: ModelConnection, modelId: string, credential: string | null) => LanguageModel
 
 type ProviderEntry = ProviderDescriptor & {
   temperatureSupported: boolean
@@ -545,6 +545,40 @@ export const providerTable = {
       }).chatModel(modelId),
   },
 } as const satisfies ProviderTable
+
+/** A factory's result as the provider-model interface; the table's factories never return a global model ID. */
+function providerModel(model: LanguageModel) {
+  if (typeof model === 'string' || model.specificationVersion !== 'v4')
+    throw new TypeError('A model factory returned no language model of the current specification.')
+  return model
+}
+
+/**
+ * A route's model for a connection with `hasKey`: the key is read inside each provider attempt and the provider
+ * client is built for that attempt alone, as the Ollama adapter already builds its client per call. A replayed step
+ * whose call is checkpointed never reaches here, so it never needs a key. The base model supplies metadata only and
+ * is never called, so an anonymous request cannot happen.
+ */
+export function keyedModel(
+  createModel: ModelFactory,
+  connection: ModelConnection,
+  modelId: string,
+  key: (signal: AbortSignal | undefined) => Promise<string>,
+): LanguageModel {
+  const attempt = async (signal: AbortSignal | undefined) => {
+    const credential = await key(signal)
+    signal?.throwIfAborted()
+    return providerModel(createModel(connection, modelId, credential))
+  }
+  return wrapLanguageModel({
+    model: providerModel(createModel(connection, modelId, null)),
+    middleware: {
+      specificationVersion: 'v4',
+      wrapGenerate: async ({ params }) => (await attempt(params.abortSignal)).doGenerate(params),
+      wrapStream: async ({ params }) => (await attempt(params.abortSignal)).doStream(params),
+    },
+  })
+}
 
 /** Serializable metadata only; backend capabilities and functions never cross HTTP. */
 export const PROVIDERS: readonly ProviderDescriptor[] = Object.values(providerTable).map(

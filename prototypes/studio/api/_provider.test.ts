@@ -7,11 +7,13 @@ import {
   PROVIDERS,
   appendProviderResource,
   createRestrictedCodexProvider,
+  keyedModel,
   probeConnection,
   providerTable,
   resolveCapabilityRoute,
   withThinkingOff,
 } from './_provider.js'
+import { ModelKeyRequiredError } from './_model_keys.js'
 
 const ID = '11111111-1111-4111-8111-111111111111'
 const connection: ModelConnection = {
@@ -195,6 +197,63 @@ describe('provider table', () => {
     expect(appendProviderResource('https://host.example/v1/', '/chat/completions')).toBe(
       'https://host.example/v1/chat/completions',
     )
+  })
+})
+
+describe('keyedModel', () => {
+  const vllm: ModelConnection = { ...connection, provider: 'vllm', baseUrl: 'http://extraction_model:8000/v1' }
+  const completion = () => Response.json({
+    id: 'x', object: 'chat.completion', created: 0, model: 'm',
+    choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+  })
+
+  it('builds the provider client per attempt with the key read inside that attempt', async () => {
+    const request = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => completion())
+    vi.stubGlobal('fetch', request)
+    const keys = ['sk-test-attempt-1', 'sk-test-attempt-2']
+    const key = vi.fn(async () => keys.shift()!)
+    const model = keyedModel(providerTable.vllm.createModel, vllm, 'm', key)
+
+    await generateText({ model, prompt: 'Hi', maxRetries: 0 })
+    await generateText({ model, prompt: 'Hi', maxRetries: 0 })
+
+    expect(key).toHaveBeenCalledTimes(2)
+    expect(request.mock.calls.map(([, init]) => new Headers(init?.headers).get('authorization')))
+      .toEqual(['Bearer sk-test-attempt-1', 'Bearer sk-test-attempt-2'])
+  })
+
+  it('never calls the server when the key is missing, and the AI SDK does not retry model_key_required', async () => {
+    const request = vi.fn(async () => completion())
+    vi.stubGlobal('fetch', request)
+    const key = vi.fn(async () => {
+      throw new ModelKeyRequiredError()
+    })
+    const model = keyedModel(providerTable.vllm.createModel, vllm, 'm', key)
+
+    await expect(generateText({ model, prompt: 'Hi' })).rejects.toBeInstanceOf(ModelKeyRequiredError)
+    expect(key).toHaveBeenCalledTimes(1)
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('stops before the provider when the signal aborts during the wait', async () => {
+    const request = vi.fn(async () => completion())
+    vi.stubGlobal('fetch', request)
+    const controller = new AbortController()
+    const reason = new Error('cancelled')
+    const arrival = Promise.withResolvers<string>()
+    const key = vi.fn(() => arrival.promise)
+    const model = keyedModel(providerTable.vllm.createModel, vllm, 'm', key)
+
+    const call = generateText({ model, prompt: 'Hi', abortSignal: controller.signal, maxRetries: 0 })
+      .catch((error: unknown) => error)
+    await vi.waitFor(() => expect(key).toHaveBeenCalledOnce())
+    controller.abort(reason)
+    // The key still arrives after the abort; the attempt must not use it.
+    arrival.resolve('sk-test-late')
+
+    expect(await call).toBe(reason)
+    expect(request).not.toHaveBeenCalled()
   })
 })
 

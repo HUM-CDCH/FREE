@@ -1381,6 +1381,7 @@ describe('BatchExtractionsPanel', () => {
           return Promise.resolve({
             ok: true,
             status: 200,
+            headers: new Headers(),
             json: () => {
               listedStarted.resolve()
               return listedBody.promise
