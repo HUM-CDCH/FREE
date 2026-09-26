@@ -401,11 +401,12 @@ test('cancelling an extraction cancels its live kei child', async ({ page }, tes
 })
 
 test('a small conversion and extraction finish while a large conversion runs', async ({ page }, testInfo) => {
-  const service = await startRealService(testInfo.outputPath('parsing-service.log'))
+  const service = await startRealService(testInfo.outputPath('parsing-service.log'), { holdConversion: true })
   try {
     const project = await createProject(page, 'Independent conversion lanes')
     const largePdf = textPdf(Array.from({ length: 40 }, (_, index) => [`Large page ${index + 1}.`]))
     const largeUpload = uploadPdf(page, project, largePdf, 'large.pdf')
+    await expect.poll(() => service.conversionHeld(), { timeout: 120_000, intervals: [100, 250] }).toBe(true)
     let largeId = ''
     await expect.poll(async () => {
       const row = (await service.keiWorkflows('kei-convert:', project))
@@ -419,6 +420,8 @@ test('a small conversion and extraction finish while a large conversion runs', a
     const revision = await articleSchema(page, project)
     const id = await extract(page, revision, await representation(page, project, sourceDocumentId))
     await completedExtraction(page, id)
+    expect((await service.keiWorkflows(largeId, project))[0]?.status).toBe('PENDING')
+    await service.releaseConversion()
     const big = await largeUpload
     expect(big.status(), await big.text()).toBe(201)
     const conversions = await service.keiWorkflows('kei-convert:', project)
@@ -429,15 +432,16 @@ test('a small conversion and extraction finish while a large conversion runs', a
     expect(smallChild?.queueName).toBe('kei-convert-small')
     expect(smallChild?.completedAt).toBeLessThan(large!.completedAt!)
     expect(extraction?.completedAt).toBeLessThan(large!.completedAt!)
-  } finally { await service.close() }
+  } finally { await service.releaseConversion(); await service.close() }
 })
 
-test('a kei worker killed during conversion recovers the child and publishes once', async ({ page }, testInfo) => {
-  const service = await startRealService(testInfo.outputPath('parsing-service.log'))
+test('a kei worker killed inside native conversion recovers the child and publishes once', async ({ page }, testInfo) => {
+  const service = await startRealService(testInfo.outputPath('parsing-service.log'), { holdConversion: true })
   try {
     const project = await createProject(page, 'Conversion recovery')
     const pdf = textPdf(Array.from({ length: 40 }, (_, index) => [`Recovery page ${index + 1}.`]))
     const pending = uploadPdf(page, project, pdf, 'recovery.pdf')
+    await expect.poll(() => service.conversionHeld(), { timeout: 120_000, intervals: [100, 250] }).toBe(true)
     let workflowId = ''
     await expect.poll(async () => {
       const row = (await service.keiWorkflows('kei-convert:', project)).find((candidate) => candidate.status === 'PENDING')
@@ -445,6 +449,7 @@ test('a kei worker killed during conversion recovers the child and publishes onc
       return Boolean(row)
     }, { timeout: 120_000, intervals: [100, 250] }).toBe(true)
     await service.killWorker()
+    await service.releaseConversion()
     const uploaded = await pending
     expect(uploaded.status(), await uploaded.text()).toBe(201)
     const { sourceDocumentId } = await uploaded.json()
@@ -459,5 +464,5 @@ test('a kei worker killed during conversion recovers the child and publishes onc
     const reopen = documentReopenResponseSchema.parse(await (await page.request.get(
       `/api/project-contexts/${project}/source-documents/${sourceDocumentId}/reopen`)).json())
     expect(reopen.sourceRepresentation.revisionNumber).toBe(1)
-  } finally { await service.close() }
+  } finally { await service.releaseConversion(); await service.close() }
 })
