@@ -48,16 +48,20 @@ const revision = (revisionNumber: number, name: string): SchemaRevision => ({
   recordDescription: `One ${name} record.`, schemaNodes: [{ id: `id-${name}`, name, type: 'string' }],
 })
 
-/** A fetch answering each listing from `listings` in turn (the last one repeats) and every DELETE with 204. */
-function stubFetch(listings: ModelOperation[][]) {
+/** A fetch answering each listing from `listings` in turn (the last one repeats; a number answers that error status)
+ *  and every DELETE with `deleteStatus`. */
+function stubFetch(listings: (ModelOperation[] | number)[], deleteStatus = 204) {
   const requests: string[] = []
   let served = 0
+  const error = (status: number) =>
+    new Response(JSON.stringify({ error: { code: status === 404 ? 'not_found' : 'persistence_unavailable', message: 'Copy.' } }), { status, headers: { 'content-type': 'application/json' } })
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET'
     requests.push(`${method} ${url}`)
-    if (method === 'DELETE') return new Response(null, { status: 204 })
+    if (method === 'DELETE') return deleteStatus === 204 ? new Response(null, { status: 204 }) : error(deleteStatus)
     const listing = listings[Math.min(served, listings.length - 1)] ?? []
     served += 1
+    if (typeof listing === 'number') return error(listing)
     return new Response(JSON.stringify({ operations: listing }), { status: 200, headers: { 'content-type': 'application/json' } })
   }))
   return { requests, listings: () => requests.filter((request) => request.startsWith('GET /api/model-operations')).length }
@@ -95,9 +99,9 @@ function renderRecovery(schema: ReturnType<typeof durableSchema>['schema'], opti
   const proposalReview = reviewFake()
   const messages: string[] = []
   const onReopened = vi.fn()
-  const hook = renderHook(() => useModelOperationRecovery({
-    schema, proposalReview, busy: options.busy ?? false, appendMessage: (message) => messages.push(message), onReopened,
-  }))
+  const hook = renderHook((props: { busy: boolean }) => useModelOperationRecovery({
+    schema, proposalReview, busy: props.busy, appendMessage: (message) => messages.push(message), onReopened,
+  }), { initialProps: { busy: options.busy ?? false } })
   return { hook, proposalReview, messages, onReopened }
 }
 
@@ -211,6 +215,61 @@ describe('useModelOperationRecovery', () => {
     const stub = stubFetch([[later]])
     await tick(10_000)
     expect(stub.listings()).toBe(0)
+  })
+
+  it('a failed first listing is retried with backoff, and a gone scope ends recovery', async () => {
+    stubFetch([503, 503, [generation(1, 'SUCCEEDED')]])
+    const retried = durableSchema()
+    const first = renderRecovery(retried.schema)
+    await tick(0)
+    await tick(2_000)
+    await tick(4_000)
+    expect(retried.appends).toEqual([1])
+    first.hook.unmount()
+
+    const gone = stubFetch([404])
+    renderRecovery(durableSchema().schema)
+    await tick(60_000)
+    expect(gone.listings()).toBe(1)
+  })
+
+  it('a watched operation the listing no longer returns is dropped and polling ends', async () => {
+    const stub = stubFetch([[generation(1, 'RUNNING')], []])
+    const { hook } = renderRecovery(durableSchema().schema)
+    await tick(0)
+    await tick(2_000)
+    expect(hook.result.current.running).toEqual([])
+    await tick(10_000)
+    expect(stub.listings()).toBe(2)
+  })
+
+  it('a generation that finishes while the panel is busy is restored once the panel is idle', async () => {
+    stubFetch([[generation(1, 'RUNNING')], [generation(1, 'SUCCEEDED')]])
+    const { schema, appends } = durableSchema()
+    const { hook } = renderRecovery(schema, { busy: true })
+    await tick(0)
+    await tick(2_000)
+    expect(appends).toEqual([])
+    await tick(10_000)
+
+    hook.rerender({ busy: false })
+    await tick(0)
+
+    expect(appends).toEqual([1])
+    expect(schema.snapshot().draft?.recordDescription).toBe('One restored record.')
+  })
+
+  it('a Stop whose cancel fails says so and keeps the row', async () => {
+    const running = generation(1, 'RUNNING')
+    stubFetch([[running]], 503)
+    const { hook, messages } = renderRecovery(durableSchema().schema)
+    await tick(0)
+
+    act(() => hook.result.current.stop(running.workflowId))
+    await tick(0)
+
+    expect(messages).toEqual(['The request could not be stopped on the server; it may still be running.'])
+    expect(hook.result.current.running).toEqual([running])
   })
 
   it('local drafts list nothing', async () => {

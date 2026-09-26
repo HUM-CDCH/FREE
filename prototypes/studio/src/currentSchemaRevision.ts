@@ -17,6 +17,7 @@ import {
   type SchemaSaveState,
 } from './schemaSaveCoordinator'
 import { sameSchemaDefinition } from './schemaDefinitionEquality'
+import { SchemaRevisionConflictError } from './schemaRevisions'
 import type { SchemaModelContext } from './api'
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -517,14 +518,18 @@ export function createSchemaEditorController(
         const saved = await adoptGenerated(definition)
         publish()
         return saved
-      } catch {
+      } catch (error) {
         if (disposed) return false
-        const current = persistence.reloadCurrent?.() ?? null
-        if (current) {
-          draft = normalizeSchemaDefinition(current)
-          draftVersion += 1
-          replacementVersion += 1
-          extractableSchemaRevisionId = current.schemaRevisionId
+        // A conflict means newer work landed first: adopt it and drop the generation. Any other failure keeps the
+        // visible draft (edits made meanwhile included) and the save engine's own error and retry.
+        if (error instanceof SchemaRevisionConflictError) {
+          const current = persistence.reloadCurrent?.() ?? null
+          if (current) {
+            draft = normalizeSchemaDefinition(current)
+            draftVersion += 1
+            replacementVersion += 1
+            extractableSchemaRevisionId = current.schemaRevisionId
+          }
         }
         publish()
         return false

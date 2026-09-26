@@ -83,6 +83,7 @@ function setupController({
   getRevision,
   flushImpl,
   durableScope = false,
+  noSchema = false,
 }: {
   panelNodes?: SchemaNode[]
   recordDescription?: string
@@ -91,6 +92,8 @@ function setupController({
   flushImpl?: (call: number) => Promise<SchemaRevision | null>
   /** A durable, clean scope: the panel lists and restores model operations on load. */
   durableScope?: boolean
+  /** A durable scope before its first schema: no draft, no revision. */
+  noSchema?: boolean
 } = {}): PanelSetup {
   const acknowledged: AcknowledgedSchemaRevision = {
     schemaRevisionId: '51000000-0000-4000-8004-000000000002',
@@ -103,7 +106,7 @@ function setupController({
   const events: string[] = []
   let flushCalls = 0
   const persistence: SchemaEditorPersistence = {
-    extractionSchemaId: () => acknowledged.extractionSchemaId,
+    extractionSchemaId: () => (noSchema ? null : acknowledged.extractionSchemaId),
     ...(durableScope ? { projectContextId: () => modelContext.projectContextId } : {}),
     initialize: async () => {
       throw new Error('Generation is not exercised here.')
@@ -126,7 +129,7 @@ function setupController({
         : acknowledged
     },
     saveState() {
-      return durableScope ? { status: 'saved', acknowledged, draft: { recordDescription, schemaNodes: panelNodes } } : null
+      return durableScope && !noSchema ? { status: 'saved', acknowledged, draft: { recordDescription, schemaNodes: panelNodes } } : null
     },
     modelContext: () => modelContext,
     listRevisions: async () => schemaHistory,
@@ -142,7 +145,7 @@ function setupController({
     onChange: () => () => {},
     dispose: () => {},
   }
-  const schema = createSchemaEditorController(persistence, {
+  const schema = createSchemaEditorController(persistence, noSchema ? {} : {
     initialDraft: { recordDescription, schemaNodes: panelNodes },
     initialRevisionNumber: currentRevisionNumber,
     initialExtractableRevisionId: acknowledged.schemaRevisionId,
@@ -1189,6 +1192,19 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       { projectContextId: modelContext.projectContextId, extractionSchemaId: modelContext.extractionSchemaId },
       expect.any(AbortSignal),
     )
+  })
+
+  it('a reloaded panel before its first schema shows the running first generation with a Stop', async () => {
+    const running: ModelOperation = {
+      kind: 'generation', workflowId: 'suggestion:51000000-0000-4000-8009-0000000000f3', operationId: '51000000-0000-4000-8009-0000000000f3',
+      status: 'RUNNING', instruction: 'First catalog', createdAt: '2026-09-26T10:00:00.000Z', failure: null, baseSchemaRevisionId: null, template: null,
+    }
+    listModelOperations.mockResolvedValueOnce([running])
+    renderPanel({ durableScope: true, noSchema: true }, { onGenerateInstructions: vi.fn() })
+
+    expect(await screen.findByText('Still working on an earlier request: “First catalog”')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop earlier request “First catalog”' }))
+    await waitFor(() => expect(deleteModelOperation).toHaveBeenCalledExactlyOnceWith(running.workflowId))
   })
 
   it("a restored proposal reopens the review bar and replays onto the base revision's nodes", async () => {

@@ -581,6 +581,23 @@ function SchemaPanel({
       setExpandedIds((current) => new Set([...current, ...ancestors]))
     },
   })
+  // Shown wherever the chat lives: before the first schema (the instructions chat) and after (the edit chat).
+  const runningRows = recovery.running.map((operation) => (
+    <div
+      key={operation.workflowId}
+      className="flex items-center justify-between gap-2 rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-2 text-[12px] text-ink-muted"
+    >
+      <span>{`Still working on an earlier request: “${operation.instruction}”`}</span>
+      <button
+        type="button"
+        className="shrink-0 text-[11px] text-ink underline"
+        aria-label={`Stop earlier request “${operation.instruction}”`}
+        onClick={() => recovery.stop(operation.workflowId)}
+      >
+        Stop
+      </button>
+    </div>
+  ))
   const chatRef = useRef<HTMLDivElement>(null)
   const creatingFromHistoryRef = useRef(false)
 
@@ -1662,6 +1679,7 @@ function SchemaPanel({
               </button>
             )}
           </div>
+          {runningRows.length > 0 && <div className="flex flex-col gap-2 px-3.5 pt-2.5">{runningRows}</div>}
           <SchemaInstructionsChat
             instructions={instructions}
             messageClass={msgCls}
@@ -1753,22 +1771,7 @@ function SchemaPanel({
           </div>
           <div ref={chatRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
             <div className="flex flex-col gap-2">
-              {recovery.running.map((operation) => (
-                <div
-                  key={operation.workflowId}
-                  className="flex items-center justify-between gap-2 rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-2 text-[12px] text-ink-muted"
-                >
-                  <span>{`Still working on an earlier request: “${operation.instruction}”`}</span>
-                  <button
-                    type="button"
-                    className="shrink-0 text-[11px] text-ink underline"
-                    aria-label={`Stop earlier request “${operation.instruction}”`}
-                    onClick={() => recovery.stop(operation.workflowId)}
-                  >
-                    Stop
-                  </button>
-                </div>
-              ))}
+              {runningRows}
               {chat.map((m, i) => (
                 <div key={i} className={msgCls(m.role)}>{m.text}</div>
               ))}

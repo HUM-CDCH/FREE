@@ -65,6 +65,7 @@ function setupDurable(options: {
     : []
   let appendResult: SchemaRevision | SchemaRevisionConflictError | Error | null =
     null
+  let hold: PromiseWithResolvers<void> | null = null
 
   const persistence = durableSchemaPersistence({
     projectContextId: 'project-1',
@@ -73,6 +74,10 @@ function setupDurable(options: {
     append: async (_extractionSchemaId, expectedRevisionNumber, sent) => {
       events.push('append')
       appends.push({ expected: expectedRevisionNumber, definition: sent })
+      if (hold) {
+        await hold.promise
+        hold = null
+      }
       if (appendResult instanceof SchemaRevisionConflictError) throw appendResult
       if (appendResult instanceof Error) throw appendResult
       const next =
@@ -128,6 +133,11 @@ function setupDurable(options: {
       controller.snapshot().save?.status ?? null,
     failNextAppendWith: (error: SchemaRevisionConflictError | Error) => {
       appendResult = error
+    },
+    /** The next append waits until the returned function is called. */
+    holdNextAppend: () => {
+      hold = Promise.withResolvers<void>()
+      return () => hold?.resolve()
     },
   }
 }
@@ -492,6 +502,23 @@ describe('generation lifecycle', () => {
     expect(setup.controller.snapshot().draft).toEqual(definition('elsewhere'))
     expect(setup.controller.snapshot().extractableSchemaRevisionId).toBe('rev-7')
     expect(setup.saveState()).toBe('saved')
+  })
+
+  it('restoreGeneration keeps edits made meanwhile when the append fails for another reason than a conflict', async () => {
+    const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 0 })
+    const release = setup.holdNextAppend()
+    const restore = setup.controller.restoreGeneration({ _description: 'One restored record.', restored: 'string' }, 'rev-1')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(setup.appends).toHaveLength(1)
+
+    setup.controller.commit((current) => [...current, node('year')], 'edit')
+    setup.failNextAppendWith(new Error('network'))
+    release()
+
+    await expect(restore).resolves.toBe(false)
+    expect(setup.controller.snapshot().draft!.schemaNodes.map((n) => n.name)).toEqual(['site', 'year'])
+    expect(setup.controller.snapshot().generationError).toBeNull()
+    expect(setup.saveState()).not.toBe('saved')
   })
 
   it('restoreGeneration refuses a dirty draft, a moved base and a running generation', async () => {
