@@ -1495,6 +1495,8 @@ handlers or pages is an acceptance test of the milestone that builds it
   - On the Spark (M0R 6 harness): a 200-entry Catalog finishes in about a
     quarter of the time, and a small extraction beside it finishes within
     seconds of its time alone.
+
+**M4: Studio background work on DBOS.**
 - **`server/dbos.ts`** holds:
   - the configuration (app `studio`, schema `dbos`, version, executor);
   - one launch per process in `host.ts` and `developmentHost.ts`, replacing
