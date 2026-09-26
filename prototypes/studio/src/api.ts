@@ -16,6 +16,7 @@ import {
   type ExtractionModelListing,
   type ReviewDecisionInput,
 } from '../shared/extraction.contract'
+import { ingestionModelListingSchema, type IngestionModelListing } from '../shared/modelConfig.contract'
 
 export const API_BASE = '/api'
 
@@ -134,6 +135,14 @@ async function extractionJson(
 export async function readExtractionModels(signal?: AbortSignal): Promise<ExtractionModelListing> {
   return extractionModelListingSchema.parse(
     await extractionJson('/extraction-models', 'GET', null, signal),
+  )
+}
+
+/** kei's OCR and layout models, whether its OCR server serves each now, and its default per role: what the
+ *  researcher's Ingestion Model Choice picks from. */
+export async function readIngestionModels(signal?: AbortSignal): Promise<IngestionModelListing> {
+  return ingestionModelListingSchema.parse(
+    await extractionJson('/ingestion-models', 'GET', null, signal),
   )
 }
 

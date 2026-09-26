@@ -199,3 +199,22 @@ export function apiBaseIssue(value: string): string | null {
 export function isValidApiBase(value: string | null): boolean {
   return value !== null && apiBaseIssue(value) === null
 }
+
+/** The roles of kei's `GET /api/ingestion-models`: the model that reads a scanned page, and the detector that finds
+ *  its layout. */
+export const INGESTION_MODEL_ROLES = ['ocr', 'layout'] as const
+export const ingestionModelRoleSchema = z.enum(INGESTION_MODEL_ROLES)
+export type IngestionModelRole = z.infer<typeof ingestionModelRoleSchema>
+/** A kei model key: a `kei_exp.models.MODELS` key for `ocr`, a `LAYOUT_MODELS` key for `layout`. Never a Model
+ *  Connection's model. */
+export const ingestionModelKeySchema = z.string().min(1).max(128)
+const ingestionModelOptionSchema = z
+  .object({ key: ingestionModelKeySchema, label: z.string().min(1), serving: z.boolean() })
+  .strict()
+export const ingestionModelListingSchema = z
+  .object({
+    defaults: z.object({ ocr: ingestionModelKeySchema, layout: ingestionModelKeySchema }).strict(),
+    models: z.object({ ocr: z.array(ingestionModelOptionSchema), layout: z.array(ingestionModelOptionSchema) }).strict(),
+  })
+  .strict()
+export type IngestionModelListing = z.infer<typeof ingestionModelListingSchema>

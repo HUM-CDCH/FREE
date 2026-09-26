@@ -6,6 +6,7 @@ import {
   decodeSchemaDone,
   finalizeExtractionReview,
   readExtraction,
+  readIngestionModels,
   requestExtraction,
   requestSchema,
   requestSchemaEdit,
@@ -170,6 +171,50 @@ describe('requestSchema', () => {
       source_representation_revision_id:
         '51000000-0000-4000-8002-000000000001',
     })
+  })
+})
+
+describe('readIngestionModels', () => {
+  const listing = {
+    defaults: { ocr: 'surya', layout: 'layout_heron_101' },
+    models: {
+      ocr: [{ key: 'surya', label: 'datalab-to/surya-ocr-2', serving: false }],
+      layout: [{ key: 'layout_heron_101', label: 'Heron-101', serving: true }],
+    },
+  }
+
+  it('reads kei\'s listing through Studio with the caller\'s signal and refuses a drifted one', async () => {
+    const controller = new AbortController()
+    const requests: Array<{ url: string; init: RequestInit }> = []
+    let body: unknown = listing
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string, init: RequestInit) => {
+        requests.push({ url, init })
+        return Promise.resolve(jsonResponse(body))
+      }),
+    )
+
+    await expect(readIngestionModels(controller.signal)).resolves.toEqual(listing)
+    expect(requests).toHaveLength(1)
+    expect(requests[0].url).toBe('/api/ingestion-models')
+    expect(requests[0].init.method).toBe('GET')
+    expect(requests[0].init.credentials).toBe('same-origin')
+    expect(requests[0].init.signal).toBe(controller.signal)
+
+    body = { ...listing, defaults: { ocr: 'surya' } }
+    await expect(readIngestionModels()).rejects.toThrow()
+  })
+
+  it('surfaces a 503 as a request error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(
+        JSON.stringify({ error: { code: 'ingestion_models_unavailable', message: 'The Parsing Service could not list its ingestion models.' } }),
+        { status: 503, headers: { 'content-type': 'application/json' } },
+      )),
+    )
+    await expect(readIngestionModels()).rejects.toMatchObject({ status: 503 })
   })
 })
 

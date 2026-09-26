@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { PROVIDER_KINDS, apiBaseIssue, isValidApiBase, modelConfigSchema, routeSchema, uuidSchema } from './modelConfig.contract'
+import {
+  INGESTION_MODEL_ROLES,
+  PROVIDER_KINDS,
+  apiBaseIssue,
+  ingestionModelKeySchema,
+  ingestionModelListingSchema,
+  ingestionModelRoleSchema,
+  isValidApiBase,
+  modelConfigSchema,
+  routeSchema,
+  uuidSchema,
+} from './modelConfig.contract'
 
 describe('model configuration runtime contract', () => {
   it('accepts model selection and rejects output overrides', () => {
@@ -52,5 +63,34 @@ describe('model configuration runtime contract', () => {
 
   it('rejects a null API base in the UI predicate', () => {
     expect(isValidApiBase(null)).toBe(false)
+  })
+})
+
+describe('ingestion model listing contract', () => {
+  const listing = {
+    defaults: { ocr: 'surya', layout: 'layout_heron_101' },
+    models: {
+      ocr: [{ key: 'surya', label: 'datalab-to/surya-ocr-2', serving: true }],
+      layout: [{ key: 'layout_heron_101', label: 'Heron-101', serving: true }],
+    },
+  }
+
+  it('round-trips kei\'s listing and names exactly the two roles', () => {
+    expect(INGESTION_MODEL_ROLES).toEqual(['ocr', 'layout'])
+    expect(ingestionModelRoleSchema.safeParse('fields').success).toBe(false)
+    expect(ingestionModelListingSchema.parse(JSON.parse(JSON.stringify(listing)))).toEqual(listing)
+  })
+
+  it('refuses a listing with a missing role, an extra field or an empty or overlong key', () => {
+    for (const invalid of [
+      { ...listing, defaults: { ocr: 'surya' } },
+      { ...listing, models: { ocr: listing.models.ocr } },
+      { ...listing, extra: true },
+      { ...listing, models: { ...listing.models, ocr: [{ ...listing.models.ocr[0], repo: 'x' }] } },
+      { ...listing, defaults: { ...listing.defaults, ocr: '' } },
+      { ...listing, defaults: { ...listing.defaults, layout: 'x'.repeat(129) } },
+    ])
+      expect(ingestionModelListingSchema.safeParse(invalid).success).toBe(false)
+    expect(ingestionModelKeySchema.parse('x'.repeat(128))).toHaveLength(128)
   })
 })

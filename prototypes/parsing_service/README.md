@@ -73,6 +73,12 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   receives the reply schema as its template and the instructions only through
   the chat template's kwargs. The legacy `options.model` still runs every call
   on the instruction server under that model id.
+- `GET /api/ingestion-models` lists the OCR and layout models a new parse may
+  run on, and the default per role (`KEI_OCR_MODEL`, default `surya`, and
+  `layout_heron_101`); it is shaped like `/api/extraction-models`. An OCR model
+  is `serving` only while the OCR server has it loaded, which is what the
+  listing observed, not a promise. Layout detectors run inside this service and
+  are always selectable. A page with a text layer uses neither.
 - Extraction Evidence names canonical segments `p{page}_s{index}`. Page numbers
   are physical, one-based PDF pages; segment indexes are zero-based. Geometry
   uses PDF points measured from the top-left. Native Docling items retain their

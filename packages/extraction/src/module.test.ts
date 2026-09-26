@@ -358,6 +358,39 @@ describe('kei-exp extraction relay', () => {
       await assert.rejects(client(invalid).listModels(), { code: 'invalid_model_output' })
   })
 
+  it('listIngestionModels reads kei\'s listing and refuses an invalid one', async () => {
+    const listing = {
+      defaults: { ocr: 'surya', layout: 'layout_heron_101' },
+      models: {
+        ocr: [
+          { key: 'surya', label: 'datalab-to/surya-ocr-2', serving: true },
+          { key: 'granite_docling', label: 'ibm-granite/granite-docling-258M', serving: false },
+        ],
+        layout: [{ key: 'layout_heron_101', label: 'Heron-101', serving: true }],
+      },
+    }
+    const requests: string[] = []
+    const client = (response: Response | Error) => createKeiExpClient({
+      url: 'http://kei-exp:8001/', pollIntervalMs: 1,
+      fetch: async (url, init) => {
+        requests.push(`${init?.method ?? 'GET'} ${String(url)}`)
+        if (response instanceof Error) throw response
+        return response
+      },
+    })
+    assert.deepEqual(await client(json(listing)).listIngestionModels(new AbortController().signal), listing)
+    assert.deepEqual(requests, ['GET http://kei-exp:8001/api/ingestion-models'])
+    await assert.rejects(client(json({ detail: 'the OCR server is down' }, 503)).listIngestionModels(), (error: unknown) =>
+      error instanceof ExtractionError && error.code === 'model_unavailable' && error.message.includes('the OCR server is down'))
+    await assert.rejects(client(new TypeError('fetch failed')).listIngestionModels(), (error: unknown) =>
+      error instanceof ExtractionError && error.code === 'model_unavailable'
+      && error.message.includes('kei-exp could not be reached to list its ingestion models') && error.message.includes('fetch failed'))
+    const { defaults: _, ...withoutDefaults } = listing
+    for (const invalid of [json(withoutDefaults), json({ ...listing, models: { ...listing.models, ocr: [{ key: 'surya' }] } }), new Response('not json')])
+      await assert.rejects(client(invalid).listIngestionModels(), { code: 'invalid_model_output' })
+    await assert.rejects(client(json(withoutDefaults)).listIngestionModels(), { message: 'kei-exp returned an invalid ingestion model listing.' })
+  })
+
   it('relays the document-level field names kei-exp could not verify', async () => {
     const result = await harness([json(ack, 202), polled(artifact({ unverified: ['archive'] }))]).run()
     assert.deepEqual(result.diagnostics.unverifiedFields, ['archive'])

@@ -32,7 +32,7 @@ from kei_exp.kie.extract import models as extraction_models
 from kei_exp.kie.extract.models import ROLES
 from kei_exp.kie.extract.run import ExtractRequest
 from kei_exp.kie.stages.ocr import TRANSCRIBERS, check_ingest, check_knobs
-from kei_exp.models import MODELS
+from kei_exp.models import DEFAULT_OCR_MODEL, MODELS
 from kei_exp.pagefile import ResultError, read_manifest
 from kei_exp.pages import PdfPages
 from kei_exp.runtime import loaded_model
@@ -80,6 +80,23 @@ def list_extraction_models() -> dict:
         models.append({"key": key, "repo": record.repo, "roles": [role for role in ROLES if role in record.roles],
                        "reachable": reachable, "serving": repo == record.repo})
     return {"defaults": extraction_models.DEFAULTS, "models": models}
+
+
+@app.get("/api/ingestion-models")
+def list_ingestion_models() -> dict:
+    """The OCR and layout models a new parse may run on, and the default per role; shaped like
+    /api/extraction-models. An OCR model is `serving` only while the OCR server has it loaded, which is what this
+    listing observed, not a promise. Layout detectors run inside this service and are always selectable. A page with
+    a text layer uses neither."""
+    _, served = loaded_model(VLLM_URL)
+    return {
+        "defaults": {"ocr": DEFAULT_OCR_MODEL, "layout": DEFAULT_LAYOUT_MODEL},
+        "models": {
+            "ocr": [{"key": key, "label": record.repo, "serving": record.repo == served}
+                    for key, record in MODELS.items()],
+            "layout": [{"key": key, "label": label, "serving": True} for key, label in LAYOUT_MODELS.items()],
+        },
+    }
 
 
 def _stage(pdf: UploadFile, target: Path) -> None:
