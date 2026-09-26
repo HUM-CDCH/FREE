@@ -1346,7 +1346,8 @@ handlers or pages is an acceptance test of the milestone that builds it
 - **Stale assertion.** Fix `result_version == 4`
   (`tests/test_service_smoke.py:248`).
 
-**M2: platform, baseline and configuration.**
+**M2: platform, baseline and configuration — done 2026-09-26.** Task plan:
+[2026-09-26-dbos-m2-platform-configuration.md](2026-09-26-dbos-m2-platform-configuration.md).
 - **Compose** (all overlays):
   - remove `parsing_db`, `parsing-postgres`, `parsing_migrate` and the parsing
     API's database environment;

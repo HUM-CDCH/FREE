@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-Status: **not started (plan written 2026-09-26 against 84013ee).**
+Status: **done 2026-09-26: implemented through b64bc56; verification in docs/validation/2026-09-26-dbos-m2-verification.md.**
 
 **Goal:** Deliver milestone M2 of the DBOS plan on branch `feat/dbos-m2-m6`: one baseline migration without dead schema, per-researcher Model Configuration in PostgreSQL, keys held by the researcher's browser (Studio keeps a copy only in memory), the redesigned Model Configuration page (variant B1), kei's ingestion model listing, the app shell's Content-Security-Policy, and the Studio-side runtime that M3 and M4 build on (kei's database role, a restarting dev watch, CLI deployment connections). DBOS itself enters Studio in M4 and kei in M3.
 
