@@ -18,6 +18,9 @@ import {
 } from './_provider.js'
 import { ModelKeyRequiredError, createModelKeyCache } from './_model_keys.js'
 
+const stepStatus = vi.hoisted(() => ({ current: undefined as undefined | { cancelSignal: AbortSignal } }))
+vi.mock('@dbos-inc/dbos-sdk', () => ({ DBOS: { get stepStatus() { return stepStatus.current } } }))
+
 const ID = '11111111-1111-4111-8111-111111111111'
 const connection: ModelConnection = {
   id: ID,
@@ -33,6 +36,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
   vi.useRealTimers()
+  stepStatus.current = undefined
 })
 
 function routed(overrides: Partial<ModelConfig> = {}): ModelConfig {
@@ -590,6 +594,65 @@ describe('a route reads its key inside each provider attempt', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
+  /** A v4 model stand-in that records each attempt's abortSignal and answers one word. */
+  function recordingModel() {
+    const signals: (AbortSignal | undefined)[] = []
+    const model = {
+      specificationVersion: 'v4' as const,
+      provider: 'stand-in',
+      modelId: 'stand-in',
+      supportedUrls: {},
+      doGenerate: async (params: { abortSignal?: AbortSignal }) => {
+        signals.push(params.abortSignal)
+        return {
+          content: [{ type: 'text' as const, text: 'ok' }],
+          finishReason: 'stop' as const,
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          warnings: [],
+        }
+      },
+      doStream: async () => { throw new Error('not streamed') },
+    }
+    return { model, signals }
+  }
+
+  it("every general model's provider call receives the step's cancel signal, keyed or keyless", async () => {
+    const cancel = new AbortController()
+    stepStatus.current = { cancelSignal: cancel.signal }
+    const keys = createModelKeyCache()
+    keys.put(ACCOUNT, keyed.id, address, 'sk-test-present')
+    const withKey = recordingModel()
+    const keyless = recordingModel()
+    const keyedTarget = await resolveInteraction({ keys, modelFactories: { vllm: () => withKey.model as never } })
+    const keylessTarget = await resolveInteraction({
+      keys, readConfig: async () => routed({ connections: [{ ...keyed, hasKey: false }] }), modelFactories: { vllm: () => keyless.model as never },
+    })
+
+    await generateText({ model: model(keyedTarget), prompt: 'x', maxRetries: 0 })
+    await generateText({ model: model(keylessTarget), prompt: 'x', maxRetries: 0 })
+    expect(withKey.signals).toHaveLength(1)
+    expect(keyless.signals).toHaveLength(1)
+    expect(withKey.signals[0]?.aborted).toBe(false)
+    cancel.abort(new Error('workflow cancelled'))
+
+    expect(withKey.signals[0]?.aborted).toBe(true)
+    expect(keyless.signals[0]?.aborted).toBe(true)
+  })
+
+  it("a keyed model's key wait ends on the step's cancel signal and never calls the provider", async () => {
+    const cancel = new AbortController()
+    stepStatus.current = { cancelSignal: cancel.signal }
+    const standIn = recordingModel()
+    const target = await resolveInteraction({ keys: createModelKeyCache(), keyWaitMs: 60_000, modelFactories: { vllm: () => standIn.model as never } })
+    const reason = new Error('workflow cancelled')
+    const call = generateText({ model: model(target), prompt: 'x', maxRetries: 0 }).catch((error: unknown) => error)
+
+    cancel.abort(reason)
+
+    expect(await call).toBe(reason)
+    expect(standIn.signals).toHaveLength(0)
+  })
+
   it('the NuExtract target of a hasKey connection reads the same key lazily', async () => {
     const keys = createModelKeyCache()
     const target = await resolveCapabilityRoute('schema-suggestion', {}, {
@@ -617,7 +680,7 @@ describe('resolveCapabilityRoute', () => {
   it.each(['schema-suggestion', 'schema-edit'] as const)(
     'keeps an existing route usable for %s without an output setting', async (operation) => {
       const config = routed()
-      const createModel = vi.fn(() => ({}) as never)
+      const createModel = vi.fn(() => ({ specificationVersion: 'v4' }) as never)
       await expect(resolveCapabilityRoute(operation, {}, {
         researcherAccountId: ACCOUNT,
         readConfig: async () => config,
@@ -628,7 +691,7 @@ describe('resolveCapabilityRoute', () => {
   )
 
   it('passes an arbitrary saved model ID to the exact selected factory', async () => {
-    const createModel = vi.fn(() => ({}) as never)
+    const createModel = vi.fn(() => ({ specificationVersion: 'v4' }) as never)
     const target = await resolveCapabilityRoute('schema-edit', {}, {
       researcherAccountId: ACCOUNT,
       readConfig: async () => routed(),
@@ -698,7 +761,7 @@ describe('resolveCapabilityRoute', () => {
   const QWEN = 'Qwen/Qwen3.8-27B-FP8'
   const INTERACTION_ID = '22222222-2222-4222-8222-222222222222'
   const onVllm = { ...connection, provider: 'vllm' as const, baseUrl: 'http://nuextract_model:8000/v1' }
-  const general = () => ({}) as never
+  const general = () => ({ specificationVersion: 'v4' }) as never
 
   it.each([
     ['vllm', NUEXTRACT, 'nuextract'],
@@ -803,7 +866,7 @@ describe('resolveCapabilityRoute', () => {
   })
 
   it('runs an unset route on the deployment default, and fails closed without one', async () => {
-    const createModel = vi.fn(() => ({}) as never)
+    const createModel = vi.fn(() => ({ specificationVersion: 'v4' }) as never)
     const deployment = {
       connections: [{ id: DEPLOYMENT_CONNECTION_IDS.instruct, name: 'Deployment', provider: 'vllm' as const, baseUrl: 'http://extraction_model:8000/v1', hasKey: false }],
       defaultRoute: { connectionId: DEPLOYMENT_CONNECTION_IDS.instruct, modelId: 'Qwen/Qwen3.8-27B-FP8' },
@@ -823,7 +886,7 @@ describe('resolveCapabilityRoute', () => {
   })
 
   it('a route may name an enabled CLI deployment connection', async () => {
-    const createModel = vi.fn(() => ({}) as never)
+    const createModel = vi.fn(() => ({ specificationVersion: 'v4' }) as never)
     const claudeCode = {
       id: DEPLOYMENT_CONNECTION_IDS.claudeCode, name: 'Claude Code on this server', provider: 'claude-code' as const, baseUrl: null, hasKey: false,
     }
@@ -853,7 +916,7 @@ describe('resolveCapabilityRoute', () => {
   })
 
   it('refuses a saved route naming a CLI deployment connection this deployment no longer enables', async () => {
-    const createModel = vi.fn(() => ({}) as never)
+    const createModel = vi.fn(() => ({ specificationVersion: 'v4' }) as never)
     // Only Claude Code is enabled now; the route still names the Codex CLI deployment connection.
     const claudeCode = {
       id: DEPLOYMENT_CONNECTION_IDS.claudeCode, name: 'Claude Code on this server', provider: 'claude-code' as const, baseUrl: null, hasKey: false,
@@ -893,8 +956,8 @@ describe('resolveCapabilityRoute', () => {
     ['schema-edit', 'interaction-model', 'interaction'],
   ] as const)('maps %s exactly once to the %s route', async (operation, modelId, selectedRoute) => {
     const interactionId = '00000000-0000-4000-8000-000000000002'
-    const extractionFactory = vi.fn(() => ({}) as never)
-    const interactionFactory = vi.fn(() => ({}) as never)
+    const extractionFactory = vi.fn(() => ({ specificationVersion: 'v4' }) as never)
+    const interactionFactory = vi.fn(() => ({ specificationVersion: 'v4' }) as never)
     await resolveCapabilityRoute(operation, {}, {
       researcherAccountId: ACCOUNT,
       readConfig: async () => ({
@@ -919,7 +982,7 @@ describe('resolveCapabilityRoute', () => {
   })
 
   it('rejects unsupported temperature before constructing a CLI model', async () => {
-    const createModel = vi.fn(() => ({}) as never)
+    const createModel = vi.fn(() => ({ specificationVersion: 'v4' }) as never)
     const cli = {
       id: DEPLOYMENT_CONNECTION_IDS.codexCli, name: 'Codex CLI on this server', provider: 'codex-cli' as const, baseUrl: null, hasKey: false,
     }
@@ -937,7 +1000,7 @@ describe('resolveCapabilityRoute', () => {
   })
 
   it("resolving a route that names another account's connection is 409", async () => {
-    const createModel = vi.fn(() => ({}) as never)
+    const createModel = vi.fn(() => ({ specificationVersion: 'v4' }) as never)
     // A's connection exists only in A's configuration; B's route names its ID.
     const other: ModelConfig = routed({
       connections: [{ ...connection, id: '22222222-2222-4222-8222-222222222222', name: 'B gateway' }],

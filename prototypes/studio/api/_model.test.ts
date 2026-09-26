@@ -7,9 +7,11 @@ import type { ExecutionTarget, NuExtractExecutionTarget } from './_provider.js'
 import { readAccountModelConfig } from './_model_config.js'
 import { ModelKeyRequiredError, createModelKeyCache } from './_model_keys.js'
 
-const { generateTextMock } = vi.hoisted(() => ({
+const { generateTextMock, stepStatus } = vi.hoisted(() => ({
   generateTextMock: vi.fn(),
+  stepStatus: { current: undefined as undefined | { cancelSignal: AbortSignal } },
 }))
+vi.mock('@dbos-inc/dbos-sdk', () => ({ DBOS: { get stepStatus() { return stepStatus.current } } }))
 vi.mock('./_model_config.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./_model_config.js')>()),
   readAccountModelConfig: vi.fn(),
@@ -57,6 +59,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
   generateTextMock.mockReset()
   vi.mocked(readAccountModelConfig).mockReset()
+  stepStatus.current = undefined
 })
 
 describe('generateSchemaWithModel', () => {
@@ -128,6 +131,44 @@ describe('generateSchemaWithModel', () => {
 
     expect(key).toHaveBeenCalledExactlyOnceWith(controller.signal)
     expect(request.mock.calls[0]![1].headers).toEqual({ 'content-type': 'application/json', authorization: 'Bearer sk-test-in-attempt' })
+  })
+
+  it("NuExtract's key wait and fetch receive the step's cancel signal", async () => {
+    const request = stubNuExtractResponse('{"_description":"One grave record.","grave":[{"name":"verbatim-string"}]}')
+    const cancel = new AbortController()
+    stepStatus.current = { cancelSignal: cancel.signal }
+    const keySignals: (AbortSignal | undefined)[] = []
+    const key = vi.fn(async (signal: AbortSignal | undefined) => { keySignals.push(signal); return 'sk-test-in-step' })
+
+    await generateSchemaWithModel(CALLER, { document, instruction: '' }, { ...nuextractTarget, key })
+
+    const fetched = request.mock.calls[0]![1].signal as AbortSignal
+    expect(fetched.aborted).toBe(false)
+    expect(keySignals[0]?.aborted).toBe(false)
+    cancel.abort(new Error('workflow cancelled'))
+    expect(fetched.aborted).toBe(true)
+    expect(keySignals[0]?.aborted).toBe(true)
+  })
+
+  it("a NuExtract key wait ended by the step's cancel signal never reaches vLLM", async () => {
+    const request = vi.fn()
+    vi.stubGlobal('fetch', request)
+    const cancel = new AbortController()
+    stepStatus.current = { cancelSignal: cancel.signal }
+    const reason = new Error('workflow cancelled')
+
+    const call = generateSchemaWithModel(CALLER, { document, instruction: '' }, {
+      ...nuextractTarget,
+      // As the real key wait does: fail at once when already aborted, else on the abort.
+      key: (signal) => new Promise<string>((_, reject) => {
+        if (signal?.aborted) reject(signal.reason)
+        signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+      }),
+    }).catch((error: unknown) => error)
+    cancel.abort(reason)
+
+    expect(await call).toMatchObject({ status: 502, code: 'model_operation_failed', cause: reason })
+    expect(request).not.toHaveBeenCalled()
   })
 
   it('a keyed NuExtract call with no key never reaches vLLM', async () => {

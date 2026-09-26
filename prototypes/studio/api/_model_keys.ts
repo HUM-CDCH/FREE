@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { DBOS } from '@dbos-inc/dbos-sdk'
 import type { ModelConnection } from '../shared/modelConfig.contract.js'
 import { sameModelKeyAddress, type ModelKeyAddress } from '../shared/modelKeys.contract.js'
 import { ApiError } from './_http.js'
@@ -10,7 +11,7 @@ type KeyedConnection = Pick<ModelConnection, 'id' | 'provider' | 'baseUrl'>
 type Held = ModelKeyAddress & Readonly<{ key: string }>
 
 export class ModelKeyRequiredError extends ApiError {
-  /** Only a page resending the key can fix this, so neither the AI SDK nor `durableCalls` (M5) may retry it. */
+  /** Only a page resending the key can fix this, so neither the AI SDK nor a DBOS step may retry it. */
   readonly isRetryable = false
   constructor() {
     super(
@@ -125,12 +126,22 @@ export function createModelKeyCache(): ModelKeyCache {
 }
 
 /**
+ * The provider attempt's signal with DBOS's `cancelSignal` added when the attempt runs inside a step, so a cancelled
+ * workflow ends a key wait or a provider call about 1 s later (spec, *Cancellation → Studio model calls*). It is
+ * composed here, at the model boundary, so every attempt carries it — the AI SDK's retries, NuExtract's own fetch,
+ * keyed and keyless connections — whatever the caller passed. Outside a step it returns `signal` unchanged.
+ */
+export function withStepCancellation(
+  signal: AbortSignal | undefined,
+  cancel: AbortSignal | undefined = DBOS.stepStatus?.cancelSignal,
+): AbortSignal | undefined {
+  if (!cancel || cancel === signal) return signal
+  return signal ? AbortSignal.any([signal, cancel]) : cancel
+}
+
+/**
  * The key for one provider attempt: from the cache, or after waiting up to `waitMs` for a page to resend it. The wait
- * ends early when `signal` aborts, and nothing after it runs. In M4 FREE calls the model itself, so a workflow step
- * composes DBOS's `DBOS.stepStatus.cancelSignal` into the call's signal (`modelSignal`,
- * `api/_batch_suggestion_workflow.ts`), which reaches here as the attempt's `abortSignal`. Under `durableCalls` (M5)
- * the library, not FREE, calls the model, so no caller can add it: the keyed-model wrapper (`keyedModel`'s key
- * function) must then compose it with the attempt's own signal before calling this.
+ * ends early when `signal` aborts or, inside a DBOS step, when the workflow is cancelled; nothing after either runs.
  */
 export async function requireModelKey(
   cache: ModelKeyCache,
@@ -139,9 +150,10 @@ export async function requireModelKey(
   signal: AbortSignal | undefined,
   waitMs = MODEL_KEY_WAIT_MS,
 ): Promise<string> {
-  const key = await cache.wait(accountId, connection, signal, waitMs)
+  const bounded = withStepCancellation(signal)
+  const key = await cache.wait(accountId, connection, bounded, waitMs)
   if (key === null) throw new ModelKeyRequiredError()
-  signal?.throwIfAborted()
+  bounded?.throwIfAborted()
   return key
 }
 

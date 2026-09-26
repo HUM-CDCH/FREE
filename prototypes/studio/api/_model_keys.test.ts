@@ -6,7 +6,11 @@ import {
   ModelKeyRequiredError,
   createModelKeyCache,
   requireModelKey,
+  withStepCancellation,
 } from './_model_keys.js'
+
+const stepStatus = vi.hoisted(() => ({ current: undefined as undefined | { cancelSignal: AbortSignal } }))
+vi.mock('@dbos-inc/dbos-sdk', () => ({ DBOS: { get stepStatus() { return stepStatus.current } } }))
 
 const ACCOUNT = '10000000-0000-4000-8000-000000000001'
 const OTHER_ACCOUNT = '10000000-0000-4000-8000-000000000002'
@@ -30,6 +34,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
+  stepStatus.current = undefined
 })
 
 describe('model key cache', () => {
@@ -180,6 +185,46 @@ describe('model key cache', () => {
     cache.put(ACCOUNT, ID, address, KEY)
 
     await expect(requireModelKey(cache, ACCOUNT, connection, undefined)).resolves.toBe(KEY)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it("withStepCancellation returns the call signal unchanged outside a step, the step's cancel signal alone without a call signal, and both composed inside a step", () => {
+    const call = new AbortController()
+    const cancel = new AbortController()
+    expect(withStepCancellation(undefined, undefined)).toBeUndefined()
+    expect(withStepCancellation(call.signal, undefined)).toBe(call.signal)
+    expect(withStepCancellation(undefined, cancel.signal)).toBe(cancel.signal)
+
+    const byCall = withStepCancellation(call.signal, cancel.signal)!
+    expect(byCall).not.toBe(call.signal)
+    expect(byCall.aborted).toBe(false)
+    call.abort(new Error('client'))
+    expect(byCall.aborted).toBe(true)
+    expect(byCall.reason).toEqual(new Error('client'))
+    expect(cancel.signal.aborted).toBe(false)
+
+    const other = new AbortController()
+    const byCancel = withStepCancellation(other.signal, cancel.signal)!
+    cancel.abort(new Error('cancelled'))
+    expect(byCancel.aborted).toBe(true)
+    expect(byCancel.reason).toEqual(new Error('cancelled'))
+    expect(other.signal.aborted).toBe(false)
+  })
+
+  it("requireModelKey ends the wait when the step's cancel signal fires, and returns no key after it", async () => {
+    const cache = createModelKeyCache()
+    const controller = new AbortController()
+    stepStatus.current = { cancelSignal: controller.signal }
+    const required = requireModelKey(cache, ACCOUNT, connection, undefined, 60_000).catch((error: unknown) => error)
+
+    await vi.advanceTimersByTimeAsync(5)
+    const reason = new Error('workflow cancelled')
+    controller.abort(reason)
+
+    expect(await required).toBe(reason)
+    cache.put(ACCOUNT, ID, address, KEY)
+    await vi.advanceTimersByTimeAsync(5)
+    expect(await required).toBe(reason)
     expect(vi.getTimerCount()).toBe(0)
   })
 })

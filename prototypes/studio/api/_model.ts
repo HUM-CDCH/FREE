@@ -13,6 +13,7 @@ import {
   asModelOperationError,
 } from './_http.js'
 import { parseTemplate } from './_model_output.js'
+import { withStepCancellation } from './_model_keys.js'
 import { readAccountModelConfig } from './_model_config.js'
 import type { ModelConfig } from '../shared/modelConfig.contract.js'
 import {
@@ -235,16 +236,18 @@ async function generateWithNuExtract(
   requestFetch: typeof fetch = fetch,
 ): Promise<GeneratedText> {
   const startedAt = performance.now()
+  // The attempt's signal carries the step's cancel signal (Task 2): a cancelled workflow ends the key wait or the fetch.
+  const signal = withStepCancellation(input.signal)
   // The key is read inside the attempt, so a missing one waits for a page to resend it; nothing is sent after an abort.
   let authorization: string | null
   try {
-    const key = await target.key(input.signal)
+    const key = await target.key(signal)
     authorization = key === null ? null : `Bearer ${key}`
   } catch (error) {
     // model_key_required passes through unchanged.
     throw asModelOperationError(error, 'NuExtract generation failed.')
   }
-  input.signal?.throwIfAborted()
+  signal?.throwIfAborted()
   const url = appendProviderResource(target.baseUrl, 'chat/completions')
   const requestBody = JSON.stringify({
     model: target.modelId,
@@ -262,7 +265,7 @@ async function generateWithNuExtract(
         ...(authorization === null ? {} : { authorization }),
       },
       body: requestBody,
-      signal: input.signal,
+      signal,
     })
   } catch (error) {
     throw asModelOperationError(error, 'NuExtract generation failed.')

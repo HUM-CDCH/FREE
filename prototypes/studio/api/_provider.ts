@@ -26,7 +26,7 @@ import type {
 import { selectedRoute, usesNuextractProtocol } from '../shared/modelConfig.contract.js'
 import { deploymentModels } from './_deployment_models.js'
 import { ApiError } from './_http.js'
-import { requireModelKey, studioProcess, type ModelKeyCache } from './_model_keys.js'
+import { requireModelKey, studioProcess, withStepCancellation, type ModelKeyCache } from './_model_keys.js'
 
 
 /** Internal adapter capability; routes always select output formatting automatically. */
@@ -588,6 +588,22 @@ export function keyedModel(
   })
 }
 
+/**
+ * A route's general model as every call uses it: the provider attempt runs with the step's cancel signal composed
+ * into `abortSignal` (withStepCancellation), keyed or keyless — deployment vLLM and CLI connections never pass through
+ * keyedModel — so a cancelled workflow stops the call about 1 s later. The keyed wrapper inside it waits for its key
+ * with that same signal.
+ */
+export function stepCancellable(model: LanguageModel): LanguageModel {
+  return wrapLanguageModel({
+    model: providerModel(model),
+    middleware: {
+      specificationVersion: 'v4',
+      transformParams: async ({ params }) => ({ ...params, abortSignal: withStepCancellation(params.abortSignal) }),
+    },
+  })
+}
+
 /** Serializable metadata only; backend capabilities and functions never cross HTTP. */
 export const PROVIDERS: readonly ProviderDescriptor[] = Object.values(providerTable).map(
   ({ kind, label, transport, defaultBaseUrl, authentication, supportsNuextract }) => ({
@@ -748,7 +764,7 @@ export async function resolveCapabilityRoute(
   const createModel = dependencies.modelFactories?.[connection.provider] ?? entry.createModel
   let model: LanguageModel
   try {
-    model = connection.hasKey ? keyedModel(createModel, connection, route.modelId, key) : createModel(connection, route.modelId, null)
+    model = stepCancellable(connection.hasKey ? keyedModel(createModel, connection, route.modelId, key) : createModel(connection, route.modelId, null))
   } catch (cause) {
     throw new ApiError(502, 'model_operation_failed', 'The selected provider could not be initialized.', { cause })
   }
