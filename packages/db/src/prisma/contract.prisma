@@ -12,25 +12,26 @@ model ResearcherAccount {
   createdAt       Timestamptz6 @default(now())
   updatedAt       temporal.updatedAt()
   projectContexts ProjectContext[]
+  modelConfiguration ModelConfiguration?
 
   @@unique([tenantId, objectId])
 }
 
-enum AttemptOutcome {
-  SUCCEEDED
-  FAILED
-  CANCELLED
+// One Researcher Account's Model Configuration: its Model Connections (whether each uses a key, never the key),
+// Capability Routes, Extraction Model Choice and Ingestion Model Choice. Studio validates `document` before every
+// write. A committed row always has a document: null exists only inside the first apply's transaction, which
+// creates the row to lock it (packages/db/src/model-configuration-store.ts).
+model ModelConfiguration {
+  researcherAccountId Uuid              @id
+  document            Json?
+  updatedAt           Timestamptz6      @default(now())
+  researcherAccount   ResearcherAccount @relation(fields: [researcherAccountId], references: [id], onDelete: Cascade)
 }
 
 enum ExtractionOutcome {
   SUCCEEDED
   FAILED
   CANCELLED
-}
-
-enum AnnotationMode {
-  hints
-  fields
 }
 
 enum SchemaRevisionOrigin {
@@ -104,8 +105,6 @@ model SourceRepresentationRevision {
   createdAt              Timestamptz6               @default(now())
   sourceDocument         SourceDocument             @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
   annotationSetRevisions AnnotationSetRevision[]
-  schemaSuggestionInputs SchemaSuggestionInput[]
-  conversationalEdits    ConversationalSchemaEdit[]
   extractions            Extraction[]
   batchMembers           BatchExtractionMember[]
   batchSchemaSuggestionSources BatchSchemaSuggestionSource[]
@@ -125,8 +124,6 @@ model AnnotationSetRevision {
   createdAt                      Timestamptz6                 @default(now())
   sourceDocument                 SourceDocument               @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
   sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId], references: [id], onDelete: Cascade)
-  schemaSuggestionInputs         SchemaSuggestionInput[]
-  conversationalEdits            ConversationalSchemaEdit[]
 
   @@unique([sourceDocumentId, revisionNumber])
 }
@@ -137,96 +134,20 @@ model ExtractionSchema {
   name                String
   createdAt           Timestamptz6               @default(now())
   projectContext      ProjectContext             @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
-  promptRevisions     PromptRevision[]
   schemaRevisions     SchemaRevision[]
-  suggestions         SchemaSuggestion[]
-  conversationalEdits ConversationalSchemaEdit[]
 
   @@index([projectContextId])
-}
-
-model PromptRevision {
-  id                  Uuid                       @id @default(uuid())
-  extractionSchemaId  Uuid
-  revisionNumber      Int
-  text                String
-  createdAt           Timestamptz6               @default(now())
-  extractionSchema    ExtractionSchema           @relation(fields: [extractionSchemaId], references: [id], onDelete: Cascade)
-  suggestions         SchemaSuggestion[]
-  conversationalEdits ConversationalSchemaEdit[]
-
-  @@unique([extractionSchemaId, revisionNumber])
-}
-
-model SchemaSuggestion {
-  id                 Uuid                    @id @default(uuid())
-  extractionSchemaId Uuid
-  promptRevisionId   Uuid?
-  annotationMode     AnnotationMode
-  outcome            AttemptOutcome
-  modelAttribution   Json
-  rawModelOutput     String?
-  failure            Json?
-  proposedTree       Json?
-  createdAt          Timestamptz6            @default(now())
-  extractionSchema   ExtractionSchema        @relation(fields: [extractionSchemaId], references: [id], onDelete: Cascade)
-  promptRevision     PromptRevision?         @relation(fields: [promptRevisionId], references: [id], onDelete: Cascade)
-  inputs             SchemaSuggestionInput[]
-  seededRevision     SchemaRevision?
-
-  @@index([extractionSchemaId])
-}
-
-model ConversationalSchemaEdit {
-  id                             Uuid                         @id @default(uuid())
-  extractionSchemaId             Uuid
-  baseSchemaRevisionId           Uuid
-  sourceRepresentationRevisionId Uuid
-  annotationSetRevisionId        Uuid?
-  promptRevisionId               Uuid?
-  instruction                    String
-  operations                     Json?
-  outcome                        AttemptOutcome
-  modelAttribution               Json
-  rawModelOutput                 String?
-  failure                        Json?
-  proposedTree                   Json?
-  createdAt                      Timestamptz6                 @default(now())
-  extractionSchema               ExtractionSchema             @relation(fields: [extractionSchemaId], references: [id], onDelete: Cascade)
-  baseSchemaRevision             SchemaRevision               @relation("ConversationalEditBase", fields: [baseSchemaRevisionId], references: [id], onDelete: Cascade)
-  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId], references: [id], onDelete: Cascade)
-  annotationSetRevision          AnnotationSetRevision?       @relation(fields: [annotationSetRevisionId], references: [id], onDelete: Cascade)
-  promptRevision                 PromptRevision?              @relation(fields: [promptRevisionId], references: [id], onDelete: Cascade)
-  appliedRevision                SchemaRevision?              @relation("ConversationalEditApplied")
-
-  @@index([extractionSchemaId])
-}
-
-model SchemaSuggestionInput {
-  schemaSuggestionId             Uuid
-  sourceRepresentationRevisionId Uuid
-  annotationSetRevisionId        Uuid?
-  schemaSuggestion               SchemaSuggestion             @relation(fields: [schemaSuggestionId], references: [id], onDelete: Cascade)
-  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId], references: [id], onDelete: Cascade)
-  annotationSetRevision          AnnotationSetRevision?       @relation(fields: [annotationSetRevisionId], references: [id], onDelete: Cascade)
-
-  @@id([schemaSuggestionId, sourceRepresentationRevisionId])
 }
 
 model SchemaRevision {
   id                         Uuid                       @id @default(uuid())
   extractionSchemaId         Uuid
-  schemaSuggestionId         Uuid?                      @unique
   revisionNumber             Int
   origin                     SchemaRevisionOrigin
   schemaTree                 Json
   modelAttribution           Json?
   createdAt                  Timestamptz6               @default(now())
   extractionSchema           ExtractionSchema           @relation(fields: [extractionSchemaId], references: [id], onDelete: Cascade)
-  schemaSuggestion           SchemaSuggestion?          @relation(fields: [schemaSuggestionId], references: [id], onDelete: Cascade)
-  conversationalSchemaEditId Uuid?                      @unique
-  conversationalSchemaEdit   ConversationalSchemaEdit?  @relation("ConversationalEditApplied", fields: [conversationalSchemaEditId], references: [id], onDelete: Cascade)
-  conversationalEditBases    ConversationalSchemaEdit[] @relation("ConversationalEditBase")
   extractions                Extraction[]
   batchExtractions           BatchExtraction[]
   extractionJobs             ExtractionJob[]
@@ -243,8 +164,6 @@ model BatchExtraction {
   projectContextId Uuid
   schemaRevisionId Uuid
   strategy         String
-  failure          Json?
-  finishedAt       Timestamptz6?
   createdAt        Timestamptz6            @default(now())
   projectContext   ProjectContext          @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
   schemaRevision   SchemaRevision          @relation(fields: [schemaRevisionId], references: [id], onDelete: Cascade)
@@ -290,10 +209,8 @@ model ExtractionJob {
   // The Extraction Model Choice (`{fields?, reasoning?}`: kei-exp model keys per role) requested for this run; null
   // when every role keeps kei-exp's deployment default. Batch members and retries never choose.
   requestedModels                Json?
+  // Read only by jobIdentityMatches' guard against pre-M1 retry rows; leaves with ExtractionJob in M4.
   retryOfId                      Uuid?
-  retryDocument                  Boolean?
-  rediscover                     Boolean?
-  retryRecordStartBlockIds       Json?
   batchExtractionId              Uuid?
   executionStatus                ProjectOperationStatus  @default(QUEUED)
   complete                       Boolean?
@@ -390,7 +307,6 @@ model Extraction {
   resultPayload                  Json?
   evidenceLinks                  Json?
   reviewable                     Boolean
-  retryOfId                      Uuid?
   batchExtractionId              Uuid?
   createdAt                      Timestamptz6                 @default(now())
   reviewedAt                     Timestamptz6?
@@ -405,16 +321,12 @@ model Extraction {
   // exact pinned Source Representation Revision.
   batchMember                    BatchExtractionMember?       @relation("BatchMemberAttempts", fields: [batchExtractionId, sourceDocumentId, sourceRepresentationRevisionId], references: [batchExtractionId, sourceDocumentId, sourceRepresentationRevisionId], onDelete: Restrict, map: "extraction_batch_member_fkey")
   sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId, sourceDocumentId], references: [id, sourceDocumentId], onDelete: Cascade)
-  retryOf                        Extraction?                  @relation("ExtractionRetries", fields: [retryOfId, sourceRepresentationRevisionId, schemaRevisionId, strategy], references: [id, sourceRepresentationRevisionId, schemaRevisionId, strategy], onDelete: Cascade, map: "extraction_retry_pin_fkey")
-  retries                        Extraction[]                 @relation("ExtractionRetries")
   reviews                        ExtractionReview[]
 
   @@unique([id, sourceDocumentId])
-  @@unique([id, sourceRepresentationRevisionId, schemaRevisionId, strategy], map: "extraction_retry_pin_key")
   @@index([schemaRevisionId])
   @@index([sourceDocumentId, createdAt])
   @@index([sourceRepresentationRevisionId, sourceDocumentId])
-  @@index([retryOfId, sourceRepresentationRevisionId, schemaRevisionId, strategy], map: "extraction_retry_pin_idx")
   @@index([batchExtractionId, schemaRevisionId, strategy], map: "extraction_batch_pin_idx")
   @@index([reviewedAt])
 }

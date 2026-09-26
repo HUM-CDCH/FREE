@@ -30,9 +30,9 @@ import type {
 } from '@prisma-next/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'sha256:f779ca7202f2295dcce8df20c1c675aecd2e14a45bec408acbc16bbafc478778'>;
+  StorageHashBase<'sha256:bd4ea1a32aa50536235e38c133d10d26778096b5923abe9513494a9522974b8d'>;
 export type ExecutionHash =
-  ExecutionHashBase<'sha256:1206bbc5f96bcbabdbc94d74954eaefe1d018d11f2cf1b29412ae7ff0250a506'>;
+  ExecutionHashBase<'sha256:935ac442569cf119b4cc12b4db9bd78853aa51606e8aff919ff4c91af0967818'>;
 export type ProfileHash =
   ProfileHashBase<'sha256:9c8aa3114e84ed3b7ea2bd57526d9c2e1bf7c5292be694e9d3801f566fda7ccb'>;
 
@@ -58,23 +58,13 @@ export type FieldOutputTypes = {
       readonly projectContextId: CodecTypes['pg/uuid@1']['output'];
       readonly schemaRevisionId: CodecTypes['pg/uuid@1']['output'];
       readonly strategy: CodecTypes['pg/text@1']['output'];
-      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-      readonly failure: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly startedAt: Timestamptz<6> | null;
-      readonly finishedAt: Timestamptz<6> | null;
-      readonly leaseOwner: CodecTypes['pg/text@1']['output'] | null;
-      readonly leaseVersion: CodecTypes['pg/int4@1']['output'];
-      readonly leaseExpiresAt: Timestamptz<6> | null;
       readonly createdAt: Timestamptz<6>;
     };
     readonly BatchExtractionMember: {
       readonly batchExtractionId: CodecTypes['pg/uuid@1']['output'];
       readonly sourceDocumentId: CodecTypes['pg/uuid@1']['output'];
       readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['output'];
-      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-      readonly failure: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly startedAt: Timestamptz<6> | null;
-      readonly finishedAt: Timestamptz<6> | null;
+      readonly initialExtractionJobId: CodecTypes['pg/uuid@1']['output'];
     };
     readonly BatchSchemaSuggestion: {
       readonly id: CodecTypes['pg/uuid@1']['output'];
@@ -106,28 +96,13 @@ export type FieldOutputTypes = {
       readonly startedAt: Timestamptz<6> | null;
       readonly finishedAt: Timestamptz<6> | null;
     };
-    readonly ConversationalSchemaEdit: {
-      readonly id: CodecTypes['pg/uuid@1']['output'];
-      readonly extractionSchemaId: CodecTypes['pg/uuid@1']['output'];
-      readonly baseSchemaRevisionId: CodecTypes['pg/uuid@1']['output'];
-      readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['output'];
-      readonly annotationSetRevisionId: CodecTypes['pg/uuid@1']['output'] | null;
-      readonly promptRevisionId: CodecTypes['pg/uuid@1']['output'] | null;
-      readonly instruction: CodecTypes['pg/text@1']['output'];
-      readonly operations: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
-      readonly modelAttribution: CodecTypes['pg/jsonb@1']['output'];
-      readonly rawModelOutput: CodecTypes['pg/text@1']['output'] | null;
-      readonly failure: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly proposedTree: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly createdAt: Timestamptz<6>;
-    };
     readonly Extraction: {
       readonly id: CodecTypes['pg/uuid@1']['output'];
       readonly sourceDocumentId: CodecTypes['pg/uuid@1']['output'];
       readonly schemaRevisionId: CodecTypes['pg/uuid@1']['output'];
       readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['output'];
       readonly strategy: CodecTypes['pg/text@1']['output'];
+      readonly requestedModels: CodecTypes['pg/jsonb@1']['output'] | null;
       readonly outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
       readonly complete: CodecTypes['pg/bool@1']['output'] | null;
       readonly modelAttribution: CodecTypes['pg/jsonb@1']['output'] | null;
@@ -136,10 +111,37 @@ export type FieldOutputTypes = {
       readonly resultPayload: CodecTypes['pg/jsonb@1']['output'] | null;
       readonly evidenceLinks: CodecTypes['pg/jsonb@1']['output'] | null;
       readonly reviewable: CodecTypes['pg/bool@1']['output'];
-      readonly retryOfId: CodecTypes['pg/uuid@1']['output'] | null;
       readonly batchExtractionId: CodecTypes['pg/uuid@1']['output'] | null;
       readonly createdAt: Timestamptz<6>;
       readonly reviewedAt: Timestamptz<6> | null;
+      readonly reviewDraft: CodecTypes['pg/jsonb@1']['output'] | null;
+      readonly reviewDraftVersion: CodecTypes['pg/int4@1']['output'];
+    };
+    readonly ExtractionJob: {
+      readonly id: CodecTypes['pg/uuid@1']['output'];
+      readonly kind: 'INTERACTIVE' | 'BATCH_MEMBER';
+      readonly projectContextId: CodecTypes['pg/uuid@1']['output'];
+      readonly sourceDocumentId: CodecTypes['pg/uuid@1']['output'];
+      readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['output'];
+      readonly schemaRevisionId: CodecTypes['pg/uuid@1']['output'];
+      readonly strategy: CodecTypes['pg/text@1']['output'];
+      readonly catalogRecipe: CodecTypes['pg/text@1']['output'] | null;
+      readonly requestedModels: CodecTypes['pg/jsonb@1']['output'] | null;
+      readonly retryOfId: CodecTypes['pg/uuid@1']['output'] | null;
+      readonly batchExtractionId: CodecTypes['pg/uuid@1']['output'] | null;
+      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+      readonly complete: CodecTypes['pg/bool@1']['output'] | null;
+      readonly modelAttribution: CodecTypes['pg/jsonb@1']['output'] | null;
+      readonly diagnostics: CodecTypes['pg/jsonb@1']['output'] | null;
+      readonly resultPayload: CodecTypes['pg/jsonb@1']['output'] | null;
+      readonly failure: CodecTypes['pg/jsonb@1']['output'] | null;
+      readonly cancelRequestedAt: Timestamptz<6> | null;
+      readonly startedAt: Timestamptz<6> | null;
+      readonly finishedAt: Timestamptz<6> | null;
+      readonly leaseOwner: CodecTypes['pg/text@1']['output'] | null;
+      readonly leaseVersion: CodecTypes['pg/int4@1']['output'];
+      readonly leaseExpiresAt: Timestamptz<6> | null;
+      readonly createdAt: Timestamptz<6>;
     };
     readonly ExtractionReview: {
       readonly id: CodecTypes['pg/uuid@1']['output'];
@@ -154,17 +156,15 @@ export type FieldOutputTypes = {
       readonly name: CodecTypes['pg/text@1']['output'];
       readonly createdAt: Timestamptz<6>;
     };
+    readonly ModelConfiguration: {
+      readonly researcherAccountId: CodecTypes['pg/uuid@1']['output'];
+      readonly document: CodecTypes['pg/jsonb@1']['output'] | null;
+      readonly updatedAt: Timestamptz<6>;
+    };
     readonly ProjectContext: {
       readonly researcherAccountId: CodecTypes['pg/uuid@1']['output'];
       readonly id: CodecTypes['pg/uuid@1']['output'];
       readonly name: CodecTypes['pg/text@1']['output'];
-      readonly createdAt: Timestamptz<6>;
-    };
-    readonly PromptRevision: {
-      readonly id: CodecTypes['pg/uuid@1']['output'];
-      readonly extractionSchemaId: CodecTypes['pg/uuid@1']['output'];
-      readonly revisionNumber: CodecTypes['pg/int4@1']['output'];
-      readonly text: CodecTypes['pg/text@1']['output'];
       readonly createdAt: Timestamptz<6>;
     };
     readonly ResearcherAccount: {
@@ -189,30 +189,11 @@ export type FieldOutputTypes = {
     readonly SchemaRevision: {
       readonly id: CodecTypes['pg/uuid@1']['output'];
       readonly extractionSchemaId: CodecTypes['pg/uuid@1']['output'];
-      readonly schemaSuggestionId: CodecTypes['pg/uuid@1']['output'] | null;
       readonly revisionNumber: CodecTypes['pg/int4@1']['output'];
       readonly origin: 'SUGGESTION' | 'RESEARCHER_EDIT' | 'MODEL_EDIT';
       readonly schemaTree: CodecTypes['pg/jsonb@1']['output'];
       readonly modelAttribution: CodecTypes['pg/jsonb@1']['output'] | null;
       readonly createdAt: Timestamptz<6>;
-      readonly conversationalSchemaEditId: CodecTypes['pg/uuid@1']['output'] | null;
-    };
-    readonly SchemaSuggestion: {
-      readonly id: CodecTypes['pg/uuid@1']['output'];
-      readonly extractionSchemaId: CodecTypes['pg/uuid@1']['output'];
-      readonly promptRevisionId: CodecTypes['pg/uuid@1']['output'] | null;
-      readonly annotationMode: 'hints' | 'fields';
-      readonly outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
-      readonly modelAttribution: CodecTypes['pg/jsonb@1']['output'];
-      readonly rawModelOutput: CodecTypes['pg/text@1']['output'] | null;
-      readonly failure: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly proposedTree: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly createdAt: Timestamptz<6>;
-    };
-    readonly SchemaSuggestionInput: {
-      readonly schemaSuggestionId: CodecTypes['pg/uuid@1']['output'];
-      readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['output'];
-      readonly annotationSetRevisionId: CodecTypes['pg/uuid@1']['output'] | null;
     };
     readonly SourceDocument: {
       readonly id: CodecTypes['pg/uuid@1']['output'];
@@ -233,6 +214,8 @@ export type FieldOutputTypes = {
       readonly preprocessId: CodecTypes['pg/text@1']['output'];
       readonly parserName: CodecTypes['pg/text@1']['output'];
       readonly parserVersion: CodecTypes['pg/text@1']['output'];
+      readonly reprocessKey: CodecTypes['pg/uuid@1']['output'] | null;
+      readonly reprocessFingerprint: CodecTypes['pg/text@1']['output'] | null;
       readonly createdAt: Timestamptz<6>;
     };
   };
@@ -252,23 +235,13 @@ export type FieldInputTypes = {
       readonly projectContextId: CodecTypes['pg/uuid@1']['input'];
       readonly schemaRevisionId: CodecTypes['pg/uuid@1']['input'];
       readonly strategy: CodecTypes['pg/text@1']['input'];
-      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-      readonly failure: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly startedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
-      readonly finishedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
-      readonly leaseOwner: CodecTypes['pg/text@1']['input'] | null;
-      readonly leaseVersion: CodecTypes['pg/int4@1']['input'];
-      readonly leaseExpiresAt: CodecTypes['pg/timestamptz@1']['input'] | null;
       readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
     };
     readonly BatchExtractionMember: {
       readonly batchExtractionId: CodecTypes['pg/uuid@1']['input'];
       readonly sourceDocumentId: CodecTypes['pg/uuid@1']['input'];
       readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['input'];
-      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-      readonly failure: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly startedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
-      readonly finishedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
+      readonly initialExtractionJobId: CodecTypes['pg/uuid@1']['input'];
     };
     readonly BatchSchemaSuggestion: {
       readonly id: CodecTypes['pg/uuid@1']['input'];
@@ -300,28 +273,13 @@ export type FieldInputTypes = {
       readonly startedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
       readonly finishedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
     };
-    readonly ConversationalSchemaEdit: {
-      readonly id: CodecTypes['pg/uuid@1']['input'];
-      readonly extractionSchemaId: CodecTypes['pg/uuid@1']['input'];
-      readonly baseSchemaRevisionId: CodecTypes['pg/uuid@1']['input'];
-      readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['input'];
-      readonly annotationSetRevisionId: CodecTypes['pg/uuid@1']['input'] | null;
-      readonly promptRevisionId: CodecTypes['pg/uuid@1']['input'] | null;
-      readonly instruction: CodecTypes['pg/text@1']['input'];
-      readonly operations: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
-      readonly modelAttribution: CodecTypes['pg/jsonb@1']['input'];
-      readonly rawModelOutput: CodecTypes['pg/text@1']['input'] | null;
-      readonly failure: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly proposedTree: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
-    };
     readonly Extraction: {
       readonly id: CodecTypes['pg/uuid@1']['input'];
       readonly sourceDocumentId: CodecTypes['pg/uuid@1']['input'];
       readonly schemaRevisionId: CodecTypes['pg/uuid@1']['input'];
       readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['input'];
       readonly strategy: CodecTypes['pg/text@1']['input'];
+      readonly requestedModels: CodecTypes['pg/jsonb@1']['input'] | null;
       readonly outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
       readonly complete: CodecTypes['pg/bool@1']['input'] | null;
       readonly modelAttribution: CodecTypes['pg/jsonb@1']['input'] | null;
@@ -330,10 +288,37 @@ export type FieldInputTypes = {
       readonly resultPayload: CodecTypes['pg/jsonb@1']['input'] | null;
       readonly evidenceLinks: CodecTypes['pg/jsonb@1']['input'] | null;
       readonly reviewable: CodecTypes['pg/bool@1']['input'];
-      readonly retryOfId: CodecTypes['pg/uuid@1']['input'] | null;
       readonly batchExtractionId: CodecTypes['pg/uuid@1']['input'] | null;
       readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
       readonly reviewedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
+      readonly reviewDraft: CodecTypes['pg/jsonb@1']['input'] | null;
+      readonly reviewDraftVersion: CodecTypes['pg/int4@1']['input'];
+    };
+    readonly ExtractionJob: {
+      readonly id: CodecTypes['pg/uuid@1']['input'];
+      readonly kind: 'INTERACTIVE' | 'BATCH_MEMBER';
+      readonly projectContextId: CodecTypes['pg/uuid@1']['input'];
+      readonly sourceDocumentId: CodecTypes['pg/uuid@1']['input'];
+      readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['input'];
+      readonly schemaRevisionId: CodecTypes['pg/uuid@1']['input'];
+      readonly strategy: CodecTypes['pg/text@1']['input'];
+      readonly catalogRecipe: CodecTypes['pg/text@1']['input'] | null;
+      readonly requestedModels: CodecTypes['pg/jsonb@1']['input'] | null;
+      readonly retryOfId: CodecTypes['pg/uuid@1']['input'] | null;
+      readonly batchExtractionId: CodecTypes['pg/uuid@1']['input'] | null;
+      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+      readonly complete: CodecTypes['pg/bool@1']['input'] | null;
+      readonly modelAttribution: CodecTypes['pg/jsonb@1']['input'] | null;
+      readonly diagnostics: CodecTypes['pg/jsonb@1']['input'] | null;
+      readonly resultPayload: CodecTypes['pg/jsonb@1']['input'] | null;
+      readonly failure: CodecTypes['pg/jsonb@1']['input'] | null;
+      readonly cancelRequestedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
+      readonly startedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
+      readonly finishedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
+      readonly leaseOwner: CodecTypes['pg/text@1']['input'] | null;
+      readonly leaseVersion: CodecTypes['pg/int4@1']['input'];
+      readonly leaseExpiresAt: CodecTypes['pg/timestamptz@1']['input'] | null;
+      readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
     };
     readonly ExtractionReview: {
       readonly id: CodecTypes['pg/uuid@1']['input'];
@@ -348,17 +333,15 @@ export type FieldInputTypes = {
       readonly name: CodecTypes['pg/text@1']['input'];
       readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
     };
+    readonly ModelConfiguration: {
+      readonly researcherAccountId: CodecTypes['pg/uuid@1']['input'];
+      readonly document: CodecTypes['pg/jsonb@1']['input'] | null;
+      readonly updatedAt: CodecTypes['pg/timestamptz@1']['input'];
+    };
     readonly ProjectContext: {
       readonly researcherAccountId: CodecTypes['pg/uuid@1']['input'];
       readonly id: CodecTypes['pg/uuid@1']['input'];
       readonly name: CodecTypes['pg/text@1']['input'];
-      readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
-    };
-    readonly PromptRevision: {
-      readonly id: CodecTypes['pg/uuid@1']['input'];
-      readonly extractionSchemaId: CodecTypes['pg/uuid@1']['input'];
-      readonly revisionNumber: CodecTypes['pg/int4@1']['input'];
-      readonly text: CodecTypes['pg/text@1']['input'];
       readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
     };
     readonly ResearcherAccount: {
@@ -383,30 +366,11 @@ export type FieldInputTypes = {
     readonly SchemaRevision: {
       readonly id: CodecTypes['pg/uuid@1']['input'];
       readonly extractionSchemaId: CodecTypes['pg/uuid@1']['input'];
-      readonly schemaSuggestionId: CodecTypes['pg/uuid@1']['input'] | null;
       readonly revisionNumber: CodecTypes['pg/int4@1']['input'];
       readonly origin: 'SUGGESTION' | 'RESEARCHER_EDIT' | 'MODEL_EDIT';
       readonly schemaTree: CodecTypes['pg/jsonb@1']['input'];
       readonly modelAttribution: CodecTypes['pg/jsonb@1']['input'] | null;
       readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
-      readonly conversationalSchemaEditId: CodecTypes['pg/uuid@1']['input'] | null;
-    };
-    readonly SchemaSuggestion: {
-      readonly id: CodecTypes['pg/uuid@1']['input'];
-      readonly extractionSchemaId: CodecTypes['pg/uuid@1']['input'];
-      readonly promptRevisionId: CodecTypes['pg/uuid@1']['input'] | null;
-      readonly annotationMode: 'hints' | 'fields';
-      readonly outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
-      readonly modelAttribution: CodecTypes['pg/jsonb@1']['input'];
-      readonly rawModelOutput: CodecTypes['pg/text@1']['input'] | null;
-      readonly failure: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly proposedTree: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
-    };
-    readonly SchemaSuggestionInput: {
-      readonly schemaSuggestionId: CodecTypes['pg/uuid@1']['input'];
-      readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['input'];
-      readonly annotationSetRevisionId: CodecTypes['pg/uuid@1']['input'] | null;
     };
     readonly SourceDocument: {
       readonly id: CodecTypes['pg/uuid@1']['input'];
@@ -427,6 +391,8 @@ export type FieldInputTypes = {
       readonly preprocessId: CodecTypes['pg/text@1']['input'];
       readonly parserName: CodecTypes['pg/text@1']['input'];
       readonly parserVersion: CodecTypes['pg/text@1']['input'];
+      readonly reprocessKey: CodecTypes['pg/uuid@1']['input'] | null;
+      readonly reprocessFingerprint: CodecTypes['pg/text@1']['input'] | null;
       readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
     };
   };
@@ -443,26 +409,16 @@ export type StorageColumnTypes = {
     };
     readonly batchExtraction: {
       readonly createdAt: Timestamptz<6>;
-      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-      readonly failure: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly finishedAt: Timestamptz<6> | null;
       readonly id: CodecTypes['pg/uuid@1']['output'];
-      readonly leaseExpiresAt: Timestamptz<6> | null;
-      readonly leaseOwner: CodecTypes['pg/text@1']['output'] | null;
-      readonly leaseVersion: CodecTypes['pg/int4@1']['output'];
       readonly projectContextId: CodecTypes['pg/uuid@1']['output'];
       readonly schemaRevisionId: CodecTypes['pg/uuid@1']['output'];
-      readonly startedAt: Timestamptz<6> | null;
       readonly strategy: CodecTypes['pg/text@1']['output'];
     };
     readonly batchExtractionMember: {
       readonly batchExtractionId: CodecTypes['pg/uuid@1']['output'];
-      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-      readonly failure: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly finishedAt: Timestamptz<6> | null;
+      readonly initialExtractionJobId: CodecTypes['pg/uuid@1']['output'];
       readonly sourceDocumentId: CodecTypes['pg/uuid@1']['output'];
       readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['output'];
-      readonly startedAt: Timestamptz<6> | null;
     };
     readonly batchSchemaSuggestion: {
       readonly batchExtractionId: CodecTypes['pg/uuid@1']['output'] | null;
@@ -494,22 +450,6 @@ export type StorageColumnTypes = {
       readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['output'];
       readonly startedAt: Timestamptz<6> | null;
     };
-    readonly conversationalSchemaEdit: {
-      readonly annotationSetRevisionId: CodecTypes['pg/uuid@1']['output'] | null;
-      readonly baseSchemaRevisionId: CodecTypes['pg/uuid@1']['output'];
-      readonly createdAt: Timestamptz<6>;
-      readonly extractionSchemaId: CodecTypes['pg/uuid@1']['output'];
-      readonly failure: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly id: CodecTypes['pg/uuid@1']['output'];
-      readonly instruction: CodecTypes['pg/text@1']['output'];
-      readonly modelAttribution: CodecTypes['pg/jsonb@1']['output'];
-      readonly operations: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
-      readonly promptRevisionId: CodecTypes['pg/uuid@1']['output'] | null;
-      readonly proposedTree: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly rawModelOutput: CodecTypes['pg/text@1']['output'] | null;
-      readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['output'];
-    };
     readonly extraction: {
       readonly batchExtractionId: CodecTypes['pg/uuid@1']['output'] | null;
       readonly complete: CodecTypes['pg/bool@1']['output'] | null;
@@ -520,13 +460,41 @@ export type StorageColumnTypes = {
       readonly id: CodecTypes['pg/uuid@1']['output'];
       readonly modelAttribution: CodecTypes['pg/jsonb@1']['output'] | null;
       readonly outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+      readonly requestedModels: CodecTypes['pg/jsonb@1']['output'] | null;
       readonly resultPayload: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly retryOfId: CodecTypes['pg/uuid@1']['output'] | null;
       readonly reviewable: CodecTypes['pg/bool@1']['output'];
+      readonly reviewDraft: CodecTypes['pg/jsonb@1']['output'] | null;
+      readonly reviewDraftVersion: CodecTypes['pg/int4@1']['output'];
       readonly reviewedAt: Timestamptz<6> | null;
       readonly schemaRevisionId: CodecTypes['pg/uuid@1']['output'];
       readonly sourceDocumentId: CodecTypes['pg/uuid@1']['output'];
       readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['output'];
+      readonly strategy: CodecTypes['pg/text@1']['output'];
+    };
+    readonly extractionJob: {
+      readonly batchExtractionId: CodecTypes['pg/uuid@1']['output'] | null;
+      readonly cancelRequestedAt: Timestamptz<6> | null;
+      readonly catalogRecipe: CodecTypes['pg/text@1']['output'] | null;
+      readonly complete: CodecTypes['pg/bool@1']['output'] | null;
+      readonly createdAt: Timestamptz<6>;
+      readonly diagnostics: CodecTypes['pg/jsonb@1']['output'] | null;
+      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+      readonly failure: CodecTypes['pg/jsonb@1']['output'] | null;
+      readonly finishedAt: Timestamptz<6> | null;
+      readonly id: CodecTypes['pg/uuid@1']['output'];
+      readonly kind: 'INTERACTIVE' | 'BATCH_MEMBER';
+      readonly leaseExpiresAt: Timestamptz<6> | null;
+      readonly leaseOwner: CodecTypes['pg/text@1']['output'] | null;
+      readonly leaseVersion: CodecTypes['pg/int4@1']['output'];
+      readonly modelAttribution: CodecTypes['pg/jsonb@1']['output'] | null;
+      readonly projectContextId: CodecTypes['pg/uuid@1']['output'];
+      readonly requestedModels: CodecTypes['pg/jsonb@1']['output'] | null;
+      readonly resultPayload: CodecTypes['pg/jsonb@1']['output'] | null;
+      readonly retryOfId: CodecTypes['pg/uuid@1']['output'] | null;
+      readonly schemaRevisionId: CodecTypes['pg/uuid@1']['output'];
+      readonly sourceDocumentId: CodecTypes['pg/uuid@1']['output'];
+      readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['output'];
+      readonly startedAt: Timestamptz<6> | null;
       readonly strategy: CodecTypes['pg/text@1']['output'];
     };
     readonly extractionReview: {
@@ -542,18 +510,16 @@ export type StorageColumnTypes = {
       readonly name: CodecTypes['pg/text@1']['output'];
       readonly projectContextId: CodecTypes['pg/uuid@1']['output'];
     };
+    readonly modelConfiguration: {
+      readonly document: CodecTypes['pg/jsonb@1']['output'] | null;
+      readonly researcherAccountId: CodecTypes['pg/uuid@1']['output'];
+      readonly updatedAt: Timestamptz<6>;
+    };
     readonly projectContext: {
       readonly createdAt: Timestamptz<6>;
       readonly id: CodecTypes['pg/uuid@1']['output'];
       readonly name: CodecTypes['pg/text@1']['output'];
       readonly researcherAccountId: CodecTypes['pg/uuid@1']['output'];
-    };
-    readonly promptRevision: {
-      readonly createdAt: Timestamptz<6>;
-      readonly extractionSchemaId: CodecTypes['pg/uuid@1']['output'];
-      readonly id: CodecTypes['pg/uuid@1']['output'];
-      readonly revisionNumber: CodecTypes['pg/int4@1']['output'];
-      readonly text: CodecTypes['pg/text@1']['output'];
     };
     readonly researcherAccount: {
       readonly createdAt: Timestamptz<6>;
@@ -575,32 +541,13 @@ export type StorageColumnTypes = {
       readonly reviewedValue: CodecTypes['pg/jsonb@1']['output'] | null;
     };
     readonly schemaRevision: {
-      readonly conversationalSchemaEditId: CodecTypes['pg/uuid@1']['output'] | null;
       readonly createdAt: Timestamptz<6>;
       readonly extractionSchemaId: CodecTypes['pg/uuid@1']['output'];
       readonly id: CodecTypes['pg/uuid@1']['output'];
       readonly modelAttribution: CodecTypes['pg/jsonb@1']['output'] | null;
       readonly origin: 'SUGGESTION' | 'RESEARCHER_EDIT' | 'MODEL_EDIT';
       readonly revisionNumber: CodecTypes['pg/int4@1']['output'];
-      readonly schemaSuggestionId: CodecTypes['pg/uuid@1']['output'] | null;
       readonly schemaTree: CodecTypes['pg/jsonb@1']['output'];
-    };
-    readonly schemaSuggestion: {
-      readonly annotationMode: 'hints' | 'fields';
-      readonly createdAt: Timestamptz<6>;
-      readonly extractionSchemaId: CodecTypes['pg/uuid@1']['output'];
-      readonly failure: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly id: CodecTypes['pg/uuid@1']['output'];
-      readonly modelAttribution: CodecTypes['pg/jsonb@1']['output'];
-      readonly outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
-      readonly promptRevisionId: CodecTypes['pg/uuid@1']['output'] | null;
-      readonly proposedTree: CodecTypes['pg/jsonb@1']['output'] | null;
-      readonly rawModelOutput: CodecTypes['pg/text@1']['output'] | null;
-    };
-    readonly schemaSuggestionInput: {
-      readonly annotationSetRevisionId: CodecTypes['pg/uuid@1']['output'] | null;
-      readonly schemaSuggestionId: CodecTypes['pg/uuid@1']['output'];
-      readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['output'];
     };
     readonly sourceDocument: {
       readonly contentSha256: CodecTypes['pg/text@1']['output'];
@@ -620,6 +567,8 @@ export type StorageColumnTypes = {
       readonly parserName: CodecTypes['pg/text@1']['output'];
       readonly parserVersion: CodecTypes['pg/text@1']['output'];
       readonly preprocessId: CodecTypes['pg/text@1']['output'];
+      readonly reprocessFingerprint: CodecTypes['pg/text@1']['output'] | null;
+      readonly reprocessKey: CodecTypes['pg/uuid@1']['output'] | null;
       readonly revisionNumber: CodecTypes['pg/int4@1']['output'];
       readonly sourceDocumentId: CodecTypes['pg/uuid@1']['output'];
     };
@@ -637,26 +586,16 @@ export type StorageColumnInputTypes = {
     };
     readonly batchExtraction: {
       readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
-      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-      readonly failure: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly finishedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
       readonly id: CodecTypes['pg/uuid@1']['input'];
-      readonly leaseExpiresAt: CodecTypes['pg/timestamptz@1']['input'] | null;
-      readonly leaseOwner: CodecTypes['pg/text@1']['input'] | null;
-      readonly leaseVersion: CodecTypes['pg/int4@1']['input'];
       readonly projectContextId: CodecTypes['pg/uuid@1']['input'];
       readonly schemaRevisionId: CodecTypes['pg/uuid@1']['input'];
-      readonly startedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
       readonly strategy: CodecTypes['pg/text@1']['input'];
     };
     readonly batchExtractionMember: {
       readonly batchExtractionId: CodecTypes['pg/uuid@1']['input'];
-      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-      readonly failure: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly finishedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
+      readonly initialExtractionJobId: CodecTypes['pg/uuid@1']['input'];
       readonly sourceDocumentId: CodecTypes['pg/uuid@1']['input'];
       readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['input'];
-      readonly startedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
     };
     readonly batchSchemaSuggestion: {
       readonly batchExtractionId: CodecTypes['pg/uuid@1']['input'] | null;
@@ -688,22 +627,6 @@ export type StorageColumnInputTypes = {
       readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['input'];
       readonly startedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
     };
-    readonly conversationalSchemaEdit: {
-      readonly annotationSetRevisionId: CodecTypes['pg/uuid@1']['input'] | null;
-      readonly baseSchemaRevisionId: CodecTypes['pg/uuid@1']['input'];
-      readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
-      readonly extractionSchemaId: CodecTypes['pg/uuid@1']['input'];
-      readonly failure: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly id: CodecTypes['pg/uuid@1']['input'];
-      readonly instruction: CodecTypes['pg/text@1']['input'];
-      readonly modelAttribution: CodecTypes['pg/jsonb@1']['input'];
-      readonly operations: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
-      readonly promptRevisionId: CodecTypes['pg/uuid@1']['input'] | null;
-      readonly proposedTree: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly rawModelOutput: CodecTypes['pg/text@1']['input'] | null;
-      readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['input'];
-    };
     readonly extraction: {
       readonly batchExtractionId: CodecTypes['pg/uuid@1']['input'] | null;
       readonly complete: CodecTypes['pg/bool@1']['input'] | null;
@@ -714,13 +637,41 @@ export type StorageColumnInputTypes = {
       readonly id: CodecTypes['pg/uuid@1']['input'];
       readonly modelAttribution: CodecTypes['pg/jsonb@1']['input'] | null;
       readonly outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+      readonly requestedModels: CodecTypes['pg/jsonb@1']['input'] | null;
       readonly resultPayload: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly retryOfId: CodecTypes['pg/uuid@1']['input'] | null;
       readonly reviewable: CodecTypes['pg/bool@1']['input'];
+      readonly reviewDraft: CodecTypes['pg/jsonb@1']['input'] | null;
+      readonly reviewDraftVersion: CodecTypes['pg/int4@1']['input'];
       readonly reviewedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
       readonly schemaRevisionId: CodecTypes['pg/uuid@1']['input'];
       readonly sourceDocumentId: CodecTypes['pg/uuid@1']['input'];
       readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['input'];
+      readonly strategy: CodecTypes['pg/text@1']['input'];
+    };
+    readonly extractionJob: {
+      readonly batchExtractionId: CodecTypes['pg/uuid@1']['input'] | null;
+      readonly cancelRequestedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
+      readonly catalogRecipe: CodecTypes['pg/text@1']['input'] | null;
+      readonly complete: CodecTypes['pg/bool@1']['input'] | null;
+      readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
+      readonly diagnostics: CodecTypes['pg/jsonb@1']['input'] | null;
+      readonly executionStatus: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+      readonly failure: CodecTypes['pg/jsonb@1']['input'] | null;
+      readonly finishedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
+      readonly id: CodecTypes['pg/uuid@1']['input'];
+      readonly kind: 'INTERACTIVE' | 'BATCH_MEMBER';
+      readonly leaseExpiresAt: CodecTypes['pg/timestamptz@1']['input'] | null;
+      readonly leaseOwner: CodecTypes['pg/text@1']['input'] | null;
+      readonly leaseVersion: CodecTypes['pg/int4@1']['input'];
+      readonly modelAttribution: CodecTypes['pg/jsonb@1']['input'] | null;
+      readonly projectContextId: CodecTypes['pg/uuid@1']['input'];
+      readonly requestedModels: CodecTypes['pg/jsonb@1']['input'] | null;
+      readonly resultPayload: CodecTypes['pg/jsonb@1']['input'] | null;
+      readonly retryOfId: CodecTypes['pg/uuid@1']['input'] | null;
+      readonly schemaRevisionId: CodecTypes['pg/uuid@1']['input'];
+      readonly sourceDocumentId: CodecTypes['pg/uuid@1']['input'];
+      readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['input'];
+      readonly startedAt: CodecTypes['pg/timestamptz@1']['input'] | null;
       readonly strategy: CodecTypes['pg/text@1']['input'];
     };
     readonly extractionReview: {
@@ -736,18 +687,16 @@ export type StorageColumnInputTypes = {
       readonly name: CodecTypes['pg/text@1']['input'];
       readonly projectContextId: CodecTypes['pg/uuid@1']['input'];
     };
+    readonly modelConfiguration: {
+      readonly document: CodecTypes['pg/jsonb@1']['input'] | null;
+      readonly researcherAccountId: CodecTypes['pg/uuid@1']['input'];
+      readonly updatedAt: CodecTypes['pg/timestamptz@1']['input'];
+    };
     readonly projectContext: {
       readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
       readonly id: CodecTypes['pg/uuid@1']['input'];
       readonly name: CodecTypes['pg/text@1']['input'];
       readonly researcherAccountId: CodecTypes['pg/uuid@1']['input'];
-    };
-    readonly promptRevision: {
-      readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
-      readonly extractionSchemaId: CodecTypes['pg/uuid@1']['input'];
-      readonly id: CodecTypes['pg/uuid@1']['input'];
-      readonly revisionNumber: CodecTypes['pg/int4@1']['input'];
-      readonly text: CodecTypes['pg/text@1']['input'];
     };
     readonly researcherAccount: {
       readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
@@ -769,32 +718,13 @@ export type StorageColumnInputTypes = {
       readonly reviewedValue: CodecTypes['pg/jsonb@1']['input'] | null;
     };
     readonly schemaRevision: {
-      readonly conversationalSchemaEditId: CodecTypes['pg/uuid@1']['input'] | null;
       readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
       readonly extractionSchemaId: CodecTypes['pg/uuid@1']['input'];
       readonly id: CodecTypes['pg/uuid@1']['input'];
       readonly modelAttribution: CodecTypes['pg/jsonb@1']['input'] | null;
       readonly origin: 'SUGGESTION' | 'RESEARCHER_EDIT' | 'MODEL_EDIT';
       readonly revisionNumber: CodecTypes['pg/int4@1']['input'];
-      readonly schemaSuggestionId: CodecTypes['pg/uuid@1']['input'] | null;
       readonly schemaTree: CodecTypes['pg/jsonb@1']['input'];
-    };
-    readonly schemaSuggestion: {
-      readonly annotationMode: 'hints' | 'fields';
-      readonly createdAt: CodecTypes['pg/timestamptz@1']['input'];
-      readonly extractionSchemaId: CodecTypes['pg/uuid@1']['input'];
-      readonly failure: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly id: CodecTypes['pg/uuid@1']['input'];
-      readonly modelAttribution: CodecTypes['pg/jsonb@1']['input'];
-      readonly outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
-      readonly promptRevisionId: CodecTypes['pg/uuid@1']['input'] | null;
-      readonly proposedTree: CodecTypes['pg/jsonb@1']['input'] | null;
-      readonly rawModelOutput: CodecTypes['pg/text@1']['input'] | null;
-    };
-    readonly schemaSuggestionInput: {
-      readonly annotationSetRevisionId: CodecTypes['pg/uuid@1']['input'] | null;
-      readonly schemaSuggestionId: CodecTypes['pg/uuid@1']['input'];
-      readonly sourceRepresentationRevisionId: CodecTypes['pg/uuid@1']['input'];
     };
     readonly sourceDocument: {
       readonly contentSha256: CodecTypes['pg/text@1']['input'];
@@ -814,6 +744,8 @@ export type StorageColumnInputTypes = {
       readonly parserName: CodecTypes['pg/text@1']['input'];
       readonly parserVersion: CodecTypes['pg/text@1']['input'];
       readonly preprocessId: CodecTypes['pg/text@1']['input'];
+      readonly reprocessFingerprint: CodecTypes['pg/text@1']['input'] | null;
+      readonly reprocessKey: CodecTypes['pg/uuid@1']['input'] | null;
       readonly revisionNumber: CodecTypes['pg/int4@1']['input'];
       readonly sourceDocumentId: CodecTypes['pg/uuid@1']['input'];
     };
@@ -940,52 +872,6 @@ type ContractBase = Omit<
                   readonly codecId: 'pg/text@1';
                   readonly nullable: false;
                 };
-                readonly executionStatus: {
-                  readonly nativeType: 'text';
-                  readonly codecId: 'pg/text@1';
-                  readonly nullable: false;
-                  readonly default: {
-                    readonly kind: 'literal';
-                    readonly value: DefaultLiteralValue<'pg/text@1', 'QUEUED'>;
-                  };
-                };
-                readonly failure: {
-                  readonly nativeType: 'jsonb';
-                  readonly codecId: 'pg/jsonb@1';
-                  readonly nullable: true;
-                };
-                readonly startedAt: {
-                  readonly nativeType: 'timestamptz';
-                  readonly codecId: 'pg/timestamptz@1';
-                  readonly nullable: true;
-                  readonly typeRef: 'Timestamptz6';
-                };
-                readonly finishedAt: {
-                  readonly nativeType: 'timestamptz';
-                  readonly codecId: 'pg/timestamptz@1';
-                  readonly nullable: true;
-                  readonly typeRef: 'Timestamptz6';
-                };
-                readonly leaseOwner: {
-                  readonly nativeType: 'text';
-                  readonly codecId: 'pg/text@1';
-                  readonly nullable: true;
-                };
-                readonly leaseVersion: {
-                  readonly nativeType: 'int4';
-                  readonly codecId: 'pg/int4@1';
-                  readonly nullable: false;
-                  readonly default: {
-                    readonly kind: 'literal';
-                    readonly value: DefaultLiteralValue<'pg/int4@1', 0>;
-                  };
-                };
-                readonly leaseExpiresAt: {
-                  readonly nativeType: 'timestamptz';
-                  readonly codecId: 'pg/timestamptz@1';
-                  readonly nullable: true;
-                  readonly typeRef: 'Timestamptz6';
-                };
                 readonly createdAt: {
                   readonly nativeType: 'timestamptz';
                   readonly codecId: 'pg/timestamptz@1';
@@ -1059,35 +945,25 @@ type ContractBase = Omit<
                   readonly nullable: false;
                   readonly typeRef: 'Uuid';
                 };
-                readonly executionStatus: {
-                  readonly nativeType: 'text';
-                  readonly codecId: 'pg/text@1';
+                readonly initialExtractionJobId: {
+                  readonly nativeType: 'uuid';
+                  readonly codecId: 'pg/uuid@1';
                   readonly nullable: false;
-                  readonly default: {
-                    readonly kind: 'literal';
-                    readonly value: DefaultLiteralValue<'pg/text@1', 'QUEUED'>;
-                  };
-                };
-                readonly failure: {
-                  readonly nativeType: 'jsonb';
-                  readonly codecId: 'pg/jsonb@1';
-                  readonly nullable: true;
-                };
-                readonly startedAt: {
-                  readonly nativeType: 'timestamptz';
-                  readonly codecId: 'pg/timestamptz@1';
-                  readonly nullable: true;
-                  readonly typeRef: 'Timestamptz6';
-                };
-                readonly finishedAt: {
-                  readonly nativeType: 'timestamptz';
-                  readonly codecId: 'pg/timestamptz@1';
-                  readonly nullable: true;
-                  readonly typeRef: 'Timestamptz6';
+                  readonly typeRef: 'Uuid';
                 };
               };
               primaryKey: { readonly columns: readonly ['batchExtractionId', 'sourceDocumentId'] };
               uniques: readonly [
+                { readonly columns: readonly ['initialExtractionJobId'] },
+                {
+                  readonly columns: readonly [
+                    'initialExtractionJobId',
+                    'batchExtractionId',
+                    'sourceDocumentId',
+                    'sourceRepresentationRevisionId',
+                  ];
+                  readonly name: 'batch_member_initial_job_key';
+                },
                 {
                   readonly columns: readonly [
                     'batchExtractionId',
@@ -1135,6 +1011,29 @@ type ContractBase = Omit<
                     readonly columns: readonly ['id', 'sourceDocumentId'];
                   };
                   readonly name: 'batch_member_representation_fkey';
+                },
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'batchExtractionMember';
+                    readonly columns: readonly [
+                      'initialExtractionJobId',
+                      'batchExtractionId',
+                      'sourceDocumentId',
+                      'sourceRepresentationRevisionId',
+                    ];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'extractionJob';
+                    readonly columns: readonly [
+                      'id',
+                      'batchExtractionId',
+                      'sourceDocumentId',
+                      'sourceRepresentationRevisionId',
+                    ];
+                  };
+                  readonly name: 'batch_member_initial_job_fkey';
                 },
               ];
             };
@@ -1391,171 +1290,6 @@ type ContractBase = Omit<
                 },
               ];
             };
-            readonly conversationalSchemaEdit: {
-              columns: {
-                readonly id: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: false;
-                  readonly typeRef: 'Uuid';
-                };
-                readonly extractionSchemaId: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: false;
-                  readonly typeRef: 'Uuid';
-                };
-                readonly baseSchemaRevisionId: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: false;
-                  readonly typeRef: 'Uuid';
-                };
-                readonly sourceRepresentationRevisionId: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: false;
-                  readonly typeRef: 'Uuid';
-                };
-                readonly annotationSetRevisionId: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: true;
-                  readonly typeRef: 'Uuid';
-                };
-                readonly promptRevisionId: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: true;
-                  readonly typeRef: 'Uuid';
-                };
-                readonly instruction: {
-                  readonly nativeType: 'text';
-                  readonly codecId: 'pg/text@1';
-                  readonly nullable: false;
-                };
-                readonly operations: {
-                  readonly nativeType: 'jsonb';
-                  readonly codecId: 'pg/jsonb@1';
-                  readonly nullable: true;
-                };
-                readonly outcome: {
-                  readonly nativeType: 'text';
-                  readonly codecId: 'pg/text@1';
-                  readonly nullable: false;
-                };
-                readonly modelAttribution: {
-                  readonly nativeType: 'jsonb';
-                  readonly codecId: 'pg/jsonb@1';
-                  readonly nullable: false;
-                };
-                readonly rawModelOutput: {
-                  readonly nativeType: 'text';
-                  readonly codecId: 'pg/text@1';
-                  readonly nullable: true;
-                };
-                readonly failure: {
-                  readonly nativeType: 'jsonb';
-                  readonly codecId: 'pg/jsonb@1';
-                  readonly nullable: true;
-                };
-                readonly proposedTree: {
-                  readonly nativeType: 'jsonb';
-                  readonly codecId: 'pg/jsonb@1';
-                  readonly nullable: true;
-                };
-                readonly createdAt: {
-                  readonly nativeType: 'timestamptz';
-                  readonly codecId: 'pg/timestamptz@1';
-                  readonly nullable: false;
-                  readonly default: { readonly kind: 'function'; readonly expression: 'now()' };
-                  readonly typeRef: 'Timestamptz6';
-                };
-              };
-              primaryKey: { readonly columns: readonly ['id'] };
-              uniques: readonly [];
-              indexes: readonly [
-                { readonly columns: readonly ['extractionSchemaId'] },
-                {
-                  readonly columns: readonly ['baseSchemaRevisionId'];
-                  readonly name: 'conversationalSchemaEdit_baseSchemaRevisionId_idx';
-                },
-                {
-                  readonly columns: readonly ['sourceRepresentationRevisionId'];
-                  readonly name: 'conversationalSchemaEdit_sourceRepresentationRevisionId_idx';
-                },
-                {
-                  readonly columns: readonly ['annotationSetRevisionId'];
-                  readonly name: 'conversationalSchemaEdit_annotationSetRevisionId_idx';
-                },
-                {
-                  readonly columns: readonly ['promptRevisionId'];
-                  readonly name: 'conversationalSchemaEdit_promptRevisionId_idx';
-                },
-              ];
-              foreignKeys: readonly [
-                {
-                  readonly source: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'conversationalSchemaEdit';
-                    readonly columns: readonly ['extractionSchemaId'];
-                  };
-                  readonly target: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'extractionSchema';
-                    readonly columns: readonly ['id'];
-                  };
-                },
-                {
-                  readonly source: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'conversationalSchemaEdit';
-                    readonly columns: readonly ['baseSchemaRevisionId'];
-                  };
-                  readonly target: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'schemaRevision';
-                    readonly columns: readonly ['id'];
-                  };
-                },
-                {
-                  readonly source: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'conversationalSchemaEdit';
-                    readonly columns: readonly ['sourceRepresentationRevisionId'];
-                  };
-                  readonly target: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'sourceRepresentationRevision';
-                    readonly columns: readonly ['id'];
-                  };
-                },
-                {
-                  readonly source: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'conversationalSchemaEdit';
-                    readonly columns: readonly ['annotationSetRevisionId'];
-                  };
-                  readonly target: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'annotationSetRevision';
-                    readonly columns: readonly ['id'];
-                  };
-                },
-                {
-                  readonly source: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'conversationalSchemaEdit';
-                    readonly columns: readonly ['promptRevisionId'];
-                  };
-                  readonly target: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'promptRevision';
-                    readonly columns: readonly ['id'];
-                  };
-                },
-              ];
-            };
             readonly extraction: {
               columns: {
                 readonly id: {
@@ -1586,6 +1320,11 @@ type ContractBase = Omit<
                   readonly nativeType: 'text';
                   readonly codecId: 'pg/text@1';
                   readonly nullable: false;
+                };
+                readonly requestedModels: {
+                  readonly nativeType: 'jsonb';
+                  readonly codecId: 'pg/jsonb@1';
+                  readonly nullable: true;
                 };
                 readonly outcome: {
                   readonly nativeType: 'text';
@@ -1627,12 +1366,6 @@ type ContractBase = Omit<
                   readonly codecId: 'pg/bool@1';
                   readonly nullable: false;
                 };
-                readonly retryOfId: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: true;
-                  readonly typeRef: 'Uuid';
-                };
                 readonly batchExtractionId: {
                   readonly nativeType: 'uuid';
                   readonly codecId: 'pg/uuid@1';
@@ -1652,34 +1385,28 @@ type ContractBase = Omit<
                   readonly nullable: true;
                   readonly typeRef: 'Timestamptz6';
                 };
+                readonly reviewDraft: {
+                  readonly nativeType: 'jsonb';
+                  readonly codecId: 'pg/jsonb@1';
+                  readonly nullable: true;
+                };
+                readonly reviewDraftVersion: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/int4@1', 0>;
+                  };
+                };
               };
               primaryKey: { readonly columns: readonly ['id'] };
-              uniques: readonly [
-                { readonly columns: readonly ['id', 'sourceDocumentId'] },
-                {
-                  readonly columns: readonly [
-                    'id',
-                    'sourceRepresentationRevisionId',
-                    'schemaRevisionId',
-                    'strategy',
-                  ];
-                  readonly name: 'extraction_retry_pin_key';
-                },
-              ];
+              uniques: readonly [{ readonly columns: readonly ['id', 'sourceDocumentId'] }];
               indexes: readonly [
                 { readonly columns: readonly ['schemaRevisionId'] },
                 { readonly columns: readonly ['sourceDocumentId', 'createdAt'] },
                 {
                   readonly columns: readonly ['sourceRepresentationRevisionId', 'sourceDocumentId'];
-                },
-                {
-                  readonly columns: readonly [
-                    'retryOfId',
-                    'sourceRepresentationRevisionId',
-                    'schemaRevisionId',
-                    'strategy',
-                  ];
-                  readonly name: 'extraction_retry_pin_idx';
                 },
                 {
                   readonly columns: readonly ['batchExtractionId', 'schemaRevisionId', 'strategy'];
@@ -1761,10 +1488,248 @@ type ContractBase = Omit<
                     readonly columns: readonly ['id', 'sourceDocumentId'];
                   };
                 },
+              ];
+            };
+            readonly extractionJob: {
+              columns: {
+                readonly id: {
+                  readonly nativeType: 'uuid';
+                  readonly codecId: 'pg/uuid@1';
+                  readonly nullable: false;
+                  readonly typeRef: 'Uuid';
+                };
+                readonly kind: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                };
+                readonly projectContextId: {
+                  readonly nativeType: 'uuid';
+                  readonly codecId: 'pg/uuid@1';
+                  readonly nullable: false;
+                  readonly typeRef: 'Uuid';
+                };
+                readonly sourceDocumentId: {
+                  readonly nativeType: 'uuid';
+                  readonly codecId: 'pg/uuid@1';
+                  readonly nullable: false;
+                  readonly typeRef: 'Uuid';
+                };
+                readonly sourceRepresentationRevisionId: {
+                  readonly nativeType: 'uuid';
+                  readonly codecId: 'pg/uuid@1';
+                  readonly nullable: false;
+                  readonly typeRef: 'Uuid';
+                };
+                readonly schemaRevisionId: {
+                  readonly nativeType: 'uuid';
+                  readonly codecId: 'pg/uuid@1';
+                  readonly nullable: false;
+                  readonly typeRef: 'Uuid';
+                };
+                readonly strategy: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                };
+                readonly catalogRecipe: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                };
+                readonly requestedModels: {
+                  readonly nativeType: 'jsonb';
+                  readonly codecId: 'pg/jsonb@1';
+                  readonly nullable: true;
+                };
+                readonly retryOfId: {
+                  readonly nativeType: 'uuid';
+                  readonly codecId: 'pg/uuid@1';
+                  readonly nullable: true;
+                  readonly typeRef: 'Uuid';
+                };
+                readonly batchExtractionId: {
+                  readonly nativeType: 'uuid';
+                  readonly codecId: 'pg/uuid@1';
+                  readonly nullable: true;
+                  readonly typeRef: 'Uuid';
+                };
+                readonly executionStatus: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/text@1', 'QUEUED'>;
+                  };
+                };
+                readonly complete: {
+                  readonly nativeType: 'bool';
+                  readonly codecId: 'pg/bool@1';
+                  readonly nullable: true;
+                };
+                readonly modelAttribution: {
+                  readonly nativeType: 'jsonb';
+                  readonly codecId: 'pg/jsonb@1';
+                  readonly nullable: true;
+                };
+                readonly diagnostics: {
+                  readonly nativeType: 'jsonb';
+                  readonly codecId: 'pg/jsonb@1';
+                  readonly nullable: true;
+                };
+                readonly resultPayload: {
+                  readonly nativeType: 'jsonb';
+                  readonly codecId: 'pg/jsonb@1';
+                  readonly nullable: true;
+                };
+                readonly failure: {
+                  readonly nativeType: 'jsonb';
+                  readonly codecId: 'pg/jsonb@1';
+                  readonly nullable: true;
+                };
+                readonly cancelRequestedAt: {
+                  readonly nativeType: 'timestamptz';
+                  readonly codecId: 'pg/timestamptz@1';
+                  readonly nullable: true;
+                  readonly typeRef: 'Timestamptz6';
+                };
+                readonly startedAt: {
+                  readonly nativeType: 'timestamptz';
+                  readonly codecId: 'pg/timestamptz@1';
+                  readonly nullable: true;
+                  readonly typeRef: 'Timestamptz6';
+                };
+                readonly finishedAt: {
+                  readonly nativeType: 'timestamptz';
+                  readonly codecId: 'pg/timestamptz@1';
+                  readonly nullable: true;
+                  readonly typeRef: 'Timestamptz6';
+                };
+                readonly leaseOwner: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                };
+                readonly leaseVersion: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/int4@1', 0>;
+                  };
+                };
+                readonly leaseExpiresAt: {
+                  readonly nativeType: 'timestamptz';
+                  readonly codecId: 'pg/timestamptz@1';
+                  readonly nullable: true;
+                  readonly typeRef: 'Timestamptz6';
+                };
+                readonly createdAt: {
+                  readonly nativeType: 'timestamptz';
+                  readonly codecId: 'pg/timestamptz@1';
+                  readonly nullable: false;
+                  readonly default: { readonly kind: 'function'; readonly expression: 'now()' };
+                  readonly typeRef: 'Timestamptz6';
+                };
+              };
+              primaryKey: { readonly columns: readonly ['id'] };
+              uniques: readonly [
+                {
+                  readonly columns: readonly [
+                    'id',
+                    'batchExtractionId',
+                    'sourceDocumentId',
+                    'sourceRepresentationRevisionId',
+                  ];
+                  readonly name: 'extraction_job_batch_member_key';
+                },
+                {
+                  readonly columns: readonly [
+                    'id',
+                    'sourceRepresentationRevisionId',
+                    'schemaRevisionId',
+                    'strategy',
+                  ];
+                  readonly name: 'extraction_job_retry_pin_key';
+                },
+              ];
+              indexes: readonly [
+                { readonly columns: readonly ['executionStatus', 'kind', 'createdAt'] },
+                { readonly columns: readonly ['executionStatus', 'leaseExpiresAt'] },
+                { readonly columns: readonly ['sourceDocumentId', 'createdAt'] },
+                {
+                  readonly columns: readonly ['sourceRepresentationRevisionId', 'sourceDocumentId'];
+                  readonly name: 'extraction_job_representation_idx';
+                },
+                {
+                  readonly columns: readonly [
+                    'retryOfId',
+                    'sourceRepresentationRevisionId',
+                    'schemaRevisionId',
+                    'strategy',
+                  ];
+                  readonly name: 'extraction_job_retry_pin_idx';
+                },
+                {
+                  readonly columns: readonly ['batchExtractionId', 'schemaRevisionId', 'strategy'];
+                  readonly name: 'extraction_job_batch_pin_idx';
+                },
+                {
+                  readonly columns: readonly ['projectContextId'];
+                  readonly name: 'extractionJob_projectContextId_idx';
+                },
+                {
+                  readonly columns: readonly ['schemaRevisionId'];
+                  readonly name: 'extractionJob_schemaRevisionId_idx';
+                },
+              ];
+              foreignKeys: readonly [
                 {
                   readonly source: {
                     readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'extraction';
+                    readonly tableName: 'extractionJob';
+                    readonly columns: readonly ['projectContextId'];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'projectContext';
+                    readonly columns: readonly ['id'];
+                  };
+                },
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'extractionJob';
+                    readonly columns: readonly [
+                      'sourceRepresentationRevisionId',
+                      'sourceDocumentId',
+                    ];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'sourceRepresentationRevision';
+                    readonly columns: readonly ['id', 'sourceDocumentId'];
+                  };
+                  readonly name: 'extraction_job_representation_fkey';
+                },
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'extractionJob';
+                    readonly columns: readonly ['schemaRevisionId'];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'schemaRevision';
+                    readonly columns: readonly ['id'];
+                  };
+                },
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'extractionJob';
                     readonly columns: readonly [
                       'retryOfId',
                       'sourceRepresentationRevisionId',
@@ -1774,7 +1739,7 @@ type ContractBase = Omit<
                   };
                   readonly target: {
                     readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'extraction';
+                    readonly tableName: 'extractionJob';
                     readonly columns: readonly [
                       'id',
                       'sourceRepresentationRevisionId',
@@ -1782,7 +1747,24 @@ type ContractBase = Omit<
                       'strategy',
                     ];
                   };
-                  readonly name: 'extraction_retry_pin_fkey';
+                  readonly name: 'extraction_job_retry_pin_fkey';
+                },
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'extractionJob';
+                    readonly columns: readonly [
+                      'batchExtractionId',
+                      'schemaRevisionId',
+                      'strategy',
+                    ];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'batchExtraction';
+                    readonly columns: readonly ['id', 'schemaRevisionId', 'strategy'];
+                  };
+                  readonly name: 'extraction_job_batch_pin_fkey';
                 },
               ];
             };
@@ -1886,6 +1868,45 @@ type ContractBase = Omit<
                 },
               ];
             };
+            readonly modelConfiguration: {
+              columns: {
+                readonly researcherAccountId: {
+                  readonly nativeType: 'uuid';
+                  readonly codecId: 'pg/uuid@1';
+                  readonly nullable: false;
+                  readonly typeRef: 'Uuid';
+                };
+                readonly document: {
+                  readonly nativeType: 'jsonb';
+                  readonly codecId: 'pg/jsonb@1';
+                  readonly nullable: true;
+                };
+                readonly updatedAt: {
+                  readonly nativeType: 'timestamptz';
+                  readonly codecId: 'pg/timestamptz@1';
+                  readonly nullable: false;
+                  readonly default: { readonly kind: 'function'; readonly expression: 'now()' };
+                  readonly typeRef: 'Timestamptz6';
+                };
+              };
+              primaryKey: { readonly columns: readonly ['researcherAccountId'] };
+              uniques: readonly [];
+              indexes: readonly [];
+              foreignKeys: readonly [
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'modelConfiguration';
+                    readonly columns: readonly ['researcherAccountId'];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'researcherAccount';
+                    readonly columns: readonly ['id'];
+                  };
+                },
+              ];
+            };
             readonly projectContext: {
               columns: {
                 readonly researcherAccountId: {
@@ -1926,63 +1947,6 @@ type ContractBase = Omit<
                   readonly target: {
                     readonly namespaceId: 'public' & NamespaceId;
                     readonly tableName: 'researcherAccount';
-                    readonly columns: readonly ['id'];
-                  };
-                },
-              ];
-            };
-            readonly promptRevision: {
-              columns: {
-                readonly id: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: false;
-                  readonly typeRef: 'Uuid';
-                };
-                readonly extractionSchemaId: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: false;
-                  readonly typeRef: 'Uuid';
-                };
-                readonly revisionNumber: {
-                  readonly nativeType: 'int4';
-                  readonly codecId: 'pg/int4@1';
-                  readonly nullable: false;
-                };
-                readonly text: {
-                  readonly nativeType: 'text';
-                  readonly codecId: 'pg/text@1';
-                  readonly nullable: false;
-                };
-                readonly createdAt: {
-                  readonly nativeType: 'timestamptz';
-                  readonly codecId: 'pg/timestamptz@1';
-                  readonly nullable: false;
-                  readonly default: { readonly kind: 'function'; readonly expression: 'now()' };
-                  readonly typeRef: 'Timestamptz6';
-                };
-              };
-              primaryKey: { readonly columns: readonly ['id'] };
-              uniques: readonly [
-                { readonly columns: readonly ['extractionSchemaId', 'revisionNumber'] },
-              ];
-              indexes: readonly [
-                {
-                  readonly columns: readonly ['extractionSchemaId'];
-                  readonly name: 'promptRevision_extractionSchemaId_idx';
-                },
-              ];
-              foreignKeys: readonly [
-                {
-                  readonly source: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'promptRevision';
-                    readonly columns: readonly ['extractionSchemaId'];
-                  };
-                  readonly target: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'extractionSchema';
                     readonly columns: readonly ['id'];
                   };
                 },
@@ -2122,12 +2086,6 @@ type ContractBase = Omit<
                   readonly nullable: false;
                   readonly typeRef: 'Uuid';
                 };
-                readonly schemaSuggestionId: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: true;
-                  readonly typeRef: 'Uuid';
-                };
                 readonly revisionNumber: {
                   readonly nativeType: 'int4';
                   readonly codecId: 'pg/int4@1';
@@ -2155,17 +2113,9 @@ type ContractBase = Omit<
                   readonly default: { readonly kind: 'function'; readonly expression: 'now()' };
                   readonly typeRef: 'Timestamptz6';
                 };
-                readonly conversationalSchemaEditId: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: true;
-                  readonly typeRef: 'Uuid';
-                };
               };
               primaryKey: { readonly columns: readonly ['id'] };
               uniques: readonly [
-                { readonly columns: readonly ['schemaSuggestionId'] },
-                { readonly columns: readonly ['conversationalSchemaEditId'] },
                 { readonly columns: readonly ['extractionSchemaId', 'revisionNumber'] },
               ];
               indexes: readonly [
@@ -2184,202 +2134,6 @@ type ContractBase = Omit<
                   readonly target: {
                     readonly namespaceId: 'public' & NamespaceId;
                     readonly tableName: 'extractionSchema';
-                    readonly columns: readonly ['id'];
-                  };
-                },
-                {
-                  readonly source: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'schemaRevision';
-                    readonly columns: readonly ['schemaSuggestionId'];
-                  };
-                  readonly target: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'schemaSuggestion';
-                    readonly columns: readonly ['id'];
-                  };
-                },
-                {
-                  readonly source: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'schemaRevision';
-                    readonly columns: readonly ['conversationalSchemaEditId'];
-                  };
-                  readonly target: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'conversationalSchemaEdit';
-                    readonly columns: readonly ['id'];
-                  };
-                },
-              ];
-            };
-            readonly schemaSuggestion: {
-              columns: {
-                readonly id: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: false;
-                  readonly typeRef: 'Uuid';
-                };
-                readonly extractionSchemaId: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: false;
-                  readonly typeRef: 'Uuid';
-                };
-                readonly promptRevisionId: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: true;
-                  readonly typeRef: 'Uuid';
-                };
-                readonly annotationMode: {
-                  readonly nativeType: 'text';
-                  readonly codecId: 'pg/text@1';
-                  readonly nullable: false;
-                };
-                readonly outcome: {
-                  readonly nativeType: 'text';
-                  readonly codecId: 'pg/text@1';
-                  readonly nullable: false;
-                };
-                readonly modelAttribution: {
-                  readonly nativeType: 'jsonb';
-                  readonly codecId: 'pg/jsonb@1';
-                  readonly nullable: false;
-                };
-                readonly rawModelOutput: {
-                  readonly nativeType: 'text';
-                  readonly codecId: 'pg/text@1';
-                  readonly nullable: true;
-                };
-                readonly failure: {
-                  readonly nativeType: 'jsonb';
-                  readonly codecId: 'pg/jsonb@1';
-                  readonly nullable: true;
-                };
-                readonly proposedTree: {
-                  readonly nativeType: 'jsonb';
-                  readonly codecId: 'pg/jsonb@1';
-                  readonly nullable: true;
-                };
-                readonly createdAt: {
-                  readonly nativeType: 'timestamptz';
-                  readonly codecId: 'pg/timestamptz@1';
-                  readonly nullable: false;
-                  readonly default: { readonly kind: 'function'; readonly expression: 'now()' };
-                  readonly typeRef: 'Timestamptz6';
-                };
-              };
-              primaryKey: { readonly columns: readonly ['id'] };
-              uniques: readonly [];
-              indexes: readonly [
-                { readonly columns: readonly ['extractionSchemaId'] },
-                {
-                  readonly columns: readonly ['promptRevisionId'];
-                  readonly name: 'schemaSuggestion_promptRevisionId_idx';
-                },
-              ];
-              foreignKeys: readonly [
-                {
-                  readonly source: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'schemaSuggestion';
-                    readonly columns: readonly ['extractionSchemaId'];
-                  };
-                  readonly target: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'extractionSchema';
-                    readonly columns: readonly ['id'];
-                  };
-                },
-                {
-                  readonly source: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'schemaSuggestion';
-                    readonly columns: readonly ['promptRevisionId'];
-                  };
-                  readonly target: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'promptRevision';
-                    readonly columns: readonly ['id'];
-                  };
-                },
-              ];
-            };
-            readonly schemaSuggestionInput: {
-              columns: {
-                readonly schemaSuggestionId: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: false;
-                  readonly typeRef: 'Uuid';
-                };
-                readonly sourceRepresentationRevisionId: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: false;
-                  readonly typeRef: 'Uuid';
-                };
-                readonly annotationSetRevisionId: {
-                  readonly nativeType: 'uuid';
-                  readonly codecId: 'pg/uuid@1';
-                  readonly nullable: true;
-                  readonly typeRef: 'Uuid';
-                };
-              };
-              primaryKey: {
-                readonly columns: readonly ['schemaSuggestionId', 'sourceRepresentationRevisionId'];
-              };
-              uniques: readonly [];
-              indexes: readonly [
-                {
-                  readonly columns: readonly ['schemaSuggestionId'];
-                  readonly name: 'schemaSuggestionInput_schemaSuggestionId_idx';
-                },
-                {
-                  readonly columns: readonly ['sourceRepresentationRevisionId'];
-                  readonly name: 'schemaSuggestionInput_sourceRepresentationRevisionId_idx';
-                },
-                {
-                  readonly columns: readonly ['annotationSetRevisionId'];
-                  readonly name: 'schemaSuggestionInput_annotationSetRevisionId_idx';
-                },
-              ];
-              foreignKeys: readonly [
-                {
-                  readonly source: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'schemaSuggestionInput';
-                    readonly columns: readonly ['schemaSuggestionId'];
-                  };
-                  readonly target: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'schemaSuggestion';
-                    readonly columns: readonly ['id'];
-                  };
-                },
-                {
-                  readonly source: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'schemaSuggestionInput';
-                    readonly columns: readonly ['sourceRepresentationRevisionId'];
-                  };
-                  readonly target: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'sourceRepresentationRevision';
-                    readonly columns: readonly ['id'];
-                  };
-                },
-                {
-                  readonly source: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'schemaSuggestionInput';
-                    readonly columns: readonly ['annotationSetRevisionId'];
-                  };
-                  readonly target: {
-                    readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'annotationSetRevision';
                     readonly columns: readonly ['id'];
                   };
                 },
@@ -2503,6 +2257,17 @@ type ContractBase = Omit<
                   readonly codecId: 'pg/text@1';
                   readonly nullable: false;
                 };
+                readonly reprocessKey: {
+                  readonly nativeType: 'uuid';
+                  readonly codecId: 'pg/uuid@1';
+                  readonly nullable: true;
+                  readonly typeRef: 'Uuid';
+                };
+                readonly reprocessFingerprint: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                };
                 readonly createdAt: {
                   readonly nativeType: 'timestamptz';
                   readonly codecId: 'pg/timestamptz@1';
@@ -2514,6 +2279,7 @@ type ContractBase = Omit<
               primaryKey: { readonly columns: readonly ['id'] };
               uniques: readonly [
                 { readonly columns: readonly ['sourceDocumentId', 'revisionNumber'] },
+                { readonly columns: readonly ['sourceDocumentId', 'reprocessKey'] },
                 { readonly columns: readonly ['id', 'sourceDocumentId'] },
               ];
               indexes: readonly [
@@ -2539,17 +2305,13 @@ type ContractBase = Omit<
             };
           };
           readonly valueSet: {
-            readonly AnnotationMode: {
-              readonly kind: 'valueSet';
-              readonly values: readonly ['hints', 'fields'];
-            };
-            readonly AttemptOutcome: {
-              readonly kind: 'valueSet';
-              readonly values: readonly ['SUCCEEDED', 'FAILED', 'CANCELLED'];
-            };
             readonly BatchSchemaSuggestionPhase: {
               readonly kind: 'valueSet';
               readonly values: readonly ['SOURCES', 'MERGING', 'READY', 'HETEROGENEOUS'];
+            };
+            readonly ExtractionJobKind: {
+              readonly kind: 'valueSet';
+              readonly values: readonly ['INTERACTIVE', 'BATCH_MEMBER'];
             };
             readonly ExtractionOutcome: {
               readonly kind: 'valueSet';
@@ -2592,6 +2354,10 @@ type ContractBase = Omit<
       readonly namespace: 'public' & NamespaceId;
       readonly model: 'ResearcherAccount';
     };
+    readonly modelConfiguration: {
+      readonly namespace: 'public' & NamespaceId;
+      readonly model: 'ModelConfiguration';
+    };
     readonly projectContext: {
       readonly namespace: 'public' & NamespaceId;
       readonly model: 'ProjectContext';
@@ -2612,22 +2378,6 @@ type ContractBase = Omit<
       readonly namespace: 'public' & NamespaceId;
       readonly model: 'ExtractionSchema';
     };
-    readonly promptRevision: {
-      readonly namespace: 'public' & NamespaceId;
-      readonly model: 'PromptRevision';
-    };
-    readonly schemaSuggestion: {
-      readonly namespace: 'public' & NamespaceId;
-      readonly model: 'SchemaSuggestion';
-    };
-    readonly conversationalSchemaEdit: {
-      readonly namespace: 'public' & NamespaceId;
-      readonly model: 'ConversationalSchemaEdit';
-    };
-    readonly schemaSuggestionInput: {
-      readonly namespace: 'public' & NamespaceId;
-      readonly model: 'SchemaSuggestionInput';
-    };
     readonly schemaRevision: {
       readonly namespace: 'public' & NamespaceId;
       readonly model: 'SchemaRevision';
@@ -2639,6 +2389,10 @@ type ContractBase = Omit<
     readonly batchExtractionMember: {
       readonly namespace: 'public' & NamespaceId;
       readonly model: 'BatchExtractionMember';
+    };
+    readonly extractionJob: {
+      readonly namespace: 'public' & NamespaceId;
+      readonly model: 'ExtractionJob';
     };
     readonly batchSchemaSuggestion: {
       readonly namespace: 'public' & NamespaceId;
@@ -2693,28 +2447,6 @@ type ContractBase = Omit<
               };
             };
             readonly relations: {
-              readonly conversationalEdits: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'ConversationalSchemaEdit';
-                };
-                readonly cardinality: '1:N';
-                readonly on: {
-                  readonly localFields: readonly ['id'];
-                  readonly targetFields: readonly ['annotationSetRevisionId'];
-                };
-              };
-              readonly schemaSuggestionInputs: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'SchemaSuggestionInput';
-                };
-                readonly cardinality: '1:N';
-                readonly on: {
-                  readonly localFields: readonly ['id'];
-                  readonly targetFields: readonly ['annotationSetRevisionId'];
-                };
-              };
               readonly sourceDocument: {
                 readonly to: {
                   readonly namespace: 'public' & NamespaceId;
@@ -2771,40 +2503,27 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
-              readonly executionStatus: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
-              readonly failure: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
-              };
-              readonly startedAt: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
-              };
-              readonly finishedAt: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
-              };
-              readonly leaseOwner: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
-              readonly leaseVersion: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
-              };
-              readonly leaseExpiresAt: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
-              };
               readonly createdAt: {
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
               };
             };
             readonly relations: {
+              readonly extractionJobs: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'ExtractionJob';
+                };
+                readonly cardinality: '1:N';
+                readonly on: {
+                  readonly localFields: readonly ['id', 'schemaRevisionId', 'strategy'];
+                  readonly targetFields: readonly [
+                    'batchExtractionId',
+                    'schemaRevisionId',
+                    'strategy',
+                  ];
+                };
+              };
               readonly extractions: {
                 readonly to: {
                   readonly namespace: 'public' & NamespaceId;
@@ -2862,13 +2581,6 @@ type ContractBase = Omit<
                 readonly projectContextId: { readonly column: 'projectContextId' };
                 readonly schemaRevisionId: { readonly column: 'schemaRevisionId' };
                 readonly strategy: { readonly column: 'strategy' };
-                readonly executionStatus: { readonly column: 'executionStatus' };
-                readonly failure: { readonly column: 'failure' };
-                readonly startedAt: { readonly column: 'startedAt' };
-                readonly finishedAt: { readonly column: 'finishedAt' };
-                readonly leaseOwner: { readonly column: 'leaseOwner' };
-                readonly leaseVersion: { readonly column: 'leaseVersion' };
-                readonly leaseExpiresAt: { readonly column: 'leaseExpiresAt' };
                 readonly createdAt: { readonly column: 'createdAt' };
               };
             };
@@ -2887,21 +2599,9 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
               };
-              readonly executionStatus: {
+              readonly initialExtractionJobId: {
                 readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
-              readonly failure: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
-              };
-              readonly startedAt: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
-              };
-              readonly finishedAt: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
               };
             };
             readonly relations: {
@@ -2935,6 +2635,27 @@ type ContractBase = Omit<
                   ];
                 };
               };
+              readonly initialExtractionJob: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'ExtractionJob';
+                };
+                readonly cardinality: 'N:1';
+                readonly on: {
+                  readonly localFields: readonly [
+                    'initialExtractionJobId',
+                    'batchExtractionId',
+                    'sourceDocumentId',
+                    'sourceRepresentationRevisionId',
+                  ];
+                  readonly targetFields: readonly [
+                    'id',
+                    'batchExtractionId',
+                    'sourceDocumentId',
+                    'sourceRepresentationRevisionId',
+                  ];
+                };
+              };
               readonly sourceRepresentationRevision: {
                 readonly to: {
                   readonly namespace: 'public' & NamespaceId;
@@ -2959,10 +2680,7 @@ type ContractBase = Omit<
                 readonly sourceRepresentationRevisionId: {
                   readonly column: 'sourceRepresentationRevisionId';
                 };
-                readonly executionStatus: { readonly column: 'executionStatus' };
-                readonly failure: { readonly column: 'failure' };
-                readonly startedAt: { readonly column: 'startedAt' };
-                readonly finishedAt: { readonly column: 'finishedAt' };
+                readonly initialExtractionJobId: { readonly column: 'initialExtractionJobId' };
               };
             };
           };
@@ -3168,156 +2886,6 @@ type ContractBase = Omit<
               };
             };
           };
-          readonly ConversationalSchemaEdit: {
-            readonly fields: {
-              readonly id: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
-              readonly extractionSchemaId: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
-              readonly baseSchemaRevisionId: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
-              readonly sourceRepresentationRevisionId: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
-              readonly annotationSetRevisionId: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
-              readonly promptRevisionId: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
-              readonly instruction: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
-              readonly operations: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
-              };
-              readonly outcome: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
-              readonly modelAttribution: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
-              };
-              readonly rawModelOutput: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
-              readonly failure: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
-              };
-              readonly proposedTree: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
-              };
-              readonly createdAt: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
-              };
-            };
-            readonly relations: {
-              readonly annotationSetRevision: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'AnnotationSetRevision';
-                };
-                readonly cardinality: 'N:1';
-                readonly on: {
-                  readonly localFields: readonly ['annotationSetRevisionId'];
-                  readonly targetFields: readonly ['id'];
-                };
-              };
-              readonly appliedRevision: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'SchemaRevision';
-                };
-                readonly cardinality: '1:1';
-                readonly on: {
-                  readonly localFields: readonly ['id'];
-                  readonly targetFields: readonly ['conversationalSchemaEditId'];
-                };
-              };
-              readonly baseSchemaRevision: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'SchemaRevision';
-                };
-                readonly cardinality: 'N:1';
-                readonly on: {
-                  readonly localFields: readonly ['baseSchemaRevisionId'];
-                  readonly targetFields: readonly ['id'];
-                };
-              };
-              readonly extractionSchema: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'ExtractionSchema';
-                };
-                readonly cardinality: 'N:1';
-                readonly on: {
-                  readonly localFields: readonly ['extractionSchemaId'];
-                  readonly targetFields: readonly ['id'];
-                };
-              };
-              readonly promptRevision: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'PromptRevision';
-                };
-                readonly cardinality: 'N:1';
-                readonly on: {
-                  readonly localFields: readonly ['promptRevisionId'];
-                  readonly targetFields: readonly ['id'];
-                };
-              };
-              readonly sourceRepresentationRevision: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'SourceRepresentationRevision';
-                };
-                readonly cardinality: 'N:1';
-                readonly on: {
-                  readonly localFields: readonly ['sourceRepresentationRevisionId'];
-                  readonly targetFields: readonly ['id'];
-                };
-              };
-            };
-            readonly storage: {
-              readonly table: 'conversationalSchemaEdit';
-              readonly namespaceId: 'public';
-              readonly fields: {
-                readonly id: { readonly column: 'id' };
-                readonly extractionSchemaId: { readonly column: 'extractionSchemaId' };
-                readonly baseSchemaRevisionId: { readonly column: 'baseSchemaRevisionId' };
-                readonly sourceRepresentationRevisionId: {
-                  readonly column: 'sourceRepresentationRevisionId';
-                };
-                readonly annotationSetRevisionId: { readonly column: 'annotationSetRevisionId' };
-                readonly promptRevisionId: { readonly column: 'promptRevisionId' };
-                readonly instruction: { readonly column: 'instruction' };
-                readonly operations: { readonly column: 'operations' };
-                readonly outcome: { readonly column: 'outcome' };
-                readonly modelAttribution: { readonly column: 'modelAttribution' };
-                readonly rawModelOutput: { readonly column: 'rawModelOutput' };
-                readonly failure: { readonly column: 'failure' };
-                readonly proposedTree: { readonly column: 'proposedTree' };
-                readonly createdAt: { readonly column: 'createdAt' };
-              };
-            };
-          };
           readonly Extraction: {
             readonly fields: {
               readonly id: {
@@ -3339,6 +2907,10 @@ type ContractBase = Omit<
               readonly strategy: {
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly requestedModels: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
               };
               readonly outcome: {
                 readonly nullable: false;
@@ -3372,10 +2944,6 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/bool@1' };
               };
-              readonly retryOfId: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
               readonly batchExtractionId: {
                 readonly nullable: true;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
@@ -3387,6 +2955,14 @@ type ContractBase = Omit<
               readonly reviewedAt: {
                 readonly nullable: true;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
+              };
+              readonly reviewDraft: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
+              };
+              readonly reviewDraftVersion: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
               };
             };
             readonly relations: {
@@ -3421,48 +2997,6 @@ type ContractBase = Omit<
                     'batchExtractionId',
                     'sourceDocumentId',
                     'sourceRepresentationRevisionId',
-                  ];
-                };
-              };
-              readonly retries: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'Extraction';
-                };
-                readonly cardinality: '1:N';
-                readonly on: {
-                  readonly localFields: readonly [
-                    'id',
-                    'sourceRepresentationRevisionId',
-                    'schemaRevisionId',
-                    'strategy',
-                  ];
-                  readonly targetFields: readonly [
-                    'retryOfId',
-                    'sourceRepresentationRevisionId',
-                    'schemaRevisionId',
-                    'strategy',
-                  ];
-                };
-              };
-              readonly retryOf: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'Extraction';
-                };
-                readonly cardinality: 'N:1';
-                readonly on: {
-                  readonly localFields: readonly [
-                    'retryOfId',
-                    'sourceRepresentationRevisionId',
-                    'schemaRevisionId',
-                    'strategy',
-                  ];
-                  readonly targetFields: readonly [
-                    'id',
-                    'sourceRepresentationRevisionId',
-                    'schemaRevisionId',
-                    'strategy',
                   ];
                 };
               };
@@ -3514,6 +3048,7 @@ type ContractBase = Omit<
                   readonly column: 'sourceRepresentationRevisionId';
                 };
                 readonly strategy: { readonly column: 'strategy' };
+                readonly requestedModels: { readonly column: 'requestedModels' };
                 readonly outcome: { readonly column: 'outcome' };
                 readonly complete: { readonly column: 'complete' };
                 readonly modelAttribution: { readonly column: 'modelAttribution' };
@@ -3522,10 +3057,259 @@ type ContractBase = Omit<
                 readonly resultPayload: { readonly column: 'resultPayload' };
                 readonly evidenceLinks: { readonly column: 'evidenceLinks' };
                 readonly reviewable: { readonly column: 'reviewable' };
-                readonly retryOfId: { readonly column: 'retryOfId' };
                 readonly batchExtractionId: { readonly column: 'batchExtractionId' };
                 readonly createdAt: { readonly column: 'createdAt' };
                 readonly reviewedAt: { readonly column: 'reviewedAt' };
+                readonly reviewDraft: { readonly column: 'reviewDraft' };
+                readonly reviewDraftVersion: { readonly column: 'reviewDraftVersion' };
+              };
+            };
+          };
+          readonly ExtractionJob: {
+            readonly fields: {
+              readonly id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
+              };
+              readonly kind: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly projectContextId: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
+              };
+              readonly sourceDocumentId: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
+              };
+              readonly sourceRepresentationRevisionId: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
+              };
+              readonly schemaRevisionId: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
+              };
+              readonly strategy: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly catalogRecipe: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly requestedModels: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
+              };
+              readonly retryOfId: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
+              };
+              readonly batchExtractionId: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
+              };
+              readonly executionStatus: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly complete: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/bool@1' };
+              };
+              readonly modelAttribution: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
+              };
+              readonly diagnostics: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
+              };
+              readonly resultPayload: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
+              };
+              readonly failure: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
+              };
+              readonly cancelRequestedAt: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
+              };
+              readonly startedAt: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
+              };
+              readonly finishedAt: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
+              };
+              readonly leaseOwner: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly leaseVersion: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly leaseExpiresAt: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
+              };
+              readonly createdAt: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
+              };
+            };
+            readonly relations: {
+              readonly batchExtraction: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'BatchExtraction';
+                };
+                readonly cardinality: 'N:1';
+                readonly on: {
+                  readonly localFields: readonly [
+                    'batchExtractionId',
+                    'schemaRevisionId',
+                    'strategy',
+                  ];
+                  readonly targetFields: readonly ['id', 'schemaRevisionId', 'strategy'];
+                };
+              };
+              readonly initialBatchMember: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'BatchExtractionMember';
+                };
+                readonly cardinality: '1:1';
+                readonly on: {
+                  readonly localFields: readonly [
+                    'id',
+                    'batchExtractionId',
+                    'sourceDocumentId',
+                    'sourceRepresentationRevisionId',
+                  ];
+                  readonly targetFields: readonly [
+                    'initialExtractionJobId',
+                    'batchExtractionId',
+                    'sourceDocumentId',
+                    'sourceRepresentationRevisionId',
+                  ];
+                };
+              };
+              readonly projectContext: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'ProjectContext';
+                };
+                readonly cardinality: 'N:1';
+                readonly on: {
+                  readonly localFields: readonly ['projectContextId'];
+                  readonly targetFields: readonly ['id'];
+                };
+              };
+              readonly retries: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'ExtractionJob';
+                };
+                readonly cardinality: '1:N';
+                readonly on: {
+                  readonly localFields: readonly [
+                    'id',
+                    'sourceRepresentationRevisionId',
+                    'schemaRevisionId',
+                    'strategy',
+                  ];
+                  readonly targetFields: readonly [
+                    'retryOfId',
+                    'sourceRepresentationRevisionId',
+                    'schemaRevisionId',
+                    'strategy',
+                  ];
+                };
+              };
+              readonly retryOf: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'ExtractionJob';
+                };
+                readonly cardinality: 'N:1';
+                readonly on: {
+                  readonly localFields: readonly [
+                    'retryOfId',
+                    'sourceRepresentationRevisionId',
+                    'schemaRevisionId',
+                    'strategy',
+                  ];
+                  readonly targetFields: readonly [
+                    'id',
+                    'sourceRepresentationRevisionId',
+                    'schemaRevisionId',
+                    'strategy',
+                  ];
+                };
+              };
+              readonly schemaRevision: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'SchemaRevision';
+                };
+                readonly cardinality: 'N:1';
+                readonly on: {
+                  readonly localFields: readonly ['schemaRevisionId'];
+                  readonly targetFields: readonly ['id'];
+                };
+              };
+              readonly sourceRepresentationRevision: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'SourceRepresentationRevision';
+                };
+                readonly cardinality: 'N:1';
+                readonly on: {
+                  readonly localFields: readonly [
+                    'sourceRepresentationRevisionId',
+                    'sourceDocumentId',
+                  ];
+                  readonly targetFields: readonly ['id', 'sourceDocumentId'];
+                };
+              };
+            };
+            readonly storage: {
+              readonly table: 'extractionJob';
+              readonly namespaceId: 'public';
+              readonly fields: {
+                readonly id: { readonly column: 'id' };
+                readonly kind: { readonly column: 'kind' };
+                readonly projectContextId: { readonly column: 'projectContextId' };
+                readonly sourceDocumentId: { readonly column: 'sourceDocumentId' };
+                readonly sourceRepresentationRevisionId: {
+                  readonly column: 'sourceRepresentationRevisionId';
+                };
+                readonly schemaRevisionId: { readonly column: 'schemaRevisionId' };
+                readonly strategy: { readonly column: 'strategy' };
+                readonly catalogRecipe: { readonly column: 'catalogRecipe' };
+                readonly requestedModels: { readonly column: 'requestedModels' };
+                readonly retryOfId: { readonly column: 'retryOfId' };
+                readonly batchExtractionId: { readonly column: 'batchExtractionId' };
+                readonly executionStatus: { readonly column: 'executionStatus' };
+                readonly complete: { readonly column: 'complete' };
+                readonly modelAttribution: { readonly column: 'modelAttribution' };
+                readonly diagnostics: { readonly column: 'diagnostics' };
+                readonly resultPayload: { readonly column: 'resultPayload' };
+                readonly failure: { readonly column: 'failure' };
+                readonly cancelRequestedAt: { readonly column: 'cancelRequestedAt' };
+                readonly startedAt: { readonly column: 'startedAt' };
+                readonly finishedAt: { readonly column: 'finishedAt' };
+                readonly leaseOwner: { readonly column: 'leaseOwner' };
+                readonly leaseVersion: { readonly column: 'leaseVersion' };
+                readonly leaseExpiresAt: { readonly column: 'leaseExpiresAt' };
+                readonly createdAt: { readonly column: 'createdAt' };
               };
             };
           };
@@ -3608,17 +3392,6 @@ type ContractBase = Omit<
               };
             };
             readonly relations: {
-              readonly conversationalEdits: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'ConversationalSchemaEdit';
-                };
-                readonly cardinality: '1:N';
-                readonly on: {
-                  readonly localFields: readonly ['id'];
-                  readonly targetFields: readonly ['extractionSchemaId'];
-                };
-              };
               readonly projectContext: {
                 readonly to: {
                   readonly namespace: 'public' & NamespaceId;
@@ -3630,32 +3403,10 @@ type ContractBase = Omit<
                   readonly targetFields: readonly ['id'];
                 };
               };
-              readonly promptRevisions: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'PromptRevision';
-                };
-                readonly cardinality: '1:N';
-                readonly on: {
-                  readonly localFields: readonly ['id'];
-                  readonly targetFields: readonly ['extractionSchemaId'];
-                };
-              };
               readonly schemaRevisions: {
                 readonly to: {
                   readonly namespace: 'public' & NamespaceId;
                   readonly model: 'SchemaRevision';
-                };
-                readonly cardinality: '1:N';
-                readonly on: {
-                  readonly localFields: readonly ['id'];
-                  readonly targetFields: readonly ['extractionSchemaId'];
-                };
-              };
-              readonly suggestions: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'SchemaSuggestion';
                 };
                 readonly cardinality: '1:N';
                 readonly on: {
@@ -3672,6 +3423,44 @@ type ContractBase = Omit<
                 readonly projectContextId: { readonly column: 'projectContextId' };
                 readonly name: { readonly column: 'name' };
                 readonly createdAt: { readonly column: 'createdAt' };
+              };
+            };
+          };
+          readonly ModelConfiguration: {
+            readonly fields: {
+              readonly researcherAccountId: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
+              };
+              readonly document: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
+              };
+              readonly updatedAt: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
+              };
+            };
+            readonly relations: {
+              readonly researcherAccount: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'ResearcherAccount';
+                };
+                readonly cardinality: 'N:1';
+                readonly on: {
+                  readonly localFields: readonly ['researcherAccountId'];
+                  readonly targetFields: readonly ['id'];
+                };
+              };
+            };
+            readonly storage: {
+              readonly table: 'modelConfiguration';
+              readonly namespaceId: 'public';
+              readonly fields: {
+                readonly researcherAccountId: { readonly column: 'researcherAccountId' };
+                readonly document: { readonly column: 'document' };
+                readonly updatedAt: { readonly column: 'updatedAt' };
               };
             };
           };
@@ -3710,6 +3499,17 @@ type ContractBase = Omit<
                 readonly to: {
                   readonly namespace: 'public' & NamespaceId;
                   readonly model: 'BatchSchemaSuggestion';
+                };
+                readonly cardinality: '1:N';
+                readonly on: {
+                  readonly localFields: readonly ['id'];
+                  readonly targetFields: readonly ['projectContextId'];
+                };
+              };
+              readonly extractionJobs: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'ExtractionJob';
                 };
                 readonly cardinality: '1:N';
                 readonly on: {
@@ -3762,76 +3562,6 @@ type ContractBase = Omit<
               };
             };
           };
-          readonly PromptRevision: {
-            readonly fields: {
-              readonly id: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
-              readonly extractionSchemaId: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
-              readonly revisionNumber: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
-              };
-              readonly text: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
-              readonly createdAt: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
-              };
-            };
-            readonly relations: {
-              readonly conversationalEdits: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'ConversationalSchemaEdit';
-                };
-                readonly cardinality: '1:N';
-                readonly on: {
-                  readonly localFields: readonly ['id'];
-                  readonly targetFields: readonly ['promptRevisionId'];
-                };
-              };
-              readonly extractionSchema: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'ExtractionSchema';
-                };
-                readonly cardinality: 'N:1';
-                readonly on: {
-                  readonly localFields: readonly ['extractionSchemaId'];
-                  readonly targetFields: readonly ['id'];
-                };
-              };
-              readonly suggestions: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'SchemaSuggestion';
-                };
-                readonly cardinality: '1:N';
-                readonly on: {
-                  readonly localFields: readonly ['id'];
-                  readonly targetFields: readonly ['promptRevisionId'];
-                };
-              };
-            };
-            readonly storage: {
-              readonly table: 'promptRevision';
-              readonly namespaceId: 'public';
-              readonly fields: {
-                readonly id: { readonly column: 'id' };
-                readonly extractionSchemaId: { readonly column: 'extractionSchemaId' };
-                readonly revisionNumber: { readonly column: 'revisionNumber' };
-                readonly text: { readonly column: 'text' };
-                readonly createdAt: { readonly column: 'createdAt' };
-              };
-            };
-          };
           readonly ResearcherAccount: {
             readonly fields: {
               readonly id: {
@@ -3860,6 +3590,17 @@ type ContractBase = Omit<
               };
             };
             readonly relations: {
+              readonly modelConfiguration: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'ModelConfiguration';
+                };
+                readonly cardinality: '1:1';
+                readonly on: {
+                  readonly localFields: readonly ['id'];
+                  readonly targetFields: readonly ['researcherAccountId'];
+                };
+              };
               readonly projectContexts: {
                 readonly to: {
                   readonly namespace: 'public' & NamespaceId;
@@ -3963,10 +3704,6 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
               };
-              readonly schemaSuggestionId: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
               readonly revisionNumber: {
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
@@ -3987,10 +3724,6 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
               };
-              readonly conversationalSchemaEditId: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
             };
             readonly relations: {
               readonly batchExtractions: {
@@ -4004,26 +3737,15 @@ type ContractBase = Omit<
                   readonly targetFields: readonly ['schemaRevisionId'];
                 };
               };
-              readonly conversationalEditBases: {
+              readonly extractionJobs: {
                 readonly to: {
                   readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'ConversationalSchemaEdit';
+                  readonly model: 'ExtractionJob';
                 };
                 readonly cardinality: '1:N';
                 readonly on: {
                   readonly localFields: readonly ['id'];
-                  readonly targetFields: readonly ['baseSchemaRevisionId'];
-                };
-              };
-              readonly conversationalSchemaEdit: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'ConversationalSchemaEdit';
-                };
-                readonly cardinality: 'N:1';
-                readonly on: {
-                  readonly localFields: readonly ['conversationalSchemaEditId'];
-                  readonly targetFields: readonly ['id'];
+                  readonly targetFields: readonly ['schemaRevisionId'];
                 };
               };
               readonly extractionSchema: {
@@ -4048,17 +3770,6 @@ type ContractBase = Omit<
                   readonly targetFields: readonly ['schemaRevisionId'];
                 };
               };
-              readonly schemaSuggestion: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'SchemaSuggestion';
-                };
-                readonly cardinality: 'N:1';
-                readonly on: {
-                  readonly localFields: readonly ['schemaSuggestionId'];
-                  readonly targetFields: readonly ['id'];
-                };
-              };
             };
             readonly storage: {
               readonly table: 'schemaRevision';
@@ -4066,183 +3777,11 @@ type ContractBase = Omit<
               readonly fields: {
                 readonly id: { readonly column: 'id' };
                 readonly extractionSchemaId: { readonly column: 'extractionSchemaId' };
-                readonly schemaSuggestionId: { readonly column: 'schemaSuggestionId' };
                 readonly revisionNumber: { readonly column: 'revisionNumber' };
                 readonly origin: { readonly column: 'origin' };
                 readonly schemaTree: { readonly column: 'schemaTree' };
                 readonly modelAttribution: { readonly column: 'modelAttribution' };
                 readonly createdAt: { readonly column: 'createdAt' };
-                readonly conversationalSchemaEditId: {
-                  readonly column: 'conversationalSchemaEditId';
-                };
-              };
-            };
-          };
-          readonly SchemaSuggestion: {
-            readonly fields: {
-              readonly id: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
-              readonly extractionSchemaId: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
-              readonly promptRevisionId: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
-              readonly annotationMode: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
-              readonly outcome: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
-              readonly modelAttribution: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
-              };
-              readonly rawModelOutput: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
-              readonly failure: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
-              };
-              readonly proposedTree: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/jsonb@1' };
-              };
-              readonly createdAt: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
-              };
-            };
-            readonly relations: {
-              readonly extractionSchema: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'ExtractionSchema';
-                };
-                readonly cardinality: 'N:1';
-                readonly on: {
-                  readonly localFields: readonly ['extractionSchemaId'];
-                  readonly targetFields: readonly ['id'];
-                };
-              };
-              readonly inputs: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'SchemaSuggestionInput';
-                };
-                readonly cardinality: '1:N';
-                readonly on: {
-                  readonly localFields: readonly ['id'];
-                  readonly targetFields: readonly ['schemaSuggestionId'];
-                };
-              };
-              readonly promptRevision: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'PromptRevision';
-                };
-                readonly cardinality: 'N:1';
-                readonly on: {
-                  readonly localFields: readonly ['promptRevisionId'];
-                  readonly targetFields: readonly ['id'];
-                };
-              };
-              readonly seededRevision: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'SchemaRevision';
-                };
-                readonly cardinality: '1:1';
-                readonly on: {
-                  readonly localFields: readonly ['id'];
-                  readonly targetFields: readonly ['schemaSuggestionId'];
-                };
-              };
-            };
-            readonly storage: {
-              readonly table: 'schemaSuggestion';
-              readonly namespaceId: 'public';
-              readonly fields: {
-                readonly id: { readonly column: 'id' };
-                readonly extractionSchemaId: { readonly column: 'extractionSchemaId' };
-                readonly promptRevisionId: { readonly column: 'promptRevisionId' };
-                readonly annotationMode: { readonly column: 'annotationMode' };
-                readonly outcome: { readonly column: 'outcome' };
-                readonly modelAttribution: { readonly column: 'modelAttribution' };
-                readonly rawModelOutput: { readonly column: 'rawModelOutput' };
-                readonly failure: { readonly column: 'failure' };
-                readonly proposedTree: { readonly column: 'proposedTree' };
-                readonly createdAt: { readonly column: 'createdAt' };
-              };
-            };
-          };
-          readonly SchemaSuggestionInput: {
-            readonly fields: {
-              readonly schemaSuggestionId: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
-              readonly sourceRepresentationRevisionId: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
-              readonly annotationSetRevisionId: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
-              };
-            };
-            readonly relations: {
-              readonly annotationSetRevision: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'AnnotationSetRevision';
-                };
-                readonly cardinality: 'N:1';
-                readonly on: {
-                  readonly localFields: readonly ['annotationSetRevisionId'];
-                  readonly targetFields: readonly ['id'];
-                };
-              };
-              readonly schemaSuggestion: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'SchemaSuggestion';
-                };
-                readonly cardinality: 'N:1';
-                readonly on: {
-                  readonly localFields: readonly ['schemaSuggestionId'];
-                  readonly targetFields: readonly ['id'];
-                };
-              };
-              readonly sourceRepresentationRevision: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'SourceRepresentationRevision';
-                };
-                readonly cardinality: 'N:1';
-                readonly on: {
-                  readonly localFields: readonly ['sourceRepresentationRevisionId'];
-                  readonly targetFields: readonly ['id'];
-                };
-              };
-            };
-            readonly storage: {
-              readonly table: 'schemaSuggestionInput';
-              readonly namespaceId: 'public';
-              readonly fields: {
-                readonly schemaSuggestionId: { readonly column: 'schemaSuggestionId' };
-                readonly sourceRepresentationRevisionId: {
-                  readonly column: 'sourceRepresentationRevisionId';
-                };
-                readonly annotationSetRevisionId: { readonly column: 'annotationSetRevisionId' };
               };
             };
           };
@@ -4364,6 +3903,14 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
+              readonly reprocessKey: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
+              };
+              readonly reprocessFingerprint: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
               readonly createdAt: {
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/timestamptz@1' };
@@ -4406,15 +3953,18 @@ type ContractBase = Omit<
                   readonly targetFields: readonly ['sourceRepresentationRevisionId'];
                 };
               };
-              readonly conversationalEdits: {
+              readonly extractionJobs: {
                 readonly to: {
                   readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'ConversationalSchemaEdit';
+                  readonly model: 'ExtractionJob';
                 };
                 readonly cardinality: '1:N';
                 readonly on: {
-                  readonly localFields: readonly ['id'];
-                  readonly targetFields: readonly ['sourceRepresentationRevisionId'];
+                  readonly localFields: readonly ['id', 'sourceDocumentId'];
+                  readonly targetFields: readonly [
+                    'sourceRepresentationRevisionId',
+                    'sourceDocumentId',
+                  ];
                 };
               };
               readonly extractions: {
@@ -4429,17 +3979,6 @@ type ContractBase = Omit<
                     'sourceRepresentationRevisionId',
                     'sourceDocumentId',
                   ];
-                };
-              };
-              readonly schemaSuggestionInputs: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'SchemaSuggestionInput';
-                };
-                readonly cardinality: '1:N';
-                readonly on: {
-                  readonly localFields: readonly ['id'];
-                  readonly targetFields: readonly ['sourceRepresentationRevisionId'];
                 };
               };
               readonly sourceDocument: {
@@ -4467,33 +4006,20 @@ type ContractBase = Omit<
                 readonly preprocessId: { readonly column: 'preprocessId' };
                 readonly parserName: { readonly column: 'parserName' };
                 readonly parserVersion: { readonly column: 'parserVersion' };
+                readonly reprocessKey: { readonly column: 'reprocessKey' };
+                readonly reprocessFingerprint: { readonly column: 'reprocessFingerprint' };
                 readonly createdAt: { readonly column: 'createdAt' };
               };
             };
           };
         };
         readonly enum: {
-          readonly AttemptOutcome: {
-            readonly codecId: 'pg/text@1';
-            readonly members: readonly [
-              { readonly name: 'SUCCEEDED'; readonly value: 'SUCCEEDED' },
-              { readonly name: 'FAILED'; readonly value: 'FAILED' },
-              { readonly name: 'CANCELLED'; readonly value: 'CANCELLED' },
-            ];
-          };
           readonly ExtractionOutcome: {
             readonly codecId: 'pg/text@1';
             readonly members: readonly [
               { readonly name: 'SUCCEEDED'; readonly value: 'SUCCEEDED' },
               { readonly name: 'FAILED'; readonly value: 'FAILED' },
               { readonly name: 'CANCELLED'; readonly value: 'CANCELLED' },
-            ];
-          };
-          readonly AnnotationMode: {
-            readonly codecId: 'pg/text@1';
-            readonly members: readonly [
-              { readonly name: 'hints'; readonly value: 'hints' },
-              { readonly name: 'fields'; readonly value: 'fields' },
             ];
           };
           readonly SchemaRevisionOrigin: {
@@ -4511,6 +4037,13 @@ type ContractBase = Omit<
               { readonly name: 'RUNNING'; readonly value: 'RUNNING' },
               { readonly name: 'COMPLETED'; readonly value: 'COMPLETED' },
               { readonly name: 'FAILED'; readonly value: 'FAILED' },
+            ];
+          };
+          readonly ExtractionJobKind: {
+            readonly codecId: 'pg/text@1';
+            readonly members: readonly [
+              { readonly name: 'INTERACTIVE'; readonly value: 'INTERACTIVE' },
+              { readonly name: 'BATCH_MEMBER'; readonly value: 'BATCH_MEMBER' },
             ];
           };
           readonly BatchSchemaSuggestionPhase: {
@@ -4575,14 +4108,6 @@ type ContractBase = Omit<
         {
           readonly ref: {
             readonly namespace: 'public';
-            readonly table: 'conversationalSchemaEdit';
-            readonly column: 'id';
-          };
-          readonly onCreate: { readonly kind: 'generator'; readonly id: 'uuidv4' };
-        },
-        {
-          readonly ref: {
-            readonly namespace: 'public';
             readonly table: 'extraction';
             readonly column: 'id';
           };
@@ -4608,14 +4133,6 @@ type ContractBase = Omit<
           readonly ref: {
             readonly namespace: 'public';
             readonly table: 'projectContext';
-            readonly column: 'id';
-          };
-          readonly onCreate: { readonly kind: 'generator'; readonly id: 'uuidv4' };
-        },
-        {
-          readonly ref: {
-            readonly namespace: 'public';
-            readonly table: 'promptRevision';
             readonly column: 'id';
           };
           readonly onCreate: { readonly kind: 'generator'; readonly id: 'uuidv4' };
@@ -4649,14 +4166,6 @@ type ContractBase = Omit<
           readonly ref: {
             readonly namespace: 'public';
             readonly table: 'schemaRevision';
-            readonly column: 'id';
-          };
-          readonly onCreate: { readonly kind: 'generator'; readonly id: 'uuidv4' };
-        },
-        {
-          readonly ref: {
-            readonly namespace: 'public';
-            readonly table: 'schemaSuggestion';
             readonly column: 'id';
           };
           readonly onCreate: { readonly kind: 'generator'; readonly id: 'uuidv4' };

@@ -165,7 +165,7 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     null,
   )
   const survivingDocument = { id: survivingIngestion.sourceDocumentId }
-  const annotation = await db.orm.public.AnnotationSetRevision.create({
+  await db.orm.public.AnnotationSetRevision.create({
     sourceDocumentId: document.id,
     sourceRepresentationRevisionId: representation.id,
     revisionNumber: 1,
@@ -175,45 +175,14 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     projectContextId: project.projectContextId,
     name: 'Schema',
   })
-  const prompt = await db.orm.public.PromptRevision.create({
+  await db.orm.public.SchemaRevision.create({
     extractionSchemaId: schema.id,
     revisionNumber: 1,
-    text: 'Extract.',
-  })
-  const suggestion = await db.orm.public.SchemaSuggestion.create({
-    extractionSchemaId: schema.id,
-    promptRevisionId: prompt.id,
-    annotationMode: 'hints',
-    outcome: 'SUCCEEDED',
-    modelAttribution: {},
-    proposedTree: [],
-  })
-  await db.orm.public.SchemaSuggestionInput.create({
-    schemaSuggestionId: suggestion.id,
-    sourceRepresentationRevisionId: representation.id,
-    annotationSetRevisionId: annotation.id,
-  })
-  const baseRevision = await db.orm.public.SchemaRevision.create({
-    extractionSchemaId: schema.id,
-    schemaSuggestionId: suggestion.id,
-    revisionNumber: 1,
-    origin: 'SUGGESTION',
+    origin: 'RESEARCHER_EDIT',
     schemaTree: [],
-  })
-  const edit = await db.orm.public.ConversationalSchemaEdit.create({
-    extractionSchemaId: schema.id,
-    baseSchemaRevisionId: baseRevision.id,
-    sourceRepresentationRevisionId: representation.id,
-    annotationSetRevisionId: annotation.id,
-    promptRevisionId: prompt.id,
-    instruction: 'Add a field.',
-    outcome: 'SUCCEEDED',
-    modelAttribution: {},
-    proposedTree: [],
   })
   const appliedRevision = await db.orm.public.SchemaRevision.create({
     extractionSchemaId: schema.id,
-    conversationalSchemaEditId: edit.id,
     revisionNumber: 2,
     origin: 'MODEL_EDIT',
     schemaTree: [],
@@ -336,11 +305,7 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
   for (const table of [
     db.orm.public.AnnotationSetRevision,
     db.orm.public.ExtractionSchema,
-    db.orm.public.PromptRevision,
-    db.orm.public.SchemaSuggestion,
-    db.orm.public.SchemaSuggestionInput,
     db.orm.public.SchemaRevision,
-    db.orm.public.ConversationalSchemaEdit,
     db.orm.public.Extraction,
     db.orm.public.ExtractionReview,
     db.orm.public.ReviewDecision,
