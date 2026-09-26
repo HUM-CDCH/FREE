@@ -12,6 +12,13 @@ export const STUDIO_QUEUE = 'studio'
 export const SUGGEST_QUEUE = 'suggest'
 export const KEI_APPLICATION = 'kei'
 export const KEI_SCHEMA = 'kei_dbos'
+/**
+ * DBOS's own system-database pool. It holds one connection for LISTEN, lends up to three to queue dispatch and leaves
+ * the rest for workflow and step checkpoints. One Studio process opens at most 21 connections: the domain pool
+ * (packages/db, pg's default of 10) + this pool (5) + the admission client (2) + the kei client (4), plus one
+ * short-lived connection that reads the boot clock.
+ */
+export const STUDIO_SYSTEM_POOL_SIZE = 5
 const TERMINAL = new Set(['SUCCESS', 'ERROR', 'CANCELLED', 'MAX_RECOVERY_ATTEMPTS_EXCEEDED'])
 
 export type StudioDbosOptions = Readonly<{
@@ -42,14 +49,23 @@ export function studioDbosConfig(options: Pick<StudioDbosOptions, 'databaseUrl' 
     systemDatabaseSchemaName: options.schema ?? STUDIO_SCHEMA,
     applicationVersion: STUDIO_VERSION,
     executorID: options.executorId ?? STUDIO_EXECUTOR,
+    systemDatabasePoolSize: STUDIO_SYSTEM_POOL_SIZE,
     enablePatching: true,
     enableOTLP: false,
     logLevel: 'info',
   }
 }
 
-let launching: Promise<StudioDbos> | undefined
-let launched: StudioDbos | undefined
+type LaunchRecord = { launching?: Promise<StudioDbos>; launched?: StudioDbos }
+
+/**
+ * The launch is process-wide, like DBOS itself. Vite evaluates this module afresh after an edit to it and on every
+ * dev-server restart (which configures the new server before closing the old one), and each instance must find the one
+ * launch instead of meeting its DBOS as a foreign one.
+ */
+const launch: LaunchRecord = ((globalThis as { [key: symbol]: LaunchRecord | undefined })[
+  Symbol.for('free.studio.dbos')
+] ??= {})
 
 /**
  * Launches DBOS once per process. A second DBOS.launch() resolves silently and ignores its configuration, and a
@@ -57,12 +73,13 @@ let launched: StudioDbos | undefined
  * launch, and a DBOS launched by anyone else is refused.
  */
 export function launchStudioDbos(options: StudioDbosOptions): Promise<StudioDbos> {
-  if (launching) return launching
+  if (launch.launching) return launch.launching
   if (DBOS.isInitialized())
     throw new Error('DBOS was launched outside launchStudioDbos; Studio launches it once per process.')
-  launching = start(options).then((dbos) => (launched = dbos))
+  const launching = start(options).then((dbos) => (launch.launched = dbos))
+  launch.launching = launching
   launching.catch(() => {
-    launching = undefined
+    if (launch.launching === launching) launch.launching = undefined
   })
   return launching
 }
@@ -71,39 +88,57 @@ async function start(options: StudioDbosOptions): Promise<StudioDbos> {
   const bootTimestampMs = await databaseClockMs(options.databaseUrl)
   options.register()
   DBOS.setConfig(studioDbosConfig(options))
-  await DBOS.launch()
-  // Queues live in the system database, so they are registered after launch.
-  await DBOS.registerQueue(STUDIO_QUEUE, { minPollingIntervalMs: 100 }) // p50 ~55 ms dequeue, not ~0.5 s (M0R 3)
-  await DBOS.registerQueue(SUGGEST_QUEUE, { globalConcurrency: 1 })
-  const admission = await DBOSClient.create({
-    systemDatabaseUrl: options.databaseUrl,
-    systemDatabaseSchemaName: options.schema ?? STUDIO_SCHEMA,
-    systemDatabasePoolSize: 2, // a transactional enqueue writes through the caller's own client
-    applicationName: STUDIO_APPLICATION,
-  })
-  const kei = await DBOSClient.create({
-    // Studio's own role: kei's restricted role owns kei_dbos, and the database owner may use it. Creating a client
-    // runs no query (client.js:68-71), so Studio starts before kei has migrated its schema.
-    systemDatabaseUrl: options.databaseUrl,
-    systemDatabaseSchemaName: options.keiSchema ?? KEI_SCHEMA,
-    systemDatabasePoolSize: 4,
-    applicationName: KEI_APPLICATION,
-  })
-  return { bootTimestampMs, admission, kei }
+  const clients: DBOSClient[] = []
+  try {
+    await DBOS.launch()
+    // Queues live in the system database, so they are registered after launch.
+    await DBOS.registerQueue(STUDIO_QUEUE, { minPollingIntervalMs: 100 }) // p50 ~55 ms dequeue, not ~0.5 s (M0R 3)
+    await DBOS.registerQueue(SUGGEST_QUEUE, { globalConcurrency: 1 })
+    const admission = await DBOSClient.create({
+      systemDatabaseUrl: options.databaseUrl,
+      systemDatabaseSchemaName: options.schema ?? STUDIO_SCHEMA,
+      systemDatabasePoolSize: 2, // a transactional enqueue writes through the caller's own client
+      applicationName: STUDIO_APPLICATION,
+    })
+    clients.push(admission)
+    const kei = await DBOSClient.create({
+      // Studio's own role: kei's restricted role owns kei_dbos, and the database owner may use it. Creating a client
+      // runs no query (client.js:68-71), so Studio starts before kei has migrated its schema.
+      systemDatabaseUrl: options.databaseUrl,
+      systemDatabaseSchemaName: options.keiSchema ?? KEI_SCHEMA,
+      systemDatabasePoolSize: 4,
+      applicationName: KEI_APPLICATION,
+    })
+    clients.push(kei)
+    return { bootTimestampMs, admission, kei }
+  } catch (error) {
+    // Leave nothing running: a retry then launches afresh instead of meeting this DBOS as a foreign one. The startup
+    // error is the one to report, so a failure while stopping is dropped.
+    await stop(clients).catch(() => undefined)
+    throw error
+  }
+}
+
+/** Stops DBOS and closes the clients' pools, even when DBOS fails to stop. */
+async function stop(clients: readonly DBOSClient[]): Promise<void> {
+  try {
+    await DBOS.shutdown()
+  } finally {
+    await Promise.all(clients.map((client) => client.destroy()))
+  }
 }
 
 export function studioDbos(): StudioDbos {
-  if (!launched) throw new Error('Studio has not launched DBOS in this process.')
-  return launched
+  if (!launch.launched) throw new Error('Studio has not launched DBOS in this process.')
+  return launch.launched
 }
 
 export async function shutdownStudioDbos(): Promise<void> {
-  const current = await launching?.catch(() => undefined)
-  launching = undefined
-  launched = undefined
+  const current = await launch.launching?.catch(() => undefined)
+  launch.launching = undefined
+  launch.launched = undefined
   if (!current) return
-  await DBOS.shutdown()
-  await Promise.all([current.admission.destroy(), current.kei.destroy()])
+  await stop([current.admission, current.kei])
 }
 
 export async function databaseClockMs(databaseUrl: string): Promise<number> {

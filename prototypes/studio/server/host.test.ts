@@ -25,6 +25,19 @@ async function clientRoot() {
   return root
 }
 
+function productionConfig() {
+  return loadStudioServerConfig({
+    STUDIO_ORIGIN: 'http://127.0.0.1:5173',
+    STUDIO_BASE_PATH: '/free',
+    FREE_SESSION_SECRET: SECRET,
+    FREE_STUDIO_PROXY: 'loopback',
+    FREE_ENTRA_TENANT_ID: '10000000-0000-4000-8000-000000000001',
+    FREE_ENTRA_CLIENT_ID: '10000000-0000-4000-8000-000000000002',
+    FREE_ENTRA_CLIENT_CERT_PATH: '/unused/in/injected-test.pem',
+    FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'AB'.repeat(32),
+  })
+}
+
 afterEach(async () => {
   await Promise.all(
     roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
@@ -79,18 +92,7 @@ describe('production Studio process', () => {
         order.push('dbos shut down')
       }),
     }
-    const config = loadStudioServerConfig({
-      STUDIO_ORIGIN: 'http://127.0.0.1:5173',
-      STUDIO_BASE_PATH: '/free',
-      FREE_SESSION_SECRET: SECRET,
-      FREE_STUDIO_PROXY: 'loopback',
-      FREE_ENTRA_TENANT_ID: '10000000-0000-4000-8000-000000000001',
-      FREE_ENTRA_CLIENT_ID: '10000000-0000-4000-8000-000000000002',
-      FREE_ENTRA_CLIENT_CERT_PATH: '/unused/in/injected-test.pem',
-      FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'AB'.repeat(32),
-    })
-
-    const host = await startStudioServer(config, {
+    const host = await startStudioServer(productionConfig(), {
       clientRoot: await clientRoot(),
       runtime,
       serve: serve as never,
@@ -146,5 +148,40 @@ describe('production Studio process', () => {
     expect(signalEmitter.listenerCount('SIGINT')).toBe(0)
     expect(signalEmitter.listenerCount('SIGTERM')).toBe(0)
     expect(logger.error).not.toHaveBeenCalled()
+  })
+
+  it('a listener that fails to close still shuts DBOS, the runtime and the providers down', async () => {
+    const refused = new Error('Server is not running.')
+    const server = {
+      close: vi.fn((callback: (error?: Error) => void) => {
+        setImmediate(() => callback(refused))
+        return server
+      }),
+    } as unknown as ServerType
+    const runtime: StudioRuntime = {
+      run: vi.fn(async () => undefined),
+      close: vi.fn(async () => undefined),
+    }
+    const providerRuntime = { close: vi.fn(async () => undefined) }
+    const dbos = {
+      launch: vi.fn(async () => undefined),
+      shutdown: vi.fn(async () => undefined),
+    }
+    const host = await startStudioServer(productionConfig(), {
+      clientRoot: await clientRoot(),
+      runtime,
+      serve: vi.fn(() => server) as never,
+      signals: new EventEmitter() as EventEmitter & StudioSignalTarget,
+      logger: { log: vi.fn(), error: vi.fn() },
+      providerRuntime,
+      identityProvider: createInMemoryEntraIdentityProvider(),
+      dbos,
+    })
+
+    await expect(host.shutdown()).rejects.toBe(refused)
+
+    expect(dbos.shutdown).toHaveBeenCalledOnce()
+    expect(runtime.close).toHaveBeenCalledOnce()
+    expect(providerRuntime.close).toHaveBeenCalledOnce()
   })
 })

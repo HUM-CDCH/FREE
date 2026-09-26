@@ -4,10 +4,18 @@ import { relative } from 'node:path'
 
 const RELOAD_COALESCE_MS = 50
 
-// A registered workflow keeps the module instances it was registered from, so
+// A registered workflow keeps the module instances it was registered from, and
+// the running DBOS the configuration and queues it launched with, so
 // recomposition cannot adopt an edit to one of these.
-const WORKFLOW_MODULE =
-  /(^|\/)(api\/_[a-z_]*_workflow\.ts|server\/workflows\.ts|packages\/extraction\/src\/workflows\.ts)$/
+const RESTART_MODULE =
+  /(^|\/)(api\/_[a-z_]*_workflow\.ts|server\/(dbos|workflows)\.ts|packages\/extraction\/src\/workflows\.ts)$/
+
+// Vite restarts a dev server by configuring the new server, whose host adopts
+// the running DBOS, before it closes the old one. Only the newest configured
+// host shuts DBOS down, and the record is process-global because each restart
+// evaluates this module afresh.
+const DBOS_OWNER = Symbol.for('free.studio.dbos.developmentHost')
+const developmentProcess = globalThis as { [DBOS_OWNER]?: object }
 
 // server/dbos.ts and server/workflows.ts as the SSR loader returns them. They
 // are typed here, not imported: a native import would be a second module
@@ -127,7 +135,7 @@ export async function createDevelopmentHost<T>(
     const ssr = server.environments.ssr.moduleGraph
     const changed = normalizePath(file)
     if (!ssr.getModulesByFile(changed)) return
-    if (WORKFLOW_MODULE.test(changed))
+    if (RESTART_MODULE.test(changed))
       server.config.logger.warn(
         'A DBOS workflow module changed: restart Studio to run the new workflow code (Compose restarts it on every server edit).',
       )
@@ -156,13 +164,18 @@ export async function createDevelopmentHost<T>(
   }
   server.watcher.on('change', recompose)
   server.watcher.on('unlink', recompose)
+  const host = {}
   server.httpServer?.once('close', () => {
     if (reload) clearTimeout(reload)
     void stopExtractionRuntime()
+    if (developmentProcess[DBOS_OWNER] !== host) return
+    delete developmentProcess[DBOS_OWNER]
     void stopDbos()
   })
 
   // Fail configuration before the server listens rather than on first use.
   await composition()
+  // A restart that fails to configure leaves DBOS to the server that keeps running.
+  if (server.httpServer) developmentProcess[DBOS_OWNER] = host
   return { composition }
 }

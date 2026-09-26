@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // One ordered record of what the process did, shared by the DBOS and pg mocks.
+// DBOS is initialized from launch until shutdown, as the real SDK reports it.
 const sdk = vi.hoisted(() => {
   const calls: string[] = []
+  const state = { initialized: false }
   type FakeClient = {
     options: Record<string, unknown>
     registerQueue: ReturnType<typeof vi.fn>
@@ -12,19 +14,22 @@ const sdk = vi.hoisted(() => {
   return {
     calls,
     clients,
+    state,
     DBOS: {
       setConfig: vi.fn(() => {
         calls.push('setConfig')
       }),
       launch: vi.fn(async () => {
         calls.push('launch')
+        state.initialized = true
       }),
-      isInitialized: vi.fn(() => false),
+      isInitialized: vi.fn(() => state.initialized),
       registerQueue: vi.fn(async (name: string) => {
         calls.push(`registerQueue:${name}`)
       }),
       shutdown: vi.fn(async () => {
         calls.push('shutdown')
+        state.initialized = false
       }),
     },
     create: vi.fn(async (options: Record<string, unknown>) => {
@@ -73,6 +78,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   sdk.calls.length = 0
   sdk.clients.length = 0
+  sdk.state.initialized = false
+  // The launch record is process-global; each test starts from a process that never launched.
+  delete (globalThis as Record<symbol, unknown>)[Symbol.for('free.studio.dbos')]
 })
 
 describe('Studio DBOS', () => {
@@ -85,6 +93,7 @@ describe('Studio DBOS', () => {
       systemDatabaseSchemaName: 'dbos',
       applicationVersion: 'studio@1',
       executorID: 'studio',
+      systemDatabasePoolSize: 5,
       enablePatching: true,
       enableOTLP: false,
       logLevel: 'info',
@@ -166,6 +175,50 @@ describe('Studio DBOS', () => {
     expect(register).toHaveBeenCalledOnce()
   })
 
+  it('every instance of this module shares the one launch: a reloaded module reuses it and never launches again', async () => {
+    // Vite evaluates server/dbos.ts afresh after an edit to it and on every dev-server restart.
+    const first = await freshModule()
+    const register = vi.fn()
+    const launched = await first.launchStudioDbos({ databaseUrl: URL, register })
+    vi.resetModules()
+    const reloaded = await freshModule()
+    expect(reloaded).not.toBe(first)
+
+    await expect(
+      reloaded.launchStudioDbos({ databaseUrl: URL, register: vi.fn() }),
+    ).resolves.toBe(launched)
+    expect(reloaded.studioDbos()).toBe(launched)
+    expect(sdk.DBOS.launch).toHaveBeenCalledOnce()
+    expect(register).toHaveBeenCalledOnce()
+
+    await reloaded.shutdownStudioDbos()
+    expect(() => first.studioDbos()).toThrow('Studio has not launched DBOS in this process.')
+    expect(sdk.DBOS.shutdown).toHaveBeenCalledOnce()
+  })
+
+  it('a failure after launch shuts DBOS down and closes the clients it created, so a retry launches afresh', async () => {
+    const { launchStudioDbos, studioDbos } = await freshModule()
+    const unreachable = new Error('kei client failed')
+    sdk.create
+      .mockImplementationOnce(sdk.create.getMockImplementation()!)
+      .mockRejectedValueOnce(unreachable)
+
+    await expect(
+      launchStudioDbos({ databaseUrl: URL, register: () => undefined }),
+    ).rejects.toBe(unreachable)
+    expect(sdk.calls.slice(-3)).toEqual([
+      'client:studio:dbos',
+      'shutdown',
+      'destroy:studio',
+    ])
+    expect(sdk.state.initialized).toBe(false)
+    expect(() => studioDbos()).toThrow('Studio has not launched DBOS in this process.')
+
+    const retried = await launchStudioDbos({ databaseUrl: URL, register: () => undefined })
+    expect(studioDbos()).toBe(retried)
+    expect(sdk.DBOS.launch).toHaveBeenCalledTimes(2)
+  })
+
   it('refuses to launch when DBOS was launched elsewhere in this process', async () => {
     const { launchStudioDbos } = await freshModule()
     sdk.DBOS.isInitialized.mockReturnValueOnce(true)
@@ -203,6 +256,17 @@ describe('Studio DBOS', () => {
     expect(sdk.DBOS.shutdown).toHaveBeenCalledOnce()
     for (const client of sdk.clients) expect(client.destroy).toHaveBeenCalledOnce()
     expect(() => studioDbos()).toThrow('Studio has not launched DBOS in this process.')
+  })
+
+  it('shutdown closes both clients even when DBOS fails to stop', async () => {
+    const { launchStudioDbos, shutdownStudioDbos } = await freshModule()
+    await launchStudioDbos({ databaseUrl: URL, register: () => undefined })
+    const stuck = new Error('DBOS did not stop')
+    sdk.DBOS.shutdown.mockRejectedValueOnce(stuck)
+
+    await expect(shutdownStudioDbos()).rejects.toBe(stuck)
+
+    for (const client of sdk.clients) expect(client.destroy).toHaveBeenCalledOnce()
   })
 
   it('awaitWorkflowOutcome returns a finished workflow\'s output and a stopped workflow\'s status, and times out without waiting past its deadline', async () => {

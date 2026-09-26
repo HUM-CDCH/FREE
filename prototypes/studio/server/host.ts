@@ -146,13 +146,17 @@ export async function startStudioServer(
       signals.off('SIGINT', stopForSignal)
       signals.off('SIGTERM', stopForSignal)
       runtimeAbort.abort()
-      // Requests still in flight may enqueue work, so DBOS stops only after the listener closed.
-      await closeServer(server)
-      await Promise.all([
-        dbos.shutdown(),
-        runtime.close().then(() => running),
-        providerRuntime.close(),
-      ])
+      // Requests still in flight may enqueue work, so DBOS stops only after the listener closed; a listener that fails
+      // to close must not leave DBOS, the runtime or the providers running.
+      try {
+        await closeServer(server)
+      } finally {
+        await Promise.all([
+          dbos.shutdown(),
+          runtime.close().then(() => running),
+          providerRuntime.close(),
+        ])
+      }
     })()
     return stopping
   }

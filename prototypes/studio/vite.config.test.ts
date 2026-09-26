@@ -484,6 +484,65 @@ describe('Vite Hono integration', () => {
     await vi.advanceTimersByTimeAsync(100)
     expect(development.logger.warn).toHaveBeenCalledOnce()
     expect(development.dbos.launchStudioDbos).toHaveBeenCalledOnce()
+
+    // The running DBOS keeps the configuration and queues it launched with.
+    const dbosModule = '/workspace/prototypes/studio/server/dbos.ts'
+    development.serverModules.add(dbosModule)
+    development.change(dbosModule)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(development.logger.warn).toHaveBeenCalledTimes(2)
+    expect(development.logger.warn).toHaveBeenLastCalledWith(
+      expect.stringContaining('restart Studio'),
+    )
+  })
+
+  it('a restarted dev server adopts the running DBOS, and closing the server it replaced leaves DBOS running', async () => {
+    // Vite restarts by configuring the new server before it closes the old one.
+    const dbos = studioDbosModule()
+    const replaced = developmentServer({
+      dbos,
+      ssrLoadModule: studioModules({ createStudioApp: vi.fn(async () => ({})) }),
+    })
+    await configureServerHook(apiFunctions('/free'))(replaced.server)
+    const restarted = developmentServer({
+      dbos,
+      ssrLoadModule: studioModules({ createStudioApp: vi.fn(async () => ({})) }),
+    })
+    await configureServerHook(apiFunctions('/free'))(restarted.server)
+
+    replaced.closeHttpServer()
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(dbos.shutdownStudioDbos).not.toHaveBeenCalled()
+
+    restarted.closeHttpServer()
+    await vi.waitFor(() =>
+      expect(dbos.shutdownStudioDbos).toHaveBeenCalledOnce(),
+    )
+  })
+
+  it('a restart that fails to configure leaves DBOS to the server that keeps running', async () => {
+    const dbos = studioDbosModule()
+    const running = developmentServer({
+      dbos,
+      ssrLoadModule: studioModules({ createStudioApp: vi.fn(async () => ({})) }),
+    })
+    await configureServerHook(apiFunctions('/free'))(running.server)
+    const failed = developmentServer({
+      dbos,
+      ssrLoadModule: studioModules({
+        createStudioApp: vi.fn(async () => {
+          throw new Error('Unexpected token')
+        }),
+      }),
+    })
+    await expect(
+      configureServerHook(apiFunctions('/free'))(failed.server),
+    ).rejects.toThrow('Unexpected token')
+
+    running.closeHttpServer()
+    await vi.waitFor(() =>
+      expect(dbos.shutdownStudioDbos).toHaveBeenCalledOnce(),
+    )
   })
 
   it('shuts DBOS down when the HTTP server closes', async () => {
