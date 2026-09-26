@@ -233,6 +233,11 @@ describe('Studio DBOS', () => {
     const { launchStudioDbos, studioDbos } = await freshModule()
     const unavailable = new Error('queue registration failed')
     sdk.DBOS.registerQueue.mockRejectedValueOnce(unavailable)
+    sdk.DBOS.shutdown.mockImplementationOnce(async () => {
+      // A previously claimed workflow can still dispatch while shutdown drains queue polls.
+      expect(studioDbos()).toMatchObject({ admission: sdk.clients[0], kei: sdk.clients[1] })
+      sdk.state.initialized = false
+    })
 
     await expect(launchStudioDbos({ databaseUrl: URL, register: () => undefined })).rejects.toBe(unavailable)
     expect(() => studioDbos()).toThrow('Studio has not launched DBOS in this process.')
@@ -269,6 +274,11 @@ describe('Studio DBOS', () => {
     const { launchStudioDbos, shutdownStudioDbos, studioDbos } = await freshModule()
     await launchStudioDbos({ databaseUrl: URL, register: () => undefined })
     sdk.calls.length = 0
+    sdk.DBOS.shutdown.mockImplementationOnce(async () => {
+      expect(studioDbos()).toMatchObject({ admission: sdk.clients[0], kei: sdk.clients[1] })
+      sdk.calls.push('shutdown')
+      sdk.state.initialized = false
+    })
 
     await shutdownStudioDbos()
     await shutdownStudioDbos()
@@ -277,6 +287,27 @@ describe('Studio DBOS', () => {
     expect(sdk.DBOS.shutdown).toHaveBeenCalledOnce()
     for (const client of sdk.clients) expect(client.destroy).toHaveBeenCalledOnce()
     expect(() => studioDbos()).toThrow('Studio has not launched DBOS in this process.')
+  })
+
+  it('a new launch waits for shutdown to finish before starting DBOS again', async () => {
+    const { launchStudioDbos, shutdownStudioDbos, studioDbos } = await freshModule()
+    await launchStudioDbos({ databaseUrl: URL, register: () => undefined })
+    let release!: () => void
+    const held = new Promise<void>((resolve) => { release = resolve })
+    sdk.DBOS.shutdown.mockImplementationOnce(async () => {
+      expect(studioDbos()).toBeDefined()
+      await held
+      sdk.state.initialized = false
+    })
+
+    const stopping = shutdownStudioDbos()
+    await vi.waitFor(() => expect(sdk.DBOS.shutdown).toHaveBeenCalledOnce())
+    const restarting = launchStudioDbos({ databaseUrl: URL, register: () => undefined })
+    expect(sdk.DBOS.launch).toHaveBeenCalledOnce()
+    release()
+    await stopping
+    await restarting
+    expect(sdk.DBOS.launch).toHaveBeenCalledTimes(2)
   })
 
   it('shutdown closes both clients even when DBOS fails to stop', async () => {

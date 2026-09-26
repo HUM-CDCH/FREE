@@ -56,7 +56,7 @@ export function studioDbosConfig(options: Pick<StudioDbosOptions, 'databaseUrl' 
   }
 }
 
-type LaunchRecord = { launching?: Promise<StudioDbos>; launched?: StudioDbos }
+type LaunchRecord = { launching?: Promise<StudioDbos>; launched?: StudioDbos; stopping?: Promise<void> }
 
 /**
  * The launch is process-wide, like DBOS itself. Vite evaluates this module afresh after an edit to it and on every
@@ -73,6 +73,7 @@ const launch: LaunchRecord = ((globalThis as { [key: symbol]: LaunchRecord | und
  * launch, and a DBOS launched by anyone else is refused.
  */
 export function launchStudioDbos(options: StudioDbosOptions): Promise<StudioDbos> {
+  if (launch.stopping) return launch.stopping.then(() => launchStudioDbos(options))
   if (launch.launching) return launch.launching
   if (DBOS.isInitialized())
     throw new Error('DBOS was launched outside launchStudioDbos; Studio launches it once per process.')
@@ -118,8 +119,13 @@ async function start(options: StudioDbosOptions): Promise<StudioDbos> {
   } catch (error) {
     // Leave nothing running: a retry then launches afresh instead of meeting this DBOS as a foreign one. The startup
     // error is the one to report, so a failure while stopping is dropped.
-    launch.launched = undefined
-    await stop(clients).catch(() => undefined)
+    try {
+      await stop(clients)
+    } catch {
+      // Report the startup failure.
+    } finally {
+      launch.launched = undefined
+    }
     throw error
   }
 }
@@ -138,12 +144,20 @@ export function studioDbos(): StudioDbos {
   return launch.launched
 }
 
-export async function shutdownStudioDbos(): Promise<void> {
-  const current = await launch.launching?.catch(() => undefined)
-  launch.launching = undefined
-  launch.launched = undefined
-  if (!current) return
-  await stop([current.admission, current.kei])
+export function shutdownStudioDbos(): Promise<void> {
+  if (launch.stopping) return launch.stopping
+  const stopping = (async () => {
+    const current = await launch.launching?.catch(() => undefined)
+    try {
+      if (current) await stop([current.admission, current.kei])
+    } finally {
+      launch.launching = undefined
+      launch.launched = undefined
+      launch.stopping = undefined
+    }
+  })()
+  launch.stopping = stopping
+  return stopping
 }
 
 export async function databaseClockMs(databaseUrl: string): Promise<number> {

@@ -235,6 +235,7 @@ export function createSourceDocumentIngestion(
         intervalMs: dependencies.resultPollIntervalMs,
         signal: request.signal,
       }).catch((cause) => {
+        if (request.signal.aborted) throw cause
         throw persistenceUnavailable(cause, 'Source Document ingestion status is unavailable.')
       })
       // Detaches: nothing is cancelled, and a re-upload of the same bytes joins the attempt or replays its document.
@@ -249,6 +250,7 @@ export function createSourceDocumentIngestion(
         { status: 201, headers: noStore },
       )
     } catch (error) {
+      if (request.signal.aborted) throw error
       return noStoreError(error)
     }
   }
