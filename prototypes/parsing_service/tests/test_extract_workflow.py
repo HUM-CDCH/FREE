@@ -206,12 +206,12 @@ def test_both_workflows_give_up_after_five_recovery_attempts():
         assert keywords["max_recovery_attempts"] == "config.MAX_RECOVERY_ATTEMPTS"
 
 
-@pytest.mark.parametrize("value, chunks", [(None, 1), ("4", 4), ("1", 1)])
+@pytest.mark.parametrize("value, chunks", [(None, 1), ("4", 4), ("1", 1), ("64", 64)])
 def test_the_chunk_setting(value, chunks):
     assert workflow.catalog_chunks({} if value is None else {"KEI_CATALOG_CHUNKS": value}) == chunks
 
 
-@pytest.mark.parametrize("value", ["0", "-2", "four", ""])
+@pytest.mark.parametrize("value", ["0", "-2", "four", "", "65", "400"])
 def test_a_bad_chunk_setting_stops_the_worker(value):
     with pytest.raises(ValueError, match="KEI_CATALOG_CHUNKS"):
         workflow.catalog_chunks({"KEI_CATALOG_CHUNKS": value})

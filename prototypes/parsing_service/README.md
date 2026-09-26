@@ -55,7 +55,7 @@ never authoritative Evidence.
 | `KEI_EXTRACT_URL`, `KEI_EXTRACT_MODEL` | Extraction's instruction model server and the model it serves |
 | `KEI_NUEXTRACT_URL`, `KEI_NUEXTRACT_MODEL` | NuExtract template extractor server and model; unset, every call goes to the instruction model |
 | `KEI_EXTRACT_TIMEOUT` | Timeout of one extraction model call, seconds |
-| `KEI_CATALOG_CHUNKS` | Worker only: chunks a grounded Catalog's entries run in at once; unset means 1 |
+| `KEI_CATALOG_CHUNKS` | Worker only: chunks a grounded Catalog's entries run in at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`) |
 | `KEI_MAX_UPLOAD_BYTES`, `KEI_MAX_PAGES` | Limits `convert` enforces on a staged source |
 
 Root Compose owns model processes. The standalone `kei-dev` UI launcher and

@@ -86,7 +86,7 @@ services:
       - --kv-cache-memory-bytes
       - "${NUEXTRACT_KV_CACHE_BYTES:-4G}"
       - --max-num-seqs
-      - "4"
+      - "${NUEXTRACT_MAX_NUM_SEQS:-4}"
     depends_on:
       ocr_model:
         condition: service_healthy
@@ -121,10 +121,13 @@ services:
   parsing_service:
     environment: *parsing-gpu-env
 
-  # A restarted worker reclaims durable extraction jobs, so it starts once the
+  # A restarted worker recovers its pending workflows, so it starts once the
   # last extraction server (after OCR and NuExtract) is serving.
   parsing_worker:
-    environment: *parsing-gpu-env
+    environment:
+      <<: *parsing-gpu-env
+      # A Catalog extraction runs its entries in as many chunks as NuExtract serves requests at once.
+      KEI_CATALOG_CHUNKS: "${NUEXTRACT_MAX_NUM_SEQS:-4}"
     depends_on:
       ocr_model:
         condition: service_healthy

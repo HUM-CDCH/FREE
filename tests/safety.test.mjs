@@ -97,7 +97,6 @@ const completeProductionEnvironment = (certificatePath) => ({
   STUDIO_BASE_PATH: '/free',
   FREE_SESSION_SECRET: Buffer.alloc(32, 7).toString('base64'),
   FREE_POSTGRES_PASSWORD: 'a'.repeat(64),
-  FREE_PARSING_POSTGRES_PASSWORD: 'c'.repeat(64),
   FREE_KEI_POSTGRES_PASSWORD: 'd'.repeat(64),
   FREE_ENTRA_TENANT_ID: '11111111-2222-4333-8444-555555555555',
   FREE_ENTRA_CLIENT_ID: '66666666-7777-4888-9999-aaaaaaaaaaaa',
@@ -153,7 +152,7 @@ for (const gpu of [false, true]) test(`production: compose renders with GPU acce
   assert.equal(result.status, 0, result.stderr)
   const config = JSON.parse(result.stdout)
   assertOwnedParsingTopology(config, gpu)
-  assert.equal(config.services.parsing_db.environment.POSTGRES_PASSWORD, 'c'.repeat(64))
+  assert.equal(new URL(config.services.parsing_worker.environment.KEI_SYSTEM_DATABASE_URL).password, 'd'.repeat(64))
   // Production keeps its host-managed nginx and has no mock identity provider.
   assert.equal(config.services.nginx, undefined)
   assert.equal(config.services['mock-oidc'], undefined)
@@ -166,24 +165,37 @@ function assertOwnedParsingTopology(config, gpu) {
   // Host-run Model Connections still resolve from Studio, independently of parsing.
   assert.ok(services.studio.extra_hosts?.some((host) => /^host\.docker\.internal[:=]host-gateway$/.test(host)),
     `studio.extra_hosts: ${JSON.stringify(services.studio.extra_hosts)}`)
-  const expectedDatabase = services.parsing_migrate.environment.KEI_DATABASE_URL
-  assert.match(expectedDatabase, /@parsing_db:5432\/kei$/)
-  assert.deepEqual(services.parsing_migrate.command, ['kei-jobs', 'schema', '--apply'])
-  assert.equal(services.parsing_migrate.depends_on.parsing_db.condition, 'service_healthy')
+  // kei runs on DBOS in Studio's database: no job database, no migration service, no schema-checking entrypoint.
+  for (const gone of ['parsing_db', 'parsing_migrate']) assert.equal(services[gone], undefined, gone)
+  assert.equal(config.volumes['parsing-postgres'], undefined)
+  assert.equal(services.studio.environment.KEI_EXP_MODEL, undefined, "kei's KEI_OCR_MODEL is the OCR default")
+  // The parsing API reads files only: no database URL, password or dependency.
+  const api = services.parsing_service
+  assert.deepEqual(Object.keys(api.environment).filter((name) => /DATABASE|POSTGRES/.test(name)), [])
+  assert.equal(api.depends_on?.db, undefined)
+  // kei's worker connects as the restricted kei role to database free; its schema is kei_dbos (M2's entrypoint).
+  const kei = new URL(services.parsing_worker.environment.KEI_SYSTEM_DATABASE_URL)
+  assert.deepEqual([kei.protocol, kei.username, kei.hostname, kei.port, kei.pathname],
+    ['postgresql:', 'kei', 'db', '5432', '/free'])
+  assert.ok(kei.password.length > 0)
+  assert.deepEqual(services.parsing_worker.command, ['kei-worker', 'worker'])
+  // Studio's entrypoint creates the role and schema, so the worker waits for Studio; Studio no longer waits for it.
+  assert.equal(services.parsing_worker.depends_on.studio.condition, 'service_healthy')
+  assert.equal(services.studio.depends_on.parsing_worker, undefined)
   for (const name of ['parsing_service', 'parsing_worker']) {
     const service = services[name]
-    assert.equal(service.environment.KEI_DATABASE_URL, expectedDatabase)
+    // Compose renders an unset entrypoint as null: the image's own entrypoint runs the command.
+    assert.equal(service.entrypoint ?? null, null, name)
     assert.equal(service.environment.KEI_RUNS, '/app/runs')
     assert.equal(service.environment.KEI_SLOT, 'slot-1')
-    assert.equal(service.depends_on.parsing_migrate.condition, 'service_completed_successfully')
+    assert.equal(service.environment.KEI_OCR_MODEL, 'surya', name)
     assert.ok(service.volumes.some(({ source, target }) => source === 'parsing-runs' && target === '/app/runs'))
     assert.equal(service.ports, undefined, 'the unauthenticated service stays private')
     assert.equal(service.deploy?.resources?.reservations?.devices, undefined)
   }
+  assert.equal(services.parsing_service.environment.KEI_SYSTEM_DATABASE_URL, undefined)
   assert.equal(services.parsing_worker.restart, 'unless-stopped')
-  assert.deepEqual(services.parsing_worker.command, ['kei-jobs', 'worker'])
   assert.equal(services.studio.depends_on.parsing_service.condition, 'service_healthy')
-  assert.equal(services.parsing_db.ports, undefined, 'parsing_db stays private')
   // Extraction is served by vLLM on the GPU overlay only; no Ollama server or pull job remains.
   assert.equal(services.extraction_model_init, undefined)
   assert.equal(services.studio.depends_on.extraction_model_init, undefined)
@@ -216,8 +228,12 @@ function assertOwnedParsingTopology(config, gpu) {
     assert.equal(services.nuextract_model.depends_on.ocr_model.condition, 'service_healthy')
     assert.equal(services.extraction_model.depends_on.nuextract_model.condition, 'service_healthy')
     assert.equal(services.parsing_worker.depends_on.ocr_model.condition, 'service_healthy')
-    // A restarted worker reclaims durable extraction jobs: it starts once the last extraction server is serving.
+    // A restarted worker recovers its pending workflows, so it starts once the last extraction server is serving.
     assert.equal(services.parsing_worker.depends_on.extraction_model.condition, 'service_healthy')
+    // A Catalog sends as many entry requests at once as NuExtract runs (--max-num-seqs).
+    const nuSeqs = services.nuextract_model.command[services.nuextract_model.command.indexOf('--max-num-seqs') + 1]
+    assert.equal(services.parsing_worker.environment.KEI_CATALOG_CHUNKS, nuSeqs)
+    assert.equal(services.parsing_service.environment.KEI_CATALOG_CHUNKS, undefined)
     for (const name of ['nuextract_model', 'extraction_model'])
       assert.equal(services.studio.depends_on[name].condition, 'service_healthy', name)
     // Studio's deployment default names the same served model, on the servers' private addresses.
@@ -228,21 +244,23 @@ function assertOwnedParsingTopology(config, gpu) {
     // Without the servers, Studio offers no deployment default.
     assert.equal(services.studio.environment.FREE_DEPLOYMENT_INSTRUCT_URL, undefined)
     assert.equal(services.parsing_worker.environment.SURYA_INFERENCE_PARALLEL, undefined)
+    assert.equal(services.parsing_worker.environment.KEI_CATALOG_CHUNKS, undefined)
   }
   assert.equal(config.volumes['postgres-data'].name.endsWith('_postgres-data'), true)
   assert.equal(config.volumes['parsing-runs'].name.endsWith('_parsing-runs'), true)
 }
 
-test('development: the owned parsing stack migrates before serving and restarts both source processes', () => {
+test("development: the owned parsing stack runs on Studio's database and restarts both source processes", () => {
   const config = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {}))
   assertOwnedParsingTopology(config, false)
-  assert.equal(config.services.parsing_db.environment.POSTGRES_PASSWORD, 'kei')
+  assert.equal(new URL(config.services.parsing_worker.environment.KEI_SYSTEM_DATABASE_URL).password, 'kei-development')
   for (const name of ['parsing_service', 'parsing_worker']) {
     const watch = config.services[name].develop.watch
     const source = watch.find(({ action }) => action === 'sync+restart')
     assert.ok(source.path.replaceAll('\\', '/').endsWith('/prototypes/parsing_service/src'))
     assert.equal(source.target, '/app/src')
     assert.equal(source.initial_sync, true)
+    assert.ok(!(source.ignore ?? []).includes('kei_exp/jobs/schema.py'))
     for (const filename of ['pyproject.toml', 'uv.lock', 'Dockerfile'])
       assert.ok(watch.some(({ action, path }) => action === 'rebuild' && path.endsWith(`/${filename}`)))
   }

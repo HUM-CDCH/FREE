@@ -23,6 +23,10 @@ from kei_exp.workflows import config
 from kei_exp.workflows.cancel import CancelCheck
 from kei_exp.workflows.contracts import ExtractInput, ExtractOk, extraction_id_of, failure, settled
 
+# Each chunk is a thread with one model request in flight. Compose sets the count to NuExtract's --max-num-seqs
+# (default 4); a value past this bound is a typo, and would open that many threads and connections per Catalog.
+MAX_CATALOG_CHUNKS = 64
+
 
 def catalog_chunks(environ: Mapping[str, str]) -> int:
     value = environ.get("KEI_CATALOG_CHUNKS", "1")
@@ -30,8 +34,8 @@ def catalog_chunks(environ: Mapping[str, str]) -> int:
         chunks = int(value)
     except ValueError:
         chunks = 0
-    if chunks < 1:
-        raise ValueError(f"KEI_CATALOG_CHUNKS must be a positive integer, not {value!r}")
+    if not 1 <= chunks <= MAX_CATALOG_CHUNKS:
+        raise ValueError(f"KEI_CATALOG_CHUNKS must be an integer from 1 to {MAX_CATALOG_CHUNKS}, not {value!r}")
     return chunks
 
 
