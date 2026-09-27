@@ -42,6 +42,7 @@ manifest, captured reply or frozen follow-up archive was changed by integration.
 | `pnpm lint` | No errors; three existing React hook warnings |
 | Studio PostgreSQL GC acceptance | Seven passed, including the four adapted recovery scenarios |
 | `pnpm --filter studio test:service` | 14 passed in 4.4 minutes |
+| Browser suite collection after config reconciliation | 61 default and five recovery scenarios; collection only, no duplicate service/restart inclusion |
 | Intermediate study branch fast parser suite | 1024 passed, 72 skipped, 74 deselected |
 | Intermediate study branch captured reference replay | Six sources, 88 identical requests/replies and artifacts, excluding only top-level clocks |
 | Diff and bloat review | Passed; no new runtime dependencies, compatibility paths or settings |
