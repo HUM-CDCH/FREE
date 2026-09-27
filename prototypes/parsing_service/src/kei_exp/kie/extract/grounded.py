@@ -7,6 +7,9 @@ and conform to its field, and the field must be tied to the value by an explicit
 in-force heading (never asked of the model), or a recipe key that introduces the value. A quote-supported value
 without such a rule is proposed for review; a failed check is rejected; neither enters the accepted record. Every
 request is counted with the served model's tokenizer before it is sent and must fit the input budget.
+
+`extract` is the recipe Catalog's implementation: it obtains the recipe's segmentation and the counters, and adds the
+run's identity and fingerprint to the body `extract_grounded` returns.
 """
 from __future__ import annotations
 
@@ -18,6 +21,7 @@ from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -29,10 +33,12 @@ from kei_exp.kie.extract.models import ROLE, ROLES, Router, as_router
 from kei_exp.kie.extract.method import CatalogFactors
 from kei_exp.kie.extract.schema import Node, Schema, conform, json_schema, notes
 from kei_exp.kie.extract.stages import Call, _complete, merge
+from kei_exp.kie.extract.tokens import counters_for
 from kei_exp.kie.model import Block, GlossaryEntry, Span
 from kei_exp.kie.passages import Evidence, text_of
-from kei_exp.kie.recipe import Recipe
+from kei_exp.kie.recipe import Recipe, load_recipe
 from kei_exp.kie.segmentation import Segmentation
+from kei_exp.kie.segmentation_run import obtain
 
 EXTRACTION_VERSION = 2
 PROMPT_VERSION = 5  # Shared decoder preserves literal source control characters.
@@ -161,6 +167,31 @@ class _Run:
         if missing := [name for name in schema.get("required", []) if answer is not None and name not in answer]:
             self.issue("reply_missing_fields", f"the {stage} reply omits {', '.join(missing)}", record)
         return answer
+
+
+def extract(run_dir: Path, evidence: Evidence, request, chat: Router, *,
+            counter: Counter | dict[str, Counter] | None = None, chunks: int = 1,
+            before_entry: Callable[[], None] | None = None) -> dict:
+    """The recipe Catalog artifact for `request` (the validated `run.ExtractRequest`) over `evidence`: the proven
+    segmentation (computed and published under `run_dir` when absent), a verified token counter for each serving
+    endpoint (one per distinct chat) unless `counter` is given, and the version 2 artifact.
+
+    `before_entry` is called before every entry, and what it raises ends the extraction; the entries run in `chunks`
+    parallel contiguous chunks."""
+    options = request.options
+    recipe = load_recipe(options.catalog.recipe)
+    segmentation = obtain(run_dir, evidence, recipe)
+    if counter is None:
+        counter = counters_for(chat)
+    body = extract_grounded(evidence, request.schema_, recipe, options.catalog, segmentation, chat, counter,
+                            chunks=chunks, before_entry=before_entry)
+    result = {"run_id": evidence.run_id, "generation": evidence.generation, "digest": evidence.digest,
+              "model": chat.model, "models": chat.models,
+              "schema": request.schema_.model_dump(by_alias=True, exclude_none=True), "options": options.dumped(),
+              **body}
+    result["fingerprint"] = fingerprint(body, evidence.generation, evidence.digest, request.schema_,
+                                        options.dumped(), chat.models)
+    return result
 
 
 def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options: CatalogOptions,

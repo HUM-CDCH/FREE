@@ -7,11 +7,13 @@ from pathlib import Path
 import pytest
 
 from kei_exp.kie.extract.llm import Reply
-from kei_exp.kie.extract.run import PROMPT_VERSION, ExtractRequest, extract, fingerprint, publish_extraction
+from kei_exp.kie.extract.assembly import PROMPT_VERSION, fingerprint
+from kei_exp.kie.extract.run import ExtractRequest, extract, publish_extraction
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.article import inventory
+from kei_exp.kie.extract.catalog import discover
 from kei_exp.kie.extract.grounding import verify
-from kei_exp.kie.extract.stages import contains, discover, extract_record, merge
+from kei_exp.kie.extract.stages import contains, extract_record, merge
 from kei_exp.kie.passages import Evidence, Passage
 from kei_exp.result import write_result
 from tests.helpers.chat import FakeChat
@@ -65,7 +67,7 @@ class FixedCounter:
 
 @pytest.fixture(autouse=True)
 def article_counters(monkeypatch):
-    monkeypatch.setattr("kei_exp.kie.extract.run.counter_for", lambda chat: FixedCounter())
+    monkeypatch.setattr("kei_exp.kie.extract.tokens.counter_for", lambda chat: FixedCounter())
 
 
 def one_identity(reply_schema, identity="31. Hjortlund"):

@@ -83,12 +83,12 @@ def settled_extraction(kei, workflow_id):
 
 def scripted_extractions(monkeypatch):
     """Extractions answer from an honest chat double; one the returned gate holds stays inside its first call."""
-    from kei_exp.kie.extract import run as extraction
+    from kei_exp.kie.extract import tokens
     from kei_exp.workflows import extract as extract_workflow
     from tests.test_extract_grounded import CountingChat, WordCounter, honest
     gate = kei_helper.Gate()
     monkeypatch.setattr(extract_workflow, "chats_for", lambda options: CountingChat(lambda *a: gate() or honest(*a)))
-    monkeypatch.setattr(extraction, "counter_for", lambda client: WordCounter())
+    monkeypatch.setattr(tokens, "counter_for", lambda client: WordCounter())
     return gate
 
 
@@ -349,12 +349,12 @@ def test_a_history_id_named_twice_is_deleted_once(kei):
 
 def test_a_published_extraction_is_one_of_the_runs_writers(kei, monkeypatch):
     """extractions/<id>/ names its workflow, even once the `extract` listing no longer names the run."""
-    from kei_exp.kie.extract import run as extraction
+    from kei_exp.kie.extract import tokens
     from kei_exp.workflows import extract as extract_workflow
     from tests.helpers import catalogue
     from tests.test_extract_grounded import CountingChat, WordCounter, honest
     monkeypatch.setattr(extract_workflow, "chats_for", lambda options: CountingChat(honest))
-    monkeypatch.setattr(extraction, "counter_for", lambda client: WordCounter())
+    monkeypatch.setattr(tokens, "counter_for", lambda client: WordCounter())
     conversion = "kei-convert:ingest:p:o"
     run_id = kei_helper.converted_run(kei.runs, conversion)
     extraction_id = "kei-extract:x-5"

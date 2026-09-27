@@ -1,58 +1,38 @@
-"""One extraction: the request, the composition of the stages into the artifact, and its publication.
+"""One extraction: the request, the choice of the Extraction Strategy's implementation, and the artifact's publication.
 
 The artifact is one JSON file under the run directory. It carries everything a client needs to trust and use
 it: the parse generation and digest it was read from, the schema and options, the model and prompt version,
 and the fingerprint over all of those (so a repeat with the same inputs is the same extraction and a changed
 schema is another one, with no OCR rerun either way), the records, their evidence links into the canonical
-result, what stayed ungrounded, the issues, and every model call's cost. Document-level fields (`valueSource:
-document`) are extracted but not verified in this slice, since grounding them would need the whole source's
-labels: the artifact names them under `unverified`, and `complete` speaks for record values only.
+result, what stayed ungrounded, the issues, and every model call's cost.
+
+Every implementation has one call shape: the run directory, the evidence read from it, the validated request and a
+router, keyword-only `counter`, `chunks` and `before_entry`, returning the finished artifact. The recipe Catalog's
+is `grounded.extract`, Article's `article.extract` and the version 1 Catalog's `catalog.extract`; the last two
+assemble their version 1 artifact in `assembly.py`. `extract` chooses one from the options and does not know what it
+does; no implementation imports this module.
 """
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
-import time
 from collections.abc import Callable
-from dataclasses import asdict, replace
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from kei_exp.canonical import canonical_json
 from kei_exp.files import publish
-from kei_exp.kie.extract import grounded, grounding
+from kei_exp.kie.extract import article, catalog, grounded
 from kei_exp.kie.extract import models as extraction_models
-from kei_exp.kie.extract.article import extract_records, source_contexts
-from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, reconcile_values
 from kei_exp.kie.extract.grounded import CatalogOptions
 from kei_exp.kie.extract.llm import Chat
+from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router, as_router, chats_for
-from kei_exp.kie.extract.method import ArticleOptions, LimitedCounter
-from kei_exp.kie.extract.rendering import RENDERING_VERSION
 from kei_exp.kie.extract.schema import Schema
-from kei_exp.kie.extract.selection import VERSION as SELECTION_VERSION
-from kei_exp.kie.extract.stages import (
-    Call,
-    Issue,
-    Link,
-    discover,
-    extract_document,
-    extract_record,
-    leaves,
-    merge,
-)
-from kei_exp.kie.extract.tokens import BudgetUnavailable, counter_for
 from kei_exp.kie.passages import load
 from kei_exp.kie.recipe import load_recipe
-from kei_exp.kie.segmentation_run import obtain
-
-EXTRACTION_VERSION = 1
-PROMPT_VERSION = 12  # Lossless source-string decoding and coherent exact quoted grounding.
 
 
 class Options(BaseModel):
@@ -113,36 +93,17 @@ class StaleGeneration(ValueError):
     """
 
 
-def fingerprint(result: dict, request: ExtractRequest, model: dict) -> str:
-    """Over the parse generation and digest, the schema, the options, the model per role and the prompt version."""
-    return hashlib.sha256(canonical_json({
-        "generation": result["generation"], "digest": result["digest"],
-        "schema": request.schema_.model_dump(by_alias=True, exclude_none=True),
-        "options": request.options.dumped(), "model": model, "prompt_version": PROMPT_VERSION,
-        **({"method_version": 1} if request.options.article is not None else {}),
-        **({"rendering_version": RENDERING_VERSION} if request.options.article is not None
-           and request.options.article.rendering is not None else {}),
-        **({"grouping_version": GROUPING_VERSION} if request.options.article is not None
-           and request.options.article.grouping is not None else {}),
-        **({"selection_version": SELECTION_VERSION}
-           if request.options.article is not None and request.options.article.selection is not None else {}),
-    })).hexdigest()
-
-
 def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, generation: str | None = None,
             counter=None, chunks: int = 1, before_entry: Callable[[], None] | None = None) -> dict:
-    """The artifact for `request` over the run's canonical result, from the stages in order.
+    """The artifact for `request` over the run's canonical result, from the implementation its options choose.
 
     `generation` is the parse the caller admitted this extraction against, when it had one: the result on disk
     must still be that generation, or nothing is extracted (`StaleGeneration`). The check is before the first
     model call, so a run re-converted while the extraction sat in the queue costs no tokens. The CLI passes
     none: it extracts from whatever the directory holds at the moment it is run.
 
-    `before_entry` is a hook whose error ends the extraction (the worker's cooperative cancellation). A recipe's
-    grounded Catalog (`grounded.extract_grounded`) calls it before every entry, and runs its entries in `chunks`
-    parallel contiguous chunks. The version 1 Catalog calls it before each discovery call, before each record's
-    extraction and verification; Article, before inventory, each record call and each record's verification.
-    Both paths also check before each grounding batch, run unsplit and ignore `chunks`.
+    `counter`, `chunks` and `before_entry` go to the implementation unchanged. `before_entry` is a hook whose error
+    ends the extraction (the worker's cooperative cancellation); each implementation says where it calls it.
     """
     evidence = load(run_dir)
     if generation is not None and evidence.generation != generation:
@@ -150,153 +111,14 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
             f"the run's result is generation {evidence.generation!r}, not the {generation!r} this extraction was "
             f"admitted against: it was re-converted in between, so submit this extraction again against the "
             f"generation that is there now")
-    schema = request.schema_
-    options = request.options
     chat = as_router(chat)
-    if options.catalog is not None:
-        return _grounded(run_dir, evidence, request, chat, counter, chunks=chunks, before_entry=before_entry)
-    check = before_entry or _unchecked
-    started = datetime.now(UTC).isoformat()
-    clock = time.monotonic()
-    calls: list[Call] = []
-    issues: list[Issue] = []
-    article = options.strategy == "article"
-    method = options.article
-    contexts = [Context(evidence.passages)]
-    identities = []
-    if article:
-        if counter is None:
-            counters = {id(client): counter_for(client) for client in chat.chats().values()}
-            counter = {role: counters[id(client)] for role, client in chat.chats().items()}
-        for role in ("fields", "reasoning"):
-            if type(counter[role].context_tokens) is not int or counter[role].context_tokens <= 0:
-                raise BudgetUnavailable(f"Article requires the {role} endpoint's context size")
-        if method is not None and method.context == "bounded":
-            counter = {role: LimitedCounter(each, method.context_tokens) for role, each in counter.items()}
-            contexts = source_contexts(evidence.passages, schema, method, counter["reasoning"], check)
-    documents = []
-    for context in contexts:
-        if schema.document_nodes:
-            check()
-        document, document_calls, document_issues = extract_document(replace(evidence, passages=context.passages),
-            schema, chat, budget=options.record_chars, counter=counter["fields"] if article else None,
-            structured=method is not None and method.rendering == "structured")
-        documents.append(document)
-        calls += document_calls
-        issues += document_issues
-    document, document_conflicts = reconcile_values(documents) if len(documents) > 1 else (documents[0], [])
-    issues += [Issue("conflicting_document_values", json.dumps(conflict, ensure_ascii=False))
-               for conflict in document_conflicts]
-    if article:
-        extracted = extract_records(evidence.passages, schema, chat, counters=counter,
-                                    record_chars=options.record_chars, check=check, method=method, contexts=contexts)
-        identities, slices = extracted.identities, extracted.slices
-        calls += extracted.calls
-        issues += extracted.issues
-    else:  # discovery checks before each of its calls
-        groups, discovery_calls, discovery_issues = discover(evidence, schema, chat, budget=options.discovery_chars,
-                                                            before_call=check)
-        calls += discovery_calls
-        issues += discovery_issues
-        slices = []
-        for number, group in enumerate(groups):
-            check()
-            fields, record_calls, record_issues = extract_record(group, schema, chat, budget=options.record_chars,
-                                                                 record=number)
-            calls += record_calls
-            issues += record_issues
-            slices.append((group, fields))
-    records: list[dict] = []
-    links: list[Link] = []
-    proofs: list[dict] = []
-    ground = grounding.technique(method.grounding if method is not None else None)
-    for number, (group, fields) in enumerate(slices):
-        check()
-        for verification_group in [c.passages for c in contexts] if article else [group]:
-            found_links, grounding_calls, grounding_issues = ground(verification_group, fields, schema, chat,
-                record=number, budget=options.record_chars, counter=counter["reasoning"] if article else None,
-                record_context=(identities[number]["label"] + "\n" + json.dumps(identities[number]["identity"],
-                    ensure_ascii=False)) if article else None,
-                before_call=check, proofs=proofs)
-            # Retain the first support in canonical order for each path; all calls remain auditable.
-            known = {link.path for link in links}
-            links += [link for link in found_links if link.path not in known]
-            calls += grounding_calls
-            issues += grounding_issues
-        records.append(merge(fields, document, evidence.source_name, schema))
-    grounded = {link.path for link in links}
-    ungrounded = [["records", number, *path] for number, (_, fields) in enumerate(slices)
-                  for path, _ in leaves(fields) if ("records", number, *path) not in grounded]
-    result = {
-        "extraction_version": EXTRACTION_VERSION, "run_id": evidence.run_id, "generation": evidence.generation,
-        "digest": evidence.digest, "strategy": options.strategy, "model": chat.model, "models": chat.models,
-        "prompt_version": PROMPT_VERSION,
-        "schema": schema.model_dump(by_alias=True, exclude_none=True), "options": options.dumped(),
-        "started": started, "seconds": round(time.monotonic() - clock, 3),
-        "complete": all(call.ok for call in calls) and not ungrounded and not issues,
-        "records": records,
-        "evidence": [{**asdict(link), "path": list(link.path), "bbox_pt": list(link.bbox_pt)} for link in links],
-        "ungrounded": ungrounded,
-        "unverified": [node.name for node in schema.document_nodes],
-        "issues": [{**asdict(issue), "path": list(issue.path) if issue.path else None} for issue in issues],
-        "calls": [asdict(call) for call in calls],
-        "tokens": {"input": _total(call.input_tokens for call in calls),
-                   "output": _total(call.output_tokens for call in calls)},
-    }
-    result["fingerprint"] = fingerprint(result, request, chat.models)
-    if article:
-        result["inventory"] = identities
-    if method is not None:
-        result["method_version"] = 1
-        result["contexts"] = [context.dumped() for context in contexts]
-        result["value_contexts"] = [[context.dumped() for context in group] for group in extracted.value_contexts]
-        result["quoted_support"] = proofs
-        if method.rendering is not None:
-            result["rendering_version"] = RENDERING_VERSION
-        if method.grouping is not None:
-            result["grouping_version"] = GROUPING_VERSION
-        if method.selection is not None:
-            result["selection_version"] = SELECTION_VERSION
-            result["selections"] = extracted.selections
-        result["conflicts"] = {"document": document_conflicts, "records": extracted.conflicts}
-        result["completion"] = {
-            "processing": all(call.ok for call in calls),
-            "source_coverage": "attempted" if all(call.ok for call in calls if call.stage == "inventory") else "partial",
-            "grounding": "disabled" if method.grounding == "off" else ("complete" if not ungrounded else "partial"),
-            "record_recall": "unmeasured", "document_fields": "unverified" if schema.document_nodes else "not_applicable"}
-        # Successful calls and linked returned fields cannot establish inventory recall.
-        result["complete"] = False
-    return result
-
-
-def _grounded(run_dir: Path, evidence, request: ExtractRequest, chat: Router, counter, *, chunks: int = 1,
-              before_entry: Callable[[], None] | None = None) -> dict:
-    """The recipe path: the proven segmentation (computed and published when absent), a verified token counter for
-    each serving endpoint (one per distinct chat), and the version 2 artifact."""
-    options = request.options
-    recipe = load_recipe(options.catalog.recipe)
-    segmentation = obtain(run_dir, evidence, recipe)
-    if counter is None:
-        counters = {id(client): counter_for(client) for client in chat.chats().values()}
-        counter = {role: counters[id(client)] for role, client in chat.chats().items()}
-    body = grounded.extract_grounded(evidence, request.schema_, recipe, options.catalog, segmentation, chat, counter,
-                                     chunks=chunks, before_entry=before_entry)
-    result = {"run_id": evidence.run_id, "generation": evidence.generation, "digest": evidence.digest,
-              "model": chat.model, "models": chat.models,
-              "schema": request.schema_.model_dump(by_alias=True, exclude_none=True), "options": options.dumped(),
-              **body}
-    result["fingerprint"] = grounded.fingerprint(body, evidence.generation, evidence.digest, request.schema_,
-                                                 options.dumped(), chat.models)
-    return result
-
-
-def _unchecked() -> None:
-    """No cancellation hook: the CLI and direct callers run to the end."""
-
-
-def _total(values) -> int | None:
-    known = [value for value in values if value is not None]
-    return sum(known) if known else None
+    if request.options.catalog is not None:
+        implementation = grounded.extract
+    elif request.options.strategy == "article":
+        implementation = article.extract
+    else:
+        implementation = catalog.extract
+    return implementation(run_dir, evidence, request, chat, counter=counter, chunks=chunks, before_entry=before_entry)
 
 
 def publish_extraction(run_dir: Path, extraction_id: str, result: dict) -> Path:

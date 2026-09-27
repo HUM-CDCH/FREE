@@ -1,17 +1,16 @@
 """The extraction stages as plain functions over passages and a chat completion (plan B rule 6).
 
-Catalog discovery asks which labelled passages open a record and cuts the passages into record slices at
-those starts; only the final chunk may close the records with an `end`, since an earlier chunk cannot know what
-follows it. Each record is extracted with one structured-output call under a guardrail. The merge orders a
-record's fields as the schema does and adds the document-level and filename fields. Article instead inventories
-noncontiguous records and their supporting passages. Article requests use served-token admission. Grounding the
-extracted values lives in `grounding.py`, which uses the value helpers and model admission defined here.
+Each record is extracted with one structured-output call under a guardrail. The merge orders a record's fields as
+the schema does and adds the document-level and filename fields. Article requests use served-token admission. How
+records are found belongs to each strategy: version 1 Catalog discovery lives in `catalog.py`, the Article inventory
+of noncontiguous records and their supporting passages in `article.py`. Grounding the extracted values lives in
+`grounding.py`, which uses the value helpers and model admission defined here.
 """
 from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -25,38 +24,6 @@ from kei_exp.kie.passages import Evidence, Passage, text_of
 GUARDRAIL = ("You extract structured data from a source document. Use only the requested output fields. Copy "
              "values from the source as written unless the field defines normalized labels; do not invent "
              "unsupported information. A value the source does not give is null. Return only the JSON object.")
-# Without reasoning, "the first block AFTER the last record" read to qwen3:8b as the last record itself.
-DISCOVERY = ("Identify record boundaries in the labelled source text. A record is: {description}\nReturn JSON "
-             "with \"starts\", the labels of the blocks that OPEN each record, in source order without duplicates; "
-             "the last record opens at a start too. Return \"end\" as null when the last record runs to the end of "
-             "the text; otherwise \"end\" is the label of the first block after the last record that belongs to no "
-             "record, such as a bibliography or index. A block that opens a record is never the end. Do not select "
-             "continuation text, descriptions, finds within a record or section headings unless they themselves "
-             "open a record.")
-DISCOVERY_EXAMPLES = """
-Examples (independent documents; use only labels from the actual input):
-Input: [B1] Regional inventory
-[B2] 7. Oak: urn.
-[B3] Another fragment from Oak.
-[B4] 8. Brook: axe.
-Output: {"starts":["B2","B4"],"end":null}
-Input: [B1] Northern region
-[B2] Reed: a bronze spear.
-[B3] Southern region
-[B4] Mere: a clay bowl.
-[B5] A decorated rim was also recovered at Mere.
-[B6] References
-[B7] Smith 1998.
-Output: {"starts":["B2","B4"],"end":"B6"}
-
-Input: [B1] Inventory
-[B2] 12. Marsh: a burial with these finds:
-[B3] 1. A clay vessel.
-[B4] 2. A bone pin.
-[B5] 13. Heath: a stone axe.
-[B6] A second axe was found at Heath.
-Output: {"starts":["B2","B5"],"end":null}
-"""
 ARTICLE = ("Extract only the specified record, combining its evidence across the complete source. Keep its final "
            "preparation or fraction distinct from the starting material, bulk preparation, other fractions and "
            "comparison controls. Collect ALL observations requested by the schema, including the same analyte "
@@ -144,112 +111,6 @@ def _complete(chat: Chat | Router, *, stage: str, record: int | None, system: st
 
 def _labelled(passages: Sequence[Passage], labels: Sequence[str]) -> str:
     return "\n\n".join(f"[{label}] {passage.text.strip()}" for label, passage in zip(labels, passages, strict=True))
-
-
-def _chunks(passages: Sequence[Passage], budget: int) -> list[tuple[int, int]]:
-    """Half-open index ranges of whole pages whose labelled text fits `budget` characters; a page that alone
-    exceeds it stands as its own chunk."""
-    ranges: list[tuple[int, int]] = []
-    start, size = 0, 0
-    for index, passage in enumerate(passages):
-        new_page = index > 0 and passage.page != passages[index - 1].page
-        if new_page and size + _page_size(passages, index) > budget and index > start:
-            ranges.append((start, index))
-            start, size = index, 0
-        size += len(passage.text) + 12
-    if start < len(passages):
-        ranges.append((start, len(passages)))
-    return ranges
-
-
-def _page_size(passages: Sequence[Passage], index: int) -> int:
-    page = passages[index].page
-    return sum(len(p.text) + 12 for p in passages[index:] if p.page == page)
-
-
-def discover(evidence: Evidence, schema: Schema, chat: Chat, *, budget: int,
-             before_call: Callable[[], None] | None = None) -> tuple[list[list[Passage]], list[Call], list[Issue]]:
-    """Record slices of the passages, in order, cut at the starts the model names; labels run on across chunks.
-
-    Only the final chunk may close the records with an `end`: an earlier chunk cannot know what follows it. An end
-    named earlier, or one that lies at or before a record start, is ignored with an issue; a record is never
-    dropped for it. `before_call`, when given, runs before each chunk's call; its error ends discovery (the worker's
-    cooperative cancellation)."""
-    passages = list(evidence.passages)
-    labels = [f"B{n}" for n in range(1, len(passages) + 1)]
-    system = DISCOVERY.format(description=schema.record_description) + DISCOVERY_EXAMPLES
-    starts: list[int] = []
-    end: int | None = None
-    calls: list[Call] = []
-    issues: list[Issue] = []
-    chunks = _chunks(passages, budget)
-    for number, (first, last) in enumerate(chunks):
-        if before_call is not None:
-            before_call()
-        shown = labels[first:last]
-        reply_schema = {"type": "object", "properties": {
-            "starts": {"type": "array", "items": {"type": "string", "enum": shown}},
-            "end": {"type": ["string", "null"], "enum": [*shown, None]}},
-            "required": ["starts", "end"], "additionalProperties": False}
-        answer, attempts = _complete(chat, stage="discovery", record=None, system=system,
-                                     user=_labelled(passages[first:last], shown), schema=reply_schema)
-        calls += attempts
-        call = attempts[-1]
-        if not call.ok:
-            issues.append(Issue("call_failed", call.error or "discovery failed"))
-            continue
-        given = answer.get("starts", []) if isinstance(answer, dict) else []
-        for label in given if isinstance(given, list) else []:
-            index = _index(label, labels)
-            if index is None or index < first or index >= last or (starts and index <= starts[-1]):
-                issues.append(Issue("discovery_ignored_label", f"start {label!r} is unknown, repeated or out of order"))
-                continue
-            starts.append(index)
-        named = answer.get("end") if isinstance(answer, dict) else None
-        if not isinstance(named, str):
-            continue
-        index = _index(named, labels)
-        if number + 1 < len(chunks):
-            issues.append(Issue("discovery_ignored_label", f"end {named!r} named in chunk {number + 1} of "
-                                f"{len(chunks)} is ignored: only the final chunk may close the records"))
-        elif index is None or index < first or index >= last:
-            issues.append(Issue("discovery_ignored_label", f"end {named!r} is unknown or was not shown"))
-        else:
-            end = index
-    if not starts:
-        issues.append(Issue("no_records_found", "the model named no record start"))
-    if end is not None and starts and starts[-1] >= end:
-        issues.append(Issue("discovery_inconsistent_end", f"end {labels[end]!r} lies at or before the last record "
-                            f"start {labels[starts[-1]]!r} and is ignored: the records run to the end of the text"))
-        end = None
-    issues += _numbering_issues(passages, labels, starts, end)
-    stop = end if end is not None else len(passages)
-    slices = [passages[start:min(stop, starts[n + 1]) if n + 1 < len(starts) else stop]
-              for n, start in enumerate(starts)]
-    return [group for group in slices if group], calls, issues
-
-
-_NUMBERED = re.compile(r"\s*\d{1,4}[.)]\s")
-
-
-def _numbering_issues(passages: Sequence[Passage], labels: Sequence[str], starts: Sequence[int],
-                      end: int | None) -> list[Issue]:
-    """Where the record starts are numbered entries, a numbered block the end drops or an unnumbered start is
-    most likely a boundary the model misread. Reported, never corrected; without numbered starts, silent."""
-    numbered = [bool(_NUMBERED.match(passages[index].text)) for index in starts]
-    issues: list[Issue] = []
-    if end is not None and numbered and all(numbered):
-        issues += [Issue("discovery_numbered_after_end", f"{labels[index]!r} is numbered like every record start, "
-                         f"but the end {labels[end]!r} drops it")
-                   for index in range(end, len(passages)) if _NUMBERED.match(passages[index].text)]
-    if sum(numbered) >= 2:
-        issues += [Issue("discovery_unnumbered_start", f"start {labels[index]!r} is not numbered like the other "
-                         "record starts") for index, ok in zip(starts, numbered, strict=True) if not ok]
-    return issues
-
-
-def _index(label: Any, labels: Sequence[str]) -> int | None:
-    return labels.index(label) if isinstance(label, str) and label in labels else None
 
 
 def _instruction(schema: Schema, nodes: Sequence) -> str:

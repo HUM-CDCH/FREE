@@ -25,11 +25,13 @@ flowchart LR
 | `method.py` | Validate explicit experimental choices; enforce the Article context ceiling. |
 | `contexts.py` | Partition whole passages or structural groups with disjoint primary ownership, inherited heading context and optional overlap; reconcile values without hiding scalar conflicts. |
 | `selection.py` | Select whole value contexts from inventory support, adjacent qualifiers and schema relevance; expose omitted units. |
-| `article.py` | Enumerate recurring identities, reconcile them, and extract each record across its source contexts. |
-| `stages.py` | Shared model admission, schema prompts, generic Catalog discovery, values and record assembly. |
-| `grounding.py` | Ground version 1 Catalog and Article values in their passages. The `semantic`, `quoted` and `off` techniques share one call shape; `technique` maps `article.grounding` (omitted: `semantic`) to one, and `run.py` calls it without knowing which. |
-| `grounded.py` | Recipe Catalog entry extraction, candidate verification, conflict arbitration and normalization. |
-| `run.py` | Select the strategy and assemble the pinned artifact. |
+| `article.py` | The Article implementation: enumerate recurring identities, reconcile them, and extract each record across its source contexts. |
+| `catalog.py` | The version 1 Catalog implementation: generic record discovery and one call per record slice. |
+| `assembly.py` | What Article and the version 1 Catalog share: document values over contexts, grounding each record through `grounding.technique`, and the version 1 artifact with its fingerprint and prompt version. |
+| `stages.py` | Shared model admission, schema prompts, document and record values, and the record merge. |
+| `grounding.py` | Ground version 1 Catalog and Article values in their passages. The `semantic`, `quoted` and `off` techniques share one call shape; `technique` maps `article.grounding` (omitted: `semantic`) to one, and `assembly.py` calls it without knowing which. |
+| `grounded.py` | The recipe Catalog implementation: entry extraction, candidate verification, conflict arbitration and normalization. |
+| `run.py` | Load the evidence, check its generation and hand it to the implementation the options choose; all three share one call shape. Publish the artifact. |
 | `experiments/extraction/` | Register inputs/comparisons, capture and resume calls, and analyze completed cells. Never imported by serving code. |
 
 These are ordinary Python functions. There is no plugin graph or separate

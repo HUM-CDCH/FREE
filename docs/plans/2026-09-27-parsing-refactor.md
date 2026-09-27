@@ -1,6 +1,7 @@
 # Parsing and extraction refactor — 2026-09-27
 
-Status: slices 1–2 committed as `87f26533`; slice 3 committed after it, awaiting review. Base: `377cd050`.
+Status: slices 1–2 committed as `87f26533`, slice 3 as `87671d42`; slice 4 committed after it, awaiting review.
+Base: `377cd050`.
 Branch: `refactor/segmentation-dependency`; isolated from running ablation jobs.
 
 ## Direction and invariants
@@ -146,21 +147,21 @@ plugin framework (plain functions; choosing the implementation is a plain
 conditional or dict in `run.extract`).
 
 Acceptance:
-- [ ] Before any source edit, rerun `/tmp/free-grounding-slice/snapshot.py`
+- [x] Before any source edit, rerun `/tmp/free-grounding-slice/snapshot.py`
       into a fresh baseline directory (it covers version 1 Catalog incl.
       budget splitting, Article reference/semantic/quoted/off with bounded
       contexts, and recipe Catalog, and logs call/check order). Extend it,
       if needed, to also cover the published file bytes via
       `publish_extraction` and an Article case with document-level fields
       and multiple contexts. After the change the outputs are byte-identical.
-- [ ] `run.py` contains no `if article`, no `method.` access and no counter
+- [x] `run.py` contains no `if article`, no `method.` access and no counter
       construction; `grep -n "article\|method" run.py` shows only imports,
       request types, the dispatch and `fingerprint`.
-- [ ] Each implementation is exercised by at least one test that calls it
+- [x] Each implementation is exercised by at least one test that calls it
       directly with in-memory evidence (no `monkeypatch` of `run.load`).
-- [ ] Import guard extended and failing on a probe that imports `run` from
+- [x] Import guard extended and failing on a probe that imports `run` from
       an implementation module.
-- [ ] Focused and full fast suites pass; record the receipt here.
+- [x] Focused and full fast suites pass; record the receipt here.
 
 ## Next candidates, reassessed after this slice
 
@@ -241,6 +242,44 @@ Slice 3 (all `-q -m 'not postgres and not live_model' -p no:cacheprovider`):
   raises `ImportError`; none of the moved names remain in `stages.py`. 67 modules, 0 cycles.
 - `git diff --check` and manual review passed. Experiment registrations, manifests and
   dated plans/specs are unchanged; `docs/extraction-experiments.md` names the new module.
+
+Slice 4 (Task 4; all `-q -m 'not postgres and not live_model' -p no:cacheprovider`):
+
+- Implemented by Claude Code with `claude-opus-5-5` from the Task 4 brief.
+- `run.extract` loads the evidence, checks the generation, applies `as_router` and hands
+  `(run_dir, evidence, request, chat, *, counter, chunks, before_entry)` to
+  `grounded.extract` (a recipe), `article.extract` or `catalog.extract`; each returns the
+  finished artifact. `assembly.py` holds what Article and the version 1 Catalog share
+  (`document_values`, `ground` through `grounding.technique`, `artifact` with `merge`,
+  `fingerprint`, `EXTRACTION_VERSION`, `PROMPT_VERSION`); `tokens.counters_for` is the one
+  per-role counter setup, used by Article and the recipe Catalog. `catalog.py` received
+  `discover` and its prompts and helpers, textually unchanged.
+- Baseline captured before any source edit by `/tmp/free-strategy-slice/snapshot.py`, a
+  copy of slice 3's harness extended with the bytes `publish_extraction` writes for every
+  case (`started`/`seconds` replaced in place, so key order counts), Article with
+  document-level fields that disagree across bounded contexts, and three cases with no
+  `counter` (Article on one chat, bounded quoted Article and the recipe Catalog on two
+  chats, the latter with calibration probes). 17 cases, 51 files; the 26 slice-3 files
+  equal slice 3's baseline, a repeated baseline was identical, and after the change all
+  51 are byte-identical: `/tmp/free-strategy-slice/{baseline,after}`.
+- Focused: the 24 extraction test files → 397 passed, 43 deselected before; with
+  `tests/test_extraction_implementations.py` 404 passed, 43 deselected.
+- Full fast suite → 1,087 passed, 72 skipped, 74 deselected; the same 3 warnings.
+- `tests/test_extraction_implementations.py` calls each implementation with the evidence
+  it is handed (hand-built for Article and the version 1 Catalog, a loaded fixture with a
+  replaced `run_id` for the recipe Catalog) and no `run.load` replacement, and checks that
+  `run.extract` hands the loaded evidence, request, router, `counter`, `chunks` and
+  `before_entry` to the implementation each option set chooses.
+- The new guard fails on probes importing `run` in `article.py` (absolute), `catalog.py`
+  (nested, relative), `grounded.py` (`from kei_exp.kie.extract import run`) and
+  `assembly.py` (`import`); it also holds on the pre-slice sources. 69 modules, 0 cycles.
+- `grep -n "article\|method" run.py` shows imports, the request types, the dispatch, the
+  module docstring and `main`'s `--strategy` choices. Tests that replaced
+  `run.counter_for` now replace `tokens.counter_for`, including the PostgreSQL-tier
+  `test_lanes.py`, `test_delete_runs.py` and `helpers/kei_worker.py`, which were not run.
+- `git diff --check` and manual review passed; ruff reports no finding the base lacks.
+  Experiment registrations, manifests and dated plans/specs are unchanged;
+  `docs/extraction-experiments.md` names the new modules.
 
 Undo: reverse the slices' source/test/doc edits and remove their new files.
 No database, workflow step, deployment, running checkout or study artifact changed.

@@ -1,4 +1,5 @@
-"""The segmentation artifact must not depend on its computation or orchestration, nor the stages on extraction."""
+"""The segmentation artifact must not depend on its computation or orchestration, nor the stages on extraction,
+nor any extraction module on the orchestrator `run` that chooses among them."""
 import ast
 from importlib.util import resolve_name
 from pathlib import Path
@@ -41,3 +42,11 @@ def test_the_passage_view_and_the_recipe_path_do_not_import_extraction():
         package = "kei_exp.kie.stages" if path.parent.name == "stages" else "kei_exp.kie"
         violations = _violations(_imports(path, package), {"kei_exp.kie.extract"})
         assert not violations, f"{path.relative_to(KIE)} depends on extraction: {violations}"
+
+
+def test_no_extraction_module_imports_the_orchestrator():
+    for path in sorted((KIE / "extract").glob("*.py")):
+        if path.name == "run.py":
+            continue
+        violations = _violations(_imports(path, "kei_exp.kie.extract"), {"kei_exp.kie.extract.run"})
+        assert not violations, f"{path.relative_to(KIE)} depends on the orchestrator: {violations}"
