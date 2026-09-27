@@ -717,9 +717,63 @@ imports in `packages/extraction/src` finds the old cycle at 1f3cb1c4 and
 none after (39 modules, 147 imports); extraction `tsc --noEmit` and Studio
 `tsc -b` clean; extraction fast tests 85/85.
 
+Controller addendum (Task 10): cycle checker 39 modules / 147 imports / no
+cycles; extraction + Studio `tsc` OK; extraction PostgreSQL tier 56/56.
+
+## Task 11 (slice 11): split `kie/model.py` by layer and consumer
+
+Python, `prototypes/parsing_service/src/kei_exp/kie/model.py` (779 lines)
+serves two unrelated consumer groups and several layers at once:
+- recipe stages and extraction (`segmentation`, `stages/route`,
+  `stages/segment`, `extract/*`) import only `Span`, `HeadingEvent`,
+  `GlossaryEntry`, `Diagnostic`, `Block`;
+- ingest, `pages`, `artifacts`, `runner`, `cli`, `evidence`, `ocr` import the
+  page geometry, ingest configuration/artifact/reports and run reports.
+Its internal references form a clean order (docstring mentions aside):
+primitives (the `Annotated` aliases, validators, `_Base`, `IngestError`,
+`MIN_AXIS_PT`) → ingest (`Placement`, `Source`, `GutterEvidence`, `Page`,
+`IngestConfig`, `Envelope`, `SpreadReport`, `IngestReport`,
+`IngestArtifact`, `_check_spread_pages`, `_distance_px`) and blocks (`Span`,
+`HeadingEvent`, `GlossaryEntry`, `Diagnostic`, `Block`) → document
+(`EvidenceRef`, `Segment`, `Document`, `_check_spans`,
+`_check_primary_ownership`; needs `Page`, `Source`, `Block`) → run
+configuration and reports (`OcrConfig`, `PipelineConfig`, `Rejected`,
+`EvidenceReport`, `IngestStep`, `RunReport`).
+
+Change (inside `kei_exp/kie`, no package moves): split into one module per
+layer following that order (suggested names: `kie/primitives.py`,
+`kie/ingest_model.py`, `kie/blocks.py`, `kie/document.py`,
+`kie/run_model.py` — choose clearer names if the vocabulary in
+`prototypes/parsing_service/CONTEXT.md` suggests them; avoid clashing with
+the existing `kie/evidence.py`, `kie/stages/ingest.py`, `kie/artifacts.py`).
+Code moves verbatim; `model.py` is removed and every importer (src, tests,
+tests/helpers, experiments if any) migrates — no facade. Extend the import
+guard: `blocks` imports only `primitives`; neither `primitives` nor `blocks`
+imports ingest/document/run modules; modules under `kie/extract` and
+`kie/stages/{route,segment,layout}` do not import the ingest, document or
+run-model modules.
+
+Invariants: every model's fields, validators, defaults, `model_config` and
+JSON schema unchanged; every artifact, report, page file and extraction
+artifact byte unchanged; `IngestError` identity unchanged for `except`
+clauses.
+
+Acceptance:
+- [ ] Before editing: dump `model_json_schema()` (canonical JSON) of every
+      pydantic model in `kie/model.py` keyed by class name to
+      `/tmp/free-model-slice/baseline/`; after: identical under the new
+      modules.
+- [ ] Rerun `/tmp/free-grounded-slice/snapshot.py` (extraction artifacts
+      over `Block`/`Span`) and the runner/ingest/evidence fast tests;
+      snapshot byte-identical (threaded `chunks>1` event order excepted, as
+      recorded in Task 5).
+- [ ] `grep -rn "kie.model\b\|kie import model" src tests experiments`
+      finds nothing; import guard extended; full fast suite passes.
+
 ## Next candidates, reassessed after this slice
 
-1. Split `extraction-module.integration.test.ts` (2,515 lines) along the
-   same clusters with one shared fixture module.
-2. One owner for the extraction method value (strategy, recipe, models).
-3. Python: separate model records from Docling specs (`kei_exp.models`).
+1. `kie/runner.py`: pull the ingest-generation cache (`_recover`,
+   `_proven`, `_skippable`, `_produce`, `_publish`, `_discard`) out of the
+   orchestration.
+2. Split `extraction-module.integration.test.ts` (2,515 lines) by cluster.
+3. One owner for the extraction method value (strategy, recipe, models).
