@@ -16,6 +16,7 @@ from kei_exp.kie.extract.evidence import Passage, text_of
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.schema import SCALAR_JSON, Schema, json_schema
+from kei_exp.kie.extract.selection import select_contexts
 from kei_exp.kie.extract.stages import Call, Issue, _complete, _instruction, _labelled, extract_record, normal, record_request
 from kei_exp.kie.extract.tokens import TokenCounter
 
@@ -28,6 +29,7 @@ class Records:
     issues: list[Issue]
     conflicts: list[dict]
     value_contexts: list[list[Context]]
+    selections: list[dict]
 
 
 def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counters: dict,
@@ -52,6 +54,7 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
     slices = []
     conflicts = []
     value_contexts = []
+    selections = []
     for number, item in enumerate(identities):
         candidates = []
         record_groups = groups
@@ -63,6 +66,10 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
                                                             neutral=neutral)
                 return counters["fields"].request_tokens(system, user, reply_schema) + 4096 <= counters["fields"].context_tokens
             record_groups = partition(passages, fits, overlap=method.overlap_passages)
+        if method is not None and method.selection is not None:
+            check()
+            record_groups, selection = select_contexts(record_groups, passages, item["passages"], schema)
+            selections.append({"record": number, **selection})
         value_contexts.append(record_groups)
         for group in record_groups:
             check()
@@ -77,7 +84,7 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
         issues += [Issue("conflicting_values", json.dumps(conflict, ensure_ascii=False), number)
                    for conflict in contested]
         slices.append((list(passages), fields))
-    return Records(identities, slices, calls, issues, conflicts, value_contexts)
+    return Records(identities, slices, calls, issues, conflicts, value_contexts, selections)
 
 
 def inventory_request(passages: Sequence[Passage], schema: Schema, method: ArticleOptions | None = None):

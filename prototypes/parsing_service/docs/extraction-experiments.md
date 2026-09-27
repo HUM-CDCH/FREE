@@ -23,6 +23,7 @@ flowchart LR
 | `evidence.py` | Verify canonical files and expose stable passages/tables. |
 | `method.py` | Validate explicit experimental choices; enforce the Article context ceiling. |
 | `contexts.py` | Partition whole passages with disjoint primary ownership and optional preceding overlap; reconcile values without hiding scalar conflicts. |
+| `selection.py` | Select whole value contexts from inventory support, adjacent qualifiers and schema relevance; expose omitted units. |
 | `article.py` | Enumerate recurring identities, reconcile them, and extract each record across its source contexts. |
 | `stages.py` | Shared model admission, schema prompts, generic Catalog discovery, values, grounding and record assembly. |
 | `grounded.py` | Recipe Catalog entry extraction, candidate verification, conflict arbitration and normalization. |
@@ -50,8 +51,15 @@ Studio does not expose these controls.
 - `context=full|bounded`: send the full source, or partition whole canonical
   passages under a fixed served-token ceiling, including output reserves.
   Inventory and record-value prompts use their actual tokenizer/template.
-  Every record reads every unit: this reference bounded assembly has no
-  relevance-ranking stage that could silently omit a late measurement.
+  By default every record reads every unit.
+- `selection=supported` (bounded only): retain value units owning identity
+  support and neighboring canonical passages, plus at most one additional unit
+  with positive schema-term relevance. The deterministic lexical score uses
+  term frequency, inverse unit frequency and length normalization. It preserves
+  whole original units and records selected/omitted passages and reasons.
+  Inventory, document fields and verification still visit all bounded units.
+  Selection can omit relevant late evidence; relevance recall remains unmeasured.
+  Omission of this setting preserves the all-unit method and its fingerprint.
 - `overlap_passages=0..2`: preceding context that never changes primary
   ownership. Tables are indivisible passages. An oversized passage is explicitly
   refused; it is never clipped or reconstructed under its original identity.
@@ -100,8 +108,9 @@ require separate implementations and evaluation data.
 The full-source reference remains an experimental baseline because comparison
 is an explicit requirement. It is not an invisible fallback for a refused
 bounded call. Bounded processing currently trades repeated calls for exhaustive
-source visitation; call count grows with records times source units. Retrieval
-and cross-unit semantic reconciliation are future factors, not hidden heuristics.
+source visitation; call count grows with records times source units. The optional
+lexical selector is a separate hypothesis, not hybrid retrieval replication.
+Cross-unit semantic reconciliation remains unimplemented.
 
 ## Run a study
 
@@ -144,3 +153,11 @@ are not automatically false positives because the gold is non-exhaustive.
 Unannotated examples support operational comparisons only. Small development
 samples cannot establish generalization, and model links cannot establish an
 independent semantic grounding accuracy score.
+
+The selector has a separate [conditional replay protocol](../experiments/extraction/selection-protocol.md).
+`python -m experiments.extraction.selection_replay register R1_DIR OUTPUT_DIR`
+pins that comparison; `run OUTPUT_DIR SOURCE_ID` first reproduces the original
+bounded result exactly, then compares all versus selected value units using only
+captured response subsequences. Both paired arms disable grounding. Tokenizer
+probes are cached, and unseen generation requests fail. Saved calls/tokens are
+counterfactual costs; replay is not a fresh latency or model-variability trial.

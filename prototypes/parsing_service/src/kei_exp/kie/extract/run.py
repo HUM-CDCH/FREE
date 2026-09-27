@@ -35,6 +35,7 @@ from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.models import Router, as_router, chats_for
 from kei_exp.kie.extract.method import ArticleOptions, LimitedCounter
 from kei_exp.kie.extract.schema import Schema
+from kei_exp.kie.extract.selection import VERSION as SELECTION_VERSION
 from kei_exp.kie.extract.stages import (
     Call,
     Issue,
@@ -119,6 +120,8 @@ def fingerprint(result: dict, request: ExtractRequest, model: dict) -> str:
         "schema": request.schema_.model_dump(by_alias=True, exclude_none=True),
         "options": request.options.dumped(), "model": model, "prompt_version": PROMPT_VERSION,
         **({"method_version": 1} if request.options.article is not None else {}),
+        **({"selection_version": SELECTION_VERSION}
+           if request.options.article is not None and request.options.article.selection is not None else {}),
     })).hexdigest()
 
 
@@ -245,6 +248,9 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
         result["contexts"] = [context.dumped() for context in contexts]
         result["value_contexts"] = [[context.dumped() for context in group] for group in extracted.value_contexts]
         result["quoted_support"] = proofs
+        if method.selection is not None:
+            result["selection_version"] = SELECTION_VERSION
+            result["selections"] = extracted.selections
         result["conflicts"] = {"document": document_conflicts, "records": extracted.conflicts}
         result["completion"] = {
             "processing": all(call.ok for call in calls),
