@@ -177,6 +177,14 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- `docs/validation/extraction_ablation_tables.py` now renders a pinned analysis
+  and its matching accounting into reviewable Markdown, with exact registered,
+  missing and paired denominators. Six focused tests pass; R1's 36-cell and R2a's
+  18-cell tables reconcile all stage/call/token totals. Paths and CLI are in the
+  execution report. This is descriptive postprocessing, outside inference pins;
+  regenerate the tables from final snapshots after all studies finish. Do not
+  infer equivalence from the current two-document zero overlap effect.
+
 - Extraction-stack integration was verified separately at local commit `f3714ae`
   in `/home/gennaro/projects/FREE-worktrees/extraction-stack-review`, combining
   extraction-only fixes `1fa6a9b` with repaired foundation `93e1ea7`.
