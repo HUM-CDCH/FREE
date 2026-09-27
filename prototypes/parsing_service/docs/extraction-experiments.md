@@ -30,7 +30,10 @@ flowchart LR
 | `assembly.py` | What Article and the version 1 Catalog share: document values over contexts, grounding each record through `grounding.technique`, and the version 1 artifact with its fingerprint and prompt version. |
 | `stages.py` | Shared model admission, schema prompts, document and record values, and the record merge. |
 | `grounding.py` | Ground version 1 Catalog and Article values in their passages. The `semantic`, `quoted` and `off` techniques share one call shape; `technique` maps `article.grounding` (omitted: `semantic`) to one, and `assembly.py` calls it without knowing which. |
-| `grounded.py` | The recipe Catalog implementation: entry extraction, candidate verification, conflict arbitration and normalization. |
+| `grounded.py` | The recipe Catalog implementation: entry extraction under the token budget, the merge of an entry's windows and conflict arbitration. |
+| `acceptance.py` | Decide, without a model, whether a recipe Catalog candidate is accepted, proposed or rejected: its value typed, its quote in the entry, a recipe key introducing it; the candidate reply schemas. |
+| `windows.py` | Cut an oversized recipe Catalog entry into consecutive windows whose request fits the budget, with optional one-line overlap. |
+| `catalog_result.py` | Shape recipe Catalog outcomes into records, evidence links (table cells, glossary normalization) and review items. |
 | `run.py` | Load the evidence, check its generation and hand it to the implementation the options choose; all three share one call shape. Publish the artifact. |
 | `experiments/extraction/` | Register inputs/comparisons, capture and resume calls, and analyze completed cells. Never imported by serving code. |
 

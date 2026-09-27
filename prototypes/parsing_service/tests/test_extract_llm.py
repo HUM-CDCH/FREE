@@ -6,7 +6,7 @@ import pytest
 import requests
 
 from kei_exp.kie.extract import llm
-from kei_exp.kie.extract.grounded import _candidate_schema
+from kei_exp.kie.extract.acceptance import candidate_schema
 from kei_exp.kie.extract.llm import (
     ModelOutputError,
     NuExtractChat,
@@ -186,7 +186,7 @@ def test_the_template_follows_the_shape_of_the_schema():
 
 
 def test_a_grounded_candidate_asks_for_its_quote_and_key_verbatim():
-    candidate = _candidate_schema(Node(id="m", name="mbl_old", type="integer"))
+    candidate = candidate_schema(Node(id="m", name="mbl_old", type="integer"))
     assert nuextract_template({"type": "object", "properties": {"mbl_old": candidate}}) == {"mbl_old": {
         "value": "integer", "quote": "verbatim-string", "key": "verbatim-string",
         "provenance": ["token", "positional"]}}

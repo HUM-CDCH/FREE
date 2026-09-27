@@ -205,7 +205,7 @@ reply schemas, call order, `before_entry` placement, `EXTRACTION_VERSION = 2`,
 `PROMPT_VERSION = 5`, `BUDGET_VERSION`, `NORMALIZATION_VERSION` unchanged.
 
 Acceptance:
-- [ ] Before any source edit: copy `/tmp/free-strategy-slice/snapshot.py` to
+- [x] Before any source edit: copy `/tmp/free-strategy-slice/snapshot.py` to
       `/tmp/free-grounded-slice/`, extend it with recipe Catalog cases that
       exercise each `CatalogFactors` flag off (glossary, headings, overlap,
       verification), an oversized block that is windowed, `chunks=2`, and
@@ -213,10 +213,36 @@ Acceptance:
       arbitration call; capture the baseline. After: byte-identical.
 - [ ] `grounded.py` is at most ~500 lines; each new module has a prose
       docstring stating what it decides, in the style of its neighbours.
-- [ ] At least one new focused test per new module exercises it through its
+      (Docstrings done. Size not met: 582 lines, which is what the keep-list
+      above assigns to `grounded.py`; see the receipt.)
+- [x] At least one new focused test per new module exercises it through its
       public names without a chat (acceptance over a `BlockText`; windows
       over units with a `fits` predicate; result shaping over outcomes).
-- [ ] Import guard extended; focused and full fast suites pass.
+- [x] Import guard extended; focused and full fast suites pass.
+
+Verification receipt (Task 5): `grounded.py` 873 → 582 lines, beside
+`acceptance.py` (188: `Outcome`, `KEY_GAP`, `typed_value`, `assess` — was
+`_verify`, whose own `verify=` keyword would shadow a bare `verify` —,
+`bounded`, `candidates_schema`, `candidate_schema`; private `_scalar`,
+`_after_keys`, `_leaf`), `windows.py` (81: `Unit`, `units_of`, `windows_of`,
+private `_cut`; `windows_of` takes `overlap: bool` in place of the run, read
+from the same factor at the call site) and `catalog_result.py` (100:
+`NORMALIZATION_VERSION`, `place`, `conformed_record`, `spans_json`,
+`glossary_expansions`, `evidence_link`, `review_item`; private `_raw`,
+`_normalized`). Plain underscore-less names were avoided where they would
+collide with a local of the same name (`units`, `windows`, `record`,
+`expansions` and `typed` in `grounded.py`, `spans` in `evidence_link`). Snapshot
+`/tmp/free-grounded-slice/snapshot.py`: task 4's 17 cases plus 25 recipe
+Catalog cases and a direct table-cell link, 127 files, identical before and
+after (`diff -r` empty). Import guard
+`test_the_recipe_catalogs_model_free_modules_do_not_import_what_runs_it`
+fails on a probe importing `grounded`, `run` or `assembly` from each new
+module. New `tests/test_recipe_catalog_modules.py` (6 tests). Full fast
+suite: 1094 passed, 72 skipped, 74 deselected (base 1087 + 7 new).
+Everything left in `grounded.py` is on the keep-list (versions and prompts,
+bindings, `_Run`, chunking, `_block`/`_fitted`/`_label`/`_context`, merge
+and arbitration, `_document`); reaching ~500 lines would mean moving one of
+those groups, which this slice leaves alone.
 
 ## Next candidates, reassessed after this slice
 

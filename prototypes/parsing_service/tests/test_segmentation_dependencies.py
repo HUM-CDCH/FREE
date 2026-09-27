@@ -1,5 +1,6 @@
 """The segmentation artifact must not depend on its computation or orchestration, nor the stages on extraction,
-nor any extraction module on the orchestrator `run` that chooses among them."""
+nor any extraction module on the orchestrator `run` that chooses among them, nor the recipe Catalog's model-free
+modules on the implementation that uses them or on the version 1 artifact."""
 import ast
 from importlib.util import resolve_name
 from pathlib import Path
@@ -50,3 +51,10 @@ def test_no_extraction_module_imports_the_orchestrator():
             continue
         violations = _violations(_imports(path, "kei_exp.kie.extract"), {"kei_exp.kie.extract.run"})
         assert not violations, f"{path.relative_to(KIE)} depends on the orchestrator: {violations}"
+
+
+def test_the_recipe_catalogs_model_free_modules_do_not_import_what_runs_it():
+    forbidden = {"kei_exp.kie.extract.grounded", "kei_exp.kie.extract.run", "kei_exp.kie.extract.assembly"}
+    for name in ("acceptance.py", "windows.py", "catalog_result.py"):
+        violations = _violations(_imports(KIE / "extract" / name, "kei_exp.kie.extract"), forbidden)
+        assert not violations, f"extract/{name} depends on the recipe Catalog's execution: {violations}"
