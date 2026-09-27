@@ -3,8 +3,8 @@ export type { ExtractionErrorCode } from './errors.js'
 export type { ExtractionExecution } from './dependencies.js'
 export { createKeiExpClient } from './kei-exp.js'
 export type { KeiExpClient, KeiExpArtifact, KeiExpIngestionModelListing, KeiExpModelListing } from './kei-exp.js'
+export { createExtractions } from './extractions.js'
 export {
-  createExtractions,
   createExtractionStore,
   createResearcherExtractionPersistence,
 } from './postgres-persistence.js'

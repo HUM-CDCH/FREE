@@ -23,13 +23,12 @@ import type {
   ExtractionPersistence,
   LoadedExtractionInputs,
   PersistedReviewResult,
-  ReviewAuthority,
 } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import { extractWorkflowId } from './kei-handoff.js'
 import { modelChoice } from './model-choice.js'
-import { createExtractionModule } from './module.js'
 import { persistSuggestedBatch } from './postgres-suggested-batch.js'
+import { normalizeDecisions, reviewAuthorityMatchesExtraction, type ReviewAuthority } from './review-rules.js'
 import {
   EXTRACTION_QUEUE,
   extractionAttributes,
@@ -46,7 +45,6 @@ import type {
   ExtractionAttemptSnapshot,
   ExtractionFailure,
   ExtractionModelChoice,
-  ExtractionModule,
   ExtractionSnapshot,
   ExtractionStrategy,
   ProjectOperationStatus,
@@ -893,68 +891,6 @@ async function loadResults(
   }
 }
 
-function normalizeDecisions(decisions: ReviewAuthority['reviewDecisions']) {
-  return decisions.map((decision) => ({
-    resultPath: [...decision.resultPath],
-    resultPathKey: JSON.stringify(decision.resultPath),
-    evidenceAnchorId: decision.evidenceAnchorId,
-    reviewedOccurrenceIds: [...new Set(decision.reviewedOccurrenceIds)].sort(),
-    action: decision.action,
-    reviewedValue: decision.reviewedValue,
-  })).sort((left, right) => left.resultPathKey.localeCompare(right.resultPathKey))
-}
-
-function reviewAuthorityMatchesExtraction(
-  extraction: ExtractionSnapshot,
-  submitted: ReturnType<typeof normalizeDecisions>,
-  authority: ReviewAuthority,
-): boolean {
-  if (!Array.isArray(extraction.evidence)) return false
-  const evidenceByPath = new Map<string, string>()
-  for (const link of extraction.evidence) {
-    if (
-      !link ||
-      typeof link !== 'object' ||
-      typeof link.evidenceAnchorId !== 'string' ||
-      !Array.isArray(link.resultPath) ||
-      !link.resultPath.every(
-        (segment: unknown) =>
-          typeof segment === 'string' ||
-          (typeof segment === 'number' &&
-            Number.isInteger(segment) &&
-            segment >= 0),
-      )
-    )
-      return false
-    const key = JSON.stringify(link.resultPath)
-    if (evidenceByPath.has(key)) return false
-    evidenceByPath.set(key, link.evidenceAnchorId)
-  }
-  return (
-    evidenceByPath.size === authority.evidenceResultPathKeys.size &&
-    [...authority.evidenceResultPathKeys].every((key) =>
-      evidenceByPath.has(key),
-    ) &&
-    submitted.length === evidenceByPath.size &&
-    new Set(submitted.map((decision) => decision.resultPathKey)).size ===
-      submitted.length &&
-    submitted.every((decision) => {
-      const owned = authority.occurrenceIdsByAnchor.get(
-        decision.evidenceAnchorId,
-      )
-      return (
-        evidenceByPath.get(decision.resultPathKey) ===
-          decision.evidenceAnchorId &&
-        owned !== undefined &&
-        decision.reviewedOccurrenceIds.length === owned.size &&
-        decision.reviewedOccurrenceIds.every((id) => owned.has(id)) &&
-        ['APPROVED', 'EDITED', 'REJECTED'].includes(decision.action) &&
-        ((decision.action === 'EDITED') ===
-          (decision.reviewedValue !== null))
-      )
-    })
-  )
-}
 async function reviewDigest(orm: DatabaseOrm, extractionId: string): Promise<string | null> {
   const extraction = await orm.public.Extraction.select('reviewedAt').first({ id: extractionId })
   if (!extraction?.reviewedAt) return null
@@ -1260,12 +1196,6 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
           extractionId,
         )
         if (!extraction) return 'not-found' as const
-        if (
-          extraction.outcome !== 'SUCCEEDED' ||
-          !extraction.reviewable ||
-          !Array.isArray(extraction.evidence)
-        )
-          return 'invalid' as const
         if (!reviewAuthorityMatchesExtraction(extraction, submitted, authority))
           return 'invalid' as const
         if (extraction.reviewedAt)
@@ -1602,11 +1532,6 @@ export function createResearcherExtractionPersistence(
     infrastructure.database ?? db,
     infrastructure.packages ?? canonicalPackageStore,
   )
-}
-
-/** One researcher's Extractions, admitted and read through `execution`. */
-export function createExtractions(researcherAccountId: string, execution: ExtractionExecution): ExtractionModule {
-  return createExtractionModule(createResearcherExtractionPersistence(researcherAccountId, execution))
 }
 
 /**

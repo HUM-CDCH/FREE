@@ -581,15 +581,45 @@ the decision digest (`JSON.stringify(normalizeDecisions(...))`) byte-for-byte,
 transaction boundaries, and the package's public exports unchanged.
 
 Acceptance:
-- [ ] Focused pure tests of the new module without a database: coverage
+- [x] Focused pure tests of the new module without a database: coverage
       mismatch, duplicate evidence path, decision/evidence mismatch, EDITED
       with and without a value, allowed-values and numeric types, occurrence
       ownership mismatch in revalidation, and digest stability for
       reordered decisions and occurrence ids.
-- [ ] `grep -n "import .*module.js" postgres-persistence.ts` is empty; the
+- [x] `grep -n "import .*module.js" postgres-persistence.ts` is empty; the
       action/value rule exists once.
 - [ ] `tsc --noEmit` (extraction) and `tsc -b` (Studio) pass; extraction fast
       tests pass; the controller runs the extraction PostgreSQL tier.
+      (Typecheck and fast tests pass, see the receipt; the PostgreSQL tier
+      is the controller's.)
+
+Verification receipt (Task 9): new `packages/extraction/src/review-rules.ts`
+(250 lines; imports only `errors`, `review-paths`, `schema`, and types from
+`types` and `parsed-document`) owns the Review Decision rules:
+`reviewableExtraction` (the first check, before the pinned reads),
+`reviewAuthority` (schema parses, records match it, grounding coverage,
+decisions match the Evidence one to one and the schema; returns the
+`ReviewAuthority` or throws the unchanged ExtractionError of the first broken
+rule), `parsePinnedSchema`, `occurrenceOwnership`,
+`reviewDecisionMatchesSchema`, `normalizeDecisions` and
+`reviewAuthorityMatchesExtraction`, all moved verbatim. The action/value rule
+is one private function, `actionMatchesReviewedValue`, used by
+`reviewDecisionMatchesSchema` (snapshot side, also saved drafts) and
+`reviewAuthorityMatchesExtraction` (in-transaction side). The in-transaction
+reviewability check (`outcome`/`reviewable`/evidence array), which returned
+`invalid` just before the revalidation, is folded into
+`reviewAuthorityMatchesExtraction`: same result, same place in the
+transaction. `ReviewAuthority` moved, unchanged, from `dependencies.ts` to
+`review-rules.ts` (so the rules module imports no persistence port);
+`dependencies.ts` imports it for the `ExtractionPersistence` signature.
+`module.ts` `finalizeReview` keeps the reads and read-null checks, in their
+order, and calls `reviewableExtraction` then `reviewAuthority`.
+`postgres-persistence.ts` keeps the digest, transaction, claim and writes and
+no longer imports `module.ts`; `createExtractions` moved to the new
+`extractions.ts` (9 lines), re-exported by `index.ts` under the same name.
+Checks: extraction `tsc --noEmit` and Studio `tsc -b` clean; extraction fast
+tests 85 pass (base 73, +12 in `review-rules.test.ts`, added to the `test`
+script), including a pinned digest string.
 
 ## Next candidates, reassessed after this slice
 
