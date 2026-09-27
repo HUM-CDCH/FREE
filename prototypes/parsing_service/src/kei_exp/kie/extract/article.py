@@ -68,7 +68,8 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
                 system, user, reply_schema = record_request(source, schema, item["identity"], item["label"],
                                                             neutral=neutral)
                 return counters["fields"].request_tokens(system, user, reply_schema) + 4096 <= counters["fields"].context_tokens
-            record_groups = partition(passages, fits, overlap=method.overlap_passages)
+            record_groups = partition(passages, fits, overlap=method.overlap_passages,
+                                      structural=method.grouping == "structural")
         if method is not None and method.selection is not None:
             check()
             record_groups, selection = select_contexts(record_groups, passages, item["passages"], schema)
@@ -138,7 +139,8 @@ def source_contexts(passages, schema, method, counter, check):
         check()
         system, user, reply_schema, _ = inventory_request(group, schema, method)
         return counter.request_tokens(system, user, reply_schema) + 4096 <= counter.context_tokens
-    return partition(passages, fits, overlap=method.overlap_passages) or [Context(())]
+    return partition(passages, fits, overlap=method.overlap_passages,
+                     structural=method.grouping == "structural") or [Context(())]
 
 
 def inventory(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counter: TokenCounter,

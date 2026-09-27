@@ -177,6 +177,27 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- Fix implementation is complete in the isolated structure-fixes checkout:
+  coherent quoted prompt, literal-source checking, lossless control-character
+  decoding and structural context grouping. Verification: 1043 passed, 72 skipped,
+  68 deselected; 33 failed replies decode losslessly; six-paper/88-call reference
+  replay preserves requests/data with intentional protocol metadata changes;
+  all 54 inventory units across 15 Article sources pass actual-tokenizer admission.
+  See `docs/validation/2026-09-27-extraction-structure-fixes.md`. Fresh accuracy for
+  these fixes remains unmeasured; old study results are not rewritten.
+
+- User steering at approximately 14:35 UTC: implement the identified fixes now,
+  guided by the papers, without waiting for the entire batch. Work is isolated
+  on `fix/extraction-structure-and-grounding` in
+  `/home/gennaro/projects/FREE-worktrees/extraction-structure-fixes` (includes
+  the selector and structured renderer). R1/R2a/R3 pins and outcomes stay intact.
+  Immediate gates: coherent quoted-grounding instructions; lossless decoding of
+  copied control characters with other malformed/truncated replies still rejected;
+  exact quoted-source checking; explicit structural grouping with heading context,
+  indivisible adjacent table/caption/footnote groups, token admission and coverage.
+  Check real failed captures offline and the complete parser suite before pushing.
+  These are development fixes, not a claim of measured quality improvement.
+
 - Structured input follow-up is implemented at `dbde989` in the isolated checkout
   `/home/gennaro/projects/FREE-worktrees/extraction-structured-input`, branch
   `feat/extraction-structured-input`. It also contains the selector change. The

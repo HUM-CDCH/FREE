@@ -62,12 +62,22 @@ Input: [B1] Inventory
 [B6] A second axe was found at Heath.
 Output: {"starts":["B2","B5"],"end":null}
 """
+_GROUNDING_RULES = ("Each claim names its field: the same string in an unrelated detail is not evidence. "
+                    "For tables, use the column headers and the claim's sibling fields to select the correct row. "
+                    "Prefer the individual cell supporting the value; row context alone is not evidence for "
+                    "that cell's value. Never invent a label.")
 GROUNDING = ("Ground every claim listed under \"### Claims\" in the passages listed under \"### Evidence\". Return "
              "JSON with one key per claim label whose value is exactly one evidence label that directly supports "
-             "the claim in the meaning of its field, or NONE when no passage supports it. Each claim names its "
-             "field: the same string in an unrelated detail is not evidence. For tables, use the column headers "
-             "and the claim's sibling fields to select the correct row. Prefer the individual cell supporting "
-             "the value; row context alone is not evidence for that cell's value. Never invent a label.")
+             "the claim in the meaning of its field, or NONE when no passage supports it. " + _GROUNDING_RULES)
+QUOTED_GROUNDING = (
+    "Ground every claim listed under \"### Claims\" in the passages listed under \"### Evidence\". "
+    "Return a single JSON object keyed by claim label; each value is an object with keys label, quote, and attribution. "
+    "The label identifies offered evidence; quote is an exact, case-sensitive substring of that candidate's "
+    "text, preserving whitespace; attribution is true only if it supports this value for THIS record, "
+    "including its preparation, conditions, row and column. A matching number for another subject is not "
+    "support. When unsupported, use label NONE, an empty quote and attribution false. "
+    "Do not paraphrase or normalize source text. Escape control characters in JSON strings, for example "
+    "a source tab as \\t. " + _GROUNDING_RULES)
 NONE = "NONE"
 ARTICLE = ("Extract only the specified record, combining its evidence across the complete source. Keep its final "
            "preparation or fraction distinct from the starting material, bulk preparation, other fractions and "
@@ -443,13 +453,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     and a served counter: every claim is semantically verified within the context minus an output reserve.
     """
     prefix: tuple[str | int, ...] = ("records", record)
-    instruction = GROUNDING
-    if quoted:
-        instruction += (" For each claim return label, quote, and attribution. Quote an exact nonempty substring of "
-                        "the chosen evidence that supports the claim. Set attribution true only if that evidence "
-                        "supports this value for THIS record, including its preparation, conditions, row and column. "
-                        "A matching number for another subject is not support. Use label NONE, empty quote and "
-                        "attribution false when unsupported. Do not paraphrase the quote.")
+    instruction = QUOTED_GROUNDING if quoted else GROUNDING
     if not passages:
         return [], [], [Issue("no_evidence", "the record has no passages to verify against", record)]
     links: list[Link] = []
@@ -529,7 +533,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                     quote = candidate_reply.get("quote")
                     if (candidate_reply.get("attribution") is not True or not isinstance(quote, str) or not quote.strip()
                             or len(quote) > 500
-                            or normal(quote) not in normal(labelled[label].text)):
+                            or quote not in labelled[label].text):
                         issues.append(Issue("unsupported_quote", f"{claim}: missing attribution or source substring", record, path))
                         continue
             if label is None:

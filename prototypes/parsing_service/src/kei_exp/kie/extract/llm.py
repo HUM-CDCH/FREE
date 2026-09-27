@@ -189,14 +189,20 @@ def _free_leaf(free_type: str) -> str:
     raise TemplateError(f"FREE field type {free_type!r} has no NuExtract type")
 
 
-_THINK = re.compile(r"<think>.*?</think>", re.DOTALL)
+_THINK = re.compile(r"\A\s*<think>.*?</think>\s*", re.DOTALL)
 _FENCE = re.compile(r"\A```(?:json)?\s*|\s*```\Z")
 
 
 def parse_json(text: str) -> Any:
-    """The JSON in a reply, without a reasoning block or a code fence around it."""
+    """Read a reply without rewriting copied source strings.
+
+    Permit literal control characters inside strings (the decoder's sole extension
+    to JSON syntax). Tables and native PDF text can contain them. This preserves
+    their exact value, like their escaped JSON spelling; malformed structure still
+    raises. Never repair missing delimiters or a truncated response.
+    """
     cleaned = _FENCE.sub("", _THINK.sub("", text).strip()).strip()
     try:
-        return json.loads(cleaned)
+        return json.loads(cleaned, strict=False)
     except json.JSONDecodeError as error:
         raise ModelOutputError(f"the model did not return JSON ({error}): {text[:500]!r}") from error

@@ -83,6 +83,26 @@ unlabelled accuracy claims, or calling an adaptation a faithful paper reproducti
     Hypothesis: explicit types and spans reduce header/subject ambiguity, at the cost of
     more tokens and possible refusals. Existing R1 and R2a inputs stay frozen.
 
+12. **Act on observed failures without rewriting the study.** A separate development
+    checkout implements fixes while the pinned runners finish. Quoted verification
+    uses one object-output instruction and checks literal source substrings (LMDX
+    Algorithm 2), rather than case/whitespace-normalized matches. JSON decoding
+    permits literal control characters inside strings, preserving them exactly;
+    it does not repair missing syntax, truncate data or accept length-cut replies.
+    This narrowly defined decoder extension handles the observed source-copying
+    failures and is recorded by a new protocol version. Historical captures remain
+    unchanged; offline decoding is not fresh model evidence.
+13. **Structure guides bounded units.** Inspired by BLOCKIE's linked atoms, an
+    independent `grouping=structural` factor uses existing labels, not an LLM
+    rewrite: keep a table with immediately adjacent captions/footnotes, keep a
+    heading with its first body block, and carry the latest heading as explicit
+    context into continuation units. Preserve canonical order and single primary
+    ownership. Headings have no reliable hierarchy in this representation, so do
+    not invent one. Refuse an indivisible group plus its required heading when it
+    cannot fit. This is deterministic layout-based grouping, not proof that a unit
+    is semantically independent or a full BLOCKIE replication. References:
+    https://arxiv.org/html/2505.13535v1 and https://arxiv.org/html/2309.10952v2.
+
 ## Risks / Trade-offs
 
 - Bounded selection loses cross-section evidence → measure source coverage and field changes,

@@ -22,6 +22,9 @@
 - [x] 3.6 Complete the planned record-specific evidence selector (identity support, neighboring qualifiers and schema-relevant shared context), retain selected/omitted provenance, and register its comparison separately from the frozen all-unit study. Implemented at `6b8d34d` in the isolated selector checkout; R2a registered; integration waits for the pinned R1 batch.
 - [x] 3.7 Expose canonical block labels and table cell spans to Article document/inventory/value calls through a fingerprinted rendering factor; preserve reference requests, verify exact text/evidence ownership and counted admission, and register the separate comparison before inference. Implemented at `dbde989` in the isolated structured-input checkout; R3 registered, inference/integration pending.
 
+- [x] 3.8 Fix quoted-grounding output instructions and lossless literal-control decoding; enforce exact cited-source substrings; verify saved failed captures and malformed/truncated rejection.
+- [x] 3.9 Add a separately fingerprinted structural grouping factor retaining heading context and adjacent table qualifiers; verify unique primary ownership, budget refusal and assembled calls.
+
 ## 4. Catalog experimental components
 
 - [x] 4.1 Expose glossary, heading and overlap factors using existing stage owners; test primary ownership, fingerprint changes and one-factor behavior.
