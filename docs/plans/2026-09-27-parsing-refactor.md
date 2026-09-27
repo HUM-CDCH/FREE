@@ -317,13 +317,65 @@ Full fast suite: 1094 passed, 72 skipped, 74 deselected. `experiments/`
 untouched; ruff findings on the three files unchanged from base (import order
 and B023 in `extract_records`, pre-existing).
 
+Controller ruling (Task 6): `source_contexts` keeps `method` required. The
+brief also requires the frozen `study.py` positional call to keep working, and a
+default before `counter`/`check` would force a parameter reorder.
+
+## Task 7 (slice 7): light modules stop loading the OCR stack
+
+Measured at `c40c6413`: `import kei_exp.transcription.types` loads docling,
+torch, transformers and cv2 (≈3,300 modules, 1.7 s); `import kei_exp.api` and
+`import kei_exp.workflows.extract` do the same, while `import
+kei_exp.kie.extract.run` loads 414 modules in 0.1 s. Two edges cause it:
+- Crop data lives inside the layout detector: `Region`, `Crop`,
+  `region_info`, `DEFAULT_LAYOUT_MODEL` and `LAYOUT_MODELS` are defined in
+  `cut.py`, which imports Docling at module level. `transcription/types.py`,
+  `result.py`, `api.py`, `workflows/convert.py` and every transcription
+  adapter import them from there.
+- Transcriber metadata is reached through the live registry:
+  `api.py` imports `kie.stages.ocr.TRANSCRIBERS` (which constructs
+  `DoclingVlm()`, `SuryaOcr()`, `NativeText()` at import) only to read
+  `.knobs`; the knobs themselves are class attributes of the adapters
+  (`transcription/vlm.py` `KNOBS`, `surya.py:~283`, `native.py:~217`).
+
+Change (inside `kei_exp`, no package moves):
+- A new data-only module `kei_exp/regions.py` owns `Region`, `Crop`,
+  `region_info`, `DEFAULT_LAYOUT_MODEL` and `LAYOUT_MODELS`; `cut.py` imports
+  them from it and keeps the detector, `CutError`, `png_stream` and the cut
+  itself. Every caller that needs only the data imports from `regions`; no
+  re-export from `cut`.
+- `transcription/types.py` owns one kind → knobs table; each adapter's
+  `knobs` class attribute reads its row. `api.py` reads the table instead of
+  `TRANSCRIBERS`. `kie/stages/ocr.py`'s registry and checks keep working (the
+  worker needs the adapters anyway).
+- No new function-local ("lazy") imports to dodge a dependency; move data
+  instead. If another edge still pulls a heavy package into `api` or
+  `transcription.types` after these two moves, report it rather than hiding
+  it.
+
+Invariants: conversion results, page files, manifests, reports and hashes
+unchanged (`region_info` output, `LAYOUT_MODELS` order and values); the API's
+model listing response unchanged (knobs sorted as today); `ocr.TRANSCRIBERS`
+keys and each adapter's `knobs` unchanged.
+
+Acceptance:
+- [ ] A fast test imports, each in a fresh subprocess, `kei_exp.api`,
+      `kei_exp.transcription.types`, `kei_exp.result` and `kei_exp.regions`,
+      and asserts none of `docling`, `torch`, `transformers`, `cv2` is in
+      `sys.modules`. It fails at the base commit.
+- [ ] A fast test asserts each registered transcriber's `knobs` equals the
+      table's row for its kind, and the table has no extra kinds.
+- [ ] The import guard forbids `kei_exp.regions` and
+      `kei_exp.transcription.types` from importing `kei_exp.cut` or
+      `kei_exp.kie.stages`.
+- [ ] Focused (cut, convert, native, surya/vlm fakes, api, models,
+      ingestion models, convert workflow, result, report) and full fast
+      suites pass; record import timings before/after in the receipt.
+
 ## Next candidates, reassessed after this slice
 
-1. Layering in the root package: `transcription/types.py` imports `Crop`
-   from `cut.py` (loads Docling and, via `pages`, `kie.model`); `api.py`
-   imports `kie.stages.ocr.TRANSCRIBERS`, which builds the OCR stack at
-   import time, only to read metadata.
-2. One budgeted-call module (`stages._complete`, `grounded._Run.call`,
+1. One budgeted-call module (`stages._complete`, `grounded._Run.call`,
    `LimitedCounter`) with the budget policy as its variant.
-3. TypeScript `packages/extraction`: workflow toolkit + one owner for the
+2. TypeScript `packages/extraction`: workflow toolkit + one owner for the
    `extract:<id>` workflow ID; pure review rules; persistence split.
+3. `kie/model.py` split by consumer group; runner generation cache.
