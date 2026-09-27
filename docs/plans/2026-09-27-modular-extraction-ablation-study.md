@@ -1,9 +1,11 @@
 # Modular extraction and controlled ablation study — 2026-09-27
 
-Status: active; implementation and study authorized. This is the durable execution plan.
+Status: active; implementation merged, controlled study unfinished. This is the durable execution plan.
 Task status and evolving design live in `openspec/changes/modular-extraction-ablation-study/`.
-Study branch: `feat/modular-extraction-ablation`, based on `6e641b6c11bdf8073f10e824176532885f28484d`.
-Integrated fixes: `fix/extraction-structure-and-grounding`, [draft PR #141](https://github.com/HUM-CDCH/FREE/pull/141).
+Original study branch: `feat/modular-extraction-ablation`, based on `6e641b6c11bdf8073f10e824176532885f28484d`.
+Implementation merged through PRs [#142](https://github.com/HUM-CDCH/FREE/pull/142),
+[#143](https://github.com/HUM-CDCH/FREE/pull/143) and
+[#141](https://github.com/HUM-CDCH/FREE/pull/141) into `feat/kei-exp-parser` at `377cd050`.
 
 ## Goal and authorization
 
@@ -177,6 +179,36 @@ unavailable human labels, provider, compute or integration gate stays explicitly
 do not mark the goal complete merely because a plan or synthetic test suite is finished.
 
 ## Progress and resume
+
+- The user authorized merging the review stack. All three pre-merge heads passed
+  CI; full-stack `a6c5612` passed run `36337864288`, attempt 2. Merged `377cd050`
+  has the same Git tree as that verified full-stack head. No production deployment
+  was performed. The isolated reporting checkout is now based on this merged
+  commit; the live study remains a separate completion obligation.
+
+- The primary checkout was switched away from R1's registered code at
+  18:23–18:27 UTC. Its pin guard rejected 35 queued commands before execution.
+  Do not reset that checkout or change the study manifest to bypass the guard.
+  Registered source is restored under `artifacts/extraction-ablation/frozen-execution/`
+  in `r1` and `r2a`; their complete code/input checks pass. R3 and R4 already use
+  frozen archives. Recovery controls are in `resume-20260927-2/` and
+  `followups-resume-20260927-2/`, under the same artifact root. The new R1 service
+  waits for the exact original launcher and followers to settle, retains sealed
+  results, then resumes missing cells in original order with two workers.
+  Inspect their saved process identities and live services before acting.
+  The latest operational pointer is `artifacts/extraction-ablation/INTEGRATION-POINTER.md`.
+
+- At this recovery checkpoint, all 43 sealed R1 cells replay exactly from 1611
+  saved calls; R2a has 22 of 30 results. Incremental replay reports through
+  `increment-43-offline.json` cover disjoint cell sets with HTTP disabled.
+  Akita unverified and Sousa bounded add 89 saved calls; the first verification
+  used 306 separately cached tokenizer probes. The primary checkout changed
+  during Sousa's execution, so its exact replay under registered code is retained
+  as explicit evidence. The still-running Akita bounded result needs the same
+  check when it finishes. Final analysis must use the corrected reporting analyzer.
+
+The entries below preserve earlier checkpoints. Their checkout and draft-PR
+instructions are superseded by the merged state and frozen recovery above.
 
 - Reporting correction `e1d5c2a` / `d70c2db` fixes repeated document-field
   aggregation and distinguishes exact projected representations from the frozen

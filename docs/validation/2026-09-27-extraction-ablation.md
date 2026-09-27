@@ -1,11 +1,50 @@
 # Modular extraction ablation — execution record
 
-Status: **implementation verified; live study running; results pending**.
+Status: **implementation merged; live study and frozen-code recovery running; final results pending**.
 
 The [execution plan](../plans/2026-09-27-modular-extraction-ablation-study.md) and
 [stage documentation](../../prototypes/parsing_service/docs/extraction-experiments.md)
 describe the implementation. This record must be completed from terminal study artifacts;
 the old reference accuracy below is a scorer regression check, not a new study result.
+
+## Current execution recovery
+
+The implementation stack merged into `feat/kei-exp-parser` at `377cd050` after
+all three pre-merge heads passed CI. Its tree matches tested full-stack `a6c5612`.
+This does not change the frozen methods or complete their evaluation.
+
+The primary checkout moved away from the registered R1 source at 18:23–18:27 UTC.
+Thirty-five queued commands failed their code-pin check before execution; they
+are missing results, not measured model failures. The original worker and its
+captures are retained. `artifacts/extraction-ablation/resume-20260927-2/checkout-drift-audit.json`
+records the reflog evidence, rejected commands and recovery policy.
+
+R1's original 71-file archive is restored at
+`artifacts/extraction-ablation/frozen-execution/r1`; it validates all 79 cells and
+16 sources. R2a's 73 registered files are frozen at the sibling `r2a` directory
+and validate all 30 cells and 15 sources. Its recovery archive is
+`resume-20260927-2/r2a-code.zip`, SHA-256
+`b00cde1b7fcb4b2c151220969c2ad97c76557b27b6af01f26c6149c2ab2200ad`.
+No manifest, result or captured response was rewritten.
+
+The `free-ablation-r1-resume-2` user service waits for the recorded original
+launcher and follower identities to disappear, then audits seals and resumes
+only missing cells with two workers in registered order. Its saved waiting and
+execution plans are under `resume-20260927-2/`. The corresponding selection
+follower uses frozen R2a; the scheduler under `followups-resume-20260927-2/`
+requires all 79 R1 results before running frozen R3, then R4. These are scheduled
+dependencies, not completed study results. Consult the artifact root's
+`INTEGRATION-POINTER.md` and actual processes for current state.
+
+At this checkpoint, 43 R1 results and 22 R2a results are sealed. All 43 R1 cells
+replay exactly from 1611 saved calls with HTTP disabled. The incremental reports
+through `replay-verification-20260927/increment-43-offline.json` cover disjoint
+cell sets. The newest pair, Akita unverified and Sousa bounded, contributes
+89 calls; initial verification obtained 306 separate tokenizer probes before
+the offline check. Sousa crossed the checkout-change interval but still replays
+exactly under registered code. The active Akita bounded result remains pending
+and must be checked the same way. Frozen launchers still use their historical
+analyzers; final reports must be regenerated with the corrected analyzer below.
 
 ## Frozen protocol
 
