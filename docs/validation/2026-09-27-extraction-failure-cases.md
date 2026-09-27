@@ -145,6 +145,49 @@ that stays in the selector comparison denominator. Neither a cost saving nor a
 quality improvement occurred in this conditional replay. Evidence: R2a
 `analysis-partial-05.json`, `accounting-partial-05.json` and the paired cells.
 
+## Evidence blocks: preserved storage, weaker model-facing structure
+
+The user's DocTags question prompted a wider audit than the original whole-table
+partition checks. `artifacts/extraction-ablation/evidence-block-audit-20260927.json`
+records all 16 sources and exact primary-passage ownership for the completed
+Article cells. Canonical IDs, labels, table objects and source order survive;
+the bounded partitioner does not split a table passage. Native conversion,
+the evidence reader and its text renderer are unchanged from repair `6e641b6`.
+
+However, preserving those objects is not the same as showing their structure to
+the model. Inventory renders `[passage_id] plain text`; value extraction joins
+plain passage text. Neither renderer exposes the block label or structured cell
+row/column spans. Grounding does use cell candidates and row/header context.
+Thus structure reaches the later verifier more fully than the stages that decide
+identities and values. This limitation predates the modular refactor.
+
+Mizuta's `p7_s2` illustrates the loss: its canonical table has 135 cells with
+row/column positions, header roles and spans. Plain text shows `Muscular part`
+and `Vertebral part` on one header line and six PSC/Major/Minor columns on the
+next, without explicit group spans. That makes the grouping less explicit to
+inventory and value extraction. This is a representation weakness, not proof
+that it caused a particular scored error.
+
+The older FREE-technical DocTags route at `67ea4dc` converted OTSL tables to
+Markdown, rendered section headings and captions, and heuristically joined
+table continuations across page breaks. It did not simply feed raw DocTags to
+the model. Its simplifier was also incomplete: it parsed `ched`, `fcel` and
+`ecel`, and inferred some continuation/header behavior. Reusing its structural
+idea does not justify treating that parser as lossless.
+
+The new context partitioner groups whole passages by rendered token budget; it
+does not keep sections or a table's separate footnotes together as a semantic
+group. Caption text in native table HTML is retained, but external qualifiers
+can land in another unit. A `Table` label alone also does not guarantee cells:
+the pinned Akita OCR result has two such blocks and zero structured table objects.
+
+Follow-up must distinguish **structure-preserving prompt rendering** from
+**structure-aware grouping**, retain canonical evidence IDs, and register each
+factor before measuring it. Do not describe R1 as a DocTags replication or alter
+its frozen inputs mid-study. Current evidence proves preservation of source
+objects and reveals underuse of their structure; it does not establish which
+rendering or grouping is most accurate.
+
 ## Sousa: completed process with an incomplete extraction
 
 R1 `Sousa--unverified--0` has a valid sealed result and process exit code zero,

@@ -164,3 +164,25 @@ does not isolate grounding quality. The other newly available R1 pair is
 Brondbylund schema versus bounded context; it has no annotated field gold.
 Mizuta's selector replay retains all units and produces identical records and
 costs. These incomplete comparisons do not establish a preferred method.
+
+## Execution interruption and recovery — 2026-09-27, 12:22 UTC
+
+The local launcher, replay follower and SSH tunnel disappeared after the last
+captured replies at approximately 12:04 UTC; the cause is unknown. Process and
+exec-handle checks confirmed their absence. The remote model container remained
+running and had no active or queued requests before recovery. All 79 manifest
+cells still validated against their pins.
+
+Recovery retains 23 sealed R1 results and 14 R2a results. The remaining 56 R1
+cells use the original registered order and two workers. Two interrupted Akita
+cells reuse saved replies; one unanswered request in each has unknown prior
+completion and is counted accordingly. Local systemd user units supervise the
+launcher, follower and tunnel. Recovery provenance, scripts and logs live in
+`artifacts/extraction-ablation/resume-20260927-1/`; the original logs remain intact.
+
+The 23 finished R1 cells alone contain 764 calls, of which 505 are grounding,
+and 5,602,811 reported input tokens. This cost excludes the interrupted cells'
+unfinished work. The four-claim quoted-verification batches amplify repeated
+source context; Wang uses 144 grounding calls in that arm versus 18 in the
+semantic control. This is an observed cost of the registered design, not merely
+an observation delay. Do not change the frozen methods to reduce costs mid-run.

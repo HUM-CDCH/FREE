@@ -177,7 +177,28 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
-- Automatic follow-up is running from `artifacts/extraction-ablation/follow-study.py`.
+- Recovery on 2026-09-27 at approximately 12:22 UTC: the original launcher,
+  follower and tunnel were absent from `/proc`, their exec handles were gone,
+  and no replacement processes existed. Last captured replies were at 12:04 UTC;
+  the cause is unknown. Twenty-three R1 results and fourteen R2a results survived.
+  Exact recovery retains those results and reuses captured replies. Two requests
+  without replies have unknown prior completion, recorded by the normal runner.
+  Recovery controls/logs are in `artifacts/extraction-ablation/resume-20260927-1/`.
+  Current local systemd user units are `free-ablation-r1-resume-1`,
+  `free-ablation-follow-resume-1` and `free-ablation-tunnel-20260927-r1`.
+  Inspect their actual MainPID/state and the recovery execution plans before acting.
+  No remote service was changed. The original follower below is historical.
+
+- The user's DocTags question exposed an incomplete architecture check: source
+  blocks/tables survive, but inventory/value prompts flatten their structure;
+  token-based grouping does not model heading/table/footnote relationships.
+  The evidence audit and older DocTags comparison are recorded in
+  `docs/validation/2026-09-27-extraction-failure-cases.md`. Assess explicit typed
+  rendering and semantic grouping as separate follow-up factors; current R1
+  must not be represented as replicating those techniques. The original tests
+  establish whole-passage preservation, not full use of Docling structure.
+
+- Original automatic follow-up ran from `artifacts/extraction-ablation/follow-study.py`.
   Its PID, script hash, observed R1 process identity and manifest hashes are saved in
   `artifacts/extraction-ablation/followup-20260927/execution-plan.json`; logs and terminal
   command statuses are beside it. It runs R2a only after the parent bounded result exists,
