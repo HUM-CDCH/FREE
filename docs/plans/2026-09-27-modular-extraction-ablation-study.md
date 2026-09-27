@@ -177,6 +177,22 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- Extraction-stack integration was verified separately at local commit `f3714ae`
+  in `/home/gennaro/projects/FREE-worktrees/extraction-stack-review`, combining
+  extraction-only fixes `1fa6a9b` with repaired foundation `93e1ea7`.
+  Results: 1060 fast parser tests and 34 guarded workflow tests passed; six
+  sources/88 requests and extraction data replay exactly apart from intentional
+  v12 protocol identity/clocks, and 33 saved malformed replies decode losslessly.
+  Evidence: `artifacts/extraction-ablation/stack-integration-20260927/`.
+  A concurrent workstream has since added server-owned Studio ingestion and
+  publication-cancellation changes to the live fixes branch/PR #141. Preserve
+  that work and its reconciliation report; do not reset, rewrite or use its
+  active checkout for extraction edits. The extraction-only snapshot does not
+  certify the combined Studio branch. Dry-merging that broader branch with
+  `93e1ea7` exposes two Studio conflicts (README and Playwright configuration);
+  reconcile and verify these after checking the other workstream's current state.
+  R1/R2a and the R3/R4 archives remain unchanged.
+
 - The pushed draft review stack is [repair #142](https://github.com/HUM-CDCH/FREE/pull/142)
   → [modular study #143](https://github.com/HUM-CDCH/FREE/pull/143)
   → [structure/grounding fixes #141](https://github.com/HUM-CDCH/FREE/pull/141).

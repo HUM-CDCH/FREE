@@ -262,6 +262,25 @@ but complete-stack runtime verification remains a separate integration gate.
 At this checkpoint 36 R1 and 18 R2a results are sealed. These counts are
 execution progress, not successful semantic extractions or a completed study.
 
+An extraction-only integration snapshot was subsequently checked at local
+commit `f3714ae`: fix commit `1fa6a9b` plus repair integration `93e1ea7`, in
+`/home/gennaro/projects/FREE-worktrees/extraction-stack-review`. It passed
+**1060 fast parser tests** (72 skipped, 74 deselected) and **34 guarded workflow
+tests**. The offline checks again decode all 33 source-control-character replies
+losslessly and replay six sources/88 exact requests and extraction data, allowing
+only the intentional v11-to-v12 prompt/fingerprint change and top-level clocks.
+Script and report: `artifacts/extraction-ablation/stack-integration-20260927/`.
+
+Meanwhile another workstream merged server-owned Studio ingestion into PR #141,
+followed by publication-cancellation and service-fixture fixes. Its ongoing
+evidence is in that branch's
+`docs/validation/2026-09-27-ingestion-pr141-reconciliation.md`. The isolated
+extraction snapshot predates those additions and does not certify them. A dry
+merge of the broadened branch with `93e1ea7` has two Studio conflicts, in README
+and Playwright configuration. No conflict resolution or branch rewrite was
+performed on that concurrently edited checkout. Complete-stack integration
+therefore remains open alongside study completion; inference pins are unchanged.
+
 ## Structured input follow-up — registered, no fresh inference yet
 
 The Docling audit led to an independent Article rendering factor at `dbde989`
