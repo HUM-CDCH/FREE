@@ -90,6 +90,47 @@ resumption; generate analysis; review extra predictions and failure cases; popul
 cost and refusal tables; verify regeneration from captures; finalize this record. Failed or
 refused extraction is retained in the study denominators. The active goal is not complete.
 
+### Exact replay of live captures
+
+`docs/validation/extraction_capture_replay.py` verifies sealed fresh-call cells
+against the registered source/code pins, artifact seal and execution receipt.
+It uses the existing exact request/reply matcher, consumes every saved reply,
+and compares the entire regenerated artifact except top-level `started` and
+`seconds`. Recorded per-call durations and failed/partial outcomes must match.
+It never creates model replies or modifies study cells. R2a uses its separate
+conditional `selection_replay` command and original-control check.
+
+R1 did not save tokenizer probes for partition candidates that never became model
+calls. The verifier therefore uses captured input counts where available and
+requires a separate token-count cache for other probes. `--allow-tokenize`
+explicitly permits filling that cache from the registered provider; without it,
+a missing count refuses verification. These are post-run tokenizer observations,
+not newly discovered original captures. Cache entries record the request/provider;
+the verification report pins each used entry. This does not attest loaded weights.
+
+From the pinned R1 Parsing Service checkout, an example invocation is:
+
+```bash
+PYTHONPATH=src:. .venv/bin/python ../../docs/validation/extraction_capture_replay.py \
+  ../../artifacts/extraction-ablation/20260927-r1 \
+  ../../artifacts/extraction-ablation/replay-verification-20260927/replay-new.json \
+  ../../artifacts/extraction-ablation/replay-verification-20260927/token-counts
+```
+
+Outputs are exclusive; choose a new report filename for another check. Repeated
+`--cell ID` arguments pin the cohort when a study is still running. The first
+completed cohort has **35 cells and 1,204 captured calls**, including the recipe
+Catalog and all five incomplete-processing cases present in that cohort.
+`replay-verification-20260927/initial.json` records the check with token probes
+permitted; `offline.json` verifies exactly that cohort again with HTTP disabled
+in the acceptance process and zero fresh tokenizer/model calls. Three focused
+tests reject changed values, unused replies, missing offline counts and changed
+provider cache entries. Remaining cells are not covered by this partial replay.
+
+Bloat review accepts this verification CLI because registered studies need receipt
+checks and unsent token probes beyond the earlier reference-fixture replay. It
+reuses that fixture's matcher and changes no serving entrypoint or frozen module.
+
 Supplementary observation accounting is provided by
 `docs/validation/extraction_ablation_accounting.py STUDY_DIR ANALYSIS_JSON OUTPUT_JSON`.
 It lists every output array item, whether the frozen gold projection selected it, exact
