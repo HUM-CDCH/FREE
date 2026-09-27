@@ -7,6 +7,9 @@ Implementation merged through PRs [#142](https://github.com/HUM-CDCH/FREE/pull/1
 [#143](https://github.com/HUM-CDCH/FREE/pull/143) and
 [#141](https://github.com/HUM-CDCH/FREE/pull/141) into `feat/kei-exp-parser` at `377cd050`.
 
+For a future agent session, use the [reproduction prompt](2026-09-27-extraction-ablation-reproduction-prompt.md).
+It distinguishes resuming a frozen study from registering a fresh revision.
+
 ## Goal and authorization
 
 Implement the researched extraction techniques as understandable, independently testable
