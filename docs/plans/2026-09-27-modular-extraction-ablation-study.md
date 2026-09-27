@@ -178,6 +178,17 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- Reporting correction `e1d5c2a` / `d70c2db` fixes repeated document-field
+  aggregation and distinguishes exact projected representations from the frozen
+  normalized score. Twenty-three focused tests and R1 41-cell/R2a 20-cell
+  regeneration pass; all earlier shared primary scores and diagnostics are
+  unchanged. Use the corrected analyzer from an integration checkout for final
+  reports; frozen launchers still produce their historical analyzer outputs.
+  The execution report records commands/limits and the correction's artifact
+  names. Serving code and frozen inference pins are unchanged. CI passed
+  repair `9a85f01`, study `7fb6616` and full stack `8575955` before this separate
+  reporting change; do not substitute those checks for the new heads.
+
 - The full stack also passes all 61 default browser and five recovery
   scenarios in a fresh isolated run (`artifacts/extraction-integration/browser.log`).
   The manual model-picker fixture fix already in this stack is now backported

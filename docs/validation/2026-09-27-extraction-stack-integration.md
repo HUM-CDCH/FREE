@@ -113,7 +113,19 @@ GitHub's complete `verify` job subsequently
 [passed at `16b2cb1`](https://github.com/HUM-CDCH/FREE/actions/runs/36334988138).
 The final ancestry merge `56cc78e` and this evidence update retain identical
 runtime/test files; their differences from that verified commit are documentation.
-The independently pushed parent heads still require their own CI conclusions.
+GitHub verify also passed the subsequent full-stack head `8575955`, repair
+`9a85f01` and study `7fb6616`. These are the verified integration heads before
+the reporting correction below.
+
+Study reporting correction `e1d5c2a` (full-stack patch `d70c2db`) fixes
+document-metadata aggregation and supplies the planned exact projected-value
+diagnostic alongside normalized scores. Its 23 focused tests pass; regenerated
+R1 41-cell/R2a 20-cell analysis/accounting/tables reconcile all stage totals.
+Every shared primary score and operational diagnostic from the earlier 36/18
+snapshots is unchanged. See the execution report's reporting-correction section
+and `reporting-correction-audit.json`. Bloat review found no blockers; this
+changes reporting and tests, with no serving code, new dependency or inference
+change. The latest reporting heads require their own CI conclusions.
 
 Capture replay now covers 37 R1 cells and 1252 saved calls: the original
 35-cell offline report plus `increment-37-offline.json` under the primary
