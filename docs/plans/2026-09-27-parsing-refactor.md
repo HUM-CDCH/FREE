@@ -530,10 +530,71 @@ extraction `tsc --noEmit` and Studio `tsc -b` clean; extraction fast tests
 73 pass (base 72, +1 round-trip test); Studio vitest for the nine touched
 modules' test files 100 pass (base 100).
 
+Controller addendum (Task 8): extraction `tsc --noEmit` passes; extraction
+PostgreSQL tier (`extraction-module.integration.test.ts` +
+`kei-handoff.postgres.test.ts`) 56/56 on disposable
+`free_test_refactor_extraction` (migrated with `prisma-next migrate`).
+
+## Task 9 (slice 9): Review Decision rules in one pure module
+
+`packages/extraction`. Deciding whether submitted Review Decisions are valid
+for an Extraction is split across two files and partly repeated:
+- `module.ts` `finalizeReview` (~44-131) checks, against a read snapshot,
+  reviewability, the pinned document and schema, the grounding coverage
+  invariant (evidence ∪ ungrounded paths = populated reviewable paths, no
+  overlap, no duplicates), and that the decisions match the evidence links
+  one to one and the schema (`reviewDecisionMatchesSchema` ~210-233,
+  `occurrenceOwnership` ~204, `extractionRecords` ~200, `parsePinnedSchema`).
+- `postgres-persistence.ts` `finalizeReview` (~1241-1322) re-checks inside
+  its transaction, against the locked row, with `normalizeDecisions` (~896)
+  and `reviewAuthorityMatchesExtraction` (~907-957), which repeat the
+  action/value rule and the evidence-path matching and add occurrence
+  ownership. `ReviewAuthority` (`dependencies.ts:51`) ferries
+  `occurrenceIdsByAnchor` and `evidenceResultPathKeys` from one to the other.
+- `postgres-persistence.ts` also builds the domain module
+  (`createExtractions`, ~1608, importing `createExtractionModule` from
+  `module.ts`), so the Postgres adapter imports the module it sits behind.
+
+Change (inside `packages/extraction`):
+- A new pure module (suggested `review-rules.ts`) owns every rule above:
+  the snapshot-side validation that returns either the review authority or
+  the exact `ExtractionError` code/message it fails with, and the
+  in-transaction revalidation (`normalizeDecisions`,
+  `reviewAuthorityMatchesExtraction`, the action/value rule shared by both
+  sides instead of written twice). It imports no persistence, DBOS or
+  database module.
+- `module.ts` `finalizeReview` keeps the reads and the calls to
+  `persistence.finalizeReview`, and delegates every rule to the pure module.
+- `postgres-persistence.ts` keeps the transaction, the claim, the digest and
+  the writes; it calls the pure revalidation. **The in-transaction
+  revalidation stays** — it is what makes the check hold against the locked
+  row; only its code moves.
+- `createExtractions` moves to its own small composition module (suggested
+  `extractions.ts`); `index.ts` re-exports it from there under the same
+  public name (the package's public interface is unchanged).
+  `postgres-persistence.ts` no longer imports `module.ts`.
+
+Invariants: every `ExtractionError` code and message and the ORDER of checks
+(the first failing check decides the message) unchanged; `finalizeReview`
+dispositions (`reviewed`/`replayed`/`conflict`/`invalid`/`not-found`),
+the decision digest (`JSON.stringify(normalizeDecisions(...))`) byte-for-byte,
+transaction boundaries, and the package's public exports unchanged.
+
+Acceptance:
+- [ ] Focused pure tests of the new module without a database: coverage
+      mismatch, duplicate evidence path, decision/evidence mismatch, EDITED
+      with and without a value, allowed-values and numeric types, occurrence
+      ownership mismatch in revalidation, and digest stability for
+      reordered decisions and occurrence ids.
+- [ ] `grep -n "import .*module.js" postgres-persistence.ts` is empty; the
+      action/value rule exists once.
+- [ ] `tsc --noEmit` (extraction) and `tsc -b` (Studio) pass; extraction fast
+      tests pass; the controller runs the extraction PostgreSQL tier.
+
 ## Next candidates, reassessed after this slice
 
-1. Pure review-decision rules out of `module.ts`/`postgres-persistence.ts`;
-   composition (`createExtractions`) out of the Postgres adapter.
-2. Split `postgres-persistence.ts` by cluster around ownership guards and
-   attempt reads.
-3. One owner for the extraction method value (strategy, recipe, models).
+1. Split `postgres-persistence.ts` by cluster around ownership guards and
+   attempt reads (removes the `postgres-suggested-batch` type cycle).
+2. One owner for the extraction method value (strategy, recipe, models).
+3. Python: separate model records from Docling specs (`kei_exp.models`) so
+   `api`/`result` stop loading the OCR stack.
