@@ -2,6 +2,7 @@
 
 import '@testing-library/jest-dom/vitest'
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -10,7 +11,7 @@ import {
   within,
 } from '@testing-library/react'
 import { StrictMode } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DocumentWorkspaceProps } from './App'
 // The explicit extension is required: `./ProjectNavigation` resolves to
 // `projectNavigation.ts` on a case-insensitive filesystem.
@@ -378,6 +379,8 @@ function lifecycleFetch(
       case 'DELETE':
         return options.remove?.() ?? new Response(null, { status: 204 })
     }
+    if (url.endsWith('/source-ingestions'))
+      return Response.json({ ingestions: [] })
     if (url.endsWith(secondProject.projectContextId))
       return Response.json({
         projectContext: secondProject,
@@ -1121,7 +1124,8 @@ describe('Project Context navigation', () => {
     // Exactly seven: the row's disclosure, add-sources and actions controls,
     // the menu's open/delete actions, and the Source Document's open/delete actions.
     expect(rail().getAllByRole('button')).toHaveLength(6)
-    expect(fetch).toHaveBeenCalledTimes(2)
+    // The list, the branch, and the uploads the server is still ingesting.
+    expect(fetch).toHaveBeenCalledTimes(3)
 
     fireEvent.click(rail().getByRole('button', { name: 'Beretning.pdf' }))
     expect(await screen.findByText(/Opened Beretning.pdf/)).toBeInTheDocument()
@@ -1827,436 +1831,420 @@ describe('Project Context navigation', () => {
   })
 })
 
-describe('multi-PDF ingestion on the Project Context page', () => {
-  const uploadedA = {
-    sourceDocumentId: '51000000-0000-4000-8001-000000000101',
-    name: 'A.pdf',
-    createdAt: '2026-08-12T10:01:00.000Z',
-    pageCount: 1,
+describe('Source Ingestions on the Project Context page', () => {
+  type Row = {
+    workflowId: string
+    name: string
+    status: 'queued' | 'parsing' | 'succeeded' | 'failed'
+    createdAt: string
+    completedAt?: string
+    sourceDocumentId?: string
+    failure?: { code: string; message: string }
+    /** false: only answered when the tab names it (outside every window). */
+    windowed: boolean
   }
-  const uploadedB = {
-    sourceDocumentId: '51000000-0000-4000-8001-000000000102',
-    name: 'B.pdf',
-    createdAt: '2026-08-12T10:02:00.000Z',
-    pageCount: 2,
-  }
-  const uploadedC = {
-    sourceDocumentId: '51000000-0000-4000-8001-000000000103',
-    name: 'C.pdf',
-    createdAt: '2026-08-12T10:03:00.000Z',
-    pageCount: 3,
-  }
-  const uploadedD = {
-    sourceDocumentId: '51000000-0000-4000-8001-000000000104',
-    name: 'D.pdf',
-    createdAt: '2026-08-12T10:04:00.000Z',
-    pageCount: 4,
-  }
-  // The queue's client-only item ids (crypto.randomUUID in the provider); no upload sends a key.
-  const itemIds = {
-    A: '51000000-0000-4000-9000-000000000101',
-    B: '51000000-0000-4000-9000-000000000102',
-    C: '51000000-0000-4000-9000-000000000103',
-    D: '51000000-0000-4000-9000-000000000104',
-  }
+  const documentOf = (n: number, name: string) => ({
+    sourceDocumentId: `51000000-0000-4000-8001-0000000003${String(n).padStart(2, '0')}`,
+    name,
+    createdAt: `2026-08-12T10:${String(n).padStart(2, '0')}:00.000Z`,
+    pageCount: n,
+  })
+  const workflowOf = (name: string) => `ingest:${projectContextId}:${name}`
 
-  function branch(sourceDocuments: typeof detail.sourceDocuments = []) {
-    return Response.json({ projectContext: project, sourceDocuments })
-  }
-
-  function ingestionResult(sourceDocument: typeof beretning) {
-    return Response.json({
-      ...sourceDocument,
-      sourceRepresentationId: representationId,
-      revisionNumber: 1,
-      pageCount: 1,
-    })
-  }
-
-  it('writes selected PDFs in order without a key, caches acknowledgements, and retries the failed PDF', async () => {
-    const randomUUID = vi
-      .fn()
-      .mockReturnValueOnce(itemIds.A)
-      .mockReturnValueOnce(itemIds.B)
-      .mockReturnValueOnce(itemIds.C)
-      .mockReturnValueOnce(itemIds.D)
-    vi.stubGlobal('crypto', { randomUUID })
-
-    let branchCalls = 0
-    const attempts = new Map<string, number>()
-    const writes: { name: string; ingestionKey: FormDataEntryValue | null }[] = []
-    const pending: { response: Response; resolve: (response: Response) => void }[] = []
-    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  /**
+   * A fake Studio for uploads: every POST is admitted (202) as one workflow per file name, which the test then moves
+   * through the listing; a success adds its Source Document to the branch.
+   */
+  function ingestionStudio(options: {
+    documents?: (typeof detail.sourceDocuments)[number][]
+    rows?: Row[]
+    post?: (file: File, layout: FormDataEntryValue | null) => Response | Promise<Response> | undefined
+    /** The workflow a file's bytes join (content deduplication); its own name's by default. */
+    workflowFor?: (file: File) => string
+  } = {}) {
+    const rows = new Map((options.rows ?? []).map((row) => [row.workflowId, row]))
+    const documents = [...(options.documents ?? detail.sourceDocuments)]
+    const posts: { name: string; layout: FormDataEntryValue | null; ingestionKey: FormDataEntryValue | null }[] = []
+    const listings: string[][] = []
+    const dismissed: string[] = []
+    const reads = { branch: 0, list: 0 }
+    const control = {
+      listing: (): Response | Promise<Response> | undefined => undefined,
+      branch: (): Response | Promise<Response> | undefined => undefined,
+      dismiss: (): Response | undefined => undefined,
+    }
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
-      if (init?.method === 'POST') {
+      if (init?.method === 'POST' && url.endsWith('/source-documents')) {
         const form = init.body as FormData
         const file = form.get('file') as File
-        writes.push({ name: file.name, ingestionKey: form.get('ingestionKey') })
-        const attempt = (attempts.get(file.name) ?? 0) + 1
-        attempts.set(file.name, attempt)
-        const document =
-          file.name === 'A.pdf'
-            ? uploadedA
-            : file.name === 'B.pdf'
-              ? uploadedB
-              : file.name === 'C.pdf'
-                ? uploadedC
-                : uploadedD
-        const response =
-          file.name === 'B.pdf' && attempt === 1
-            ? failureResponse('source_ingestion_failed', 'B failed', 422)
-            : ingestionResult(document)
-        return new Promise<Response>((resolve) => pending.push({ response, resolve }))
+        posts.push({ name: file.name, layout: form.get('layout'), ingestionKey: form.get('ingestionKey') })
+        const custom = await options.post?.(file, form.get('layout'))
+        if (custom) return custom
+        const workflowId = options.workflowFor?.(file) ?? workflowOf(file.name)
+        if (!rows.has(workflowId))
+          rows.set(workflowId, { workflowId, name: file.name, status: 'queued', createdAt: '2026-08-12T10:00:00.000Z', windowed: true })
+        return Response.json({ workflowId }, { status: 202 })
       }
-      const reopened = /source-documents\/([^/]+)\/reopen$/.exec(url)
-      if (reopened) {
-        const document = [uploadedA, uploadedB, uploadedC, uploadedD].find(
-          (item) => item.sourceDocumentId === reopened[1],
-        )
-        return Response.json(snapshot(document ?? uploadedA))
+      if (init?.method === 'DELETE' && url.includes('/source-ingestions/')) {
+        const workflowId = decodeURIComponent(url.slice(url.lastIndexOf('/') + 1))
+        const refused = control.dismiss()
+        if (refused) return refused
+        dismissed.push(workflowId)
+        rows.delete(workflowId)
+        return new Response(null, { status: 204 })
+      }
+      if (init?.method === 'DELETE') return new Response(null, { status: 204 })
+      if (url.includes('/source-ingestions')) {
+        const named = new URL(url, 'http://local').searchParams.getAll('workflowId')
+        listings.push(named)
+        const custom = await control.listing()
+        if (custom) return custom
+        const ingestions = [...rows.values()]
+          .filter((row) => row.windowed || named.includes(row.workflowId))
+          .map((row) => { const listed: Partial<Row> = { ...row }; delete listed.windowed; return listed })
+        return Response.json({ ingestions, absent: named.filter((id) => !rows.has(id)) })
       }
       if (url.endsWith(projectContextId)) {
-        branchCalls += 1
-        return branch(detail.sourceDocuments)
+        reads.branch += 1
+        const custom = await control.branch()
+        if (custom) return custom
+        return Response.json({ projectContext: project, sourceDocuments: [...documents] })
       }
-      return projectListResponse([project])
+      if (url === '/api/project-contexts') reads.list += 1
+      return studioFetch()(input)
     })
+    const set = (name: string, change: Partial<Row>) => {
+      const workflowId = workflowOf(name)
+      const row = rows.get(workflowId) ?? { workflowId, name, status: 'queued' as const, createdAt: '2026-08-12T10:00:00.000Z', windowed: true }
+      rows.set(workflowId, { ...row, ...change })
+    }
+    return {
+      fetch, posts, listings, dismissed, reads, control,
+      parse: (name: string) => set(name, { status: 'parsing' }),
+      succeed: (name: string, n: number, change: Partial<Row> = {}) => {
+        const document = documentOf(n, name)
+        documents.push(document)
+        set(name, { status: 'succeeded', completedAt: '2026-08-12T11:00:00.000Z', sourceDocumentId: document.sourceDocumentId, ...change })
+      },
+      fail: (name: string, message: string) =>
+        set(name, { status: 'failed', completedAt: '2026-08-12T11:00:00.000Z', failure: { code: 'source_ingestion_failed', message } }),
+      row: (name: string, status: Row['status'] = 'queued'): Row =>
+        ({ workflowId: workflowOf(name), name, status, createdAt: '2026-08-12T10:00:00.000Z', windowed: true }),
+    }
+  }
+  const select = (...names: string[]) =>
+    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
+      target: { files: names.map((name) => new File([name], name, { type: 'application/pdf' })) },
+    })
+  /** Runs the provider's polling (3 s while busy) past its next read. */
+  const poll = async (ms = 3000) => {
+    await act(async () => { await vi.advanceTimersByTimeAsync(ms) })
+  }
 
-    renderRoutes(fetcher)
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout'] })
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('sends selected PDFs in order without a key and shows each as Queued once Studio admits it', async () => {
+    const studio = ingestionStudio()
+    renderRoutes(studio.fetch)
     const page = await openProjectPage()
     await rail().findByText('Beretning.pdf')
 
-    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
-      target: {
-        files: [
-          new File(['a'], 'A.pdf', { type: 'application/pdf' }),
-          new File(['b'], 'B.pdf', { type: 'application/pdf' }),
-          new File(['c'], 'C.pdf', { type: 'application/pdf' }),
-        ],
-      },
-    })
+    select('A.pdf', 'B.pdf', 'C.pdf')
 
-    // Three selected PDFs are three cards, never more: the grid never claims
-    // more Source Documents than there are.
+    await waitFor(() => expect(studio.posts.map(({ name }) => name)).toEqual(['A.pdf', 'B.pdf', 'C.pdf']))
+    expect(studio.posts.map(({ ingestionKey }) => ingestionKey)).toEqual([null, null, null])
+    // Three selected PDFs are three cards, never more.
     await waitFor(() => expect(within(page).getAllByText(/^[ABC]\.pdf$/)).toHaveLength(3))
-    expect(within(page).getByRole('status')).toHaveTextContent(
-      'A.pdf: parsing. B.pdf: queued. C.pdf: queued.',
-    )
-    await waitFor(() => expect(writes).toHaveLength(1))
-    expect(writes[0]).toEqual({ name: 'A.pdf', ingestionKey: null })
-    expect(pending).toHaveLength(1)
-    const firstRequest = pending.shift()!
-    firstRequest.resolve(firstRequest.response)
-    await waitFor(() => expect(writes).toHaveLength(2))
-    expect(writes[1]).toEqual({ name: 'B.pdf', ingestionKey: null })
-    expect(pending).toHaveLength(1)
-    const secondRequest = pending.shift()!
-    secondRequest.resolve(secondRequest.response)
-    await waitFor(() => expect(writes).toHaveLength(3))
-    expect(writes[2]).toEqual({ name: 'C.pdf', ingestionKey: null })
-    expect(pending).toHaveLength(1)
-    const thirdRequest = pending.shift()!
-    thirdRequest.resolve(thirdRequest.response)
+    await waitFor(() => expect(within(page).getByRole('status')).toHaveTextContent('A.pdf: queued. B.pdf: queued. C.pdf: queued.'))
 
-    expect(await screen.findByText('B failed')).toBeInTheDocument()
-    // A saved card is replaced by the Source Document it became — never both.
+    studio.parse('A.pdf')
+    studio.fail('B.pdf', 'B failed')
+    studio.succeed('C.pdf', 3)
+    await poll()
+
+    expect(await within(page).findByText('Parsing…')).toBeInTheDocument()
+    expect(within(page).getByText('B failed')).toBeInTheDocument()
+    expect(within(page).getByRole('button', { name: 'Dismiss B.pdf' })).toBeInTheDocument()
+    expect(within(page).getByRole('button', { name: 'Upload B.pdf again' })).toBeInTheDocument()
     expect(await rail().findByRole('button', { name: 'C.pdf' })).toBeInTheDocument()
-    await waitFor(() =>
-      expect(within(page).getAllByText(/^[ABC]\.pdf$/)).toHaveLength(3),
-    )
-    expect(screen.queryByText(/Opened /)).not.toBeInTheDocument()
-    expect(writes.map(({ name }) => name)).toEqual(['A.pdf', 'B.pdf', 'C.pdf'])
-    expect(writes.map(({ ingestionKey }) => ingestionKey)).toEqual([null, null, null])
-    // Acknowledged writes update the ready branch without a refresh.
-    expect(branchCalls).toBe(1)
-    expect(rail().getByRole('button', { name: 'A.pdf' })).toBeInTheDocument()
-    expect(rail().getByRole('button', { name: 'C.pdf' })).toBeInTheDocument()
-
-    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
-      target: {
-        files: [new File(['d'], 'D.pdf', { type: 'application/pdf' })],
-      },
-    })
-    await waitFor(() => expect(writes).toHaveLength(4))
-    expect(screen.getByText('B failed')).toBeInTheDocument()
-    expect(writes[3]).toEqual({ name: 'D.pdf', ingestionKey: null })
-    expect(pending).toHaveLength(1)
-    const laterRequest = pending.shift()!
-    laterRequest.resolve(laterRequest.response)
-    expect(await rail().findByRole('button', { name: 'D.pdf' })).toBeInTheDocument()
-    expect(within(page).getAllByText('D.pdf')).toHaveLength(1)
-    expect(branchCalls).toBe(1)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Retry B.pdf' }))
-    await waitFor(() => expect(writes).toHaveLength(5))
-    expect(writes[4]).toEqual({ name: 'B.pdf', ingestionKey: null })
-    expect(pending).toHaveLength(1)
-    const retryRequest = pending.shift()!
-    retryRequest.resolve(retryRequest.response)
-    expect(await rail().findByRole('button', { name: 'B.pdf' })).toBeInTheDocument()
-    // The retried card became its Source Document in place: one B.pdf, always.
-    await waitFor(() => expect(within(page).getAllByText('B.pdf')).toHaveLength(1))
-    expect(writes.map(({ name }) => name)).toEqual([
-      'A.pdf',
-      'B.pdf',
-      'C.pdf',
-      'D.pdf',
-      'B.pdf',
-    ])
-    expect(branchCalls).toBe(1)
-    expect(
-      rail()
-        .getAllByRole('button')
-        .filter((button) => ['A.pdf', 'B.pdf', 'C.pdf', 'D.pdf'].includes(button.textContent ?? ''))
-        .map((button) => button.textContent),
-    ).toEqual(['A.pdf', 'B.pdf', 'C.pdf', 'D.pdf'])
+    // The succeeded card is replaced by the Source Document it became: one C.pdf.
+    await waitFor(() => expect(within(page).getAllByText('C.pdf')).toHaveLength(1))
+    expect(within(page).getByRole('status')).toHaveTextContent('A.pdf: parsing. B.pdf: failed. B failed')
   })
 
   it('uploads with the page layout chosen beside the drop zone', async () => {
-    vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValueOnce(itemIds.A) })
-    const layouts: (FormDataEntryValue | null)[] = []
-    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
-      if (init?.method === 'POST') {
-        layouts.push((init.body as FormData).get('layout'))
-        return ingestionResult(uploadedA)
-      }
-      if (url.includes('/reopen')) return Response.json(snapshot(uploadedA))
-      if (url.endsWith(projectContextId)) return branch([])
-      return projectListResponse([project])
-    })
-
-    renderRoutes(fetcher)
+    const studio = ingestionStudio({ documents: [] })
+    renderRoutes(studio.fetch)
     const page = await openProjectPage()
     await rail().findByText('Empty project.')
     const layout = within(page).getByLabelText('Page layout')
     expect(layout).toHaveValue('pages')
     fireEvent.change(layout, { target: { value: 'spreads' } })
-    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
-      target: { files: [new File(['a'], 'A.pdf', { type: 'application/pdf' })] },
-    })
-    await waitFor(() => expect(layouts).toEqual(['spreads']))
+    select('A.pdf')
+    await waitFor(() => expect(studio.posts.map(({ layout: sent }) => sent)).toEqual(['spreads']))
   })
 
-  it('deduplicates acknowledged retries by Source Document id in the rail', async () => {
-    vi.stubGlobal('crypto', {
-      randomUUID: vi
-        .fn()
-        .mockReturnValueOnce(itemIds.A)
-        .mockReturnValueOnce(itemIds.B),
-    })
-    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
-      if (init?.method === 'POST') return ingestionResult(uploadedA)
-      if (url.includes('/reopen')) return Response.json(snapshot(uploadedA))
-      if (url.endsWith(projectContextId)) return branch([])
-      return projectListResponse([project])
-    })
+  it('two admissions of one workflow render one card, before and after the listing shows it', async () => {
+    const held = Promise.withResolvers<Response>()
+    const studio = ingestionStudio({ workflowFor: () => workflowOf('A.pdf') })
+    renderRoutes(studio.fetch)
+    const page = await openProjectPage()
+    await rail().findByText('Beretning.pdf')
+    studio.control.listing = () => held.promise
 
-    renderRoutes(fetcher)
-    await openProjectPage()
-    await rail().findByText('Empty project.')
-    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
-      target: {
-        files: [
-          new File(['a'], 'A.pdf', { type: 'application/pdf' }),
-          new File(['a'], 'A retry.pdf', { type: 'application/pdf' }),
-        ],
-      },
-    })
+    select('A.pdf', 'A copy.pdf')
 
-    // Both writes acknowledge the same Source Document; it is listed once.
-    await waitFor(() =>
-      expect(screen.queryByText('A retry.pdf')).not.toBeInTheDocument(),
-    )
-    expect(rail().getAllByRole('button', { name: 'A.pdf' })).toHaveLength(1)
+    await waitFor(() => expect(studio.posts).toHaveLength(2))
+    await waitFor(() => expect(within(page).getAllByText(/^A( copy)?\.pdf$/)).toHaveLength(1))
+    studio.control.listing = () => undefined
+    held.resolve(Response.json({ ingestions: [{ ...studio.row('A.pdf'), windowed: undefined }], absent: [] }))
+    await poll()
+    expect(within(page).getAllByText(/^A( copy)?\.pdf$/)).toHaveLength(1)
   })
 
-  it('queues a 180-scalar filename and holds a 181-scalar filename as an item error', async () => {
-    vi.stubGlobal('crypto', {
-      randomUUID: vi
-        .fn()
-        .mockReturnValueOnce(itemIds.A)
-        .mockReturnValueOnce(itemIds.B),
-    })
+  it('sends a 180-scalar filename and holds a 181-scalar filename as an item error', async () => {
     const acceptedName = `${'😀'.repeat(176)}.pdf`
     const rejectedName = `${'😀'.repeat(177)}.pdf`
-    const writes: string[] = []
-    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
-      if (init?.method === 'POST') {
-        writes.push(((init.body as FormData).get('file') as File).name)
-        return ingestionResult(uploadedA)
-      }
-      if (url.endsWith(projectContextId)) return branch([])
-      return projectListResponse([project])
-    })
-
-    renderRoutes(fetcher)
+    const studio = ingestionStudio()
+    renderRoutes(studio.fetch)
     await openProjectPage()
-    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
-      target: {
-        files: [
-          new File(['a'], acceptedName, { type: 'application/pdf' }),
-          new File(['b'], rejectedName, { type: 'application/pdf' }),
-        ],
-      },
-    })
+    select(acceptedName, rejectedName)
 
-    expect(
-      await screen.findByText(
-        'The Source Document filename must contain at most 180 Unicode characters.',
-      ),
-    ).toBeInTheDocument()
-    await waitFor(() => expect(writes).toEqual([acceptedName]))
+    expect(await screen.findByText('The Source Document filename must contain at most 180 Unicode characters.')).toBeInTheDocument()
+    await waitFor(() => expect(studio.posts.map(({ name }) => name)).toEqual([acceptedName]))
     expect(screen.queryByRole('button', { name: /Retry/ })).not.toBeInTheDocument()
     expect(Array.from(acceptedName)).toHaveLength(180)
     expect(Array.from(rejectedName)).toHaveLength(181)
   })
 
-  it('stays on the Project Context route when every selected PDF fails', async () => {
-    const randomUUID = vi
-      .fn()
-      .mockReturnValueOnce(itemIds.A)
-      .mockReturnValueOnce(itemIds.B)
-    vi.stubGlobal('crypto', { randomUUID })
-
-    let branchReads = 0
-    const writes: string[] = []
-    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
-      if (init?.method === 'POST') {
-        const form = init.body as FormData
-        writes.push((form.get('file') as File).name)
-        return failureResponse('source_ingestion_failed', 'No usable PDF', 422)
-      }
-      if (url.endsWith(projectContextId)) {
-        branchReads += 1
-        return branch([])
-      }
-      return projectListResponse([project])
+  it('an upload Studio could not acknowledge stays item-scoped, on the route, with Retry', async () => {
+    let refuse = true
+    const studio = ingestionStudio({
+      post: () => (refuse ? failureResponse('persistence_unavailable', 'Studio is unavailable.', 503) : undefined),
     })
-
-    renderRoutes(fetcher)
-    await openProjectPage()
-    await rail().findByText('Empty project.')
-    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
-      target: {
-        files: [
-          new File(['a'], 'A.pdf', { type: 'application/pdf' }),
-          new File(['b'], 'B.pdf', { type: 'application/pdf' }),
-        ],
-      },
-    })
-
-    await waitFor(() =>
-      expect(screen.getAllByText('No usable PDF')).toHaveLength(2),
-    )
-    expect(screen.getByRole('button', { name: 'Retry A.pdf' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Retry B.pdf' })).toBeInTheDocument()
-    expect(writes).toEqual(['A.pdf', 'B.pdf'])
-    expect(branchReads).toBe(1)
-    expect(location.pathname).toBe(`/projects/${projectContextId}`)
-    expect(screen.queryByText(/Opened /)).not.toBeInTheDocument()
-  })
-
-  // The queue outlives the page that started it: opening a Source Document
-  // mid-queue must not drop the PDFs still waiting.
-  it('finishes the queue after the researcher navigates away from the page', async () => {
-    vi.stubGlobal('crypto', {
-      randomUUID: vi
-        .fn()
-        .mockReturnValueOnce(itemIds.A)
-        .mockReturnValueOnce(itemIds.B),
-    })
-    const writes: string[] = []
-    const pending: { response: Response; resolve: (response: Response) => void }[] = []
-    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
-      if (init?.method === 'POST') {
-        const file = (init.body as FormData).get('file') as File
-        writes.push(file.name)
-        const response = ingestionResult(file.name === 'A.pdf' ? uploadedA : uploadedB)
-        return new Promise<Response>((resolve) => pending.push({ response, resolve }))
-      }
-      if (url.includes('/reopen')) return Response.json(snapshot(beretning))
-      if (url.endsWith(projectContextId)) return branch(detail.sourceDocuments)
-      return projectListResponse([project])
-    })
-
-    renderRoutes(fetcher)
+    renderRoutes(studio.fetch)
     await openProjectPage()
     await rail().findByText('Beretning.pdf')
-    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
-      target: {
-        files: [
-          new File(['a'], 'A.pdf', { type: 'application/pdf' }),
-          new File(['b'], 'B.pdf', { type: 'application/pdf' }),
-        ],
-      },
-    })
-    expect(await screen.findByText('Parsing…')).toBeInTheDocument()
+    select('A.pdf', 'B.pdf')
 
-    // Leaving the page unmounts it while A is in flight and B is queued.
+    await waitFor(() => expect(screen.getAllByText('Studio is unavailable.')).toHaveLength(2))
+    expect(studio.posts.map(({ name }) => name)).toEqual(['A.pdf', 'B.pdf'])
+    expect(location.pathname).toBe(`/projects/${projectContextId}`)
+    refuse = false
+    fireEvent.click(screen.getByRole('button', { name: 'Retry A.pdf' }))
+    await waitFor(() => expect(studio.posts.map(({ name }) => name)).toEqual(['A.pdf', 'B.pdf', 'A.pdf']))
+    await waitFor(() => expect(screen.getAllByText('Studio is unavailable.')).toHaveLength(1))
+  })
+
+  it('keeps a parse on the page after a reload, then shows the Source Document it became', async () => {
+    const studio = ingestionStudio({ rows: [ingestionStudio().row('Parsing.pdf', 'parsing'), ingestionStudio().row('Waiting.pdf')] })
+    renderRoutes(studio.fetch)
+    const page = await openProjectPage()
+
+    // A reload emptied the browser's queue, but Studio still holds both uploads.
+    expect(await within(page).findByText('Parsing.pdf')).toBeInTheDocument()
+    expect(within(page).getByText('Waiting.pdf')).toBeInTheDocument()
+    expect(within(page).getByRole('status')).toHaveTextContent('Parsing.pdf: parsing. Waiting.pdf: queued.')
+    const branchReads = studio.reads.branch
+
+    studio.succeed('Parsing.pdf', 12)
+    studio.parse('Waiting.pdf')
+    await poll()
+    await waitFor(() => expect(studio.reads.branch).toBe(branchReads + 1))
+    expect(await rail().findByRole('button', { name: 'Parsing.pdf' })).toBeInTheDocument()
+    await waitFor(() => expect(within(page).getAllByText('Parsing.pdf')).toHaveLength(1))
+    expect(within(page).getByText('12 pages', { exact: false })).toBeInTheDocument()
+    expect(within(page).getByRole('status')).toHaveTextContent('Waiting.pdf: parsing.')
+  })
+
+  it('a failure survives a reload; Dismiss removes it, and a refused Dismiss keeps it', async () => {
+    const failed = { ...ingestionStudio().row('Broken.pdf', 'failed'), completedAt: '2026-08-12T11:00:00.000Z', failure: { code: 'source_ingestion_failed', message: 'kei refused the PDF.' } }
+    const studio = ingestionStudio({ rows: [failed] })
+    renderRoutes(studio.fetch)
+    const page = await openProjectPage()
+    expect(await within(page).findByText('kei refused the PDF.')).toBeInTheDocument()
+
+    studio.control.dismiss = () => failureResponse('persistence_unavailable', 'Try again later.', 503)
+    fireEvent.click(within(page).getByRole('button', { name: 'Dismiss Broken.pdf' }))
+    expect(await within(page).findByText('Try again later.')).toBeInTheDocument()
+    expect(within(page).getByText('kei refused the PDF.')).toBeInTheDocument()
+
+    studio.control.dismiss = () => undefined
+    fireEvent.click(within(page).getByRole('button', { name: 'Dismiss Broken.pdf' }))
+    await waitFor(() => expect(within(page).queryByText('kei refused the PDF.')).not.toBeInTheDocument())
+    expect(studio.dismissed).toEqual([workflowOf('Broken.pdf')])
+  })
+
+  it('Upload again opens the file chooser', async () => {
+    const failed = { ...ingestionStudio().row('Broken.pdf', 'failed'), completedAt: '2026-08-12T11:00:00.000Z', failure: { code: 'source_ingestion_failed', message: 'No.' } }
+    const studio = ingestionStudio({ rows: [failed] })
+    renderRoutes(studio.fetch)
+    const page = await openProjectPage()
+    const chooser = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {})
+    fireEvent.click(await within(page).findByRole('button', { name: 'Upload Broken.pdf again' }))
+    expect(chooser).toHaveBeenCalledOnce()
+    expect(chooser.mock.contexts[0]).toBe(screen.getByLabelText('Drop PDFs here or browse'))
+    chooser.mockRestore()
+  })
+
+  it('an unavailable listing keeps the cards and says status is unavailable', async () => {
+    const studio = ingestionStudio({ rows: [ingestionStudio().row('Parsing.pdf', 'parsing')] })
+    renderRoutes(studio.fetch)
+    const page = await openProjectPage()
+    expect(await within(page).findByText('Parsing.pdf')).toBeInTheDocument()
+
+    studio.control.listing = () => failureResponse('persistence_unavailable', 'Down.', 503)
+    await poll()
+    expect(await within(page).findByText('Ingestion status is unavailable; retrying.')).toBeInTheDocument()
+    expect(within(page).getByText('Parsing.pdf')).toBeInTheDocument()
+
+    studio.control.listing = () => undefined
+    await poll()
+    await waitFor(() => expect(within(page).queryByText('Ingestion status is unavailable; retrying.')).not.toBeInTheDocument())
+  })
+
+  it('keeps observing after the researcher navigates away, and never hijacks the route', async () => {
+    const studio = ingestionStudio()
+    renderRoutes(studio.fetch)
+    await openProjectPage()
+    await rail().findByText('Beretning.pdf')
+    select('A.pdf', 'B.pdf')
+    await waitFor(() => expect(studio.posts).toHaveLength(2))
+
     fireEvent.click(rail().getByRole('button', { name: 'Beretning.pdf' }))
     expect(await screen.findByText(/Opened Beretning\.pdf/)).toBeInTheDocument()
-    const first = pending.shift()!
-    first.resolve(first.response)
-
-    await waitFor(() => expect(writes).toEqual(['A.pdf', 'B.pdf']))
-    const second = pending.shift()!
-    second.resolve(second.response)
+    studio.succeed('A.pdf', 1)
+    studio.succeed('B.pdf', 2)
+    await poll()
 
     expect(await rail().findByRole('button', { name: 'B.pdf' })).toBeInTheDocument()
     expect(rail().getByRole('button', { name: 'A.pdf' })).toBeInTheDocument()
-    // The chosen route is never hijacked by a completed ingestion.
     expect(screen.getByText(/Opened Beretning\.pdf/)).toBeInTheDocument()
     expect(location.pathname).toBe(documentPath())
   })
 
-  it('does not mutate the rail or navigate after its Project Context is deleted mid-ingestion', async () => {
-    vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValue(itemIds.A) })
-    let branchCalls = 0
-    const pending: { response: Response; resolve: (response: Response) => void }[] = []
-    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
-      if (init?.method === 'POST') {
-        const response = ingestionResult(uploadedA)
-        return new Promise<Response>((resolve) => pending.push({ response, resolve }))
-      }
-      if (init?.method === 'DELETE') return new Response(null, { status: 204 })
-      if (url.endsWith(projectContextId)) {
-        branchCalls += 1
-        return branch(detail.sourceDocuments)
-      }
-      if (url.includes('/reopen')) throw new Error('stale navigation')
-      return projectListResponse([project])
-    })
+  it('each read names the admitted uploads and the attempts live in the previous listing', async () => {
+    const studio = ingestionStudio({ rows: [ingestionStudio().row('Other.pdf', 'parsing')] })
+    renderRoutes(studio.fetch)
+    const page = await openProjectPage()
+    await within(page).findByText('Other.pdf')
+    select('A.pdf')
+    await waitFor(() => expect(studio.posts).toHaveLength(1))
+    await poll()
+    expect(studio.listings.at(-1)!.sort()).toEqual([workflowOf('A.pdf'), workflowOf('Other.pdf')].sort())
+  })
 
-    renderRoutes(fetcher)
+  it('a completion missing from the windows is still found through its named ID', async () => {
+    const studio = ingestionStudio({ rows: [ingestionStudio().row('Long.pdf', 'parsing')] })
+    renderRoutes(studio.fetch)
+    const page = await openProjectPage()
+    await within(page).findByText('Long.pdf')
+    // It finished long enough ago to fall out of the success window: only its named ID answers it.
+    studio.succeed('Long.pdf', 4, { windowed: false })
+    await poll()
+    expect(await rail().findByRole('button', { name: 'Long.pdf' })).toBeInTheDocument()
+    await waitFor(() => expect(within(page).getAllByText('Long.pdf')).toHaveLength(1))
+  })
+
+  it('completion re-reads the branch once, and the project list once, however many attempts succeed', async () => {
+    const studio = ingestionStudio({ rows: [ingestionStudio().row('A.pdf', 'parsing'), ingestionStudio().row('B.pdf', 'parsing')] })
+    renderRoutes(studio.fetch)
+    const page = await openProjectPage()
+    await within(page).findByText('B.pdf')
+    const before = { ...studio.reads }
+    studio.succeed('A.pdf', 1)
+    studio.succeed('B.pdf', 2)
+    await poll()
+    expect(await rail().findByRole('button', { name: 'B.pdf' })).toBeInTheDocument()
+    await poll()
+    expect(studio.reads.branch).toBe(before.branch + 1)
+    expect(studio.reads.list).toBe(before.list + 1)
+  })
+
+  it('a refresh that fails or reads a stale branch is retried by the next listing', async () => {
+    const studio = ingestionStudio({ rows: [ingestionStudio().row('A.pdf', 'parsing')] })
+    renderRoutes(studio.fetch)
+    const page = await openProjectPage()
+    await within(page).findByText('A.pdf')
+    studio.succeed('A.pdf', 1)
+    let failures = 1
+    studio.control.branch = () => (failures-- > 0 ? failureResponse('persistence_unavailable', 'Down.', 503) : undefined)
+    await poll()
+    await poll()
+    expect(await rail().findByRole('button', { name: 'A.pdf' })).toBeInTheDocument()
+    const settled = studio.reads.branch
+    await poll(30_000)
+    expect(studio.reads.branch).toBe(settled)
+  })
+
+  it('a success whose document is gone from a read branch is not re-read again and again', async () => {
+    const studio = ingestionStudio({ rows: [ingestionStudio().row('A.pdf', 'parsing')] })
+    renderRoutes(studio.fetch)
+    const page = await openProjectPage()
+    await within(page).findByText('A.pdf')
+    // Published, then deleted (another tab) before this tab's refresh: the branch is right not to hold it.
+    studio.succeed('A.pdf', 1)
+    const deleted = documentOf(1, 'A.pdf').sourceDocumentId
+    studio.control.branch = () => Response.json({ projectContext: project, sourceDocuments: detail.sourceDocuments.filter((document) => document.sourceDocumentId !== deleted) })
+    await poll()
+    await waitFor(() => expect(within(page).queryByText('A.pdf')).not.toBeInTheDocument())
+    const reads = studio.reads.branch
+    await poll(3000)
+    await poll(3000)
+    await poll(30_000)
+    expect(studio.reads.branch).toBe(reads)
+  })
+
+  it('opening a cached project re-reads its branch once', async () => {
+    const studio = ingestionStudio()
+    renderRoutes(studio.fetch)
+    await openProjectPage()
+    await rail().findByText('Beretning.pdf')
+    fireEvent.click(screen.getByRole('link', { name: 'Studio home' }))
+    await home().findByRole('heading', { name: 'Projects' })
+    const before = studio.reads.branch
+    await openProjectPage()
+    await waitFor(() => expect(studio.reads.branch).toBe(before + 1))
+    await poll(30_000)
+    expect(studio.reads.branch).toBe(before + 1)
+  })
+
+  it('a project deleted in another tab drops its cards and stops reading', async () => {
+    const studio = ingestionStudio()
+    renderRoutes(studio.fetch)
     const page = await openProjectPage()
     await rail().findByText('Beretning.pdf')
-    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
-      target: { files: [new File(['a'], 'A.pdf', { type: 'application/pdf' })] },
-    })
-    await waitFor(() => expect(pending).toHaveLength(1))
+    select('A.pdf')
+    await waitFor(() => expect(within(page).getByText('A.pdf')).toBeInTheDocument())
+    studio.control.listing = () => failureResponse('not_found', 'Project Context was not found.', 404)
+    await poll()
+    await waitFor(() => expect(within(page).queryByText('A.pdf')).not.toBeInTheDocument())
+    const reads = studio.listings.length
+    await poll(60_000)
+    expect(studio.listings).toHaveLength(reads)
+  })
 
-    fireEvent.click(
-      within(page).getByRole('button', { name: 'Delete project' }),
-    )
+  it('deleting the project stops its reads and never mutates the rail afterwards', async () => {
+    const studio = ingestionStudio()
+    renderRoutes(studio.fetch)
+    const page = await openProjectPage()
+    await rail().findByText('Beretning.pdf')
+    select('A.pdf')
+    await waitFor(() => expect(studio.posts).toHaveLength(1))
+
+    fireEvent.click(within(page).getByRole('button', { name: 'Delete project' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Delete permanently' }))
-    // The deleted Project Context was the only one; home is first-run again.
-    expect(
-      await screen.findByRole('heading', {
-        name: 'From source to structured data, with the evidence to prove it',
-      }),
-    ).toBeInTheDocument()
-    expect(location.pathname).toBe('/projects')
-
-    const request = pending.shift()!
-    request.resolve(request.response)
-    await waitFor(() => expect(branchCalls).toBe(1))
-    expect(screen.queryByText(/Opened A\.pdf/)).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'From source to structured data, with the evidence to prove it' })).toBeInTheDocument()
+    const reads = studio.listings.length
+    studio.succeed('A.pdf', 1)
+    await poll(60_000)
+    expect(studio.listings).toHaveLength(reads)
     expect(screen.queryByText('A.pdf')).not.toBeInTheDocument()
   })
 })

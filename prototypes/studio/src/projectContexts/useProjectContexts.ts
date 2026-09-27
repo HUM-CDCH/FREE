@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect } from 'react'
 import type { Route } from '../projectNavigation'
+import type { SourceIngestion } from '../../shared/sourceDocumentIngestion.contract'
 import type { SourceIngestionItem, SourceLayout } from '../sourceIngestionMachine'
 import type { SourceDocumentReprocessResponse } from '../../shared/sourceDocumentReprocess.contract'
 import type {
@@ -63,11 +64,17 @@ export type ProjectContextsValue = {
     document: SourceDocumentReprocessResponse,
   ) => void
   /**
-   * Source Documents being ingested right now, across every Project Context.
-   * The queue outlives any one page: navigating away mid-queue must not drop
-   * the files still waiting.
+   * This tab's uploads until Studio admits them, and its reprocessing, across
+   * every Project Context. The queue outlives any one page: navigating away
+   * mid-queue must not drop the files still waiting to be sent.
    */
   ingestingSources: readonly SourceIngestionItem[]
+  /** Studio's Source Ingestions per observed Project Context: the queue itself, as the server holds it. */
+  ingestions: Readonly<Record<string, ProjectIngestions>>
+  /** Keeps the Project Context's Source Ingestions observed until the returned release is called. */
+  observeIngestions: (projectContextId: string) => () => void
+  /** Dismisses a failed Source Ingestion; the failure when Studio refused, null when it is gone. */
+  dismissIngestion: (projectContextId: string, workflowId: string) => WriteResult
   addSources: (
     sources: readonly {
       projectContextId: string
@@ -84,6 +91,14 @@ export type ProjectContextsValue = {
   }) => void
   sourceRevisions: Readonly<Record<string, string>>
   retrySource: (itemId: string) => void
+}
+
+export type ProjectIngestions = {
+  status: 'ready' | 'unavailable'
+  /** The last successful listing; kept while a later read fails. */
+  ingestions: readonly SourceIngestion[]
+  /** The last read failed: the rows are the last known ones. */
+  stale: boolean
 }
 
 export const ProjectContextsContext =

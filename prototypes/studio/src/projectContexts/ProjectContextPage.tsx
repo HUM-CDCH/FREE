@@ -2,7 +2,7 @@ import { ReprocessSourceModal } from './ReprocessSourceModal'
 import { sourceName } from '../sourceIngestionMachine'
 import { useEffect, useRef, useState } from 'react'
 import type { NavigableRoute, ProjectResource } from '../projectNavigation'
-import type { SourceLayout } from '../sourceIngestionMachine'
+import type { SourceIngestionItem, SourceLayout } from '../sourceIngestionMachine'
 import { projectContextNameSchema } from '../../shared/projectContext.contract'
 import { listExtractionSchemas, renameExtractionSchema } from '../schemaRevisions'
 import SchemaNameEditor from '../SchemaNameEditor'
@@ -185,6 +185,16 @@ function DownloadIcon() {
  * more. An ingesting file renders as the same row it will become, so the list
  * never shows more entries than there are Source Documents-to-be.
  */
+/** A card's line for this tab's items: an upload until Studio admits it, then until Studio lists it. */
+function localLabel(source: SourceIngestionItem): string {
+  if (source.kind === 'reprocess') return source.status === 'parsing' ? 'Parsing…' : 'Queued'
+  return source.status === 'admitted' ? 'Queued' : 'Sending…'
+}
+function localStatus(source: SourceIngestionItem): string {
+  if (source.kind === 'reprocess') return source.status
+  return source.status === 'admitted' ? 'queued' : 'sending'
+}
+
 export default function ProjectContextPage({
   projectContextId,
   resource,
@@ -202,10 +212,15 @@ export default function ProjectContextPage({
     renameProject,
     deleteProject,
     ingestingSources,
+    ingestions,
+    observeIngestions,
+    dismissIngestion,
     addSources,
     retrySource,
     deleteSourceDocument,
   } = useProjectContexts()
+  const [dismissFailures, setDismissFailures] = useState<Readonly<Record<string, string>>>({})
+  const fileInput = useRef<HTMLInputElement>(null)
   const [renaming, setRenaming] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [reprocessingSource, setReprocessingSource] = useState<{
@@ -245,9 +260,16 @@ export default function ProjectContextPage({
       : projects.find(
           (candidate) => candidate.projectContextId === projectContextId,
         )
+  // One list: this tab's uploads until Studio lists them, then Studio's
+  // Source Ingestions. A succeeded one is the branch's Source Document.
+  const listed = ingestions[projectContextId]
+  const listedIds = new Set(listed?.ingestions.map((row) => row.workflowId) ?? [])
   const queued = ingestingSources.filter(
-    (source) => source.projectContextId === projectContextId,
+    (source) =>
+      source.projectContextId === projectContextId &&
+      (source.kind === 'reprocess' || source.status !== 'admitted' || !listedIds.has(source.workflowId!)),
   )
+  const serverIngestions = (listed?.ingestions ?? []).filter((row) => row.status !== 'succeeded')
   const sourceDocuments =
     branch?.status === 'ready'
       ? branch.detail.sourceDocuments
@@ -267,18 +289,34 @@ export default function ProjectContextPage({
   const sourceStatus =
     branch?.status === 'loading'
       ? 'Loading Source Documents…'
-      : queued
-          .map((source) =>
+      : [
+          ...queued.map((source) =>
             source.status === 'failed'
               ? `${sourceName(source)}: failed. ${source.failure}`
-              : `${sourceName(source)}: ${source.status}.`,
-          )
-          .join(' ')
+              : `${sourceName(source)}: ${localStatus(source)}.`,
+          ),
+          ...serverIngestions.map((ingestion) =>
+            ingestion.status === 'failed'
+              ? `${ingestion.name}: failed. ${ingestion.failure.message}`
+              : `${ingestion.name}: ${ingestion.status}.`,
+          ),
+        ].join(' ')
+  const dismiss = async (workflowId: string) => {
+    const refused = await dismissIngestion(projectContextId, workflowId)
+    setDismissFailures((current) => {
+      const next = { ...current }
+      if (refused) next[workflowId] = refused.message
+      else delete next[workflowId]
+      return next
+    })
+  }
 
   const addFiles = (files: readonly File[]) => {
     if (!files.length) return
     addSources(files.map((file) => ({ projectContextId, file, layout })))
   }
+
+  useEffect(() => observeIngestions(projectContextId), [observeIngestions, projectContextId])
 
   useEffect(() => {
     const closeOtherMenus = (event: PointerEvent) => {
@@ -630,6 +668,7 @@ export default function ProjectContextPage({
                 Drop PDFs here or browse
               </span>
               <input
+                ref={fileInput}
                 className="sr-only"
                 type="file"
                 accept=".pdf,application/pdf"
@@ -705,13 +744,21 @@ export default function ProjectContextPage({
               </p>
             )}
 
+            {listed?.stale && (
+              <p className="py-2 text-xs text-ink-muted">
+                Ingestion status is unavailable; retrying.
+              </p>
+            )}
+
             {branch?.status === 'loading' && (
               <p className="py-4 text-xs text-ink-muted" aria-busy="true">
                 Loading Source Documents…
               </p>
             )}
 
-            {(queued.length > 0 || branch?.status === 'ready') && (
+            {(queued.length > 0 ||
+              serverIngestions.length > 0 ||
+              branch?.status === 'ready') && (
               <ul className="divide-y divide-line" ref={sourceListRef}>
                 {/* In-flight first: new work stays visible without scrolling. */}
                 {queued.map((source) => (
@@ -730,11 +777,7 @@ export default function ProjectContextPage({
                         </span>
                       ) : (
                         <span className="block text-[11px] text-ink-faint">
-                          <span>
-                            {source.status === 'parsing'
-                              ? 'Parsing…'
-                              : 'Queued'}
-                          </span>
+                          <span>{localLabel(source)}</span>
                         </span>
                       )}
                     </span>
@@ -747,6 +790,47 @@ export default function ProjectContextPage({
                         Retry
                       </Button>
                       )}
+                  </li>
+                ))}
+                {serverIngestions.map((ingestion) => (
+                  <li
+                    className="flex items-center gap-3 px-1 py-3"
+                    key={ingestion.workflowId}
+                  >
+                    <PdfIcon />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs font-semibold text-ink">
+                        {ingestion.name}
+                      </span>
+                      {ingestion.status === 'failed' ? (
+                        <span className="block text-[11px] leading-snug text-danger">
+                          {ingestion.failure.message}
+                          {dismissFailures[ingestion.workflowId] && (
+                            <span className="block">{dismissFailures[ingestion.workflowId]}</span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="block text-[11px] text-ink-faint">
+                          {ingestion.status === 'parsing' ? 'Parsing…' : 'Queued'}
+                        </span>
+                      )}
+                    </span>
+                    {ingestion.status === 'failed' && (
+                      <span className="flex shrink-0 gap-2">
+                        <Button
+                          onClick={() => fileInput.current?.click()}
+                          aria-label={`Upload ${ingestion.name} again`}
+                        >
+                          Upload again
+                        </Button>
+                        <Button
+                          onClick={() => void dismiss(ingestion.workflowId)}
+                          aria-label={`Dismiss ${ingestion.name}`}
+                        >
+                          Dismiss
+                        </Button>
+                      </span>
+                    )}
                   </li>
                 ))}
                 {sourceDocuments.map((document) => (
@@ -854,6 +938,7 @@ export default function ProjectContextPage({
             {branch?.status === 'ready' &&
               sourceDocuments.length === 0 &&
               queued.length === 0 &&
+              serverIngestions.length === 0 &&
               (filter ? (
                 <p className="py-8 text-center text-xs text-ink-muted">
                   No sources match “{filter}”.
