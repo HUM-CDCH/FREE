@@ -1,7 +1,7 @@
 """Study validity: immutable inputs, one-factor comparisons, exact resumption, paired uncertainty."""
 import pytest
 
-from experiments.extraction.analyze import paired_interval
+from experiments.extraction.analyze import document_fields, exact_projected_fields, paired_interval
 from experiments.extraction.manifest import checked, differences, pin, read, validate, write_new
 from experiments.extraction.study import Capture
 from kei_exp.kie.extract.llm import Reply
@@ -73,3 +73,34 @@ def test_uncertainty_resamples_documents_with_hand_calculated_effects():
     assert result["documents"] == 2 and result["unit"] == "document"
     assert paired_interval([0, 0, 0])["percentile_95"] == [0, 0]
     assert paired_interval([])["mean"] is None
+
+
+def test_document_fields_keep_disagreements_and_review_regardless_of_row_order():
+    fields = [{"source_id": "paper", "field": name, "result": result}
+              for name, result in [("title", "incorrect"), ("title", "correct"),
+                                   ("year", "needs_review"), ("year", "correct"),
+                                   ("temperature", "incorrect")]]
+    fields.append({"source_id": "other_paper", "field": "title", "result": "correct"})
+    expected = {("paper", "title"): "incorrect", ("paper", "year"): "needs_review",
+                ("other_paper", "title"): "correct"}
+    for ordered in (fields, list(reversed(fields))):
+        assert {(f["source_id"], f["field"]): f["result"]
+                for f in document_fields(ordered, {"title", "year"})} == expected
+
+
+def test_exact_projection_preserves_alignment_failures_and_distinguishes_normalization():
+    fields = [{"expected": expected, "actual": actual, "result": result}
+              for expected, actual, result in [
+                  ("Scale", "scale", "correct"), ("a b", "a  b", "correct"),
+                  (["A", "B"], ["B", "A"], "correct"), (1, 1.0, "correct"),
+                  (None, "", "correct"), (None, None, "incorrect"),
+                  ("same", "same", "needs_review"), ("same", "same", "correct")]]
+    assert [f["result"] for f in exact_projected_fields(fields)] == ["incorrect"] * 7 + ["correct"]
+    assert fields[0]["result"] == "correct"  # supplementary reporting never changes frozen scores
+
+
+def test_exact_document_summary_does_not_hide_a_normalized_only_sample_row():
+    fields = [{"source_id": "paper", "field": "title", "result": "correct",
+               "expected": "Title", "actual": actual} for actual in ["title", "Title"]]
+    assert document_fields(fields, {"title"})[0]["result"] == "correct"
+    assert document_fields(exact_projected_fields(fields), {"title"})[0]["result"] == "incorrect"

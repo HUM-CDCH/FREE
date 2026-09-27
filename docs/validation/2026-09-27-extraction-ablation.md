@@ -181,6 +181,42 @@ The renderer is outside the inference code pin, adds no dependencies and does no
 rescore, rerun or replace a study cell. Bloat review accepts its CLI as the
 reproducible report-generation entrypoint; no obsolete report path was retained.
 
+### Reporting correction and exact representation
+
+The final analyzer now aggregates repeated document metadata with the frozen
+scorer's rule: any incorrect eligible sample row makes the document field
+incorrect, otherwise any pending row keeps it pending. The earlier dictionary
+kept the last row and could hide a disagreement. Order-reversal regression tests
+cover that case. This correction changes no primary sample score, gold label,
+identity alignment, model request or saved prediction.
+
+The planned exact-versus-normalized distinction is also explicit. Each scored
+cell includes `exact_projected_match` for sample and document fields, split into
+populated and empty groups. Exact credit requires the frozen alignment/projection
+gates to pass and equal JSON representations of projected expected/actual values.
+Case, whitespace, list order, JSON types and integer/float distinctions remain
+visible. This is a descriptive representation diagnostic, not source-span
+correctness, a new primary estimand or an adjudication of pending semantic text.
+Tables show populated exact counts beside the normalized document summary;
+normalized sample scores remain in their original table.
+
+Analysis outputs record the analyzer's path/hash. The current table renderer
+refuses older analysis lacking these corrected fields. Regenerate final analysis
+from the corrected integration checkout, then run accounting and table rendering
+against that exact output. Do not alter a running/frozen inference checkout.
+Automatic `analysis-initial.json` reports from frozen launchers remain historical
+outputs and must not be substituted for this corrected final analysis.
+
+Twenty-three focused study/accounting/table tests pass. The R1 41-cell and R2a
+20-cell `analysis-reporting-correction-v2.json`, matching accounting JSON and
+`tables-reporting-correction-v2.md` snapshots regenerate successfully; all stage
+call/failure/token totals reconcile. Comparison with the earlier 36/18-cell
+snapshots preserves every shared primary score, diagnostic and execution receipt.
+No document summary changes in those shared cohorts; the aggregation regression
+is demonstrated by the adversarial fixture. The audit is
+`artifacts/extraction-integration/reporting-correction-audit.json` in the current
+integration checkout. These snapshots remain partial.
+
 For reported record fields in the existing development gold, the frozen scorer already
 compares candidate-link pages against annotated evidence pages. Supplementary accounting
 summarizes `candidate_page_overlap`, `candidate_other_page` and `missing`, cross-tabulated
