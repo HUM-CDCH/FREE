@@ -223,3 +223,15 @@ faster at about 0.8 s but missed substantial content on page 37 of this catalogu
 - **unpaper, ScanTailor.** Heuristic page splitters with deskew and border
   cleanup. unpaper fits the container if deskew becomes necessary; ScanTailor
   Spectre targets Apple Silicon and is out.
+
+## Unsafe proposed gaps (2026-09-26)
+
+The Hamburg example exposed a layout gap crossing actual text on physical page 3. A gap with no ink-free
+run is now rejected as a boundary: its adjacent boxes stay in one region, while other verified gaps still
+split. Both axes recurse only when the accepted cuts make more than one group. This preserves the content
+without inventing a cut or aborting the entire document. The earlier fail-page policy above records the
+original implementation.
+
+Katrinesminde's last page contains only a footer (the page number). When layout finds no body after its
+retry, but detected headers/footers account for at least 90% of the ink, the complete page is transcribed.
+This retains the furniture and any remaining ink. Unexplained missing body content still fails explicitly.

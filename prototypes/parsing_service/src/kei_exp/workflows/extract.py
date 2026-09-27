@@ -3,7 +3,7 @@ complete, the parse still the admitted generation, the models and recipe known; 
 artifact, published by rename to extractions/<extraction id>/result.json (rewritten whole by a re-execution).
 Cancellation is checked before any model call and then between records on every path: a recipe's Catalog before
 each entry (its entries in KEI_CATALOG_CHUNKS chunks), the version 1 Catalog before each discovery call and before each
-record's extraction and verification, the Article before its records call and before each record's verification. A model call
+record's extraction and verification, Article before inventory, each record and each grounding batch. A model call
 that is already running finishes first."""
 from __future__ import annotations
 
@@ -67,6 +67,8 @@ def extract_run(workflow_id: str, run_id: str, generation: str, body: dict) -> d
                          chunks=CATALOG_CHUNKS, before_entry=check)
     except StaleGeneration as error:
         raise KeiFailure("stale_generation", str(error)) from error
+    # Observe cancellation during the final model call before publishing or refreshing the run's GC age.
+    check(force=True)
     path = publish_extraction(directory, extraction_id, result)
     return ExtractOk(ok=True, run_id=run_id, extraction_id=extraction_id, generation=result["generation"],
                      artifact_sha256=sha256_file(path), model=result["model"], models=result["models"]).model_dump()

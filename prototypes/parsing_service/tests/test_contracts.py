@@ -76,7 +76,7 @@ def test_the_deadline_fixture_is_m0r4s_formula():
     deadlines = fixture("deadlines")
     assert [[pages, convert_timeout_ms(pages)] for pages, _ in deadlines["convert"]["cases"]] == \
         deadlines["convert"]["cases"]
-    assert deadlines["extract"] == {"article": 10 * 60_000, "catalog": 3 * 3_600_000}
+    assert deadlines["extract"] == {"article": 3 * 3_600_000, "catalog": 3 * 3_600_000}
 
 
 @pytest.mark.parametrize("request_", [

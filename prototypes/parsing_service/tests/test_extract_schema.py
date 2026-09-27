@@ -2,7 +2,7 @@
 import pytest
 from pydantic import ValidationError
 
-from kei_exp.kie.extract.schema import Schema, conform, describe, json_schema, notes, records_schema
+from kei_exp.kie.extract.schema import Schema, conform, describe, json_schema, notes
 
 TREE = {
     "recordDescription": "One catalogue entry: a numbered find with its site and dating.",
@@ -102,13 +102,12 @@ def test_the_json_schema_makes_every_field_present_and_nullable_and_nothing_else
     assert built["properties"]["dating"]["required"] == ["from", "to"]
     assert built["properties"]["references"]["items"]["properties"]["page"] == {"type": ["integer", "null"],
                                                                                 "x-free-type": "integer"}
-    wrapped = records_schema(schema.record_nodes)
-    assert wrapped["properties"]["records"]["items"] == built and wrapped["required"] == ["records"]
 
 
-def test_notes_name_only_described_fields_with_dotted_paths():
+def test_notes_show_descriptions_and_enum_choices_that_decoding_does_not_put_in_the_prompt():
     schema = Schema.model_validate(TREE)
-    assert notes(schema.record_nodes) == ["- entry_no: the printed entry number", "- finds: one per object"]
+    assert notes(schema.record_nodes) == ["- entry_no: the printed entry number",
+        "- sex: Allowed labels: 'mand', 'kvinde', 'ukendt'; null if unsupported.", "- finds: one per object"]
     assert describe(schema.record_nodes, ("finds", 2)) == "finds: one per object"
     assert describe(schema.record_nodes, ("dating", "from")) == "dating.from"
     assert describe(schema.record_nodes, ("references", 0, "page")) == "references.page"

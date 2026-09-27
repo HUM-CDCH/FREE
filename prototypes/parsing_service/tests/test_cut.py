@@ -108,6 +108,27 @@ def test_columns_of_unequal_widths_are_all_columns():
     assert [r.kind for r in fake_page(MIXED).regions()] == ["column"] * 3
 
 
+@pytest.mark.parametrize("boxes, bridge", [
+    ([(50, 40, 280, 700, "text"), (320, 40, 550, 700, "text")], (280, 40, 320, 700)),
+    ([(50, 40, 550, 80, "text"), (50, 130, 280, 700, "text"), (320, 130, 550, 700, "text")],
+     (50, 80, 550, 130)),
+])
+def test_a_layout_gap_crossing_printed_content_keeps_the_region_whole(boxes, bridge):
+    # Hamburg p3: layout boxes suggest a gap that the printed text crosses. Neither axis may cut that text.
+    page = fake_page(boxes, unboxed=[bridge])
+    regions = page.regions()
+    assert len(regions) == 1
+    assert page.ink_share(regions[0].bbox) == 1
+
+
+def test_an_unsafe_boundary_does_not_discard_other_safe_column_cuts():
+    page = fake_page([(50, 40, 180, 700, "text"), (220, 40, 350, 700, "text"),
+                      (400, 40, 550, 700, "text")], unboxed=[(180, 40, 220, 700)])
+    regions = page.regions()
+    assert len(regions) == 2 and regions[0].bbox[2] < regions[1].bbox[0]
+    assert page.ink_share(*(r.bbox for r in regions)) == 1
+
+
 def test_a_figure_across_the_columns_cuts_y_between_the_x_cuts():
     # A figure across both columns: columns above, the figure, columns below (x, then y, then x again).
     assert [r.kind for r in fake_page(FIGURE).regions()] == ["column", "column", "figure", "column", "column"]
@@ -253,6 +274,22 @@ def test_no_body_blocks_at_either_resolution_is_a_cut_error():
             unfound.regions()
         assert "page 9" in str(failure.value) and "after tiled layout" in str(failure.value), failure.value
         assert layout.call_count == 4
+
+
+@pytest.mark.parametrize("found_initially", [True, False])
+def test_a_numbered_blank_page_keeps_its_furniture(found_initially):
+    # Katrinesminde p23 has only a page number, which must not abort the whole document.
+    footer = Box(520, 760, 535, 780, "page_footer")
+    page = fake_page([footer] if found_initially else [], unboxed=[footer[:4]])
+    with patch("kei_exp.cut._layout", return_value=[] if found_initially else [footer]):
+        regions = page.regions()
+    assert len(regions) == 1 and regions[0].bbox == page.bounds and regions[0].ink == 1
+
+
+def test_a_footer_does_not_hide_unrecognized_body_content():
+    page = fake_page([(520, 760, 535, 780, "page_footer")], unboxed=[(50, 40, 550, 700)])
+    with patch("kei_exp.cut._layout", return_value=[]), pytest.raises(CutError, match="no body blocks"):
+        page.regions()
 
 
 def test_good_cuts_and_blank_pages_need_no_more_inference():

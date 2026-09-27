@@ -234,8 +234,9 @@ defaults, and each Extraction records the models its roles ran on. Schema
 Suggestion and Interaction use the configured Capability Routes, and an unset
 route runs on the deployment's instruction model. Each Extraction runs as a
 durable workflow: Studio hands it to the Parsing Service's worker on its
-extraction lane, whose deadline is ten minutes for Article and three hours for
-Catalog, counted from when the worker starts it. Cancelling an Extraction
+extraction lane. Article inventories distinct records across the complete source
+before extracting and grounding each one. Article and Catalog have three-hour
+execution deadlines, counted from when the worker starts them. Cancelling an Extraction
 records the cancellation and stops the Parsing Service's work too. A failed
 extraction carries the Parsing Service's own reason. There is no targeted
 Catalog retry; start a new Extraction to rerun.

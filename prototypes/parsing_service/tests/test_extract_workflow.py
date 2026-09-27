@@ -80,7 +80,9 @@ def version_1(events: list[str], hold=lambda stage: None):
         if stage == "discovery":
             return {"starts": schema["properties"]["starts"]["items"]["enum"], "end": None}
         if stage == "records":
-            return {"records": [{"site_name": "Nowhere"}, {"site_name": "Elsewhere"}]}
+            labels = schema["properties"]["records"]["items"]["properties"]["passages"]["items"]["enum"]
+            return {"records": [{"label": name, "identity": {}, "passages": [labels[0]]}
+                                for name in ("Nowhere", "Elsewhere")]}
         return {"site_name": "Nowhere"} if stage == "record" else {}
     return script
 
@@ -216,7 +218,7 @@ def test_the_version_1_catalog_checks_before_discovery_and_each_record_and_verif
                        before_entry=lambda: events.append("check"))
     records = events.count("record")
     assert records > 1
-    # Each record's verification checks once before it and once before its (here single) grounding batch.
+    # Each record checks before verification and before its (here single) grounding batch.
     assert events == ["check", "discovery", *["check", "record"] * records, *["check", "check", "grounding"] * records]
 
 
@@ -226,10 +228,12 @@ def test_the_article_checks_before_its_records_call_and_each_verification(parsed
     request = extraction.ExtractRequest.model_validate(kei_helper.extract_request(run_id, "g", V1["article"])["request"])
     extraction.extract(runs.RUNS / run_id, request, CountingChat(version_1(events)),
                        before_entry=lambda: events.append("check"))
-    assert events == ["check", "records", "check", "check", "grounding", "check", "check", "grounding"]
+    assert events == ["check", "records", "check", "record", "check", "record",
+                      "check", "check", "grounding", "check", "check", "grounding"]
 
 
-@pytest.mark.parametrize("strategy, asked", [("catalog", ["discovery", "record"]), ("article", ["records"])])
+@pytest.mark.parametrize("strategy, asked", [("catalog", ["discovery", "record"]),
+    ("article", ["records"]), ("article", ["records", "record"])])
 def test_a_version_1_check_that_raises_ends_the_extraction_before_its_next_call(parsed, strategy, asked):
     run_id, _ = parsed
     events: list[str] = []
@@ -366,7 +370,9 @@ def test_a_cancelled_chunked_catalog_stops_every_chunk_before_its_next_entry(kei
 
 @pytest.mark.parametrize("strategy, held, asked", [
     ("catalog", "record", ["discovery", "record"]),  # held in the first record's call; the second never asked
-    ("article", "records", ["records"]),             # held in the records call; no verification asked
+    ("article", "records", ["records"]),             # held in inventory; no value extraction asked
+    ("article", "record", ["records", "record"]),
+    ("article", "grounding", ["records", "record", "record", "grounding"]),
 ])
 def test_a_cancelled_version_1_extraction_stops_before_its_next_call(kei, scripted, ended, monkeypatch, strategy,
                                                                      held, asked):
@@ -388,3 +394,31 @@ def test_a_cancelled_version_1_extraction_stops_before_its_next_call(kei, script
     assert isinstance(ended[0], KeiFailure) and ended[0].code == "cancelled"
     assert events == asked
     assert not (kei.runs / run_id / "extractions").exists()
+
+
+@pytest.mark.parametrize("strategy, first", [("article", "records"), ("catalog", "discovery")])
+def test_cancellation_during_the_final_model_call_prevents_publication(tmp_path, scripted, monkeypatch,
+                                                                      strategy, first):
+    from kei_exp.workflows import cancel
+
+    status = SimpleNamespace(status="PENDING")
+    monkeypatch.setattr(cancel, "DBOS", SimpleNamespace(workflow_id=WID, get_workflow_status=lambda wid: status))
+    # The final publication check must bypass the throttle, even after a very recent successful read.
+    monkeypatch.setattr(cancel, "MIN_INTERVAL", 60.0)
+    monkeypatch.setattr(runs, "RUNS", tmp_path / "runs")
+    source = {"pages": [{"page": 1, "units": [{"index": 0, "segments": ["Hill", "Valley"]}]}]}
+    run_id = kei_helper.converted_run(runs.RUNS, "kei-convert:ingest:p:final-call", source)
+    events = []
+    expected = [first, "record", "record", "grounding", "grounding"]
+
+    def cancel_final_call(stage):
+        if events == expected:
+            status.status = "CANCELLED"
+
+    scripted["script"] = version_1(events, hold=cancel_final_call)
+    body = kei_helper.extract_request(run_id, catalogue.GENERATION, V1[strategy])["request"]
+    with pytest.raises(KeiFailure) as stopped:
+        workflow.extract_run(WID, run_id, catalogue.GENERATION, body)
+    assert stopped.value.code == "cancelled"
+    assert events == expected
+    assert not (runs.RUNS / run_id / "extractions").exists()

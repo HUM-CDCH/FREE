@@ -53,7 +53,7 @@ A per-Extraction choice of how FREE applies an Extraction Schema to Source Conte
 _Avoid_: document type, extraction mode, profile
 
 **Article Extraction Strategy**:
-An Extraction Strategy that applies an Extraction Schema to the complete canonical Source Context as one values-extraction operation.
+An Extraction Strategy that inventories distinct records across the complete canonical Source Context, then applies the Extraction Schema to each record using evidence from across the source's sections.
 _Avoid_: article mode, narrative mode, direct extraction
 
 **Catalog Extraction Strategy**:

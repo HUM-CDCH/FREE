@@ -147,7 +147,7 @@ test('PDF upload, real parse worker, extraction, evidence and review survive ser
     }))
     await testInfo.attach('accepted-extractions', { body: JSON.stringify(acceptedArtifacts, null, 2), contentType: 'application/json' })
     const calls = service.modelCalls()
-    if (calls !== null) expect(calls).toBe(4) // Article, discovery, then two catalog records.
+    if (calls !== null) expect(calls).toBe(8) // Article inventory, two records, two groundings; Catalog discovery and two records.
     await service.restart()
     for (const prior of acceptedArtifacts)
       expect(await (await fetch(`${service.url}/api/runs/${runId}/extractions/${prior.id}`)).json()).toEqual(prior.result)
@@ -355,8 +355,8 @@ test('interactive and batch extraction reach kei with their priorities and deadl
     const children = await service.keiWorkflows('kei-extract:', project)
     const first = children.find((child) => child.workflowID === `kei-extract:${interactive}`)
     const batch = children.find((child) => child.workflowID !== `kei-extract:${interactive}`)
-    expect(first).toMatchObject({ queueName: 'kei-extract', priority: 1, timeoutMS: 600_000 })
-    expect(batch).toMatchObject({ queueName: 'kei-extract', priority: 10, timeoutMS: 600_000 })
+    expect(first).toMatchObject({ queueName: 'kei-extract', priority: 1, timeoutMS: 10_800_000 })
+    expect(batch).toMatchObject({ queueName: 'kei-extract', priority: 10, timeoutMS: 10_800_000 })
     await expect.poll(async () => {
       const response = await page.request.get(`/api/batch-extractions/${batchId}?projectContextId=${project}`)
       expect(response.ok(), await response.text()).toBeTruthy()

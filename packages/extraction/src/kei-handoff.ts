@@ -16,7 +16,8 @@ export const SMALL_DOCUMENT_PAGES = 30
 /** kei's page limit (KEI_MAX_PAGES): the budget of a PDF whose pages pdf.js could not count. */
 export const UNCOUNTED_PAGE_BUDGET = 2000
 /** Measured from kei's dequeue; Studio's parents have no deadline and end with their child. */
-export const EXTRACTION_TIMEOUT_MS = { ARTICLE: 600_000, CATALOG: 10_800_000 } as const
+// Both strategies discover records and perform per-record extraction/grounding.
+export const EXTRACTION_TIMEOUT_MS = { ARTICLE: 10_800_000, CATALOG: 10_800_000 } as const
 const CONVERT_PREFIX = 'kei-convert:'
 const EXTRACT_PREFIX = 'kei-extract:'
 export const DELETE_RUNS = 'deleteRuns'

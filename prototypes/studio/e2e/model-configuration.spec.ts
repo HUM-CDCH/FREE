@@ -268,6 +268,8 @@ test.describe('against Studio and PostgreSQL', () => {
   })
 
   test('mixed exact route targets are saved and reopen as saved', async ({ page }) => {
+    // An unlisted ID keeps this a manual-entry test after the asynchronous model probe finishes.
+    const manualNuExtract = 'numind/NuExtract3-manual'
     await routeModelServers(page)
     await signIn(page)
     const dialog = await openModelConfiguration(page)
@@ -278,7 +280,7 @@ test.describe('against Studio and PostgreSQL', () => {
     await schemaAndChat.getByRole('button', { name: 'Change' }).click()
     await chooseRoute(dialog, 'Assistant model', 'OpenAI', 'gpt-manual', true)
     await schemaAndChat.getByRole('button', { name: 'Use a different model' }).click()
-    await chooseRoute(dialog, 'Schema Suggestion model', 'vLLM', NUEXTRACT, true)
+    await chooseRoute(dialog, 'Schema Suggestion model', 'vLLM', manualNuExtract, true)
     await expect(schemaAndChat.getByText(NUEXTRACT_NOTE)).toBeVisible()
 
     const configurationPut = page.waitForRequest((request) => pathOf(request.url()) === '/api/model_config' && request.method() === 'PUT')
@@ -287,14 +289,14 @@ test.describe('against Studio and PostgreSQL', () => {
     expect((await configurationPut).postData()).not.toContain('sk-test-e2e-typed')
     const [vllm, openai] = committed.connections
     expect(committed.routes).toEqual({
-      schemaSuggestion: { connectionId: vllm.id, modelId: NUEXTRACT },
+      schemaSuggestion: { connectionId: vllm.id, modelId: manualNuExtract },
       interaction: { connectionId: openai.id, modelId: 'gpt-manual' },
     })
 
     await dialog.getByRole('button', { name: 'Close Model Configuration' }).click()
     const reopened = await openModelConfiguration(page)
     await expect(reopened.getByRole('button', { name: 'Assistant model', exact: true })).toContainText('gpt-manual · OpenAI')
-    await expect(reopened.getByRole('button', { name: 'Schema Suggestion model' })).toContainText(`${NUEXTRACT} · vLLM`)
+    await expect(reopened.getByRole('button', { name: 'Schema Suggestion model' })).toContainText(`${manualNuExtract} · vLLM`)
     await expect(step(reopened, 'Schema & chat').getByText(NUEXTRACT_NOTE)).toBeVisible()
   })
 

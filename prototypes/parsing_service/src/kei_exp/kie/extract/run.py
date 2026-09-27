@@ -39,25 +39,25 @@ from kei_exp.kie.extract.stages import (
     discover,
     extract_document,
     extract_record,
-    extract_records,
+    inventory,
     leaves,
     merge,
     verify,
 )
-from kei_exp.kie.extract.tokens import counter_for
+from kei_exp.kie.extract.tokens import BudgetUnavailable, counter_for
 from kei_exp.kie.recipe import load_recipe
 from kei_exp.kie.segmentation import obtain
 
 EXTRACTION_VERSION = 1
-PROMPT_VERSION = 7  # Shared table context and bounded claim-specific grounding batches.
+PROMPT_VERSION = 11  # Article uses typed identities and complete-source value extraction and grounding.
 
 
 class Options(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    strategy: Literal["catalog", "article"] = "catalog"  # catalog: discover records first; article: one call
+    strategy: Literal["catalog", "article"] = "catalog"
     models: dict[str, str] | None = None  # role (fields, reasoning) -> extraction model key; deployment defaults
     discovery_chars: int = Field(default=48_000, ge=1_000)  # text per discovery call
-    record_chars: int = Field(default=24_000, ge=1_000)     # text per record/document call; full grounding request
+    record_chars: int = Field(default=24_000, ge=1_000)     # generic Catalog text/grounding cap; Article uses tokens
     catalog: CatalogOptions | None = None  # a recipe: structural segmentation and grounded result version 2
 
     @model_validator(mode="after")
@@ -115,9 +115,8 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     `before_entry` is a hook whose error ends the extraction (the worker's cooperative cancellation). A recipe's
     grounded Catalog (`grounded.extract_grounded`) calls it before every entry, and runs its entries in `chunks`
     parallel contiguous chunks. The version 1 Catalog calls it before each discovery call, before each record's
-    extraction and before each record's verification and before each of its grounding batches; the Article, before
-    its records call and before each record's verification and before each of its grounding batches. Those two paths
-    run unsplit and ignore `chunks`.
+    extraction and verification; Article, before inventory, each record call and each record's verification.
+    Both paths also check before each grounding batch, run unsplit and ignore `chunks`.
     """
     evidence = load(run_dir)
     if generation is not None and evidence.generation != generation:
@@ -135,16 +134,36 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     clock = time.monotonic()
     calls: list[Call] = []
     issues: list[Issue] = []
-    document, document_calls, document_issues = extract_document(evidence, schema, chat, budget=options.record_chars)
+    article = options.strategy == "article"
+    identities = []
+    if article:
+        if counter is None:
+            counters = {id(client): counter_for(client) for client in chat.chats().values()}
+            counter = {role: counters[id(client)] for role, client in chat.chats().items()}
+        for role in ("fields", "reasoning"):
+            if type(counter[role].context_tokens) is not int or counter[role].context_tokens <= 0:
+                raise BudgetUnavailable(f"Article requires the {role} endpoint's context size")
+    if schema.document_nodes:
+        check()
+    document, document_calls, document_issues = extract_document(evidence, schema, chat, budget=options.record_chars,
+        counter=counter["fields"] if article else None)
     calls += document_calls
     issues += document_issues
-    if options.strategy == "article":
+    if article:
         check()
-        found, record_calls, record_issues = extract_records(evidence.passages, schema, chat,
-                                                             budget=options.record_chars)
-        calls += record_calls
-        issues += record_issues
-        slices = [(list(evidence.passages), fields) for fields in found]
+        identities, inventory_calls, inventory_issues = inventory(evidence.passages, schema, chat,
+                                                                  counter=counter["reasoning"])
+        calls += inventory_calls
+        issues += inventory_issues
+        slices = []
+        for number, item in enumerate(identities):
+            check()
+            fields, record_calls, record_issues = extract_record(evidence.passages, schema, chat,
+                budget=options.record_chars, record=number, identity=item["identity"], record_name=item["label"],
+                counter=counter["fields"])
+            calls += record_calls
+            issues += record_issues
+            slices.append((list(evidence.passages), fields))
     else:  # discovery checks before each of its calls
         groups, discovery_calls, discovery_issues = discover(evidence, schema, chat, budget=options.discovery_chars,
                                                             before_call=check)
@@ -163,7 +182,10 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     for number, (group, fields) in enumerate(slices):
         check()
         found_links, grounding_calls, grounding_issues = verify(group, fields, schema, chat, record=number,
-                                                               budget=options.record_chars, before_call=check)
+            budget=options.record_chars, counter=counter["reasoning"] if article else None,
+            record_context=(identities[number]["label"] + "\n" + json.dumps(identities[number]["identity"],
+                ensure_ascii=False)) if article else None,
+            before_call=check)
         links += found_links
         calls += grounding_calls
         issues += grounding_issues
@@ -188,6 +210,8 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
                    "output": _total(call.output_tokens for call in calls)},
     }
     result["fingerprint"] = fingerprint(result, request, chat.models)
+    if article:
+        result["inventory"] = identities
     return result
 
 

@@ -13,11 +13,12 @@ import re
 import unicodedata
 from html import unescape
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pypdfium2 as pdfium
 import pytest
-from docling.datamodel.base_models import InputFormat
+from docling.datamodel.base_models import ConversionStatus, InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
@@ -158,6 +159,46 @@ def test_resolve_makes_the_execution_choice_once_following_the_selected_range(di
     assert (native.model, native.repo, native.url, native.cut, native.layout_model, native.crop_dpi) == \
         (None, None, None, "none", None, None)
     assert native.max_image_size is None and native.stream is False and native.pages == (2, 3)
+
+
+@pytest.mark.parametrize("size, needs_ocr", [(200, True), (10, False)])
+def test_textless_vector_form_on_a_native_page_needs_ocr_unless_it_is_small_artwork(tmp_path, size, needs_ocr):
+    """A table drawn as outlines has no PDF text, even though the surrounding prose does."""
+    raw = pdfium.raw
+    path = tmp_path / "embedded.pdf"
+    text_pdf(path, [["Text outside the outlined table."]])
+    with pdfium.PdfDocument.new() as artwork, pdfium.PdfDocument(path) as doc:
+        source = artwork.new_page(size, size)
+        rect = raw.FPDFPageObj_CreateNewRect(0, 0, size, size)
+        raw.FPDFPath_SetDrawMode(rect, 1, 0)
+        raw.FPDFPage_InsertObject(source, rect)
+        source.gen_content()
+        xobject = raw.FPDF_NewXObjectFromPage(doc, artwork, 0)
+        form = raw.FPDF_NewFormObjectFromXObject(xobject)
+        raw.FPDFPageObj_Transform(form, 1, 0, 0, 1, 72, 400)
+        page = doc[0]
+        raw.FPDFPage_InsertObject(page, form)
+        page.gen_content()
+        doc.save(tmp_path / "with-form.pdf")
+        page.close()
+        raw.FPDF_CloseXObject(xobject)
+        source.close()
+    assert has_native_text(tmp_path / "with-form.pdf") is not needs_ocr
+    execution = resolve(RunParams(pdf=tmp_path / "with-form.pdf", model="surya"))
+    assert execution.transcriber == ("surya" if needs_ocr else "native")
+
+
+def test_native_empty_table_is_incomplete_not_a_successful_caption_only_parse(digital_pdf, monkeypatch):
+    document = DoclingDocument(name="empty-table")
+    document.add_page(page_no=1, size=Size(width=595, height=842))
+    document.add_table(data=TableData(num_rows=0, num_cols=0, table_cells=[]), prov=ProvenanceItem(
+        page_no=1, charspan=(0, 0), bbox=BoundingBox(l=10, t=10, r=300, b=200, coord_origin=CoordOrigin.TOPLEFT)))
+    result = SimpleNamespace(document=document, pages=[SimpleNamespace(page_no=1)], errors=[],
+                             status=ConversionStatus.SUCCESS)
+    monkeypatch.setattr("kei_exp.transcription.native.DocumentConverter", lambda **_: SimpleNamespace(
+        convert=lambda *args, **kwargs: result))
+    outcome = TRANSCRIBERS["native"].transcribe(resolve(RunParams(pdf=digital_pdf, model="surya")), None, lambda _: None)
+    assert "table has no readable cells" in outcome.incomplete
 
 
 @pytest.mark.live_model

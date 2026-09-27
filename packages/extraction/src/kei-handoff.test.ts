@@ -76,7 +76,7 @@ test('the conversion budget is deadlines.json\'s formula at every listed page co
   assert.equal(fixture('convert.input').enqueue.workflow_timeout_ms, handoff.conversionTimeoutMs(3))
 })
 
-test('extraction deadlines are ten minutes for Article and three hours for Catalog', () => {
+test('Article and Catalog have three-hour extraction deadlines', () => {
   const deadlines = fixture('deadlines')
   assert.deepEqual(handoff.EXTRACTION_TIMEOUT_MS, {
     ARTICLE: deadlines.extract.article, CATALOG: deadlines.extract.catalog,

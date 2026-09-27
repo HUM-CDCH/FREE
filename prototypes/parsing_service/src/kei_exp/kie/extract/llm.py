@@ -23,7 +23,7 @@ from kei_exp.files import load_dotenv
 load_dotenv()
 EXTRACT_URL = os.environ.get("KEI_EXTRACT_URL", "http://127.0.0.1:8002/v1/chat/completions")
 EXTRACT_MODEL = os.environ.get("KEI_EXTRACT_MODEL", "Qwen/Qwen3.8-27B-FP8")
-EXTRACT_TIMEOUT = float(os.environ.get("KEI_EXTRACT_TIMEOUT", "600"))
+EXTRACT_TIMEOUT = float(os.environ.get("KEI_EXTRACT_TIMEOUT", "1800"))
 # The template extractor's server; unset, the deployment has none and every call goes to the instruction model.
 NUEXTRACT_URL = os.environ.get("KEI_NUEXTRACT_URL", "")
 NUEXTRACT_MODEL = os.environ.get("KEI_NUEXTRACT_MODEL", "numind/NuExtract3-FP8")
