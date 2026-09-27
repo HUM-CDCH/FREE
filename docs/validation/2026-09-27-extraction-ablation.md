@@ -27,23 +27,30 @@ and validate all 30 cells and 15 sources. Its recovery archive is
 `b00cde1b7fcb4b2c151220969c2ad97c76557b27b6af01f26c6149c2ab2200ad`.
 No manifest, result or captured response was rewritten.
 
-The `free-ablation-r1-resume-2` user service waits for the recorded original
-launcher and follower identities to disappear, then audits seals and resumes
-only missing cells with two workers in registered order. Its saved waiting and
+The `free-ablation-r1-resume-2` user service waited for the recorded original
+launcher and follower identities to disappear, then audited seals and resumed
+35 missing cells with two workers in registered order, retaining all 44 existing
+results. The first two workers' `/proc` working directories and `PYTHONPATH`
+pointed to frozen R1, and both passed all input/code pins. Their receipt is
+`resume-20260927-2/handoff-verification.json`. Its saved waiting and
 execution plans are under `resume-20260927-2/`. The corresponding selection
 follower uses frozen R2a; the scheduler under `followups-resume-20260927-2/`
 requires all 79 R1 results before running frozen R3, then R4. These are scheduled
 dependencies, not completed study results. Consult the artifact root's
 `INTEGRATION-POINTER.md` and actual processes for current state.
 
-At this checkpoint, 43 R1 results and 22 R2a results are sealed. All 43 R1 cells
-replay exactly from 1611 saved calls with HTTP disabled. The incremental reports
-through `replay-verification-20260927/increment-43-offline.json` cover disjoint
-cell sets. The newest pair, Akita unverified and Sousa bounded, contributes
+At the next verification checkpoint, 45 R1 results and 24 R2a results are sealed.
+All 45 R1 cells replay exactly from 1751 saved calls with HTTP disabled. The
+incremental reports through `replay-verification-20260927/increment-45-offline.json` cover disjoint
+cell sets. Akita unverified and Sousa bounded contribute
 89 calls; initial verification obtained 306 separate tokenizer probes before
 the offline check. Sousa crossed the checkout-change interval but still replays
-exactly under registered code. The active Akita bounded result remains pending
-and must be checked the same way. Frozen launchers still use their historical
+exactly under registered code. Akita bounded subsequently finished in 9087
+seconds with 126 calls and partial grounding; it also replays exactly, using
+253 separate tokenizer probes before its HTTP-disabled check. Ellekilde's
+generic Catalog result adds 14 calls, with no extra tokenizer probes required.
+The replay coverage proves reproducibility, not independent semantic correctness.
+Frozen launchers still use their historical
 analyzers; final reports must be regenerated with the corrected analyzer below.
 
 ## Frozen protocol
@@ -94,6 +101,38 @@ stochastic voting and VLM crop rereading are outside this matrix.
 Timing is direct extraction through shared model endpoints and includes possible serving
 contention. It is not isolated model throughput, DBOS queue latency, authenticated API
 latency, or deployment validation. No deployment was performed.
+
+## Selection replay: all six annotated pairs available
+
+The R2a checkpoint has 24 of 30 sealed cells: all six annotated development
+papers have both arms, while three unannotated pairs remain pending. No paper's
+primary gold score changes under selection; the paired mean effect is 0
+percentage points across six documents. The zero-width descriptive bootstrap
+interval does not establish equivalence or unseen-document accuracy.
+
+| Six-paper captured request budget | All units | Selected units | Reduction |
+| --- | ---: | ---: | ---: |
+| Calls | 162 | 148 | 14 (8.6%) |
+| Input tokens | 1,012,730 | 978,115 | 34,615 (3.4%) |
+| Output tokens | 72,222 | 66,910 | 5,312 (7.4%) |
+
+Only Akita and Harvey omit calls (nine and five respectively); four papers
+show no budget reduction. All record fields remain identical except diagnostic
+`field_statuses` in Akita and Harvey and free-text `notes` in four Akita records.
+The notes are outside the primary score; their changes are not adjudicated as
+improvements. Thus unchanged gold scores do not imply that every output is equal.
+
+This is a fixed-reply subsequence comparison with no fresh model generation.
+The budgets describe included captured requests, and their saved durations are
+historical. They are not measured fresh-model savings or replay execution latency.
+The complete unannotated cohort remains necessary for final operational effects.
+
+Evidence is under the primary checkout's
+`artifacts/extraction-ablation/20260927-r2a-selection/`: `analysis-six-gold-pairs.json`
+(SHA-256 `8a6495ce45f9ba701c157ad6cd019d5b44e43ec262196de600aa5c86a43d1768`),
+matching `accounting-six-gold-pairs.json`, `tables-six-gold-pairs.md`, and the
+raw-field comparison in `audit-six-gold-pairs.json`. This checkpoint uses the
+corrected analyzer; it does not replace the final full-cohort report.
 
 ## Verification before inference
 
