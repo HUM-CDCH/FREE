@@ -1,0 +1,75 @@
+"""Study validity: immutable inputs, one-factor comparisons, exact resumption, paired uncertainty."""
+import pytest
+
+from experiments.extraction.analyze import paired_interval
+from experiments.extraction.manifest import checked, differences, pin, read, validate, write_new
+from experiments.extraction.study import Capture
+from kei_exp.kie.extract.llm import Reply
+
+
+def test_publication_is_exclusive_and_changed_inputs_are_refused(tmp_path):
+    path = tmp_path / "artifact.json"
+    write_new(path, {"complete": True})
+    pinned = pin(path)
+    with pytest.raises(FileExistsError):
+        write_new(path, {"complete": False})
+    assert read(path) == {"complete": True}
+    path.write_text("changed")
+    with pytest.raises(ValueError, match="changed pinned input"):
+        checked(pinned)
+
+
+def test_multi_factor_comparisons_are_rejected_before_any_execution(tmp_path):
+    methods = {"a": {"context": "full", "grounding": "semantic"},
+               "b": {"context": "bounded", "grounding": "quoted"}}
+    study = {"id": "s", "version": 1, "sources": [{"id": "doc", "exposure": "development", "methods": ["a", "b"]}],
+             "methods": methods, "repeats": 1,
+             "comparisons": [{"control": "a", "treatment": "b", "factor": "context"}]}
+    assert differences(methods["a"], methods["b"]) == {"context", "grounding"}
+    with pytest.raises(ValueError, match="not exactly"):
+        validate(study, tmp_path, verify_files=False)
+    methods["b"]["grounding"] = "semantic"
+    assert len(validate(study, tmp_path, verify_files=False)) == 2
+    study["sources"][0]["exposure"] = "held-out"
+    with pytest.raises(ValueError, match="no independent"):
+        validate(study, tmp_path, verify_files=False)
+
+
+class Chat:
+    model = "fake"
+    def __init__(self):
+        self.calls = 0
+    def complete(self, **kwargs):
+        self.calls += 1
+        return Reply('{"year": 1827}', 10, 5, "stop", 2.0)
+
+
+def test_resume_reuses_exact_saved_replies_and_never_calls_them_fresh(tmp_path):
+    request = {"system": "S", "user": "U", "schema": {}, "max_tokens": 100}
+    chat = Chat()
+    first = Capture(chat, tmp_path, "fields")
+    reply = first.complete(**request)
+    resumed = Capture(chat, tmp_path, "fields")
+    assert resumed.complete(**request).text == reply.text
+    assert chat.calls == 1 and resumed.fresh == 0 and resumed.reused == 1
+    changed = Capture(chat, tmp_path, "fields")
+    with pytest.raises(ValueError, match="diverged"):
+        changed.complete(**{**request, "user": "different"})
+    assert chat.calls == 1
+
+
+def test_request_without_reply_is_counted_as_unknown_prior_completion(tmp_path):
+    request = {"system": "S", "user": "U", "schema": {}, "max_tokens": 100}
+    write_new(tmp_path / "fields-0001.request.json", request)
+    capture = Capture(Chat(), tmp_path, "fields")
+    capture.complete(**request)
+    assert capture.uncertain == 1 and capture.fresh == 1 and capture.reused == 0
+
+
+def test_uncertainty_resamples_documents_with_hand_calculated_effects():
+    result = paired_interval([.1, .3], draws=1000)
+    assert result["mean"] == pytest.approx(.2)
+    assert result["percentile_95"] == pytest.approx([.1, .3])
+    assert result["documents"] == 2 and result["unit"] == "document"
+    assert paired_interval([0, 0, 0])["percentile_95"] == [0, 0]
+    assert paired_interval([])["mean"] is None

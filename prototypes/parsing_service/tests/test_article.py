@@ -6,7 +6,8 @@ import pytest
 from kei_exp.kie.extract import run
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.llm import Reply
-from kei_exp.kie.extract.stages import _complete, extract_record, inventory, verify
+from kei_exp.kie.extract.article import inventory
+from kei_exp.kie.extract.stages import _complete, extract_record, verify
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.tokens import BudgetUnavailable
 from tests.test_extract_grounded import CountingChat, WordCounter

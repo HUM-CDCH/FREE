@@ -27,6 +27,7 @@ from kei_exp.kie.extract.evidence import Evidence, text_of
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.locate import BlockText, forms, locate, normalise, raw_range
 from kei_exp.kie.extract.models import ROLE, ROLES, Router, as_router
+from kei_exp.kie.extract.method import CatalogFactors
 from kei_exp.kie.extract.schema import Node, Schema, conform, json_schema, notes
 from kei_exp.kie.extract.stages import Call, _complete, merge
 from kei_exp.kie.model import Block, GlossaryEntry, Span
@@ -60,6 +61,10 @@ class CatalogOptions(BaseModel):
     recipe: str
     input_tokens: int = Field(default=4096, ge=64)   # a too-small budget is refused as schema_exceeds_budget
     output_tokens: int = Field(default=1024, ge=64)
+    factors: CatalogFactors | None = None
+
+    def enabled(self, factor: str) -> bool:
+        return self.factors is None or getattr(self.factors, factor)
 
 
 class Counter:  # the interface `kie.extract.tokens.TokenCounter` offers; a test may supply its own
@@ -122,6 +127,7 @@ class _Run:
     calls: list[Call] = field(default_factory=list)
     issues: list[dict] = field(default_factory=list)
     refused: bool = False
+    candidates: list[dict] = field(default_factory=list)
 
     def issue(self, code: str, detail: str, record: int | None = None, path: Sequence | None = None) -> None:
         self.issues.append({"code": code, "detail": detail, "record": record,
@@ -204,6 +210,7 @@ def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options
             run.calls += part.calls        # chunk order is entry order: prelude calls, then each chunk's
             run.issues += part.issues
             run.refused = run.refused or part.refused
+            run.candidates += part.candidates
             for record, block_outcomes, contest in found:
                 outcomes += block_outcomes
                 competitors += contest
@@ -212,12 +219,12 @@ def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options
         run.issue("no_records", "the segmentation resolved no entry")
     accepted = [outcome for outcome in outcomes if outcome.kind == "accepted"]
     texts = {passage.id: passage for passage in (*evidence.passages, *evidence.withheld)}
-    expansions = _expansions(segmentation.glossary)
+    expansions = _expansions(segmentation.glossary) if options.enabled("glossary") else {}
     coverage = segmentation.coverage
     processing = (not run.refused and all(call.ok for call in run.calls) and not coverage.withheld_failures
                   and not any(issue["code"] in UNPROCESSED for issue in run.issues))
     completeness = {"processing": processing, "coverage": coverage.complete,
-                    "grounding": all(outcome.spans for outcome in accepted),
+                    "grounding": options.enabled("verification") and all(outcome.spans for outcome in accepted),
                     "recall": "unmeasured"}
     return {
         "extraction_version": EXTRACTION_VERSION, "prompt_version": PROMPT_VERSION, "strategy": "catalog",
@@ -236,7 +243,8 @@ def extract_grounded(evidence: Evidence, schema: Schema, recipe: Recipe, options
         "budget": {"version": BUDGET_VERSION, "input_tokens": options.input_tokens,
                    "output_tokens": options.output_tokens, "tokenizer": counters["fields"].identity(),
                    "tokenizers": {role: each.identity() for role, each in counters.items()}},
-        "normalization": {"version": NORMALIZATION_VERSION, "rules": ["glossary"]},
+        "normalization": {"version": NORMALIZATION_VERSION, "rules": ["glossary"] if options.enabled("glossary") else []},
+        **({"method_version": 1, "raw_candidates": run.candidates} if options.factors is not None else {}),
         "records": records,
         "record_blocks": [{"block": block.id, "entry_label": block.entry_label} for block in segmentation.blocks],
         "evidence": [_link(outcome, texts, expansions) for outcome in accepted if outcome.spans],
@@ -260,6 +268,7 @@ def fingerprint(body: dict, generation: str, digest: str, schema: Schema, option
     return hashlib.sha256(canonical_json({
         "generation": generation, "digest": digest, "schema": schema.model_dump(by_alias=True, exclude_none=True),
         "options": options, "model": model, "prompt_version": PROMPT_VERSION,
+        **({"method_version": body["method_version"]} if "method_version" in body else {}),
         "recipe": body["segmentation"]["recipe"], "segmentation": body["segmentation"]["fingerprint"],
         "budget": body["budget"], "normalization": body["normalization"]})).hexdigest()
 
@@ -367,7 +376,8 @@ def _windows(run: _Run, units: list[_Unit], texts: dict[str, str], fits) -> list
             window.append(pieces[index + len(window)])
         windows.append(window)
         index += len(window)
-        if index < len(pieces) and len(window) > 1 and fits([window[-1], pieces[index]]):
+        if (run.options.enabled("overlap") and index < len(pieces) and len(window) > 1
+                and fits([window[-1], pieces[index]])):
             index -= 1  # the last unit is seen again as the start of the next window
     return windows
 
@@ -404,7 +414,7 @@ def _block(run: _Run, number: int, block: Block, headings: dict, bindings: _Bind
            segmentation: Segmentation) -> tuple[dict, list[_Outcome], list[dict]]:
     schema = run.schema
     texts = {p.id: p.text for p in (*run.evidence.passages, *run.evidence.withheld)}
-    in_force = [headings[heading] for heading in block.heading_events]
+    in_force = [headings[heading] for heading in block.heading_events] if run.options.enabled("headings") else []
     kinds = {event.kind: event for event in in_force}
     outcomes: list[_Outcome] = []
     record: dict[str, Any] = {}
@@ -433,9 +443,11 @@ def _block(run: _Run, number: int, block: Block, headings: dict, bindings: _Bind
     units = _units(block, texts)
     entry_text = "\n".join(texts[u.segment][u.start:u.end] for u in units)
     glossary = [f"{entry.key} — {entry.expansion}" for entry in segmentation.glossary
-                if _bounded(entry.key, entry_text)][:GLOSSARY_LINES]
+                if run.options.enabled("glossary") and _bounded(entry.key, entry_text)][:GLOSSARY_LINES]
     heading_lines = [event.text for event in in_force]
     before, after = _context(block, texts, {p.id: n for n, p in enumerate(run.evidence.passages)})
+    if not run.options.enabled("overlap"):
+        before, after = [], []
 
     def fits(window, with_extras=False):
         user = _user(heading_lines, glossary if with_extras else [], before if with_extras else [],
@@ -461,9 +473,11 @@ def _block(run: _Run, number: int, block: Block, headings: dict, bindings: _Bind
         answer = run.call("entry", number, system, user, reply_schema)
         if not isinstance(answer, dict):
             continue
+        if run.options.factors is not None:
+            run.candidates.append({"record": number, "window": window_number, "fields": answer})
         for node in nodes:
             for outcome in _verify(("records", number, node.name), node, answer.get(node.name), view,
-                                   bindings.keys.get(node.name)):
+                                   bindings.keys.get(node.name), verify=run.options.enabled("verification")):
                 outcome.window = window_number
                 found.append(outcome)
     merged, contest = _merge(run, number, found, texts)
@@ -568,28 +582,30 @@ def _typed(value: Any, node: Node) -> Any:
     return text
 
 
-def _verify(path: tuple, node: Node, answer: Any, view: BlockText, keys: list[str] | None) -> list[_Outcome]:
+def _verify(path: tuple, node: Node, answer: Any, view: BlockText, keys: list[str] | None, *,
+            verify: bool = True) -> list[_Outcome]:
     if answer is None:
         return []
     if node.type == "object":
         if not isinstance(answer, dict):
             return [_Outcome("rejected", path, answer, reason="malformed_candidate")]
         return [outcome for child in node.children or []
-                for outcome in _verify((*path, child.name), child, answer.get(child.name), view, None)]
+                for outcome in _verify((*path, child.name), child, answer.get(child.name), view, None, verify=verify)]
     if node.type == "array":
         if not isinstance(answer, list):
             return [_Outcome("rejected", path, answer, reason="malformed_candidate")]
         if node.item_type is not None:
             item = Node(id=f"{node.id}-item", name=node.name, type=node.item_type)
             return [outcome for index, entry in enumerate(answer)
-                    for outcome in _verify((*path, index), item, entry, view, None)]
+                    for outcome in _verify((*path, index), item, entry, view, None, verify=verify)]
         child = Node(id=f"{node.id}-object", name=node.name, type="object", children=node.children)
         return [outcome for index, entry in enumerate(answer)
-                for outcome in _verify((*path, index), child, entry, view, None)]
-    return [_scalar(path, node, answer, view, keys)]
+                for outcome in _verify((*path, index), child, entry, view, None, verify=verify)]
+    return [_scalar(path, node, answer, view, keys, verify=verify)]
 
 
-def _scalar(path: tuple, node: Node, candidate: Any, view: BlockText, keys: list[str] | None) -> _Outcome:
+def _scalar(path: tuple, node: Node, candidate: Any, view: BlockText, keys: list[str] | None, *,
+            verify: bool = True) -> _Outcome:
     if not isinstance(candidate, dict):
         return _Outcome("rejected", path, candidate, reason="malformed_candidate")
     value, quote, key, provenance = (candidate.get(name) for name in ("value", "quote", "key", "provenance"))
@@ -601,6 +617,9 @@ def _scalar(path: tuple, node: Node, candidate: Any, view: BlockText, keys: list
         outcome.reason = "type_mismatch"
         return outcome
     outcome.value = typed
+    if not verify:
+        outcome.kind, outcome.reason = "proposed", "verification_disabled"
+        return outcome
     if not isinstance(quote, str) or not quote.strip():
         outcome.reason = "no_quote"
         return outcome
@@ -811,7 +830,7 @@ def _item(outcome: _Outcome, texts: dict) -> dict:
     item = {"path": list(outcome.path), "value": outcome.value, "quote": outcome.quote, "key": outcome.key,
             "provenance": outcome.provenance, "spans": _spans(outcome.spans),
             "alternatives": [_spans(spans) for spans in outcome.alternatives], "window": outcome.window}
-    if outcome.kind == "rejected":
+    if outcome.reason is not None:
         item["reason"] = outcome.reason
     if outcome.spans:
         item["raw"] = _raw(outcome.spans, texts)
