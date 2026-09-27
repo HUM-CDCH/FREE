@@ -100,6 +100,51 @@ it does not estimate the effect of actually removing context. Together with
 Katrinesminde, it illustrates why cost changes, context omissions, identity
 alignment and field accuracy must be reported separately.
 
+### First live grounding pair: more calls without resolving identity ambiguity
+
+The later `Wang--quoted--0` result completes the registered bounded semantic versus
+bounded quoted comparison for this one paper. Both arms retain seven records,
+three matched gold identities and two duplicate-identity groups. Both score 15/49
+populated and 54/64 empty sample fields correct. Gold-page localization also stays
+at 15 overlapping and 34 missing links for the 49 reported record fields. These
+are development diagnostics for one pair, not a study-wide effect estimate.
+
+The quoted arm uses 162 total calls versus 36: grounding accounts for 144 versus
+18 calls. Total reported input tokens rise from 259,837 to 1,017,403, and output
+tokens from 13,273 to 29,253. Quoted verification records four unsupported-quote
+issues and still reports partial grounding. More verification calls do not resolve
+the inventory's duplicate identities.
+
+All 18 upstream request captures are identical between arms, and the reconciled
+inventory is identical. Nevertheless, regenerated value replies differ: all seven
+records differ in `field_statuses`, and one record each differs in `notes`,
+`amino_acid_data` and `thermal_data`. Supplementary accounting correctly marks
+upstream comparability false. The small link-rate change (55.22% to 55.64%) has
+different candidate denominators, 268 versus 275 populated leaves, and must not
+be presented as a pure grounding improvement. Greedy decoding did not provide
+identical upstream responses in these separate live executions.
+
+Evidence: R1 `analysis-partial-07.json`, `accounting-partial-07.json` and the
+paired cells' request/reply captures. A bootstrap interval from this sole paired
+paper has no useful between-document uncertainty information; defer aggregate
+interpretation until the registered comparison is complete.
+
+## Mizuta: selection retains every unit
+
+R1 `Mizuta--bounded--0` finishes with 12 records, 54 calls, no failed calls and
+partial grounding. The frozen scorer matches six gold records and reports 39/66
+populated sample fields and 72/72 empty fields correct. Six additional records
+remain unscored, and 23 record-value conflicts are retained for inspection.
+The matched schema control is pending; other completed methods change additional
+factors and cannot isolate the effect of bounded context.
+
+R2a passes exact original-control replay. Both grounding-disabled arms retain
+all value units and identical records, using 28 captured calls, 171,373 input
+tokens and 11,418 output tokens. Like Wang, this is a zero-intervention result
+that stays in the selector comparison denominator. Neither a cost saving nor a
+quality improvement occurred in this conditional replay. Evidence: R2a
+`analysis-partial-05.json`, `accounting-partial-05.json` and the paired cells.
+
 ## Sousa: completed process with an incomplete extraction
 
 R1 `Sousa--unverified--0` has a valid sealed result and process exit code zero,

@@ -149,3 +149,18 @@ observed failure mechanisms: unresolved partial identities yielding duplicate fi
 and zero lexical relevance scores discarding a unit with reported grave subcounts.
 This review supplies descriptive evidence, not independent annotation or a reason to
 tune the registered selector during execution.
+
+## Interim snapshot — 2026-09-27, approximately 11:30 UTC
+
+R1 `analysis-partial-07.json` contains 22/79 terminal cells; R2a
+`analysis-partial-05.json` contains 10/30. Their corresponding
+`accounting-partial-07.json` and `accounting-partial-05.json` were generated from
+those exact sealed snapshots. Later results may exist outside these snapshots.
+
+The first gold-scored grounding pair is Wang: 36 versus 162 calls, unchanged
+projected sample-field correctness, and differing upstream value replies despite
+identical requests. The case review records why its small link-rate difference
+does not isolate grounding quality. The other newly available R1 pair is
+Brondbylund schema versus bounded context; it has no annotated field gold.
+Mizuta's selector replay retains all units and produces identical records and
+costs. These incomplete comparisons do not establish a preferred method.
