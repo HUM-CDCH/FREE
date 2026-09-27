@@ -102,8 +102,16 @@ Supplementary accounting also groups calls, failed calls, reported input/output 
 recorded duration by stage. Unknown usage is counted separately from reported zero usage.
 Reused replies retain historical durations; stage sums are not fresh replay latency or
 end-to-end wall time. The script consumes exactly the sealed analysis snapshot, preventing
-later-finishing cells from being accidentally classified as unannotated. Five focused
+later-finishing cells from being accidentally classified as unannotated. Six focused
 regressions pass, and regenerated accounting records the script and analysis hashes.
+
+For reported record fields in the existing development gold, the frozen scorer already
+compares candidate-link pages against annotated evidence pages. Supplementary accounting
+summarizes `candidate_page_overlap`, `candidate_other_page` and `missing`, cross-tabulated
+by value correctness. This retains wrong values that happen to cite the right page.
+Document fields are excluded because Article does not verify them. Page overlap is a
+coarse localization diagnostic, not semantic entailment or exhaustive evidence recall;
+unannotated examples receive no such gold-based score.
 
 ## Separate selection comparison
 

@@ -72,3 +72,21 @@ def test_accounting_uses_analysis_snapshot_not_a_cell_that_finished_afterward(tm
     monkeypatch.setattr("sys.argv", ["accounting", str(tmp_path), str(report), str(output)])
     accounting.main()
     assert set(json.loads(output.read_text())["cells"]) == {"analyzed"}
+
+
+def test_same_page_link_does_not_turn_wrong_value_into_supported_correctness():
+    artifact = {"schema": {"schemaNodes": [{"name": "year", "valueSource": "document"}]}}
+    fields = [
+        {"field": "temperature", "expected_empty": False, "result": "correct",
+         "evidence": {"status": "candidate_page_overlap"}},
+        {"field": "temperature", "expected_empty": False, "result": "incorrect",
+         "evidence": {"status": "candidate_page_overlap"}},
+        {"field": "yield", "expected_empty": False, "result": "incorrect",
+         "evidence": {"status": "missing"}},
+        {"field": "year", "expected_empty": False, "result": "correct",
+         "evidence": {"status": "missing"}}]
+    result = accounting.evidence_localization(artifact, fields)
+    assert result["reported_record_fields"] == 3
+    assert result["by_evidence_status"] == {"candidate_page_overlap": 2, "missing": 1}
+    assert result["by_value_result"]["incorrect"] == {"candidate_page_overlap": 1, "missing": 1}
+    assert accounting.evidence_localization(artifact, None) == {"status": "unannotated"}

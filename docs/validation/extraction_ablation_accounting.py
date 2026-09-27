@@ -104,6 +104,21 @@ def stage_costs(artifact: dict, execution: dict) -> dict:
             "timing_scope": "Recorded request durations include failures and shared serving contention. Reused replies retain historical durations; these sums are not fresh replay latency or end-to-end wall time."}
 
 
+def evidence_localization(artifact: dict, scored_fields: list[dict] | None) -> dict:
+    """Summarize the frozen scorer's coarse gold-page labels without upgrading them to entailment."""
+    if scored_fields is None:
+        return {"status": "unannotated"}
+    document = {node["name"] for node in artifact["schema"]["schemaNodes"]
+                if node.get("valueSource", "record") != "record"}
+    fields = [field for field in scored_fields if not field["expected_empty"] and field["field"] not in document]
+    return {"status": "development_gold_pages", "reported_record_fields": len(fields),
+            "by_evidence_status": dict(Counter(field["evidence"]["status"] for field in fields)),
+            "by_value_result": {result: dict(Counter(field["evidence"]["status"] for field in fields
+                                                    if field["result"] == result))
+                                for result in sorted({field["result"] for field in fields})},
+            "limits": "Same-page candidate evidence can support a different subject or value. This is coarse localization from the frozen scorer, not independent semantic entailment or exhaustive evidence recall. Document fields are excluded because Article does not verify them."}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("study", type=Path)
@@ -115,7 +130,7 @@ def main():
     report = read(args.analysis)
     if report["study"] != manifest["id"]:
         raise ValueError("analysis belongs to another study")
-    artifacts, counts, costs = {}, {}, {}
+    artifacts, counts, costs, localization = {}, {}, {}, {}
     manifest_hash = hashlib.sha256((args.study / "manifest.json").read_bytes()).hexdigest()
     for entry in report["cells"]:
         path = args.study / "cells" / entry["id"] / "result.json"
@@ -132,10 +147,12 @@ def main():
         fields = report["accuracy"].get(cell, {}).get("fields")
         counts[cell] = observations(artifact, fields)
         costs[cell] = stage_costs(artifact, completed["execution"])
+        localization[cell] = evidence_localization(artifact, fields)
     output = {"study": manifest["id"], "kind": "supplementary descriptive accounting; no extraction or scoring changes",
               "accounting_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
               "analysis_sha256": hashlib.sha256(args.analysis.read_bytes()).hexdigest(), "cells": counts,
               "stage_costs": costs,
+              "evidence_localization": localization,
               "grounding_comparability": grounding_comparability(artifacts, manifest["sources"], manifest["comparisons"])}
     with args.output.open("x") as target:
         json.dump(output, target, indent=2, ensure_ascii=False)
