@@ -21,7 +21,8 @@ import {
 } from './kei-handoff.js'
 import { createExtractionModule } from './module.js'
 import type { BatchExtractionSnapshot, ExtractionAttemptSnapshot, ExtractionModule, RunSingleInput } from './types.js'
-import { dbosSteps, RUN_EXTRACTION, type ExtractionWorkflowPorts } from './workflows.js'
+import { dbosSteps } from './workflow-steps.js'
+import { RUN_EXTRACTION, type ExtractionWorkflowPorts } from './workflows.js'
 
 const configuredDatabaseUrl =
   process.env.EXTRACTION_TEST_DATABASE_URL ?? process.env.DATABASE_URL

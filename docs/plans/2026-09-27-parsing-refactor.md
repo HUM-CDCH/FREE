@@ -494,18 +494,41 @@ DBOS registration and every workflow's step sequence unchanged (no
 `STUDIO_WORKFLOW_PREFIXES` value unchanged.
 
 Acceptance:
-- [ ] `grep -rn "extract:" --include=*.ts packages/extraction/src
+- [x] `grep -rn "extract:" --include=*.ts packages/extraction/src
       prototypes/studio/api prototypes/studio/server` finds literal
       `extract:` only in tests, comments and the owner in `kei-handoff.ts`.
-- [ ] No Studio module imports `extraction/workflows` except for
+- [x] No Studio module imports `extraction/workflows` except for
       `runExtraction`-specific names; `workflow-steps.ts` imports nothing
       from the package.
-- [ ] A focused test pins `extractWorkflowId` / its inverse round trip and
+- [x] A focused test pins `extractWorkflowId` / its inverse round trip and
       rejects non-extraction IDs (`kei-extract:…`, `suggest:…`).
-- [ ] `tsc --noEmit` in `packages/extraction` and `tsc -b` in
+- [x] `tsc --noEmit` in `packages/extraction` and `tsc -b` in
       `prototypes/studio` pass; extraction's fast tests
       (`packages/extraction` `test` script's file list) and Studio's vitest
       files for the touched modules pass.
+
+Verification receipt (Task 8): new `packages/extraction/src/workflow-steps.ts`
+(22 lines, imports only `@dbos-inc/dbos-sdk`) owns `WorkflowSteps`,
+`dbosSteps`, `ARTIFACT_READ_RETRY` and `isWorkflowCancellation`, moved
+verbatim and exported as `extraction/workflow-steps`; `index.ts` re-exports
+`dbosSteps` from it. `keiRunOf` and `KEI_PREPROCESS` moved verbatim to
+`kei-handoff.ts`, with their test (now in `kei-handoff.test.ts`).
+`kei-handoff.ts` gains `STUDIO_EXTRACT_PREFIX`, `extractWorkflowId` and
+`extractionIdOfWorkflow` (`/^extract:([^:]+)$/`, the rule `_garbage_plan.ts`
+already used). `workflows.ts` imports both and re-exports neither. Call sites:
+`postgres-persistence.ts` (its private `extractWorkflowId` removed),
+`testing/dbos-test-app.ts`, Studio `_extractions.ts`, `_scope_cancellation.ts`,
+`_garbage_plan.ts` (prefix list, `keiParentOf`, `rowGone`, `settled`,
+`scopeIdsOf`) and `_garbage_workflow.ts` (`workflow_id_prefix`, not in the
+list above but a production literal). Eleven Studio files moved their import
+to `extraction/workflow-steps`; no Studio file imports `extraction/workflows`.
+`packages/db/src/project-store.ts` keeps its two literals, each with an owner
+comment. One edge: `_scope_cancellation.ts` used `startsWith('extract:')`, so
+`extract:` or `extract:a:b` would have cancelled a `kei-extract:` child; the
+owner's stricter rule skips those IDs, which Studio never writes. Checks:
+extraction `tsc --noEmit` and Studio `tsc -b` clean; extraction fast tests
+73 pass (base 72, +1 round-trip test); Studio vitest for the nine touched
+modules' test files 100 pass (base 100).
 
 ## Next candidates, reassessed after this slice
 

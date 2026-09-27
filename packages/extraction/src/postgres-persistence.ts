@@ -26,6 +26,7 @@ import type {
   ReviewAuthority,
 } from './dependencies.js'
 import { ExtractionError } from './errors.js'
+import { extractWorkflowId } from './kei-handoff.js'
 import { modelChoice } from './model-choice.js'
 import { createExtractionModule } from './module.js'
 import { persistSuggestedBatch } from './postgres-suggested-batch.js'
@@ -66,7 +67,6 @@ const SUPERSEDED_MESSAGE =
 const EXTRACTION_KEY = 'extraction_pkey'
 const BATCH_KEY = 'batchExtraction_pkey'
 
-const extractWorkflowId = (extractionId: string) => `extract:${extractionId}`
 /**
  * The statuses of work admitted just now: each workflow was enqueued in the transaction that committed its row, so it
  * is QUEUED (an outcome on the row still wins). A created admission answers with them, so a DBOS read cannot turn a

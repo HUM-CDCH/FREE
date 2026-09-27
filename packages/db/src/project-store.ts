@@ -1179,6 +1179,7 @@ export function createResearcherProjectStore(
         unsettled.length === 0 || !options.workflowStatuses
           ? null
           : await options.workflowStatuses(
+              // `extract:<id>` is owned by extraction/kei-handoff extractWorkflowId; db sits below extraction.
               unsettled.map((member) => `extract:${member.id}`),
             )
 
@@ -1279,6 +1280,7 @@ export function createResearcherProjectStore(
           (totalMembers.get(batchExtractionId) ?? 0) + 1,
         )
         // Settled, or stopped without an outcome: a finished workflow (SUCCESS) wrote one just now or never will.
+        // `extract:<id>` is owned by extraction/kei-handoff extractWorkflowId; db sits below extraction.
         const execution =
           member.outcome === null && statuses
             ? executionOf(statuses.get(`extract:${member.id}`))

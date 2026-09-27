@@ -8,8 +8,8 @@ export {
   createExtractionStore,
   createResearcherExtractionPersistence,
 } from './postgres-persistence.js'
+export { dbosSteps } from './workflow-steps.js'
 export {
-  dbosSteps,
   EXTRACTION_QUEUE,
   registerExtractionWorkflow,
   RUN_EXTRACTION,

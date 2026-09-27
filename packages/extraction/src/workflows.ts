@@ -1,38 +1,21 @@
 import { createHash } from 'node:crypto'
-import { DBOS, Error as DBOSErrors, type StepConfig } from '@dbos-inc/dbos-sdk'
+import { DBOS } from '@dbos-inc/dbos-sdk'
 import type { TerminalExtraction } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import { acceptKeiArtifact } from './kei-artifact.js'
 import {
-  EXTRACTION_TIMEOUT_MS, KEI_PRIORITY, KEI_QUEUE, KEI_RUN_ID, keiExtractOkSchema, keiExtractWorkflowId, settleKei,
+  EXTRACTION_TIMEOUT_MS, KEI_PRIORITY, KEI_QUEUE, keiExtractOkSchema, keiExtractWorkflowId, keiRunOf, settleKei,
   SUBMIT_TO_KEI_RETRY, type KeiExtractInput, type KeiHandoff, type KeiOutcome, type KeiPoll,
 } from './kei-handoff.js'
 import { modelChoice } from './model-choice.js'
 import { decodePinnedDocument } from './parsed-document.js'
 import { parseExtractionSchema } from './schema.js'
 import type { ExtractionFailure, ExtractionModelChoice, ExtractionStrategy } from './types.js'
+import { ARTIFACT_READ_RETRY, isWorkflowCancellation, type WorkflowSteps } from './workflow-steps.js'
 
 export const RUN_EXTRACTION = 'runExtraction'
 /** Studio's unrestricted `studio` queue (server/dbos.ts STUDIO_QUEUE; server/workflows.test.ts pins the two equal). */
 export const EXTRACTION_QUEUE = 'studio'
-
-/** The DBOS surface a workflow body uses, so its sequence is testable without DBOS. */
-export type WorkflowSteps = Readonly<{
-  step<T>(name: string, run: () => Promise<T>, config?: StepConfig): Promise<T>
-  /** DBOS.stepStatus.cancelSignal inside a step (it fires about 1 s after a cancel); undefined outside one. */
-  cancelSignal(): AbortSignal | undefined
-}>
-export const dbosSteps: WorkflowSteps = {
-  step: (name, run, config) => DBOS.runStep(run, { ...config, name }),
-  cancelSignal: () => DBOS.stepStatus?.cancelSignal,
-}
-
-/** A read of a published artifact that another attempt may get through (kei's API restarting). Ingestion and
- *  reprocessing reuse it for their manifest and page reads. */
-export const ARTIFACT_READ_RETRY: StepConfig = {
-  retriesAllowed: true, intervalSeconds: 5, backoffRate: 2, maxAttempts: 3,
-  shouldRetry: (error) => error instanceof TypeError || (error as { transient?: unknown })?.transient === true,
-}
 
 /** What admission committed for one Extraction: its pins, its choices and the scope it belongs to. */
 export type AdmittedExtraction = Readonly<{
@@ -68,15 +51,6 @@ export type ExtractionWorkflowPorts = Readonly<{
   /** The bytes of kei's published artifact (`GET /api/runs/{run}/extractions/{extraction}`). */
   readArtifact(runId: string, extractionId: string, signal?: AbortSignal): Promise<Uint8Array>
 }>
-
-const KEI_PREPROCESS = /^kei-exp:([A-Za-z0-9][A-Za-z0-9._-]*):([^:\s]+)$/
-
-/** The kei run and parse generation a Source Representation Revision was made from (`kei-exp:<run>:<generation>`,
- *  written by ingestion from kei's convert output). Studio reads the run ID; it never derives one. */
-export function keiRunOf(preprocessId: string): { runId: string; generation: string } | null {
-  const match = KEI_PREPROCESS.exec(preprocessId)
-  return match && KEI_RUN_ID.test(match[1]!) ? { runId: match[1]!, generation: match[2]! } : null
-}
 
 export function extractionAttributes(admitted: Pick<AdmittedExtraction,
   'projectContextId' | 'sourceDocumentId' | 'sourceRepresentationRevisionId' | 'extractionSchemaId' | 'batchExtractionId' | 'preprocessId'>,
@@ -129,10 +103,6 @@ export function extractionFailureOf(outcome: Extract<KeiOutcome<unknown>, { ok: 
     case 'invalid_output': return { code: 'invalid_model_output', message: outcome.reason.slice(0, 512), phase }
     default: return { code: 'extraction_failed', message: `kei-exp could not complete the Extraction: ${outcome.reason}`.slice(0, 512), phase }
   }
-}
-
-export function isWorkflowCancellation(error: unknown): boolean {
-  return error instanceof DBOSErrors.DBOSWorkflowCancelledError || error instanceof DBOSErrors.DBOSAwaitedWorkflowCancelledError
 }
 
 /**

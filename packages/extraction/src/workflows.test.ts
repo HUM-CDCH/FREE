@@ -7,9 +7,9 @@ import { ExtractionError } from './errors.js'
 import { keiExpArtifact, keiExpEvidence } from './kei-exp-fixture.js'
 import { SUBMIT_TO_KEI_RETRY, type KeiHandoff, type KeiPoll, type KeiSubmission } from './kei-handoff.js'
 import type { ExtractionStrategy } from './types.js'
+import { ARTIFACT_READ_RETRY } from './workflow-steps.js'
 import {
-  ARTIFACT_READ_RETRY, extractionAttributes, extractionFailureOf, keiRunOf, runExtractionWorkflow,
-  type AdmittedExtraction, type SettledExtraction,
+  extractionAttributes, extractionFailureOf, runExtractionWorkflow, type AdmittedExtraction, type SettledExtraction,
 } from './workflows.js'
 
 const RUN = 'run-1'
@@ -419,12 +419,5 @@ describe('runExtraction', () => {
     const h = harness({ polls: [{ state: 'live' }, { state: 'CANCELLED', deadlinePassed: false }] })
     await h.run()
     assert.deepEqual(h.pollSignals, [h.signal, h.signal])
-  })
-
-  it('keiRunOf reads kei-exp:<run>:<generation> and nothing else', () => {
-    assert.deepEqual(keiRunOf('kei-exp:run-1:g1'), { runId: 'run-1', generation: 'g1' })
-    assert.deepEqual(keiRunOf('kei-exp:a.b_c-d:20260926'), { runId: 'a.b_c-d', generation: '20260926' })
-    for (const id of ['kei-exp:run/x:g', 'kei-exp:run:', 'other:run:g', 'kei-exp::g', 'kei-exp:.run:g', 'kei-exp:run:g\n', 'kei-exp:run:g h', 'kei-exp:run'])
-      assert.equal(keiRunOf(id), null, JSON.stringify(id))
   })
 })

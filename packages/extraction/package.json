@@ -13,6 +13,7 @@
     "./kei-stand-in-client": "./src/testing/kei-stand-in-client.ts",
     "./parsed-document": "./src/parsed-document.ts",
     "./schema": "./src/schema.ts",
+    "./workflow-steps": "./src/workflow-steps.ts",
     "./workflows": "./src/workflows.ts"
   },
   "scripts": {
