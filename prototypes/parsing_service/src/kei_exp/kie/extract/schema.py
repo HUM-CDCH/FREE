@@ -109,12 +109,6 @@ def json_schema(nodes: Sequence[Node]) -> dict:
             "required": [node.name for node in nodes], "additionalProperties": False}
 
 
-def records_schema(nodes: Sequence[Node]) -> dict:
-    """The one-call shape: every record of the text at once."""
-    return {"type": "object", "properties": {"records": {"type": "array", "items": json_schema(nodes)}},
-            "required": ["records"], "additionalProperties": False}
-
-
 def _field_schema(node: Node) -> dict:
     """A field's JSON schema. A scalar also names FREE's own type under `x-free-type`, which JSON's types collapse
     (verbatim-string, string and date are all "string"): a template extractor reads it, and `llm.OpenAIChat` strips
@@ -131,12 +125,18 @@ def _field_schema(node: Node) -> dict:
 
 
 def notes(nodes: Sequence[Node], prefix: str = "") -> list[str]:
-    """One line per described field, `- path: description`, nested fields with dotted paths."""
+    """Field descriptions and permitted labels, including nested fields.
+
+    Constrained decoding does not put the reply schema in the model's prompt: enum choices must be shown.
+    """
     lines: list[str] = []
     for node in nodes:
         path = f"{prefix}{node.name}"
-        if node.description:
-            lines.append(f"- {path}: {node.description}")
+        description = node.description or ""
+        if node.allowed_values is not None:
+            description += f" Allowed labels: {', '.join(repr(value) for value in node.allowed_values)}; null if unsupported."
+        if description:
+            lines.append(f"- {path}: {description.strip()}")
         lines.extend(notes(node.children or [], f"{path}."))
     return lines
 

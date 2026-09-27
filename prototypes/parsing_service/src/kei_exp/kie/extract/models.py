@@ -20,7 +20,7 @@ from kei_exp.kie.extract.llm import Chat, NuExtractChat, OpenAIChat
 Role = Literal["fields", "reasoning"]
 ROLES: tuple[Role, ...] = ("fields", "reasoning")
 ROLE: dict[str, Role] = {"document": "fields", "record": "fields", "entry": "fields",
-                         "discovery": "reasoning", "grounding": "reasoning", "arbitration": "reasoning"}
+                         "discovery": "reasoning", "inventory": "reasoning", "grounding": "reasoning", "arbitration": "reasoning"}
 
 
 @dataclass(frozen=True)

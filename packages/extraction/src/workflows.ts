@@ -124,7 +124,7 @@ export function extractionFailureOf(outcome: Extract<KeiOutcome<unknown>, { ok: 
     case 'model_unavailable': return { code: 'model_unavailable', message: outcome.reason.slice(0, 512), phase }
     case 'cancelled': return { code: 'cancelled', message: 'The Extraction was cancelled.', phase }
     case 'deadline_exceeded':
-      return { code: 'extraction_failed', message: `The Extraction did not finish within its time limit (${strategy === 'CATALOG' ? '3 hours' : '10 minutes'}).`, phase }
+      return { code: 'extraction_failed', message: `The Extraction did not finish within its time limit (${EXTRACTION_TIMEOUT_MS[strategy] / 3_600_000} hours).`, phase }
     case 'stopped': return { code: 'extraction_failed', message: 'The Parsing Service stopped this Extraction.', phase }
     case 'invalid_output': return { code: 'invalid_model_output', message: outcome.reason.slice(0, 512), phase }
     default: return { code: 'extraction_failed', message: `kei-exp could not complete the Extraction: ${outcome.reason}`.slice(0, 512), phase }

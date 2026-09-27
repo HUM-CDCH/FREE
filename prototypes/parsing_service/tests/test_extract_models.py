@@ -66,8 +66,8 @@ def test_every_stage_goes_to_its_role():
     for stage, role in ROLE.items():
         _complete(router, stage=stage, record=None, system="S", user="U", schema={"type": "object"})
         assert (fields if role == "fields" else reasoning).calls[-1]["system"] == "S", stage
-    assert len(fields.calls) == 3 and len(reasoning.calls) == 3
-    assert set(ROLE) == {"document", "record", "entry", "discovery", "grounding", "arbitration"}
+    assert len(fields.calls) == 3 and len(reasoning.calls) == 4
+    assert set(ROLE) == {"document", "record", "entry", "discovery", "inventory", "grounding", "arbitration"}
     with pytest.raises(ValueError, match="no role"):
         router.for_stage("summary")
 

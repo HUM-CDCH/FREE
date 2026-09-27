@@ -10,7 +10,7 @@ from kei_exp.kie.extract.evidence import Evidence, Passage
 from kei_exp.kie.extract.llm import Reply
 from kei_exp.kie.extract.run import PROMPT_VERSION, ExtractRequest, extract, fingerprint, publish_extraction
 from kei_exp.kie.extract.schema import Schema
-from kei_exp.kie.extract.stages import contains, discover, extract_record, extract_records, merge, verify
+from kei_exp.kie.extract.stages import contains, discover, extract_record, inventory, merge, verify
 from kei_exp.result import write_result
 from tests.helpers.chat import FakeChat
 from tests.helpers.replay import Replay
@@ -52,6 +52,23 @@ SCHEMA = Schema.model_validate({"recordDescription": "One numbered catalogue ent
     {"id": "title", "name": "title", "type": "string", "valueSource": "document"},
     {"id": "file", "name": "filename", "type": "string", "valueSource": "source-filename"},
 ]})
+
+
+class FixedCounter:
+    context_tokens = 32_768
+
+    def request_tokens(self, *args):
+        return 10  # FakeChat's reported count
+
+
+@pytest.fixture(autouse=True)
+def article_counters(monkeypatch):
+    monkeypatch.setattr("kei_exp.kie.extract.run.counter_for", lambda chat: FixedCounter())
+
+
+def one_identity(reply_schema, identity="31. Hjortlund"):
+    labels = reply_schema["properties"]["records"]["items"]["properties"]["passages"]["items"]["enum"]
+    return {"records": [{"label": identity, "identity": {}, "passages": [labels[0]]}]}
 
 
 def test_discovery_labels_every_passage_and_cuts_records_at_the_starts_it_is_told():
@@ -227,9 +244,11 @@ def test_extract_composes_the_stages_into_a_complete_grounded_artifact(digital_p
 
     def script(system, user, schema):
         if "records" in schema["properties"]:
-            return {"records": [{"entry_no": "1", "site": None, "year": None, "finds": None}]}
+            return one_identity(schema, "1")
         if "title" in schema["properties"]:
             return {"title": "Grüße"}
+        if "entry_no" in schema["properties"]:
+            return {"entry_no": "1", "site": None, "year": None, "finds": None}
         return {label: "NONE" for label in schema["properties"]}
     chat = FakeChat(script)
     result = extract(tmp_path, request, chat)
@@ -258,7 +277,7 @@ def test_the_article_strategy_reports_no_records_found_and_is_incomplete_without
     assert result["records"] == [] and result["complete"] is False
     assert [issue["code"] for issue in result["issues"]] == ["no_records_found"]
     without = FakeChat(lambda s, u, schema: {"nothing": 1})
-    found, (call,), issues = extract_records(passages(), SCHEMA, without, budget=24_000)
+    found, (call,), issues = inventory(passages(), SCHEMA, without, counter=FixedCounter())
     assert found == [] and call.ok and [issue.code for issue in issues] == ["no_records_found"]
 
 
@@ -266,14 +285,19 @@ def test_document_fields_are_declared_unverified():
     """Document-level fields are extracted but not grounded in this slice; the artifact says which ones."""
     request = ExtractRequest.model_validate({"schema": SCHEMA.model_dump(by_alias=True, exclude_none=True),
                                              "options": {"strategy": "article"}})
-    chat = FakeChat(lambda s, u, schema: {"records": [{"entry_no": "31"}]} if "records" in schema["properties"]
-                    else {"title": "Beier 1988"})
+    def script(s, u, schema):
+        if "records" in schema["properties"]:
+            return one_identity(schema)
+        if "entry_no" in schema["properties"]:
+            return {"entry_no": "31"}
+        return {"title": "Beier 1988"} if "title" in schema["properties"] else {"C1": "E2"}
+    chat = FakeChat(script)
     result = extract_over(evidence(), request, chat)
     assert result["unverified"] == ["title"] and result["complete"] is True
     record_only = {"recordDescription": "x",
                    "schemaNodes": [{"id": "no", "name": "entry_no", "type": "verbatim-string"}]}
     request = ExtractRequest.model_validate({"schema": record_only, "options": {"strategy": "article"}})
-    result = extract_over(evidence(), request, FakeChat(lambda s, u, schema: {"records": [{"entry_no": "31"}]}))
+    result = extract_over(evidence(), request, FakeChat(script))
     assert result["unverified"] == [] and result["complete"] is True
 
 
@@ -311,10 +335,12 @@ def test_completeness_needs_every_call_ok_and_every_value_grounded():
     def script(system, user, schema):
         calls.append(schema)
         if "records" in schema["properties"]:
-            return {"records": [{"entry_no": "31", "site": "Nowhere", "year": None, "finds": None}]}
+            return one_identity(schema)
+        if "entry_no" in schema["properties"]:
+            return {"entry_no": "31", "site": "Nowhere", "year": None, "finds": None}
         if "title" in schema["properties"]:
             return {"title": None}
-        return {label: "NONE" for label in schema["properties"]}
+        return {label: "E2" if label == "C1" else "NONE" for label in schema["properties"]}
     result = extract_over(evidence(), request, FakeChat(script))
     assert result["complete"] is False and ["records", 0, "site"] in result["ungrounded"]
     assert [link["segment"] for link in result["evidence"]] == ["p1_s1"]

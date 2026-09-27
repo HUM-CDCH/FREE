@@ -133,7 +133,7 @@ describe('runExtraction', () => {
     await interactive.run()
     assert.deepEqual(interactive.submissions, [{
       workflow: 'extract', workflowId: `kei-extract:${interactive.admitted.extractionId}`, queueName: 'kei-extract',
-      priority: 1, timeoutMs: 600_000, request: interactive.submissions[0]!.request,
+      priority: 1, timeoutMs: 10_800_000, request: interactive.submissions[0]!.request,
       authenticatedUser: interactive.admitted.owner, attributes: extractionAttributes(interactive.admitted),
     }])
     assert.equal(interactive.submissions[0]!.attributes.keiRunId, RUN)
@@ -328,7 +328,7 @@ describe('runExtraction', () => {
   })
 
   it('a kei deadline becomes extraction_failed naming the time limit', async () => {
-    for (const [strategy, limit] of [['CATALOG', '3 hours'], ['ARTICLE', '10 minutes']] as const) {
+    for (const [strategy, limit] of [['CATALOG', '3 hours'], ['ARTICLE', '3 hours']] as const) {
       const h = harness({ admitted: admittedExtraction({ strategy }), polls: [{ state: 'CANCELLED', deadlinePassed: true }] })
       await h.run()
       assert.deepEqual(failureOf(h), {

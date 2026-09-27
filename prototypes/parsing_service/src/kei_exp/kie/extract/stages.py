@@ -1,16 +1,19 @@
 """The extraction stages as plain functions over passages and a chat completion (plan B rule 6).
 
-Discovery asks the model which labelled passages open a record and cuts the passages into record slices at
+Catalog discovery asks which labelled passages open a record and cuts the passages into record slices at
 those starts; only the final chunk may close the records with an `end`, since an earlier chunk cannot know what
 follows it. Each record is extracted with one structured-output call under a guardrail. Verification is
 deterministic first: a value that occurs as a bounded token in exactly one of the record's passages is linked
 without a model; the rest go to bounded grounding calls that may answer only with an evidence label each claim
 was shown, or NONE. A label outside the shown set links nothing. The merge orders a record's fields as the
-schema does and adds the document-level and filename fields.
+schema does and adds the document-level and filename fields. Article instead inventories noncontiguous records
+and their supporting passages; its verification is semantic even for unique lexical occurrences, because the
+whole document contains other records' measurements. Article requests use served-token admission.
 """
 from __future__ import annotations
 
 import json
+import math
 import re
 import unicodedata
 from collections.abc import Callable, Iterator, Sequence
@@ -18,14 +21,15 @@ from dataclasses import dataclass
 from typing import Any
 
 from kei_exp.kie.extract.evidence import Evidence, Passage, text_of
-from kei_exp.kie.extract.llm import Chat, ModelOutputError, Reply, parse_json
+from kei_exp.kie.extract.llm import Chat, ModelOutputError, parse_json
 from kei_exp.kie.extract.models import Router
-from kei_exp.kie.extract.schema import Schema, conform, describe, json_schema, notes, records_schema
+from kei_exp.kie.extract.schema import SCALAR_JSON, Schema, conform, describe, json_schema, notes
+from kei_exp.kie.extract.tokens import BudgetUnavailable, TokenCounter
 from kei_exp.pagefile import TableCell
 
 GUARDRAIL = ("You extract structured data from a source document. Use only the requested output fields. Copy "
-             "values from the source as written; do not invent unsupported information. A value the source does "
-             "not give is null. Return only the JSON object.")
+             "values from the source as written unless the field defines normalized labels; do not invent "
+             "unsupported information. A value the source does not give is null. Return only the JSON object.")
 # Without reasoning, "the first block AFTER the last record" read to qwen3:8b as the last record itself.
 DISCOVERY = ("Identify record boundaries in the labelled source text. A record is: {description}\nReturn JSON "
              "with \"starts\", the labels of the blocks that OPEN each record, in source order without duplicates; "
@@ -65,12 +69,18 @@ GROUNDING = ("Ground every claim listed under \"### Claims\" in the passages lis
              "and the claim's sibling fields to select the correct row. Prefer the individual cell supporting "
              "the value; row context alone is not evidence for that cell's value. Never invent a label.")
 NONE = "NONE"
+ARTICLE = ("Extract only the specified record, combining its evidence across the complete source. Keep its final "
+           "preparation or fraction distinct from the starting material, bulk preparation, other fractions and "
+           "comparison controls. Collect ALL observations requested by the schema, including the same analyte "
+           "reported on different bases or in different units. Never substitute group averages, another record's "
+           "measurements, or protocol settings for this record's measurements. A proposed or attempted isolation "
+           "is not proof of a recovered material or type. Use the field's defined identity labels.")
 
 
 @dataclass(frozen=True)
 class Call:
     """One model call as the artifact reports it."""
-    stage: str                          # discovery | document | record | grounding
+    stage: str                          # discovery | inventory | document | record | grounding
     record: int | None
     input_tokens: int | None
     output_tokens: int | None
@@ -78,6 +88,9 @@ class Call:
     finish: str | None
     ok: bool
     error: str | None = None
+    counted_input_tokens: int | None = None
+    context_tokens: int | None = None
+    max_output_tokens: int | None = None
 
 
 @dataclass(frozen=True)
@@ -103,27 +116,42 @@ class Issue:
 
 
 def _complete(chat: Chat | Router, *, stage: str, record: int | None, system: str, user: str, schema: dict,
-              max_tokens: int | None = None) -> tuple[Any, list[Call]]:
+              max_tokens: int | None = None, counter: TokenCounter | None = None) -> tuple[Any, list[Call]]:
     """One call, read as JSON; a truncated or unreadable reply is a failed call and a null answer. The calls are the
     attempts in order, the last one the call whose reply this is: a refused earlier attempt is a failed call too.
     A router sends the call to the model serving the stage's role."""
     if isinstance(chat, Router):
         chat = chat.for_stage(stage)
+    counted = None
+    if counter is not None:
+        assert max_tokens is not None
+        counted = counter.request_tokens(system, user, schema)
+        context = counter.context_tokens
+        if type(context) is not int or context <= 0:
+            raise BudgetUnavailable("Article requires the serving endpoint's context size")
+        if counted + max_tokens > context:
+            return None, [Call(stage, record, None, None, 0.0, None, False,
+                f"{counted} input + {max_tokens} output tokens exceed the served context {context}; "
+                "complete source was not sent", counted, context, max_tokens)]
     try:
         reply = chat.complete(system=system, user=user, schema=schema, max_tokens=max_tokens)
     except ModelOutputError as error:  # a fake or a client that already judged the reply
-        return None, [Call(stage, record, None, None, 0.0, None, False, str(error))]
+        return None, [Call(stage, record, None, None, 0.0, None, False, str(error),
+                           counted, counter.context_tokens if counter else None, max_tokens)]
     refused = [Call(stage, record, None, None, 0.0, None, False, attempt) for attempt in reply.attempts]
+    parsed = None
+    error = None
     if reply.finish == "length":
-        return None, [*refused, _call(reply, stage, record, False, "the reply was cut off (finish_reason length)")]
-    try:
-        return parse_json(reply.text), [*refused, _call(reply, stage, record, True, None)]
-    except ModelOutputError as error:
-        return None, [*refused, _call(reply, stage, record, False, str(error))]
-
-
-def _call(reply: Reply, stage: str, record: int | None, ok: bool, error: str | None) -> Call:
-    return Call(stage, record, reply.input_tokens, reply.output_tokens, reply.seconds, reply.finish, ok, error)
+        error = "the reply was cut off (finish_reason length)"
+    else:
+        try:
+            parsed = parse_json(reply.text)
+        except ModelOutputError as exc:
+            error = str(exc)
+    if error is None and counted is not None and reply.input_tokens != counted:
+        error = f"counted {counted} input tokens but the server reported {reply.input_tokens}"
+    return parsed, [*refused, Call(stage, record, reply.input_tokens, reply.output_tokens, reply.seconds,
+        reply.finish, error is None, error, counted, counter.context_tokens if counter else None, max_tokens)]
 
 
 def _labelled(passages: Sequence[Passage], labels: Sequence[str]) -> str:
@@ -249,49 +277,129 @@ def _clipped(passages: Sequence[Passage], budget: int, issues: list[Issue], reco
     return text
 
 
-def extract_document(evidence: Evidence, schema: Schema, chat: Chat, *, budget: int) -> tuple[
+def extract_document(evidence: Evidence, schema: Schema, chat: Chat, *, budget: int,
+                     counter: TokenCounter | None = None) -> tuple[
         dict, list[Call], list[Issue]]:
     """The fields that belong to the document as a whole, from one call over its text."""
     nodes = schema.document_nodes
     if not nodes:
         return {}, [], []
     issues: list[Issue] = []
-    user = f"### Source document\n{_clipped(evidence.passages, budget, issues, None)}\n\nReturn the JSON object now."
+    source = text_of(evidence.passages) if counter else _clipped(evidence.passages, budget, issues, None)
+    user = f"### Source document\n{source}\n\nReturn the JSON object now."
     answer, attempts = _complete(chat, stage="document", record=None, system=_instruction(schema, nodes), user=user,
-                                 schema=json_schema(nodes))
+                                 schema=json_schema(nodes), counter=counter, max_tokens=2048 if counter else None)
     if not attempts[-1].ok:
         issues.append(Issue("call_failed", attempts[-1].error or "document extraction failed"))
     return conform(answer, nodes), attempts, issues
 
 
 def extract_record(passages: Sequence[Passage], schema: Schema, chat: Chat, *, budget: int,
-                   record: int | None = None) -> tuple[dict, list[Call], list[Issue]]:
+                   record: int | None = None, identity: dict | None = None, record_name: str | None = None,
+                   counter: TokenCounter | None = None) -> tuple[dict, list[Call], list[Issue]]:
     """One record's fields from one structured-output call over its passages."""
-    nodes = schema.record_nodes
+    nodes = [node for node in schema.record_nodes if identity is None or node.name not in identity]
+    if not nodes:
+        return dict(identity or {}), [], []
     issues: list[Issue] = []
-    user = f"### Record\n{_clipped(passages, budget, issues, record)}\n\nReturn the JSON object now."
-    answer, attempts = _complete(chat, stage="record", record=record, system=_instruction(schema, nodes), user=user,
-                                 schema=json_schema(nodes))
+    source = text_of(passages) if counter else _clipped(passages, budget, issues, record)
+    user = f"### Source document\n{source}\n\n" if record_name else f"### Record\n{source}\n\n"
+    user += "Return the JSON object now."
+    system = ((f"Extract ONLY the record {record_name}: " + "; ".join(f"{key}: {value}" for key, value in (identity or {}).items()) +
+               ". Read only its corresponding table rows/columns. Exclude every other record.\n" + ARTICLE + "\n")
+              if record_name else "") + _instruction(schema, nodes)
+    answer, attempts = _complete(chat, stage="record", record=record, system=system, user=user,
+                                 schema=json_schema(nodes), counter=counter, max_tokens=4096 if counter else None)
     if not attempts[-1].ok:
         issues.append(Issue("call_failed", attempts[-1].error or "record extraction failed", record))
-    return conform(answer, nodes), attempts, issues
+    return {**(identity or {}), **conform(answer, nodes)}, attempts, issues
 
 
-def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, budget: int) -> tuple[
+def inventory(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counter: TokenCounter) -> tuple[
         list[dict], list[Call], list[Issue]]:
-    """Every record of the text at once: the article strategy, for sources short enough for one call. A reply
-    without records is an issue, as discovery naming no start is."""
-    nodes = schema.record_nodes
+    """Article identities recur across sections; they are not contiguous Catalog slices."""
     issues: list[Issue] = []
-    user = f"### Source document\n{_clipped(passages, budget, issues, None)}\n\nReturn the JSON object now."
-    answer, attempts = _complete(chat, stage="record", record=None, system=_instruction(schema, nodes), user=user,
-                                 schema=records_schema(nodes))
+    if not passages:
+        return [], [], [Issue("no_records_found", "the source has no readable passages")]
+    labels = [p.id for p in passages]
+    identity_nodes = {node.name: node for node in schema.record_nodes if node.type in SCALAR_JSON}
+    properties = json_schema(list(identity_nodes.values()))["properties"]
+    item = {"type": "object", "properties": {
+        "label": {"type": "string"},
+        "identity": {"type": "object", "properties": properties, "additionalProperties": False},
+        "passages": {"type": "array", "items": {"type": "string", "enum": labels}}},
+        "required": ["label", "identity", "passages"], "additionalProperties": False}
+    reply_schema = {"type": "object", "properties": {"records": {"type": "array", "items": item}},
+                    "required": ["records"], "additionalProperties": False}
+    system = ("Enumerate EVERY distinct record supported by this source under the record definition. This is an "
+              "identity inventory, not a summary and not values extraction. Read the tables as well as prose. "
+              "Include measured starting materials, separate final preparations/fractions and comparison controls "
+              "when the definition includes them, even if few requested measurements are available. A record "
+              "recurring across sections appears once; distinct table rows or columns describing distinct "
+              "samples remain distinct. Do not turn proposed methods, group averages or unconfirmed types into "
+              "additional samples. Do not enumerate background references. Identify each record unambiguously "
+              "using an identity object with schema field names for ALL identity dimensions, including its final "
+              "preparation label (or the schema's label for raw/unresolved material), and cite the passage IDs "
+              "establishing it AND ALL passages reporting its measurements, shared methods, qualifications or "
+              "contradictory conclusions. Include every relevant table and its caption/footnotes. The value "
+              "extractor reads the complete source; these citations establish each record's identity and scope. "
+              "Give each record an unambiguous descriptive label. Identity fields are fixed for the later value "
+              "extractor: include only source-supported identity "
+              "attributes, not measurements, protocols or notes. Use the exact labels specified by the schema "
+              "(a scope code and a preparation label can differ). "
+              "Resolve abbreviations from the source. Never use an expected count or a "
+              "validation list. Return JSON.\n" + _instruction(schema, schema.record_nodes))
+    user = _labelled(passages, labels)
+    available = (counter.context_tokens or 0) - counter.request_tokens(system, user, reply_schema)
+    # Enumeration can be larger than one record. Keep at least 4096 output tokens or refuse the input;
+    # otherwise use the available context up to the adapters' ordinary 8192-token output allowance.
+    output_tokens = max(4096, min(8192, available))
+    answer, attempts = _complete(chat, stage="inventory", record=None, system=system,
+        user=user, schema=reply_schema, counter=counter, max_tokens=output_tokens)
     if not attempts[-1].ok:
-        issues.append(Issue("call_failed", attempts[-1].error or "record extraction failed"))
+        return [], attempts, [Issue("call_failed", attempts[-1].error or "Article inventory failed")]
     found = answer.get("records") if isinstance(answer, dict) else None
-    records = [conform(item, nodes) for item in found] if isinstance(found, list) else []
+    records = []
+    seen = {}
+    for item in found if isinstance(found, list) else []:
+        label = item.get("label") if isinstance(item, dict) else None
+        attributes = item.get("identity") if isinstance(item, dict) else None
+        support = item.get("passages") if isinstance(item, dict) else None
+        identity = {}
+        valid = isinstance(attributes, dict)
+        if isinstance(attributes, dict):
+            for name, value in attributes.items():
+                if name not in identity_nodes:
+                    valid = False
+                    break
+                node = identity_nodes[name]
+                if value is None:
+                    continue  # unknown attributes do not bind a later extractor or discard the sample
+                types = {"string": (str,), "verbatim-string": (str,), "date": (str,), "integer": (int,),
+                         "number": (int, float), "boolean": (bool,)}[node.type]
+                if type(value) not in types or (isinstance(value, str) and not value.strip()) or (
+                        type(value) in (int, float) and not math.isfinite(value)) or (
+                        node.allowed_values is not None and value not in node.allowed_values):
+                    valid = False
+                    break
+                identity[name] = value
+        if not valid or not isinstance(label, str) or not label.strip() or not isinstance(support, list) or not support \
+                or any(not isinstance(ref, str) or ref not in labels for ref in support):
+            issues.append(Issue("invalid_inventory_record", "record needs an identity and canonical passage IDs"))
+            continue
+        key = json.dumps({name: normal(value) if isinstance(value, str) else value for name, value in identity.items()},
+                         sort_keys=True) if identity else normal(label)
+        if key in seen:
+            previous = records[seen[key]]
+            previous["passages"] = list(dict.fromkeys([*previous["passages"], *support]))
+            if normal(label) != normal(previous["label"]):
+                previous["label"] += f"; {label}"
+            issues.append(Issue("duplicate_inventory_record", f"combined supporting passages for {key}"))
+            continue
+        seen[key] = len(records)
+        records.append({"label": label, "identity": identity, "passages": list(dict.fromkeys(support))})
     if not records:
-        issues.append(Issue("no_records_found", "the model returned no record"))
+        issues.append(Issue("no_records_found", "the model returned no supported record identity"))
     return records, attempts, issues
 
 
@@ -395,13 +503,15 @@ def _siblings(fields: dict, path: tuple[str | int, ...]) -> str:
 
 
 def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *, record: int,
-           budget: int = 24_000) -> tuple[
+           budget: int = 24_000, counter: TokenCounter | None = None, record_context: str | None = None,
+           before_call: Callable[[], None] | None = None) -> tuple[
         list[Link], list[Call], list[Issue]]:
-    """Code first, then claim batches bounded by system, user and reply-schema characters.
+    """Ground claims in complete evidence, splitting claim batches to fit the request budget.
 
     Every batch retains all passages for coarse/non-verbatim support, and all matching cells for its claims.
     An oversized single claim stays ungrounded with a diagnostic; evidence is never truncated to fit.
-    This is a character cap like the other generic stages, not a served-token context guarantee.
+    Generic Catalog uses a character cap and links unique lexical hits. Article supplies its record context
+    and a served counter: every claim is semantically verified within the context minus an output reserve.
     """
     prefix: tuple[str | int, ...] = ("records", record)
     if not passages:
@@ -411,7 +521,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     pending: list[tuple[tuple[str | int, ...], Any, int]] = []
     for path, value in leaves(fields):
         hits = _hits(candidates, value)
-        if len(hits) == 1:
+        if len(hits) == 1 and record_context is None:
             links.append(_link((*prefix, *path), hits[0], True, 1, "lexical"))
         else:
             pending.append(((*prefix, *path), value, len(hits)))
@@ -436,23 +546,30 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                 previous_parent = path[:-1]
             lines.append(f"{claim} ({describe(schema.record_nodes, path[2:])}): {_text(value)}")
         shown = {label for claim in batch for label in eligible[claim]}
-        user = "### Claims\n" + "\n".join(lines) + "\n\n### Evidence\n" + _grounding_evidence(
+        context = (f"### Record identity\n{record_context}\n"
+                   f"Record fields: {json.dumps(fields, ensure_ascii=False)}\n\n" if record_context else "")
+        user = context + "### Claims\n" + "\n".join(lines) + "\n\n### Evidence\n" + _grounding_evidence(
             [(label, candidate) for label, candidate in labelled.items() if label in shown])
         reply_schema = {"type": "object", "properties": {
             claim: {"type": "string", "enum": [*eligible[claim], NONE]} for claim in batch},
             "required": batch, "additionalProperties": False}
         size = len(GROUNDING) + len(user) + len(json.dumps(reply_schema, ensure_ascii=False))
-        if size > budget:
+        if before_call is not None:
+            before_call()
+        count = counter.request_tokens(GROUNDING, user, reply_schema) if counter else None
+        exceeded = count + 2048 > counter.context_tokens if counter else size > budget
+        if exceeded:
             if len(batch) > 1:
                 middle = len(batch) // 2
                 batches[0:0] = [batch[:middle], batch[middle:]]
             else:
                 issues.append(Issue("grounding_exceeds_budget",
-                                    f"{size} characters exceed {budget}; complete evidence was not sent",
+                                    (f"{count} input + 2048 output tokens exceed {counter.context_tokens}" if counter
+                                     else f"{size} characters exceed {budget}") + "; complete evidence was not sent",
                                     record, claims[batch[0]][0]))
             continue
         answer, attempts = _complete(chat, stage="grounding", record=record, system=GROUNDING, user=user,
-                                    schema=reply_schema)
+                                    schema=reply_schema, counter=counter, max_tokens=2048 if counter else None)
         calls += attempts
         if not attempts[-1].ok:
             issues.append(Issue("call_failed", attempts[-1].error or "grounding failed", record))

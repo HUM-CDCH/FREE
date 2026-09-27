@@ -3,7 +3,7 @@ complete, the parse still the admitted generation, the models and recipe known; 
 artifact, published by rename to extractions/<extraction id>/result.json (rewritten whole by a re-execution).
 Cancellation is checked before any model call and then between records on every path: a recipe's Catalog before
 each entry (its entries in KEI_CATALOG_CHUNKS chunks), the version 1 Catalog before each discovery call and before each
-record's extraction and verification, the Article before its records call and before each record's verification. A model call
+record's extraction and verification, Article before inventory, each record and each grounding batch. A model call
 that is already running finishes first."""
 from __future__ import annotations
 

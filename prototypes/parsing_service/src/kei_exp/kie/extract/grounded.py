@@ -34,7 +34,7 @@ from kei_exp.kie.recipe import Recipe
 from kei_exp.kie.segmentation import Segmentation
 
 EXTRACTION_VERSION = 2
-PROMPT_VERSION = 3  # Accepted spans can name a measured table cell inside their canonical segment.
+PROMPT_VERSION = 4  # Shared schema notes now show permitted labels in the model's instruction prompt.
 BUDGET_VERSION = 1
 NORMALIZATION_VERSION = 1        # verified glossary expansions beside accepted raw values; a change invalidates results
 KEY_GAP = 3                      # at most this many non-alphanumeric characters between a key and its value

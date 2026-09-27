@@ -80,7 +80,9 @@ def version_1(events: list[str], hold=lambda stage: None):
         if stage == "discovery":
             return {"starts": schema["properties"]["starts"]["items"]["enum"], "end": None}
         if stage == "records":
-            return {"records": [{"site_name": "Nowhere"}, {"site_name": "Elsewhere"}]}
+            labels = schema["properties"]["records"]["items"]["properties"]["passages"]["items"]["enum"]
+            return {"records": [{"label": name, "identity": {}, "passages": [labels[0]]}
+                                for name in ("Nowhere", "Elsewhere")]}
         return {"site_name": "Nowhere"} if stage == "record" else {}
     return script
 
@@ -216,7 +218,7 @@ def test_the_version_1_catalog_checks_before_discovery_and_each_record_and_verif
                        before_entry=lambda: events.append("check"))
     records = events.count("record")
     assert records > 1
-    assert events == ["check", "discovery", *["check", "record"] * records, *["check", "grounding"] * records]
+    assert events == ["check", "discovery", *["check", "record"] * records, *["check", "check", "grounding"] * records]
 
 
 def test_the_article_checks_before_its_records_call_and_each_verification(parsed):
@@ -225,10 +227,12 @@ def test_the_article_checks_before_its_records_call_and_each_verification(parsed
     request = extraction.ExtractRequest.model_validate(kei_helper.extract_request(run_id, "g", V1["article"])["request"])
     extraction.extract(runs.RUNS / run_id, request, CountingChat(version_1(events)),
                        before_entry=lambda: events.append("check"))
-    assert events == ["check", "records", "check", "grounding", "check", "grounding"]
+    assert events == ["check", "records", "check", "record", "check", "record",
+                      "check", "check", "grounding", "check", "check", "grounding"]
 
 
-@pytest.mark.parametrize("strategy, asked", [("catalog", ["discovery", "record"]), ("article", ["records"])])
+@pytest.mark.parametrize("strategy, asked", [("catalog", ["discovery", "record"]),
+    ("article", ["records"]), ("article", ["records", "record"])])
 def test_a_version_1_check_that_raises_ends_the_extraction_before_its_next_call(parsed, strategy, asked):
     run_id, _ = parsed
     events: list[str] = []
@@ -365,7 +369,9 @@ def test_a_cancelled_chunked_catalog_stops_every_chunk_before_its_next_entry(kei
 
 @pytest.mark.parametrize("strategy, held, asked", [
     ("catalog", "record", ["discovery", "record"]),  # held in the first record's call; the second never asked
-    ("article", "records", ["records"]),             # held in the records call; no verification asked
+    ("article", "records", ["records"]),             # held in inventory; no value extraction asked
+    ("article", "record", ["records", "record"]),
+    ("article", "grounding", ["records", "record", "record", "grounding"]),
 ])
 def test_a_cancelled_version_1_extraction_stops_before_its_next_call(kei, scripted, ended, monkeypatch, strategy,
                                                                      held, asked):

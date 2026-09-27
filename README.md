@@ -215,8 +215,9 @@ page: a field model and a reasoning model picked from the models the service
 lists at `GET /api/extraction-models`; an unchosen role uses the service's
 defaults, and each Extraction records the models its roles ran on. Schema
 Suggestion and Interaction use the configured Capability Routes, and an unset
-route runs on the deployment's instruction model. Polling waits up to ten minutes for Article and three hours for
-Catalog; cancellation stops FREE from waiting and publishing a result. A
+route runs on the deployment's instruction model. Article inventories distinct records across the complete
+source before extracting and grounding each one. Article and Catalog have three-hour
+execution deadlines; cancellation stops FREE from waiting and publishing a result. A
 failed extraction carries kei-exp's own reason. The API has no remote cancellation
 or targeted Catalog retry operation; start a new Extraction to rerun.
 

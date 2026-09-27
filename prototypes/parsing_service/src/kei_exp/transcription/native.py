@@ -31,7 +31,7 @@ from kei_exp.transcription.tables import table_of_html
 
 
 def has_native_text(path: Path, pages: tuple[int, int] | None = None) -> bool:
-    """Every selected nonblank page must have text and no page-sized raster scan.
+    """Every selected nonblank page must have text and no textless embedded artwork.
 
     A text layer on only some pages is not enough to bypass OCR for a mixed PDF.
     """
@@ -50,22 +50,26 @@ def has_native_text(path: Path, pages: tuple[int, int] | None = None) -> bool:
                 textpage = page.get_textpage()
                 try:
                     text = textpage.get_text_bounded().strip()
-                finally:
-                    textpage.close()
-                objects = list(page.get_objects())
-                if not text:
-                    if objects:
-                        return False
-                    continue
-                width, height = page.get_size()
-                for obj in objects:
-                    if isinstance(obj, pdfium.PdfImage):  # pypdfium2 builds the subclass for FPDF_PAGEOBJ_IMAGE
+                    objects = list(page.get_objects())
+                    if not text:
+                        if objects:
+                            return False
+                        continue
+                    width, height = page.get_size()
+                    for obj in objects:
+                        if obj.type not in {pdfium.raw.FPDF_PAGEOBJ_IMAGE, pdfium.raw.FPDF_PAGEOBJ_FORM}:
+                            continue
                         l, b, r, t = obj.get_bounds()
                         area = max(0, min(r, width) - max(l, 0)) * max(0, min(t, height) - max(b, 0))
-                        # A large scan with a page number or an OCR overlay still needs the scan path.
-                        if area >= width * height / 2:
+                        # A page-sized scan with an OCR overlay still needs OCR. A substantial textless
+                        # form/image can be a table whose letters are outlines: native text loses its body
+                        # completely (Akita 2020, p4). Include embedded artwork rather than guessing its text.
+                        if (obj.type == pdfium.raw.FPDF_PAGEOBJ_IMAGE and area >= width * height / 2) or (
+                                area >= width * height / 20 and not textpage.get_text_bounded(l, b, r, t).strip()):
                             return False
-                found_text = True
+                    found_text = True
+                finally:
+                    textpage.close()
             finally:
                 page.close()
         return found_text
@@ -228,6 +232,8 @@ class NativeText:
         records = []
         for index, page in enumerate(result.pages, 1):
             errors = [error.error_message for error in result.errors if error.page_no == page.page_no]
+            errors += ["table has no readable cells; OCR is required" for item, _ in _items(document, page.page_no)
+                       if isinstance(item, TableItem) and not any(cell.text.strip() for cell in item.data.table_cells)]
             blocks = blocks_of(document, page.page_no)
             records.append(PageRecord(
                 page=index, region=None, image=None, seconds=None, input_tokens=0, output_tokens=0, stop=None,

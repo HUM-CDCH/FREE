@@ -54,7 +54,7 @@ never authoritative Evidence.
 | `KEI_OCR_MODEL` | Default OCR model of a parse that names none (default `surya`) |
 | `KEI_EXTRACT_URL`, `KEI_EXTRACT_MODEL` | Extraction's instruction model server and the model it serves |
 | `KEI_NUEXTRACT_URL`, `KEI_NUEXTRACT_MODEL` | NuExtract template extractor server and model; unset, every call goes to the instruction model |
-| `KEI_EXTRACT_TIMEOUT` | Timeout of one extraction model call, seconds |
+| `KEI_EXTRACT_TIMEOUT` | Timeout of one extraction model call, seconds; default 1800 for full-source inventory |
 | `KEI_CATALOG_CHUNKS` | Worker only: chunks a grounded Catalog's entries run in at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`) |
 | `KEI_MAX_UPLOAD_BYTES`, `KEI_MAX_PAGES` | Limits `convert` enforces on a staged source |
 
@@ -100,7 +100,13 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   `layout_heron_101`); it is shaped like `/api/extraction-models`. An OCR model
   is `serving` only while the OCR server has it loaded, which is what the
   listing observed, not a promise. Layout detectors run inside this service and
-  are always selectable. A page with a text layer uses neither.
+  are always selectable. Native parsing is used when the PDF has text on every
+  selected nonblank page and no substantial textless embedded artwork. A vector
+  or image table without text requires OCR even when surrounding prose has text;
+  a native table with no readable cells makes conversion incomplete.
+  Automatic crops split only at gaps confirmed free of ink. A proposed boundary
+  crossing printed content keeps its adjacent blocks together; other safe cuts remain. A page with only
+  headers/footers accounting for at least 90% of its ink is transcribed whole, including its furniture.
 - Extraction Evidence names canonical segments `p{page}_s{index}`. Page numbers
   are physical, one-based PDF pages; segment indexes are zero-based. Geometry
   uses PDF points measured from the top-left. Native Docling items retain their
@@ -110,6 +116,19 @@ is required for scanned OCR and Extraction; native parsing uses Docling locally.
   Evidence and diagnostics. Ungrounded values
   remain explicit. Document-level fields are currently listed as `unverified`;
   `complete` applies to record values.
+- Article first inventories distinct records against the complete canonical
+  source with the reasoning model. The inventory records each identity and its
+  supporting passage IDs across sections; the fields model extracts each record
+  from the complete source, so an omitted citation cannot hide methods or results.
+  Grounding sees the full source plus that record's
+  identity and fields, and never accepts an Article value solely because its
+  string occurs once. `/tokenize` must report the serving context for both roles:
+  each request reserves output tokens, and oversized input is reported rather
+  than clipped. `record_chars` and `discovery_chars` apply only to generic Catalog.
+  The artifact retains the inventory and counted budgets. Inventory coverage and
+  semantic correctness still need evaluation; `complete` is not a recall score.
+  Field instructions include allowed labels explicitly: constrained decoding
+  alone does not show those choices to the instruction model.
 - `options.catalog = {recipe, input_tokens?, output_tokens?}` on a Catalog
   request selects a recipe, such as `numbered-catalogue-de@1`. It returns
   result version 2: structural segmentation with a coverage ledger, one bounded

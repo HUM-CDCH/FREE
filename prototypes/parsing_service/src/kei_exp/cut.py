@@ -160,15 +160,15 @@ class _Page:
         total = int(self.ink.sum())
         return float((self.ink & covered).sum() / total) if total else 0.0
 
-    def snap(self, gap: Span, axis: int, span: Span) -> float:
-        """Midpoint of the widest ink-free run inside gap along axis, profiled over span on the other axis."""
+    def snap(self, gap: Span, axis: int, span: Span) -> float | None:
+        """Widest ink-free run's midpoint, or no cut when the proposed layout gap crosses content."""
         g0, g1 = self.px(gap[0], axis), self.px(gap[1], axis)
         s0, s1 = self.px(span[0], 1 - axis), self.px(span[1], 1 - axis)
         strip = self.ink[s0:s1, g0:g1] if axis == 0 else self.ink[g0:g1, s0:s1]
         blank = strip.mean(axis=axis) <= INK_FREE  # per column for x, per row for y
         edges = np.flatnonzero(np.diff(np.r_[0, blank, 0]))  # alternating run starts and ends
         if edges.size == 0:
-            raise CutError(f"page {self.number}: layout gap {gap} on axis {axis} has no ink-free run")
+            return None
         starts, ends = edges[::2], edges[1::2]
         widest = int(np.argmax(ends - starts))
         return self.origin[axis] + (g0 + (starts[widest] + ends[widest]) / 2) * self.scale
@@ -184,10 +184,11 @@ class _Page:
         return groups
 
     def split(self, boxes: list[Box], axis: int, gaps: list[Span], span: Span) -> list[tuple[list[Box], Span]]:
-        """Group boxes between cuts snapped inside gaps along axis, within span."""
+        """Split only at ink-free gaps; keep boxes across unsafe boundaries together."""
         other = 1 - axis
         profile = (min(box.extent(other)[0] for box in boxes), max(box.extent(other)[1] for box in boxes))
-        return self.group(boxes, axis, [self.snap(gap, axis, profile) for gap in gaps], span)
+        cuts = [cut for gap in gaps if (cut := self.snap(gap, axis, profile)) is not None]
+        return self.group(boxes, axis, cuts, span)
 
     def leaves(self, boxes: list[Box], xspan: Span, yspan: Span,
                kind: str = "page") -> list[tuple[list[Box], str, Span, Span]]:
@@ -197,8 +198,10 @@ class _Page:
         """
         gaps = _gaps(boxes, 0)
         if gaps:
-            return [leaf for group, span in self.split(boxes, 0, gaps, xspan)
-                    for leaf in self.leaves(group, span, yspan, "column")]
+            groups = self.split(boxes, 0, gaps, xspan)
+            if len(groups) > 1:
+                return [leaf for group, span in groups
+                        for leaf in self.leaves(group, span, yspan, "column")]
         width = max(box.r for box in boxes) - min(box.l for box in boxes)
         wide = {box for box in boxes if box.r - box.l >= SPAN * width}
         if wide and _gaps([box for box in boxes if box not in wide], 0):
@@ -211,8 +214,10 @@ class _Page:
                     bands.append(band)
             if len(bands) > 1:
                 ygaps = [(max(b.b for b in above), min(b.t for b in below)) for above, below in pairwise(bands)]
-                return [leaf for group, span in self.split(boxes, 1, ygaps, yspan)
-                        for leaf in self.leaves(group, xspan, span, "band")]
+                groups = self.split(boxes, 1, ygaps, yspan)
+                if len(groups) > 1:
+                    return [leaf for group, span in groups
+                            for leaf in self.leaves(group, xspan, span, "band")]
         if any(box.label not in TEXT_LABELS for box in boxes):
             kind = "figure"
         return [(boxes, kind, xspan, yspan)]
@@ -247,6 +252,11 @@ class _Page:
         recovered = self._candidate_regions()
         recovered_coverage = self.ink_share(*(region.bbox for region in recovered))
         if not regions and not recovered:
+            # A numbered blank page has no body block. Keep the whole page, including its furniture,
+            # when the detected margins explain its ink; unexplained body content still fails below.
+            margins = [box[:4] for box in self.boxes if box.label in MARGIN_LABELS]
+            if self.ink_share(*margins) >= RETRY_COVERAGE:
+                return [self.region("page", self.bounds)]
             raise CutError(f"page {self.number}: layout found no body blocks after tiled layout")
         return recovered if recovered_coverage > coverage else regions
 
