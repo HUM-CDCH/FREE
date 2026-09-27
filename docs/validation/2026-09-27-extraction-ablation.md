@@ -98,5 +98,33 @@ grounding comparisons have identical upstream records and inventory. Three hand-
 regressions pass. The old Akita fixture exposes 20 thermal observations, nine unselected by
 the projection. This is an offline validation of accounting, not a new accuracy result.
 
-The planned record-specific selector is still an implementation gate. Its comparison will
-be registered separately; the 79-cell all-unit/reference matrix remains frozen.
+## Separate selection comparison
+
+Record-specific selection is implemented and pushed at `6b8d34d` on
+`feat/extraction-evidence-selection`, isolated from R1's running source checkout.
+It retains whole value units containing identity support, adjacent canonical passages,
+and at most one positively ranked schema-relevant unit. It records selection reasons,
+omitted units/passages and unmeasured relevance recall. Inventory, document-field extraction
+and semantic verification retain their original bounded coverage.
+
+R2a's manifest is `artifacts/extraction-ablation/20260927-r2a-selection/manifest.json`;
+the protocol is `experiments/extraction/selection-protocol.md` in that branch's service
+directory. Thirty cells cover the same 15 Article sources. Both arms disable grounding;
+only value-unit selection differs. Inventory and retained requests use fixed R1 responses.
+The original bounded artifact must first replay exactly. A request absent from the captured
+subsequence, or identical requests with different replies, explicitly refuses replay.
+Tokenizer probes are saved for subsequent offline replay.
+
+This estimates candidate changes conditional on one recorded inventory and set of responses.
+It is not fresh inference, an independent repetition, measured runtime savings or a test of
+selector effects on semantic verification. Original reply timings remain historical values.
+The initial R2 implementation canary was superseded by R2a's ambiguity guard; exclude it
+from analysis. The selector itself and its outcomes were not tuned between these revisions.
+
+Selector verification: 1007 unit tests passed, 72 skipped, 68 deselected; six-paper / 88-call
+reference replay still matches. The first R2a source passed exact bounded replay and both
+arms. Remaining sources depend on their R1 bounded captures. Partial analysis currently
+verifies missing-cell accounting (R1 1/79, R2a 2/30); these are not final effect estimates.
+
+Integration of the selector into the primary feature branch remains pending until R1's
+pinned execution finishes. Both feature branches are pushed; no production deployment.

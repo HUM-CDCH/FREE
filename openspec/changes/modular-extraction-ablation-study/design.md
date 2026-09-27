@@ -37,6 +37,12 @@ unlabelled accuracy claims, or calling an adaptation a faithful paper reproducti
    settings. The first bounded assembly visits every unit for every record; it has no ranking
    heuristic that can silently omit a late measurement. Record units and budget refusals.
    Shared methods/qualifiers are context, not proof of applicability.
+   A separately registered selector retains whole value units owning inventory support,
+   adjacent canonical passages and at most one schema-relevant unit. It exposes omissions
+   without concatenating noncontiguous text. Inventory/document/verification coverage stays
+   fixed. R2a compares value selection with captured responses and grounding disabled in
+   both arms; exact original bounded replay is its integrity gate. This conditional estimate
+   cannot establish fresh model variability or end-to-end verification effects.
 6. **Verification is a stage.** Article semantic-label, quoted-support and disabled policies
    preserve raw values and evidence distinctions. Quoted support checks exact source substrings
    and records model-attested attribution; it does not independently establish entailment.

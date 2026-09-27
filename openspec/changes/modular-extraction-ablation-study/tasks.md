@@ -19,7 +19,7 @@
 - [x] 3.3 Implement conservative inventory reconciliation and explicit identity dimensions; test distinct same-name entities and contradictory attributes.
 - [x] 3.4 Expose independent grounding choices and completeness dimensions; test unsupported attribution, missing inventory and verification-off outputs.
 - [x] 3.5 Exercise the assembled bounded pipeline with scripted replies and cancellation hooks; document effective settings and limits.
-- [ ] 3.6 Complete the planned record-specific evidence selector (identity support, neighboring qualifiers and schema-relevant shared context), retain selected/omitted provenance, and register its comparison separately from the frozen all-unit study.
+- [x] 3.6 Complete the planned record-specific evidence selector (identity support, neighboring qualifiers and schema-relevant shared context), retain selected/omitted provenance, and register its comparison separately from the frozen all-unit study. Implemented at `6b8d34d` in the isolated selector checkout; R2a registered; integration waits for the pinned R1 batch.
 
 ## 4. Catalog experimental components
 
