@@ -28,6 +28,33 @@ def prefix(parent, child):
     return tuple(child[:len(parent)]) == tuple(parent)
 
 
+def populated_paths(value, path=()):
+    """Use extraction's leaf definition: numbers and nonblank strings, excluding booleans/nulls."""
+    if isinstance(value, dict):
+        for name, child in value.items():
+            yield from populated_paths(child, (*path, name))
+    elif isinstance(value, list):
+        for number, child in enumerate(value):
+            yield from populated_paths(child, (*path, number))
+    elif value is not None and not isinstance(value, bool) and (not isinstance(value, str) or value.strip()):
+        yield path
+
+
+def record_field_links(artifact: dict) -> dict:
+    """Expose the link denominator by field without classifying fields or assigning correctness."""
+    excluded = set(artifact.get("unverified", [])) | {
+        node["name"] for node in artifact["schema"]["schemaNodes"]
+        if node.get("valueSource") == "source-filename"}
+    populated = {path for number, record in enumerate(artifact["records"])
+                 for path in populated_paths(record, ("records", number)) if path[2] not in excluded}
+    linked = populated & {tuple(link["path"]) for link in artifact.get("evidence", [])}
+    total_counts = Counter(path[2] for path in populated)
+    link_counts = Counter(path[2] for path in linked)
+    return {"by_field": {name: {"populated_leaves": total_counts[name], "linked_leaves": link_counts[name]}
+                         for name in sorted(total_counts)},
+            "limits": "Counts include diagnostic/status fields if the schema requests them. Field names are not classified automatically. Links do not prove correctness; missing links do not prove false values. Duplicate links count once per populated path. These counts cannot allocate shared model-call costs to individual fields."}
+
+
 def observations(artifact: dict, scored_fields: list[dict] | None) -> dict:
     selected = [field["prediction_path"] for field in scored_fields or [] if field.get("prediction_path")]
     items = []
@@ -130,7 +157,7 @@ def main():
     report = read(args.analysis)
     if report["study"] != manifest["id"]:
         raise ValueError("analysis belongs to another study")
-    artifacts, counts, costs, localization = {}, {}, {}, {}
+    artifacts, counts, costs, localization, field_links = {}, {}, {}, {}, {}
     manifest_hash = hashlib.sha256((args.study / "manifest.json").read_bytes()).hexdigest()
     for entry in report["cells"]:
         path = args.study / "cells" / entry["id"] / "result.json"
@@ -148,11 +175,13 @@ def main():
         counts[cell] = observations(artifact, fields)
         costs[cell] = stage_costs(artifact, completed["execution"])
         localization[cell] = evidence_localization(artifact, fields)
+        field_links[cell] = record_field_links(artifact)
     output = {"study": manifest["id"], "kind": "supplementary descriptive accounting; no extraction or scoring changes",
               "accounting_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
               "analysis_sha256": hashlib.sha256(args.analysis.read_bytes()).hexdigest(), "cells": counts,
               "stage_costs": costs,
               "evidence_localization": localization,
+              "record_field_links": field_links,
               "grounding_comparability": grounding_comparability(artifacts, manifest["sources"], manifest["comparisons"])}
     with args.output.open("x") as target:
         json.dump(output, target, indent=2, ensure_ascii=False)
