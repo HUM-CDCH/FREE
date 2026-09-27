@@ -20,9 +20,10 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any
 
 from kei_exp.kie.extract.llm import Chat
+from kei_exp.kie.extract.method import GroundingChoice
 from kei_exp.kie.extract.schema import Schema, describe
 from kei_exp.kie.extract.stages import Call, Issue, Link, _complete, _text, contains, leaves
 from kei_exp.kie.extract.tokens import TokenCounter
@@ -257,6 +258,6 @@ def off(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat, *
     return [], [], []
 
 
-def technique(choice: Literal["semantic", "quoted", "off"] | None) -> Grounding:
+def technique(choice: GroundingChoice | None) -> Grounding:
     """The grounding function for an `ArticleOptions.grounding` choice; None, the production reference, is semantic."""
     return {None: semantic, "semantic": semantic, "quoted": quoted, "off": off}[choice]

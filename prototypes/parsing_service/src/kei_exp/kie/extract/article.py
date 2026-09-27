@@ -19,7 +19,7 @@ from pathlib import Path
 from kei_exp.kie.extract.assembly import artifact, document_values, ground, unchecked
 from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, partition, reconcile_values
 from kei_exp.kie.extract.llm import Chat
-from kei_exp.kie.extract.method import ArticleOptions, LimitedCounter
+from kei_exp.kie.extract.method import REFERENCE, ArticleOptions, LimitedCounter
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.rendering import RENDERING_VERSION, structured_source
 from kei_exp.kie.extract.schema import SCALAR_JSON, Schema, json_schema
@@ -55,19 +55,19 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     clock = time.monotonic()
     schema = request.schema_
     options = request.options
-    method = options.article
+    method = options.article or REFERENCE
     contexts = [Context(evidence.passages)]
     if counter is None:
         counter = counters_for(chat)
     for role in ("fields", "reasoning"):
         if type(counter[role].context_tokens) is not int or counter[role].context_tokens <= 0:
             raise BudgetUnavailable(f"Article requires the {role} endpoint's context size")
-    if method is not None and method.context == "bounded":
+    if method.context == "bounded":
         counter = {role: LimitedCounter(each, method.context_tokens) for role, each in counter.items()}
         contexts = source_contexts(evidence.passages, schema, method, counter["reasoning"], check)
     document, document_conflicts, calls, issues = document_values(evidence, contexts, schema, chat,
         budget=options.record_chars, check=check, counter=counter["fields"],
-        structured=method is not None and method.rendering == "structured")
+        structured=method.rendering == "structured")
     extracted = extract_records(evidence.passages, schema, chat, counters=counter,
                                 record_chars=options.record_chars, check=check, method=method, contexts=contexts)
     calls += extracted.calls
@@ -77,7 +77,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     links, proofs, grounding_calls, grounding_issues = ground(
         [(everywhere, fields, item["label"] + "\n" + json.dumps(item["identity"], ensure_ascii=False))
          for (_, fields), item in zip(extracted.slices, extracted.identities, strict=True)],
-        schema, chat, choice=method.grounding if method is not None else None, budget=options.record_chars,
+        schema, chat, choice=method.grounding, budget=options.record_chars,
         check=check, counter=counter["reasoning"])
     calls += grounding_calls
     issues += grounding_issues
@@ -85,7 +85,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                       fields=[fields for _, fields in extracted.slices], document=document, links=links,
                       calls=calls, issues=issues)
     result["inventory"] = extracted.identities
-    if method is not None:
+    if options.article is not None:  # the reference artifact carries no method fields
         result["method_version"] = 1
         result["contexts"] = [context.dumped() for context in contexts]
         result["value_contexts"] = [[context.dumped() for context in group] for group in extracted.value_contexts]
@@ -110,11 +110,11 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
 
 
 def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counters: dict,
-                    record_chars: int, check: Callable[[], None], method: ArticleOptions | None = None,
+                    record_chars: int, check: Callable[[], None], method: ArticleOptions = REFERENCE,
                     contexts: list[Context] | None = None) -> Records:
     """Discover identities, then extract their values; grounding belongs to the shared result path."""
     groups = contexts if contexts is not None else [Context(tuple(passages))]
-    structured = method is not None and method.rendering == "structured"
+    structured = method.rendering == "structured"
     identities, calls, issues = [], [], []
     for group in groups:
         check()
@@ -136,8 +136,8 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
     for number, item in enumerate(identities):
         candidates = []
         record_groups = groups
-        neutral = method is not None and method.prompt == "schema"
-        if method is not None and method.context == "bounded":
+        neutral = method.prompt == "schema"
+        if method.context == "bounded":
             def fits(group):
                 check()
                 source = structured_source(group) if structured else text_of(group)
@@ -146,7 +146,7 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
                 return counters["fields"].request_tokens(system, user, reply_schema) + 4096 <= counters["fields"].context_tokens
             record_groups = partition(passages, fits, overlap=method.overlap_passages,
                                       structural=method.grouping == "structural")
-        if method is not None and method.selection is not None:
+        if method.selection is not None:
             check()
             record_groups, selection = select_contexts(record_groups, passages, item["passages"], schema)
             selections.append({"record": number, **selection})
@@ -167,10 +167,10 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
     return Records(identities, slices, calls, issues, conflicts, value_contexts, selections)
 
 
-def inventory_request(passages: Sequence[Passage], schema: Schema, method: ArticleOptions | None = None):
+def inventory_request(passages: Sequence[Passage], schema: Schema, method: ArticleOptions = REFERENCE):
     labels = [p.id for p in passages]
     identity_nodes = {node.name: node for node in schema.record_nodes if node.type in SCALAR_JSON}
-    if method is not None and method.identity == "conservative":
+    if method.identity == "conservative":
         identity_nodes = {name: identity_nodes[name] for name in method.identity_fields}
     properties = json_schema(list(identity_nodes.values()))["properties"]
     item = {"type": "object", "properties": {
@@ -198,9 +198,8 @@ def inventory_request(passages: Sequence[Passage], schema: Schema, method: Artic
               "(a scope code and a preparation label can differ). "
               "Resolve abbreviations from the source. Never use an expected count or a "
               "validation list. Return JSON.\n" + _instruction(schema, schema.record_nodes))
-    user = (structured_source(passages) if method is not None and method.rendering == "structured"
-            else _labelled(passages, labels))
-    if method is not None and method.prompt == "schema":
+    user = structured_source(passages) if method.rendering == "structured" else _labelled(passages, labels)
+    if method.prompt == "schema":
         system = ("Enumerate every distinct record supported by the supplied source unit under the schema's record "
                   "definition. Records may recur across other units. Return an unambiguous label, source-supported "
                   "identity attributes using only offered field names, and IDs of passages establishing the identity "
@@ -210,7 +209,8 @@ def inventory_request(passages: Sequence[Passage], schema: Schema, method: Artic
     return system, user, reply_schema, identity_nodes
 
 
-def source_contexts(passages, schema, method, counter, check):
+def source_contexts(passages: Sequence[Passage], schema: Schema, method: ArticleOptions, counter: TokenCounter,
+                    check: Callable[[], None]) -> list[Context]:
     def fits(group):
         check()
         system, user, reply_schema, _ = inventory_request(group, schema, method)
@@ -220,7 +220,7 @@ def source_contexts(passages, schema, method, counter, check):
 
 
 def inventory(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counter: TokenCounter,
-              method: ArticleOptions | None = None) -> tuple[list[dict], list[Call], list[Issue]]:
+              method: ArticleOptions = REFERENCE) -> tuple[list[dict], list[Call], list[Issue]]:
     """Article identities recur across sections; they are not contiguous Catalog slices."""
     issues: list[Issue] = []
     if not passages:
@@ -230,7 +230,7 @@ def inventory(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counte
     available = (counter.context_tokens or 0) - counter.request_tokens(system, user, reply_schema)
     # Enumeration can be larger than one record. Keep at least 4096 output tokens or refuse the input;
     # otherwise use the available context up to the adapters' ordinary 8192-token output allowance.
-    output_tokens = 4096 if method is not None and method.context == "bounded" else max(4096, min(8192, available))
+    output_tokens = 4096 if method.context == "bounded" else max(4096, min(8192, available))
     answer, attempts = _complete(chat, stage="inventory", record=None, system=system,
         user=user, schema=reply_schema, counter=counter, max_tokens=output_tokens)
     if not attempts[-1].ok:
@@ -266,7 +266,7 @@ def inventory(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counte
             continue
         key = json.dumps({name: normal(value) if isinstance(value, str) else value for name, value in identity.items()},
                          sort_keys=True) if identity else normal(label)
-        if method is not None and method.identity == "conservative":
+        if method.identity == "conservative":
             key = identity_key({"label": label, "identity": identity, "passages": support}, method)
             if not all(name in identity for name in method.identity_fields):
                 issues.append(Issue("partial_identity", f"unresolved identity dimensions for {label}"))
@@ -284,7 +284,7 @@ def inventory(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counte
     return records, attempts, issues
 
 
-def identity_key(item: dict, method: ArticleOptions) -> str:
+def identity_key(item: dict, method: ArticleOptions = REFERENCE) -> str:
     identity = {key: normal(value) if isinstance(value, str) else value for key, value in item["identity"].items()}
     # A complete explicitly declared key permits cross-unit reconciliation. Partial keys
     # never erase distinct labels or mentions; uncertainty is visible as separate records.
@@ -294,7 +294,7 @@ def identity_key(item: dict, method: ArticleOptions) -> str:
     return json.dumps(key, sort_keys=True, ensure_ascii=False)
 
 
-def reconcile_identities(items: list[dict], method: ArticleOptions) -> tuple[list[dict], list[Issue]]:
+def reconcile_identities(items: list[dict], method: ArticleOptions = REFERENCE) -> tuple[list[dict], list[Issue]]:
     records, seen, issues = [], {}, []
     for item in items:
         if method.identity == "conservative":

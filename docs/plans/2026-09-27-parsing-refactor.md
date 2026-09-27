@@ -279,17 +279,43 @@ schemas, call order, `PROMPT_VERSION`, options serialization (the
 experiment files untouched.
 
 Acceptance:
-- [ ] Before any source edit: rerun `/tmp/free-strategy-slice/snapshot.py`
+- [x] Before any source edit: rerun `/tmp/free-strategy-slice/snapshot.py`
       (it covers Article reference with `method=None` and every option arm the
       brief touches) into `/tmp/free-article-slice/baseline`; after the change
       the outputs are byte-identical. If an option arm (identity
       conservative, prompt schema, selection, grouping, rendering structured,
       overlap) is not covered, extend a copy of the harness under
       `/tmp/free-article-slice/` first.
-- [ ] `grep -n "method is not None\|method is None" article.py` shows only the
-      artifact-field decision in `extract`.
-- [ ] Focused (article, methods, selection, rendering, grounding,
+- [x] `grep -n "method is not None\|method is None" article.py` shows only the
+      artifact-field decision in `extract`. (It shows nothing: the decision
+      reads `options.article is not None`, the unresolved option itself.)
+- [x] Focused (article, methods, selection, rendering, grounding,
       implementations, study, selection replay) and full fast suites pass.
+
+Verification receipt (Task 6): `method.py` gains `GroundingChoice` (the
+grounding literal, now shared by `ArticleOptions.grounding` and
+`grounding.technique`, which keeps `| None` for Catalog's `choice=None`) and
+`REFERENCE = ArticleOptions()`. `article.extract` resolves `method =
+options.article or REFERENCE` once; `options.article is not None` alone
+decides the method-only artifact fields; `assembly.fingerprint` is untouched.
+Twelve guards removed in `article.py` (bounded counters/contexts, document
+rendering, grounding choice, record rendering, prompt, bounded record
+contexts, selection, inventory identity, inventory rendering, inventory
+prompt, inventory output tokens, inventory identity key). `extract_records`,
+`inventory_request`, `inventory`, `identity_key` and `reconcile_identities`
+default `method` to `REFERENCE`; `source_contexts` keeps `method` required
+(positional between `schema` and `counter`, as `study.py` calls it) and gains
+annotations. Snapshot: copy `/tmp/free-article-slice/snapshot.py` = the
+strategy-slice harness's 17 cases plus 12 Article arms taken one at a time
+(conservative identity complete and partial, full and bounded; schema prompt,
+structured rendering, full and bounded; selection; grouping; overlap 1;
+overlap 2 with grouping), 87 files, baseline captured twice (stable) before
+any edit, identical after (`diff -r` empty); the original harness's 51 files
+also match. Focused suites (article, methods, selection, rendering,
+grounding, grounded, implementations, study, selection replay): 98 passed.
+Full fast suite: 1094 passed, 72 skipped, 74 deselected. `experiments/`
+untouched; ruff findings on the three files unchanged from base (import order
+and B023 in `extract_records`, pre-existing).
 
 ## Next candidates, reassessed after this slice
 
