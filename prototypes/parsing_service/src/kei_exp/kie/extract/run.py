@@ -29,7 +29,6 @@ from kei_exp.kie.extract import grounded
 from kei_exp.kie.extract import models as extraction_models
 from kei_exp.kie.extract.article import extract_records, source_contexts
 from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, reconcile_values
-from kei_exp.kie.extract.evidence import load
 from kei_exp.kie.extract.grounded import CatalogOptions
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.models import Router, as_router, chats_for
@@ -49,8 +48,9 @@ from kei_exp.kie.extract.stages import (
     verify,
 )
 from kei_exp.kie.extract.tokens import BudgetUnavailable, counter_for
+from kei_exp.kie.passages import load
 from kei_exp.kie.recipe import load_recipe
-from kei_exp.kie.segmentation import obtain
+from kei_exp.kie.segmentation_run import obtain
 
 EXTRACTION_VERSION = 1
 PROMPT_VERSION = 12  # Lossless source-string decoding and coherent exact quoted grounding.

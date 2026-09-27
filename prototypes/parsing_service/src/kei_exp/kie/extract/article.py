@@ -12,7 +12,6 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from kei_exp.kie.extract.contexts import Context, partition, reconcile_values
-from kei_exp.kie.extract.evidence import Passage, text_of
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.rendering import structured_source
@@ -20,6 +19,7 @@ from kei_exp.kie.extract.schema import SCALAR_JSON, Schema, json_schema
 from kei_exp.kie.extract.selection import select_contexts
 from kei_exp.kie.extract.stages import Call, Issue, _complete, _instruction, _labelled, extract_record, normal, record_request
 from kei_exp.kie.extract.tokens import TokenCounter
+from kei_exp.kie.passages import Passage, text_of
 
 
 @dataclass

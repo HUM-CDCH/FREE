@@ -171,7 +171,7 @@ def test_the_extraction_view_names_every_internal_segment_by_its_canonical_id(lo
     """What reaches Studio is the extraction view's id; it must be the resolved reference of the internal segment."""
     import shutil
 
-    from kei_exp.kie.extract.evidence import load as load_view
+    from kei_exp.kie.passages import load as load_view
     evidence, directory = loaded
     shutil.copytree(directory, tmp_path / "run" / "result")
     view = {passage.id: passage for passage in load_view(tmp_path / "run").passages}

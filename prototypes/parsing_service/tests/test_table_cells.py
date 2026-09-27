@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from kei_exp.pagefile import PageTable
 from kei_exp.transcription.tables import table_of_html
 from kei_exp.transcription.types import html_to_text
-from kei_exp.kie.extract.evidence import Passage
+from kei_exp.kie.passages import Passage
 from kei_exp.kie.extract.stages import verify
 from tests.helpers.chat import FakeChat
 from tests.test_extract_stages import SCHEMA

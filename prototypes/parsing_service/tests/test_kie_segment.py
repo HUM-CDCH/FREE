@@ -5,9 +5,10 @@ import json
 
 import pytest
 
-from kei_exp.kie.extract.evidence import load
+from kei_exp.kie.passages import load
 from kei_exp.kie.recipe import load_recipe
-from kei_exp.kie.segmentation import SegmentationInvalid, load_segmentation, obtain, publish_segmentation
+from kei_exp.kie.segmentation import SegmentationInvalid, load_segmentation, publish_segmentation
+from kei_exp.kie.segmentation_run import obtain
 from kei_exp.kie.stages import segment as segmenter
 from kei_exp.kie.stages.segment import Candidate, resolve_starts, segment
 from tests.helpers import catalogue

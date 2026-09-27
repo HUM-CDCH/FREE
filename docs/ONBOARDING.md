@@ -101,7 +101,7 @@ TypeScript/Python boundary.
 11. **Crossing to the parsing service** — `packages/extraction/src/kei-exp.ts` (submit + poll with Retry-After) and `studio/api/_kei_exp.ts` (parse run → `parsed_document.v2`).
 12. **kei_exp API and durable jobs** — `kei_exp/api.py` (highest fan-out in the graph), `jobs/app.py`, `jobs/tasks.py`.
 13. **Parsing: layout, OCR, segments** — `kie/runner.py`, `kie/segmentation.py`, `kie/evidence.py`, `canonical.py`.
-14. **Grounded extraction and CI** — `kie/extract/evidence.py`, `kie/extract/grounded.py`, `.github/workflows/verify.yml`.
+14. **Grounded extraction and CI** — `kie/passages.py`, `kie/extract/grounded.py`, `.github/workflows/verify.yml`.
 
 ## 5. File map (key files by layer)
 

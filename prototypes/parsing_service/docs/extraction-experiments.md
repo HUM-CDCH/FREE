@@ -20,7 +20,7 @@ flowchart LR
 
 | Module | Responsibility |
 | --- | --- |
-| `evidence.py` | Verify canonical files and expose stable passages/tables. |
+| `kie/passages.py` | Verify canonical files and expose stable passages/tables; shared with the recipe stages, outside `kie/extract/`. |
 | `rendering.py` | Expose block types and table cell spans to the model while retaining exact canonical text. |
 | `method.py` | Validate explicit experimental choices; enforce the Article context ceiling. |
 | `contexts.py` | Partition whole passages or structural groups with disjoint primary ownership, inherited heading context and optional overlap; reconcile values without hiding scalar conflicts. |

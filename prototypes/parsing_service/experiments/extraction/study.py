@@ -19,11 +19,11 @@ import requests
 from kei_exp.kie.extract.llm import OpenAIChat, Reply
 from kei_exp.kie.extract.article import inventory_request, source_contexts
 from kei_exp.kie.extract.contexts import Context
-from kei_exp.kie.extract.evidence import load
 from kei_exp.kie.extract.method import LimitedCounter
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.run import extract
 from kei_exp.kie.extract.tokens import counter_for
+from kei_exp.kie.passages import load
 
 from .manifest import digest, read, validate, write_new
 

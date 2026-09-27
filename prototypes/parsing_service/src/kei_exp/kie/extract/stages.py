@@ -19,12 +19,12 @@ from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from kei_exp.kie.extract.evidence import Evidence, Passage, text_of
 from kei_exp.kie.extract.llm import Chat, ModelOutputError, parse_json
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.rendering import structured_source
 from kei_exp.kie.extract.schema import Schema, conform, describe, json_schema, notes
 from kei_exp.kie.extract.tokens import BudgetUnavailable, TokenCounter
+from kei_exp.kie.passages import Evidence, Passage, text_of
 from kei_exp.pagefile import TableCell
 
 GUARDRAIL = ("You extract structured data from a source document. Use only the requested output fields. Copy "

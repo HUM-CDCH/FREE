@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from kei_exp.kie.extract.evidence import Evidence, Passage
 from kei_exp.kie.extract.llm import Reply
 from kei_exp.kie.extract.run import PROMPT_VERSION, ExtractRequest, extract, fingerprint, publish_extraction
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.article import inventory
 from kei_exp.kie.extract.stages import contains, discover, extract_record, merge, verify
+from kei_exp.kie.passages import Evidence, Passage
 from kei_exp.result import write_result
 from tests.helpers.chat import FakeChat
 from tests.helpers.replay import Replay

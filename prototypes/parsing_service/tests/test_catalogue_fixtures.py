@@ -6,9 +6,9 @@ fixture's segments, so a boundary can never be satisfied by text the source does
 """
 import pytest
 
-from kei_exp.kie.extract.evidence import load
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.stages import discover
+from kei_exp.kie.passages import load
 from tests.helpers import catalogue
 from tests.helpers.chat import FakeChat
 

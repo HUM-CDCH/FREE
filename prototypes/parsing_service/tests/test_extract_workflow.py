@@ -13,7 +13,7 @@ from kei_exp import runs
 from kei_exp.failures import KeiFailure
 from kei_exp.kie.extract import grounded
 from kei_exp.kie.extract import run as extraction
-from kei_exp.kie.extract.evidence import load
+from kei_exp.kie.passages import load
 from kei_exp.kie.recipe import load_recipe
 from kei_exp.kie.segmentation import load_segmentation
 from kei_exp.workflows import config, contracts

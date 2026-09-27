@@ -5,7 +5,7 @@ import pytest
 
 from kei_exp.kie import boundaries
 from kei_exp.kie.boundaries import BoundaryLabels, LabelsRefused, prefill, report, sample_pages, score
-from kei_exp.kie.extract.evidence import load
+from kei_exp.kie.passages import load
 from kei_exp.kie.recipe import load_recipe
 from kei_exp.kie.stages.segment import segment
 from tests.helpers import catalogue

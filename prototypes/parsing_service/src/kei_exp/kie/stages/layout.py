@@ -12,7 +12,7 @@ import unicodedata
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 
-from kei_exp.kie.extract.evidence import Passage
+from kei_exp.kie.passages import Passage
 
 MIN_IOU = 0.5
 

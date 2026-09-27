@@ -23,7 +23,6 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from kei_exp.canonical import canonical_json
-from kei_exp.kie.extract.evidence import Evidence, text_of
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.locate import BlockText, forms, locate, normalise, raw_range
 from kei_exp.kie.extract.models import ROLE, ROLES, Router, as_router
@@ -31,6 +30,7 @@ from kei_exp.kie.extract.method import CatalogFactors
 from kei_exp.kie.extract.schema import Node, Schema, conform, json_schema, notes
 from kei_exp.kie.extract.stages import Call, _complete, merge
 from kei_exp.kie.model import Block, GlossaryEntry, Span
+from kei_exp.kie.passages import Evidence, text_of
 from kei_exp.kie.recipe import Recipe
 from kei_exp.kie.segmentation import Segmentation
 

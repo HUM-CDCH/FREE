@@ -16,8 +16,8 @@ from collections import Counter
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 
-from kei_exp.kie.extract.evidence import Evidence
 from kei_exp.kie.model import Block, Diagnostic, HeadingEvent, Span
+from kei_exp.kie.passages import Evidence
 from kei_exp.kie.recipe import Recipe, Structure, pattern
 from kei_exp.kie.segmentation import (
     SEGMENTATION_VERSION,
