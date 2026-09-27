@@ -157,6 +157,30 @@ Duplicate links count once; unverified fields and filename-derived values remain
 excluded. Shared call costs cannot be attributed to individual fields from these
 counts. Eight focused accounting regressions pass.
 
+Human-readable tables are generated with the standard-library-only renderer:
+
+```sh
+python3 docs/validation/extraction_ablation_tables.py STUDY_DIR ANALYSIS_JSON ACCOUNTING_JSON OUTPUT.md
+```
+
+It requires the accounting's exact analysis hash, checks cell manifest pins and
+registered/missing/paired denominators, and refuses to overwrite an output. Tables
+show per-cell populated/empty accuracy, identity alignment, unscored extra records,
+link coverage, issues, stage costs and the number of available versus registered
+pairs. Accuracy and operational effects retain their different document sets.
+One-document intervals are suppressed; zero-width intervals are explicitly not
+equivalence evidence. Refused/failed outcomes remain observed cells, and missing
+processing flags are reported as unknown rather than successful.
+
+Six focused reporting tests pass. Real outputs are R1 `tables-partial-11-v2.md`
+(36/79 cells, analysis/accounting `partial-11`) and R2a `tables-partial-07.md`
+(18/30 cells, analysis `partial-07`, accounting `fields-01`). All stage call/failure
+and token totals reconcile with their respective analysis snapshots. The older
+R1 `tables-partial-11.md` remains as an explicitly hashed earlier renderer output.
+The renderer is outside the inference code pin, adds no dependencies and does not
+rescore, rerun or replace a study cell. Bloat review accepts its CLI as the
+reproducible report-generation entrypoint; no obsolete report path was retained.
+
 For reported record fields in the existing development gold, the frozen scorer already
 compares candidate-link pages against annotated evidence pages. Supplementary accounting
 summarizes `candidate_page_overlap`, `candidate_other_page` and `missing`, cross-tabulated
@@ -261,6 +285,25 @@ The live R1 runtime has not been advanced to this integration commit. Its
 but complete-stack runtime verification remains a separate integration gate.
 At this checkpoint 36 R1 and 18 R2a results are sealed. These counts are
 execution progress, not successful semantic extractions or a completed study.
+
+An extraction-only integration snapshot was subsequently checked at local
+commit `f3714ae`: fix commit `1fa6a9b` plus repair integration `93e1ea7`, in
+`/home/gennaro/projects/FREE-worktrees/extraction-stack-review`. It passed
+**1060 fast parser tests** (72 skipped, 74 deselected) and **34 guarded workflow
+tests**. The offline checks again decode all 33 source-control-character replies
+losslessly and replay six sources/88 exact requests and extraction data, allowing
+only the intentional v11-to-v12 prompt/fingerprint change and top-level clocks.
+Script and report: `artifacts/extraction-ablation/stack-integration-20260927/`.
+
+Meanwhile another workstream merged server-owned Studio ingestion into PR #141,
+followed by publication-cancellation and service-fixture fixes. Its ongoing
+evidence is in that branch's
+`docs/validation/2026-09-27-ingestion-pr141-reconciliation.md`. The isolated
+extraction snapshot predates those additions and does not certify them. A dry
+merge of the broadened branch with `93e1ea7` has two Studio conflicts, in README
+and Playwright configuration. No conflict resolution or branch rewrite was
+performed on that concurrently edited checkout. Complete-stack integration
+therefore remains open alongside study completion; inference pins are unchanged.
 
 ## Structured input follow-up — registered, no fresh inference yet
 
