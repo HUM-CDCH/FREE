@@ -1949,6 +1949,24 @@ describe('Source Ingestions on the Project Context page', () => {
     vi.useRealTimers()
   })
 
+  it('a fresh provider mounting in the same commit as a warm Project page still observes its Source Ingestions', async () => {
+    const studio = ingestionStudio({ rows: [ingestionStudio().row('Parsing.pdf', 'parsing')] })
+    // Load the lazy page once, so the next mount renders it in the provider's own first commit (a bfcache restore).
+    renderRoutes(studio.fetch)
+    await openProjectPage()
+    cleanup()
+    history.replaceState(null, '', `/projects/${projectContextId}`)
+    const reads = studio.listings.length
+    render(
+      <ProjectNavigationProvider>
+        <ProjectRoutes />
+      </ProjectNavigationProvider>,
+    )
+    const page = await screen.findByRole('region', { name: 'Project' })
+    expect(await within(page).findByText('Parsing.pdf')).toBeInTheDocument()
+    expect(studio.listings.length).toBeGreaterThan(reads)
+  })
+
   it('sends selected PDFs in order without a key and shows each as Queued once Studio admits it', async () => {
     const studio = ingestionStudio()
     renderRoutes(studio.fetch)
@@ -2199,6 +2217,33 @@ describe('Source Ingestions on the Project Context page', () => {
     await poll(3000)
     await poll(30_000)
     expect(studio.reads.branch).toBe(reads)
+  })
+
+  it('a replayed document acknowledged during a background re-read is not erased by that older read', async () => {
+    const replayed = documentOf(9, 'Replayed.pdf')
+    const studio = ingestionStudio({
+      rows: [ingestionStudio().row('A.pdf', 'parsing')],
+      post: () => Response.json({ ...replayed, sourceRepresentationId: representationId, revisionNumber: 1 }, { status: 201 }),
+    })
+    renderRoutes(studio.fetch)
+    const page = await openProjectPage()
+    await within(page).findByText('A.pdf')
+    // A completion starts a background re-read of the branch; hold it with the branch as it was before the replay.
+    const held = Promise.withResolvers<Response>()
+    studio.control.branch = () => held.promise
+    studio.succeed('A.pdf', 1)
+    await poll()
+    await waitFor(() => expect(studio.reads.branch).toBeGreaterThan(1))
+    select('Replayed.pdf')
+    expect(await rail().findByRole('button', { name: 'Replayed.pdf' })).toBeInTheDocument()
+
+    // Studio holds the replayed document; only the held read predates it.
+    studio.control.branch = () =>
+      Response.json({ projectContext: project, sourceDocuments: [...detail.sourceDocuments, documentOf(1, 'A.pdf'), replayed] })
+    held.resolve(Response.json({ projectContext: project, sourceDocuments: [...detail.sourceDocuments, documentOf(1, 'A.pdf')] }))
+    await poll()
+    await poll()
+    expect(rail().getByRole('button', { name: 'Replayed.pdf' })).toBeInTheDocument()
   })
 
   it('opening a cached project re-reads its branch once', async () => {
@@ -2765,6 +2810,9 @@ describe('routed Source Document reopening', () => {
               'That Project Context is unavailable.',
               404,
             )
+          // The page observes its Source Ingestions from mount; Studio refuses a foreign project the same way.
+          if (url.startsWith(`/api/project-contexts/${projectContextId}/source-ingestions`))
+            return failureResponse('not_found', 'That Project Context is unavailable.', 404)
           if (url.startsWith('/api/batch-extractions?'))
             return Response.json({ batchExtractions: [] })
           if (url.startsWith('/api/batch-schema-suggestions?'))
@@ -2783,7 +2831,9 @@ describe('routed Source Document reopening', () => {
         screen.getByText('That Project Context is unavailable.'),
       ).toBeInTheDocument()
       expect(screen.queryByText(/Opened /)).not.toBeInTheDocument()
-      expect(fetch).toHaveBeenCalledTimes(expectedCalls)
+      expect(
+        fetch.mock.calls.filter(([input]) => !String(input).includes('/source-ingestions')),
+      ).toHaveLength(expectedCalls)
     },
   )
 

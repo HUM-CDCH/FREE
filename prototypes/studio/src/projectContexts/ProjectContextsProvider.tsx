@@ -273,7 +273,9 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
   const acknowledgeSourceDocument = useCallback(
     (projectContextId: string, document: SourceDocumentReprocessResponse) => {
       const branch = branchesRef.current[projectContextId]
-      if (branch?.status === 'loading')
+      // A read in flight predates this write, whether it shows `loading` or is a background re-read of a ready
+      // branch: fence it, and it re-issues itself.
+      if (branch)
         branchGenerations.current[projectContextId] =
           (branchGenerations.current[projectContextId] ?? 0) + 1
       if (branch?.status !== 'ready') {
@@ -444,6 +446,10 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
         onReading: (reading) => onReading(projectContextId, reading),
       }))
     }
+    // A page that mounts in the provider's own first commit observed before this effect ran (child effects run
+    // first), so its call reached the initial no-op: start what is already observed.
+    for (const [projectContextId, count] of observers.current)
+      if (count > 0) ensurePolling.current(projectContextId)
   }, [busy, named, onReading])
   useEffect(() => () => {
     for (const poller of pollers.current.values()) poller.stop()
