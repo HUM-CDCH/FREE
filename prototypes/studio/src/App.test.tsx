@@ -1914,7 +1914,8 @@ describe('reopened Source Document workspace', () => {
     // Completion never switches the rail tab; it reports through the finished
     // dialog and the researcher opens Results themselves.
     expect(await screen.findByText('✓ Extraction complete — view the JSON in the Results tab')).toBeVisible()
-    expect(screen.getByRole('heading', { name: 'Extraction finished' })).toBeInTheDocument()
+    // A terminal admission can show the toast before its awaiting caller opens the dialog.
+    expect(await screen.findByRole('heading', { name: 'Extraction finished' })).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
     expect(screen.getByRole('tab', { name: /^Schema/ })).toHaveAttribute('aria-selected', 'true')
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))

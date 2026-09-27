@@ -126,6 +126,13 @@ directory. This changes no product behavior. A separate CI attempt at `3c714c9`
 failed before browser execution because PostgreSQL port 45432 was occupied;
 the log does not identify its owner, and that attempt was retried once.
 
+Full-stack CI at `71a209e` later exposed a separate asynchronous UI assertion:
+the extraction-complete toast can render before the terminal-admission caller
+opens its completion dialog. The test now awaits that accessible heading before
+dismissing it, without changing product behavior or adding a fixed delay.
+All **45 App tests** pass; the parent log is
+`artifacts/article-repair-integration/app-completion-dialog-test.log`.
+
 ### Original live comparison
 
 The original six PDFs were rehashed against the adjudicated gold. Gold, original schema, scorer and baseline
