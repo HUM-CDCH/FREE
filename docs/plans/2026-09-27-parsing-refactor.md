@@ -1,6 +1,6 @@
 # Parsing and extraction refactor — 2026-09-27
 
-Status: slices 1–2 implemented and locally verified; uncommitted. Base: `377cd050`.
+Status: slices 1–2 committed as `87f26533`; slice 3 in progress. Base: `377cd050`.
 Branch: `refactor/segmentation-dependency`; isolated from running ablation jobs.
 
 ## Direction and invariants
@@ -43,10 +43,67 @@ Acceptance:
 - [x] All callers migrated; the old module path no longer imports.
 - [x] Identical snapshots; focused and full fast tests pass; no local cycles.
 
+## Task 3 (slice 3): grounding as an interchangeable technique
+
+Grounding for the version 1 Catalog and Article paths lives inside the
+`stages.py` grab-bag (`verify` and its private helpers, lines ~384-561, plus
+the `GROUNDING`/`QUOTED_GROUNDING`/`_GROUNDING_RULES`/`NONE` prompts), and
+`run.extract` chooses among its variants with inline conditionals
+(`method.grounding == "off"` empties the groups; `quoted=method.grounding ==
+"quoted"` is passed as a flag). Adding a grounding arm means editing the
+orchestrator. The recipe Catalog's `grounded._verify` is a different technique
+over `BlockText` and is out of scope.
+
+Change:
+- Move `verify`, `_Candidate`, `_grounding_evidence`, `_candidates`, `_hits`,
+  `_siblings`, `_link` and the grounding prompts, unchanged, from
+  `kie/extract/stages.py` to a new `kie/extract/grounding.py`. Shared value
+  helpers (`leaves`, `normal`, `_text`, `contains`) and `Call`/`Link`/`Issue`/
+  `_complete` stay in `stages.py` this slice; `grounding.py` imports them.
+- In `grounding.py`, express the three existing choices as ordinary functions
+  with one shared call shape: semantic (today's `verify`, `quoted=False`),
+  quoted (`quoted=True`), and off (no calls, no links, no issues). One lookup
+  function maps the `ArticleOptions.grounding` literal (and `None`, meaning
+  the production reference, i.e. semantic) to its function. No registry
+  class, plugin loader, entry points or configuration.
+- `run.extract` obtains the grounding function once through that lookup and
+  calls it for every verification group. It no longer branches on
+  `method.grounding` for control flow; the artifact's
+  `completion.grounding` label may still read the option it reports.
+- Migrate every caller (source, tests, experiments, docs that name the old
+  location). Remove the old names from `stages.py`; no re-export facade.
+
+Invariants: prompts, reply schemas, batching, budget arithmetic, call order,
+`before_call` placement, the lexical shortcut, `proofs` and every artifact
+byte (fingerprint included; `started`/`seconds` excepted) are unchanged.
+`PROMPT_VERSION`, `EXTRACTION_VERSION`, method serialization and experiment
+manifests are unchanged. Frozen study registrations are not edited.
+
+Acceptance:
+- [ ] Baseline before any edit: a throwaway script (outside the repo, e.g.
+      under `/tmp`) runs `run.extract` with deterministic fake chats/counters
+      over test fixtures for: version 1 Catalog, Article reference
+      (`method=None`), Article with `grounding` = semantic, quoted and off
+      (bounded contexts where the options require them), and a recipe
+      Catalog; it writes canonical JSON of each artifact minus
+      `started`/`seconds`. The same script after the change produces
+      byte-identical files.
+- [ ] A focused test proves the seam: substituting a different grounding
+      function through the lookup's result changes grounding output without
+      editing `run.py` (e.g. monkeypatching the lookup to a recording fake,
+      asserting it received each verification group once per record).
+- [ ] `stages.py` no longer defines the moved names;
+      `kei_exp.kie.extract.stages.verify` raises `AttributeError`/ImportError.
+- [ ] Focused tests (stages, article, methods, structure fixes, table cells,
+      workflow, selection replay, study) and the full fast suite pass.
+- [ ] Record the verification receipt in this file.
+
 ## Next candidates, reassessed after this slice
 
-1. Extract one interchangeable grounding or context component using existing arms.
-2. Split Postgres persistence by transaction responsibility.
+1. Separate the three extraction implementations in `run.extract` (Article,
+   version 1 Catalog, recipe Catalog) behind one call shape.
+2. Resolve Article techniques once (execution and `study.preflight`).
+3. Split Postgres persistence by transaction responsibility.
 
 ## Verification receipt
 
