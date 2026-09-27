@@ -177,6 +177,21 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- The pushed draft review stack is [repair #142](https://github.com/HUM-CDCH/FREE/pull/142)
+  → [modular study #143](https://github.com/HUM-CDCH/FREE/pull/143)
+  → [structure/grounding fixes #141](https://github.com/HUM-CDCH/FREE/pull/141).
+  Their bases are respectively `feat/kei-exp-parser`, `fix/article-extraction-coverage`
+  and `feat/modular-extraction-ablation`; review the existing parser foundation first.
+  Repair commit `93e1ea7` integrates foundation `299bfc6` in the separate
+  `article-repair-review` worktree. Verification: 983 parser tests, 34 guarded
+  PostgreSQL workflow tests, 72 adapter tests, typecheck and six-source/88-call
+  exact replay passed. Its 27-file PR remains bounded to the repair; no deployment.
+  A dry merge of this study branch with the integrated repair is conflict-free.
+  Defer advancing this checkout's runtime until R1 finishes; a clean merge alone
+  does not establish runtime correctness of the eventual complete stack.
+  At this checkpoint R1 has 36/79 sealed cells and R2a 18/30; R3/R4 remain
+  scheduled, with no responses. Reverify current receipts/processes before resuming.
+
 - Replay acceptance now covers 35 completed R1 cells and 1,204 saved calls.
   All regenerated artifact fields match except top-level clocks, including
   partial/failed model outcomes and recipe Catalog output. A second pass with
