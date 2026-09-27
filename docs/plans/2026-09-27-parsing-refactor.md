@@ -98,11 +98,75 @@ Acceptance:
       workflow, selection replay, study) and the full fast suite pass.
 - [x] Record the verification receipt in this file.
 
+## Task 4 (slice 4): one call shape for the three extraction implementations
+
+After slice 3, `run.extract` (≈`run.py:132-270`) still interleaves the
+version 1 Catalog and Article implementations (`article = options.strategy ==
+"article"` then ~10 `if article` / `method is not None` branches), duplicates
+the per-role counter setup with `_grounded` (`run.py:~149-151` and
+`~279-281`), and holds the recipe Catalog's wrapper `_grounded`. Reading
+Article means reading past both Catalog paths; `run.py` has the highest churn
+in the package (17 commits since 09-01).
+
+Destination (one-way imports: `run` → implementations → shared record
+assembly → `grounding`/`stages`):
+- Three implementation functions with one shared call shape, each in its
+  strategy's module: the recipe Catalog (today's `_grounded`) in
+  `grounded.py`; Article in `article.py`; the version 1 Catalog in a new
+  `kie/extract/catalog.py`, which also receives `discover` and the helpers
+  and prompts only discovery uses (`DISCOVERY`, `DISCOVERY_EXAMPLES`,
+  `_chunks`, `_page_size`, `_numbering_issues`, `_index`, `_NUMBERED` — move
+  each only if nothing else uses it) from `stages.py`. The shape takes the
+  already-loaded evidence (tests can call an implementation without patching
+  `run.load`) and returns the finished artifact dict.
+- What Article and the version 1 Catalog share today (document-value
+  extraction over contexts, grounding each record through
+  `grounding.technique`, `merge`, the common artifact fields) moves to one
+  shared lower module; neither implementation imports `run.py`. Anything an
+  implementation needs from `run.py` today (versions, `fingerprint`,
+  `_total`, request types) moves down or is supplied by the orchestrator —
+  implementer's choice, recorded in the report — without a re-export facade.
+- The per-role counter setup exists once (e.g. in `tokens.py`), used by both
+  Article and the recipe Catalog.
+- `run.extract` keeps: `load`, the stale-generation check, `as_router`,
+  choosing the implementation from the options, and nothing
+  strategy-specific. Its signature, `StaleGeneration`, `Options`,
+  `ExtractRequest`, `publish_extraction` and `main` keep their current
+  import path (`kei_exp.kie.extract.run`) for the workflow, CLI and
+  experiments.
+- Extend the import guard (`tests/test_segmentation_dependencies.py` or a
+  sibling test) so no module under `kie/extract` other than `run` imports
+  `kei_exp.kie.extract.run`.
+
+Invariants: exactly as Task 3 — prompts, reply schemas, call order,
+`before_entry`/`before_call` placement, every artifact byte and fingerprint
+(`started`/`seconds` excepted), `PROMPT_VERSION`, `EXTRACTION_VERSION`,
+options serialization, frozen experiment registrations. No new behaviour, no
+plugin framework (plain functions; choosing the implementation is a plain
+conditional or dict in `run.extract`).
+
+Acceptance:
+- [ ] Before any source edit, rerun `/tmp/free-grounding-slice/snapshot.py`
+      into a fresh baseline directory (it covers version 1 Catalog incl.
+      budget splitting, Article reference/semantic/quoted/off with bounded
+      contexts, and recipe Catalog, and logs call/check order). Extend it,
+      if needed, to also cover the published file bytes via
+      `publish_extraction` and an Article case with document-level fields
+      and multiple contexts. After the change the outputs are byte-identical.
+- [ ] `run.py` contains no `if article`, no `method.` access and no counter
+      construction; `grep -n "article\|method" run.py` shows only imports,
+      request types, the dispatch and `fingerprint`.
+- [ ] Each implementation is exercised by at least one test that calls it
+      directly with in-memory evidence (no `monkeypatch` of `run.load`).
+- [ ] Import guard extended and failing on a probe that imports `run` from
+      an implementation module.
+- [ ] Focused and full fast suites pass; record the receipt here.
+
 ## Next candidates, reassessed after this slice
 
-1. Separate the three extraction implementations in `run.extract` (Article,
-   version 1 Catalog, recipe Catalog) behind one call shape.
-2. Resolve Article techniques once (execution and `study.preflight`).
+1. Resolve Article techniques once (execution and `study.preflight`).
+2. Split `grounded.py` around verification/arbitration, windowing and
+   chunked execution.
 3. Split Postgres persistence by transaction responsibility.
 
 ## Verification receipt
