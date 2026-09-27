@@ -177,6 +177,17 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- R4 grouping is registered (12 cells, six gold papers; only grouping differs,
+  structured rendering and grounding off in both arms). Manifest and protocol
+  pins are in the structure-fixes validation report. R4 preflight admits all
+  47 inventory units across the two arms. R3/R4 response generation is scheduled
+  after the live R1 process exits and every R1 result seal/receipt passes audit.
+  Local supervisor `free-ablation-followups-20260927-r3-r4` owns both follow-ups;
+  control artifacts are `artifacts/extraction-ablation/followups-20260927/`.
+  Execution uses validated archived sources in `frozen-execution/{r3,r4}` so
+  branch development may continue without changing pinned experiments. Do not
+  launch duplicate follow-up cells. No further matrix expansion is planned.
+
 - Fix implementation is complete in the isolated structure-fixes checkout:
   coherent quoted prompt, literal-source checking, lossless control-character
   decoding and structural context grouping. Verification: 1043 passed, 72 skipped,

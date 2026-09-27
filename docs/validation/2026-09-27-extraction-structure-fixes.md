@@ -77,3 +77,39 @@ Identity collisions, selector omissions and semantic attribution remain measurab
 limitations. Fresh accuracy results for these fixes are not available yet. The
 registered studies continue separately; final analysis and integration remain open
 in the durable plan and OpenSpec change.
+
+## Registered grouping comparison and supervised follow-up
+
+R4 now declares twelve fresh cells: all six gold papers, `token` versus
+`structural` grouping, with v12, structured rendering, bounded context and
+verification disabled in both arms. Only `article.grouping` differs. Protocol:
+`prototypes/parsing_service/experiments/extraction/grouping-protocol.md`.
+This post-audit development hypothesis is separate from R1 and R3.
+
+- Manifest: `artifacts/extraction-ablation/20260927-r4-grouping-manifest.json`.
+- Manifest SHA-256: `4f471a254e804ac977dd052bec1387a709fbf520c05b32d20bf922c7719ad5fe`.
+- Code archive: `artifacts/extraction-ablation/20260927-r4-grouping-code.zip`.
+- Archive SHA-256: `4dd570977fd2749324b8fb45790a7545b4b72d93a1b1f395d9dd3bd1cd2ef1b5`.
+- Immutable registration script: `structure-fixes-20260927/register-grouping.py`
+  under the same artifact root, also pinned in the manifest.
+
+R4's registered preflight admits 22 token-only and 25 structural inventory units.
+Grouping increases the unit count for Akita, Harvey and Sousa; this is an observed
+admission/cost trade-off, not an accuracy result. Neither R3 nor R4 has generated
+responses at this registration milestone.
+
+Local unit `free-ablation-followups-20260927-r3-r4` supervises the sequence R1
+terminal audit, R3, then R4, with two fresh cells at a time. Its script, plan,
+expected R1 PID/start identity, hashes, logs and eventual audits are in
+`artifacts/extraction-ablation/followups-20260927/`. It checks all R1 result seals
+and execution receipts before starting R3, and refuses to start after a missing
+R1 result, changed follow-up manifest, failed code pin or pre-existing run output.
+Incomplete model outcomes remain in results; infrastructure failures are not
+silently retried. Each follow-up generates analysis and observation accounting.
+
+R3 and R4 execute from validated archive extractions in
+`artifacts/extraction-ablation/frozen-execution/{r3,r4}`. Their reproducibility
+therefore does not require freezing further development in the fix checkout.
+Scheduled work is not completion: inspect per-cell terminal audits and missing
+results before closing the study. No additional matrix expansion is planned for
+this implementation milestone.
