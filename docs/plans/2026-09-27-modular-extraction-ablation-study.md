@@ -80,11 +80,11 @@ boundary when code evidence warrants it and record the decision in the OpenSpec 
 - Reduce `kie/extract/run.py` to loading/dispatch, stage assembly and result publication.
 - Separate Article inventory/identity handling from generic Catalog discovery in `stages.py`;
   expose Article orchestration in `kie/extract/article.py`.
-- Put bounded source units/context assembly in `kie/extract/context.py`; canonical span
+- Put bounded source units/context assembly in `kie/extract/contexts.py`; canonical span
   models remain shared with `evidence.py`/`kie.model`, without a duplicate source store.
 - Keep verification, reconciliation and prompt serialization independently callable; extract
   them from oversized modules only where it removes mixed responsibilities.
-- Document entrypoints and artifacts in `docs/extraction-pipeline.md`, linked by README.
+- Document entrypoints and artifacts in `docs/extraction-experiments.md`, linked by README.
 - Gate: existing tests and fixed-reply baseline outputs preserve behavior, excluding clocks.
 - Deletion criterion: moved logic has one owner; remove obsolete definitions/import paths
   once callers/tests migrate. Preserve named research baselines through configuration or
@@ -117,8 +117,9 @@ boundary when code evidence warrants it and record the decision in the OpenSpec 
 
 ### M4 — Reproducible experiment runner and analysis
 
-- Add `kei_exp/kie/study/` with manifest validation, run execution/capture and metrics/reporting
-  as distinct small modules, plus a CLI; study configs under `experiments/extraction/`.
+- Keep manifest validation, run execution/capture and metrics/reporting as distinct small
+  modules under `experiments/extraction/`, with module CLIs. Research orchestration stays
+  outside the serving package, as recorded in OpenSpec design decision 8.
 - Record source/schema/code/prompt/module/model/decoding/tokenizer pins, request/reply captures,
   stage costs, complete/failed/refused states, and immutable per-document/per-arm outputs.
 - Resume only exact pinned completed cells. Replayed outputs never count as independent
@@ -204,8 +205,9 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
   `docs/validation/extraction_ablation_accounting.py` now supplies supplementary observation
   accounting, with three independent regression tests. On the old offline Akita fixture it
   exposes nine thermal observations omitted by the gold projection (20 total, 11 selected).
-  This does not relabel them as false positives. The focused selector remains an explicit
-  unfinished gate and will receive a separately registered comparison; R1 is not being changed.
+  This does not relabel them as false positives. The focused selector is now implemented
+  in its isolated checkout and has a separately registered R2a comparison. Its complete
+  evaluation and integration remain pending; R1 is not being changed.
 
 - Frozen study: `artifacts/extraction-ablation/20260927-r1-manifest.json`; code snapshot:
   `artifacts/extraction-ablation/20260927-r1-code.zip`; execution, captures and logs:
