@@ -6,11 +6,11 @@ import importlib.util
 import json
 import random
 import statistics
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 from kei_exp.kie.extract.stages import leaves
-from .manifest import checked, digest, read, validate, write_new
+from .manifest import checked, digest, pin, read, validate, write_new
 
 
 def paired_interval(deltas: list[float], *, seed: int = 20260927, draws: int = 10000) -> dict:
@@ -21,6 +21,24 @@ def paired_interval(deltas: list[float], *, seed: int = 20260927, draws: int = 1
     return {"documents": len(deltas), "mean": statistics.mean(deltas),
             "percentile_95": [samples[int(draws * .025)], samples[int(draws * .975)]],
             "unit": "document", "bootstrap_seed": seed, "draws": draws}
+
+
+def document_fields(fields: list[dict], names: set[str]) -> list[dict]:
+    """Match the frozen scorer: repeated metadata fails if any sample row fails."""
+    groups = defaultdict(list)
+    for field in fields:
+        if field["field"] in names:
+            groups[(field["source_id"], field["field"])].append(field)
+    rank = {"correct": 0, "needs_review": 1, "incorrect": 2}
+    return [{**group[0], "result": max((f["result"] for f in group), key=rank.__getitem__)}
+            for group in groups.values()]
+
+
+def exact_projected_fields(fields: list[dict]) -> list[dict]:
+    """Strict representation diagnostic after the frozen alignment and projection gates."""
+    return [{**field, "result": "correct" if field["result"] == "correct" and
+             json.dumps(field["expected"], sort_keys=True) == json.dumps(field["actual"], sort_keys=True)
+             else "incorrect"} for field in fields]
 
 
 def diagnostic(artifact: dict) -> dict:
@@ -58,8 +76,8 @@ def analyze(study: dict, output: Path) -> dict:
             terminals = sorted(directory.glob("attempt-*.finished.json"))
             missing.append({"cell": cell["id"], "status": read(terminals[-1]) if terminals else "not_completed"})
             continue
-        pin = read(directory / "pin.json")
-        if pin["manifest_sha256"] != digest((output / "manifest.json").read_bytes()):
+        cell_pin = read(directory / "pin.json")
+        if cell_pin["manifest_sha256"] != digest((output / "manifest.json").read_bytes()):
             raise ValueError("mixed study cell")
         completed = read(path)
         artifact, execution = completed["artifact"], completed["execution"]
@@ -77,9 +95,12 @@ def analyze(study: dict, output: Path) -> dict:
                                                               "scorer_sha256": digest(scorer_path.read_bytes())})
             metrics = scored["per_paper_sample_fields"][cell["source"]]
             row["accuracy"] = metrics
-            document_fields = {f["field"]: f for f in scored["fields"]
-                               if f["source_id"] == cell["source"] and f["field"] in scorer.DOCUMENT_FIELDS}
-            row["document_field_accuracy"] = scorer.metrics(list(document_fields.values()))
+            fields = [f for f in scored["fields"] if f["source_id"] == cell["source"]]
+            row["document_field_accuracy"] = scorer.metrics(document_fields(fields, scorer.DOCUMENT_FIELDS))
+            exact = exact_projected_fields(fields)
+            row["exact_projected_match"] = {
+                "sample_fields": scorer.metrics([f for f in exact if f["field"] not in scorer.DOCUMENT_FIELDS]),
+                "document_fields": scorer.metrics(document_fields(exact, scorer.DOCUMENT_FIELDS))}
             row["identity_alignment"] = dict(Counter(a["status"] for a in scored["alignment"]
                                                      if a["source_id"] == cell["source"]))
             row["extra_prediction_indices_unscored"] = scored["extra_prediction_indices_unscored"].get(cell["source"], [])
@@ -122,7 +143,8 @@ def analyze(study: dict, output: Path) -> dict:
                                values["ab"] - values["a"] - values["b"] + values["baseline"]})
         interactions.append({**interaction, "paired": paired,
                              "effect": paired_interval([p["difference_of_differences"] for p in paired])})
-    return {"study": study["id"], "expected_cells": len(cells), "completed_cells": len(rows), "missing": missing,
+    return {"study": study["id"], "analyzer": pin(Path(__file__)),
+            "expected_cells": len(cells), "completed_cells": len(rows), "missing": missing,
             "cells": rows, "comparisons": effects, "interactions": interactions,
             "extra_prediction_review_queue": extra_queue, "accuracy": accuracy,
             "limits": ["Development corpus, no independently annotated held-out test set.",
@@ -130,6 +152,7 @@ def analyze(study: dict, output: Path) -> dict:
                        "Intervals resample documents; small-sample descriptive uncertainty, not proof of generalization.",
                        "Greedy decoding; repeats would measure serving variability, not independent document samples.",
                        "Conditional one-factor effects; combined changes are not attributed to a single technique.",
+                       "Exact projected match is a supplementary representation diagnostic, not the primary normalized score or a source-span metric. It retains frozen alignment/projection failures and distinguishes case, whitespace, list order, JSON types and integer/float distinctions. Pending semantics receive no exact credit.",
                        "Direct model calls: no DBOS queue, authenticated HTTP, or deployment latency measurement.",
                        "Unannotated PDFs have operational metrics only; no fabricated accuracy or block F1."]}
 

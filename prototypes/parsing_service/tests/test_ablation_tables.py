@@ -26,6 +26,10 @@ def snapshot():
                                   "empty": {"correct": 1, "total": 1}}, "extra_prediction_indices_unscored": [],
                      "identity_alignment": {"matched": int(bool(correct)), "missing": int(not correct)},
                      "issues": {"context_exceeded": 1} if not correct else {}})
+    for row in rows:
+        row["document_field_accuracy"] = {"populated": {"correct": 1, "total": 2}}
+        row["exact_projected_match"] = {"sample_fields": {"populated": {"correct": 0, "total": 2}},
+                                        "document_fields": {"populated": {"correct": 0, "total": 2}}}
     analysis = {"study": "study", "expected_cells": 4, "completed_cells": 3, "cells": rows, "limits": ["Development only."],
                 "missing": [{"cell": "paper2--treatment--0", "status": "not_completed"}],
                 "comparisons": [{**comparison, "paired": [{"source": "paper1", "calls": 0, "input_tokens": 0}],
@@ -44,6 +48,7 @@ def test_failed_result_counts_as_observed_and_missing_pair_keeps_its_denominator
     assert "| control → treatment | context | 1/2 | -100.00 | — | 1/2 |" in report
     assert "[-100.00, -100.00]" not in report  # one document cannot support an uncertainty interval
     assert "paper2--treatment--0" in report and "not_completed" in report
+    assert "| paper1--control--0 | 0/2 | 1/2 | 0/2 |" in report
 
 
 @pytest.mark.parametrize("damage", ["drop_missing", "duplicate_pair", "drop_accounting", "wrong_gold_n"])
@@ -66,3 +71,10 @@ def test_missing_processing_flag_is_unreported_instead_of_successful():
     analysis["cells"][0]["completion"] = None
     report = tables.render(manifest, analysis, accounting, gold)
     assert "| control | 2/2 | 0 | 1 |" in report
+
+
+def test_old_analysis_without_corrected_reporting_is_refused():
+    manifest, analysis, accounting, gold = snapshot()
+    del analysis["cells"][0]["exact_projected_match"]
+    with pytest.raises(ValueError, match="regenerate analysis"):
+        tables.render(manifest, analysis, accounting, gold)

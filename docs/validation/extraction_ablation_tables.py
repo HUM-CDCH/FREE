@@ -37,6 +37,8 @@ def render(manifest: dict, analysis: dict, accounting: dict, gold_sources: set[s
             raise ValueError("cell identity disagrees with its metadata")
         if (row["source"] in gold_sources) != ("accuracy" in row):
             raise ValueError("gold coverage disagrees with scored cells")
+        if "accuracy" in row and "exact_projected_match" not in row:
+            raise ValueError("regenerate analysis with corrected document aggregation and exact projected metrics")
     text = [f"# {manifest['id']} — result tables", "",
             f"Snapshot: **{len(rows)}/{len(expected)} sealed cells**; **{len(missing)} missing**.", "",
             "A sealed cell can contain failed calls, refused input or incomplete grounding. "
@@ -58,6 +60,17 @@ def render(manifest: dict, analysis: dict, accounting: dict, gold_sources: set[s
                  f"{r['identity_alignment'].get('matched', 0)}/{sum(r['identity_alignment'].values())}",
                  r["identity_alignment"].get("duplicate_identity", 0),
                  len(r["extra_prediction_indices_unscored"])] for r in rows if "accuracy" in r]), "",
+            "## Exact representation and document metadata", "",
+            "Populated fields only; normalized sample scores are above. Exact projected matches retain the frozen "
+            "alignment/projection gates but distinguish case, whitespace, list order, JSON types and integer/float distinctions. "
+            "This is a supplementary representation diagnostic, not source-span correctness. Repeated document "
+            "metadata receives credit only when every eligible sample row passes; pending semantics receive no exact credit.", "",
+            table(["Cell", "Sample exact/total", "Document normalized/total", "Document exact/total"], [
+                [r["id"], *[f"{m['correct']}/{m['total']}" for m in (
+                    r["exact_projected_match"]["sample_fields"]["populated"],
+                    r["document_field_accuracy"]["populated"],
+                    r["exact_projected_match"]["document_fields"]["populated"])]]
+                for r in rows if "accuracy" in r]), "",
             "## Paired effects", "",
             "Effects are treatment minus control. Accuracy uses annotated document pairs; call/token effects "
             "use all available registered document pairs. These denominators can differ. Intervals resample "
