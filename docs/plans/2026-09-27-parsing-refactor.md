@@ -364,8 +364,8 @@ Acceptance:
       and asserts none of `docling`, `torch`, `transformers`, `cv2` is in
       `sys.modules`. It fails at the base commit. (The test exists and fails
       at base; `regions` and `transcription.types` pass. Not met for `api`
-      and `result`, which stay strict xfails naming two further edges:
-      `kei_exp.models` and the PDFium lock; see the receipt.)
+      and `result`: they pass only with two further, named edges
+      (`kei_exp.models` and the PDFium lock) stood in; see the receipt.)
 - [x] A fast test asserts each registered transcriber's `knobs` equals the
       table's row for its kind, and the table has no extra kinds.
 - [x] The import guard forbids `kei_exp.regions` and
@@ -410,16 +410,29 @@ stubbed, `api` loads none of the four (618 modules) and `result` loads only
 the `docling` package root, through `kei_exp.pages` → `kei_exp._pdfium`,
 whose PDFium lock is `docling.utils.locks`. Removing either is a design
 change to the model records or the lock, not a data move, so
-`test_light_modules_load_no_ocr_stack[kei_exp.result|api]` are strict xfails
-that turn into failures once the edges go. API listing (`/api/models` and
+`test_light_modules_load_the_ocr_stack_only_through_accepted_edges` names
+them as each module's accepted edges (see the fix round below). API listing (`/api/models` and
 `/api/ingestion-models`, server probe stubbed) captured before and after to
 `/tmp/free-layering-slice/`: byte-identical (sha256 `04f66712…`). Focused
 suites (cut, convert, native, streaming, replay, api reads, models, ingestion
-models, convert workflow, result, report, evidence, pages, guard): 216 passed, 64 skipped,
-2 xfailed (base 212 passed, 64 skipped). Full fast suite: 1098 passed,
-72 skipped, 74 deselected, 2 xfailed (base 1094 + 4 new passes). Ruff
-findings on the touched files unchanged from base (`native.py` import order,
-pre-existing).
+models, convert workflow, result, report, evidence, pages, guard): 218 passed,
+64 skipped (base 212 passed, 64 skipped). Full fast suite: 1100 passed,
+72 skipped, 74 deselected (base 1094 + 6 new). Ruff findings on the touched
+files unchanged from base (`native.py` import order, pre-existing).
+
+Fix round 1 (Task 7): the first version marked the `api` and `result` import
+cases as strict xfails over the whole test, which would also have accepted an
+import error or a failed subprocess. They have no expected-failure mark now.
+Each case runs a fresh interpreter with the module's accepted edges
+(`kei_exp.models` for both; `kei_exp._pdfium` for `result`) replaced by
+`MagicMock` stand-ins and asserts none of the four packages loads. That
+catches any third edge. A second probe without stand-ins asserts the module
+still imports each edge and each edge alone still loads some of the stack, so
+an edge that goes away must be dropped from the list. Import failures fail
+with the child's stderr. At base all four cases fail: `regions` because it
+cannot be imported, the other three on the heavy-package assertion. Two probes against the fix were
+reverted: `import kei_exp.cut` added to `api.py` fails with "loads [...]
+beyond its accepted edges"; a raised `ImportError` fails with the traceback.
 
 ## Next candidates, reassessed after this slice
 
