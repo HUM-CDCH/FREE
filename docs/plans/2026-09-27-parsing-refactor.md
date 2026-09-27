@@ -451,10 +451,66 @@ which must also leave the four packages unloaded; `kei_exp.models` for `api`;
   `runtime.py`, fails with `('kei_exp.runtime', 'torch')`, although torch was
   already loaded.
 
+## Task 8 (slice 8): the shared workflow toolkit leaves `runExtraction`'s module
+
+TypeScript, `packages/extraction` (+ its Studio consumers). Studio's
+ingestion, reprocessing, garbage-collection, suggestion and schema-edit
+workflows import `WorkflowSteps`, `dbosSteps`, `ARTIFACT_READ_RETRY`,
+`isWorkflowCancellation` and `keiRunOf` from `extraction/workflows`, the
+module that defines `runExtraction` and therefore imports `kei-artifact`,
+`schema` and `parsed-document`. Separately, the Studio workflow ID
+`extract:<extractionId>` is written by hand in production code at
+`packages/extraction/src/postgres-persistence.ts:69`,
+`packages/extraction/src/testing/dbos-test-app.ts:66`,
+`prototypes/studio/api/_extractions.ts:42`,
+`prototypes/studio/api/_scope_cancellation.ts:41` (prefix test + slice) and
+`prototypes/studio/api/_garbage_plan.ts:37,58` (prefix list + rebuild).
+
+Change (no logic moves between packages):
+- New module `packages/extraction/src/workflow-steps.ts` owns
+  `WorkflowSteps`, `dbosSteps`, `ARTIFACT_READ_RETRY` and
+  `isWorkflowCancellation`, exported as `extraction/workflow-steps` in
+  `packages/extraction/package.json`. It imports only the DBOS SDK.
+- `keiRunOf` (and the `KEI_PREPROCESS` pattern it uses) moves to
+  `kei-handoff.ts`, which already owns the kei run-id rules and
+  `keiExtractWorkflowId`.
+- `kei-handoff.ts` also gains the one owner of Studio's extraction workflow
+  ID: the prefix constant, `extractWorkflowId(extractionId)` and its inverse
+  (`extractionIdOfWorkflow(workflowId): string | null` or similar, named to
+  read well at the call sites). Every production site listed above uses them.
+  Tests keep literal `extract:` strings where they pin the format.
+- `workflows.ts` keeps `runExtraction` and its own types and imports the
+  toolkit from `workflow-steps.ts`; no re-export of moved names from
+  `workflows.ts`. Studio imports migrate to `extraction/workflow-steps` /
+  `extraction/kei-handoff`.
+- `packages/db/src/project-store.ts:1182,1284` keep their literal
+  `extract:` strings: `db` sits below `extraction` and cannot import it.
+  Add a one-line comment at each naming the owner
+  (`extraction/kei-handoff` `extractWorkflowId`).
+
+Invariants: workflow IDs, queue names, step names/configs, retry settings,
+DBOS registration and every workflow's step sequence unchanged (no
+`DBOS.patch()` needed because nothing about steps changes). Studio's
+`STUDIO_WORKFLOW_PREFIXES` value unchanged.
+
+Acceptance:
+- [ ] `grep -rn "extract:" --include=*.ts packages/extraction/src
+      prototypes/studio/api prototypes/studio/server` finds literal
+      `extract:` only in tests, comments and the owner in `kei-handoff.ts`.
+- [ ] No Studio module imports `extraction/workflows` except for
+      `runExtraction`-specific names; `workflow-steps.ts` imports nothing
+      from the package.
+- [ ] A focused test pins `extractWorkflowId` / its inverse round trip and
+      rejects non-extraction IDs (`kei-extract:…`, `suggest:…`).
+- [ ] `tsc --noEmit` in `packages/extraction` and `tsc -b` in
+      `prototypes/studio` pass; extraction's fast tests
+      (`packages/extraction` `test` script's file list) and Studio's vitest
+      files for the touched modules pass.
+
 ## Next candidates, reassessed after this slice
 
-1. One budgeted-call module (`stages._complete`, `grounded._Run.call`,
-   `LimitedCounter`) with the budget policy as its variant.
-2. TypeScript `packages/extraction`: workflow toolkit + one owner for the
-   `extract:<id>` workflow ID; pure review rules; persistence split.
-3. `kie/model.py` split by consumer group; runner generation cache.
+1. Pure review-decision rules out of `module.ts`/`postgres-persistence.ts`;
+   composition (`createExtractions`) out of the Postgres adapter.
+2. Split `postgres-persistence.ts` by cluster around ownership guards and
+   attempt reads.
+3. One owner for the extraction method value (strategy, recipe, models).
