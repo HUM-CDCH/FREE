@@ -5,7 +5,7 @@ import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
 import { MAX_NAMED_INGESTIONS, type SourceIngestion } from '../shared/sourceDocumentIngestion.contract.js'
 import { ApiError, json, noStore, noStoreError, persistenceUnavailable } from './_http.js'
 import { INGEST_SOURCE } from './_ingestion_workflow.js'
-import { attemptOf, classifyOutcome, type IngestionAttempt } from './_source_ingestion_outcome.js'
+import { attemptOf, classifyOutcome, isQuiescent, type IngestionAttempt } from './_source_ingestion_outcome.js'
 
 export const RECENT_SUCCESS_MS = 15 * 60 * 1000
 export const FAILURE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
@@ -17,12 +17,20 @@ type SourceIngestionStore = Pick<
   'researcherAccountId' | 'modelOperationScopeExists' | 'findSourceDocumentIdsByContent'
 >
 
-function projectContextId(pathname: string): string {
-  const match = /^\/api\/project-contexts\/([^/]+)\/source-ingestions$/.exec(pathname)
-  if (!match) throw new ApiError(404, 'not_found', 'Source ingestion route was not found.')
+const notFound = () => new ApiError(404, 'not_found', 'Source Ingestion was not found.')
+
+/** The route's project and, under it, the decoded workflow ID (null for the collection). */
+function route(pathname: string): { projectId: string; workflowId: string | null } {
+  const match = /^\/api\/project-contexts\/([^/]+)\/source-ingestions(?:\/([^/]+))?$/.exec(pathname)
+  if (!match) throw notFound()
   if (!canonicalUuidSchema.safeParse(match[1]).success)
     throw new ApiError(422, 'invalid_request', 'projectContextId must be a canonical lowercase UUID.')
-  return match[1]
+  if (match[2] === undefined) return { projectId: match[1], workflowId: null }
+  try {
+    return { projectId: match[1], workflowId: decodeURIComponent(match[2]) }
+  } catch {
+    throw notFound()
+  }
 }
 
 /**
@@ -75,7 +83,8 @@ export function createSourceIngestionListing(
   return async function getSourceIngestions(request: Request): Promise<Response> {
     try {
       const url = new URL(request.url)
-      const projectId = projectContextId(url.pathname)
+      const { projectId, workflowId } = route(url.pathname)
+      if (workflowId !== null) throw notFound()
       const named = [...new Set(url.searchParams.getAll('workflowId'))]
       if (named.length > MAX_NAMED_INGESTIONS)
         throw new ApiError(422, 'invalid_request', `Name at most ${MAX_NAMED_INGESTIONS} Source Ingestions.`)
@@ -122,6 +131,55 @@ export function createSourceIngestionListing(
   }
 }
 
+/**
+ * `DELETE …/source-ingestions/<workflowId>`: dismisses a failed Source Ingestion by deleting its history and that of
+ * every older failed attempt of the same content (which it superseded), all or nothing under M6's quiescence rule.
+ */
+export function createSourceIngestionDismissal(
+  store: Pick<ResearcherProjectStore, 'researcherAccountId' | 'modelOperationScopeExists'>,
+  admission: () => Pick<DBOSClient, 'getWorkflow' | 'listWorkflows' | 'deleteWorkflows'> = () => studioDbos().admission,
+  bootTimestampMs: () => number = () => studioDbos().bootTimestampMs,
+) {
+  const unavailable = (cause: unknown) => persistenceUnavailable(cause, 'Source Document ingestion status is unavailable.')
+  const done = () => new Response(null, { status: 204, headers: noStore })
+  return async function dismissSourceIngestion(request: Request): Promise<Response> {
+    try {
+      const { projectId, workflowId } = route(new URL(request.url).pathname)
+      if (workflowId === null) throw notFound()
+      const owned = await store.modelOperationScopeExists(projectId, null).catch((cause) => { throw unavailable(cause) })
+      if (!owned) throw notFound()
+      const client = admission()
+      const recorded = await client.getWorkflow(workflowId).catch((cause) => { throw unavailable(cause) })
+      if (!recorded) return done()
+      const attempt = recorded.authenticatedUser === store.researcherAccountId ? attemptOf(recorded, projectId) : null
+      if (!attempt) throw notFound()
+      if (classifyOutcome(recorded).kind !== 'failed')
+        throw new ApiError(409, 'ingestion_not_dismissible', 'Only a failed Source Ingestion can be dismissed.')
+      // The failures this row superseded go with it, or the next read would show the older one again.
+      const terminal = await client.listWorkflows({
+        workflowName: INGEST_SOURCE,
+        attributes: { projectContextId: projectId },
+        authenticatedUser: store.researcherAccountId,
+        status: [...TERMINAL],
+        loadInput: true,
+        loadOutput: true,
+      }).catch((cause) => { throw unavailable(cause) })
+      const chain = [recorded, ...terminal.filter((status) => status.workflowID !== workflowId)]
+        .filter((status) => attemptOf(status, projectId)?.input.sourceSha256 === attempt.input.sourceSha256)
+        .filter((status) => classifyOutcome(status).kind === 'failed')
+      // M6: a stopped attempt's history goes only once nothing in this process can still write it.
+      const boot = bootTimestampMs()
+      if (chain.some((status) => !isQuiescent(status, boot)))
+        throw new ApiError(409, 'ingestion_stopping', 'This Source Ingestion is still stopping. Try again shortly.')
+      await client.deleteWorkflows(chain.map((status) => status.workflowID).sort())
+        .catch((cause) => { throw unavailable(cause) })
+      return done()
+    } catch (error) {
+      return noStoreError(error)
+    }
+  }
+}
+
 export function createResearcherApiHandlers(store: ResearcherProjectStore) {
-  return { GET: createSourceIngestionListing(store) }
+  return { GET: createSourceIngestionListing(store), DELETE: createSourceIngestionDismissal(store) }
 }

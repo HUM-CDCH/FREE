@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { sourceIngestionListingSchema } from '../shared/sourceDocumentIngestion.contract'
 import { attemptOf, type IngestionAttempt } from './_source_ingestion_outcome.js'
 import {
+  createSourceIngestionDismissal,
   createSourceIngestionListing,
   FAILURE_RETENTION_MS,
   projectIngestions,
@@ -171,5 +172,81 @@ describe('projectIngestions', () => {
       published: new Map([['published', doc(7)]]),
     })
     expect(listed).toEqual([expect.objectContaining({ status: 'succeeded', sourceDocumentId: doc(7) })])
+  })
+})
+
+describe('DELETE /api/project-contexts/:id/source-ingestions/:workflowId', () => {
+  const BOOT = NOW - 3_600_000
+  function dismissal(recorded: WorkflowStatus | undefined, chain: WorkflowStatus[] = recorded ? [recorded] : [], owns: () => Promise<boolean> = async () => true) {
+    const client = {
+      getWorkflow: vi.fn(async () => recorded),
+      listWorkflows: vi.fn(async () => chain),
+      deleteWorkflows: vi.fn(async () => {}),
+    }
+    const store = { researcherAccountId: ACCOUNT, modelOperationScopeExists: vi.fn(owns) }
+    return { client, DELETE: createSourceIngestionDismissal(store, () => client as never, () => BOOT) }
+  }
+  const del = (workflowId: string, projectContextId = PROJECT) =>
+    new Request(`http://local.test/api/project-contexts/${projectContextId}/source-ingestions/${encodeURIComponent(workflowId)}`, { method: 'DELETE' })
+  const id = (n: number) => `ingest:${PROJECT}:${attempt(n)}`
+
+  it('deletes the history of an owned, quiescent failed attempt and answers 204', async () => {
+    for (const recorded of [
+      row(1, 'SUCCESS', { output: refused }), row(1, 'ERROR'),
+      row(1, 'MAX_RECOVERY_ATTEMPTS_EXCEEDED', { updatedAt: BOOT - 1 }), row(1, 'CANCELLED', { updatedAt: BOOT - 1 }),
+    ]) {
+      const { DELETE, client } = dismissal(recorded)
+      const response = await DELETE(del(id(1)))
+      expect(response.status).toBe(204)
+      expect(response.headers.get('cache-control')).toBe('no-store')
+      expect(client.deleteWorkflows).toHaveBeenCalledExactlyOnceWith([id(1)])
+    }
+  })
+
+  it('dismisses the whole failed chain of that content, so an older failure cannot reappear', async () => {
+    const newest = row(2, 'ERROR', { sha: 'same' })
+    const chain = [row(1, 'SUCCESS', { output: refused, sha: 'same' }), newest, row(3, 'ERROR', { sha: 'other' }), row(4, 'SUCCESS', { output: ok(4), sha: 'same' })]
+    const { DELETE, client } = dismissal(newest, chain)
+    expect((await DELETE(del(id(2)))).status).toBe(204)
+    expect(client.listWorkflows).toHaveBeenCalledExactlyOnceWith({
+      workflowName: 'ingestSource', attributes: { projectContextId: PROJECT }, authenticatedUser: ACCOUNT,
+      status: ['SUCCESS', 'ERROR', 'CANCELLED', 'MAX_RECOVERY_ATTEMPTS_EXCEEDED'], loadInput: true, loadOutput: true,
+    })
+    expect(client.deleteWorkflows).toHaveBeenCalledExactlyOnceWith([id(1), id(2)])
+  })
+
+  it('refuses live and succeeded attempts, and deletes nothing when any failure of the chain is not quiescent', async () => {
+    const cases: [WorkflowStatus, WorkflowStatus[] | undefined, string][] = [
+      [row(1, 'PENDING'), [], 'ingestion_not_dismissible'],
+      [row(1, 'SUCCESS', { output: ok(1) }), [], 'ingestion_not_dismissible'],
+      [row(1, 'CANCELLED', { updatedAt: BOOT }), undefined, 'ingestion_stopping'],
+      [row(1, 'MAX_RECOVERY_ATTEMPTS_EXCEEDED', { updatedAt: undefined }), undefined, 'ingestion_stopping'],
+      [row(2, 'ERROR', { sha: 'same' }), [row(1, 'CANCELLED', { updatedAt: BOOT + 1, sha: 'same' }), row(2, 'ERROR', { sha: 'same' })], 'ingestion_stopping'],
+    ]
+    for (const [recorded, chain, code] of cases) {
+      const { DELETE, client } = dismissal(recorded, chain ?? [recorded])
+      const response = await DELETE(del(recorded.workflowID))
+      expect(response.status).toBe(409)
+      expect((await response.json()).error.code).toBe(code)
+      expect(client.deleteWorkflows).not.toHaveBeenCalled()
+    }
+  })
+
+  it('answers 204 for an absent attempt and 404 for a foreign, misnamed or cross-project one, deleting nothing', async () => {
+    expect((await dismissal(undefined).DELETE(del(id(1)))).status).toBe(204)
+    for (const recorded of [row(1, 'ERROR', { authenticatedUser: 'someone-else' }), row(1, 'ERROR', { workflowName: 'reprocessSource' }), row(1, 'ERROR', { attributes: { projectContextId: 'other' } })]) {
+      const { DELETE, client } = dismissal(recorded)
+      expect((await DELETE(del(id(1)))).status).toBe(404)
+      expect(client.deleteWorkflows).not.toHaveBeenCalled()
+    }
+    const unowned = dismissal(row(1, 'ERROR'), undefined, async () => false)
+    expect((await unowned.DELETE(del(id(1)))).status).toBe(404)
+    expect(unowned.client.getWorkflow).not.toHaveBeenCalled()
+  })
+
+  it('reads a workflow path only as DELETE, and the collection only as GET', async () => {
+    expect((await dismissal(undefined).DELETE(new Request(`http://local.test/api/project-contexts/${PROJECT}/source-ingestions`, { method: 'DELETE' }))).status).toBe(404)
+    expect((await handlers().GET(new Request(`http://local.test/api/project-contexts/${PROJECT}/source-ingestions/${encodeURIComponent(id(1))}`))).status).toBe(404)
+    expect((await dismissal(undefined).DELETE(new Request(`http://local.test/api/project-contexts/${PROJECT}/source-ingestions/%E0%A4%A`, { method: 'DELETE' }))).status).toBe(404)
   })
 })

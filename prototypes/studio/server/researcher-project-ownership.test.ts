@@ -26,6 +26,7 @@ import { createSchemaRevisionHandlers } from '../api/schema_revisions.js'
 import { createPostGenerateSchema } from '../api/generate_schema.js'
 import { createPostEditSchema } from '../api/edit_schema.js'
 import { createModelOperationHandlers } from '../api/model_operations.js'
+import { createSourceIngestionDismissal, createSourceIngestionListing } from '../api/source_ingestions.js'
 import {
   createResearcherApiHandlers as createDocumentReopenHandlers,
 } from '../api/document_reopen.js'
@@ -176,7 +177,10 @@ type IngestionSpies = {
   /** Staging, counting and enqueueing: a refused upload reaches none of them. */
   countPages: Mock<(pdf: Uint8Array) => Promise<number | null>>
   enqueue: Mock<() => Promise<never>>
+  /** The Source Ingestion listing and dismissal: a refused read or dismissal reaches none of them. */
   listWorkflows: Mock<() => Promise<never>>
+  getWorkflow: Mock<() => Promise<never>>
+  deleteWorkflows: Mock<() => Promise<never>>
 }
 
 type ModelSpies = {
@@ -546,7 +550,13 @@ function twoAccountStoreFixture(): TwoAccountStores {
       throw new Error('A cross-owner ingestion must not start a workflow.')
     }),
     listWorkflows: vi.fn(async () => {
-      throw new Error('A cross-owner ingestion must not await a workflow.')
+      throw new Error('A cross-owner Source Ingestion listing must not read DBOS.')
+    }),
+    getWorkflow: vi.fn(async () => {
+      throw new Error('A cross-owner dismissal must not read a workflow.')
+    }),
+    deleteWorkflows: vi.fn(async () => {
+      throw new Error('A cross-owner dismissal must not delete history.')
     }),
   }
   const models: ModelSpies = {
@@ -735,15 +745,23 @@ function ownershipRegistry(fixture: TwoAccountStores) {
     })),
     '../api/source_documents.ts': researcherModule((store) => ({
       POST: createSourceDocumentIngestion(store, {
-        admission: {
-          enqueue: fixture.ingestion.enqueue,
-          listWorkflows: fixture.ingestion.listWorkflows,
-        },
+        admission: { enqueue: fixture.ingestion.enqueue },
         countPages: fixture.ingestion.countPages,
         inboxRoot: '/nonexistent/free-source-inbox',
       }),
       DELETE: createSourceDocumentDeletion(store),
     })),
+    '../api/source_ingestions.ts': researcherModule((store) => {
+      const dbos = () => ({
+        listWorkflows: fixture.ingestion.listWorkflows,
+        getWorkflow: fixture.ingestion.getWorkflow,
+        deleteWorkflows: fixture.ingestion.deleteWorkflows,
+      }) as never
+      return {
+        GET: createSourceIngestionListing(store, dbos),
+        DELETE: createSourceIngestionDismissal(store, dbos, () => 0),
+      }
+    }),
     '../api/source_representations.ts': researcherModule((store) => {
       const GET = createSourceRepresentationResource(store, fixture.readArtifact)
       return { GET, HEAD: GET }
@@ -1022,6 +1040,24 @@ describe('two-account project and source API isolation', () => {
     expect(fixture.createStore).toHaveBeenCalledWith(ids.accountB)
   })
 
+  it("refuses another account's Source Ingestions without reading DBOS or its documents", async () => {
+    const fixture = await appFixture()
+    const aliceStore = fixture.stores.get(ids.accountA)!
+    const bobsAttempt = encodeURIComponent(`ingest:${ids.projectB}:${ids.operationB}`)
+
+    for (const [pathname, init] of [
+      [`/api/project-contexts/${ids.projectB}/source-ingestions`, {}],
+      [`/api/project-contexts/${ids.projectB}/source-ingestions?workflowId=${bobsAttempt}`, {}],
+      [`/api/project-contexts/${ids.projectB}/source-ingestions/${bobsAttempt}`, { method: 'DELETE' }],
+    ] as const)
+      await expectPrivateNotFound(await api(fixture, ids.accountA, pathname, init), forbiddenB)
+    expect(aliceStore.modelOperationScopeExists).toHaveBeenCalledTimes(3)
+    expect(aliceStore.findSourceDocumentIdsByContent).not.toHaveBeenCalled()
+    expect(fixture.ingestion.listWorkflows).not.toHaveBeenCalled()
+    expect(fixture.ingestion.getWorkflow).not.toHaveBeenCalled()
+    expect(fixture.ingestion.deleteWorkflows).not.toHaveBeenCalled()
+  })
+
   it('rejects cross-owner ingest and deletion before staging, a workflow, or mutation', async () => {
     const fixture = await appFixture()
     const aliceStore = fixture.stores.get(ids.accountA)!
@@ -1038,7 +1074,6 @@ describe('two-account project and source API isolation', () => {
     expect(aliceStore.findSourceDocumentByContent).not.toHaveBeenCalled()
     expect(fixture.ingestion.countPages).not.toHaveBeenCalled()
     expect(fixture.ingestion.enqueue).not.toHaveBeenCalled()
-    expect(fixture.ingestion.listWorkflows).not.toHaveBeenCalled()
     expect(aliceStore.ingestSourceDocument).not.toHaveBeenCalled()
     expect(aliceStore.discardCanonicalPackage).not.toHaveBeenCalled()
 

@@ -37,6 +37,7 @@ describe('eager API dispatcher', () => {
       generate_schema: scopedModule(),
       project_contexts: scopedModule(),
       source_documents: scopedModule(),
+      source_ingestions: scopedModule(),
       document_reopen: scopedModule(),
       schema_revisions: scopedModule(),
       extraction_schemas: scopedModule(),
@@ -67,6 +68,14 @@ describe('eager API dispatcher', () => {
       [
         '/api/project-contexts/project/source-documents/document/reopen',
         'document_reopen',
+      ],
+      [
+        '/api/project-contexts/project/source-ingestions',
+        'source_ingestions',
+      ],
+      [
+        '/api/project-contexts/project/source-ingestions/ingest%3Ap%3Aa',
+        'source_ingestions',
       ],
       ['/api/schema-revisions/revision', 'schema_revisions'],
       ['/api/extraction-schemas/schema', 'extraction_schemas'],
@@ -106,6 +115,7 @@ describe('eager API dispatcher', () => {
       '/api/project-contexts/project/source-representations/representation/pdf/anything',
       '/api/source-representations/representation/pdf/anything',
       '/api/model-operations/edit%3Aid/anything',
+      '/api/project-contexts/project/source-ingestions/a/b',
       '/api/../package.json',
       '/api/',
     ])
