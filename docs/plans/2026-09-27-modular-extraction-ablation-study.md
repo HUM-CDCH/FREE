@@ -178,6 +178,17 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- Standalone parent validation is now addressed: repair `3c714c9` carries the
+  model fixture, three-hour service assertions and final-publication cancellation
+  guard. It passes 985 fast tests, 36 workflow tests, typecheck and all 13 distinct
+  service scenarios (12 first-run passes plus one corrected stale assertion's
+  focused rerun). Intermediate study `4110ca9` passes 1026 fast tests. Full stack
+  `4492a68` incorporates both with no runtime/test changes relative to the
+  already verified combined stack. The integration report records these scopes.
+  R1 replay acceptance is now 37 cells/1252 saved calls; the incremental two-cell
+  report also passes with HTTP disabled. All registered studies still need to
+  finish before final effects and completion can be claimed.
+
 - Full review-stack integration is now locally verified in
   `/home/gennaro/projects/FREE-worktrees/extraction-current-stack` at `88eed7c`.
   It combines the concurrent Source Ingestion work, extraction fixes and current

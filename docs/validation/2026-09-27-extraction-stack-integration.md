@@ -75,6 +75,30 @@ No additional removal or production abstraction is needed.
 
 ## Remaining gates
 
+### Standalone parent repair and final ancestry
+
+The earliest repair now includes the service fixture and final-publication
+cancellation guard at `3c714c9`, so it does not depend on this child PR to pass
+its service boundary. It passes 985 fast parser tests, 36 extraction-workflow
+tests and typechecking. Twelve of its thirteen service scenarios passed in the
+first run; the sole stale ten-minute expectation was corrected to three hours,
+and that scenario passed separately. The repair report retains the initial
+failure and rerun scope.
+
+The intermediate study branch incorporates this at `4110ca9` and passes 1026
+fast parser tests. The full stack incorporates that ancestry at `4492a68`;
+its runtime and test files are byte-identical to `24ed4bd` and retain the
+full-stack validation above. Only documentation changed when the existing fixes
+were moved earlier in the review stack.
+
+Capture replay now covers 37 R1 cells and 1252 saved calls: the original
+35-cell offline report plus `increment-37-offline.json` under the primary
+checkout's `artifacts/extraction-ablation/replay-verification-20260927/`.
+The two additional cells used 101 separately cached tokenizer probes in the
+initial verification and then passed again with HTTP disabled, with zero new
+model or tokenizer calls. These are later tokenizer observations, not original
+inference captures. Remaining cells still require final verification.
+
 The registered R1, R2a, R3 and R4 studies still require all terminal cells,
 final capture replay, paired effects and the final development-corpus report.
 Their independent-annotation limitation remains unchanged. PRs remain drafts
