@@ -114,3 +114,37 @@ interruption requiring resume. Keep the incomplete artifact and its cost in the
 registered denominator; do not rerun to replace an unfavorable model outcome.
 No comparison yet establishes that disabling grounding caused it: that factor
 does not change the upstream value prompt, and these live arms regenerate replies.
+
+## Age: bounded admission succeeds while record semantics fail
+
+R1 `Age--bounded--0` visits five inventory contexts and completes 48 calls without
+a call failure, using 381,083 reported input tokens and 8,698 output tokens.
+Processing and model grounding are marked complete, while record recall remains
+explicitly unmeasured. Full-source inventory was over the served context in
+preflight; that admission result does not make the bounded records correct.
+
+The supplied schema requests one record for the source paper itself and explicitly
+excludes cited studies and bibliography entries. The bounded output instead has
+three distinct `study_title` values:
+
+- The paper title, supported by `p1_s4` (SectionHeader) and its authors at `p1_s5`.
+- "It's Complicated - the Relationship Between Age and Disease in Palaeopathology".
+  Passage `p8_s6` identifies this as a **2022 symposium theme**, thanking the working
+  group that produced the paper; it is not this paper's title.
+- "International Journal of Paleopathology 53 (2026) 1-11". This is the text of
+  repeated canonical **PageHeader** passages, including `p5_s0` and `p9_s0`, with
+  author running text beneath. It is a journal citation, not a study title.
+
+Thus the final records violate the schema's source-paper-only scope. Complete
+grounding flags cannot establish correct identity semantics, and correctly labelled
+page furniture can still become an inventory candidate. This is a source-backed
+case review, not an independently annotated record-precision estimate.
+
+R2a passes exact original-control replay. Its all-unit and selected arms both
+disable grounding: 25 versus 17 calls, 170,825 versus 125,673 input tokens, and
+4,036 versus 3,454 output tokens. Selection omits eight value units across the
+three candidates. The first two records remain identical; the third changes its
+research question, methods, findings and limitations. Its erroneous journal-citation
+identity remains. These conditional savings do not establish a semantic improvement,
+and the 48-call R1 result must not be used as R2a's cost control because it also
+includes verification.
