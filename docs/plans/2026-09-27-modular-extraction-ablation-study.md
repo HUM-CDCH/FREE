@@ -177,6 +177,21 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- R4 is registered to measure the new grouping: twelve fresh cells over the six
+  gold papers, changing only `article.grouping`; both arms use v12, structured
+  rendering, bounded context and disabled grounding. All 47 inventory units fit
+  in preflight. Manifest: `artifacts/extraction-ablation/20260927-r4-grouping-manifest.json`.
+  Full protocol/hashes are in the fix checkout's structure-fixes validation report.
+  Local unit `free-ablation-followups-20260927-r3-r4` owns the sequence R1 terminal
+  audit → R3 → R4 (two cells at a time). It refuses missing R1 results or changed
+  pins, preserves partial outcomes and performs no automatic retries. Controls,
+  logs and eventual audits live in `artifacts/extraction-ablation/followups-20260927/`.
+  Initial supervisor PID 927990/starttime 7206690; verify current process state.
+  Both follow-ups run from validated code archives under `frozen-execution/`,
+  allowing further development without editing their pinned sources. Neither
+  follow-up has generated responses at this scheduling milestone. Do not launch
+  duplicates. No further matrix expansion is planned for this implementation.
+
 - User requested implementing fixes now instead of waiting. Implementation commit
   `eff137e`, consolidated with the current study findings at `3fb9f14`, is on
   `fix/extraction-structure-and-grounding` in
