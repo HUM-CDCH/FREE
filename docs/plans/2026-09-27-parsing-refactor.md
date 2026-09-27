@@ -244,11 +244,59 @@ bindings, `_Run`, chunking, `_block`/`_fitted`/`_label`/`_context`, merge
 and arbitration, `_document`); reaching ~500 lines would mean moving one of
 those groups, which this slice leaves alone.
 
+## Task 6 (slice 6): Article techniques read from one resolved choice
+
+After slice 4 every Article technique choice lives in `kie/extract/article.py`,
+but behaviour code tests `method is not None and method.X == …` about fifteen
+times (`article.py` ~65-158, 173, 201-203, 233, 269-271), because
+`options.article is None` means "the production reference". The reference is
+exactly `ArticleOptions()`'s defaults (full context, reference identity and
+prompt, semantic grounding, no selection/rendering/grouping), so the `None`
+guards only restate the defaults. `None` matters in exactly one place: whether
+the artifact carries the method-only fields (`method_version`, `contexts`,
+`value_contexts`, `quoted_support`, versions, `selections`, `conflicts`,
+`completion`) and the fingerprint's method versions.
+
+Change:
+- `kie/extract/method.py` gains `REFERENCE = ArticleOptions()` (frozen, the
+  production reference choices) and a shared alias for the grounding choice
+  literal; `ArticleOptions.grounding` and `grounding.technique` both use that
+  alias (resolves Task 3's deferred minor on the duplicated literal).
+- Article's technique functions (`extract_records`, `inventory_request`,
+  `source_contexts`, `inventory`, `reconcile_identities`, `identity_key`, and
+  any other in `article.py` taking `method`) take `method: ArticleOptions =
+  REFERENCE`; their bodies read `method.X` directly with no `None` guard.
+- `article.extract` resolves `options.article or REFERENCE` once and passes
+  it everywhere; it keeps `options.article is None` only to decide the
+  method-only artifact fields (and `assembly.fingerprint` keeps its own
+  `request.options.article is not None` tests unchanged).
+- Callers keep working unchanged: `experiments/extraction/study.py` (frozen,
+  passes a real `ArticleOptions`) and tests that omit `method`.
+
+Invariants: as Tasks 3–5 — every artifact byte and fingerprint, prompts, reply
+schemas, call order, `PROMPT_VERSION`, options serialization (the
+`ArticleOptions` serializer and `Options.dumped()` are untouched), frozen
+experiment files untouched.
+
+Acceptance:
+- [ ] Before any source edit: rerun `/tmp/free-strategy-slice/snapshot.py`
+      (it covers Article reference with `method=None` and every option arm the
+      brief touches) into `/tmp/free-article-slice/baseline`; after the change
+      the outputs are byte-identical. If an option arm (identity
+      conservative, prompt schema, selection, grouping, rendering structured,
+      overlap) is not covered, extend a copy of the harness under
+      `/tmp/free-article-slice/` first.
+- [ ] `grep -n "method is not None\|method is None" article.py` shows only the
+      artifact-field decision in `extract`.
+- [ ] Focused (article, methods, selection, rendering, grounding,
+      implementations, study, selection replay) and full fast suites pass.
+
 ## Next candidates, reassessed after this slice
 
-1. Resolve Article techniques once inside `src` (the scattered
-   `method.X ==` checks in `article.py`/`assembly.py`/`stages.py`); the
-   frozen `study.preflight` stays as it is.
+1. Layering in the root package: `transcription/types.py` imports `Crop`
+   from `cut.py` (loads Docling and, via `pages`, `kie.model`); `api.py`
+   imports `kie.stages.ocr.TRANSCRIBERS`, which builds the OCR stack at
+   import time, only to read metadata.
 2. One budgeted-call module (`stages._complete`, `grounded._Run.call`,
    `LimitedCounter`) with the budget policy as its variant.
 3. TypeScript `packages/extraction`: workflow toolkit + one owner for the
