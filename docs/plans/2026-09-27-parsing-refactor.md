@@ -163,124 +163,67 @@ Acceptance:
       an implementation module.
 - [x] Focused and full fast suites pass; record the receipt here.
 
+Controller addendum (Task 4): PostgreSQL tier `tests/test_lanes.py` +
+`tests/test_delete_runs.py` → 34 passed; recovery/boot tier
+`tests/test_worker_recovery.py` + `tests/test_worker_boot.py` → 26 passed
+(disposable `free-m1-pg`, database `free_test_parsing`). The snapshot at the
+base commit equals the snapshot after (51 files).
+
+## Task 5 (slice 5): split `grounded.py` around its pure clusters
+
+`grounded.py` (873 lines) holds the recipe Catalog implementation, its
+prompts and run state, and three clusters that need no model: candidate
+acceptance (does a candidate's quote, value and field binding pass —
+`_Outcome`, `_typed`, `_verify`, `_scalar`, `_after_keys`, `_bounded`,
+`KEY_GAP`, and the candidate reply schemas `_candidates_schema`, `_leaf`,
+`_candidate_schema`), windowing of oversized blocks (`_Unit`, `_units`,
+`_windows`, `_cut`), and result shaping (`_spans`, `_raw`, `_expansions`,
+`_normalized`, `_link`, `_item`, `_place`, `_record`,
+`NORMALIZATION_VERSION`). Tests reach these through private names
+(`test_extract_llm` → `_candidate_schema`, `test_extract_grounded` →
+`_Unit`, `test_table_cells` → `_Outcome`/`_link`, `test_catalog_chunks` →
+`_pieces`).
+
+Change (within `kie/extract`, no package moves):
+- Move the three clusters, unchanged in logic, into three modules named for
+  what they decide (suggested: `acceptance.py`, `windows.py`,
+  `catalog_result.py`; pick clearer names if the code suggests them).
+  Names used across modules lose their leading underscore; names used only
+  inside their new module keep it.
+- `grounded.py` keeps: versions, prompts, `CatalogOptions`, `Counter`,
+  bindings, `_Run` and the budgeted call, the recipe implementation
+  `extract`, `extract_grounded`, `fingerprint`, chunked execution
+  (`_pieces`, `_in_chunks`), per-block orchestration (`_block`, `_fitted`,
+  `_label`, `_context`), merge/arbitration (`_merge`, `_arbitrate`, which
+  call the model) and `_document`.
+- One-way imports: `grounded` → the three new modules; none of them imports
+  `grounded`, `run` or `assembly`. Extend the import guard accordingly.
+- Migrate tests to the new public names; no facade in `grounded.py`.
+
+Invariants: as Tasks 3–4 — every artifact byte and fingerprint, prompts,
+reply schemas, call order, `before_entry` placement, `EXTRACTION_VERSION = 2`,
+`PROMPT_VERSION = 5`, `BUDGET_VERSION`, `NORMALIZATION_VERSION` unchanged.
+
+Acceptance:
+- [ ] Before any source edit: copy `/tmp/free-strategy-slice/snapshot.py` to
+      `/tmp/free-grounded-slice/`, extend it with recipe Catalog cases that
+      exercise each `CatalogFactors` flag off (glossary, headings, overlap,
+      verification), an oversized block that is windowed, `chunks=2`, and
+      replies that produce accepted, proposed and rejected values plus an
+      arbitration call; capture the baseline. After: byte-identical.
+- [ ] `grounded.py` is at most ~500 lines; each new module has a prose
+      docstring stating what it decides, in the style of its neighbours.
+- [ ] At least one new focused test per new module exercises it through its
+      public names without a chat (acceptance over a `BlockText`; windows
+      over units with a `fits` predicate; result shaping over outcomes).
+- [ ] Import guard extended; focused and full fast suites pass.
+
 ## Next candidates, reassessed after this slice
 
-1. Resolve Article techniques once (execution and `study.preflight`).
-2. Split `grounded.py` around verification/arbitration, windowing and
-   chunked execution.
-3. Split Postgres persistence by transaction responsibility.
-
-## Verification receipt
-
-Run from `prototypes/parsing_service`, with `PYTHONPATH=src` and the existing
-`/home/gennaro/projects/FREE/prototypes/parsing_service/.venv/bin/python -m pytest`:
-
-Slice 1:
-
-- Baseline: `-q -m 'not postgres and not live_model' tests/test_kie_segment.py tests/test_kie_boundaries.py tests/test_extract_grounded.py tests/test_catalog_chunks.py tests/test_extract_workflow.py`
-  → 150 passed, 9 deselected. Add `tests/test_segmentation_dependencies.py` after
-  the move → 151 passed, 9 deselected. The guard failed on the old nested import.
-- Full fast suite: `-q -m 'not postgres and not live_model'`
-  → 1,073 passed, 72 skipped, 74 deselected; 3 dependency deprecation warnings.
-- A static local-import scan of all 66 source modules, including nested imports,
-  found zero cycles. The boundary test prevents the removed reverse dependency.
-- All 20 catalogue fixtures were computed and published into fresh directories
-  before/after the move; exact artifact bytes matched. Local evidence is at
-  `/tmp/free-segmentation-refactor-jcv3w51d/{baseline,after}`.
-- `git diff --check`, `bloat-scan-diff --json`, and manual review of new files passed.
-  No blockers or compatibility glue; the retained invalid-artifact recomputation
-  is the existing tested contract. One orchestration module replaces one reverse
-  dependency; no duplicate function or new dependency/configuration was added.
-
-Slice 2 (all `-q -m 'not postgres and not live_model'`):
-
-- Implemented by Claude Code with `claude-opus-5-5`, session
-  `4b077fb8-461f-41cc-ac20-33953daa3f9c`; the parent agent reviewed the diff and
-  independently reran the full fast suite with the same result below.
-- Focused: 19 evidence, stage, segmentation, extraction, experiment and replay
-  test files → 373 passed, 9 deselected before; 374 passed, 9 deselected after.
-- Full fast suite → 1,074 passed, 72 skipped, 74 deselected; the same 3 warnings.
-- Snapshots of all 20 fixtures before/after (evidence `repr` plus `text_of`, and
-  published segmentation bytes) are identical; the 20 segmentation snapshots
-  also equal slice 1's baseline. The parent independently compared all 40 files;
-  `/tmp/free-evidence-refactor-opus55/{before,after}`.
-- The guard's checks report the old import in each of the five pre-slice
-  modules and in a nested relative probe. Imports resolve into this worktree;
-  `kei_exp.kie.extract.evidence` raises `ModuleNotFoundError`; 66 modules, 0 cycles.
-- `git diff --check` and manual review passed; only the module docstring differs.
-- Parent bloat audit passed, including manual review of untracked files: no
-  blockers, new fallbacks, compatibility facades, or replacement frameworks.
-- Experiment registrations pin `src/**/*.py`; new ones pin the moved file.
-  Existing registrations, frozen manifests, dated plans/specs and their scripts
-  are unchanged.
-
-Slice 3 (all `-q -m 'not postgres and not live_model' -p no:cacheprovider`):
-
-- Implemented by Claude Code with `claude-opus-5-5` from the Task 3 brief.
-- Baseline captured before any source edit by `/tmp/free-grounding-slice/snapshot.py`
-  (deterministic scripted chats and word counters from the test helpers). Thirteen
-  cases: version 1 Catalog over hand-built passages with a table (lexical, model and
-  cell links), the same with `record_chars=1000` (split batches and
-  `grounding_exceeds_budget`), version 1 over the `two-in-one-segment` fixture;
-  Article reference (`method=None`), semantic, quoted and off with full and bounded
-  contexts, plus quoted with structured rendering, structural grouping and selection;
-  recipe Catalog `two-in-one-segment` and `headings`. Each case writes the canonical
-  artifact minus `started`/`seconds` and an ordered log of every `before_entry` check
-  and model request (system, user, schema, `max_tokens`). A repeated baseline was
-  identical; after the change all 26 files are byte-identical, fingerprints included:
-  `/tmp/free-grounding-slice/{baseline,after}`.
-- Focused: 14 stage, grounding, article, method, structure, table-cell, workflow,
-  selection, replay, study, rendering, recipe, model and fixture test files → 225 passed,
-  9 deselected before; with `tests/test_extraction_grounding.py` 231 passed, 9 deselected.
-- Full fast suite → 1,080 passed, 72 skipped, 74 deselected; the same 3 warnings.
-- The seam test replaces `grounding.technique` with a recording substitute: bounded
-  Article receives each context once per record and publishes the substitute's links
-  with no grounding call; the version 1 Catalog receives each record's slice with no
-  counter or record context.
-- The moved code and prompts are textually identical to their `stages.py` originals.
-  `kei_exp.kie.extract.stages.verify` raises `AttributeError` and the `from` import
-  raises `ImportError`; none of the moved names remain in `stages.py`. 67 modules, 0 cycles.
-- `git diff --check` and manual review passed. Experiment registrations, manifests and
-  dated plans/specs are unchanged; `docs/extraction-experiments.md` names the new module.
-
-Slice 4 (Task 4; all `-q -m 'not postgres and not live_model' -p no:cacheprovider`):
-
-- Implemented by Claude Code with `claude-opus-5-5` from the Task 4 brief.
-- `run.extract` loads the evidence, checks the generation, applies `as_router` and hands
-  `(run_dir, evidence, request, chat, *, counter, chunks, before_entry)` to
-  `grounded.extract` (a recipe), `article.extract` or `catalog.extract`; each returns the
-  finished artifact. `assembly.py` holds what Article and the version 1 Catalog share
-  (`document_values`, `ground` through `grounding.technique`, `artifact` with `merge`,
-  `fingerprint`, `EXTRACTION_VERSION`, `PROMPT_VERSION`); `tokens.counters_for` is the one
-  per-role counter setup, used by Article and the recipe Catalog. `catalog.py` received
-  `discover` and its prompts and helpers, textually unchanged.
-- Baseline captured before any source edit by `/tmp/free-strategy-slice/snapshot.py`, a
-  copy of slice 3's harness extended with the bytes `publish_extraction` writes for every
-  case (`started`/`seconds` replaced in place, so key order counts), Article with
-  document-level fields that disagree across bounded contexts, and three cases with no
-  `counter` (Article on one chat, bounded quoted Article and the recipe Catalog on two
-  chats, the latter with calibration probes). 17 cases, 51 files; the 26 slice-3 files
-  equal slice 3's baseline, a repeated baseline was identical, and after the change all
-  51 are byte-identical: `/tmp/free-strategy-slice/{baseline,after}`.
-- Focused: the 24 extraction test files → 397 passed, 43 deselected before; with
-  `tests/test_extraction_implementations.py` 404 passed, 43 deselected.
-- Full fast suite → 1,087 passed, 72 skipped, 74 deselected; the same 3 warnings.
-- `tests/test_extraction_implementations.py` calls each implementation with the evidence
-  it is handed (hand-built for Article and the version 1 Catalog, a loaded fixture with a
-  replaced `run_id` for the recipe Catalog) and no `run.load` replacement, and checks that
-  `run.extract` hands the loaded evidence, request, router, `counter`, `chunks` and
-  `before_entry` to the implementation each option set chooses.
-- The new guard fails on probes importing `run` in `article.py` (absolute), `catalog.py`
-  (nested, relative), `grounded.py` (`from kei_exp.kie.extract import run`) and
-  `assembly.py` (`import`); it also holds on the pre-slice sources. 69 modules, 0 cycles.
-- `grep -n "article\|method" run.py` shows imports, the request types, the dispatch, the
-  module docstring and `main`'s `--strategy` choices. Tests that replaced
-  `run.counter_for` now replace `tokens.counter_for`, including the PostgreSQL-tier
-  `test_lanes.py`, `test_delete_runs.py` and `helpers/kei_worker.py`, which were not run.
-- `git diff --check` and manual review passed; ruff reports no finding the base lacks.
-  Experiment registrations, manifests and dated plans/specs are unchanged;
-  `docs/extraction-experiments.md` names the new modules.
-
-Undo: reverse the slices' source/test/doc edits and remove their new files.
-No database, workflow step, deployment, running checkout or study artifact changed.
-Live-model and PostgreSQL/recovery tiers were not run; no claims are made for them.
+1. Resolve Article techniques once inside `src` (the scattered
+   `method.X ==` checks in `article.py`/`assembly.py`/`stages.py`); the
+   frozen `study.preflight` stays as it is.
+2. One budgeted-call module (`stages._complete`, `grounded._Run.call`,
+   `LimitedCounter`) with the budget policy as its variant.
+3. TypeScript `packages/extraction`: workflow toolkit + one owner for the
+   `extract:<id>` workflow ID; pure review rules; persistence split.
