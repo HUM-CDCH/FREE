@@ -393,3 +393,31 @@ def test_a_cancelled_version_1_extraction_stops_before_its_next_call(kei, script
     assert isinstance(ended[0], KeiFailure) and ended[0].code == "cancelled"
     assert events == asked
     assert not (kei.runs / run_id / "extractions").exists()
+
+
+@pytest.mark.parametrize("strategy, first", [("article", "records"), ("catalog", "discovery")])
+def test_cancellation_during_the_final_model_call_prevents_publication(tmp_path, scripted, monkeypatch,
+                                                                      strategy, first):
+    from kei_exp.workflows import cancel
+
+    status = SimpleNamespace(status="PENDING")
+    monkeypatch.setattr(cancel, "DBOS", SimpleNamespace(workflow_id=WID, get_workflow_status=lambda wid: status))
+    # The final publication check must bypass the throttle, even after a very recent successful read.
+    monkeypatch.setattr(cancel, "MIN_INTERVAL", 60.0)
+    monkeypatch.setattr(runs, "RUNS", tmp_path / "runs")
+    source = {"pages": [{"page": 1, "units": [{"index": 0, "segments": ["Hill", "Valley"]}]}]}
+    run_id = kei_helper.converted_run(runs.RUNS, "kei-convert:ingest:p:final-call", source)
+    events = []
+    expected = [first, "record", "record", "grounding", "grounding"]
+
+    def cancel_final_call(stage):
+        if events == expected:
+            status.status = "CANCELLED"
+
+    scripted["script"] = version_1(events, hold=cancel_final_call)
+    body = kei_helper.extract_request(run_id, catalogue.GENERATION, V1[strategy])["request"]
+    with pytest.raises(KeiFailure) as stopped:
+        workflow.extract_run(WID, run_id, catalogue.GENERATION, body)
+    assert stopped.value.code == "cancelled"
+    assert events == expected
+    assert not (runs.RUNS / run_id / "extractions").exists()

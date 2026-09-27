@@ -116,11 +116,25 @@ async function modelServer() {
         if (starts.length !== 2) throw new Error(`Discovery did not receive both parsed entries: ${prompt}`)
         answer = { starts, end: null }
       } else if ('records' in properties) {
-        if (records.length !== 2) throw new Error(`Article extraction did not receive both entries: ${prompt}`)
-        answer = { records }
+        const passages = [...prompt.matchAll(/\[(p\d+_s\d+)\]([^]*?)(?=\[p\d+_s\d+\]|$)/g)]
+        if (records.length !== 2) throw new Error(`Article inventory did not receive both entries: ${prompt}`)
+        answer = { records: records.map(({ site }) => ({ label: site, identity: { site },
+          passages: passages.filter(match => match[2].includes(`${site}:`)).map(match => match[1]),
+        })) }
       } else if ('site' in properties) {
         if (records.length !== 1) throw new Error(`Record extraction received ${records.length} records: ${prompt}`)
         answer = records[0]
+      } else if ('finds' in properties && 'year' in properties) {
+        const system: string = body.messages.find((message: { role: string }) => message.role === 'system').content
+        const site = /Extract ONLY the record (Hill|Valley):/.exec(system)?.[1]
+        const record = records.find(record => record.site === site)
+        if (!record) throw new Error(`Article value call without a supported identity: ${system}`)
+        answer = { finds: record.finds, year: record.year }
+      } else if (Object.keys(properties).every(key => /^C\d+$/.test(key))) {
+        const claims = [...prompt.matchAll(/^(C\d+) \([^\n]*\): ([^\n]+)$/gm)]
+        const evidence = [...prompt.matchAll(/^(E\d+): ([^\n]+)$/gm)]
+        answer = Object.fromEntries(claims.map(([, claim, value]) =>
+          [claim, evidence.find(([, , text]) => text.includes(value))?.[1] ?? 'NONE']))
       } else throw new Error(`Unexpected model schema: ${JSON.stringify(properties)}`)
       calls++
       response.writeHead(200, { 'content-type': 'application/json' })
