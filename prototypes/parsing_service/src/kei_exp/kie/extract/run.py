@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from kei_exp.canonical import canonical_json
 from kei_exp.files import publish
-from kei_exp.kie.extract import grounded
+from kei_exp.kie.extract import grounded, grounding
 from kei_exp.kie.extract import models as extraction_models
 from kei_exp.kie.extract.article import extract_records, source_contexts
 from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, reconcile_values
@@ -45,7 +45,6 @@ from kei_exp.kie.extract.stages import (
     extract_record,
     leaves,
     merge,
-    verify,
 )
 from kei_exp.kie.extract.tokens import BudgetUnavailable, counter_for
 from kei_exp.kie.passages import load
@@ -210,17 +209,15 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     records: list[dict] = []
     links: list[Link] = []
     proofs: list[dict] = []
+    ground = grounding.technique(method.grounding if method is not None else None)
     for number, (group, fields) in enumerate(slices):
         check()
-        verification_groups = [c.passages for c in contexts] if article else [group]
-        if method is not None and method.grounding == "off":
-            verification_groups = []
-        for verification_group in verification_groups:
-            found_links, grounding_calls, grounding_issues = verify(verification_group, fields, schema, chat,
+        for verification_group in [c.passages for c in contexts] if article else [group]:
+            found_links, grounding_calls, grounding_issues = ground(verification_group, fields, schema, chat,
                 record=number, budget=options.record_chars, counter=counter["reasoning"] if article else None,
                 record_context=(identities[number]["label"] + "\n" + json.dumps(identities[number]["identity"],
                     ensure_ascii=False)) if article else None,
-                before_call=check, quoted=method is not None and method.grounding == "quoted", proofs=proofs)
+                before_call=check, proofs=proofs)
             # Retain the first support in canonical order for each path; all calls remain auditable.
             known = {link.path for link in links}
             links += [link for link in found_links if link.path not in known]

@@ -26,7 +26,8 @@ flowchart LR
 | `contexts.py` | Partition whole passages or structural groups with disjoint primary ownership, inherited heading context and optional overlap; reconcile values without hiding scalar conflicts. |
 | `selection.py` | Select whole value contexts from inventory support, adjacent qualifiers and schema relevance; expose omitted units. |
 | `article.py` | Enumerate recurring identities, reconcile them, and extract each record across its source contexts. |
-| `stages.py` | Shared model admission, schema prompts, generic Catalog discovery, values, grounding and record assembly. |
+| `stages.py` | Shared model admission, schema prompts, generic Catalog discovery, values and record assembly. |
+| `grounding.py` | Ground version 1 Catalog and Article values in their passages. The `semantic`, `quoted` and `off` techniques share one call shape; `technique` maps `article.grounding` (omitted: `semantic`) to one, and `run.py` calls it without knowing which. |
 | `grounded.py` | Recipe Catalog entry extraction, candidate verification, conflict arbitration and normalization. |
 | `run.py` | Select the strategy and assemble the pinned artifact. |
 | `experiments/extraction/` | Register inputs/comparisons, capture and resume calls, and analyze completed cells. Never imported by serving code. |

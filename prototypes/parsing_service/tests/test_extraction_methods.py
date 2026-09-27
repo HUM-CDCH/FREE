@@ -6,7 +6,7 @@ from kei_exp.kie.extract.article import inventory, reconcile_identities
 from kei_exp.kie.extract.contexts import partition, reconcile_values
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
-from kei_exp.kie.extract.stages import verify
+from kei_exp.kie.extract.grounding import verify
 from tests.test_extract_grounded import CountingChat, GLOSSED, WordCounter, run as catalog_run
 from tests.test_extract_stages import SCHEMA, evidence, passages
 

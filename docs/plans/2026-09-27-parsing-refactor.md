@@ -1,6 +1,6 @@
 # Parsing and extraction refactor — 2026-09-27
 
-Status: slices 1–2 committed as `87f26533`; slice 3 in progress. Base: `377cd050`.
+Status: slices 1–2 committed as `87f26533`; slice 3 committed after it, awaiting review. Base: `377cd050`.
 Branch: `refactor/segmentation-dependency`; isolated from running ablation jobs.
 
 ## Direction and invariants
@@ -80,7 +80,7 @@ byte (fingerprint included; `started`/`seconds` excepted) are unchanged.
 manifests are unchanged. Frozen study registrations are not edited.
 
 Acceptance:
-- [ ] Baseline before any edit: a throwaway script (outside the repo, e.g.
+- [x] Baseline before any edit: a throwaway script (outside the repo, e.g.
       under `/tmp`) runs `run.extract` with deterministic fake chats/counters
       over test fixtures for: version 1 Catalog, Article reference
       (`method=None`), Article with `grounding` = semantic, quoted and off
@@ -88,15 +88,15 @@ Acceptance:
       Catalog; it writes canonical JSON of each artifact minus
       `started`/`seconds`. The same script after the change produces
       byte-identical files.
-- [ ] A focused test proves the seam: substituting a different grounding
+- [x] A focused test proves the seam: substituting a different grounding
       function through the lookup's result changes grounding output without
       editing `run.py` (e.g. monkeypatching the lookup to a recording fake,
       asserting it received each verification group once per record).
-- [ ] `stages.py` no longer defines the moved names;
+- [x] `stages.py` no longer defines the moved names;
       `kei_exp.kie.extract.stages.verify` raises `AttributeError`/ImportError.
-- [ ] Focused tests (stages, article, methods, structure fixes, table cells,
+- [x] Focused tests (stages, article, methods, structure fixes, table cells,
       workflow, selection replay, study) and the full fast suite pass.
-- [ ] Record the verification receipt in this file.
+- [x] Record the verification receipt in this file.
 
 ## Next candidates, reassessed after this slice
 
@@ -148,6 +148,35 @@ Slice 2 (all `-q -m 'not postgres and not live_model'`):
 - Experiment registrations pin `src/**/*.py`; new ones pin the moved file.
   Existing registrations, frozen manifests, dated plans/specs and their scripts
   are unchanged.
+
+Slice 3 (all `-q -m 'not postgres and not live_model' -p no:cacheprovider`):
+
+- Implemented by Claude Code with `claude-opus-5-5` from the Task 3 brief.
+- Baseline captured before any source edit by `/tmp/free-grounding-slice/snapshot.py`
+  (deterministic scripted chats and word counters from the test helpers). Thirteen
+  cases: version 1 Catalog over hand-built passages with a table (lexical, model and
+  cell links), the same with `record_chars=1000` (split batches and
+  `grounding_exceeds_budget`), version 1 over the `two-in-one-segment` fixture;
+  Article reference (`method=None`), semantic, quoted and off with full and bounded
+  contexts, plus quoted with structured rendering, structural grouping and selection;
+  recipe Catalog `two-in-one-segment` and `headings`. Each case writes the canonical
+  artifact minus `started`/`seconds` and an ordered log of every `before_entry` check
+  and model request (system, user, schema, `max_tokens`). A repeated baseline was
+  identical; after the change all 26 files are byte-identical, fingerprints included:
+  `/tmp/free-grounding-slice/{baseline,after}`.
+- Focused: 14 stage, grounding, article, method, structure, table-cell, workflow,
+  selection, replay, study, rendering, recipe, model and fixture test files → 225 passed,
+  9 deselected before; with `tests/test_extraction_grounding.py` 231 passed, 9 deselected.
+- Full fast suite → 1,080 passed, 72 skipped, 74 deselected; the same 3 warnings.
+- The seam test replaces `grounding.technique` with a recording substitute: bounded
+  Article receives each context once per record and publishes the substitute's links
+  with no grounding call; the version 1 Catalog receives each record's slice with no
+  counter or record context.
+- The moved code and prompts are textually identical to their `stages.py` originals.
+  `kei_exp.kie.extract.stages.verify` raises `AttributeError` and the `from` import
+  raises `ImportError`; none of the moved names remain in `stages.py`. 67 modules, 0 cycles.
+- `git diff --check` and manual review passed. Experiment registrations, manifests and
+  dated plans/specs are unchanged; `docs/extraction-experiments.md` names the new module.
 
 Undo: reverse the slices' source/test/doc edits and remove their new files.
 No database, workflow step, deployment, running checkout or study artifact changed.
