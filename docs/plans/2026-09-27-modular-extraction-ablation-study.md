@@ -2,7 +2,8 @@
 
 Status: active; implementation and study authorized. This is the durable execution plan.
 Task status and evolving design live in `openspec/changes/modular-extraction-ablation-study/`.
-Working branch: `feat/modular-extraction-ablation`, based on `6e641b6c11bdf8073f10e824176532885f28484d`.
+Study branch: `feat/modular-extraction-ablation`, based on `6e641b6c11bdf8073f10e824176532885f28484d`.
+Integrated fixes: `fix/extraction-structure-and-grounding`, [draft PR #141](https://github.com/HUM-CDCH/FREE/pull/141).
 
 ## Goal and authorization
 
@@ -177,37 +178,38 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
-- R4 grouping is registered (12 cells, six gold papers; only grouping differs,
-  structured rendering and grounding off in both arms). Manifest and protocol
-  pins are in the structure-fixes validation report. R4 preflight admits all
-  47 inventory units across the two arms. R3/R4 response generation is scheduled
-  after the live R1 process exits and every R1 result seal/receipt passes audit.
-  Local supervisor `free-ablation-followups-20260927-r3-r4` owns both follow-ups;
-  control artifacts are `artifacts/extraction-ablation/followups-20260927/`.
-  Execution uses validated archived sources in `frozen-execution/{r3,r4}` so
-  branch development may continue without changing pinned experiments. Do not
-  launch duplicate follow-up cells. No further matrix expansion is planned.
+- R4 is registered to measure the new grouping: twelve fresh cells over the six
+  gold papers, changing only `article.grouping`; both arms use v12, structured
+  rendering, bounded context and disabled grounding. All 47 inventory units fit
+  in preflight. Manifest: `artifacts/extraction-ablation/20260927-r4-grouping-manifest.json`.
+  Full protocol/hashes are in the fix checkout's structure-fixes validation report.
+  Local unit `free-ablation-followups-20260927-r3-r4` owns the sequence R1 terminal
+  audit → R3 → R4 (two cells at a time). It refuses missing R1 results or changed
+  pins, preserves partial outcomes and performs no automatic retries. Controls,
+  logs and eventual audits live in `artifacts/extraction-ablation/followups-20260927/`.
+  Initial supervisor PID 927990/starttime 7206690; verify current process state.
+  Both follow-ups run from validated code archives under `frozen-execution/`,
+  allowing further development without editing their pinned sources. Neither
+  follow-up has generated responses at this scheduling milestone. Do not launch
+  duplicates. No further matrix expansion is planned for this implementation.
 
-- Fix implementation is complete in the isolated structure-fixes checkout:
-  coherent quoted prompt, literal-source checking, lossless control-character
-  decoding and structural context grouping. Verification: 1043 passed, 72 skipped,
-  68 deselected; 33 failed replies decode losslessly; six-paper/88-call reference
-  replay preserves requests/data with intentional protocol metadata changes;
-  all 54 inventory units across 15 Article sources pass actual-tokenizer admission.
-  See `docs/validation/2026-09-27-extraction-structure-fixes.md`. Fresh accuracy for
-  these fixes remains unmeasured; old study results are not rewritten.
-
-- User steering at approximately 14:35 UTC: implement the identified fixes now,
-  guided by the papers, without waiting for the entire batch. Work is isolated
-  on `fix/extraction-structure-and-grounding` in
-  `/home/gennaro/projects/FREE-worktrees/extraction-structure-fixes` (includes
-  the selector and structured renderer). R1/R2a/R3 pins and outcomes stay intact.
-  Immediate gates: coherent quoted-grounding instructions; lossless decoding of
-  copied control characters with other malformed/truncated replies still rejected;
-  exact quoted-source checking; explicit structural grouping with heading context,
-  indivisible adjacent table/caption/footnote groups, token admission and coverage.
-  Check real failed captures offline and the complete parser suite before pushing.
-  These are development fixes, not a claim of measured quality improvement.
+- User requested implementing fixes now instead of waiting. Implementation commit
+  `eff137e`, consolidated with the current study findings at `3fb9f14`, is on
+  `fix/extraction-structure-and-grounding` in
+  `/home/gennaro/projects/FREE-worktrees/extraction-structure-fixes`. It includes
+  the selector and structured renderer, fixes literal-control decoding and the
+  contradictory quoted prompt, requires literal cited-source quotes, and adds
+  independently selectable structural grouping with required heading context.
+  Verification: 1043 passed, 72 skipped, 68 deselected; 33 previously rejected
+  replies decode losslessly; six sources/88 reference requests and extraction
+  data remain exact apart from protocol identity; all 54 inventory units across
+  15 Article sources pass the real tokenizer. Read that checkout's
+  `docs/validation/2026-09-27-extraction-structure-fixes.md` and updated OpenSpec
+  tasks 3.8/3.9. The fixes are implemented, not waiting on R1. R1/R2a/R3 retain
+  their original code pins and results; they do not measure the new grouping or
+  decoding revision. Fresh accuracy for the fixes and final study reporting are
+  still outstanding. Do not resume hour-long waits as the primary activity while
+  implementation or integration work can proceed safely.
 
 - At approximately 13:20 UTC, recovery remains live with the same process
   identities. R1 has 26/79 sealed cells in `analysis-partial-08.json`; R2a has
