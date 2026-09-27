@@ -25,6 +25,7 @@
 - [x] 3.8 Fix quoted-grounding output instructions and lossless literal-control decoding; enforce exact cited-source substrings; verify saved failed captures and malformed/truncated rejection.
 - [x] 3.9 Add a separately fingerprinted structural grouping factor retaining heading context and adjacent table qualifiers; verify unique primary ownership, budget refusal and assembled calls.
 
+
 ## 4. Catalog experimental components
 
 - [x] 4.1 Expose glossary, heading and overlap factors using existing stage owners; test primary ownership, fingerprint changes and one-factor behavior.
@@ -41,7 +42,7 @@
 
 - [x] 6.1 Inventory available labels/providers, freeze the study matrix and preflight actual token counts; record any unavailable independent gold.
 - [ ] 6.2 Execute every registered Article and Catalog study cell with fresh captures or explicitly labelled reuse; verify all terminal statuses and pins.
-- [ ] 6.3 Produce per-document effects, cost/refusal tables, extra-prediction review queue and scope limitations; verify results regenerate from captures.
+- [ ] 6.3 Produce per-document effects, cost/refusal tables, extra-prediction review queue and scope limitations; distinguish invalid JSON, truncation and unsupported evidence; verify results regenerate from captures.
 
 ## 7. Integration and delivery
 

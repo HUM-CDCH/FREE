@@ -103,6 +103,7 @@ unlabelled accuracy claims, or calling an adaptation a faithful paper reproducti
     is semantically independent or a full BLOCKIE replication. References:
     https://arxiv.org/html/2505.13535v1 and https://arxiv.org/html/2309.10952v2.
 
+
 ## Risks / Trade-offs
 
 - Bounded selection loses cross-section evidence → measure source coverage and field changes,

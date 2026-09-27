@@ -188,6 +188,54 @@ its frozen inputs mid-study. Current evidence proves preservation of source
 objects and reveals underuse of their structure; it does not establish which
 rendering or grouping is most accurate.
 
+## Quoted grounding: control characters invalidate entire reply batches
+
+R1 `analysis-partial-08.json` contains 26 sealed cells. A read-only audit of
+their saved provider replies finds 33 strict JSON failures: 24 in Akita
+`full_quoted`, seven in Zelechowska `quoted`, and two in Zelechowska
+`full_quoted`. Every reply has `finish=stop`; none records a provider-format
+fallback. These are not output truncations or interrupted requests.
+
+The first rejected characters are literal tabs in all 24 Akita replies and
+U+0006, U+0000 or U+000E in the nine Zelechowska replies. For example,
+`Akita--full_quoted--0/calls/reasoning-0003.reply.json` contains a literal tab
+inside the quote `Pro\t103`, also present in its evidence request. Zelechowska's
+`quoted` reasoning-0005 copies U+0006 between `6.4` and `0.13%` from the request.
+The provider adapter retains message content, and `parse_json` rejects these
+unescaped control characters. The malformed batch loses all of its grounding
+decisions, including claims whose individual values did not contain them.
+
+Diagnostic decoding with control characters allowed makes all 33 responses
+schema-valid; this does not establish semantic support or authorize replacing
+the strict study results. They contain 131 claim decisions across rejected
+batches, not 131 unique fields proven correct. Of 37 quote strings containing
+control characters, 33 occur verbatim in the corresponding request. Source
+matching alone would still not establish correct subject attribution.
+
+Akita `full_quoted` retains 11 matched records, 154/187 populated gold fields
+correct, 11 requiring review, and 55/55 empty fields correct. Its 90 calls cost
+1,451,207 reported input tokens; 77 are grounding calls and 24 fail parsing.
+Processing remains incomplete and only 155/283 populated record leaves have
+links. Its second execution attempt reused 46 replies, generated 44 fresh
+replies, and records one unknown prior completion. The matched schema control
+is still pending, so this is a failure analysis, not a grounding effect estimate.
+
+The quoted prompt also appends an object-output instruction to the semantic
+prompt's original label-string instruction. Its response schema requests objects;
+that instruction inconsistency is a design defect, although these observed
+responses have the requested object shape. Its causal effect has not been
+measured. A future revision should use one coherent response instruction and
+test escaped source characters without changing canonical text or evidence
+offsets. The current registered results retain their original outcomes.
+
+Evidence: `artifacts/extraction-ablation/quoted-json-audit-20260927.json` and
+the adjacent `audit-quoted-json-20260927.py`, which pins the 26-cell analysis,
+its own source, and each audited request/reply. The audit reads captures only;
+it neither repairs artifacts nor makes model calls. The server-side reason for
+malformed JSON despite a constrained request remains unestablished. R3 changes
+upstream rendering with grounding disabled and therefore does not test this
+grounding-protocol issue.
+
 ## Sousa: completed process with an incomplete extraction
 
 R1 `Sousa--unverified--0` has a valid sealed result and process exit code zero,
