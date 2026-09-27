@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import Literal
 
 from kei_exp.canonical import canonical_json, sha256_file
-from kei_exp.cut import Crop
 from kei_exp.files import publish
 from kei_exp.geometry import CropTransform, PointBox
 from kei_exp.models import MODELS
@@ -33,6 +32,7 @@ from kei_exp.pagefile import (  # noqa: F401  the page-file models keep their na
     result_digest,
 )
 from kei_exp.pages import BookPages, PdfPages
+from kei_exp.regions import Crop
 from kei_exp.transcription.types import TEXT_RULES, Execution, PageRecord, Transcription, html_to_text
 
 

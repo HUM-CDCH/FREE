@@ -12,10 +12,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
 from kei_exp import api, runs, runtime
-from kei_exp.cut import DEFAULT_LAYOUT_MODEL
 from kei_exp.failures import KeiFailure
 from kei_exp.kie import runner
 from kei_exp.models import DEFAULT_OCR_MODEL
+from kei_exp.regions import DEFAULT_LAYOUT_MODEL
 from kei_exp.workflows import cancel, config, contracts
 from kei_exp.workflows import convert as workflow
 from tests.helpers import kei as kei_helper

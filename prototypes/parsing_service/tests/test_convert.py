@@ -32,15 +32,17 @@ from docling_core.types.doc import Size  # pyright: ignore[reportPrivateImportUs
 from PIL import Image
 
 from kei_exp.convert import main
-from kei_exp.cut import LAYOUT_MODELS, CutError, Region
+from kei_exp.cut import CutError
 from kei_exp.kie.runner import convert
 from kei_exp.kie.stages import ocr
 from kei_exp.kie.stages.ocr import TRANSCRIBERS, resolve
 from kei_exp.models import MODELS
 from kei_exp.progress import print_event
+from kei_exp.regions import LAYOUT_MODELS, Region
 from kei_exp.transcription.streaming import StreamingVlmEngine
 from kei_exp.transcription.types import (
     DEFAULT_URL,
+    TRANSCRIBER_KNOBS,
     ConversionError,
     Execution,
     IncompleteConversionError,
@@ -309,6 +311,12 @@ def test_native_text_is_an_execution_of_its_own():
                                   max_output_tokens=None, stream=False, pages=(1, 1), debug_dir=Path("debug"),
                                   result_dir=None, page_source="pdf", ingest_dir=None)
     assert TRANSCRIBERS["native"].kind == "native" and TRANSCRIBERS["native"].knobs == frozenset()
+
+
+def test_every_registered_transcriber_honours_its_row_of_the_knob_table():
+    assert {kind: transcriber.knobs for kind, transcriber in TRANSCRIBERS.items()} == TRANSCRIBER_KNOBS
+    assert TRANSCRIBER_KNOBS == {"vlm": frozenset({"stream", "max_output_tokens", "max_image_size"}),
+                                 "surya": frozenset({"stream"}), "native": frozenset()}
 
 
 # --- CLI parameter validation stays in main() -------------------------------------------------------------------------

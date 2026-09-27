@@ -1,10 +1,11 @@
 """Layout-aware cuts: Docling layout boxes -> X-Y cut -> ink-profile snap -> region crops.
 
 See docs/ingest-cuts.md. Coordinates are source page points. Page sources own rendering and resource
-lifetimes; this module owns only layout preparation and its errors, not canonical post-OCR KIE layout.
+lifetimes; this module owns only layout preparation and its errors, not canonical post-OCR KIE layout. The regions
+and crops it yields, and the layout models it may run, are data in `kei_exp.regions`.
 """
 from collections.abc import Iterator
-from dataclasses import asdict, dataclass, replace
+from dataclasses import replace
 from functools import lru_cache
 from io import BytesIO
 from itertools import pairwise
@@ -21,15 +22,10 @@ from docling.datamodel.pipeline_options import (
 from docling.document_converter import DocumentConverter, ImageFormatOption
 from PIL import Image
 
-from kei_exp.pages import CropTransform, PageSource, PointBox, RenderablePage
+from kei_exp.pages import PageSource, PointBox, RenderablePage
+from kei_exp.regions import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS, Crop, Region
 
 LAYOUT_DPI = 100          # The layout detector resizes to 640 px; 100 dpi keeps the ink profile usable.
-DEFAULT_LAYOUT_MODEL = "layout_heron_101"
-LAYOUT_MODELS = {
-    "layout_heron_default": "Heron",
-    "layout_heron_101": "Heron-101",
-    "layout_egret_xlarge": "Egret XLarge",
-}
 # ponytail: fixed thresholds tuned on the Beier scan (9 pt column gaps, 90 pt gutter);
 # derive them from the document's median line pitch if another corpus fails the checks.
 MIN_GAP = 6               # pt: narrower gaps are word spacing or box jitter
@@ -48,27 +44,6 @@ class CutError(RuntimeError):
 
 
 Span = tuple[float, float]
-
-
-@dataclass(frozen=True)
-class Region:
-    kind: str    # page | column | band | figure
-    bbox: PointBox
-    order: int   # reading order within the source page
-    ink: float   # share of the page's ink (dark pixels inside the scanner border) inside the crop
-    transform: CropTransform | None = None  # how the rendered crop maps back to the page; set once it is rendered
-
-
-Crop = tuple[int, Region, Image.Image]  # source page number, region, rendered crop
-
-
-def region_info(crop: Crop | None) -> dict | None:
-    """The report's description of a crop: its source page plus the Region fields, ink share included; the render
-    transform belongs to the result files, not the debug report."""
-    if crop is None:
-        return None
-    page, region, _ = crop
-    return {"source_page": page, **{name: value for name, value in asdict(region).items() if name != "transform"}}
 
 
 class Box(NamedTuple):

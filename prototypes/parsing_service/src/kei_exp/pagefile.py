@@ -40,7 +40,7 @@ class _Base(BaseModel):
 class CropResult(_Base):
     """What came back for one Crop of the cut."""
     crop: int                          # input ordinal of the crop, unique across the run
-    kind: str                          # cut.Region: page | column | band | figure
+    kind: str                          # regions.Region: page | column | band | figure
     order: int                         # reading order within the unit; restarts per unit
     bbox_pt: PointBox                  # on the PDF page
     ink: float | None

@@ -19,14 +19,14 @@ from docling.models.stages.vlm_convert.vlm_convert_model import VlmConvertModel
 from docling.pipeline.vlm_pipeline import VlmPipeline
 from pydantic import AnyUrl
 
-from kei_exp.cut import Crop, png_stream, region_info
+from kei_exp.cut import png_stream
 from kei_exp.models import MODELS, Model
 from kei_exp.progress import Emit
+from kei_exp.regions import Crop, region_info
 from kei_exp.transcription.streaming import StreamingVlmEngine
-from kei_exp.transcription.types import Execution, PageRecord, Transcription
+from kei_exp.transcription.types import TRANSCRIBER_KNOBS, Execution, PageRecord, Transcription
 
 WHOLE_PAGE_MAX_SIZE = 1200  # longest edge of a whole-page render unless --max-image-size says otherwise
-KNOBS = frozenset({"stream", "max_output_tokens", "max_image_size"})
 FENCE = re.compile(r"\A```(?:markdown|md)\r?\n(.*)\r?\n```\Z", re.DOTALL)
 
 
@@ -183,7 +183,7 @@ def transcription_of(options: VlmConvertOptions, results: list[ConversionResult]
 class DoclingVlm:
     """Transcriber over Docling's VLM pipeline and the OpenAI-compatible vLLM server at execution.url."""
     kind = "vlm"
-    knobs = KNOBS
+    knobs = TRANSCRIBER_KNOBS[kind]
 
     def transcribe(self, execution: Execution, crops: list[Crop] | None, emit: Emit) -> Transcription:
         assert execution.model is not None and execution.url is not None  # resolve() gives a vlm execution both

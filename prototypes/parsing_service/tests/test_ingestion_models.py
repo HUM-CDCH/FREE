@@ -5,8 +5,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from kei_exp import api, models
-from kei_exp.cut import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS
 from kei_exp.models import DEFAULT_OCR_MODEL, MODELS
+from kei_exp.regions import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS
 
 
 def test_the_listing_names_both_defaults_and_marks_only_the_loaded_ocr_model_serving(monkeypatch):

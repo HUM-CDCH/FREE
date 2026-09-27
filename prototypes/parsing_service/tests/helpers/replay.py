@@ -13,10 +13,10 @@ from pathlib import Path
 
 from PIL import Image
 
-from kei_exp.cut import Region
 from kei_exp.kie.model import IngestConfig
 from kei_exp.kie.stages import ingest
 from kei_exp.pages import BookPages, PdfPages
+from kei_exp.regions import Region
 from kei_exp.result import Input, Inventory, Source
 from kei_exp.transcription.types import Execution, PageRecord, Transcription
 

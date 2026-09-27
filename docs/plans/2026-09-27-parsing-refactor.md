@@ -362,15 +362,64 @@ Acceptance:
 - [ ] A fast test imports, each in a fresh subprocess, `kei_exp.api`,
       `kei_exp.transcription.types`, `kei_exp.result` and `kei_exp.regions`,
       and asserts none of `docling`, `torch`, `transformers`, `cv2` is in
-      `sys.modules`. It fails at the base commit.
-- [ ] A fast test asserts each registered transcriber's `knobs` equals the
+      `sys.modules`. It fails at the base commit. (The test exists and fails
+      at base; `regions` and `transcription.types` pass. Not met for `api`
+      and `result`, which stay strict xfails naming two further edges:
+      `kei_exp.models` and the PDFium lock; see the receipt.)
+- [x] A fast test asserts each registered transcriber's `knobs` equals the
       table's row for its kind, and the table has no extra kinds.
-- [ ] The import guard forbids `kei_exp.regions` and
+- [x] The import guard forbids `kei_exp.regions` and
       `kei_exp.transcription.types` from importing `kei_exp.cut` or
       `kei_exp.kie.stages`.
-- [ ] Focused (cut, convert, native, surya/vlm fakes, api, models,
+- [x] Focused (cut, convert, native, surya/vlm fakes, api, models,
       ingestion models, convert workflow, result, report) and full fast
       suites pass; record import timings before/after in the receipt.
+
+Verification receipt (Task 7): new `kei_exp/regions.py` (40 lines, imports
+only `PIL.Image` and `kei_exp.geometry`) owns `Region`, `Crop`,
+`region_info`, `DEFAULT_LAYOUT_MODEL` and `LAYOUT_MODELS`, moved verbatim;
+`cut.py` imports them and keeps the detector, `CutError`, `png_stream`,
+`find_regions`, `cut_pages` and `whole_pages`, with no re-export. Callers
+migrated: `transcription/{types,native,surya,vlm}.py` (vlm keeps `png_stream`
+from `cut`), `result.py`, `api.py`, `workflows/convert.py`,
+`kie/stages/ocr.py` (`Crop` only), `tests/helpers/{fake,replay,synthetic}.py`,
+`test_cut.py`, `test_convert.py`, `test_convert_workflow.py`,
+`test_ingestion_models.py`; comments in `pagefile.py` and
+`workflows/contracts.py`. `transcription/types.py` gains `TRANSCRIBER_KNOBS`
+(vlm, surya, native); each adapter's `knobs = TRANSCRIBER_KNOBS[kind]`, and
+`vlm.KNOBS` is gone. `api.list_models` reads the table and no longer imports
+`kie.stages.ocr`; `ocr.TRANSCRIBERS` and `check_knobs` are unchanged.
+`experiments/` untouched. Import timings (cold, fresh process, same venv;
+seconds / modules loaded / heavy packages present):
+
+| module | before (`7121e8dd`) | after |
+|---|---|---|
+| `kei_exp.transcription.types` | 1.67 s / 3300 / all four | 0.06 s / 253 / none |
+| `kei_exp.regions` | (absent) | 0.06 s / 231 / none |
+| `kei_exp.result` | 1.67 s / 3302 / all four | 1.35 s / 2380 / all four |
+| `kei_exp.api` | 1.71 s / 3432 / all four | 1.40 s / 2575 / all four |
+| `kei_exp.workflows.extract` | 1.84 s / 3626 / all four | 0.33 s / 920 / none |
+| `kei_exp.models` | 1.24 s / 2336 / all four | unchanged |
+| `kei_exp.kie.extract.run` | 0.11 s / 414 / none | unchanged |
+
+Remaining edges, reported rather than hidden: `kei_exp.models` imports
+`docling.datamodel.pipeline_options_vlm_model` (and `stage_model_specs`) to
+build its records' `VlmModelSpec`s, and that module alone loads torch,
+transformers and cv2; `api` and `result` name `MODELS`. With `kei_exp.models`
+stubbed, `api` loads none of the four (618 modules) and `result` loads only
+the `docling` package root, through `kei_exp.pages` → `kei_exp._pdfium`,
+whose PDFium lock is `docling.utils.locks`. Removing either is a design
+change to the model records or the lock, not a data move, so
+`test_light_modules_load_no_ocr_stack[kei_exp.result|api]` are strict xfails
+that turn into failures once the edges go. API listing (`/api/models` and
+`/api/ingestion-models`, server probe stubbed) captured before and after to
+`/tmp/free-layering-slice/`: byte-identical (sha256 `04f66712…`). Focused
+suites (cut, convert, native, streaming, replay, api reads, models, ingestion
+models, convert workflow, result, report, evidence, pages, guard): 216 passed, 64 skipped,
+2 xfailed (base 212 passed, 64 skipped). Full fast suite: 1098 passed,
+72 skipped, 74 deselected, 2 xfailed (base 1094 + 4 new passes). Ruff
+findings on the touched files unchanged from base (`native.py` import order,
+pre-existing).
 
 ## Next candidates, reassessed after this slice
 

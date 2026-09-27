@@ -9,11 +9,12 @@ from contextlib import nullcontext
 from dataclasses import replace
 from datetime import UTC, datetime
 
-from kei_exp.cut import Crop, CutError, cut_pages, whole_pages
+from kei_exp.cut import CutError, cut_pages, whole_pages
 from kei_exp.kie.model import IngestConfig
 from kei_exp.models import MODELS
 from kei_exp.pages import BookPages, PdfPages
 from kei_exp.progress import Emit, Event, print_event
+from kei_exp.regions import Crop
 from kei_exp.report import write_report
 from kei_exp.result import Input, Inventory, Source, assemble_pages, page_markdown, write_result
 from kei_exp.transcription.native import NativeText, has_native_text
