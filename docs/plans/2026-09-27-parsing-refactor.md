@@ -434,6 +434,23 @@ cannot be imported, the other three on the heavy-package assertion. Two probes a
 reverted: `import kei_exp.cut` added to `api.py` fails with "loads [...]
 beyond its accepted edges"; a raised `ImportError` fails with the traceback.
 
+Fix round 2 (Task 7): the stand-ins changed how the importers ran. A
+module-level loop over a mocked `MODELS` iterates nothing, so a heavy import
+inside it went unseen. The probe now makes one real import of the target in a
+fresh interpreter, with no substitution. A hook on `builtins.__import__` and
+`importlib.import_module` sees every import, including packages already
+loaded. It attributes each import of docling, torch, transformers or cv2 to
+the nearest `kei_exp` module on the stack. The recorded importers must be
+exactly the accepted edges: none for `regions` and `transcription.types`,
+which must also leave the four packages unloaded; `kei_exp.models` for `api`;
+`kei_exp.models` and `kei_exp._pdfium` for `result`. Probes, all reverted:
+- At base, `regions` fails as not importable; `types`, `result` and `api`
+  each fail naming the `kei_exp.cut` edges.
+- `import kei_exp.cut` added to `api.py` fails, naming `kei_exp.cut`.
+- `import torch` inside a module-level loop over `MODELS.values()`, added to
+  `runtime.py`, fails with `('kei_exp.runtime', 'torch')`, although torch was
+  already loaded.
+
 ## Next candidates, reassessed after this slice
 
 1. One budgeted-call module (`stages._complete`, `grounded._Run.call`,

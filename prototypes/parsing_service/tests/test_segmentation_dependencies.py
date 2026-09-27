@@ -78,43 +78,72 @@ def test_the_crop_data_and_the_transcriber_contract_do_not_import_the_cut_or_the
 
 # ponytail: two accepted edges still carry the OCR stack into the result and the API. kei_exp.models builds its records
 # from Docling's VLM model specs, whose module loads torch, transformers and cv2; kei_exp._pdfium takes Docling's
-# PDFium lock, which loads the docling package alone (the result reaches it through kei_exp.pages). A module passes
-# when, with its accepted edges replaced by inert stand-ins, it loads none of the stack; an edge stays accepted only
-# while the module still imports it and it still loads some of the stack.
+# PDFium lock, which loads the docling package alone (the result reaches it through kei_exp.pages). An edge is a
+# kei_exp module that imports one of the heavy packages, itself or through a third-party module it imports; the
+# probe records every such import during one real import of the target, already-loaded packages included.
 _MODEL_RECORDS = "kei_exp.models"
 _PDFIUM_LOCK = "kei_exp._pdfium"
 
 _PROBE = """
-import json, sys
-from unittest.mock import MagicMock
+import builtins, importlib, json, sys
+from importlib.util import resolve_name
 
-for name in {stubs!r}:
-    sys.modules[name] = MagicMock(name=name)
+HEAVY = {heavy!r}
+edges = set()
+
+
+def importer():
+    frame = sys._getframe(2)
+    while frame is not None and not frame.f_globals.get("__name__", "").startswith("kei_exp"):
+        frame = frame.f_back
+    return frame.f_globals["__name__"] if frame is not None else None
+
+
+def record(name):
+    if name.partition(".")[0] in HEAVY:
+        edges.add((importer(), name.partition(".")[0]))
+
+
+def recorded_import(name, globals=None, locals=None, fromlist=(), level=0):
+    record(resolve_name("." * level + name, globals["__package__"]) if level else name)
+    return original_import(name, globals, locals, fromlist, level)
+
+
+def recorded_import_module(name, package=None):
+    record(resolve_name(name, package) if name.startswith(".") else name)
+    return original_import_module(name, package)
+
+
+original_import, builtins.__import__ = builtins.__import__, recorded_import
+original_import_module, importlib.import_module = importlib.import_module, recorded_import_module
 import {module}
-print(json.dumps({{"heavy": sorted(name for name in {heavy!r} if name in sys.modules),
-                  "kei": sorted(name for name in sys.modules if name.startswith("kei_exp"))}}))
+builtins.__import__, importlib.import_module = original_import, original_import_module
+print(json.dumps({{"edges": sorted(edges, key=str), "heavy": sorted(name for name in HEAVY if name in sys.modules)}}))
 """
 
 
-def _probe(module: str, stubs: tuple[str, ...] = ()) -> dict[str, list[str]]:
-    """The heavy packages and the kei_exp modules a fresh interpreter holds after importing module, stubs stubbed."""
-    run = subprocess.run([sys.executable, "-c", _PROBE.format(stubs=stubs, module=module, heavy=HEAVY)],
+def _probe(module: str) -> tuple[set[tuple[str | None, str]], list[str]]:
+    """The (kei_exp importer, heavy package) edges one real import of module takes in a fresh interpreter, and the
+    heavy packages loaded after it; an importer is None when no kei_exp module is on the stack."""
+    run = subprocess.run([sys.executable, "-c", _PROBE.format(module=module, heavy=HEAVY)],
                          capture_output=True, text=True, check=False)
     assert run.returncode == 0, f"importing {module} failed:\n{run.stderr}"
-    return json.loads(run.stdout.splitlines()[-1])
+    observed = json.loads(run.stdout.splitlines()[-1])
+    return {tuple(edge) for edge in observed["edges"]}, observed["heavy"]
 
 
-@pytest.mark.parametrize("module, edges", [
-    ("kei_exp.regions", ()),
-    ("kei_exp.transcription.types", ()),
-    ("kei_exp.result", (_MODEL_RECORDS, _PDFIUM_LOCK)),
-    ("kei_exp.api", (_MODEL_RECORDS,)),
+@pytest.mark.parametrize("module, accepted", [
+    ("kei_exp.regions", set()),
+    ("kei_exp.transcription.types", set()),
+    ("kei_exp.result", {_MODEL_RECORDS, _PDFIUM_LOCK}),
+    ("kei_exp.api", {_MODEL_RECORDS}),
 ])
-def test_light_modules_load_the_ocr_stack_only_through_accepted_edges(module, edges):
-    heavy = _probe(module, stubs=edges)["heavy"]
-    assert heavy == [], f"{module} loads {heavy} beyond its accepted edges {list(edges)}"
-    if edges:
-        imported = _probe(module)["kei"]
-        for edge in edges:
-            assert edge in imported, f"{module} no longer imports {edge}: drop it from its accepted edges"
-            assert _probe(edge)["heavy"], f"{edge} no longer loads the OCR stack: drop it from the accepted edges"
+def test_light_modules_load_the_ocr_stack_only_through_accepted_edges(module, accepted):
+    edges, heavy = _probe(module)
+    importers = {importer for importer, _ in edges}
+    unexpected = sorted((importer, package) for importer, package in edges if importer not in accepted)
+    assert not unexpected, f"{module} reaches the OCR stack beyond its accepted edges {sorted(accepted)}: {unexpected}"
+    for edge in sorted(accepted - importers):
+        pytest.fail(f"{module} no longer reaches the OCR stack through {edge}: drop it from its accepted edges")
+    if not accepted:
+        assert heavy == [], f"{module} loads {heavy}"
