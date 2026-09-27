@@ -7,8 +7,8 @@ import type { EvidenceLink, ExtractionSchemaNode, ExtractionSnapshot, ReviewDeci
 /*
  * The rules deciding whether submitted Review Decisions may finalize an Extraction's review. They run twice: against
  * the snapshot the module reads (`reviewableExtraction`, then `reviewAuthority`, which fails with the first broken
- * rule's ExtractionError), and again inside the finalization transaction against the locked row
- * (`reviewAuthorityMatchesExtraction`). Pure: no persistence, DBOS or database import.
+ * rule's ExtractionError), and again against the Extraction re-read inside the finalization transaction
+ * (`reviewAuthorityMatchesExtraction`), before the conditional update atomically claims finalization. Pure: no persistence, DBOS or database import.
  */
 
 /**
@@ -190,7 +190,8 @@ export function normalizeDecisions(decisions: ReviewAuthority['reviewDecisions']
 }
 
 /**
- * The revalidation against the locked row inside the finalization transaction: the Extraction is still reviewable,
+ * The revalidation of the Extraction re-read inside the finalization transaction (no row lock: the conditional
+ * update that follows claims finalization atomically, so a concurrent finalizer loses the claim): the Extraction is still reviewable,
  * its Evidence is well formed and still the one the authority was granted for, and the submitted Review Decisions
  * match it one to one, review every occurrence their Evidence Anchor owns, and obey the action/value rule.
  */

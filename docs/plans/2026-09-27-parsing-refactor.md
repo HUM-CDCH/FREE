@@ -1,6 +1,9 @@
 # Parsing and extraction refactor — 2026-09-27
 
-Status: slices 1–2 committed as `87f26533`, slice 3 as `87671d42`; slice 4 committed after it, awaiting review.
+Status: slices 1–11 committed and verified; final whole-branch review passed. Slice 5 keeps its explicit size
+exception (`grounded.py` 582 lines) and slice 7 its partial outcome (`kei_exp.api` still imports heavy modules).
+Future work: runner generation cache, integration-test split, extraction method value owner, `kei_exp.models`
+Docling specs.
 Base: `377cd050`.
 Branch: `refactor/segmentation-dependency`; isolated from running ablation jobs.
 
@@ -588,10 +591,10 @@ Acceptance:
       reordered decisions and occurrence ids.
 - [x] `grep -n "import .*module.js" postgres-persistence.ts` is empty; the
       action/value rule exists once.
-- [ ] `tsc --noEmit` (extraction) and `tsc -b` (Studio) pass; extraction fast
+- [x] `tsc --noEmit` (extraction) and `tsc -b` (Studio) pass; extraction fast
       tests pass; the controller runs the extraction PostgreSQL tier.
-      (Typecheck and fast tests pass, see the receipt; the PostgreSQL tier
-      is the controller's.)
+      (Typecheck and fast tests pass; PostgreSQL tier 56/56, see the
+      controller addendum.)
 
 Verification receipt (Task 9): new `packages/extraction/src/review-rules.ts`
 (250 lines; imports only `errors`, `review-paths`, `schema`, and types from
@@ -678,12 +681,12 @@ Acceptance:
 - [x] `postgres-persistence.ts` ≤ ~350 lines; no new module > ~450 lines.
 - [x] No import cycle among `packages/extraction/src` modules (a small script
       or `tsc`-based check in the report; the controller re-checks).
-- [ ] `index.ts` / `package.json` exports and every Studio import of
+- [x] `index.ts` / `package.json` exports and every Studio import of
       `extraction` resolve unchanged: extraction `tsc --noEmit` and Studio
       `tsc -b` pass; extraction fast tests pass; the controller runs the
       extraction PostgreSQL tier.
-      (Typecheck and fast tests pass, see the receipt; the PostgreSQL tier
-      is the controller's.)
+      (Typecheck and fast tests pass; PostgreSQL tier 56/56, see the
+      controller addendum.)
 
 Verification receipt (Task 10): `postgres-persistence.ts` 1,592 → 320 lines
 (the researcher-scoped class, whose methods delegate, `cancelInteractiveExtraction`,

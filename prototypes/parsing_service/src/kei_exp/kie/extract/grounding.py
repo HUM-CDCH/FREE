@@ -2,7 +2,7 @@
 
 Every technique has one call shape: a record's passages, its fields, the schema and a chat, keyword-only
 `record`, `budget`, `counter`, `record_context`, `before_call` and `proofs`, returning the record's links, the
-model calls made and the issues found. `run.extract` obtains one technique through `technique` and calls it once
+model calls made and the issues found. `assembly.ground` obtains one technique through `technique` and calls it once
 per verification group of each record; it does not know which technique it holds. A new grounding arm is a new
 function of this shape and one more entry in `technique`.
 

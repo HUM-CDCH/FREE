@@ -165,6 +165,10 @@ describe('Review Decision revalidation against the locked row', () => {
   it('fails on the action/value rule, a changed row or Evidence the authority was not granted for', () => {
     assert.equal(holds([approve('title', { action: 'EDITED' }), approve('year'), approve('scale')]), false)
     assert.equal(holds(approvals(), snapshot({ reviewable: false })), false)
+    assert.equal(holds(approvals(), snapshot({ outcome: 'FAILED' as unknown as 'SUCCEEDED' })), false)
+    assert.equal(holds(approvals(), snapshot({ outcome: 'CANCELLED' as unknown as 'SUCCEEDED' })), false)
+    assert.equal(holds(approvals(), snapshot({ evidence: null })), false)
+    assert.equal(holds(approvals(), snapshot({ evidence: {} as unknown as EvidenceLink[] })), false)
     assert.equal(holds(approvals(), snapshot({ evidence: [link('title'), link('year'), link('kind')] })), false)
     assert.equal(holds([approve('title'), approve('year'), approve('year')]), false)
   })
