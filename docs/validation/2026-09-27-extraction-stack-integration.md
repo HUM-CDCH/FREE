@@ -127,6 +127,15 @@ and `reporting-correction-audit.json`. Bloat review found no blockers; this
 changes reporting and tests, with no serving code, new dependency or inference
 change. The latest reporting heads require their own CI conclusions.
 
+CI at `71a209e` failed one existing App assertion while 1555 Studio unit tests
+passed: it synchronously queried the completion dialog after observing the
+toast, although terminal admission opens the dialog in its awaiting caller.
+Repair `a163ff4` changes that assertion to await the accessible heading;
+study merge `b33bede` carries it. All 45 App tests pass in the repair checkout.
+This adds no product change, arbitrary delay or retry; the failure log is
+`ci-71a209e-failed.log` and the focused rerun log is
+`app-completion-dialog-test.log` in the respective integration artifact folders.
+
 Capture replay now covers 37 R1 cells and 1252 saved calls: the original
 35-cell offline report plus `increment-37-offline.json` under the primary
 checkout's `artifacts/extraction-ablation/replay-verification-20260927/`.
