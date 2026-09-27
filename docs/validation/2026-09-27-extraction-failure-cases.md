@@ -99,3 +99,18 @@ This is a valid zero-intervention case and stays in the registered denominator;
 it does not estimate the effect of actually removing context. Together with
 Katrinesminde, it illustrates why cost changes, context omissions, identity
 alignment and field accuracy must be reported separately.
+
+## Sousa: completed process with an incomplete extraction
+
+R1 `Sousa--unverified--0` has a valid sealed result and process exit code zero,
+but `completion.processing=false`. Record 3's value call used 7,214 counted
+input tokens under a 12,288-token context and returned 4,096 output tokens with
+`finish=length`. The pipeline records `call_failed` with "the reply was cut off"
+and does not treat that reply as a successful extraction. The recorded call
+duration is approximately 539 seconds under shared serving contention.
+
+This is output truncation despite successful input admission, not an infrastructure
+interruption requiring resume. Keep the incomplete artifact and its cost in the
+registered denominator; do not rerun to replace an unfavorable model outcome.
+No comparison yet establishes that disabling grounding caused it: that factor
+does not change the upstream value prompt, and these live arms regenerate replies.

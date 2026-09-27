@@ -81,6 +81,29 @@ def grounding_comparability(artifacts: dict[str, dict], sources: list[dict], com
     return rows
 
 
+def stage_costs(artifact: dict, execution: dict) -> dict:
+    """Account for failed calls too; unknown provider usage must not become reported zero usage."""
+    stages = {}
+    for call in artifact["calls"]:
+        row = stages.setdefault(call["stage"], {"calls": 0, "failed_calls": 0,
+            "input_tokens_reported": 0, "output_tokens_reported": 0,
+            "input_tokens_unknown_calls": 0, "output_tokens_unknown_calls": 0,
+            "recorded_call_seconds": 0.0})
+        row["calls"] += 1
+        row["failed_calls"] += not call["ok"]
+        row["recorded_call_seconds"] += call["seconds"]
+        for kind in ("input", "output"):
+            tokens = call[f"{kind}_tokens"]
+            if tokens is None:
+                row[f"{kind}_tokens_unknown_calls"] += 1
+            else:
+                row[f"{kind}_tokens_reported"] += tokens
+    return {"stages": stages,
+            "fresh_calls": execution.get("fresh_calls"), "reused_calls": execution.get("reused_calls"),
+            "wall_seconds_this_attempt": execution.get("wall_seconds_this_attempt"),
+            "timing_scope": "Recorded request durations include failures and shared serving contention. Reused replies retain historical durations; these sums are not fresh replay latency or end-to-end wall time."}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("study", type=Path)
@@ -92,21 +115,27 @@ def main():
     report = read(args.analysis)
     if report["study"] != manifest["id"]:
         raise ValueError("analysis belongs to another study")
-    artifacts, counts = {}, {}
+    artifacts, counts, costs = {}, {}, {}
     manifest_hash = hashlib.sha256((args.study / "manifest.json").read_bytes()).hexdigest()
-    for path in sorted((args.study / "cells").glob("*/result.json")):
+    for entry in report["cells"]:
+        path = args.study / "cells" / entry["id"] / "result.json"
         if read(path.parent / "pin.json")["manifest_sha256"] != manifest_hash:
             raise ValueError("mixed cell manifest")
         completed = read(path)
         artifact = completed["artifact"]
         if hashlib.sha256(json.dumps(artifact, sort_keys=True).encode()).hexdigest() != completed["execution"]["artifact_sha256"]:
             raise ValueError("changed completed artifact")
+        if completed["execution"]["artifact_sha256"] != entry["attempts"][-1]["artifact_sha256"]:
+            raise ValueError("analysis and completed artifact disagree")
         cell = path.parent.name
         artifacts[cell] = artifact
         fields = report["accuracy"].get(cell, {}).get("fields")
         counts[cell] = observations(artifact, fields)
+        costs[cell] = stage_costs(artifact, completed["execution"])
     output = {"study": manifest["id"], "kind": "supplementary descriptive accounting; no extraction or scoring changes",
+              "accounting_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
               "analysis_sha256": hashlib.sha256(args.analysis.read_bytes()).hexdigest(), "cells": counts,
+              "stage_costs": costs,
               "grounding_comparability": grounding_comparability(artifacts, manifest["sources"], manifest["comparisons"])}
     with args.output.open("x") as target:
         json.dump(output, target, indent=2, ensure_ascii=False)

@@ -98,6 +98,13 @@ grounding comparisons have identical upstream records and inventory. Three hand-
 regressions pass. The old Akita fixture exposes 20 thermal observations, nine unselected by
 the projection. This is an offline validation of accounting, not a new accuracy result.
 
+Supplementary accounting also groups calls, failed calls, reported input/output usage and
+recorded duration by stage. Unknown usage is counted separately from reported zero usage.
+Reused replies retain historical durations; stage sums are not fresh replay latency or
+end-to-end wall time. The script consumes exactly the sealed analysis snapshot, preventing
+later-finishing cells from being accidentally classified as unannotated. Five focused
+regressions pass, and regenerated accounting records the script and analysis hashes.
+
 ## Separate selection comparison
 
 Record-specific selection is implemented and pushed at `6b8d34d` on

@@ -1,5 +1,7 @@
 """An extra measurement cannot disappear behind a correct projected field."""
 import importlib.util
+import hashlib
+import json
 from pathlib import Path
 
 path = Path(__file__).resolve().parents[3] / "docs/validation/extraction_ablation_accounting.py"
@@ -33,3 +35,40 @@ def test_grounding_comparison_flags_changed_upstream_content():
     rows = accounting.grounding_comparability({"paper--base--0": a, "paper--quote--0": b}, [{"id": "paper"}],
         [{"factor": "article.grounding", "control": "base", "treatment": "quote"}])
     assert not rows[0]["identical_upstream_records_and_inventory"]
+
+
+def test_stage_costs_include_failed_calls_and_keep_unknown_usage_distinct_from_zero():
+    calls = [
+        {"stage": "record", "ok": True, "input_tokens": 100, "output_tokens": 20, "seconds": 3},
+        {"stage": "record", "ok": False, "input_tokens": 80, "output_tokens": 40, "seconds": 5},
+        {"stage": "inventory", "ok": False, "input_tokens": None, "output_tokens": None, "seconds": 0}]
+    result = accounting.stage_costs({"calls": calls}, {"fresh_calls": 0, "reused_calls": 2,
+                                                      "wall_seconds_this_attempt": None})
+    records = result["stages"]["record"]
+    assert (records["calls"], records["failed_calls"], records["input_tokens_reported"],
+            records["output_tokens_reported"], records["recorded_call_seconds"]) == (2, 1, 180, 60, 8)
+    assert result["stages"]["inventory"]["input_tokens_unknown_calls"] == 1
+    assert result["stages"]["inventory"]["output_tokens_unknown_calls"] == 1
+    assert result["fresh_calls"] == 0 and result["reused_calls"] == 2
+    assert result["wall_seconds_this_attempt"] is None
+
+
+def test_accounting_uses_analysis_snapshot_not_a_cell_that_finished_afterward(tmp_path, monkeypatch):
+    manifest = {"id": "snapshot", "sources": [], "comparisons": []}
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest))
+    artifact = {"records": [], "calls": []}
+    receipt = {"artifact_sha256": hashlib.sha256(json.dumps(artifact, sort_keys=True).encode()).hexdigest()}
+    for cell in ("analyzed", "finished_later"):
+        directory = tmp_path / "cells" / cell
+        directory.mkdir(parents=True)
+        (directory / "pin.json").write_text(json.dumps({"manifest_sha256":
+            hashlib.sha256(manifest_path.read_bytes()).hexdigest()}))
+        (directory / "result.json").write_text(json.dumps({"artifact": artifact, "execution": receipt}))
+    report = tmp_path / "analysis.json"
+    report.write_text(json.dumps({"study": "snapshot", "accuracy": {},
+                                  "cells": [{"id": "analyzed", "attempts": [receipt]}]}))
+    output = tmp_path / "accounting.json"
+    monkeypatch.setattr("sys.argv", ["accounting", str(tmp_path), str(report), str(output)])
+    accounting.main()
+    assert set(json.loads(output.read_text())["cells"]) == {"analyzed"}
