@@ -177,6 +177,24 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- User requested implementing fixes now instead of waiting. Implementation commit
+  `eff137e`, consolidated with the current study findings at `3fb9f14`, is on
+  `fix/extraction-structure-and-grounding` in
+  `/home/gennaro/projects/FREE-worktrees/extraction-structure-fixes`. It includes
+  the selector and structured renderer, fixes literal-control decoding and the
+  contradictory quoted prompt, requires literal cited-source quotes, and adds
+  independently selectable structural grouping with required heading context.
+  Verification: 1043 passed, 72 skipped, 68 deselected; 33 previously rejected
+  replies decode losslessly; six sources/88 reference requests and extraction
+  data remain exact apart from protocol identity; all 54 inventory units across
+  15 Article sources pass the real tokenizer. Read that checkout's
+  `docs/validation/2026-09-27-extraction-structure-fixes.md` and updated OpenSpec
+  tasks 3.8/3.9. The fixes are implemented, not waiting on R1. R1/R2a/R3 retain
+  their original code pins and results; they do not measure the new grouping or
+  decoding revision. Fresh accuracy for the fixes and final study reporting are
+  still outstanding. Do not resume hour-long waits as the primary activity while
+  implementation or integration work can proceed safely.
+
 - At approximately 13:20 UTC, recovery remains live with the same process
   identities. R1 has 26/79 sealed cells in `analysis-partial-08.json`; R2a has
   14/30 in `analysis-partial-06.json`, with matching accounting reports. A new
