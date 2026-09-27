@@ -17,9 +17,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from kei_exp.kie.blocks import Span
 from kei_exp.kie.extract.locate import BlockText, forms, locate, normalise, raw_range
 from kei_exp.kie.extract.schema import Node, json_schema
-from kei_exp.kie.model import Span
 
 KEY_GAP = 3                      # at most this many non-alphanumeric characters between a key and its value
 

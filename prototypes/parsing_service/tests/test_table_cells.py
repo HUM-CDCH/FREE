@@ -66,9 +66,9 @@ def test_missing_geometry_stays_coarse_and_wrong_cell_is_rejected():
 
 
 def test_grounded_catalog_uses_only_spans_wholly_inside_one_cell():
+    from kei_exp.kie.blocks import Span
     from kei_exp.kie.extract.acceptance import Outcome
     from kei_exp.kie.extract.catalog_result import evidence_link
-    from kei_exp.kie.model import Span
     item = passage()
     cell = item.table.cells[2]
     span = Span(segment_id=item.id, start=cell.start, end=cell.end)

@@ -30,6 +30,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from kei_exp.canonical import canonical_json
+from kei_exp.kie.blocks import Block, Span
 from kei_exp.kie.extract.acceptance import Outcome, assess, bounded, candidates_schema, typed_value
 from kei_exp.kie.extract.catalog_result import (
     NORMALIZATION_VERSION,
@@ -48,7 +49,6 @@ from kei_exp.kie.extract.schema import Node, Schema, conform, json_schema, notes
 from kei_exp.kie.extract.stages import Call, _complete, merge
 from kei_exp.kie.extract.tokens import counters_for
 from kei_exp.kie.extract.windows import units_of, windows_of
-from kei_exp.kie.model import Block, Span
 from kei_exp.kie.passages import Evidence, text_of
 from kei_exp.kie.recipe import Recipe, load_recipe
 from kei_exp.kie.segmentation import Segmentation

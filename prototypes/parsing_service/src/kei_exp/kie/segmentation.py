@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from kei_exp.canonical import canonical_json
 from kei_exp.files import publish
-from kei_exp.kie.model import Block, Diagnostic, GlossaryEntry, HeadingEvent, Span
+from kei_exp.kie.blocks import Block, Diagnostic, GlossaryEntry, HeadingEvent, Span
 from kei_exp.kie.passages import Evidence
 from kei_exp.kie.recipe import Recipe
 from kei_exp.kie.stages.layout import lines

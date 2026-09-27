@@ -1,6 +1,7 @@
 """The recipe Catalog's model-free modules, exercised through their public names without a chat: candidate
 acceptance over an entry's text, windows over an entry's units under a `fits` predicate, and the artifact's shapes
 from outcomes."""
+from kei_exp.kie.blocks import Block, GlossaryEntry, Span
 from kei_exp.kie.extract.acceptance import Outcome, assess, bounded, typed_value
 from kei_exp.kie.extract.catalog_result import (
     conformed_record,
@@ -13,7 +14,6 @@ from kei_exp.kie.extract.catalog_result import (
 from kei_exp.kie.extract.locate import BlockText
 from kei_exp.kie.extract.schema import Node, Schema
 from kei_exp.kie.extract.windows import units_of, windows_of
-from kei_exp.kie.model import Block, GlossaryEntry, Span
 from tests.test_extract_stages import passages
 
 ENTRY = "7. Adorf. Fdpl. 2. Mbl. 1827. FA: G. Urne."

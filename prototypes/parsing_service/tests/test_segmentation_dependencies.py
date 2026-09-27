@@ -1,7 +1,9 @@
 """The segmentation artifact must not depend on its computation or orchestration, nor the stages on extraction,
 nor any extraction module on the orchestrator `run` that chooses among them, nor the recipe Catalog's model-free
-modules on the implementation that uses them or on the version 1 artifact; and the crop data and the transcriber
-contract must not depend on the layout detector or the stages, so a module that only names them loads no OCR stack."""
+modules on the implementation that uses them or on the version 1 artifact; the block types must build on the model
+primitives alone, and neither they nor extraction and the recipe stages may depend on the ingest, document or run
+models; and the crop data and the transcriber contract must not depend on the layout detector or the stages, so a
+module that only names them loads no OCR stack."""
 import ast
 import json
 import subprocess
@@ -66,6 +68,26 @@ def test_the_recipe_catalogs_model_free_modules_do_not_import_what_runs_it():
     for name in ("acceptance.py", "windows.py", "catalog_result.py"):
         violations = _violations(_imports(KIE / "extract" / name, "kei_exp.kie.extract"), forbidden)
         assert not violations, f"extract/{name} depends on the recipe Catalog's execution: {violations}"
+
+
+_LAYERS_ABOVE_BLOCKS = {"kei_exp.kie.ingest_model", "kei_exp.kie.document", "kei_exp.kie.run_model"}
+
+
+def test_the_block_types_build_on_the_model_primitives_alone():
+    imports = _imports(KIE / "blocks.py", "kei_exp.kie")
+    violations = sorted(set(_violations(imports, {"kei_exp"})) - set(_violations(imports, {"kei_exp.kie.primitives"})))
+    assert not violations, f"kie/blocks.py depends on more than the model primitives: {violations}"
+    for name in ("primitives.py", "blocks.py"):
+        violations = _violations(_imports(KIE / name, "kei_exp.kie"), _LAYERS_ABOVE_BLOCKS)
+        assert not violations, f"kie/{name} depends on the ingest, document or run models: {violations}"
+
+
+def test_extraction_and_the_recipe_stages_do_not_import_the_ingest_document_or_run_models():
+    modules = [(path, "kei_exp.kie.extract") for path in sorted((KIE / "extract").glob("*.py"))]
+    modules += [(KIE / "stages" / f"{name}.py", "kei_exp.kie.stages") for name in ("route", "segment", "layout")]
+    for path, package in modules:
+        violations = _violations(_imports(path, package), _LAYERS_ABOVE_BLOCKS)
+        assert not violations, f"{path.relative_to(KIE)} depends on the ingest, document or run models: {violations}"
 
 
 def test_the_crop_data_and_the_transcriber_contract_do_not_import_the_cut_or_the_stages():

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from kei_exp.kie.model import Block
+from kei_exp.kie.blocks import Block
 
 
 @dataclass(frozen=True)

@@ -12,9 +12,9 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
+from kei_exp.kie.blocks import GlossaryEntry, Span
 from kei_exp.kie.extract.acceptance import Outcome
 from kei_exp.kie.extract.schema import Schema, conform
-from kei_exp.kie.model import GlossaryEntry, Span
 
 NORMALIZATION_VERSION = 1        # verified glossary expansions beside accepted raw values; a change invalidates results
 

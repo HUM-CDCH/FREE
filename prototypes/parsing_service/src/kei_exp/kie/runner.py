@@ -19,18 +19,11 @@ from pydantic import ValidationError
 from kei_exp.canonical import canonical_json, sha256_file
 from kei_exp.files import publish
 from kei_exp.kie.artifacts import CacheMiss, fingerprint, load_ingest
+from kei_exp.kie.document import Document, Segment
 from kei_exp.kie.evidence import EvidenceError, load_evidence
-from kei_exp.kie.model import (
-    Document,
-    EvidenceReport,
-    IngestArtifact,
-    IngestConfig,
-    IngestError,
-    IngestStep,
-    PipelineConfig,
-    RunReport,
-    Segment,
-)
+from kei_exp.kie.ingest_model import IngestArtifact, IngestConfig
+from kei_exp.kie.primitives import IngestError
+from kei_exp.kie.run_model import EvidenceReport, IngestStep, PipelineConfig, RunReport
 from kei_exp.kie.stages import ingest, ocr
 from kei_exp.pagefile import ResultError
 from kei_exp.pages import BookPages

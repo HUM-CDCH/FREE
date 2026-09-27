@@ -127,7 +127,7 @@ TypeScript/Python boundary.
 
 **Persistence** — `db/src/prisma/contract.prisma`, `project-store.ts`, `artifact-store.ts`, `researcher-account-store.ts`, `database-url.ts`, `index.ts`
 
-**Parsing service** — `kei_exp/api.py`, `jobs/{app,tasks,store,worker}.py`, `kie/runner.py`, `kie/stages/{ingest,ocr,layout,route,segment}.py`, `kie/model.py`, `kie/extract/{run,stages,grounded,evidence,locate,llm}.py`, `transcription/{native,surya}.py`, `cut.py`, `result.py`, `pagefile.py`, `canonical.py`, `kie/recipes/numbered-catalogue-de.json`
+**Parsing service** — `kei_exp/api.py`, `jobs/{app,tasks,store,worker}.py`, `kie/runner.py`, `kie/stages/{ingest,ocr,layout,route,segment}.py`, `kie/{primitives,blocks,ingest_model,document,run_model}.py`, `kie/extract/{run,stages,grounded,evidence,locate,llm}.py`, `transcription/{native,surya}.py`, `cut.py`, `result.py`, `pagefile.py`, `canonical.py`, `kie/recipes/numbered-catalogue-de.json`
 
 **Deployment & ops** — `scripts/free.mjs`, `compose.yaml` + `compose.{override,prod,gpu,nginx,entra}.yaml`, both Dockerfiles, `docker/nginx/*.template`, `docker/studio-entrypoint.sh`, `.github/workflows/verify.yml`
 

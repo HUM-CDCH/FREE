@@ -13,7 +13,7 @@ from PIL import Image
 
 from kei_exp._pdfium import pdfium_lock
 from kei_exp.geometry import CropTransform, PixelBox, PointBox, unit_to_page_points
-from kei_exp.kie.model import Page as IngestPage
+from kei_exp.kie.ingest_model import Page as IngestPage
 
 
 class RenderablePage(Protocol):

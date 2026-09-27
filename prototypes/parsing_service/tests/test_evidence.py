@@ -6,8 +6,8 @@ import sys
 
 import pytest
 
+from kei_exp.kie.document import Document, EvidenceRef
 from kei_exp.kie.evidence import Evidence, EvidenceError, crop_overlaps, load_evidence
-from kei_exp.kie.model import Document, EvidenceRef
 from kei_exp.pagefile import CropResult, ResultError, load_result, read_page
 from tests.helpers.ingest import fixture, fixture_files, page_segment, spread_ingest
 

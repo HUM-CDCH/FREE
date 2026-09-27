@@ -10,7 +10,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 from kei_exp.cut import CutError, cut_pages, whole_pages
-from kei_exp.kie.model import IngestConfig
+from kei_exp.kie.ingest_model import IngestConfig
 from kei_exp.models import MODELS
 from kei_exp.pages import BookPages, PdfPages
 from kei_exp.progress import Emit, Event, print_event

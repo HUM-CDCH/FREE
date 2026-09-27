@@ -759,16 +759,42 @@ artifact byte unchanged; `IngestError` identity unchanged for `except`
 clauses.
 
 Acceptance:
-- [ ] Before editing: dump `model_json_schema()` (canonical JSON) of every
+- [x] Before editing: dump `model_json_schema()` (canonical JSON) of every
       pydantic model in `kie/model.py` keyed by class name to
       `/tmp/free-model-slice/baseline/`; after: identical under the new
       modules.
-- [ ] Rerun `/tmp/free-grounded-slice/snapshot.py` (extraction artifacts
+- [x] Rerun `/tmp/free-grounded-slice/snapshot.py` (extraction artifacts
       over `Block`/`Span`) and the runner/ingest/evidence fast tests;
       snapshot byte-identical (threaded `chunks>1` event order excepted, as
       recorded in Task 5).
-- [ ] `grep -rn "kie.model\b\|kie import model" src tests experiments`
+- [x] `grep -rn "kie.model\b\|kie import model" src tests experiments`
       finds nothing; import guard extended; full fast suite passes.
+
+Verification receipt (Task 11): `kie/model.py` (779 lines) removed, split
+in its own dependency order into `kie/primitives.py` (98; the `Annotated`
+and `Literal` aliases, their validators, `_unique`, `_Base`, `IngestError`,
+`MIN_AXIS_PT`), `kie/blocks.py` (91; `Span`, `HeadingEvent`,
+`GlossaryEntry`, `Diagnostic`, `Block`, `_ENTRY_LABEL`; imports only
+`primitives`), `kie/ingest_model.py` (407; `Placement` through
+`IngestArtifact`, `_distance_px`, `_check_spread_pages`),
+`kie/document.py` (170; `EvidenceRef`, `Segment`, `Document`,
+`_check_inside`, `_check_spans`, `_check_primary_ownership`) and
+`kie/run_model.py` (91; `OcrConfig`, `PipelineConfig`, `Rejected`,
+`EvidenceReport`, `IngestStep`, `RunReport`). Every line below the old
+imports appears exactly once in the new modules; only module docstrings and
+import blocks are new. 15 src and 11 test/helper importers migrated, no
+facade; `geometry.Placed`'s docstring now names
+`kie.ingest_model.Placement`. The `Source → Document` and
+`_timestamp → Envelope` edges are docstring mentions and create no import.
+Checks: the canonical `model_json_schema()` of all 24 models (23 plus
+`_Base`) byte-identical before and after; the grounded snapshot (127 files)
+byte-identical, run from a scratch copy whose `direct()` imports `Span` from
+`kie.blocks` (the only change; the frozen harness imported `kie.model`);
+`grep -rn "kie\.model\b\|kie import model" src tests experiments` empty
+(the brief's unescaped `.` also matches the spec file name
+`kie-model-and-ingest-design.md` in docstrings); two new guards in
+`tests/test_segmentation_dependencies.py`, each seen failing on an injected
+import; fast suite 1102 passed, 72 skipped, 74 deselected.
 
 ## Next candidates, reassessed after this slice
 
