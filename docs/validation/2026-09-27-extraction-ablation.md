@@ -186,3 +186,40 @@ unfinished work. The four-claim quoted-verification batches amplify repeated
 source context; Wang uses 144 grounding calls in that arm versus 18 in the
 semantic control. This is an observed cost of the registered design, not merely
 an observation delay. Do not change the frozen methods to reduce costs mid-run.
+
+## Structured input follow-up — registered, no fresh inference yet
+
+The Docling audit led to an independent Article rendering factor at `dbde989`
+on `feat/extraction-structured-input`. `rendering=structured` exposes canonical
+block IDs/labels/pages and existing table cell positions/spans/roles in document,
+inventory and value requests. Plain requests remain exact, and the grounding
+renderer remains unchanged. All actual prompts are token-counted. Missing cell
+structure is not inferred. This does not implement semantic context grouping.
+
+Verification: 1018 parser tests passed, 72 skipped, 68 deselected; six papers and
+88 reference calls replay exactly. The offline round-trip audit preserved all
+2755 passages and 799 structured cells across the 16 registered sources, including
+source control characters. OpenSpec validation and manual bloat review passed.
+The explicit rendering choice and reference path are required experimental
+controls; no compatibility service or duplicate canonical representation was added.
+
+R3 has twelve fresh cells over the six annotated development papers. The only
+method factor is rendering; both arms use full source, schema prompts,
+conservative identity reconciliation and disabled grounding. The protocol is
+`experiments/extraction/rendering-protocol.md` in the structured-input checkout.
+The registrar validates the same source/schema/gold/provider pins as R1. It
+additionally pins the R3 protocol, code and parent manifest identity.
+
+- Manifest: `artifacts/extraction-ablation/20260927-r3-rendering-manifest.json`.
+- Manifest SHA-256: `201285dc9fa18753759eec6909178db78cf73269b84b959f6cf326024b9b4b9c`.
+- Code archive: `artifacts/extraction-ablation/20260927-r3-rendering-code.zip`.
+- Archive SHA-256: `266d18303e2ae1b9d2a9b22cef1152ff511874a7747a51465337b4a5a0ec4d9e`.
+- Offline audit: `artifacts/extraction-ablation/structured-rendering-audit-01.json`.
+- Replay: `artifacts/extraction-ablation/structured-rendering-reference-replay-01.json`.
+
+Tokenizer preflight is saved in `20260927-r3-rendering/preflight.json`. Eleven
+inventory calls fit. Harvey structured counts 28974 input tokens before its 4096
+output reserve, exceeding 32768; preserve that refusal in the eventual comparison.
+Document/value calls have their own admission checks. No R3 response generation
+has run, and R3 will not compete with the unfinished R1 batch. This follow-up
+was motivated by observed development failures; it is not a held-out evaluation.
