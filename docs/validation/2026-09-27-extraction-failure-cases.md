@@ -68,3 +68,34 @@ Do not promote this lexical selector from this evidence. Cross-language retrieva
 different relevance weighting and post-extraction identity reconciliation are
 separate future hypotheses requiring separately registered comparisons. Changing
 them after inspecting this case would invalidate attribution to the current arm.
+
+## Wang: completed identities diverge from provisional reconciliation
+
+Artifacts: R1 `Wang--bounded--0`, plus R2a `Wang--all_units--0` and
+`Wang--selected--0`. Scoring and supplementary observation accounting regenerated
+successfully in the `analysis-partial-02.json` / `observations-partial-02.json`
+snapshots. The fixed scorer reports 15/49 populated sample fields correct and
+54/64 empty sample fields correct; its identity alignment has three matched gold
+records and two `duplicate_identity` groups. These are one arm's development
+results, not a completed paired comparison against the live reference arm.
+
+The inventory has seven candidates. Candidates 0 and 1 have complete keys for
+`Sebastes mentella`, skin, isolated collagen, ASC/PSC. Candidates 5 and 6 repeat
+skin/isolated-collagen/ASC or PSC but omit `scientific_name`. Conservative
+inventory reconciliation therefore retains them. Subsequent value extraction
+supplies `Sebastes mentella` for both, leaving duplicate complete ASC and PSC
+identities in the final records. The three remaining candidates describe raw
+skin, scale and bone.
+
+The frozen scorer refuses to choose between duplicate matching identities.
+Consequently, many scored failures reflect identity ambiguity rather than a
+demonstration that each candidate's local measurement is wrong. Its unscored-extra
+list is empty here; that alone does not mean there are no duplicate predictions.
+The identity-alignment diagnostics must accompany the projected field score.
+
+Selection omits no value unit for any of the seven candidates. Both replay arms
+have identical records, 18 calls, 108,927 input tokens and 7,607 output tokens.
+This is a valid zero-intervention case and stays in the registered denominator;
+it does not estimate the effect of actually removing context. Together with
+Katrinesminde, it illustrates why cost changes, context omissions, identity
+alignment and field accuracy must be reported separately.
