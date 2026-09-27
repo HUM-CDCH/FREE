@@ -38,7 +38,7 @@
 
 - [x] 6.1 Inventory available labels/providers, freeze the study matrix and preflight actual token counts; record any unavailable independent gold.
 - [ ] 6.2 Execute every registered Article and Catalog study cell with fresh captures or explicitly labelled reuse; verify all terminal statuses and pins.
-- [ ] 6.3 Produce per-document effects, cost/refusal tables, extra-prediction review queue and scope limitations; verify results regenerate from captures.
+- [ ] 6.3 Produce per-document effects, cost/refusal tables, extra-prediction review queue and scope limitations; distinguish invalid JSON, truncation and unsupported evidence; verify results regenerate from captures.
 
 ## 7. Integration and delivery
 

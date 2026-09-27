@@ -223,3 +223,26 @@ output reserve, exceeding 32768; preserve that refusal in the eventual compariso
 Document/value calls have their own admission checks. No R3 response generation
 has run, and R3 will not compete with the unfinished R1 batch. This follow-up
 was motivated by observed development failures; it is not a held-out evaluation.
+
+## Interim snapshot — 2026-09-27, approximately 13:20 UTC
+
+R1 `analysis-partial-08.json` and `accounting-partial-08.json` cover 26/79
+sealed cells; R2a `analysis-partial-06.json` and `accounting-partial-06.json`
+cover 14/30. All three supervised recovery processes retain their verified
+identities, and R1 has fresh replies. R3 still has no generated responses.
+
+The 26 R1 cells contain 910 calls, 7,403,314 reported input tokens and 235,759
+output tokens. This includes captured replies reused after interruption, each
+once in its artifact, and excludes work whose reply was never saved. Reply
+durations remain shared-provider observations. Thirty-three grounding calls
+fail strict JSON parsing because their quote strings contain unescaped source
+control characters; the separate failure-case review and saved audit distinguish
+these from the one output-truncated record call in this snapshot. Sealed process
+results are not all complete extractions.
+
+The seven R2a source pairs include four with no omitted value units and no
+candidate changes: Mizuta, Wang, Brondbylund and 1790-06-17-1. The only two
+gold-scored pairs currently available are Mizuta and Wang, both with zero
+intervention. Their zero accuracy difference therefore supplies no evidence
+that removing units preserves accuracy on the other sources. Keep these cases
+in the denominator and defer aggregate conclusions until all pairs are terminal.

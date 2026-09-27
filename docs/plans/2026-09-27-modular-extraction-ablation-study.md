@@ -177,6 +177,16 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- At approximately 13:20 UTC, recovery remains live with the same process
+  identities. R1 has 26/79 sealed cells in `analysis-partial-08.json`; R2a has
+  14/30 in `analysis-partial-06.json`, with matching accounting reports. A new
+  read-only capture audit identifies 33 malformed quoted-grounding replies
+  containing literal source control characters, affecting 131 batch decisions.
+  The failure-case report distinguishes this protocol failure from unsupported
+  evidence and truncation, and records a contradictory quoted-output instruction.
+  Preserve these outcomes in the frozen study; R3 does not test grounding.
+  Remaining work is still full execution, final analysis and integration.
+
 - Structured input follow-up is implemented at `dbde989` in the isolated checkout
   `/home/gennaro/projects/FREE-worktrees/extraction-structured-input`, branch
   `feat/extraction-structured-input`. It also contains the selector change. The
