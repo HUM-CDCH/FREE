@@ -5,6 +5,7 @@ import requests
 from dbos import error as dbos_error
 from pydantic import ValidationError
 
+from kei_exp import runs
 from kei_exp.failures import CODES, REASON_CHARS, KeiFailure
 from kei_exp.kie.extract.run import ExtractRequest
 from kei_exp.workflows import config, contracts
@@ -89,12 +90,29 @@ def test_a_malformed_convert_request_is_refused(request_):
 
 
 def test_run_and_extraction_ids_are_single_path_components():
-    with pytest.raises(ValidationError):
-        contracts.DeleteRunsInput.model_validate({"runs": ["../etc"], "history": []})
     assert contracts.extraction_id_of("kei-extract:x-1") == "x-1"
     for bad in ("kei-extract:../x", "kei-extract:", "kei-convert:x", "kei-extract:a/b"):
         with pytest.raises(contracts.KeiFailure):
             contracts.extraction_id_of(bad)
+
+
+def test_the_delete_runs_fixture_names_a_conversion_and_the_run_kei_derives_from_it():
+    request = fixture("deleteRuns.input")["request"]
+    contracts.DeleteRunsInput.model_validate(request)
+    output = contracts.DeleteRunsOk.model_validate(fixture("deleteRuns.output"))
+    assert output.deleted_runs == [runs.run_id_for(request["conversions"][0])]
+    assert output.deleted_history == [*request["history"], *request["conversions"]]
+
+
+@pytest.mark.parametrize("request_", [
+    {"conversions": ["../etc"], "history": []},                  # not a conversion: no run is derived from it
+    {"conversions": ["kei-convert:"], "history": []},
+    {"conversions": [], "history": ["kei-convert:ingest:p:a"]},  # a conversion's history goes with its run
+    {"runs": ["run-0123456789abcdef01234567"], "history": []},   # Studio never names a run
+])
+def test_delete_runs_takes_conversions_and_other_history(request_):
+    with pytest.raises(ValidationError):
+        contracts.DeleteRunsInput.model_validate(request_)
 
 
 def test_config_is_kei_with_patching_and_a_slot_executor():

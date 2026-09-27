@@ -15,7 +15,7 @@ import {
   type EntraIdentityProvider,
 } from './entraIdentityProvider.js'
 import { createStaticClientHandler } from './static.js'
-import { registerStudioWorkflows } from './workflows.js'
+import { applyStudioSchedules, registerStudioWorkflows } from './workflows.js'
 
 /** DBOS in this process: launched once before the listener opens, shut down after it closed. */
 export type StudioDbosLifecycle = {
@@ -81,6 +81,7 @@ export async function startStudioServer(
       launchStudioDbos({
         databaseUrl: requiredDatabaseUrl(),
         register: registerStudioWorkflows,
+        schedule: applyStudioSchedules,
       }),
     shutdown: shutdownStudioDbos,
   }

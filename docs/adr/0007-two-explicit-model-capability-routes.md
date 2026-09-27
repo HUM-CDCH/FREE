@@ -3,6 +3,10 @@
 > Amended by [0011](0011-one-model-configuration-page.md): the Extraction Route
 > is now the Schema Suggestion Route, and an unset route runs on the
 > deployment's instruction model when it serves one.
+>
+> Amended by [0013](0013-per-researcher-model-configuration.md): both routes belong to each Researcher Account; an unset Schema Suggestion Route follows the Interaction Route; and the NuExtract protocol is derived from the connection (vLLM) and the model ID (NuExtract), never stored or chosen.
+>
+> Amended by the DBOS plan's decision 15 (2026-09-26): the document chat was deleted, so the Interaction Route serves conversational Extraction Schema editing (edit proposals) only.
 
 FREE exposes exactly two machine-wide Capability Routes for now: the Extraction
 Route serves Extraction and Schema Suggestion, while the Interaction Route

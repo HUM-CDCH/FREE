@@ -16,14 +16,12 @@ import {
   conversionFailure, discardPublishedPackage, packageConversion, packagePageCount, sameDescriptor,
   type ConvertedPackage, type PackageStore,
 } from './_kei_conversion.js'
-import { readStagedSource, removeStagedSource } from './_source_inbox.js'
+import { ingestWorkflowId, readStagedSource, removeStagedSource } from './_source_inbox.js'
+
+// Built beside the staged file's name, so garbage collection maps a file back to this ID with the same builder.
+export { ingestWorkflowId }
 
 export const INGEST_SOURCE = 'ingestSource'
-
-/** One upload attempt's workflow ID: the handler enqueues it, the workflow names its kei child after it. */
-export function ingestWorkflowId(projectContextId: string, attemptId: string): string {
-  return `ingest:${projectContextId}:${attemptId}`
-}
 
 /** Active deduplication: one running attempt per project and content, released when it ends. */
 export function ingestDeduplicationId(projectContextId: string, contentSha256: string): string {

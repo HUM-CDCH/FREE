@@ -80,6 +80,7 @@ function harness(scenario: {
     submit: vi.fn<(submission: KeiSubmission) => Promise<void>>(async () => {}),
     poll: vi.fn(async () => polls.length > 1 ? polls.shift()! : polls[0]!),
     cancel: vi.fn(async () => {}),
+    requestDeleteRuns: vi.fn(async () => {}),
   }
   const store = {
     findSourceDocumentByContent: vi.fn(async () => scenario.existing ?? null),

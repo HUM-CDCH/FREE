@@ -7,10 +7,11 @@ implemented production and local-development runtimes. Production combines
 adds [`compose.override.yaml`](../../compose.override.yaml), optionally
 [`compose.entra.yaml`](../../compose.entra.yaml).
 
-The model deliberately contains no speculative credential vault, key-management
-service, parsing queue, or separate application backend. Model configuration and
-credentials remain deployment-wide Studio state, and the Parsing Service owns no
-model operation.
+The model deliberately contains no credential vault, key-management service
+or separate application backend. Model configuration belongs to each
+Researcher Account; keys stay in researchers' browsers and in Studio's
+memory. Durable work runs as DBOS workflows inside Studio and the Parsing
+Service's worker.
 
 From the repository root:
 
@@ -21,8 +22,8 @@ pnpm architecture:dev
 Open the URL that LikeC4 prints, then follow these views:
 
 1. `current_context` — production browser, host-nginx TLS, Studio, and stores.
-2. `current_modules` — maintained production module seams, including the
-   in-process Batch Extraction worker.
+2. `current_modules` — maintained production module seams, including DBOS in
+   Studio and the Parsing Service's worker.
 3. `current_account_session` — Microsoft Entra authentication and JIT
    Researcher Account provisioning.
 4. `project_context_lifecycle` — account-owned creation, rename, and deletion.
@@ -33,7 +34,8 @@ Open the URL that LikeC4 prints, then follow these views:
 8. `local_compose_topology` — default local nginx, Studio, PostgreSQL, Parsing
    Service, and mock OIDC services.
 9. `local_entra_topology` — the same local entry topology using Microsoft Entra.
-10. `model_configuration` — deployment-wide Model Connections and credentials.
+10. `model_configuration` — each account's Model Connections, steps and browser-held keys.
+11. `garbage_collection` — the ten-minute sweep and its quiescence rules.
 
 Use LikeC4 search (`Ctrl+K`) to open a view.
 

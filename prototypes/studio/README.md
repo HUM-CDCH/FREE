@@ -45,28 +45,23 @@ from extraction-result Evidence and arbitrary extraction JSON remains permissive
 
 ## Model configuration
 
-A fresh Studio starts without saved Model Connections or Capability Routes. Open **Configure models** in Studio for the Model Configuration page, which holds every model choice. Saved configuration is machine-wide; the deployment's own vLLM servers are added from the environment (`FREE_DEPLOYMENT_INSTRUCT_URL`, `FREE_DEPLOYMENT_INSTRUCT_MODEL`, `FREE_DEPLOYMENT_NUEXTRACT_URL`, set by the GPU overlay), listed read-only, and never saved.
+Each Researcher Account has its own model configuration in PostgreSQL; a fresh account starts with none. Open **Configure models** for the Model Configuration page. Its **Models** tab follows the work in three steps — reading documents (the Ingestion Model Choice), schema and chat (the *Assistant model*, which Schema Suggestion follows until given its own model), and extracting data (the Extraction Model Choice) — and its **Connections** tab lists the researcher's connections beside the deployment's read-only ones (`FREE_DEPLOYMENT_INSTRUCT_URL`, `FREE_DEPLOYMENT_INSTRUCT_MODEL`, `FREE_DEPLOYMENT_NUEXTRACT_URL` from the GPU overlay, and the CLI providers enabled by `FREE_DEPLOYMENT_CLI_PROVIDERS`).
 
-- Non-secret connection and route state is stored as `model-config.json` in the operating system user configuration directory for `FREE Studio`.
-- FREE-managed credentials are stored only in the operating system credential store. A locked or unavailable credential store does not block credentialless Ollama/OpenAI-compatible connections or externally authenticated Codex CLI and Claude Code connections.
-- **Extraction** chooses kei-exp's field and reasoning models for every single and Batch Extraction; **Default** keeps the service's default for the role.
-- **Single model** assigns one explicit connection and model ID to Schema Suggestion and conversational Extraction Schema editing.
-- **Capability Routes** independently assigns the Schema Suggestion Route and Interaction Route. The NuExtract protocol is a vLLM-only Schema Suggestion Route option. A route left unset runs on the deployment's instruction model.
-- **Apply** sends the complete editable draft once. Credential fields are write-only; leaving one untouched preserves its saved value.
-- Connection checks run after edited provider inputs settle and through **Refresh models**. Their status and model catalog are advisory session state: checks never generate content, change configuration, or gate manual model IDs or Apply.
+- A connection's key is typed into the page and stays in this browser's `localStorage`, bound to the account, the connection and its API base; changing the base or provider clears it. The page sends keys to Studio with `PUT /api/model-keys`, and Studio keeps them only in memory. After a Studio restart the page resends them on its next request; background work with no page open fails with `model_key_required` and can be retried.
+- **Apply** saves the whole draft in one transaction; the configuration is validated on every write, so there is no reset.
+- Connection checks run when the page opens and after edited provider inputs settle. They are advisory: they never generate content or change configuration, and never gate a manual model ID or Apply.
+- A keyless Ollama connection calls its server anonymously, even when `OLLAMA_API_KEY` is set in Studio's environment.
 
-Ollama, OpenAI, Anthropic, Google, Codex CLI, Claude Code, vLLM, and generic OpenAI-compatible connections are supported. A vLLM connection is OpenAI-compatible and switches the chat template's thinking off. Enter provider base URLs exactly as their adapters expect. Ollama uses the server base, such as `http://127.0.0.1:11434`, and FREE reaches its native resources beneath `/api`. Other HTTP providers may require a version prefix such as `/v1` or `/v1beta`; generic OpenAI-compatible bases provide `/models` and `/chat/completions` beneath the entered base.
+Ollama, OpenAI, Anthropic, Google, vLLM, and generic OpenAI-compatible connections can be added by a researcher; Codex CLI and Claude Code are deployment connections only. A vLLM connection is OpenAI-compatible and switches the chat template's thinking off. Enter provider base URLs exactly as their adapters expect. Ollama uses the server base, such as `http://127.0.0.1:11434`, and FREE reaches its native resources beneath `/api`. Other HTTP providers may require a version prefix such as `/v1` or `/v1beta`; generic OpenAI-compatible bases provide `/models` and `/chat/completions` beneath the entered base.
 
-The Studio container includes the Codex CLI. Authenticate it once inside the
-running container before using a Codex CLI Model Connection:
+The Studio container includes the Codex CLI and Claude Code. Enable them with `FREE_DEPLOYMENT_CLI_PROVIDERS`, then log in once inside the running container:
 
 ```bash
 docker compose exec studio codex login --device-auth
 docker compose exec studio codex login status
 ```
 
-Codex home and the container keyring use the existing persistent Studio
-volumes, so rebuilding the image does not discard the login.
+Claude Code authenticates from `CLAUDE_CODE_OAUTH_TOKEN` (`claude setup-token`). The Codex home and Claude Code's state live in the `studio-config` and `studio-claude` volumes, so rebuilding the image keeps the logins.
 
 ## Reprocessing a Source Document
 
@@ -87,6 +82,6 @@ Run a new Extraction on the current revision to use upgraded cell Evidence; an
 Extraction opened on an earlier revision offers no new run. Ordinary
 re-uploading still deduplicates by PDF content and does not reprocess it.
 
-Recreate the database from the baseline before serving this version. This action
-currently uses the same request and in-memory queue lifecycle as uploads; closing
-the browser does not provide durable queue recovery.
+Reprocessing runs as a durable workflow: closing the browser does not stop it,
+and repeating the request with the same request key rejoins it or returns its
+published revision.

@@ -40,7 +40,10 @@ function harness(options: { poll?: KeiPoll; publish?: () => unknown; beforeStep?
     async step(name, run) { names.push(name); options.beforeStep?.(name); return run() },
     cancelSignal: () => undefined,
   }
-  const kei = { submit: vi.fn(options.submit ?? (async () => {})), poll: vi.fn(async () => options.poll ?? ok), cancel: vi.fn(async () => {}) }
+  const kei = {
+    submit: vi.fn(options.submit ?? (async () => {})), poll: vi.fn(async () => options.poll ?? ok), cancel: vi.fn(async () => {}),
+    requestDeleteRuns: vi.fn(async () => {}),
+  }
   const store = {
     getSourceRepresentation: vi.fn(async () => DESCRIPTOR),
     reprocessSourceDocument: vi.fn(async (_project: string, _document: string, input: { ensureRetained(descriptor: typeof DESCRIPTOR): Promise<void> }) => {

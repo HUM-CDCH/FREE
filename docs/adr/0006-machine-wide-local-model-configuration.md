@@ -1,5 +1,7 @@
 # Machine-wide local model configuration
 
+> **Superseded by [0013](0013-per-researcher-model-configuration.md)** (2026-09-26): model configuration belongs to each Researcher Account in PostgreSQL, keys stay in the researcher's browser, and hosted deployment is supported. The text below is the historical decision.
+
 FREE keeps Model Connections and Capability Routes machine-wide for one humanities researcher rather than attaching them to Project Contexts. Non-secret configuration persists in one JSON document in the operating system's user application-config directory, and credentials persist only in the operating system credential store, with no plaintext, environment, file, or memory-only fallback when secure storage is unavailable.
 
 The saved document is the sole model-configuration source. A fresh installation is unconfigured. A malformed document fails closed and remains unchanged for manual recovery. Credential-store failure blocks only operations requiring a FREE-managed credential; credentialless connections and externally authenticated model harnesses remain usable.

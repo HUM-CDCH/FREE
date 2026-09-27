@@ -20,6 +20,7 @@ from tests.helpers import catalogue, kei_worker
 from tests.helpers import kei as kei_helper
 from tests.helpers import postgres as postgres_helper
 from tests.helpers.pdfs import mask
+from tests.test_delete_runs import age
 
 pytestmark = pytest.mark.slow
 
@@ -92,6 +93,40 @@ def test_a_killed_worker_is_replaced_and_its_conversion_recovered(site):
     assert steps(kei(), workflow_id) == ["resolve_models", "prepare_run", "convert_run"]  # each recorded once
     assert sorted(path.name for path in paths["control"].glob("started-*")) == ["started-1", "started-2"]
     assert kei().row(workflow_id)["recovery_attempts"] == 2  # the first worker's dequeue, then the recovery
+
+
+def test_a_conversion_past_its_recovery_attempts_keeps_its_run_until_the_next_kei_restart(site):
+    """A native call from the exhausted worker may still be writing; only its next boot proves it cannot."""
+    paths, start, kei, _ = site
+    sha = kei_helper.stage_pdf(paths["inbox"], "m.pdf", mask())
+    workflow_id = "kei-convert:ingest:p:m"
+    worker = start()
+    kei().enqueue("convert", config.CONVERT_SMALL, workflow_id,
+                  kei_helper.convert_request("m.pdf", sha, model="fake", cut="none"))
+    for attempt in range(1, config.MAX_RECOVERY_ATTEMPTS + 2):
+        if kei().row(workflow_id)["status"] == "MAX_RECOVERY_ATTEMPTS_EXCEEDED":
+            break
+        kei_helper.until(lambda: (paths["control"] / f"started-{attempt}").exists(),
+                         120, f"native call {attempt}")
+        worker.kill()
+        worker = start()
+    assert final(kei(), workflow_id).status == "MAX_RECOVERY_ATTEMPTS_EXCEEDED"
+    run_id = runs.run_id_for(workflow_id)
+    age(paths["runs"] / run_id)
+
+    def delete_through(gc_id):
+        kei().enqueue("deleteRuns", config.GC, gc_id, {"conversions": [workflow_id], "history": []})
+        result = final(kei(), gc_id)
+        assert result.status == "SUCCESS"
+        return result.output
+
+    first = delete_through("kei-gc:max-1")
+    assert first["kept_runs"] == [run_id] and first["kept_history"] == [workflow_id]
+    worker.kill()
+    start()
+    second = delete_through("kei-gc:max-2")
+    assert second["deleted_runs"] == [run_id] and second["deleted_history"] == [workflow_id]
+    assert not (paths["runs"] / run_id).exists()
 
 
 def slot_is_free(path) -> bool:

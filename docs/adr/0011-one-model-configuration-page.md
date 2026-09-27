@@ -2,7 +2,8 @@
 
 Date: 2026-09-23. Status: accepted; amends
 [0007](0007-two-explicit-model-capability-routes.md) and the Studio part of
-[0010](0010-serve-extraction-models-from-vllm.md).
+[0010](0010-serve-extraction-models-from-vllm.md); amended by
+[0013](0013-per-researcher-model-configuration.md).
 
 ## Context
 
@@ -38,13 +39,6 @@ instruction model. This reverses 0007's "a missing route fails explicitly and
 never falls back": the fallback is to one named, visible default, and without
 one the route still fails explicitly.
 
-There is no migration: a `model-config.json` saved by an earlier Studio fails
-closed as invalid, and every path that reads it (the page, Schema Suggestion,
-extraction scheduling) returns `invalid_model_config`. The page then offers a
-confirmed **Reset model configuration** (`DELETE /api/model_config`), which
-deletes the document; its credentials stay in the keyring under UUIDs no new
-connection reuses.
-
 ## Consequences
 
 Generate schema works on a fresh GPU deployment without configuration. A
@@ -52,3 +46,13 @@ Batch Extraction now carries the Extraction Model Choice, and a batch reused by
 selection includes it in its identity. An idempotent replay of a single
 Extraction whose configured choice changed in between is refused as a
 conflict.
+
+## Amendment (0013, 2026-09-26)
+
+The page edits the signed-in researcher's own configuration, which lives in
+PostgreSQL, not in `model-config.json`. It has Models and Connections tabs;
+Models follows the researcher's work in three steps (reading documents,
+schema and chat, extracting data) and has no Single/Routes mode.
+`extractionModels` and `ingestionModels` belong to the account's
+configuration. The configuration is validated on every write, so the reset
+and `DELETE /api/model_config` are gone, and nothing is kept in a keyring.

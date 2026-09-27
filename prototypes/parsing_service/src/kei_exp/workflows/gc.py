@@ -1,7 +1,10 @@
 """kei `deleteRuns`: remove the run directories and kei workflow history Studio's collectGarbage found unreferenced.
 
-Studio decides what is unreferenced; kei never reads Studio's schemas. kei rechecks its own workflows: a run goes only
-when every kei workflow that writes it has ended and can no longer write, and nothing in it was written for 24 h.
+Studio decides what is unreferenced; kei never reads Studio's schemas. Studio names conversions; kei derives their runs
+(runs.run_id_for), so a run whose conversion failed after prepare_run published it is found too. kei rechecks its own
+workflows: a run goes only when every kei workflow that writes it has ended and can no longer write, and nothing in it
+was written for 24 h. A conversion's history goes only once its run is gone, because that history is the only index
+through which Studio can name the run; other kei history Studio names goes once its workflow can no longer write.
 SUCCESS and ERROR ended with their steps. CANCELLED (explicit or deadline) and MAX_RECOVERY_ATTEMPTS_EXCEEDED can
 leave a native step writing until the kei process that ran it exits: such a workflow counts only once its updated_at
 (database clock) precedes this process's boot timestamp (boot.py). Every status is read before anything is deleted,
@@ -110,7 +113,10 @@ def _unreadable(run_id: str) -> None:
 @DBOS.step(name="delete_runs")
 def delete_runs(request: dict) -> dict:
     boot_ms = boot.timestamp_ms()
-    requested, history = list(dict.fromkeys(request["runs"])), list(dict.fromkeys(request["history"]))
+    conversions = list(dict.fromkeys(request["conversions"]))
+    history = list(dict.fromkeys(request["history"]))
+    run_of = {conversion: runs.run_id_for(conversion) for conversion in conversions}
+    requested = list(dict.fromkeys(run_of.values()))
     # Read every status first. The staging directories are listed before the conversions are read: one created later
     # belongs to a conversion that is live now, and is never in this list. A run whose directory cannot be read is
     # kept and never stops the others: Studio asks for it again on every schedule.
@@ -123,7 +129,7 @@ def delete_runs(request: dict) -> dict:
                 writers[run_id] = _writers(runs.RUNS / run_id)
             except UNREADABLE:
                 unreadable.add(run_id)
-    statuses = _statuses(sorted({*history, *(wid for found in writers.values() for wid in found)}))
+    statuses = _statuses(sorted({*history, *conversions, *(wid for found in writers.values() for wid in found)}))
     young = time.time() - MIN_AGE_SECONDS
 
     # Then delete. A run already gone was removed by an earlier execution of this step, or never written.
@@ -160,7 +166,10 @@ def delete_runs(request: dict) -> dict:
                 continue
         deleted_runs.append(run_id)
     deleted_history = [wid for wid in history if eligible(statuses.get(wid), boot_ms)]
-    kept_history = [wid for wid in history if wid not in deleted_history]
+    # A conversion's history is its run's only index (Studio never derives a run ID), so it goes only once the run is.
+    deleted_history += [conversion for conversion in conversions
+                        if not (runs.RUNS / run_of[conversion]).exists() and eligible(statuses.get(conversion), boot_ms)]
+    kept_history = [wid for wid in [*history, *conversions] if wid not in deleted_history]
     if deleted_history:
         DBOS.delete_workflows(deleted_history)
     logger.info("deleted runs %s, kept runs %s; deleted history %s, kept history %s",

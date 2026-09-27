@@ -4,7 +4,7 @@
 import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
-import type { StandInFailure } from './kei-stand-in.js'
+import type { KeiDeleteRunsRequest, StandInFailure } from './kei-stand-in.js'
 
 /** How the stand-in finishes each workflow: `'auto'` answers at once from the fixture, `'hold'` parks the decision
  *  until `answer`, `{ failure }` answers with that failure. A policy call changes only the workflows it names. */
@@ -19,6 +19,8 @@ export type KeiStandInProcess = Readonly<{
   policy(policy: StandInPolicy): Promise<void>
   held(): Promise<HeldWork[]>
   answer(workflowId: string, answer: StandInAnswer): Promise<void>
+  /** Every `deleteRuns` request the stand-in received, in order. */
+  deleteRunsRequests(): Promise<readonly KeiDeleteRunsRequest[]>
   /** Kills the stand-in without letting it stop (a kei crash) and waits for it to exit. */
   kill(signal?: NodeJS.Signals): Promise<void>
   /** Stops the stand-in (SIGTERM closes its server and DBOS) and waits for it to exit. */
@@ -96,6 +98,9 @@ export async function spawnKeiStandIn(options: {
     },
     async answer(workflowId, answer) {
       await control('answer', { method: 'POST', body: { workflowId, ...answer } })
+    },
+    async deleteRunsRequests() {
+      return (await (await control('delete-runs')).json()) as KeiDeleteRunsRequest[]
     },
     async kill(signal = 'SIGKILL') {
       if (running()) child.kill(signal)

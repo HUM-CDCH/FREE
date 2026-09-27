@@ -8,7 +8,7 @@ import { ARTIFACT_READ_RETRY, isWorkflowCancellation, type WorkflowSteps } from 
 import { ReprocessConflictError, type ResearcherProjectStore } from '../../../packages/db/src/project-store.js'
 import { ApiError } from './_http.js'
 import { conversionFailure, discardPublishedPackage, packageConversion, sameDescriptor, type ConvertedPackage, type PackageStore } from './_kei_conversion.js'
-import { readStagedSource, removeStagedSource, reprocessSourcePath, stageSource } from './_source_inbox.js'
+import { readStagedSource, removeStagedSource, reprocessSourcePath, reprocessWorkflowId, stageSource } from './_source_inbox.js'
 
 export const REPROCESS_SOURCE = 'reprocessSource'
 
@@ -66,7 +66,7 @@ export async function reprocessSourceWorkflow(input: ReprocessInput, ports: Repr
   }, ARTIFACT_READ_RETRY)
   if (!staged) return { ok: false, status: 404, code: 'not_found', message: 'Source Document was not found.' }
 
-  const child = keiConvertWorkflowId(`reprocess:${input.sourceDocumentId}:${input.requestKey}`)
+  const child = keiConvertWorkflowId(reprocessWorkflowId(input.sourceDocumentId, input.requestKey))
   let outcome: ReprocessOutcome
   try {
     await steps.step('submitToKei', () => kei.submit({

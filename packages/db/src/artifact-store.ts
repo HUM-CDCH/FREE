@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { link, lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { link, lstat, mkdir, readdir, readFile, rename, rm, utimes, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import envPaths from 'env-paths'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
@@ -7,6 +7,9 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 const PACKAGE_VERSION = 'canonical-ingestion-package.v1'
 const DOCUMENT_VERSION = 'parsed_document.v2'
 const REFERENCE = /^[a-f0-9]{64}$/
+const PACKAGE_FILE = /^([a-f0-9]{64})\.zip$/
+/** What `save` (`.tmp`) and `remove` (`.deleting`) leave behind when interrupted: `<sha>.<uuid>.tmp|deleting`. */
+const LEFTOVER = /^[a-f0-9]{64}\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(tmp|deleting)$/
 const ENTRIES = {
   pdf: { path: 'source.pdf', mediaType: 'application/pdf' },
   source: { path: 'parsed_document.json', mediaType: 'application/json' },
@@ -56,9 +59,20 @@ export type CanonicalPackageStore = {
     artifact: CanonicalArtifact,
   ): Promise<CanonicalArtifactRead>
   available(descriptor: CanonicalPackageDescriptor): Promise<boolean>
+  /** Stored packages and their last modification, which a reuse refreshes. */
+  list(): Promise<readonly { descriptor: CanonicalPackageDescriptor; modifiedMs: number }[]>
+  /** Interrupted writes and removals (`<sha>.<uuid>.tmp`, `<sha>.<uuid>.deleting`). */
+  leftovers(): Promise<readonly { name: string; modifiedMs: number }[]>
+  /** Deletes one name `leftovers` lists; refuses any other name. */
+  removeLeftover(name: string): Promise<void>
+  /**
+   * With `modifiedBeforeMs`, a package modified at or after that time (a writer reused it after the sweep judged it
+   * old) is restored instead of deleted.
+   */
   remove(
     descriptor: CanonicalPackageDescriptor,
     isReferenced: () => Promise<boolean>,
+    options?: { modifiedBeforeMs?: number },
   ): Promise<boolean>
 }
 
@@ -234,6 +248,21 @@ export function createCanonicalPackageStore(
     }
   }
 
+  /**
+   * A reused package is in use again: refresh its age, so a sweep that already judged it old restores it instead of
+   * deleting it under a revision that is about to reference it (remove's modifiedBeforeMs). False when it is gone.
+   */
+  async function touch(descriptor: CanonicalPackageDescriptor): Promise<boolean> {
+    try {
+      const now = new Date()
+      await utimes(packagePath(descriptor), now, now)
+      return true
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+      throw error
+    }
+  }
+
   async function save(packageBytes: Uint8Array) {
     const artifactSha256 = sha256(packageBytes)
     const descriptor = {
@@ -241,7 +270,8 @@ export function createCanonicalPackageStore(
       artifactSha256,
     }
     const { manifest, document } = validateEntries(unzipSync(packageBytes))
-    if (await available(descriptor))
+    // A sweep that quarantined it between the check and the touch leaves nothing to touch: publish it again below.
+    if ((await available(descriptor)) && (await touch(descriptor)))
       return { ...descriptor, document, manifest, published: false }
 
     await mkdir(root, { recursive: true })
@@ -253,7 +283,7 @@ export function createCanonicalPackageStore(
         await link(temporary, destination)
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-        if (!(await available(descriptor))) throw error
+        if (!(await available(descriptor)) || !(await touch(descriptor))) throw error
         return { ...descriptor, document, manifest, published: false }
       }
     } finally {
@@ -271,6 +301,7 @@ export function createCanonicalPackageStore(
   async function remove(
     descriptor: CanonicalPackageDescriptor,
     isReferenced: () => Promise<boolean>,
+    options?: { modifiedBeforeMs?: number },
   ): Promise<boolean> {
     const path = packagePath(descriptor)
     const quarantine = join(root, `${descriptor.artifactReference}.${randomUUID()}.deleting`)
@@ -293,6 +324,11 @@ export function createCanonicalPackageStore(
     }
 
     try {
+      const cutoff = options?.modifiedBeforeMs
+      if (cutoff !== undefined && (await lstat(quarantine)).mtimeMs >= cutoff) {
+        await restore() // touched after the sweep's cutoff: a writer reuses it
+        return false
+      }
       if (await isReferenced()) {
         await restore()
         return false
@@ -305,7 +341,51 @@ export function createCanonicalPackageStore(
     }
   }
 
-  return { save, read, available, remove }
+  async function entries(): Promise<string[]> {
+    try {
+      return await readdir(root)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+      throw error
+    }
+  }
+
+  async function modified(name: string): Promise<number | null> {
+    try {
+      const info = await lstat(join(root, name))
+      return info.isFile() ? info.mtimeMs : null
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null // removed meanwhile
+      throw error
+    }
+  }
+
+  async function list() {
+    const found: { descriptor: CanonicalPackageDescriptor; modifiedMs: number }[] = []
+    for (const name of await entries()) {
+      const reference = PACKAGE_FILE.exec(name)?.[1]
+      const modifiedMs = reference ? await modified(name) : null
+      if (reference && modifiedMs !== null)
+        found.push({ descriptor: { artifactReference: reference, artifactSha256: reference }, modifiedMs })
+    }
+    return found
+  }
+
+  async function leftovers() {
+    const found: { name: string; modifiedMs: number }[] = []
+    for (const name of await entries()) {
+      const modifiedMs = LEFTOVER.test(name) ? await modified(name) : null
+      if (modifiedMs !== null) found.push({ name, modifiedMs })
+    }
+    return found
+  }
+
+  async function removeLeftover(name: string) {
+    if (!LEFTOVER.test(name)) throw new Error('Not a canonical package leftover.')
+    await rm(join(root, name), { force: true })
+  }
+
+  return { save, read, available, list, leftovers, removeLeftover, remove }
 }
 
 export const canonicalPackageStore = createCanonicalPackageStore()
