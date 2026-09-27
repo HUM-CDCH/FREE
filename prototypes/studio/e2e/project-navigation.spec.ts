@@ -173,6 +173,10 @@ type Studio = {
   snapshots: { sourceRepresentation: { resources: Record<string, string> } }[]
   /** Hold every request whose path contains `pattern` until the returned release. */
   hold(pattern: string): () => void
+  /** Studio's Source Ingestions per Project Context, as the listing serves them; empty unless a test adds rows. */
+  ingestions: Map<string, Record<string, unknown>[]>
+  /** Workflow IDs the browser dismissed. */
+  dismissed: string[]
 }
 
 /**
@@ -234,6 +238,29 @@ async function stubStudio(
       .catch(() => {})
   })
 
+  // Studio's Source Ingestions: the listing (GET, with named IDs) and dismissal (DELETE), from memory.
+  const ingestions = new Map<string, Record<string, unknown>[]>()
+  const dismissed: string[] = []
+  await page.route('**/api/project-contexts/*/source-ingestions**', async (route) => {
+    const url = new URL(route.request().url())
+    const [, , , projectContextId, , encoded] = url.pathname.split('/')
+    const rows = ingestions.get(projectContextId!) ?? []
+    const settle = (fulfill: Parameters<typeof route.fulfill>[0]) => route.fulfill(fulfill).catch(() => {})
+    if (route.request().method() === 'DELETE') {
+      const workflowId = decodeURIComponent(encoded ?? '')
+      dismissed.push(workflowId)
+      ingestions.set(projectContextId!, rows.filter((row) => row.workflowId !== workflowId))
+      return settle({ status: 204, headers: { 'cache-control': 'no-store' } })
+    }
+    const named = url.searchParams.getAll('workflowId')
+    return settle({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'cache-control': 'no-store' },
+      body: JSON.stringify({ ingestions: rows, absent: named.filter((id) => !rows.some((row) => row.workflowId === id)) }),
+    })
+  })
+
   await page.route(
     '**/api/project-contexts/*/source-representations/**',
     async (route) => {
@@ -279,6 +306,8 @@ async function stubStudio(
     requests,
     cancelled,
     snapshots,
+    ingestions,
+    dismissed,
     hold(pattern) {
       let release!: () => void
       holds.set(
@@ -498,7 +527,7 @@ test.describe('rail navigation', () => {
     await expect(projectPage(page).getByRole('button', { name: /Retry/ })).toHaveCount(0)
   })
 
-  test('a timed-out Source Document stays item-scoped and retries by keyboard', async ({
+  test('an upload Studio could not acknowledge stays item-scoped and retries by keyboard', async ({
     page,
   }) => {
     await stubStudio(page)
@@ -507,21 +536,22 @@ test.describe('rail navigation', () => {
       attempts += 1
       if (attempts === 1)
         return route.fulfill({
-          status: 504,
+          status: 503,
           contentType: 'application/json',
           json: {
             error: {
-              code: 'source_ingestion_timeout',
-              message: 'Source Document parsing did not finish within thirty minutes.',
+              code: 'persistence_unavailable',
+              message: 'Source Document ingestion could not be started.',
             },
           },
         })
+      // Studio already holds these bytes: the retry replays their Source Document.
       return route.fulfill({
         status: 201,
         contentType: 'application/json',
         json: {
           sourceDocumentId: '51000000-0000-4000-8001-000000000199',
-          name: 'timeout.pdf',
+          name: 'unacknowledged.pdf',
           createdAt: '2026-08-24T09:00:00.000Z',
           sourceRepresentationId: '51000000-0000-4000-8002-000000000199',
           revisionNumber: 1,
@@ -536,24 +566,38 @@ test.describe('rail navigation', () => {
       rail(page).getByRole('button', { name: 'Open project' }),
     )
     await page.getByLabel('Drop PDFs here or browse').setInputFiles({
-      name: 'timeout.pdf',
+      name: 'unacknowledged.pdf',
       mimeType: 'application/pdf',
       buffer: Buffer.from('%PDF-1.7\n'),
     })
 
     await expect(
-      projectPage(page).getByText(
-        'Source Document parsing did not finish within thirty minutes.',
-        { exact: true },
-      ),
+      projectPage(page).getByText('Source Document ingestion could not be started.', { exact: true }),
     ).toBeVisible()
     await activateWithKeyboard(
       page,
-      projectPage(page).getByRole('button', { name: /Retry timeout\.pdf/ }),
+      projectPage(page).getByRole('button', { name: /Retry unacknowledged\.pdf/ }),
     )
 
-    await expect(documentRow(page, 'timeout.pdf')).toBeVisible()
+    await expect(documentRow(page, 'unacknowledged.pdf')).toBeVisible()
     expect(attempts).toBe(2)
+  })
+
+  test('a listed failure is dismissed by keyboard', async ({ page }) => {
+    const studio = await stubStudio(page)
+    await gotoAuthenticated(page, '/')
+    const workflowId = `ingest:${HORSHOLM}:51000000-0000-4000-8005-000000000001`
+    studio.ingestions.set(HORSHOLM, [{
+      workflowId, name: 'refused.pdf', status: 'failed', createdAt: '2026-08-24T09:00:00.000Z',
+      completedAt: '2026-08-24T09:05:00.000Z', failure: { code: 'source_ingestion_failed', message: 'kei refused the PDF.' },
+    }])
+    await activateWithKeyboard(page, projectMenuTrigger(page, 'Hørsholm, TAK 1402'))
+    await activateWithKeyboard(page, rail(page).getByRole('button', { name: 'Open project' }))
+
+    await expect(projectPage(page).getByText('kei refused the PDF.', { exact: true })).toBeVisible()
+    await activateWithKeyboard(page, projectPage(page).getByRole('button', { name: 'Dismiss refused.pdf' }))
+    await expect(projectPage(page).getByText('kei refused the PDF.', { exact: true })).toHaveCount(0)
+    expect(studio.dismissed).toEqual([workflowId])
   })
 
   test('returns focus to the delete control when cancellation closes the dialog', async ({
