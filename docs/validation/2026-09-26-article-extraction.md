@@ -85,6 +85,36 @@ Article extraction and the three-hour deadlines.
 These checks cover extraction integration. They do not repeat the upstream
 foundation's separate garbage-collection, deployment or Studio E2E validation.
 
+### Standalone PR service boundary — 2026-09-27
+
+The service model fixture now answers Article inventory, per-identity values
+and semantic grounding from its parsed source. The expected eight calls cover
+five Article calls plus Catalog discovery and its two records. This fixture
+update lives in the original repair so later stacked PRs are not required to
+make its service checks work. Interactive and batch deadline assertions both
+expect the implemented three-hour allowance.
+
+The existing cancellation fix from the later integration is also applied here:
+a forced status check after the final model call prevents publishing a cancelled
+Extraction or refreshing its run's GC age. Two regression cases cancel Article
+and Catalog during their final call with a recently read status, proving that
+the publication check bypasses throttling. Workflow steps/version are unchanged.
+
+Validation in `article-repair-review`: **985 fast parser tests**, **36 extraction
+workflow tests**, and root TypeScript typechecking pass. The first full service
+run passed 12/13 scenarios; its only failure was the stale ten-minute deadline
+expectation (the worker reported 10,800,000 ms). After correcting that assertion,
+the affected scenario passed in an isolated rerun. Thus all 13 distinct service
+scenarios have passed; this is not described as a single clean full-suite run.
+Logs are in that worktree's `artifacts/article-repair-integration/`.
+
+The real-service boundary uses authentication, PostgreSQL, DBOS, native parsing,
+canonical evidence and review; model replies alone are scripted. Its own Compose
+project `free-article-repair-service` used PostgreSQL 25446, Studio 41791 and OIDC
+41792 and was removed after each run. No deployment or new accuracy result is
+claimed. Diff and bloat review passed; the backport adds no runtime dependency
+or compatibility path. R1's running code and saved artifacts remain unchanged.
+
 ### Original live comparison
 
 The original six PDFs were rehashed against the adjudicated gold. Gold, original schema, scorer and baseline

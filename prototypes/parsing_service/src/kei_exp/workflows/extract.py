@@ -67,6 +67,8 @@ def extract_run(workflow_id: str, run_id: str, generation: str, body: dict) -> d
                          chunks=CATALOG_CHUNKS, before_entry=check)
     except StaleGeneration as error:
         raise KeiFailure("stale_generation", str(error)) from error
+    # Observe cancellation during the final model call before publishing or refreshing the run's GC age.
+    check(force=True)
     path = publish_extraction(directory, extraction_id, result)
     return ExtractOk(ok=True, run_id=run_id, extraction_id=extraction_id, generation=result["generation"],
                      artifact_sha256=sha256_file(path), model=result["model"], models=result["models"]).model_dump()
