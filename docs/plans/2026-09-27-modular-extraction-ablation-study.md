@@ -178,6 +178,14 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- The full stack also passes all 61 default browser and five recovery
+  scenarios in a fresh isolated run (`artifacts/extraction-integration/browser.log`).
+  The manual model-picker fixture fix already in this stack is now backported
+  to repair `9a85f01` and study `7fb6616`; all 12 model-configuration scenarios
+  pass in the repair checkout. Parent CI had exposed the probe-timing race;
+  a separate port-binding failure is retained in the repair report. These
+  changes do not alter study inference files or establish final live results.
+
 - Standalone parent validation is now addressed: repair `3c714c9` carries the
   model fixture, three-hour service assertions and final-publication cancellation
   guard. It passes 985 fast tests, 36 workflow tests, typecheck and all 13 distinct

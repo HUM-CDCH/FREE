@@ -43,6 +43,7 @@ manifest, captured reply or frozen follow-up archive was changed by integration.
 | Studio PostgreSQL GC acceptance | Seven passed, including the four adapted recovery scenarios |
 | `pnpm --filter studio test:service` | 14 passed in 4.4 minutes |
 | Browser suite collection after config reconciliation | 61 default and five recovery scenarios; collection only, no duplicate service/restart inclusion |
+| Subsequent `pnpm test:e2e` on the integrated stack | All 61 default and five recovery scenarios passed; `browser.log` |
 | Intermediate study branch fast parser suite | 1024 passed, 72 skipped, 74 deselected |
 | Intermediate study branch captured reference replay | Six sources, 88 identical requests/replies and artifacts, excluding only top-level clocks |
 | Diff and bloat review | Passed; no new runtime dependencies, compatibility paths or settings |
@@ -73,6 +74,14 @@ need the actual admission/completion contract. It removes their duplicate old
 request/wait code; its `201`/`202` branches represent current public outcomes.
 No additional removal or production abstraction is needed.
 
+The later browser run used `free-extraction-stack-browser`, with PostgreSQL
+25448, Studio 24781 and OIDC 24782. Both suites removed their own containers,
+network and volume. Recovery exercised open-page and between-poll Studio
+restarts, credential resupply and a planted-key storage sweep, plus admitted
+upload recovery and dismissal after restart. Browser fixtures stand in for
+the external parsing/model endpoints; the separate service tier above uses
+the actual Python service with only model replies scripted.
+
 ## Remaining gates
 
 ### Standalone parent repair and final ancestry
@@ -90,6 +99,21 @@ fast parser tests. The full stack incorporates that ancestry at `4492a68`;
 its runtime and test files are byte-identical to `24ed4bd` and retain the
 full-stack validation above. Only documentation changed when the existing fixes
 were moved earlier in the review stack.
+
+Parent repair `9a85f01` additionally carries the existing manual model-picker
+fixture fix from the full stack. Its 12 model-configuration browser scenarios
+pass; the same timing race had failed CI on repair `93e1ea7` and study
+`4110ca9`. Study merge `7fb6616` incorporates it. The full-stack merge changes
+only the repair report because the fixture was already identical here. A
+separate parent CI failure was an occupied browser PostgreSQL port, before
+any browser scenario ran; its owner is unknown. CI success is not inferred
+from these local results.
+
+GitHub's complete `verify` job subsequently
+[passed at `16b2cb1`](https://github.com/HUM-CDCH/FREE/actions/runs/36334988138).
+The final ancestry merge `56cc78e` and this evidence update retain identical
+runtime/test files; their differences from that verified commit are documentation.
+The independently pushed parent heads still require their own CI conclusions.
 
 Capture replay now covers 37 R1 cells and 1252 saved calls: the original
 35-cell offline report plus `increment-37-offline.json` under the primary
