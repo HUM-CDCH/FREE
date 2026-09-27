@@ -45,7 +45,8 @@ if (!disposableDatabaseUrl) {
     { db, pool, stableJson, stableUuid },
     { createCanonicalPackageStore },
     { createResearcherProjectStore },
-    { createExtractionStore, createResearcherExtractionPersistence, settleExtraction },
+    { createResearcherExtractionPersistence },
+    { createExtractionStore, settleExtraction },
     { launchDbosTestApp },
     { spawnKeiStandIn },
   ] =
@@ -54,6 +55,7 @@ if (!disposableDatabaseUrl) {
       import('../../db/src/artifact-store.js'),
       import('../../db/src/project-store.js'),
       import('./postgres-persistence.js'),
+      import('./postgres-workflow-store.js'),
       import('./testing/dbos-test-app.js'),
       import('./testing/kei-stand-in-client.js'),
     ])

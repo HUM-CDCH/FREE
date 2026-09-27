@@ -675,13 +675,47 @@ public export unchanged; the moved code is text-identical apart from
 `this.` → explicit parameters where a method body became a function.
 
 Acceptance:
-- [ ] `postgres-persistence.ts` ≤ ~350 lines; no new module > ~450 lines.
-- [ ] No import cycle among `packages/extraction/src` modules (a small script
+- [x] `postgres-persistence.ts` ≤ ~350 lines; no new module > ~450 lines.
+- [x] No import cycle among `packages/extraction/src` modules (a small script
       or `tsc`-based check in the report; the controller re-checks).
 - [ ] `index.ts` / `package.json` exports and every Studio import of
       `extraction` resolve unchanged: extraction `tsc --noEmit` and Studio
       `tsc -b` pass; extraction fast tests pass; the controller runs the
       extraction PostgreSQL tier.
+      (Typecheck and fast tests pass, see the receipt; the PostgreSQL tier
+      is the controller's.)
+
+Verification receipt (Task 10): `postgres-persistence.ts` 1,592 → 320 lines
+(the researcher-scoped class, whose methods delegate, `cancelInteractiveExtraction`,
+`SUPERSEDED_MESSAGE` and `createResearcherExtractionPersistence`), beside
+six new modules: `postgres-ownership.ts` (214; the three `ownsResearcher*`
+guards, `loadResearcherExtraction`, `ownedInputs`, `ownedRepresentation`
+and `readResearcherExtraction`, the former `readExtraction` method body),
+`postgres-attempts.ts` (259; attempt rows, status derivation, snapshots,
+`failureMessage`, the reviewed-value codec and `loadDocumentExtractions`),
+`postgres-admission.ts` (422; identities, `JUST_ADMITTED`, the constraint
+keys and `SUGGESTED_BATCH_KEYS`, interactive admission, `admitBatchExtraction`
+— the `scheduleBatch` body — and `admitBatchMember`), `postgres-batches.ts`
+(284; the batch read model and results, `DurableBatchExtraction` and
+`readBatchForResearcher`), `postgres-reviews.ts` (139; drafts, reset and
+`finalizeStoredReview`, the `finalizeReview` body, still revalidating with
+`review-rules.ts` inside its transaction) and `postgres-workflow-store.ts`
+(114; `settleExtraction`, `createExtractionStore`). `semanticSuggestionTree`
+and `withoutNodeIds` moved into `postgres-suggested-batch.ts` (226), which
+now imports `AdmitBatchMember` from admission and `DurableBatchExtraction`
+from batches: the batch read model owns that type, because admission reads
+the batch back and a type in admission would close a batches ↔ admission
+cycle. Moved code is line-for-line identical apart from `export`, `this.` →
+parameters, and `readBatchForResearcher`'s `statuses` default
+(`this.execution.statuses`) made explicit at its two callers; every
+transaction, `withPoolClientTransaction` body, row lock, enqueue, retry and
+error path is where it was. `index.ts` re-exports
+`createResearcherExtractionPersistence` and `createExtractionStore` from
+their modules; the integration test's dynamic import gained
+`./postgres-workflow-store.js`. Checks: a Tarjan SCC scan of relative
+imports in `packages/extraction/src` finds the old cycle at 1f3cb1c4 and
+none after (39 modules, 147 imports); extraction `tsc --noEmit` and Studio
+`tsc -b` clean; extraction fast tests 85/85.
 
 ## Next candidates, reassessed after this slice
 

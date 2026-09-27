@@ -4,10 +4,8 @@ export type { ExtractionExecution } from './dependencies.js'
 export { createKeiExpClient } from './kei-exp.js'
 export type { KeiExpClient, KeiExpArtifact, KeiExpIngestionModelListing, KeiExpModelListing } from './kei-exp.js'
 export { createExtractions } from './extractions.js'
-export {
-  createExtractionStore,
-  createResearcherExtractionPersistence,
-} from './postgres-persistence.js'
+export { createResearcherExtractionPersistence } from './postgres-persistence.js'
+export { createExtractionStore } from './postgres-workflow-store.js'
 export { dbosSteps } from './workflow-steps.js'
 export {
   EXTRACTION_QUEUE,
