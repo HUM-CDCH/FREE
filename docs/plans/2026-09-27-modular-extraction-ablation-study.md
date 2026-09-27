@@ -176,6 +176,19 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- Implementation checkpoint: `d183d4f` on `feat/modular-extraction-ablation`.
+  Selector work is isolated at `/home/gennaro/projects/FREE-worktrees/extraction-evidence-selection`
+  on `feat/extraction-evidence-selection`, so R1's pinned source stays unchanged.
+  The selector and conditional replay runner are implemented; 1007 unit tests passed
+  (72 skipped, 68 deselected), and six-source / 88-call reference replay still matches.
+  R2a is registered at `artifacts/extraction-ablation/20260927-r2a-selection/manifest.json`.
+  Its protocol is `prototypes/parsing_service/experiments/extraction/selection-protocol.md`
+  in the selector checkout. It compares raw values with fixed R1 response subsequences,
+  not fresh inference or independent generalization. The initial R2 canary was superseded
+  by a repeated-request ambiguity guard; never pool R2 with R2a.
+  Katrinesminde has passed exact bounded control replay and both R2a arms. Remaining
+  sources depend on their R1 bounded captures; neither study is complete.
+
 - Completion audit found two remaining obligations beyond finishing the first matrix:
   observation accounting must expose extra measurements inside matched records, and the M2
   record-specific evidence selector is not supplied by the all-unit bounded baseline.
