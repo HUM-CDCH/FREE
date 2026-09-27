@@ -30,7 +30,7 @@ process.env.FREE_PLAYWRIGHT_STUDIO_LOG = resolve(recoveryTests, 'studio.log')
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: 'interactive-restart.spec.ts',
+  testMatch: ['interactive-restart.spec.ts', 'source-ingestion-restart.spec.ts'],
   outputDir: resolve(recoveryTests, 'results'),
   workers: 1,
   timeout: 300_000,

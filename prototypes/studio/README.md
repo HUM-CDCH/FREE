@@ -87,6 +87,11 @@ Run a new Extraction on the current revision to use upgraded cell Evidence; an
 Extraction opened on an earlier revision offers no new run. Ordinary
 re-uploading still deduplicates by PDF content and does not reprocess it.
 
-Recreate the database from the baseline before serving this version. This action
-currently uses the same request and in-memory queue lifecycle as uploads; closing
-the browser does not provide durable queue recovery.
+Recreate the database from the baseline before serving this version. Reprocessing
+still waits on its parse in the browser: closing the browser does not lose the
+work, but the page shows it again only as the new revision.
+
+An upload is Studio's once it is admitted (`202 { workflowId }`): the Project page
+lists it as a Source Ingestion, queued, parsing or failed, across reloads, tabs and
+Studio restarts, until it becomes a Source Document. A failure can be dismissed or
+uploaded again. Files the browser has not sent yet are still only in the tab.

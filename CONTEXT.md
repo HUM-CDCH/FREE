@@ -20,6 +20,10 @@ _Avoid_: user, member
 A document that contains the original material a researcher works from, including PDFs and other document formats.
 _Avoid_: file, PDF, upload
 
+**Source Ingestion**:
+One attempt to turn a document a Humanities Researcher provides into a Source Document: queued, then parsing, then a Source Document or a failure the researcher can dismiss. Studio holds it from admission, so it outlives the page that started it.
+_Avoid_: upload job, parse job
+
 **Project Context**:
 The research aggregate owned by exactly one Researcher Account. It contains one or more Source Documents, their annotations and Annotation Sets, Schema Suggestions, Extraction Schemas, Extractions, and Extraction Results; every descendant inherits ownership through this aggregate.
 _Avoid_: research context, workspace when referring to one Project Context

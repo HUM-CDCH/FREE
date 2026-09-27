@@ -690,6 +690,12 @@ export type ResearcherProjectStore = {
     projectContextId: string,
     contentSha256: string,
   ): Promise<PersistedSourceDocument | null>
+  /** Content hash → Source Document ID for the owned Project Context's documents with any of these contents, in one
+   *  read; empty when the project is missing or foreign. The Source Ingestion listing resolves failed attempts with it. */
+  findSourceDocumentIdsByContent(
+    projectContextId: string,
+    contentSha256s: readonly string[],
+  ): Promise<ReadonlyMap<string, string>>
   /**
    * Makes a retained canonical package visible as one Source Document and its
    * first representation. Content is the identity: the unique
@@ -1592,6 +1598,16 @@ export function createResearcherProjectStore(
     async findSourceDocumentByContent(projectContextId, contentSha256) {
       if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId))) return null
       return sourceDocumentByContent(database.orm, projectContextId, contentSha256)
+    },
+    async findSourceDocumentIdsByContent(projectContextId, contentSha256s) {
+      if (contentSha256s.length === 0) return new Map()
+      if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId))) return new Map()
+      const rows = (await database.orm.public.SourceDocument
+        .where((document) => document.contentSha256.in([...new Set(contentSha256s)]))
+        .where({ projectContextId })
+        .select('id', 'contentSha256')
+        .all()) as { id: string; contentSha256: string }[]
+      return new Map(rows.map((row) => [row.contentSha256, row.id]))
     },
     async ingestSourceDocument(projectContextId, input) {
       if (!(await ownsProjectContext(database.orm, researcherAccountId, projectContextId))) return null

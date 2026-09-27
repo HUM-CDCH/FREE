@@ -6,7 +6,7 @@ import type {
   IngestedSourceDocument,
   ResearcherProjectStore,
 } from '../../../packages/db/src/project-store.js'
-import { awaitWorkflowOutcome, STUDIO_QUEUE, studioDbos } from '../server/dbos.js'
+import { STUDIO_QUEUE, studioDbos } from '../server/dbos.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
 import { sourceDocumentFilenameFailure } from '../shared/sourceDocumentFilename.js'
 import {
@@ -24,7 +24,6 @@ import {
   ingestedOutput,
   ingestWorkflowId,
   type IngestionInput,
-  type IngestionOutcome,
 } from './_ingestion_workflow.js'
 import { packagePageCount, type PackageStore } from './_kei_conversion.js'
 import { configuredIngestionModels } from './_model_config.js'
@@ -38,8 +37,6 @@ import {
 } from './_source_inbox.js'
 
 const MAX_PDF_BYTES = 100 * 1024 * 1024
-/** The existing HTTP deadline of an upload; past it the request detaches and the workflow keeps running. */
-const RESULT_TIMEOUT_MS = 30 * 60 * 1000
 /** The researcher's page layout: single PDF pages, or scanned two-page spreads split into book pages. */
 const PAGE_SOURCE_OF_LAYOUT: ReadonlyMap<string, 'pdf' | 'ingest'> = new Map([
   ['pages', 'pdf'],
@@ -52,14 +49,11 @@ type IngestionStore = Pick<
 >
 
 export type Dependencies = {
-  /** Enqueues and reads `ingestSource`; Studio's launched admission client by default. */
-  admission?: Pick<DBOSClient, 'enqueue' | 'listWorkflows'>
+  /** Enqueues `ingestSource`; Studio's launched admission client by default. */
+  admission?: Pick<DBOSClient, 'enqueue'>
   inboxRoot?: string
   countPages?: (pdf: Uint8Array) => Promise<number | null>
   ingestionModels?: (owner: string) => Promise<{ ocr: string | null; layout: string | null }>
-  /** How long the request waits for its workflow (thirty minutes). */
-  resultTimeoutMs?: number
-  resultPollIntervalMs?: number
   /** Reads a completed document's page count from its package. */
   packageStore?: Pick<PackageStore, 'read'>
   /** Test seam: runs after the completed-content precheck, right before the enqueue. */
@@ -157,8 +151,8 @@ async function upload(request: Request): Promise<{ pdf: Uint8Array; originalName
 /**
  * `POST …/source-documents`: completed content replays at once; otherwise the upload is staged under a server-minted
  * attempt and `ingestSource` is enqueued with active deduplication on the project and content, so a same-content
- * upload joins the attempt already running (with that attempt's admitted models). The request then waits for the
- * workflow for thirty minutes; a 504 detaches and cancels nothing.
+ * upload joins the attempt already running (with that attempt's admitted models). It answers 202 with the admitted
+ * workflow's ID as soon as the enqueue returns; the Source Ingestion listing reports the attempt from there on.
  */
 export function createSourceDocumentIngestion(
   store: IngestionStore,
@@ -230,25 +224,7 @@ export function createSourceDocumentIngestion(
       }
       // Another attempt won: this request's file was never handed to a workflow.
       if (workflowId !== ours) await removeStagedSource(root, source).catch(() => undefined)
-      const awaited = await awaitWorkflowOutcome<IngestionOutcome>(admission, workflowId, {
-        timeoutMs: dependencies.resultTimeoutMs ?? RESULT_TIMEOUT_MS,
-        intervalMs: dependencies.resultPollIntervalMs,
-        signal: request.signal,
-      }).catch((cause) => {
-        if (request.signal.aborted) throw cause
-        throw persistenceUnavailable(cause, 'Source Document ingestion status is unavailable.')
-      })
-      // Detaches: nothing is cancelled, and a re-upload of the same bytes joins the attempt or replays its document.
-      if (awaited.state === 'timed-out')
-        throw new ApiError(504, 'source_ingestion_timeout', 'Source Document parsing did not finish within thirty minutes.')
-      if (awaited.state === 'stopped')
-        throw new ApiError(502, 'source_ingestion_failed', 'Source Document parsing stopped before it finished.')
-      if (!awaited.output.ok)
-        throw new ApiError(awaited.output.status, awaited.output.code, awaited.output.message)
-      return json(
-        { ...awaited.output.sourceDocument, pageCount: awaited.output.pageCount },
-        { status: 201, headers: noStore },
-      )
+      return json({ workflowId }, { status: 202, headers: noStore })
     } catch (error) {
       if (request.signal.aborted) throw error
       return noStoreError(error)
