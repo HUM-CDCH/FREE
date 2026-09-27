@@ -178,6 +178,21 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- Full review-stack integration is now locally verified in
+  `/home/gennaro/projects/FREE-worktrees/extraction-current-stack` at `88eed7c`.
+  It combines the concurrent Source Ingestion work, extraction fixes and current
+  repaired parser foundation. The two Studio conflicts and stale GC fixtures
+  are resolved; Source Ingestion's colliding ADR is now 0014. See
+  `docs/validation/2026-09-27-extraction-stack-integration.md`: 1068 fast parser,
+  74 Python workflow/cleanup, 1791 Node unit and seven GC acceptance checks pass,
+  as do typecheck and all 14 authenticated real-service scenarios. The latter
+  scripts only the model boundary. Intermediate study integration `7c3e524`
+  passes 1024 fast tests and the exact 88-call replay. This supersedes the
+  integration-conflict gate recorded below, not the unfinished live study.
+  Keep `/home/gennaro/projects/FREE` on its R1 files even when the remote study
+  branch advances; use the isolated worktrees for integration. Do not pull new
+  runtime code into the primary checkout while the study is active.
+
 - `docs/validation/extraction_ablation_tables.py` now renders a pinned analysis
   and its matching accounting into reviewable Markdown, with exact registered,
   missing and paired denominators. Six focused tests pass; R1's 36-cell and R2a's
