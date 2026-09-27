@@ -425,6 +425,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
       ),
       discardCanonicalPackage: vi.fn(async () => {}),
       findSourceDocumentByContent: vi.fn(async () => null),
+      findSourceDocumentIdsByContent: vi.fn(async () => new Map()),
       ingestSourceDocument: vi.fn(async () => null),
       createBatchSchemaSuggestion: vi.fn(async () => null),
       getBatchSchemaSuggestion: vi.fn(async () => null),

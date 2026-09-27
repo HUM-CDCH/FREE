@@ -124,6 +124,13 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     await survivorStore.findSourceDocumentByContent(project.projectContextId, ingestion.contentSha256),
     null,
   )
+  // The Source Ingestion listing resolves failed attempts' content in one read, within one owned project only.
+  assert.deepEqual(
+    [...(await store.findSourceDocumentIdsByContent(project.projectContextId, [ingestion.contentSha256, 'f'.repeat(64)]))],
+    [[ingestion.contentSha256, ingestedDocument.sourceDocumentId]],
+  )
+  assert.equal((await survivorStore.findSourceDocumentIdsByContent(project.projectContextId, [ingestion.contentSha256])).size, 0)
+  assert.equal((await store.findSourceDocumentIdsByContent(project.projectContextId, [])).size, 0)
   // The publication backstop names this constraint: a second insert of the content is a replay, nothing else is.
   const duplicate = await db.transaction(({ orm }) => orm.public.SourceDocument.create({
     projectContextId: project.projectContextId,
