@@ -128,3 +128,9 @@ verifies missing-cell accounting (R1 1/79, R2a 2/30); these are not final effect
 
 Integration of the selector into the primary feature branch remains pending until R1's
 pinned execution finishes. Both feature branches are pushed; no production deployment.
+
+The [source-level case review](2026-09-27-extraction-failure-cases.md) records the first
+observed failure mechanisms: unresolved partial identities yielding duplicate final keys,
+and zero lexical relevance scores discarding a unit with reported grave subcounts.
+This review supplies descriptive evidence, not independent annotation or a reason to
+tune the registered selector during execution.

@@ -176,6 +176,15 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- Automatic follow-up is running from `artifacts/extraction-ablation/follow-study.py`.
+  Its PID, script hash, observed R1 process identity and manifest hashes are saved in
+  `artifacts/extraction-ablation/followup-20260927/execution-plan.json`; logs and terminal
+  command statuses are beside it. It runs R2a only after the parent bounded result exists,
+  never starts/resumes R1 generation, and generates analysis/observation reports when the
+  R1 launcher exits. An exited launcher or generated report is not proof of a complete
+  study: inspect all missing/failed cells before closing the goal. Verify the follower's
+  live process before manually running the same R2a source.
+
 - Implementation checkpoint: `d183d4f` on `feat/modular-extraction-ablation`.
   Selector work is isolated at `/home/gennaro/projects/FREE-worktrees/extraction-evidence-selection`
   on `feat/extraction-evidence-selection`, so R1's pinned source stays unchanged.
