@@ -621,10 +621,71 @@ Checks: extraction `tsc --noEmit` and Studio `tsc -b` clean; extraction fast
 tests 85 pass (base 73, +12 in `review-rules.test.ts`, added to the `test`
 script), including a pinned digest string.
 
+Controller addendum (Task 9): extraction `tsc` OK, fast 85/85, extraction
+PostgreSQL tier 56/56 on `free_test_refactor_extraction`.
+
+## Task 10 (slice 10): split `postgres-persistence.ts` by cluster
+
+`packages/extraction/src/postgres-persistence.ts` is 1,592 lines holding one
+shared core and several independent clusters, plus the researcher-scoped
+class whose methods carry large bodies (`ownedInputs` ~977-1034,
+`ownedRepresentation` ~1035-1072, `finalizeReview` ~1177-1252,
+`scheduleBatch` ~1270-1407). `postgres-suggested-batch.ts:12` imports the
+types `AdmitBatchMember` and `DurableBatchExtraction` back from it — the
+package's only import cycle. Every per-run setting and every batch change
+has edited this file (fdbd94a5, 40c02e08, e517fd37, 27155167, 7d74caef).
+
+Change — flat modules in `packages/extraction/src`, named like the existing
+`postgres-suggested-batch.ts`; logic moves verbatim:
+- `postgres-ownership.ts`: `ownsResearcherExtraction`,
+  `ownsResearcherDocument`, `ownsResearcherBatch`,
+  `loadResearcherExtraction` (the guards every cluster uses).
+- `postgres-attempts.ts`: attempt reads and status derivation
+  (`readAttemptRows`, `AttemptRow`, `DerivedAttempt`, `settledAttempt`,
+  `deriveAttempts`, `pinsOf`, `extractionSnapshot`, `attemptSnapshot`,
+  `loadAttempts`, `failureMessage`, and the reviewed-value codec if the
+  snapshots need it).
+- `postgres-admission.ts`: identities and admission (`canonicalIds`,
+  `selectionId`, `batchMemberExtractionId`, `AdmissionPins`,
+  `resolveAdmission`, `AdmittedIdentity`, `sameAdmission`,
+  `workflowIdInUse`, `admitInteractiveExtraction`,
+  `BatchMemberAdmission`, `admitBatchMember`, `AdmitBatchMember`, the
+  `scheduleBatch` body as a function) and the `DurableBatchExtraction` type
+  if admission owns it; `postgres-suggested-batch.ts` imports its two types
+  from here, which removes the cycle.
+- `postgres-batches.ts`: batch read model and results (`BatchMember`,
+  `snapshot`, `loadBatches`, `loadBatch`, `ResultDecision`,
+  `applyReviewDecisionsToResult`, `setAtPath`, `loadFinalizedDecisions`,
+  `loadResults`, `readBatchForResearcher`'s body).
+- `postgres-reviews.ts`: review storage (`reviewDigest`, stored drafts,
+  `resetStoredReview`, the `finalizeReview` transaction body as a function
+  that still calls `review-rules.ts` inside the transaction).
+- `postgres-workflow-store.ts`: `settleExtraction`, `createExtractionStore`.
+- `postgres-persistence.ts` keeps the researcher-scoped class as a thin
+  assembly whose methods delegate, `createResearcherExtractionPersistence`,
+  and whatever small helpers only it uses. `index.ts` re-exports the public
+  names from their new modules (public interface unchanged).
+- Place each remaining helper (`semanticSuggestionTree`, `withoutNodeIds`,
+  `ownedInputs`, `ownedRepresentation`, `decodeReviewedValue`, …) with its
+  cluster; record every placement in the report.
+
+Invariants: every SQL statement, transaction boundary, lock
+(`withPoolClientTransaction`, row locks), retry and error path, and every
+public export unchanged; the moved code is text-identical apart from
+`this.` → explicit parameters where a method body became a function.
+
+Acceptance:
+- [ ] `postgres-persistence.ts` ≤ ~350 lines; no new module > ~450 lines.
+- [ ] No import cycle among `packages/extraction/src` modules (a small script
+      or `tsc`-based check in the report; the controller re-checks).
+- [ ] `index.ts` / `package.json` exports and every Studio import of
+      `extraction` resolve unchanged: extraction `tsc --noEmit` and Studio
+      `tsc -b` pass; extraction fast tests pass; the controller runs the
+      extraction PostgreSQL tier.
+
 ## Next candidates, reassessed after this slice
 
-1. Split `postgres-persistence.ts` by cluster around ownership guards and
-   attempt reads (removes the `postgres-suggested-batch` type cycle).
+1. Split `extraction-module.integration.test.ts` (2,515 lines) along the
+   same clusters with one shared fixture module.
 2. One owner for the extraction method value (strategy, recipe, models).
-3. Python: separate model records from Docling specs (`kei_exp.models`) so
-   `api`/`result` stop loading the OCR stack.
+3. Python: separate model records from Docling specs (`kei_exp.models`).
