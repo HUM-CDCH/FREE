@@ -16,7 +16,10 @@ import {
 } from '../../shared/projectContext.contract'
 import {
   sourceDocumentIngestionResponseSchema,
+  sourceIngestionAdmittedSchema,
+  sourceIngestionListingSchema,
   type SourceDocumentIngestionResponse,
+  type SourceIngestionListing,
 } from '../../shared/sourceDocumentIngestion.contract'
 import type { SourceLayout } from '../sourceIngestionMachine'
 
@@ -69,7 +72,7 @@ export class ProjectContextRequestError extends Error {
   }
 }
 
-async function read(url: string, init?: RequestInit): Promise<unknown> {
+async function readResponse(url: string, init?: RequestInit): Promise<{ status: number; body: unknown }> {
   const response = await authenticatedFetch(url, init)
   const body: unknown =
     response.status === 204 ? null : await response.json().catch(() => null)
@@ -80,7 +83,11 @@ async function read(url: string, init?: RequestInit): Promise<unknown> {
       response.headers.get(REPROCESS_TERMINAL_HEADER) === '1',
     )
   }
-  return body
+  return { status: response.status, body }
+}
+
+async function read(url: string, init?: RequestInit): Promise<unknown> {
+  return (await readResponse(url, init)).body
 }
 
 /** Statuses after which the server may still have done, or still be doing, the work. */
@@ -168,27 +175,52 @@ export async function getProjectContextWithDocuments(
   )
 }
 
+export type UploadAdmission =
+  | { kind: 'admitted'; workflowId: string }
+  | { kind: 'replayed'; document: SourceDocumentIngestionResponse }
+
 /**
- * Sends one PDF and its page layout. It carries no key: the server identifies an
- * upload by its content, so sending the same bytes again returns the Source
- * Document they became, or joins the parse still running for them.
+ * Sends one PDF and its page layout. It carries no key: the server identifies an upload by its content. Studio answers
+ * once the attempt is admitted (202, its workflow ID; the same bytes sent again join the attempt still running), or at
+ * once with the Source Document the bytes already became (201).
  */
 export async function ingestSourceDocument(
   projectContextId: string,
   file: File,
   layout: SourceLayout = 'pages',
   signal?: AbortSignal,
-): Promise<SourceDocumentIngestionResponse> {
+): Promise<UploadAdmission> {
   const form = new FormData()
   form.append('file', file, file.name)
   form.append('layout', layout)
-  return sourceDocumentIngestionResponseSchema.parse(
-    await read(`/api/project-contexts/${projectContextId}/source-documents`, {
-      method: 'POST',
-      body: form,
-      signal,
-    }),
+  const { status, body } = await readResponse(`/api/project-contexts/${projectContextId}/source-documents`, {
+    method: 'POST',
+    body: form,
+    signal,
+  })
+  if (status === 202) return { kind: 'admitted', workflowId: sourceIngestionAdmittedSchema.parse(body).workflowId }
+  if (status === 201) return { kind: 'replayed', document: sourceDocumentIngestionResponseSchema.parse(body) }
+  throw new ProjectContextRequestError(status, null)
+}
+
+/** The Project Context's Source Ingestions, plus the named workflow IDs whatever their age (or listed as absent). */
+export async function listSourceIngestions(
+  projectContextId: string,
+  workflowIds: readonly string[],
+  signal?: AbortSignal,
+): Promise<SourceIngestionListing> {
+  const query = new URLSearchParams(workflowIds.map((id) => ['workflowId', id])).toString()
+  return request(
+    `/api/project-contexts/${projectContextId}/source-ingestions${query ? `?${query}` : ''}`,
+    sourceIngestionListingSchema,
+    signal,
   )
+}
+
+export async function dismissSourceIngestion(projectContextId: string, workflowId: string): Promise<void> {
+  await read(`/api/project-contexts/${projectContextId}/source-ingestions/${encodeURIComponent(workflowId)}`, {
+    method: 'DELETE',
+  })
 }
 
 export function getDocumentReopenSnapshot(
