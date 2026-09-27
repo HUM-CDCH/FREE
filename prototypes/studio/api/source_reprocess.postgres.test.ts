@@ -9,12 +9,12 @@ import { dbosSteps } from 'extraction'
 import { createKeiHandoff, KEI_APPLICATION, type KeiConvertInput } from 'extraction/kei-handoff'
 import { spawnKeiStandIn, type KeiStandInProcess } from 'extraction/kei-stand-in-client'
 import { createCanonicalPackageStore } from '../../../packages/db/src/artifact-store.js'
-import { launchStudioDbos, shutdownStudioDbos, studioDbos } from '../server/dbos.js'
+import { awaitWorkflowOutcome, launchStudioDbos, shutdownStudioDbos, studioDbos } from '../server/dbos.js'
 import { runWorkflowChild } from '../test/support/crash.js'
 import { chooseIngestionModels, ingestionStoreFor, removeOwner, seedOwner, uploadRequest } from '../test/support/ingestion.js'
 import { blankPdf } from '../test/support/pdf.js'
 import { disposableDatabaseUrl, dropSchemas, testSchemas } from '../test/support/postgres.js'
-import { registerIngestionWorkflow } from './_ingestion_workflow.js'
+import { registerIngestionWorkflow, type IngestionOutcome } from './_ingestion_workflow.js'
 import { registerReprocessWorkflow } from './_reprocess_workflow.js'
 import { createSourceDocumentIngestion } from './source_documents.js'
 import { createSourceDocumentReprocessing } from './source_reprocess.js'
@@ -72,11 +72,13 @@ async function fixture() {
   owners.push(owner)
   const project = (await store.createProjectContext(`Reprocess ${randomUUID()}`)).projectContextId
   const pdf = blankPdf(3, randomUUID())
-  const ingested = await createSourceDocumentIngestion(store, { inboxRoot: inbox, packageStore: packages,
-    resultPollIntervalMs: 50 })(uploadRequest(project, pdf))
-  expect(ingested.status, await ingested.clone().text()).toBe(201)
-  const { sourceDocumentId: document, sourceRepresentationId: head, pageCount } = await ingested.json() as {
-    sourceDocumentId: string; sourceRepresentationId: string; pageCount: number }
+  const admitted = await createSourceDocumentIngestion(store, { inboxRoot: inbox, packageStore: packages })(uploadRequest(project, pdf))
+  expect(admitted.status, await admitted.clone().text()).toBe(202)
+  // The upload answers on admission; the fixture waits for the document it becomes.
+  const { workflowId } = await admitted.json() as { workflowId: string }
+  const outcome = await awaitWorkflowOutcome<IngestionOutcome>(studioDbos().admission, workflowId, { timeoutMs: 60_000, intervalMs: 50 })
+  if (outcome.state !== 'finished' || !outcome.output.ok) throw new Error(`The fixture upload ended ${JSON.stringify(outcome)}.`)
+  const { sourceDocument: { sourceDocumentId: document, sourceRepresentationId: head }, pageCount } = outcome.output
   // The stand-in's fixture parse records eight physical pages, though the staged test PDF has three.
   // Reprocessing must choose its lane from this stored count.
   expect(pageCount).toBe(8)

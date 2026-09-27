@@ -57,15 +57,15 @@ export function projectIngestions(input: {
     const completedMs = status.completedAt ?? status.updatedAt ?? status.createdAt
     const completedAt = new Date(completedMs).toISOString()
     const named = input.named.has(status.workflowID)
+    // A failure a newer attempt of the same content superseded is that attempt's to report.
+    if (outcome.kind === 'failed' && !named && newestOfContent.get(recorded.sourceSha256) !== status.workflowID) return []
     // A stopped attempt whose content is a Source Document (a crash after publication) is the success it was.
     const published = outcome.kind === 'succeeded' ? outcome.sourceDocumentId : input.published.get(recorded.sourceSha256)
     if (published)
       return named || input.nowMs - completedMs <= RECENT_SUCCESS_MS
         ? [{ ...common, status: 'succeeded', completedAt, sourceDocumentId: published }]
         : []
-    if (outcome.kind !== 'failed') return []
-    if (!named && newestOfContent.get(recorded.sourceSha256) !== status.workflowID) return []
-    return [{ ...common, status: 'failed', completedAt, failure: outcome.failure }]
+    return outcome.kind === 'failed' ? [{ ...common, status: 'failed', completedAt, failure: outcome.failure }] : []
   })
 }
 

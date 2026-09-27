@@ -166,6 +166,17 @@ describe('projectIngestions', () => {
     expect(listed.map((ingestion) => ingestion.name)).toEqual(['paper-2.pdf', 'paper-3.pdf'])
   })
 
+  it('a failure superseded by a newer attempt is not listed, even when that attempt published its content', () => {
+    const listed = project({
+      attempts: attempts(
+        row(1, 'ERROR', { completedAt: NOW - 5000, sha: 'same' }),
+        row(2, 'SUCCESS', { output: ok(2), completedAt: NOW - 1000, sha: 'same' }),
+      ),
+      published: new Map([['same', doc(2)]]),
+    })
+    expect(listed.map((ingestion) => [ingestion.name, ingestion.status])).toEqual([['paper-2.pdf', 'succeeded']])
+  })
+
   it('a stopped attempt whose content was published is listed as the success it was', () => {
     const listed = project({
       attempts: attempts(row(1, 'MAX_RECOVERY_ATTEMPTS_EXCEEDED', { completedAt: NOW - 1000, sha: 'published' })),

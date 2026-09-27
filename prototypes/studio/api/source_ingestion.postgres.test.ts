@@ -22,6 +22,8 @@ import { disposableDatabaseUrl, dropSchemas, testSchemas } from '../test/support
 import { registerIngestionWorkflow, type IngestionOutcome } from './_ingestion_workflow.js'
 import { countPdfPages } from './_pdf_pages.js'
 import { createSourceDocumentIngestion, type Dependencies } from './source_documents.js'
+import { createSourceIngestionDismissal, createSourceIngestionListing } from './source_ingestions.js'
+import { sourceIngestionAdmittedSchema, sourceIngestionListingSchema } from '../shared/sourceDocumentIngestion.contract'
 
 const url = disposableDatabaseUrl()
 const scratch = mkdtempSync(join(tmpdir(), 'free-source-ingestion-'))
@@ -112,20 +114,37 @@ function recordingAdmission() {
       answered.push(handle.workflowID)
       return handle
     }) as DBOSClient['enqueue'],
-    listWorkflows: (input) => studioDbos().admission.listWorkflows(input),
   }
   return { answered, admission }
 }
 
 function ingest(store: ResearcherProjectStore, projectContextId: string, pdf: Uint8Array, dependencies: Dependencies = {}) {
-  return createSourceDocumentIngestion(store, { inboxRoot: inbox, packageStore: packages, resultPollIntervalMs: 50, ...dependencies })(
+  return createSourceDocumentIngestion(store, { inboxRoot: inbox, packageStore: packages, ...dependencies })(
     uploadRequest(projectContextId, pdf),
   )
 }
 
+/** The admitted workflow's ID: Studio answers 202 once ingestSource is enqueued (or joined). */
+async function admitted(response: Response): Promise<string> {
+  expect(response.status, await response.clone().text()).toBe(202)
+  return sourceIngestionAdmittedSchema.parse(await response.json()).workflowId
+}
+
+/** Waits for an admitted attempt's outcome. Tests wait; the upload request never does. */
+async function settled(workflowId: string): Promise<IngestionOutcome> {
+  const outcome = await awaitWorkflowOutcome<IngestionOutcome>(studioDbos().admission, workflowId, { timeoutMs: 60_000, intervalMs: 50 })
+  expect(outcome.state, JSON.stringify(outcome)).toBe('finished')
+  return (outcome as { output: IngestionOutcome }).output
+}
+
+/** The Source Document an upload became: a 201 replay at once, or a 202 attempt once it published. */
 async function created(response: Response) {
-  expect(response.status, await response.clone().text()).toBe(201)
-  return (await response.json()) as { sourceDocumentId: string; sourceRepresentationId: string; pageCount: number }
+  if (response.status === 201)
+    return (await response.json()) as { sourceDocumentId: string; sourceRepresentationId: string; pageCount: number }
+  const outcome = await settled(await admitted(response))
+  expect(outcome.ok, JSON.stringify(outcome)).toBe(true)
+  const { sourceDocument, pageCount } = outcome as Extract<IngestionOutcome, { ok: true }>
+  return { ...sourceDocument, pageCount }
 }
 
 const ingestWorkflows = (projectContextId: string) =>
@@ -171,25 +190,25 @@ describe('ingestSource on PostgreSQL', () => {
     expect(await staged(projectContextId)).toEqual([])
   })
 
-  it('a re-upload after a lost response joins the active attempt and returns its document; a 504 preserves the work', async () => {
+  it('a re-upload while the attempt is live answers the same workflow ID and publishes once', async () => {
     const { store } = await owned()
     const projectContextId = await project(store)
     const pdf = uniquePdf()
     await standIn.policy({ convert: 'hold' })
 
-    const lost = await ingest(store, projectContextId, pdf, { resultTimeoutMs: 200 })
-    expect(lost.status).toBe(504)
+    const first = await admitted(await ingest(store, projectContextId, pdf))
     await until(async () => expect(await held()).toHaveLength(1))
     const [attempt] = await ingestWorkflows(projectContextId)
     expect(attempt?.status).toBe('PENDING')
+    expect(attempt?.workflowID).toBe(first)
 
     const { answered, admission } = recordingAdmission()
-    const reupload = ingest(store, projectContextId, pdf, { admission })
-    await until(async () => expect(answered).toHaveLength(1))
+    const reupload = await ingest(store, projectContextId, pdf, { admission })
     expect(answered).toEqual([attempt!.workflowID])
+    expect(await admitted(reupload.clone())).toBe(first)
     const [child] = await held()
     await standIn.answer(child!.workflowId, { convert: 'auto' })
-    const document = await created(await reupload)
+    const document = await created(reupload)
 
     const [finished] = await ingestWorkflows(projectContextId)
     expect(finished?.output).toMatchObject({ ok: true, sourceDocument: { sourceDocumentId: document.sourceDocumentId } })
@@ -280,10 +299,9 @@ describe('ingestSource on PostgreSQL', () => {
     const pdf = uniquePdf()
     await standIn.policy({ convert: { failure: { code: 'source_unreadable', reason: 'PDFium could not open it', retryable: false } } })
 
-    const failed = await ingest(store, projectContextId, pdf)
-    expect(failed.status).toBe(422)
-    await expect(failed.json()).resolves.toEqual({
-      error: { code: 'source_ingestion_failed', message: 'The Source Document could not be parsed: PDFium could not open it' },
+    const failed = await settled(await admitted(await ingest(store, projectContextId, pdf)))
+    expect(failed).toEqual({
+      ok: false, status: 422, code: 'source_ingestion_failed', message: 'The Source Document could not be parsed: PDFium could not open it',
     })
     expect(await staged(projectContextId)).toEqual([])
 
@@ -296,17 +314,14 @@ describe('ingestSource on PostgreSQL', () => {
     expect(await sourceDocuments(projectContextId)).toHaveLength(1)
   })
 
-  it("Studio's refusal of kei's result answers its own status, ends the workflow in SUCCESS and releases deduplication", async () => {
+  it("Studio's refusal of kei's result is a typed outcome, ends the workflow in SUCCESS and releases deduplication", async () => {
     const { store } = await owned()
     const projectContextId = await project(store)
     const pdf = uniquePdf()
     partialResults = true
 
-    const refused = await ingest(store, projectContextId, pdf)
-    expect(refused.status).toBe(422)
-    await expect(refused.json()).resolves.toEqual({
-      error: { code: 'source_ingestion_failed', message: 'The Source Document was only partially parsed.' },
-    })
+    const refused = await settled(await admitted(await ingest(store, projectContextId, pdf)))
+    expect(refused).toEqual({ ok: false, status: 422, code: 'source_ingestion_failed', message: 'The Source Document was only partially parsed.' })
     const [attempt] = await ingestWorkflows(projectContextId)
     expect(attempt).toMatchObject({
       status: 'SUCCESS',
@@ -365,6 +380,122 @@ describe('ingestSource on PostgreSQL', () => {
       return [input.sourceSha256, input.pageCount]
     }))
     expect(admitted).toEqual({ [sha256(small)]: 3, [sha256(large)]: 31, [sha256(uncounted)]: null })
+  })
+})
+
+describe('Source Ingestions on PostgreSQL', () => {
+  const list = async (store: ResearcherProjectStore, projectContextId: string, named: string[] = []) => {
+    const query = named.map((id) => `workflowId=${encodeURIComponent(id)}`).join('&')
+    const response = await createSourceIngestionListing(store)(
+      new Request(`http://studio.test/api/project-contexts/${projectContextId}/source-ingestions${query ? `?${query}` : ''}`),
+    )
+    return { status: response.status, body: response.status === 200 ? sourceIngestionListingSchema.parse(await response.json()) : null }
+  }
+  const dismiss = (store: ResearcherProjectStore, projectContextId: string, workflowId: string) =>
+    createSourceIngestionDismissal(store)(new Request(
+      `http://studio.test/api/project-contexts/${projectContextId}/source-ingestions/${encodeURIComponent(workflowId)}`,
+      { method: 'DELETE' },
+    ))
+  const unreadable = { convert: { failure: { code: 'source_unreadable', reason: 'PDFium could not open it', retryable: false } } } as const
+
+  it('small and large uploads both answer 202 before either conversion is released, and list as live', async () => {
+    const { store } = await owned()
+    const projectContextId = await project(store)
+    await standIn.policy({ convert: 'hold' })
+
+    const small = await admitted(await ingest(store, projectContextId, uniquePdf(3)))
+    const large = await admitted(await ingest(store, projectContextId, uniquePdf(31)))
+
+    const { body } = await list(store, projectContextId)
+    expect(body!.ingestions.map((row) => row.workflowId).sort()).toEqual([small, large].sort())
+    expect(body!.ingestions.every((row) => row.status === 'queued' || row.status === 'parsing')).toBe(true)
+    await until(async () => expect(await held()).toHaveLength(2))
+    for (const work of await held()) await standIn.answer(work.workflowId, { convert: 'auto' })
+    for (const workflowId of [small, large]) expect((await settled(workflowId)).ok).toBe(true)
+    const after = await list(store, projectContextId)
+    expect(after.body!.ingestions.map((row) => row.status)).toEqual(['succeeded', 'succeeded'])
+  })
+
+  it('a typed parse failure is listed with its reason, and a re-upload that succeeds supersedes it', async () => {
+    const { store } = await owned()
+    const projectContextId = await project(store)
+    const pdf = uniquePdf()
+    await standIn.policy(unreadable)
+    const failed = await admitted(await ingest(store, projectContextId, pdf))
+    await settled(failed)
+
+    const { body } = await list(store, projectContextId)
+    expect(body!.ingestions).toEqual([expect.objectContaining({
+      workflowId: failed, status: 'failed',
+      failure: { code: 'source_ingestion_failed', message: 'The Source Document could not be parsed: PDFium could not open it' },
+    })])
+
+    await standIn.policy({ convert: 'auto' })
+    const retried = await admitted(await ingest(store, projectContextId, pdf))
+    await settled(retried)
+    const after = await list(store, projectContextId)
+    expect(after.body!.ingestions.map((row) => [row.workflowId, row.status])).toEqual([[retried, 'succeeded']])
+  })
+
+  it('a failed attempt whose content was published since is listed as that Source Document', async () => {
+    const { store } = await owned()
+    const projectContextId = await project(store)
+    const pdf = uniquePdf()
+    await standIn.policy(unreadable)
+    const failed = await admitted(await ingest(store, projectContextId, pdf))
+    await settled(failed)
+    const published = await publishFixtureParse(packages, store, projectContextId, pdf)
+
+    const { body } = await list(store, projectContextId)
+    expect(body!.ingestions).toEqual([expect.objectContaining({ workflowId: failed, status: 'succeeded', sourceDocumentId: published.sourceDocumentId })])
+  })
+
+  it('Dismiss deletes the failed chain of that content, and it stays gone for another request', async () => {
+    const { store } = await owned()
+    const projectContextId = await project(store)
+    const pdf = uniquePdf()
+    await standIn.policy(unreadable)
+    const older = await admitted(await ingest(store, projectContextId, pdf))
+    await settled(older)
+    const newest = await admitted(await ingest(store, projectContextId, pdf))
+    await settled(newest)
+    expect((await list(store, projectContextId)).body!.ingestions.map((row) => row.workflowId)).toEqual([newest])
+
+    expect((await dismiss(store, projectContextId, newest)).status).toBe(204)
+
+    const after = await list(store, projectContextId, [older, newest])
+    expect(after.body).toEqual({ ingestions: [], absent: [older, newest] })
+    expect(await studioDbos().admission.listWorkflows({ workflowIDs: [older, newest] })).toEqual([])
+    expect((await dismiss(store, projectContextId, newest)).status).toBe(204)
+  })
+
+  it('an attempt cancelled in this process is refused with 409 ingestion_stopping, and nothing of its chain is deleted', async () => {
+    const { store } = await owned()
+    const projectContextId = await project(store)
+    await standIn.policy({ convert: 'hold' })
+    const workflowId = await admitted(await ingest(store, projectContextId, uniquePdf()))
+    await until(async () => expect(await held()).toHaveLength(1))
+    await studioDbos().admission.cancelWorkflow(workflowId)
+    await until(async () => expect((await studioDbos().admission.getWorkflow(workflowId))?.status).toBe('CANCELLED'))
+
+    const refused = await dismiss(store, projectContextId, workflowId)
+    expect(refused.status).toBe(409)
+    expect((await refused.json()).error.code).toBe('ingestion_stopping')
+    expect(await studioDbos().admission.getWorkflow(workflowId)).toBeDefined()
+  })
+
+  it("another account's request reads nothing, and a deleted project answers 404 before any history is collected", async () => {
+    const { store } = await owned()
+    const other = await owned()
+    const projectContextId = await project(store)
+    const workflowId = await admitted(await ingest(store, projectContextId, uniquePdf()))
+    await settled(workflowId)
+
+    expect((await list(other.store, projectContextId, [workflowId])).status).toBe(404)
+    expect((await dismiss(other.store, projectContextId, workflowId)).status).toBe(404)
+    await store.deleteProjectContext(projectContextId)
+    expect((await list(store, projectContextId, [workflowId])).status).toBe(404)
+    expect(await studioDbos().admission.getWorkflow(workflowId)).toBeDefined()
   })
 })
 
