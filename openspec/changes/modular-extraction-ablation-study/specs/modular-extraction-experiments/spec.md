@@ -25,6 +25,19 @@ irreducibly oversized source unit rather than silently truncate it.
 - **WHEN** the next source table does not fit the configured request
 - **THEN** it is processed in a source-preserving bounded unit or explicitly refused
 
+### Requirement: Structured source rendering preserves canonical evidence
+An optional Article rendering factor SHALL expose existing block labels and table cell
+positions/spans without changing canonical text or evidence IDs. Token admission SHALL
+count the selected rendering. Plain reference requests SHALL remain unchanged.
+
+#### Scenario: A table has merged column headers
+- **WHEN** the canonical table carries column spans and header roles
+- **THEN** structured input exposes those attributes alongside the exact cell text
+
+#### Scenario: A scanned table has no structured cells
+- **WHEN** only a labelled table passage is available
+- **THEN** rendering retains that passage without inventing cells or precise geometry
+
 ### Requirement: Partial identity equality does not establish entity equality
 Conservative reconciliation SHALL retain distinct provisional records unless supported
 identity information establishes they refer to the same entity. Conflicts SHALL be visible.

@@ -70,6 +70,18 @@ unlabelled accuracy claims, or calling an adaptation a faithful paper reproducti
     Grounding runs do not alter raw record values: differences in raw accuracy between those
     arms reflect independently regenerated upstream replies, not a downstream correction.
     Interpret grounding effects on identical upstream records separately when reporting results.
+11. **Preserve structure in model input as an independent factor.** The Docling audit found
+    that source storage retains labels and table cells, while inventory/value prompts flatten
+    them. Add an opt-in Article renderer over the existing canonical passages: block IDs,
+    labels and pages, plus cell IDs, row/column positions, spans and available roles. Wrap
+    the exact canonical text without inferring missing cells, headings, captions or geometry.
+    Keep plain reference requests byte-identical. Document, inventory and value calls use
+    the selected rendering, including tokenizer admission; grounding's existing cell-aware
+    renderer stays unchanged. Fingerprint the rendering and its version. Semantic grouping
+    remains a separate hypothesis. Register a fresh paired rendering comparison before
+    inference; changed prompts cannot reuse old replies as treatment observations.
+    Hypothesis: explicit types and spans reduce header/subject ambiguity, at the cost of
+    more tokens and possible refusals. Existing R1 and R2a inputs stay frozen.
 
 ## Risks / Trade-offs
 

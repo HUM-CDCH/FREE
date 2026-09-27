@@ -15,6 +15,7 @@ from kei_exp.kie.extract.contexts import Context, partition, reconcile_values
 from kei_exp.kie.extract.evidence import Passage, text_of
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.method import ArticleOptions
+from kei_exp.kie.extract.rendering import structured_source
 from kei_exp.kie.extract.schema import SCALAR_JSON, Schema, json_schema
 from kei_exp.kie.extract.selection import select_contexts
 from kei_exp.kie.extract.stages import Call, Issue, _complete, _instruction, _labelled, extract_record, normal, record_request
@@ -37,6 +38,7 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
                     contexts: list[Context] | None = None) -> Records:
     """Discover identities, then extract their values; grounding belongs to the shared result path."""
     groups = contexts if contexts is not None else [Context(tuple(passages))]
+    structured = method is not None and method.rendering == "structured"
     identities, calls, issues = [], [], []
     for group in groups:
         check()
@@ -62,7 +64,8 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
         if method is not None and method.context == "bounded":
             def fits(group):
                 check()
-                system, user, reply_schema = record_request(text_of(group), schema, item["identity"], item["label"],
+                source = structured_source(group) if structured else text_of(group)
+                system, user, reply_schema = record_request(source, schema, item["identity"], item["label"],
                                                             neutral=neutral)
                 return counters["fields"].request_tokens(system, user, reply_schema) + 4096 <= counters["fields"].context_tokens
             record_groups = partition(passages, fits, overlap=method.overlap_passages)
@@ -75,7 +78,7 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
             check()
             fields, attempts, problems = extract_record(group.passages, schema, chat, budget=record_chars,
                 record=number, identity=item["identity"], record_name=item["label"], counter=counters["fields"],
-                neutral=neutral)
+                neutral=neutral, structured=structured)
             calls += attempts
             issues += problems
             candidates.append(fields)
@@ -118,7 +121,8 @@ def inventory_request(passages: Sequence[Passage], schema: Schema, method: Artic
               "(a scope code and a preparation label can differ). "
               "Resolve abbreviations from the source. Never use an expected count or a "
               "validation list. Return JSON.\n" + _instruction(schema, schema.record_nodes))
-    user = _labelled(passages, labels)
+    user = (structured_source(passages) if method is not None and method.rendering == "structured"
+            else _labelled(passages, labels))
     if method is not None and method.prompt == "schema":
         system = ("Enumerate every distinct record supported by the supplied source unit under the schema's record "
                   "definition. Records may recur across other units. Return an unambiguous label, source-supported "

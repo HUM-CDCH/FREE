@@ -21,6 +21,7 @@ flowchart LR
 | Module | Responsibility |
 | --- | --- |
 | `evidence.py` | Verify canonical files and expose stable passages/tables. |
+| `rendering.py` | Expose block types and table cell spans to the model while retaining exact canonical text. |
 | `method.py` | Validate explicit experimental choices; enforce the Article context ceiling. |
 | `contexts.py` | Partition whole passages with disjoint primary ownership and optional preceding overlap; reconcile values without hiding scalar conflicts. |
 | `selection.py` | Select whole value contexts from inventory support, adjacent qualifiers and schema relevance; expose omitted units. |
@@ -48,6 +49,13 @@ Studio does not expose these controls.
   identities remain visible and can produce duplicates requiring review.
 - `prompt=reference|schema`: retain the earlier laboratory instructions or
   derive record semantics from the supplied schema without laboratory examples.
+- `rendering=structured`: expose canonical block IDs, labels and pages, plus
+  table cell IDs, rows, columns, spans and available roles in document, inventory
+  and value inputs. Tagged text preserves every source character; it is not XML.
+  Missing table cells stay missing. Omission preserves plain reference requests.
+  Rendering and `rendering_version` participate in the fingerprint. Tokenizers
+  count the actual markup, so structure can increase costs or cause refusal.
+  This changes neither the grouping algorithm nor the verifier's cell renderer.
 - `context=full|bounded`: send the full source, or partition whole canonical
   passages under a fixed served-token ceiling, including output reserves.
   Inventory and record-value prompts use their actual tokenizer/template.
@@ -111,6 +119,9 @@ bounded call. Bounded processing currently trades repeated calls for exhaustive
 source visitation; call count grows with records times source units. The optional
 lexical selector is a separate hypothesis, not hybrid retrieval replication.
 Cross-unit semantic reconciliation remains unimplemented.
+The R3 [rendering protocol](../experiments/extraction/rendering-protocol.md)
+declares a separate six-paper fresh comparison. It tests structure in model input,
+not semantic grouping or the complete historical DocTags pipeline.
 
 ## Run a study
 

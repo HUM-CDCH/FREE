@@ -22,6 +22,7 @@ from typing import Any
 from kei_exp.kie.extract.evidence import Evidence, Passage, text_of
 from kei_exp.kie.extract.llm import Chat, ModelOutputError, parse_json
 from kei_exp.kie.extract.models import Router
+from kei_exp.kie.extract.rendering import structured_source
 from kei_exp.kie.extract.schema import Schema, conform, describe, json_schema, notes
 from kei_exp.kie.extract.tokens import BudgetUnavailable, TokenCounter
 from kei_exp.pagefile import TableCell
@@ -277,14 +278,17 @@ def _clipped(passages: Sequence[Passage], budget: int, issues: list[Issue], reco
 
 
 def extract_document(evidence: Evidence, schema: Schema, chat: Chat, *, budget: int,
-                     counter: TokenCounter | None = None) -> tuple[
+                     counter: TokenCounter | None = None, structured: bool = False) -> tuple[
         dict, list[Call], list[Issue]]:
     """The fields that belong to the document as a whole, from one call over its text."""
     nodes = schema.document_nodes
     if not nodes:
         return {}, [], []
     issues: list[Issue] = []
-    source = text_of(evidence.passages) if counter else _clipped(evidence.passages, budget, issues, None)
+    if structured and counter is None:
+        raise BudgetUnavailable("Structured source rendering requires a token counter")
+    source = (structured_source(evidence.passages) if structured else
+              text_of(evidence.passages) if counter else _clipped(evidence.passages, budget, issues, None))
     user = f"### Source document\n{source}\n\nReturn the JSON object now."
     answer, attempts = _complete(chat, stage="document", record=None, system=_instruction(schema, nodes), user=user,
                                  schema=json_schema(nodes), counter=counter, max_tokens=2048 if counter else None)
@@ -295,13 +299,17 @@ def extract_document(evidence: Evidence, schema: Schema, chat: Chat, *, budget: 
 
 def extract_record(passages: Sequence[Passage], schema: Schema, chat: Chat, *, budget: int,
                    record: int | None = None, identity: dict | None = None, record_name: str | None = None,
-                   counter: TokenCounter | None = None, neutral: bool = False) -> tuple[dict, list[Call], list[Issue]]:
+                   counter: TokenCounter | None = None, neutral: bool = False,
+                   structured: bool = False) -> tuple[dict, list[Call], list[Issue]]:
     """One record's fields from one structured-output call over its passages."""
     nodes = [node for node in schema.record_nodes if identity is None or node.name not in identity]
     if not nodes:
         return dict(identity or {}), [], []
     issues: list[Issue] = []
-    source = text_of(passages) if counter else _clipped(passages, budget, issues, record)
+    if structured and counter is None:
+        raise BudgetUnavailable("Structured source rendering requires a token counter")
+    source = (structured_source(passages) if structured else
+              text_of(passages) if counter else _clipped(passages, budget, issues, record))
     system, user, reply_schema = record_request(source, schema, identity, record_name, neutral=neutral)
     answer, attempts = _complete(chat, stage="record", record=record, system=system, user=user,
                                  schema=reply_schema, counter=counter, max_tokens=4096 if counter else None)

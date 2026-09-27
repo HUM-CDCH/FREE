@@ -16,12 +16,15 @@ class ArticleOptions(BaseModel):
     prompt: Literal["reference", "schema"] = "reference"
     grounding: Literal["semantic", "quoted", "off"] = "semantic"
     selection: Literal["supported"] | None = None
+    rendering: Literal["structured"] | None = None
 
     @model_serializer(mode="wrap")
     def serialized(self, handler):
         result = handler(self)
         if self.selection is None:
             result.pop("selection")  # preserve the registered all-unit reference serialization
+        if self.rendering is None:
+            result.pop("rendering")
         return result
 
     @model_validator(mode="after")
