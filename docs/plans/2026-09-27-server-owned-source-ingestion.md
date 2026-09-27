@@ -1,6 +1,14 @@
 # Server-owned Source Ingestion Implementation Plan
 
-Date: 2026-09-27 · Status: **proposed, awaiting review** · Drafted by Claude (Opus 5.5) and Codex (gpt-6-astra) independently, merged by Claude, then reviewed adversarially by Codex; see the Review log.
+Date: 2026-09-27 · Status: **Part A implemented; Part B deferred** · Drafted by Claude (Opus 5.5) and Codex (gpt-6-astra) independently, merged by Claude, then reviewed adversarially by Codex; see the Review log.
+
+Part A was authorized and implemented in thread `dbf0b382-615b-4f13-b346-0b990052f56f`.
+Its commits through `07d7e58` were integrated into PR #141 on 2026-09-27, with
+the Article cancellation and service-test follow-up. The step checklists below
+remain the original implementation instructions, not a current completion ledger.
+See [the reconciliation record](../validation/2026-09-27-ingestion-pr141-reconciliation.md)
+for scope, verification and remaining boundaries. Part B (Task 10) remains a
+separate follow-up.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
