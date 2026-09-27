@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { REPROCESS_TERMINAL_HEADER } from '../../shared/sourceDocumentReprocess.contract.js'
 import {
+  dismissSourceIngestion,
   ingestSourceDocument,
+  listSourceIngestions,
   ProjectContextRequestError,
   reprocessSourceDocument,
   toProjectContextFailure,
@@ -22,13 +24,11 @@ const ingested = {
 
 describe('ingestSourceDocument', () => {
   it('posts one PDF and its layout to the Project Context route, and no key', async () => {
-    const fetcher = vi.fn().mockResolvedValue(Response.json(ingested))
+    const fetcher = vi.fn().mockResolvedValue(Response.json({ workflowId: 'ingest:p:a' }, { status: 202 }))
     vi.stubGlobal('fetch', fetcher)
     const file = new File(['%PDF-1.7\n'], 'report.pdf', { type: 'application/pdf' })
 
-    await expect(ingestSourceDocument(project, file)).resolves.toMatchObject({
-      sourceDocumentId: '33333333-3333-4333-8333-333333333333',
-    })
+    await expect(ingestSourceDocument(project, file)).resolves.toEqual({ kind: 'admitted', workflowId: 'ingest:p:a' })
 
     expect(fetcher).toHaveBeenCalledWith(
       `/api/project-contexts/${project}/source-documents`,
@@ -45,13 +45,52 @@ describe('ingestSourceDocument', () => {
   })
 
   it('sends the page layout with the PDF, single pages unless spreads are chosen', async () => {
-    const fetcher = vi.fn(async () => Response.json({ ...ingested, name: 'catalogue.pdf', pageCount: 45 }))
+    const fetcher = vi.fn(async () => Response.json({ workflowId: 'ingest:p:a' }, { status: 202 }))
     vi.stubGlobal('fetch', fetcher)
     const file = new File(['%PDF-1.7\n'], 'catalogue.pdf', { type: 'application/pdf' })
     await ingestSourceDocument(project, file, 'spreads')
     await ingestSourceDocument(project, file)
     const sent = fetcher.mock.calls.map((call) => ((call as unknown[])[1] as RequestInit).body as FormData)
     expect(sent.map((form) => form.get('layout'))).toEqual(['spreads', 'pages'])
+  })
+})
+
+describe('Source Ingestion admission and listing', () => {
+  const pdf = () => new File(['%PDF-1.7\n'], 'A.pdf', { type: 'application/pdf' })
+
+  it('reads a 202 as an admission and a 201 as a replayed document', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ workflowId: 'ingest:p:a' }, { status: 202 })))
+    expect(await ingestSourceDocument(project, pdf())).toEqual({ kind: 'admitted', workflowId: 'ingest:p:a' })
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(ingested, { status: 201 })))
+    expect(await ingestSourceDocument(project, pdf())).toEqual({ kind: 'replayed', document: ingested })
+  })
+
+  it('refuses a document body under 202, an admission body under 201, and any other success status', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(ingested, { status: 202 })))
+    await expect(ingestSourceDocument(project, pdf())).rejects.toThrow()
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ workflowId: 'x' }, { status: 201 })))
+    await expect(ingestSourceDocument(project, pdf())).rejects.toThrow()
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(ingested, { status: 200 })))
+    await expect(ingestSourceDocument(project, pdf())).rejects.toThrow()
+  })
+
+  it('names workflow IDs as repeated query parameters when listing', async () => {
+    const fetcher = vi.fn(async () => Response.json({ ingestions: [], absent: ['ingest:p:b'] }))
+    vi.stubGlobal('fetch', fetcher)
+    expect(await listSourceIngestions(project, ['ingest:p:a', 'ingest:p:b'])).toEqual({ ingestions: [], absent: ['ingest:p:b'] })
+    await listSourceIngestions(project, [])
+    expect(fetcher.mock.calls.map((call) => String((call as unknown[])[0]))).toEqual([
+      `/api/project-contexts/${project}/source-ingestions?workflowId=ingest%3Ap%3Aa&workflowId=ingest%3Ap%3Ab`,
+      `/api/project-contexts/${project}/source-ingestions`,
+    ])
+  })
+
+  it('dismisses a Source Ingestion by its encoded workflow ID', async () => {
+    const fetcher = vi.fn(async () => new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetcher)
+    await dismissSourceIngestion(project, 'ingest:p:a')
+    expect(String((fetcher.mock.calls[0] as unknown[])[0])).toBe(`/api/project-contexts/${project}/source-ingestions/ingest%3Ap%3Aa`)
+    expect((fetcher.mock.calls[0] as unknown[])[1]).toMatchObject({ method: 'DELETE' })
   })
 })
 

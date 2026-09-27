@@ -7,12 +7,11 @@ import { canonicalPackageStore, createResearcherProjectStore, studioDataRoot } f
 import { createExtractions } from 'extraction'
 import { keiConvertWorkflowId, keiExtractWorkflowId } from 'extraction/kei-handoff'
 import { extractionExecution } from '../../../api/_extractions.js'
-import { createSourceDocumentIngestion } from '../../../api/source_documents.js'
+import { uploadedDocument } from '../upload.js'
 import { cancelScopeWork } from '../../../api/_scope_cancellation.js'
 import { launchStudioDbos, shutdownStudioDbos, studioDbos } from '../../../server/dbos.js'
 import { applyStudioSchedules, registerStudioWorkflows } from '../../../server/workflows.js'
 import { ageFile } from '../garbage.js'
-import { uploadRequest } from '../ingestion.js'
 import type { GarbageSummary } from '../../../api/_garbage_workflow.js'
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
@@ -48,9 +47,7 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
   try {
     if (firstRun) {
       const pdf = new Uint8Array(await readFile(required(env, 'FREE_TEST_PDF')))
-      const response = await createSourceDocumentIngestion(store, { resultPollIntervalMs: 50 })(uploadRequest(project, pdf))
-      if (response.status !== 201) throw new Error(`Ingestion answered ${response.status}.`)
-      const { sourceRepresentationId } = await response.json() as { sourceRepresentationId: string }
+      const { sourceRepresentationId } = await uploadedDocument(store, project, pdf)
       const [attempt] = await studioDbos().admission.listWorkflows({
         workflow_id_prefix: `ingest:${project}:`, loadInput: false, loadOutput: false,
       })

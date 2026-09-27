@@ -84,4 +84,10 @@ re-uploading still deduplicates by PDF content and does not reprocess it.
 
 Reprocessing runs as a durable workflow: closing the browser does not stop it,
 and repeating the request with the same request key rejoins it or returns its
-published revision.
+published revision. Its browser request still waits on the parse; after closing
+the page, the result becomes visible as the new revision.
+
+An upload is Studio's once it is admitted (`202 { workflowId }`): the Project page
+lists it as a Source Ingestion, queued, parsing or failed, across reloads, tabs and
+Studio restarts, until it becomes a Source Document. A failure can be dismissed or
+uploaded again. Files the browser has not sent yet are still only in the tab.

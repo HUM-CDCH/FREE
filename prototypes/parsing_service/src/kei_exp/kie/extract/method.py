@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 
 class ArticleOptions(BaseModel):
@@ -15,6 +15,20 @@ class ArticleOptions(BaseModel):
     identity_fields: tuple[str, ...] = ()
     prompt: Literal["reference", "schema"] = "reference"
     grounding: Literal["semantic", "quoted", "off"] = "semantic"
+    selection: Literal["supported"] | None = None
+    rendering: Literal["structured"] | None = None
+    grouping: Literal["structural"] | None = None
+
+    @model_serializer(mode="wrap")
+    def serialized(self, handler):
+        result = handler(self)
+        if self.selection is None:
+            result.pop("selection")  # preserve the registered all-unit reference serialization
+        if self.rendering is None:
+            result.pop("rendering")
+        if self.grouping is None:
+            result.pop("grouping")
+        return result
 
     @model_validator(mode="after")
     def coherent(self):
@@ -24,6 +38,10 @@ class ArticleOptions(BaseModel):
             raise ValueError("identity_fields must be unique")
         if self.context == "full" and self.overlap_passages:
             raise ValueError("overlap applies to bounded contexts only")
+        if self.selection is not None and self.context != "bounded":
+            raise ValueError("record-specific selection requires bounded contexts")
+        if self.grouping is not None and self.context != "bounded":
+            raise ValueError("structural grouping requires bounded contexts")
         return self
 
 

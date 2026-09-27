@@ -2,7 +2,8 @@
 
 Status: active; implementation and study authorized. This is the durable execution plan.
 Task status and evolving design live in `openspec/changes/modular-extraction-ablation-study/`.
-Working branch: `feat/modular-extraction-ablation`, based on `6e641b6c11bdf8073f10e824176532885f28484d`.
+Study branch: `feat/modular-extraction-ablation`, based on `6e641b6c11bdf8073f10e824176532885f28484d`.
+Integrated fixes: `fix/extraction-structure-and-grounding`, [draft PR #141](https://github.com/HUM-CDCH/FREE/pull/141).
 
 ## Goal and authorization
 
@@ -176,6 +177,51 @@ unavailable human labels, provider, compute or integration gate stays explicitly
 do not mark the goal complete merely because a plan or synthetic test suite is finished.
 
 ## Progress and resume
+
+- Reporting correction `e1d5c2a` / `d70c2db` fixes repeated document-field
+  aggregation and distinguishes exact projected representations from the frozen
+  normalized score. Twenty-three focused tests and R1 41-cell/R2a 20-cell
+  regeneration pass; all earlier shared primary scores and diagnostics are
+  unchanged. Use the corrected analyzer from an integration checkout for final
+  reports; frozen launchers still produce their historical analyzer outputs.
+  The execution report records commands/limits and the correction's artifact
+  names. Serving code and frozen inference pins are unchanged. CI passed
+  repair `9a85f01`, study `7fb6616` and full stack `8575955` before this separate
+  reporting change; do not substitute those checks for the new heads.
+
+- The full stack also passes all 61 default browser and five recovery
+  scenarios in a fresh isolated run (`artifacts/extraction-integration/browser.log`).
+  The manual model-picker fixture fix already in this stack is now backported
+  to repair `9a85f01` and study `7fb6616`; all 12 model-configuration scenarios
+  pass in the repair checkout. Parent CI had exposed the probe-timing race;
+  a separate port-binding failure is retained in the repair report. These
+  changes do not alter study inference files or establish final live results.
+
+- Standalone parent validation is now addressed: repair `3c714c9` carries the
+  model fixture, three-hour service assertions and final-publication cancellation
+  guard. It passes 985 fast tests, 36 workflow tests, typecheck and all 13 distinct
+  service scenarios (12 first-run passes plus one corrected stale assertion's
+  focused rerun). Intermediate study `4110ca9` passes 1026 fast tests. Full stack
+  `4492a68` incorporates both with no runtime/test changes relative to the
+  already verified combined stack. The integration report records these scopes.
+  R1 replay acceptance is now 37 cells/1252 saved calls; the incremental two-cell
+  report also passes with HTTP disabled. All registered studies still need to
+  finish before final effects and completion can be claimed.
+
+- Full review-stack integration is now locally verified in
+  `/home/gennaro/projects/FREE-worktrees/extraction-current-stack` at `88eed7c`.
+  It combines the concurrent Source Ingestion work, extraction fixes and current
+  repaired parser foundation. The two Studio conflicts and stale GC fixtures
+  are resolved; Source Ingestion's colliding ADR is now 0014. See
+  `docs/validation/2026-09-27-extraction-stack-integration.md`: 1068 fast parser,
+  74 Python workflow/cleanup, 1791 Node unit and seven GC acceptance checks pass,
+  as do typecheck and all 14 authenticated real-service scenarios. The latter
+  scripts only the model boundary. Intermediate study integration `7c3e524`
+  passes 1024 fast tests and the exact 88-call replay. This supersedes the
+  integration-conflict gate recorded below, not the unfinished live study.
+  Keep `/home/gennaro/projects/FREE` on its R1 files even when the remote study
+  branch advances; use the isolated worktrees for integration. Do not pull new
+  runtime code into the primary checkout while the study is active.
 
 - `docs/validation/extraction_ablation_tables.py` now renders a pinned analysis
   and its matching accounting into reviewable Markdown, with exact registered,

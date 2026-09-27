@@ -444,6 +444,8 @@ magic bytes, 100 MiB) and uniqueness on `(projectContextId, contentSha256)`.
 - Await the returned result for the existing thirty-minute HTTP deadline.
   A 504 detaches; it does not cancel. Re-uploading after a reload rejoins the
   active attempt or returns the completed document.
+  *(Superseded 2026-09-27 by [server-owned Source Ingestion](2026-09-27-server-owned-source-ingestion.md):
+  the upload answers 202 on admission and the page lists in-flight attempts.)*
 - Then `submitToKei` (the admitted conversion lane), `pollKei`, verify
   manifest and pages, translate/package, and commit under the existing
   ownership and content constraints. A replayed commit returns the same
@@ -1848,7 +1850,8 @@ physical exclusion.
   revision; carrying a transcript over to a reprocessed revision.
 - Asynchronous ingestion (202, status URLs, hydration) and listing in-flight
   ingestions after a reload; re-uploading the file rejoins active content work
-  instead. Parallel uploads and new retry controls.
+  instead. Parallel uploads and new retry controls. *(Brought into scope for uploads on 2026-09-27:
+  [server-owned Source Ingestion](2026-09-27-server-owned-source-ingestion.md).)*
 - Per-model-call Python checkpoints, and kei progress events or token
   streaming.
 - Fair sharing between accounts, and pausing or preempting running work.

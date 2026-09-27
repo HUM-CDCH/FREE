@@ -28,13 +28,15 @@ from kei_exp.files import publish
 from kei_exp.kie.extract import grounded
 from kei_exp.kie.extract import models as extraction_models
 from kei_exp.kie.extract.article import extract_records, source_contexts
-from kei_exp.kie.extract.contexts import Context, reconcile_values
+from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, reconcile_values
 from kei_exp.kie.extract.evidence import load
 from kei_exp.kie.extract.grounded import CatalogOptions
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.models import Router, as_router, chats_for
 from kei_exp.kie.extract.method import ArticleOptions, LimitedCounter
+from kei_exp.kie.extract.rendering import RENDERING_VERSION
 from kei_exp.kie.extract.schema import Schema
+from kei_exp.kie.extract.selection import VERSION as SELECTION_VERSION
 from kei_exp.kie.extract.stages import (
     Call,
     Issue,
@@ -51,7 +53,7 @@ from kei_exp.kie.recipe import load_recipe
 from kei_exp.kie.segmentation import obtain
 
 EXTRACTION_VERSION = 1
-PROMPT_VERSION = 11  # Article uses typed identities and complete-source value extraction and grounding.
+PROMPT_VERSION = 12  # Lossless source-string decoding and coherent exact quoted grounding.
 
 
 class Options(BaseModel):
@@ -119,6 +121,12 @@ def fingerprint(result: dict, request: ExtractRequest, model: dict) -> str:
         "schema": request.schema_.model_dump(by_alias=True, exclude_none=True),
         "options": request.options.dumped(), "model": model, "prompt_version": PROMPT_VERSION,
         **({"method_version": 1} if request.options.article is not None else {}),
+        **({"rendering_version": RENDERING_VERSION} if request.options.article is not None
+           and request.options.article.rendering is not None else {}),
+        **({"grouping_version": GROUPING_VERSION} if request.options.article is not None
+           and request.options.article.grouping is not None else {}),
+        **({"selection_version": SELECTION_VERSION}
+           if request.options.article is not None and request.options.article.selection is not None else {}),
     })).hexdigest()
 
 
@@ -172,7 +180,8 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
         if schema.document_nodes:
             check()
         document, document_calls, document_issues = extract_document(replace(evidence, passages=context.passages),
-            schema, chat, budget=options.record_chars, counter=counter["fields"] if article else None)
+            schema, chat, budget=options.record_chars, counter=counter["fields"] if article else None,
+            structured=method is not None and method.rendering == "structured")
         documents.append(document)
         calls += document_calls
         issues += document_issues
@@ -245,6 +254,13 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
         result["contexts"] = [context.dumped() for context in contexts]
         result["value_contexts"] = [[context.dumped() for context in group] for group in extracted.value_contexts]
         result["quoted_support"] = proofs
+        if method.rendering is not None:
+            result["rendering_version"] = RENDERING_VERSION
+        if method.grouping is not None:
+            result["grouping_version"] = GROUPING_VERSION
+        if method.selection is not None:
+            result["selection_version"] = SELECTION_VERSION
+            result["selections"] = extracted.selections
         result["conflicts"] = {"document": document_conflicts, "records": extracted.conflicts}
         result["completion"] = {
             "processing": all(call.ok for call in calls),

@@ -4,6 +4,11 @@ Status: partial review during the registered study. These are descriptive checks
 the coding assistant against pinned source text, **not independent human annotations**,
 exhaustive error rates or held-out evaluation. The registered methods remain unchanged.
 
+The defects below describe the frozen R1 implementation. The separately versioned
+[structure and grounding fixes](2026-09-27-extraction-structure-fixes.md) implement
+typed rendering, structural grouping and the quoted-output repair; their fresh
+accuracy comparisons remain pending.
+
 ## Katrinesminde: duplicate candidates and omitted shared context
 
 Artifacts: `artifacts/extraction-ablation/20260927-r1/cells/Katrinesminde_SBM1116--bounded--0/`
@@ -144,6 +149,40 @@ tokens and 11,418 output tokens. Like Wang, this is a zero-intervention result
 that stays in the selector comparison denominator. Neither a cost saving nor a
 quality improvement occurred in this conditional replay. Evidence: R2a
 `analysis-partial-05.json`, `accounting-partial-05.json` and the paired cells.
+
+## Harvey and Hvissinge: cost reduction needs field-level interpretation
+
+R1 `analysis-partial-09.json` / `accounting-partial-09.json` seal 33/79 cells.
+Harvey now has a bounded-versus-full-schema pair. Populated correctness is 3/9
+versus 7/9, while calls rise from 12 to 63 and input tokens from 286,539 to
+505,178. Both return five records. Overlap also scores 3/9, with 61 calls.
+These are one paper's pipeline outcomes, not a study-wide effect or proof that
+the new structural grouping fixes the loss. A one-document bootstrap interval
+does not provide useful between-document uncertainty.
+
+R2a `analysis-partial-07.json` / `accounting-partial-07.json` seal 18/30 cells.
+Harvey's conditional selector reduces 28 calls to 23 and input tokens from
+185,944 to 173,545. Both arms score 3/9 populated and 8/10 empty gold fields
+correct. The 324-to-249 populated-leaf reduction consists entirely of
+`field_statuses` entries; every other record field is identical. It must not be
+described as 75 lost measurements. Repeated absence explanations from omitted
+units inflate the general leaf count, illustrating why it is diagnostic only.
+
+Hvissinge has no gold annotations. Selection reduces nine calls to seven and
+input tokens from 69,515 to 54,875. Unlike Harvey, it changes substantive arrays:
+`grave_counts`, `burial_forms` and `notable_finds`. The first returned record loses
+the eight-person observation and `hocker` / `rygleje`; the eight-person observation
+survives in the second record. This compares recorded outputs, without adjudicating
+each value's correctness. A document-wide union would obscure some per-record
+omissions. The selector stays an experimental factor, not a demonstrated quality
+preserving default; historical reply durations are not measured fresh savings.
+
+Akita's overlap cell also finished with 121 calls and 19 records. Its one failed
+record call reached the 4096-token output limit (`finish=length`), with 8050 input
+tokens inside the 12288 context budget. It is an output truncation, distinct from
+the quoted JSON failures below. The arm scores 125/187 populated fields correct
+and has eight unscored extras; the matched bounded arm is still pending, so no
+overlap effect is claimed for Akita.
 
 ## Evidence blocks: preserved storage, weaker model-facing structure
 

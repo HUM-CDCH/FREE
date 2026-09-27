@@ -6,10 +6,9 @@ import { createResearcherProjectStore, db } from 'db'
 import { createExtractions } from 'extraction'
 import { keiExtractWorkflowId } from 'extraction/kei-handoff'
 import { extractionExecution } from '../../../api/_extractions.js'
-import { createSourceDocumentIngestion } from '../../../api/source_documents.js'
+import { uploadedDocument } from '../upload.js'
 import { launchStudioDbos, shutdownStudioDbos, studioDbos } from '../../../server/dbos.js'
 import { applyStudioSchedules, registerStudioWorkflows } from '../../../server/workflows.js'
-import { uploadRequest } from '../ingestion.js'
 import type { GarbageSummary } from '../../../api/_garbage_workflow.js'
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
@@ -42,10 +41,7 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
   })
   if (firstRun) {
     const pdf = new Uint8Array(await readFile(required(env, 'FREE_TEST_PDF')))
-    const uploaded = await createSourceDocumentIngestion(createResearcherProjectStore(owner),
-      { resultPollIntervalMs: 50 })(uploadRequest(project, pdf))
-    if (uploaded.status !== 201) throw new Error(`Ingestion answered ${uploaded.status}.`)
-    const { sourceRepresentationId } = await uploaded.json() as { sourceRepresentationId: string }
+    const { sourceRepresentationId } = await uploadedDocument(createResearcherProjectStore(owner), project, pdf)
     await createExtractions(owner, extractionExecution()).runSingle({
       kind: 'fresh', extractionId, sourceRepresentationRevisionId: sourceRepresentationId,
       schemaRevisionId: required(env, 'FREE_TEST_SCHEMA_REVISION'), strategy: 'ARTICLE',

@@ -99,10 +99,29 @@ test('ingestion: a PDF source document uploads and parses', { timeout: 300_000 }
     `/project-contexts/${state.projectId}/source-documents`,
     { method: 'POST', body: form },
   )
-  assert.equal(response.status, 201, JSON.stringify(response.body))
-  assert.equal(response.body.pageCount, 1)
-  state.sourceDocumentId = response.body.sourceDocumentId
-  state.sourceRepresentationRevisionId = response.body.sourceRepresentationId
+  // Studio answers once it admits the attempt; the Source Ingestion listing reports it until it publishes.
+  assert.equal(response.status, 202, JSON.stringify(response.body))
+  const { workflowId } = response.body
+  const deadline = Date.now() + 280_000
+  let listed
+  while (Date.now() < deadline) {
+    const listing = await session.api(
+      `/project-contexts/${state.projectId}/source-ingestions?workflowId=${encodeURIComponent(workflowId)}`,
+    )
+    assert.equal(listing.status, 200, JSON.stringify(listing.body))
+    listed = listing.body.ingestions.find((ingestion) => ingestion.workflowId === workflowId)
+    if (listed?.status === 'succeeded' || listed?.status === 'failed') break
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 1_000))
+  }
+  assert.equal(listed?.status, 'succeeded', JSON.stringify(listed))
+  state.sourceDocumentId = listed.sourceDocumentId
+  const project = await session.api(`/project-contexts/${state.projectId}`)
+  assert.equal(project.status, 200, JSON.stringify(project.body))
+  const document = project.body.sourceDocuments.find((item) => item.sourceDocumentId === state.sourceDocumentId)
+  assert.equal(document?.pageCount, 1)
+  const reopen = await session.api(`/project-contexts/${state.projectId}/source-documents/${state.sourceDocumentId}/reopen`)
+  assert.equal(reopen.status, 200, JSON.stringify(reopen.body))
+  state.sourceRepresentationRevisionId = reopen.body.sourceRepresentation.sourceRepresentationId
 })
 
 test('ingestion: a non-PDF upload is rejected', async () => {

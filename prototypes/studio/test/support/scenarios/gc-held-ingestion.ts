@@ -35,13 +35,13 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
   })
   if (firstRun) {
     const pdf = new Uint8Array(await readFile(required(env, 'FREE_TEST_PDF')))
-    const ingest = createSourceDocumentIngestion(
-      createResearcherProjectStore(required(env, 'FREE_TEST_ACCOUNT')),
-      { resultTimeoutMs: 250, resultPollIntervalMs: 50 },
-    )
+    const ingest = createSourceDocumentIngestion(createResearcherProjectStore(required(env, 'FREE_TEST_ACCOUNT')))
     const responses = await Promise.all([ingest(uploadRequest(project, pdf)), ingest(uploadRequest(project, pdf))])
-    if (responses.some((response) => response.status !== 504))
-      throw new Error(`Expected both joined uploads to time out, got ${responses.map((r) => r.status).join(', ')}.`)
+    // Both are admitted into one attempt (the second joins the first) while kei holds its conversion.
+    if (responses.some((response) => response.status !== 202))
+      throw new Error(`Expected both joined uploads to be admitted, got ${responses.map((r) => r.status).join(', ')}.`)
+    const joined = await Promise.all(responses.map(async (response) => ((await response.json()) as { workflowId: string }).workflowId))
+    if (joined[0] !== joined[1]) throw new Error(`The two uploads were admitted as ${joined.join(' and ')}.`)
     process.kill(process.pid, 'SIGKILL')
     return
   }

@@ -378,6 +378,7 @@ Document/value calls have their own admission checks. No R3 response generation
 has run, and R3 will not compete with the unfinished R1 batch. This follow-up
 was motivated by observed development failures; it is not a held-out evaluation.
 
+
 ## Interim snapshot — 2026-09-27, approximately 13:20 UTC
 
 R1 `analysis-partial-08.json` and `accounting-partial-08.json` cover 26/79

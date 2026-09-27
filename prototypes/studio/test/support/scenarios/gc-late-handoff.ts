@@ -9,11 +9,10 @@ import { garbagePorts, registerGarbageWorkflow, type GarbageSummary } from '../.
 import { extractionExecution, extractionWorkflowPorts } from '../../../api/_extractions.js'
 import { registerIngestionWorkflow } from '../../../api/_ingestion_workflow.js'
 import { cancelScopeWork } from '../../../api/_scope_cancellation.js'
-import { createSourceDocumentIngestion } from '../../../api/source_documents.js'
+import { uploadedDocument } from '../upload.js'
 import { COLLECT_GARBAGE_CRON, COLLECT_GARBAGE_SCHEDULE, GC_QUEUE, launchStudioDbos,
   shutdownStudioDbos, studioDbos } from '../../../server/dbos.js'
 import { sourceConversionWorkflowPorts } from '../../../server/workflows.js'
-import { uploadRequest } from '../ingestion.js'
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
   const value = env[name]
@@ -74,11 +73,7 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
   })
   if (firstRun) {
     const pdf = new Uint8Array(await readFile(required(env, 'FREE_TEST_PDF')))
-    const uploaded = await createSourceDocumentIngestion(store, { resultPollIntervalMs: 50 })(uploadRequest(project, pdf))
-    if (uploaded.status !== 201) throw new Error(`Ingestion answered ${uploaded.status}.`)
-    const { sourceDocumentId, sourceRepresentationId } = await uploaded.json() as {
-      sourceDocumentId: string; sourceRepresentationId: string
-    }
+    const { sourceDocumentId, sourceRepresentationId } = await uploadedDocument(store, project, pdf)
     const [ingest] = await studioDbos().admission.listWorkflows({
       workflow_id_prefix: `ingest:${project}:`, loadInput: false, loadOutput: false,
     })

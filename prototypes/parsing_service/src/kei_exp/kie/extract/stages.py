@@ -22,6 +22,7 @@ from typing import Any
 from kei_exp.kie.extract.evidence import Evidence, Passage, text_of
 from kei_exp.kie.extract.llm import Chat, ModelOutputError, parse_json
 from kei_exp.kie.extract.models import Router
+from kei_exp.kie.extract.rendering import structured_source
 from kei_exp.kie.extract.schema import Schema, conform, describe, json_schema, notes
 from kei_exp.kie.extract.tokens import BudgetUnavailable, TokenCounter
 from kei_exp.pagefile import TableCell
@@ -61,12 +62,22 @@ Input: [B1] Inventory
 [B6] A second axe was found at Heath.
 Output: {"starts":["B2","B5"],"end":null}
 """
+_GROUNDING_RULES = ("Each claim names its field: the same string in an unrelated detail is not evidence. "
+                    "For tables, use the column headers and the claim's sibling fields to select the correct row. "
+                    "Prefer the individual cell supporting the value; row context alone is not evidence for "
+                    "that cell's value. Never invent a label.")
 GROUNDING = ("Ground every claim listed under \"### Claims\" in the passages listed under \"### Evidence\". Return "
              "JSON with one key per claim label whose value is exactly one evidence label that directly supports "
-             "the claim in the meaning of its field, or NONE when no passage supports it. Each claim names its "
-             "field: the same string in an unrelated detail is not evidence. For tables, use the column headers "
-             "and the claim's sibling fields to select the correct row. Prefer the individual cell supporting "
-             "the value; row context alone is not evidence for that cell's value. Never invent a label.")
+             "the claim in the meaning of its field, or NONE when no passage supports it. " + _GROUNDING_RULES)
+QUOTED_GROUNDING = (
+    "Ground every claim listed under \"### Claims\" in the passages listed under \"### Evidence\". "
+    "Return a single JSON object keyed by claim label; each value is an object with keys label, quote, and attribution. "
+    "The label identifies offered evidence; quote is an exact, case-sensitive substring of that candidate's "
+    "text, preserving whitespace; attribution is true only if it supports this value for THIS record, "
+    "including its preparation, conditions, row and column. A matching number for another subject is not "
+    "support. When unsupported, use label NONE, an empty quote and attribution false. "
+    "Do not paraphrase or normalize source text. Escape control characters in JSON strings, for example "
+    "a source tab as \\t. " + _GROUNDING_RULES)
 NONE = "NONE"
 ARTICLE = ("Extract only the specified record, combining its evidence across the complete source. Keep its final "
            "preparation or fraction distinct from the starting material, bulk preparation, other fractions and "
@@ -277,14 +288,17 @@ def _clipped(passages: Sequence[Passage], budget: int, issues: list[Issue], reco
 
 
 def extract_document(evidence: Evidence, schema: Schema, chat: Chat, *, budget: int,
-                     counter: TokenCounter | None = None) -> tuple[
+                     counter: TokenCounter | None = None, structured: bool = False) -> tuple[
         dict, list[Call], list[Issue]]:
     """The fields that belong to the document as a whole, from one call over its text."""
     nodes = schema.document_nodes
     if not nodes:
         return {}, [], []
     issues: list[Issue] = []
-    source = text_of(evidence.passages) if counter else _clipped(evidence.passages, budget, issues, None)
+    if structured and counter is None:
+        raise BudgetUnavailable("Structured source rendering requires a token counter")
+    source = (structured_source(evidence.passages) if structured else
+              text_of(evidence.passages) if counter else _clipped(evidence.passages, budget, issues, None))
     user = f"### Source document\n{source}\n\nReturn the JSON object now."
     answer, attempts = _complete(chat, stage="document", record=None, system=_instruction(schema, nodes), user=user,
                                  schema=json_schema(nodes), counter=counter, max_tokens=2048 if counter else None)
@@ -295,13 +309,17 @@ def extract_document(evidence: Evidence, schema: Schema, chat: Chat, *, budget: 
 
 def extract_record(passages: Sequence[Passage], schema: Schema, chat: Chat, *, budget: int,
                    record: int | None = None, identity: dict | None = None, record_name: str | None = None,
-                   counter: TokenCounter | None = None, neutral: bool = False) -> tuple[dict, list[Call], list[Issue]]:
+                   counter: TokenCounter | None = None, neutral: bool = False,
+                   structured: bool = False) -> tuple[dict, list[Call], list[Issue]]:
     """One record's fields from one structured-output call over its passages."""
     nodes = [node for node in schema.record_nodes if identity is None or node.name not in identity]
     if not nodes:
         return dict(identity or {}), [], []
     issues: list[Issue] = []
-    source = text_of(passages) if counter else _clipped(passages, budget, issues, record)
+    if structured and counter is None:
+        raise BudgetUnavailable("Structured source rendering requires a token counter")
+    source = (structured_source(passages) if structured else
+              text_of(passages) if counter else _clipped(passages, budget, issues, record))
     system, user, reply_schema = record_request(source, schema, identity, record_name, neutral=neutral)
     answer, attempts = _complete(chat, stage="record", record=record, system=system, user=user,
                                  schema=reply_schema, counter=counter, max_tokens=4096 if counter else None)
@@ -436,13 +454,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     `before_call`, when given, runs before each grounding batch; its error ends verification (cancellation).
     """
     prefix: tuple[str | int, ...] = ("records", record)
-    instruction = GROUNDING
-    if quoted:
-        instruction += (" For each claim return label, quote, and attribution. Quote an exact nonempty substring of "
-                        "the chosen evidence that supports the claim. Set attribution true only if that evidence "
-                        "supports this value for THIS record, including its preparation, conditions, row and column. "
-                        "A matching number for another subject is not support. Use label NONE, empty quote and "
-                        "attribution false when unsupported. Do not paraphrase the quote.")
+    instruction = QUOTED_GROUNDING if quoted else GROUNDING
     if not passages:
         return [], [], [Issue("no_evidence", "the record has no passages to verify against", record)]
     links: list[Link] = []
@@ -522,7 +534,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                     quote = candidate_reply.get("quote")
                     if (candidate_reply.get("attribution") is not True or not isinstance(quote, str) or not quote.strip()
                             or len(quote) > 500
-                            or normal(quote) not in normal(labelled[label].text)):
+                            or quote not in labelled[label].text):
                         issues.append(Issue("unsupported_quote", f"{claim}: missing attribution or source substring", record, path))
                         continue
             if label is None:

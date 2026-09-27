@@ -3,6 +3,7 @@ import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { sourceIngestionAdmittedSchema } from '../shared/sourceDocumentIngestion.contract'
 import type { IngestionInput, IngestionOutcome } from './_ingestion_workflow.js'
 import {
   createSourceDocumentDeletion,
@@ -182,7 +183,7 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     const accepted = dependencies()
     const acceptedName = `${'😀'.repeat(176)}.pdf`
     expect(Array.from(acceptedName)).toHaveLength(180)
-    expect((await accepted.handler(request([['file', pdfFile(acceptedName)]]))).status).toBe(201)
+    expect((await accepted.handler(request([['file', pdfFile(acceptedName)]]))).status).toBe(202)
     expect(accepted.admission.enqueue).toHaveBeenCalledOnce()
 
     const rejected = dependencies()
@@ -224,8 +225,9 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
       ['layout', 'spreads'],
     ]))
 
-    expect(response.status).toBe(201)
+    expect(response.status).toBe(202)
     const [options, input] = enqueued(admission)
+    await expect(response.json()).resolves.toEqual({ workflowId: `ingest:${ids.project}:${input.attemptId}` })
     expect(input.attemptId).toMatch(UUID)
     expect(options).toEqual({
       workflowName: 'ingestSource',
@@ -258,7 +260,7 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     for (const pages of [31, null]) {
       const { handler, admission, countPages } = dependencies()
       countPages.mockResolvedValueOnce(pages)
-      expect((await handler(request())).status).toBe(201)
+      expect((await handler(request())).status).toBe(202)
       expect(enqueued(admission)[1]).toMatchObject({ pageCount: pages, lane: 'kei-convert-large' })
     }
   })
@@ -273,20 +275,34 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
         return { workflowID: options.workflowID }
       },
     })
-    expect((await handler(request([['file', pdfFile('catalogue.pdf', bytes)]]))).status).toBe(201)
+    expect((await handler(request([['file', pdfFile('catalogue.pdf', bytes)]]))).status).toBe(202)
     expect(stagedSize).toBe(bytes.byteLength)
     expect(enqueued(admission)[1]).toMatchObject({
       byteSize: bytes.byteLength, sourceSha256: createHash('sha256').update(bytes).digest('hex'),
     })
   })
 
-  it("a joined attempt removes this request's unused staged file", async () => {
+  it("a joined attempt removes this request's unused staged file and answers the winning workflow ID", async () => {
     const active = `ingest:${ids.project}:99999999-9999-4999-8999-999999999999`
     const { handler, admission } = dependencies({ enqueue: async () => ({ workflowID: active }) })
 
-    expect((await handler(request())).status).toBe(201)
+    const response = await handler(request())
+    expect(response.status).toBe(202)
+    await expect(response.json()).resolves.toEqual({ workflowId: active })
     expect(await staged()).toEqual([])
-    expect(admission.listWorkflows).toHaveBeenCalledWith(expect.objectContaining({ workflowIDs: [active] }))
+    expect(admission.listWorkflows).not.toHaveBeenCalled()
+  })
+
+  it('answers 202 with the admitted workflow ID and reads no status after the enqueue', async () => {
+    const { handler, admission } = dependencies()
+
+    const response = await handler(request())
+
+    expect(response.status).toBe(202)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    const body = sourceIngestionAdmittedSchema.parse(await response.json())
+    expect(body.workflowId).toBe(enqueued(admission)[0].workflowID)
+    expect(admission.listWorkflows).not.toHaveBeenCalled()
   })
 
   it('an uncertain enqueue keeps its staged file and answers 503', async () => {
@@ -326,99 +342,5 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     })
     expect(countPages).not.toHaveBeenCalled()
     expect(await staged()).toEqual([])
-  })
-
-  it('waits for the workflow and answers 201 with the document and page count', async () => {
-    const { handler, admission } = dependencies({
-      statuses: [{ status: 'ENQUEUED' }, { status: 'PENDING' }, { status: 'SUCCESS', output: succeeded }],
-      overrides: { resultPollIntervalMs: 1 },
-    })
-
-    const response = await handler(request())
-
-    expect(response.status).toBe(201)
-    expect(response.headers.get('cache-control')).toBe('no-store')
-    await expect(response.json()).resolves.toEqual({ ...published, pageCount: 12 })
-    expect(admission.listWorkflows).toHaveBeenCalledTimes(3)
-  })
-
-  it("answers a typed workflow failure with its own status, code and message", async () => {
-    const failed: IngestionOutcome = { ok: false, status: 422, code: 'source_ingestion_failed', message: 'The Source Document could not be parsed: unreadable' }
-    const { handler } = dependencies({ statuses: [{ status: 'SUCCESS', output: failed }] })
-
-    const response = await handler(request())
-
-    expect(response.status).toBe(422)
-    await expect(response.json()).resolves.toEqual({ error: { code: failed.code, message: failed.message } })
-  })
-
-  it('a 504 detaches without cancelling the workflow', async () => {
-    const { handler, admission } = dependencies({ statuses: [{ status: 'PENDING' }], overrides: { resultTimeoutMs: 0 } })
-    const cancelWorkflow = vi.fn()
-    Object.assign(admission, { cancelWorkflow })
-
-    const response = await handler(request())
-
-    expect(response.status).toBe(504)
-    await expect(response.json()).resolves.toEqual({
-      error: { code: 'source_ingestion_timeout', message: 'Source Document parsing did not finish within thirty minutes.' },
-    })
-    expect(cancelWorkflow).not.toHaveBeenCalled()
-    // The workflow still owns its staged file.
-    const [, input] = enqueued(admission)
-    expect(await staged()).toEqual([`${input.attemptId}.pdf`])
-  })
-
-  it('a DBOS status-read outage after admission answers 503 and leaves the workflow staged', async () => {
-    const { handler, admission } = dependencies()
-    admission.listWorkflows.mockRejectedValueOnce(new Error('DBOS is unavailable'))
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-
-    const response = await handler(request())
-
-    expect(response.status).toBe(503)
-    await expect(response.json()).resolves.toEqual({
-      error: { code: 'persistence_unavailable', message: 'Source Document ingestion status is unavailable.' },
-    })
-    expect(admission.enqueue).toHaveBeenCalledOnce()
-    const [, input] = enqueued(admission)
-    expect(await staged()).toEqual([`${input.attemptId}.pdf`])
-  })
-
-  it('a request abort after admission detaches without reporting a persistence outage', async () => {
-    const { handler, admission } = dependencies()
-    const controller = new AbortController()
-    const detached = new Error('client disconnected')
-    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
-    logged.mockClear()
-    admission.listWorkflows.mockImplementationOnce(async () => {
-      controller.abort(detached)
-      throw detached
-    })
-
-    await expect(handler(request(undefined, ids.project, controller.signal))).rejects.toBe(detached)
-    expect(admission.enqueue).toHaveBeenCalledOnce()
-    const [, input] = enqueued(admission)
-    expect(await staged()).toEqual([`${input.attemptId}.pdf`])
-    expect(logged).not.toHaveBeenCalled()
-  })
-
-  it('a workflow that vanished answers 502, not a hang', async () => {
-    const { handler, admission } = dependencies({ statuses: [undefined] })
-
-    const response = await handler(request())
-
-    expect(response.status).toBe(502)
-    await expect(response.json()).resolves.toEqual({
-      error: { code: 'source_ingestion_failed', message: 'Source Document parsing stopped before it finished.' },
-    })
-    expect(admission.listWorkflows).toHaveBeenCalledOnce()
-  })
-
-  it('a workflow that stopped with an error answers 502', async () => {
-    for (const status of ['ERROR', 'CANCELLED', 'MAX_RECOVERY_ATTEMPTS_EXCEEDED']) {
-      const { handler } = dependencies({ statuses: [{ status }] })
-      expect((await handler(request())).status).toBe(502)
-    }
   })
 })

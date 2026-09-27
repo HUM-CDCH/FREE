@@ -62,3 +62,22 @@ primary source ownership when neighboring context, glossary or heading use chang
 #### Scenario: Neighbor overlap is disabled
 - **WHEN** an experiment removes neighboring context
 - **THEN** entry ownership and canonical evidence references remain unchanged
+
+### Requirement: Structural units preserve their required context
+A structural Article grouping factor SHALL preserve primary ownership and canonical
+order, retain adjacent table qualifiers, and expose inherited heading context.
+Admission SHALL include that context; irreducible groups SHALL be refused visibly.
+
+#### Scenario: A table and its footnote exceed the context limit
+- **WHEN** the indivisible table group with required heading context cannot fit
+- **THEN** the request is refused without splitting or dropping the qualifier
+
+### Requirement: Quoted evidence matches the canonical source literally
+Quoted verification SHALL use an unambiguous object-output instruction and validate
+quotes against the cited canonical candidate without case or whitespace rewriting.
+Literal control characters inside reply strings MAY be decoded losslessly; malformed
+structure and output truncation SHALL still fail.
+
+#### Scenario: A model copies a tab inside a quoted value
+- **WHEN** a complete reply contains that literal source tab inside a string
+- **THEN** decoding retains the tab and evidence checking requires the exact source quote

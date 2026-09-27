@@ -21,8 +21,10 @@ flowchart LR
 | Module | Responsibility |
 | --- | --- |
 | `evidence.py` | Verify canonical files and expose stable passages/tables. |
+| `rendering.py` | Expose block types and table cell spans to the model while retaining exact canonical text. |
 | `method.py` | Validate explicit experimental choices; enforce the Article context ceiling. |
-| `contexts.py` | Partition whole passages with disjoint primary ownership and optional preceding overlap; reconcile values without hiding scalar conflicts. |
+| `contexts.py` | Partition whole passages or structural groups with disjoint primary ownership, inherited heading context and optional overlap; reconcile values without hiding scalar conflicts. |
+| `selection.py` | Select whole value contexts from inventory support, adjacent qualifiers and schema relevance; expose omitted units. |
 | `article.py` | Enumerate recurring identities, reconcile them, and extract each record across its source contexts. |
 | `stages.py` | Shared model admission, schema prompts, generic Catalog discovery, values, grounding and record assembly. |
 | `grounded.py` | Recipe Catalog entry extraction, candidate verification, conflict arbitration and normalization. |
@@ -35,9 +37,11 @@ identities recur across sections; Catalog entries own contiguous source spans.
 
 ## Article choices
 
-Omitting `options.article` preserves the captured prompt-v11 reference,
-including its artifact serialization. Specifying it records all settings and
-`method_version: 1` in the fingerprint. It is currently a research interface;
+Omitting `options.article` retains the full-source reference requests. Protocol v12
+preserves literal source control characters when decoding replies; quoted verification
+also has corrected instructions and literal source matching. Version/fingerprint metadata
+therefore differs from v11. The frozen R1 checkout/archive retains exact v11 behavior.
+Specifying Article options records all settings and `method_version: 1` in the fingerprint. It is currently a research interface;
 Studio does not expose these controls.
 
 - `identity=reference|conservative`: the reference deduplicates any nonempty
@@ -47,19 +51,63 @@ Studio does not expose these controls.
   identities remain visible and can produce duplicates requiring review.
 - `prompt=reference|schema`: retain the earlier laboratory instructions or
   derive record semantics from the supplied schema without laboratory examples.
+- `rendering=structured`: expose canonical block IDs, labels and pages, plus
+  table cell IDs, rows, columns, spans and available roles in document, inventory
+  and value inputs. Tagged text preserves every source character; it is not XML.
+  Missing table cells stay missing. Omission preserves plain reference requests.
+  Rendering and `rendering_version` participate in the fingerprint. Tokenizers
+  count the actual markup, so structure can increase costs or cause refusal.
+  This changes neither the grouping algorithm nor the verifier's cell renderer.
 - `context=full|bounded`: send the full source, or partition whole canonical
   passages under a fixed served-token ceiling, including output reserves.
   Inventory and record-value prompts use their actual tokenizer/template.
-  Every record reads every unit: this reference bounded assembly has no
-  relevance-ranking stage that could silently omit a late measurement.
+  By default every record reads every unit.
+- `grouping=structural` (bounded only): keep a heading with its first body block
+  and tables with immediately adjacent captions/footnotes, across page furniture.
+  Prefer section boundaries and carry the latest heading into continuation units.
+  Required heading context is token-counted and recorded separately from primary
+  ownership. An oversized group is refused intact; it never sheds its qualifier
+  to fit. Labels do not establish a heading hierarchy or arbitrary cross-page
+  table association, so neither is inferred. Omission keeps token-only partitioning.
+  The setting and `grouping_version` participate in the fingerprint.
+- `selection=supported` (bounded only): retain value units owning identity
+  support and neighboring canonical passages, plus at most one additional unit
+  with positive schema-term relevance. The deterministic lexical score uses
+  term frequency, inverse unit frequency and length normalization. It preserves
+  whole original units and records selected/omitted passages and reasons.
+  Inventory, document fields and verification still visit all bounded units.
+  Selection can omit relevant late evidence; relevance recall remains unmeasured.
+  Omission of this setting preserves the all-unit method and its fingerprint.
 - `overlap_passages=0..2`: preceding context that never changes primary
   ownership. Tables are indivisible passages. An oversized passage is explicitly
   refused; it is never clipped or reconstructed under its original identity.
 - `grounding=semantic|quoted|off`: source-label verification; verification with
   exact source-substring checks and model-attested attribution; or no links.
   Quoted verification uses four claims per batch and at most 500 characters per
-  quote. Quoted support is retained in the artifact. A valid substring and a
+  quote. Matching preserves case and whitespace; normalization cannot manufacture
+  a source substring. Quoted support is retained in the artifact. A valid substring and a
   model's attribution are **not independent proof of semantic correctness**.
+
+The shared decoder accepts literal control characters only inside strings and
+preserves their values exactly, like escaped JSON spellings. It still rejects
+missing delimiters, invalid escapes, trailing objects and output truncation.
+Only a leading model thinking envelope is removed; literal tags inside source
+quotes remain intact. The provider prompt requests escaped JSON strings. Recipe
+Catalog records protocol v5 for the same decoder correction. This is an explicit
+syntax extension, not semantic acceptance or repair of missing model output.
+
+To exercise the new structural input with an approved schema, set:
+
+```json
+{"strategy": "article", "article": {
+  "context": "bounded", "context_tokens": 12288,
+  "rendering": "structured", "grouping": "structural",
+  "prompt": "schema", "grounding": "quoted"
+}}
+```
+
+Add conservative identity reconciliation only with identity fields appropriate to
+the schema. These remain experimental controls, not a new Studio default.
 
 Bounded value reconciliation unions exactly equal array items, merges objects,
 and leaves scalar conflicts null with all alternatives recorded. It does not
@@ -100,8 +148,17 @@ require separate implementations and evaluation data.
 The full-source reference remains an experimental baseline because comparison
 is an explicit requirement. It is not an invisible fallback for a refused
 bounded call. Bounded processing currently trades repeated calls for exhaustive
-source visitation; call count grows with records times source units. Retrieval
-and cross-unit semantic reconciliation are future factors, not hidden heuristics.
+source visitation; call count grows with records times source units. The optional
+lexical selector is a separate hypothesis, not hybrid retrieval replication.
+Cross-unit semantic reconciliation remains unimplemented. Structural grouping adapts
+[BLOCKIE's linked-block idea](https://arxiv.org/html/2505.13535v1) using canonical
+labels, without an LLM rewriting the source or proof of block independence. Literal
+quoted-source checking follows the decoding constraint in
+[LMDX Algorithm 2](https://arxiv.org/html/2309.10952v2); it does not reproduce coordinate
+training or voting. These development fixes are separate from the frozen studies.
+The R3 [rendering protocol](../experiments/extraction/rendering-protocol.md)
+declares a separate six-paper fresh comparison. It tests structure in model input,
+not semantic grouping or the complete historical DocTags pipeline.
 
 ## Run a study
 
@@ -144,3 +201,11 @@ are not automatically false positives because the gold is non-exhaustive.
 Unannotated examples support operational comparisons only. Small development
 samples cannot establish generalization, and model links cannot establish an
 independent semantic grounding accuracy score.
+
+The selector has a separate [conditional replay protocol](../experiments/extraction/selection-protocol.md).
+`python -m experiments.extraction.selection_replay register R1_DIR OUTPUT_DIR`
+pins that comparison; `run OUTPUT_DIR SOURCE_ID` first reproduces the original
+bounded result exactly, then compares all versus selected value units using only
+captured response subsequences. Both paired arms disable grounding. Tokenizer
+probes are cached, and unseen generation requests fail. Saved calls/tokens are
+counterfactual costs; replay is not a fresh latency or model-variability trial.

@@ -15,7 +15,9 @@ from kei_exp.kie.extract.contexts import Context, partition, reconcile_values
 from kei_exp.kie.extract.evidence import Passage, text_of
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.method import ArticleOptions
+from kei_exp.kie.extract.rendering import structured_source
 from kei_exp.kie.extract.schema import SCALAR_JSON, Schema, json_schema
+from kei_exp.kie.extract.selection import select_contexts
 from kei_exp.kie.extract.stages import Call, Issue, _complete, _instruction, _labelled, extract_record, normal, record_request
 from kei_exp.kie.extract.tokens import TokenCounter
 
@@ -28,6 +30,7 @@ class Records:
     issues: list[Issue]
     conflicts: list[dict]
     value_contexts: list[list[Context]]
+    selections: list[dict]
 
 
 def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counters: dict,
@@ -35,6 +38,7 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
                     contexts: list[Context] | None = None) -> Records:
     """Discover identities, then extract their values; grounding belongs to the shared result path."""
     groups = contexts if contexts is not None else [Context(tuple(passages))]
+    structured = method is not None and method.rendering == "structured"
     identities, calls, issues = [], [], []
     for group in groups:
         check()
@@ -52,6 +56,7 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
     slices = []
     conflicts = []
     value_contexts = []
+    selections = []
     for number, item in enumerate(identities):
         candidates = []
         record_groups = groups
@@ -59,16 +64,22 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
         if method is not None and method.context == "bounded":
             def fits(group):
                 check()
-                system, user, reply_schema = record_request(text_of(group), schema, item["identity"], item["label"],
+                source = structured_source(group) if structured else text_of(group)
+                system, user, reply_schema = record_request(source, schema, item["identity"], item["label"],
                                                             neutral=neutral)
                 return counters["fields"].request_tokens(system, user, reply_schema) + 4096 <= counters["fields"].context_tokens
-            record_groups = partition(passages, fits, overlap=method.overlap_passages)
+            record_groups = partition(passages, fits, overlap=method.overlap_passages,
+                                      structural=method.grouping == "structural")
+        if method is not None and method.selection is not None:
+            check()
+            record_groups, selection = select_contexts(record_groups, passages, item["passages"], schema)
+            selections.append({"record": number, **selection})
         value_contexts.append(record_groups)
         for group in record_groups:
             check()
             fields, attempts, problems = extract_record(group.passages, schema, chat, budget=record_chars,
                 record=number, identity=item["identity"], record_name=item["label"], counter=counters["fields"],
-                neutral=neutral)
+                neutral=neutral, structured=structured)
             calls += attempts
             issues += problems
             candidates.append(fields)
@@ -77,7 +88,7 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
         issues += [Issue("conflicting_values", json.dumps(conflict, ensure_ascii=False), number)
                    for conflict in contested]
         slices.append((list(passages), fields))
-    return Records(identities, slices, calls, issues, conflicts, value_contexts)
+    return Records(identities, slices, calls, issues, conflicts, value_contexts, selections)
 
 
 def inventory_request(passages: Sequence[Passage], schema: Schema, method: ArticleOptions | None = None):
@@ -111,7 +122,8 @@ def inventory_request(passages: Sequence[Passage], schema: Schema, method: Artic
               "(a scope code and a preparation label can differ). "
               "Resolve abbreviations from the source. Never use an expected count or a "
               "validation list. Return JSON.\n" + _instruction(schema, schema.record_nodes))
-    user = _labelled(passages, labels)
+    user = (structured_source(passages) if method is not None and method.rendering == "structured"
+            else _labelled(passages, labels))
     if method is not None and method.prompt == "schema":
         system = ("Enumerate every distinct record supported by the supplied source unit under the schema's record "
                   "definition. Records may recur across other units. Return an unambiguous label, source-supported "
@@ -127,7 +139,8 @@ def source_contexts(passages, schema, method, counter, check):
         check()
         system, user, reply_schema, _ = inventory_request(group, schema, method)
         return counter.request_tokens(system, user, reply_schema) + 4096 <= counter.context_tokens
-    return partition(passages, fits, overlap=method.overlap_passages) or [Context(())]
+    return partition(passages, fits, overlap=method.overlap_passages,
+                     structural=method.grouping == "structural") or [Context(())]
 
 
 def inventory(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counter: TokenCounter,

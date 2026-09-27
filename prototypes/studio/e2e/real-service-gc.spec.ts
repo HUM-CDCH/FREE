@@ -4,6 +4,7 @@ import { documentReopenResponseSchema } from '../shared/projectContext.contract.
 import { extractionReadResponseSchema } from '../shared/extraction.contract.js'
 import { E2E_ORIGIN, loginResearcher } from './auth.js'
 import { cataloguePdf, startRealService, textPdf } from './realService.js'
+import { admit, settle, uploaded } from './sourceIngestion.js'
 
 const headers = { Origin: E2E_ORIGIN }
 test.describe.configure({ mode: 'serial' })
@@ -15,12 +16,9 @@ async function project(page: Page, name: string): Promise<string> {
   return (await response.json()).projectContext.projectContextId as string
 }
 
-async function upload(page: Page, projectId: string, pdf = cataloguePdf(), name = 'source.pdf') {
-  const response = await page.request.post(`/api/project-contexts/${projectId}/source-documents`, {
-    headers, timeout: 300_000, multipart: { file: { name, mimeType: 'application/pdf', buffer: pdf } },
-  })
-  expect(response.status(), await response.text()).toBe(201)
-  return await response.json() as { sourceDocumentId: string }
+/** The Source Document an upload became (Studio admits it with 202; this waits for the attempt to publish). */
+function upload(page: Page, projectId: string, pdf = cataloguePdf(), name = 'source.pdf') {
+  return uploaded(page, projectId, pdf, name)
 }
 
 async function revision(page: Page, projectId: string): Promise<string> {
@@ -147,9 +145,7 @@ test('a sweep on the GC lane removes a due run while a large conversion is held'
 
     const largeProject = await project(page, 'GC large conversion')
     const largePdf = textPdf(Array.from({ length: 40 }, (_, index) => [`Large page ${index + 1}.`]))
-    const largeUpload = page.request.post(`/api/project-contexts/${largeProject}/source-documents`, {
-      headers, timeout: 300_000, multipart: { file: { name: 'large.pdf', mimeType: 'application/pdf', buffer: largePdf } },
-    })
+    const largeUpload = await admit(page, largeProject, largePdf, 'large.pdf')
     await expect.poll(() => service.conversionHeld(), { timeout: 120_000, intervals: [100, 250] }).toBe(true)
     let largeId = ''
     await expect.poll(async () => {
@@ -166,8 +162,7 @@ test('a sweep on the GC lane removes a due run while a large conversion is held'
     expect(await service.runExists(due.runId)).toBe(false)
     expect((await service.keiWorkflows(largeId))[0]?.status).toBe('PENDING')
     await service.releaseConversion()
-    const response = await largeUpload
-    expect(response.status(), await response.text()).toBe(201)
+    expect(await settle(page, largeProject, largeUpload)).toMatchObject({ status: 'succeeded' })
     expect((await service.keiWorkflows(largeId))[0]?.output).toMatchObject({ ok: true, page_count: 40 })
   } finally { await service.releaseConversion(); await service.close() }
 })

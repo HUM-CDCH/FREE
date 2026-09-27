@@ -29,7 +29,7 @@ function killAfterPublish(store: IngestionStore, firstRun: boolean): IngestionSt
 /**
  * Studio with ingestSource on its own DBOS schemas, talking to the kei stand-in the parent spawned (FREE_TEST_KEI_SCHEMA,
  * KEI_EXP_URL) and staging in FREE_SOURCE_INBOX. The first run uploads FREE_TEST_PDF through the handler into
- * FREE_TEST_PROJECT and dies: in `kill-after-publish` mode right after its publication commits, in `kill-before-submit`
+ * FREE_TEST_PROJECT, which answers 202 at admission, then waits and dies: in `kill-after-publish` mode right after its publication commits, in `kill-before-submit`
  * mode as the workflow is about to hand the file to kei. A later run recovers the workflow and waits for it.
  */
 export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.ProcessEnv }): Promise<void> {
@@ -67,7 +67,11 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
     const response = await createSourceDocumentIngestion(createResearcherProjectStore(owner), { packageStore })(
       uploadRequest(projectContextId, pdf),
     )
-    throw new Error(`The first run answered ${response.status} instead of dying: ${await response.text()}`)
+    // Admission answers at once; the process dies inside the workflow it admitted.
+    if (response.status !== 202) throw new Error(`The first run answered ${response.status}: ${await response.text()}`)
+    const { workflowId } = (await response.json()) as { workflowId: string }
+    const outcome = await awaitWorkflowOutcome(studioDbos().admission, workflowId, { timeoutMs: 90_000 })
+    throw new Error(`The first run's workflow ended ${JSON.stringify(outcome)} instead of dying.`)
   }
   // The recovered attempt: the only ingestion this scenario's schema holds for the project.
   const [attempt] = await studioDbos().admission.listWorkflows({
