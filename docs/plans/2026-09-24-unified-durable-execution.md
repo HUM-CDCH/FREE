@@ -183,6 +183,9 @@ that every other researcher's documents are sent to.
   checkpoints no request body or response headers but still records provider
   metadata (version probe). So the sanitizer wraps the provider model inside
   `durableCalls`, maps its errors and strips its provider metadata.
+
+> **Not built (decision 15, 2026-09-26):** the sentences from "For chat, that boundary belongs to `durableCalls`" to the end of the bullet describe the deleted document chat; generation and edit proposals sanitize inside their own steps.
+
 - **A new mechanism must delete more than it adds.** No admission triggers,
   relays, reconcilers, publication fences, tombstones, credential revisions,
   cleanup-intent tables or deletion barriers.
@@ -202,6 +205,8 @@ transactional enqueue, deduplication, cancellation, stream replay,
 - scheduled workflows and `DBOS.patch()`;
 - Python step `should_retry`;
 - queue `worker_concurrency`.
+
+> **Not built (decision 15, 2026-09-26):** `@dbos-inc/vercel-ai` and its `readDurableStream` served only the document chat, which M5 deleted; neither is installed or used.
 
 ## What this removes
 
@@ -514,6 +519,8 @@ user action carries a client-minted ID (Admission, above).
     once more and show one more proposal. That costs one model call and
     loses nothing, so no dismissal record is kept.
   - A client abort only detaches.
+> **Not built (decision 15, 2026-09-26):** the document chat was deleted in M5 instead of made durable: no `chatTurn` workflow, `ChatTurn` table, chat routes or `ChatTab`. The schema tab's durable interactive work is *Generation* and *Edit proposals* above.
+
 - **Chat (`chatTurn`).** A transcript that must survive a reload is research
   content, so it moves into FREE's tables. Each turn is one `ChatTurn(id,
   sourceRepresentationRevisionId, question, answer, failure, createdAt)` row,
@@ -1196,6 +1203,8 @@ this pre-production reset as its only exception.
 
 ## Public contract changes
 
+> **Not built (decision 15, 2026-09-26):** the chat-request bullet below; `/api/chat` was deleted with no alias, and the dispatcher answers it 404.
+
 - Extraction admission/status/result use one `extractionId`; remove separate
   job/member identities and targeted-retry variants. Execution status remains
   derived, while completed evidence and review contracts retain their pins.
@@ -1359,6 +1368,9 @@ handlers or pages is an acceptance test of the milestone that builds it
 
 **M2: platform, baseline and configuration — done 2026-09-26.** Task plan:
 [2026-09-26-dbos-m2-platform-configuration.md](2026-09-26-dbos-m2-platform-configuration.md).
+
+> Some items below moved to later milestones: the Compose removals, `source-inbox` and the worker waiting for Studio (M3/M4), `scripts/free.mjs`'s `parsing_db` and two safety tests (M3), the baseline's job, member, ingestion-key and suggestion edits (M4; `ChatTurn` was dropped by decision 15), and the key wrapper's `cancelSignal` (M4/M5). The [M2 plan's deferral table](2026-09-26-dbos-m2-platform-configuration.md#deferred-to-later-milestones-spec-m2-items-this-plan-does-not-do) lists each with its milestone.
+
 - **Compose** (all overlays):
   - remove `parsing_db`, `parsing-postgres`, `parsing_migrate` and the parsing
     API's database environment;
@@ -1728,6 +1740,8 @@ handlers or pages is an acceptance test of the milestone that builds it
     GC removes only unused/terminal files and never the active attempt's PDF.
 
 ## Verification
+
+> **Not built (decision 15, 2026-09-26):** the chat items below (active-chat exclusion, one answer per chat turn, a reload mid-chat, chat reconnect and re-POST recovery, chat across a reload and a restart) are not verified; generation and edit proposals are. `free-document-chat` stays in the residue search.
 
 - **Residue search.** Search production code, dependencies, generated
   contracts, tests and operational docs for Procrastinate, lease/claim/renew/

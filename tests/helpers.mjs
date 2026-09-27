@@ -67,9 +67,16 @@ export async function waitForHealth(timeoutMs = 300_000) {
 
 /** Build and start the disposable system-test stack owned by this process. */
 export async function ensureStackUp() {
+  if (await healthy()) return
   ensureCertificates()
   compose(['up', '-d', '--build', '--wait'])
   await waitForHealth()
+}
+
+/** Trigger one sweep in the disposable stack's Studio process. */
+export function collectGarbageNow() {
+  const result = compose(['exec', '-T', 'studio', 'pnpm', '--filter', 'studio', 'gc:now'])
+  return JSON.parse(result.stdout.trim().split('\n').at(-1))
 }
 
 // A minimal per-host cookie jar: enough for the session and OIDC redirects.

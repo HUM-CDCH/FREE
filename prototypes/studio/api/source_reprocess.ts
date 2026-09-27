@@ -20,6 +20,7 @@ import {
 import { packagePageCount } from './_kei_conversion.js'
 import { configuredIngestionModels } from './_model_config.js'
 import { REPROCESS_SOURCE, type ReprocessInput, type ReprocessOutcome } from './_reprocess_workflow.js'
+import { reprocessWorkflowId } from './_source_inbox.js'
 
 type Store = Pick<
   ResearcherProjectStore,
@@ -89,7 +90,7 @@ export function createSourceDocumentReprocessing(
         requestFingerprint,
       )
       if (replay) return publishedResponse(replay)
-      const workflowId = `reprocess:${documentId}:${requestKey}`
+      const workflowId = reprocessWorkflowId(documentId, requestKey)
       const admission = dependencies.admission ?? studioDbos().admission
       const recordedFingerprint = async () => {
         const [recorded] = await admission.listWorkflows({ workflowIDs: [workflowId], loadInput: true, loadOutput: false })

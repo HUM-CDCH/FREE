@@ -1,4 +1,4 @@
-# 0012: Server-owned Source Ingestion
+# 0014: Server-owned Source Ingestion
 
 Date: 2026-09-27. Status: accepted; supersedes, for uploads, the thirty-minute
 upload wait of the DBOS plan

@@ -1,122 +1,89 @@
 # capability-route-resolution Specification
 
 ## Purpose
-Maps every model operation to one saved machine-wide target without environment fallback.
+Maps every Studio model operation to its Project Context owner's route, with the deployment's defaults for unset routes.
+
 ## Requirements
-### Requirement: Exactly two Capability Routes determine all model operations
 
-FREE SHALL define exactly one machine-wide Extraction Route and one machine-wide Interaction Route. Extraction and Schema Suggestion SHALL resolve the Extraction Route. Document chat and conversational Extraction Schema editing SHALL resolve the Interaction Route.
+### Requirement: Two Capability Routes per Researcher Account
+Schema Suggestion SHALL resolve the Schema Suggestion Route; conversational Extraction Schema editing (edit proposals) SHALL resolve the Interaction Route. Extraction runs in the Parsing Service on the Extraction Model Choice and resolves no Capability Route. Every operation, background work included, SHALL resolve the Project Context owner's configuration when it starts.
 
-#### Scenario: Extraction and Schema Suggestion are routed
+#### Scenario: Schema Suggestion is routed
+- **WHEN** a researcher starts Schema Suggestion in a Project Context
+- **THEN** it resolves that Project Context owner's Schema Suggestion Route
+- **AND** it does not consult another account's route
 
-- **WHEN** FREE performs Extraction or Schema Suggestion
-- **THEN** it resolves the Extraction Route exactly once for that operation
-- **AND** it does not consult the Interaction Route
+#### Scenario: Schema editing is routed
+- **WHEN** a researcher requests a conversational Extraction Schema edit proposal
+- **THEN** it resolves that Project Context owner's Interaction Route
+- **AND** Extraction continues to use the Parsing Service's Extraction Model Choice
 
-#### Scenario: Document chat and schema editing are routed
+#### Scenario: Another account's routes are never consulted
+- **WHEN** two accounts set different routes and start work in their own Project Contexts
+- **THEN** each operation uses only the configuration of its Project Context owner
 
-- **WHEN** FREE performs document chat or conversational Extraction Schema editing
-- **THEN** it resolves the Interaction Route exactly once for that operation
-- **AND** it does not consult the Extraction Route
+### Requirement: Resolution uses one exact target, with named defaults
+An unset Interaction Route SHALL resolve to the deployment's instruction model when the deployment serves one; an unset Schema Suggestion Route SHALL resolve `schemaSuggestion ?? interaction ?? default`. Nothing else substitutes. An explicitly selected model ID SHALL remain selected even when absent from an advisory discovery result. FREE MUST NOT import or fall back to `AI_*` settings.
 
-### Requirement: Resolution uses one exact saved target without fallback
+#### Scenario: An unset Schema Suggestion Route follows the Interaction Route
+- **WHEN** the Schema Suggestion Route is unset and the Interaction Route names a model
+- **THEN** Schema Suggestion calls that exact model
 
-For each model operation, FREE SHALL read one validated immutable saved configuration snapshot, resolve the operation's named route, use only that route's Model Connection and model ID, and obtain only that connection's required credential. FREE MUST NOT select another route, connection, model, provider, profile, provider default, catalog entry, or configuration source as a substitute.
-
-#### Scenario: The required route is absent
-
-- **WHEN** an operation's required route is null, missing, dangling, or otherwise invalid in the saved snapshot
-- **THEN** the operation fails with the stable HTTP error envelope and `error.code` `invalid_model_config`
-- **AND** it does not try the other route or any default target
+#### Scenario: With no route and no deployment default the operation fails with `invalid_model_config`
+- **WHEN** the needed route is unset and the deployment has no instruction-model default
+- **THEN** the operation fails with `invalid_model_config` without invoking a provider
 
 #### Scenario: The selected model was entered manually
-
-- **WHEN** the selected model ID did not appear in an explicit probe result
-- **THEN** FREE passes that exact selected ID to the selected provider
-- **AND** it does not block execution or select a discovered replacement
+- **WHEN** a route names a model ID absent from the latest discovery result
+- **THEN** FREE passes that exact ID to the selected provider
+- **AND** it does not choose a discovered replacement
 
 #### Scenario: Environment settings are present
+- **WHEN** `AI_PROVIDER`, `AI_MODEL`, `AI_CHAT_MODEL`, `AI_BASE_URL`, or `AI_API_KEY` is present
+- **THEN** FREE does not read it as model configuration or a credential for the operation
 
-- **WHEN** `AI_PROVIDER`, `AI_MODEL`, `AI_CHAT_MODEL`, `AI_BASE_URL`, or `AI_API_KEY` is present while an operation is resolved
-- **THEN** FREE does not read it as model configuration or credentials
-- **AND** the saved route remains the sole target source
+### Requirement: The NuExtract protocol is derived
+Schema Suggestion SHALL use the NuExtract protocol exactly when the route's connection is vLLM and its model ID names NuExtract (`/nuextract/i`); no route stores or selects a protocol, and no other route uses it.
 
-#### Scenario: A local and a remote route are both configured
-
-- **WHEN** Extraction is configured for a local Ollama connection and Interaction for a remote OpenAI connection
-- **THEN** Extraction sends work only to the configured Ollama target
-- **AND** document chat and conversational Extraction Schema editing send work only to the configured OpenAI target
-
-### Requirement: Execution profiles are explicit and constrained
-
-The persisted Extraction Route SHALL use the optional `nuextractRaw?: true` flag
-for raw NuExtract and omit that flag for the general path. The Interaction Route
-cannot carry that flag. During resolution, FREE SHALL derive the internal
-execution target profile as `general` or `nuextract-raw`; it SHALL not expose a
-second persisted profile representation or coerce invalid combinations. The raw
-flag is valid only when the selected connection is Ollama, and a flagged
-Extraction Route on another provider fails with HTTP 409 and
-`error.code` `invalid_model_config`.
-
-#### Scenario: General execution is selected
-
-- **WHEN** an Extraction or Interaction Route omits `nuextractRaw`
-- **THEN** FREE resolves the internal `profile: 'general'` target
-- **AND** it does not infer a different profile from the model ID
-
-#### Scenario: Raw NuExtract is selected
-
-- **WHEN** the Extraction Route sets `nuextractRaw: true` on an Ollama
-  connection
-- **THEN** FREE resolves the internal `profile: 'nuextract-raw'` target
-- **AND** it uses the raw Ollama protocol with the exact saved model ID, server
-  base, and optional resolved authorization
+#### Scenario: All four combinations of vLLM or not and NuExtract model or not
+- **WHEN** Schema Suggestion resolves each combination of a vLLM or other connection and a NuExtract or other model ID
+- **THEN** only the vLLM plus NuExtract combination uses the NuExtract protocol
+- **AND** every other combination uses its general provider protocol
 
 ### Requirement: Interaction context uses canonical Source Document Markdown
-
-Document chat SHALL include canonical Source Document Markdown with the conversation. Conversational Extraction Schema editing SHALL include canonical Source Document Markdown when its existing nullable source is present and SHALL continue with only the conversation and current Extraction Schema when that source is null. Neither Interaction operation SHALL send raw Docling output or choose a route based on input media.
-
-#### Scenario: Document chat has a Source Document
-
-- **WHEN** a researcher sends a document-chat message for a Source Document
-- **THEN** FREE sends canonical Source Document Markdown as Interaction context
-- **AND** it does not send raw Docling output
+Conversational Extraction Schema editing SHALL include canonical Source Document Markdown when its existing nullable source is present and SHALL continue with only the conversation and current Extraction Schema when that source is null. It SHALL NOT send raw Docling output or choose a route based on input media.
 
 #### Scenario: Schema editing has a Source Document source
-
 - **WHEN** conversational Extraction Schema editing receives a non-null Source Document source
-- **THEN** FREE sends its canonical Source Document Markdown with the conversation and current Extraction Schema
+- **THEN** FREE sends its canonical Markdown with the conversation and current Extraction Schema
+- **AND** it does not send raw Docling output
 
 #### Scenario: Schema editing has no Source Document source
-
 - **WHEN** conversational Extraction Schema editing receives a null Source Document source
-- **THEN** FREE proceeds with the conversation and current Extraction Schema only
-- **AND** it neither creates a synthetic document placeholder nor rejects the request solely because the source is null
+- **THEN** FREE proceeds with only the conversation and current Extraction Schema
+- **AND** it neither creates a synthetic placeholder nor rejects the request solely for the missing source
 
 ### Requirement: Explicit unsupported temperature fails before model invocation
-
-When a model-operation request supplies an explicit temperature and the selected provider does not support temperature, FREE SHALL return HTTP 400 with `error.code` `unsupported_temperature`. This is a breaking change for Codex CLI and Claude Code. FREE MUST NOT silently omit the value, warn and continue, or use a fallback target. When temperature is absent, FREE SHALL retain the selected provider's existing default behavior.
+When a model-operation request supplies an explicit temperature and the selected provider does not support temperature, FREE SHALL return HTTP 400 with `error.code` `unsupported_temperature`. FREE MUST NOT silently omit the value or use a fallback target. When temperature is absent, FREE SHALL retain the selected provider's default behavior.
 
 #### Scenario: Codex CLI receives an explicit temperature
-
-- **WHEN** a route selects Codex CLI and its model-operation request includes temperature
-- **THEN** FREE returns HTTP 400 with `error.code` `unsupported_temperature`
-- **AND** it does not invoke Codex CLI or any fallback target
+- **WHEN** a route selects Codex CLI and its request includes temperature
+- **THEN** FREE returns `unsupported_temperature` before invoking Codex CLI
 
 #### Scenario: Claude Code receives an explicit temperature
-
-- **WHEN** a route selects Claude Code and its model-operation request includes temperature
-- **THEN** FREE returns HTTP 400 with `error.code` `unsupported_temperature`
-- **AND** it does not invoke Claude Code or any fallback target
+- **WHEN** a route selects Claude Code and its request includes temperature
+- **THEN** FREE returns `unsupported_temperature` before invoking Claude Code
 
 #### Scenario: A supported provider receives temperature
+- **WHEN** a route selects a provider that supports temperature and its request includes one
+- **THEN** FREE passes that exact value to the selected provider
 
-- **WHEN** a route selects Ollama, OpenAI, Anthropic, Google, or OpenAI-compatible and its request includes temperature
-- **THEN** FREE passes the explicit temperature to the exact selected provider path
-- **AND** it does not change routes or profiles
+### Requirement: A recovered operation resolves again and records no attribution
+A workflow SHALL carry only IDs; each attempt resolves the owner's current route and key. Interactive results (generations and edit proposals) record no Model Attribution.
 
-Transport envelopes, strict client-request parsing, and pre-stream versus
-committed-stream error behavior are specified normatively by
-`studio-model-operation-contract`. This capability owns only route-specific
-causes and the no-fallback requirement above.
+#### Scenario: A route changed between two attempts runs the second attempt on the new route
+- **WHEN** a workflow restarts after its owner changes the route
+- **THEN** its new attempt resolves the changed route and key
+- **AND** the result records no attribution reconstructed from a later route
 
+Transport envelopes, strict client-request parsing, and pre-stream versus committed-stream error behavior are specified by `studio-model-operation-contract`.

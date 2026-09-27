@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -9,6 +9,8 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { DBOSClient } from '@dbos-inc/dbos-sdk'
 import { ensureKeiRole } from 'db/kei-role'
 import { Client } from 'pg'
+import { ageFile } from '../test/support/garbage.js'
+import type { GarbageSummary } from '../api/_garbage_workflow.js'
 
 const directory = resolve(import.meta.dirname, '../../parsing_service')
 const python = resolve(directory, '.venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python')
@@ -205,6 +207,8 @@ export async function startRealService(logFile: string, options: { holdConversio
   keiDatabase.password = password
   const keiClient = await DBOSClient.create({ systemDatabaseUrl: database.href,
     systemDatabaseSchemaName: 'kei_dbos', applicationName: 'kei' })
+  const studioClient = await DBOSClient.create({ systemDatabaseUrl: database.href,
+    systemDatabaseSchemaName: 'dbos', applicationName: 'studio' })
   const log = createWriteStream(logFile)
   const env: NodeJS.ProcessEnv & { KEI_EXTRACT_MODEL: string } = {
     ...process.env,
@@ -272,6 +276,7 @@ export async function startRealService(logFile: string, options: { holdConversio
     fixture?.releaseExtraction()
     await fixture?.close()
     await keiClient.destroy()
+    await studioClient.destroy()
     log.end()
     await rm(runs, { recursive: true, force: true })
   }
@@ -294,10 +299,42 @@ export async function startRealService(logFile: string, options: { holdConversio
     releaseConversion: async () => {
       if (conversionBarrier) await writeFile(join(conversionBarrier, 'release'), '')
     },
+    holdNextConversion: async () => {
+      if (!conversionBarrier) throw new Error('The conversion barrier was not enabled.')
+      await rm(join(conversionBarrier, 'entered'), { force: true })
+      await rm(join(conversionBarrier, 'release'), { force: true })
+    },
     keiWorkflows: (prefix: string, projectContextId?: string) => keiClient.listWorkflows({
       workflow_id_prefix: prefix, ...(projectContextId ? { attributes: { projectContextId } } : {}),
       loadInput: true, loadOutput: true,
     }),
+    studioWorkflows: (prefix: string) => studioClient.listWorkflows({
+      workflow_id_prefix: prefix, loadInput: false, loadOutput: true,
+    }),
+    cancelKeiWorkflow: (id: string) => keiClient.cancelWorkflow(id),
+    collectGarbage: async (): Promise<GarbageSummary> =>
+      (await studioClient.triggerSchedule('collectGarbage')).getResult() as Promise<GarbageSummary>,
+    ageRun: (runId: string, byMs: number) => ageFile(join(runs, runId), byMs),
+    runExists: async (runId: string) => stat(join(runs, runId)).then(() => true, () => false),
+    orphanPayloadRows: async (schema: 'dbos' | 'kei_dbos') => {
+      // `database` was checked above as this harness's disposable free_test_real_service database.
+      const client = new Client({ connectionString: database.href })
+      await client.connect()
+      try {
+        const { rows: tables } = await client.query<{ table_name: string }>(
+          `SELECT table_name FROM information_schema.columns
+            WHERE table_schema = $1 AND column_name = 'workflow_uuid' AND table_name <> 'workflow_status'`, [schema])
+        let orphans = 0
+        for (const { table_name } of tables) {
+          const table = table_name.replaceAll('"', '""')
+          const { rows } = await client.query<{ count: string }>(
+            `SELECT count(*) FROM "${schema}"."${table}" t
+              WHERE NOT EXISTS (SELECT 1 FROM "${schema}".workflow_status s WHERE s.workflow_uuid = t.workflow_uuid)`)
+          orphans += Number(rows[0]!.count)
+        }
+        return orphans
+      } finally { await client.end() }
+    },
     keiExtractStepFinished: async (workflowID: string) =>
       (await keiClient.listWorkflowSteps(workflowID))?.some((step) =>
         step.name === 'extract_run' && step.completedAtEpochMs !== undefined) ?? false,

@@ -1,5 +1,6 @@
 """kei-worker's startup order and the lock only a dead process releases (spec, *kei worker → Startup*)."""
 import contextlib
+import logging
 import secrets
 import subprocess
 import sys
@@ -13,6 +14,15 @@ from kei_exp.workflows import boot, cli, config, slot
 from tests.helpers import kei as kei_helper
 from tests.helpers import kei_worker
 from tests.helpers import postgres as postgres_helper
+
+
+@pytest.fixture(autouse=True)
+def dbos_filters():
+    """serve() installs its redacting filter on the process-wide `dbos` logger: no test leaves one behind."""
+    logger = logging.getLogger("dbos")
+    saved = list(logger.filters)
+    yield
+    logger.filters[:] = saved
 
 
 @pytest.fixture
@@ -93,8 +103,10 @@ def test_the_worker_locks_then_reads_the_clock_then_launches_then_registers(monk
     assert boot.timestamp_ms() == 1234
 
 
-@pytest.mark.parametrize("failing", ["launch", "queues"])
-def test_dbos_is_destroyed_when_launch_or_the_lanes_fail(monkeypatch, capsys, failing):
+def _serve_until(monkeypatch, failing: str, error: BaseException, *,
+                 destroy_error: BaseException | None = None) -> list[str]:
+    """serve() over a fake slot and a fake DBOS whose `failing` step ("launch" or "queues") raises `error` (and whose
+    destroy() raises `destroy_error`, when given)."""
     order: list[str] = []
 
     @contextlib.contextmanager
@@ -108,7 +120,7 @@ def test_dbos_is_destroyed_when_launch_or_the_lanes_fail(monkeypatch, capsys, fa
     def step(name):
         order.append(name)
         if name == failing:
-            raise RuntimeError(f"{name} failed")
+            raise error
 
     class FakeDBOS:
         def __init__(self, *, config):
@@ -121,17 +133,85 @@ def test_dbos_is_destroyed_when_launch_or_the_lanes_fail(monkeypatch, capsys, fa
         @staticmethod
         def destroy():
             order.append("destroy")
+            if destroy_error is not None:
+                raise destroy_error
 
     monkeypatch.setattr(slot, "hold_slot", hold)
     monkeypatch.setattr(boot, "database_clock_ms", lambda url: 1234)
     monkeypatch.setattr(boot, "_timestamp_ms", None)
     monkeypatch.setattr(cli, "DBOS", FakeDBOS)
     monkeypatch.setattr(config, "register_queues", lambda **_: step("queues"))
-    cli.serve("slot-7", "postgresql://x", until=lambda: order.append("serving"),
-              exit_process=lambda code: order.append(f"exit {code}"))
+    try:
+        cli.serve("slot-7", "postgresql://x", until=lambda: order.append("serving"),
+                  exit_process=lambda code: order.append(f"exit {code}"))
+    except BaseException as escaped:  # destroy's own error escapes once a test's exit_process has returned
+        if escaped is not destroy_error:
+            raise
+    return order
+
+
+@pytest.mark.parametrize("failing", ["launch", "queues"])
+def test_dbos_is_destroyed_when_launch_or_the_lanes_fail(monkeypatch, capsys, failing):
+    order = _serve_until(monkeypatch, failing, RuntimeError(f"{failing} failed"))
     # Launch recovers pending workflows, so their steps may run: the process exits before it frees the slot here too.
     assert "serving" not in order and order[-3:] == ["destroy", "exit 1", "release"]
     assert capsys.readouterr().err == f"kei worker stopped: RuntimeError: {failing} failed\n"
+
+
+@pytest.mark.parametrize("interrupt", [KeyboardInterrupt, SystemExit])
+def test_an_interrupt_during_launch_destroys_dbos_and_exits_still_holding_the_slot(monkeypatch, capsys, interrupt):
+    """A BaseException must not unwind the slot's `with` block while DBOS threads may still run steps."""
+    order = _serve_until(monkeypatch, "launch", interrupt())
+    assert "serving" not in order and order[-3:] == ["destroy", "exit 1", "release"]
+    assert capsys.readouterr().err.startswith(f"kei worker stopped: {interrupt.__name__}")
+
+
+def test_a_second_interrupt_inside_destroy_still_exits_holding_the_slot(monkeypatch, capsys):
+    """A second Ctrl-C during launch lands before until() installs the signal handlers, possibly inside destroy()."""
+    order = _serve_until(monkeypatch, "launch", KeyboardInterrupt(), destroy_error=KeyboardInterrupt())
+    assert order[-3:] == ["destroy", "exit 1", "release"]
+    assert capsys.readouterr().err.startswith("kei worker stopped: KeyboardInterrupt")
+
+
+def test_dbos_own_logs_never_print_the_database_password():
+    """A handler on the `dbos` logger itself: once any DBOS instance is configured in the process, dbos stops
+    propagating its records (config_logger), so caplog would see them or not depending on the test order."""
+    url = "postgresql://kei:s3cr%40t-pw@db:5432/free"
+    logger = logging.getLogger("dbos")
+    lines: list[str] = []
+
+    class Collect(logging.Handler):
+        def emit(self, record):
+            lines.append(self.format(record))
+    handler, filtered, level = Collect(logging.INFO), cli.RedactingFilter(url), logger.level
+    logger.addFilter(filtered)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    try:
+        try:
+            raise RuntimeError(f"connection to {url} failed: password=s3cr@t-pw")
+        except RuntimeError as error:
+            logger.error("DBOS failed to launch:", exc_info=error)                     # _dbos.py:787
+        logger.error(f"Error connecting to the DBOS system database: {url}")            # _sys_db.py:5469
+        logger.info("Initializing DBOS with URL: %s", url)
+    finally:
+        logger.removeFilter(filtered)
+        logger.removeHandler(handler)
+        logger.setLevel(level)
+    text = "\n".join(lines)
+    assert len(lines) == 3
+    assert "s3cr" not in text and "s3cr%40t-pw" not in text
+    assert "DBOS failed to launch" in text and "RuntimeError" in text
+    # The traceback stays (workflow and recovery failures are logged with it), with the password replaced in it too.
+    assert "Traceback (most recent call last)" in text and "test_worker_boot.py" in text
+    assert "failed: password=***" in text
+
+
+def test_serve_installs_one_redacting_filter_on_the_dbos_logger_however_often_it_runs(monkeypatch):
+    for _ in range(2):
+        _serve_until(monkeypatch, "launch", RuntimeError("launch failed"))
+    installed = [f for f in logging.getLogger("dbos").filters if isinstance(f, cli.RedactingFilter)]
+    assert len(installed) == 1
 
 
 def test_the_worker_refuses_to_start_without_its_database_url(monkeypatch, capsys):
@@ -154,7 +234,8 @@ def _echoing(url):
     (f"postgresql://kei:{SYNTHETIC_PASSWORD}@127.0.0.1:1/free", _echoing, "OperationalError"),
     (f"postgresql://kei:{SYNTHETIC_PASSWORD.replace('-', '%2D')}@127.0.0.1:1/free", _echoing, "OperationalError"),
 ])
-def test_a_startup_error_never_prints_the_database_password(lock_root, monkeypatch, capsys, url, clock, kind):
+def test_a_startup_error_never_prints_the_database_password(lock_root, monkeypatch, capsys, caplog, url, clock,
+                                                             kind):
     if clock is not None:
         monkeypatch.setattr(boot, "database_clock_ms", clock)
     monkeypatch.setattr(boot, "_timestamp_ms", None)
@@ -163,6 +244,7 @@ def test_a_startup_error_never_prints_the_database_password(lock_root, monkeypat
     output = capsys.readouterr()
     assert stopped.value.code == 1
     assert SYNTHETIC_PASSWORD not in output.err + output.out
+    assert SYNTHETIC_PASSWORD not in caplog.text  # nor in any log record
     assert "%2D" not in output.err  # nor its percent-encoded spelling
     assert output.err.startswith(f"kei worker stopped: {kind}")
 

@@ -8,8 +8,8 @@ import pg from 'pg'
 import { validateDisposableTestDatabaseTarget } from 'db/database-url'
 import { keiExpArtifact } from './kei-exp-fixture.js'
 import {
-  createKeiHandoff, KEI_APPLICATION, KEI_QUEUE, keiConvertOkSchema, keiConvertWorkflowId, keiExtractOkSchema,
-  keiExtractWorkflowId, keiNotReady, settleKei, type KeiHandoff, type KeiPoll, type KeiSubmission,
+  createKeiHandoff, KEI_APPLICATION, KEI_QUEUE, keiConvertOkSchema, keiConvertWorkflowId, keiDeleteRunsOkSchema,
+  keiExtractOkSchema, keiExtractWorkflowId, keiNotReady, settleKei, type KeiHandoff, type KeiPoll, type KeiSubmission,
 } from './kei-handoff.js'
 import { spawnKeiStandIn, type KeiStandInProcess } from './testing/kei-stand-in-client.js'
 
@@ -276,4 +276,38 @@ test('a failure policy answers kei\'s typed failure, and kei\'s read routes list
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ workflowId: 'kei-extract:none', ...cleanup }),
   })).status, 404)
+})
+
+test('a deleteRuns request reaches the stand-in on kei-gc, is recorded, and deletes only settled history', async () => {
+  await standIn.policy({ convert: 'auto', extract: 'hold' })
+  const converted = convertSubmission(ingestChild())
+  await handoff.submit(converted)
+  const conversion = settleKei(await settled(converted.workflowId), keiConvertOkSchema)
+  assert.ok(conversion.ok, JSON.stringify(conversion))
+  const live = extractSubmission(randomUUID())
+  await handoff.submit(live)
+  await heldFor(live.workflowId)
+
+  const request = { conversions: [converted.workflowId], history: [live.workflowId] }
+  const before = Date.now()
+  await handoff.requestDeleteRuns('kei-gc:t1', request)
+  await handoff.requestDeleteRuns('kei-gc:t1', request) // one cleanup per ID: the second enqueue is a no-op
+  const outcome = settleKei(await settled('kei-gc:t1'), keiDeleteRunsOkSchema)
+  assert.deepEqual(outcome, {
+    ok: true,
+    value: {
+      ok: true, deleted_runs: [conversion.value.run_id], kept_runs: [],
+      deleted_history: [converted.workflowId], kept_history: [live.workflowId],
+    },
+  })
+  assert.equal((await statusOf('kei-gc:t1')).queueName, KEI_QUEUE.gc)
+  const recorded = await standIn.deleteRunsRequests()
+  assert.deepEqual(recorded.map(({ workflowId, request: body }) => ({ workflowId, request: body })),
+    [{ workflowId: 'kei-gc:t1', request }])
+  assert.ok(recorded[0]!.receivedAtMs >= before, 'recorded when kei received it')
+  assert.deepEqual(await client.listWorkflows({ workflowIDs: [converted.workflowId] }), [])
+  assert.equal((await statusOf(live.workflowId)).status, 'PENDING') // a live workflow's history stays
+  assert.equal((await fetch(`${standIn.url}/api/runs/${conversion.value.run_id}/result`)).status, 404)
+  await standIn.answer(live.workflowId, cleanup)
+  assert.equal((await settled(live.workflowId)).state, 'SUCCESS')
 })

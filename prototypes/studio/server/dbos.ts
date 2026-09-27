@@ -11,6 +11,9 @@ export const STUDIO_VERSION = 'studio@1'
 export const STUDIO_EXECUTOR = 'studio'
 export const STUDIO_QUEUE = 'studio'
 export const SUGGEST_QUEUE = 'suggest'
+export const GC_QUEUE = 'gc'
+export const COLLECT_GARBAGE_SCHEDULE = 'collectGarbage'
+export const COLLECT_GARBAGE_CRON = '*/10 * * * *'
 export const KEI_SCHEMA = 'kei_dbos'
 /**
  * DBOS's own system-database pool. It holds one connection for LISTEN, lends up to three to queue dispatch and leaves
@@ -25,6 +28,8 @@ export type StudioDbosOptions = Readonly<{
   databaseUrl: string
   /** Registers every Studio workflow (registerStudioWorkflows); called once, before DBOS.launch(). */
   register: () => void
+  /** Only hosts apply schedules, after queue registration; test processes never sweep unless they opt in. */
+  schedule?: () => Promise<void>
   /** Tests give each file its own system schemas and executor; production uses the defaults. */
   schema?: string
   keiSchema?: string
@@ -115,6 +120,8 @@ async function start(options: StudioDbosOptions): Promise<StudioDbos> {
     // Queues live in the system database, so they are registered after launch.
     await DBOS.registerQueue(STUDIO_QUEUE, { minPollingIntervalMs: 100 }) // p50 ~55 ms dequeue, not ~0.5 s (M0R 3)
     await DBOS.registerQueue(SUGGEST_QUEUE, { globalConcurrency: 1 })
+    await DBOS.registerQueue(GC_QUEUE, { globalConcurrency: 1 })
+    await options.schedule?.()
     return dbos
   } catch (error) {
     // Leave nothing running: a retry then launches afresh instead of meeting this DBOS as a foreign one. The startup

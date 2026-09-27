@@ -21,6 +21,7 @@ import {
   type TransactionalEnqueue,
 } from './pool-client-transaction.js'
 import { lockSourceDocumentRow } from './row-lock.js'
+import { packageIsReferenced } from './garbage-references.js'
 
 export type SchemaRevisionOrigin =
   'suggestion' | 'researcher-edit' | 'model-edit'
@@ -923,17 +924,6 @@ async function lockOwnedProjectContext(
 ): Promise<boolean> {
   return (await orm.public.ProjectContext.where({ id: projectContextId, researcherAccountId })
     .updateAll({ id: projectContextId })).length === 1
-}
-
-async function packageIsReferenced(
-  database: Database,
-  artifactReference: string,
-): Promise<boolean> {
-  return Boolean(
-    await database.orm.public.SourceRepresentationRevision.select('id').first({
-      artifactReference,
-    }),
-  )
 }
 
 async function discardPackageIfUnreferenced(

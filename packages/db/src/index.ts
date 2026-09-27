@@ -14,6 +14,8 @@ export type {
 export { createModelConfigurationStore } from './model-configuration-store.js'
 export type { ModelConfigurationStore } from './model-configuration-store.js'
 export * from './project-store.js'
+export { createGarbageReferences, EMPTY_SCOPE_IDS } from './garbage-references.js'
+export type { GarbageReferences, ScopeIds, ScopeSnapshot } from './garbage-references.js'
 export { lockSourceDocumentRow } from './row-lock.js'
 export { db, pool } from './prisma/db.js'
 export type { Database, DatabaseOrm, DatabaseTransaction } from './prisma/db.js'

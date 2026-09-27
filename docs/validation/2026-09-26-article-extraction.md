@@ -55,6 +55,38 @@ tunnels after VPN connectivity was restored. They do not exercise authenticated 
 
 ## Evaluation pins and comparison limits
 
+### Upstream integration check — 2026-09-27
+
+[Draft PR #142](https://github.com/HUM-CDCH/FREE/pull/142) integrates this repair
+with parser/DBOS foundation commit `299bfc6d777aa52f62da860761aa02d94fd9a0fd`.
+The merge was checked in the separate `article-repair-review` worktree; the live
+ablation study's checkout and inference pins were not changed.
+
+The overlapping grounding cancellation hooks were retained once. Article still
+checks before inventory, each record and each grounding batch, including before
+the tokenizer/budget probe. Two newly added upstream tests were updated for
+typed inventory plus per-record extraction and for the pre-split budget check.
+The README now combines the upstream durable-worker contract with complete-source
+Article extraction and the three-hour deadlines.
+
+- Fast parser suite: **983 passed, 72 skipped, 74 deselected**.
+- Guarded disposable PostgreSQL extraction-workflow suite: **34 passed**.
+- Extraction adapter suite: **72 passed**; TypeScript typecheck passed after
+  generating this checkout's local database contract with `pnpm db:generate`.
+- Offline replay: **six sources, 88 exact requests/replies and matching artifacts**,
+  excluding only top-level clocks. Output is
+  `artifacts/extraction-ablation/repair-integration-20260927/replay.json` in the
+  primary FREE checkout. The replay helper is the study branch's
+  `experiments/extraction/replay_reference.py`; `PYTHONPATH=src` selected the
+  merged repair's runtime, with no sibling-runtime imports or fresh model calls.
+- Diff and bloat review passed: no duplicate callback, compatibility path,
+  added dependency or configuration surface in the conflict resolution.
+
+These checks cover extraction integration. They do not repeat the upstream
+foundation's separate garbage-collection, deployment or Studio E2E validation.
+
+### Original live comparison
+
 The original six PDFs were rehashed against the adjudicated gold. Gold, original schema, scorer and baseline
 artifacts are unchanged. `fix/evaluation-pins.json` records their hashes. Every live run saves its exact code
 diff, schema hash, canonical run, request and reply bodies, and final artifact. The final complete-source run

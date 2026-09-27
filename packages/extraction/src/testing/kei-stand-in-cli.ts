@@ -6,8 +6,10 @@
  *  and `pages/<n>.json`; Studio's test/fixtures/kei-exp by default). SIGTERM closes the stand-in and exits 0.
  *
  *  Control: POST /control/policy (a StandInPolicy, merged into the current one; both start `'auto'`), GET /control/held
- *  (the decisions a `'hold'` parked, as HeldWork) and POST /control/answer ({ workflowId } and a StandInAnswer), which
- *  releases one held decision and answers 404 when that workflow holds none. */
+ *  (the decisions a `'hold'` parked, as HeldWork), POST /control/answer ({ workflowId } and a StandInAnswer), which
+ *  releases one held decision and answers 404 when that workflow holds none, and GET /control/delete-runs (every
+ *  `deleteRuns` request received, as KeiDeleteRunsRequest). `deleteRuns` always answers with the stand-in's default
+ *  cleanup. */
 import { createHash } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { readFileSync, readdirSync } from 'node:fs'
@@ -132,6 +134,7 @@ async function control(request: IncomingMessage, response: ServerResponse) {
   const path = new URL(request.url ?? '/', 'http://kei-stand-in').pathname
   if (request.method === 'GET' && path === '/control/held')
     return send(response, 200, [...held.values()].map(({ workflowId, workflow, request: body }) => ({ workflowId, workflow, request: body })))
+  if (request.method === 'GET' && path === '/control/delete-runs') return send(response, 200, standIn.deleteRunsRequests())
   if (request.method !== 'POST') return send(response, 404, { detail: 'Not Found' })
   if (path === '/control/policy') {
     const body = policySchema.safeParse(await json(request))

@@ -9,6 +9,7 @@ import {
   OLLAMA_BASE_URL,
   OLLAMA_MODEL,
   Session,
+  collectGarbageNow,
   compose,
   ensureStackUp,
   probePdf,
@@ -275,6 +276,10 @@ test('projects: permanent deletion removes the owned graph', async () => {
   assert.equal(deleted.status, 204)
   const extraction = await fresh.api(`/extractions/${state.extractionId}`)
   assert.equal(extraction.status, 404)
+})
+
+test('garbage collection: a sweep after deletion runs every phase', { timeout: 120_000 }, () => {
+  assert.deepEqual(collectGarbageNow().summary.failedPhases, [])
 })
 
 after(() => {

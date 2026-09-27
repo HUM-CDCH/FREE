@@ -134,28 +134,34 @@ source text or a table cell without requiring visual geometry.
 _Avoid_: citation anchor, model reference, highlight
 
 **Model Connection**:
-A deployment-wide shared description of how FREE can reach a model provider. It may represent a local service, a remote service, or an authenticated local model harness. A *deployment connection* is one the deployment itself runs (its vLLM servers): read-only, described by the environment rather than saved.
+A Researcher Account's description of how FREE can reach a model provider: a hosted provider with the researcher's own key, or the researcher's own Ollama, vLLM or OpenAI-compatible server. Its key stays in the researcher's browser. A *deployment connection* is one the deployment runs or enables — its vLLM servers, and the Codex CLI and Claude Code providers on the server's own login: read-only, described by the environment rather than saved, and usable by every researcher.
 _Avoid_: provider configuration, endpoint, account
 
 **Capability Route**:
-A deployment-wide shared choice of Model Connection and model for a related family of FREE model work. Researcher Accounts and Project Contexts do not own or override Capability Routes. A route left unset runs on the deployment's instruction model, when the deployment serves one.
+A Researcher Account's choice of Model Connection and model for a related family of FREE model work. A Project Context uses its owner's routes. A route left unset runs on a default: the Interaction Route on the deployment's instruction model, when the deployment serves one, and the Schema Suggestion Route on the Interaction Route.
 _Avoid_: task route, model setting, project model
 
 **Schema Suggestion Route**:
-The Capability Route used for Schema Suggestion. On a vLLM Model Connection it may use the *NuExtract protocol*: NuExtract's own template generation, driven through its chat template. Formerly the Extraction Route; Extraction itself runs in the Parsing Service.
+The Capability Route used for Schema Suggestion. It uses the *NuExtract protocol* — NuExtract's own template generation, driven through its chat template — exactly when its connection is vLLM and its model is NuExtract; nothing stores or selects the protocol. Left unset, it follows the Interaction Route. Formerly the Extraction Route; Extraction itself runs in the Parsing Service.
 _Avoid_: extraction route, extraction model, ext route
 
 **Extraction Model Choice**:
-A deployment-wide choice, set on the Model Configuration page, of the Parsing Service's extraction models by role: the *field model* reads values off the source for the Extraction Schema, and the *reasoning model* decides over labelled source text (where records start, which passage grounds a value, which competing candidate is right). Each role is chosen among the models the Parsing Service deployment serves for that role; a role left unchosen uses the deployment's default. Every single and batch Extraction is requested on the choice current when it starts, and records it beside the models each role actually ran on. It is not a Capability Route and does not name a Model Connection.
+A Researcher Account's choice, set on the Model Configuration page, of the Parsing Service's extraction models by role: the *field model* reads values off the source for the Extraction Schema, and the *reasoning model* decides over labelled source text (where records start, which passage grounds a value, which competing candidate is right). Each role is chosen among the models the Parsing Service deployment serves for that role; a role left unchosen uses the deployment's default. Every single and batch Extraction is requested on its Project Context owner's choice current when it starts, and records it beside the models each role actually ran on. It is not a Capability Route and does not name a Model Connection.
 _Avoid_: extraction model, extraction route, model setting
 
+**Ingestion Model Choice**:
+A Researcher Account's choice of the Parsing Service's OCR model (text recognition for scanned pages) and layout model (the detector that cuts scanned pages into regions). It applies to new ingestions and reprocessing only: an admitted ingestion keeps the models it was admitted with, and existing Source Representation Revisions never change. A page with a text layer uses neither. A role left unchosen uses the deployment's default. It names no Model Connection.
+_Avoid_: OCR setting, parser model
+
 **Interaction Route**:
-The Capability Route used for document chat and conversational Extraction
-Schema editing.
+The Capability Route used for conversational Extraction Schema editing: the schema panel's "Describe a change to the schema…" and the edit proposals it returns. The Model Configuration page calls it the *Assistant model*.
 _Avoid_: chat model, chat route
 
 **Model Attribution**:
 A sanitized snapshot of the Model Connection, model, and execution profile used
-for a specific piece of model work. It identifies how that work was produced
-without containing credentials and does not replace source-backed Evidence.
+for a specific piece of model work. Extractions record it. Interactive model
+work — generated schemas and schema edit proposals — records none, so a
+recovered or replayed result never gains an attribution reconstructed from
+today's routes. It never contains credentials and does not replace
+source-backed Evidence.
 _Avoid_: model provenance, current model, evidence

@@ -43,7 +43,7 @@ separate follow-up.
 6. **The provider observes; the page renders.** `ProjectContextsProvider` owns `ingestions: Record<projectContextId, ProjectIngestions>` and one poller per observed project (`src/projectContexts/ingestionPolling.ts`, framework-free). A project is observed while its Project page is routed (any tab) or while the machine holds `admitted` items for it. Cadence: an immediate read on start, on a 202, and on `visibilitychange` to visible; every **3 s** while the listing has live rows or the machine has admitted items; every **30 s** otherwise (so an open second tab discovers work admitted elsewhere); no reads while `document.hidden`. A failed read keeps the last rows, marks `stale: true`, and retries after 3, 6, 12, then 30 s; it never counts as "nothing in flight". A 404 stops the poller and drops the project's rows. Each read names, as explicit IDs, the project's admitted uploads plus the IDs that were live in the previous successful listing; a poller never stops while any such ID is unresolved. `readNow()` during a read in flight schedules one more read right after it, never drops the request.
 7. **Completion is reconciled by containment, not by bookkeeping.** A `succeeded` row is reconciled when the ready branch contains its `sourceDocumentId`. After every listing, if some `succeeded` row is not in the branch and no branch refresh for that project is in flight, the provider fences **only that branch** (bump `branchGenerations[id]`, as `acknowledgeSourceDocument` does at `ProjectContextsProvider.tsx:254-259`; the global `generation` is left alone so other projects' reads are not re-issued), re-reads it (`loadBranch(id, true)`) and calls `reloadList()` once. A failed refresh simply leaves the row unreconciled, so the next listing tries again — no success is "used up" by a transient error. When a Project page starts observing a project whose branch is already cached, the provider re-reads the branch once, which covers work that finished elsewhere while nothing observed it. The branch read stays the authority for Source Documents; the listing never writes documents into the branch.
 8. **Deletion.** Deleting a Project Context stops its poller and drops its rows (the listing then answers 404). Deleting a Source Document does not touch upload attempts. Scope cancellation (`api/_scope_cancellation.ts`) is unchanged.
-9. **Vocabulary.** CONTEXT.md gains **Source Ingestion**: one attempt to turn a document a Humanities Researcher provides into a Source Document; queued, parsing, then a Source Document or a failure. (`upload` stays out of domain language per CONTEXT.md:21; UI copy may still say "Upload again".) ADR `docs/adr/0012-server-owned-source-ingestion.md` records decisions 1–5.
+9. **Vocabulary.** CONTEXT.md gains **Source Ingestion**: one attempt to turn a document a Humanities Researcher provides into a Source Document; queued, parsing, then a Source Document or a failure. (`upload` stays out of domain language per CONTEXT.md:21; UI copy may still say "Upload again".) ADR `docs/adr/0014-server-owned-source-ingestion.md` records decisions 1–5.
 10. **Two PRs.** Part A (Tasks 1–9, 11) ships uploads end to end. Part B (Task 10) moves reprocessing to 202 + listing, removing the last browser-held parse; it is stacked on Part A.
 
 ## Global Constraints
@@ -1417,14 +1417,14 @@ This task is written at a coarser grain on purpose: its exact code depends on Pa
 
 **Files:**
 - Modify: `CONTEXT.md` (add **Source Ingestion** after **Source Document**, with `_Avoid_: upload job, parse job`), `prototypes/studio/README.md:88-92` (uploads survive reload once admitted; files not yet sent do not; reprocess until Part B), `docs/plans/2026-09-24-unified-durable-execution.md:439-441, 1835-1837` and `docs/plans/2026-09-26-dbos-m4-studio-background.md` (one-line pointers to this plan where the thirty-minute wait and the out-of-scope line are stated; the old text stays as history)
-- Create: `docs/adr/0012-server-owned-source-ingestion.md` (context, decisions 1–5, consequences: staged backlog grows faster on a large drop, kei lanes now see every upload at once, polling cost of 2 DBOS reads per observed project per 3 s while busy)
+- Create: `docs/adr/0014-server-owned-source-ingestion.md` (context, decisions 1–5, consequences: staged backlog grows faster on a large drop, kei lanes now see every upload at once, polling cost of 2 DBOS reads per observed project per 3 s while busy)
 
 - [ ] **Step 1:** write the texts above.
 - [ ] **Step 2:** `git diff --check` and `pnpm lint` (Markdown is not linted; this catches stray whitespace).
 - [ ] **Step 3: Commit**
 
 ```bash
-git add CONTEXT.md prototypes/studio/README.md docs/plans/2026-09-24-unified-durable-execution.md docs/plans/2026-09-26-dbos-m4-studio-background.md docs/adr/0012-server-owned-source-ingestion.md
+git add CONTEXT.md prototypes/studio/README.md docs/plans/2026-09-24-unified-durable-execution.md docs/plans/2026-09-26-dbos-m4-studio-background.md docs/adr/0014-server-owned-source-ingestion.md
 git commit -m "docs: record server-owned Source Ingestion"
 ```
 

@@ -451,6 +451,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     An oversized single claim stays ungrounded with a diagnostic; evidence is never truncated to fit.
     Generic Catalog uses a character cap and links unique lexical hits. Article supplies its record context
     and a served counter: every claim is semantically verified within the context minus an output reserve.
+    `before_call`, when given, runs before each grounding batch; its error ends verification (cancellation).
     """
     prefix: tuple[str | int, ...] = ("records", record)
     instruction = QUOTED_GROUNDING if quoted else GROUNDING

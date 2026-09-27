@@ -84,6 +84,7 @@ function harness(scenario: Scenario = {}) {
       return polls[Math.min(polled++, polls.length - 1)]!
     }),
     async cancel(workflowId) { cancels.push(workflowId); await scenario.cancel?.(workflowId) },
+    async requestDeleteRuns() { assert.fail('runExtraction never asks kei to delete runs.') },
   }
   const run = () => runExtractionWorkflow(admitted?.extractionId ?? 'deleted', {
     steps: {
