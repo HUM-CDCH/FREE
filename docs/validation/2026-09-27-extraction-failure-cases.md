@@ -284,3 +284,38 @@ research question, methods, findings and limitations. Its erroneous journal-cita
 identity remains. These conditional savings do not establish a semantic improvement,
 and the 48-call R1 result must not be used as R2a's cost control because it also
 includes verification.
+
+## Status declarations enter the grounding denominator
+
+The approved collagen schema represents absence/ambiguity declarations as the
+ordinary record array `field_statuses`, containing a relative field path, status
+and reason. Generic grounding therefore visits those strings too. A declaration
+such as `not_reported` is not a measured source value, and a missing quote for it
+does not establish a false scientific observation. A link to its reason also
+does not independently prove absence throughout the document.
+
+The read-only `accounting-fields-01.json` report, derived from R1's sealed
+`analysis-partial-09.json` snapshot, makes this denominator visible:
+
+| Cell | All populated leaves | Status leaves | Linked status leaves | Grounding calls |
+| --- | ---: | ---: | ---: | ---: |
+| Harvey bounded | 324 | 156 | 3 | 35 |
+| Wang quoted | 275 | 123 | 5 | 144 |
+| Akita full quoted | 283 | 6 | 3 | 77 |
+| Mizuta bounded | 374 | 69 | 3 | 26 |
+
+Quoted verification starts with at most four claims per batch and may split
+again for admission; every request includes its required source and record
+context. Status fields contribute claims, but these leaf counts cannot assign
+shared input cost to them or predict savings from excluding them. Akita has only
+six status leaves yet spends 1,243,740 input tokens on grounding. Status metadata
+alone does not explain the long runs.
+
+Supplementary accounting now exposes populated and linked counts for every
+top-level field without interpreting field names. All 33 R1 and 18 R2a snapshot
+totals reconcile exactly with the registered aggregate diagnostic; all earlier
+accounting fields remain identical. Eight focused tests cover the counting rules.
+This is descriptive reporting added after observing outcomes, not a revised
+primary metric, extraction policy, or estimate of semantic grounding accuracy.
+An explicit schema policy for derived diagnostic fields would be a separate
+design change; do not hardcode collagen field names into the generic verifier.

@@ -57,7 +57,7 @@ def test_accounting_uses_analysis_snapshot_not_a_cell_that_finished_afterward(tm
     manifest = {"id": "snapshot", "sources": [], "comparisons": []}
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text(json.dumps(manifest))
-    artifact = {"records": [], "calls": []}
+    artifact = {"records": [], "calls": [], "schema": {"schemaNodes": []}}
     receipt = {"artifact_sha256": hashlib.sha256(json.dumps(artifact, sort_keys=True).encode()).hexdigest()}
     for cell in ("analyzed", "finished_later"):
         directory = tmp_path / "cells" / cell
@@ -90,3 +90,26 @@ def test_same_page_link_does_not_turn_wrong_value_into_supported_correctness():
     assert result["by_evidence_status"] == {"candidate_page_overlap": 2, "missing": 1}
     assert result["by_value_result"]["incorrect"] == {"candidate_page_overlap": 1, "missing": 1}
     assert accounting.evidence_localization(artifact, None) == {"status": "unannotated"}
+
+
+def test_field_links_separate_status_metadata_and_do_not_count_duplicate_or_dangling_links():
+    temperature = ["records", 0, "thermal_data", 0, "value"]
+    artifact = {
+        "schema": {"schemaNodes": []},
+        "records": [{"thermal_data": [{"value": 35}, {"value": 92}],
+                     "field_statuses": [{"field": "yield", "status": "not_reported", "reason": "absent"}]}],
+        "evidence": [{"path": temperature}, {"path": temperature},
+                     {"path": ["records", 0, "thermal_data", 9, "value"]},
+                     {"path": ["records", 0, "field_statuses", 0, "reason"]}]}
+    counts = accounting.record_field_links(artifact)["by_field"]
+    assert counts == {"thermal_data": {"populated_leaves": 2, "linked_leaves": 1},
+                      "field_statuses": {"populated_leaves": 3, "linked_leaves": 1}}
+
+
+def test_field_link_denominator_excludes_unverified_filename_boolean_null_and_blank_values():
+    artifact = {"schema": {"schemaNodes": [{"name": "filename", "valueSource": "source-filename"}]},
+                "unverified": ["title"], "records": [{"filename": "paper.pdf", "title": "Study",
+                    "count": 0, "flag": True, "missing": None, "blank": " \t", "items": []}],
+                "evidence": [{"path": ["records", 0, "filename"]}, {"path": ["records", 0, "flag"]}]}
+    assert accounting.record_field_links(artifact)["by_field"] == {
+        "count": {"populated_leaves": 1, "linked_leaves": 0}}

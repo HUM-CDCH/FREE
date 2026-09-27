@@ -105,6 +105,17 @@ end-to-end wall time. The script consumes exactly the sealed analysis snapshot, 
 later-finishing cells from being accidentally classified as unannotated. Six focused
 regressions pass, and regenerated accounting records the script and analysis hashes.
 
+Supplementary `record_field_links` also decomposes the populated/linked leaf
+denominator by top-level schema field. This descriptive addition was made after
+observing the 33-cell snapshot; it does not change the primary metric. For example,
+absence declarations in the collagen schema's `field_statuses` are ordinary output
+fields and therefore enter the verifier and overall link rate. They must not be
+mistaken for measured scientific values or independently verified absence. Field
+counts preserve this distinction without a schema-name heuristic in the pipeline.
+Duplicate links count once; unverified fields and filename-derived values remain
+excluded. Shared call costs cannot be attributed to individual fields from these
+counts. Eight focused accounting regressions pass.
+
 For reported record fields in the existing development gold, the frozen scorer already
 compares candidate-link pages against annotated evidence pages. Supplementary accounting
 summarizes `candidate_page_overlap`, `candidate_other_page` and `missing`, cross-tabulated
