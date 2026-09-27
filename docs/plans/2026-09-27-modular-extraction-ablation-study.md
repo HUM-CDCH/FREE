@@ -178,6 +178,15 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- Replay acceptance now covers 35 completed R1 cells and 1,204 saved calls.
+  All regenerated artifact fields match except top-level clocks, including
+  partial/failed model outcomes and recipe Catalog output. A second pass with
+  HTTP disabled and a separately recorded tokenizer cache also passes. See
+  `artifacts/extraction-ablation/replay-verification-20260927/{initial,offline}.json`
+  and the execution report's replay commands. This is a partial reproducibility
+  gate, not completion of the registered study. Recheck later cells before final
+  reporting; no original result or inference pin was changed.
+
 - R4 is registered to measure the new grouping: twelve fresh cells over the six
   gold papers, changing only `article.grouping`; both arms use v12, structured
   rendering, bounded context and disabled grounding. All 47 inventory units fit
