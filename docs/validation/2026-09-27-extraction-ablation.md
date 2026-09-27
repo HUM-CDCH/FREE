@@ -239,6 +239,29 @@ source context; Wang uses 144 grounding calls in that arm versus 18 in the
 semantic control. This is an observed cost of the registered design, not merely
 an observation delay. Do not change the frozen methods to reduce costs mid-run.
 
+## Review stack and baseline integration — 2026-09-27
+
+The implemented work is pushed as three draft PRs, in review order:
+[Article repair #142](https://github.com/HUM-CDCH/FREE/pull/142),
+[modular study #143](https://github.com/HUM-CDCH/FREE/pull/143), then
+[structure/grounding fixes #141](https://github.com/HUM-CDCH/FREE/pull/141).
+The first is based on the existing `feat/kei-exp-parser` foundation; the others
+are stacked on the preceding extraction branch. No PR is merged or deployed.
+
+Repair commit `93e1ea7` integrates foundation `299bfc6`. An isolated checkout
+passed 983 parser tests, 34 disposable PostgreSQL workflow tests, 72 adapter
+tests, typecheck and exact six-paper/88-call replay. The conflict resolution
+retains one cancellation callback at grounding-batch boundaries, updates
+upstream fixtures for the repaired Article stages and reconciles the durable
+worker documentation with three-hour Article/Catalog deadlines.
+See the repair report's integration check for scope and replay location.
+
+The live R1 runtime has not been advanced to this integration commit. Its
+79-cell source/code manifest still validates. A dry merge is conflict-free,
+but complete-stack runtime verification remains a separate integration gate.
+At this checkpoint 36 R1 and 18 R2a results are sealed. These counts are
+execution progress, not successful semantic extractions or a completed study.
+
 ## Structured input follow-up — registered, no fresh inference yet
 
 The Docling audit led to an independent Article rendering factor at `dbde989`
