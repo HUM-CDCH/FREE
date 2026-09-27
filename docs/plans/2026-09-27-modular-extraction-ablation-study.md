@@ -177,6 +177,22 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- Structured input follow-up is implemented at `dbde989` in the isolated checkout
+  `/home/gennaro/projects/FREE-worktrees/extraction-structured-input`, branch
+  `feat/extraction-structured-input`. It also contains the selector change. The
+  opt-in Article renderer retains canonical text and exposes block labels and cell
+  row/column spans; grouping and grounding algorithms are unchanged. Verification:
+  1018 parser tests passed, 72 skipped, 68 deselected; six-source/88-call reference
+  replay exact; all 2755 passages and 799 cells across 16 sources round-trip exactly.
+  R3 is registered in `artifacts/extraction-ablation/20260927-r3-rendering-manifest.json`
+  with a code archive beside it and protocol in that checkout's
+  `prototypes/parsing_service/experiments/extraction/rendering-protocol.md`.
+  Twelve fresh cells compare plain/structured inputs on all six gold papers,
+  grounding off in both arms. Only tokenizer preflight has run. Harvey's structured
+  inventory is expected to refuse: 28974 input + 4096 reserve > 32768. Keep this
+  trade-off in results. Start R3 only after R1 generation ends and statuses are
+  inspected; R3 is not yet running. Integration waits for all pinned studies.
+
 - Recovery on 2026-09-27 at approximately 12:22 UTC: the original launcher,
   follower and tunnel were absent from `/proc`, their exec handles were gone,
   and no replacement processes existed. Last captured replies were at 12:04 UTC;
