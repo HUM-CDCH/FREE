@@ -115,6 +115,17 @@ project `free-article-repair-service` used PostgreSQL 25446, Studio 41791 and OI
 claimed. Diff and bloat review passed; the backport adds no runtime dependency
 or compatibility path. R1's running code and saved artifacts remain unchanged.
 
+The parent also carries the existing browser-fixture fix from `45411f1`: its
+manual-entry case uses a NuExtract ID absent from the mocked provider catalog.
+The previously listed ID lost its `Use ...` option when the asynchronous probe
+finished, causing the parent CI failure at `93e1ea7`. The unchanged test passed
+locally before the backport, consistent with that timing race; all **12 model
+configuration browser scenarios** pass afterward. Logs are
+`model-config-before.log` and `model-config-fixed.log` in the same artifact
+directory. This changes no product behavior. A separate CI attempt at `3c714c9`
+failed before browser execution because PostgreSQL port 45432 was occupied;
+the log does not identify its owner, and that attempt was retried once.
+
 ### Original live comparison
 
 The original six PDFs were rehashed against the adjudicated gold. Gold, original schema, scorer and baseline
