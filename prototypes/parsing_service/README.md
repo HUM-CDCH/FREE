@@ -1,5 +1,8 @@
 # Parsing and extraction service
 
+For extraction stage ownership, experimental method settings and reproducible
+ablation commands, see [Extraction stages and controlled experiments](docs/extraction-experiments.md).
+
 This directory owns FREE's Python document-processing service. Its implementation
 was imported from kei-exp commit `93b9435c2b9a01a5424758d917c058fc79bbc159`.
 The Python package remains `kei_exp`; neither deployment nor tests require the

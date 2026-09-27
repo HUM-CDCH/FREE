@@ -1,0 +1,29 @@
+{
+  "id": "headed-graves-da",
+  "version": 1,
+  "description": "Danish grave descriptions headed by a standalone 'Grav N' line. Developed on the supplied Ellekilde excerpt; unmeasured transfer. No field is automatically accepted from the numeric label because the printed prefix is part of the identifier.",
+  "structure": {
+    "entry_marker": "Grav\\s+(?P<number>\\d{1,4})(?P<suffix>[a-z]?)\\s*$",
+    "inline_marker": "(?!)Grav (?P<number>\\d+)",
+    "series_marker": null,
+    "numbering_max_gap": 20,
+    "headings": [],
+    "heading_hints": [],
+    "hint_max_chars": 100,
+    "sections": [],
+    "labels": {
+      "furniture": ["PageHeader", "PageFooter"],
+      "figure": ["Picture", "Figure", "Caption", "Image"],
+      "heading": [],
+      "list_item": []
+    },
+    "glossary_line": "(?P<key>\\S(?:.*?\\S)?)\\s+[—–]\\s+(?P<expansion>\\S.*)",
+    "context": {"lines": 2, "max_chars": 300}
+  },
+  "bindings": {
+    "entry_label": [],
+    "headings": {},
+    "keys": {"dating": ["Datering:"]},
+    "positions": {}
+  }
+}
