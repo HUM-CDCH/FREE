@@ -74,7 +74,7 @@ def job(kei, lane, workflow_id, run_id, *, timeout_ms=None, priority=None):
     if lane == config.EXTRACT:
         return kei.enqueue("extract", lane, workflow_id, kei_helper.extract_request(run_id, GENERATION),
                            priority=priority or config.PRIORITY_INTERACTIVE, timeout_ms=timeout_ms)
-    return kei.enqueue("deleteRuns", lane, workflow_id, {"runs": [], "history": []}, timeout_ms=timeout_ms)
+    return kei.enqueue("deleteRuns", lane, workflow_id, {"conversions": [], "history": []}, timeout_ms=timeout_ms)
 
 
 PREFIX = {config.CONVERT_LARGE: "kei-convert:", config.CONVERT_SMALL: "kei-convert:",

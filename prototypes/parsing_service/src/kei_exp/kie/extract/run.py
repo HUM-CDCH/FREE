@@ -115,8 +115,8 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     `before_entry` is a hook whose error ends the extraction (the worker's cooperative cancellation). A recipe's
     grounded Catalog (`grounded.extract_grounded`) calls it before every entry, and runs its entries in `chunks`
     parallel contiguous chunks. The version 1 Catalog calls it before each discovery call, before each record's
-    extraction and before each record's verification; Article, before inventory, each record call and each record's
-    verification. Those two paths run unsplit and ignore `chunks`.
+    extraction and verification; Article, before inventory, each record call and each record's verification.
+    Both paths also check before each grounding batch, run unsplit and ignore `chunks`.
     """
     evidence = load(run_dir)
     if generation is not None and evidence.generation != generation:

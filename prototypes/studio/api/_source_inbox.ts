@@ -1,8 +1,37 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, open, readFile, rename, rm } from 'node:fs/promises'
+import { lstat, mkdir, open, readdir, readFile, rename, rm } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative as relativePath, resolve } from 'node:path'
 import { studioDataRoot } from 'db'
+import { CANONICAL_UUID_PATTERN as UUID } from 'studio-configuration'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
+
+// The names the builders below write (their UUIDs pass `canonicalUuidSchema`, whose pattern this is). A temporary's
+// UUID comes from `randomUUID()`, a lowercase version-4 UUID, which the same pattern matches.
+const UPLOAD = new RegExp(`^(${UUID})/(${UUID})\\.pdf$`)
+const REPROCESS = new RegExp(`^(${UUID})/reprocess-(${UUID})-(${UUID})\\.pdf$`)
+const TEMPORARY = new RegExp(`\\.pdf\\.${UUID}\\.tmp$`)
+const PROJECT = new RegExp(`^${UUID}$`)
+
+/** A file in the source inbox, as garbage collection sees it. */
+export type StagedSource = Readonly<{
+  /** `<projectContextId>/<file name>`, relative to the source inbox. */
+  relative: string
+  modifiedMs: number
+  /** The workflow that owns the file, or null for a temporary or a name Studio never writes. */
+  workflowId: string | null
+  /** An interrupted `stageSource` write (`<target>.<uuid>.tmp`). */
+  temporary: boolean
+}>
+
+/** One upload attempt's workflow ID: the handler enqueues it, the workflow names its kei child after it. */
+export function ingestWorkflowId(projectContextId: string, attemptId: string): string {
+  return `ingest:${projectContextId}:${attemptId}`
+}
+
+/** One reprocess request's workflow ID: the handler enqueues it, the workflow names its kei child after it. */
+export function reprocessWorkflowId(sourceDocumentId: string, requestKey: string): string {
+  return `reprocess:${sourceDocumentId}:${requestKey}`
+}
 
 /** Where Studio stages source PDFs for kei's worker, which mounts the same volume read-only (KEI_SOURCE_INBOX). An
  *  empty FREE_SOURCE_INBOX counts as unset: it would otherwise stage files in the working directory. */
@@ -65,4 +94,42 @@ export async function readStagedSource(root: string, relative: string): Promise<
 
 export async function removeStagedSource(root: string, relative: string): Promise<void> {
   await rm(inside(root, relative), { force: true })
+}
+
+/** The workflow a staged file belongs to (M4 plan decision 11), or null for a name Studio never writes. */
+export function stagedSourceWorkflowId(relative: string): string | null {
+  const upload = UPLOAD.exec(relative)
+  if (upload) return ingestWorkflowId(upload[1], upload[2])
+  const reprocess = REPROCESS.exec(relative)
+  return reprocess ? reprocessWorkflowId(reprocess[2], reprocess[3]) : null
+}
+
+/** Every file directly inside a UUID-named project directory, with its age and owning workflow. Lists only: an empty
+ *  project directory stays, since removing it could race an upload's `mkdir` and fail that upload's write. */
+export async function listStagedSources(root: string): Promise<readonly StagedSource[]> {
+  let projects
+  try {
+    projects = await readdir(root, { withFileTypes: true })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+    throw error
+  }
+  const found: StagedSource[] = []
+  for (const project of projects) {
+    if (!project.isDirectory() || !PROJECT.test(project.name)) continue
+    for (const file of await readdir(join(root, project.name), { withFileTypes: true })) {
+      if (!file.isFile()) continue
+      const relative = `${project.name}/${file.name}`
+      let modifiedMs: number
+      try {
+        modifiedMs = (await lstat(join(root, relative))).mtimeMs
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue // removed meanwhile
+        throw error
+      }
+      const temporary = TEMPORARY.test(file.name)
+      found.push({ relative, modifiedMs, workflowId: temporary ? null : stagedSourceWorkflowId(relative), temporary })
+    }
+  }
+  return found
 }

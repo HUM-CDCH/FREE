@@ -1,7 +1,7 @@
 """What a failed step means: another attempt may meet a backend that is ready again, or the failure is about this
 document or request and repeats identically.
 
-`classify` is the one judgement (moved from the deleted Procrastinate `jobs/tasks.py`). DBOS asks `should_retry` after each failed attempt of a
+`classify` is the one judgement. DBOS asks `should_retry` after each failed attempt of a
 step and needs a bool: `classify` returns an exception, which DBOS would read as always true. `failure_of` turns what a
 step finally raised into the portable code a workflow reports (`workflows/contracts.py`).
 """
@@ -48,10 +48,9 @@ class KeiFailure(Exception):
 
 def classify(error: BaseException) -> BaseException:
     """`error` as a `TransientBackendError` when another attempt is worth making, else `error` itself."""
-    # Body moved from the deleted jobs/tasks.py without its `store.Unavailable` branch. DBOS retries its own writes
-    # through a system-database outage, but not its reads, so an outage does reach a step that reads: the model
-    # steps' cooperative cancel check fails open on it (workflows/cancel.py), and never classifies it; delete_runs
-    # ends ERROR and Studio's next schedule runs it again.
+    # DBOS retries its own writes through a system-database outage, but not its reads. An outage can still reach a
+    # step that reads. The model steps' cooperative cancel check fails open on it (workflows/cancel.py) and never
+    # classifies it. delete_runs ends ERROR, and Studio's next schedule runs it again.
     if isinstance(error, (requests.ConnectionError, requests.Timeout, ConnectionError, TimeoutError)):
         return TransientBackendError(str(error))
     if isinstance(error, requests.HTTPError):
@@ -69,8 +68,7 @@ def should_retry(error: BaseException) -> bool:
     return isinstance(classify(error), TransientBackendError)
 
 
-# The keyword arguments of both model steps: three attempts, waiting 5 s then 10 s (Procrastinate's
-# RetryStrategy(max_attempts=2, wait=5, linear_wait=5) in the deleted jobs/tasks.py).
+# The keyword arguments of both model steps: three attempts, waiting 5 s then 10 s.
 STEP_RETRY = {"retries_allowed": True, "max_attempts": 3, "interval_seconds": 5.0, "backoff_rate": 2.0,
               "should_retry": should_retry}
 

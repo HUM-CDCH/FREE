@@ -218,6 +218,7 @@ def test_the_version_1_catalog_checks_before_discovery_and_each_record_and_verif
                        before_entry=lambda: events.append("check"))
     records = events.count("record")
     assert records > 1
+    # Each record checks before verification and before its (here single) grounding batch.
     assert events == ["check", "discovery", *["check", "record"] * records, *["check", "check", "grounding"] * records]
 
 

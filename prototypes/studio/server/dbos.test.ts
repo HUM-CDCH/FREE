@@ -117,6 +117,7 @@ describe('Studio DBOS', () => {
       'launch',
       'registerQueue:studio',
       'registerQueue:suggest',
+      'registerQueue:gc',
     ])
     expect(dbos.bootTimestampMs).toBe(1789000000000)
   })
@@ -131,7 +132,7 @@ describe('Studio DBOS', () => {
     await launchStudioDbos({ databaseUrl: URL, register: () => undefined })
   })
 
-  it('registers the studio queue with a 100 ms polling floor and suggest with one global slot', async () => {
+  it('registers the studio queue and one global slot each for suggest and gc', async () => {
     const { launchStudioDbos } = await freshModule()
 
     await launchStudioDbos({ databaseUrl: URL, register: () => undefined })
@@ -139,7 +140,16 @@ describe('Studio DBOS', () => {
     expect(sdk.DBOS.registerQueue.mock.calls).toEqual([
       ['studio', { minPollingIntervalMs: 100 }],
       ['suggest', { globalConcurrency: 1 }],
+      ['gc', { globalConcurrency: 1 }],
     ])
+  })
+
+  it('applies schedules only when a host asks, after all queues exist', async () => {
+    const { launchStudioDbos } = await freshModule()
+    const schedule = vi.fn(async () => { sdk.calls.push('schedule') })
+    await launchStudioDbos({ databaseUrl: URL, register: () => undefined, schedule })
+    expect(sdk.calls.slice(-2)).toEqual(['registerQueue:gc', 'schedule'])
+    expect(schedule).toHaveBeenCalledOnce()
   })
 
   it('creates the admission client as studio on dbos and the kei client as kei on kei_dbos', async () => {

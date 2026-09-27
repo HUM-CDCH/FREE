@@ -157,3 +157,19 @@ describe('verify workflow', () => {
     assert.match(workflow, /run: pnpm test:ci$/m)
   })
 })
+
+describe('PostgreSQL tier wiring', () => {
+  it('the Node aggregate runs the db, extraction, and Studio PostgreSQL tiers', () => {
+    const scripts = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).scripts
+    assert.match(scripts['test:all:node'], /pnpm test:postgres:node/)
+    assert.match(scripts['test:postgres:node'], /pnpm --filter db test:postgres/)
+    assert.match(scripts['test:postgres:node'], /pnpm --filter extraction test:postgres/)
+    assert.match(scripts['test:postgres:node'], /pnpm --filter studio test:postgres/)
+  })
+
+  it('db checks reprocessing and garbage references against PostgreSQL', () => {
+    const scripts = JSON.parse(readFileSync(new URL('../packages/db/package.json', import.meta.url), 'utf8')).scripts
+    assert.match(scripts['test:postgres'], /source-reprocessing\.postgres\.check\.ts/)
+    assert.match(scripts['test:postgres'], /garbage-references\.postgres\.check\.ts/)
+  })
+})

@@ -1,12 +1,15 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { lstat, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { studioDataRoot } from 'db'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  listStagedSources,
   removeStagedSource,
   reprocessSourcePath,
   sourceInboxRoot,
+  stagedSourceWorkflowId,
   stageSource,
   uploadSourcePath,
 } from './_source_inbox'
@@ -115,5 +118,41 @@ describe('source inbox', () => {
 
   it('an empty FREE_SOURCE_INBOX is unset, never the working directory', () => {
     expect(sourceInboxRoot({ FREE_SOURCE_INBOX: '' })).toBe(join(studioDataRoot(), 'source-inbox'))
+  })
+
+  it('maps an upload file to its ingest workflow and a reprocess file to its reprocess workflow', () => {
+    expect(stagedSourceWorkflowId(uploadSourcePath(PROJECT, ATTEMPT))).toBe(`ingest:${PROJECT}:${ATTEMPT}`)
+    expect(stagedSourceWorkflowId(reprocessSourcePath(PROJECT, DOCUMENT, KEY))).toBe(`reprocess:${DOCUMENT}:${KEY}`)
+    const uppercase = 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA'
+    for (const unknown of ['x/y.pdf', '../a.pdf', `${PROJECT}/${uppercase}.pdf`, `${uppercase}/${ATTEMPT}.pdf`])
+      expect(stagedSourceWorkflowId(unknown)).toBeNull()
+  })
+
+  it('lists staged files and stale temporaries with their times; an unknown name maps to no workflow', async () => {
+    const upload = uploadSourcePath(PROJECT, ATTEMPT)
+    const reprocess = reprocessSourcePath(PROJECT, DOCUMENT, KEY)
+    await stageSource(root, upload, bytes)
+    await stageSource(root, reprocess, bytes)
+    const temporary = `${upload}.${randomUUID()}.tmp`
+    await writeFile(join(root, temporary), 'interrupted')
+    await writeFile(join(root, PROJECT, 'notes.txt'), 'not staged by Studio')
+    await writeFile(join(root, `${ATTEMPT}.pdf`), 'outside a project directory')
+    await mkdir(join(root, 'not-a-project'))
+    await writeFile(join(root, 'not-a-project', `${ATTEMPT}.pdf`), 'outside a project directory')
+    await mkdir(join(root, OTHER_PROJECT))
+
+    const modifiedMs = async (relative: string) => (await lstat(join(root, relative))).mtimeMs
+    const listed = [...(await listStagedSources(root))].sort((a, b) => a.relative.localeCompare(b.relative))
+    expect(listed).toEqual(
+      [
+        { relative: upload, modifiedMs: await modifiedMs(upload), workflowId: `ingest:${PROJECT}:${ATTEMPT}`, temporary: false },
+        { relative: temporary, modifiedMs: await modifiedMs(temporary), workflowId: null, temporary: true },
+        { relative: `${PROJECT}/notes.txt`, modifiedMs: await modifiedMs(`${PROJECT}/notes.txt`), workflowId: null, temporary: false },
+        { relative: reprocess, modifiedMs: await modifiedMs(reprocess), workflowId: `reprocess:${DOCUMENT}:${KEY}`, temporary: false },
+      ].sort((a, b) => a.relative.localeCompare(b.relative)),
+    )
+    // Listing never removes anything, an empty project directory included.
+    expect(await readdir(join(root, OTHER_PROJECT))).toEqual([])
+    expect(await listStagedSources(join(root, 'missing'))).toEqual([])
   })
 })

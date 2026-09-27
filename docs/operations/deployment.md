@@ -29,9 +29,9 @@ Install Docker with Docker Compose v2.40.0 or later. The launcher checks this
 before starting because the production network selection uses `gw_priority`.
 
 The complete backend is built from `prototypes/parsing_service` in this
-checkout. Compose runs its API, worker, job PostgreSQL, schema initializer,
-and, with GPU access, the vLLM model servers for OCR and extraction alongside
-Studio and its database. No separate kei-exp repository or host process is
+checkout. Compose runs its read API and its DBOS worker, and with GPU access
+the vLLM model servers for OCR and extraction, beside Studio and the one
+PostgreSQL server both use. No separate kei-exp repository or host process is
 needed.
 
 Both launchers use `FREE_GPU=auto` and probe Docker GPU access. A successful
@@ -73,11 +73,13 @@ STUDIO_ORIGIN=https://free.example.edu
 STUDIO_BASE_PATH=/free
 FREE_SESSION_SECRET=<canonical-base64-output>
 FREE_POSTGRES_PASSWORD=<hex-output>
-FREE_PARSING_POSTGRES_PASSWORD=<separately-generated-hex-output>
+FREE_KEI_POSTGRES_PASSWORD=<separately-generated-hex-output>
 FREE_ENTRA_TENANT_ID=<microsoft-entra-tenant-uuid>
 FREE_ENTRA_CLIENT_ID=<application-client-uuid>
 FREE_ENTRA_CLIENT_CERT_PATH=/srv/free-secrets/entra-client.pem
 FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
+# FREE_DEPLOYMENT_CLI_PROVIDERS=codex-cli,claude-code
+# CLAUDE_CODE_OAUTH_TOKEN=<claude-setup-token-output>
 ```
 
 - `STUDIO_ORIGIN` is the one externally visible, canonical HTTPS origin. Use
@@ -99,12 +101,24 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   `DATABASE_URL`; restricting it to hexadecimal avoids URI-encoding and
   Compose-interpolation ambiguity. Changing it does not update an existing
   PostgreSQL volume's password, so retain it with that volume.
+- `FREE_KEI_POSTGRES_PASSWORD` is the password of the Parsing Service's own
+  database role, `kei`, which owns only the `kei_dbos` schema: the service
+  parses untrusted PDFs and must not be able to read Studio's tables or rewrite
+  Studio's workflow inputs. Studio's entrypoint creates the role and its
+  schema from this value at every start, so changing it takes effect at the
+  next start. Use a generated hexadecimal value.
+- `FREE_DEPLOYMENT_CLI_PROVIDERS` (optional; `codex-cli`, `claude-code`,
+  comma-separated) offers the Codex CLI and Claude Code to every researcher as
+  read-only deployment connections. They run on this server's own CLI login,
+  so every researcher's calls on them use the operator's billing and rate
+  limits; leave it unset to offer neither. Log the CLIs in once inside the
+  running container (`docker compose … exec studio codex login --device-auth`;
+  Claude Code reads `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`).
+- Studio's `DATABASE_URL` role must own database `free` or hold `CREATE` on it
+  (DBOS creates the `dbos` schema at launch) and `CREATEROLE` (the entrypoint
+  creates `kei`); Compose uses `postgres`.
 
 ### GPU and DGX Spark
-
-`FREE_PARSING_POSTGRES_PASSWORD` is the separate job database password. Use a
-generated hexadecimal value and retain it with the database volume, just as
-for `FREE_POSTGRES_PASSWORD`.
 
 The GPU overlay runs each model in its own vLLM server, separately from the
 Python worker. The worker reaches `http://ocr_model:8000/v1/chat/completions`;
@@ -236,13 +250,16 @@ files and restarts the `nginx` service.
 
 ## Start and preserve state
 
-Normal startup builds before stopping the existing Studio and parsing API/worker,
-so a failed build leaves the application running. Once they stop, Compose runs
-`kei-jobs schema --apply` against the separate job database before starting
-the replacement API and worker. Studio replays its authored migrations before
-serving requests. A failed migration prevents startup. The launcher does not
-reset either database or seed an
-account, Project Context, Model Connection, route, or credential.
+Normal startup builds before it stops the existing Studio and parsing
+API/worker, so a failed build leaves the application running. Once they stop,
+Compose starts Studio: its entrypoint replays the authored migrations, creates
+the Parsing Service's role and schema, and Studio launches DBOS, which migrates
+the `dbos` schema and applies the ten-minute garbage-collection schedule. The
+Parsing Service's worker starts only after Studio is healthy; it takes its slot
+lock (`KEI_RUNS/.worker-<slot>.lock`), reads the database clock as its boot
+timestamp and migrates `kei_dbos`. A failed migration prevents startup. The
+launcher never resets a database or seeds an account, Project Context, Model
+Connection, route, or key.
 
 ```bash
 node scripts/free.mjs production
@@ -250,26 +267,19 @@ docker compose -f compose.yaml -f compose.prod.yaml ps
 curl --fail --silent --show-error https://free.example.edu/free/api/healthz
 ```
 
-Retain the existing `postgres-data`, `studio-data`, `studio-config`, and
-`studio-claude` volumes. The new job database and shared parsing runs must also
-survive restarts: completed runs are needed by later extractions, not merely
-disposable parsing caches. Back up both databases and their corresponding
-artifact volumes together after quiescing writes. A plain `docker compose
-down` retains volumes; `down --volumes` destroys them and is not a migration
-step.
+Retain the `postgres-data`, `source-inbox`, `parsing-runs`, `studio-data`,
+`studio-config` and `studio-claude` volumes; the model caches are
+re-downloadable. Completed runs are inputs to later extractions, not caches. A
+plain `docker compose down` retains volumes; `down --volumes` destroys them.
+Never run `down` on a GPU host just to redeploy: it stops the model servers
+too.
 
-This source consolidation does not transfer runs from a separately running
-kei-exp installation. A Source Document uploaded before the service cutover
-may have no run in the new job database; upload it again before requesting a
-new extraction. Existing saved results and review history remain in FREE.
-Do not delete the separate deployment or its data as part of startup.
-
-Studio's container healthcheck opens a local TCP connection. Its entrypoint
-starts the server only after forward migrations finish. The Parsing Service
-has its own API healthcheck. Worker execution, completed jobs, and model
-quality are checked by integration validation, not the shallow Studio health
-route. The public application must be checked through the configured HTTPS
-proxy and sign-in path.
+Studio's container healthcheck opens a local TCP connection, which succeeds
+only after migrations and the DBOS launch. The Parsing Service API has its own
+healthcheck; the worker logs `kei worker kei-<slot> serving` once it serves its
+lanes. Extraction quality is checked by integration validation, not by the
+health routes. Check the public application through the configured HTTPS proxy
+and sign-in path.
 
 ## Manage Researcher access
 
@@ -291,35 +301,31 @@ global forced logout and signs out everyone.
 See [the Entra authentication runbook](entra-authentication.md)
 for registration, certificate rotation, guarded cutover, and smoke checks.
 
-## Configure shared models
+## Configure models
 
-After normal login, use the **Configure models** gear in the Project Context
-rail. The Model Configuration page holds every model choice:
+After signing in, each researcher opens **Configure models** in the Project
+Context rail. The configuration belongs to that Researcher Account and applies
+to its own Project Contexts only.
 
-1. Under **Extraction**, choose the field and reasoning models every single and
-   Batch Extraction runs on, or keep the service's **Default** per role.
-2. With the GPU overlay, the deployment's own vLLM servers are listed as
-   read-only deployment connections, and Schema Suggestion and Interaction run
-   on the instruction model until a route says otherwise. Add a Model
-   Connection for anything else and set its provider, base URL when
-   applicable, and any write-only credential.
-3. Review the advisory probe or refresh the model list. Probes use the current
-   draft and transient credential but do not save either one.
-4. Choose a single model or assign the Schema Suggestion and Interaction
-   Capability Routes (optionally with the NuExtract protocol on a vLLM
-   connection), then select **Apply**. Apply replaces the complete shared
-   document; it does not run another provider probe.
+1. **Connections**: the deployment's own servers are listed read-only — the
+   vLLM servers with the GPU overlay, and the CLI providers the operator
+   enabled. A researcher adds their own connections (Ollama, OpenAI, Anthropic,
+   Google, vLLM, OpenAI-compatible). A key typed there stays in that browser;
+   Studio holds a copy only in memory while it needs one.
+2. **Models**, in three steps: *Reading documents* (the Ingestion Model Choice:
+   the OCR and layout models for new ingestions and reprocessing), *Schema &
+   chat* (the Assistant model; Schema Suggestion follows it unless given its
+   own model) and *Extracting data* (the Extraction Model Choice). A step at its
+   defaults says so in one sentence.
+3. **Apply** saves the whole configuration in one transaction.
 
-The Extraction Model Choice, Model Connections, Capability Routes, and saved credential state are
-deployment-wide, never per-account or per-Project Context. Every fully
-authenticated researcher may view, probe, and replace them for everybody.
-Coordinate concurrent edits: complete writes are serialized, and the document
-whose commit finishes later becomes authoritative without a field-level merge.
-Credential values are write-only and are never returned; Studio shows only
-`present`, `absent`, or `unavailable` state plus preserve/remove controls.
-A `model-config.json` this Studio cannot read (for example one saved before
-[ADR 0011](../adr/0011-one-model-configuration-page.md)) is not migrated: the
-page reports it and offers a confirmed **Reset model configuration**.
+A Studio restart empties its memory: an open page sends its keys again with
+its next request, and background work started without an open page fails with
+`model_key_required` until the researcher retries it. A keyless Ollama
+connection is called anonymously even when the operator's environment sets
+`OLLAMA_API_KEY`; a researcher who uses ollama.com enters their own key. There
+is no configuration reset; the configuration is validated whenever it is
+saved.
 
 ## Configure service extraction
 
@@ -329,6 +335,10 @@ the NuExtract server as deployment connections (`FREE_DEPLOYMENT_INSTRUCT_URL`,
 `FREE_DEPLOYMENT_INSTRUCT_MODEL`, `FREE_DEPLOYMENT_NUEXTRACT_URL`), so Schema
 Suggestion and Interaction work before any route is saved. Startup never saves
 Model Connections or Capability Routes.
+
+`KEI_OCR_MODEL` (default `surya`) is the OCR model a parse uses when its owner
+chose none; the Parsing Service's listing and its conversions read the same
+value.
 
 Article and Catalog extraction, discovery, and grounding run in the included
 Python service. The former Catalog policy editor and `FREE_CATALOG_POLICY`
@@ -346,14 +356,14 @@ The resolved production topology is:
 | Studio | `proxy` and `app`, port 5173 | TCP 127.0.0.1:5173 (for host nginx) |
 | PostgreSQL | `app`, port 5432 | none |
 | Parsing Service API | `app`, port 8001 | none |
-| Parsing worker and schema initializer | `app`; no HTTP listener | none |
-| Parsing PostgreSQL | `app`, port 5432 | none |
+| Parsing worker (DBOS) | `app`; no HTTP listener | none |
 | Surya vLLM server (GPU overlay) | `app`, port 8000 | none |
 | NuExtract vLLM server (GPU overlay) | `app`, port 8000 | none |
 | Extraction vLLM server (GPU overlay) | `app`, port 8000 | none |
 
-Studio reaches the API at `http://parsing_service:8001`. The API and worker
-share the job database and run volume. Their unauthenticated administrative
+Studio reaches the API at `http://parsing_service:8001`. The worker reads
+Studio's staged source PDFs from the `source-inbox` volume (read-only) and
+writes runs; the API only reads runs and has no database access. The internal
 API is private to the Compose network; researchers reach document processing
 through FREE's authenticated, ownership-scoped routes. Do not publish the
 service API or the model-server ports to the LAN.
@@ -414,6 +424,120 @@ send HSTS: a private hostname depends on institution- or VPN-managed trust and
 certificate renewal, and pinning HTTPS in browsers could prevent operator
 recovery after that private trust configuration changes. HTTPS remains the only
 published transport.
+
+## Durable execution (DBOS)
+
+Studio and the Parsing Service run their work as DBOS workflows in database `free`:
+
+| Schema | Owner | Holds |
+| --- | --- | --- |
+| `public` | Studio | Research state and each account's model configuration (no keys) |
+| `dbos` | Studio | Studio's workflows; queues `studio`, `suggest` and `gc`; the `collectGarbage` schedule |
+| `kei_dbos` | role `kei` | The Parsing Service's workflows; lanes `kei-convert-large`, `kei-convert-small`, `kei-extract`, `kei-gc` |
+
+The `kei` role is denied on `public` and `dbos`. One worker serves the one
+slot; never scale `parsing_worker`.
+
+Inspect both schemas from the database container (read-only queries):
+
+```bash
+docker compose -f compose.yaml -f compose.prod.yaml exec -T db psql -U postgres -d free -c \
+  "SELECT workflow_uuid, name, status, queue_name, to_timestamp(updated_at / 1000.0) AS updated FROM dbos.workflow_status ORDER BY created_at DESC LIMIT 20"
+docker compose -f compose.yaml -f compose.prod.yaml exec -T db psql -U postgres -d free -c \
+  "SELECT workflow_uuid, name, status, queue_name, to_timestamp(updated_at / 1000.0) AS updated FROM kei_dbos.workflow_status ORDER BY created_at DESC LIMIT 20"
+docker compose -f compose.yaml -f compose.prod.yaml exec -T db psql -U postgres -d free -c \
+  "SELECT 'dbos' AS schema, status, count(*) FROM dbos.workflow_status GROUP BY 2 UNION ALL SELECT 'kei_dbos', status, count(*) FROM kei_dbos.workflow_status GROUP BY 2"
+docker compose -f compose.yaml -f compose.prod.yaml exec -T db psql -U postgres -d free -c "SELECT * FROM dbos.workflow_schedules"
+```
+
+Add `-f compose.nginx.yaml` and `-f compose.gpu.yaml` when the deployment uses
+them.
+
+- **Cancelling.** A cancel stops a workflow at its next step boundary; a step
+  already running finishes first. The Parsing Service's steps also check for a
+  cancel between pages and records. That check fails open: if the worker cannot
+  read a workflow's status (a PostgreSQL restart), it carries on and logs `the
+  status of … could not be read` once per step execution, and reads again at
+  its next check.
+- **Garbage collection** runs every ten minutes on queue `gc`. It cancels work
+  whose outcome is already recorded or whose Project Context is gone; deletes
+  interactive history 24 hours and background history 30 days after it ends,
+  and a deleted scope's history at once; asks the Parsing Service to delete
+  runs nothing references (after 24 hours) with their history; and removes
+  staged PDFs of finished attempts and unreferenced canonical packages after
+  24 hours. Work cancelled in the running process is kept until that process
+  restarts, because one of its steps may still write; every deploy restarts
+  both. Run a sweep now with `docker compose … exec -T studio pnpm --filter
+  studio gc:now`, which prints a JSON summary; a non-empty `failedPhases` also
+  appears in Studio's log as `collectGarbage: <phase> failed (<error class>)`,
+  and the next sweep retries it.
+- **Changing a workflow.** A code change that adds, removes, reorders or
+  renames a step of a workflow ships behind a patch — `DBOS.patch('<name>')` in
+  Studio, `DBOS.patch("<name>")` in the Parsing Service (both enable patching)
+  — so workflows started before it recover on the old path. Remove the branch
+  with `deprecatePatch` / `deprecate_patch` once no workflow from before the
+  patch can still be recovered. The application versions `studio@1` and
+  `kei@1` stay fixed; change one only for an incompatible contract change,
+  and only after draining: stop new work, wait until neither schema has an
+  `ENQUEUED`, `DELAYED` or `PENDING` workflow, then deploy.
+
+## Back up and restore
+
+Stop `studio` and `parsing_worker` first, so nothing writes while the backup
+runs. The backup set is:
+
+- `pg_dump -Fc free` (all three schemas; it includes workflow history —
+  interactive results for up to about a day, background inputs for up to about
+  30 days);
+- the `source-inbox`, `parsing-runs` and `studio-data` volumes;
+- the CLI homes: `studio-config` (the Codex login under `codex/`) and
+  `studio-claude`;
+- outside Compose: `.env` and the secret files it names.
+
+No backup holds a researcher's key: keys live only in researchers' browsers
+and in Studio's memory. The CLI homes hold the operator's own CLI logins, so
+protect those backups like `.env`. The model caches are re-downloadable and
+need no backup. To restore, recreate `free` from the dump into an empty
+PostgreSQL volume, restore the volumes, and start normally: migrations are
+already applied, and the entrypoint sets the `kei` role's password from
+`.env` again.
+
+## Cutover to durable execution (one-time, clean slate)
+
+This runbook moves a deployment from Procrastinate to DBOS once, before FREE
+holds production data. Nothing on the host survives it: researchers re-enter
+their connections and keys and re-upload their PDFs. It is the one exception
+to "production is never reset" (README #10).
+
+1. Build the new images while the old stack serves: `docker compose <files> build`.
+2. Stop `nginx` (with the bundled nginx), `studio`, `parsing_service` and
+   `parsing_worker`, then the old `parsing_migrate` container. The old worker
+   locked `.slot-<slot>.lock` and the new one locks `.worker-<slot>.lock`, so the
+   two would not exclude each other: confirm no `kei-jobs` process is left
+   (`docker ps --format '{{.Names}} {{.Command}}'`).
+3. Take one `pg_dump -Fc` of `free` and of the old `parsing_db` for inspection;
+   there is no restore path.
+4. Reset the storage: remove the `parsing_db` container and its
+   `parsing-postgres` volume; drop and recreate database `free`; empty
+   `parsing-runs` and Studio's data directory in `studio-data`
+   (`FREE Studio-nodejs`); delete `FREE Studio-nodejs/model-config.json` from
+   `studio-config`, keeping `codex/`; keep `studio-claude`.
+5. In `.env`, add `FREE_KEI_POSTGRES_PASSWORD` (`openssl rand -hex 32`), set
+   `FREE_DEPLOYMENT_CLI_PROVIDERS` if wanted, and remove
+   `FREE_PARSING_POSTGRES_PASSWORD`.
+6. Start: `node scripts/free.mjs production`. The baseline migration, the
+   `kei` role and schema, and both DBOS schemas are created at startup.
+7. Check: the health route; `\dn` lists `public`, `dbos` and `kei_dbos`;
+   `SET ROLE kei; SELECT 1 FROM public."projectContext"` is denied;
+   `dbos.workflow_schedules` has `collectGarbage`; the worker logged
+   `serving`.
+8. Smoke-test: upload; an extraction and a cancel; a Batch Schema Suggestion;
+   a generation and a schema edit proposal across a reload and a Studio
+   restart; a second account, where one exists, sees none of the first's
+   configuration or operations; delete a project and run `gc:now`.
+
+Never restart a model server as part of this: if `docker compose config --hash
+'*'` shows a model server's hash changed, stop and decide first.
 
 ## Replace a certificate
 

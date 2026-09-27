@@ -150,3 +150,23 @@ Before conversational schema editing, Studio SHALL flush a pending researcher ed
 - **WHEN** the required direct-edit flush returns a revision conflict
 - **THEN** Studio does not send the conversational edit request
 - **AND** the pending chat instruction remains available after the researcher resolves the conflict
+
+### Requirement: A schema edit proposal survives a reload and a Studio restart
+Each edit request SHALL carry a new operation ID and its base Schema Revision and run as a `proposeSchemaEdit` workflow. After a reload the schema panel SHALL show a running proposal with its instruction and poll it every 2 s until it settles, and SHALL reopen the review bar for the newest finished proposal whose base is the current revision while the draft is clean. Discard SHALL delete that proposal and every older finished proposal on the same base; Stop SHALL cancel a running one.
+
+#### Scenario: A reload mid-proposal reopens the review bar
+- **WHEN** the researcher reloads while a schema edit proposal runs
+- **THEN** the panel shows its instruction and polls until the outcome is ready
+- **AND** it reopens the review bar once the proposal finishes on the current base
+
+#### Scenario: Discard persists across a reload
+- **WHEN** the researcher discards a finished proposal and reloads
+- **THEN** that proposal and older finished proposals on the same base do not reappear
+
+#### Scenario: A proposal on an older base is not restored
+- **WHEN** a completed proposal names a Schema Revision older than the current revision
+- **THEN** the panel does not reopen its review bar as a current proposal
+
+#### Scenario: A second account cannot list, read or cancel the first's proposals
+- **WHEN** another signed-in account requests the first account's operation list, result or cancellation
+- **THEN** each request is refused without revealing the operation

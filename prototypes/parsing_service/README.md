@@ -34,9 +34,12 @@ slot's pending work (executor `kei-<slot>`). A crash re-executes the step that
 was running and reuses every checkpointed one. A cancel or a deadline stops a
 step at its next check (before model work, between pages while cutting, between
 Catalog entries and records); a running native call finishes first.
-`deleteRuns` removes a run only when every kei workflow writing it can no longer
-write: it ended, or it was cancelled or gave up before this worker's boot
-timestamp (the boot boundary), and nothing in the run was written for 24 h.
+Studio's `collectGarbage` names the conversions whose runs nothing references
+and the kei history that may go. `deleteRuns` (`gc.py`, `boot.py`) deletes each
+run only once no kei workflow that could still write it is live or stopped
+since this worker booted, then that conversion's history; it also deletes the
+other kei history Studio names. A run waits until nothing in it was written
+for 24 h. kei never reads Studio's schemas.
 
 `KEI_RUNS` contains the runs' sources, canonical parse results and extraction
 results. It is durable service data: later Extractions need the original parse

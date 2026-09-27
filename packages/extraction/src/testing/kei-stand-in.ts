@@ -1,10 +1,16 @@
 /** A TypeScript kei for tests: a DBOS application named `kei` that plays kei's worker at the contract
  *  (prototypes/parsing_service/src/kei_exp/workflows/) and serves kei's read routes (kei_exp/api.py).
  *
- *  It registers kei's portable `convert` and `extract` workflows under kei's names, with kei's recovery limit, and kei's
- *  four lanes with kei's limits. Each workflow runs one step (`convert_run`, `extract_run`, as kei names its own) that
- *  asks `script` how to finish. A decision the script holds blocks inside the step, as kei's native step does, so a
- *  cancel leaves the step running and its lane occupied until the step returns (M0R 4).
+ *  It registers kei's portable `convert`, `extract` and `deleteRuns` workflows under kei's names, with kei's recovery
+ *  limit, and kei's four lanes with kei's limits. Each workflow runs one step (`convert_run`, `extract_run`,
+ *  `delete_runs`, as kei names its own) that asks `script` how to finish. A decision the script holds blocks inside the
+ *  step, as kei's native step does, so a cancel leaves the step running and its lane occupied until the step returns
+ *  (M0R 4).
+ *
+ *  Its default `deleteRuns` diverges from kei's gc.py on purpose: it ignores kei's 24-hour run age and the boot boundary.
+ *  A named conversion or history ID whose workflow ended (SUCCESS or ERROR) or is already gone is deleted, a deleted
+ *  conversion's run (the one its output named) is forgotten, and everything else is kept. Every valid request is
+ *  recorded (`deleteRunsRequests`) so a test can see what Studio asked for.
  *
  *  Test-only: nothing in the runtime imports it. DBOS is one singleton per process, so the stand-in runs only where no
  *  other DBOS application runs; a test process whose DBOS is Studio's spawns it (kei-stand-in-client.ts). */
@@ -12,8 +18,9 @@ import { createHash } from 'node:crypto'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { DBOS } from '@dbos-inc/dbos-sdk'
 import {
-  KEI_APPLICATION, KEI_QUEUE, KEI_RUN_ID, keiConvertInputSchema, keiExtractInputSchema, keiExtractWorkflowId,
-  type KeiConvertInput, type KeiExtractInput, type KeiFailureCode,
+  DELETE_RUNS, KEI_APPLICATION, KEI_QUEUE, KEI_RUN_ID, keiConvertInputSchema, keiConvertOkSchema,
+  keiDeleteRunsInputSchema, keiExtractInputSchema, keiExtractWorkflowId, type KeiConvertInput, type KeiDeleteRunsInput,
+  type KeiDeleteRunsOk, type KeiExtractInput, type KeiFailureCode,
 } from '../kei-handoff.js'
 
 export type StandInFailure = { code: KeiFailureCode; reason: string; retryable: boolean }
@@ -22,16 +29,27 @@ export type StandInConversion = { runId: string; manifest: Record<string, unknow
 export type KeiStandInScript = {
   convert?(request: KeiConvertInput, workflowId: string): Promise<StandInDecision<StandInConversion>>
   extract?(request: KeiExtractInput, workflowId: string): Promise<StandInDecision<{ artifact: unknown }>>
+  /** Replaces the default cleanup (see the module comment). */
+  deleteRuns?(request: KeiDeleteRunsInput, workflowId: string): Promise<KeiDeleteRunsOk>
 }
+/** A `deleteRuns` request as the stand-in received it. */
+export type KeiDeleteRunsRequest = { workflowId: string; request: KeiDeleteRunsInput; receivedAtMs: number }
 /** Answers a request under `/control/` on the stand-in's own server (the CLI's control API), so a test never needs a
  *  second port. */
 export type KeiStandInControl = (request: IncomingMessage, response: ServerResponse) => void | Promise<void>
-export type KeiStandIn = Readonly<{ readUrl: string; close(): Promise<void> }>
+export type KeiStandIn = Readonly<{
+  readUrl: string
+  /** Every valid `deleteRuns` request, in the order the stand-in received them. */
+  deleteRunsRequests(): readonly KeiDeleteRunsRequest[]
+  close(): Promise<void>
+}>
 
 /** kei's config.QUEUES: global limit == worker limit. */
 const LANES = { [KEI_QUEUE.convertLarge]: 1, [KEI_QUEUE.convertSmall]: 1, [KEI_QUEUE.extract]: 2, [KEI_QUEUE.gc]: 1 }
 /** kei's config.MAX_RECOVERY_ATTEMPTS. */
 const MAX_RECOVERY_ATTEMPTS = 5
+/** Workflows that ended with their steps (kei's gc.ENDED); the stand-in keeps every other status. */
+const ENDED = new Set(['SUCCESS', 'ERROR'])
 /** The listings kei's GET /api/extraction-models and /api/ingestion-models answer, as the canonical spec shows them. */
 const EXTRACTION_MODELS = {
   defaults: { fields: 'instruct', reasoning: 'instruct' },
@@ -56,6 +74,7 @@ export async function launchKeiStandIn(options: {
   if (DBOS.isInitialized()) throw new Error('The kei stand-in needs a process without another DBOS application.')
   const results = new Map<string, { manifest: Record<string, unknown>; pages: ReadonlyMap<number, Uint8Array> }>()
   const artifacts = new Map<string, Uint8Array>() // `${runId}/${extractionId}`
+  const deleteRunsRequests: KeiDeleteRunsRequest[] = []
   const fail = (code: KeiFailureCode, reason: string) => ({ ok: false, code, reason, retryable: false })
   DBOS.registerWorkflow(async (raw: unknown) => {
     const workflowId = DBOS.workflowID!
@@ -93,6 +112,52 @@ export async function launchKeiStandIn(options: {
       }
     }, { name: 'extract_run' })
   }, { name: 'extract', serialization: 'portable', maxRecoveryAttempts: MAX_RECOVERY_ATTEMPTS })
+  /** The default cleanup. DBOS runs listWorkflows and deleteWorkflows directly inside a step (runInternalStep). */
+  async function deleteRuns(request: KeiDeleteRunsInput): Promise<KeiDeleteRunsOk> {
+    const conversions = [...new Set(request.conversions)]
+    const history = [...new Set(request.history)]
+    const named = [...new Set([...history, ...conversions])]
+    const statuses = new Map(named.length === 0 ? [] : (
+      await DBOS.listWorkflows({ workflowIDs: named, loadInput: false, loadOutput: true })
+    ).map((status) => [status.workflowID, status]))
+    const ended = (workflowId: string) => {
+      const status = statuses.get(workflowId)
+      return status === undefined || ENDED.has(status.status) // an absent one's history is already gone, as in kei
+    }
+    const runOf = (workflowId: string) => {
+      const output = keiConvertOkSchema.safeParse(statuses.get(workflowId)?.output)
+      return output.success ? output.data.run_id : undefined
+    }
+    const deletedHistory = [...history, ...conversions].filter(ended)
+    if (deletedHistory.length > 0) await DBOS.deleteWorkflows(deletedHistory)
+    const deletedRuns: string[] = []
+    const keptRuns: string[] = []
+    for (const conversion of conversions) {
+      const run = runOf(conversion)
+      if (run === undefined) continue
+      if (!ended(conversion)) {
+        keptRuns.push(run)
+        continue
+      }
+      results.delete(run)
+      for (const key of artifacts.keys()) if (key.startsWith(`${run}/`)) artifacts.delete(key)
+      deletedRuns.push(run)
+    }
+    return {
+      ok: true, deleted_runs: deletedRuns, kept_runs: keptRuns, deleted_history: deletedHistory,
+      kept_history: [...history, ...conversions].filter((workflowId) => !deletedHistory.includes(workflowId)),
+    }
+  }
+  DBOS.registerWorkflow(async (raw: unknown) => {
+    const workflowId = DBOS.workflowID!
+    const request = keiDeleteRunsInputSchema.safeParse(raw)
+    if (!request.success) return fail('invalid_request', request.error.message)
+    deleteRunsRequests.push({ workflowId, request: request.data, receivedAtMs: Date.now() })
+    return DBOS.runStep(
+      async () => (options.script.deleteRuns ?? deleteRuns)(request.data, workflowId),
+      { name: 'delete_runs' },
+    )
+  }, { name: DELETE_RUNS, serialization: 'portable', maxRecoveryAttempts: MAX_RECOVERY_ATTEMPTS })
   DBOS.setConfig({
     name: KEI_APPLICATION, systemDatabaseUrl: options.databaseUrl, systemDatabaseSchemaName: options.schema,
     applicationVersion: 'kei@1', executorID: options.executorId ?? 'kei-stand-in', enableOTLP: false, logLevel: 'error',
@@ -148,6 +213,7 @@ export async function launchKeiStandIn(options: {
   const port = (server.address() as { port: number }).port
   return {
     readUrl: `http://127.0.0.1:${port}`,
+    deleteRunsRequests: () => [...deleteRunsRequests],
     async close() {
       const closed = new Promise<void>((resolve) => server.close(() => resolve()))
       server.closeAllConnections()

@@ -37,9 +37,37 @@ def _exit_hard(code: int) -> None:
     os._exit(code)
 
 
+class RedactingFilter(logging.Filter):
+    """DBOS logs its own launch and connection failures (dbos _dbos.py:787, _sys_db.py:5469) before the worker can
+    report them; driver messages there can quote the URL. Rewrite each record's message and traceback in place: the
+    traceback is kept (workflow and recovery failures are logged with it for the worker's whole life), redacted."""
+
+    def __init__(self, database_url: str) -> None:
+        super().__init__()
+        self._url = database_url
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.exc_info:  # a handler formats exc_text when exc_info is gone: hand it the redacted traceback
+            record.exc_text = logging.Formatter().formatException(record.exc_info)
+            record.exc_info = None
+        if record.exc_text:
+            record.exc_text = redacted(record.exc_text, self._url)
+        record.msg, record.args = redacted(record.getMessage(), self._url), ()
+        return True
+
+
+def _redact_dbos_logs(database_url: str) -> None:
+    """One RedactingFilter on the `dbos` logger, for this URL: a repeated serve() replaces it rather than stacking."""
+    dbos_logger = logging.getLogger("dbos")
+    for installed in [f for f in dbos_logger.filters if isinstance(f, RedactingFilter)]:
+        dbos_logger.removeFilter(installed)
+    dbos_logger.addFilter(RedactingFilter(database_url))
+
+
 def serve(slot_name: str, database_url: str, *, until: Callable[[], None] = _until_signalled,
           exit_process: Callable[[int], None] = _exit_hard) -> None:
     logging.basicConfig(level=os.environ.get("KEI_LOG_LEVEL", "INFO"))
+    _redact_dbos_logs(database_url)
     # First: a second process is refused before it imports the model stack (this module, slot and runs are light;
     # `registered` is what loads docling and torch, test_worker_boot pins it).
     with slot.hold_slot(slot_name):
@@ -58,10 +86,12 @@ def serve(slot_name: str, database_url: str, *, until: Callable[[], None] = _unt
             config.register_queues()
             logger.info("kei worker %s serving", config.executor_id(slot_name))
             until()
-        except Exception as error:  # noqa: BLE001 - reported redacted, as main() reports what fails before this
-            DBOS.destroy()
-            print(stopped(error, database_url), file=sys.stderr)
-            exit_process(1)
+        except BaseException as error:  # noqa: BLE001 - an interrupt too must destroy DBOS and exit holding the slot
+            try:
+                DBOS.destroy()
+            finally:  # a second interrupt inside destroy() must not unwind the slot's `with` either
+                print(stopped(error, database_url), file=sys.stderr)
+                exit_process(1)
             return  # only a test's exit_process returns
         DBOS.destroy()
         exit_process(0)
