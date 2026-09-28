@@ -202,6 +202,10 @@ def preflight_fixed(study: dict, cells: list[dict], output: Path, counter) -> li
 
 def register(parent: Path, bundles: Path, output: Path) -> dict:
     original = read(parent / "manifest.json")
+    output.mkdir(parents=True, exist_ok=True)
+    protocol = output / "grounding-protocol.md"
+    with protocol.open("x") as target:
+        target.write(Path(__file__).with_name("grounding-protocol.md").read_text())
     study = normalized(original)
     study["id"] = "extraction-fixed-grounding-20260928-r5"
     study["order_seed"] = 20260928
@@ -220,7 +224,7 @@ def register(parent: Path, bundles: Path, output: Path) -> dict:
     study["interactions"] = [{"name": "scheduling_x_policy", "baseline": "spans", "a": "spans_unresolved",
                               "b": "spans_policy", "ab": "spans_unresolved_policy"}]
     study["grounding_study"] = {"parent": pin(parent / "manifest.json"),
-        "protocol": pin(Path(__file__).with_name("grounding-protocol.md")), "model_seconds_per_cell": 10800,
+        "protocol": pin(protocol), "model_seconds_per_cell": 10800,
         "interpretation": "Fresh grounding only; identical replay-verified upstream records. No held-out semantic labels."}
     study["sources"] = [source for source in study["sources"] if "bounded" in source["methods"]]
     for source in study["sources"]:
