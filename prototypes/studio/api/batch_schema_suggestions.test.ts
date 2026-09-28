@@ -3,7 +3,7 @@ import type {
   BatchSchemaSuggestionRecord,
   ResearcherProjectStore,
 } from 'db'
-import type { ExtractionModule } from 'extraction'
+import { ExtractionError, type ExtractionModule } from 'extraction'
 import { createResearcherApiHandlers } from './batch_schema_suggestions.js'
 
 const runtime = vi.hoisted(() => ({
@@ -26,12 +26,6 @@ vi.mock('db', async (importOriginal) => {
     },
   }
 })
-
-const modelConfig = vi.hoisted(() => ({ configuredExtractionModels: vi.fn() }))
-vi.mock('./_model_config.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./_model_config.js')>()),
-  configuredExtractionModels: modelConfig.configuredExtractionModels,
-}))
 
 const researcherAccountId = '51000000-0000-4000-8009-000000000001'
 const projectContextId = '51000000-0000-4000-8000-000000000001'
@@ -103,18 +97,20 @@ function handlersFor(
   return createResearcherApiHandlers({
     researcherAccountId,
     ...store,
-  } as ResearcherProjectStore, { extractionModels: async () => ({ reasoning: 'instruct' }) })
+  } as ResearcherProjectStore)
 }
 const handlerFor = (store: Partial<ResearcherProjectStore>, module?: ExtractionModule) =>
   handlersFor(store, module).POST
 
-const runRequest = () =>
+/** What the start view submits for an account that keeps every service default. */
+const SERVICE_DEFAULTS = { models: null, settings: { article: null } }
+const runRequest = (body: unknown = { strategy: 'ARTICLE', method: SERVICE_DEFAULTS }) =>
   new Request(
     `http://test/api/batch-schema-suggestions/${suggestionId}/run?projectContextId=${projectContextId}`,
     {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ strategy: 'ARTICLE' }),
+      body: JSON.stringify(body),
     },
   )
 const retryRequest = (body: unknown) =>
@@ -138,35 +134,48 @@ describe('Batch Schema Suggestion APIs', () => {
     const module = moduleForSuggestedBatch()
     const getBatchSchemaSuggestion = vi.fn(async () => suggestion)
     const handler = handlerFor({ getBatchSchemaSuggestion }, module)
-    const request = runRequest()
-    const response = await handler(
-      new Request(request.url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ strategy: 'CATALOG' }),
-      }),
-    )
+    const method = { models: null, settings: { generic: null } }
+    const response = await handler(runRequest({ strategy: 'CATALOG', method }))
 
     expect(response.status).toBe(202)
     expect(module.scheduleSuggestedBatch).toHaveBeenCalledWith(
-      expect.objectContaining({ strategy: 'CATALOG' }),
+      expect.objectContaining({ strategy: 'CATALOG', method }),
     )
   })
 
-  it("runs a suggested batch on the account's configured Extraction Model Choice by default", async () => {
+  it('hands the submitted method to scheduleSuggestedBatch unchanged; the handler never reads the account', async () => {
     const module = moduleForSuggestedBatch()
-    runtime.createResearcherExtractions.mockReturnValue(module)
-    modelConfig.configuredExtractionModels.mockResolvedValueOnce({ fields: 'nuextract' })
-    const post = createResearcherApiHandlers({
-      researcherAccountId,
-      getBatchSchemaSuggestion: vi.fn(async () => suggestion),
-    } as unknown as ResearcherProjectStore).POST
+    const article = { context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
+      prompt: 'schema', grounding: 'spans', grounding_schedule: 'unresolved', evidence_policy: 'schema' }
+    const method = { models: { fields: 'nuextract' }, settings: { article } }
+    const handler = handlerFor({ getBatchSchemaSuggestion: vi.fn(async () => suggestion) }, module)
 
-    expect((await post(runRequest())).status).toBe(202)
-    expect(modelConfig.configuredExtractionModels).toHaveBeenCalledWith(researcherAccountId)
-    expect(module.scheduleSuggestedBatch).toHaveBeenCalledWith(
-      expect.objectContaining({ models: { fields: 'nuextract' } }),
-    )
+    expect((await handler(runRequest({ strategy: 'ARTICLE', method }))).status).toBe(202)
+    expect(module.scheduleSuggestedBatch).toHaveBeenCalledWith(expect.objectContaining({ method }))
+  })
+
+  it.each([
+    ['method_changed', 409],
+    ['invalid_identity_fields', 422],
+    ['invalid_model_config', 500],
+  ] as const)('answers a refused Run %s with %i', async (code, status) => {
+    const module = moduleForSuggestedBatch()
+    vi.mocked(module.scheduleSuggestedBatch).mockRejectedValueOnce(new ExtractionError(code, 'Refused for a reason the researcher can read.'))
+    const response = await handlerFor({ getBatchSchemaSuggestion: vi.fn(async () => suggestion) }, module)(runRequest())
+
+    expect(response.status).toBe(status)
+    expect(await response.json()).toMatchObject({ error: { code } })
+  })
+
+  it("refuses a Run without the method, or with a recipe's settings, before admission", async () => {
+    const module = moduleForSuggestedBatch()
+    const handler = handlerFor({ getBatchSchemaSuggestion: vi.fn(async () => suggestion) }, module)
+
+    expect((await handler(runRequest({ strategy: 'ARTICLE' }))).status).toBe(422)
+    // A batch has no recipe, so recipe settings fit neither strategy.
+    for (const strategy of ['ARTICLE', 'CATALOG'])
+      expect((await handler(runRequest({ strategy, method: { models: null, settings: { recipe: null } } }))).status).toBe(422)
+    expect(module.scheduleSuggestedBatch).not.toHaveBeenCalled()
   })
 
   it('creation answers 202 with the admitted attempt', async () => {
@@ -335,7 +344,7 @@ describe('Batch Schema Suggestion APIs', () => {
         projectContextId,
         batchSchemaSuggestionId: suggestionId,
         strategy: 'ARTICLE',
-        models: { reasoning: 'instruct' },
+        method: SERVICE_DEFAULTS,
       })
       return { disposition: 'created', batch: {} as never }
     })

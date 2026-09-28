@@ -6,10 +6,16 @@ import { createHash, randomUUID } from 'node:crypto'
 import { describe, it } from 'node:test'
 import pg from 'pg'
 import type { ExtractionExecution } from './dependencies.js'
+import { ExtractionError } from './errors.js'
+import { REFERENCE_ARTICLE, type ExtractionMethodIntent } from './extraction-method.js'
 import { keiExtractWorkflowId, type KeiExtractInput } from './kei-handoff.js'
 import { createExtractionModule } from './module.js'
-import { fixture, type SeededDocument } from './testing/extraction-fixture.js'
+import { fixture, type SeededDocument, type SeededProject } from './testing/extraction-fixture.js'
+import type { BatchRepetition } from './types.js'
 import { RUN_EXTRACTION } from './workflows.js'
+
+/** What a start view submits for an account that keeps every service default. */
+const SERVICE_DEFAULTS: ExtractionMethodIntent = { models: null, settings: { article: null } }
 
 describe('Extraction batches on disposable PostgreSQL', { skip: !fixture && 'set EXTRACTION_TEST_DATABASE_URL (or DATABASE_URL) to a migrated disposable free_test_* database' }, () => {
   if (!fixture) return
@@ -18,7 +24,7 @@ describe('Extraction batches on disposable PostgreSQL', { skip: !fixture && 'set
     stableUuid, createResearcherProjectStore, createResearcherExtractionPersistence, packages, kei,
     app, execution, seedProject, addRepresentation, scheduler,
     eventually, createRuntime, freshInput, rejectsWithCode, waitForBatch,
-    heldByKei, extractionRow, cleanup,
+    heldByKei, extractionRow, cleanup, configureAccount,
   } = fixture
 
   it('batch admission locks members in sorted order and creates one pending Extraction per member with a deterministic ID', async (t) => {
@@ -26,6 +32,7 @@ describe('Extraction batches on disposable PostgreSQL', { skip: !fixture && 'set
     const project = await seedProject(ARTICLE_SCHEMA, ['b.pdf', 'a.pdf', 'c.pdf'])
     const module = scheduler(project.researcherAccountId)
     kei.holding = true
+    await configureAccount(project.researcherAccountId, { extractionModels: { fields: 'nuextract' } })
     const sorted = project.documents.map((document) => document.sourceDocumentId).sort((left, right) => left.localeCompare(right))
     /** Holds one member's document row, admits a batch over the members in reverse order, and reports which other
      *  members the admission had locked when it blocked. */
@@ -43,7 +50,7 @@ describe('Extraction batches on disposable PostgreSQL', { skip: !fixture && 'set
           strategy: 'ARTICLE',
           sourceDocumentIds: [...sorted].reverse(),
           repetition: 'create-new',
-          models: { fields: 'nuextract' },
+          method: { models: { fields: 'nuextract' }, settings: { article: null } },
         })
         void scheduling.catch(() => {})
         await eventually(async () => {
@@ -120,6 +127,7 @@ it('a committed batch answers with its admitted members even when DBOS cannot be
       schemaRevisionId: project.schemaRevisionId,
       strategy: 'ARTICLE' as const,
       sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId),
+      method: SERVICE_DEFAULTS,
     }
     for (const repetition of ['create-new', 'reuse-equal-selection'] as const) {
       const before = await batches()
@@ -150,7 +158,7 @@ it('a committed batch answers with its admitted members even when DBOS cannot be
       outcome: 'SUCCEEDED', phase: 'READY', draft: ARTICLE_SCHEMA, draftVersion: 1,
     })
     const handedOff = await module.scheduleSuggestedBatch({
-      projectContextId: project.projectContextId, batchSchemaSuggestionId, strategy: 'ARTICLE',
+      projectContextId: project.projectContextId, batchSchemaSuggestionId, strategy: 'ARTICLE', method: SERVICE_DEFAULTS,
     })
     assert.equal(handedOff.disposition, 'created')
     assert.deepEqual(handedOff.batch.members.map((member) => member.executionStatus), ['QUEUED', 'QUEUED'])
@@ -167,6 +175,7 @@ it('a batch rerun creates new Extraction identities', async (t) => {
       strategy: 'ARTICLE' as const,
       sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId),
       repetition: 'create-new' as const,
+      method: SERVICE_DEFAULTS,
     }
     const first = await module.scheduleBatch(input)
     const second = await module.scheduleBatch(input)
@@ -194,6 +203,7 @@ it('pending Extractions count as batch members but do not displace the latest re
       strategy: 'ARTICLE',
       sourceDocumentIds: [document.sourceDocumentId],
       repetition: 'create-new',
+      method: SERVICE_DEFAULTS,
     })
     const member = stableUuid('batch-member-extraction', stableJson([scheduled.batch.batchExtractionId, document.sourceDocumentId]))
     await heldByKei(member)
@@ -234,6 +244,7 @@ it('a batch member cannot be cancelled on its own, and its ID posted as an inter
       strategy: 'ARTICLE',
       sourceDocumentIds: [document.sourceDocumentId],
       repetition: 'create-new',
+      method: SERVICE_DEFAULTS,
     })
     const member = stableUuid('batch-member-extraction', stableJson([scheduled.batch.batchExtractionId, document.sourceDocumentId]))
     assert.equal(await module.cancelSingle(member), 'not-found')
@@ -250,6 +261,7 @@ it('deleting one batch source preserves another member\'s result, revision pin a
     const scheduled = await module.scheduleBatch({
       projectContextId: project.projectContextId, schemaRevisionId: project.schemaRevisionId,
       strategy: 'ARTICLE', sourceDocumentIds: [deleted.sourceDocumentId, kept.sourceDocumentId], repetition: 'create-new',
+      method: SERVICE_DEFAULTS,
     })
     const batchExtractionId = scheduled.batch.batchExtractionId
     await waitForBatch(module, project.projectContextId, batchExtractionId,
@@ -281,24 +293,28 @@ it('stores batch model choices on every member Extraction and includes them in s
       sourceDocumentIds: project.documents.map(document => document.sourceDocumentId),
       repetition: 'reuse-equal-selection' as const,
     }
-    // Preserve the pre-model-choice identity for deployments with no selected roles.
+    const method = (models: Record<string, string> | null): ExtractionMethodIntent => ({ models, settings: { article: null } })
+    // The identity an equal selection had before methods were recorded. Such a batch's method is not recorded, so no
+    // request replays it: the selection always hashes the method.
     const hash = createHash('sha256').update(JSON.stringify([
       input.projectContextId, input.schemaRevisionId, input.strategy,
       [...input.sourceDocumentIds].sort((left, right) => left.localeCompare(right)),
     ])).digest('hex')
     const variant = ['8', '9', 'a', 'b'][parseInt(hash[16]!, 16) & 3]
-    const originalId = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-${variant}${hash.slice(17, 20)}-${hash.slice(20, 32)}`
-    const defaults = await module.scheduleBatch(input)
-    assert.equal(defaults.batch.batchExtractionId, originalId)
-    for (const models of [null, {}, { fields: '' }]) {
-      const replay = await module.scheduleBatch({ ...input, models })
-      assert.equal(replay.disposition, 'replayed')
-      assert.equal(replay.batch.batchExtractionId, originalId)
-    }
-    const ids = new Set([originalId])
+    const unrecordedId = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-${variant}${hash.slice(17, 20)}-${hash.slice(20, 32)}`
+    const defaults = await module.scheduleBatch({ ...input, method: method(null) })
+    assert.equal(defaults.disposition, 'created')
+    assert.notEqual(defaults.batch.batchExtractionId, unrecordedId)
+    // No choice and an empty choice are the same request; an empty model key is no choice at all.
+    const replay = await module.scheduleBatch({ ...input, method: method({}) })
+    assert.equal(replay.disposition, 'replayed')
+    assert.equal(replay.batch.batchExtractionId, defaults.batch.batchExtractionId)
+    await assert.rejects(module.scheduleBatch({ ...input, method: method({ fields: '' }) }), rejectsWithCode('invalid_request'))
+    const ids = new Set([defaults.batch.batchExtractionId])
     for (const models of [null, { fields: 'nuextract', reasoning: 'instruct' },
       { fields: 'instruct', reasoning: 'instruct' }, { fields: 'nuextract', reasoning: 'other' }]) {
-      const scheduled = await module.scheduleBatch({ ...input, models })
+      await configureAccount(project.researcherAccountId, { extractionModels: models ?? {} })
+      const scheduled = await module.scheduleBatch({ ...input, method: method(models) })
       const batchExtractionId = scheduled.batch.batchExtractionId
       if (models) {
         assert.equal(scheduled.disposition, 'created')
@@ -306,7 +322,7 @@ it('stores batch model choices on every member Extraction and includes them in s
         ids.add(batchExtractionId)
         const replay = await module.scheduleBatch({
           ...input, sourceDocumentIds: [...input.sourceDocumentIds].reverse(),
-          models: { reasoning: models.reasoning, fields: models.fields },
+          method: method({ reasoning: models.reasoning, fields: models.fields }),
         })
         assert.equal(replay.disposition, 'replayed')
         assert.equal(replay.batch.batchExtractionId, batchExtractionId)
@@ -339,6 +355,7 @@ it('rejects duplicate members, atomically pins valid members, replays equal sele
       strategy: 'ARTICLE' as const,
       sourceDocumentIds: selected,
       repetition: 'reuse-equal-selection' as const,
+      method: SERVICE_DEFAULTS,
     }
 
     await assert.rejects(
@@ -413,6 +430,7 @@ it('rejects duplicate members, atomically pins valid members, replays equal sele
         foreign.documents[0]!.sourceDocumentId,
       ],
       repetition: 'create-new',
+      method: SERVICE_DEFAULTS,
     })
     await assert.rejects(
       module.listBatches({
@@ -466,6 +484,7 @@ it('counts a member kei cancelled as cancelled and an interrupted one as failed'
       strategy: 'ARTICLE',
       sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId),
       repetition: 'create-new',
+      method: SERVICE_DEFAULTS,
     })
     const batchExtractionId = scheduled.batch.batchExtractionId
     const memberOf = (document: SeededDocument) =>
@@ -485,5 +504,86 @@ it('counts a member kei cancelled as cancelled and an interrupted one as failed'
       ['FAILED', 'The Extraction was cancelled.'],
       ['FAILED', 'This work stopped before it finished. Start it again.'],
     ])
+  })
+
+  const SPANS = {
+    context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
+    prompt: 'schema', grounding: 'spans', grounding_schedule: 'unresolved', evidence_policy: 'schema',
+  } as const
+  const QUOTES = { ...SPANS, grounding: 'quoted' } as const
+  const batchInput = (project: SeededProject, method: unknown, repetition: BatchRepetition = 'reuse-equal-selection') => ({
+    projectContextId: project.projectContextId, schemaRevisionId: project.schemaRevisionId, strategy: 'ARTICLE' as const,
+    sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId), repetition, method: method as never,
+  })
+
+  it('one batch-level method is pinned on the batch and every member', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['a.pdf', 'b.pdf'])
+    kei.holding = true
+    await configureAccount(project.researcherAccountId, { extractionModels: { fields: 'instruct' }, extractionSettings: { article: SPANS } })
+    const method = { models: { fields: 'instruct' }, settings: { article: SPANS } }
+    const opened = await scheduler(project.researcherAccountId).scheduleBatch(batchInput(project, method))
+    const batch = await db.orm.public.BatchExtraction.select('requestedModels', 'requestedSettings').first({ id: opened.batch.batchExtractionId })
+    assert.deepEqual(batch, { requestedModels: { fields: 'instruct' }, requestedSettings: { article: SPANS } })
+    const members = await db.orm.public.Extraction.where({ batchExtractionId: opened.batch.batchExtractionId }).select('requestedModels', 'requestedSettings').all()
+    assert.equal(members.length, 2)
+    for (const member of members) assert.deepEqual(member, { requestedModels: { fields: 'instruct' }, requestedSettings: { article: SPANS } })
+  })
+
+  it('equal selection reuses only an equal active method; an inactive strategy change still reuses', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['a.pdf', 'b.pdf'])
+    kei.holding = true
+    const module = scheduler(project.researcherAccountId)
+    await configureAccount(project.researcherAccountId, { extractionSettings: { article: SPANS } })
+    const first = await module.scheduleBatch(batchInput(project, { models: null, settings: { article: SPANS } }))
+    assert.equal((await module.scheduleBatch(batchInput(project, { models: null, settings: { article: SPANS } }))).batch.batchExtractionId,
+      first.batch.batchExtractionId)
+    // Only the schedule changes: a different selection.
+    const unscheduled = { ...SPANS, grounding_schedule: undefined }
+    await configureAccount(project.researcherAccountId, { extractionSettings: { article: unscheduled } })
+    const changed = await module.scheduleBatch(batchInput(project, { models: null, settings: { article: unscheduled } }))
+    assert.notEqual(changed.batch.batchExtractionId, first.batch.batchExtractionId)
+    assert.equal(changed.disposition, 'created')
+    // Only the inactive (Catalog) settings change: the same selection.
+    await configureAccount(project.researcherAccountId, { extractionSettings: { article: unscheduled, catalog: { generic: { record_chars: 30000 } } } })
+    const reused = await module.scheduleBatch(batchInput(project, { models: null, settings: { article: unscheduled } }))
+    assert.equal(reused.batch.batchExtractionId, changed.batch.batchExtractionId)
+    assert.equal(reused.disposition, 'replayed')
+  })
+
+  it('a retried batch request replays its batch after the account changes; a stale fresh request admits nothing', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['a.pdf', 'b.pdf'])
+    kei.holding = true
+    const module = scheduler(project.researcherAccountId)
+    await configureAccount(project.researcherAccountId, { extractionSettings: { article: SPANS } })
+    const input = batchInput(project, { models: null, settings: { article: SPANS } })
+    const opened = await module.scheduleBatch(input)
+    await configureAccount(project.researcherAccountId, { extractionSettings: { article: QUOTES } })
+    assert.equal((await module.scheduleBatch(input)).disposition, 'replayed')
+    await assert.rejects(module.scheduleBatch({ ...input, repetition: 'create-new' }), rejectsWithCode('method_changed'))
+    assert.equal((await db.orm.public.BatchExtraction.where({ projectContextId: project.projectContextId }).select('id').all()).length, 1)
+    assert.equal(opened.batch.members.length, 2)
+  })
+
+  it('a batch whose identity fields the schema lacks is refused whole before enqueue', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['a.pdf', 'b.pdf'])
+    const declared = { ...REFERENCE_ARTICLE, identity: 'conservative', identity_fields: ['species'] }
+    await configureAccount(project.researcherAccountId, { extractionSettings: { article: declared } })
+    await assert.rejects(scheduler(project.researcherAccountId).scheduleBatch(batchInput(project, { models: null, settings: { article: declared } })),
+      (error: unknown) => error instanceof ExtractionError && error.code === 'invalid_identity_fields' &&
+        error.message === 'These identity fields are not scalar record fields of the selected Schema Revision: species (not in this schema).')
+    assert.equal((await db.orm.public.BatchExtraction.where({ projectContextId: project.projectContextId }).select('id').all()).length, 0)
+    assert.equal(kei.submissions.length, 0)
+  })
+
+  it('recipe settings are refused for a batch, which has no recipe', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject()
+    await assert.rejects(scheduler(project.researcherAccountId).scheduleBatch({
+      ...batchInput(project, { models: null, settings: { recipe: null } }), strategy: 'CATALOG',
+    }), rejectsWithCode('invalid_request'))
   })
 })

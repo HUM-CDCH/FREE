@@ -263,6 +263,7 @@ it('a batch admitted behind a reprocess pins the newly published revision', asyn
         sourceDocumentIds: [document.sourceDocumentId],
         strategy: 'ARTICLE',
         repetition: 'create-new',
+        method: { models: null, settings: { article: null } },
       }),
       async (run) => { await run(...raceRevision(document.sourceDocumentId, revisionTwo)) },
     )
@@ -283,6 +284,7 @@ it('a batch and a reprocess of one of its members both finish', async (t) => {
         sourceDocumentIds: [two.sourceDocumentId, one.sourceDocumentId],
         strategy: 'ARTICLE',
         repetition: 'create-new',
+        method: { models: null, settings: { article: null } },
       }),
       store.reprocessSourceDocument(project.projectContextId, two.sourceDocumentId, {
         requestKey: randomUUID(), expectedRepresentationId: two.sourceRepresentationRevisionId,

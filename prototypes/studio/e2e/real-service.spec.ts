@@ -327,7 +327,7 @@ test('interactive and batch extraction reach kei with their priorities and deadl
     await completedExtraction(page, interactive)
     const scheduled = await page.request.post('/api/batch-extractions', { headers, data: {
       projectContextId: project, schemaRevisionId: revision, strategy: 'ARTICLE',
-      sourceDocumentIds: [sourceDocumentId], force: true,
+      sourceDocumentIds: [sourceDocumentId], force: true, method: { models: null, settings: { article: null } },
     } })
     expect(scheduled.status(), await scheduled.text()).toBe(202)
     const batchId = (await scheduled.json()).batchExtraction.batchExtractionId as string

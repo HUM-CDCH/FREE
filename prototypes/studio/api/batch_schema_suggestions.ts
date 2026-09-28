@@ -14,6 +14,7 @@ import {
 import { parseSchemaDefinition } from 'extraction/schema'
 import {
   ApiError,
+  boundedValidationDetails,
   json,
   noStore,
   noStoreError,
@@ -22,8 +23,6 @@ import {
 } from './_http.js'
 import { validateEditableSuggestion } from './_batch_schema_suggestions.js'
 import { createResearcherExtractions } from './_extractions.js'
-import type { ExtractionHandlerDependencies } from './extractions.js'
-import { configuredExtractionModels } from './_model_config.js'
 
 const ROUTE = '/api/batch-schema-suggestions'
 const ITEM_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)$/
@@ -81,11 +80,9 @@ function suggestionDto(suggestion: BatchSchemaSuggestionRecord) {
  */
 export function createResearcherApiHandlers(
   store: ResearcherProjectStore,
-  dependencies: ExtractionHandlerDependencies = {},
 ): Readonly<
   Record<string, (request: Request) => Response | Promise<Response>>
 > {
-  const extractionModels = dependencies.extractionModels ?? (() => configuredExtractionModels(store.researcherAccountId))
   const extractionModule = createResearcherExtractions(
     store.researcherAccountId,
   )
@@ -200,21 +197,29 @@ export function createResearcherApiHandlers(
       await parseJsonRequest(request),
     )
     if (!parsed.success)
-      throw new ApiError(
-        422,
-        'invalid_request',
-        'The Batch Extraction strategy is invalid.',
-      )
+      throw new ApiError(422, 'invalid_request', 'The Batch Extraction strategy is invalid.', {
+        details: boundedValidationDetails('request', parsed.error.issues.map((issue) => ({
+          path: issue.path.map(String).join('.'),
+          message: issue.message,
+        }))),
+      })
     const projectContextId = projectId(url)
-    const models = await extractionModels()
+    // Admission compares the submitted method with the account's saved one; this handler never reads the account.
     try {
       await extractionModule.scheduleSuggestedBatch({
-        models,
         projectContextId,
         batchSchemaSuggestionId: id,
         strategy: parsed.data.strategy,
+        method: parsed.data.method,
       })
     } catch (error) {
+      // Admission's method refusals answer as a single start's do.
+      if (error instanceof ExtractionError && error.code === 'method_changed')
+        throw new ApiError(409, 'method_changed', error.message, { cause: error })
+      if (error instanceof ExtractionError && (error.code === 'invalid_identity_fields' || error.code === 'invalid_request'))
+        throw new ApiError(422, error.code, error.message, { cause: error })
+      if (error instanceof ExtractionError && error.code === 'invalid_model_config')
+        throw new ApiError(500, 'invalid_model_config', 'The saved model configuration is invalid.', { cause: error })
       if (error instanceof ExtractionError && error.code === 'not_found')
         throw new ApiError(
           404,

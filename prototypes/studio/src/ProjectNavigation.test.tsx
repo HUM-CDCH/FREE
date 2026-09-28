@@ -20,6 +20,26 @@ import {
   ProjectRoutes,
 } from './ProjectNavigation.tsx'
 
+// The Extractions tab reads the signed-in account's saved method, which no project scopes; routing keeps every
+// service default.
+const saved = vi.hoisted(() => ({
+  state: {
+    status: 'ready' as const,
+    config: {
+      connections: [],
+      routes: { schemaSuggestion: null, interaction: null },
+      extractionModels: {},
+      ingestionModels: {},
+      extractionSettings: {},
+    },
+  },
+  refresh: vi.fn(),
+}))
+vi.mock('./savedMethod', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./savedMethod')>()),
+  useSavedMethod: () => saved,
+}))
+
 vi.mock('./App', () => ({
   default: ({
     pdfUrl,

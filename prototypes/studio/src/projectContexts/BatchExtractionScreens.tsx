@@ -245,6 +245,7 @@ export function BatchExtractionMembers({
   hasSuccessfulResult,
   coverageMessage,
   opening,
+  canRunAgain,
   documentName,
   onExport,
   onRetrySchema,
@@ -258,6 +259,8 @@ export function BatchExtractionMembers({
   hasSuccessfulResult: boolean
   coverageMessage: string | null
   opening: boolean
+  /** Run again submits the account's saved method, so it waits until that has been read. */
+  canRunAgain: boolean
   documentName(sourceDocumentId: string): string
   onExport(format: ExportFormat, choices: ExportChoices): Promise<void>
   onRetrySchema(): void
@@ -301,7 +304,7 @@ export function BatchExtractionMembers({
           <Button
             size="sm"
             variant="secondary"
-            disabled={opening}
+            disabled={opening || !canRunAgain}
             onClick={onRunAgain}
           >
             <RerunIcon />

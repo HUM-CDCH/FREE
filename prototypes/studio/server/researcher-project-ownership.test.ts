@@ -734,9 +734,6 @@ function researcherModule(factory: ResearcherApiHandlerFactory) {
   return { createResearcherApiHandlers: factory }
 }
 
-
-const defaultExtractionModels = async () => null
-
 function ownershipRegistry(fixture: TwoAccountStores) {
   return createApiHandlerRegistry({
     '../api/project_contexts.ts': researcherModule((store) => ({
@@ -801,13 +798,8 @@ function ownershipRegistry(fixture: TwoAccountStores) {
       createDocumentReopenHandlers,
     ),
     '../api/extractions.ts': researcherModule(createExtractionHandlers),
-    // Every account runs on kei-exp's default models; the process configuration store is never read.
-    '../api/batch_extractions.ts': researcherModule((store) =>
-      createBatchExtractionHandlers(store, { extractionModels: defaultExtractionModels }),
-    ),
-    '../api/batch_schema_suggestions.ts': researcherModule((store) =>
-      createBatchSuggestionHandlers(store, { extractionModels: defaultExtractionModels }),
-    ),
+    '../api/batch_extractions.ts': researcherModule(createBatchExtractionHandlers),
+    '../api/batch_schema_suggestions.ts': researcherModule(createBatchSuggestionHandlers),
   })
 }
 
@@ -1385,6 +1377,7 @@ describe('two-account reopen, extraction, result, review, and batch isolation', 
             schemaRevisionId,
             strategy: 'ARTICLE',
             sourceDocumentIds,
+            method: { models: null, settings: { article: null } },
           }),
         ),
         forbiddenB,
@@ -1466,7 +1459,7 @@ describe('two-account reopen, extraction, result, review, and batch isolation', 
         fixture,
         ids.accountA,
         `/api/batch-schema-suggestions/${ids.batchSuggestionB}/run?projectContextId=${ids.projectA}`,
-        jsonRequest('POST', { strategy: 'ARTICLE' }),
+        jsonRequest('POST', { strategy: 'ARTICLE', method: { models: null, settings: { article: null } } }),
       ),
       forbiddenB,
     )

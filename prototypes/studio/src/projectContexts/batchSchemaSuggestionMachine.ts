@@ -1,4 +1,5 @@
 import { assign, fromPromise, setup } from 'xstate'
+import type { ExtractionMethodIntent } from 'extraction/extraction-method'
 import type { SchemaDefinition } from 'extraction/schema'
 import type { BatchSchemaSuggestion } from '../../shared/batchSchemaSuggestion.contract'
 import type { ExtractionStrategy } from '../../shared/extraction.contract'
@@ -14,6 +15,7 @@ export type BatchSchemaSuggestionOperations = {
   run(
     batchSchemaSuggestionId: string,
     strategy: ExtractionStrategy,
+    method: ExtractionMethodIntent,
   ): Promise<BatchSchemaSuggestion>
   isConflict(error: unknown): boolean
   failureMessage(error: unknown, fallback: string): string
@@ -40,7 +42,7 @@ type Event =
   | { type: 'proposal.changed'; definition: SchemaDefinition }
   | { type: 'proposal.recovered'; definition: SchemaDefinition }
   | { type: 'draft.flush' }
-  | { type: 'run.requested'; strategy: ExtractionStrategy }
+  | { type: 'run.requested'; strategy: ExtractionStrategy; method: ExtractionMethodIntent }
   | { type: 'reset' }
 
 const createSuggestion = fromPromise<
@@ -69,8 +71,9 @@ const runSuggestion = fromPromise<
   Pick<Context, 'run'> & {
     batchSchemaSuggestionId: string
     strategy: ExtractionStrategy
+    method: ExtractionMethodIntent
   }
->(({ input }) => input.run(input.batchSchemaSuggestionId, input.strategy))
+>(({ input }) => input.run(input.batchSchemaSuggestionId, input.strategy, input.method))
 
 function suggestionOutput(event: object): BatchSchemaSuggestion | null {
   if (!('output' in event)) return null
@@ -492,6 +495,8 @@ export const batchSchemaSuggestionMachine = setup({
           batchSchemaSuggestionId: context.suggestion!.batchSchemaSuggestionId,
           strategy:
             event.type === 'run.requested' ? event.strategy : 'ARTICLE',
+          method:
+            event.type === 'run.requested' ? event.method : { models: null, settings: { article: null } },
         }),
         onDone: {
           target: 'confirmed',

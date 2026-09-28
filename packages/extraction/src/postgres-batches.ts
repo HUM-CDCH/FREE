@@ -4,6 +4,7 @@
  */
 
 import type { Database, DatabaseOrm, WorkflowStatuses } from 'db'
+import { modelChoice, storedSettings, type ActiveSettings } from './extraction-method.js'
 import {
   decodeReviewedValue,
   deriveAttempts,
@@ -16,6 +17,7 @@ import type {
   BatchExtractionResults,
   BatchExtractionSnapshot,
   ExtractionFailure,
+  ExtractionModelChoice,
   ExtractionStrategy,
   ProjectOperationStatus,
   ReadBatchInput,
@@ -40,6 +42,10 @@ export type DurableBatchExtraction = Readonly<{
   extractionSchemaName: string
   schemaRevisionNumber: number
   strategy: ExtractionStrategy
+  /** The batch's one admitted method, which every member was admitted with; null for a batch admitted before
+   *  methods were recorded. */
+  requestedModels: ExtractionModelChoice | null
+  requestedSettings: ActiveSettings | null
   executionStatus: ProjectOperationStatus
   createdAt: Date
   members: readonly BatchMember[]
@@ -80,7 +86,7 @@ export async function loadBatches(
   if (batchExtractionIds.length === 0) return []
   const batches = await orm.public.BatchExtraction.where((batch) => batch.id.in([...batchExtractionIds]))
     .where({ projectContextId })
-    .select('id', 'schemaRevisionId', 'strategy', 'createdAt')
+    .select('id', 'schemaRevisionId', 'strategy', 'requestedModels', 'requestedSettings', 'createdAt')
     .all()
   if (batches.length === 0) return []
   const memberIds = await orm.public.Extraction.where((row) => row.batchExtractionId.in(batches.map((batch) => batch.id)))
@@ -136,6 +142,9 @@ export async function loadBatches(
       extractionSchemaName: owner.name,
       schemaRevisionNumber: schema.revisionNumber,
       strategy: batch.strategy as ExtractionStrategy,
+      requestedModels: modelChoice(batch.requestedModels),
+      // A batch has no recipe: its members pin none.
+      requestedSettings: storedSettings(batch.requestedSettings, batch.strategy as ExtractionStrategy, null),
       executionStatus,
       createdAt: batch.createdAt,
       members,

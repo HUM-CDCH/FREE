@@ -7,9 +7,14 @@ import {
   type Database,
 } from 'db'
 import type { ExtractionExecution } from './dependencies.js'
-import { modelChoice } from './extraction-method.js'
+import { canonicalIntent } from './extraction-method.js'
 import { ExtractionError } from './errors.js'
-import type { AdmitBatchMember } from './postgres-admission.js'
+import {
+  METHOD_CHANGED_MESSAGE,
+  type AdmitBatchMember,
+  type refuseUnusableIdentityFields,
+  type savedMethodStillCurrent,
+} from './postgres-admission.js'
 import type { DurableBatchExtraction } from './postgres-batches.js'
 import { parseBatchSuggestionDefinition } from './schema.js'
 import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
@@ -45,7 +50,9 @@ export function semanticSuggestionTree(tree: unknown): unknown {
  * Extraction per saved pin and each member's `runExtraction` workflow commit together on one pooled client. The members
  * keep the revisions saved with the suggestion, without a document lock: its fields were derived from those pins
  * (PR #140's documented exemption). Run needs a valid draft, at least one surviving member and no active attempt
- * (spec, *suggestSchemaBatch*), checked under the suggestion's row lock.
+ * (spec, *suggestSchemaBatch*), checked under the suggestion's row lock. A fresh handoff compares the researcher's saved
+ * method under the account configuration's lock and pins it once on the batch and every member; a confirmed one
+ * replays unchanged.
  */
 export async function persistSuggestedBatch(
   database: Database,
@@ -54,6 +61,8 @@ export async function persistSuggestedBatch(
   helpers: Readonly<{
     execution: ExtractionExecution
     admitBatchMember: AdmitBatchMember
+    savedMethodStillCurrent: typeof savedMethodStillCurrent
+    refuseUnusableIdentityFields: typeof refuseUnusableIdentityFields
     /** `created`: the handoff committed just now, so its members answer as just admitted, not from DBOS. */
     loadBatch: (
       orm: Database['orm'],
@@ -68,7 +77,10 @@ export async function persistSuggestedBatch(
   }>,
 ): Promise<ScheduleBatchResult | null> {
   const { execution, admitBatchMember, loadBatch, replayed, semanticSuggestionTree, snapshot } = helpers
-  let status: 'created' | 'replayed' | 'missing' | 'not-ready' | 'invalid'
+  // A malformed intent is refused before any lock. A batch has no recipe, so Catalog uses the generic settings.
+  const method = canonicalIntent(input.method, input.strategy, null)
+  if (method === null) throw new ExtractionError('invalid_request', 'The saved method does not fit this Extraction Strategy.')
+  let status: 'created' | 'replayed' | 'missing' | 'not-ready' | 'invalid' | 'method-changed'
   try {
     status = await withPoolClientTransaction(async ({ orm }, client) => {
       // Suggestion admission and source deletion lock the project before suggestions. Keep that order here.
@@ -136,6 +148,10 @@ export async function persistSuggestedBatch(
         if (!revision) return 'invalid' as const
         pinned.push({ ...member, preprocessId: revision.preprocessId })
       }
+      // A confirmed suggestion replayed above; a fresh handoff admits only the method the researcher saw.
+      if (!(await helpers.savedMethodStillCurrent(client, researcherAccountId, input.strategy, null, method)))
+        return 'method-changed' as const
+      helpers.refuseUnusableIdentityFields(method.settings, draft)
       const extractionSchemaId = stableUuid(
         'confirmed-batch-schema-suggestion',
         `${input.batchSchemaSuggestionId}:${stableJson(
@@ -174,8 +190,9 @@ export async function persistSuggestedBatch(
         projectContextId: input.projectContextId,
         schemaRevisionId,
         strategy: input.strategy,
+        requestedModels: method.models,
+        requestedSettings: method.settings,
       })
-      const requestedModels = modelChoice(input.models)
       for (const member of pinned)
         await admitBatchMember(orm, client, execution, {
           owner: researcherAccountId,
@@ -183,7 +200,8 @@ export async function persistSuggestedBatch(
           extractionSchemaId,
           schemaRevisionId,
           strategy: input.strategy,
-          requestedModels,
+          requestedModels: method.models,
+          requestedSettings: method.settings,
           batchExtractionId,
           ...member,
         })
@@ -197,6 +215,7 @@ export async function persistSuggestedBatch(
     status = 'replayed'
   }
   if (status === 'missing') return null
+  if (status === 'method-changed') throw new ExtractionError('method_changed', METHOD_CHANGED_MESSAGE)
   if (status === 'not-ready' || status === 'invalid')
     throw new ExtractionError(
       'batch_not_ready',

@@ -1,5 +1,6 @@
 import { createActor } from 'xstate'
 import { describe, expect, it, vi } from 'vitest'
+import type { ExtractionMethodIntent } from 'extraction/extraction-method'
 import type { SchemaDefinition } from 'extraction/schema'
 import type { BatchSchemaSuggestion } from '../../shared/batchSchemaSuggestion.contract'
 import {
@@ -11,6 +12,8 @@ const firstDefinition: SchemaDefinition = {
   recordDescription: 'One place.',
   schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
 }
+/** The saved method a Run submits: the start view's, handed to `run` as it was requested. */
+const method: ExtractionMethodIntent = { models: { fields: 'instruct' }, settings: { article: null } }
 const secondDefinition: SchemaDefinition = {
   recordDescription: 'One place and year.',
   schemaNodes: [
@@ -167,13 +170,13 @@ describe('batchSchemaSuggestionMachine', () => {
       suggestion: failed,
     })
     expect(actor.getSnapshot().matches({ drafting: 'clean' })).toBe(true)
-    expect(actor.getSnapshot().can({ type: 'run.requested', strategy: 'ARTICLE' })).toBe(true)
+    expect(actor.getSnapshot().can({ type: 'run.requested', strategy: 'ARTICLE', method })).toBe(true)
     expect(actor.getSnapshot().can({ type: 'suggestion.retry' })).toBe(true)
 
     actor.send({ type: 'suggestion.updated', suggestion: { ...failed, attempt: 3, executionStatus: 'RUNNING', failure: null } })
     expect(actor.getSnapshot().matches('suggesting')).toBe(true)
     expect(actor.getSnapshot().context.draft).toEqual(firstDefinition)
-    expect(actor.getSnapshot().can({ type: 'run.requested', strategy: 'ARTICLE' })).toBe(false)
+    expect(actor.getSnapshot().can({ type: 'run.requested', strategy: 'ARTICLE', method })).toBe(false)
     expect(actor.getSnapshot().can({ type: 'proposal.changed', definition: secondDefinition })).toBe(false)
     actor.stop()
   })
@@ -253,8 +256,8 @@ describe('batchSchemaSuggestionMachine', () => {
     await vi.waitFor(() =>
       expect(actor.getSnapshot().matches({ drafting: 'saveFailed' })).toBe(true),
     )
-    expect(actor.getSnapshot().can({ type: 'run.requested', strategy: 'ARTICLE' })).toBe(false)
-    actor.send({ type: 'run.requested', strategy: 'ARTICLE' })
+    expect(actor.getSnapshot().can({ type: 'run.requested', strategy: 'ARTICLE', method })).toBe(false)
+    actor.send({ type: 'run.requested', strategy: 'ARTICLE', method })
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(onRun).not.toHaveBeenCalled()
     expect(save).toHaveBeenCalledTimes(1)
@@ -264,8 +267,8 @@ describe('batchSchemaSuggestionMachine', () => {
     await vi.waitFor(() =>
       expect(actor.getSnapshot().matches({ drafting: 'clean' })).toBe(true),
     )
-    expect(actor.getSnapshot().can({ type: 'run.requested', strategy: 'ARTICLE' })).toBe(true)
-    actor.send({ type: 'run.requested', strategy: 'ARTICLE' })
+    expect(actor.getSnapshot().can({ type: 'run.requested', strategy: 'ARTICLE', method })).toBe(true)
+    actor.send({ type: 'run.requested', strategy: 'ARTICLE', method })
     await vi.waitFor(() => expect(onRun).toHaveBeenCalledTimes(1))
     expect(save).toHaveBeenCalledTimes(2)
     expect(actor.getSnapshot().matches('confirmed')).toBe(true)
@@ -290,14 +293,15 @@ describe('batchSchemaSuggestionMachine', () => {
       suggestion: ready(),
     })
 
-    actor.send({ type: 'run.requested', strategy: 'ARTICLE' })
+    actor.send({ type: 'run.requested', strategy: 'ARTICLE', method })
     await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(1))
+    expect(run).toHaveBeenCalledWith(ready().batchSchemaSuggestionId, 'ARTICLE', method)
     await vi.waitFor(() =>
       expect(actor.getSnapshot().matches({ drafting: 'clean' })).toBe(true),
     )
-    expect(actor.getSnapshot().can({ type: 'run.requested', strategy: 'ARTICLE' })).toBe(true)
+    expect(actor.getSnapshot().can({ type: 'run.requested', strategy: 'ARTICLE', method })).toBe(true)
 
-    actor.send({ type: 'run.requested', strategy: 'ARTICLE' })
+    actor.send({ type: 'run.requested', strategy: 'ARTICLE', method })
     await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(2))
     await vi.waitFor(() => expect(onRun).toHaveBeenCalledTimes(1))
     expect(actor.getSnapshot().matches('confirmed')).toBe(true)

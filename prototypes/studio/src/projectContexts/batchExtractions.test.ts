@@ -85,9 +85,11 @@ describe('Batch Schema Suggestion requests', () => {
     expect(bodies.at(-1)).toEqual({ expectedAttempt: 1 })
   })
 
-  it('running a suggestion starts no Studio model work and sends no keys', async () => {
-    await runBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId, 'ARTICLE')
+  it('running a suggestion starts no Studio model work, sends no keys, and submits the saved method', async () => {
+    const method = { models: { fields: 'instruct' }, settings: { generic: null } }
+    await runBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId, 'CATALOG', method)
 
     expect(requests).toEqual([`POST /api/batch-schema-suggestions/${batchSchemaSuggestionId}/run`])
+    expect(bodies.at(-1)).toEqual({ strategy: 'CATALOG', method })
   })
 })

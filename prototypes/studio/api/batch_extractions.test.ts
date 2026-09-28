@@ -16,12 +16,6 @@ vi.mock('./_extractions.js', () => ({
   createResearcherExtractions: runtime.createResearcherExtractions,
 }))
 
-const modelConfig = vi.hoisted(() => ({ configuredExtractionModels: vi.fn() }))
-vi.mock('./_model_config.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./_model_config.js')>()),
-  configuredExtractionModels: modelConfig.configuredExtractionModels,
-}))
-
 const ACCOUNT = '51000000-0000-4000-8009-000000000001'
 const PROJECT = '51000000-0000-4000-8000-000000000001'
 const BATCH = '51000000-0000-4000-8007-000000000001'
@@ -90,11 +84,9 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
   }
   return module
 }
-function handlerFor(module: ExtractionModule, configured: { fields?: string; reasoning?: string } | null = null) {
+function handlerFor(module: ExtractionModule) {
   runtime.createResearcherExtractions.mockReturnValue(module)
-  return createResearcherApiHandlers({
-    researcherAccountId: ACCOUNT,
-  } as ResearcherProjectStore, { extractionModels: async () => configured }).POST
+  return createResearcherApiHandlers({ researcherAccountId: ACCOUNT } as ResearcherProjectStore).POST
 }
 
 const open = (body: unknown) =>
@@ -109,6 +101,7 @@ const selection = {
   schemaRevisionId: REVISION,
   strategy: 'ARTICLE',
   sourceDocumentIds: [DOCUMENT],
+  method: { models: null, settings: { article: null } },
 }
 
 describe('/api/batch-extractions transport', () => {
@@ -120,7 +113,6 @@ describe('/api/batch-extractions transport', () => {
     expect(reusable.status).toBe(202)
     expect(module.scheduleBatch).toHaveBeenCalledWith({
       ...selection,
-      models: null,
       repetition: 'reuse-equal-selection',
     })
     expect(await reusable.json()).toMatchObject({
@@ -131,36 +123,59 @@ describe('/api/batch-extractions transport', () => {
     await handle(open({ ...selection, force: true }))
     expect(module.scheduleBatch).toHaveBeenLastCalledWith({
       ...selection,
-      models: null,
       repetition: 'create-new',
     })
 
-    const catalog = await handle(open({ ...selection, strategy: 'CATALOG' }))
+    const generic = { models: null, settings: { generic: null } }
+    const catalog = await handle(open({ ...selection, strategy: 'CATALOG', method: generic }))
     expect(catalog.status).toBe(202)
     expect(module.scheduleBatch).toHaveBeenLastCalledWith({
       ...selection,
       strategy: 'CATALOG',
-      models: null,
+      method: generic,
       repetition: 'reuse-equal-selection',
     })
   })
 
-  it('schedules every member on the configured Extraction Model Choice', async () => {
+  it('hands the submitted method to admission unchanged; the handler never reads the account', async () => {
     const module = extractionModule()
-    const response = await handlerFor(module, { fields: 'instruct' })(open(selection))
-    expect(response.status).toBe(202)
-    expect(module.scheduleBatch).toHaveBeenCalledWith(expect.objectContaining({ models: { fields: 'instruct' } }))
+    const article = { context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
+      prompt: 'schema', grounding: 'spans', grounding_schedule: 'unresolved', evidence_policy: 'schema' }
+    const method = { models: { fields: 'instruct' }, settings: { article } }
+    expect((await handlerFor(module)(open({ ...selection, method }))).status).toBe(202)
+    expect(module.scheduleBatch).toHaveBeenCalledWith(expect.objectContaining({ method }))
   })
 
-  it("reads the account's configured Extraction Model Choice by default", async () => {
-    const module = extractionModule()
-    runtime.createResearcherExtractions.mockReturnValue(module)
-    modelConfig.configuredExtractionModels.mockResolvedValueOnce({ reasoning: 'instruct' })
-    const post = createResearcherApiHandlers({ researcherAccountId: ACCOUNT } as ResearcherProjectStore).POST
+  it.each([
+    ['method_changed', 409],
+    ['invalid_identity_fields', 422],
+    ['invalid_model_config', 500],
+  ] as const)('answers %s with %i', async (code, status) => {
+    const module = extractionModule({
+      scheduleBatch: vi.fn<ExtractionModule['scheduleBatch']>().mockRejectedValue(new ExtractionError(code, 'Refused for a reason the researcher can read.')),
+    })
+    const response = await handlerFor(module)(open(selection))
+    expect(response.status).toBe(status)
+    expect(await response.json()).toMatchObject({ error: { code } })
+  })
 
-    expect((await post(open(selection))).status).toBe(202)
-    expect(modelConfig.configuredExtractionModels).toHaveBeenCalledWith(ACCOUNT)
-    expect(module.scheduleBatch).toHaveBeenCalledWith(expect.objectContaining({ models: { reasoning: 'instruct' } }))
+  it("refuses a request without the method, with a recipe's settings, or breaking a method rule, before admission", async () => {
+    const module = extractionModule()
+    const handle = handlerFor(module)
+    const missing: Partial<typeof selection> = { ...selection }
+    delete missing.method
+    expect((await handle(open(missing))).status).toBe(422)
+    // A batch has no recipe, so recipe settings fit neither strategy.
+    for (const strategy of ['ARTICLE', 'CATALOG'])
+      expect((await handle(open({ ...selection, strategy, method: { models: null, settings: { recipe: null } } }))).status).toBe(422)
+    const article = { context: 'full', context_tokens: 12288, overlap_passages: 1, identity: 'reference', identity_fields: [],
+      prompt: 'reference', grounding: 'semantic' }
+    const broken = await handle(open({ ...selection, method: { models: null, settings: { article } } }))
+    expect(broken.status).toBe(422)
+    expect((await broken.json()).error.details.issues).toContainEqual({
+      path: 'method.settings.article.overlap_passages', message: 'This choice requires bounded source units.',
+    })
+    expect(module.scheduleBatch).not.toHaveBeenCalled()
   })
 
   it('lists, reads, and exports through caller-shaped module methods', async () => {

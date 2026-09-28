@@ -19,6 +19,7 @@ import {
   type BatchSchemaSuggestion,
   type BatchSchemaSuggestionFailure,
 } from '../../shared/batchSchemaSuggestion.contract'
+import type { ExtractionMethodIntent } from 'extraction/extraction-method'
 import type { SchemaDefinition } from 'extraction/schema'
 import type { ExtractionStrategy } from '../../shared/extraction.contract'
 import { isRecord } from '../../shared/template'
@@ -69,7 +70,9 @@ export async function listBatchExtractions(
 /**
  * Opens one Batch Extraction over the researcher's selection. The server owns
  * its identity and replays an equal selection unless `force` is explicit, and
- * says which of the two it did through `disposition`.
+ * says which of the two it did through `disposition`. `method` is the saved
+ * method the start view showed; the server refuses it if an Apply changed it
+ * since.
  */
 export async function openBatchExtraction(
   request: {
@@ -78,6 +81,7 @@ export async function openBatchExtraction(
     strategy: ExtractionStrategy
     sourceDocumentIds: readonly string[]
     force?: boolean
+    method: ExtractionMethodIntent
   },
   signal?: AbortSignal,
 ): Promise<ReturnType<typeof batchExtractionOpenResponseSchema.parse>> {
@@ -175,10 +179,12 @@ export async function updateBatchSchemaSuggestionDraft(
   ).batchSchemaSuggestion
 }
 
+/** Runs the suggestion's draft as a Batch Extraction on the saved method the start view showed. */
 export async function runBatchSchemaSuggestion(
   projectContextId: string,
   batchSchemaSuggestionId: string,
   strategy: ExtractionStrategy,
+  method: ExtractionMethodIntent,
   signal?: AbortSignal,
 ): Promise<BatchSchemaSuggestion> {
   const query = new URLSearchParams({ projectContextId })
@@ -186,7 +192,7 @@ export async function runBatchSchemaSuggestion(
     await read(`/api/batch-schema-suggestions/${batchSchemaSuggestionId}/run?${query}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify(batchSchemaSuggestionRunRequestSchema.parse({ strategy })),
+      body: JSON.stringify(batchSchemaSuggestionRunRequestSchema.parse({ strategy, method })),
       signal,
     }),
   ).batchSchemaSuggestion

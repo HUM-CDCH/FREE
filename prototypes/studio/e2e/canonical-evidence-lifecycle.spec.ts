@@ -794,6 +794,7 @@ test(`real ${strategy} lifecycle persists review, exports its reviewed result, a
       strategy,
       sourceDocumentIds: [otherSourceDocumentId],
       force: true,
+      method: savedMethod,
     },
   })
   expect(batchResponse.status()).toBe(202)

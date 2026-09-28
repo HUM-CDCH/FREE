@@ -5,7 +5,6 @@ import { ApiError } from './_http.js'
 import { createModelKeyCache, type ModelKeyCache } from './_model_keys.js'
 import {
   EMPTY_MODEL_CONFIG,
-  configuredExtractionModels,
   configuredIngestionModels,
   readAccountModelConfig,
   validateModelConfig,
@@ -101,16 +100,6 @@ describe('model configuration storage', () => {
     })
     expect(text).not.toContain('sk-test-stored-garbage')
     expect(store.documents.get(ACCOUNT)).toEqual(hostile)
-  })
-
-  it("configuredExtractionModels reads the given account's choice", async () => {
-    const store = inMemoryModelConfigurations({
-      [ACCOUNT]: configured({ extractionModels: { fields: 'nuextract', reasoning: 'instruct' } }),
-      [OTHER_ACCOUNT]: configured({ extractionModels: {} }),
-    })
-
-    await expect(configuredExtractionModels(ACCOUNT, store)).resolves.toEqual({ fields: 'nuextract', reasoning: 'instruct' })
-    await expect(configuredExtractionModels(OTHER_ACCOUNT, store)).resolves.toBeNull()
   })
 
   it("configuredIngestionModels answers the owner's saved roles and null for an unchosen one", async () => {

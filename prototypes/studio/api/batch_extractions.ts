@@ -16,6 +16,7 @@ import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
 import {
   ApiError,
   boundedLimit,
+  boundedValidationDetails,
   json,
   noStore,
   noStoreError,
@@ -23,8 +24,6 @@ import {
   persistenceUnavailable,
 } from './_http.js'
 import { createResearcherExtractions } from './_extractions.js'
-import type { ExtractionHandlerDependencies } from './extractions.js'
-import { configuredExtractionModels } from './_model_config.js'
 
 const COLLECTION_ROUTE = '/api/batch-extractions'
 const ITEM_ROUTE = /^\/api\/batch-extractions\/([0-9a-f-]+)$/
@@ -67,11 +66,9 @@ function unavailableUnlessNotFound(error: unknown, message: string): never {
 /** The HTTP boundary schedules durable work; it never waits for model execution. */
 export function createResearcherApiHandlers(
   store: ResearcherProjectStore,
-  dependencies: ExtractionHandlerDependencies = {},
 ): Readonly<
   Record<string, (request: Request) => Response | Promise<Response>>
 > {
-  const extractionModels = dependencies.extractionModels ?? (() => configuredExtractionModels(store.researcherAccountId))
   const extractionModule = createResearcherExtractions(
     store.researcherAccountId,
   )
@@ -80,21 +77,29 @@ export function createResearcherApiHandlers(
       await parseJsonRequest(request),
     )
     if (!parsed.success)
-      throw new ApiError(
-        422,
-        'invalid_request',
-        'The Batch Extraction request is invalid.',
-      )
-    const { force, ...selection } = parsed.data
-    const models = await extractionModels()
+      throw new ApiError(422, 'invalid_request', 'The Batch Extraction request is invalid.', {
+        details: boundedValidationDetails('request', parsed.error.issues.map((issue) => ({
+          path: issue.path.map(String).join('.'),
+          message: issue.message,
+        }))),
+      })
+    const { force, method, ...selection } = parsed.data
+    // Admission compares the submitted method with the account's saved one; this handler never reads the account.
     let opened: ScheduleBatchResult
     try {
       opened = await extractionModule.scheduleBatch({
-        models,
         ...selection,
+        method,
         repetition: force ? 'create-new' : 'reuse-equal-selection',
       })
     } catch (error) {
+      // Admission's method refusals answer as a single start's do.
+      if (error instanceof ExtractionError && error.code === 'method_changed')
+        throw new ApiError(409, 'method_changed', error.message, { cause: error })
+      if (error instanceof ExtractionError && (error.code === 'invalid_identity_fields' || error.code === 'invalid_request'))
+        throw new ApiError(422, error.code, error.message, { cause: error })
+      if (error instanceof ExtractionError && error.code === 'invalid_model_config')
+        throw new ApiError(500, 'invalid_model_config', 'The saved model configuration is invalid.', { cause: error })
       if (
         error instanceof ExtractionError &&
         (error.code === 'invalid_extraction_pins' ||

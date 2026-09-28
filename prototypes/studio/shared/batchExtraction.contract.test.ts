@@ -5,10 +5,14 @@ import {
   batchExtractionRequestSchema,
   batchExtractionSchema,
 } from './batchExtraction.contract.js'
-import { batchSchemaSuggestionCreateRequestSchema } from './batchSchemaSuggestion.contract.js'
+import {
+  batchSchemaSuggestionCreateRequestSchema,
+  batchSchemaSuggestionRunRequestSchema,
+} from './batchSchemaSuggestion.contract.js'
 
 const projectContextId = '51000000-0000-4000-8000-000000000001'
 const schemaRevisionId = '51000000-0000-4000-8004-000000000001'
+const method = { models: null, settings: { article: null } }
 const sourceDocumentIds = Array.from(
   { length: BATCH_EXTRACTION_SELECTION_LIMIT + 1 },
   (_, index) =>
@@ -32,6 +36,7 @@ describe('Batch selection contracts', () => {
         schemaRevisionId,
         strategy: 'ARTICLE',
         sourceDocumentIds: selected,
+        method,
       }).success,
     ).toBe(true)
     expect(
@@ -53,6 +58,7 @@ describe('Batch selection contracts', () => {
           schemaRevisionId,
           strategy: 'ARTICLE',
           sourceDocumentIds: sourceDocumentSelection,
+          method,
         }).success,
       ).toBe(false)
       expect(
@@ -62,6 +68,37 @@ describe('Batch selection contracts', () => {
         }).success,
       ).toBe(false)
     }
+  })
+})
+
+describe('Batch start methods', () => {
+  const selection = { projectContextId, schemaRevisionId, sourceDocumentIds: sourceDocumentIds.slice(0, 1) }
+
+  it("requires the saved method of the strategy's own settings, never a recipe's", () => {
+    for (const [strategy, settings] of [['ARTICLE', { article: null }], ['CATALOG', { generic: null }]] as const) {
+      const request = { strategy, method: { models: { fields: 'instruct' }, settings } }
+      expect(batchExtractionRequestSchema.safeParse({ ...selection, ...request }).success).toBe(true)
+      expect(batchSchemaSuggestionRunRequestSchema.safeParse(request).success).toBe(true)
+    }
+    for (const request of [
+      { strategy: 'ARTICLE' },
+      { strategy: 'ARTICLE', method: { models: null, settings: { generic: null } } },
+      { strategy: 'ARTICLE', method: { models: null, settings: { recipe: null } } },
+      { strategy: 'CATALOG', method: { models: null, settings: { recipe: null } } },
+    ]) {
+      expect(batchExtractionRequestSchema.safeParse({ ...selection, ...request }).success).toBe(false)
+      expect(batchSchemaSuggestionRunRequestSchema.safeParse(request).success).toBe(false)
+    }
+  })
+
+  it('refuses a method that breaks a rule at the field it concerns', () => {
+    const article = { context: 'full', context_tokens: 12288, overlap_passages: 1, identity: 'reference', identity_fields: [],
+      prompt: 'reference', grounding: 'semantic' }
+    const parsed = batchSchemaSuggestionRunRequestSchema.safeParse({ strategy: 'ARTICLE', method: { models: null, settings: { article } } })
+    expect(parsed.success).toBe(false)
+    expect(parsed.error?.issues).toContainEqual(expect.objectContaining({
+      path: ['method', 'settings', 'article', 'overlap_passages'], message: 'This choice requires bounded source units.',
+    }))
   })
 })
 

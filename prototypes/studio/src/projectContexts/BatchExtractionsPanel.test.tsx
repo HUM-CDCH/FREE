@@ -21,6 +21,27 @@ import {
 } from '../auth/authenticatedFetch'
 import { setModelKeyAccount } from '../modelKeys/modelKeyHandoff'
 import { saveModelKey } from '../modelKeys/modelKeyStore'
+import type { SavedMethodState } from '../savedMethod'
+import type { ModelConfig } from '../../shared/modelConfig.contract'
+
+// The account keeps every service default unless a test saves otherwise: each start then submits
+// `{ models: null, settings: { <its slot>: null } }`.
+const saved = vi.hoisted(() => {
+  const config = (members: Partial<ModelConfig> = {}): ModelConfig => ({
+    connections: [],
+    routes: { schemaSuggestion: null, interaction: null },
+    extractionModels: {},
+    ingestionModels: {},
+    extractionSettings: {},
+    ...members,
+  })
+  return { config, state: { status: 'ready', config: config() } as SavedMethodState, refresh: vi.fn() }
+})
+vi.mock('../savedMethod', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../savedMethod')>()),
+  useSavedMethod: () => saved,
+}))
+const SERVICE_DEFAULTS = { models: null, settings: { article: null } }
 
 vi.mock('extraction-result-export', async (importOriginal) => ({
   ...(await importOriginal<typeof import('extraction-result-export')>()),
@@ -179,6 +200,7 @@ function renderPanel(
 
 afterEach(() => {
   cleanup()
+  saved.state = { status: 'ready', config: saved.config() }
   vi.useRealTimers()
   vi.unstubAllGlobals()
   setModelKeyAccount(null)
@@ -741,6 +763,14 @@ describe('BatchExtractionsPanel', () => {
       },
     )
     vi.stubGlobal('fetch', fetch)
+    // Saved Article settings are the other strategy's: a Catalog batch submits only its generic limits.
+    saved.state = {
+      status: 'ready',
+      config: saved.config({
+        extractionModels: { fields: 'instruct' },
+        extractionSettings: { catalog: { generic: { record_chars: 30_000 } } },
+      }),
+    }
     renderPanel()
 
     fireEvent.click(
@@ -768,8 +798,62 @@ describe('BatchExtractionsPanel', () => {
       ),
     )
     expect(body).toEqual(
-      expect.objectContaining({ strategy: 'CATALOG', schemaRevisionId }),
+      expect.objectContaining({
+        strategy: 'CATALOG',
+        schemaRevisionId,
+        method: { models: { fields: 'instruct' }, settings: { generic: { record_chars: 30_000 } } },
+      }),
     )
+  })
+
+  it('starts nothing until the saved method is read: Run and Run again wait for it', async () => {
+    const posted: string[] = []
+    const fetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (init?.method === 'POST') posted.push(url)
+        if (url.startsWith('/api/batch-extractions?'))
+          return response({ batchExtractions: [batch] })
+        if (url.startsWith('/api/batch-schema-suggestions?'))
+          return response({ batchSchemaSuggestions: [] })
+        if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`))
+          return response({ revision: null })
+        if (url.startsWith('/api/extraction-schemas?'))
+          return response({
+            extractionSchemas: [
+              {
+                extractionSchemaId: batch.extractionSchemaId,
+                name: 'Places',
+                createdAt: '2026-08-14T10:00:00.000Z',
+                currentRevision: {
+                  schemaRevisionId,
+                  revisionNumber: 1,
+                  origin: 'researcher-edit',
+                  createdAt: '2026-08-14T10:00:00.000Z',
+                },
+              },
+            ],
+          })
+        throw new Error(`Unexpected request: ${url}`)
+      },
+    )
+    vi.stubGlobal('fetch', fetch)
+    saved.state = { status: 'loading' }
+    renderPanel(vi.fn(), batchExtractionId)
+
+    expect(await screen.findByRole('button', { name: 'Run again' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: /Back to history/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'New Batch Extraction' }))
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
+    await waitFor(() => expect(screen.getByLabelText('Extraction Schema')).toHaveValue(schemaRevisionId))
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    expect(screen.getByRole('button', { name: 'Run 1 Source Document' })).toBeDisabled()
+
+    // Once it is read, a selection can start.
+    saved.state = { status: 'ready', config: saved.config() }
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    expect(screen.getByRole('button', { name: 'Run 2 Source Documents' })).toBeEnabled()
+    expect(posted).toEqual([])
   })
 
   it('keeps an opened batch when the initial history read resolves later', async () => {
@@ -1292,6 +1376,7 @@ describe('BatchExtractionsPanel', () => {
       strategy: 'ARTICLE',
       sourceDocumentIds: [failedDocumentId, cancelledDocumentId],
       force: true,
+      method: SERVICE_DEFAULTS,
     })
   })
 
@@ -1975,6 +2060,8 @@ describe('BatchExtractionsPanel', () => {
         ) && init?.method === 'POST',
     )
     expect(run?.[1]?.signal).toBeUndefined()
+    // The suggestion runs on the saved method the start view read.
+    expect(JSON.parse(String(run?.[1]?.body))).toEqual({ strategy: 'ARTICLE', method: SERVICE_DEFAULTS })
   })
 
   it('exports the whole Batch Extraction through its pinned Schema Revision', async () => {

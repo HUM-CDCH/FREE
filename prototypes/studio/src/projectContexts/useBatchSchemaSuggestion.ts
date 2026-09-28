@@ -38,11 +38,12 @@ export function useBatchSchemaSuggestion({
           definition,
           suggestion.draftVersion,
         ),
-      run: (batchSchemaSuggestionId, strategy) =>
+      run: (batchSchemaSuggestionId, strategy, method) =>
         runBatchSchemaSuggestion(
           projectContextId,
           batchSchemaSuggestionId,
           strategy,
+          method,
         ),
       // Another tab saved the draft, or regenerated the suggestion since this page read it: reload it first.
       isConflict: (error) =>

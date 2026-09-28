@@ -1,9 +1,11 @@
 import { z } from 'zod'
+import { extractionMethodIntentSchema } from 'extraction/extraction-method'
 import {
   BATCH_EXTRACTION_SELECTION_LIMIT,
+  batchMethodFitsStrategy,
   projectOperationStatusSchema,
 } from './batchExtraction.contract.js'
-import { extractionStrategySchema } from './extraction.contract.js'
+import { extractionStrategySchema, methodRuleIssues } from './extraction.contract.js'
 import { canonicalUuidSchema } from './projectContext.contract.js'
 import { schemaDefinitionSchema } from 'extraction/schema'
 
@@ -29,9 +31,15 @@ export const batchSchemaSuggestionDraftRequestSchema = z
   })
   .strict()
 
+/** Run carries the saved method the start view showed, as a Batch Extraction request does. */
 export const batchSchemaSuggestionRunRequestSchema = z
-  .object({ strategy: extractionStrategySchema })
+  .object({ strategy: extractionStrategySchema, method: extractionMethodIntentSchema })
   .strict()
+  .refine(batchMethodFitsStrategy, {
+    path: ['method', 'settings'],
+    message: 'The saved settings do not match this Extraction Strategy.',
+  })
+  .superRefine(methodRuleIssues)
 
 /** A retry names the attempt it follows, so a repeated POST replays its successor instead of starting another. */
 export const batchSchemaSuggestionRetryRequestSchema = z
@@ -103,6 +111,9 @@ export const batchSchemaSuggestionErrorSchema = z
       'draft_conflict',
       'operation_not_ready',
       'attempt_conflict',
+      'method_changed',
+      'invalid_identity_fields',
+      'invalid_model_config',
     ]),
     message: z.string(),
   })

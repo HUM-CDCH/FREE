@@ -92,15 +92,23 @@ export const JUST_ADMITTED: WorkflowStatuses = async (workflowIds) => new Map(wo
 function canonicalIds(ids: readonly string[]): string[] {
   return [...new Set(ids)].sort((left, right) => left.localeCompare(right))
 }
-function selectionId(input: ScheduleBatchInput): string {
-  const models = modelChoice(input.models)
+function batchMethod(input: Pick<ScheduleBatchInput, 'strategy' | 'method'>): ExtractionMethodIntent {
+  // A batch has no recipe (admitBatchMember pins none), so Catalog batches use the generic Catalog settings.
+  const method = canonicalIntent(input.method, input.strategy, null)
+  if (method === null) throw new ExtractionError('invalid_request', 'The saved method does not fit this Extraction Strategy.')
+  return method
+}
+
+function selectionId(input: ScheduleBatchInput, method: ExtractionMethodIntent): string {
   const hash = createHash('sha256')
     .update(JSON.stringify([
       input.projectContextId,
       input.schemaRevisionId,
       input.strategy,
       canonicalIds(input.sourceDocumentIds),
-      ...(models === null ? [] : [models]),
+      // The active method in its canonical form: an equal selection with another method is another batch, and
+      // settings for the other strategy never enter it.
+      method,
     ]))
     .digest('hex')
   const variant = (['8', '9', 'a', 'b'] as const)[parseInt(hash[16]!, 16) & 3]
@@ -288,7 +296,8 @@ export const SUGGESTED_BATCH_KEYS = [
  * Admits a Batch Extraction: the batch, one pending Extraction per selected Source Document (deterministic IDs) and
  * every member's `runExtraction` workflow commit together on one pooled client. Each member pins its document's
  * current revision under the document's row lock, taken in sorted order so batches and reprocesses never deadlock
- * (PR #140).
+ * (PR #140). The researcher's saved method is compared under the account configuration's lock after those, and pinned
+ * once on the batch and every member.
  */
 export async function admitBatchExtraction(
   database: Database,
@@ -296,11 +305,38 @@ export async function admitBatchExtraction(
   researcherAccountId: string,
   input: ScheduleBatchInput,
 ): Promise<ScheduleBatchResult | null> {
+  const method = batchMethod(input)
   const batchExtractionId =
-    input.repetition === 'create-new' ? randomUUID() : selectionId(input)
-  const requestedModels = modelChoice(input.models)
+    input.repetition === 'create-new' ? randomUUID() : selectionId(input, method)
+  const selected = canonicalIds(input.sourceDocumentIds)
+  /** An equal selection committed first: it answers this request when it is this selection with this method. */
+  const replayedBatch = async (error?: unknown): Promise<ScheduleBatchResult> => {
+    const batch = await readBatchForResearcher(
+      database,
+      researcherAccountId,
+      input.projectContextId,
+      batchExtractionId,
+      execution.statuses,
+    )
+    if (
+      !batch ||
+      batch.schemaRevisionId !== input.schemaRevisionId ||
+      batch.strategy !== input.strategy ||
+      !isDeepStrictEqual(batch.requestedModels, method.models) ||
+      !isDeepStrictEqual(batch.requestedSettings, method.settings) ||
+      batch.members.length !== selected.length ||
+      !batch.members.every((member, index) => member.sourceDocumentId === selected[index])
+    )
+      throw new ExtractionError(
+        'batch_conflict',
+        'The Batch Extraction identity belongs to another selection.',
+        { cause: error },
+      )
+    return { disposition: 'replayed', batch: snapshot(batch) }
+  }
+  let opened: 'created' | 'existing' | 'missing' | 'invalid' | 'method-changed'
   try {
-    const opened = await withPoolClientTransaction(async (transaction, client) => {
+    opened = await withPoolClientTransaction(async (transaction, client) => {
       const { orm } = transaction
       if (
         !(await orm.public.ProjectContext.select('id').first({
@@ -315,9 +351,13 @@ export async function admitBatchExtraction(
         new Set(input.sourceDocumentIds).size !== input.sourceDocumentIds.length
       )
         return 'invalid' as const
+      // An equal selection already admitted replays before today's settings are consulted (design §7).
+      if (await orm.public.BatchExtraction.select('id').first({ id: batchExtractionId }))
+        return 'existing' as const
       const schema =
         await orm.public.SchemaRevision.select(
           'extractionSchemaId',
+          'schemaTree',
         ).first({ id: input.schemaRevisionId })
       const owner = schema
         ? await orm.public.ExtractionSchema.select(
@@ -344,9 +384,7 @@ export async function admitBatchExtraction(
         preprocessId: string
       }> = []
       // canonicalIds' sorted order is the deadlock guard: batches sharing members lock alike.
-      for (const sourceDocumentId of canonicalIds(
-        input.sourceDocumentIds,
-      )) {
+      for (const sourceDocumentId of selected) {
         if (
           !(await orm.public.SourceDocument.select('id').first({
             id: sourceDocumentId,
@@ -370,11 +408,17 @@ export async function admitBatchExtraction(
           preprocessId: representation.preprocessId,
         })
       }
+      // Every Source Document row is locked (sorted) before the configuration row, as in single admission.
+      if (!(await savedMethodStillCurrent(client, researcherAccountId, input.strategy, null, method)))
+        return 'method-changed' as const
+      refuseUnusableIdentityFields(method.settings, schema.schemaTree)
       await orm.public.BatchExtraction.create({
         id: batchExtractionId,
         projectContextId: input.projectContextId,
         schemaRevisionId: input.schemaRevisionId,
         strategy: input.strategy,
+        requestedModels: method.models,
+        requestedSettings: method.settings,
       })
       for (const member of members)
         await admitBatchMember(orm, client, execution, {
@@ -383,57 +427,36 @@ export async function admitBatchExtraction(
           extractionSchemaId: schema.extractionSchemaId,
           schemaRevisionId: input.schemaRevisionId,
           strategy: input.strategy,
-          requestedModels,
+          requestedModels: method.models,
+          requestedSettings: method.settings,
           batchExtractionId,
           ...member,
         })
       return 'created' as const
     })
-    if (opened === 'missing') return null
-    if (opened === 'invalid')
-      throw new ExtractionError(
-        'invalid_extraction_pins',
-        'Use the Current Schema Revision and Source Documents in this Project Context with a Source Representation.',
-      )
-    const batch = await readBatchForResearcher(
-      database,
-      researcherAccountId,
-      input.projectContextId,
-      batchExtractionId,
-      JUST_ADMITTED,
-    )
-    if (!batch)
-      throw new Error('Persisted Batch Extraction could not be read.')
-    return { disposition: 'created', batch: snapshot(batch) }
   } catch (error) {
-    // The batch's primary key: an equal selection committed first. Its member rows are compared with this request.
+    // The batch's primary key: an equal selection committed first. Its pins and method are compared with this request.
     if (!isUniqueViolation(error, BATCH_KEY) && !workflowIdInUse(error)) throw error
-    const batch = await readBatchForResearcher(
-      database,
-      researcherAccountId,
-      input.projectContextId,
-      batchExtractionId,
-      execution.statuses,
-    )
-    const selected = canonicalIds(input.sourceDocumentIds)
-    if (
-      !batch ||
-      batch.schemaRevisionId !== input.schemaRevisionId ||
-      batch.strategy !== input.strategy ||
-      batch.members.length !== selected.length ||
-      !batch.members.every(
-        (member, index) =>
-          member.sourceDocumentId === selected[index] &&
-          isDeepStrictEqual(modelChoice(member.extraction.requestedModels), requestedModels),
-      )
-    )
-      throw new ExtractionError(
-        'batch_conflict',
-        'The Batch Extraction identity belongs to another selection.',
-        { cause: error },
-      )
-    return { disposition: 'replayed', batch: snapshot(batch) }
+    return replayedBatch(error)
   }
+  if (opened === 'missing') return null
+  if (opened === 'invalid')
+    throw new ExtractionError(
+      'invalid_extraction_pins',
+      'Use the Current Schema Revision and Source Documents in this Project Context with a Source Representation.',
+    )
+  if (opened === 'method-changed') throw new ExtractionError('method_changed', METHOD_CHANGED_MESSAGE)
+  if (opened === 'existing') return replayedBatch()
+  const batch = await readBatchForResearcher(
+    database,
+    researcherAccountId,
+    input.projectContextId,
+    batchExtractionId,
+    JUST_ADMITTED,
+  )
+  if (!batch)
+    throw new Error('Persisted Batch Extraction could not be read.')
+  return { disposition: 'created', batch: snapshot(batch) }
 }
 
 export type BatchMemberAdmission = Readonly<{
@@ -443,6 +466,8 @@ export type BatchMemberAdmission = Readonly<{
   schemaRevisionId: string
   strategy: ExtractionStrategy
   requestedModels: ExtractionModelChoice | null
+  /** The batch's settings, pinned on every member alike. */
+  requestedSettings: ActiveSettings
   batchExtractionId: string
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
@@ -465,6 +490,7 @@ export async function admitBatchMember(
     strategy: member.strategy,
     catalogRecipe: null,
     requestedModels: member.requestedModels,
+    requestedSettings: member.requestedSettings,
     batchExtractionId: member.batchExtractionId,
   })
   await execution.enqueue(client, {

@@ -78,7 +78,7 @@ it('projects only the active review revision into batch results after reset', as
     const scheduled = await module.scheduleBatch({
       projectContextId: project.projectContextId, schemaRevisionId: project.schemaRevisionId,
       strategy: 'ARTICLE', sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId),
-      repetition: 'create-new',
+      repetition: 'create-new', method: { models: null, settings: { article: null } },
     })
     const batch = await waitForBatch(module, project.projectContextId, scheduled.batch.batchExtractionId,
       (batch) => batch.executionStatus === 'COMPLETED')

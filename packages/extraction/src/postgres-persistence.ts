@@ -18,6 +18,8 @@ import {
   admitInteractiveExtraction,
   JUST_ADMITTED,
   METHOD_CHANGED_MESSAGE,
+  refuseUnusableIdentityFields,
+  savedMethodStillCurrent,
   SUGGESTED_BATCH_KEYS,
 } from './postgres-admission.js'
 import {
@@ -240,6 +242,8 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
       {
         execution: this.execution,
         admitBatchMember,
+        savedMethodStillCurrent,
+        refuseUnusableIdentityFields,
         loadBatch: (orm, projectContextId, batchExtractionId, created) =>
           loadBatch(orm, created ? JUST_ADMITTED : this.execution.statuses, projectContextId, batchExtractionId),
         replayed: (error) => SUGGESTED_BATCH_KEYS.some((key) => isUniqueViolation(error, key)),

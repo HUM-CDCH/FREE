@@ -34,6 +34,7 @@ import {
   useSchemaEditorController,
 } from '../useCurrentSchemaRevision'
 import type { AcknowledgedSchemaRevision } from '../schemaSaveCoordinator'
+import { savedMethodFor, useSavedMethod } from '../savedMethod'
 import {
   getBatchExtractionResults,
   listBatchExtractions,
@@ -158,6 +159,8 @@ export default function BatchExtractionsPanel({
   const [finishedBatchReport, setFinishedBatchReport] =
     useState<BatchExtraction | null>(null)
   const [openingBatch, setOpeningBatch] = useState(false)
+  // The account's saved method: a start submits what it saw, and admission refuses it if an Apply changed it since.
+  const saved = useSavedMethod()
   const [runFailure, setRunFailure] = useState<string | null>(null)
   // A replayed selection reopens a Batch Extraction the researcher already has,
   // which is indistinguishable from nothing happening unless it is said.
@@ -585,7 +588,8 @@ export default function BatchExtractionsPanel({
   }
 
   const openExistingSchemaBatch = async () => {
-    if (opening.current) return
+    if (opening.current || saved.state.status !== 'ready') return
+    const method = savedMethodFor(saved.state.config, batchStrategy, null)
     opening.current = true
     setOpeningBatch(true)
     setRunFailure(null)
@@ -597,6 +601,7 @@ export default function BatchExtractionsPanel({
         schemaRevisionId: savedRevision?.schemaRevisionId ?? schemaRevisionId,
         strategy: batchStrategy,
         sourceDocumentIds: [...selected],
+        method,
       }
       acceptOpenedBatch(await openBatchExtraction(request))
     } catch (error) {
@@ -615,7 +620,9 @@ export default function BatchExtractionsPanel({
    * Batch Extraction over the same Source Documents rather than an overwrite.
    */
   const runOpenBatchAgain = async (batch: BatchExtraction) => {
-    if (opening.current) return
+    if (opening.current || saved.state.status !== 'ready') return
+    // A fresh run of the stored selection: its strategy, with today's saved method.
+    const method = savedMethodFor(saved.state.config, batch.strategy, null)
     opening.current = true
     setOpeningBatch(true)
     setRunFailure(null)
@@ -630,6 +637,7 @@ export default function BatchExtractionsPanel({
           (member) => member.sourceDocumentId,
         ),
         force: true,
+        method,
       })
       recordBatch(opened.batchExtraction)
       setSelected(new Set())
@@ -647,9 +655,13 @@ export default function BatchExtractionsPanel({
   const openNewBatch = () => {
     setRunFailure(null)
     setRunNotice(null)
-    if (!canRun) return
+    if (!canRun || saved.state.status !== 'ready') return
     if (schemaRevisionId === SUGGEST_SCHEMA) {
-      sendSuggestion({ type: 'run.requested', strategy: batchStrategy })
+      sendSuggestion({
+        type: 'run.requested',
+        strategy: batchStrategy,
+        method: savedMethodFor(saved.state.config, batchStrategy, null),
+      })
       return
     }
     void openExistingSchemaBatch()
@@ -705,12 +717,17 @@ export default function BatchExtractionsPanel({
   const canRun =
     validSelection &&
     !openingAnyBatch &&
+    saved.state.status === 'ready' &&
     (schemaRevisionId === SUGGEST_SCHEMA
       ? confirmedSuggestion === null &&
         // Pins cascade with their Source Documents: a draft whose members were all deleted has nothing to run on.
         suggestionHasMembers &&
         suggestedFields?.status === 'ready' &&
-        suggestion.can({ type: 'run.requested', strategy: batchStrategy }) &&
+        suggestion.can({
+          type: 'run.requested',
+          strategy: batchStrategy,
+          method: savedMethodFor(saved.state.config, batchStrategy, null),
+        }) &&
         !suggestionHasPendingLocalEdit &&
         runnableSuggestionDefinition(suggestion.context.draft)
       : schemaRevisionId.length > 0)
@@ -1161,6 +1178,7 @@ export default function BatchExtractionsPanel({
                 : null
             }
             opening={openingAnyBatch}
+            canRunAgain={saved.state.status === 'ready'}
             documentName={documentName}
             onExport={exportOpenBatch}
             onRetrySchema={() =>

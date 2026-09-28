@@ -6,7 +6,6 @@ import {
   modelConfigSchema,
   modelConfigUpdateSchema,
   modelProbeRequestSchema,
-  type ExtractionModelChoice,
   type ModelConfig,
   type ModelConfigUpdate,
   type ModelConnection,
@@ -210,15 +209,6 @@ export async function applyAccountModelConfig(
   // A removed or re-addressed connection's cached key goes now; a call already under way finishes.
   ;(options.keys ?? studioProcess.keys).retain(options.researcherAccountId, config.connections)
   return config
-}
-
-/** The configured Extraction Model Choice, or `null` when every role keeps kei-exp's default. */
-export async function configuredExtractionModels(
-  researcherAccountId: string,
-  source: ModelConfigurationStore = modelConfigurations(),
-): Promise<ExtractionModelChoice | null> {
-  const { extractionModels } = await readAccountModelConfig(researcherAccountId, source)
-  return extractionModels.fields || extractionModels.reasoning ? extractionModels : null
 }
 
 /** The owner's Ingestion Model Choice per role, null where the role keeps kei's default. Admission freezes it into an

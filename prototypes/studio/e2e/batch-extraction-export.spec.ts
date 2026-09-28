@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
 import { strFromU8, unzipSync } from 'fflate'
 import type { BatchExtractionSnapshot, ExtractionModule } from 'extraction'
+import type { ExtractionMethodIntent } from 'extraction/extraction-method'
 import {
   emptyProjectContextActivitySummary,
   type ResearcherProjectStore,
@@ -139,6 +140,7 @@ function createBatchFixtureHandler(
         strategy: 'ARTICLE'
         sourceDocumentIds: string[]
         force?: boolean
+        method: ExtractionMethodIntent
       }
       const { force, ...selection } = input
       const opened = await extractions.scheduleBatch({

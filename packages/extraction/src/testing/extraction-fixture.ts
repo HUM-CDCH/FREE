@@ -37,7 +37,7 @@ export type SeededDocument = {
   storedPackage: StoredPackage
   filename: string
 }
-type SeededProject = {
+export type SeededProject = {
   researcherAccountId: string
   projectContextId: string
   extractionSchemaId: string

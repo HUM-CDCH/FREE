@@ -3,7 +3,6 @@
 import type { ResearcherProjectStore } from 'db'
 import { ExtractionError } from 'extraction'
 import {
-  type ExtractionModelChoice,
   extractionReadResponseSchema,
   extractionRequestSchema,
   finalizeExtractionReviewSchema,
@@ -23,11 +22,6 @@ import {
   createResearcherExtractions,
   extractionAttemptDto,
 } from './_extractions.js'
-
-export type ExtractionHandlerDependencies = {
-  /** The deployment-wide Extraction Model Choice a fresh run is requested on. */
-  readonly extractionModels?: () => Promise<ExtractionModelChoice | null>
-}
 
 const COLLECTION_ROUTE = '/api/extractions'
 const ITEM_ROUTE = /^\/api\/extractions\/([0-9a-f-]+)$/

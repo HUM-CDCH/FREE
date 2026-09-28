@@ -224,6 +224,7 @@ it('an Extraction deleted while it runs publishes nothing and fails no surviving
       strategy: 'ARTICLE',
       sourceDocumentIds: [deleted.sourceDocumentId, kept.sourceDocumentId],
       repetition: 'create-new',
+      method: { models: null, settings: { article: null } },
     })
     const batchExtractionId = scheduled.batch.batchExtractionId
     const memberOf = (document: SeededDocument) =>

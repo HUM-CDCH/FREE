@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { BATCH_EXTRACTION_SELECTION_LIMIT } from 'extraction/batch'
+import { extractionMethodIntentSchema, settingsSlot } from 'extraction/extraction-method'
 import { canonicalUuidSchema } from './projectContext.contract.js'
-import { extractionStrategySchema } from './extraction.contract.js'
+import { extractionStrategySchema, methodRuleIssues } from './extraction.contract.js'
 
 export { BATCH_EXTRACTION_SELECTION_LIMIT }
 
@@ -29,8 +30,23 @@ export const batchExtractionRequestSchema = z
       .min(1)
       .max(BATCH_EXTRACTION_SELECTION_LIMIT)
       .refine((ids) => new Set(ids).size === ids.length),
+    /** The saved method the start view showed. A batch has no recipe: Article or generic Catalog settings. */
+    method: extractionMethodIntentSchema,
   })
   .strict()
+  .refine(batchMethodFitsStrategy, {
+    path: ['method', 'settings'],
+    message: 'The saved settings do not match this Extraction Strategy.',
+  })
+  .superRefine(methodRuleIssues)
+
+/** A batch has no recipe, so its settings are the Article ones or the generic Catalog ones. */
+export function batchMethodFitsStrategy(request: {
+  strategy: z.output<typeof extractionStrategySchema>
+  method: z.output<typeof extractionMethodIntentSchema>
+}): boolean {
+  return settingsSlot(request.strategy, null) in request.method.settings
+}
 
 export type BatchExtractionRequest = z.infer<typeof batchExtractionRequestSchema>
 

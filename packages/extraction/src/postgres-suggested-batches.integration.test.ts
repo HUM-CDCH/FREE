@@ -3,8 +3,13 @@ import { strToU8 } from 'fflate'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { describe, it } from 'node:test'
+import { ExtractionError } from './errors.js'
+import { REFERENCE_ARTICLE, type ExtractionMethodIntent } from './extraction-method.js'
 import { createExtractionModule } from './module.js'
-import { fixture } from './testing/extraction-fixture.js'
+import { fixture, type SeededProject } from './testing/extraction-fixture.js'
+
+/** What a start view submits for an account that keeps every service default. */
+const SERVICE_DEFAULTS: ExtractionMethodIntent = { models: null, settings: { article: null } }
 
 describe('Extraction suggested-batches on disposable PostgreSQL', { skip: !fixture && 'set EXTRACTION_TEST_DATABASE_URL (or DATABASE_URL) to a migrated disposable free_test_* database' }, () => {
   if (!fixture) return
@@ -12,7 +17,7 @@ describe('Extraction suggested-batches on disposable PostgreSQL', { skip: !fixtu
     sha256, ARTICLE_SCHEMA, db, stableJson, stableUuid,
     createResearcherProjectStore, createResearcherExtractionPersistence, packages, kei, app,
     execution, seedProject, addRepresentation, scheduler, rejectsWithCode,
-    succeeded, cleanup,
+    succeeded, cleanup, configureAccount,
   } = fixture
 
   it('a ready suggestion hands its saved pins to one replayable batch of pending member Extractions', async (t) => {
@@ -44,11 +49,13 @@ describe('Extraction suggested-batches on disposable PostgreSQL', { skip: !fixtu
     // The suggestion's saved revisions are kept even after a reprocess (PR #140's documented exemption).
     await addRepresentation(project.documents[0]!, 'one-v2.pdf')
 
+    const models = { reasoning: 'instruct', fields: 'nuextract' }
+    await configureAccount(project.researcherAccountId, { extractionModels: models })
     const request = {
       projectContextId: project.projectContextId,
       batchSchemaSuggestionId,
       strategy: 'ARTICLE' as const,
-      models: { reasoning: 'instruct', fields: 'nuextract' },
+      method: { models, settings: { article: null } },
     }
     const handoffs = await Promise.all([
       module.scheduleSuggestedBatch(request),
@@ -79,7 +86,7 @@ describe('Extraction suggested-batches on disposable PostgreSQL', { skip: !fixtu
     assert.equal(rows.length, project.documents.length)
     for (const row of rows) {
       assert.equal(row.id, stableUuid('batch-member-extraction', stableJson([batchExtractionId, row.sourceDocumentId])))
-      assert.deepEqual(row.requestedModels, request.models)
+      assert.deepEqual(row.requestedModels, models)
       assert.equal(row.outcome, null)
     }
     const workflows = () => app.admission.listWorkflows({ workflowIDs: rows.map((row) => `extract:${row.id}`) })
@@ -150,6 +157,7 @@ it('rejects invalid stored suggestion drafts inside the atomic batch transaction
           projectContextId: project.projectContextId,
           batchSchemaSuggestionId,
           strategy: 'ARTICLE',
+          method: SERVICE_DEFAULTS,
         }),
         rejectsWithCode('batch_not_ready'),
       )
@@ -210,7 +218,9 @@ it('Run requires a valid draft, a surviving member and no active attempt', async
       return batchSchemaSuggestionId
     }
     const run = (batchSchemaSuggestionId: string) =>
-      module.scheduleSuggestedBatch({ projectContextId: project.projectContextId, batchSchemaSuggestionId, strategy: 'ARTICLE' })
+      module.scheduleSuggestedBatch({
+        projectContextId: project.projectContextId, batchSchemaSuggestionId, strategy: 'ARTICLE', method: SERVICE_DEFAULTS,
+      })
     const unconfirmed = async (batchSchemaSuggestionId: string) =>
       assert.deepEqual(
         await db.orm.public.BatchSchemaSuggestion.select('confirmedSchemaRevisionId', 'batchExtractionId')
@@ -255,5 +265,101 @@ it('Run requires a valid draft, a surviving member and no active attempt', async
     assert.deepEqual(await projectStore.retryBatchSchemaSuggestion(project.projectContextId, removable, 1), { status: 'not-ready' })
     assert.deepEqual((await db.orm.public.BatchSchemaSuggestion.select('draft', 'draftVersion').first({ id: removable })),
       { draft: ARTICLE_SCHEMA, draftVersion: 1 })
+  })
+
+  const SPANS = {
+    context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
+    prompt: 'schema', grounding: 'spans', grounding_schedule: 'unresolved', evidence_policy: 'schema',
+  } as const
+  const QUOTES = { ...SPANS, grounding: 'quoted' } as const
+  const intent = (article: unknown) => ({ models: null, settings: { article } }) as never
+
+  /** A suggestion whose saved `draft` is ready to run over every document of `project`. */
+  async function readySuggestion(project: SeededProject, draft: unknown = ARTICLE_SCHEMA): Promise<string> {
+    const batchSchemaSuggestionId = randomUUID()
+    await db.orm.public.BatchSchemaSuggestion.create({
+      id: batchSchemaSuggestionId,
+      projectContextId: project.projectContextId,
+      selectionKey: sha256(strToU8(batchSchemaSuggestionId)),
+    })
+    for (const document of project.documents)
+      await db.orm.public.BatchSchemaSuggestionSource.create({
+        batchSchemaSuggestionId,
+        sourceDocumentId: document.sourceDocumentId,
+        sourceRepresentationRevisionId: document.sourceRepresentationRevisionId,
+      })
+    await db.orm.public.BatchSchemaSuggestion.where({ id: batchSchemaSuggestionId })
+      .update({ outcome: 'SUCCEEDED', phase: 'READY', draft, draftVersion: 1 })
+    return batchSchemaSuggestionId
+  }
+  const confirmation = (batchSchemaSuggestionId: string) =>
+    db.orm.public.BatchSchemaSuggestion.select('confirmedSchemaRevisionId', 'batchExtractionId').first({ id: batchSchemaSuggestionId })
+
+  it('a fresh handoff pins the saved method on the batch and every member', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])
+    kei.holding = true
+    await configureAccount(project.researcherAccountId, { extractionSettings: { article: SPANS } })
+    const batchSchemaSuggestionId = await readySuggestion(project)
+    const handedOff = await scheduler(project.researcherAccountId).scheduleSuggestedBatch({
+      projectContextId: project.projectContextId, batchSchemaSuggestionId, strategy: 'ARTICLE', method: intent(SPANS),
+    })
+    assert.equal(handedOff.disposition, 'created')
+    const batchExtractionId = handedOff.batch.batchExtractionId
+    assert.deepEqual(await db.orm.public.BatchExtraction.select('requestedModels', 'requestedSettings').first({ id: batchExtractionId }),
+      { requestedModels: null, requestedSettings: { article: SPANS } })
+    const members = await db.orm.public.Extraction.where({ batchExtractionId }).select('requestedModels', 'requestedSettings').all()
+    assert.equal(members.length, 2)
+    for (const member of members) assert.deepEqual(member, { requestedModels: null, requestedSettings: { article: SPANS } })
+  })
+
+  it('a stale start view confirms nothing and admits nothing', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf'])
+    await configureAccount(project.researcherAccountId, { extractionSettings: { article: QUOTES } })
+    const batchSchemaSuggestionId = await readySuggestion(project)
+    await assert.rejects(scheduler(project.researcherAccountId).scheduleSuggestedBatch({
+      projectContextId: project.projectContextId, batchSchemaSuggestionId, strategy: 'ARTICLE', method: intent(SPANS),
+    }), rejectsWithCode('method_changed'))
+    assert.deepEqual(await confirmation(batchSchemaSuggestionId), { confirmedSchemaRevisionId: null, batchExtractionId: null })
+    assert.equal((await db.orm.public.BatchExtraction.where({ projectContextId: project.projectContextId }).select('id').all()).length, 0)
+  })
+
+  it('a draft without a declared identity field is refused before anything is confirmed or enqueued', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf'])
+    const declared = { ...REFERENCE_ARTICLE, identity: 'conservative', identity_fields: ['species'] }
+    await configureAccount(project.researcherAccountId, { extractionSettings: { article: declared } })
+    // `species` is only nested in this draft, so it cannot key a record.
+    const batchSchemaSuggestionId = await readySuggestion(project, {
+      recordDescription: 'One find.',
+      schemaNodes: [
+        { id: 'site', name: 'site', type: 'string' },
+        { id: 'finds', name: 'finds', type: 'array', children: [{ id: 'species', name: 'species', type: 'string' }] },
+      ],
+    })
+    await assert.rejects(scheduler(project.researcherAccountId).scheduleSuggestedBatch({
+      projectContextId: project.projectContextId, batchSchemaSuggestionId, strategy: 'ARTICLE', method: intent(declared),
+    }), (error: unknown) => error instanceof ExtractionError && error.code === 'invalid_identity_fields' &&
+      error.message === 'These identity fields are not scalar record fields of the selected Schema Revision: species (not a top-level field).')
+    assert.deepEqual(await confirmation(batchSchemaSuggestionId), { confirmedSchemaRevisionId: null, batchExtractionId: null })
+    assert.equal(kei.submissions.length, 0)
+  })
+
+  it('a repeated handoff replays its batch after the account changes', async (t) => {
+    t.after(cleanup)
+    const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf'])
+    kei.holding = true
+    const module = scheduler(project.researcherAccountId)
+    await configureAccount(project.researcherAccountId, { extractionSettings: { article: SPANS } })
+    const batchSchemaSuggestionId = await readySuggestion(project)
+    const request = { projectContextId: project.projectContextId, batchSchemaSuggestionId, strategy: 'ARTICLE' as const, method: intent(SPANS) }
+    const created = await module.scheduleSuggestedBatch(request)
+    await configureAccount(project.researcherAccountId, { extractionSettings: { article: QUOTES } })
+    const replayed = await module.scheduleSuggestedBatch(request)
+    assert.equal(replayed.disposition, 'replayed')
+    assert.equal(replayed.batch.batchExtractionId, created.batch.batchExtractionId)
+    assert.deepEqual(await db.orm.public.BatchExtraction.select('requestedSettings').first({ id: created.batch.batchExtractionId }),
+      { requestedSettings: { article: SPANS } })
   })
 })
