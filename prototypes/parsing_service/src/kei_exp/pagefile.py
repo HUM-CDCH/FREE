@@ -3,7 +3,7 @@ a consumer needs before it trusts a result directory (canonical evidence design 
 
 A leaf module, so that a reader of the accepted result (the KIE evidence loader, a viewer) can parse and verify the
 files without importing the converter, whose modules load the cut and with it docling. `kei_exp.result` writes
-these models and re-exports them; the names there are unchanged.
+these models.
 
 Coordinate spaces (design §3.1): `*_pt` is the PDF page, top-left, points; a segment's `bbox_px` is the space the
 engine read — the crop image it received, or, for a native page whose engine read the PDF itself, the page's own

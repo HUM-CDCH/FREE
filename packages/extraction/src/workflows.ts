@@ -7,7 +7,7 @@ import {
   EXTRACTION_TIMEOUT_MS, KEI_PRIORITY, KEI_QUEUE, keiExtractOkSchema, keiExtractWorkflowId, keiRunOf, settleKei,
   SUBMIT_TO_KEI_RETRY, type KeiExtractInput, type KeiHandoff, type KeiOutcome, type KeiPoll,
 } from './kei-handoff.js'
-import { modelChoice } from './model-choice.js'
+import { extractionMethod, keiMethodOptions } from './extraction-method.js'
 import { decodePinnedDocument } from './parsed-document.js'
 import { parseExtractionSchema } from './schema.js'
 import type { ExtractionFailure, ExtractionModelChoice, ExtractionStrategy } from './types.js'
@@ -75,18 +75,12 @@ function keiExtractRequest(admitted: AdmittedExtraction): KeiExtractInput | Extr
   // Admission validated the tree; a pinned tree that no longer parses fails this Extraction rather than its workflow.
   try { schema = parseExtractionSchema(admitted.schemaTree) as unknown as Record<string, unknown> }
   catch { return { code: 'invalid_schema_revision', message: 'The pinned Schema Revision is invalid.', phase: 'loading' } }
-  const models = modelChoice(admitted.requestedModels)
-  const recipe = admitted.strategy === 'CATALOG' ? admitted.catalogRecipe : null
   return {
     run_id: run.runId,
     generation: run.generation,
     request: {
       schema,
-      options: {
-        strategy: admitted.strategy === 'CATALOG' ? 'catalog' : 'article',
-        ...(models === null ? {} : { models }),
-        ...(recipe === null ? {} : { catalog: { recipe } }),
-      },
+      options: keiMethodOptions(extractionMethod(admitted.strategy, admitted.catalogRecipe, admitted.requestedModels)),
     },
   }
 }

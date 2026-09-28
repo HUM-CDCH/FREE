@@ -98,12 +98,11 @@ def test_the_crop_data_and_the_transcriber_contract_do_not_import_the_cut_or_the
         assert not violations, f"{path.relative_to(KEI)} depends on the layout detector or the stages: {violations}"
 
 
-# ponytail: two accepted edges still carry the OCR stack into the result and the API. kei_exp.models builds its records
-# from Docling's VLM model specs, whose module loads torch, transformers and cv2; kei_exp._pdfium takes Docling's
-# PDFium lock, which loads the docling package alone (the result reaches it through kei_exp.pages). An edge is a
-# kei_exp module that imports one of the heavy packages, itself or through a third-party module it imports; the
-# probe records every such import during one real import of the target, already-loaded packages included.
-_MODEL_RECORDS = "kei_exp.models"
+# The API and model records import no OCR stack. Result publication still reaches Docling through
+# transcription.specs and _pdfium's shared PDFium lock. Track each allowed importer so a new edge fails,
+# and remove an exception when its dependency disappears. The probe includes third-party imports reached
+# from each kei_exp module and packages already loaded within that fresh interpreter.
+_VLM_SPECS = "kei_exp.transcription.specs"
 _PDFIUM_LOCK = "kei_exp._pdfium"
 
 _PROBE = """
@@ -157,8 +156,9 @@ def _probe(module: str) -> tuple[set[tuple[str | None, str]], list[str]]:
 @pytest.mark.parametrize("module, accepted", [
     ("kei_exp.regions", set()),
     ("kei_exp.transcription.types", set()),
-    ("kei_exp.result", {_MODEL_RECORDS, _PDFIUM_LOCK}),
-    ("kei_exp.api", {_MODEL_RECORDS}),
+    ("kei_exp.result", {_VLM_SPECS, _PDFIUM_LOCK}),
+    ("kei_exp.api", set()),
+    ("kei_exp.models", set()),
 ])
 def test_light_modules_load_the_ocr_stack_only_through_accepted_edges(module, accepted):
     edges, heavy = _probe(module)
@@ -169,3 +169,9 @@ def test_light_modules_load_the_ocr_stack_only_through_accepted_edges(module, ac
         pytest.fail(f"{module} no longer reaches the OCR stack through {edge}: drop it from its accepted edges")
     if not accepted:
         assert heavy == [], f"{module} loads {heavy}"
+
+
+def test_the_ingest_cache_does_not_import_orchestration_or_ocr():
+    forbidden = {"kei_exp.kie.runner", "kei_exp.kie.stages.ocr", "kei_exp.transcription"}
+    violations = _violations(_imports(KIE / "ingest_cache.py", "kei_exp.kie"), forbidden)
+    assert not violations, f"Ingest generation cache depends on orchestration or OCR: {violations}"

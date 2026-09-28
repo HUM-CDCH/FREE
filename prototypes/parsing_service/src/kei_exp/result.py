@@ -20,19 +20,10 @@ from kei_exp.canonical import canonical_json, sha256_file
 from kei_exp.files import publish
 from kei_exp.geometry import CropTransform, PointBox
 from kei_exp.models import MODELS
-from kei_exp.pagefile import (  # noqa: F401  the page-file models keep their names here for their readers
-    RESULT_VERSION,
-    CropResult,
-    PageEntry,
-    PageResult,
-    PageSegment,
-    PixelBox,
-    Result,
-    Unit,
-    result_digest,
-)
+import kei_exp.pagefile as pagefile
 from kei_exp.pages import BookPages, PdfPages
 from kei_exp.regions import Crop
+from kei_exp.transcription.specs import VLM_SPECS
 from kei_exp.transcription.types import TEXT_RULES, Execution, PageRecord, Transcription, html_to_text
 
 
@@ -59,16 +50,17 @@ class Inventory:
 def recipe(execution: Execution, source_sha256: str, ingest_digest: str | None) -> dict:
     """What the run was asked to do, as far as that is known before any work: hashed into the fingerprint."""
     record = MODELS[execution.model] if execution.model else None
+    spec = VLM_SPECS[record.spec_key] if record is not None and record.spec_key is not None else None
     return {
-        "result_version": RESULT_VERSION, "source_sha256": source_sha256, "ingest_digest": ingest_digest,
+        "result_version": pagefile.RESULT_VERSION, "source_sha256": source_sha256, "ingest_digest": ingest_digest,
         "transcriber": execution.transcriber, "model": execution.model, "repo": execution.repo,
         "cut": execution.cut, "crop_dpi": execution.crop_dpi, "layout_model": execution.layout_model,
         "page_source": execution.page_source, "pages_requested": list(execution.pages) if execution.pages else None,
         "max_image_size": execution.max_image_size, "max_output_tokens": execution.max_output_tokens,
         "record": None if record is None else {
             "max_new_tokens": record.max_new_tokens, "context": record.context, "params": record.params,
-            "scale": record.scale, "spec": record.spec.name if record.spec else None,
-            "prompt": record.spec.prompt if record.spec else None,
+            "scale": record.scale, "spec": spec.name if spec else None,
+            "prompt": spec.prompt if spec else None,
         },
         "versions": versions(),
         # Only a transcriber whose text rules have changed names them, so every other recipe stays as it was.
@@ -114,12 +106,12 @@ def _status(block: dict) -> Literal["ok", "error", "skipped"]:
 
 
 def _segments(unit: int, ordinal: int | None, record: PageRecord, transform: CropTransform,
-              to_page: Callable[[PointBox], PointBox], bbox_pt: PointBox) -> list[PageSegment]:
+              to_page: Callable[[PointBox], PointBox], bbox_pt: PointBox) -> list[pagefile.PageSegment]:
     """The segments of one record: the engine's blocks one each (Surya's, or Docling's items on a native page),
     else one coarse segment covering the whole input."""
     blocks = record.payload.get("blocks")
     if blocks is None:
-        return [PageSegment(text=record.text, html=None, markdown=record.markdown, label="text", confidence=None,
+        return [pagefile.PageSegment(text=record.text, html=None, markdown=record.markdown, label="text", confidence=None,
                             status="ok", unit=unit, crop=ordinal, bbox_px=None, bbox_pt=bbox_pt, extent="input")]
     segments = []
     for block in blocks:
@@ -128,7 +120,7 @@ def _segments(unit: int, ordinal: int | None, record: PageRecord, transform: Cro
         if table is not None:
             table = {**table, "cells": [{**cell, "bbox_pt": to_page(transform.to_unit_points(cell["bbox_pt"]))
                                        if cell["bbox_pt"] is not None else None} for cell in table["cells"]]}
-        segments.append(PageSegment(
+        segments.append(pagefile.PageSegment(
             text=html_to_text(block["html"]), html=block["html"], markdown=None,
             label=block["label"], confidence=block.get("confidence"), status=_status(block), unit=unit,
             crop=ordinal, bbox_px=box, bbox_pt=to_page(transform.to_unit_points(box)), extent="block",
@@ -169,7 +161,7 @@ class Source:
 
 def write_result(outcome: Transcription, execution: Execution, inventory: Inventory, source: Source, *,
                  ingest_digest: str | None, directory: Path, started: str | None = None,
-                 seconds: float | None = None) -> Result:
+                 seconds: float | None = None) -> pagefile.Result:
     """Write `result/pages/{page}.json` for every selected page, then `result/result.json`; return the manifest.
 
     Identities come from the inventory, never from the records: a page the cut found nothing on gets a file with
@@ -182,15 +174,15 @@ def write_result(outcome: Transcription, execution: Execution, inventory: Invent
     generation = new_generation()
     records = {record.page: record for record in outcome.pages}  # by ordinal; the converter asserted the shape
     (directory / "pages").mkdir(parents=True, exist_ok=True)
-    entries: dict[int, PageEntry] = {}
+    entries: dict[int, pagefile.PageEntry] = {}
     for number, inputs, markdown in assemble_pages(
             inventory, ((item, records[item.ordinal]) for item in inventory.inputs)):
         size = source.sizes[number]
-        units: list[Unit] = []
-        segments: list[PageSegment] = []
+        units: list[pagefile.Unit] = []
+        segments: list[pagefile.PageSegment] = []
         warnings: list[str] = []
         for index, bbox_pt, to_page in _units(number, inventory, size):
-            crops: list[CropResult] = []
+            crops: list[pagefile.CropResult] = []
             for item, record in inputs:
                 if item.unit != index:
                     continue
@@ -203,7 +195,7 @@ def write_result(outcome: Transcription, execution: Execution, inventory: Invent
                 _, region, image = item.crop
                 assert region.transform is not None  # the cut records every crop's transform
                 crop_bbox = to_page(region.bbox)
-                crops.append(CropResult(
+                crops.append(pagefile.CropResult(
                     crop=item.ordinal, kind=region.kind, order=region.order, bbox_pt=crop_bbox, ink=region.ink,
                     origin_pt=(region.transform.origin_x, region.transform.origin_y),
                     pt_per_px=(region.transform.pt_per_px_x, region.transform.pt_per_px_y),
@@ -212,20 +204,20 @@ def write_result(outcome: Transcription, execution: Execution, inventory: Invent
                     stop=record.stop, capped=record.capped, incomplete=record.incomplete,
                 ))
                 segments += _segments(index, item.ordinal, record, region.transform, to_page, crop_bbox)
-            units.append(Unit(index=index, kind="pdf_page" if index == 0 else "book_page", bbox_pt=bbox_pt, crops=crops))
+            units.append(pagefile.Unit(index=index, kind="pdf_page" if index == 0 else "book_page", bbox_pt=bbox_pt, crops=crops))
         if not inputs:  # only the layout cut leaves a page without an input: it found nothing there
             warnings.append("no content found by the layout cut")
         complete = all(record.incomplete is None for _, record in inputs)
-        page = PageResult(generation=generation, page=number, size_pt=size, units=units, segments=segments,
+        page = pagefile.PageResult(generation=generation, page=number, size_pt=size, units=units, segments=segments,
                           markdown=markdown, complete=complete,
                           warnings=warnings)
         data = (page.model_dump_json(indent=2) + "\n").encode("utf-8")
         with publish(directory / "pages" / f"{number}.json") as part:
             part.write_bytes(data)
-        entries[number] = PageEntry(sha256=hashlib.sha256(data).hexdigest(), complete=complete)
-    result = Result(
-        result_version=RESULT_VERSION, generation=generation,
-        digest=result_digest({number: entry.sha256 for number, entry in entries.items()}),
+        entries[number] = pagefile.PageEntry(sha256=hashlib.sha256(data).hexdigest(), complete=complete)
+    result = pagefile.Result(
+        result_version=pagefile.RESULT_VERSION, generation=generation,
+        digest=pagefile.result_digest({number: entry.sha256 for number, entry in entries.items()}),
         fingerprint=print_, recipe=recipe_, source_name=source.name, page_count=source.page_count,
         effective={"max_size": outcome.header.get("max_size"), "scale": outcome.header.get("scale")},
         started=started, seconds=seconds,

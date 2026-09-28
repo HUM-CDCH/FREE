@@ -11,7 +11,7 @@ import {
   type DatabaseOrm,
 } from 'db'
 import { ExtractionError } from './errors.js'
-import { modelChoice } from './model-choice.js'
+import { modelChoice } from './extraction-method.js'
 import type {
   AdmittedExtraction,
   ExtractionStore,

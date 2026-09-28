@@ -22,10 +22,6 @@ import { modelOperationListingSchema, type ModelOperation } from '../shared/mode
 
 export const API_BASE = '/api'
 
-export type TemplateAnnotation = { text: string; pageNumber: number }
-//
-// export type AnnotationsMode = 'hints' | 'fields'
-
 type TemplateOptions = {
   instruction?: string
 }
@@ -335,21 +331,6 @@ export function saveExtractionReviewDraft(extractionId: string, decisions: reado
   }).catch(() => {})
   return write
 }
-
-// export async function requestMarkdown(
-//   file: Blob,
-//   fileName: string,
-//   signal?: AbortSignal,
-//   markdown?: string | null,
-// ): Promise<MarkdownDone> {
-//   const form = new FormData()
-//   form.append('file', file, fileName)
-//   if (markdown) {
-//     form.append('document_markdown', markdown)
-//   }
-
-//   return postModelForm('/markdown', form, decodeMarkdownDone, signal)
-// }
 
 function decodeSchemaEdit(data: unknown): SchemaEditResponse {
   const parsed = schemaEditResponseSchema.safeParse(data)

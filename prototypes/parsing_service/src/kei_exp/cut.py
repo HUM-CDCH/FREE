@@ -22,7 +22,8 @@ from docling.datamodel.pipeline_options import (
 from docling.document_converter import DocumentConverter, ImageFormatOption
 from PIL import Image
 
-from kei_exp.pages import PageSource, PointBox, RenderablePage
+from kei_exp.geometry import PointBox
+from kei_exp.pages import PageSource, RenderablePage
 from kei_exp.regions import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS, Crop, Region
 
 LAYOUT_DPI = 100          # The layout detector resizes to 640 px; 100 dpi keeps the ink profile usable.

@@ -11,7 +11,7 @@ import {
   type WorkflowStatuses,
 } from 'db'
 import { extractWorkflowId } from './kei-handoff.js'
-import { modelChoice } from './model-choice.js'
+import { modelChoice } from './extraction-method.js'
 import type {
   DocumentExtractionsSnapshot,
   ExtractionAttemptSnapshot,

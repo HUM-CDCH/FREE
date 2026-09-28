@@ -23,6 +23,7 @@ from kei_exp.cut import png_stream
 from kei_exp.models import MODELS, Model
 from kei_exp.progress import Emit
 from kei_exp.regions import Crop, region_info
+from kei_exp.transcription.specs import VLM_SPECS
 from kei_exp.transcription.streaming import StreamingVlmEngine
 from kei_exp.transcription.types import TRANSCRIBER_KNOBS, Execution, PageRecord, Transcription
 
@@ -33,11 +34,11 @@ FENCE = re.compile(r"\A```(?:markdown|md)\r?\n(.*)\r?\n```\Z", re.DOTALL)
 def vlm_options(record: Model, url: str, max_image_size: int,
                 max_output_tokens: int | None = None) -> VlmConvertOptions:
     """Docling's VLM stage options for a record: its spec's prompt and format, vLLM generation params, the caps."""
-    assert record.spec is not None  # Model refuses a vlm record without one
+    assert record.spec_key is not None  # Model refuses a vlm record without one
     engine = ApiVlmEngineOptions(engine_type=VlmEngineType.API, url=AnyUrl(url),
                                  params={"model": record.repo, **record.params}, timeout=600)
-    # Three records share Docling's preset specs and the record keeps its own across calls; copy before editing.
-    options = VlmConvertOptions(model_spec=record.spec.model_copy(), engine_options=engine)
+    # Specs are shared across calls; copy before editing.
+    options = VlmConvertOptions(model_spec=VLM_SPECS[record.spec_key].model_copy(), engine_options=engine)
     if record.max_new_tokens is not None:
         options.model_spec.max_new_tokens = record.max_new_tokens
     if max_output_tokens is not None:

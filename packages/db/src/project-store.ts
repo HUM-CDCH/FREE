@@ -178,10 +178,6 @@ async function ownedSourceRepresentationDescriptor(
   return await transaction.execute(query.build()).first()
 }
 
-export function uniqueConstraint(error: unknown): boolean {
-  return isUniqueViolation(error)
-}
-
 export type ProjectContextSummary = {
   projectContextId: string
   name: string
@@ -351,9 +347,6 @@ export function suggestionAttemptActive(outcome: string | null, status: string |
 
 /** The statuses of attempts admitted just now: each workflow was enqueued in the transaction that committed its row. */
 const JUST_ADMITTED: WorkflowStatuses = async (workflowIds) => new Map(workflowIds.map((id) => [id, 'ENQUEUED']))
-/** Without a DBOS reader an attempt without an outcome counts as running (ResearcherProjectStoreOptions). */
-const ASSUMED_RUNNING: WorkflowStatuses = async (workflowIds) => new Map(workflowIds.map((id) => [id, 'PENDING']))
-
 const suggestionFields = [
   'id',
   'selectionKey',
@@ -786,8 +779,6 @@ export type ResearcherProjectStore = {
 }
 
 export type InternalProjectWorkerStore = {
-  /** Whether any surviving Source Representation Revision pins this package. */
-  isPackageReferenced(artifactReference: string): Promise<boolean>
   /** The Researcher Account that owns the Project Context, or null when it no longer exists. Background model work
    *  resolves the owner's configuration and keys through it. */
   projectContextOwner(projectContextId: string): Promise<string | null>
@@ -956,8 +947,7 @@ async function discardPackagesIfUnreferenced(
 }
 
 export type ResearcherProjectStoreOptions = Readonly<{
-  /** The DBOS status of named workflows (Studio's admission client); without it an unsettled batch member or
-   *  suggestion attempt counts as running. */
+  /** The DBOS status of named workflows (Studio's admission client); required when reading unsettled work. */
   workflowStatuses?: WorkflowStatuses
   /** Enqueues a Batch Schema Suggestion attempt's `suggestSchemaBatch` workflow in its admission transaction (Studio's
    *  admission client); creation and retry require it. */
@@ -969,7 +959,11 @@ export function createResearcherProjectStore(
   database: Database = db,
   options: ResearcherProjectStoreOptions = {},
 ): ResearcherProjectStore {
-  const statuses = options.workflowStatuses ?? ASSUMED_RUNNING
+  const statuses: WorkflowStatuses = (workflowIds) => {
+    if (!options.workflowStatuses)
+      throw new Error('This store cannot read unsettled workflow status: createResearcherProjectStore was given no workflowStatuses.')
+    return options.workflowStatuses(workflowIds)
+  }
   const admitSuggestionAttempt = async (
     client: Parameters<TransactionalEnqueue>[0],
     input: { batchSchemaSuggestionId: string; attempt: number; projectContextId: string; members: readonly SuggestionMember[] },
@@ -1175,10 +1169,10 @@ export function createResearcherProjectStore(
               .select('id', 'batchExtractionId', 'outcome')
               .all()
       const unsettled = members.filter((member) => member.outcome === null)
-      const statuses =
-        unsettled.length === 0 || !options.workflowStatuses
+      const memberStatuses =
+        unsettled.length === 0
           ? null
-          : await options.workflowStatuses(
+          : await statuses(
               // `extract:<id>` is owned by extraction/kei-handoff extractWorkflowId; db sits below extraction.
               unsettled.map((member) => `extract:${member.id}`),
             )
@@ -1282,8 +1276,8 @@ export function createResearcherProjectStore(
         // Settled, or stopped without an outcome: a finished workflow (SUCCESS) wrote one just now or never will.
         // `extract:<id>` is owned by extraction/kei-handoff extractWorkflowId; db sits below extraction.
         const execution =
-          member.outcome === null && statuses
-            ? executionOf(statuses.get(`extract:${member.id}`))
+          member.outcome === null && memberStatuses
+            ? executionOf(memberStatuses.get(`extract:${member.id}`))
             : null
         if (
           member.outcome !== null ||
@@ -1766,7 +1760,7 @@ export function createResearcherProjectStore(
         })
       } catch (error) {
         if (
-          !uniqueConstraint(error) &&
+          !isUniqueViolation(error) &&
           !(error instanceof ReprocessConflictError)
         )
           throw error
@@ -2096,7 +2090,7 @@ export function createResearcherProjectStore(
           }
         })
       } catch (error) {
-        if (!uniqueConstraint(error)) throw error
+        if (!isUniqueViolation(error)) throw error
         const head = await currentHead()
         if (!head) throw error
         return { status: 'conflict', currentRevision: head }
@@ -2170,9 +2164,6 @@ export function createInternalProjectWorkerStore(
 ): InternalProjectWorkerStore {
   const packages = infrastructure.packages ?? canonicalPackageStore
   return {
-    isPackageReferenced(artifactReference) {
-      return packageIsReferenced(database, artifactReference)
-    },
     async projectContextOwner(projectContextId) {
       const project = await database.orm.public.ProjectContext.select('researcherAccountId').first({ id: projectContextId })
       return project?.researcherAccountId ?? null

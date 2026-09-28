@@ -23,7 +23,7 @@ import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
 import type { ExtractionExecution } from './dependencies.js'
 import { ExtractionError } from './errors.js'
 import { extractWorkflowId } from './kei-handoff.js'
-import { modelChoice } from './model-choice.js'
+import { extractionMethod, modelChoice } from './extraction-method.js'
 import { readBatchForResearcher, snapshot } from './postgres-batches.js'
 import { ownsResearcherExtraction } from './postgres-ownership.js'
 import {
@@ -115,9 +115,7 @@ async function resolveAdmission(
     sourceRepresentationRevisionId: input.sourceRepresentationRevisionId,
     schemaRevisionId: input.schemaRevisionId,
     extractionSchemaId: schema.extractionSchemaId,
-    strategy: input.strategy,
-    catalogRecipe: input.strategy === 'CATALOG' ? input.catalogRecipe ?? null : null,
-    requestedModels: modelChoice(input.models),
+    ...extractionMethod(input.strategy, input.catalogRecipe, input.models),
     preprocessId: representation.preprocessId,
   }
 }

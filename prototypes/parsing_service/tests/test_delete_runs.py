@@ -290,7 +290,7 @@ def test_a_failed_status_read_deletes_nothing(kei, fake, monkeypatch, read):
     assert not list(kei.runs.glob(".deleting-*"))
 
 
-@pytest.mark.parametrize("broken", ["not json", "not an object", "no workflow", "walk"])
+@pytest.mark.parametrize("broken", ["missing", "not json", "not an object", "no workflow", "walk"])
 def test_an_unreadable_run_is_kept_and_stops_nothing_else(kei, fake, monkeypatch, broken):
     workflow_id = converted(kei, "kei-convert:ingest:p:n")
     run_id = kei.output(workflow_id)["run_id"]
@@ -298,9 +298,10 @@ def test_an_unreadable_run_is_kept_and_stops_nothing_else(kei, fake, monkeypatch
     corrupt_conversion = "kei-convert:ingest:p:corrupt"  # its history already deleted; its run is still there
     corrupt = kei.runs / runs.run_id_for(corrupt_conversion)
     corrupt.mkdir()
-    params = {"not json": "{", "not an object": "[1]", "no workflow": '{"workflow_id": 5}',
-              "walk": '{"workflow_id": "kei-convert:ingest:p:gone"}'}[broken]
-    (corrupt / "params.json").write_text(params, encoding="utf-8")
+    if broken != "missing":
+        params = {"not json": "{", "not an object": "[1]", "no workflow": '{"workflow_id": 5}',
+                  "walk": '{"workflow_id": "kei-convert:ingest:p:gone"}'}[broken]
+        (corrupt / "params.json").write_text(params, encoding="utf-8")
     age(corrupt)
     original = gc._last_write
 
@@ -319,6 +320,11 @@ def test_an_unreadable_run_is_kept_and_stops_nothing_else(kei, fake, monkeypatch
 def test_a_params_file_that_is_no_object_is_unreadable_not_a_crash(tmp_path, params):
     (tmp_path / "params.json").write_text(params, encoding="utf-8")
     with pytest.raises(ValueError, match="no object"):
+        gc._writers(tmp_path)
+
+
+def test_a_run_without_params_is_unreadable(tmp_path):
+    with pytest.raises(FileNotFoundError, match="params.json"):
         gc._writers(tmp_path)
 
 

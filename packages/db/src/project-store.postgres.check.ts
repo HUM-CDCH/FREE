@@ -30,10 +30,12 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
       createResearcherProjectStore,
     },
     { isUniqueViolation },
+    { createGarbageReferences },
   ] = await Promise.all([
     import('./prisma/db.js'),
     import('./project-store.js'),
     import('./pool-client-transaction.js'),
+    import('./garbage-references.js'),
   ])
   after(async () => {
     await db.close()
@@ -309,7 +311,7 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     [survivingDocument.id],
   )
   assert.equal(
-    await workerStore.isPackageReferenced(representation.artifactReference),
+    await createGarbageReferences(db).packageIsReferenced(representation.artifactReference),
     true,
   )
   for (const table of [

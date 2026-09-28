@@ -43,7 +43,8 @@ from kei_exp.kie.evidence import load_evidence
 from kei_exp.kie.ingest_model import IngestArtifact, IngestConfig
 from kei_exp.kie.primitives import IngestError
 from kei_exp.kie.run_model import OcrConfig, PipelineConfig, RunReport
-from kei_exp.kie.runner import REPORT_NAME, IngestPaths, RunError, document_dir, run
+from kei_exp.kie.ingest_cache import IngestPaths
+from kei_exp.kie.runner import REPORT_NAME, RunError, document_dir, run
 from kei_exp.kie.stages import ingest, ocr
 from kei_exp.pagefile import load_result
 from tests.helpers.fake import FakeTranscriber

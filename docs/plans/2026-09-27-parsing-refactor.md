@@ -1,9 +1,10 @@
 # Parsing and extraction refactor — 2026-09-27
 
-Status: slices 1–11 committed and verified; final whole-branch review passed. Slice 5 keeps its explicit size
-exception (`grounded.py` 582 lines) and slice 7 its partial outcome (`kei_exp.api` still imports heavy modules).
-Future work: runner generation cache, integration-test split, extraction method value owner, `kei_exp.models`
-Docling specs.
+Status: slices 1–11 committed and verified; their final whole-branch review passed.
+Continuation on 2026-09-28: slices 12–14 implemented and verified locally for PR #144;
+not committed or pushed. The architecture loop below continues through method ownership,
+retired paths and truthful lifecycle state.
+Slice 5 keeps its explicit size exception (`grounded.py` 582 lines).
 Base: `377cd050`.
 Branch: `refactor/segmentation-dependency`; isolated from running ablation jobs.
 
@@ -799,10 +800,380 @@ byte-identical, run from a scratch copy whose `direct()` imports `Span` from
 `tests/test_segmentation_dependencies.py`, each seen failing on an injected
 import; fast suite 1102 passed, 72 skipped, 74 deselected.
 
-## Next candidates, reassessed after this slice
+## Candidates recorded after slice 11 (resolved or reassessed below)
 
 1. `kie/runner.py`: pull the ingest-generation cache (`_recover`,
    `_proven`, `_skippable`, `_produce`, `_publish`, `_discard`) out of the
    orchestration.
 2. Split `extraction-module.integration.test.ts` (2,515 lines) by cluster.
 3. One owner for the extraction method value (strategy, recipe, models).
+
+## Continuation — 2026-09-28 (PR #144)
+
+Authority: continue planning → implementation → verification → fixes → exploration.
+Source-only work in this worktree; no changes to registered studies, running jobs,
+DBOS step sequences, deployment, or remote PR state. CodeGraph has no usable index.
+
+### Slice 12 / S12: OCR records without Docling
+
+The API needed model metadata but `models.py` also owned Docling objects. Keep plain
+spec keys in model records; `transcription/specs.py` owns those objects. Migrate VLM
+options and result recipes. Existing local implementation is retained and reviewed.
+Proof: fresh-process API/model imports exclude torch, Docling, Surya and database
+workers; all five spec/recipe values match the captured baseline.
+
+### Slice 13 / S13: persistence test ownership
+
+Split the 2,518-line extraction integration suite along admission, ownership and
+revision pins, batches, attempts/workflow outcomes, reviews, suggested batches, and
+the remote kei contract. A shared test fixture owns DBOS launch, seeded resources,
+scripted kei, quiescence and cleanup. Each test process launches DBOS once.
+Keep test bodies and assertions, disposable-target validation, locks and cleanup
+semantics. No runtime changes. Compare the complete test inventory before/after;
+run TypeScript checks and the real disposable PostgreSQL tier before/after.
+
+### Slice 14 / S14: ingest generation cache
+
+Move generation paths, recovery, cache validation, staged production and two-rename
+publication out of `kie/runner.py` into `kie/ingest_cache.py`. That module owns the
+whole ingest step and its `IngestStep` result; runner owns orchestration and wraps
+stage failures as `RunError`. Keep rollback, validation, warnings, error messages
+and on-disk names unchanged. Remove the old definitions and migrate their callers.
+Proof: existing runner/recovery/corruption tests before/after; one-way import guard
+and full fast Parsing Service suite.
+
+### S15: extraction method value — investigate before applying
+
+Trace strategy, Catalog recipe and requested models from Studio validation through
+admission/replay identity and DBOS handoff into Python options and fingerprints.
+Choose a cut only after proving which duplicated checks encode the same contract;
+retain transport validation and persisted identity formats. Record concrete next
+steps if the cross-language ownership change needs its own review boundary.
+
+Receipts follow each completed slice. All changes are reversible from this diff;
+no data migration or external publication is part of these slices.
+
+### Verification and operation receipt — slices 12–14
+
+Source baseline: `140723cd` plus the existing local slice-12 changes. Runtime files
+under this worktree only. Python used the existing interpreter at
+`/home/gennaro/projects/FREE/prototypes/parsing_service/.venv/bin/python` with
+`PYTHONPATH=src` from this worktree's Parsing Service directory; no sibling source
+imports or dependency installations. PostgreSQL used the already provisioned,
+migrated loopback database `free_test_refactor_extraction` as `postgres` on 5432;
+the suite validates this target before connecting.
+
+- **S12, OCR metadata:** `models.py` owns plain records and spec keys;
+  `transcription/specs.py` owns the four Docling specifications. The VLM adapter
+  still copies the chosen spec before changing generation options. All five OCR
+  spec dumps and result recipes equal `/tmp/segmentation-dependency-model-baseline.json`
+  after sorting Docling's set-valued `supported_engines`. Fresh-process guards
+  require `api` and `models` to load no OCR stack. The broader suite exposed two
+  outdated accepted-import expectations; they now require no API heavy-import
+  edge and identify `transcription.specs` as result publication's remaining edge.
+  No model options, recipe fields or hashes intentionally change.
+- **S13, integration tests:** the original suite is removed. Seven suites own
+  admission (5 tests), ownership/revision pins (11), batches (9), attempts (13),
+  reviews (6), suggested batches (3), and the kei contract (1).
+  `testing/extraction-fixture.ts` owns setup, scripted kei, seeding, waiting and
+  cleanup. An AST-based inventory comparison proves all 48 test bodies are kept,
+  except indentation and the shared `ports.current` reference. All 16 moved fixture
+  functions also preserve their ASTs except that shared-state reference. The separate eight
+  kei-handoff tests stay unchanged. PostgreSQL: **56/56 before and after**.
+  `test:postgres` uses `--test-concurrency=1`: the batch lock assertion counts
+  database-wide waiting statements, so parallel cluster processes could corrupt
+  that observation. This costs startup time: about 27 seconds after versus 11
+  seconds before on this host; no speedup is claimed. Cleanup left no test DBOS
+  schemas or `Extraction test %` projects in the disposable database.
+- **S14, generation cache:** runner **309 → 150** lines; `ingest_cache.py` is
+  181 lines. Eight moved definitions have identical ASTs apart from the owned
+  exception name (`RunError` → `IngestCacheError`). Runner translates the cache's
+  failure back to its existing `RunError`, and conversion to `ConversionError`,
+  preserving messages. Ingest paths, fingerprints, validation, two-rename rollback,
+  previous-generation recovery and post-publication cleanup warnings are kept.
+  Tests patch the new owner directly. The cache imports neither runner nor OCR;
+  an import guard protects that direction. The original focused runner/conversion/
+  API baseline was **90 passed, 4 deselected**.
+
+Final checks:
+
+```sh
+# From prototypes/parsing_service, with the interpreter described above:
+PYTHONPATH=src /home/gennaro/projects/FREE/prototypes/parsing_service/.venv/bin/python -m pytest -q -m 'not postgres and not live_model'
+# From the repository root:
+pnpm --filter extraction typecheck
+pnpm --filter studio typecheck
+pnpm --filter extraction test
+EXTRACTION_TEST_DATABASE_URL=<guarded-disposable-url> pnpm --filter extraction test:postgres
+```
+
+Results: Python **1105 passed, 72 skipped, 74 deselected** (three dependency
+deprecation warnings); extraction fast **85/85**; both TypeScript checks passed;
+extraction PostgreSQL **56/56**. Without database configuration the seven new
+cluster suites skip without launching DBOS. The aggregate PostgreSQL command still
+refuses that invocation through the unchanged `kei-handoff.postgres.test.ts`,
+which explicitly requires `EXTRACTION_TEST_DATABASE_URL`.
+
+Bloat audit: no blocker. The scanner's documentation match for the word
+"compatibility" was a false positive, not an added runtime path. Manually review
+new files as well as the tracked diff: no old facade, toggle, dependency or
+configuration was added. Stage-error translation preserves the existing runner
+contract; the shared test fixture preserves one DBOS owner per process.
+
+Undo: reverse only these source/test/doc changes and restore the original suite
+and package test command; no database migration, durable data or deployment must
+be restored. No Studio browser/service or live-model tier was run; Python
+PostgreSQL/recovery tiers were not rerun for this continuation. Registered study
+resumption remains outside the refactor's compatibility guarantees.
+
+### S15 exploration result before implementation: retain service boundaries
+
+Coverage: `prototypes/studio/shared/extraction.contract.ts`,
+`api/extractions.ts`, `packages/extraction/src/{types,model-choice,postgres-admission,postgres-attempts,postgres-workflow-store,postgres-suggested-batch,workflows}.ts`,
+and Python `kie/extract/{run,method}.py`.
+
+| Owner | Value and guarantee |
+| --- | --- |
+| Studio HTTP contract | Uppercase strategy; syntactically valid optional Catalog recipe; client-supplied models explicitly forbidden. The handler adds the Researcher Account's configured models. |
+| Extraction admission | Stores strategy, nullable recipe, normalized requested models; compares them for replay/conflict. Batch selection identity includes normalized models but batches currently have no recipe choice. |
+| `model-choice.ts` | Already the single TypeScript normalizer for omitted/null/empty role choices, including stored JSON. |
+| `workflows.ts` | Maps the admitted value to lowercase strategy and optional `catalog: {recipe}` / `models` in the kei request. No workflow step sequence change is needed for a pure mapping refactor. |
+| Python `Options` | Validates deployed model availability, recipe existence and strategy-specific experimental options; its serialized value participates in fingerprints. |
+
+Classification: **retain** transport and service validation; these protect
+separate owners and accept deliberately different input. **Retain** the current
+model-choice normalizer. **Unresolved candidate:** one TypeScript domain value
+for strategy/recipe/requested models could consolidate admission and handoff
+construction, but is not a single cross-language validator. First characterize
+all omission/null/empty cases, Article/recipe rejection versus normalization,
+batch selection IDs and emitted kei options as golden contract fixtures; then
+move normalization and request mapping under one domain owner while preserving
+stored fields, wire bytes, errors and Python fingerprint serialization. Risk is
+replay identity and researcher configuration authority, not just type duplication.
+No behavior is removed in this pass. A generated shared schema or another package
+is not justified by the present evidence.
+
+Next ranked exploration: remove `result.py`'s remaining heavy imports only if its
+recipe metadata and PDFium lock can retain their existing authority without
+copying Docling defaults or introducing a second lock. This is a separate
+boundary from the now-lightweight API.
+
+Implementation delegation: at the user's 2026-09-28 request, subsequent implementation
+jobs use `gpt-6-sol`. Its final fixture cleanup removed the unused `pool` export
+(the pool teardown remains local) and tidied moved-code formatting. Extraction
+typecheck and all 48 test-body comparisons passed again after that cleanup.
+
+## Architecture loop goal — 2026-09-28
+
+User goal: keep planning, implementing, verifying, fixing and exploring
+until this repository is well enough, without legacy runtime paths, compatibility
+shims or tangled ownership. Implementation jobs use `gpt-6-sol`.
+
+Completion gate: every production domain below is surveyed; all high-confidence
+behavior-preserving cuts are implemented and verified; remaining candidates are
+explicitly retained for a current contract or have a specific evidence gap. A
+large file alone does not prove spaghetti, and a historical migration or a real
+provider protocol is not obsolete merely because its name contains “legacy” or
+“compatible”. No absolute claim about untested deployment/model behavior.
+
+Coverage map / current owners:
+- Python: API/model imports, result publication/page readers, ingest cache,
+  extraction strategies and artifact contracts. Next slice removes proven
+  page-reader relay imports; heavy result dependencies remain under investigation.
+- Extraction package: admission/replay, method choices, DBOS request mapping,
+  outcomes/reviews and cluster tests. Next slice characterizes method cases, then
+  gives normalization and kei request mapping one TypeScript owner.
+- Studio: HTTP/bootstrap/workflows, schema editing, source/extraction/review UI,
+  pollers/model recovery. Audit distinguishes current lifecycle state from fossils.
+- Database package: account/project/source/schema/suggestion ownership, transaction
+  adapter, schema/migrations, artifact/reference cleanup. `project-store.ts` is
+  large; inspect actual mixed responsibilities before splitting it.
+- Config/scripts/export: launcher/config validation and destructive-target guards;
+  export shaping/delivery, manifests and commands. Preserve actual platform and
+  protocol requirements; reject keyword-only cleanup leads.
+- Historical experiments, frozen registrations, generated ORM contracts and
+  authored migrations are inspected as consumers/contracts, not cleanup targets.
+
+Memory check: earlier DBOS review emphasized retaining authorization, immutable
+pins, evidence, cancellation/publication fences and reference-safe deletion while
+removing obsolete scheduling machinery. Current root README confirms those
+contracts; old migration claims are not treated as current test evidence.
+
+### S15 implementation: one TypeScript extraction-method owner
+
+`packages/extraction/src/extraction-method.ts` replaces `model-choice.ts` and
+owns the canonical strategy/nullable recipe/normalized requested-model value,
+alongside its mapping into kei options. Admission and workflow handoff share it;
+row readers and suggested batches import the same role normalizer. The normalizer
+is unchanged, including key order and whitespace handling. No new package,
+configuration, compatibility export or DBOS step is introduced. Studio HTTP and
+Python runtime validation keep their distinct authority.
+
+Proof: the workflow request table passed on the original implementation before
+movement; ten cases now cover Article/Catalog, absent/null/empty/partial roles,
+unknown roles, recipe applicability and an empty stored recipe. A separate
+admission test pins omission normalization and retained whitespace. Extraction
+fast tests 85 → **86**; TypeScript checks passed. Real PostgreSQL extraction tier
+**56/56** after integration also protects persisted choice/replay/selection IDs.
+Files: new method owner, removed model-choice module, admission/workflow call sites,
+three import-only row-reader/suggestion consumers, workflow tests. Undo is this
+source diff only; no stored formats or public transport changes.
+
+### S16: reader and geometry types have one import owner
+
+`result.py` had retained `pagefile` reexports for its old callers. All actual
+readers already use `pagefile`, so those exports are deleted and the result writer
+qualifies its own model accesses through `pagefile`. Two consumers of incidental
+geometry exports from `pages.py` now import `geometry` directly; pages likewise
+qualifies geometry access. API/pagefile ownership comments and a test monkeypatch
+now identify the real owner. Focused baseline **77 passed, 39 skipped**; combined
+focused checks **88 passed, 39 skipped**; full fast Python **1105/72/74**.
+
+Retained with proof: result recipes read the canonical Docling spec name/prompt,
+which participate in fingerprint bytes, and page rendering uses Docling's single
+PDFium lock. Copying defaults or creating another lock would add competing owners.
+Result import still loads Docling; API/model-record imports remain lightweight.
+No HTTP or persisted format is removed. Undo: reverse only these import/namespace
+and comment changes.
+
+### S17: remove retired Studio annotation client surface
+
+Removed unreachable `AnnotationSidebar.tsx`, its commented imports/rendering and
+AppFrame pass-through, the superseded commented annotation-mode toggle, the unused
+`TemplateAnnotation` type and commented Markdown request. Repository-wide consumer
+search found only those fossils and a dated historical plan; current schema
+requests use the live schema endpoint. **132 lines deleted, zero added** in this
+slice. Annotation storage and canonical evidence remain current and unchanged.
+Focused baseline **79/79**; affected UI/API tests **129/129**, typecheck, affected
+ESLint and residue search passed. Undo is the five-file source diff.
+
+### S18: retire database relays
+
+Removed `project-store.uniqueConstraint`, an alias around the canonical
+`isUniqueViolation`; the account store now imports the latter directly instead of
+depending on unrelated project operations. Removed the worker store's unused
+package-reference method; tests and the Studio ingestion test helper now use the
+existing garbage-reference owner. Production GC already used that owner.
+Concurrent account creation and reference-safe cleanup semantics are kept.
+Database baseline and after **66/66**, affected typechecks passed; subsequent real
+PostgreSQL database tier **47/47**. No schema, migration, dependency or alternate
+implementation. Undo is the store and test-import diff.
+
+### S19: stop inventing workflow execution state
+
+`ASSUMED_RUNNING` and the separate Project Context listing no-reader branch
+fabricated `PENDING`/running status for unsettled work. Main Studio already injects
+the real DBOS status reader; default worker stores only need ingestion/reprocessing
+operations. Remove both guesses. An operation that actually needs unsettled status
+now reports a clear missing-reader error; settled-only reads and ingestion remain
+usable without that capability. This is an intentional misconfiguration error,
+not a change to configured researcher behavior or stored state.
+
+Regression cases prove unsettled batch/suggestion reads reject without a reader,
+and the same reads succeed once outcomes are settled. Database fast **67/67**;
+database/extraction/Studio typechecks and PostgreSQL **47/47 + 56/56** pass. No DBOS
+step sequence changed. Undo: restore only this dependency check and associated tests.
+
+### S20: GC owns strict writer-metadata reads
+
+The sole consumer of `runs.read_json` was GC's `_writers`. Its missing-file fallback
+returned `{}`, treating an existing run without `params.json` as writer-free even
+though the GC contract retains unreadable runs. The new regression failed on that
+fallback. Retire the helper and decode params directly at the GC owner; missing or
+malformed metadata reaches the existing unreadable-run guard. The run and its
+conversion history stay; a wholly absent run still follows the existing no-directory
+path. No workflow steps, history representation or deletion eligibility rules change.
+
+Database-free GC **16 passed**; final Python fast **1106 passed, 72 skipped,
+75 deselected**. Real GC PostgreSQL tier **23/23** before the helper inlining/new
+parameter; afterward all **5/5** unreadable-run variants pass, including missing
+params and conversion-history retention. All changes are source/test-only; undo
+would restore the known unsafe fallback and is not recommended.
+
+### Integrated verification and remaining architecture decisions
+
+`pnpm test:unit:node`: root scripts **60**, configuration **4**, Studio **1556**,
+database **67**, extraction **86**, result export **33** — all passed.
+`pnpm typecheck`, `pnpm --filter studio build`, and `pnpm test:safety` (**18**) pass.
+The build reports its existing chunk-size advisory; no bundle-size claim is made.
+Node PostgreSQL uses `PROJECT_STORE_POSTGRES_URL` and
+`EXTRACTION_TEST_DATABASE_URL` pointed at the migrated loopback
+`free_test_refactor_extraction`; Python GC uses `PARSING_TEST_DATABASE_URL` pointed
+at `free_test_parsing`, with per-case isolated databases. An initial Node invocation
+omitted `PROJECT_STORE_POSTGRES_URL` and correctly refused before connection;
+configuring the required variable produced **47 database + 56 extraction** passes.
+
+Runtime import survey: **263 TypeScript/JavaScript modules, 630 resolved edges,
+no cycles** (relative/workspace static imports/exports and literal dynamic imports;
+type-only imports, generated files, tests and external packages excluded).
+Python AST survey: **79 modules, 281 local edges, no cycles**, including nested
+imports. String-built/dynamic external imports are outside these static proofs;
+registered CLI/workflow/model paths were separately traced by consumer searches.
+
+Retained findings / why no further cut is justified now:
+- DBOS registration imports execute required registration side effects.
+- Article, generic Catalog and recipe Catalog are live implementations with
+  distinct output/experimental contracts; their version labels do not make them
+  abandoned paths. `as_router` has live CLI/test/experimental and production inputs.
+- `kie.evidence` and `kie.passages` model distinct ingest-bound and canonical
+  extraction views. Combining them would restore the dependency crossing already cut.
+- Single-extraction and batch review state have different ownership and save
+  lifetimes. Shared-looking queues do not prove duplicate state.
+- Large Studio panels and `project-store.ts` warrant future focused work only when
+  a concrete authority can move or disappear. A blanket file split would relocate
+  code without removing an obligation. Batch-suggestion persistence is a candidate
+  cluster, but its shared source/project locks must remain coherent.
+- The Prisma pooled-client adapter owns checkout/release across failures. Its
+  single schema-marker probe and client lifecycle view satisfy tested library
+  behavior; deleting them as “compatibility” would risk atomic enqueue or pool safety.
+- Provider-specific protocols, PDF.js's `legacy/build` import path, platform command
+  shims and authored migrations are current dependencies/contracts, not obsolete
+  FREE implementations. Root config/launcher validation and export safety are retained.
+- Frozen study registrations, generated ORM contracts and dated verification plans
+  remain evidence rather than cleanup targets. Live model behavior and study
+  resumption are not established by these deterministic tests.
+
+The final diff audit includes untracked new modules as well as tracked changes.
+Scanner signals only match explanatory wording in this plan; manual code review
+finds no added compatibility layer, parallel implementation, flag or dependency.
+Implementation slices 15–21 were performed by `gpt-6-sol`, with controller
+review and integrated checks. No commits, pushes, PR mutations or deployment.
+
+### S21: batch reset owns its state reset
+
+The batch-ID effect invoked a render-local helper intended for editing and
+persisting member decisions, even though replacing the members with an empty map
+never enters its persistence loop. The effect now directly clears the ref and
+publishes the empty map. No persistence, cancellation or draft conflict semantics
+change. Baseline and after hook tests **75/75**; typecheck passes. After this last
+source edit, the full Studio suite passes again (**1556/1556**).
+
+Lint now has **zero errors, two retained warnings** in `useExtraction`: its monitor
+effect is keyed by document/extraction identity rather than changing snapshot or
+function references; its review-load effect likewise must not restart on every
+render-local draft-writer closure. Adding the suggested dependencies would change
+those lifetimes. No safe small consolidation was proven and no suppressions were
+added; a larger lifecycle redesign would require dedicated behavior evidence.
+
+### Goal stopping decision
+
+Status: completed the current architecture loop on 2026-09-28; local, uncommitted.
+All covered domains were surveyed, the proved cuts were completed, and no
+high-confidence actionable legacy path, shim, duplicate owner or import cycle
+remains in the inspected scope. This is a bounded evidence-based stopping point,
+not a claim that large modules or all possible future improvements are exhausted.
+
+Independent cross-reviews by the `gpt-6-sol` implementers of the opposite language
+found no blockers: Python owner reviewed TypeScript/DB/Studio, and TypeScript owner
+reviewed Python recovery/publication/GC. Controller independently reran the API
+fresh-process import and five-model spec/recipe baseline comparisons after the
+final ownership changes; both passed. `git diff --check` passed and the moved-test
+inventory still contains all 48 unchanged bodies. Bloat review passed; scanner
+signals are explanatory plan wording, not added source fallback/shim paths.
+
+Remaining validation limits: no live model conversions, browser E2E, Studio
+PostgreSQL/service, deployment, or frozen-study resumption verification in this
+continuation. The latest GC branch has real disposable PostgreSQL evidence;
+process-kill recovery was not rerun. Existing build chunk-size advice and the two
+intentional hook-dependency warnings remain visible. Future work must target a
+specific proved ownership/lifecycle obligation rather than splitting for size.

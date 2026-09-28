@@ -7,7 +7,7 @@ import {
   type Database,
 } from 'db'
 import type { ExtractionExecution } from './dependencies.js'
-import { modelChoice } from './model-choice.js'
+import { modelChoice } from './extraction-method.js'
 import { ExtractionError } from './errors.js'
 import type { AdmitBatchMember } from './postgres-admission.js'
 import type { DurableBatchExtraction } from './postgres-batches.js'

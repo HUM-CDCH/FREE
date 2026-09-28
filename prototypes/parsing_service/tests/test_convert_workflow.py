@@ -167,7 +167,7 @@ def test_a_cancel_stops_the_ingest_at_its_next_spread(tmp_path, monkeypatch):
             on_spread(spread, 200)
             seen.append(spread)
         raise AssertionError("the ingest read every spread of a cancelled conversion")
-    monkeypatch.setattr(runner, "ingest_step", ingesting)
+    monkeypatch.setattr(runner.ingest_cache, "ingest_step", ingesting)
     execution = SimpleNamespace(page_source="ingest", ingest_dir=tmp_path, pdf=tmp_path / "input.pdf", ingest=None)
     check = cancel.CancelCheck(WID, min_interval=0.0)
     with pytest.raises(KeiFailure) as stopped:

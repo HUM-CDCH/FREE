@@ -39,6 +39,7 @@ from kei_exp.kie.stages.ocr import TRANSCRIBERS, resolve
 from kei_exp.models import MODELS
 from kei_exp.progress import print_event
 from kei_exp.regions import LAYOUT_MODELS, Region
+from kei_exp.transcription.specs import VLM_SPECS
 from kei_exp.transcription.streaming import StreamingVlmEngine
 from kei_exp.transcription.types import (
     DEFAULT_URL,
@@ -359,8 +360,8 @@ def assembled() -> Assembled:
     engine finalizer would find the logging globals already gone.
     """
     record = MODELS["granite_vision"]
-    assert record.spec is not None  # Model refuses a vlm record without one
-    allowance = record.spec.max_new_tokens
+    assert record.spec_key is not None  # Model refuses a vlm record without one
+    allowance = VLM_SPECS[record.spec_key].max_new_tokens
     whole = assemble(record, url=URL, crops=None, max_image_size=None, max_output_tokens=None,
                      stream=False, keep_images=False, emit=print_event)
     cut = assemble(record, url=URL, crops=COLUMN_CROPS, max_image_size=None, max_output_tokens=128,
@@ -383,10 +384,10 @@ def test_whole_pages_go_as_pdf_at_the_specs_scale_under_the_default_cap_through_
 
 def test_crops_go_as_images_at_their_size_with_the_runs_allowance_through_the_streaming_engine(assembled):
     cut, record = assembled.cut, MODELS["granite_vision"]
-    assert record.spec is not None  # Model refuses a vlm record without one
+    assert record.spec_key is not None  # Model refuses a vlm record without one
     assert cut.input_format == InputFormat.IMAGE and cut.options.scale == 1.0 and cut.options.max_size == 2400
     assert cut.options.model_spec.max_new_tokens == 128
-    assert record.spec.max_new_tokens == assembled.allowance  # spec stays pristine
+    assert VLM_SPECS[record.spec_key].max_new_tokens == assembled.allowance  # spec stays pristine
     engine = stage_engine(cut.pipeline)
     assert isinstance(engine, StreamingVlmEngine) and engine.emit is print_event
     assert cut.pipeline_options.generate_page_images and cut.pipeline_options.images_scale == 1.0
@@ -475,8 +476,8 @@ def test_transcription_of_puts_a_pages_error_on_its_record_and_the_backends_fact
     assert outcome.pages[0].markdown == "# T\n\n76. First"
     assert outcome.incomplete == "page 1: VLM output incomplete (stop_reason=length)."
     assert outcome.header["docling_status"] == "partial_success" and outcome.header["errors"][0]["page_no"] == 1
-    infinity_spec = MODELS["infinity_parser"].spec
-    assert infinity_spec is not None and outcome.header["prompt"] == infinity_spec.prompt
+    infinity_spec = VLM_SPECS["infinity_parser"]
+    assert outcome.header["prompt"] == infinity_spec.prompt
     assert outcome.header["max_output_tokens"] == 16384
 
 

@@ -8,7 +8,7 @@ from pathlib import Path
 from PIL import Image
 
 from kei_exp.models import MODELS
-from kei_exp.pages import CropTransform
+from kei_exp.geometry import CropTransform
 from kei_exp.regions import Region
 from kei_exp.result import Input, Inventory, Source
 from kei_exp.transcription.types import DEFAULT_URL, Execution, PageRecord, Transcription
