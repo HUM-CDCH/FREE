@@ -4,8 +4,11 @@
 
 See `proposal.md` for motivation and
 `docs/plans/2026-09-28-span-grounding.md` for research sources and delivery gates.
-Article orchestration is in `run.py`; `stages.verify()` is shared with generic
-Catalog. Canonical passages and cells already expose source text and offsets.
+After integration with #144, Article orchestration is in `article.py`;
+`grounding.verify()` is shared with generic Catalog through the replaceable
+technique lookup. `assembly.ground_records` owns policy and scheduling for both
+serving and fixed-upstream experiments. Canonical passages and cells expose source
+text and offsets through `kie.passages`.
 The running study uses frozen archives, separate from this checkout.
 
 ## Goals / Non-Goals

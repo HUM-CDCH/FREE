@@ -16,4 +16,4 @@ No spec-level behavior changes. The existing requirements in `extraction-span-gr
 
 ## Impact
 
-`stages.py`, span prompt version, grounding tests and a dated validation record. No new option, dependency, provider, evidence representation or production default. The Qwen OpenAI-compatible provider excludes the reply schema from prompt token counts; distinguish schema bytes from actual token savings in evidence labels. Frozen R5 remains unchanged.
+`grounding.py` (the verifier owner after #144), span prompt version, grounding tests and a dated validation record. No new option, dependency, provider, evidence representation or production default. The Qwen OpenAI-compatible provider excludes the reply schema from prompt token counts; distinguish schema bytes from actual token savings in evidence labels. Frozen R5 remains unchanged.
