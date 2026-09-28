@@ -44,6 +44,10 @@ denominator; empty-field scores and unscored predictions remain separate. Every
 accuracy comparison below has six development-document pairs. Intervals are
 descriptive document-bootstrap intervals (10,000 draws, seed 20260927), not
 independent generalization evidence. No hypothesis-test p-values are asserted.
+R1 and R3 have one registered repetition per arm. Their observed differences
+can include request-to-request model variation; resampling six documents does
+not measure or remove that variation. Temperature zero does not guarantee
+identical replies, as the later repeated-request audit demonstrates.
 
 | Comparison | Mean accuracy change, pp | Descriptive 95% interval, pp |
 |---|---:|---|
