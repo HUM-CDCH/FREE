@@ -183,6 +183,17 @@ do not mark the goal complete merely because a plan or synthetic test suite is f
 
 ## Progress and resume
 
+- Final report collection is now supervised by
+  `free-ablation-final-collection-20260928`, with controls under
+  `artifacts/extraction-ablation/final-collection-20260928/`. It waits for the
+  exact R3/R4 scheduler, requires all R1/R3/R4 seals, replays captures and
+  generates corrected final analysis/accounting/tables plus grounding workload.
+  Reporting code is frozen separately; acceptance reproduces the completed
+  30-cell R2a report and refuses absent-parent/missing-cell cases before any
+  commands. No fresh model replies are permitted. The collector owns the
+  reserved `*-final` report paths for R1/R3/R4; do not duplicate it. Actual
+  generation remains active, and final scientific review remains necessary.
+
 - Latest checkpoint, 2026-09-28 01:57 CEST: R1 has 60/79 sealed cells, all
   replay-verified from 1,945 saved replies with HTTP disabled. R2a is complete
   at 30/30, including offline control/subsequence verification, corrected final

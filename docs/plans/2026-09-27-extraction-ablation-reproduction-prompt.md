@@ -351,6 +351,12 @@ as outcomes, distinct from infrastructure interruptions.
 
 ## 9. Verify captures and analyse with the correct code
 
+Check whether a live final-collection service already owns the report paths.
+Verify its process identity, frozen reporting code and dependency checks before
+starting manual copies of its commands. A collection-complete receipt proves
+only its stated artifact/verification scope; final interpretation and the
+requirement-by-requirement completion audit are still necessary.
+
 For every sealed live-inference result, verify its manifest/cell pin, artifact
 seal and exact finished receipt. Rebuild the artifact from exact saved requests
 and replies, consuming every captured reply. Compare everything except the

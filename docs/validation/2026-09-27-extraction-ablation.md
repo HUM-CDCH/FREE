@@ -35,6 +35,30 @@ under `followups-resume-20260928-3/`. It waits for the new recovery parent and
 requires all 79 seals. The new parent also waits for the earlier Akita launcher
 and selection follower to exit. No inference worker was stopped or duplicated.
 
+Final collection is scheduled separately under
+`artifacts/extraction-ablation/final-collection-20260928/`, owned by user service
+`free-ablation-final-collection-20260928`. It waits for the exact replacement
+R3/R4 scheduler, then requires every R1/R3/R4 artifact seal and execution receipt.
+It never launches fresh model generation. It replays the captures with separately
+cached tokenizer probes, repeats acceptance with HTTP disabled, and generates
+corrected `analysis-final.json`, `accounting-final.json`, `tables-final.md` and
+`grounding-workload-final.json` for those three studies. R2a's existing final
+verification and reports are retained and checked. Do not write these reserved
+final paths in parallel with the collector.
+
+Reporting is also frozen: 75 source files, the corrected analyzer and four helper
+scripts are preserved in `reporting-code.zip`, SHA-256
+`43058e46665ae3b69e8f8ce7d709f368702f867b834992a8e6e23b29a2a8d426`.
+The replay cache retains 1,455 previously observed tokenizer probes. Acceptance
+checks regenerated all 30 R2a metrics/accounting/table contents identically,
+apart from provenance paths and dependent hashes, and replayed Herredsvejen
+bounded with HTTP and fresh generation disabled. Absent-parent and incomplete-
+study checks refuse collection before launching commands. Receipts are under
+`acceptance-r2a/`; `waiting-verification.json` confirms the collector is waiting
+with no child commands. `collection-complete.json`, when present and validated,
+will establish generated reports, not reviewed scientific conclusions or goal
+completion. A missing cell or failed command stops collection without retry.
+
 The following paragraphs retain the earlier checkout-recovery record; their
 counts and scheduler identities are historical.
 
