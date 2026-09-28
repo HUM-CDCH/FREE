@@ -16,6 +16,7 @@ from kei_exp.kie.extract.evidence import Passage, text_of
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.rendering import structured_source
+from kei_exp.kie.extract.routing import value_origins
 from kei_exp.kie.extract.schema import SCALAR_JSON, Schema, json_schema
 from kei_exp.kie.extract.selection import select_contexts
 from kei_exp.kie.extract.stages import Call, Issue, _complete, _instruction, _labelled, extract_record, normal, record_request
@@ -31,6 +32,7 @@ class Records:
     conflicts: list[dict]
     value_contexts: list[list[Context]]
     selections: list[dict]
+    origins: list[list[dict]]
 
 
 def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counters: dict,
@@ -57,6 +59,7 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
     conflicts = []
     value_contexts = []
     selections = []
+    origins = []
     for number, item in enumerate(identities):
         candidates = []
         record_groups = groups
@@ -84,11 +87,13 @@ def extract_records(passages: Sequence[Passage], schema: Schema, chat: Chat, *, 
             issues += problems
             candidates.append(fields)
         fields, contested = reconcile_values(candidates) if len(record_groups) != 1 else (candidates[0], [])
+        if method is not None and method.grounding_routing is not None:
+            origins.append(value_origins(candidates, fields, item["identity"], item["passages"]))
         conflicts += [{"record": number, **conflict} for conflict in contested]
         issues += [Issue("conflicting_values", json.dumps(conflict, ensure_ascii=False), number)
                    for conflict in contested]
         slices.append((list(passages), fields))
-    return Records(identities, slices, calls, issues, conflicts, value_contexts, selections)
+    return Records(identities, slices, calls, issues, conflicts, value_contexts, selections, origins)
 
 
 def inventory_request(passages: Sequence[Passage], schema: Schema, method: ArticleOptions | None = None):

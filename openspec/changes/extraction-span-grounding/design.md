@@ -42,6 +42,11 @@ changing current defaults, or claiming human-level support from syntactic validi
    Record exactly which units were tried. Strict fallback covers all remaining units
    for unresolved claims, preserving budget refusals. Learned dense retrieval is a
    separate later model factor, not a hidden dependency of this implementation.
+   The implemented `origin_lexical` order prefers units owning contributing value
+   contexts (inventory citations for bound identity fields), then lexical value
+   matches and BM25 field/value relevance. It ranks every unit without a top-k
+   exclusion. Claims sharing a next unit remain batched. Original value-call paths
+   survive exact array union; the hints do not substitute for semantic support.
 6. Grounding experiments freeze upstream records/inventory before varying the verifier.
    Keep OFAT contrasts for representation, scheduling, policy and routing, plus the
    requested cumulative stack. Final metrics retain all-leaf and eligible denominators.

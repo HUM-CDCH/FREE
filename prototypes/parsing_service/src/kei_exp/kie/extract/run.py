@@ -35,6 +35,7 @@ from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.models import Router, as_router, chats_for
 from kei_exp.kie.extract.method import ArticleOptions, LimitedCounter
 from kei_exp.kie.extract.rendering import RENDERING_VERSION
+from kei_exp.kie.extract.routing import VERSION as GROUNDING_ROUTING_VERSION, verify_routed
 from kei_exp.kie.extract.schema import Schema, evidence_policy
 from kei_exp.kie.extract.selection import VERSION as SELECTION_VERSION
 from kei_exp.kie.extract.spans import VERSION as SPAN_GROUNDING_VERSION
@@ -130,6 +131,8 @@ def fingerprint(result: dict, request: ExtractRequest, model: dict) -> str:
            if request.options.article is not None and request.options.article.selection is not None else {}),
         **({"span_grounding_version": SPAN_GROUNDING_VERSION}
            if request.options.article is not None and request.options.article.grounding == "spans" else {}),
+        **({"grounding_routing_version": GROUNDING_ROUTING_VERSION}
+           if request.options.article is not None and request.options.article.grounding_routing is not None else {}),
     })).hexdigest()
 
 
@@ -215,6 +218,7 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
     proofs: list[dict] = []
     policy_enabled = method is not None and method.evidence_policy == "schema"
     policy_skipped = []
+    grounding_routes = []
     for number, (group, fields) in enumerate(slices):
         check()
         skipped_paths = set()
@@ -230,15 +234,24 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
         verification_groups = [c.passages for c in contexts] if article else [group]
         if method is not None and method.grounding == "off":
             verification_groups = []
+        verification = dict(record=number, budget=options.record_chars, counter=counter["reasoning"] if article else None,
+            record_context=(identities[number]["label"] + "\n" + json.dumps(identities[number]["identity"],
+                ensure_ascii=False)) if article else None,
+            before_call=check, quoted=method is not None and method.grounding == "quoted", proofs=proofs,
+            span_ids=method is not None and method.grounding == "spans")
+        if method is not None and method.grounding_routing is not None:
+            found_links, grounding_calls, grounding_issues, routes = verify_routed(contexts, fields, schema, chat,
+                origins=extracted.origins[number], value_contexts=extracted.value_contexts[number],
+                skip_paths=frozenset(skipped_paths), **verification)
+            links += found_links
+            calls += grounding_calls
+            issues += grounding_issues
+            grounding_routes += routes
+            verification_groups = []
         for verification_group in verification_groups:
             found_links, grounding_calls, grounding_issues = verify(verification_group, fields, schema, chat,
-                record=number, budget=options.record_chars, counter=counter["reasoning"] if article else None,
-                record_context=(identities[number]["label"] + "\n" + json.dumps(identities[number]["identity"],
-                    ensure_ascii=False)) if article else None,
-                before_call=check, quoted=method is not None and method.grounding == "quoted", proofs=proofs,
-                span_ids=method is not None and method.grounding == "spans",
                 skip_paths=frozenset(skipped_paths | ({link.path for link in links}
-                    if method is not None and method.grounding_schedule == "unresolved" else set())))
+                    if method is not None and method.grounding_schedule == "unresolved" else set())), **verification)
             # Retain the first support in canonical order for each path; all calls remain auditable.
             known = {link.path for link in links}
             links += [link for link in found_links if link.path not in known]
@@ -274,6 +287,11 @@ def extract(run_dir: Path, request: ExtractRequest, chat: Chat | Router, *, gene
         result["quoted_support"] = proofs
         if method.grounding == "spans":
             result["span_grounding_version"] = SPAN_GROUNDING_VERSION
+        if method.grounding_routing is not None:
+            result["grounding_routing_version"] = GROUNDING_ROUTING_VERSION
+            result["value_origins"] = [{**item, "path": ["records", number, *item["path"]]}
+                for number, origins in enumerate(extracted.origins) for item in origins]
+            result["grounding_routes"] = grounding_routes
         if method.rendering is not None:
             result["rendering_version"] = RENDERING_VERSION
         if method.grouping is not None:

@@ -1,8 +1,8 @@
 # Span grounding prototype — 2026-09-28
 
-Status: source-span verification, unresolved-path scheduling and schema evidence
-policy implemented and tested in `feat/extraction-span-grounding`; retrieval and live
-evaluation remain unfinished. See the [plan](../plans/2026-09-28-span-grounding.md).
+Status: source-span verification, unresolved-path scheduling, schema evidence policy
+and origin/lexical routing implemented and tested in `feat/extraction-span-grounding`;
+registration and live evaluation remain unfinished. See the [plan](../plans/2026-09-28-span-grounding.md).
 Existing frozen study runs and production defaults are unchanged.
 
 ## Implemented behavior
@@ -83,3 +83,31 @@ R1/R2a/R3/R4 completion and final-report obligations remain open.
 - All six old-method scripted comparisons remain byte-identical after policy
   implementation (`reference-after-policy.json`, same SHA-256 above). The frozen
   study analyzer and collector remain untouched.
+
+## Routing verification
+
+`grounding_routing=origin_lexical` records per-leaf value-call origins, distinguishing
+inventory-bound fields and remapping exact array items to their original indexes.
+It ranks whole contexts by origins, lexical value matches and BM25 relevance, then
+groups claims sharing their next unit. Unresolved claims reach every remaining
+unit; refusal is distinct from an attempted call. Successful support stops only
+that path, with unvisited contexts retained. Nothing claims contradiction recall.
+
+- `tests/test_extraction_routing.py`: **15 passed**. Coverage includes array-index
+  remapping, repeated occurrences, equal values in unrelated fields, scalar
+  conflicts, identity provenance, late support outside preferred units, shared
+  claim batching, NONE/missing/invalid/negative/truncated replies, budget refusal,
+  cancellation, table/header context, policy skips and assembled artifact behavior.
+- Full fast Python suite: **1,121 passed, 72 skipped, 74 deselected**, with the
+  same three dependency warnings. This includes both additional policy tests.
+- Six old-method scripted cases remain byte-identical, including requests,
+  artifacts and fingerprints. Receipt: `reference-routing-verification.json`
+  in the artifact directory above, output `reference-after-routing.json`, same
+  SHA-256 as the original reference. No fresh inference occurred.
+- Manual bloat audit includes the new module and tests; tracked-diff scanner
+  reports no findings. The independent routing factor and fallback are explicit
+  study requirements; the existing verifier remains the sole support owner.
+
+Fresh cost, retrieval adequacy and semantic attribution remain unmeasured. An
+origin is a reply provenance hint, not support; BM25 and value matching only order
+work. Existing R1/R2a/R3/R4 source, collector and generation jobs are unchanged.

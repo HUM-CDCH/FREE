@@ -15,8 +15,8 @@
 
 ## 3. Candidate routing
 
-- [ ] 3.1 Retain per-value extraction-origin hints without treating them as support; test reconciliation/provenance and describe the artifact.
-- [ ] 3.2 Implement deterministic candidate routing with exhaustive unresolved fallback and attempted/refused/remaining accounting; test late support and table/header context.
+- [x] 3.1 Retain per-value extraction-origin hints without treating them as support; test reconciliation/provenance and describe the artifact.
+- [x] 3.2 Implement deterministic candidate routing with exhaustive unresolved fallback and attempted/refused/remaining accounting; test late support and table/header context.
 
 ## 4. Controlled grounding experiment
 

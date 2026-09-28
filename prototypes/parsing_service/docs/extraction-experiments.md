@@ -23,6 +23,7 @@ flowchart LR
 | `evidence.py` | Verify canonical files and expose stable passages/tables. |
 | `rendering.py` | Expose block types and table cell spans to the model while retaining exact canonical text. |
 | `spans.py` | Offer exact generation-scoped source ranges and intact canonical cells for compact grounding decisions. |
+| `routing.py` | Map reconciled values to reply origins and order whole verification units with exhaustive unresolved fallback. |
 | `method.py` | Validate explicit experimental choices; enforce the Article context ceiling. |
 | `contexts.py` | Partition whole passages or structural groups with disjoint primary ownership, inherited heading context and optional overlap; reconcile values without hiding scalar conflicts. |
 | `selection.py` | Select whole value contexts from inventory support, adjacent qualifiers and schema relevance; expose omitted units. |
@@ -120,9 +121,35 @@ Studio does not expose these controls.
   when empty). Existing all-leaf grounding and link-rate metrics remain unchanged.
   The analyzer checks the ledger against the schema and rejects links on skipped
   fields. Without this method factor, metadata does not prune verification.
+- `grounding_routing=origin_lexical` requires `grounding_schedule=unresolved` and
+  quoted or span grounding. It orders whole source units per claim: units owning
+  extraction-origin passages first, then bounded lexical value matches and BM25
+  field/value relevance, with canonical index as the final tie-breaker. No source
+  unit is excluded; unresolved claims continue through every remaining unit.
+  Claims sharing their next unit are verified in one batch where budgets allow.
+  Failed, missing and invalid decisions do not stop search; refusals remain gaps.
+  Table cells, headers, qualifiers and structural context are not cut by routing.
+  This is deterministic lexical retrieval, without a dense model or service.
 
-These methods are opt-in prototypes. Origin/retrieval routing and their controlled
-live comparison remain in the [follow-up plan](../../../docs/plans/2026-09-28-span-grounding.md).
+With routing enabled, `value_origins` retains each full record leaf path and its
+contributing value-call unit/index path. Array unions may change output indexes;
+the mapping requires an exact whole-item match to an original reply. Scalar
+conflicts remain null and acquire no origin. Identity fields bound by the inventory
+retain `kind=inventory` and its model-supplied citations instead of pretending they
+were extracted again in each value call. Value units refer to `value_contexts`;
+routing prefers their primary ownership, not duplicated heading/overlap text.
+These are extraction hints, not canonical evidence or proof of support.
+
+`grounding_routes` retains full claim paths, ordered unit indexes, origin/value
+match hints, lexical scores, attempted/refused/remaining units and supported status.
+An attempted unit can still have a failed model reply; the existing calls/issues
+ledger retains those failures. `attempted_all` means every unit was submitted,
+not that every reply was usable or no contradiction exists. `partial` retains
+budget/no-evidence refusals; `stopped_after_support` retains unvisited units.
+The separately recorded `grounding_routing_version` participates in fingerprints.
+
+These methods are opt-in prototypes. Their controlled live comparison remains in
+the [follow-up plan](../../../docs/plans/2026-09-28-span-grounding.md).
 They do not alter the running frozen R1/R2a/R3/R4 study.
 
 The shared decoder accepts literal control characters only inside strings and

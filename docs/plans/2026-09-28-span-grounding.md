@@ -7,10 +7,11 @@ Tasks and implementation decisions: `openspec/changes/extraction-span-grounding/
 The [original study](2026-09-27-modular-extraction-ablation-study.md) remains unfinished
 and independently supervised; its frozen source and registered matrix are unchanged.
 
-Implemented: span-ID verification, independent unresolved-path scheduling and schema
-evidence policy. [Validation](../validation/2026-09-28-span-grounding.md) records focused
-and full suites, a real PostgreSQL policy round trip and exact old-method regression.
-Origin/retrieval routing, fresh comparison and semantic-quality evaluation remain open.
+Implemented: span-ID verification, independent unresolved-path scheduling, schema
+evidence policy, per-value origin hints and lexical routing with unresolved fallback.
+[Validation](../validation/2026-09-28-span-grounding.md) records focused and full suites,
+a real PostgreSQL policy round trip and exact old-method regression. Fixed-upstream
+registration, fresh comparison and semantic-quality evaluation remain open.
 
 ## Evidence and research boundary
 
